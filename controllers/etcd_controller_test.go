@@ -21,7 +21,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	druidv1 "github.com/gardener/etcd-druid/api/v1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -42,7 +42,7 @@ var _ = Describe("Druid", func() {
 	Context("when adding etcd resources", func() {
 
 		var err error
-		var instance *druidv1.Etcd
+		var instance *druidv1alpha1.Etcd
 		var c client.Client
 		BeforeEach(func() {
 			instance = getEtcd("foo1", "default")
@@ -68,7 +68,7 @@ var _ = Describe("Druid", func() {
 	})
 	Context("when adding etcd resources", func() {
 		var err error
-		var instance *druidv1.Etcd
+		var instance *druidv1alpha1.Etcd
 		var c client.Client
 
 		BeforeEach(func() {
@@ -102,7 +102,7 @@ var _ = Describe("Druid", func() {
 	})
 })
 
-func getStatefulset(c client.Client, instance *druidv1.Etcd, ss *appsv1.StatefulSet) {
+func getStatefulset(c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.StatefulSet) {
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	wait.PollImmediateUntil(1*time.Second, func() (bool, error) {
@@ -121,13 +121,13 @@ func getStatefulset(c client.Client, instance *druidv1.Etcd, ss *appsv1.Stateful
 		return true, nil
 	}, ctx.Done())
 }
-func getEtcd(name, namespace string) *druidv1.Etcd {
-	instance := &druidv1.Etcd{
+func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
+	instance := &druidv1alpha1.Etcd{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo2",
 			Namespace: "default",
 		},
-		Spec: druidv1.Spec{
+		Spec: druidv1alpha1.Spec{
 			Annotations: map[string]string{
 				"app":  "etcd-statefulset",
 				"role": "test",
@@ -136,25 +136,25 @@ func getEtcd(name, namespace string) *druidv1.Etcd {
 				"app":  "etcd-statefulset",
 				"role": "test",
 			},
-			PVCRetentionPolicy:  druidv1.PolicyDeleteAll,
+			PVCRetentionPolicy:  druidv1alpha1.PolicyDeleteAll,
 			Replicas:            1,
 			StorageClass:        "gardener.cloud-fast",
 			TLSClientSecretName: "etcd-client-tls",
 			TLSServerSecretName: "etcd-server-tls",
 			StorageCapacity:     "80Gi",
-			Store: druidv1.StoreSpec{
+			Store: druidv1alpha1.StoreSpec{
 				StoreSecret:      "etcd-backup",
 				StorageContainer: "shoot--dev--i308301-1--b3caa",
 				StorageProvider:  "S3",
 				StorePrefix:      "etcd-test",
 			},
-			Backup: druidv1.BackupSpec{
+			Backup: druidv1alpha1.BackupSpec{
 				PullPolicy:               corev1.PullIfNotPresent,
 				ImageRepository:          "eu.gcr.io/gardener-project/gardener/etcdbrctl",
 				ImageVersion:             "0.8.0-dev",
 				Port:                     8080,
 				FullSnapshotSchedule:     "0 */24 * * *",
-				GarbageCollectionPolicy:  druidv1.GarbageCollectionPolicyExponential,
+				GarbageCollectionPolicy:  druidv1alpha1.GarbageCollectionPolicyExponential,
 				EtcdQuotaBytes:           8589934592,
 				EtcdConnectionTimeout:    "300s",
 				SnapstoreTempDir:         "/var/etcd/data/temp",
@@ -172,9 +172,9 @@ func getEtcd(name, namespace string) *druidv1.Etcd {
 					},
 				},
 			},
-			Etcd: druidv1.EtcdSpec{
+			Etcd: druidv1alpha1.EtcdSpec{
 				EnableTLS:               false,
-				MetricLevel:             druidv1.Basic,
+				MetricLevel:             druidv1alpha1.Basic,
 				ImageRepository:         "quay.io/coreos/etcd",
 				ImageVersion:            "v3.3.13",
 				DefragmentationSchedule: "0 */24 * * *",

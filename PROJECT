@@ -1,7 +1,7 @@
 version: "2"
-domain: sapcloud.io
+domain: gardener.cloud
 repo: github.com/gardener/etcd-druid
 resources:
 - group: druid
-  version: v1
+  version: v1alpha1
   kind: Etcd

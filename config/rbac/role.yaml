@@ -7,7 +7,7 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - druid.sapcloud.io
+  - druid.gardener.cloud
   resources:
   - etcds
   verbs:
@@ -19,7 +19,7 @@ rules:
   - patch
   - delete
 - apiGroups:
-  - druid.sapcloud.io
+  - druid.gardener.cloud
   resources:
   - etcds/status
   verbs:

@@ -19,8 +19,9 @@ import (
 	"flag"
 	"os"
 
-	druidv1 "github.com/gardener/etcd-druid/api/v1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/controllers"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	schemev1 "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -36,7 +37,7 @@ var (
 
 func init() {
 	schemev1.AddToScheme(scheme)
-	druidv1.AddToScheme(scheme)
+	druidv1alpha1.AddToScheme(scheme)
 
 	// +kubebuilder:scaffold:scheme
 }

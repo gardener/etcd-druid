@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/managed-by: {{ .Values.managedBy }}
     app.kubernetes.io/instance: {{ .Values.name }}
   ownerReferences:
-  - apiVersion: druid.sapcloud.io/v1
+  - apiVersion: druid.gardener.cloud/v1
     blockOwnerDeletion: false
     controller: true
     kind: Etcd

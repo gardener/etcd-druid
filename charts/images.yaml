@@ -1,0 +1,10 @@
+# List of all container images which are deployed by the Etcd-druid.
+images:
+- name: etcd
+  sourceRepository: github.com/coreos/etcd
+  repository: quay.io/coreos/etcd
+  tag: v3.3.13
+- name: etcd-backup-restore
+  sourceRepository: github.com/gardener/etcd-backup-restore
+  repository: eu.gcr.io/gardener-project/gardener/etcdbrctl
+  tag: "0.7.3"
