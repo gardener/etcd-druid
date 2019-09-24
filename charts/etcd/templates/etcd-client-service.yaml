@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{.Values.name}}-etcd-client
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: etcd
+    app.kubernetes.io/managed-by: {{ .Values.managedBy }}
+    app.kubernetes.io/instance: {{ .Values.name }}
+  ownerReferences:
+  - apiVersion: druid.sapcloud.io/v1
+    blockOwnerDeletion: false
+    controller: true
+    kind: Etcd
+    name: {{ .Values.name }}
+    uid: {{ .Values.uid }}
+spec:
+  type: ClusterIP
+  sessionAffinity: None
+  selector:
+    app.kubernetes.io/name: etcd
+    app.kubernetes.io/instance: {{ .Values.name }}
+  ports:
+  - name: client
+    protocol: TCP
+    port: {{ .Values.etcd.clientPort }}
+    targetPort: {{ .Values.etcd.clientPort }}
+  - name: server
+    protocol: TCP
+    port: {{ .Values.etcd.serverPort }}
+    targetPort: {{ .Values.etcd.serverPort }}
+  - name: backuprestore
+    protocol: TCP
+    port: {{ .Values.backup.port }}
+    targetPort: {{ .Values.backup.port }}

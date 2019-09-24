@@ -1,0 +1,30 @@
+replicas: 1
+
+storageCapacity: 16Gi
+
+tlsServerSecret: etcd-server-tls
+tlsClientSecret: etcd-client-tls
+podAnnotations: {}
+
+etcd:
+  metrics: basic
+  clientPort: 2379
+  serverPort: 2380
+  resources:
+    limits:
+      cpu: 100m
+      memory: 512Gi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  #username: username
+  #password: password
+
+backup:
+  resources:
+    limits:
+      cpu: 100m
+      memory: 512Gi
+    requests:
+      cpu: 50m
+      memory: 128Mi

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.name }}-backup-client
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: etcd
+    app.kubernetes.io/managed-by: {{ .Values.managedBy }}
+    app.kubernetes.io/instance: {{ .Values.name }}
+spec:
+  type: ClusterIP
+  sessionAffinity: None
+  selector:
+    app.kubernetes.io/name: etcd
+    app.kubernetes.io/instance: {{ .Values.name }}
+  ports:
+  - name: client
+    protocol: TCP
+    port: {{ .Values.backup.port }}
+    targetPort: {{ .Values.backup.port }}

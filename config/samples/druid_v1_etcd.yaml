@@ -1,0 +1,68 @@
+apiVersion: druid.sapcloud.io/v1
+kind: Etcd
+metadata:
+    name: test
+    namespace: shoot--dev--i308301-1
+    labels:
+        app: etcd-statefulset
+        garden.sapcloud.io/role: controlplane
+        role: test
+spec:
+    pvcRetentionPolicy: DeleteAll
+    annotations:
+        app: etcd-statefulset
+        garden.sapcloud.io/role: controlplane
+        networking.gardener.cloud/to-dns: allowed
+        networking.gardener.cloud/to-private-networks: allowed
+        networking.gardener.cloud/to-public-networks: allowed
+        role: test
+    labels:
+        app: etcd-statefulset
+        garden.sapcloud.io/role: controlplane
+        networking.gardener.cloud/to-dns: allowed
+        networking.gardener.cloud/to-private-networks: allowed
+        networking.gardener.cloud/to-public-networks: allowed
+        role: test
+    etcd:
+        enableTLS: false
+        storageCapacity: 80Gi
+        metrics: basic
+        imageRepository: quay.io/coreos/etcd
+        imageVersion: v3.3.13
+        defragmentationSchedule: '0 */24 * * *'
+        resources:
+            limits: {cpu: 2500m, memory: 4Gi}
+            requests: {cpu: 500m, memory: 1000Mi}
+        storageClass: gardener.cloud-fast
+        clientPort: 2379
+        serverPort: 2380
+        pullPolicy: IfNotPresent
+        initialClusterToken: new
+        initialClusterState: new
+    backup:
+        pullPolicy: IfNotPresent
+        imageRepository: eu.gcr.io/gardener-project/gardener/etcdbrctl
+        imageVersion: 0.8.0-dev
+
+        port: 8080
+        fullSnapshotSchedule: '0 */24 * * *'
+        resources:
+            limits: {cpu: 500m, memory: 2Gi}
+            requests: {cpu: 23m, memory: 128Mi}
+        garbageCollectionPolicy: Exponential
+        etcdQuotaBytes: 8589934592
+        etcdConnectionTimeout: 300s
+        snapstoreTempDir: /var/etcd/data/temp
+        garbageCollectionPeriod: 43200s
+        deltaSnapshotPeriod: 300s
+        deltaSnapshotMemoryLimit: 104857600
+    store:
+        storeSecret: etcd-backup
+        storageContainer: shoot--dev--i308301-1--b3caa
+        storageProvider: S3
+        storePrefix: etcd-test
+    replicas: 1
+    storageClass: gardener.cloud-fast
+    tlsServerSecret: etcd-server-tls
+    tlsClientSecret: etcd-client-tls
+    storageCapacity: 80Gi

@@ -1,0 +1,276 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: etcd-{{ .Values.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: etcd
+    app.kubernetes.io/instance: {{ .Values.name }}
+{{- if .Values.labels }}
+{{ toYaml .Values.labels | indent 4 }}
+{{- end }}
+  ownerReferences:
+  - apiVersion: druid.sapcloud.io/v1
+    blockOwnerDeletion: false
+    controller: true
+    kind: Etcd
+    name: {{ .Values.name }}
+    uid: {{ .Values.uid }}
+spec:
+  updateStrategy:
+    type: RollingUpdate
+  serviceName: {{ .Values.name }}-etcd-client
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: etcd
+      app.kubernetes.io/instance: {{ .Values.name }}
+  template:
+    metadata:
+{{- if .Values.annotations }}
+      annotations:
+        checksum/configmap-etcd-bootstrap: {{ include (print $.Template.BasePath "/configmap-etcd-bootstrap.yaml") . | sha256sum }}
+{{ toYaml .Values.annotations | indent 8 }}
+{{- end }}
+      labels:
+        app.kubernetes.io/name: etcd
+        app.kubernetes.io/instance: {{ .Values.name }}
+{{- if .Values.labels }}
+{{ toYaml .Values.labels | indent 8 }}
+{{- end }}
+    spec:
+      containers:
+      - name: etcd
+        image: {{ .Values.etcd.imageRepository }}:{{ .Values.etcd.imageVersion }}
+        imagePullPolicy: {{ .Values.etcd.pullPolicy }}
+        command:
+        - /var/etcd/bin/bootstrap.sh
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.backup.port }}
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -ec
+            - ETCDCTL_API=3
+            - etcdctl
+{{- if .Values.etcd.enableTLS }}
+            - --cert=/var/etcd/ssl/client/tls.crt
+            - --key=/var/etcd/ssl/client/tls.key
+            - --cacert=/var/etcd/ssl/ca/ca.crt
+            - --endpoints=https://etcd-{{ .Values.name }}-0:{{ .Values.etcd.clientPort }}
+{{ else }}
+            - --endpoints=http://etcd-{{ .Values.name }}-0:{{ .Values.etcd.clientPort }}
+{{ end }}
+{{- if and .Values.etcd.username .Values.etcd.password }}
+            - --user={{ .Values.etcd.username }}:{{ .Values.etcd.password }}
+{{- end }}            
+            - get
+            - foo
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        ports:
+        - containerPort: {{ .Values.etcd.serverPort }}
+          name: server
+          protocol: TCP
+        - containerPort: {{ .Values.etcd.clientPort }}
+          name: client
+          protocol: TCP
+        resources:
+{{ toYaml .Values.etcd.resources | indent 10 }}
+        volumeMounts:
+        - name: etcd-{{ .Values.name }}
+          mountPath: /var/etcd/data/
+        - name: etcd-bootstrap-sh
+          mountPath: /var/etcd/bin/
+        - name: etcd-config-file
+          mountPath: /var/etcd/config/
+{{- if .Values.etcd.enableTLS }}
+        - name: ca-etcd
+          mountPath: /var/etcd/ssl/ca
+        - name: etcd-server-tls
+          mountPath: /var/etcd/ssl/server
+        - name: etcd-client-tls
+          mountPath: /var/etcd/ssl/client
+{{- end }}
+      - name: backup-restore
+        command:
+        - etcdbrctl
+        - server
+        - --defragmentation-schedule={{ .Values.etcd.defragmentationSchedule }}
+        - --schedule={{ .Values.backup.fullSnapshotSchedule }}
+        - --garbage-collection-policy={{ .Values.backup.garbageCollectionPolicy }}
+{{- if eq .Values.backup.garbageCollectionPolicy "LimitBased" }}
+        - --max-backups={{ .Values.backup.maxBackups }}
+{{- end }}
+        - --data-dir=/var/etcd/data/new.etcd
+        - --storage-provider={{ .Values.store.storageProvider }}
+        - --store-prefix={{ .Release.Name }}-etcd
+{{- if .Values.backup.etcdQuotaBytes }}
+        - --embedded-etcd-quota-bytes={{ int $.Values.backup.etcdQuotaBytes }}
+{{- end }}
+{{- if .Values.etcd.enableTLS }}
+        - --cert=/var/etcd/ssl/tls/tls.crt
+        - --key=/var/etcd/ssl/tls/tls.key
+        - --cacert=/var/etcd/ssl/ca/ca.crt
+        - --insecure-transport=false
+        - --insecure-skip-tls-verify=false
+        - --endpoints=https://etcd-{{ .Values.name }}-0:{{ .Values.etcd.clientPort }}
+{{ else }}
+        - --insecure-transport=true
+        - --insecure-skip-tls-verify=true
+        - --endpoints=http://etcd-{{ .Values.name }}-0:{{ .Values.etcd.clientPort }}
+{{- end }}
+        - --etcd-connection-timeout={{ .Values.backup.etcdConnectionTimeout }}
+        - --delta-snapshot-period={{ int $.Values.backup.deltaSnapshotPeriod }}
+        - --delta-snapshot-memory-limit={{ int $.Values.backup.deltaSnapshotMemoryLimit }}
+{{- if and .Values.etcd.username .Values.etcd.password }}
+        - --etcd-username={{ .Values.etcd.username }}
+        - --etcd-password={{ .Values.etcd.password }}
+{{- end }}        
+        - --garbage-collection-period={{int $.Values.backup.garbageCollectionPeriod }}
+        - --snapstore-temp-directory={{ .Values.backup.snapstoreTempDir }}
+        image: {{ .Values.backup.imageRepository }}:{{ .Values.backup.imageVersion }}
+        imagePullPolicy: {{ .Values.backup.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.backup.port }}
+          name: server
+          protocol: TCP
+        resources:
+{{ toYaml .Values.backup.resources | indent 10 }}
+        env:
+        - name: STORAGE_CONTAINER
+          value: {{ .Values.store.storageContainer }}
+{{- if eq .Values.store.storageProvider "S3" }}
+        - name: "AWS_REGION"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "region"
+        - name: "AWS_SECRET_ACCESS_KEY"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "secretAccessKey"
+        - name: "AWS_ACCESS_KEY_ID"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "accessKeyID"
+{{- else if eq .Values.store.storageProvider "ABS" }}
+        - name: "STORAGE_ACCOUNT"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "storageAccount"
+        - name: "STORAGE_KEY"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "storageKey"
+{{- else if eq .Values.store.storageProvider "GCS" }}
+        - name: "GOOGLE_APPLICATION_CREDENTIALS"
+          value: "/root/.gcp/serviceaccount.json"
+{{- else if eq .Values.store.storageProvider "Swift" }}
+        - name: "OS_AUTH_URL"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "authURL"
+        - name: "OS_DOMAIN_NAME"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "domainName"
+        - name: "OS_USERNAME"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "username"
+        - name: "OS_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "password"
+        - name: "OS_TENANT_NAME"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "tenantName"
+{{- else if eq .Values.store.storageProvider "OSS" }}
+        - name: ""ALICLOUD_ENDPOINT""
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "endpoint"
+        - name: "ALICLOUD_ACCESS_KEY_SECRET"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "accessKeySecret"
+        - name: "ALICLOUD_ACCESS_KEY_ID"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "accessKeyID"
+{{- end }}
+        volumeMounts:
+        - name: etcd-{{ .Values.name }}
+          mountPath: /var/etcd/data
+        - name: etcd-config-file
+          mountPath: /var/etcd/config/
+{{- if .Values.etcd.enableTLS }}
+        - name: ca-etcd
+          mountPath: /var/etcd/ssl/ca
+        - name: etcd-client-tls
+          mountPath: /var/etcd/ssl/client
+{{- end }}
+{{- if eq .Values.store.storageProvider "GCS" }}
+        - name: etcd-backup
+          mountPath: "/root/.gcp/"
+{{- end }}
+      volumes:
+      - name: etcd-bootstrap-sh
+        configMap:
+          name: etcd-bootstrap-{{ .Values.name }}
+          defaultMode: 356
+          items:
+          - key: bootstrap.sh
+            path: bootstrap.sh
+      - name: etcd-config-file
+        configMap:
+          name: etcd-bootstrap-{{ .Values.name }}
+          defaultMode: 0644
+          items:
+          - key: etcd.conf.yaml
+            path: etcd.conf.yaml
+{{- if .Values.etcd.enableTLS }}
+      - name: etcd-server-tls
+        secret:
+          secretName: {{ .Values.tlsServerSecret }}
+      - name: etcd-client-tls
+        secret:
+          secretName: {{ .Values.tlsClientSecret }}
+      - name: ca-etcd
+        secret:
+          secretName: ca-etcd
+{{- end }}
+{{- if and .Values.store.storageProvider (not (eq .Values.store.storageProvider "Local")) }}
+      - name: etcd-backup
+        secret:
+          secretName: {{ .Values.store.storeSecret }}
+{{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: etcd-{{ .Values.name }}
+    spec:
+      accessModes:
+      - "ReadWriteOnce"
+      storageClassName: {{ .Values.storageClass }}
+      resources:
+        requests:
+          storage: {{ .Values.storageCapacity }}
