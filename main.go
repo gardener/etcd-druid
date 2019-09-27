@@ -19,8 +19,6 @@ import (
 	"flag"
 	"os"
 
-	"github.com/sirupsen/logrus"
-
 	druidv1 "github.com/gardener/etcd-druid/api/v1"
 	"github.com/gardener/etcd-druid/controllers"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -65,7 +63,6 @@ func main() {
 
 	ec, err := (&controllers.EtcdReconciler{
 		Client: mgr.GetClient(),
-		Logger: logrus.New(),
 		Config: mgr.GetConfig(),
 	}).InitializeControllerWithChartApplier()
 	if err != nil {

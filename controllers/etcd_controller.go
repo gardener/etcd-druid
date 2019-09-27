@@ -25,6 +25,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	druidv1 "github.com/gardener/etcd-druid/api/v1"
 	"github.com/gardener/etcd-druid/pkg/chartrenderer"
@@ -33,11 +35,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
-	etcdChartPath = filepath.Join("charts", "etcd")
+	etcdChartPath = filepath.Join("..", "charts", "etcd")
+	logger        = logrus.New()
 )
 
 // FinalizerName is the name of the Plant finalizer.
@@ -46,10 +48,16 @@ const FinalizerName = "druid.sapcloud.io/etcd-druid"
 // EtcdReconciler reconciles a Etcd object
 type EtcdReconciler struct {
 	client.Client
-	Logger       *logrus.Logger
 	chartApplier kubernetes.ChartApplier
 	Config       *rest.Config
 	ChartApplier kubernetes.ChartApplier
+}
+
+func NewEtcdReconciler(mgr manager.Manager) (*EtcdReconciler, error) {
+	return (&EtcdReconciler{
+		Client: mgr.GetClient(),
+		Config: mgr.GetConfig(),
+	}).InitializeControllerWithChartApplier()
 }
 
 // InitializeChartApplier will use EtcdReconciler client to intialize a Kubernetes client as well as
@@ -91,9 +99,9 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if !reflect.DeepEqual(etcd.Spec, etcdCopy.Spec) {
 		etcdCopy.Spec = etcd.Spec
 	}
-	r.Logger.Infof("Reconciling etcd: %s", etcd.GetName())
+	logger.Infof("Reconciling etcd: %s", etcd.GetName())
 	if !etcdCopy.DeletionTimestamp.IsZero() {
-		r.Logger.Infof("Deletion timestamp set for etcd: %s", etcd.GetName())
+		logger.Infof("Deletion timestamp set for etcd: %s", etcd.GetName())
 		if err := r.removeFinalizersToDependantSecrets(etcdCopy); err != nil {
 			if err := r.updateEtcdErrorStatus(etcdCopy, err); err != nil {
 				return ctrl.Result{
@@ -108,7 +116,7 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 
 		if sets.NewString(etcd.Finalizers...).Has(FinalizerName) {
-			r.Logger.Infof("Removing finalizer (%s) from etcd %s", FinalizerName, etcd.GetName())
+			logger.Infof("Removing finalizer (%s) from etcd %s", FinalizerName, etcd.GetName())
 			finalizers := sets.NewString(etcdCopy.Finalizers...)
 			finalizers.Delete(FinalizerName)
 			etcdCopy.Finalizers = finalizers.UnsortedList()
@@ -125,30 +133,16 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				}, err
 			}
 		}
-		r.Logger.Infof("Deleted etcd %s successfully.", etcd.GetName())
+		logger.Infof("Deleted etcd %s successfully.", etcd.GetName())
 		return ctrl.Result{}, nil
 	}
 
 	// Add Finalizers to Etcd
-	if etcd.DeletionTimestamp.IsZero() {
-		if finalizers := sets.NewString(etcd.Finalizers...); !finalizers.Has(FinalizerName) {
-			r.Logger.Infof("Adding finalizer (%s) to etcd %s", FinalizerName, etcd.GetName())
-			finalizers.Insert(FinalizerName)
-			etcdCopy.Finalizers = finalizers.UnsortedList()
-			if err := r.Update(context.TODO(), etcdCopy); err != nil {
-				if err := r.updateEtcdErrorStatus(etcdCopy, err); err != nil {
-					return ctrl.Result{
-						Requeue:      true,
-						RequeueAfter: time.Second * 5,
-					}, nil
-				}
-				return ctrl.Result{
-					Requeue:      true,
-					RequeueAfter: time.Second * 5,
-				}, err
-			}
-		}
-		if err := r.addFinalizersToDependantSecrets(etcdCopy); err != nil {
+	if finalizers := sets.NewString(etcd.Finalizers...); !finalizers.Has(FinalizerName) {
+		logger.Infof("Adding finalizer (%s) to etcd %s", FinalizerName, etcd.GetName())
+		finalizers.Insert(FinalizerName)
+		etcdCopy.Finalizers = finalizers.UnsortedList()
+		if err := r.Update(context.TODO(), etcdCopy); err != nil {
 			if err := r.updateEtcdErrorStatus(etcdCopy, err); err != nil {
 				return ctrl.Result{
 					Requeue:      true,
@@ -161,6 +155,19 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			}, err
 		}
 	}
+	if err := r.addFinalizersToDependantSecrets(etcdCopy); err != nil {
+		if err := r.updateEtcdErrorStatus(etcdCopy, err); err != nil {
+			return ctrl.Result{
+				Requeue:      true,
+				RequeueAfter: time.Second * 5,
+			}, nil
+		}
+		return ctrl.Result{
+			Requeue:      true,
+			RequeueAfter: time.Second * 5,
+		}, err
+	}
+
 	etcdValues := map[string]interface{}{
 		"defragmentationSchedule": etcd.Spec.Etcd.DefragmentationSchedule,
 		"serverPort":              etcd.Spec.Etcd.ServerPort,
@@ -248,7 +255,7 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1.Etcd) err
 		Namespace: etcd.Namespace,
 	}, &storeSecret)
 	if finalizers := sets.NewString(storeSecret.Finalizers...); !finalizers.Has(FinalizerName) {
-		r.Logger.Infof("Adding finalizer (%s) for secret %s", FinalizerName, storeSecret.GetName())
+		logger.Infof("Adding finalizer (%s) for secret %s", FinalizerName, storeSecret.GetName())
 		storeSecretCopy := storeSecret.DeepCopy()
 		finalizers.Insert(FinalizerName)
 		storeSecretCopy.Finalizers = finalizers.UnsortedList()
@@ -263,7 +270,7 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1.Etcd) err
 			Namespace: etcd.Namespace,
 		}, &clientSecret)
 		if finalizers := sets.NewString(clientSecret.Finalizers...); !finalizers.Has(FinalizerName) {
-			r.Logger.Infof("Adding finalizer (%s) for secret %s", FinalizerName, clientSecret.GetName())
+			logger.Infof("Adding finalizer (%s) for secret %s", FinalizerName, clientSecret.GetName())
 			clientSecretCopy := clientSecret.DeepCopy()
 			finalizers.Insert(FinalizerName)
 			clientSecretCopy.Finalizers = finalizers.UnsortedList()
@@ -278,7 +285,7 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1.Etcd) err
 			Namespace: etcd.Namespace,
 		}, &serverSecret)
 		if finalizers := sets.NewString(serverSecret.Finalizers...); !finalizers.Has(FinalizerName) {
-			r.Logger.Infof("Adding finalizer (%s) for secret %s", FinalizerName, serverSecret.GetName())
+			logger.Infof("Adding finalizer (%s) for secret %s", FinalizerName, serverSecret.GetName())
 			serverSecretCopy := serverSecret.DeepCopy()
 			finalizers.Insert(FinalizerName)
 			serverSecretCopy.Finalizers = finalizers.UnsortedList()
@@ -299,7 +306,7 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(etcd *druidv1.Etcd) 
 		return err
 	}
 	if finalizers := sets.NewString(storeSecret.Finalizers...); finalizers.Has(FinalizerName) {
-		r.Logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, storeSecret.GetName())
+		logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, storeSecret.GetName())
 		storeSecretCopy := storeSecret.DeepCopy()
 		finalizers.Delete(FinalizerName)
 		storeSecretCopy.Finalizers = finalizers.UnsortedList()
@@ -316,7 +323,7 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(etcd *druidv1.Etcd) 
 			return err
 		}
 		if finalizers := sets.NewString(clientSecret.Finalizers...); finalizers.Has(FinalizerName) {
-			r.Logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, clientSecret.GetName())
+			logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, clientSecret.GetName())
 			clientSecretCopy := clientSecret.DeepCopy()
 			finalizers.Delete(FinalizerName)
 			clientSecretCopy.Finalizers = finalizers.UnsortedList()
@@ -331,7 +338,7 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(etcd *druidv1.Etcd) 
 			Namespace: etcd.Namespace,
 		}, &serverSecret)
 		if finalizers := sets.NewString(serverSecret.Finalizers...); finalizers.Has(FinalizerName) {
-			r.Logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, serverSecret.GetName())
+			logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, serverSecret.GetName())
 			serverSecretCopy := serverSecret.DeepCopy()
 			finalizers.Delete(FinalizerName)
 			serverSecretCopy.Finalizers = finalizers.UnsortedList()
@@ -362,7 +369,7 @@ func (r *EtcdReconciler) updateStatusFromServices(etcd *druidv1.Etcd) error {
 		return err
 	}
 	etcd.Status.Endpoints = append(etcd.Status.Endpoints, endpoints)
-	r.Logger.Infof("etcd endpoints: %v", etcd.Status.Endpoints)
+	logger.Infof("etcd endpoints: %v", etcd.Status.Endpoints)
 	return nil
 }
 
