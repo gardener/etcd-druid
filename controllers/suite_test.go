@@ -12,22 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controllers
+package controllers_test
 
 import (
 	"path/filepath"
+	"sync"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
 	druidv1 "github.com/gardener/etcd-druid/api/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	. "github.com/gardener/etcd-druid/controllers"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -37,6 +43,14 @@ import (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
+var mgr manager.Manager
+var recFn reconcile.Reconciler
+var requests chan reconcile.Request
+var stopMgr chan struct{}
+var mgrStopped *sync.WaitGroup
+var (
+	testLog = ctrl.Log.WithName("test")
+)
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -47,17 +61,18 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func(done Done) {
-	logf.SetLogger(zap.LoggerTo(GinkgoWriter, true))
-
+	var err error
+	//logf.SetLogger(zap.LoggerTo(GinkgoWriter, true))
+	ctrl.SetLogger(zap.Logger(true))
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{filepath.Join("..", "config", "crd", "bases")},
 	}
 
-	cfg, err := testEnv.Start()
+	testLog.Info("Starting tests")
+	cfg, err = testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
-
 	err = druidv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -67,11 +82,60 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
+	Expect(cfg).ToNot(BeNil())
+	mgr, err = manager.New(cfg, manager.Options{})
+	Expect(err).NotTo(HaveOccurred())
+
+	Expect(cfg).ToNot(BeNil())
+	mgr, err = manager.New(cfg, manager.Options{})
+
+	Expect(err).NotTo(HaveOccurred())
+
+	er, err := NewEtcdReconciler(mgr)
+	Expect(err).NotTo(HaveOccurred())
+
+	recFn, requests = SetupTestReconcile(er)
+	err = SetupWithManager(mgr, recFn)
+	Expect(err).NotTo(HaveOccurred())
+
+	stopMgr, mgrStopped = StartTestManager(mgr)
+
 	close(done)
 }, 60)
 
 var _ = AfterSuite(func() {
-	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).ToNot(HaveOccurred())
+	close(stopMgr)
+	mgrStopped.Wait()
+
 })
+
+// SetupTestReconcile returns a reconcile.Reconcile implementation that delegates to inner and
+// writes the request to requests after Reconcile is finished.
+func SetupTestReconcile(inner reconcile.Reconciler) (reconcile.Reconciler, chan reconcile.Request) {
+	requests := make(chan reconcile.Request)
+	fn := reconcile.Func(func(req reconcile.Request) (reconcile.Result, error) {
+		result, err := inner.Reconcile(req)
+		requests <- req
+		return result, err
+	})
+	return fn, requests
+}
+
+// StartTestManager adds recFn
+func StartTestManager(mgr manager.Manager) (chan struct{}, *sync.WaitGroup) {
+	stop := make(chan struct{})
+	wg := &sync.WaitGroup{}
+	go func() {
+		wg.Add(1)
+		Expect(mgr.Start(stop)).NotTo(HaveOccurred())
+		wg.Done()
+	}()
+	return stop, wg
+}
+
+func SetupWithManager(mgr ctrl.Manager, r reconcile.Reconciler) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&druidv1.Etcd{}).
+		Owns(&appsv1.StatefulSet{}).
+		Complete(r)
+}
