@@ -1,4 +1,4 @@
-// Copyright (c) 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright (c) 2019 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	druidv1 "github.com/gardener/etcd-druid/api/v1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -73,7 +74,8 @@ var _ = BeforeSuite(func(done Done) {
 	cfg, err = testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
-	err = druidv1.AddToScheme(scheme.Scheme)
+
+	err = druidv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme
@@ -135,7 +137,7 @@ func StartTestManager(mgr manager.Manager) (chan struct{}, *sync.WaitGroup) {
 
 func SetupWithManager(mgr ctrl.Manager, r reconcile.Reconciler) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&druidv1.Etcd{}).
+		For(&druidv1alpha1.Etcd{}).
 		Owns(&appsv1.StatefulSet{}).
 		Complete(r)
 }

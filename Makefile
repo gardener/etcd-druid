@@ -51,7 +51,8 @@ fmt:
 
 # Run go vet against code
 vet:
-	go vet ./...
+	PACKAGES="$(shell go list -mod=vendor -e ./... | grep -vE '/api|/api/v1alpha1')"
+	go vet $(PACKAGES)
 
 # Generate code
 generate: controller-gen
@@ -76,3 +77,13 @@ CONTROLLER_GEN=$(shell go env GOPATH)/bin/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
 endif
+
+.PHONY: revendor
+revendor:
+	@env GO111MODULE=on go mod vendor -v
+	@env GO111MODULE=on go mod tidy -v
+
+.PHONY: update-dependencies
+update-dependencies:
+	@env GO111MODULE=on go get -u
+	@make revendor

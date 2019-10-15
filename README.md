@@ -25,27 +25,15 @@ The existing method of deploying etcd and backup-sidecar as a StatefulSet allevi
 The etcd CRD should contain the information required to create the etcd and backup-restore sidecar in a pod/statefulset.
 
 ```yaml
---- 
+---
 
-apiVersion: druid.sapcloud.io/v1
+apiVersion: druid.gardener.cloud/v1
 kind: Etcd
 metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"druid.sapcloud.io/v1","kind":"Etcd","metadata":{"annotations":{},"labels":{"app":"etcd-statefulset","garden.sapcloud.io/role":"controlplane","role":"test"},"name":"test","namespace":"shoot--dev--i308301-1"},"spec":{"annotations":{"app":"etcd-statefulset","garden.sapcloud.io/role":"controlplane","networking.gardener.cloud/to-dns":"allowed","networking.gardener.cloud/to-private-networks":"allowed","networking.gardener.cloud/to-public-networks":"allowed","role":"test"},"backup":{"deltaSnapshotMemoryLimit":104857600,"deltaSnapshotPeriod":"300s","etcdConnectionTimeout":"300s","etcdQuotaBytes":8589934592,"fullSnapshotSchedule":"0 */24 * * *","garbageCollectionPeriod":"43200s","garbageCollectionPolicy":"Exponential","imageRepository":"eu.gcr.io/gardener-project/gardener/etcdbrctl","imageVersion":"0.8.0-dev","port":8080,"pullPolicy":"IfNotPresent","resources":{"limits":{"cpu":"500m","memory":"2Gi"},"requests":{"cpu":"23m","memory":"128Mi"}},"snapstoreTempDir":"/var/etcd/data/temp"},"etcd":{"clientPort":2379,"defragmentationSchedule":"0 */24 * * *","enableTLS":false,"imageRepository":"quay.io/coreos/etcd","imageVersion":"v3.3.13","initialClusterState":"new","initialClusterToken":"new","metrics":"basic","pullPolicy":"IfNotPresent","resources":{"limits":{"cpu":"2500m","memory":"4Gi"},"requests":{"cpu":"500m","memory":"1000Mi"}},"serverPort":2380,"storageCapacity":"80Gi","storageClass":"gardener.cloud-fast"},"labels":{"app":"etcd-statefulset","garden.sapcloud.io/role":"controlplane","networking.gardener.cloud/to-dns":"allowed","networking.gardener.cloud/to-private-networks":"allowed","networking.gardener.cloud/to-public-networks":"allowed","role":"test"},"pvcRetentionPolicy":"DeleteAll","replicas":1,"storageCapacity":"80Gi","storageClass":"gardener.cloud-fast","store":{"storageContainer":"shoot--dev--i308301-1--b3caa","storageProvider":"S3","storePrefix":"etcd-test","storeSecret":"etcd-backup"},"tlsClientSecret":"etcd-client-tls","tlsServerSecret":"etcd-server-tls"}}
-  creationTimestamp: 2019-09-12T12:20:04Z
   finalizers:
-  - druid.sapcloud.io/etcd-druid
-  generation: 3
-  labels:
-    app: etcd-statefulset
-    garden.sapcloud.io/role: controlplane
-    role: test
+  - druid.gardener.cloud/etcd
   name: test
-  namespace: shoot--dev--i308301-1
-  resourceVersion: "75172656"
-  selfLink: /apis/druid.sapcloud.io/v1/namespaces/shoot--dev--i308301-1/etcds/test
-  uid: a6afc65f-d557-11e9-8ea7-469a1879b8a9
+  namespace: demo
 spec:
   annotations:
     app: etcd-statefulset
@@ -55,17 +43,13 @@ spec:
     networking.gardener.cloud/to-public-networks: allowed
     role: test
   backup:
-    deltaSnapshotMemoryLimit: 104857600
+    deltaSnapshotMemoryLimit: 1Gi
     deltaSnapshotPeriod: 300s
-    etcdConnectionTimeout: 300s
-    etcdQuotaBytes: 8589934592
     fullSnapshotSchedule: 0 */24 * * *
     garbageCollectionPeriod: 43200s
     garbageCollectionPolicy: Exponential
-    imageRepository: eu.gcr.io/gardener-project/gardener/etcdbrctl
-    imageVersion: 0.8.0-dev
+    Version: 0.8.0-dev
     port: 8080
-    pullPolicy: IfNotPresent
     resources:
       limits:
         cpu: 500m
@@ -75,6 +59,7 @@ spec:
         memory: 128Mi
     snapstoreTempDir: /var/etcd/data/temp
   etcd:
+    Quota: 8Gi
     clientPort: 2379
     defragmentationSchedule: 0 */24 * * *
     enableTLS: false

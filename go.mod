@@ -3,21 +3,16 @@ module github.com/gardener/etcd-druid
 go 1.12
 
 require (
-	github.com/Azure/go-autorest/autorest/adal v0.5.0 // indirect
-	github.com/Azure/go-autorest/autorest/mocks v0.2.0 // indirect
-	github.com/gardener/gardener v0.0.0-20190828091125-4cf281185eef // indirect
-	github.com/go-logr/logr v0.1.0
+	github.com/gardener/gardener v0.0.0-20191001105106-32539124646f
 	github.com/onsi/ginkgo v1.8.0
 	github.com/onsi/gomega v1.5.0
 	github.com/sirupsen/logrus v1.4.2
-	golang.org/x/net v0.0.0-20190812203447-cdfb69ac37fc
+	golang.org/x/net v0.0.0-20190813141303-74dc4d7220e7
 	k8s.io/api v0.0.0-20190826194732-9f642ccb7a30
 	k8s.io/apimachinery v0.0.0-20190827074644-f378a67c6af3
 	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
 	k8s.io/helm v2.14.3+incompatible
-	k8s.io/kube-aggregator v0.0.0-20190827195343-ca50d88afdbc // indirect
-	sigs.k8s.io/controller-runtime v0.2.0-beta.2
-	sigs.k8s.io/controller-tools v0.2.0-beta.2 // indirect
+	sigs.k8s.io/controller-runtime v0.2.0-beta.4
 )
 
 replace (

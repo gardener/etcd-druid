@@ -10,7 +10,7 @@ metadata:
 {{ toYaml .Values.labels | indent 4 }}
 {{- end }}
   ownerReferences:
-  - apiVersion: druid.sapcloud.io/v1
+  - apiVersion: druid.gardener.cloud/v1
     blockOwnerDeletion: false
     controller: true
     kind: Etcd
@@ -68,7 +68,7 @@ spec:
 {{ end }}
 {{- if and .Values.etcd.username .Values.etcd.password }}
             - --user={{ .Values.etcd.username }}:{{ .Values.etcd.password }}
-{{- end }}            
+{{- end }}
             - get
             - foo
           initialDelaySeconds: 15
@@ -131,7 +131,7 @@ spec:
 {{- if and .Values.etcd.username .Values.etcd.password }}
         - --etcd-username={{ .Values.etcd.username }}
         - --etcd-password={{ .Values.etcd.password }}
-{{- end }}        
+{{- end }}
         - --garbage-collection-period={{int $.Values.backup.garbageCollectionPeriod }}
         - --snapstore-temp-directory={{ .Values.backup.snapstoreTempDir }}
         image: {{ .Values.backup.imageRepository }}:{{ .Values.backup.imageVersion }}
