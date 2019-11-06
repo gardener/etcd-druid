@@ -130,9 +130,10 @@ type EtcdConfig struct {
 
 // EtcdSpec defines the desired state of Etcd
 type EtcdSpec struct {
-	// Standard object's metadata.
 	// +optional
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	Labels map[string]string `json:"labels,omitempty"`
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
 	// +required
 	Etcd EtcdConfig `json:"etcd"`
 	// +required

@@ -27,7 +27,7 @@ The etcd CRD should contain the information required to create the etcd and back
 ```yaml
 ---
 
-apiVersion: druid.gardener.cloud/v1
+apiVersion: druid.gardener.cloud/v1alpha1
 kind: Etcd
 metadata:
   finalizers:

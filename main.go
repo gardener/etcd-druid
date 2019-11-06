@@ -65,6 +65,7 @@ func main() {
 	ec, err := (&controllers.EtcdReconciler{
 		Client: mgr.GetClient(),
 		Config: mgr.GetConfig(),
+		Scheme: mgr.GetScheme(),
 	}).InitializeControllerWithChartApplier()
 	if err != nil {
 		setupLog.Error(err, "unable to initialize controller with chart renderer")

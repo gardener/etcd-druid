@@ -24,6 +24,7 @@ import (
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -32,23 +33,31 @@ import (
 	"github.com/gardener/etcd-druid/pkg/chartrenderer"
 	kubernetes "github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 var (
-	etcdChartPath = filepath.Join("..","charts", "etcd")
+	etcdChartPath = filepath.Join("charts", "etcd")
 	imageYAMLPath = filepath.Join("charts", "images.yaml")
+	logger        = logrus.New()
 )
 
-// FinalizerName is the name of the Plant finalizer.
-const FinalizerName = "druid.gardener.cloud/etcd-druid"
+const (
+	// FinalizerName is the name of the Plant finalizer.
+	FinalizerName = "druid.gardener.cloud/etcd-druid"
+	timeout       = time.Second * 30
+)
 
 // EtcdReconciler reconciles a Etcd object
 type EtcdReconciler struct {
 	client.Client
+	Scheme       *runtime.Scheme
 	chartApplier kubernetes.ChartApplier
 	Config       *rest.Config
 	ChartApplier kubernetes.ChartApplier
@@ -58,6 +67,7 @@ func NewEtcdReconciler(mgr manager.Manager) (*EtcdReconciler, error) {
 	return (&EtcdReconciler{
 		Client: mgr.GetClient(),
 		Config: mgr.GetConfig(),
+		Scheme: mgr.GetScheme(),
 	}).InitializeControllerWithChartApplier()
 }
 
@@ -106,7 +116,7 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if !etcdCopy.DeletionTimestamp.IsZero() {
 		logger.Infof("Deletion timestamp set for etcd: %s", etcd.GetName())
 		if err := r.removeFinalizersToDependantSecrets(etcdCopy); err != nil {
-			if err := r.updateEtcdErrorStatus(etcdCopy, err); err != nil {
+			if err := r.updateEtcdErrorStatus(etcd, etcdCopy, err); err != nil {
 				return ctrl.Result{
 					Requeue:      true,
 					RequeueAfter: time.Second * 5,
@@ -123,8 +133,8 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			finalizers := sets.NewString(etcdCopy.Finalizers...)
 			finalizers.Delete(FinalizerName)
 			etcdCopy.Finalizers = finalizers.UnsortedList()
-			if err := r.Update(context.TODO(), etcdCopy); err != nil {
-				if err := r.updateEtcdErrorStatus(etcdCopy, err); err != nil {
+			if err := r.Patch(context.TODO(), etcdCopy, client.MergeFrom(etcd)); err != nil {
+				if err := r.updateEtcdErrorStatus(etcd, etcdCopy, err); err != nil {
 					return ctrl.Result{
 						Requeue:      true,
 						RequeueAfter: time.Second * 5,
@@ -145,12 +155,12 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		logger.Infof("Adding finalizer (%s) to etcd %s", FinalizerName, etcd.GetName())
 		finalizers.Insert(FinalizerName)
 		etcdCopy.Finalizers = finalizers.UnsortedList()
-		if err := r.Update(context.TODO(), etcdCopy); err != nil {
-			if err := r.updateEtcdErrorStatus(etcdCopy, err); err != nil {
+		if err := r.Patch(context.TODO(), etcdCopy, client.MergeFrom(etcd)); err != nil {
+			if err := r.updateEtcdErrorStatus(etcd, etcdCopy, err); err != nil {
 				return ctrl.Result{
 					Requeue:      true,
 					RequeueAfter: time.Second * 5,
-				}, nil
+				}, err
 			}
 			return ctrl.Result{
 				Requeue:      true,
@@ -159,28 +169,146 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 	}
 	if err := r.addFinalizersToDependantSecrets(etcdCopy); err != nil {
-		if err := r.updateEtcdErrorStatus(etcdCopy, err); err != nil {
+		if err := r.updateEtcdErrorStatus(etcd, etcdCopy, err); err != nil {
 			return ctrl.Result{
 				Requeue:      true,
 				RequeueAfter: time.Second * 5,
-			}, nil
+			}, err
 		}
+	}
+
+	if err := r.reconcileEtcd(etcdCopy); err != nil {
+		if err := r.updateEtcdErrorStatus(etcd, etcdCopy, err); err != nil {
+			return ctrl.Result{
+				Requeue:      true,
+				RequeueAfter: time.Second * 5,
+			}, err
+		}
+	}
+
+	if err := r.updateEtcdStatus(etcd); err != nil {
+		return ctrl.Result{
+			Requeue:      true,
+			RequeueAfter: time.Second * 5,
+		}, err
+	}
+
+	return ctrl.Result{
+		Requeue:      true,
+		RequeueAfter: time.Second * 5,
+	}, nil
+}
+
+func (r *EtcdReconciler) getEtcdService(etcd *druidv1alpha1.Etcd) (*corev1.ServiceList, error) {
+	etcdServiceList := &corev1.ServiceList{}
+	err := r.List(context.TODO(), etcdServiceList, client.InNamespace(etcd.Namespace), client.MatchingLabels(etcd.Spec.Labels))
+	return etcdServiceList, err
+}
+
+func (r *EtcdReconciler) getEtcdStatefulSet(etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSetList, error) {
+	etcdStatefulSetList := &appsv1.StatefulSetList{}
+	err := r.List(context.TODO(), etcdStatefulSetList, client.InNamespace(etcd.Namespace), client.MatchingLabels(etcd.Spec.Labels))
+	return etcdStatefulSetList, err
+}
+
+func (r *EtcdReconciler) getEtcdConfigMap(etcd *druidv1alpha1.Etcd) (*corev1.ConfigMapList, error) {
+	etcdConfigMapList := &corev1.ConfigMapList{}
+	err := r.List(context.TODO(), etcdConfigMapList, client.InNamespace(etcd.Namespace), client.MatchingLabels(etcd.Spec.Labels))
+	return etcdConfigMapList, err
+}
+
+func (r *EtcdReconciler) getExistingEtcdResourcesAndAnnotate(etcd *druidv1alpha1.Etcd) (bool, error) {
+	etcdServiceList, err := r.getEtcdService(etcd)
+	if err != nil {
+		return false, err
+	}
+
+	etcdStatefulsetList, err := r.getEtcdStatefulSet(etcd)
+	if err != nil {
+		return false, err
+	}
+
+	etcdConfigMapList, err := r.getEtcdConfigMap(etcd)
+	if err != nil {
+		return false, err
+	}
+
+	if (len(etcdServiceList.Items) + len(etcdStatefulsetList.Items) + len(etcdConfigMapList.Items)) == 0 {
+		return false, nil
+	}
+
+	for _, serviceToPatch := range etcdServiceList.Items {
+		service := serviceToPatch.DeepCopy()
+		if !checkForEtcdOwnerReference(serviceToPatch.OwnerReferences, etcd) {
+			if err := controllerutil.SetControllerReference(etcd, &serviceToPatch, r.Scheme); err != nil {
+				return true, err
+			}
+			err := r.Patch(context.TODO(), &serviceToPatch, client.MergeFrom(service))
+			if err != nil {
+				return true, err
+			}
+		}
+	}
+
+	for _, ssToPatch := range etcdStatefulsetList.Items {
+		ss := ssToPatch.DeepCopy()
+		if !checkForEtcdOwnerReference(ssToPatch.OwnerReferences, etcd) {
+			if err := controllerutil.SetControllerReference(etcd, &ssToPatch, r.Scheme); err != nil {
+				return true, err
+			}
+			err := r.Patch(context.TODO(), &ssToPatch, client.MergeFrom(ss))
+			if err != nil {
+				return true, err
+			}
+		}
+	}
+
+	for _, cmToPatch := range etcdConfigMapList.Items {
+		cm := cmToPatch.DeepCopy()
+		if !checkForEtcdOwnerReference(cmToPatch.OwnerReferences, etcd) {
+			if err := controllerutil.SetControllerReference(etcd, &cmToPatch, r.Scheme); err != nil {
+				return true, err
+			}
+			err := r.Patch(context.TODO(), &cmToPatch, client.MergeFrom(cm))
+			if err != nil {
+				return true, err
+			}
+		}
+	}
+
+	return true, nil
+}
+
+func checkForEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
+	for _, ownerRef := range refs {
+		if ownerRef.UID == etcd.UID {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd) error {
+	hasEtcdResources, err := r.getExistingEtcdResourcesAndAnnotate(etcd)
+	if err != nil {
+		return err
+	}
+	if hasEtcdResources {
+		logger.Infof("Found existing etcd resources for %s in %s", etcd.Name, etcd.Namespace)
+		return nil
+	}
+	var statefulsetReplicas int
+	if etcd.Spec.Replicas != 0 {
+		statefulsetReplicas = 1
 	}
 
 	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(imageYAMLPath)
 	if err != nil {
-		return ctrl.Result{
-			Requeue:      true,
-			RequeueAfter: time.Second * 5,
-		}, err
 	}
 
-	images, err := imagevector.FindImages(imageVector, []string{"etcd", "etcd-backup-restore"})
+	images, err := imagevector.FindImages(imageVector, []string{"etcd", "backup-restore"})
 	if err != nil {
-		return ctrl.Result{
-			Requeue:      true,
-			RequeueAfter: time.Second * 5,
-		}, err
+		return err
 	}
 
 	etcdValues := map[string]interface{}{
@@ -191,7 +319,7 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		"imageVersion":            etcd.Spec.Etcd.Version,
 		"metrics":                 etcd.Spec.Etcd.Metrics,
 		"resources":               etcd.Spec.Etcd.Resources,
-		"enableTLS":               (etcd.Spec.Etcd.TLS == nil),
+		"enableTLS":               (etcd.Spec.Etcd.TLS != nil),
 		"pullPolicy":              corev1.PullIfNotPresent,
 		// "username":                etcd.Spec.Etcd.Username,
 		// "password":                etcd.Spec.Etcd.Password,
@@ -202,8 +330,8 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		quota = etcd.Spec.Etcd.Quota.Value()
 	}
 	backupValues := map[string]interface{}{
-		"imageRepository":          images["backup-restore"].Repository,
 		"imageVersion":             etcd.Spec.Backup.Version,
+		"imageRepository":          images["backup-restore"].Repository,
 		"fullSnapshotSchedule":     etcd.Spec.Backup.FullSnapshotSchedule,
 		"port":                     etcd.Spec.Backup.Port,
 		"resources":                etcd.Spec.Backup.Resources,
@@ -221,47 +349,34 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		"storageContainer": etcd.Spec.Backup.Store.Container,
 		"storePrefix":      etcd.Spec.Backup.Store.Prefix,
 		"storageProvider":  etcd.Spec.Backup.Store.Provider,
-		"storeSecret":      etcd.Spec.Backup.Store.SecretRef,
+		"storeSecret":      etcd.Spec.Backup.Store.SecretRef.Name,
 	}
 
 	values := map[string]interface{}{
-		"etcd":               etcdValues,
-		"backup":             backupValues,
-		"store":              storeValues,
-		"name":               etcd.Name,
-		"pvcRetentionPolicy": corev1.PersistentVolumeReclaimRetain,
-		"replicas":           etcd.Spec.Replicas,
-		"labels":             etcd.Spec.Labels,
-		"annotations":        etcd.Spec.Annotations,
-		"storageClass":       etcd.Spec.StorageClass,
-		"tlsServerSecret":    etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name,
-		"tlsClientSecret":    etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name,
-		"storageCapacity":    etcd.Spec.StorageCapacity,
-		"uid":                etcd.UID,
+		"etcd":                etcdValues,
+		"backup":              backupValues,
+		"store":               storeValues,
+		"name":                etcd.Name,
+		"replicas":            etcd.Spec.Replicas,
+		"labels":              etcd.Spec.Labels,
+		"annotations":         etcd.Spec.Annotations,
+		"storageClass":        etcd.Spec.StorageClass,
+		"storageCapacity":     etcd.Spec.StorageCapacity,
+		"uid":                 etcd.UID,
+		"statefulsetReplicas": statefulsetReplicas,
 	}
 
-	if err := r.ChartApplier.ApplyChart(context.TODO(), etcdChartPath, etcd.Namespace, etcdCopy.Name, nil, values); err != nil {
-		if err := r.updateEtcdErrorStatus(etcdCopy, err); err != nil {
-			return ctrl.Result{
-				Requeue:      true,
-				RequeueAfter: time.Second * 5,
-			}, nil
-		}
-		return ctrl.Result{
-			Requeue:      true,
-			RequeueAfter: time.Second * 5,
-		}, err
+	if etcd.Spec.Etcd.TLS != nil {
+		values["tlsServerSecret"] = etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name
+		values["tlsClientSecret"] = etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name
 	}
-	if err := r.updateEtcdStatus(etcdCopy); err != nil {
-		return ctrl.Result{
-			Requeue:      true,
-			RequeueAfter: time.Second * 5,
-		}, nil
+	if err := r.ChartApplier.ApplyChart(context.TODO(), etcdChartPath, etcd.Namespace, etcd.Name, nil, values); err != nil {
+		return err
 	}
-	return ctrl.Result{
-		Requeue:      true,
-		RequeueAfter: time.Second * 5,
-	}, nil
+	if err := r.updateEtcdStatus(etcd); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etcd) error {
@@ -269,7 +384,7 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etc
 	storeSecret := corev1.Secret{}
 	r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      etcd.Spec.Backup.Store.SecretRef.Name,
-		Namespace: etcd.Spec.Backup.Store.SecretRef.Name,
+		Namespace: etcd.Namespace,
 	}, &storeSecret)
 	if finalizers := sets.NewString(storeSecret.Finalizers...); !finalizers.Has(FinalizerName) {
 		logger.Infof("Adding finalizer (%s) for secret %s", FinalizerName, storeSecret.GetName())
@@ -318,7 +433,7 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(etcd *druidv1alpha1.
 	storeSecret := corev1.Secret{}
 	if err := r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      etcd.Spec.Backup.Store.SecretRef.Name,
-		Namespace: etcd.Spec.Backup.Store.SecretRef.Namespace,
+		Namespace: etcd.Namespace,
 	}, &storeSecret); err != nil {
 		return err
 	}
@@ -335,7 +450,7 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(etcd *druidv1alpha1.
 		clientSecret := corev1.Secret{}
 		if err := r.Client.Get(context.TODO(), types.NamespacedName{
 			Name:      etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name,
-			Namespace: etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Namespace,
+			Namespace: etcd.Namespace,
 		}, &clientSecret); err != nil {
 			return err
 		}
@@ -352,7 +467,7 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(etcd *druidv1alpha1.
 		serverSecret := corev1.Secret{}
 		r.Client.Get(context.TODO(), types.NamespacedName{
 			Name:      etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name,
-			Namespace: etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Namespace,
+			Namespace: etcd.Namespace,
 		}, &serverSecret)
 		if finalizers := sets.NewString(serverSecret.Finalizers...); finalizers.Has(FinalizerName) {
 			logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, serverSecret.GetName())
@@ -390,14 +505,14 @@ func (r *EtcdReconciler) updateStatusFromServices(etcd *druidv1alpha1.Etcd) erro
 	return nil
 }
 
-func (r *EtcdReconciler) updateEtcdErrorStatus(etcd *druidv1alpha1.Etcd, lastError error) error {
+func (r *EtcdReconciler) updateEtcdErrorStatus(etcd, etcdCopy *druidv1alpha1.Etcd, lastError error) error {
 
-	etcdStatus := etcd.Status
+	etcdStatus := etcdCopy.Status
 	lastErrStr := fmt.Sprintf("%v", lastError)
 	etcdStatus.LastError = &lastErrStr
 
-	etcd.Status = etcdStatus
-	if err := r.Status().Update(context.TODO(), etcd); err != nil {
+	etcdCopy.Status = etcdStatus
+	if err := r.Status().Patch(context.TODO(), etcdCopy, client.MergeFrom(etcd)); err != nil {
 		if errors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
 			// For additional cleanup logic use finalizers.
@@ -426,8 +541,8 @@ func (r *EtcdReconciler) updateEtcdStatus(etcd *druidv1alpha1.Etcd) error {
 		// Error reading the object - requeue the request.
 		return err
 	}
-
-	etcdStatus := druidv1alpha1.EtcdStatus{}
+	etcdCopy := etcd.DeepCopy()
+	etcdStatus := &etcdCopy.Status
 	etcdStatus.Etcd = druidv1alpha1.CrossVersionObjectReference{
 		APIVersion: ss.APIVersion,
 		Kind:       ss.Kind,
@@ -442,11 +557,10 @@ func (r *EtcdReconciler) updateEtcdStatus(etcd *druidv1alpha1.Etcd) error {
 	etcdStatus.ReadyReplicas = ss.Status.ReadyReplicas
 	etcdStatus.UpdatedReplicas = ss.Status.UpdatedReplicas
 	etcdStatus.Ready = (ss.Status.ReadyReplicas == ss.Status.Replicas)
-	if err := r.updateStatusFromServices(etcd); err != nil {
+	if err := r.updateStatusFromServices(etcdCopy); err != nil {
 		return err
 	}
-	etcd.Status = etcdStatus
-	if err := r.Status().Update(context.TODO(), etcd); err != nil {
+	if err := r.Status().Patch(context.TODO(), etcdCopy, client.MergeFrom(etcd)); err != nil {
 		if errors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
 			// For additional cleanup logic use finalizers.

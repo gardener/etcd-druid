@@ -6,8 +6,17 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/name: etcd
-    app.kubernetes.io/managed-by: {{ .Values.managedBy }}
     app.kubernetes.io/instance: {{ .Values.name }}
+{{- if .Values.labels }}
+{{ toYaml .Values.labels | indent 4 }}
+{{- end }}   
+  ownerReferences:
+  - apiVersion: druid.gardener.cloud/v1alpha1
+    blockOwnerDeletion: false
+    controller: true
+    kind: Etcd
+    name: {{ .Values.name }}
+    uid: {{ .Values.uid }}
 data:
   bootstrap.sh: |-
     #!/bin/sh

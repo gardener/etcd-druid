@@ -10,7 +10,7 @@ metadata:
 {{ toYaml .Values.labels | indent 4 }}
 {{- end }}
   ownerReferences:
-  - apiVersion: druid.gardener.cloud/v1
+  - apiVersion: druid.gardener.cloud/v1alpha1
     blockOwnerDeletion: false
     controller: true
     kind: Etcd
@@ -20,7 +20,7 @@ spec:
   updateStrategy:
     type: RollingUpdate
   serviceName: {{ .Values.name }}-etcd-client
-  replicas: 1
+  replicas: {{ .Values.statefulsetReplicas }}
   selector:
     matchLabels:
       app.kubernetes.io/name: etcd

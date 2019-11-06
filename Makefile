@@ -14,22 +14,27 @@
 # limitations under the License.
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+VERSION             := $(shell cat VERSION)
+REGISTRY            := eu.gcr.io/gardener-project/gardener
+IMAGE_REPOSITORY    := $(REGISTRY)/druid
+IMAGE_TAG           := $(VERSION)
+
+IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_TAG}
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 
-all: manager
+all: druid
 
 # Run tests
 test: generate fmt vet manifests
 	go test ./api/... ./controllers/... -coverprofile cover.out
 
 # Build manager binary
-manager: generate fmt vet
-	go build -o bin/manager main.go
+druid: generate fmt vet
+	go build -o bin/druid main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
-run: generate fmt vet
+run: fmt vet
 	go run ./main.go
 
 # Install CRDs into a cluster
@@ -60,7 +65,7 @@ generate: controller-gen
 
 # Build the docker image
 docker-build: test
-	docker build . -t ${IMG}
+	docker build . -t ${IMG} --rm
 	@echo "updating kustomize image patch file for manager resource"
 	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml
 
