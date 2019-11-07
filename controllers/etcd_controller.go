@@ -31,6 +31,8 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/chartrenderer"
+	"github.com/gardener/etcd-druid/pkg/utils"
+
 	kubernetes "github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,9 +45,7 @@ import (
 )
 
 var (
-	etcdChartPath = filepath.Join("charts", "etcd")
-	imageYAMLPath = filepath.Join("charts", "images.yaml")
-	logger        = logrus.New()
+	logger = logrus.New()
 )
 
 const (
@@ -63,6 +63,7 @@ type EtcdReconciler struct {
 	ChartApplier kubernetes.ChartApplier
 }
 
+// NewEtcdReconciler creates a new EtcdReconciler object
 func NewEtcdReconciler(mgr manager.Manager) (*EtcdReconciler, error) {
 	return (&EtcdReconciler{
 		Client: mgr.GetClient(),
@@ -71,7 +72,15 @@ func NewEtcdReconciler(mgr manager.Manager) (*EtcdReconciler, error) {
 	}).InitializeControllerWithChartApplier()
 }
 
-// InitializeChartApplier will use EtcdReconciler client to intialize a Kubernetes client as well as
+func (r *EtcdReconciler) getChartPath() string {
+	return filepath.Join("charts", "etcd")
+}
+
+func (r *EtcdReconciler) getImageYAMLPath() string {
+	return filepath.Join("charts", "images.yaml")
+}
+
+// InitializeControllerWithChartApplier will use EtcdReconciler client to intialize a Kubernetes client as well as
 // InitializeControllerWithChartApplier will use EtcdReconciler client to intialize a Kubernetes client as well as
 // a Chart renderer.
 func (r *EtcdReconciler) InitializeControllerWithChartApplier() (*EtcdReconciler, error) {
@@ -184,6 +193,10 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				RequeueAfter: time.Second * 5,
 			}, err
 		}
+		return ctrl.Result{
+			Requeue:      true,
+			RequeueAfter: time.Second * 5,
+		}, err
 	}
 
 	if err := r.updateEtcdStatus(etcd); err != nil {
@@ -192,6 +205,8 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			RequeueAfter: time.Second * 5,
 		}, err
 	}
+
+	logger.Infof("Successfully reconciled etcd: %s", etcd.GetName())
 
 	return ctrl.Result{
 		Requeue:      true,
@@ -217,7 +232,7 @@ func (r *EtcdReconciler) getEtcdConfigMap(etcd *druidv1alpha1.Etcd) (*corev1.Con
 	return etcdConfigMapList, err
 }
 
-func (r *EtcdReconciler) getExistingEtcdResourcesAndAnnotate(etcd *druidv1alpha1.Etcd) (bool, error) {
+func (r *EtcdReconciler) getExistingEtcdResourcesAndSetOwnerRef(etcd *druidv1alpha1.Etcd) (bool, error) {
 	etcdServiceList, err := r.getEtcdService(etcd)
 	if err != nil {
 		return false, err
@@ -235,6 +250,17 @@ func (r *EtcdReconciler) getExistingEtcdResourcesAndAnnotate(etcd *druidv1alpha1
 
 	if (len(etcdServiceList.Items) + len(etcdStatefulsetList.Items) + len(etcdConfigMapList.Items)) == 0 {
 		return false, nil
+	}
+
+	if len(etcdServiceList.Items) != 2 {
+		logger.Infof("Cannot adopt etcd resources as some etcd service is missing.")
+		return false, fmt.Errorf("Cannot adopt etcd resources as some etcd service is missing.")
+	}
+	if len(etcdStatefulsetList.Items) == 0 {
+		logger.Infof("Cannot adopt etcd resources as some etcd statefulset is missing.")
+	}
+	if len(etcdConfigMapList.Items) == 0 {
+		logger.Infof("Cannot adopt etcd resources as some etcd configmap is missing.")
 	}
 
 	for _, serviceToPatch := range etcdServiceList.Items {
@@ -289,7 +315,7 @@ func checkForEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha
 }
 
 func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd) error {
-	hasEtcdResources, err := r.getExistingEtcdResourcesAndAnnotate(etcd)
+	hasEtcdResources, err := r.getExistingEtcdResourcesAndSetOwnerRef(etcd)
 	if err != nil {
 		return err
 	}
@@ -297,19 +323,24 @@ func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd) error {
 		logger.Infof("Found existing etcd resources for %s in %s", etcd.Name, etcd.Namespace)
 		return nil
 	}
+	logger.Infof("Deploying etcd resources for %s in %s", etcd.Name, etcd.Namespace)
 	var statefulsetReplicas int
 	if etcd.Spec.Replicas != 0 {
 		statefulsetReplicas = 1
 	}
 
+	imageYAMLPath := r.getImageYAMLPath()
 	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(imageYAMLPath)
 	if err != nil {
+		return err
 	}
 
 	images, err := imagevector.FindImages(imageVector, []string{"etcd", "backup-restore"})
 	if err != nil {
 		return err
 	}
+
+	logger.Infof("Fetching etcd values from %s in %s", etcd.Name, etcd.Namespace)
 
 	etcdValues := map[string]interface{}{
 		"defragmentationSchedule": etcd.Spec.Etcd.DefragmentationSchedule,
@@ -348,7 +379,7 @@ func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd) error {
 	storeValues := map[string]interface{}{
 		"storageContainer": etcd.Spec.Backup.Store.Container,
 		"storePrefix":      etcd.Spec.Backup.Store.Prefix,
-		"storageProvider":  etcd.Spec.Backup.Store.Provider,
+		"storageProvider":  utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider),
 		"storeSecret":      etcd.Spec.Backup.Store.SecretRef.Name,
 	}
 
@@ -370,12 +401,16 @@ func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd) error {
 		values["tlsServerSecret"] = etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name
 		values["tlsClientSecret"] = etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name
 	}
-	if err := r.ChartApplier.ApplyChart(context.TODO(), etcdChartPath, etcd.Namespace, etcd.Name, nil, values); err != nil {
+
+	logger.Infof("Applying etcd charts for %s in %s", etcd.Name, etcd.Namespace)
+	chartPath := r.getChartPath()
+	if err := r.ChartApplier.ApplyChart(context.TODO(), chartPath, etcd.Namespace, etcd.Name, nil, values); err != nil {
 		return err
 	}
 	if err := r.updateEtcdStatus(etcd); err != nil {
 		return err
 	}
+	logger.Infof("Successfully applied etcd charts for %s in %s", etcd.Name, etcd.Namespace)
 	return nil
 }
 
@@ -387,7 +422,7 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etc
 		Namespace: etcd.Namespace,
 	}, &storeSecret)
 	if finalizers := sets.NewString(storeSecret.Finalizers...); !finalizers.Has(FinalizerName) {
-		logger.Infof("Adding finalizer (%s) for secret %s", FinalizerName, storeSecret.GetName())
+		logger.Infof("Adding finalizer (%s) for secret %s by etcd (%s)", FinalizerName, storeSecret.GetName(), etcd.Name)
 		storeSecretCopy := storeSecret.DeepCopy()
 		finalizers.Insert(FinalizerName)
 		storeSecretCopy.Finalizers = finalizers.UnsortedList()
@@ -402,7 +437,7 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etc
 			Namespace: etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Namespace,
 		}, &clientSecret)
 		if finalizers := sets.NewString(clientSecret.Finalizers...); !finalizers.Has(FinalizerName) {
-			logger.Infof("Adding finalizer (%s) for secret %s", FinalizerName, clientSecret.GetName())
+			logger.Infof("Adding finalizer (%s) for secret %s by etcd (%s)", FinalizerName, clientSecret.GetName(), etcd.Name)
 			clientSecretCopy := clientSecret.DeepCopy()
 			finalizers.Insert(FinalizerName)
 			clientSecretCopy.Finalizers = finalizers.UnsortedList()
@@ -417,7 +452,7 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etc
 			Namespace: etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Namespace,
 		}, &serverSecret)
 		if finalizers := sets.NewString(serverSecret.Finalizers...); !finalizers.Has(FinalizerName) {
-			logger.Infof("Adding finalizer (%s) for secret %s", FinalizerName, serverSecret.GetName())
+			logger.Infof("Adding finalizer (%s) for secret %s by etcd (%s)", FinalizerName, serverSecret.GetName(), etcd.Name)
 			serverSecretCopy := serverSecret.DeepCopy()
 			finalizers.Insert(FinalizerName)
 			serverSecretCopy.Finalizers = finalizers.UnsortedList()

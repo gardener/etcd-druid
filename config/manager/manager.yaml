@@ -3,13 +3,13 @@ kind: Namespace
 metadata:
   labels:
     control-plane: etcd-druid
-  name: test
+  name: system
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: etcd-druid
-  namespace: test
+  name: controller
+  namespace: system
   labels:
     control-plane: etcd-druid
 spec:
@@ -27,9 +27,8 @@ spec:
         - /bin/druid
         args:
         - --enable-leader-election
-        image: eu.gcr.io/gardener-project/gardener/druid:0.1.0-dev
-        name: manager
-        imagePullPolicy: Always
+        name: druid
+        imagePullPolicy: IfNotPresent
         resources:
           limits:
             cpu: 100m

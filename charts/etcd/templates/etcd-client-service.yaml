@@ -22,16 +22,11 @@ spec:
   selector:
     app.kubernetes.io/name: etcd
     app.kubernetes.io/instance: {{ .Values.name }}
+{{- if .Values.labels }}
+{{ toYaml .Values.labels | indent 4 }}
+{{- end }}
   ports:
   - name: client
     protocol: TCP
     port: {{ .Values.etcd.clientPort }}
     targetPort: {{ .Values.etcd.clientPort }}
-  - name: server
-    protocol: TCP
-    port: {{ .Values.etcd.serverPort }}
-    targetPort: {{ .Values.etcd.serverPort }}
-  - name: backuprestore
-    protocol: TCP
-    port: {{ .Values.backup.port }}
-    targetPort: {{ .Values.backup.port }}

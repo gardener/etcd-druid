@@ -27,9 +27,9 @@ spec:
       app.kubernetes.io/instance: {{ .Values.name }}
   template:
     metadata:
-{{- if .Values.annotations }}
       annotations:
         checksum/configmap-etcd-bootstrap: {{ include (print $.Template.BasePath "/configmap-etcd-bootstrap.yaml") . | sha256sum }}
+{{- if .Values.annotations }}
 {{ toYaml .Values.annotations | indent 8 }}
 {{- end }}
       labels:

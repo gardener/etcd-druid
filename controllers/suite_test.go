@@ -96,8 +96,7 @@ var _ = BeforeSuite(func(done Done) {
 	er, err := NewEtcdReconciler(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
-	recFn, requests = SetupTestReconcile(er)
-	err = SetupWithManager(mgr, recFn)
+	err = SetupWithManager(mgr, er)
 	Expect(err).NotTo(HaveOccurred())
 
 	stopMgr, mgrStopped = StartTestManager(mgr)
@@ -110,18 +109,6 @@ var _ = AfterSuite(func() {
 	mgrStopped.Wait()
 
 })
-
-// SetupTestReconcile returns a reconcile.Reconcile implementation that delegates to inner and
-// writes the request to requests after Reconcile is finished.
-func SetupTestReconcile(inner reconcile.Reconciler) (reconcile.Reconciler, chan reconcile.Request) {
-	requests := make(chan reconcile.Request)
-	fn := reconcile.Func(func(req reconcile.Request) (reconcile.Result, error) {
-		result, err := inner.Reconcile(req)
-		requests <- req
-		return result, err
-	})
-	return fn, requests
-}
 
 // StartTestManager adds recFn
 func StartTestManager(mgr manager.Manager) (chan struct{}, *sync.WaitGroup) {

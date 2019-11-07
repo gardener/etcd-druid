@@ -22,6 +22,9 @@ spec:
   selector:
     app.kubernetes.io/name: etcd
     app.kubernetes.io/instance: {{ .Values.name }}
+{{- if .Values.labels }}
+{{ toYaml .Values.labels | indent 4 }}
+{{- end }}
   ports:
   - name: client
     protocol: TCP
