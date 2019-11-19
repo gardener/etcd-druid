@@ -1,11 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{.Values.name}}-etcd-client
+  name: {{ .Values.serviceName }}
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: etcd
-    app.kubernetes.io/instance: {{ .Values.name }}
+    instance: {{ .Values.name }}
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 4 }}
 {{- end }}
@@ -17,11 +16,11 @@ metadata:
     name: {{ .Values.name }}
     uid: {{ .Values.uid }}
 spec:
+# Note: Changing service type will requre change in handling the re-sync of the service.
   type: ClusterIP
   sessionAffinity: None
   selector:
-    app.kubernetes.io/name: etcd
-    app.kubernetes.io/instance: {{ .Values.name }}
+    instance: {{ .Values.name }}
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 4 }}
 {{- end }}
@@ -30,3 +29,11 @@ spec:
     protocol: TCP
     port: {{ .Values.etcd.clientPort }}
     targetPort: {{ .Values.etcd.clientPort }}
+  - name: server
+    protocol: TCP
+    port: {{ .Values.etcd.serverPort }}
+    targetPort: {{ .Values.etcd.serverPort }}
+  - name: backuprestore
+    protocol: TCP
+    port: {{ .Values.backup.port }}
+    targetPort: {{ .Values.backup.port }}

@@ -120,7 +120,7 @@ func getStatefulset(c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.St
 	defer cancel()
 	wait.PollImmediateUntil(1*time.Second, func() (bool, error) {
 		req := types.NamespacedName{
-			Name:      fmt.Sprintf("etcd-%s", instance.Name),
+			Name:      fmt.Sprintf("etcd-sts-%s", string(instance.UID[:6])),
 			Namespace: instance.Namespace,
 		}
 		if err := c.Get(ctx, req, ss); err != nil {

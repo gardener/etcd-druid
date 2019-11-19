@@ -2,11 +2,11 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: etcd-bootstrap-{{ .Values.name }}
+  name: {{ .Values.configMapName }}
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: etcd
-    app.kubernetes.io/instance: {{ .Values.name }}
+    name: etcd
+    instance: {{ .Values.name }}
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 4 }}
 {{- end }}   
@@ -82,7 +82,7 @@ data:
     fi
   etcd.conf.yaml: |-
     # Human-readable name for this member.
-    name: etcd-{{.Values.name}}
+    name: etcd-{{ printf "%.6s" .Values.uid }}
 
     # Path to the data directory.
     data-dir: /var/etcd/data/new.etcd
@@ -92,6 +92,9 @@ data:
 
     # Number of committed transactions to trigger a snapshot to disk.
     snapshot-count: 75000
+    
+    # Accept etcd V2 client requests
+    enable-v2: false
 
     # Raise alarms when backend size exceeds the given quota. 0 means use the
     # default quota.
@@ -129,4 +132,7 @@ data:
 
       # Path to the client server TLS trusted CA cert file.
       trusted-ca-file: /var/etcd/ssl/ca/ca.crt
+
+      # Client TLS using generated certificates
+      auto-tls: false
 {{- end }}

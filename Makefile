@@ -1,5 +1,4 @@
 # Copyright (c) 2019 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file.
-
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,20 +17,28 @@ VERSION             := $(shell cat VERSION)
 REGISTRY            := eu.gcr.io/gardener-project/gardener
 IMAGE_REPOSITORY    := $(REGISTRY)/druid
 IMAGE_TAG           := $(VERSION)
+BUILD_DIR           := build
+BIN_DIR             := bin
 
 IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_TAG}
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 
+.PHONY: revendor
+revendor:
+	@env GO111MODULE=on go mod vendor -v
+	@env GO111MODULE=on go mod tidy -v
+
+
 all: druid
 
 # Run tests
 test: fmt vet manifests
-	go test ./api/... ./controllers/... -coverprofile cover.out
+	@env GO111MODULE=on go test ./api/... ./controllers/... -coverprofile cover.out
 
 # Build manager binary
 druid: fmt vet
-	go build -o bin/druid main.go
+	@env GO111MODULE=on go build -o bin/druid main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: fmt vet
@@ -52,19 +59,19 @@ manifests: controller-gen
 
 # Run go fmt against code
 fmt:
-	go fmt ./...
+	@env GO111MODULE=on go fmt ./...
 
 # Run go vet against code
 vet:
-	PACKAGES="$(shell go list -mod=vendor -e ./... | grep -vE '/api|/api/v1alpha1')"
-	go vet $(PACKAGES)
+	PACKAGES="$(shell GO111MODULE=on go list -mod=vendor -e ./... | grep -vE '/api|/api/v1alpha1')"
+	@env GO111MODULE=on go vet $(PACKAGES)
 
 # Generate code
 generate: controller-gen
 	$(CONTROLLER_GEN) object:headerFile=./hack/boilerplate.go.txt paths=./api/...
 
 # Build the docker image
-docker-build: test
+docker-build: 
 	docker build . -t ${IMG} --rm
 	@echo "updating kustomize image patch file for manager resource"
 	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml
@@ -82,11 +89,6 @@ CONTROLLER_GEN=$(shell go env GOPATH)/bin/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
 endif
-
-.PHONY: revendor
-revendor:
-	@env GO111MODULE=on go mod vendor -v
-	@env GO111MODULE=on go mod tidy -v
 
 .PHONY: update-dependencies
 update-dependencies:

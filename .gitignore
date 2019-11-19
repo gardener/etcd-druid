@@ -5,6 +5,7 @@
 /dev
 
 *.coverprofile
+/cover.out
 *.html
 .vscode
 .idea

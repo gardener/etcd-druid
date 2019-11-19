@@ -1,11 +1,15 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: etcd-{{ .Values.name }}
+  name: etcd-sts-{{ printf "%.6s" .Values.uid }}
   namespace: {{ .Release.Namespace }}
+  annotations:
+{{- if .Values.annotations }}
+{{ toYaml .Values.annotations | indent 4 }}
+{{- end }} 
   labels:
-    app.kubernetes.io/name: etcd
-    app.kubernetes.io/instance: {{ .Values.name }}
+    name: etcd-{{ .Values.uid }}
+    instance: {{ .Values.name }}
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 4 }}
 {{- end }}
@@ -19,22 +23,26 @@ metadata:
 spec:
   updateStrategy:
     type: RollingUpdate
-  serviceName: {{ .Values.name }}-etcd-client
+  serviceName: {{ .Values.serviceName }}
   replicas: {{ .Values.statefulsetReplicas }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: etcd
-      app.kubernetes.io/instance: {{ .Values.name }}
+      name: etcd-{{ .Values.uid }}
+      instance: {{ .Values.name }}
+{{- if .Values.labels }}
+{{ toYaml .Values.labels | indent 6 }}
+{{- end }}
   template:
     metadata:
       annotations:
+        "cluster-autoscaler.kubernetes.io/safe-to-evict": "false"
         checksum/configmap-etcd-bootstrap: {{ include (print $.Template.BasePath "/configmap-etcd-bootstrap.yaml") . | sha256sum }}
 {{- if .Values.annotations }}
 {{ toYaml .Values.annotations | indent 8 }}
 {{- end }}
       labels:
-        app.kubernetes.io/name: etcd
-        app.kubernetes.io/instance: {{ .Values.name }}
+        name: etcd-{{ .Values.uid }}
+        instance: {{ .Values.name }}
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 8 }}
 {{- end }}
@@ -62,13 +70,13 @@ spec:
             - --cert=/var/etcd/ssl/client/tls.crt
             - --key=/var/etcd/ssl/client/tls.key
             - --cacert=/var/etcd/ssl/ca/ca.crt
-            - --endpoints=https://etcd-{{ .Values.name }}-0:{{ .Values.etcd.clientPort }}
+            - --endpoints=https://etcd-statefulset-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
 {{ else }}
-            - --endpoints=http://etcd-{{ .Values.name }}-0:{{ .Values.etcd.clientPort }}
+            - --endpoints=http://etcd-statefulset-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
 {{ end }}
-{{- if and .Values.etcd.username .Values.etcd.password }}
-            - --user={{ .Values.etcd.username }}:{{ .Values.etcd.password }}
-{{- end }}
+# {{- if and .Values.etcd.username .Values.etcd.password }}
+#             - --user={{ .Values.etcd.username }}:{{ .Values.etcd.password }}
+# {{- end }}
             - get
             - foo
           initialDelaySeconds: 15
@@ -119,19 +127,19 @@ spec:
         - --cacert=/var/etcd/ssl/ca/ca.crt
         - --insecure-transport=false
         - --insecure-skip-tls-verify=false
-        - --endpoints=https://etcd-{{ .Values.name }}-0:{{ .Values.etcd.clientPort }}
+        - --endpoints=https://etcd-statefulset-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
 {{ else }}
         - --insecure-transport=true
         - --insecure-skip-tls-verify=true
-        - --endpoints=http://etcd-{{ .Values.name }}-0:{{ .Values.etcd.clientPort }}
+        - --endpoints=http://etcd-statefulset-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
 {{- end }}
         - --etcd-connection-timeout={{ .Values.backup.etcdConnectionTimeout }}
         - --delta-snapshot-period={{ int $.Values.backup.deltaSnapshotPeriod }}
         - --delta-snapshot-memory-limit={{ int $.Values.backup.deltaSnapshotMemoryLimit }}
-{{- if and .Values.etcd.username .Values.etcd.password }}
-        - --etcd-username={{ .Values.etcd.username }}
-        - --etcd-password={{ .Values.etcd.password }}
-{{- end }}
+# {{- if and .Values.etcd.username .Values.etcd.password }}
+#         - --etcd-username={{ .Values.etcd.username }}
+#         - --etcd-password={{ .Values.etcd.password }}
+# {{- end }}
         - --garbage-collection-period={{int $.Values.backup.garbageCollectionPeriod }}
         - --snapstore-temp-directory={{ .Values.backup.snapstoreTempDir }}
         image: {{ .Values.backup.imageRepository }}:{{ .Values.backup.imageVersion }}
@@ -236,14 +244,14 @@ spec:
       volumes:
       - name: etcd-bootstrap-sh
         configMap:
-          name: etcd-bootstrap-{{ .Values.name }}
+          name: {{ .Values.configMapName }}
           defaultMode: 356
           items:
           - key: bootstrap.sh
             path: bootstrap.sh
       - name: etcd-config-file
         configMap:
-          name: etcd-bootstrap-{{ .Values.name }}
+          name: {{ .Values.configMapName }}
           defaultMode: 0644
           items:
           - key: etcd.conf.yaml
