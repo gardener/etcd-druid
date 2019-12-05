@@ -1,0 +1,43 @@
+etcd-druid:
+  template: 'default'
+  base_definition:
+    repo: ~
+    traits:
+      version:
+        preprocess:
+          'inject-commit-hash'
+        inject_effective_version: true
+      publish:
+        dockerimages:
+          etcd-druid:
+            registry: 'gcr-readwrite'
+            image: 'eu.gcr.io/gardener-project/gardener/etcd-druid'
+            dockerfile: 'Dockerfile'
+            inputs:
+              repos:
+                source: ~
+              steps:
+                build: ~
+    steps:
+      check:
+        image: 'golang:1.12.0'
+      test:
+        image: 'golang:1.12.0'
+      build:
+        image: 'golang:1.12.0'
+        output_dir: 'binary'
+
+  jobs:
+    head-update:
+      traits:
+        draft_release: ~
+    pull-request:
+      traits:
+        pull-request: ~
+    release:
+      traits:
+        version:
+          preprocess: 'finalize'
+        release:
+          nextversion: 'bump_minor'
+        component_descriptor: ~

@@ -18,8 +18,25 @@ import (
 	"fmt"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	aws      = "aws"
+	azure    = "azure"
+	gcp      = "gcp"
+	alicloud = "alicloud"
+	os       = "os"
+)
+
+const (
+	s3    = "S3"
+	abs   = "ABS"
+	gcs   = "GCS"
+	oss   = "OSS"
+	swift = "Swift"
 )
 
 // ValueExists returns true or false, depending on whether the given string <value>
@@ -124,4 +141,22 @@ func nameAndNamespace(namespaceOrName string, nameOpt ...string) (namespace, nam
 func Key(namespaceOrName string, nameOpt ...string) client.ObjectKey {
 	namespace, name := nameAndNamespace(namespaceOrName, nameOpt...)
 	return client.ObjectKey{Namespace: namespace, Name: name}
+}
+
+// StorageProviderFromInfraProvider converts infra to object store provider.
+func StorageProviderFromInfraProvider(infra druidv1alpha1.StorageProvider) string {
+	var storage string
+	switch infra {
+	case aws:
+		storage = s3
+	case azure:
+		storage = abs
+	case alicloud:
+		storage = oss
+	case os:
+		storage = swift
+	case gcp:
+		storage = gcs
+	}
+	return storage
 }

@@ -17,6 +17,7 @@ package controllers_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -33,73 +34,85 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-const timeout = time.Second * 30
+const timeout = time.Second * 5
 
 var _ = Describe("Druid", func() {
-	Context("when adding etcd resources", func() {
 
+	Context("when adding etcd resources", func() {
 		var err error
 		var instance *druidv1alpha1.Etcd
 		var c client.Client
+
 		BeforeEach(func() {
-			instance = getEtcd("foo1", "default")
+			instance = getEtcd("foo2", "foo2")
 			c = mgr.GetClient()
-			storeSecret := instance.Spec.Store.StoreSecret
-			tlsClientSecret := instance.Spec.TLSClientSecretName
-			tlsServerName := instance.Spec.TLSClientSecretName
-			createSecrets(c, instance.Namespace, storeSecret, tlsClientSecret, tlsServerName)
-		})
-		It("should call reconcile", func() {
-			expectedRequest := reconcile.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
-			err = c.Create(context.TODO(), instance)
-			// The instance object may not be a valid object because it might be missing some required fields.
-			// Please modify the instance object by adding required fields and then remove the following if statement.
-			if apierrors.IsInvalid(err) {
-				testLog.Info("failed to create object", "got an invalid object error", err)
-				return
+			ns := corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: instance.Namespace,
+				},
 			}
+			c.Create(context.TODO(), &ns)
+			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+			tlsClientSecret := instance.Spec.Etcd.TLS.ClientTLSSecretRef.Name
+			tlsServerName := instance.Spec.Etcd.TLS.ServerTLSSecretRef.Name
+			errors := createSecrets(c, instance.Namespace, storeSecret, tlsClientSecret, tlsServerName)
+			Expect(len(errors)).Should(BeZero())
+		})
+		It("should create statefulset", func() {
+			defer WithWd("..")()
+
+			err = c.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
-			defer c.Delete(context.TODO(), instance)
-			Eventually(requests, timeout).Should(Receive(Equal(expectedRequest)))
+
+			ss := appsv1.StatefulSet{}
+			getStatefulset(c, instance, &ss)
+			testLog.Info("fetched Statefulset", "statefulset", ss.Name)
+			Eventually(ss.Name, timeout).ShouldNot(BeEmpty())
+		})
+		AfterEach(func() {
+			c.Delete(context.TODO(), instance)
 		})
 	})
-	Context("when adding etcd resources", func() {
+	Context("when adding etcd resources with statefulset already present", func() {
 		var err error
 		var instance *druidv1alpha1.Etcd
 		var c client.Client
-
+		var ss *appsv1.StatefulSet
 		BeforeEach(func() {
-			instance = getEtcd("foo2", "default")
+			instance = getEtcd("foo3", "default")
 
 			// Setup the Manager and Controller.  Wrap the Controller Reconcile function so it writes each request to a
 			// channel when it is finished.
 
 			Expect(err).NotTo(HaveOccurred())
 			c = mgr.GetClient()
-			storeSecret := instance.Spec.Store.StoreSecret
-			tlsClientSecret := instance.Spec.TLSClientSecretName
-			tlsServerName := instance.Spec.TLSClientSecretName
-			createSecrets(c, instance.Namespace, storeSecret, tlsClientSecret, tlsServerName)
+			ss = createStatefulset("foo3", "default", instance.Labels)
+			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+			tlsClientSecret := instance.Spec.Etcd.TLS.ClientTLSSecretRef.Name
+			tlsServerName := instance.Spec.Etcd.TLS.ServerTLSSecretRef.Name
+			errors := createSecrets(c, instance.Namespace, storeSecret, tlsClientSecret, tlsServerName)
+			Expect(len(errors)).Should(BeZero())
+			c.Create(context.TODO(), ss)
 		})
-		It("should create statefulset", func() {
-
+		It("should adopt statefulset ", func() {
+			defer WithWd("..")()
+			Expect(ss.OwnerReferences).Should(BeNil())
 			err = c.Create(context.TODO(), instance)
-			// The instance object may not be a valid object because it might be missing some required fields.
-			// Please modify the instance object by adding required fields and then remove the following if statement.
-			if apierrors.IsInvalid(err) {
-				testLog.Error(err, "got an invalid object error")
-				return
-			}
-			ss := appsv1.StatefulSet{}
-			getStatefulset(c, instance, &ss)
-			testLog.Info("fetched Statefulset", "statefulset", ss.Name)
-			defer c.Delete(context.TODO(), instance)
-			Eventually(ss.Name, timeout).ShouldNot(BeEmpty())
+
+			Expect(err).NotTo(HaveOccurred())
+
+			s := &appsv1.StatefulSet{}
+			getStatefulset(c, instance, s)
+			testLog.Info("fetched Statefulset", "statefulset", s.Name)
+			Eventually(len(s.OwnerReferences), timeout).ShouldNot(BeZero())
+		})
+		AfterEach(func() {
+			c.Delete(context.TODO(), instance)
 		})
 	})
+
 })
 
 func getStatefulset(c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.StatefulSet) {
@@ -107,10 +120,10 @@ func getStatefulset(c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.St
 	defer cancel()
 	wait.PollImmediateUntil(1*time.Second, func() (bool, error) {
 		req := types.NamespacedName{
-			Name:      fmt.Sprintf("etcd-%s", instance.Name),
+			Name:      fmt.Sprintf("etcd-sts-%s", string(instance.UID[:6])),
 			Namespace: instance.Namespace,
 		}
-		if err := c.Get(context.TODO(), req, ss); err != nil {
+		if err := c.Get(ctx, req, ss); err != nil {
 			if errors.IsNotFound(err) {
 				// Object not found, return.  Created objects are automatically garbage collected.
 				// For additional cleanup logic use finalizers.
@@ -121,13 +134,65 @@ func getStatefulset(c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.St
 		return true, nil
 	}, ctx.Done())
 }
+
+func createStatefulset(name, namespace string, labels map[string]string) *appsv1.StatefulSet {
+	var replicas int32 = 0
+	ss := appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    labels,
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: labels,
+			},
+			Template:             corev1.PodTemplateSpec{},
+			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{},
+			ServiceName:          fmt.Sprintf("etcd-client-%s", name),
+			UpdateStrategy:       appsv1.StatefulSetUpdateStrategy{},
+		},
+	}
+	return &ss
+}
+
 func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
+	clientPort := 2379
+	serverPort := 2380
+	port := 8080
+	garbageCollectionPeriod := metav1.Duration{
+		Duration: 43200 * time.Second,
+	}
+	deltaSnapshotPeriod := metav1.Duration{
+		Duration: 300 * time.Second,
+	}
+	snapshotSchedule := "0 */24 * * *"
+	defragSchedule := "0 */24 * * *"
+	storageCapacity := resource.MustParse("80Gi")
+	deltaSnapShotMemLimit := resource.MustParse("100Mi")
+	quota := resource.MustParse("8Gi")
+	storageClass := "gardener.cloud-fast"
+	prefix := "etcd-test"
+	garbageCollectionPolicy := druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
+
+	tlsConfig := &druidv1alpha1.TLSConfig{
+		ClientTLSSecretRef: corev1.SecretReference{
+			Name:      "etcd-client-tls",
+			Namespace: namespace,
+		},
+		ServerTLSSecretRef: corev1.SecretReference{
+			Name:      "etcd-server-tls",
+			Namespace: namespace,
+		},
+	}
+
 	instance := &druidv1alpha1.Etcd{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "foo2",
-			Namespace: "default",
+			Name:      name,
+			Namespace: namespace,
 		},
-		Spec: druidv1alpha1.Spec{
+		Spec: druidv1alpha1.EtcdSpec{
 			Annotations: map[string]string{
 				"app":  "etcd-statefulset",
 				"role": "test",
@@ -135,33 +200,22 @@ func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
 			Labels: map[string]string{
 				"app":  "etcd-statefulset",
 				"role": "test",
+				"name": name,
 			},
-			PVCRetentionPolicy:  druidv1alpha1.PolicyDeleteAll,
-			Replicas:            1,
-			StorageClass:        "gardener.cloud-fast",
-			TLSClientSecretName: "etcd-client-tls",
-			TLSServerSecretName: "etcd-server-tls",
-			StorageCapacity:     "80Gi",
-			Store: druidv1alpha1.StoreSpec{
-				StoreSecret:      "etcd-backup",
-				StorageContainer: "shoot--dev--i308301-1--b3caa",
-				StorageProvider:  "S3",
-				StorePrefix:      "etcd-test",
-			},
+			Replicas:        1,
+			StorageClass:    &storageClass,
+			StorageCapacity: &storageCapacity,
+
 			Backup: druidv1alpha1.BackupSpec{
-				PullPolicy:               corev1.PullIfNotPresent,
-				ImageRepository:          "eu.gcr.io/gardener-project/gardener/etcdbrctl",
-				ImageVersion:             "0.8.0-dev",
-				Port:                     8080,
-				FullSnapshotSchedule:     "0 */24 * * *",
-				GarbageCollectionPolicy:  druidv1alpha1.GarbageCollectionPolicyExponential,
-				EtcdQuotaBytes:           8589934592,
-				EtcdConnectionTimeout:    "300s",
-				SnapstoreTempDir:         "/var/etcd/data/temp",
-				GarbageCollectionPeriod:  "43200s",
-				DeltaSnapshotPeriod:      "300s",
-				DeltaSnapshotMemoryLimit: 104857600,
-				Resources: corev1.ResourceRequirements{
+				Version:                  "0.8.0-dev",
+				Port:                     &port,
+				FullSnapshotSchedule:     &snapshotSchedule,
+				GarbageCollectionPolicy:  &garbageCollectionPolicy,
+				GarbageCollectionPeriod:  &garbageCollectionPeriod,
+				DeltaSnapshotPeriod:      &deltaSnapshotPeriod,
+				DeltaSnapshotMemoryLimit: &deltaSnapShotMemLimit,
+
+				Resources: &corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
 						"cpu":    parseQuantity("500m"),
 						"memory": parseQuantity("2Gi"),
@@ -171,14 +225,21 @@ func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
 						"memory": parseQuantity("128Mi"),
 					},
 				},
+				Store: &druidv1alpha1.StoreSpec{
+					SecretRef: corev1.SecretReference{
+						Name: "etcd-backup",
+					},
+					Container: "shoot--dev--i308301-1--b3caa",
+					Provider:  druidv1alpha1.StorageProvider("aws"),
+					Prefix:    &prefix,
+				},
 			},
-			Etcd: druidv1alpha1.EtcdSpec{
-				EnableTLS:               false,
-				MetricLevel:             druidv1alpha1.Basic,
-				ImageRepository:         "quay.io/coreos/etcd",
-				ImageVersion:            "v3.3.13",
-				DefragmentationSchedule: "0 */24 * * *",
-				Resources: corev1.ResourceRequirements{
+			Etcd: druidv1alpha1.EtcdConfig{
+				Quota:                   &quota,
+				Metrics:                 druidv1alpha1.Basic,
+				Version:                 "v3.3.13",
+				DefragmentationSchedule: &defragSchedule,
+				Resources: &corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
 						"cpu":    parseQuantity("2500m"),
 						"memory": parseQuantity("4Gi"),
@@ -188,11 +249,9 @@ func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
 						"memory": parseQuantity("1000Mi"),
 					},
 				},
-				ClientPort:          2379,
-				ServerPort:          2380,
-				PullPolicy:          corev1.PullIfNotPresent,
-				InitialClusterState: "new",
-				InitialClusterToken: "new",
+				ClientPort: &clientPort,
+				ServerPort: &serverPort,
+				TLS:        tlsConfig,
 			},
 		},
 	}
@@ -204,17 +263,43 @@ func parseQuantity(q string) resource.Quantity {
 	return val
 }
 
-func createSecrets(c client.Client, namespace string, secrets ...string) {
-	for _, secret := range secrets {
+func createSecrets(c client.Client, namespace string, secrets ...string) []error {
+	var errors []error
+	for _, name := range secrets {
 		secret := corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      secret,
+				Name:      name,
 				Namespace: namespace,
 			},
 			Data: map[string][]byte{
 				"test": []byte("test"),
 			},
 		}
-		c.Create(context.TODO(), &secret)
+		err := c.Create(context.TODO(), &secret)
+		if apierrors.IsAlreadyExists(err) {
+			continue
+		}
+		if err != nil {
+			errors = append(errors, err)
+		}
+	}
+	return errors
+}
+
+// WithWd sets the working directory and returns a function to revert to the previous one.
+func WithWd(path string) func() {
+	oldPath, err := os.Getwd()
+	if err != nil {
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	if err := os.Chdir(path); err != nil {
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	return func() {
+		if err := os.Chdir(oldPath); err != nil {
+			Expect(err).NotTo(HaveOccurred())
+		}
 	}
 }

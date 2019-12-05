@@ -2,8 +2,7 @@ apiVersion: druid.gardener.cloud/v1alpha1
 kind: Etcd
 metadata:
     name: test
-    namespace: default
-
+    namespace: test
     labels:
         app: etcd-statefulset
         garden.sapcloud.io/role: controlplane
@@ -33,7 +32,7 @@ spec:
         clientPort: 2379
         serverPort: 2380
     backup:
-        version: 0.8.0-dev
+        version: 0.8.0-dev-dd26b65a2ab4efd77805584b33e8c559dd3c6d53
         port: 8080
         fullSnapshotSchedule: '0 */24 * * *'
         resources:
@@ -47,7 +46,7 @@ spec:
         store:
           secretRef:
             name: etcd-backup
-          container: shoot--dev--i308301-1--b3caa
+          container: shoot--dev--i308301-1--b3cab
           provider: aws
           prefix: etcd-test
     replicas: 1

@@ -34,6 +34,7 @@ const (
 
 // MetricsLevel defines the level 'basic' or 'extensive'.
 // +kubebuilder:validation:Enum=basic;extensive
+
 type MetricsLevel string
 
 // GarbageCollectionPolicy defines the type of policy for snapshot garbage collection.
@@ -72,7 +73,6 @@ type BackupSpec struct {
 	// +optional
 	TLS *TLSConfig `json:"tls,omitempty"`
 	// Version defines the etcd-backup-restore container image version
-	// +kubebuilder:validation:Pattern=^(v)?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$
 	// +required
 	Version string `json:"version"`
 	// Store defines the specification of object store provider for storing backups.
@@ -112,7 +112,6 @@ type EtcdConfig struct {
 	// +optional
 	ClientPort *int `json:"clientPort,omitempty"`
 	// Version defines the etcd container image version
-	// +kubebuilder:validation:Pattern=^(v)?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$
 	// +required
 	Version string `json:"version"`
 	// +optional
@@ -130,9 +129,10 @@ type EtcdConfig struct {
 
 // EtcdSpec defines the desired state of Etcd
 type EtcdSpec struct {
-	// Standard object's metadata.
 	// +optional
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	Labels map[string]string `json:"labels,omitempty"`
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
 	// +required
 	Etcd EtcdConfig `json:"etcd"`
 	// +required
@@ -281,6 +281,9 @@ type EtcdStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.labelSelector
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Etcd is the Schema for the etcds API
 type Etcd struct {

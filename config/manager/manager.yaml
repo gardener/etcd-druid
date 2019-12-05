@@ -2,33 +2,33 @@ apiVersion: v1
 kind: Namespace
 metadata:
   labels:
-    control-plane: controller-manager
+    control-plane: etcd-druid
   name: system
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: controller-manager
+  name: controller
   namespace: system
   labels:
-    control-plane: controller-manager
+    control-plane: etcd-druid
 spec:
   selector:
     matchLabels:
-      control-plane: controller-manager
+      control-plane: etcd-druid
   replicas: 1
   template:
     metadata:
       labels:
-        control-plane: controller-manager
+        control-plane: etcd-druid
     spec:
       containers:
       - command:
-        - /manager
+        - /bin/druid
         args:
         - --enable-leader-election
-        image: controller:latest
-        name: manager
+        name: druid
+        imagePullPolicy: IfNotPresent
         resources:
           limits:
             cpu: 100m
