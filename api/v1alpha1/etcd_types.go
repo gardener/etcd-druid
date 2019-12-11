@@ -47,14 +47,14 @@ type StorageProvider string
 
 // StoreSpec defines parameters related to ObjectStore persisting backups
 type StoreSpec struct {
-	// +required
-	Container string `json:"container"`
 	// +optional
-	Prefix *string `json:"prefix,omitempty"`
+	Container string `json:"container,omitempty"`
 	// +required
-	Provider StorageProvider `json:"provider"`
-	// +required
-	SecretRef corev1.SecretReference `json:"secretRef"`
+	Prefix *string `json:"prefix"`
+	// +optional
+	Provider StorageProvider `json:"provider,omitempty"`
+	// +optional
+	SecretRef corev1.SecretReference `json:"secretRef,omitempty"`
 }
 
 // TLSConfig hold the TLS configuration details.
@@ -278,12 +278,12 @@ type EtcdStatus struct {
 	//LastOperation   LastOperation               `json:"lastOperation,omitempty"`
 }
 
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.labelSelector
-
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Etcd is the Schema for the etcds API
 type Etcd struct {
@@ -293,6 +293,9 @@ type Etcd struct {
 	Spec   EtcdSpec   `json:"spec,omitempty"`
 	Status EtcdStatus `json:"status,omitempty"`
 }
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // +kubebuilder:object:root=true
 

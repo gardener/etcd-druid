@@ -37,6 +37,7 @@ const (
 	gcs   = "GCS"
 	oss   = "OSS"
 	swift = "Swift"
+	local = "Local"
 )
 
 // ValueExists returns true or false, depending on whether the given string <value>
@@ -157,6 +158,8 @@ func StorageProviderFromInfraProvider(infra druidv1alpha1.StorageProvider) strin
 		storage = swift
 	case gcp:
 		storage = gcs
+	default:
+		storage = local
 	}
 	return storage
 }

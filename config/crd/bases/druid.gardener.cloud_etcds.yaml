@@ -11,6 +11,12 @@ spec:
     kind: Etcd
     plural: etcds
   scope: ""
+  subresources:
+    scale:
+      labelSelectorPath: .status.labelSelector
+      specReplicasPath: .spec.replicas
+      statusReplicasPath: .status.replicas
+    status: {}
   validation:
     openAPIV3Schema:
       description: Etcd is the Schema for the etcds API
@@ -465,9 +471,7 @@ spec:
                           type: string
                       type: object
                   required:
-                  - container
-                  - provider
-                  - secretRef
+                  - prefix
                   type: object
                 tls:
                   properties:
