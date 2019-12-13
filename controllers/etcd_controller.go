@@ -260,6 +260,7 @@ func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd) (*corev1.Se
 	// if you need to modify them, you need to copy it first.
 	filteredServices, err := r.claimServices(etcd, selector, services)
 	if err != nil {
+		logger.Error(err, "Error claiming service")
 		return nil, err
 	}
 
@@ -331,6 +332,9 @@ func (r *EtcdReconciler) syncServiceSpec(ss *corev1.Service, etcd *druidv1alpha1
 	decoded.Spec.DeepCopyInto(&ssCopy.Spec)
 	// Copy ClusterIP as the field is immutable
 	ssCopy.Spec.ClusterIP = ss.Spec.ClusterIP
+
+	logger.Infof("Syncing service: %v", ssCopy)
+
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		return r.Patch(context.TODO(), ssCopy, client.MergeFrom(ss))
 	})
@@ -456,6 +460,8 @@ func (r *EtcdReconciler) syncConfigMapData(cm *corev1.ConfigMap, etcd *druidv1al
 	}
 	cmCopy := cm.DeepCopy()
 	cmCopy.Data = decoded.Data
+	logger.Infof("Syncing comfigmap: %v", cmCopy)
+
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		return r.Patch(context.TODO(), cmCopy, client.MergeFrom(cm))
 	})
@@ -578,6 +584,7 @@ func (r *EtcdReconciler) syncStatefulSetSpec(ss *appsv1.StatefulSet, cm *corev1.
 	ssCopy.Spec.Replicas = decoded.Spec.Replicas
 	ssCopy.Spec.UpdateStrategy = decoded.Spec.UpdateStrategy
 	ssCopy.Spec.Template = decoded.Spec.Template
+
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		return r.Patch(context.TODO(), ssCopy, client.MergeFrom(ss))
 	})
@@ -721,19 +728,20 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	}
 
 	values := map[string]interface{}{
-		"etcd":                etcdValues,
-		"backup":              backupValues,
-		"store":               storeValues,
-		"name":                etcd.Name,
-		"replicas":            etcd.Spec.Replicas,
-		"labels":              etcd.Spec.Labels,
-		"annotations":         etcd.Spec.Annotations,
-		"storageClass":        etcd.Spec.StorageClass,
-		"storageCapacity":     etcd.Spec.StorageCapacity,
-		"uid":                 etcd.UID,
-		"statefulsetReplicas": statefulsetReplicas,
-		"serviceName":         fmt.Sprintf("%s-client", etcd.Name),
-		"configMapName":       fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
+		"etcd":                    etcdValues,
+		"backup":                  backupValues,
+		"store":                   storeValues,
+		"name":                    etcd.Name,
+		"replicas":                etcd.Spec.Replicas,
+		"labels":                  etcd.Spec.Labels,
+		"annotations":             etcd.Spec.Annotations,
+		"storageClass":            etcd.Spec.StorageClass,
+		"storageCapacity":         etcd.Spec.StorageCapacity,
+		"uid":                     etcd.UID,
+		"statefulsetReplicas":     statefulsetReplicas,
+		"serviceName":             fmt.Sprintf("%s-client", etcd.Name),
+		"configMapName":           fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
+		"volumeClaimTemplateName": etcd.Spec.VolumeClaimTemplate,
 	}
 
 	if etcd.Spec.Etcd.TLS != nil {

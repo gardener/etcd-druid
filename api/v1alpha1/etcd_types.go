@@ -146,6 +146,9 @@ type EtcdSpec struct {
 	// StorageCapacity defines the size of persistent volume.
 	// +optional
 	StorageCapacity *resource.Quantity `json:"storageCapacity,omitempty"`
+	// VolumeClaimTemplate defines the volume claim template to be created
+	// +required
+	VolumeClaimTemplate *string `json:"volumeClaimTemplate,omitempty"`
 }
 
 // CrossVersionObjectReference contains enough information to let you identify the referred resource.

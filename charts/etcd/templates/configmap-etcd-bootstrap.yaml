@@ -122,10 +122,10 @@ data:
 {{- if .Values.etcd.enableTLS }}
     client-transport-security:
       # Path to the client server TLS cert file.
-      cert-file: /var/etcd/ssl/client/tls.crt
+      cert-file: /var/etcd/ssl/server/tls.crt
 
       # Path to the client server TLS key file.
-      key-file: /var/etcd/ssl/client/tls.key
+      key-file: /var/etcd/ssl/server/tls.key
 
       # Enable client cert authentication.
       client-cert-auth: true

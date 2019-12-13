@@ -34,7 +34,7 @@ github.com/gobwas/glob/syntax/ast
 github.com/gobwas/glob/syntax/lexer
 github.com/gobwas/glob/util/runes
 github.com/gobwas/glob/util/strings
-# github.com/gogo/protobuf v1.2.1
+# github.com/gogo/protobuf v1.2.2-0.20190723190241-65acae22fc9d
 github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/sortkeys
 # github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6
@@ -45,6 +45,12 @@ github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
+# github.com/google/go-cmp v0.3.1
+github.com/google/go-cmp/cmp
+github.com/google/go-cmp/cmp/internal/diff
+github.com/google/go-cmp/cmp/internal/flags
+github.com/google/go-cmp/cmp/internal/function
+github.com/google/go-cmp/cmp/internal/value
 # github.com/google/gofuzz v1.0.0
 github.com/google/gofuzz
 # github.com/google/uuid v1.1.1
@@ -84,7 +90,7 @@ github.com/mitchellh/reflectwalk
 github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.1
 github.com/modern-go/reflect2
-# github.com/onsi/ginkgo v1.10.3
+# github.com/onsi/ginkgo v1.8.0
 github.com/onsi/ginkgo
 github.com/onsi/ginkgo/config
 github.com/onsi/ginkgo/internal/codelocation
@@ -103,7 +109,7 @@ github.com/onsi/ginkgo/reporters/stenographer
 github.com/onsi/ginkgo/reporters/stenographer/support/go-colorable
 github.com/onsi/ginkgo/reporters/stenographer/support/go-isatty
 github.com/onsi/ginkgo/types
-# github.com/onsi/gomega v1.7.1
+# github.com/onsi/gomega v1.5.0
 github.com/onsi/gomega
 github.com/onsi/gomega/format
 github.com/onsi/gomega/gbytes
@@ -118,8 +124,6 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/pborman/uuid v1.2.0
-github.com/pborman/uuid
 # github.com/pkg/errors v0.8.1
 github.com/pkg/errors
 # github.com/prometheus/client_golang v1.1.0
@@ -217,8 +221,9 @@ gopkg.in/inf.v0
 gopkg.in/tomb.v1
 # gopkg.in/yaml.v2 v2.2.4
 gopkg.in/yaml.v2
-# k8s.io/api v0.0.0-20191004102349-159aefb8556b => k8s.io/api v0.0.0-20191004102349-159aefb8556b
+# k8s.io/api v0.0.0-20191004102349-159aefb8556b => k8s.io/api v0.0.0-20190918155943-95b840bb6a1f
 k8s.io/api/admission/v1beta1
+k8s.io/api/admissionregistration/v1
 k8s.io/api/admissionregistration/v1beta1
 k8s.io/api/apps/v1
 k8s.io/api/apps/v1beta1
@@ -238,6 +243,7 @@ k8s.io/api/certificates/v1beta1
 k8s.io/api/coordination/v1
 k8s.io/api/coordination/v1beta1
 k8s.io/api/core/v1
+k8s.io/api/discovery/v1alpha1
 k8s.io/api/events/v1beta1
 k8s.io/api/extensions/v1beta1
 k8s.io/api/networking/v1
@@ -255,13 +261,16 @@ k8s.io/api/settings/v1alpha1
 k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
-# k8s.io/apiextensions-apiserver v0.0.0-20190409022649-727a075fdec8 => k8s.io/apiextensions-apiserver v0.0.0-20190315093550-53c4693659ed
+# k8s.io/apiextensions-apiserver v0.0.0-20190409022649-727a075fdec8 => k8s.io/apiextensions-apiserver v0.0.0-20190918161926-8f644eb6e783
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions
+k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme
+k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1
-# k8s.io/apimachinery v0.0.0-20191004074956-c5d2f014d689 => k8s.io/apimachinery v0.0.0-20191004074956-c5d2f014d689
+# k8s.io/apimachinery v0.0.0-20191004074956-c5d2f014d689 => k8s.io/apimachinery v0.0.0-20190913080033-27d36303b655
+k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/api/meta
 k8s.io/apimachinery/pkg/api/resource
@@ -306,12 +315,13 @@ k8s.io/apimachinery/pkg/version
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/reflect
-# k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible => k8s.io/client-go v11.0.0+incompatible
+# k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible => k8s.io/client-go v0.0.0-20190918160344-1fbdaa4c8d90
 k8s.io/client-go/discovery
 k8s.io/client-go/discovery/cached/memory
 k8s.io/client-go/dynamic
 k8s.io/client-go/kubernetes
 k8s.io/client-go/kubernetes/scheme
+k8s.io/client-go/kubernetes/typed/admissionregistration/v1
 k8s.io/client-go/kubernetes/typed/admissionregistration/v1beta1
 k8s.io/client-go/kubernetes/typed/apps/v1
 k8s.io/client-go/kubernetes/typed/apps/v1beta1
@@ -331,6 +341,7 @@ k8s.io/client-go/kubernetes/typed/certificates/v1beta1
 k8s.io/client-go/kubernetes/typed/coordination/v1
 k8s.io/client-go/kubernetes/typed/coordination/v1beta1
 k8s.io/client-go/kubernetes/typed/core/v1
+k8s.io/client-go/kubernetes/typed/discovery/v1alpha1
 k8s.io/client-go/kubernetes/typed/events/v1beta1
 k8s.io/client-go/kubernetes/typed/extensions/v1beta1
 k8s.io/client-go/kubernetes/typed/networking/v1
@@ -392,13 +403,14 @@ k8s.io/helm/pkg/releaseutil
 k8s.io/helm/pkg/sympath
 k8s.io/helm/pkg/timeconv
 k8s.io/helm/pkg/version
-# k8s.io/klog v0.3.3 => k8s.io/klog v0.1.0
+# k8s.io/klog v0.4.0 => k8s.io/klog v0.1.0
 k8s.io/klog
-# k8s.io/kube-openapi v0.0.0-20190722073852-5e22f3d471e6 => k8s.io/kube-openapi v0.0.0-20190320154901-5e45bb682580
+# k8s.io/kube-openapi v0.0.0-20190816220812-743ec37842bf => k8s.io/kube-openapi v0.0.0-20190816220812-743ec37842bf
 k8s.io/kube-openapi/pkg/util/proto
-# k8s.io/utils v0.0.0-20190712204705-3dccf664f023
+# k8s.io/utils v0.0.0-20190801114015-581e00157fb1
 k8s.io/utils/buffer
 k8s.io/utils/integer
+k8s.io/utils/pointer
 k8s.io/utils/trace
 # sigs.k8s.io/controller-runtime v0.2.2
 sigs.k8s.io/controller-runtime

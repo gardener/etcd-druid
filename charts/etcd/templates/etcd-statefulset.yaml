@@ -70,9 +70,9 @@ spec:
             - --cert=/var/etcd/ssl/client/tls.crt
             - --key=/var/etcd/ssl/client/tls.key
             - --cacert=/var/etcd/ssl/ca/ca.crt
-            - --endpoints=https://{{ .Values.name }}-client.{{ .Release.Namespace }}:{{ .Values.etcd.clientPort }}
+            - --endpoints=https://{{ .Values.name }}-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
 {{ else }}
-            - --endpoints=http://{{ .Values.name }}-client.{{ .Release.Namespace }}:{{ .Values.etcd.clientPort }}
+            - --endpoints=http://{{ .Values.name }}-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
 {{ end }}
 # {{- if and .Values.etcd.username .Values.etcd.password }}
 #             - --user={{ .Values.etcd.username }}:{{ .Values.etcd.password }}
@@ -91,7 +91,7 @@ spec:
         resources:
 {{ toYaml .Values.etcd.resources | indent 10 }}
         volumeMounts:
-        - name: {{ .Values.name }}
+        - name: {{ .Values.volumeClaimTemplateName }}
           mountPath: /var/etcd/data/
         - name: etcd-bootstrap-sh
           mountPath: /var/etcd/bin/
@@ -127,11 +127,11 @@ spec:
         - --cacert=/var/etcd/ssl/ca/ca.crt
         - --insecure-transport=false
         - --insecure-skip-tls-verify=false
-        - --endpoints=https://{{ .Values.name }}-client.{{ .Release.Namespace }}:{{ .Values.etcd.clientPort }}
+        - --endpoints=https://{{ .Values.name }}-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
 {{ else }}
         - --insecure-transport=true
         - --insecure-skip-tls-verify=true
-        - --endpoints=http://{{ .Values.name }}-client.{{ .Release.Namespace }}:{{ .Values.etcd.clientPort }}
+        - --endpoints=http://{{ .Values.name }}-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
 {{- end }}
         - --etcd-connection-timeout={{ .Values.backup.etcdConnectionTimeout }}
         - --delta-snapshot-period={{ int $.Values.backup.deltaSnapshotPeriod }}
@@ -227,7 +227,7 @@ spec:
               key: "accessKeyID"
 {{- end }}
         volumeMounts:
-        - name: {{ .Values.name }}
+        - name: {{ .Values.volumeClaimTemplateName }}
           mountPath: /var/etcd/data
         - name: etcd-config-file
           mountPath: /var/etcd/config/
@@ -274,7 +274,7 @@ spec:
 {{- end }}
   volumeClaimTemplates:
   - metadata:
-      name: {{ .Values.name }}
+      name: {{ .Values.volumeClaimTemplateName }}
     spec:
       accessModes:
       - "ReadWriteOnce"
