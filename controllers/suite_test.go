@@ -85,7 +85,9 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(k8sClient).ToNot(BeNil())
 
 	Expect(cfg).ToNot(BeNil())
-	mgr, err = manager.New(cfg, manager.Options{})
+	mgr, err = manager.New(cfg, manager.Options{
+		MetricsBindAddress: "0",
+	})
 	Expect(err).NotTo(HaveOccurred())
 
 	Expect(cfg).ToNot(BeNil())

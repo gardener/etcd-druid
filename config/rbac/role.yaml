@@ -11,18 +11,18 @@ rules:
   resources:
   - etcds
   verbs:
+  - create
+  - delete
   - get
   - list
-  - watch
-  - create
-  - update
   - patch
-  - delete
+  - update
+  - watch
 - apiGroups:
   - druid.gardener.cloud
   resources:
   - etcds/status
   verbs:
   - get
-  - update
   - patch
+  - update

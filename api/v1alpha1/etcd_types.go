@@ -63,6 +63,8 @@ type TLSConfig struct {
 	ServerTLSSecretRef corev1.SecretReference `json:"serverTLSSecretRef"`
 	// +required
 	ClientTLSSecretRef corev1.SecretReference `json:"clientTLSSecretRef"`
+	// +required
+	TLSCASecretRef corev1.SecretReference `json:"tlsCASecretRef"`
 }
 
 // BackupSpec defines parametes associated with the full and delta snapshots of etcd
@@ -72,9 +74,9 @@ type BackupSpec struct {
 	Port *int `json:"port,omitempty"`
 	// +optional
 	TLS *TLSConfig `json:"tls,omitempty"`
-	// Version defines the etcd-backup-restore container image version
+	// Image defines the etcd container image and tag
 	// +required
-	Version string `json:"version"`
+	Image string `json:"image"`
 	// Store defines the specification of object store provider for storing backups.
 	// +optional
 	Store *StoreSpec `json:"store,omitempty"`
@@ -111,9 +113,9 @@ type EtcdConfig struct {
 	ServerPort *int `json:"serverPort,omitempty"`
 	// +optional
 	ClientPort *int `json:"clientPort,omitempty"`
-	// Version defines the etcd container image version
+	// Image defines the etcd container image and tag
 	// +required
-	Version string `json:"version"`
+	Image string `json:"image"`
 	// +optional
 	AuthSecretRef *corev1.SecretReference `json:"authSecretRef,omitempty"`
 	// Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics.
@@ -129,6 +131,10 @@ type EtcdConfig struct {
 
 // EtcdSpec defines the desired state of Etcd
 type EtcdSpec struct {
+	// selector is a label query over pods that should match the replica count.
+	// It must match the pod template's labels.
+	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
+	Selector *metav1.LabelSelector `json:"selector"`
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
 	// +optional

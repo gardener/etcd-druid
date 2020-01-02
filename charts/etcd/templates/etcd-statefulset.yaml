@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ .Values.name }}-{{ printf "%.6s" .Values.uid }}
+  name: {{ .Values.name }}
   namespace: {{ .Release.Namespace }}
   annotations:
 {{- if .Values.annotations }}
 {{ toYaml .Values.annotations | indent 4 }}
 {{- end }} 
   labels:
-    name: etcd-{{ .Values.uid }}
+    name: etcd
     instance: {{ .Values.name }}
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 4 }}
@@ -27,7 +27,7 @@ spec:
   replicas: {{ .Values.statefulsetReplicas }}
   selector:
     matchLabels:
-      name: etcd-{{ .Values.uid }}
+      name: etcd
       instance: {{ .Values.name }}
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 6 }}
@@ -41,15 +41,19 @@ spec:
 {{ toYaml .Values.annotations | indent 8 }}
 {{- end }}
       labels:
-        name: etcd-{{ .Values.uid }}
+        name: etcd
         instance: {{ .Values.name }}
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 8 }}
 {{- end }}
     spec:
+      hostAliases:
+      - ip: "127.0.0.1"
+        hostnames:
+        - {{ .Values.name }}-local
       containers:
       - name: etcd
-        image: {{ .Values.etcd.imageRepository }}:{{ .Values.etcd.imageVersion }}
+        image: {{ .Values.etcd.image }}
         imagePullPolicy: {{ .Values.etcd.pullPolicy }}
         command:
         - /var/etcd/bin/bootstrap.sh
@@ -70,9 +74,9 @@ spec:
             - --cert=/var/etcd/ssl/client/tls.crt
             - --key=/var/etcd/ssl/client/tls.key
             - --cacert=/var/etcd/ssl/ca/ca.crt
-            - --endpoints=https://{{ .Values.name }}-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
+            - --endpoints=https://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
 {{ else }}
-            - --endpoints=http://{{ .Values.name }}-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
+            - --endpoints=http://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
 {{ end }}
 # {{- if and .Values.etcd.username .Values.etcd.password }}
 #             - --user={{ .Values.etcd.username }}:{{ .Values.etcd.password }}
@@ -127,11 +131,11 @@ spec:
         - --cacert=/var/etcd/ssl/ca/ca.crt
         - --insecure-transport=false
         - --insecure-skip-tls-verify=false
-        - --endpoints=https://{{ .Values.name }}-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
+        - --endpoints=https://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
 {{ else }}
         - --insecure-transport=true
         - --insecure-skip-tls-verify=true
-        - --endpoints=http://{{ .Values.name }}-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
+        - --endpoints=http://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
 {{- end }}
         - --etcd-connection-timeout={{ .Values.backup.etcdConnectionTimeout }}
         - --delta-snapshot-period={{ int $.Values.backup.deltaSnapshotPeriod }}
@@ -142,7 +146,7 @@ spec:
 # {{- end }}
         - --garbage-collection-period={{int $.Values.backup.garbageCollectionPeriod }}
         - --snapstore-temp-directory={{ .Values.backup.snapstoreTempDir }}
-        image: {{ .Values.backup.imageRepository }}:{{ .Values.backup.imageVersion }}
+        image: {{ .Values.backup.image }}
         imagePullPolicy: {{ .Values.backup.pullPolicy }}
         ports:
         - containerPort: {{ .Values.backup.port }}
@@ -265,7 +269,7 @@ spec:
           secretName: {{ .Values.tlsClientSecret }}
       - name: ca-etcd
         secret:
-          secretName: ca-etcd
+          secretName: {{ .Values.tlsCASecret }}
 {{- end }}
 {{- if eq .Values.store.storageProvider "GCS" }}
       - name: etcd-backup

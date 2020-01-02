@@ -158,8 +158,10 @@ func StorageProviderFromInfraProvider(infra druidv1alpha1.StorageProvider) strin
 		storage = swift
 	case gcp:
 		storage = gcs
-	default:
+	case local:
 		storage = local
+	default:
+		storage = ""
 	}
 	return storage
 }

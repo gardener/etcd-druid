@@ -20,9 +20,15 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"golang.org/x/net/context"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"context"
+	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 // These tests are written in BDD-style using Ginkgo framework. Refer to
@@ -54,11 +60,7 @@ var _ = Describe("Etcd", func() {
 				Name:      "foo",
 				Namespace: "default",
 			}
-			created = &Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "foo",
-					Namespace: "default",
-				}}
+			created = getEtcd("foo", "default")
 
 			By("creating an API obj")
 			Expect(k8sClient.Create(context.TODO(), created)).To(Succeed())
@@ -75,3 +77,116 @@ var _ = Describe("Etcd", func() {
 	})
 
 })
+
+func getEtcd(name, namespace string) *Etcd {
+	clientPort := 2379
+	serverPort := 2380
+	port := 8080
+	garbageCollectionPeriod := metav1.Duration{
+		Duration: 43200 * time.Second,
+	}
+	deltaSnapshotPeriod := metav1.Duration{
+		Duration: 300 * time.Second,
+	}
+	snapshotSchedule := "0 */24 * * *"
+	defragSchedule := "0 */24 * * *"
+	storageCapacity := resource.MustParse("80Gi")
+	deltaSnapShotMemLimit := resource.MustParse("100Mi")
+	quota := resource.MustParse("8Gi")
+	storageClass := "gardener.cloud-fast"
+	prefix := "etcd-test"
+	garbageCollectionPolicy := GarbageCollectionPolicy(GarbageCollectionPolicyExponential)
+
+	tlsConfig := &TLSConfig{
+		ClientTLSSecretRef: corev1.SecretReference{
+			Name: "etcd-client-tls",
+		},
+		ServerTLSSecretRef: corev1.SecretReference{
+			Name: "etcd-server-tls",
+		},
+		TLSCASecretRef: corev1.SecretReference{
+			Name: "ca-etcd",
+		},
+	}
+
+	instance := &Etcd{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: EtcdSpec{
+			Annotations: map[string]string{
+				"app":  "etcd-statefulset",
+				"role": "test",
+			},
+			Labels: map[string]string{
+				"app":  "etcd-statefulset",
+				"role": "test",
+				"name": name,
+			},
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app":  "etcd-statefulset",
+					"name": name,
+				},
+			},
+			Replicas:        1,
+			StorageClass:    &storageClass,
+			StorageCapacity: &storageCapacity,
+
+			Backup: BackupSpec{
+				Image:                    "eu.gcr.io/gardener-project/gardener/etcdbrctl:0.8.0-dev",
+				Port:                     &port,
+				FullSnapshotSchedule:     &snapshotSchedule,
+				GarbageCollectionPolicy:  &garbageCollectionPolicy,
+				GarbageCollectionPeriod:  &garbageCollectionPeriod,
+				DeltaSnapshotPeriod:      &deltaSnapshotPeriod,
+				DeltaSnapshotMemoryLimit: &deltaSnapShotMemLimit,
+
+				Resources: &corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu":    parseQuantity("500m"),
+						"memory": parseQuantity("2Gi"),
+					},
+					Requests: corev1.ResourceList{
+						"cpu":    parseQuantity("23m"),
+						"memory": parseQuantity("128Mi"),
+					},
+				},
+				Store: &StoreSpec{
+					SecretRef: corev1.SecretReference{
+						Name: "etcd-backup",
+					},
+					Container: "shoot--dev--i308301-1--b3caa",
+					Provider:  StorageProvider("aws"),
+					Prefix:    &prefix,
+				},
+			},
+			Etcd: EtcdConfig{
+				Quota:                   &quota,
+				Metrics:                 Basic,
+				Image:                   "quay.io/coreos/etcd:v3.3.13",
+				DefragmentationSchedule: &defragSchedule,
+				Resources: &corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu":    parseQuantity("2500m"),
+						"memory": parseQuantity("4Gi"),
+					},
+					Requests: corev1.ResourceList{
+						"cpu":    parseQuantity("500m"),
+						"memory": parseQuantity("1000Mi"),
+					},
+				},
+				ClientPort: &clientPort,
+				ServerPort: &serverPort,
+				TLS:        tlsConfig,
+			},
+		},
+	}
+	return instance
+}
+
+func parseQuantity(q string) resource.Quantity {
+	val, _ := resource.ParseQuantity(q)
+	return val
+}
