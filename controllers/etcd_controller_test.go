@@ -57,7 +57,8 @@ var _ = Describe("Druid", func() {
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
 			tlsClientSecret := instance.Spec.Etcd.TLS.ClientTLSSecretRef.Name
 			tlsServerName := instance.Spec.Etcd.TLS.ServerTLSSecretRef.Name
-			errors := createSecrets(c, instance.Namespace, storeSecret, tlsClientSecret, tlsServerName)
+			tlsCAName := instance.Spec.Etcd.TLS.TLSCASecretRef.Name
+			errors := createSecrets(c, instance.Namespace, storeSecret, tlsCAName, tlsClientSecret, tlsServerName)
 			Expect(len(errors)).Should(BeZero())
 		})
 		It("should create statefulset", func() {
@@ -88,7 +89,7 @@ var _ = Describe("Druid", func() {
 
 			Expect(err).NotTo(HaveOccurred())
 			c = mgr.GetClient()
-			ss = createStatefulset("foo3", "default", instance.Labels)
+			ss = createStatefulset("foo3", "default", instance.Spec.Labels)
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
 			tlsClientSecret := instance.Spec.Etcd.TLS.ClientTLSSecretRef.Name
 			tlsServerName := instance.Spec.Etcd.TLS.ServerTLSSecretRef.Name
@@ -120,7 +121,7 @@ func getStatefulset(c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.St
 	defer cancel()
 	wait.PollImmediateUntil(1*time.Second, func() (bool, error) {
 		req := types.NamespacedName{
-			Name:      fmt.Sprintf("etcd-sts-%s", string(instance.UID[:6])),
+			Name:      fmt.Sprintf("%s", instance.Name),
 			Namespace: instance.Namespace,
 		}
 		if err := c.Get(ctx, req, ss); err != nil {
@@ -178,12 +179,13 @@ func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
 
 	tlsConfig := &druidv1alpha1.TLSConfig{
 		ClientTLSSecretRef: corev1.SecretReference{
-			Name:      "etcd-client-tls",
-			Namespace: namespace,
+			Name: "etcd-client-tls",
 		},
 		ServerTLSSecretRef: corev1.SecretReference{
-			Name:      "etcd-server-tls",
-			Namespace: namespace,
+			Name: "etcd-server-tls",
+		},
+		TLSCASecretRef: corev1.SecretReference{
+			Name: "ca-etcd",
 		},
 	}
 
@@ -202,12 +204,18 @@ func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
 				"role": "test",
 				"name": name,
 			},
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app":  "etcd-statefulset",
+					"name": name,
+				},
+			},
 			Replicas:        1,
 			StorageClass:    &storageClass,
 			StorageCapacity: &storageCapacity,
 
 			Backup: druidv1alpha1.BackupSpec{
-				Version:                  "0.8.0-dev",
+				Image:                    "eu.gcr.io/gardener-project/gardener/etcdbrctl:0.8.0-dev",
 				Port:                     &port,
 				FullSnapshotSchedule:     &snapshotSchedule,
 				GarbageCollectionPolicy:  &garbageCollectionPolicy,
@@ -237,7 +245,7 @@ func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
 			Etcd: druidv1alpha1.EtcdConfig{
 				Quota:                   &quota,
 				Metrics:                 druidv1alpha1.Basic,
-				Version:                 "v3.3.13",
+				Image:                   "quay.io/coreos/etcd:v3.3.13",
 				DefragmentationSchedule: &defragSchedule,
 				Resources: &corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{

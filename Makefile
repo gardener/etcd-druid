@@ -15,7 +15,7 @@
 # Image URL to use all building/pushing image targets
 VERSION             := $(shell cat VERSION)
 REGISTRY            := eu.gcr.io/gardener-project/gardener
-IMAGE_REPOSITORY    := $(REGISTRY)/druid
+IMAGE_REPOSITORY    := $(REGISTRY)/etcd-druid
 IMAGE_TAG           := $(VERSION)
 BUILD_DIR           := build
 BIN_DIR             := bin
@@ -84,7 +84,7 @@ docker-push:
 # download controller-gen if necessary
 controller-gen:
 ifeq (, $(shell which controller-gen))
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.0-beta.2
+	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.4
 CONTROLLER_GEN=$(shell go env GOPATH)/bin/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)

@@ -8,6 +8,10 @@ metadata:
         garden.sapcloud.io/role: controlplane
         role: test
 spec:
+    selector:
+        app: etcd-statefulset
+        garden.sapcloud.io/role: controlplane
+        role: test
     annotations:
         app: etcd-statefulset
         garden.sapcloud.io/role: controlplane
@@ -24,7 +28,7 @@ spec:
         role: test
     etcd:
         metrics: basic
-        version: v3.3.13
+        image: quay.io/coreos/etcd:v3.3.13
         defragmentationSchedule: '0 */24 * * *'
         resources:
             limits: {cpu: 2500m, memory: 4Gi}
@@ -32,7 +36,7 @@ spec:
         clientPort: 2379
         serverPort: 2380
     backup:
-        version: 0.8.0-dev-dd26b65a2ab4efd77805584b33e8c559dd3c6d53
+        image: eu.gcr.io/gardener-project/gardener/etcdbrctl:0.8.0-dev-dd26b65a2ab4efd77805584b33e8c559dd3c6d53
         port: 8080
         fullSnapshotSchedule: '0 */24 * * *'
         resources:

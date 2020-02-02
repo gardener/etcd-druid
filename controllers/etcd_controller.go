@@ -39,7 +39,6 @@ import (
 	"github.com/gardener/etcd-druid/pkg/utils"
 
 	kubernetes "github.com/gardener/etcd-druid/pkg/client/kubernetes"
-	"github.com/gardener/gardener/pkg/utils/imagevector"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -238,9 +237,7 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd) (*corev1.Service, error) {
 	logger.Infof("Reconciling etcd services for etcd:%s in namespace:%s", etcd.Name, etcd.Namespace)
 
-	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
-		MatchLabels: etcd.Spec.Labels,
-	})
+	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 	if err != nil {
 		logger.Error(err, "Error converting etcd selector to selector")
 		return nil, err
@@ -249,10 +246,13 @@ func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd) (*corev1.Se
 	// list all services to include the services that don't match the etcd`s selector
 	// anymore but has the stale controller ref.
 	services := &corev1.ServiceList{}
-	err = r.List(context.TODO(), services, client.InNamespace(etcd.Namespace))
+	err = r.List(context.TODO(), services, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
 	if err != nil {
 		logger.Error(err, "Error listing statefulsets")
 		return nil, err
+	}
+	for _, s := range services.Items {
+		logger.Infof("Services: %s\n", s.Name)
 	}
 
 	// NOTE: filteredStatefulSets are pointing to deepcopies of the cache, but this could change in the future.
@@ -260,6 +260,7 @@ func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd) (*corev1.Se
 	// if you need to modify them, you need to copy it first.
 	filteredServices, err := r.claimServices(etcd, selector, services)
 	if err != nil {
+		logger.Error(err, "Error claiming service")
 		return nil, err
 	}
 
@@ -281,6 +282,7 @@ func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd) (*corev1.Se
 		if err != nil {
 			return nil, err
 		}
+
 		// Statefulset is claimed by for this etcd. Just sync the specs
 		if service, err = r.syncServiceSpec(service, etcd); err != nil {
 			return nil, err
@@ -330,6 +332,7 @@ func (r *EtcdReconciler) syncServiceSpec(ss *corev1.Service, etcd *druidv1alpha1
 	decoded.Spec.DeepCopyInto(&ssCopy.Spec)
 	// Copy ClusterIP as the field is immutable
 	ssCopy.Spec.ClusterIP = ss.Spec.ClusterIP
+
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		return r.Patch(context.TODO(), ssCopy, client.MergeFrom(ss))
 	})
@@ -353,7 +356,7 @@ func (r *EtcdReconciler) getServiceFromEtcd(etcd *druidv1alpha1.Etcd) (*corev1.S
 	if _, ok := r.RenderedChart.Files()[servicePath]; !ok {
 		return nil, fmt.Errorf("missing service template file in the charts: %v", servicePath)
 	}
-	//logger.Infof("%v: %v", statefulsetPath, renderer.Files()[statefulsetPath])
+
 	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(r.RenderedChart.Files()[servicePath])), 1024)
 
 	if err = decoder.Decode(&decoded); err != nil {
@@ -365,9 +368,7 @@ func (r *EtcdReconciler) getServiceFromEtcd(etcd *druidv1alpha1.Etcd) (*corev1.S
 func (r *EtcdReconciler) reconcileConfigMaps(etcd *druidv1alpha1.Etcd) (*corev1.ConfigMap, error) {
 	logger.Infof("Reconciling etcd configmap for etcd:%s in namespace:%s", etcd.Name, etcd.Namespace)
 
-	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
-		MatchLabels: etcd.Spec.Labels,
-	})
+	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 	if err != nil {
 		logger.Error(err, "Error converting etcd selector to selector")
 		return nil, err
@@ -376,11 +377,13 @@ func (r *EtcdReconciler) reconcileConfigMaps(etcd *druidv1alpha1.Etcd) (*corev1.
 	// list all configmaps to include the configmaps that don't match the etcd`s selector
 	// anymore but has the stale controller ref.
 	cms := &corev1.ConfigMapList{}
-	err = r.List(context.TODO(), cms, client.InNamespace(etcd.Namespace))
+	err = r.List(context.TODO(), cms, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
 	if err != nil {
 		logger.Error(err, "Error listing statefulsets")
 		return nil, err
 	}
+
+	logger.Infof("Configmaps: %d\n", len(cms.Items))
 
 	// NOTE: filteredStatefulSets are pointing to deepcopies of the cache, but this could change in the future.
 	// Ref: https://github.com/kubernetes-sigs/controller-runtime/blob/release-0.2/pkg/cache/internal/cache_reader.go#L74
@@ -455,6 +458,7 @@ func (r *EtcdReconciler) syncConfigMapData(cm *corev1.ConfigMap, etcd *druidv1al
 	}
 	cmCopy := cm.DeepCopy()
 	cmCopy.Data = decoded.Data
+
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		return r.Patch(context.TODO(), cmCopy, client.MergeFrom(cm))
 	})
@@ -490,9 +494,7 @@ func (r *EtcdReconciler) getConfigMapFromEtcd(etcd *druidv1alpha1.Etcd) (*corev1
 
 func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.Service, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSet, error) {
 	logger.Infof("Reconciling etcd statefulset for etcd:%s in namespace:%s", etcd.Name, etcd.Namespace)
-	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
-		MatchLabels: etcd.Spec.Labels,
-	})
+	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 	if err != nil {
 		logger.Error(err, "Error converting etcd selector to selector")
 		return nil, err
@@ -501,7 +503,7 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 	// list all statefulsets to include the statefulsets that don't match the etcd`s selector
 	// anymore but has the stale controller ref.
 	statefulSets := &appsv1.StatefulSetList{}
-	err = r.List(context.TODO(), statefulSets, client.InNamespace(etcd.Namespace))
+	err = r.List(context.TODO(), statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
 	if err != nil {
 		logger.Error(err, "Error listing statefulsets")
 		return nil, err
@@ -577,6 +579,7 @@ func (r *EtcdReconciler) syncStatefulSetSpec(ss *appsv1.StatefulSet, cm *corev1.
 	ssCopy.Spec.Replicas = decoded.Spec.Replicas
 	ssCopy.Spec.UpdateStrategy = decoded.Spec.UpdateStrategy
 	ssCopy.Spec.Template = decoded.Spec.Template
+
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		return r.Patch(context.TODO(), ssCopy, client.MergeFrom(ss))
 	})
@@ -618,7 +621,9 @@ func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd) (*corev1.Servic
 	}
 	chartPath := getChartPath()
 	renderer, err := r.ChartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
-
+	if err != nil {
+		return nil, nil, err
+	}
 	r.RenderedChart = renderer
 
 	svc, err := r.reconcileServices(etcd)
@@ -666,22 +671,12 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	if etcd.Spec.Replicas != 0 {
 		statefulsetReplicas = 1
 	}
-	imageYAMLPath := r.getImageYAMLPath()
-	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(imageYAMLPath)
-	if err != nil {
-		return nil, err
-	}
 
-	images, err := imagevector.FindImages(imageVector, []string{"etcd", "backup-restore"})
-	if err != nil {
-		return nil, err
-	}
 	etcdValues := map[string]interface{}{
 		"defragmentationSchedule": etcd.Spec.Etcd.DefragmentationSchedule,
 		"serverPort":              etcd.Spec.Etcd.ServerPort,
 		"clientPort":              etcd.Spec.Etcd.ClientPort,
-		"imageRepository":         images["etcd"].Repository,
-		"imageVersion":            etcd.Spec.Etcd.Version,
+		"image":                   etcd.Spec.Etcd.Image,
 		"metrics":                 etcd.Spec.Etcd.Metrics,
 		"resources":               etcd.Spec.Etcd.Resources,
 		"enableTLS":               (etcd.Spec.Etcd.TLS != nil),
@@ -695,8 +690,7 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		quota = etcd.Spec.Etcd.Quota.Value()
 	}
 	backupValues := map[string]interface{}{
-		"imageVersion":             etcd.Spec.Backup.Version,
-		"imageRepository":          images["backup-restore"].Repository,
+		"image":                    etcd.Spec.Backup.Image,
 		"fullSnapshotSchedule":     etcd.Spec.Backup.FullSnapshotSchedule,
 		"port":                     etcd.Spec.Backup.Port,
 		"resources":                etcd.Spec.Backup.Resources,
@@ -718,24 +712,27 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	}
 
 	values := map[string]interface{}{
-		"etcd":                etcdValues,
-		"backup":              backupValues,
-		"store":               storeValues,
-		"name":                etcd.Name,
-		"replicas":            etcd.Spec.Replicas,
-		"labels":              etcd.Spec.Labels,
-		"annotations":         etcd.Spec.Annotations,
-		"storageClass":        etcd.Spec.StorageClass,
-		"storageCapacity":     etcd.Spec.StorageCapacity,
-		"uid":                 etcd.UID,
-		"statefulsetReplicas": statefulsetReplicas,
-		"serviceName":         fmt.Sprintf("etcd-client-%s", string(etcd.UID[:6])),
-		"configMapName":       fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
+		"etcd":                    etcdValues,
+		"backup":                  backupValues,
+		"store":                   storeValues,
+		"name":                    etcd.Name,
+		"replicas":                etcd.Spec.Replicas,
+		"labels":                  etcd.Spec.Labels,
+		"annotations":             etcd.Spec.Annotations,
+		"storageClass":            etcd.Spec.StorageClass,
+		"storageCapacity":         etcd.Spec.StorageCapacity,
+		"uid":                     etcd.UID,
+		"statefulsetReplicas":     statefulsetReplicas,
+		"serviceName":             fmt.Sprintf("%s-client", etcd.Name),
+		"configMapName":           fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
+		"volumeClaimTemplateName": etcd.Spec.VolumeClaimTemplate,
+		"selector":                etcd.Spec.Selector,
 	}
 
 	if etcd.Spec.Etcd.TLS != nil {
 		values["tlsServerSecret"] = etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name
 		values["tlsClientSecret"] = etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name
+		values["tlsCASecret"] = etcd.Spec.Etcd.TLS.TLSCASecretRef.Name
 	}
 
 	return values, nil
@@ -792,52 +789,63 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etc
 }
 
 func (r *EtcdReconciler) removeFinalizersToDependantSecrets(etcd *druidv1alpha1.Etcd) error {
+	var err error
 	storeSecret := corev1.Secret{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      etcd.Spec.Backup.Store.SecretRef.Name,
 		Namespace: etcd.Namespace,
-	}, &storeSecret); err != nil {
+	}, &storeSecret)
+	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
-	if finalizers := sets.NewString(storeSecret.Finalizers...); finalizers.Has(FinalizerName) {
-		logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, storeSecret.GetName())
-		storeSecretCopy := storeSecret.DeepCopy()
-		finalizers.Delete(FinalizerName)
-		storeSecretCopy.Finalizers = finalizers.UnsortedList()
-		if err := r.Update(context.TODO(), storeSecretCopy); err != nil {
-			return err
+	if err == nil {
+		if finalizers := sets.NewString(storeSecret.Finalizers...); finalizers.Has(FinalizerName) {
+			logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, storeSecret.GetName())
+			storeSecretCopy := storeSecret.DeepCopy()
+			finalizers.Delete(FinalizerName)
+			storeSecretCopy.Finalizers = finalizers.UnsortedList()
+			if err := r.Update(context.TODO(), storeSecretCopy); err != nil {
+				return err
+			}
 		}
 	}
 	if etcd.Spec.Etcd.TLS != nil {
 		clientSecret := corev1.Secret{}
-		if err := r.Client.Get(context.TODO(), types.NamespacedName{
+		err = r.Client.Get(context.TODO(), types.NamespacedName{
 			Name:      etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name,
 			Namespace: etcd.Namespace,
-		}, &clientSecret); err != nil {
+		}, &clientSecret)
+		if err != nil && !errors.IsNotFound(err) {
 			return err
 		}
-		if finalizers := sets.NewString(clientSecret.Finalizers...); finalizers.Has(FinalizerName) {
-			logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, clientSecret.GetName())
-			clientSecretCopy := clientSecret.DeepCopy()
-			finalizers.Delete(FinalizerName)
-			clientSecretCopy.Finalizers = finalizers.UnsortedList()
-			if err := r.Update(context.TODO(), clientSecretCopy); err != nil {
-				return err
+		if err == nil {
+			if finalizers := sets.NewString(clientSecret.Finalizers...); finalizers.Has(FinalizerName) {
+				logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, clientSecret.GetName())
+				clientSecretCopy := clientSecret.DeepCopy()
+				finalizers.Delete(FinalizerName)
+				clientSecretCopy.Finalizers = finalizers.UnsortedList()
+				if err := r.Update(context.TODO(), clientSecretCopy); err != nil {
+					return err
+				}
 			}
 		}
-
 		serverSecret := corev1.Secret{}
-		r.Client.Get(context.TODO(), types.NamespacedName{
+		err = r.Client.Get(context.TODO(), types.NamespacedName{
 			Name:      etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name,
 			Namespace: etcd.Namespace,
 		}, &serverSecret)
-		if finalizers := sets.NewString(serverSecret.Finalizers...); finalizers.Has(FinalizerName) {
-			logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, serverSecret.GetName())
-			serverSecretCopy := serverSecret.DeepCopy()
-			finalizers.Delete(FinalizerName)
-			serverSecretCopy.Finalizers = finalizers.UnsortedList()
-			if err := r.Update(context.TODO(), serverSecretCopy); err != nil {
-				return err
+		if err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+		if err == nil {
+			if finalizers := sets.NewString(serverSecret.Finalizers...); finalizers.Has(FinalizerName) {
+				logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, serverSecret.GetName())
+				serverSecretCopy := serverSecret.DeepCopy()
+				finalizers.Delete(FinalizerName)
+				serverSecretCopy.Finalizers = finalizers.UnsortedList()
+				if err := r.Update(context.TODO(), serverSecretCopy); err != nil {
+					return err
+				}
 			}
 		}
 	}

@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: etcd-sts-{{ printf "%.6s" .Values.uid }}
+  name: {{ .Values.name }}
   namespace: {{ .Release.Namespace }}
   annotations:
 {{- if .Values.annotations }}
 {{ toYaml .Values.annotations | indent 4 }}
 {{- end }} 
   labels:
-    name: etcd-{{ .Values.uid }}
+    name: etcd
     instance: {{ .Values.name }}
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 4 }}
@@ -27,7 +27,7 @@ spec:
   replicas: {{ .Values.statefulsetReplicas }}
   selector:
     matchLabels:
-      name: etcd-{{ .Values.uid }}
+      name: etcd
       instance: {{ .Values.name }}
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 6 }}
@@ -41,15 +41,19 @@ spec:
 {{ toYaml .Values.annotations | indent 8 }}
 {{- end }}
       labels:
-        name: etcd-{{ .Values.uid }}
+        name: etcd
         instance: {{ .Values.name }}
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 8 }}
 {{- end }}
     spec:
+      hostAliases:
+      - ip: "127.0.0.1"
+        hostnames:
+        - {{ .Values.name }}-local
       containers:
       - name: etcd
-        image: {{ .Values.etcd.imageRepository }}:{{ .Values.etcd.imageVersion }}
+        image: {{ .Values.etcd.image }}
         imagePullPolicy: {{ .Values.etcd.pullPolicy }}
         command:
         - /var/etcd/bin/bootstrap.sh
@@ -70,9 +74,9 @@ spec:
             - --cert=/var/etcd/ssl/client/tls.crt
             - --key=/var/etcd/ssl/client/tls.key
             - --cacert=/var/etcd/ssl/ca/ca.crt
-            - --endpoints=https://etcd-statefulset-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
+            - --endpoints=https://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
 {{ else }}
-            - --endpoints=http://etcd-statefulset-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
+            - --endpoints=http://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
 {{ end }}
 # {{- if and .Values.etcd.username .Values.etcd.password }}
 #             - --user={{ .Values.etcd.username }}:{{ .Values.etcd.password }}
@@ -91,7 +95,7 @@ spec:
         resources:
 {{ toYaml .Values.etcd.resources | indent 10 }}
         volumeMounts:
-        - name: etcd-{{ .Values.name }}
+        - name: {{ .Values.volumeClaimTemplateName }}
           mountPath: /var/etcd/data/
         - name: etcd-bootstrap-sh
           mountPath: /var/etcd/bin/
@@ -117,21 +121,21 @@ spec:
 {{- end }}
         - --data-dir=/var/etcd/data/new.etcd
         - --storage-provider={{ .Values.store.storageProvider }}
-        - --store-prefix={{ .Release.Name }}-etcd
+        - --store-prefix={{ .Values.store.storePrefix }}
 {{- if .Values.backup.etcdQuotaBytes }}
         - --embedded-etcd-quota-bytes={{ int $.Values.backup.etcdQuotaBytes }}
 {{- end }}
 {{- if .Values.etcd.enableTLS }}
-        - --cert=/var/etcd/ssl/tls/tls.crt
-        - --key=/var/etcd/ssl/tls/tls.key
+        - --cert=/var/etcd/ssl/client/tls.crt
+        - --key=/var/etcd/ssl/client/tls.key
         - --cacert=/var/etcd/ssl/ca/ca.crt
         - --insecure-transport=false
         - --insecure-skip-tls-verify=false
-        - --endpoints=https://etcd-statefulset-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
+        - --endpoints=https://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
 {{ else }}
         - --insecure-transport=true
         - --insecure-skip-tls-verify=true
-        - --endpoints=http://etcd-statefulset-{{ printf "%.6s" .Values.uid }}-0:{{ .Values.etcd.clientPort }}
+        - --endpoints=http://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
 {{- end }}
         - --etcd-connection-timeout={{ .Values.backup.etcdConnectionTimeout }}
         - --delta-snapshot-period={{ int $.Values.backup.deltaSnapshotPeriod }}
@@ -142,7 +146,7 @@ spec:
 # {{- end }}
         - --garbage-collection-period={{int $.Values.backup.garbageCollectionPeriod }}
         - --snapstore-temp-directory={{ .Values.backup.snapstoreTempDir }}
-        image: {{ .Values.backup.imageRepository }}:{{ .Values.backup.imageVersion }}
+        image: {{ .Values.backup.image }}
         imagePullPolicy: {{ .Values.backup.pullPolicy }}
         ports:
         - containerPort: {{ .Values.backup.port }}
@@ -227,7 +231,7 @@ spec:
               key: "accessKeyID"
 {{- end }}
         volumeMounts:
-        - name: etcd-{{ .Values.name }}
+        - name: {{ .Values.volumeClaimTemplateName }}
           mountPath: /var/etcd/data
         - name: etcd-config-file
           mountPath: /var/etcd/config/
@@ -265,20 +269,22 @@ spec:
           secretName: {{ .Values.tlsClientSecret }}
       - name: ca-etcd
         secret:
-          secretName: ca-etcd
+          secretName: {{ .Values.tlsCASecret }}
 {{- end }}
-{{- if and .Values.store.storageProvider (not (eq .Values.store.storageProvider "Local")) }}
+{{- if eq .Values.store.storageProvider "GCS" }}
       - name: etcd-backup
         secret:
           secretName: {{ .Values.store.storeSecret }}
 {{- end }}
   volumeClaimTemplates:
   - metadata:
-      name: etcd-{{ .Values.name }}
+      name: {{ .Values.volumeClaimTemplateName }}
     spec:
       accessModes:
       - "ReadWriteOnce"
+{{ if .Values.storageClass }}
       storageClassName: {{ .Values.storageClass }}
+{{ end }}
       resources:
         requests:
           storage: {{ .Values.storageCapacity }}

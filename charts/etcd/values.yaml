@@ -4,6 +4,7 @@ storageCapacity: 16Gi
 
 tlsServerSecret: etcd-server-tls
 tlsClientSecret: etcd-client-tls
+tlsCASecret: ca-etcd
 podAnnotations: {}
 
 etcd:
