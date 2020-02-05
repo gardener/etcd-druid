@@ -129,7 +129,10 @@ spec:
                           type: string
                       type: object
                   required:
+                  - container
                   - prefix
+                  - provider
+                  - secretRef
                   type: object
                 tls:
                   description: TLSConfig hold the TLS configuration details.

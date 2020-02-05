@@ -704,17 +704,9 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		"deltaSnapshotMemoryLimit": etcd.Spec.Backup.DeltaSnapshotMemoryLimit,
 	}
 
-	storeValues := map[string]interface{}{
-		"storageContainer": etcd.Spec.Backup.Store.Container,
-		"storePrefix":      etcd.Spec.Backup.Store.Prefix,
-		"storageProvider":  utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider),
-		"storeSecret":      etcd.Spec.Backup.Store.SecretRef.Name,
-	}
-
 	values := map[string]interface{}{
 		"etcd":                    etcdValues,
 		"backup":                  backupValues,
-		"store":                   storeValues,
 		"name":                    etcd.Name,
 		"replicas":                etcd.Spec.Replicas,
 		"labels":                  etcd.Spec.Labels,
@@ -735,53 +727,79 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		values["tlsCASecret"] = etcd.Spec.Etcd.TLS.TLSCASecretRef.Name
 	}
 
+	if etcd.Spec.Backup.Store != nil {
+		storeValues := map[string]interface{}{
+			"storageContainer": etcd.Spec.Backup.Store.Container,
+			"storePrefix":      etcd.Spec.Backup.Store.Prefix,
+			"storageProvider":  utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider),
+			"storeSecret":      etcd.Spec.Backup.Store.SecretRef.Name,
+		}
+		values["store"] = storeValues
+	}
+
 	return values, nil
 }
 
 func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etcd) error {
-
-	storeSecret := corev1.Secret{}
-	r.Client.Get(context.TODO(), types.NamespacedName{
-		Name:      etcd.Spec.Backup.Store.SecretRef.Name,
-		Namespace: etcd.Namespace,
-	}, &storeSecret)
-	if finalizers := sets.NewString(storeSecret.Finalizers...); !finalizers.Has(FinalizerName) {
-		logger.Infof("Adding finalizer (%s) for secret %s by etcd (%s)", FinalizerName, storeSecret.GetName(), etcd.Name)
-		storeSecretCopy := storeSecret.DeepCopy()
-		finalizers.Insert(FinalizerName)
-		storeSecretCopy.Finalizers = finalizers.UnsortedList()
-		if err := r.Update(context.TODO(), storeSecretCopy); err != nil {
+	if etcd.Spec.Backup.Store != nil {
+		storeSecret := corev1.Secret{}
+		err := r.Client.Get(context.TODO(), types.NamespacedName{
+			Name:      etcd.Spec.Backup.Store.SecretRef.Name,
+			Namespace: etcd.Namespace,
+		}, &storeSecret)
+		if err != nil && !errors.IsNotFound(err) {
 			return err
+		}
+		if err == nil {
+			if finalizers := sets.NewString(storeSecret.Finalizers...); !finalizers.Has(FinalizerName) {
+				logger.Infof("Adding finalizer (%s) for secret %s by etcd (%s)", FinalizerName, storeSecret.GetName(), etcd.Name)
+				storeSecretCopy := storeSecret.DeepCopy()
+				finalizers.Insert(FinalizerName)
+				storeSecretCopy.Finalizers = finalizers.UnsortedList()
+				if err := r.Update(context.TODO(), storeSecretCopy); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	if etcd.Spec.Etcd.TLS != nil {
 		clientSecret := corev1.Secret{}
-		r.Client.Get(context.TODO(), types.NamespacedName{
+		err := r.Client.Get(context.TODO(), types.NamespacedName{
 			Name:      etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name,
 			Namespace: etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Namespace,
 		}, &clientSecret)
-		if finalizers := sets.NewString(clientSecret.Finalizers...); !finalizers.Has(FinalizerName) {
-			logger.Infof("Adding finalizer (%s) for secret %s by etcd (%s)", FinalizerName, clientSecret.GetName(), etcd.Name)
-			clientSecretCopy := clientSecret.DeepCopy()
-			finalizers.Insert(FinalizerName)
-			clientSecretCopy.Finalizers = finalizers.UnsortedList()
-			if err := r.Update(context.TODO(), clientSecretCopy); err != nil {
-				return err
+		if err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+		if err == nil {
+			if finalizers := sets.NewString(clientSecret.Finalizers...); !finalizers.Has(FinalizerName) {
+				logger.Infof("Adding finalizer (%s) for secret %s by etcd (%s)", FinalizerName, clientSecret.GetName(), etcd.Name)
+				clientSecretCopy := clientSecret.DeepCopy()
+				finalizers.Insert(FinalizerName)
+				clientSecretCopy.Finalizers = finalizers.UnsortedList()
+				if err := r.Update(context.TODO(), clientSecretCopy); err != nil {
+					return err
+				}
 			}
 		}
 
 		serverSecret := corev1.Secret{}
-		r.Client.Get(context.TODO(), types.NamespacedName{
+		err = r.Client.Get(context.TODO(), types.NamespacedName{
 			Name:      etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name,
 			Namespace: etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Namespace,
 		}, &serverSecret)
-		if finalizers := sets.NewString(serverSecret.Finalizers...); !finalizers.Has(FinalizerName) {
-			logger.Infof("Adding finalizer (%s) for secret %s by etcd (%s)", FinalizerName, serverSecret.GetName(), etcd.Name)
-			serverSecretCopy := serverSecret.DeepCopy()
-			finalizers.Insert(FinalizerName)
-			serverSecretCopy.Finalizers = finalizers.UnsortedList()
-			if err := r.Update(context.TODO(), serverSecretCopy); err != nil {
-				return err
+		if err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+		if err == nil {
+			if finalizers := sets.NewString(serverSecret.Finalizers...); !finalizers.Has(FinalizerName) {
+				logger.Infof("Adding finalizer (%s) for secret %s by etcd (%s)", FinalizerName, serverSecret.GetName(), etcd.Name)
+				serverSecretCopy := serverSecret.DeepCopy()
+				finalizers.Insert(FinalizerName)
+				serverSecretCopy.Finalizers = finalizers.UnsortedList()
+				if err := r.Update(context.TODO(), serverSecretCopy); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -789,29 +807,30 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etc
 }
 
 func (r *EtcdReconciler) removeFinalizersToDependantSecrets(etcd *druidv1alpha1.Etcd) error {
-	var err error
-	storeSecret := corev1.Secret{}
-	err = r.Client.Get(context.TODO(), types.NamespacedName{
-		Name:      etcd.Spec.Backup.Store.SecretRef.Name,
-		Namespace: etcd.Namespace,
-	}, &storeSecret)
-	if err != nil && !errors.IsNotFound(err) {
-		return err
-	}
-	if err == nil {
-		if finalizers := sets.NewString(storeSecret.Finalizers...); finalizers.Has(FinalizerName) {
-			logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, storeSecret.GetName())
-			storeSecretCopy := storeSecret.DeepCopy()
-			finalizers.Delete(FinalizerName)
-			storeSecretCopy.Finalizers = finalizers.UnsortedList()
-			if err := r.Update(context.TODO(), storeSecretCopy); err != nil {
-				return err
+	if etcd.Spec.Backup.Store != nil {
+		storeSecret := corev1.Secret{}
+		err := r.Client.Get(context.TODO(), types.NamespacedName{
+			Name:      etcd.Spec.Backup.Store.SecretRef.Name,
+			Namespace: etcd.Namespace,
+		}, &storeSecret)
+		if err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+		if err == nil {
+			if finalizers := sets.NewString(storeSecret.Finalizers...); finalizers.Has(FinalizerName) {
+				logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, storeSecret.GetName())
+				storeSecretCopy := storeSecret.DeepCopy()
+				finalizers.Delete(FinalizerName)
+				storeSecretCopy.Finalizers = finalizers.UnsortedList()
+				if err := r.Update(context.TODO(), storeSecretCopy); err != nil {
+					return err
+				}
 			}
 		}
 	}
 	if etcd.Spec.Etcd.TLS != nil {
 		clientSecret := corev1.Secret{}
-		err = r.Client.Get(context.TODO(), types.NamespacedName{
+		err := r.Client.Get(context.TODO(), types.NamespacedName{
 			Name:      etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name,
 			Namespace: etcd.Namespace,
 		}, &clientSecret)

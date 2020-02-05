@@ -29,3 +29,7 @@ backup:
     requests:
       cpu: 50m
       memory: 128Mi
+
+store:
+  storageProvider: ""
+  storePrefix: ""
