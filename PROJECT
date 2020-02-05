@@ -1,7 +1,0 @@
-version: "2"
-domain: gardener.cloud
-repo: github.com/gardener/etcd-druid
-resources:
-- group: druid
-  version: v1alpha1
-  kind: Etcd
