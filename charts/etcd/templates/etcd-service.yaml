@@ -10,13 +10,13 @@ metadata:
 {{- end }}
   ownerReferences:
   - apiVersion: druid.gardener.cloud/v1alpha1
-    blockOwnerDeletion: false
+    blockOwnerDeletion: true
     controller: true
     kind: Etcd
     name: {{ .Values.name }}
     uid: {{ .Values.uid }}
 spec:
-# Note: Changing service type will requre change in handling the re-sync of the service.
+# Note: Changing service type will require change in handling the re-sync of the service.
   type: ClusterIP
   sessionAffinity: None
   selector:

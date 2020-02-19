@@ -9,10 +9,10 @@ metadata:
     instance: {{ .Values.name }}
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 4 }}
-{{- end }}   
+{{- end }}
   ownerReferences:
   - apiVersion: druid.gardener.cloud/v1alpha1
-    blockOwnerDeletion: false
+    blockOwnerDeletion: true
     controller: true
     kind: Etcd
     name: {{ .Values.name }}
@@ -92,7 +92,7 @@ data:
 
     # Number of committed transactions to trigger a snapshot to disk.
     snapshot-count: 75000
-    
+
     # Accept etcd V2 client requests
     enable-v2: false
 
