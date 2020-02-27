@@ -287,13 +287,6 @@ func (in *EtcdStatus) DeepCopyInto(out *EtcdStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.Endpoints != nil {
-		in, out := &in.Endpoints, &out.Endpoints
-		*out = make([]v1.Endpoints, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
-		}
-	}
 	if in.ServiceName != nil {
 		in, out := &in.ServiceName, &out.ServiceName
 		*out = new(string)
