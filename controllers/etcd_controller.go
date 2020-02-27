@@ -148,7 +148,7 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				return ctrl.Result{
 					Requeue:      true,
 					RequeueAfter: time.Second * 5,
-				}, nil
+				}, err
 			}
 			return ctrl.Result{
 				Requeue:      true,
@@ -166,7 +166,7 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 					return ctrl.Result{
 						Requeue:      true,
 						RequeueAfter: time.Second * 5,
-					}, nil
+					}, err
 				}
 				return ctrl.Result{
 					Requeue:      true,
@@ -852,29 +852,6 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(etcd *druidv1alpha1.
 	return nil
 }
 
-func (r *EtcdReconciler) updateStatusFromServices(etcd *druidv1alpha1.Etcd, svc *corev1.Service) error {
-
-	// Delete the statefulset
-	endpoints := corev1.Endpoints{}
-	req := types.NamespacedName{
-		Name:      svc.Name,
-		Namespace: etcd.Namespace,
-	}
-	err := r.Get(context.TODO(), req, &endpoints)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers.
-			return nil
-		}
-		// Error reading the object - requeue the request.
-		return err
-	}
-	etcd.Status.Endpoints = []corev1.Endpoints{endpoints}
-
-	return nil
-}
-
 func (r *EtcdReconciler) updateEtcdErrorStatus(etcdCopy, etcd *druidv1alpha1.Etcd, lastError error) error {
 
 	lastErrStr := fmt.Sprintf("%v", lastError)
@@ -910,9 +887,7 @@ func (r *EtcdReconciler) updateEtcdStatus(etcdCopy, etcd *druidv1alpha1.Etcd, sv
 	etcdCopy.Status.UpdatedReplicas = ss.Status.UpdatedReplicas
 	etcdCopy.Status.Ready = (ss.Status.ReadyReplicas == ss.Status.Replicas)
 	etcdCopy.Status.ServiceName = &svcName
-	if err := r.updateStatusFromServices(etcdCopy, svc); err != nil {
-		return err
-	}
+
 	if err := r.Status().Update(context.TODO(), etcdCopy); err != nil {
 		if errors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
