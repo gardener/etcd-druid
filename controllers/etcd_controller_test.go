@@ -170,10 +170,12 @@ func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
 	}
 	snapshotSchedule := "0 */24 * * *"
 	defragSchedule := "0 */24 * * *"
+	container := "shoot--dev--i308301-1--b3caa"
 	storageCapacity := resource.MustParse("80Gi")
 	deltaSnapShotMemLimit := resource.MustParse("100Mi")
 	quota := resource.MustParse("8Gi")
 	storageClass := "gardener.cloud-fast"
+	provider := druidv1alpha1.StorageProvider("aws")
 	prefix := "etcd-test"
 	garbageCollectionPolicy := druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
 
@@ -234,12 +236,12 @@ func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
 					},
 				},
 				Store: &druidv1alpha1.StoreSpec{
-					SecretRef: corev1.SecretReference{
+					SecretRef: &corev1.SecretReference{
 						Name: "etcd-backup",
 					},
-					Container: "shoot--dev--i308301-1--b3caa",
-					Provider:  druidv1alpha1.StorageProvider("aws"),
-					Prefix:    &prefix,
+					Container: &container,
+					Provider:  &provider,
+					Prefix:    prefix,
 				},
 			},
 			Etcd: druidv1alpha1.EtcdConfig{

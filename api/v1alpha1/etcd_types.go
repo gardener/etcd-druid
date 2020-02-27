@@ -47,13 +47,13 @@ type StorageProvider string
 // StoreSpec defines parameters related to ObjectStore persisting backups
 type StoreSpec struct {
 	// +optional
-	Container string `json:"container,omitempty"`
+	Container *string `json:"container,omitempty"`
 	// +required
-	Prefix *string `json:"prefix"`
+	Prefix string `json:"prefix"`
 	// +optional
-	Provider StorageProvider `json:"provider,omitempty"`
+	Provider *StorageProvider `json:"provider,omitempty"`
 	// +optional
-	SecretRef corev1.SecretReference `json:"secretRef,omitempty"`
+	SecretRef *corev1.SecretReference `json:"secretRef,omitempty"`
 }
 
 // TLSConfig hold the TLS configuration details.

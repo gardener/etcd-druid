@@ -145,9 +145,12 @@ func Key(namespaceOrName string, nameOpt ...string) client.ObjectKey {
 }
 
 // StorageProviderFromInfraProvider converts infra to object store provider.
-func StorageProviderFromInfraProvider(infra druidv1alpha1.StorageProvider) string {
+func StorageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) string {
 	var storage string
-	switch infra {
+	if infra == nil {
+		return ""
+	}
+	switch *infra {
 	case aws:
 		storage = s3
 	case azure:
