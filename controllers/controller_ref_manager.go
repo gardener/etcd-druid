@@ -76,7 +76,6 @@ func (m *BaseControllerRefManager) CanAdopt() error {
 //
 // No reconciliation will be attempted if the controller is being deleted.
 func (m *BaseControllerRefManager) ClaimObject(obj metav1.Object, match func(metav1.Object) bool, adopt, release func(metav1.Object) error) (bool, error) {
-
 	controllerRef := metav1.GetControllerOf(obj)
 	if controllerRef != nil {
 		if controllerRef.UID != m.Controller.GetUID() {
@@ -241,7 +240,6 @@ func (m *EtcdDruidRefManager) AdoptStatefulSet(etcd *appsv1.StatefulSet) error {
 // ReleaseStatefulSet sends a patch to free the statefulset from the control of the controller.
 // It returns the error if the patching fails. 404 and 422 errors are ignored.
 func (m *EtcdDruidRefManager) ReleaseStatefulSet(etcd *appsv1.StatefulSet) error {
-
 	etcdClone := etcd.DeepCopy()
 	owners := etcdClone.GetOwnerReferences()
 	ownersCopy := []metav1.OwnerReference{}
@@ -349,7 +347,6 @@ func (m *EtcdDruidRefManager) AdoptService(etcd *corev1.Service) error {
 // ReleaseService sends a patch to free the service from the control of the controller.
 // It returns the error if the patching fails. 404 and 422 errors are ignored.
 func (m *EtcdDruidRefManager) ReleaseService(etcd *corev1.Service) error {
-
 	etcdClone := etcd.DeepCopy()
 	owners := etcdClone.GetOwnerReferences()
 	ownersCopy := []metav1.OwnerReference{}
