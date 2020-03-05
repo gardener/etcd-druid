@@ -132,9 +132,6 @@ spec:
         - --insecure-transport=false
         - --insecure-skip-tls-verify=false
         - --endpoints=https://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
-        # enable TLS on backup-restore server reusing etcd cert bundle
-        - --server-cert=/var/etcd/ssl/server/tls.crt
-        - --server-key=/var/etcd/ssl/server/tls.key
 {{ else }}
         - --insecure-transport=true
         - --insecure-skip-tls-verify=true
@@ -241,8 +238,6 @@ spec:
 {{- if .Values.etcd.enableTLS }}
         - name: ca-etcd
           mountPath: /var/etcd/ssl/ca
-        - name: etcd-server-tls
-          mountPath: /var/etcd/ssl/server
         - name: etcd-client-tls
           mountPath: /var/etcd/ssl/client
 {{- end }}
