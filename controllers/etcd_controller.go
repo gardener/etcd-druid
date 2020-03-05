@@ -252,7 +252,7 @@ func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd) (*corev1.Se
 		return nil, err
 	}
 	for _, s := range services.Items {
-		logger.Infof("Services: %s\n", s.Name)
+		logger.Infof("Services: %s", s.Name)
 	}
 
 	// NOTE: filteredStatefulSets are pointing to deepcopies of the cache, but this could change in the future.
@@ -383,7 +383,7 @@ func (r *EtcdReconciler) reconcileConfigMaps(etcd *druidv1alpha1.Etcd) (*corev1.
 		return nil, err
 	}
 
-	logger.Infof("Configmaps: %d\n", len(cms.Items))
+	logger.Infof("Configmaps: %d", len(cms.Items))
 
 	// NOTE: filteredStatefulSets are pointing to deepcopies of the cache, but this could change in the future.
 	// Ref: https://github.com/kubernetes-sigs/controller-runtime/blob/release-0.2/pkg/cache/internal/cache_reader.go#L74
@@ -473,7 +473,6 @@ func (r *EtcdReconciler) syncConfigMapData(cm *corev1.ConfigMap, etcd *druidv1al
 		return nil, err
 	}
 	return cmCopy, err
-
 }
 
 func (r *EtcdReconciler) getConfigMapFromEtcd(etcd *druidv1alpha1.Etcd) (*corev1.ConfigMap, error) {
