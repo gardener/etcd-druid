@@ -1,13 +1,21 @@
-replicas: 1
+name: test
+uid: uuid-of-etcd-resource
+serviceName: test 
+configMapName: test
 
-storageCapacity: 16Gi
+replicas: 1
 
 tlsServerSecret: etcd-server-tls
 tlsClientSecret: etcd-client-tls
 tlsCASecret: ca-etcd
-podAnnotations: {}
+annotations: {}
+labels: {}
 
 etcd:
+  initialClusterToken: initial
+  initialClusterState: new
+  enableTLS: false
+  pullPolicy: IfNotPresent
   metrics: basic
   clientPort: 2379
   serverPort: 2380
@@ -22,6 +30,12 @@ etcd:
   #password: password
 
 backup:
+  pullPolicy: IfNotPresent
+  snapstoreTempDir: "/tmp"
+  etcdConnectionTimeout: 30
+  etcdQuotaBytes: 8Gi
+  garbageCollectionPolicy: LimitBased
+  maxBackups: 7
   resources:
     limits:
       cpu: 100m
@@ -30,6 +44,11 @@ backup:
       cpu: 50m
       memory: 128Mi
 
+volumeClaimTemplateName: test
+storageClass: ""
+storageCapacity: 16Gi
+
 store:
   storageProvider: ""
   storePrefix: ""
+  storageContainer: ""

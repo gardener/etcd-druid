@@ -688,6 +688,12 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	if etcd.Spec.Etcd.Quota != nil {
 		quota = etcd.Spec.Etcd.Quota.Value()
 	}
+
+	var deltaSnapshotMemoryLimit int64 = 0
+	if etcd.Spec.Backup.DeltaSnapshotMemoryLimit != nil {
+		deltaSnapshotMemoryLimit = etcd.Spec.Backup.DeltaSnapshotMemoryLimit.Value()
+	}
+
 	backupValues := map[string]interface{}{
 		"image":                    etcd.Spec.Backup.Image,
 		"fullSnapshotSchedule":     etcd.Spec.Backup.FullSnapshotSchedule,
@@ -700,7 +706,7 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		"snapstoreTempDir":         "/tmp",
 		"garbageCollectionPeriod":  etcd.Spec.Backup.GarbageCollectionPeriod,
 		"deltaSnapshotPeriod":      etcd.Spec.Backup.DeltaSnapshotPeriod,
-		"deltaSnapshotMemoryLimit": etcd.Spec.Backup.DeltaSnapshotMemoryLimit,
+		"deltaSnapshotMemoryLimit": deltaSnapshotMemoryLimit,
 	}
 
 	values := map[string]interface{}{
@@ -767,7 +773,7 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etc
 		clientSecret := corev1.Secret{}
 		if err := r.Client.Get(context.TODO(), types.NamespacedName{
 			Name:      etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name,
-			Namespace: etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Namespace,
+			Namespace: etcd.Namespace,
 		}, &clientSecret); err != nil {
 			return err
 		}
@@ -784,7 +790,7 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etc
 		serverSecret := corev1.Secret{}
 		if err := r.Client.Get(context.TODO(), types.NamespacedName{
 			Name:      etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name,
-			Namespace: etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Namespace,
+			Namespace: etcd.Namespace,
 		}, &serverSecret); err != nil {
 			return err
 		}
@@ -802,7 +808,7 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etc
 		caSecret := corev1.Secret{}
 		if err := r.Client.Get(context.TODO(), types.NamespacedName{
 			Name:      etcd.Spec.Etcd.TLS.TLSCASecretRef.Name,
-			Namespace: etcd.Spec.Etcd.TLS.TLSCASecretRef.Namespace,
+			Namespace: etcd.Namespace,
 		}, &caSecret); err != nil {
 			return err
 		}
@@ -879,6 +885,27 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(etcd *druidv1alpha1.
 				finalizers.Delete(FinalizerName)
 				serverSecretCopy.Finalizers = finalizers.UnsortedList()
 				if err := r.Update(context.TODO(), serverSecretCopy); err != nil && !errors.IsNotFound(err) {
+					return err
+				}
+			}
+		}
+
+		caSecret := corev1.Secret{}
+		err = r.Client.Get(context.TODO(), types.NamespacedName{
+			Name:      etcd.Spec.Etcd.TLS.TLSCASecretRef.Name,
+			Namespace: etcd.Namespace,
+		}, &caSecret)
+
+		if err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+		if err == nil {
+			if finalizers := sets.NewString(caSecret.Finalizers...); finalizers.Has(FinalizerName) {
+				logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, caSecret.GetName())
+				caSecretCopy := caSecret.DeepCopy()
+				finalizers.Delete(FinalizerName)
+				caSecretCopy.Finalizers = finalizers.UnsortedList()
+				if err := r.Update(context.TODO(), caSecretCopy); err != nil && !errors.IsNotFound(err) {
 					return err
 				}
 			}
