@@ -22,6 +22,13 @@ data:
     #!/bin/sh
     VALIDATION_MARKER=/var/etcd/data/validation_marker
 
+{{- if .Values.etcd.enableTLS }}
+    # install wget from apk in order to pass --ca-certificate flag because
+    # busybox wget only has bare minimum features, without --ca-certificate option
+    apk update
+    apk add wget
+{{- end }}
+
     trap_and_propagate() {
         PID=$1
         shift
@@ -44,11 +51,11 @@ data:
     check_and_start_etcd(){
           while true;
           do
-            wget "http://localhost:{{ .Values.backup.port }}/initialization/status" -S -O status;
+            wget {{ if .Values.etcd.enableTLS }}--ca-certificate=/var/etcd/ssl/ca/ca.crt "https{{ else }}"http{{ end }}://{{ .Values.name }}-local:{{ .Values.backup.port }}/initialization/status" -S -O status;
             STATUS=`cat status`;
             case $STATUS in
             "New")
-                  wget "http://localhost:{{ .Values.backup.port }}/initialization/start?mode=$1{{- if .Values.backup.failBelowRevision }}&failbelowrevision={{ int $.Values.backup.failBelowRevision }}{{- end }}" -S -O - ;;
+                  wget {{ if .Values.etcd.enableTLS }}--ca-certificate=/var/etcd/ssl/ca/ca.crt "https{{ else }}"http{{ end }}://{{ .Values.name }}-local:{{ .Values.backup.port }}/initialization/start?mode=$1{{- if .Values.backup.failBelowRevision }}&failbelowrevision={{ int $.Values.backup.failBelowRevision }}{{- end }}" -S -O - ;;
             "Progress")
                   sleep 1;
                   continue;;

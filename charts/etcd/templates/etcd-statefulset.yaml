@@ -59,6 +59,9 @@ spec:
         - /var/etcd/bin/bootstrap.sh
         readinessProbe:
           httpGet:
+{{- if .Values.etcd.enableTLS }}
+            scheme: HTTPS
+{{- end }}
             path: /healthz
             port: {{ .Values.backup.port }}
           initialDelaySeconds: 15
