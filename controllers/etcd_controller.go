@@ -747,10 +747,10 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 
 func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etcd) error {
 
-	tlsSecrets := []string{}
+	secrets := []string{}
 	if etcd.Spec.Etcd.TLS != nil {
 		// As the secrets inside TLS field are required, we error in case they are not found.
-		tlsSecrets = append(tlsSecrets,
+		secrets = append(secrets,
 			etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name,
 			etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name,
 			etcd.Spec.Etcd.TLS.TLSCASecretRef.Name,
@@ -758,13 +758,13 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etc
 	}
 	if etcd.Spec.Backup.Store != nil && etcd.Spec.Backup.Store.SecretRef != nil {
 		// As the store secret is required, we error in case it is not found as well.
-		tlsSecrets = append(tlsSecrets, etcd.Spec.Backup.Store.SecretRef.Name)
+		secrets = append(secrets, etcd.Spec.Backup.Store.SecretRef.Name)
 	}
 
-	for _, tlsSecret := range tlsSecrets {
+	for _, secretName := range secrets {
 		secret := corev1.Secret{}
 		if err := r.Client.Get(context.TODO(), types.NamespacedName{
-			Name:      tlsSecret,
+			Name:      secretName,
 			Namespace: etcd.Namespace,
 		}, &secret); err != nil {
 			return err
@@ -785,22 +785,22 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etc
 
 func (r *EtcdReconciler) removeFinalizersToDependantSecrets(etcd *druidv1alpha1.Etcd) error {
 
-	tlsSecrets := []string{}
+	secrets := []string{}
 	if etcd.Spec.Etcd.TLS != nil {
-		tlsSecrets = append(tlsSecrets,
+		secrets = append(secrets,
 			etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name,
 			etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name,
 			etcd.Spec.Etcd.TLS.TLSCASecretRef.Name,
 		)
 	}
 	if etcd.Spec.Backup.Store != nil && etcd.Spec.Backup.Store.SecretRef != nil {
-		tlsSecrets = append(tlsSecrets, etcd.Spec.Backup.Store.SecretRef.Name)
+		secrets = append(secrets, etcd.Spec.Backup.Store.SecretRef.Name)
 	}
 
-	for _, tlsSecret := range tlsSecrets {
+	for _, secretName := range secrets {
 		secret := corev1.Secret{}
 		err := r.Client.Get(context.TODO(), types.NamespacedName{
-			Name:      tlsSecret,
+			Name:      secretName,
 			Namespace: etcd.Namespace,
 		}, &secret)
 		if err != nil && !errors.IsNotFound(err) {
