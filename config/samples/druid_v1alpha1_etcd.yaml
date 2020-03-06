@@ -9,9 +9,10 @@ metadata:
         role: test
 spec:
     selector:
-        app: etcd-statefulset
-        garden.sapcloud.io/role: controlplane
-        role: test
+        matchLabels:
+          app: etcd-statefulset
+          garden.sapcloud.io/role: controlplane
+          role: test
     annotations:
         app: etcd-statefulset
         garden.sapcloud.io/role: controlplane
@@ -36,14 +37,14 @@ spec:
         clientPort: 2379
         serverPort: 2380
     backup:
-        image: eu.gcr.io/gardener-project/gardener/etcdbrctl:0.8.0-dev-dd26b65a2ab4efd77805584b33e8c559dd3c6d53
+        image: eu.gcr.io/gardener-project/gardener/etcdbrctl:0.8.0
         port: 8080
         fullSnapshotSchedule: '0 */24 * * *'
         resources:
             limits: {cpu: 500m, memory: 2Gi}
             requests: {cpu: 23m, memory: 128Mi}
         garbageCollectionPolicy: Exponential
-        Quota: 8Gi
+        quota: 8Gi
         garbageCollectionPeriod: 43200s
         deltaSnapshotPeriod: 300s
         deltaSnapshotMemoryLimit: 1Gi

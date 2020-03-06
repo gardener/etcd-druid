@@ -113,15 +113,23 @@ spec:
         command:
         - etcdbrctl
         - server
+{{- if .Values.etcd.defragmentationSchedule }}
         - --defragmentation-schedule={{ .Values.etcd.defragmentationSchedule }}
+{{- end }}
+{{- if .Values.backup.fullSnapshotSchedule }}
         - --schedule={{ .Values.backup.fullSnapshotSchedule }}
+{{- end }}
         - --garbage-collection-policy={{ .Values.backup.garbageCollectionPolicy }}
 {{- if eq .Values.backup.garbageCollectionPolicy "LimitBased" }}
         - --max-backups={{ .Values.backup.maxBackups }}
 {{- end }}
         - --data-dir=/var/etcd/data/new.etcd
+{{- if  .Values.store.storageProvider }}
         - --storage-provider={{ .Values.store.storageProvider }}
+{{- end }}
+{{- if .Values.store.storePrefix }}
         - --store-prefix={{ .Values.store.storePrefix }}
+{{- end }}
 {{- if .Values.backup.etcdQuotaBytes }}
         - --embedded-etcd-quota-bytes={{ int $.Values.backup.etcdQuotaBytes }}
 {{- end }}
@@ -141,13 +149,19 @@ spec:
         - --endpoints=http://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
 {{- end }}
         - --etcd-connection-timeout={{ .Values.backup.etcdConnectionTimeout }}
-        - --delta-snapshot-period={{ int $.Values.backup.deltaSnapshotPeriod }}
+{{- if .Values.backup.deltaSnapshotPeriod }}
+        - --delta-snapshot-period={{ .Values.backup.deltaSnapshotPeriod }}
+{{- end }}
+{{- if .Values.backup.deltaSnapshotMemoryLimit }}
         - --delta-snapshot-memory-limit={{ int $.Values.backup.deltaSnapshotMemoryLimit }}
+{{- end }}
 # {{- if and .Values.etcd.username .Values.etcd.password }}
 #         - --etcd-username={{ .Values.etcd.username }}
 #         - --etcd-password={{ .Values.etcd.password }}
 # {{- end }}
-        - --garbage-collection-period={{int $.Values.backup.garbageCollectionPeriod }}
+{{- if .Values.backup.garbageCollectionPeriod }}
+        - --garbage-collection-period={{ .Values.backup.garbageCollectionPeriod }}
+{{- end }}
         - --snapstore-temp-directory={{ .Values.backup.snapstoreTempDir }}
         image: {{ .Values.backup.image }}
         imagePullPolicy: {{ .Values.backup.pullPolicy }}
