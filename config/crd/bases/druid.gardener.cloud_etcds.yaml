@@ -8,6 +8,13 @@ metadata:
   creationTimestamp: null
   name: etcds.druid.gardener.cloud
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.ready
+    name: Ready
+    type: string
+  - JSONPath: .metadata.creationTimestamp
+    name: Age
+    type: date
   group: druid.gardener.cloud
   names:
     kind: Etcd
