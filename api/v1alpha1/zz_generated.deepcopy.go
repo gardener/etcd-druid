@@ -37,6 +37,11 @@ func (in *BackupSpec) DeepCopyInto(out *BackupSpec) {
 		*out = new(TLSConfig)
 		**out = **in
 	}
+	if in.Image != nil {
+		in, out := &in.Image, &out.Image
+		*out = new(string)
+		**out = **in
+	}
 	if in.Store != nil {
 		in, out := &in.Store, &out.Store
 		*out = new(StoreSpec)
@@ -164,6 +169,11 @@ func (in *EtcdConfig) DeepCopyInto(out *EtcdConfig) {
 	if in.ClientPort != nil {
 		in, out := &in.ClientPort, &out.ClientPort
 		*out = new(int)
+		**out = **in
+	}
+	if in.Image != nil {
+		in, out := &in.Image, &out.Image
+		*out = new(string)
 		**out = **in
 	}
 	if in.AuthSecretRef != nil {

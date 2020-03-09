@@ -4,17 +4,12 @@ go 1.12
 
 require (
 	cloud.google.com/go v0.50.0 // indirect
-	github.com/Masterminds/goutils v1.1.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
-	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
-	github.com/cyphar/filepath-securejoin v0.2.2 // indirect
-	github.com/gobwas/glob v0.2.3 // indirect
+	github.com/gardener/gardener v1.1.2
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/golang/groupcache v0.0.0-20191227052852-215e87163ea7 // indirect
-	github.com/huandu/xstrings v1.2.1 // indirect
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/json-iterator/go v1.1.9 // indirect
-	github.com/mitchellh/copystructure v1.0.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.1 // indirect
 	github.com/onsi/ginkgo v1.8.0
 	github.com/onsi/gomega v1.5.0
@@ -38,10 +33,8 @@ require (
 	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
 	k8s.io/helm v2.16.1+incompatible
 	k8s.io/klog v1.0.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20191107075043-30be4d16710a // indirect
 	k8s.io/utils v0.0.0-20191218082557-f07c713de883 // indirect
 	sigs.k8s.io/controller-runtime v0.4.0
-	sigs.k8s.io/controller-tools v0.2.4 // indirect
 )
 
 replace (

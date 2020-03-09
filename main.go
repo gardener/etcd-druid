@@ -71,6 +71,11 @@ func main() {
 		setupLog.Error(err, "unable to initialize controller with chart renderer")
 		os.Exit(1)
 	}
+	ec, err = ec.InitializeControllerWithImageVector()
+	if err != nil {
+		setupLog.Error(err, "unable to initialize controller with image vector")
+		os.Exit(1)
+	}
 	err = ec.SetupWithManager(mgr)
 	if err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Etcd")

@@ -179,8 +179,6 @@ spec:
                   - serverTLSSecretRef
                   - tlsCASecretRef
                   type: object
-              required:
-              - image
               type: object
             etcd:
               description: EtcdConfig defines parametes associated etcd deployed
@@ -285,8 +283,6 @@ spec:
                   - serverTLSSecretRef
                   - tlsCASecretRef
                   type: object
-              required:
-              - image
               type: object
             labels:
               additionalProperties:
