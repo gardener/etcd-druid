@@ -25,6 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	errorsutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/util/retry"
 
@@ -591,6 +592,14 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 	return ss.DeepCopy(), err
 }
 
+func getContainerMapFromPodTemplateSpec(spec v1.PodSpec) map[string]v1.Container {
+	containers := map[string]v1.Container{}
+	for _, c := range spec.Containers {
+		containers[c.Name] = c
+	}
+	return containers
+}
+
 func (r *EtcdReconciler) syncStatefulSetSpec(ss *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSet, error) {
 	decoded, err := r.getStatefulSetFromEtcd(etcd, cm, svc)
 	if err != nil {
@@ -603,6 +612,18 @@ func (r *EtcdReconciler) syncStatefulSetSpec(ss *appsv1.StatefulSet, cm *corev1.
 	ssCopy := ss.DeepCopy()
 	ssCopy.Spec.Replicas = decoded.Spec.Replicas
 	ssCopy.Spec.UpdateStrategy = decoded.Spec.UpdateStrategy
+
+	// Applying suggestions from
+	containers := getContainerMapFromPodTemplateSpec(ssCopy.Spec.Template.Spec)
+	for i, c := range decoded.Spec.Template.Spec.Containers {
+		container, ok := containers[c.Name]
+		if !ok {
+			return nil, fmt.Errorf("container with name %s could not be fetched from statefulset %s", c.Name, decoded.Name)
+		}
+		logger.Infof("Changing pod resource for %s from %v to %v", c.Name, decoded.Spec.Template.Spec.Containers[i].Resources, container.Resources)
+		decoded.Spec.Template.Spec.Containers[i].Resources = container.Resources
+	}
+
 	ssCopy.Spec.Template = decoded.Spec.Template
 
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
