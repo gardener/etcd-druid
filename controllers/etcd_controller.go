@@ -557,11 +557,34 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 
 		// Return the updated statefulset
 		ss := &appsv1.StatefulSet{}
-		err = r.Get(context.TODO(), types.NamespacedName{Name: filteredStatefulSets[0].Name, Namespace: filteredStatefulSets[0].Namespace}, ss)
+		if err := r.Get(context.TODO(), types.NamespacedName{Name: filteredStatefulSets[0].Name, Namespace: filteredStatefulSets[0].Namespace}, ss); err != nil {
+			return nil, err
+		}
 		// Statefulset is claimed by for this etcd. Just sync the specs
 		if ss, err = r.syncStatefulSetSpec(ss, cm, svc, etcd); err != nil {
 			return nil, err
 		}
+
+		// restart etcd pods in crashloop backoff
+		selector, err := metav1.LabelSelectorAsSelector(ss.Spec.Selector)
+		if err != nil {
+			logger.Error(err, "error converting statefulset selector to selector")
+			return nil, err
+		}
+		podList := &v1.PodList{}
+		if err := r.List(context.TODO(), podList, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
+			return nil, err
+		}
+
+		for _, pod := range podList.Items {
+			if utils.IsPodInCrashloopBackoff(pod.Status) {
+				if err := r.Delete(context.TODO(), &pod); err != nil {
+					logger.Error(err, fmt.Sprintf("error deleting etcd pod in crashloop: %s/%s", pod.Namespace, pod.Name))
+					return nil, err
+				}
+			}
+		}
+
 		return ss.DeepCopy(), err
 	}
 
@@ -627,18 +650,17 @@ func (r *EtcdReconciler) syncStatefulSetSpec(ss *appsv1.StatefulSet, cm *corev1.
 	ssCopy.Spec.Template = decoded.Spec.Template
 
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		logger.Infof("Patching statefulset %s.", ss.Name)
 		return r.Patch(context.TODO(), ssCopy, client.MergeFrom(ss))
 	})
 
 	// Ignore the precondition violated error, this machine is already updated
 	// with the desired label.
 	if err == errorsutil.ErrPreconditionViolated {
-		logger.Infof("Statefulset %s precondition doesn't hold, skip updating it.", ss.Name)
+		logger.Infof("statefulset %s precondition doesn't hold, skip updating it", ss.Name)
 		err = nil
 	}
 	if err != nil {
-		logger.Infof("Patching statefulset failed for %s.", ss.Name)
+		logger.Infof("patching statefulset failed for %s", ss.Name)
 		return nil, err
 	}
 	return ssCopy, err
@@ -714,15 +736,22 @@ func checkForEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha
 }
 
 func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]interface{}, error) {
+	var (
+		images map[string]*imagevector.Image
+		err    error
+	)
 
 	imageNames := []string{
 		common.Etcd,
 		common.BackupRestore,
 	}
 
-	images, err := imagevector.FindImages(r.ImageVector, imageNames)
-	if err != nil {
-		return map[string]interface{}{}, err
+	if etcd.Spec.Etcd.Image == nil || etcd.Spec.Backup.Image == nil {
+
+		images, err = imagevector.FindImages(r.ImageVector, imageNames)
+		if err != nil {
+			return map[string]interface{}{}, err
+		}
 	}
 
 	var statefulsetReplicas int

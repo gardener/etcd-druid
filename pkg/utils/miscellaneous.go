@@ -19,8 +19,13 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	crashLoopBackOff = "CrashLoopBackOff"
 )
 
 const (
@@ -167,4 +172,21 @@ func StorageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) stri
 		storage = ""
 	}
 	return storage
+}
+
+// IsPodInCrashloopBackoff checks if the pod is in CrashloopBackoff from its status fields.
+func IsPodInCrashloopBackoff(status v1.PodStatus) bool {
+	for _, containerStatus := range status.ContainerStatuses {
+		if isContainerInCrashLoopBackOff(containerStatus.State) {
+			return true
+		}
+	}
+	return false
+}
+
+func isContainerInCrashLoopBackOff(containerState v1.ContainerState) bool {
+	if containerState.Waiting != nil {
+		return containerState.Waiting.Reason == crashLoopBackOff
+	}
+	return false
 }

@@ -16,54 +16,11 @@ github.com/cespare/xxhash/v2
 github.com/cyphar/filepath-securejoin
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
-# github.com/docker/spdystream v0.0.0-20160310174837-449fdfce4d96
-github.com/docker/spdystream
-github.com/docker/spdystream/spdy
 # github.com/evanphx/json-patch v4.5.0+incompatible
 github.com/evanphx/json-patch
-# github.com/gardener/controller-manager-library v0.1.1-0.20191212112146-917449ad760c
-github.com/gardener/controller-manager-library/pkg/controllermanager/controller/reconcile/conditions
-github.com/gardener/controller-manager-library/pkg/ctxutil
-github.com/gardener/controller-manager-library/pkg/fieldpath
-github.com/gardener/controller-manager-library/pkg/informerfactories
-github.com/gardener/controller-manager-library/pkg/kutil
-github.com/gardener/controller-manager-library/pkg/logger
-github.com/gardener/controller-manager-library/pkg/resources
-github.com/gardener/controller-manager-library/pkg/utils
-# github.com/gardener/external-dns-management v0.7.3
-github.com/gardener/external-dns-management/pkg/apis/dns
-github.com/gardener/external-dns-management/pkg/apis/dns/v1alpha1
-github.com/gardener/external-dns-management/pkg/client/dns/clientset/versioned/scheme
 # github.com/gardener/gardener v1.1.2
-github.com/gardener/gardener/pkg/apis/core
-github.com/gardener/gardener/pkg/apis/core/v1alpha1
-github.com/gardener/gardener/pkg/apis/core/v1beta1
-github.com/gardener/gardener/pkg/apis/core/v1beta1/constants
-github.com/gardener/gardener/pkg/apis/extensions
-github.com/gardener/gardener/pkg/apis/extensions/v1alpha1
-github.com/gardener/gardener/pkg/chartrenderer
-github.com/gardener/gardener/pkg/client/core/clientset/versioned
-github.com/gardener/gardener/pkg/client/core/clientset/versioned/scheme
-github.com/gardener/gardener/pkg/client/core/clientset/versioned/typed/core/v1alpha1
-github.com/gardener/gardener/pkg/client/core/clientset/versioned/typed/core/v1beta1
-github.com/gardener/gardener/pkg/client/core/listers/core/v1beta1
-github.com/gardener/gardener/pkg/client/extensions/clientset/versioned/scheme
-github.com/gardener/gardener/pkg/client/kubernetes
-github.com/gardener/gardener/pkg/logger
-github.com/gardener/gardener/pkg/operation/common
-github.com/gardener/gardener/pkg/utils
-github.com/gardener/gardener/pkg/utils/context
-github.com/gardener/gardener/pkg/utils/errors
 github.com/gardener/gardener/pkg/utils/imagevector
-github.com/gardener/gardener/pkg/utils/kubernetes
-github.com/gardener/gardener/pkg/utils/retry
 github.com/gardener/gardener/pkg/utils/version
-github.com/gardener/gardener/pkg/version
-# github.com/gardener/gardener-resource-manager v0.10.0
-github.com/gardener/gardener-resource-manager/pkg/apis/resources
-github.com/gardener/gardener-resource-manager/pkg/apis/resources/v1alpha1
-# github.com/gardener/hvpa-controller v0.0.0-20191014062307-fad3bdf06a25
-github.com/gardener/hvpa-controller/api/v1alpha1
 # github.com/ghodss/yaml v1.0.0
 github.com/ghodss/yaml
 # github.com/go-logr/logr v0.1.0
@@ -104,10 +61,6 @@ github.com/google/uuid
 github.com/googleapis/gnostic/OpenAPIv2
 github.com/googleapis/gnostic/compiler
 github.com/googleapis/gnostic/extensions
-# github.com/hashicorp/errwrap v1.0.0
-github.com/hashicorp/errwrap
-# github.com/hashicorp/go-multierror v1.0.0
-github.com/hashicorp/go-multierror
 # github.com/hashicorp/golang-lru v0.5.3
 github.com/hashicorp/golang-lru
 github.com/hashicorp/golang-lru/simplelru
@@ -392,15 +345,11 @@ k8s.io/apimachinery/pkg/util/clock
 k8s.io/apimachinery/pkg/util/diff
 k8s.io/apimachinery/pkg/util/errors
 k8s.io/apimachinery/pkg/util/framer
-k8s.io/apimachinery/pkg/util/httpstream
-k8s.io/apimachinery/pkg/util/httpstream/spdy
 k8s.io/apimachinery/pkg/util/intstr
 k8s.io/apimachinery/pkg/util/json
 k8s.io/apimachinery/pkg/util/mergepatch
 k8s.io/apimachinery/pkg/util/naming
 k8s.io/apimachinery/pkg/util/net
-k8s.io/apimachinery/pkg/util/rand
-k8s.io/apimachinery/pkg/util/remotecommand
 k8s.io/apimachinery/pkg/util/runtime
 k8s.io/apimachinery/pkg/util/sets
 k8s.io/apimachinery/pkg/util/strategicpatch
@@ -412,10 +361,7 @@ k8s.io/apimachinery/pkg/util/yaml
 k8s.io/apimachinery/pkg/version
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
-k8s.io/apimachinery/third_party/forked/golang/netutil
 k8s.io/apimachinery/third_party/forked/golang/reflect
-# k8s.io/autoscaler v0.0.0-20190805135949-100e91ba756e
-k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2
 # k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible => k8s.io/client-go v0.0.0-20190918160344-1fbdaa4c8d90
 k8s.io/client-go/discovery
 k8s.io/client-go/discovery/cached/memory
@@ -480,27 +426,18 @@ k8s.io/client-go/tools/leaderelection
 k8s.io/client-go/tools/leaderelection/resourcelock
 k8s.io/client-go/tools/metrics
 k8s.io/client-go/tools/pager
-k8s.io/client-go/tools/portforward
 k8s.io/client-go/tools/record
 k8s.io/client-go/tools/record/util
 k8s.io/client-go/tools/reference
-k8s.io/client-go/tools/remotecommand
 k8s.io/client-go/transport
-k8s.io/client-go/transport/spdy
 k8s.io/client-go/util/cert
 k8s.io/client-go/util/connrotation
-k8s.io/client-go/util/exec
 k8s.io/client-go/util/flowcontrol
 k8s.io/client-go/util/homedir
 k8s.io/client-go/util/jsonpath
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/retry
 k8s.io/client-go/util/workqueue
-# k8s.io/cluster-bootstrap v0.0.0-20190918163108-da9fdfce26bb => k8s.io/cluster-bootstrap v0.0.0-20190918163108-da9fdfce26bb
-k8s.io/cluster-bootstrap/token/api
-k8s.io/cluster-bootstrap/token/util
-# k8s.io/component-base v0.0.0-20190918160511-547f6c5d7090 => k8s.io/component-base v0.0.0-20190918160511-547f6c5d7090
-k8s.io/component-base/config
 # k8s.io/helm v2.16.1+incompatible => k8s.io/helm v2.13.1+incompatible
 k8s.io/helm/pkg/chartutil
 k8s.io/helm/pkg/engine
@@ -515,14 +452,6 @@ k8s.io/helm/pkg/timeconv
 k8s.io/helm/pkg/version
 # k8s.io/klog v1.0.0
 k8s.io/klog
-# k8s.io/kube-aggregator v0.0.0-20191004104030-d9d5f0cc7532 => k8s.io/kube-aggregator v0.0.0-20190918161219-8c8f079fddc3
-k8s.io/kube-aggregator/pkg/apis/apiregistration
-k8s.io/kube-aggregator/pkg/apis/apiregistration/v1
-k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1
-k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset
-k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme
-k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1
-k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1
 # k8s.io/kube-openapi v0.0.0-20191107075043-30be4d16710a => k8s.io/kube-openapi v0.0.0-20190816220812-743ec37842bf
 k8s.io/kube-openapi/pkg/util/proto
 # k8s.io/utils v0.0.0-20191218082557-f07c713de883
