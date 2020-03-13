@@ -44,10 +44,8 @@ if [[ "${SOURCE_PATH}" != *"src/${REPOSITORY}" ]]; then
   export PATH="${GOBIN}:${PATH}"
 fi
 
-export GO111MODULE=on 
-
 # Install Ginkgo (test framework) to be able to execute the tests.
-go get -u github.com/onsi/ginkgo/ginkgo
+GO111MODULE=off go get github.com/onsi/ginkgo/ginkgo
 
 ###############################################################################
 

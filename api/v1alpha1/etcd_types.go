@@ -74,7 +74,7 @@ type BackupSpec struct {
 	TLS *TLSConfig `json:"tls,omitempty"`
 	// Image defines the etcd container image and tag
 	// +optional
-	Image *string `json:"image"`
+	Image *string `json:"image,omitempty"`
 	// Store defines the specification of object store provider for storing backups.
 	// +optional
 	Store *StoreSpec `json:"store,omitempty"`
@@ -113,7 +113,7 @@ type EtcdConfig struct {
 	ClientPort *int `json:"clientPort,omitempty"`
 	// Image defines the etcd container image and tag
 	// +optional
-	Image *string `json:"image"`
+	Image *string `json:"image,omitempty"`
 	// +optional
 	AuthSecretRef *corev1.SecretReference `json:"authSecretRef,omitempty"`
 	// Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics.

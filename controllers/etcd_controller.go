@@ -62,7 +62,6 @@ const (
 	// DefaultImageVector is a constant for the path to the default image vector file.
 	DefaultImageVector = "images.yaml"
 	timeout            = time.Second * 30
-	// Etcd
 )
 
 // EtcdReconciler reconciles a Etcd object
@@ -92,6 +91,19 @@ func NewEtcdReconciler(mgr manager.Manager) (*EtcdReconciler, error) {
 		Config: mgr.GetConfig(),
 		Scheme: mgr.GetScheme(),
 	}).InitializeControllerWithChartApplier()
+}
+
+// NewEtcdReconcilerWithImageVector creates a new EtcdReconciler object
+func NewEtcdReconcilerWithImageVector(mgr manager.Manager) (*EtcdReconciler, error) {
+	ec, err := (&EtcdReconciler{
+		Client: mgr.GetClient(),
+		Config: mgr.GetConfig(),
+		Scheme: mgr.GetScheme(),
+	}).InitializeControllerWithChartApplier()
+	if err != nil {
+		return nil, err
+	}
+	return ec.InitializeControllerWithImageVector()
 }
 
 func getChartPath() string {
@@ -643,7 +655,6 @@ func (r *EtcdReconciler) syncStatefulSetSpec(ss *appsv1.StatefulSet, cm *corev1.
 		if !ok {
 			return nil, fmt.Errorf("container with name %s could not be fetched from statefulset %s", c.Name, decoded.Name)
 		}
-		logger.Infof("Changing pod resource for %s from %v to %v", c.Name, decoded.Spec.Template.Spec.Containers[i].Resources, container.Resources)
 		decoded.Spec.Template.Spec.Containers[i].Resources = container.Resources
 	}
 
