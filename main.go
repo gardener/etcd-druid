@@ -62,13 +62,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	ec, err := (&controllers.EtcdReconciler{
-		Client: mgr.GetClient(),
-		Config: mgr.GetConfig(),
-		Scheme: mgr.GetScheme(),
-	}).InitializeControllerWithChartApplier()
+	ec, err := controllers.NewEtcdReconcilerWithImageVector(mgr)
 	if err != nil {
-		setupLog.Error(err, "unable to initialize controller with chart renderer")
+		setupLog.Error(err, "unable to initialize controller with image vector")
 		os.Exit(1)
 	}
 	err = ec.SetupWithManager(mgr)

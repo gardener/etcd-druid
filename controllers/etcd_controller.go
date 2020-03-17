@@ -25,6 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	errorsutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/util/retry"
 
@@ -36,9 +37,11 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/chartrenderer"
+	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
 
 	kubernetes "github.com/gardener/etcd-druid/pkg/client/kubernetes"
+	"github.com/gardener/gardener/pkg/utils/imagevector"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -56,7 +59,9 @@ var (
 const (
 	// FinalizerName is the name of the Plant finalizer.
 	FinalizerName = "druid.gardener.cloud/etcd-druid"
-	timeout       = time.Second * 30
+	// DefaultImageVector is a constant for the path to the default image vector file.
+	DefaultImageVector = "images.yaml"
+	timeout            = time.Second * 30
 )
 
 // EtcdReconciler reconciles a Etcd object
@@ -67,6 +72,16 @@ type EtcdReconciler struct {
 	Config        *rest.Config
 	ChartApplier  kubernetes.ChartApplier
 	RenderedChart *chartrenderer.RenderedChart
+	ImageVector   imagevector.ImageVector
+}
+
+// NewReconcilerWithImageVector creates a new EtcdReconciler object with an image vector
+func NewReconcilerWithImageVector(mgr manager.Manager) (*EtcdReconciler, error) {
+	etcdReconciler, err := NewEtcdReconciler(mgr)
+	if err != nil {
+		return nil, err
+	}
+	return etcdReconciler.InitializeControllerWithImageVector()
 }
 
 // NewEtcdReconciler creates a new EtcdReconciler object
@@ -76,6 +91,19 @@ func NewEtcdReconciler(mgr manager.Manager) (*EtcdReconciler, error) {
 		Config: mgr.GetConfig(),
 		Scheme: mgr.GetScheme(),
 	}).InitializeControllerWithChartApplier()
+}
+
+// NewEtcdReconcilerWithImageVector creates a new EtcdReconciler object
+func NewEtcdReconcilerWithImageVector(mgr manager.Manager) (*EtcdReconciler, error) {
+	ec, err := (&EtcdReconciler{
+		Client: mgr.GetClient(),
+		Config: mgr.GetConfig(),
+		Scheme: mgr.GetScheme(),
+	}).InitializeControllerWithChartApplier()
+	if err != nil {
+		return nil, err
+	}
+	return ec.InitializeControllerWithImageVector()
 }
 
 func getChartPath() string {
@@ -115,6 +143,17 @@ func (r *EtcdReconciler) InitializeControllerWithChartApplier() (*EtcdReconciler
 		return nil, err
 	}
 	r.ChartApplier = kubernetes.NewChartApplier(renderer, applier)
+	return r, nil
+}
+
+// InitializeControllerWithImageVector will use EtcdReconciler client to intialize image vector for etcd
+// and backup restore images.
+func (r *EtcdReconciler) InitializeControllerWithImageVector() (*EtcdReconciler, error) {
+	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(filepath.Join(common.ChartPath, DefaultImageVector))
+	if err != nil {
+		return nil, err
+	}
+	r.ImageVector = imageVector
 	return r, nil
 }
 
@@ -248,7 +287,7 @@ func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd) (*corev1.Se
 	services := &corev1.ServiceList{}
 	err = r.List(context.TODO(), services, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
 	if err != nil {
-		logger.Error(err, "Error listing statefulsets")
+		logger.Error(err, "Error listing services")
 		return nil, err
 	}
 	for _, s := range services.Items {
@@ -530,11 +569,34 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 
 		// Return the updated statefulset
 		ss := &appsv1.StatefulSet{}
-		err = r.Get(context.TODO(), types.NamespacedName{Name: filteredStatefulSets[0].Name, Namespace: filteredStatefulSets[0].Namespace}, ss)
+		if err := r.Get(context.TODO(), types.NamespacedName{Name: filteredStatefulSets[0].Name, Namespace: filteredStatefulSets[0].Namespace}, ss); err != nil {
+			return nil, err
+		}
 		// Statefulset is claimed by for this etcd. Just sync the specs
 		if ss, err = r.syncStatefulSetSpec(ss, cm, svc, etcd); err != nil {
 			return nil, err
 		}
+
+		// restart etcd pods in crashloop backoff
+		selector, err := metav1.LabelSelectorAsSelector(ss.Spec.Selector)
+		if err != nil {
+			logger.Error(err, "error converting statefulset selector to selector")
+			return nil, err
+		}
+		podList := &v1.PodList{}
+		if err := r.List(context.TODO(), podList, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
+			return nil, err
+		}
+
+		for _, pod := range podList.Items {
+			if utils.IsPodInCrashloopBackoff(pod.Status) {
+				if err := r.Delete(context.TODO(), &pod); err != nil {
+					logger.Error(err, fmt.Sprintf("error deleting etcd pod in crashloop: %s/%s", pod.Namespace, pod.Name))
+					return nil, err
+				}
+			}
+		}
+
 		return ss.DeepCopy(), err
 	}
 
@@ -565,6 +627,14 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 	return ss.DeepCopy(), err
 }
 
+func getContainerMapFromPodTemplateSpec(spec v1.PodSpec) map[string]v1.Container {
+	containers := map[string]v1.Container{}
+	for _, c := range spec.Containers {
+		containers[c.Name] = c
+	}
+	return containers
+}
+
 func (r *EtcdReconciler) syncStatefulSetSpec(ss *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSet, error) {
 	decoded, err := r.getStatefulSetFromEtcd(etcd, cm, svc)
 	if err != nil {
@@ -577,6 +647,17 @@ func (r *EtcdReconciler) syncStatefulSetSpec(ss *appsv1.StatefulSet, cm *corev1.
 	ssCopy := ss.DeepCopy()
 	ssCopy.Spec.Replicas = decoded.Spec.Replicas
 	ssCopy.Spec.UpdateStrategy = decoded.Spec.UpdateStrategy
+
+	// Applying suggestions from
+	containers := getContainerMapFromPodTemplateSpec(ssCopy.Spec.Template.Spec)
+	for i, c := range decoded.Spec.Template.Spec.Containers {
+		container, ok := containers[c.Name]
+		if !ok {
+			return nil, fmt.Errorf("container with name %s could not be fetched from statefulset %s", c.Name, decoded.Name)
+		}
+		decoded.Spec.Template.Spec.Containers[i].Resources = container.Resources
+	}
+
 	ssCopy.Spec.Template = decoded.Spec.Template
 
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
@@ -586,11 +667,11 @@ func (r *EtcdReconciler) syncStatefulSetSpec(ss *appsv1.StatefulSet, cm *corev1.
 	// Ignore the precondition violated error, this machine is already updated
 	// with the desired label.
 	if err == errorsutil.ErrPreconditionViolated {
-		logger.Infof("Statefulset %s precondition doesn't hold, skip updating it.", ss.Name)
+		logger.Infof("statefulset %s precondition doesn't hold, skip updating it", ss.Name)
 		err = nil
 	}
 	if err != nil {
-		logger.Infof("Patching statefulset failed for %s.", ss.Name)
+		logger.Infof("patching statefulset failed for %s", ss.Name)
 		return nil, err
 	}
 	return ssCopy, err
@@ -666,6 +747,24 @@ func checkForEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha
 }
 
 func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]interface{}, error) {
+	var (
+		images map[string]*imagevector.Image
+		err    error
+	)
+
+	imageNames := []string{
+		common.Etcd,
+		common.BackupRestore,
+	}
+
+	if etcd.Spec.Etcd.Image == nil || etcd.Spec.Backup.Image == nil {
+
+		images, err = imagevector.FindImages(r.ImageVector, imageNames)
+		if err != nil {
+			return map[string]interface{}{}, err
+		}
+	}
+
 	var statefulsetReplicas int
 	if etcd.Spec.Replicas != 0 {
 		statefulsetReplicas = 1
@@ -682,6 +781,16 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		"pullPolicy":              corev1.PullIfNotPresent,
 		// "username":                etcd.Spec.Etcd.Username,
 		// "password":                etcd.Spec.Etcd.Password,
+	}
+
+	if etcd.Spec.Etcd.Image == nil {
+		val, ok := images[common.Etcd]
+		if !ok {
+			return map[string]interface{}{}, fmt.Errorf("either etcd resource or image vector should have %s image", common.Etcd)
+		}
+		etcdValues["image"] = val.String()
+	} else {
+		etcdValues["image"] = etcd.Spec.Etcd.Image
 	}
 
 	var quota int64 = 2 * 1024 * 1024 * 1024 // 2Gib
@@ -707,6 +816,16 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		"garbageCollectionPeriod":  etcd.Spec.Backup.GarbageCollectionPeriod,
 		"deltaSnapshotPeriod":      etcd.Spec.Backup.DeltaSnapshotPeriod,
 		"deltaSnapshotMemoryLimit": deltaSnapshotMemoryLimit,
+	}
+
+	if etcd.Spec.Backup.Image == nil {
+		val, ok := images[common.BackupRestore]
+		if !ok {
+			return map[string]interface{}{}, fmt.Errorf("either etcd resource or image vector should have %s image", common.BackupRestore)
+		}
+		backupValues["image"] = val.String()
+	} else {
+		backupValues["image"] = etcd.Spec.Backup.Image
 	}
 
 	values := map[string]interface{}{
