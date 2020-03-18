@@ -45,6 +45,8 @@ func init() {
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
+	var workers int
+	flag.IntVar(&workers, "workers", 3, "Number of worker threads.")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
@@ -67,7 +69,7 @@ func main() {
 		setupLog.Error(err, "unable to initialize controller with image vector")
 		os.Exit(1)
 	}
-	err = ec.SetupWithManager(mgr)
+	err = ec.SetupWithManager(mgr, workers)
 	if err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Etcd")
 		os.Exit(1)

@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -988,9 +989,10 @@ func convertConditionsToEtcd(condition *appsv1.StatefulSetCondition) druidv1alph
 }
 
 // SetupWithManager sets up manager with a new controller and r as the reconcile.Reconciler
-func (r *EtcdReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&druidv1alpha1.Etcd{}).
+func (r *EtcdReconciler) SetupWithManager(mgr ctrl.Manager, workers int) error {
+	return ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
+		MaxConcurrentReconciles: workers,
+	}).For(&druidv1alpha1.Etcd{}).
 		Owns(&appsv1.StatefulSet{}).
 		Complete(r)
 }
