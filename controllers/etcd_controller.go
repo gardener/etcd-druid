@@ -927,7 +927,7 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(etcd *druidv1alpha1.
 			return err
 		}
 		if err == nil {
-			if finalizers := sets.NewString(secret.Finalizers...); !finalizers.Has(FinalizerName) {
+			if finalizers := sets.NewString(secret.Finalizers...); finalizers.Has(FinalizerName) {
 				logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, secret.GetName())
 				secretCopy := secret.DeepCopy()
 				finalizers.Delete(FinalizerName)
