@@ -843,6 +843,11 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		backupValues["image"] = etcd.Spec.Backup.Image
 	}
 
+	volumeClaimTemplateName := etcd.Name
+	if etcd.Spec.VolumeClaimTemplate != nil && len(*etcd.Spec.VolumeClaimTemplate) != 0 {
+		volumeClaimTemplateName = *etcd.Spec.VolumeClaimTemplate
+	}
+
 	values := map[string]interface{}{
 		"etcd":                    etcdValues,
 		"backup":                  backupValues,
@@ -856,7 +861,7 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		"statefulsetReplicas":     statefulsetReplicas,
 		"serviceName":             fmt.Sprintf("%s-client", etcd.Name),
 		"configMapName":           fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
-		"volumeClaimTemplateName": etcd.Spec.VolumeClaimTemplate,
+		"volumeClaimTemplateName": volumeClaimTemplateName,
 		"selector":                etcd.Spec.Selector,
 	}
 
