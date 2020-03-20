@@ -20,7 +20,8 @@ import (
 	"os"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/controllers"
+	"github.com/gardener/etcd-druid/controllers/etcd"
+	"github.com/gardener/etcd-druid/controllers/healthz"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	schemev1 "k8s.io/client-go/kubernetes/scheme"
@@ -50,6 +51,7 @@ func main() {
 		ignoreOperationAnnotation bool
 	)
 
+	// TODO: Use cobra command
 	flag.IntVar(&workers, "workers", 3, "Number of worker threads.")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
@@ -58,6 +60,7 @@ func main() {
 
 	flag.Parse()
 
+	// TODO: Configure logger
 	ctrl.SetLogger(zap.Logger(true))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -70,17 +73,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	ec, err := controllers.NewEtcdReconcilerWithImageVector(mgr)
+	ec, err := etcd.NewEtcdReconcilerWithImageVector(mgr)
 	if err != nil {
 		setupLog.Error(err, "unable to initialize controller with image vector")
 		os.Exit(1)
 	}
-	err = ec.SetupWithManager(mgr, workers, ignoreOperationAnnotation)
-	if err != nil {
+
+	if err := ec.SetupWithManager(mgr, workers, ignoreOperationAnnotation); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Etcd")
 		os.Exit(1)
 	}
 
+	// TODO: Merge with above
+	if err := healthz.SetupWithManager(mgr, workers); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Health-controller")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")

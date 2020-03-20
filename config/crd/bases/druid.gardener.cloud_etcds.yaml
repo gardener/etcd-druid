@@ -296,6 +296,7 @@ spec:
                 shall be used for the etcd pods.
               type: string
             replicas:
+              format: int32
               type: integer
             selector:
               description: 'selector is a label query over pods that should match
@@ -357,7 +358,6 @@ spec:
           - backup
           - etcd
           - labels
-          - replicas
           - selector
           type: object
         status:

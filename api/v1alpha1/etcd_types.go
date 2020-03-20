@@ -141,8 +141,8 @@ type EtcdSpec struct {
 	Etcd EtcdConfig `json:"etcd"`
 	// +required
 	Backup BackupSpec `json:"backup"`
-	// +required
-	Replicas int `json:"replicas"`
+	// +optional
+	Replicas *int32 `json:"replicas,omitempty"`
 	// PriorityClassName is the name of a priority class that shall be used for the etcd pods.
 	// +optional
 	PriorityClassName *string `json:"priorityClassName,omitempty"`

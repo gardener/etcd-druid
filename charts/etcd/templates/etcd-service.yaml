@@ -1,10 +1,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.serviceName }}
+  name: {{ required "Values.serviceName is required" .Values.serviceName }}
   namespace: {{ .Release.Namespace }}
   labels:
-    instance: {{ .Values.name }}
+    instance: {{ required "Values.name is required" .Values.name }}
+    scope: internal
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 4 }}
 {{- end }}
@@ -13,27 +14,27 @@ metadata:
     blockOwnerDeletion: true
     controller: true
     kind: Etcd
-    name: {{ .Values.name }}
-    uid: {{ .Values.uid }}
+    name: {{ required "Values.name is required" .Values.name }}
+    uid: {{ required "Values.uid is required" .Values.uid }}
 spec:
 # Note: Changing service type will require change in handling the re-sync of the service.
   type: ClusterIP
+  ClusterIP: None
   sessionAffinity: None
   selector:
-    instance: {{ .Values.name }}
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 4 }}
 {{- end }}
   ports:
-  - name: client
+  - name: etcd-client
     protocol: TCP
-    port: {{ .Values.etcd.clientPort }}
-    targetPort: {{ .Values.etcd.clientPort }}
-  - name: server
+    port: {{ required "Values.etcd.clientPort is required" .Values.etcd.clientPort }}
+    targetPort: {{ required "Values.etcd.clientPort is required" .Values.etcd.clientPort }}
+  - name: etcd-server
     protocol: TCP
-    port: {{ .Values.etcd.serverPort }}
-    targetPort: {{ .Values.etcd.serverPort }}
+    port: {{ required "Values.etcd.serverPort is required" .Values.etcd.serverPort }}
+    targetPort: {{ required "Values.etcd.serverPort is required" .Values.etcd.serverPort }}
   - name: backuprestore
     protocol: TCP
-    port: {{ .Values.backup.port }}
-    targetPort: {{ .Values.backup.port }}
+    port: {{ required "Values.backup.port is required" .Values.backup.port }}
+    targetPort: {{ required "Values.backup.port is required" .Values.backup.port }}
