@@ -234,7 +234,7 @@ spec:
               name: {{ .Values.store.storeSecret }}
               key: "tenantName"
 {{- else if eq .Values.store.storageProvider "OSS" }}
-        - name: ""ALICLOUD_ENDPOINT""
+        - name: "ALICLOUD_ENDPOINT"
           valueFrom:
             secretKeyRef:
               name: {{ .Values.store.storeSecret }}
