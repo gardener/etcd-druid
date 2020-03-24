@@ -26,7 +26,24 @@ data:
     # install wget from apk in order to pass --ca-certificate flag because
     # busybox wget only has bare minimum features, without --ca-certificate option
     apk update
+    if [ $? -ne 0 ]
+    then
+      echo "apk update failed"
+      exit 1
+    fi
     apk add wget
+    if [ $? -ne 0 ]
+    then
+      echo "failed to update wget"
+      exit 1
+    fi
+    # ensure that newly updated wget comes with --ca-certificate flag
+    wget --help | grep -- --ca-certificate
+    if [ $? -ne 0 ]
+    then
+      echo "updated wget is missing --ca-certificate flag"
+      exit 1
+    fi
 {{- end }}
 
     trap_and_propagate() {
