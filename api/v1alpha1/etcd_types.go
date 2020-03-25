@@ -258,6 +258,9 @@ type LastOperation struct {
 
 // EtcdStatus defines the observed state of Etcd
 type EtcdStatus struct {
+	// ObservedGeneration is the most recent generation observed for this resource.
+	// +optional
+	ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
 	// +optional
 	Etcd CrossVersionObjectReference `json:"etcd,omitempty"`
 	// +optional

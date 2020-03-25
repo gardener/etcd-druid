@@ -29,9 +29,6 @@ spec:
     matchLabels:
       name: etcd
       instance: {{ .Values.name }}
-{{- if .Values.labels }}
-{{ toYaml .Values.labels | indent 6 }}
-{{- end }}
   template:
     metadata:
       annotations:

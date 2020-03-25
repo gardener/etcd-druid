@@ -205,14 +205,14 @@ func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
 				"role": "test",
 			},
 			Labels: map[string]string{
-				"app":  "etcd-statefulset",
-				"role": "test",
-				"name": name,
+				"app":      "etcd-statefulset",
+				"role":     "test",
+				"instance": name,
 			},
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app":  "etcd-statefulset",
-					"name": name,
+					"app":      "etcd-statefulset",
+					"instance": name,
 				},
 			},
 			Replicas:        1,
