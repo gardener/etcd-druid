@@ -11,8 +11,8 @@ require (
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/json-iterator/go v1.1.9 // indirect
 	github.com/mitchellh/reflectwalk v1.0.1 // indirect
-	github.com/onsi/ginkgo v1.8.0
-	github.com/onsi/gomega v1.5.0
+	github.com/onsi/ginkgo v1.10.1
+	github.com/onsi/gomega v1.7.0
 	github.com/prometheus/client_golang v1.3.0 // indirect
 	github.com/sirupsen/logrus v1.4.2
 	go.uber.org/atomic v1.5.1 // indirect

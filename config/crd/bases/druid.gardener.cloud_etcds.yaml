@@ -447,6 +447,11 @@ spec:
               type: object
             lastError:
               type: string
+            observedGeneration:
+              description: ObservedGeneration is the most recent generation observed for
+                this resource.
+              format: int64
+              type: integer
             ready:
               type: boolean
             readyReplicas:
