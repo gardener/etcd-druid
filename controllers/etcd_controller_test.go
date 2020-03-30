@@ -36,7 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const timeout = time.Second * 5
+const timeout = time.Minute * 2
 
 var _ = Describe("Druid", func() {
 

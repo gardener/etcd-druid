@@ -48,6 +48,7 @@ import (
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 
 	"github.com/gardener/gardener/pkg/utils/imagevector"
+	gardenerretry "github.com/gardener/gardener/pkg/utils/retry"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -67,7 +68,12 @@ const (
 	FinalizerName = "druid.gardener.cloud/etcd-druid"
 	// DefaultImageVector is a constant for the path to the default image vector file.
 	DefaultImageVector = "images.yaml"
-	timeout            = time.Second * 30
+	// DefaultTimeout is the default timeout for retry operations.
+	DefaultTimeout = time.Minute * 1
+	// DefaultInterval is the default interval for retry operations.
+	DefaultInterval = 5 * time.Second
+	// EtcdReady implies that etcd is ready
+	EtcdReady = true
 )
 
 // EtcdReconciler reconciles a Etcd object
@@ -168,8 +174,8 @@ func (r *EtcdReconciler) InitializeControllerWithImageVector() (*EtcdReconciler,
 // Reconcile reconciles the etcd.
 func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
-	etcd := &druidv1alpha1.Etcd{}
-	if err := r.Get(context.TODO(), req.NamespacedName, etcd); err != nil {
+	etcdCopy := &druidv1alpha1.Etcd{}
+	if err := r.Get(context.TODO(), req.NamespacedName, etcdCopy); err != nil {
 		if errors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
 			// For additional cleanup logic use finalizers.
@@ -179,11 +185,18 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
+	etcd, err := r.updateEtcdStatusAsNotReady(etcdCopy)
+	if err != nil && !errors.IsNotFound(err) {
+		return ctrl.Result{
+			Requeue: true,
+		}, err
+	}
+
 	logger.Infof("Reconciling etcd: %s/%s", etcd.GetNamespace(), etcd.GetName())
 	if !etcd.DeletionTimestamp.IsZero() {
 		logger.Infof("Deletion timestamp set for etcd: %s", etcd.GetName())
 		if err := r.removeFinalizersToDependantSecrets(etcd); err != nil {
-			if err := r.updateEtcdErrorStatus(etcd, err); err != nil {
+			if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
 				return ctrl.Result{
 					Requeue: true,
 				}, err
@@ -198,16 +211,12 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			finalizers := sets.NewString(etcd.Finalizers...)
 			finalizers.Delete(FinalizerName)
 			etcd.Finalizers = finalizers.UnsortedList()
-			if err := r.Update(context.TODO(), etcd); err != nil {
-				if err := r.updateEtcdErrorStatus(etcd, err); err != nil {
-					return ctrl.Result{
-						Requeue: true,
-					}, err
-				}
+			if err := r.Update(context.TODO(), etcd); err != nil && !errors.IsConflict(err) {
 				return ctrl.Result{
 					Requeue: true,
 				}, err
 			}
+
 		}
 		logger.Infof("Deleted etcd %s successfully.", etcd.GetName())
 		return ctrl.Result{}, nil
@@ -219,7 +228,7 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		finalizers.Insert(FinalizerName)
 		etcd.Finalizers = finalizers.UnsortedList()
 		if err := r.Update(context.TODO(), etcd); err != nil {
-			if err := r.updateEtcdErrorStatus(etcd, err); err != nil {
+			if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
 				return ctrl.Result{
 					Requeue: true,
 				}, err
@@ -230,7 +239,7 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 	}
 	if err := r.addFinalizersToDependantSecrets(etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(etcd, err); err != nil {
+		if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -239,7 +248,7 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	svc, ss, err := r.reconcileEtcd(etcd)
 	if err != nil {
-		if err := r.updateEtcdErrorStatus(etcd, err); err != nil {
+		if err := r.updateEtcdErrorStatus(etcd, ss, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -288,7 +297,7 @@ func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd, renderedCha
 	}
 
 	if len(filteredServices) > 0 {
-		// TODO: Sync spec and delete OR First delete and then sync spec?
+		logger.Infof("Claiming existing etcd services for etcd:%s in namespace:%s", etcd.Name, etcd.Namespace)
 
 		// Keep only 1 Service. Delete the rest
 		for i := 1; i < len(filteredServices); i++ {
@@ -321,9 +330,7 @@ func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd, renderedCha
 		return nil, err
 	}
 
-	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		return r.Create(context.TODO(), ss)
-	})
+	err = r.Create(context.TODO(), ss)
 
 	// Ignore the precondition violated error, this service is already updated
 	// with the desired label.
@@ -416,7 +423,7 @@ func (r *EtcdReconciler) reconcileConfigMaps(etcd *druidv1alpha1.Etcd, renderedC
 	}
 
 	if len(filteredCMs) > 0 {
-		// TODO: Sync spec and delete OR First delete and then sync spec?
+		logger.Infof("Claiming existing etcd configmaps for etcd:%s in namespace:%s", etcd.Name, etcd.Namespace)
 
 		// Keep only 1 Configmap. Delete the rest
 		for i := 1; i < len(filteredCMs); i++ {
@@ -449,9 +456,7 @@ func (r *EtcdReconciler) reconcileConfigMaps(etcd *druidv1alpha1.Etcd, renderedC
 		return nil, err
 	}
 
-	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		return r.Create(context.TODO(), cm)
-	})
+	err = r.Create(context.TODO(), cm)
 
 	// Ignore the precondition violated error, this machine is already updated
 	// with the desired label.
@@ -543,7 +548,7 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 	}
 
 	if len(filteredStatefulSets) > 0 {
-		// TODO: Sync spec and delete OR First delete and then sync spec?
+		logger.Infof("Claiming existing etcd statefulsets for etcd:%s in namespace:%s", etcd.Name, etcd.Namespace)
 
 		// Keep only 1 statefulset. Delete the rest
 		for i := 1; i < len(filteredStatefulSets); i++ {
@@ -585,7 +590,7 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 			}
 		}
 
-		return ss.DeepCopy(), err
+		return r.waitUntilStatefulSetReady(ss)
 	}
 
 	// Required statefulset doesn't exist. Create new
@@ -594,9 +599,7 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 		return nil, err
 	}
 
-	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		return r.Create(context.TODO(), ss)
-	})
+	err = r.Create(context.TODO(), ss)
 
 	// Ignore the precondition violated error, this machine is already updated
 	// with the desired label.
@@ -611,7 +614,8 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 	if err := controllerutil.SetControllerReference(etcd, ss, r.Scheme); err != nil {
 		return nil, err
 	}
-	return ss.DeepCopy(), err
+
+	return r.waitUntilStatefulSetReady(ss)
 }
 
 func getContainerMapFromPodTemplateSpec(spec v1.PodSpec) map[string]v1.Container {
@@ -952,42 +956,66 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(etcd *druidv1alpha1.
 	return nil
 }
 
-func (r *EtcdReconciler) updateEtcdErrorStatus(etcd *druidv1alpha1.Etcd, lastError error) error {
+func (r *EtcdReconciler) updateEtcdErrorStatus(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
 	lastErrStr := fmt.Sprintf("%v", lastError)
 	etcd.Status.LastError = &lastErrStr
 	etcd.Status.ObservedGeneration = &etcd.Generation
+	if sts != nil {
+		ready := health.CheckStatefulSet(sts) == nil
+		etcd.Status.Ready = &ready
+	}
+
 	if err := r.Status().Update(context.TODO(), etcd); err != nil && !errors.IsNotFound(err) {
 		return err
 	}
 	return r.removeOperationAnnotation(etcd)
 }
 
-func (r *EtcdReconciler) updateEtcdStatus(etcd *druidv1alpha1.Etcd, svc *corev1.Service, ss *appsv1.StatefulSet) error {
+func (r *EtcdReconciler) updateEtcdStatus(etcd *druidv1alpha1.Etcd, svc *corev1.Service, sts *appsv1.StatefulSet) error {
+
 	svcName := svc.Name
 	etcd.Status.Etcd = druidv1alpha1.CrossVersionObjectReference{
-		APIVersion: ss.APIVersion,
-		Kind:       ss.Kind,
-		Name:       ss.Name,
+		APIVersion: sts.APIVersion,
+		Kind:       sts.Kind,
+		Name:       sts.Name,
 	}
+	ready := health.CheckStatefulSet(sts) == nil
 	conditions := []druidv1alpha1.Condition{}
-	for _, condition := range ss.Status.Conditions {
+	for _, condition := range sts.Status.Conditions {
 		conditions = append(conditions, convertConditionsToEtcd(&condition))
 	}
 	etcd.Status.Conditions = conditions
 
 	// To be changed once we have multiple replicas.
-	etcd.Status.CurrentReplicas = ss.Status.CurrentReplicas
-	etcd.Status.ReadyReplicas = ss.Status.ReadyReplicas
-	etcd.Status.UpdatedReplicas = ss.Status.UpdatedReplicas
-	etcd.Status.Ready = (health.CheckStatefulSet(ss) == nil)
+	etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
+	etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
+	etcd.Status.UpdatedReplicas = sts.Status.UpdatedReplicas
 	etcd.Status.ServiceName = &svcName
 	etcd.Status.LastError = nil
 	etcd.Status.ObservedGeneration = &etcd.Generation
+	etcd.Status.Ready = &ready
 
 	if err := r.Status().Update(context.TODO(), etcd); err != nil && !errors.IsNotFound(err) {
 		return err
 	}
 	return r.removeOperationAnnotation(etcd)
+}
+
+func (r *EtcdReconciler) waitUntilStatefulSetReady(sts *appsv1.StatefulSet) (*appsv1.StatefulSet, error) {
+	ss := &appsv1.StatefulSet{}
+	err := gardenerretry.UntilTimeout(context.TODO(), DefaultInterval, DefaultTimeout, func(ctx context.Context) (bool, error) {
+		if err := r.Get(context.TODO(), types.NamespacedName{Name: sts.Name, Namespace: sts.Namespace}, ss); err != nil {
+			if errors.IsNotFound(err) {
+				return gardenerretry.MinorError(err)
+			}
+			return gardenerretry.SevereError(err)
+		}
+		if err := health.CheckStatefulSet(ss); err != nil {
+			return gardenerretry.MinorError(err)
+		}
+		return gardenerretry.Ok()
+	})
+	return ss, err
 }
 
 func (r *EtcdReconciler) removeOperationAnnotation(etcd *druidv1alpha1.Etcd) error {
@@ -996,6 +1024,16 @@ func (r *EtcdReconciler) removeOperationAnnotation(etcd *druidv1alpha1.Etcd) err
 		return r.Update(context.TODO(), etcd)
 	}
 	return nil
+}
+
+func (r *EtcdReconciler) updateEtcdStatusAsNotReady(etcd *druidv1alpha1.Etcd) (*druidv1alpha1.Etcd, error) {
+	etcdCopy := etcd.DeepCopy()
+	etcdCopy.Status.Ready = nil
+	etcdCopy.Status.ReadyReplicas = 0
+	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		return r.Status().Patch(context.TODO(), etcdCopy, client.MergeFrom(etcd))
+	})
+	return etcdCopy, err
 }
 
 func convertConditionsToEtcd(condition *appsv1.StatefulSetCondition) druidv1alpha1.Condition {
@@ -1074,11 +1112,11 @@ func (r *EtcdReconciler) SetupWithManager(mgr ctrl.Manager, workers int, ignoreO
 	if !ignoreOperationAnnotation {
 		predicates = append(predicates, druidpredicates.HasOperationAnnotation())
 	}
-	builder = builder.WithEventFilter(druidpredicates.Or(predicates...))
-	return builder.
-		For(&druidv1alpha1.Etcd{}).
-		Owns(&appsv1.StatefulSet{}).
-		Owns(&v1.Service{}).
-		Owns(&v1.ConfigMap{}).
-		Complete(r)
+	builder = builder.WithEventFilter(druidpredicates.Or(predicates...)).For(&druidv1alpha1.Etcd{})
+	if ignoreOperationAnnotation {
+		builder = builder.Owns(&v1.Service{}).
+			Owns(&v1.ConfigMap{}).
+			Owns(&appsv1.StatefulSet{})
+	}
+	return builder.Complete(r)
 }
