@@ -27,9 +27,11 @@ github.com/gardener/gardener/pkg/apis/extensions
 github.com/gardener/gardener/pkg/apis/extensions/v1alpha1
 github.com/gardener/gardener/pkg/logger
 github.com/gardener/gardener/pkg/utils
+github.com/gardener/gardener/pkg/utils/context
 github.com/gardener/gardener/pkg/utils/errors
 github.com/gardener/gardener/pkg/utils/imagevector
 github.com/gardener/gardener/pkg/utils/kubernetes/health
+github.com/gardener/gardener/pkg/utils/retry
 github.com/gardener/gardener/pkg/utils/version
 # github.com/ghodss/yaml v1.0.0
 github.com/ghodss/yaml

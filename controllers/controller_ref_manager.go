@@ -180,7 +180,7 @@ func NewEtcdDruidRefManager(
 //
 // If the error is nil, either the reconciliation succeeded, or no
 // reconciliation was necessary. The list of statefulsets that you now own is returned.
-func (m *EtcdDruidRefManager) ClaimStatefulsets(etcds *appsv1.StatefulSetList, filters ...func(*appsv1.StatefulSet) bool) ([]*appsv1.StatefulSet, error) {
+func (m *EtcdDruidRefManager) ClaimStatefulsets(sts *appsv1.StatefulSetList, filters ...func(*appsv1.StatefulSet) bool) ([]*appsv1.StatefulSet, error) {
 	var claimed []*appsv1.StatefulSet
 	var errlist []error
 
@@ -205,16 +205,16 @@ func (m *EtcdDruidRefManager) ClaimStatefulsets(etcds *appsv1.StatefulSetList, f
 		return m.ReleaseStatefulSet(obj.(*appsv1.StatefulSet))
 	}
 
-	for k := range etcds.Items {
-		etcd := &etcds.Items[k]
-		ok, err := m.ClaimObject(etcd, match, adopt, release)
+	for k := range sts.Items {
+		ss := &sts.Items[k]
+		ok, err := m.ClaimObject(ss, match, adopt, release)
 
 		if err != nil {
 			errlist = append(errlist, err)
 			continue
 		}
 		if ok {
-			claimed = append(claimed, etcd)
+			claimed = append(claimed, ss)
 		}
 	}
 	return claimed, utilerrors.NewAggregate(errlist)
@@ -222,26 +222,26 @@ func (m *EtcdDruidRefManager) ClaimStatefulsets(etcds *appsv1.StatefulSetList, f
 
 // AdoptStatefulSet sends a patch to take control of the Etcd. It returns the error if
 // the patching fails.
-func (m *EtcdDruidRefManager) AdoptStatefulSet(etcd *appsv1.StatefulSet) error {
+func (m *EtcdDruidRefManager) AdoptStatefulSet(ss *appsv1.StatefulSet) error {
 	if err := m.CanAdopt(); err != nil {
-		return fmt.Errorf("can't adopt statefulset %v/%v (%v): %v", etcd.Namespace, etcd.Name, etcd.UID, err)
+		return fmt.Errorf("can't adopt statefulset %v/%v (%v): %v", ss.Namespace, ss.Name, ss.UID, err)
 	}
 
-	etcdClone := etcd.DeepCopy()
+	ssClone := ss.DeepCopy()
 	// Note that ValidateOwnerReferences() will reject this patch if another
 	// OwnerReference exists with controller=true.
-	if err := controllerutil.SetControllerReference(m.Controller, etcdClone, m.reconciler.Scheme); err != nil {
+	if err := controllerutil.SetControllerReference(m.Controller, ssClone, m.reconciler.Scheme); err != nil {
 		return err
 	}
 
-	return m.reconciler.Patch(context.TODO(), etcdClone, client.MergeFrom(etcd))
+	return m.reconciler.Patch(context.TODO(), ssClone, client.MergeFrom(ss))
 }
 
 // ReleaseStatefulSet sends a patch to free the statefulset from the control of the controller.
 // It returns the error if the patching fails. 404 and 422 errors are ignored.
-func (m *EtcdDruidRefManager) ReleaseStatefulSet(etcd *appsv1.StatefulSet) error {
-	etcdClone := etcd.DeepCopy()
-	owners := etcdClone.GetOwnerReferences()
+func (m *EtcdDruidRefManager) ReleaseStatefulSet(ss *appsv1.StatefulSet) error {
+	ssClone := ss.DeepCopy()
+	owners := ssClone.GetOwnerReferences()
 	ownersCopy := []metav1.OwnerReference{}
 	for i := range owners {
 		owner := &owners[i]
@@ -251,12 +251,12 @@ func (m *EtcdDruidRefManager) ReleaseStatefulSet(etcd *appsv1.StatefulSet) error
 		ownersCopy = append(ownersCopy, *owner)
 	}
 	if len(ownersCopy) == 0 {
-		etcdClone.OwnerReferences = nil
+		ssClone.OwnerReferences = nil
 	} else {
-		etcdClone.OwnerReferences = ownersCopy
+		ssClone.OwnerReferences = ownersCopy
 	}
 
-	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), etcdClone, client.MergeFrom(etcd)))
+	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), ssClone, client.MergeFrom(ss)))
 	if errors.IsInvalid(err) {
 		// Invalid error will be returned in two cases: 1. the etcd
 		// has no owner reference, 2. the uid of the etcd doesn't
@@ -287,18 +287,18 @@ func (m *EtcdDruidRefManager) ReleaseStatefulSet(etcd *appsv1.StatefulSet) error
 //
 // If the error is nil, either the reconciliation succeeded, or no
 // reconciliation was necessary. The list of Services that you now own is returned.
-func (m *EtcdDruidRefManager) ClaimServices(etcds *corev1.ServiceList, filters ...func(*corev1.Service) bool) ([]*corev1.Service, error) {
+func (m *EtcdDruidRefManager) ClaimServices(svcs *corev1.ServiceList, filters ...func(*corev1.Service) bool) ([]*corev1.Service, error) {
 	var claimed []*corev1.Service
 	var errlist []error
 
 	match := func(obj metav1.Object) bool {
-		ss := obj.(*corev1.Service)
+		svc := obj.(*corev1.Service)
 		// Check selector first so filters only run on potentially matching services.
-		if !m.Selector.Matches(labels.Set(ss.Labels)) {
+		if !m.Selector.Matches(labels.Set(svc.Labels)) {
 			return false
 		}
 		for _, filter := range filters {
-			if !filter(ss) {
+			if !filter(svc) {
 				return false
 			}
 		}
@@ -312,16 +312,16 @@ func (m *EtcdDruidRefManager) ClaimServices(etcds *corev1.ServiceList, filters .
 		return m.ReleaseService(obj.(*corev1.Service))
 	}
 
-	for k := range etcds.Items {
-		etcd := &etcds.Items[k]
-		ok, err := m.ClaimObject(etcd, match, adopt, release)
+	for k := range svcs.Items {
+		svc := &svcs.Items[k]
+		ok, err := m.ClaimObject(svc, match, adopt, release)
 
 		if err != nil {
 			errlist = append(errlist, err)
 			continue
 		}
 		if ok {
-			claimed = append(claimed, etcd)
+			claimed = append(claimed, svc)
 		}
 	}
 	return claimed, utilerrors.NewAggregate(errlist)
@@ -329,26 +329,26 @@ func (m *EtcdDruidRefManager) ClaimServices(etcds *corev1.ServiceList, filters .
 
 // AdoptService sends a patch to take control of the Etcd. It returns the error if
 // the patching fails.
-func (m *EtcdDruidRefManager) AdoptService(etcd *corev1.Service) error {
+func (m *EtcdDruidRefManager) AdoptService(svc *corev1.Service) error {
 	if err := m.CanAdopt(); err != nil {
-		return fmt.Errorf("can't adopt services %v/%v (%v): %v", etcd.Namespace, etcd.Name, etcd.UID, err)
+		return fmt.Errorf("can't adopt services %v/%v (%v): %v", svc.Namespace, svc.Name, svc.UID, err)
 	}
 
-	etcdClone := etcd.DeepCopy()
+	svcClone := svc.DeepCopy()
 	// Note that ValidateOwnerReferences() will reject this patch if another
 	// OwnerReference exists with controller=true.
-	if err := controllerutil.SetControllerReference(m.Controller, etcdClone, m.reconciler.Scheme); err != nil {
+	if err := controllerutil.SetControllerReference(m.Controller, svcClone, m.reconciler.Scheme); err != nil {
 		return err
 	}
 
-	return m.reconciler.Patch(context.TODO(), etcdClone, client.MergeFrom(etcd))
+	return m.reconciler.Patch(context.TODO(), svcClone, client.MergeFrom(svc))
 }
 
 // ReleaseService sends a patch to free the service from the control of the controller.
 // It returns the error if the patching fails. 404 and 422 errors are ignored.
-func (m *EtcdDruidRefManager) ReleaseService(etcd *corev1.Service) error {
-	etcdClone := etcd.DeepCopy()
-	owners := etcdClone.GetOwnerReferences()
+func (m *EtcdDruidRefManager) ReleaseService(svc *corev1.Service) error {
+	svcClone := svc.DeepCopy()
+	owners := svcClone.GetOwnerReferences()
 	ownersCopy := []metav1.OwnerReference{}
 	for i := range owners {
 		owner := &owners[i]
@@ -358,12 +358,12 @@ func (m *EtcdDruidRefManager) ReleaseService(etcd *corev1.Service) error {
 		ownersCopy = append(ownersCopy, *owner)
 	}
 	if len(ownersCopy) == 0 {
-		etcdClone.OwnerReferences = nil
+		svcClone.OwnerReferences = nil
 	} else {
-		etcdClone.OwnerReferences = ownersCopy
+		svcClone.OwnerReferences = ownersCopy
 	}
 
-	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), etcdClone, client.MergeFrom(etcd)))
+	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), svcClone, client.MergeFrom(svc)))
 	if errors.IsInvalid(err) {
 		// Invalid error will be returned in two cases: 1. the etcd
 		// has no owner reference, 2. the uid of the etcd doesn't
@@ -394,18 +394,18 @@ func (m *EtcdDruidRefManager) ReleaseService(etcd *corev1.Service) error {
 //
 // If the error is nil, either the reconciliation succeeded, or no
 // reconciliation was necessary. The list of Services that you now own is returned.
-func (m *EtcdDruidRefManager) ClaimConfigMaps(etcds *corev1.ConfigMapList, filters ...func(*corev1.ConfigMap) bool) ([]*corev1.ConfigMap, error) {
+func (m *EtcdDruidRefManager) ClaimConfigMaps(cms *corev1.ConfigMapList, filters ...func(*corev1.ConfigMap) bool) ([]*corev1.ConfigMap, error) {
 	var claimed []*corev1.ConfigMap
 	var errlist []error
 
 	match := func(obj metav1.Object) bool {
-		ss := obj.(*corev1.ConfigMap)
+		cm := obj.(*corev1.ConfigMap)
 		// Check selector first so filters only run on potentially matching configmaps.
-		if !m.Selector.Matches(labels.Set(ss.Labels)) {
+		if !m.Selector.Matches(labels.Set(cm.Labels)) {
 			return false
 		}
 		for _, filter := range filters {
-			if !filter(ss) {
+			if !filter(cm) {
 				return false
 			}
 		}
@@ -419,16 +419,16 @@ func (m *EtcdDruidRefManager) ClaimConfigMaps(etcds *corev1.ConfigMapList, filte
 		return m.ReleaseConfigMap(obj.(*corev1.ConfigMap))
 	}
 
-	for k := range etcds.Items {
-		etcd := &etcds.Items[k]
-		ok, err := m.ClaimObject(etcd, match, adopt, release)
+	for k := range cms.Items {
+		cm := &cms.Items[k]
+		ok, err := m.ClaimObject(cm, match, adopt, release)
 
 		if err != nil {
 			errlist = append(errlist, err)
 			continue
 		}
 		if ok {
-			claimed = append(claimed, etcd)
+			claimed = append(claimed, cm)
 		}
 	}
 	return claimed, utilerrors.NewAggregate(errlist)
@@ -436,27 +436,27 @@ func (m *EtcdDruidRefManager) ClaimConfigMaps(etcds *corev1.ConfigMapList, filte
 
 // AdoptConfigMap sends a patch to take control of the Etcd. It returns the error if
 // the patching fails.
-func (m *EtcdDruidRefManager) AdoptConfigMap(etcd *corev1.ConfigMap) error {
+func (m *EtcdDruidRefManager) AdoptConfigMap(cm *corev1.ConfigMap) error {
 	if err := m.CanAdopt(); err != nil {
-		return fmt.Errorf("can't adopt configmap %v/%v (%v): %v", etcd.Namespace, etcd.Name, etcd.UID, err)
+		return fmt.Errorf("can't adopt configmap %v/%v (%v): %v", cm.Namespace, cm.Name, cm.UID, err)
 	}
 
-	etcdClone := etcd.DeepCopy()
+	cmClone := cm.DeepCopy()
 	// Note that ValidateOwnerReferences() will reject this patch if another
 	// OwnerReference exists with controller=true.
-	if err := controllerutil.SetControllerReference(m.Controller, etcdClone, m.reconciler.Scheme); err != nil {
+	if err := controllerutil.SetControllerReference(m.Controller, cmClone, m.reconciler.Scheme); err != nil {
 		return err
 	}
 
-	return m.reconciler.Patch(context.TODO(), etcdClone, client.MergeFrom(etcd))
+	return m.reconciler.Patch(context.TODO(), cmClone, client.MergeFrom(cm))
 }
 
 // ReleaseConfigMap sends a patch to free the configmap from the control of the controller.
 // It returns the error if the patching fails. 404 and 422 errors are ignored.
-func (m *EtcdDruidRefManager) ReleaseConfigMap(etcd *corev1.ConfigMap) error {
+func (m *EtcdDruidRefManager) ReleaseConfigMap(cm *corev1.ConfigMap) error {
 
-	etcdClone := etcd.DeepCopy()
-	owners := etcdClone.GetOwnerReferences()
+	cmClone := cm.DeepCopy()
+	owners := cmClone.GetOwnerReferences()
 	ownersCopy := []metav1.OwnerReference{}
 	for i := range owners {
 		owner := &owners[i]
@@ -466,12 +466,12 @@ func (m *EtcdDruidRefManager) ReleaseConfigMap(etcd *corev1.ConfigMap) error {
 		ownersCopy = append(ownersCopy, *owner)
 	}
 	if len(ownersCopy) == 0 {
-		etcdClone.OwnerReferences = nil
+		cmClone.OwnerReferences = nil
 	} else {
-		etcdClone.OwnerReferences = ownersCopy
+		cmClone.OwnerReferences = ownersCopy
 	}
 
-	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), etcdClone, client.MergeFrom(etcd)))
+	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), cmClone, client.MergeFrom(cm)))
 	if errors.IsInvalid(err) {
 		// Invalid error will be returned in two cases: 1. the etcd
 		// has no owner reference, 2. the uid of the etcd doesn't
