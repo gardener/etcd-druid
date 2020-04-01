@@ -150,28 +150,27 @@ func Key(namespaceOrName string, nameOpt ...string) client.ObjectKey {
 }
 
 // StorageProviderFromInfraProvider converts infra to object store provider.
-func StorageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) string {
-	var storage string
-	if infra == nil {
-		return ""
+func StorageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) (string, error) {
+	if infra == nil || len(*infra) == 0 {
+		return "", nil
 	}
+
 	switch *infra {
-	case aws:
-		storage = s3
-	case azure:
-		storage = abs
-	case alicloud:
-		storage = oss
-	case os:
-		storage = swift
-	case gcp:
-		storage = gcs
+	case aws, s3:
+		return s3, nil
+	case azure, abs:
+		return abs, nil
+	case alicloud, oss:
+		return oss, nil
+	case os, swift:
+		return swift, nil
+	case gcp, gcs:
+		return gcs, nil
 	case local:
-		storage = local
+		return local, nil
 	default:
-		storage = ""
+		return "", fmt.Errorf("unsupported storage provider: %v", *infra)
 	}
-	return storage
 }
 
 // IsPodInCrashloopBackoff checks if the pod is in CrashloopBackoff from its status fields.

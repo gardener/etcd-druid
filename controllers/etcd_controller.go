@@ -22,40 +22,39 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
-	errorsutil "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/client-go/util/retry"
-
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/yaml"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
-
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/chartrenderer"
+	kubernetes "github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	"github.com/gardener/etcd-druid/pkg/common"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
-	"github.com/gardener/gardener/pkg/utils/kubernetes/health"
 
-	kubernetes "github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-
 	"github.com/gardener/gardener/pkg/utils/imagevector"
+	"github.com/gardener/gardener/pkg/utils/kubernetes/health"
 	gardenerretry "github.com/gardener/gardener/pkg/utils/retry"
+
+	"github.com/sirupsen/logrus"
+
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	errorsutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 var (
@@ -69,7 +68,7 @@ const (
 	// DefaultImageVector is a constant for the path to the default image vector file.
 	DefaultImageVector = "images.yaml"
 	// DefaultTimeout is the default timeout for retry operations.
-	DefaultTimeout = time.Minute * 1
+	DefaultTimeout = time.Minute
 	// DefaultInterval is the default interval for retry operations.
 	DefaultInterval = 5 * time.Second
 	// EtcdReady implies that etcd is ready
@@ -82,7 +81,6 @@ type EtcdReconciler struct {
 	Scheme       *runtime.Scheme
 	chartApplier kubernetes.ChartApplier
 	Config       *rest.Config
-	ChartApplier kubernetes.ChartApplier
 	ImageVector  imagevector.ImageVector
 }
 
@@ -133,12 +131,11 @@ func getChartPathForService() string {
 	return filepath.Join("etcd", "templates", "etcd-service.yaml")
 }
 
-func (r *EtcdReconciler) getImageYAMLPath() string {
-	return filepath.Join("charts", "images.yaml")
+func getImageYAMLPath() string {
+	return filepath.Join(common.ChartPath, DefaultImageVector)
 }
 
-// InitializeControllerWithChartApplier will use EtcdReconciler client to intialize a Kubernetes client as well as
-// InitializeControllerWithChartApplier will use EtcdReconciler client to intialize a Kubernetes client as well as
+// InitializeControllerWithChartApplier will use EtcdReconciler client to initialize a Kubernetes client as well as
 // a Chart renderer.
 func (r *EtcdReconciler) InitializeControllerWithChartApplier() (*EtcdReconciler, error) {
 	if r.chartApplier != nil {
@@ -153,14 +150,14 @@ func (r *EtcdReconciler) InitializeControllerWithChartApplier() (*EtcdReconciler
 	if err != nil {
 		return nil, err
 	}
-	r.ChartApplier = kubernetes.NewChartApplier(renderer, applier)
+	r.chartApplier = kubernetes.NewChartApplier(renderer, applier)
 	return r, nil
 }
 
-// InitializeControllerWithImageVector will use EtcdReconciler client to intialize image vector for etcd
+// InitializeControllerWithImageVector will use EtcdReconciler client to initialize image vector for etcd
 // and backup restore images.
 func (r *EtcdReconciler) InitializeControllerWithImageVector() (*EtcdReconciler, error) {
-	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(filepath.Join(common.ChartPath, DefaultImageVector))
+	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(getImageYAMLPath())
 	if err != nil {
 		return nil, err
 	}
@@ -173,11 +170,11 @@ func (r *EtcdReconciler) InitializeControllerWithImageVector() (*EtcdReconciler,
 
 // Reconcile reconciles the etcd.
 func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-
+	ctx := context.TODO()
 	etcd := &druidv1alpha1.Etcd{}
-	if err := r.Get(context.TODO(), req.NamespacedName, etcd); err != nil {
+	if err := r.Get(ctx, req.NamespacedName, etcd); err != nil {
 		if errors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
+			// Object not found, return. Created objects are automatically garbage collected.
 			// For additional cleanup logic use finalizers.
 			return ctrl.Result{}, nil
 		}
@@ -187,40 +184,18 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	logger.Infof("Reconciling etcd: %s/%s", etcd.GetNamespace(), etcd.GetName())
 	if !etcd.DeletionTimestamp.IsZero() {
-		logger.Infof("Deletion timestamp set for etcd: %s", etcd.GetName())
-		if err := r.removeFinalizersToDependantSecrets(etcd); err != nil {
-			if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
-				return ctrl.Result{
-					Requeue: true,
-				}, err
-			}
-			return ctrl.Result{
-				Requeue: true,
-			}, err
-		}
-
-		if sets.NewString(etcd.Finalizers...).Has(FinalizerName) {
-			logger.Infof("Removing finalizer (%s) from etcd %s", FinalizerName, etcd.GetName())
-			finalizers := sets.NewString(etcd.Finalizers...)
-			finalizers.Delete(FinalizerName)
-			etcd.Finalizers = finalizers.UnsortedList()
-			if err := r.Update(context.TODO(), etcd); err != nil && !errors.IsConflict(err) {
-				return ctrl.Result{
-					Requeue: true,
-				}, err
-			}
-
-		}
-		logger.Infof("Deleted etcd %s successfully.", etcd.GetName())
-		return ctrl.Result{}, nil
+		return r.delete(ctx, etcd)
 	}
+	return r.reconcile(ctx, etcd)
+}
 
+func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	// Add Finalizers to Etcd
 	if finalizers := sets.NewString(etcd.Finalizers...); !finalizers.Has(FinalizerName) {
 		logger.Infof("Adding finalizer (%s) to etcd %s", FinalizerName, etcd.GetName())
 		finalizers.Insert(FinalizerName)
 		etcd.Finalizers = finalizers.UnsortedList()
-		if err := r.Update(context.TODO(), etcd); err != nil {
+		if err := r.Update(ctx, etcd); err != nil {
 			if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
 				return ctrl.Result{
 					Requeue: true,
@@ -231,7 +206,7 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			}, err
 		}
 	}
-	if err := r.addFinalizersToDependantSecrets(etcd); err != nil {
+	if err := r.addFinalizersToDependantSecrets(ctx, etcd); err != nil {
 		if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
@@ -270,6 +245,34 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{
 		Requeue: false,
 	}, nil
+}
+
+func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
+	logger.Infof("Deletion timestamp set for etcd: %s", etcd.GetName())
+	if err := r.removeFinalizersToDependantSecrets(ctx, etcd); err != nil {
+		if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
+			return ctrl.Result{
+				Requeue: true,
+			}, err
+		}
+		return ctrl.Result{
+			Requeue: true,
+		}, err
+	}
+
+	if sets.NewString(etcd.Finalizers...).Has(FinalizerName) {
+		logger.Infof("Removing finalizer (%s) from etcd %s", FinalizerName, etcd.GetName())
+		finalizers := sets.NewString(etcd.Finalizers...)
+		finalizers.Delete(FinalizerName)
+		etcd.Finalizers = finalizers.UnsortedList()
+		if err := r.Update(ctx, etcd); client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{
+				Requeue: true,
+			}, err
+		}
+	}
+	logger.Infof("Deleted etcd %s successfully.", etcd.GetName())
+	return ctrl.Result{}, nil
 }
 
 func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd, renderedChart *chartrenderer.RenderedChart) (*corev1.Service, error) {
@@ -700,7 +703,7 @@ func (r *EtcdReconciler) getStatefulSetFromEtcd(etcd *druidv1alpha1.Etcd, cm *co
 	decoded := &appsv1.StatefulSet{}
 	statefulSetPath := getChartPathForStatefulSet()
 	chartPath := getChartPath()
-	renderedChart, err := r.ChartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
+	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
 	if err != nil {
 		return nil, err
 	}
@@ -724,7 +727,7 @@ func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd) (*corev1.Servic
 	}
 
 	chartPath := getChartPath()
-	renderedChart, err := r.ChartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
+	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -824,11 +827,11 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		"port":                     etcd.Spec.Backup.Port,
 		"resources":                etcd.Spec.Backup.Resources,
 		"pullPolicy":               corev1.PullIfNotPresent,
+		"garbageCollectionPeriod":  etcd.Spec.Backup.GarbageCollectionPeriod,
 		"garbageCollectionPolicy":  etcd.Spec.Backup.GarbageCollectionPolicy,
 		"etcdQuotaBytes":           quota,
 		"etcdConnectionTimeout":    "5m",
 		"snapstoreTempDir":         "/var/etcd/data/temp",
-		"garbageCollectionPeriod":  etcd.Spec.Backup.GarbageCollectionPeriod,
 		"deltaSnapshotPeriod":      etcd.Spec.Backup.DeltaSnapshotPeriod,
 		"deltaSnapshotMemoryLimit": deltaSnapshotMemoryLimit,
 	}
@@ -875,11 +878,16 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		values["tlsCASecret"] = etcd.Spec.Etcd.TLS.TLSCASecretRef.Name
 	}
 
+	storageProvider, err := utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
+	if err != nil {
+		return nil, err
+	}
+
 	if etcd.Spec.Backup.Store != nil {
 		storeValues := map[string]interface{}{
 			"storageContainer": etcd.Spec.Backup.Store.Container,
 			"storePrefix":      etcd.Spec.Backup.Store.Prefix,
-			"storageProvider":  utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider),
+			"storageProvider":  storageProvider,
 		}
 		if etcd.Spec.Backup.Store.SecretRef != nil {
 			storeValues["storeSecret"] = etcd.Spec.Backup.Store.SecretRef.Name
@@ -891,80 +899,73 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	return values, nil
 }
 
-func (r *EtcdReconciler) addFinalizersToDependantSecrets(etcd *druidv1alpha1.Etcd) error {
+func (r *EtcdReconciler) addFinalizersToDependantSecrets(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
 
-	secrets := []string{}
+	secrets := []*corev1.SecretReference{}
 	if etcd.Spec.Etcd.TLS != nil {
 		// As the secrets inside TLS field are required, we error in case they are not found.
 		secrets = append(secrets,
-			etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name,
-			etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name,
-			etcd.Spec.Etcd.TLS.TLSCASecretRef.Name,
+			&etcd.Spec.Etcd.TLS.ClientTLSSecretRef,
+			&etcd.Spec.Etcd.TLS.ServerTLSSecretRef,
+			&etcd.Spec.Etcd.TLS.TLSCASecretRef,
 		)
 	}
 	if etcd.Spec.Backup.Store != nil && etcd.Spec.Backup.Store.SecretRef != nil {
 		// As the store secret is required, we error in case it is not found as well.
-		secrets = append(secrets, etcd.Spec.Backup.Store.SecretRef.Name)
+		secrets = append(secrets, etcd.Spec.Backup.Store.SecretRef)
 	}
 
-	for _, secretName := range secrets {
-		secret := corev1.Secret{}
-		if err := r.Client.Get(context.TODO(), types.NamespacedName{
-			Name:      secretName,
+	for _, secretRef := range secrets {
+		secret := &corev1.Secret{}
+		if err := r.Client.Get(ctx, types.NamespacedName{
+			Name:      secretRef.Name,
 			Namespace: etcd.Namespace,
-		}, &secret); err != nil {
+		}, secret); err != nil {
 			return err
 		}
 		if finalizers := sets.NewString(secret.Finalizers...); !finalizers.Has(FinalizerName) {
 			logger.Infof("Adding finalizer (%s) for secret %s by etcd (%s)", FinalizerName, secret.GetName(), etcd.Name)
-			secretCopy := secret.DeepCopy()
 			finalizers.Insert(FinalizerName)
-			secretCopy.Finalizers = finalizers.UnsortedList()
-			if err := r.Update(context.TODO(), secretCopy); err != nil {
+			secret.Finalizers = finalizers.UnsortedList()
+			if err := r.Update(ctx, secret); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
-func (r *EtcdReconciler) removeFinalizersToDependantSecrets(etcd *druidv1alpha1.Etcd) error {
-
-	secrets := []string{}
+func (r *EtcdReconciler) removeFinalizersToDependantSecrets(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+	secrets := []*corev1.SecretReference{}
 	if etcd.Spec.Etcd.TLS != nil {
 		secrets = append(secrets,
-			etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name,
-			etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name,
-			etcd.Spec.Etcd.TLS.TLSCASecretRef.Name,
+			&etcd.Spec.Etcd.TLS.ClientTLSSecretRef,
+			&etcd.Spec.Etcd.TLS.ServerTLSSecretRef,
+			&etcd.Spec.Etcd.TLS.TLSCASecretRef,
 		)
 	}
 	if etcd.Spec.Backup.Store != nil && etcd.Spec.Backup.Store.SecretRef != nil {
-		secrets = append(secrets, etcd.Spec.Backup.Store.SecretRef.Name)
+		secrets = append(secrets, etcd.Spec.Backup.Store.SecretRef)
 	}
 
-	for _, secretName := range secrets {
-		secret := corev1.Secret{}
-		err := r.Client.Get(context.TODO(), types.NamespacedName{
-			Name:      secretName,
-			Namespace: etcd.Namespace,
-		}, &secret)
-		if err != nil && !errors.IsNotFound(err) {
-			return err
-		}
-		if err == nil {
-			if finalizers := sets.NewString(secret.Finalizers...); finalizers.Has(FinalizerName) {
-				logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, secret.GetName())
-				secretCopy := secret.DeepCopy()
-				finalizers.Delete(FinalizerName)
-				secretCopy.Finalizers = finalizers.UnsortedList()
-				if err := r.Update(context.TODO(), secretCopy); err != nil && !errors.IsNotFound(err) {
-					return err
-				}
+	for _, secretRef := range secrets {
+		secret := &corev1.Secret{}
+		if err := r.Client.Get(ctx, types.NamespacedName{
+			Name:      secretRef.Name,
+			Namespace: secretRef.Namespace,
+		}, secret); err != nil {
+			if !errors.IsNotFound(err) {
+				return err
+			}
+		} else if finalizers := sets.NewString(secret.Finalizers...); finalizers.Has(FinalizerName) {
+			logger.Infof("Removing finalizer (%s) from secret %s", FinalizerName, secret.GetName())
+			finalizers.Delete(FinalizerName)
+			secret.Finalizers = finalizers.UnsortedList()
+			if err := r.Update(ctx, secret); client.IgnoreNotFound(err) != nil {
+				return err
 			}
 		}
 	}
-
 	return nil
 }
 
