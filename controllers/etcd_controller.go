@@ -174,8 +174,8 @@ func (r *EtcdReconciler) InitializeControllerWithImageVector() (*EtcdReconciler,
 // Reconcile reconciles the etcd.
 func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
-	etcdCopy := &druidv1alpha1.Etcd{}
-	if err := r.Get(context.TODO(), req.NamespacedName, etcdCopy); err != nil {
+	etcd := &druidv1alpha1.Etcd{}
+	if err := r.Get(context.TODO(), req.NamespacedName, etcd); err != nil {
 		if errors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
 			// For additional cleanup logic use finalizers.
@@ -183,13 +183,6 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 		// Error reading the object - requeue the request.
 		return ctrl.Result{}, err
-	}
-
-	etcd, err := r.updateEtcdStatusAsNotReady(etcdCopy)
-	if err != nil && !errors.IsNotFound(err) {
-		return ctrl.Result{
-			Requeue: true,
-		}, err
 	}
 
 	logger.Infof("Reconciling etcd: %s/%s", etcd.GetNamespace(), etcd.GetName())
@@ -244,6 +237,16 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				Requeue: true,
 			}, err
 		}
+	}
+
+	etcd, err := r.updateEtcdStatusAsNotReady(etcd)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{
+			Requeue: true,
+		}, err
 	}
 
 	svc, ss, err := r.reconcileEtcd(etcd)
