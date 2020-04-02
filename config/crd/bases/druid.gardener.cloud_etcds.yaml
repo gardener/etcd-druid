@@ -288,6 +288,10 @@ spec:
               additionalProperties:
                 type: string
               type: object
+            priorityClassName:
+              description: PriorityClassName is the name of a priority class that
+                shall be used for the etcd pods.
+              type: string
             replicas:
               type: integer
             selector:
@@ -448,8 +452,8 @@ spec:
             lastError:
               type: string
             observedGeneration:
-              description: ObservedGeneration is the most recent generation observed for
-                this resource.
+              description: ObservedGeneration is the most recent generation observed
+                for this resource.
               format: int64
               type: integer
             ready:
