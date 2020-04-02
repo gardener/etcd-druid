@@ -1,9 +1,10 @@
 name: test
 uid: uuid-of-etcd-resource
-serviceName: test 
+serviceName: test
 configMapName: test
 
 replicas: 1
+#priorityClassName: foo
 
 tlsServerSecret: etcd-server-tls
 tlsClientSecret: etcd-client-tls
@@ -31,8 +32,8 @@ etcd:
 
 backup:
   pullPolicy: IfNotPresent
-  snapstoreTempDir: "/tmp"
-  etcdConnectionTimeout: 30
+  snapstoreTempDir: "/var/etcd/data/temp"
+  etcdConnectionTimeout: 5m
   etcdQuotaBytes: 8Gi
   garbageCollectionPolicy: LimitBased
   maxBackups: 7

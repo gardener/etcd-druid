@@ -808,12 +808,12 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		etcdValues["image"] = etcd.Spec.Etcd.Image
 	}
 
-	var quota int64 = 2 * 1024 * 1024 * 1024 // 2Gib
+	var quota int64 = 8 * 1024 * 1024 * 1024 // 8Gi
 	if etcd.Spec.Etcd.Quota != nil {
 		quota = etcd.Spec.Etcd.Quota.Value()
 	}
 
-	var deltaSnapshotMemoryLimit int64 = 0
+	var deltaSnapshotMemoryLimit int64 = 100 * 1024 * 1024 // 100Mi
 	if etcd.Spec.Backup.DeltaSnapshotMemoryLimit != nil {
 		deltaSnapshotMemoryLimit = etcd.Spec.Backup.DeltaSnapshotMemoryLimit.Value()
 	}
@@ -826,8 +826,8 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		"pullPolicy":               corev1.PullIfNotPresent,
 		"garbageCollectionPolicy":  etcd.Spec.Backup.GarbageCollectionPolicy,
 		"etcdQuotaBytes":           quota,
-		"etcdConnectionTimeout":    "30s",
-		"snapstoreTempDir":         "/tmp",
+		"etcdConnectionTimeout":    "5m",
+		"snapstoreTempDir":         "/var/etcd/data/temp",
 		"garbageCollectionPeriod":  etcd.Spec.Backup.GarbageCollectionPeriod,
 		"deltaSnapshotPeriod":      etcd.Spec.Backup.DeltaSnapshotPeriod,
 		"deltaSnapshotMemoryLimit": deltaSnapshotMemoryLimit,
@@ -858,6 +858,10 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		"configMapName":           fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
 		"volumeClaimTemplateName": etcd.Spec.VolumeClaimTemplate,
 		"selector":                etcd.Spec.Selector,
+	}
+
+	if etcd.Spec.PriorityClassName != nil {
+		values["priorityClassName"] = *etcd.Spec.PriorityClassName
 	}
 
 	if etcd.Spec.Etcd.TLS != nil {
