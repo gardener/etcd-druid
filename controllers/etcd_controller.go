@@ -813,7 +813,7 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		quota = etcd.Spec.Etcd.Quota.Value()
 	}
 
-	var deltaSnapshotMemoryLimit int64 = 0
+	var deltaSnapshotMemoryLimit int64 = 100 * 1024 * 1024 // 100Mi
 	if etcd.Spec.Backup.DeltaSnapshotMemoryLimit != nil {
 		deltaSnapshotMemoryLimit = etcd.Spec.Backup.DeltaSnapshotMemoryLimit.Value()
 	}
