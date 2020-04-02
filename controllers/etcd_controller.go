@@ -808,7 +808,7 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		etcdValues["image"] = etcd.Spec.Etcd.Image
 	}
 
-	var quota int64 = 2 * 1024 * 1024 * 1024 // 2Gib
+	var quota int64 = 8 * 1024 * 1024 * 1024 // 8Gi
 	if etcd.Spec.Etcd.Quota != nil {
 		quota = etcd.Spec.Etcd.Quota.Value()
 	}
