@@ -55,5 +55,6 @@ spec:
           provider: aws
           prefix: etcd-test
     replicas: 1
+  # priorityClassName: foo
     storageClass: gardener.cloud-fast
     storageCapacity: 80Gi

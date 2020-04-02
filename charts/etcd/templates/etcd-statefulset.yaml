@@ -48,6 +48,9 @@ spec:
       - ip: "127.0.0.1"
         hostnames:
         - {{ .Values.name }}-local
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
       containers:
       - name: etcd
         image: {{ .Values.etcd.image }}
