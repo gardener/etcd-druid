@@ -26,8 +26,8 @@ CRD_OPTIONS ?= "crd:trivialVersions=true"
 
 .PHONY: revendor
 revendor:
-	@env GO111MODULE=on go mod vendor -v
-	@env GO111MODULE=on go mod tidy -v
+	@env GO111MODULE=on go mod vendor
+	@env GO111MODULE=on go mod tidy
 
 
 all: druid
