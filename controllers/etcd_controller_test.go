@@ -59,8 +59,11 @@ var _ = Describe("Druid", func() {
 		It("should create statefulset", func() {
 			defer WithWd("..")()
 
-			err = c.Create(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
+			go func() {
+				err = c.Create(context.TODO(), instance)
+
+				Expect(err).NotTo(HaveOccurred())
+			}()
 
 			ss := appsv1.StatefulSet{}
 			err = getReconciledStatefulset(c, instance, &ss)
@@ -99,42 +102,6 @@ var _ = Describe("Druid", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(len(s.OwnerReferences)).ShouldNot(BeZero())
-			})
-			AfterEach(func() {
-				c.Delete(context.TODO(), instance)
-			})
-		})
-		Context("when etcd has the spec changed", func() {
-			var err error
-			var instance *druidv1alpha1.Etcd
-			var c client.Client
-			var ss *appsv1.StatefulSet
-			BeforeEach(func() {
-				instance = getEtcd("foo5", "default", false)
-
-				// Setup the Manager and Controller.  Wrap the Controller Reconcile function so it writes each request to a
-				// channel when it is finished.
-
-				Expect(err).NotTo(HaveOccurred())
-				c = mgr.GetClient()
-				ss = createStatefulset(instance.Name, instance.Namespace, instance.Spec.Labels)
-				err = c.Create(context.TODO(), ss)
-				Expect(err).NotTo(HaveOccurred())
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-
-			})
-			It("the statefulset should be updated", func() {
-				defer WithWd("..")()
-				testLog.Info("statefulset", "revision", ss.ResourceVersion)
-				oldVersion := ss.ResourceVersion
-				err = c.Create(context.TODO(), instance)
-				Expect(err).NotTo(HaveOccurred())
-				sts, err := retryTillStsResourceVersionChanged(c, ss)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(sts.ResourceVersion).ToNot(Equal(oldVersion))
-				Expect(sts.Spec.ServiceName).To(Equal(fmt.Sprintf("%s-client", instance.Name)))
 			})
 			AfterEach(func() {
 				c.Delete(context.TODO(), instance)
@@ -292,7 +259,7 @@ func createStatefulset(name, namespace string, labels map[string]string) *appsv1
 					Containers: []corev1.Container{
 						{
 							Name:  "etcd",
-							Image: "quay.io/coreos/etcd:v3.3.13",
+							Image: "quay.io/coreos/etcd:v3.3.17",
 						},
 						{
 							Name:  "backup-restore",
