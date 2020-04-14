@@ -33,7 +33,7 @@ spec:
     metadata:
       annotations:
         "cluster-autoscaler.kubernetes.io/safe-to-evict": "false"
-        checksum/configmap-etcd-bootstrap: {{ include (print $.Template.BasePath "/etcd-bootstrap-configmap.yaml") . | sha256sum }}
+        checksum/etcd-bootstrap-configmap: {{ include (print $.Template.BasePath "/etcd-bootstrap-configmap.yaml") . | sha256sum }}
 {{- if .Values.annotations }}
 {{ toYaml .Values.annotations | indent 8 }}
 {{- end }}
