@@ -24,10 +24,13 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -119,4 +122,15 @@ func startTestManager(mgr manager.Manager) (chan struct{}, *sync.WaitGroup) {
 		wg.Done()
 	}()
 	return stop, wg
+}
+
+func SetupWithManager(mgr ctrl.Manager, r reconcile.Reconciler) error {
+	return ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
+		MaxConcurrentReconciles: 3,
+	}).
+		For(&druidv1alpha1.Etcd{}).
+		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Service{}).
+		Owns(&appsv1.StatefulSet{}).
+		Complete(r)
 }
