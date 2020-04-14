@@ -23,25 +23,11 @@ data:
     VALIDATION_MARKER=/var/etcd/data/validation_marker
 
 {{- if .Values.etcd.enableTLS }}
-    # install wget from apk in order to pass --ca-certificate flag because
-    # busybox wget only has bare minimum features, without --ca-certificate option
-    apk update
+    # Add self-signed CA to list of root CA-certificates
+    cat /var/etcd/ssl/ca/ca.crt >> /etc/ssl/cert.pem
     if [ $? -ne 0 ]
     then
-      echo "apk update failed"
-      exit 1
-    fi
-    apk add wget
-    if [ $? -ne 0 ]
-    then
-      echo "failed to update wget"
-      exit 1
-    fi
-    # ensure that newly updated wget comes with --ca-certificate flag
-    wget --help | grep -- --ca-certificate
-    if [ $? -ne 0 ]
-    then
-      echo "updated wget is missing --ca-certificate flag"
+      echo "failed to update root certificate list"
       exit 1
     fi
 {{- end }}
@@ -68,11 +54,11 @@ data:
     check_and_start_etcd(){
           while true;
           do
-            wget {{ if .Values.etcd.enableTLS }}--ca-certificate=/var/etcd/ssl/ca/ca.crt "https{{ else }}"http{{ end }}://{{ .Values.name }}-local:{{ .Values.backup.port }}/initialization/status" -S -O status;
+            wget "http{{ if .Values.etcd.enableTLS }}s{{ end }}://{{ .Values.name }}-local:{{ .Values.backup.port }}/initialization/status" -S -O status;
             STATUS=`cat status`;
             case $STATUS in
             "New")
-                  wget {{ if .Values.etcd.enableTLS }}--ca-certificate=/var/etcd/ssl/ca/ca.crt "https{{ else }}"http{{ end }}://{{ .Values.name }}-local:{{ .Values.backup.port }}/initialization/start?mode=$1{{- if .Values.backup.failBelowRevision }}&failbelowrevision={{ int $.Values.backup.failBelowRevision }}{{- end }}" -S -O - ;;
+                  wget "http{{ if .Values.etcd.enableTLS }}s{{ end }}://{{ .Values.name }}-local:{{ .Values.backup.port }}/initialization/start?mode=$1{{- if .Values.backup.failBelowRevision }}&failbelowrevision={{ int $.Values.backup.failBelowRevision }}{{- end }}" -S -O - ;;
             "Progress")
                   sleep 1;
                   continue;;
