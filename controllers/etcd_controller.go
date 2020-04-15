@@ -126,7 +126,7 @@ func getChartPathForStatefulSet() string {
 }
 
 func getChartPathForConfigMap() string {
-	return filepath.Join("etcd", "templates", "configmap-etcd-bootstrap.yaml")
+	return filepath.Join("etcd", "templates", "etcd-bootstrap-configmap.yaml")
 }
 
 func getChartPathForService() string {
