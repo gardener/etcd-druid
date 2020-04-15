@@ -126,7 +126,7 @@ func startTestManager(mgr manager.Manager) (chan struct{}, *sync.WaitGroup) {
 
 func SetupWithManager(mgr ctrl.Manager, r reconcile.Reconciler) error {
 	return ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
-		MaxConcurrentReconciles: 3,
+		MaxConcurrentReconciles: 4,
 	}).
 		For(&druidv1alpha1.Etcd{}).
 		Owns(&corev1.ConfigMap{}).

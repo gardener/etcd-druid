@@ -59,11 +59,8 @@ var _ = Describe("Druid", func() {
 		It("should create statefulset", func() {
 			defer WithWd("..")()
 
-			go func() {
-				err = c.Create(context.TODO(), instance)
-
-				Expect(err).NotTo(HaveOccurred())
-			}()
+			err = c.Create(context.TODO(), instance)
+			Expect(err).NotTo(HaveOccurred())
 
 			ss := appsv1.StatefulSet{}
 			err = getReconciledStatefulset(c, instance, &ss)
@@ -93,17 +90,51 @@ var _ = Describe("Druid", func() {
 			It("should adopt statefulset ", func() {
 				defer WithWd("..")()
 				Expect(ss.OwnerReferences).Should(BeNil())
-				go func() {
-					err = c.Create(context.TODO(), instance)
+				err = c.Create(context.TODO(), instance)
 
-					Expect(err).NotTo(HaveOccurred())
-				}()
+				Expect(err).NotTo(HaveOccurred())
 
 				s := &appsv1.StatefulSet{}
 				err = getReconciledStatefulset(c, instance, s)
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(len(s.OwnerReferences)).ShouldNot(BeZero())
+			})
+			AfterEach(func() {
+				c.Delete(context.TODO(), instance)
+			})
+		})
+		Context("when etcd has the spec changed", func() {
+			var err error
+			var instance *druidv1alpha1.Etcd
+			var c client.Client
+			var ss *appsv1.StatefulSet
+			BeforeEach(func() {
+				instance = getEtcd("foo5", "default", false)
+
+				// Setup the Manager and Controller.  Wrap the Controller Reconcile function so it writes each request to a
+				// channel when it is finished.
+
+				Expect(err).NotTo(HaveOccurred())
+				c = mgr.GetClient()
+				ss = createStatefulset(instance.Name, instance.Namespace, instance.Spec.Labels)
+				err = c.Create(context.TODO(), ss)
+				Expect(err).NotTo(HaveOccurred())
+				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+				errors := createSecrets(c, instance.Namespace, storeSecret)
+				Expect(len(errors)).Should(BeZero())
+
+			})
+			It("the statefulset should be updated", func() {
+				defer WithWd("..")()
+				testLog.Info("statefulset", "revision", ss.ResourceVersion)
+				oldVersion := ss.ResourceVersion
+				err = c.Create(context.TODO(), instance)
+				Expect(err).NotTo(HaveOccurred())
+				sts, err := retryTillStsResourceVersionChanged(c, ss)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(sts.ResourceVersion).ToNot(Equal(oldVersion))
+				Expect(sts.Spec.ServiceName).To(Equal(fmt.Sprintf("%s-client", instance.Name)))
 			})
 			AfterEach(func() {
 				c.Delete(context.TODO(), instance)
@@ -148,10 +179,8 @@ var _ = Describe("Druid", func() {
 			})
 			It("should restart pod", func() {
 				defer WithWd("..")()
-				go func() {
-					err = c.Create(context.TODO(), instance)
-					Expect(err).NotTo(HaveOccurred())
-				}()
+				err = c.Create(context.TODO(), instance)
+				Expect(err).NotTo(HaveOccurred())
 				_, err = retryTillPodsDeleted(c, instance)
 				Expect(errors.IsNotFound(err)).Should(BeTrue())
 			})
@@ -185,6 +214,35 @@ func retryTillPodsDeleted(c client.Client, etcd *druidv1alpha1.Etcd) (*corev1.Po
 		return nil, err
 	}
 	return pod, err
+}
+
+func retryTillStsResourceVersionChanged(c client.Client, ss *appsv1.StatefulSet) (*appsv1.StatefulSet, error) {
+	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+	defer cancel()
+	sts := &appsv1.StatefulSet{}
+	err := wait.PollImmediateUntil(2*time.Second, func() (bool, error) {
+		req := types.NamespacedName{
+			Name:      ss.Name,
+			Namespace: ss.Namespace,
+		}
+		if err := c.Get(ctx, req, sts); err != nil {
+			if errors.IsNotFound(err) {
+				// Object not found, return.  Created objects are automatically garbage collected.
+				// For additional cleanup logic use finalizers
+				return false, nil
+			}
+			return false, err
+		}
+		testLog.Info("sts", "resourceVersion", sts.ResourceVersion)
+		if sts.ResourceVersion == ss.ResourceVersion {
+			return false, nil
+		}
+		return true, nil
+	}, ctx.Done())
+	if err != nil {
+		return nil, err
+	}
+	return sts, err
 }
 
 func getReconciledStatefulset(c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.StatefulSet) error {
@@ -234,7 +292,7 @@ func createStatefulset(name, namespace string, labels map[string]string) *appsv1
 					Containers: []corev1.Container{
 						{
 							Name:  "etcd",
-							Image: "quay.io/coreos/etcd:v3.3.17",
+							Image: "quay.io/coreos/etcd:v3.3.13",
 						},
 						{
 							Name:  "backup-restore",
@@ -244,7 +302,7 @@ func createStatefulset(name, namespace string, labels map[string]string) *appsv1
 				},
 			},
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{},
-			ServiceName:          fmt.Sprintf("etcd-client-%s", name),
+			ServiceName:          "etcd-client",
 			UpdateStrategy:       appsv1.StatefulSetUpdateStrategy{},
 		},
 	}
