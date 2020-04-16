@@ -878,12 +878,11 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		values["tlsCASecret"] = etcd.Spec.Etcd.TLS.TLSCASecretRef.Name
 	}
 
-	storageProvider, err := utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
-	if err != nil {
-		return nil, err
-	}
-
 	if etcd.Spec.Backup.Store != nil {
+		storageProvider, err := utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
+		if err != nil {
+			return nil, err
+		}
 		storeValues := map[string]interface{}{
 			"storageContainer": etcd.Spec.Backup.Store.Container,
 			"storePrefix":      etcd.Spec.Backup.Store.Prefix,
@@ -952,7 +951,7 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(ctx context.Context,
 		secret := &corev1.Secret{}
 		if err := r.Client.Get(ctx, types.NamespacedName{
 			Name:      secretRef.Name,
-			Namespace: secretRef.Namespace,
+			Namespace: etcd.Namespace,
 		}, secret); err != nil {
 			if !errors.IsNotFound(err) {
 				return err
