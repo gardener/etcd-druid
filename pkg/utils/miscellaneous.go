@@ -29,11 +29,11 @@ const (
 )
 
 const (
-	aws      = "aws"
-	azure    = "azure"
-	gcp      = "gcp"
-	alicloud = "alicloud"
-	os       = "os"
+	aws       = "aws"
+	azure     = "azure"
+	gcp       = "gcp"
+	alicloud  = "alicloud"
+	openstack = "openstack"
 )
 
 const (
@@ -162,7 +162,7 @@ func StorageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) (str
 		return abs, nil
 	case alicloud, oss:
 		return oss, nil
-	case os, swift:
+	case openstack, swift:
 		return swift, nil
 	case gcp, gcs:
 		return gcs, nil
