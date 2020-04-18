@@ -882,20 +882,26 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	}
 
 	values := map[string]interface{}{
-		"etcd":                    etcdValues,
-		"backup":                  backupValues,
 		"name":                    etcd.Name,
-		"replicas":                etcd.Spec.Replicas,
+		"uid":                     etcd.UID,
+		"selector":                etcd.Spec.Selector,
 		"labels":                  etcd.Spec.Labels,
 		"annotations":             etcd.Spec.Annotations,
-		"storageClass":            etcd.Spec.StorageClass,
-		"storageCapacity":         etcd.Spec.StorageCapacity,
-		"uid":                     etcd.UID,
+		"etcd":                    etcdValues,
+		"backup":                  backupValues,
+		"replicas":                etcd.Spec.Replicas,
 		"statefulsetReplicas":     statefulsetReplicas,
 		"serviceName":             fmt.Sprintf("%s-client", etcd.Name),
 		"configMapName":           fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
 		"volumeClaimTemplateName": volumeClaimTemplateName,
-		"selector":                etcd.Spec.Selector,
+	}
+
+	if etcd.Spec.StorageCapacity != nil {
+		values["storageCapacity"] = etcd.Spec.StorageCapacity
+	}
+
+	if etcd.Spec.StorageClass != nil {
+		values["storageClass"] = etcd.Spec.StorageClass
 	}
 
 	if etcd.Spec.PriorityClassName != nil {

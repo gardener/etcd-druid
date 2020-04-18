@@ -36,6 +36,33 @@ import (
 
 const timeout = time.Minute * 2
 
+var (
+	deltaSnapshotPeriod = metav1.Duration{
+		Duration: 300 * time.Second,
+	}
+	garbageCollectionPeriod = metav1.Duration{
+		Duration: 43200 * time.Second,
+	}
+	clientPort              = 2379
+	serverPort              = 2380
+	port                    = 8080
+	imageEtcd               = "quay.io/coreos/etcd:v3.3.13"
+	imageBR                 = "eu.gcr.io/gardener-project/gardener/etcdbrctl:0.8.0"
+	snapshotSchedule        = "0 */24 * * *"
+	defragSchedule          = "0 */24 * * *"
+	container               = "default.bkp"
+	storageCapacity         = resource.MustParse("5Gi")
+	defaultStorageCapacity  = resource.MustParse("16Gi")
+	storageClass            = "gardener.fast"
+	priorityClassName       = "class_priority"
+	deltaSnapShotMemLimit   = resource.MustParse("100Mi")
+	quota                   = resource.MustParse("8Gi")
+	provider                = druidv1alpha1.StorageProvider("Local")
+	prefix                  = "/tmp"
+	volumeClaimTemplateName = "etcd-main"
+	garbageCollectionPolicy = druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
+)
+
 var _ = Describe("Druid", func() {
 
 	Context("when adding etcd resources", func() {
@@ -44,7 +71,7 @@ var _ = Describe("Druid", func() {
 		var c client.Client
 
 		BeforeEach(func() {
-			instance = getEtcd("foo2", "foo2", false)
+			instance = getEtcd("foo1", "default", false)
 			c = mgr.GetClient()
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -66,6 +93,9 @@ var _ = Describe("Druid", func() {
 			err = getReconciledStatefulset(c, instance, &ss)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(ss.Name).ShouldNot(BeEmpty())
+			setStatefulSetReady(&ss)
+			err = c.Status().Update(context.TODO(), &ss)
+			Expect(err).NotTo(HaveOccurred())
 		})
 		AfterEach(func() {
 			c.Delete(context.TODO(), instance)
@@ -78,10 +108,10 @@ var _ = Describe("Druid", func() {
 			var c client.Client
 			var ss *appsv1.StatefulSet
 			BeforeEach(func() {
-				instance = getEtcd("foo3", "default", false)
+				instance = getEtcd("foo2", "default", false)
 				Expect(err).NotTo(HaveOccurred())
 				c = mgr.GetClient()
-				ss = createStatefulset("foo3", "default", instance.Spec.Labels)
+				ss = createStatefulset("foo2", "default", instance.Spec.Labels)
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
 				errors := createSecrets(c, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
@@ -97,8 +127,10 @@ var _ = Describe("Druid", func() {
 				s := &appsv1.StatefulSet{}
 				err = getReconciledStatefulset(c, instance, s)
 				Expect(err).NotTo(HaveOccurred())
-
 				Expect(len(s.OwnerReferences)).ShouldNot(BeZero())
+				setStatefulSetReady(s)
+				err = c.Status().Update(context.TODO(), s)
+				Expect(err).NotTo(HaveOccurred())
 			})
 			AfterEach(func() {
 				c.Delete(context.TODO(), instance)
@@ -110,11 +142,7 @@ var _ = Describe("Druid", func() {
 			var c client.Client
 			var ss *appsv1.StatefulSet
 			BeforeEach(func() {
-				instance = getEtcd("foo5", "default", false)
-
-				// Setup the Manager and Controller.  Wrap the Controller Reconcile function so it writes each request to a
-				// channel when it is finished.
-
+				instance = getEtcd("foo3", "default", false)
 				Expect(err).NotTo(HaveOccurred())
 				c = mgr.GetClient()
 				ss = createStatefulset(instance.Name, instance.Namespace, instance.Spec.Labels)
@@ -135,6 +163,10 @@ var _ = Describe("Druid", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(sts.ResourceVersion).ToNot(Equal(oldVersion))
 				Expect(sts.Spec.ServiceName).To(Equal(fmt.Sprintf("%s-client", instance.Name)))
+				setStatefulSetReady(sts)
+				err = c.Status().Update(context.TODO(), sts)
+				Expect(err).NotTo(HaveOccurred())
+
 			})
 			AfterEach(func() {
 				c.Delete(context.TODO(), instance)
@@ -145,16 +177,13 @@ var _ = Describe("Druid", func() {
 			var instance *druidv1alpha1.Etcd
 			var c client.Client
 			var p *corev1.Pod
+			var ss *appsv1.StatefulSet
 			BeforeEach(func() {
 				instance = getEtcd("foo4", "default", false)
-
-				// Setup the Manager and Controller.  Wrap the Controller Reconcile function so it writes each request to a
-				// channel when it is finished.
-
 				Expect(err).NotTo(HaveOccurred())
 				c = mgr.GetClient()
 				p = createPod(fmt.Sprintf("%s-0", instance.Name), "default", instance.Spec.Labels)
-				ss := createStatefulset(instance.Name, instance.Namespace, instance.Spec.Labels)
+				ss = createStatefulset(instance.Name, instance.Namespace, instance.Spec.Labels)
 				err = c.Create(context.TODO(), p)
 				Expect(err).NotTo(HaveOccurred())
 				err = c.Create(context.TODO(), ss)
@@ -185,7 +214,108 @@ var _ = Describe("Druid", func() {
 				Expect(errors.IsNotFound(err)).Should(BeTrue())
 			})
 			AfterEach(func() {
+				s := &appsv1.StatefulSet{}
+				err = getReconciledStatefulset(c, instance, s)
+				setStatefulSetReady(s)
+				err = c.Status().Update(context.TODO(), s)
+				Expect(err).NotTo(HaveOccurred())
 				c.Delete(context.TODO(), instance)
+			})
+		})
+	})
+
+	Context("when etcd resource is created", func() {
+		Context("if Labels, Annotations, PriorityClassName, StorageClass, StorageCapacity and VolumeClaimTemplate is set in etcd.Spec", func() {
+			var err error
+			var instance *druidv1alpha1.Etcd
+			var c client.Client
+			var s *appsv1.StatefulSet
+			BeforeEach(func() {
+				defer WithWd("..")()
+				instance = getEtcd("foo5", "default", false)
+				c = mgr.GetClient()
+				ns := corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: instance.Namespace,
+					},
+				}
+				c.Create(context.TODO(), &ns)
+				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+				errors := createSecrets(c, instance.Namespace, storeSecret)
+				Expect(len(errors)).Should(BeZero())
+				s = &appsv1.StatefulSet{}
+				err = c.Create(context.TODO(), instance)
+				Expect(err).NotTo(HaveOccurred())
+				err = getReconciledStatefulset(c, instance, s)
+				Expect(err).NotTo(HaveOccurred())
+			})
+			It("the statefulset should reflect the spec changes", func() {
+				for key, val := range instance.Spec.Labels {
+					stsVal, ok := s.Labels[key]
+					Expect(ok).Should(BeTrue())
+					Expect(stsVal).To(Equal(val))
+				}
+				for key, val := range instance.Spec.Annotations {
+					stsVal, ok := s.Annotations[key]
+					Expect(ok).Should(BeTrue())
+					Expect(stsVal).To(Equal(val))
+				}
+				Expect(s.Spec.Template.Spec.PriorityClassName).To(Equal(*instance.Spec.PriorityClassName))
+				Expect(s.Spec.VolumeClaimTemplates[0].Name).To(Equal(*instance.Spec.VolumeClaimTemplate))
+				Expect(*s.Spec.VolumeClaimTemplates[0].Spec.StorageClassName).To(Equal(*instance.Spec.StorageClass))
+				storage, ok := s.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests["storage"]
+				Expect(ok).Should(BeTrue())
+				Expect(storage).To(Equal(*instance.Spec.StorageCapacity))
+				setStatefulSetReady(s)
+				err = c.Status().Update(context.TODO(), s)
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+		Context("if Labels, Annotations, PriorityClassName, StorageClass, StorageCapacity and VolumeClaimTemplate are not set in etcd.Spec", func() {
+			var err error
+			var instance *druidv1alpha1.Etcd
+			var c client.Client
+			var s *appsv1.StatefulSet
+			BeforeEach(func() {
+				defer WithWd("..")()
+				instance = getEtcdWithDefault("foo6", "default", false)
+				c = mgr.GetClient()
+				ns := corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: instance.Namespace,
+					},
+				}
+				c.Create(context.TODO(), &ns)
+				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+				errors := createSecrets(c, instance.Namespace, storeSecret)
+				Expect(len(errors)).Should(BeZero())
+				s = &appsv1.StatefulSet{}
+				err = c.Create(context.TODO(), instance)
+				Expect(err).NotTo(HaveOccurred())
+				err = getReconciledStatefulset(c, instance, s)
+				Expect(err).NotTo(HaveOccurred())
+			})
+			It("the statefulset should reflect the spec changes", func() {
+				for key, val := range instance.Spec.Labels {
+					stsVal, ok := s.Labels[key]
+					Expect(ok).Should(BeTrue())
+					Expect(stsVal).To(Equal(val))
+				}
+				for key, val := range instance.Spec.Annotations {
+					stsVal, ok := s.Annotations[key]
+					Expect(ok).Should(BeTrue())
+					Expect(stsVal).To(Equal(val))
+				}
+				Expect(s.Spec.Template.Spec.PriorityClassName).To(Equal(""))
+				testLog.Info("VolumeClaimTemplate", "spec", s.Spec.VolumeClaimTemplates[0].Spec)
+				Expect(s.Spec.VolumeClaimTemplates[0].Name).To(Equal(instance.Name))
+				Expect(s.Spec.VolumeClaimTemplates[0].Spec.StorageClassName).To(BeNil())
+				storage, ok := s.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests["storage"]
+				Expect(ok).Should(BeTrue())
+				Expect(storage).To(Equal(defaultStorageCapacity))
+				setStatefulSetReady(s)
+				err = c.Status().Update(context.TODO(), s)
+				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 	})
@@ -332,29 +462,7 @@ func createPod(name, namespace string, labels map[string]string) *corev1.Pod {
 	return &pod
 }
 
-func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
-	clientPort := 2379
-	serverPort := 2380
-	port := 8080
-	garbageCollectionPeriod := metav1.Duration{
-		Duration: 43200 * time.Second,
-	}
-	deltaSnapshotPeriod := metav1.Duration{
-		Duration: 300 * time.Second,
-	}
-
-	imageEtcd := "quay.io/coreos/etcd:v3.3.13"
-	imageBR := "eu.gcr.io/gardener-project/gardener/etcdbrctl:0.8.0"
-	snapshotSchedule := "0 */24 * * *"
-	defragSchedule := "0 */24 * * *"
-	container := "default.bkp"
-	storageCapacity := resource.MustParse("5Gi")
-	deltaSnapShotMemLimit := resource.MustParse("100Mi")
-	quota := resource.MustParse("8Gi")
-	provider := druidv1alpha1.StorageProvider("Local")
-	prefix := "/tmp"
-	garbageCollectionPolicy := druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
-
+func getEtcdWithDefault(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 	instance := &druidv1alpha1.Etcd{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -362,8 +470,9 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 		},
 		Spec: druidv1alpha1.EtcdSpec{
 			Annotations: map[string]string{
-				"app":  "etcd-statefulset",
-				"role": "test",
+				"app":      "etcd-statefulset",
+				"role":     "test",
+				"instance": name,
 			},
 			Labels: map[string]string{
 				"app":      "etcd-statefulset",
@@ -376,9 +485,102 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 					"instance": name,
 				},
 			},
-			Replicas:        1,
-			StorageCapacity: &storageCapacity,
+			Replicas: 1,
+			Backup: druidv1alpha1.BackupSpec{
+				Image:                    &imageBR,
+				Port:                     &port,
+				FullSnapshotSchedule:     &snapshotSchedule,
+				GarbageCollectionPolicy:  &garbageCollectionPolicy,
+				GarbageCollectionPeriod:  &garbageCollectionPeriod,
+				DeltaSnapshotPeriod:      &deltaSnapshotPeriod,
+				DeltaSnapshotMemoryLimit: &deltaSnapShotMemLimit,
 
+				Resources: &corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu":    parseQuantity("500m"),
+						"memory": parseQuantity("2Gi"),
+					},
+					Requests: corev1.ResourceList{
+						"cpu":    parseQuantity("23m"),
+						"memory": parseQuantity("128Mi"),
+					},
+				},
+				Store: &druidv1alpha1.StoreSpec{
+					SecretRef: &corev1.SecretReference{
+						Name: "etcd-backup",
+					},
+					Container: &container,
+					Provider:  &provider,
+					Prefix:    prefix,
+				},
+			},
+			Etcd: druidv1alpha1.EtcdConfig{
+				Quota:                   &quota,
+				Metrics:                 druidv1alpha1.Basic,
+				Image:                   &imageEtcd,
+				DefragmentationSchedule: &defragSchedule,
+				Resources: &corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu":    parseQuantity("2500m"),
+						"memory": parseQuantity("4Gi"),
+					},
+					Requests: corev1.ResourceList{
+						"cpu":    parseQuantity("500m"),
+						"memory": parseQuantity("1000Mi"),
+					},
+				},
+				ClientPort: &clientPort,
+				ServerPort: &serverPort,
+			},
+		},
+	}
+
+	if tlsEnabled {
+		tlsConfig := &druidv1alpha1.TLSConfig{
+			ClientTLSSecretRef: corev1.SecretReference{
+				Name: "etcd-client-tls",
+			},
+			ServerTLSSecretRef: corev1.SecretReference{
+				Name: "etcd-server-tls",
+			},
+			TLSCASecretRef: corev1.SecretReference{
+				Name: "ca-etcd",
+			},
+		}
+		instance.Spec.Etcd.TLS = tlsConfig
+	}
+	return instance
+}
+
+func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
+
+	instance := &druidv1alpha1.Etcd{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: druidv1alpha1.EtcdSpec{
+			Annotations: map[string]string{
+				"app":      "etcd-statefulset",
+				"role":     "test",
+				"instance": name,
+			},
+			Labels: map[string]string{
+				"app":      "etcd-statefulset",
+				"role":     "test",
+				"instance": name,
+			},
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app":      "etcd-statefulset",
+					"instance": name,
+				},
+			},
+			Replicas:            1,
+			StorageCapacity:     &storageCapacity,
+			StorageClass:        &storageClass,
+			PriorityClassName:   &priorityClassName,
+			VolumeClaimTemplate: &volumeClaimTemplateName,
 			Backup: druidv1alpha1.BackupSpec{
 				Image:                    &imageBR,
 				Port:                     &port,
@@ -489,4 +691,17 @@ func WithWd(path string) func() {
 			Expect(err).NotTo(HaveOccurred())
 		}
 	}
+}
+
+func setStatefulSetReady(s *appsv1.StatefulSet) {
+	testLog.Info("Updating observerd generation", "from", s.Status.ObservedGeneration, "to", s.Generation)
+	s.Status.ObservedGeneration = s.Generation
+
+	replicas := int32(1)
+	if s.Spec.Replicas != nil {
+		replicas = *s.Spec.Replicas
+	}
+	testLog.Info("Updating replicas", "from", s.Status.ReadyReplicas, "to", replicas)
+	s.Status.Replicas = replicas
+	s.Status.ReadyReplicas = replicas
 }
