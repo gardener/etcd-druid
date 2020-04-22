@@ -25,11 +25,13 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/gardener/etcd-druid/pkg/common"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -170,6 +172,7 @@ func NewEtcdDruidRefManager(
 // It will reconcile the following:
 //   * Adopt orphans if the selector matches.
 //   * Release owned objects if the selector no longer matches.
+//   * Remove ownerReferences from the statefulsets and use annotations
 //
 // Optional: If one or more filters are specified, a Statefulset will only be claimed if
 // all filters return true.
@@ -204,11 +207,9 @@ func (m *EtcdDruidRefManager) ClaimStatefulsets(sts *appsv1.StatefulSetList, fil
 	release := func(obj metav1.Object) error {
 		return m.ReleaseStatefulSet(obj.(*appsv1.StatefulSet))
 	}
-
 	for k := range sts.Items {
 		ss := &sts.Items[k]
-		ok, err := m.ClaimObject(ss, match, adopt, release)
-
+		ok, err := m.claimStatefulset(ss, match, adopt, release)
 		if err != nil {
 			errlist = append(errlist, err)
 			continue
@@ -218,6 +219,78 @@ func (m *EtcdDruidRefManager) ClaimStatefulsets(sts *appsv1.StatefulSetList, fil
 		}
 	}
 	return claimed, utilerrors.NewAggregate(errlist)
+}
+
+func (m *BaseControllerRefManager) claimStatefulset(obj metav1.Object, match func(metav1.Object) bool, adopt, release func(metav1.Object) error) (bool, error) {
+	controllerRef := metav1.GetControllerOf(obj)
+	if controllerRef != nil {
+		if controllerRef.UID != m.Controller.GetUID() {
+			// Owned by someone else. Ignore.
+			return false, nil
+		}
+		if match(obj) {
+			// We already own it and the selector matches.
+			// However, the ownerReference may be set to adopting the statefulset is
+			// needed to inject the annotations and remove the ownerReference.
+			// Return true (successfully claimed) before checking deletion timestamp.
+			if err := adopt(obj); err != nil {
+				// If the object no longer exists, ignore the error.
+				if errors.IsNotFound(err) {
+					return false, nil
+				}
+
+				// Either someone else claimed it first, or there was a transient error.
+				// The controller should requeue and try again if it's still orphaned.
+				return false, err
+			}
+			return true, nil
+		}
+		// Owned by us but selector doesn't match.
+		// Try to release, unless we're being deleted.
+		if m.Controller.GetDeletionTimestamp() != nil {
+			return false, nil
+		}
+		if err := release(obj); err != nil {
+			// If the object no longer exists, ignore the error.
+			if errors.IsNotFound(err) {
+				return false, nil
+			}
+			// Either someone else released it, or there was a transient error.
+			// The controller should requeue and try again if it's still stale.
+			return false, err
+		}
+		// Successfully released.
+		return false, nil
+	}
+
+	// It's an orphan.
+	if m.Controller.GetDeletionTimestamp() != nil || !match(obj) {
+		// Ignore if we're being deleted or selector doesn't match.
+		return false, nil
+	}
+
+	if obj.GetDeletionTimestamp() != nil {
+		// Ignore if the object is being deleted
+		return false, nil
+	}
+
+	// OwnerReference is not set here. Adopt the statefulset by adding
+	// annotations if the annotations are not present
+	if !checkForEtcdAnnotations(obj.GetAnnotations(), m.Controller) {
+		// Selector matches. Try to adopt.
+		if err := adopt(obj); err != nil {
+			// If the object no longer exists, ignore the error.
+			if errors.IsNotFound(err) {
+				return false, nil
+			}
+
+			// Either someone else claimed it first, or there was a transient error.
+			// The controller should requeue and try again if it's still orphaned.
+			return false, err
+		}
+	}
+	// Successfully adopted.
+	return true, nil
 }
 
 // AdoptStatefulSet sends a patch to take control of the Etcd. It returns the error if
@@ -230,9 +303,24 @@ func (m *EtcdDruidRefManager) AdoptStatefulSet(ss *appsv1.StatefulSet) error {
 	ssClone := ss.DeepCopy()
 	// Note that ValidateOwnerReferences() will reject this patch if another
 	// OwnerReference exists with controller=true.
-	if err := controllerutil.SetControllerReference(m.Controller, ssClone, m.reconciler.Scheme); err != nil {
-		return err
+
+	owners := ssClone.GetOwnerReferences()
+	ownersCopy := []metav1.OwnerReference{}
+	for i := range owners {
+		owner := &owners[i]
+		if owner.UID == m.Controller.GetUID() {
+			continue
+		}
+		ownersCopy = append(ownersCopy, *owner)
 	}
+	if len(ownersCopy) == 0 {
+		ssClone.OwnerReferences = nil
+	} else {
+		ssClone.OwnerReferences = ownersCopy
+	}
+
+	ssClone.Annotations[common.GardenerOwnedBy] = fmt.Sprintf("%s/%s", m.Controller.GetNamespace(), m.Controller.GetName())
+	ssClone.Annotations[common.GardenerOwnerType] = strings.ToLower(etcdGVK.Kind)
 
 	return m.reconciler.Patch(context.TODO(), ssClone, client.MergeFrom(ss))
 }
@@ -255,6 +343,9 @@ func (m *EtcdDruidRefManager) ReleaseStatefulSet(ss *appsv1.StatefulSet) error {
 	} else {
 		ssClone.OwnerReferences = ownersCopy
 	}
+
+	delete(ssClone.Annotations, common.GardenerOwnedBy)
+	delete(ssClone.Annotations, common.GardenerOwnerType)
 
 	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), ssClone, client.MergeFrom(ss)))
 	if errors.IsInvalid(err) {
