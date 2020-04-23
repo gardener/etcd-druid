@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controllers_test
+package controllers
 
 import (
 	"context"
@@ -23,7 +23,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -106,7 +105,7 @@ var _ = Describe("Druid", func() {
 			s := &appsv1.StatefulSet{}
 			getStatefulset(c, instance, s)
 			testLog.Info("fetched Statefulset", "statefulset", s.Name)
-			Eventually(len(s.OwnerReferences), timeout).ShouldNot(BeZero())
+			Eventually(checkForEtcdAnnotations(s.GetAnnotations(), instance), timeout).Should(BeTrue())
 		})
 		AfterEach(func() {
 			c.Delete(context.TODO(), instance)
