@@ -766,7 +766,7 @@ func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd) (*corev1.Servic
 	return svc, ss, nil
 }
 
-func checkForEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
+func checkEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
 	for _, ownerRef := range refs {
 		if ownerRef.UID == etcd.UID {
 			return true
@@ -775,9 +775,14 @@ func checkForEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha
 	return false
 }
 
-func checkForEtcdAnnotations(annotations map[string]string, etcd metav1.Object) bool {
-	var ownedBy, ownerType string
-	var ok bool
+func checkEtcdAnnotations(annotations map[string]string, etcd metav1.Object) bool {
+	var (
+		ownedBy, ownerType string
+		ok                 bool
+	)
+	if annotations == nil {
+		return false
+	}
 	if ownedBy, ok = annotations[common.GardenerOwnedBy]; !ok {
 		return ok
 	}
@@ -1001,7 +1006,7 @@ func (r *EtcdReconciler) removeDependantStatefulset(ctx context.Context, etcd *d
 	}
 
 	statefulSets := &appsv1.StatefulSetList{}
-	if err = r.List(context.TODO(), statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
+	if err = r.List(ctx, statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
 		return err
 	}
 	for _, sts := range statefulSets.Items {
@@ -1020,8 +1025,8 @@ func canDeleteStatefulset(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) boo
 	// The statefulset with ownerReference will be deleted automatically when etcd is
 	// delete but we would like to explicitly delete it to maintain uniformity in the
 	// delete path.
-	return checkForEtcdOwnerReference(sts.GetOwnerReferences(), etcd) ||
-		checkForEtcdAnnotations(sts.GetAnnotations(), etcd)
+	return checkEtcdOwnerReference(sts.GetOwnerReferences(), etcd) ||
+		checkEtcdAnnotations(sts.GetAnnotations(), etcd)
 
 }
 
