@@ -25,14 +25,17 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/gardener/etcd-druid/pkg/common"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -60,7 +63,7 @@ func (m *BaseControllerRefManager) CanAdopt() error {
 	return m.canAdoptErr
 }
 
-// ClaimObject tries to take ownership of an object for this controller.
+// claimObject tries to take ownership of an object for this controller.
 //
 // It will reconcile the following:
 //   * Adopt orphans if the match function returns true.
@@ -75,7 +78,7 @@ func (m *BaseControllerRefManager) CanAdopt() error {
 // own the object.
 //
 // No reconciliation will be attempted if the controller is being deleted.
-func (m *BaseControllerRefManager) ClaimObject(obj metav1.Object, match func(metav1.Object) bool, adopt, release func(metav1.Object) error) (bool, error) {
+func (m *BaseControllerRefManager) claimObject(obj metav1.Object, match func(metav1.Object) bool, adopt, release func(metav1.Object) error) (bool, error) {
 	controllerRef := metav1.GetControllerOf(obj)
 	if controllerRef != nil {
 		if controllerRef.UID != m.Controller.GetUID() {
@@ -84,9 +87,19 @@ func (m *BaseControllerRefManager) ClaimObject(obj metav1.Object, match func(met
 		}
 		if match(obj) {
 			// We already own it and the selector matches.
+			// However, if the ownerReference is set for adopting the statefulset, druid
+			// needs to inject the annotations and remove the ownerReference.
 			// Return true (successfully claimed) before checking deletion timestamp.
-			// We're still allowed to claim things we already own while being deleted
-			// because doing so requires taking no actions.
+			if err := adopt(obj); err != nil {
+				// If the object no longer exists, ignore the error.
+				if errors.IsNotFound(err) {
+					return false, nil
+				}
+
+				// Either someone else claimed it first, or there was a transient error.
+				// The controller should requeue and try again if it's still orphaned.
+				return false, err
+			}
 			return true, nil
 		}
 		// Owned by us but selector doesn't match.
@@ -118,16 +131,21 @@ func (m *BaseControllerRefManager) ClaimObject(obj metav1.Object, match func(met
 		return false, nil
 	}
 
-	// Selector matches. Try to adopt.
-	if err := adopt(obj); err != nil {
-		// If the object no longer exists, ignore the error.
-		if errors.IsNotFound(err) {
-			return false, nil
-		}
+	// OwnerReference is not set here. Adopt the resource by adding
+	// annotations if the annotations are not present. Resource other
+	// than sts will have ownerReference set as well.
+	if !checkEtcdAnnotations(obj.GetAnnotations(), m.Controller) {
+		// Selector matches. Try to adopt.
+		if err := adopt(obj); err != nil {
+			// If the object no longer exists, ignore the error.
+			if errors.IsNotFound(err) {
+				return false, nil
+			}
 
-		// Either someone else claimed it first, or there was a transient error.
-		// The controller should requeue and try again if it's still orphaned.
-		return false, err
+			// Either someone else claimed it first, or there was a transient error.
+			// The controller should requeue and try again if it's still orphaned.
+			return false, err
+		}
 	}
 	// Successfully adopted.
 	return true, nil
@@ -170,6 +188,7 @@ func NewEtcdDruidRefManager(
 // It will reconcile the following:
 //   * Adopt orphans if the selector matches.
 //   * Release owned objects if the selector no longer matches.
+//   * Remove ownerReferences from the statefulsets and use annotations
 //
 // Optional: If one or more filters are specified, a Statefulset will only be claimed if
 // all filters return true.
@@ -198,17 +217,9 @@ func (m *EtcdDruidRefManager) ClaimStatefulsets(sts *appsv1.StatefulSetList, fil
 		return true
 	}
 
-	adopt := func(obj metav1.Object) error {
-		return m.AdoptStatefulSet(obj.(*appsv1.StatefulSet))
-	}
-	release := func(obj metav1.Object) error {
-		return m.ReleaseStatefulSet(obj.(*appsv1.StatefulSet))
-	}
-
 	for k := range sts.Items {
 		ss := &sts.Items[k]
-		ok, err := m.ClaimObject(ss, match, adopt, release)
-
+		ok, err := m.claimObject(ss, match, m.AdoptResource, m.ReleaseResource)
 		if err != nil {
 			errlist = append(errlist, err)
 			continue
@@ -218,58 +229,6 @@ func (m *EtcdDruidRefManager) ClaimStatefulsets(sts *appsv1.StatefulSetList, fil
 		}
 	}
 	return claimed, utilerrors.NewAggregate(errlist)
-}
-
-// AdoptStatefulSet sends a patch to take control of the Etcd. It returns the error if
-// the patching fails.
-func (m *EtcdDruidRefManager) AdoptStatefulSet(ss *appsv1.StatefulSet) error {
-	if err := m.CanAdopt(); err != nil {
-		return fmt.Errorf("can't adopt statefulset %v/%v (%v): %v", ss.Namespace, ss.Name, ss.UID, err)
-	}
-
-	ssClone := ss.DeepCopy()
-	// Note that ValidateOwnerReferences() will reject this patch if another
-	// OwnerReference exists with controller=true.
-	if err := controllerutil.SetControllerReference(m.Controller, ssClone, m.reconciler.Scheme); err != nil {
-		return err
-	}
-
-	return m.reconciler.Patch(context.TODO(), ssClone, client.MergeFrom(ss))
-}
-
-// ReleaseStatefulSet sends a patch to free the statefulset from the control of the controller.
-// It returns the error if the patching fails. 404 and 422 errors are ignored.
-func (m *EtcdDruidRefManager) ReleaseStatefulSet(ss *appsv1.StatefulSet) error {
-	ssClone := ss.DeepCopy()
-	owners := ssClone.GetOwnerReferences()
-	ownersCopy := []metav1.OwnerReference{}
-	for i := range owners {
-		owner := &owners[i]
-		if owner.UID == m.Controller.GetUID() {
-			continue
-		}
-		ownersCopy = append(ownersCopy, *owner)
-	}
-	if len(ownersCopy) == 0 {
-		ssClone.OwnerReferences = nil
-	} else {
-		ssClone.OwnerReferences = ownersCopy
-	}
-
-	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), ssClone, client.MergeFrom(ss)))
-	if errors.IsInvalid(err) {
-		// Invalid error will be returned in two cases: 1. the etcd
-		// has no owner reference, 2. the uid of the etcd doesn't
-		// match, which means the etcd is deleted and then recreated.
-		// In both cases, the error can be ignored.
-
-		// TODO: If the etcd has owner references, but none of them
-		// has the owner.UID, server will silently ignore the patch.
-		// Investigate why.
-		return nil
-	}
-
-	return err
 }
 
 // ClaimServices tries to take ownership of a list of Services.
@@ -305,16 +264,9 @@ func (m *EtcdDruidRefManager) ClaimServices(svcs *corev1.ServiceList, filters ..
 		return true
 	}
 
-	adopt := func(obj metav1.Object) error {
-		return m.AdoptService(obj.(*corev1.Service))
-	}
-	release := func(obj metav1.Object) error {
-		return m.ReleaseService(obj.(*corev1.Service))
-	}
-
 	for k := range svcs.Items {
 		svc := &svcs.Items[k]
-		ok, err := m.ClaimObject(svc, match, adopt, release)
+		ok, err := m.claimObject(svc, match, m.AdoptResource, m.ReleaseResource)
 
 		if err != nil {
 			errlist = append(errlist, err)
@@ -325,58 +277,6 @@ func (m *EtcdDruidRefManager) ClaimServices(svcs *corev1.ServiceList, filters ..
 		}
 	}
 	return claimed, utilerrors.NewAggregate(errlist)
-}
-
-// AdoptService sends a patch to take control of the Etcd. It returns the error if
-// the patching fails.
-func (m *EtcdDruidRefManager) AdoptService(svc *corev1.Service) error {
-	if err := m.CanAdopt(); err != nil {
-		return fmt.Errorf("can't adopt services %v/%v (%v): %v", svc.Namespace, svc.Name, svc.UID, err)
-	}
-
-	svcClone := svc.DeepCopy()
-	// Note that ValidateOwnerReferences() will reject this patch if another
-	// OwnerReference exists with controller=true.
-	if err := controllerutil.SetControllerReference(m.Controller, svcClone, m.reconciler.Scheme); err != nil {
-		return err
-	}
-
-	return m.reconciler.Patch(context.TODO(), svcClone, client.MergeFrom(svc))
-}
-
-// ReleaseService sends a patch to free the service from the control of the controller.
-// It returns the error if the patching fails. 404 and 422 errors are ignored.
-func (m *EtcdDruidRefManager) ReleaseService(svc *corev1.Service) error {
-	svcClone := svc.DeepCopy()
-	owners := svcClone.GetOwnerReferences()
-	ownersCopy := []metav1.OwnerReference{}
-	for i := range owners {
-		owner := &owners[i]
-		if owner.UID == m.Controller.GetUID() {
-			continue
-		}
-		ownersCopy = append(ownersCopy, *owner)
-	}
-	if len(ownersCopy) == 0 {
-		svcClone.OwnerReferences = nil
-	} else {
-		svcClone.OwnerReferences = ownersCopy
-	}
-
-	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), svcClone, client.MergeFrom(svc)))
-	if errors.IsInvalid(err) {
-		// Invalid error will be returned in two cases: 1. the etcd
-		// has no owner reference, 2. the uid of the etcd doesn't
-		// match, which means the etcd is deleted and then recreated.
-		// In both cases, the error can be ignored.
-
-		// TODO: If the etcd has owner references, but none of them
-		// has the owner.UID, server will silently ignore the patch.
-		// Investigate why.
-		return nil
-	}
-
-	return err
 }
 
 // ClaimConfigMaps tries to take ownership of a list of ConfigMaps.
@@ -412,16 +312,9 @@ func (m *EtcdDruidRefManager) ClaimConfigMaps(cms *corev1.ConfigMapList, filters
 		return true
 	}
 
-	adopt := func(obj metav1.Object) error {
-		return m.AdoptConfigMap(obj.(*corev1.ConfigMap))
-	}
-	release := func(obj metav1.Object) error {
-		return m.ReleaseConfigMap(obj.(*corev1.ConfigMap))
-	}
-
 	for k := range cms.Items {
 		cm := &cms.Items[k]
-		ok, err := m.ClaimObject(cm, match, adopt, release)
+		ok, err := m.claimObject(cm, match, m.AdoptResource, m.ReleaseResource)
 
 		if err != nil {
 			errlist = append(errlist, err)
@@ -434,44 +327,69 @@ func (m *EtcdDruidRefManager) ClaimConfigMaps(cms *corev1.ConfigMapList, filters
 	return claimed, utilerrors.NewAggregate(errlist)
 }
 
-// AdoptConfigMap sends a patch to take control of the Etcd. It returns the error if
+// AdoptResource sends a patch to take control of the Etcd. It returns the error if
 // the patching fails.
-func (m *EtcdDruidRefManager) AdoptConfigMap(cm *corev1.ConfigMap) error {
+func (m *EtcdDruidRefManager) AdoptResource(obj metav1.Object) error {
 	if err := m.CanAdopt(); err != nil {
-		return fmt.Errorf("can't adopt configmap %v/%v (%v): %v", cm.Namespace, cm.Name, cm.UID, err)
+		return fmt.Errorf("can't adopt resource %v/%v (%v): %v", obj.GetNamespace(), obj.GetName(), obj.GetUID(), err)
 	}
 
-	cmClone := cm.DeepCopy()
-	// Note that ValidateOwnerReferences() will reject this patch if another
-	// OwnerReference exists with controller=true.
-	if err := controllerutil.SetControllerReference(m.Controller, cmClone, m.reconciler.Scheme); err != nil {
-		return err
+	var clone metav1.Object
+	switch objType := obj.(type) {
+	case *appsv1.StatefulSet:
+		clone = obj.(*appsv1.StatefulSet).DeepCopy()
+		m.disown(clone)
+		annotations := clone.GetAnnotations()
+		if annotations == nil {
+			annotations = map[string]string{}
+		}
+		annotations[common.GardenerOwnedBy] = fmt.Sprintf("%s/%s", m.Controller.GetNamespace(), m.Controller.GetName())
+		annotations[common.GardenerOwnerType] = strings.ToLower(etcdGVK.Kind)
+		clone.SetAnnotations(annotations)
+	case *corev1.ConfigMap:
+		clone = obj.(*corev1.ConfigMap).DeepCopy()
+		// Note that ValidateOwnerReferences() will reject this patch if another
+		// OwnerReference exists with controller=true.
+		if err := controllerutil.SetControllerReference(m.Controller, clone, m.reconciler.Scheme); err != nil {
+			return err
+		}
+	case *corev1.Service:
+		clone = obj.(*corev1.Service).DeepCopy()
+		// Note that ValidateOwnerReferences() will reject this patch if another
+		// OwnerReference exists with controller=true.
+		if err := controllerutil.SetControllerReference(m.Controller, clone, m.reconciler.Scheme); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("cannot adopt resource: %s", objType)
 	}
 
-	return m.reconciler.Patch(context.TODO(), cmClone, client.MergeFrom(cm))
+	return m.reconciler.Patch(context.TODO(), clone.(runtime.Object), client.MergeFrom(obj.(runtime.Object)))
 }
 
-// ReleaseConfigMap sends a patch to free the configmap from the control of the controller.
+// ReleaseResource sends a patch to free the resource from the control of the controller.
 // It returns the error if the patching fails. 404 and 422 errors are ignored.
-func (m *EtcdDruidRefManager) ReleaseConfigMap(cm *corev1.ConfigMap) error {
-
-	cmClone := cm.DeepCopy()
-	owners := cmClone.GetOwnerReferences()
-	ownersCopy := []metav1.OwnerReference{}
-	for i := range owners {
-		owner := &owners[i]
-		if owner.UID == m.Controller.GetUID() {
-			continue
-		}
-		ownersCopy = append(ownersCopy, *owner)
+func (m *EtcdDruidRefManager) ReleaseResource(obj metav1.Object) error {
+	var clone metav1.Object
+	switch objType := obj.(type) {
+	case *appsv1.StatefulSet:
+		clone = obj.(*appsv1.StatefulSet).DeepCopy()
+		// The statefulset is annotated with reference to the owner.
+		// This is to ensure compatibility with VPA which does not
+		// recommend if statefulset has an owner reference set.
+		delete(clone.GetAnnotations(), common.GardenerOwnedBy)
+		delete(clone.GetAnnotations(), common.GardenerOwnerType)
+	case *corev1.ConfigMap:
+		clone = obj.(*corev1.ConfigMap).DeepCopy()
+	case *corev1.Service:
+		clone = obj.(*corev1.Service).DeepCopy()
+	default:
+		return fmt.Errorf("cannot release resource: %s", objType)
 	}
-	if len(ownersCopy) == 0 {
-		cmClone.OwnerReferences = nil
-	} else {
-		cmClone.OwnerReferences = ownersCopy
-	}
 
-	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), cmClone, client.MergeFrom(cm)))
+	m.disown(clone)
+
+	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), clone.(runtime.Object), client.MergeFrom(obj.(runtime.Object))))
 	if errors.IsInvalid(err) {
 		// Invalid error will be returned in two cases: 1. the etcd
 		// has no owner reference, 2. the uid of the etcd doesn't
@@ -485,6 +403,23 @@ func (m *EtcdDruidRefManager) ReleaseConfigMap(cm *corev1.ConfigMap) error {
 	}
 
 	return err
+}
+
+func (m *EtcdDruidRefManager) disown(obj metav1.Object) {
+	owners := obj.GetOwnerReferences()
+	ownersCopy := []metav1.OwnerReference{}
+	for i := range owners {
+		owner := &owners[i]
+		if owner.UID == m.Controller.GetUID() {
+			continue
+		}
+		ownersCopy = append(ownersCopy, *owner)
+	}
+	if len(ownersCopy) == 0 {
+		obj.SetOwnerReferences(nil)
+	} else {
+		obj.SetOwnerReferences(ownersCopy)
+	}
 }
 
 // RecheckDeletionTimestamp returns a CanAdopt() function to recheck deletion.

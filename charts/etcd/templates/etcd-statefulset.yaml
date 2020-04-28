@@ -4,6 +4,8 @@ metadata:
   name: {{ .Values.name }}
   namespace: {{ .Release.Namespace }}
   annotations:
+    gardener.cloud/owned-by: "{{ .Release.Namespace }}/{{ .Values.name }}"
+    gardener.cloud/owner-type: "etcd"
 {{- if .Values.annotations }}
 {{ toYaml .Values.annotations | indent 4 }}
 {{- end }}
@@ -13,13 +15,6 @@ metadata:
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 4 }}
 {{- end }}
-  ownerReferences:
-  - apiVersion: druid.gardener.cloud/v1alpha1
-    blockOwnerDeletion: true
-    controller: true
-    kind: Etcd
-    name: {{ .Values.name }}
-    uid: {{ .Values.uid }}
 spec:
   updateStrategy:
     type: RollingUpdate
@@ -48,9 +43,9 @@ spec:
       - ip: "127.0.0.1"
         hostnames:
         - {{ .Values.name }}-local
-      {{- if .Values.priorityClassName }}
+{{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
-      {{- end }}
+{{- end }}
       containers:
       - name: etcd
         image: {{ .Values.etcd.image }}

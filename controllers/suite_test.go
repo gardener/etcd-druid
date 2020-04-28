@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controllers_test
+package controllers
 
 import (
 	"path/filepath"
@@ -25,15 +25,16 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	. "github.com/gardener/etcd-druid/controllers"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	// +kubebuilder:scaffold:imports
 )
@@ -98,10 +99,10 @@ var _ = BeforeSuite(func(done Done) {
 	er, err := NewEtcdReconciler(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = SetupWithManager(mgr, er)
+	err = er.SetupWithManager(mgr, 1, true)
 	Expect(err).NotTo(HaveOccurred())
 
-	stopMgr, mgrStopped = StartTestManager(mgr)
+	stopMgr, mgrStopped = startTestManager(mgr)
 
 	close(done)
 }, 60)
@@ -112,8 +113,7 @@ var _ = AfterSuite(func() {
 
 })
 
-// StartTestManager adds recFn
-func StartTestManager(mgr manager.Manager) (chan struct{}, *sync.WaitGroup) {
+func startTestManager(mgr manager.Manager) (chan struct{}, *sync.WaitGroup) {
 	stop := make(chan struct{})
 	wg := &sync.WaitGroup{}
 	go func() {
@@ -125,8 +125,12 @@ func StartTestManager(mgr manager.Manager) (chan struct{}, *sync.WaitGroup) {
 }
 
 func SetupWithManager(mgr ctrl.Manager, r reconcile.Reconciler) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	return ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
+		MaxConcurrentReconciles: 10,
+	}).
 		For(&druidv1alpha1.Etcd{}).
+		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Service{}).
 		Owns(&appsv1.StatefulSet{}).
 		Complete(r)
 }

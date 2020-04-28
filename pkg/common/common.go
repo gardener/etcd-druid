@@ -21,4 +21,8 @@ const (
 	BackupRestore = "etcd-backup-restore"
 	// ChartPath is the directory that contains the default image vector file
 	ChartPath = "charts"
+	// GardenerOwnedBy is a constant for an annotation on a resource that describes the owner resource.
+	GardenerOwnedBy = "gardener.cloud/owned-by"
+	// GardenerOwnerType is a constant for an annotation on a resource that describes the type of owner resource.
+	GardenerOwnerType = "gardener.cloud/owner-type"
 )

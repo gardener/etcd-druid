@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -249,6 +250,18 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 
 func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	logger.Infof("Deletion timestamp set for etcd: %s", etcd.GetName())
+
+	if err := r.removeDependantStatefulset(ctx, etcd); err != nil {
+		if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
+			return ctrl.Result{
+				Requeue: true,
+			}, err
+		}
+		return ctrl.Result{
+			Requeue: true,
+		}, err
+	}
+
 	if err := r.removeFinalizersToDependantSecrets(ctx, etcd); err != nil {
 		if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
 			return ctrl.Result{
@@ -262,10 +275,13 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 
 	if sets.NewString(etcd.Finalizers...).Has(FinalizerName) {
 		logger.Infof("Removing finalizer (%s) from etcd %s", FinalizerName, etcd.GetName())
-		finalizers := sets.NewString(etcd.Finalizers...)
+		// Deep copy of etcd resource required here to patch the object. Update call results in
+		// StorageError. See also: https://github.com/kubernetes/kubernetes/issues/71139
+		etcdCopy := etcd.DeepCopy()
+		finalizers := sets.NewString(etcdCopy.Finalizers...)
 		finalizers.Delete(FinalizerName)
-		etcd.Finalizers = finalizers.UnsortedList()
-		if err := r.Update(ctx, etcd); client.IgnoreNotFound(err) != nil {
+		etcdCopy.Finalizers = finalizers.UnsortedList()
+		if err := r.Patch(ctx, etcdCopy, client.MergeFrom(etcd)); client.IgnoreNotFound(err) != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -617,10 +633,6 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 		return nil, err
 	}
 
-	if err := controllerutil.SetControllerReference(etcd, ss, r.Scheme); err != nil {
-		return nil, err
-	}
-
 	return r.waitUntilStatefulSetReady(ss)
 }
 
@@ -710,9 +722,8 @@ func (r *EtcdReconciler) getStatefulSetFromEtcd(etcd *druidv1alpha1.Etcd, cm *co
 	if _, ok := renderedChart.Files()[statefulSetPath]; !ok {
 		return nil, fmt.Errorf("missing configmap template file in the charts: %v", statefulSetPath)
 	}
-	//logger.Infof("%v: %v", statefulsetPath, renderer.Files()[statefulsetPath])
-	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(renderedChart.Files()[statefulSetPath])), 1024)
 
+	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(renderedChart.Files()[statefulSetPath])), 1024)
 	if err = decoder.Decode(&decoded); err != nil {
 		return nil, err
 	}
@@ -755,13 +766,32 @@ func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd) (*corev1.Servic
 	return svc, ss, nil
 }
 
-func checkForEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
+func checkEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
 	for _, ownerRef := range refs {
 		if ownerRef.UID == etcd.UID {
 			return true
 		}
 	}
 	return false
+}
+
+func checkEtcdAnnotations(annotations map[string]string, etcd metav1.Object) bool {
+	var (
+		ownedBy, ownerType string
+		ok                 bool
+	)
+	if annotations == nil {
+		return false
+	}
+	if ownedBy, ok = annotations[common.GardenerOwnedBy]; !ok {
+		return ok
+	}
+	if ownerType, ok = annotations[common.GardenerOwnerType]; !ok {
+		return ok
+	}
+	return ownedBy == fmt.Sprintf("%s/%s", etcd.GetNamespace(), etcd.GetName()) &&
+		ownerType == strings.ToLower(etcdGVK.Kind)
+
 }
 
 func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]interface{}, error) {
@@ -852,20 +882,26 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	}
 
 	values := map[string]interface{}{
-		"etcd":                    etcdValues,
-		"backup":                  backupValues,
 		"name":                    etcd.Name,
-		"replicas":                etcd.Spec.Replicas,
+		"uid":                     etcd.UID,
+		"selector":                etcd.Spec.Selector,
 		"labels":                  etcd.Spec.Labels,
 		"annotations":             etcd.Spec.Annotations,
-		"storageClass":            etcd.Spec.StorageClass,
-		"storageCapacity":         etcd.Spec.StorageCapacity,
-		"uid":                     etcd.UID,
+		"etcd":                    etcdValues,
+		"backup":                  backupValues,
+		"replicas":                etcd.Spec.Replicas,
 		"statefulsetReplicas":     statefulsetReplicas,
 		"serviceName":             fmt.Sprintf("%s-client", etcd.Name),
 		"configMapName":           fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
 		"volumeClaimTemplateName": volumeClaimTemplateName,
-		"selector":                etcd.Spec.Selector,
+	}
+
+	if etcd.Spec.StorageCapacity != nil {
+		values["storageCapacity"] = etcd.Spec.StorageCapacity
+	}
+
+	if etcd.Spec.StorageClass != nil {
+		values["storageClass"] = etcd.Spec.StorageClass
 	}
 
 	if etcd.Spec.PriorityClassName != nil {
@@ -966,6 +1002,38 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(ctx context.Context,
 		}
 	}
 	return nil
+}
+
+func (r *EtcdReconciler) removeDependantStatefulset(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+	logger.Infof("Deleting etcd statefulset for etcd:%s in namespace:%s", etcd.Name, etcd.Namespace)
+	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
+	if err != nil {
+		return err
+	}
+
+	statefulSets := &appsv1.StatefulSetList{}
+	if err = r.List(ctx, statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
+		return err
+	}
+	for _, sts := range statefulSets.Items {
+		if canDeleteStatefulset(&sts, etcd) {
+			logger.Infof("Etcd statefulset can be deleted. Deleting statefulset: %s/%s", sts.GetNamespace(), sts.GetName())
+			if err := r.Delete(ctx, &sts); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func canDeleteStatefulset(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) bool {
+	// Adding check for ownerReference to have the same delete path for statefulset.
+	// The statefulset with ownerReference will be deleted automatically when etcd is
+	// delete but we would like to explicitly delete it to maintain uniformity in the
+	// delete path.
+	return checkEtcdOwnerReference(sts.GetOwnerReferences(), etcd) ||
+		checkEtcdAnnotations(sts.GetAnnotations(), etcd)
+
 }
 
 func (r *EtcdReconciler) updateEtcdErrorStatus(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
