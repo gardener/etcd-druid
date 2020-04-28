@@ -22,6 +22,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -30,12 +31,20 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type StatefulSetInitializer int
+
+const (
+	WithoutOwner        StatefulSetInitializer = 0
+	WithOwnerReference  StatefulSetInitializer = 1
+	WithOwnerAnnotation StatefulSetInitializer = 2
+)
+
 const timeout = time.Minute * 2
+const pollingInterval = time.Second * 2
 
 var (
 	deltaSnapshotPeriod = metav1.Duration{
@@ -86,15 +95,10 @@ var _ = Describe("Druid", func() {
 		})
 		It("should create and adopt statefulset", func() {
 			defer WithWd("..")()
-
 			err = c.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
-
 			ss := appsv1.StatefulSet{}
-			err = getReconciledStatefulset(c, instance, &ss)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(ss.Name).ShouldNot(BeEmpty())
-			Expect(checkEtcdAnnotations(ss.GetAnnotations(), instance)).Should(BeTrue())
+			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, &ss) }, timeout, pollingInterval).Should(BeNil())
 			setStatefulSetReady(&ss)
 			err = c.Status().Update(context.TODO(), &ss)
 			Expect(err).NotTo(HaveOccurred())
@@ -103,116 +107,47 @@ var _ = Describe("Druid", func() {
 			c.Delete(context.TODO(), instance)
 		})
 	})
-	Context("when adding etcd resources with statefulset already present", func() {
-		//Reconciliation of new etcd resource deployment with adoption of existing statefulset.
-		Context("when statefulset not owned by etcd", func() {
-			var err error
-			var instance *druidv1alpha1.Etcd
-			var c client.Client
+
+	DescribeTable("when adding etcd resources with statefulset already present",
+		func(name string, setupStatefulSet StatefulSetInitializer, setupPod bool) {
 			var ss *appsv1.StatefulSet
-			BeforeEach(func() {
-				instance = getEtcd("foo20", "default", false)
-				Expect(err).NotTo(HaveOccurred())
-				c = mgr.GetClient()
-				ss = createStatefulset("foo20", "default", instance.Spec.Labels)
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-				c.Create(context.TODO(), ss)
-			})
-			It("should adopt statefulset ", func() {
-				defer WithWd("..")()
+			instance := getEtcd(name, "default", false)
+			c := mgr.GetClient()
+			switch setupStatefulSet {
+			case WithoutOwner:
+				ss = createStatefulset(name, "default", instance.Spec.Labels)
 				Expect(ss.OwnerReferences).Should(BeNil())
-				err = c.Create(context.TODO(), instance)
-
-				Expect(err).NotTo(HaveOccurred())
-
-				s := &appsv1.StatefulSet{}
-				err = getReconciledStatefulset(c, instance, s)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(len(s.OwnerReferences)).Should(BeZero())
-				Expect(checkEtcdAnnotations(s.GetAnnotations(), instance)).Should(BeTrue())
-
-				setStatefulSetReady(s)
-				err = c.Status().Update(context.TODO(), s)
-				Expect(err).NotTo(HaveOccurred())
-			})
-			AfterEach(func() {
-				c.Delete(context.TODO(), instance)
-			})
-		})
-		//Reconciliation of new etcd resource deployment with adoption of existing statefulset with ownerRef.
-		Context("when statefulset owned by etcd with owner reference set", func() {
-			var err error
-			var instance *druidv1alpha1.Etcd
-			var c client.Client
-			var ss *appsv1.StatefulSet
-			BeforeEach(func() {
-				instance = getEtcd("foo21", "default", false)
-				Expect(err).NotTo(HaveOccurred())
-				c = mgr.GetClient()
+			case WithOwnerReference:
 				ss = createStatefulsetWithOwnerReference(instance)
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-				c.Create(context.TODO(), ss)
-			})
-			It("should adopt statefulset ", func() {
-				defer WithWd("..")()
 				Expect(len(ss.OwnerReferences)).ShouldNot(BeZero())
-				err = c.Create(context.TODO(), instance)
+			case WithOwnerAnnotation:
+				ss = createStatefulsetWithOwnerAnnotations(instance)
+			default:
+				Fail("StatefulSetInitializer invalid")
+			}
 
-				Expect(err).NotTo(HaveOccurred())
+			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+			errors := createSecrets(c, instance.Namespace, storeSecret)
+			Expect(len(errors)).Should(BeZero())
+			c.Create(context.TODO(), ss)
+			defer WithWd("..")()
+			err := c.Create(context.TODO(), instance)
+			Expect(err).NotTo(HaveOccurred())
+			s := &appsv1.StatefulSet{}
+			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
+			setStatefulSetReady(s)
+			err = c.Status().Update(context.TODO(), s)
+			Expect(err).NotTo(HaveOccurred())
+			err = c.Delete(context.TODO(), instance)
+			Expect(err).NotTo(HaveOccurred())
+		},
+		Entry("when statefulset not owned by etcd, druid should adopt the statefulset", "foo20", WithoutOwner, false),
+		Entry("when statefulset owned by etcd with owner reference set, druid should remove ownerref and add annotations", "foo21", WithOwnerReference, false),
+		Entry("when statefulset owned by etcd with owner annotations set, druid should persist the annotations", "foo22", WithOwnerAnnotation, false),
+		Entry("when etcd has the spec changed, druid should reconcile statefulset", "foo3", WithoutOwner, false),
+	)
 
-				s := &appsv1.StatefulSet{}
-				err = getReconciledStatefulset(c, instance, s)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(len(s.OwnerReferences)).Should(BeZero())
-				Expect(checkEtcdAnnotations(s.GetAnnotations(), instance)).Should(BeTrue())
-
-				setStatefulSetReady(s)
-				err = c.Status().Update(context.TODO(), s)
-				Expect(err).NotTo(HaveOccurred())
-			})
-			AfterEach(func() {
-				c.Delete(context.TODO(), instance)
-			})
-		})
-		Context("when etcd has the spec changed", func() {
-			var err error
-			var instance *druidv1alpha1.Etcd
-			var c client.Client
-			var ss *appsv1.StatefulSet
-			BeforeEach(func() {
-				instance = getEtcd("foo3", "default", false)
-				Expect(err).NotTo(HaveOccurred())
-				c = mgr.GetClient()
-				ss = createStatefulset(instance.Name, instance.Namespace, instance.Spec.Labels)
-				err = c.Create(context.TODO(), ss)
-				Expect(err).NotTo(HaveOccurred())
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-
-			})
-			It("the statefulset should be updated", func() {
-				defer WithWd("..")()
-				oldVersion := ss.ResourceVersion
-				err = c.Create(context.TODO(), instance)
-				Expect(err).NotTo(HaveOccurred())
-				err = getReconciledStatefulset(c, instance, ss)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(ss.ResourceVersion).ToNot(Equal(oldVersion))
-				Expect(checkEtcdAnnotations(ss.GetAnnotations(), instance)).Should(BeTrue())
-				setStatefulSetReady(ss)
-				err = c.Status().Update(context.TODO(), ss)
-				Expect(err).NotTo(HaveOccurred())
-
-			})
-			AfterEach(func() {
-				c.Delete(context.TODO(), instance)
-			})
-		})
+	Context("when adding etcd resources with statefulset already present", func() {
 		Context("when statefulset is in crashloopbackoff", func() {
 			var err error
 			var instance *druidv1alpha1.Etcd
@@ -251,12 +186,11 @@ var _ = Describe("Druid", func() {
 				defer WithWd("..")()
 				err = c.Create(context.TODO(), instance)
 				Expect(err).NotTo(HaveOccurred())
-				_, err = retryTillPodsDeleted(c, instance)
-				Expect(errors.IsNotFound(err)).Should(BeTrue())
+				Eventually(func() error { return podDeleted(c, instance) }, timeout, pollingInterval).Should(BeNil())
 			})
 			AfterEach(func() {
 				s := &appsv1.StatefulSet{}
-				err = getReconciledStatefulset(c, instance, s)
+				Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
 				setStatefulSetReady(s)
 				err = c.Status().Update(context.TODO(), s)
 				Expect(err).NotTo(HaveOccurred())
@@ -265,219 +199,123 @@ var _ = Describe("Druid", func() {
 		})
 	})
 
-	Context("when deleting etcd resources", func() {
-		var err error
-		var instance *druidv1alpha1.Etcd
-		var c client.Client
-		//Deletion of etcd resource deployment with existing statefulsets with owner reference.
-		Context("when  statefulset without ownerReference and without owner annotations", func() {
+	DescribeTable("when deleting etcd resources",
+		func(name string, setupStatefulSet StatefulSetInitializer, setupPod bool) {
+			var ss *appsv1.StatefulSet
 			var sts appsv1.StatefulSet
-			BeforeEach(func() {
+			instance := getEtcd(name, "default", false)
+			c := mgr.GetClient()
+			switch setupStatefulSet {
+			case WithoutOwner:
+				ss = createStatefulset(name, "default", instance.Spec.Labels)
+				Expect(ss.OwnerReferences).Should(BeNil())
+			case WithOwnerReference:
+				ss = createStatefulsetWithOwnerReference(instance)
+				Expect(len(ss.OwnerReferences)).ShouldNot(BeZero())
+			case WithOwnerAnnotation:
+				ss = createStatefulsetWithOwnerAnnotations(instance)
+			default:
+				Fail("StatefulSetInitializer invalid")
+			}
 
-				instance = getEtcd("foo61", "default", false)
-				c = mgr.GetClient()
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-				ss := createStatefulsetWithOwnerReference(instance)
-				c.Create(context.TODO(), ss)
-
-			})
-			It("should adopt and delete statefulset", func() {
-				defer WithWd("..")()
-				err = c.Create(context.TODO(), instance)
-				Expect(err).NotTo(HaveOccurred())
-				err = getReconciledStatefulset(c, instance, &sts)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(sts.Name).ShouldNot(BeEmpty())
-				Expect(checkEtcdAnnotations(sts.GetAnnotations(), instance)).Should(BeTrue())
-				setStatefulSetReady(&sts)
-				err = c.Status().Update(context.TODO(), &sts)
-				Expect(err).NotTo(HaveOccurred())
-
-			})
-			AfterEach(func() {
-				// sleep is required here to ensure that etcd is reconciled and finalizer added before it is deleted.
-				time.Sleep(2 * time.Second)
-				err = c.Delete(context.TODO(), instance)
-				Expect(err).NotTo(HaveOccurred())
-				err = retryTillStatefulSetRemoved(c, &sts)
-				Expect(err).NotTo(HaveOccurred())
-				err = retryTillEtcdRemoved(c, instance)
-				Expect(err).NotTo(HaveOccurred())
-			})
-		})
-		//Deletion of etcd resource with existing statefulsets without owner reference and owner annotations.
-		Context("when  statefulset without ownerReference and without owner annotations", func() {
-			var sts appsv1.StatefulSet
-			BeforeEach(func() {
-
-				instance = getEtcd("foo62", "default", false)
-				c = mgr.GetClient()
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-				ss := createStatefulset("foo62", "default", instance.Spec.Labels)
-				c.Create(context.TODO(), ss)
-
-			})
-			It("should adopt and delete statefulset", func() {
-				defer WithWd("..")()
-				err = c.Create(context.TODO(), instance)
-				Expect(err).NotTo(HaveOccurred())
-				err = getReconciledStatefulset(c, instance, &sts)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(sts.Name).ShouldNot(BeEmpty())
-				Expect(checkEtcdAnnotations(sts.GetAnnotations(), instance)).Should(BeTrue())
-				setStatefulSetReady(&sts)
-				err = c.Status().Update(context.TODO(), &sts)
-				Expect(err).NotTo(HaveOccurred())
-
-			})
-			AfterEach(func() {
-				// sleep is required here to ensure that etcd is reconciled and finalizer added before it is deleted.
-				time.Sleep(2 * time.Second)
-				err = c.Delete(context.TODO(), instance)
-				Expect(err).NotTo(HaveOccurred())
-				err = retryTillStatefulSetRemoved(c, &sts)
-				Expect(err).NotTo(HaveOccurred())
-				err = retryTillEtcdRemoved(c, instance)
-				Expect(err).NotTo(HaveOccurred())
-			})
-		})
-		//Deletion of etcd resource with existing statefulsets without owner reference and with owner annotations.
-		Context("when  statefulset without ownerReference and without owner annotations", func() {
-			var sts appsv1.StatefulSet
-			BeforeEach(func() {
-
-				instance = getEtcd("foo63", "default", false)
-				c = mgr.GetClient()
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-				ss := createStatefulsetWithOwnerAnnotations(instance)
-				c.Create(context.TODO(), ss)
-
-			})
-			It("should adopt and delete statefulset", func() {
-				defer WithWd("..")()
-				err = c.Create(context.TODO(), instance)
-				Expect(err).NotTo(HaveOccurred())
-				err = getReconciledStatefulset(c, instance, &sts)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(sts.Name).ShouldNot(BeEmpty())
-				Expect(checkEtcdAnnotations(sts.GetAnnotations(), instance)).Should(BeTrue())
-				setStatefulSetReady(&sts)
-				err = c.Status().Update(context.TODO(), &sts)
-				Expect(err).NotTo(HaveOccurred())
-
-			})
-			AfterEach(func() {
-				// sleep is required here to ensure that etcd is reconciled and finalizer added before it is deleted.
-				time.Sleep(2 * time.Second)
-				err = c.Delete(context.TODO(), instance)
-				Expect(err).NotTo(HaveOccurred())
-				err = retryTillStatefulSetRemoved(c, &sts)
-				Expect(err).NotTo(HaveOccurred())
-				err = retryTillEtcdRemoved(c, instance)
-				Expect(err).NotTo(HaveOccurred())
-			})
-		})
-	})
+			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+			errors := createSecrets(c, instance.Namespace, storeSecret)
+			Expect(len(errors)).Should(BeZero())
+			c.Create(context.TODO(), ss)
+			defer WithWd("..")()
+			err := c.Create(context.TODO(), instance)
+			Expect(err).NotTo(HaveOccurred())
+			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, &sts) }, timeout, pollingInterval).Should(BeNil())
+			setStatefulSetReady(&sts)
+			err = c.Status().Update(context.TODO(), &sts)
+			Expect(err).NotTo(HaveOccurred())
+			err = c.Delete(context.TODO(), instance)
+			Expect(err).NotTo(HaveOccurred())
+			Eventually(func() error { return statefulSetRemoved(c, &sts) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return etcdRemoved(c, instance) }, timeout, pollingInterval).Should(BeNil())
+		},
+		Entry("when  statefulset with ownerReference and without owner annotations, druid should adopt and delete statefulset", "foo61", WithOwnerReference, false),
+		Entry("when statefulset without ownerReference and without owner annotations, druid should adopt and delete statefulset", "foo62", WithoutOwner, false),
+		Entry("when  statefulset without ownerReference and with owner annotations, druid should adopt and delete statefulset", "foo63", WithOwnerAnnotation, false),
+	)
 })
 
-func retryTillPodsDeleted(c client.Client, etcd *druidv1alpha1.Etcd) (*corev1.Pod, error) {
+func podDeleted(c client.Client, etcd *druidv1alpha1.Etcd) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	pod := &corev1.Pod{}
-	err := wait.PollImmediateUntil(2*time.Second, func() (bool, error) {
-		req := types.NamespacedName{
-			Name:      fmt.Sprintf("%s-0", etcd.Name),
-			Namespace: etcd.Namespace,
-		}
-		if err := c.Get(ctx, req, pod); err != nil {
-			if errors.IsNotFound(err) {
-				// Object not found, return.  Created objects are automatically garbage collected.
-				// For additional cleanup logic use finalizers
-				return true, err
-			}
-			return false, err
-		}
-		return false, nil
-	}, ctx.Done())
-	if err != nil {
-		return nil, err
+	req := types.NamespacedName{
+		Name:      fmt.Sprintf("%s-0", etcd.Name),
+		Namespace: etcd.Namespace,
 	}
-	return pod, err
+	if err := c.Get(ctx, req, pod); err != nil {
+		if errors.IsNotFound(err) {
+			// Object not found, return.  Created objects are automatically garbage collected.
+			// For additional cleanup logic use finalizers
+			return nil
+		}
+		return err
+	}
+	return fmt.Errorf("pod not deleted")
+
 }
 
-func retryTillEtcdRemoved(c client.Client, etcd *druidv1alpha1.Etcd) error {
+func etcdRemoved(c client.Client, etcd *druidv1alpha1.Etcd) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	e := &druidv1alpha1.Etcd{}
-	err := wait.PollImmediateUntil(2*time.Second, func() (bool, error) {
-		req := types.NamespacedName{
-			Name:      etcd.Name,
-			Namespace: etcd.Namespace,
+	req := types.NamespacedName{
+		Name:      etcd.Name,
+		Namespace: etcd.Namespace,
+	}
+	if err := c.Get(ctx, req, e); err != nil {
+		if errors.IsNotFound(err) {
+			// Object not found, return.  Created objects are automatically garbage collected.
+			// For additional cleanup logic use finalizers
+			return nil
 		}
-		if err := c.Get(ctx, req, e); err != nil {
-			if errors.IsNotFound(err) {
-				// Object not found, return.  Created objects are automatically garbage collected.
-				// For additional cleanup logic use finalizers
-				return true, nil
-			}
-			return false, err
-		}
-		return false, nil
-	}, ctx.Done())
-	return err
+		return err
+	}
+	return fmt.Errorf("etcd not deleted")
 }
 
-func retryTillStatefulSetRemoved(c client.Client, ss *appsv1.StatefulSet) error {
+func statefulSetRemoved(c client.Client, ss *appsv1.StatefulSet) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	sts := &appsv1.StatefulSet{}
-	err := wait.PollImmediateUntil(2*time.Second, func() (bool, error) {
-		req := types.NamespacedName{
-			Name:      ss.Name,
-			Namespace: ss.Namespace,
+	req := types.NamespacedName{
+		Name:      ss.Name,
+		Namespace: ss.Namespace,
+	}
+	if err := c.Get(ctx, req, sts); err != nil {
+		if errors.IsNotFound(err) {
+			// Object not found, return.  Created objects are automatically garbage collected.
+			// For additional cleanup logic use finalizers
+			return nil
 		}
-		if err := c.Get(ctx, req, sts); err != nil {
-			if errors.IsNotFound(err) {
-				// Object not found, return.  Created objects are automatically garbage collected.
-				// For additional cleanup logic use finalizers
-				return true, nil
-			}
-			return false, err
-		}
-		return false, nil
-	}, ctx.Done())
-	return err
+		return err
+	}
+	return fmt.Errorf("statefulset not removed")
 }
 
-func getReconciledStatefulset(c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.StatefulSet) error {
+func statefulsetIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.StatefulSet) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
-	err := wait.PollImmediateUntil(2*time.Second, func() (bool, error) {
-		req := types.NamespacedName{
-			Name:      fmt.Sprintf("%s", instance.Name),
-			Namespace: instance.Namespace,
-		}
-		if err := c.Get(ctx, req, ss); err != nil {
-			if errors.IsNotFound(err) {
-				// Object not found, return.  Created objects are automatically garbage collected.
-				// For additional cleanup logic use finalizers.
-				return false, nil
-			}
-			return false, err
-		}
-		if !checkEtcdAnnotations(ss.GetAnnotations(), instance) {
-			return false, nil
-		}
+	req := types.NamespacedName{
+		Name:      fmt.Sprintf("%s", instance.Name),
+		Namespace: instance.Namespace,
+	}
 
-		return true, nil
-	}, ctx.Done())
-	return err
+	if err := c.Get(ctx, req, ss); err != nil {
+		return err
+	}
+	if !checkEtcdAnnotations(ss.GetAnnotations(), instance) {
+		return fmt.Errorf("no annotations")
+	}
+	if checkEtcdOwnerReference(ss.GetOwnerReferences(), instance) {
+		return fmt.Errorf("ownerReference exists")
+	}
+	return nil
 }
 
 func createStatefulset(name, namespace string, labels map[string]string) *appsv1.StatefulSet {

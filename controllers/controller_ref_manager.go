@@ -87,8 +87,8 @@ func (m *BaseControllerRefManager) claimObject(obj metav1.Object, match func(met
 		}
 		if match(obj) {
 			// We already own it and the selector matches.
-			// However, the ownerReference may be set to adopting the statefulset is
-			// needed to inject the annotations and remove the ownerReference.
+			// However, if the ownerReference is set for adopting the statefulset, druid
+			// needs to inject the annotations and remove the ownerReference.
 			// Return true (successfully claimed) before checking deletion timestamp.
 			if err := adopt(obj); err != nil {
 				// If the object no longer exists, ignore the error.
