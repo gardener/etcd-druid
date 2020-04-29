@@ -21,6 +21,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/gardener/pkg/utils/kubernetes/health"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -217,7 +218,7 @@ var _ = Describe("Druid", func() {
 			default:
 				Fail("StatefulSetInitializer invalid")
 			}
-
+			stopCh := make(chan struct{})
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
 			errors := createSecrets(c, instance.Namespace, storeSecret)
 			Expect(len(errors)).Should(BeZero())
@@ -226,9 +227,19 @@ var _ = Describe("Druid", func() {
 			err := c.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
 			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, &sts) }, timeout, pollingInterval).Should(BeNil())
-			setStatefulSetReady(&sts)
-			err = c.Status().Update(context.TODO(), &sts)
-			Expect(err).NotTo(HaveOccurred())
+			// This go-routine is to set that statefulset is ready manually as statefulset controller is absent for tests.
+			go func() {
+				for {
+					select {
+					case <-time.After(time.Second * 2):
+						setAndCheckStatefulSetReady(c, instance)
+					case <-stopCh:
+						return
+					}
+				}
+			}()
+			Eventually(func() error { return isEtcdReady(c, instance) }, timeout, pollingInterval).Should(BeNil())
+			close(stopCh)
 			err = c.Delete(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
 			Eventually(func() error { return statefulSetRemoved(c, &sts) }, timeout, pollingInterval).Should(BeNil())
@@ -277,6 +288,44 @@ func etcdRemoved(c client.Client, etcd *druidv1alpha1.Etcd) error {
 		return err
 	}
 	return fmt.Errorf("etcd not deleted")
+}
+
+func isEtcdReady(c client.Client, etcd *druidv1alpha1.Etcd) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+	defer cancel()
+	e := &druidv1alpha1.Etcd{}
+	req := types.NamespacedName{
+		Name:      etcd.Name,
+		Namespace: etcd.Namespace,
+	}
+	if err := c.Get(ctx, req, e); err != nil {
+		return err
+	}
+	if e.Status.Ready == nil || !*e.Status.Ready {
+		return fmt.Errorf("etcd not ready")
+	}
+	return nil
+}
+
+func setAndCheckStatefulSetReady(c client.Client, etcd *druidv1alpha1.Etcd) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+	defer cancel()
+	ss := &appsv1.StatefulSet{}
+	req := types.NamespacedName{
+		Name:      etcd.Name,
+		Namespace: etcd.Namespace,
+	}
+	if err := c.Get(ctx, req, ss); err != nil {
+		return err
+	}
+	setStatefulSetReady(ss)
+	if err := c.Status().Update(context.TODO(), ss); err != nil {
+		return err
+	}
+	if err := health.CheckStatefulSet(ss); err != nil {
+		return err
+	}
+	return nil
 }
 
 func statefulSetRemoved(c client.Client, ss *appsv1.StatefulSet) error {
@@ -635,6 +684,7 @@ func WithWd(path string) func() {
 }
 
 func setStatefulSetReady(s *appsv1.StatefulSet) {
+	logger.Infof("Setting statefulset ready explicitly")
 	s.Status.ObservedGeneration = s.Generation
 
 	replicas := int32(1)
