@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+set -e
+
+repo_root_dir="$(dirname $0)"/..
+repo_name="${2:-github.com/gardener/etcd-druid}"
+descriptor_out_file="${COMPONENT_DESCRIPTOR_PATH}"
+
+echo "enriching creating component descriptor from ${BASE_DEFINITION_PATH}"
+
+if [[ -f "$repo_root_dir/charts/images.yaml" ]]; then
+  images="$(yaml2json < "$repo_root_dir/charts/images.yaml")"
+  eval "$(jq -r ".images |
+    map(select(.sourceRepository != \"$repo_name\") |
+      \"--container-image-dependencies '{\\\"name\\\": \\\"\" + .name + \"\\\", \\\"image_reference\\\": \\\"\" + .repository + \":\" + .tag + \"\\\", \\\"version\\\": \\\"\" + .tag + \"\\\"}'\"
+    ) |
+    \"${ADD_DEPENDENCIES_CMD} \\\\\n\" +
+    join(\" \\\\\n\")" <<< "$images")"
+fi
+
+cp "${BASE_DEFINITION_PATH}" "${descriptor_out_file}"
