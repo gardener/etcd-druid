@@ -24,7 +24,36 @@ import (
 )
 
 func addConversionFuncs(scheme *runtime.Scheme) error {
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.WithKind("Shoot"),
+	if err := scheme.AddFieldLabelConversionFunc(
+		SchemeGroupVersion.WithKind("BackupBucket"),
+		func(label, value string) (string, string, error) {
+			switch label {
+			case "metadata.name", "metadata.namespace", core.BackupBucketSeedName:
+				return label, value, nil
+			default:
+				return "", "", fmt.Errorf("field label not supported: %s", label)
+			}
+		},
+	); err != nil {
+		return err
+	}
+
+	if err := scheme.AddFieldLabelConversionFunc(
+		SchemeGroupVersion.WithKind("BackupEntry"),
+		func(label, value string) (string, string, error) {
+			switch label {
+			case "metadata.name", "metadata.namespace", core.BackupEntrySeedName:
+				return label, value, nil
+			default:
+				return "", "", fmt.Errorf("field label not supported: %s", label)
+			}
+		},
+	); err != nil {
+		return err
+	}
+
+	if err := scheme.AddFieldLabelConversionFunc(
+		SchemeGroupVersion.WithKind("Shoot"),
 		func(label, value string) (string, string, error) {
 			switch label {
 			case "metadata.name", "metadata.namespace", core.ShootSeedName, core.ShootCloudProfileName:
@@ -117,7 +146,6 @@ func Convert_core_ProjectSpec_To_v1beta1_ProjectSpec(in *core.ProjectSpec, out *
 	return nil
 }
 
-
 func Convert_v1beta1_ProjectMember_To_core_ProjectMember(in *ProjectMember, out *core.ProjectMember, s conversion.Scope) error {
 	if err := autoConvert_v1beta1_ProjectMember_To_core_ProjectMember(in, out, s); err != nil {
 		return err
@@ -151,8 +179,7 @@ func Convert_core_ProjectMember_To_v1beta1_ProjectMember(in *core.ProjectMember,
 	return nil
 }
 
-
-func removeRoleFromRoles(roles []string, role string) []string{
+func removeRoleFromRoles(roles []string, role string) []string {
 	var newRoles []string
 	for _, r := range roles {
 		if r != role {

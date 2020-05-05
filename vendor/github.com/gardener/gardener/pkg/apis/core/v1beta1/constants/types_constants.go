@@ -239,6 +239,10 @@ const (
 
 	// OperatingSystemConfigUnitNameKubeletService is a constant for a unit in the operating system config that contains the kubelet service.
 	OperatingSystemConfigUnitNameKubeletService = "kubelet.service"
+	// OperatingSystemConfigUnitNameDockerService is a constant for a unit in the operating system config that contains the docker service.
+	OperatingSystemConfigUnitNameDockerService = "docker.service"
+	// OperatingSystemConfigUnitNameContainerDService is a constant for a unit in the operating system config that contains the containerd service.
+	OperatingSystemConfigUnitNameContainerDService = "containerd.service"
 	// OperatingSystemConfigFilePathKernelSettings is a constant for a path to a file in the operating system config that contains some general kernel settings.
 	OperatingSystemConfigFilePathKernelSettings = "/etc/sysctl.d/99-k8s-general.conf"
 	// OperatingSystemConfigFilePathKubeletConfig is a constant for a path to a file in the operating system config that contains the kubelet configuration.
@@ -263,4 +267,12 @@ const (
 	// EventResourceReferenced indicates that the resource deletion is in waiting mode because the resource is still
 	// being referenced by at least one other resource (e.g. a SecretBinding is still referenced by a Shoot)
 	EventResourceReferenced = "ResourceReferenced"
+
+	// LabelPodMaintenanceRestart is a constant for a label that describes that a pod should be restarted during maintenance.
+	LabelPodMaintenanceRestart = "maintenance.gardener.cloud/restart"
+
+	// LabelWorkerPool is a constant for a label that indicates the worker pool the node belongs to
+	LabelWorkerPool = "worker.gardener.cloud/pool"
+	// LabelWorkerPool is a deprecated constant for a label that indicates the worker pool the node belongs to
+	LabelWorkerPoolDeprecated = "worker.garden.sapcloud.io/group"
 )

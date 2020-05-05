@@ -153,13 +153,21 @@ func IsResourceSupported(resources []gardencorev1beta1.ControllerResource, resou
 // IsControllerInstallationSuccessful returns true if a ControllerInstallation has been marked as "successfully"
 // installed.
 func IsControllerInstallationSuccessful(controllerInstallation gardencorev1beta1.ControllerInstallation) bool {
+	var (
+		installed bool
+		healthy   bool
+	)
+
 	for _, condition := range controllerInstallation.Status.Conditions {
 		if condition.Type == gardencorev1beta1.ControllerInstallationInstalled && condition.Status == gardencorev1beta1.ConditionTrue {
-			return true
+			installed = true
+		}
+		if condition.Type == gardencorev1beta1.ControllerInstallationHealthy && condition.Status == gardencorev1beta1.ConditionTrue {
+			healthy = true
 		}
 	}
 
-	return false
+	return installed && healthy
 }
 
 // ComputeOperationType checksthe <lastOperation> and determines whether is it is Create operation or reconcile operation
@@ -601,7 +609,7 @@ func ShootMachineImageVersionExists(constraint gardencorev1beta1.MachineImage, i
 	}
 
 	for index, v := range constraint.Versions {
-		if v.Version == image.Version {
+		if image.Version != nil && v.Version == *image.Version {
 			return true, index
 		}
 	}
@@ -635,7 +643,7 @@ func GetShootMachineImageFromLatestMachineImageVersion(image gardencorev1beta1.M
 	if err != nil {
 		return nil, gardencorev1beta1.ShootMachineImage{}, err
 	}
-	return latestSemVerVersion, gardencorev1beta1.ShootMachineImage{Name: image.Name, Version: latestImage.Version}, nil
+	return latestSemVerVersion, gardencorev1beta1.ShootMachineImage{Name: image.Name, Version: &latestImage.Version}, nil
 }
 
 // UpdateMachineImages updates the machine images in place.
@@ -643,7 +651,7 @@ func UpdateMachineImages(workers []gardencorev1beta1.Worker, machineImages []*ga
 	for _, machineImage := range machineImages {
 		for idx, worker := range workers {
 			if worker.Machine.Image != nil && machineImage.Name == worker.Machine.Image.Name {
-				logger.Logger.Infof("Updating worker images of worker '%s' from version %s to version %s", worker.Name, worker.Machine.Image.Version, machineImage.Version)
+				logger.Logger.Infof("Updating worker images of worker '%s' from version %s to version %s", worker.Name, *worker.Machine.Image.Version, *machineImage.Version)
 				workers[idx].Machine.Image = machineImage
 			}
 		}

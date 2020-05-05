@@ -35,6 +35,7 @@ etcd-druid:
     pull-request:
       traits:
         pull-request: ~
+        component_descriptor: ~
     release:
       traits:
         version:
