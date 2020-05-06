@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+"$(dirname $0)"/../vendor/github.com/gardener/gardener/hack/.ci/component_descriptor "$(dirname $0)"/..

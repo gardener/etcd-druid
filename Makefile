@@ -14,6 +14,7 @@
 
 # Image URL to use all building/pushing image targets
 VERSION             := $(shell cat VERSION)
+REPO_ROOT           := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 REGISTRY            := eu.gcr.io/gardener-project/gardener
 IMAGE_REPOSITORY    := $(REGISTRY)/etcd-druid
 IMAGE_TAG           := $(VERSION)
@@ -28,7 +29,7 @@ CRD_OPTIONS ?= "crd:trivialVersions=true"
 revendor:
 	@env GO111MODULE=on go mod vendor
 	@env GO111MODULE=on go mod tidy
-
+	@chmod +x $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/*
 
 all: druid
 
