@@ -84,6 +84,7 @@ spec:
                 port:
                   description: Port define the port on which etcd-backup-restore server
                     will exposed.
+                  format: int32
                   type: integer
                 resources:
                   description: 'Resources defines the compute Resources required by
@@ -197,6 +198,7 @@ spec:
                       type: string
                   type: object
                 clientPort:
+                  format: int32
                   type: integer
                 defragmentationSchedule:
                   description: DefragmentationSchedule defines the cron standard schedule
@@ -235,6 +237,7 @@ spec:
                       type: object
                   type: object
                 serverPort:
+                  format: int32
                   type: integer
                 tls:
                   description: TLSConfig hold the TLS configuration details.

@@ -95,8 +95,8 @@ var _ = BeforeSuite(func(done Done) {
 	mgr, err = manager.New(cfg, manager.Options{})
 
 	Expect(err).NotTo(HaveOccurred())
-
-	er, err := NewEtcdReconciler(mgr)
+	defer WithWd("..")()
+	er, err := NewEtcdReconcilerWithImageVector(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = er.SetupWithManager(mgr, 1, true)
