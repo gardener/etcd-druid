@@ -49,6 +49,10 @@ etcd-druid:
               channel_name: 'k8s-etcd'
               slack_cfg_name: 'scp_workspace'
         component_descriptor: ~
+
+etcd-druid-updates:
+  template: 'default'
+  jobs:
     create_update_pull_requests:
       repo:
         trigger: false
