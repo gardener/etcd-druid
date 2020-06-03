@@ -39,6 +39,7 @@ func init() {
 	schemev1.AddToScheme(scheme)
 	druidv1alpha1.AddToScheme(scheme)
 
+	_ = druidv1alpha1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -75,12 +76,17 @@ func main() {
 		setupLog.Error(err, "unable to initialize controller with image vector")
 		os.Exit(1)
 	}
-	err = ec.SetupWithManager(mgr, workers, ignoreOperationAnnotation)
-	if err != nil {
+	if err := ec.SetupWithManager(mgr, workers, ignoreOperationAnnotation); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Etcd")
 		os.Exit(1)
 	}
 
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err := (&druidv1alpha1.Etcd{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Etcd")
+			os.Exit(1)
+		}
+	}
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")

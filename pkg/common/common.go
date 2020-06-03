@@ -19,10 +19,24 @@ const (
 	Etcd = "etcd"
 	// BackupRestore is the key for the etcd-backup-restore image in image vector
 	BackupRestore = "etcd-backup-restore"
+
 	// ChartPath is the directory that contains the default image vector file
 	ChartPath = "charts"
+	// DefaultImageVector is a constant for the path to the default image vector file.
+	DefaultImageVector = "charts/images.yaml"
+
 	// GardenerOwnedBy is a constant for an annotation on a resource that describes the owner resource.
 	GardenerOwnedBy = "gardener.cloud/owned-by"
 	// GardenerOwnerType is a constant for an annotation on a resource that describes the type of owner resource.
 	GardenerOwnerType = "gardener.cloud/owner-type"
+
+	// DefaultEtcdClusterSize is constant for default etcd cluster size
+	DefaultEtcdClusterSize uint32 = 1
+
+	// DefaultEtcdClientPort is constant for default etcd client port
+	DefaultEtcdClientPort int32 = 2379
+	// DefaultEtcdServerPort is constant for default etcd server port
+	DefaultEtcdServerPort int32 = 2380
+	// DefaultBackupServerPort is constant for default backup server port
+	DefaultBackupServerPort int32 = 8080
 )

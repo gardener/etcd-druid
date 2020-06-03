@@ -43,7 +43,7 @@ druid: fmt vet
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: fmt vet
-	go run ./main.go
+	@env ENABLE_WEBHOOKS=false go run ./main.go
 
 # Install CRDs into a cluster
 install: manifests
@@ -56,7 +56,7 @@ deploy: manifests
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role paths="./api/...;./controllers/..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./api/...;./controllers/..." output:crd:artifacts:config=config/crd/bases
 
 # Run go fmt against code
 fmt:

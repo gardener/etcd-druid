@@ -66,8 +66,6 @@ var (
 const (
 	// FinalizerName is the name of the Plant finalizer.
 	FinalizerName = "druid.gardener.cloud/etcd-druid"
-	// DefaultImageVector is a constant for the path to the default image vector file.
-	DefaultImageVector = "images.yaml"
 	// DefaultTimeout is the default timeout for retry operations.
 	DefaultTimeout = time.Minute
 	// DefaultInterval is the default interval for retry operations.
@@ -83,24 +81,6 @@ type EtcdReconciler struct {
 	chartApplier kubernetes.ChartApplier
 	Config       *rest.Config
 	ImageVector  imagevector.ImageVector
-}
-
-// NewReconcilerWithImageVector creates a new EtcdReconciler object with an image vector
-func NewReconcilerWithImageVector(mgr manager.Manager) (*EtcdReconciler, error) {
-	etcdReconciler, err := NewEtcdReconciler(mgr)
-	if err != nil {
-		return nil, err
-	}
-	return etcdReconciler.InitializeControllerWithImageVector()
-}
-
-// NewEtcdReconciler creates a new EtcdReconciler object
-func NewEtcdReconciler(mgr manager.Manager) (*EtcdReconciler, error) {
-	return (&EtcdReconciler{
-		Client: mgr.GetClient(),
-		Config: mgr.GetConfig(),
-		Scheme: mgr.GetScheme(),
-	}).InitializeControllerWithChartApplier()
 }
 
 // NewEtcdReconcilerWithImageVector creates a new EtcdReconciler object
@@ -132,10 +112,6 @@ func getChartPathForService() string {
 	return filepath.Join("etcd", "templates", "etcd-service.yaml")
 }
 
-func getImageYAMLPath() string {
-	return filepath.Join(common.ChartPath, DefaultImageVector)
-}
-
 // InitializeControllerWithChartApplier will use EtcdReconciler client to initialize a Kubernetes client as well as
 // a Chart renderer.
 func (r *EtcdReconciler) InitializeControllerWithChartApplier() (*EtcdReconciler, error) {
@@ -158,7 +134,7 @@ func (r *EtcdReconciler) InitializeControllerWithChartApplier() (*EtcdReconciler
 // InitializeControllerWithImageVector will use EtcdReconciler client to initialize image vector for etcd
 // and backup restore images.
 func (r *EtcdReconciler) InitializeControllerWithImageVector() (*EtcdReconciler, error) {
-	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(getImageYAMLPath())
+	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(common.DefaultImageVector)
 	if err != nil {
 		return nil, err
 	}
@@ -814,7 +790,7 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	}
 
 	var statefulsetReplicas int
-	if etcd.Spec.Replicas != 0 {
+	if *etcd.Spec.Replicas != 0 {
 		statefulsetReplicas = 1
 	}
 
@@ -898,6 +874,7 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		val, ok := images[common.BackupRestore]
 		if !ok {
 			return map[string]interface{}{}, fmt.Errorf("either etcd resource or image vector should have %s image", common.BackupRestore)
+
 		}
 		backupValues["image"] = val.String()
 	} else {

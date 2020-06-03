@@ -84,6 +84,7 @@ func getEtcd(name, namespace string) *Etcd {
 		serverPort  int32        = 2380
 		backupPort  int32        = 8080
 		metricLevel MetricsLevel = Basic
+		replica     uint32       = 1
 	)
 
 	garbageCollectionPeriod := metav1.Duration{
@@ -138,7 +139,7 @@ func getEtcd(name, namespace string) *Etcd {
 					"name": name,
 				},
 			},
-			Replicas:        1,
+			Replicas:        &replica,
 			StorageClass:    &storageClass,
 			StorageCapacity: &storageCapacity,
 

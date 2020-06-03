@@ -17,11 +17,12 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"os"
+	"time"
+
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/ghodss/yaml"
-	"os"
-	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/utils"
@@ -417,7 +418,7 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 	Expect(instance.Spec.Etcd.ClientPort).To(BeNil())
 
 	Expect(instance.Spec.Etcd.Image).To(BeNil())
-	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(getImageYAMLPath())
+	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(common.DefaultImageVector)
 	Expect(err).NotTo(HaveOccurred())
 	images, err := imagevector.FindImages(imageVector, imageNames)
 	Expect(err).NotTo(HaveOccurred())
@@ -532,7 +533,7 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 				"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 			}),
 			"ServiceName": Equal(fmt.Sprintf("%s-client", instance.Name)),
-			"Replicas":    PointTo(Equal(int32(instance.Spec.Replicas))),
+			"Replicas":    PointTo(Equal(instance.Spec.Replicas)),
 			"Selector": PointTo(MatchFields(IgnoreExtras, Fields{
 				"MatchLabels": MatchAllKeys(Keys{
 					"name":     Equal("etcd"),
@@ -891,7 +892,7 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 				"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 			}),
 			"ServiceName": Equal(fmt.Sprintf("%s-client", instance.Name)),
-			"Replicas":    PointTo(Equal(int32(instance.Spec.Replicas))),
+			"Replicas":    PointTo(Equal(instance.Spec.Replicas)),
 			"Selector": PointTo(MatchFields(IgnoreExtras, Fields{
 				"MatchLabels": MatchAllKeys(Keys{
 					"name":     Equal("etcd"),
@@ -1760,6 +1761,7 @@ func getEtcdWithoutTLS(name, namespace string) *druidv1alpha1.Etcd {
 }
 
 func getEtcdWithDefault(name, namespace string) *druidv1alpha1.Etcd {
+	var replicas uint32 = 1
 	instance := &druidv1alpha1.Etcd{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -1781,7 +1783,7 @@ func getEtcdWithDefault(name, namespace string) *druidv1alpha1.Etcd {
 					"instance": name,
 				},
 			},
-			Replicas: 1,
+			Replicas: &replicas,
 			Backup:   druidv1alpha1.BackupSpec{},
 			Etcd:     druidv1alpha1.EtcdConfig{},
 		},
@@ -1790,7 +1792,7 @@ func getEtcdWithDefault(name, namespace string) *druidv1alpha1.Etcd {
 }
 
 func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
-
+	var replicas uint32 = 1
 	instance := &druidv1alpha1.Etcd{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -1812,7 +1814,7 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 					"instance": name,
 				},
 			},
-			Replicas:            1,
+			Replicas:            &replicas,
 			StorageCapacity:     &storageCapacity,
 			StorageClass:        &storageClass,
 			PriorityClassName:   &priorityClassName,

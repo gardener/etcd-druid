@@ -22,9 +22,9 @@ import (
 
 const (
 	// GarbageCollectionPolicyExponential defines the exponential policy for garbage collecting old backups
-	GarbageCollectionPolicyExponential = "Exponential"
+	GarbageCollectionPolicyExponential GarbageCollectionPolicy = "Exponential"
 	// GarbageCollectionPolicyLimitBased defines the limit based policy for garbage collecting old backups
-	GarbageCollectionPolicyLimitBased = "LimitBased"
+	GarbageCollectionPolicyLimitBased GarbageCollectionPolicy = "LimitBased"
 
 	// Basic is a constant for metrics level basic.
 	Basic MetricsLevel = "basic"
@@ -68,6 +68,8 @@ type TLSConfig struct {
 // BackupSpec defines parametes associated with the full and delta snapshots of etcd
 type BackupSpec struct {
 	// Port define the port on which etcd-backup-restore server will exposed.
+	// This must be a valid port number, 0 < x < 65536.
+	// Type is int32 instead of uint32 to be consistant with corev1.containerPort.port data type.
 	// +optional
 	Port *int32 `json:"port,omitempty"`
 	// +optional
@@ -107,8 +109,14 @@ type EtcdConfig struct {
 	// DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd.
 	// +optional
 	DefragmentationSchedule *string `json:"defragmentationSchedule,omitempty"`
+	// ServerPort is the port which is exposed for etcd server peer communication
+	// This must be a valid port number, 0 < x < 65536.
+	// Type is int32 instead of uint32 to be consistant with corev1.containerPort.port data type.
 	// +optional
 	ServerPort *int32 `json:"serverPort,omitempty"`
+	// ClientPort is the port which is exposed for etcd client communication
+	// This must be a valid port number, 0 < x < 65536.
+	// Type is int32 instead of uint32 to be consistant with corev1.containerPort.port data type.
 	// +optional
 	ClientPort *int32 `json:"clientPort,omitempty"`
 	// Image defines the etcd container image and tag
@@ -141,8 +149,8 @@ type EtcdSpec struct {
 	Etcd EtcdConfig `json:"etcd"`
 	// +required
 	Backup BackupSpec `json:"backup"`
-	// +required
-	Replicas int `json:"replicas"`
+	// +optional
+	Replicas *uint32 `json:"replicas,omitempty"`
 	// PriorityClassName is the name of a priority class that shall be used for the etcd pods.
 	// +optional
 	PriorityClassName *string `json:"priorityClassName,omitempty"`

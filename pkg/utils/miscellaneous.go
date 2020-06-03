@@ -34,9 +34,7 @@ const (
 	gcp       = "gcp"
 	alicloud  = "alicloud"
 	openstack = "openstack"
-)
 
-const (
 	s3    = "S3"
 	abs   = "ABS"
 	gcs   = "GCS"
