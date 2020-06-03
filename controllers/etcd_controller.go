@@ -820,15 +820,26 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 
 	etcdValues := map[string]interface{}{
 		"defragmentationSchedule": etcd.Spec.Etcd.DefragmentationSchedule,
-		"serverPort":              etcd.Spec.Etcd.ServerPort,
-		"clientPort":              etcd.Spec.Etcd.ClientPort,
-		"image":                   etcd.Spec.Etcd.Image,
-		"metrics":                 etcd.Spec.Etcd.Metrics,
-		"resources":               etcd.Spec.Etcd.Resources,
 		"enableTLS":               (etcd.Spec.Etcd.TLS != nil),
 		"pullPolicy":              corev1.PullIfNotPresent,
 		// "username":                etcd.Spec.Etcd.Username,
 		// "password":                etcd.Spec.Etcd.Password,
+	}
+
+	if etcd.Spec.Etcd.Resources != nil {
+		etcdValues["resources"] = etcd.Spec.Etcd.Resources
+	}
+
+	if etcd.Spec.Etcd.Metrics != nil {
+		etcdValues["metrics"] = etcd.Spec.Etcd.Metrics
+	}
+
+	if etcd.Spec.Etcd.ServerPort != nil {
+		etcdValues["serverPort"] = etcd.Spec.Etcd.ServerPort
+	}
+
+	if etcd.Spec.Etcd.ClientPort != nil {
+		etcdValues["clientPort"] = etcd.Spec.Etcd.ClientPort
 	}
 
 	if etcd.Spec.Etcd.Image == nil {
@@ -852,18 +863,35 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	}
 
 	backupValues := map[string]interface{}{
-		"image":                    etcd.Spec.Backup.Image,
-		"fullSnapshotSchedule":     etcd.Spec.Backup.FullSnapshotSchedule,
-		"port":                     etcd.Spec.Backup.Port,
-		"resources":                etcd.Spec.Backup.Resources,
 		"pullPolicy":               corev1.PullIfNotPresent,
-		"garbageCollectionPeriod":  etcd.Spec.Backup.GarbageCollectionPeriod,
-		"garbageCollectionPolicy":  etcd.Spec.Backup.GarbageCollectionPolicy,
 		"etcdQuotaBytes":           quota,
 		"etcdConnectionTimeout":    "5m",
 		"snapstoreTempDir":         "/var/etcd/data/temp",
-		"deltaSnapshotPeriod":      etcd.Spec.Backup.DeltaSnapshotPeriod,
 		"deltaSnapshotMemoryLimit": deltaSnapshotMemoryLimit,
+	}
+
+	if etcd.Spec.Backup.Resources != nil {
+		backupValues["resources"] = etcd.Spec.Backup.Resources
+	}
+
+	if etcd.Spec.Backup.FullSnapshotSchedule != nil {
+		backupValues["fullSnapshotSchedule"] = etcd.Spec.Backup.FullSnapshotSchedule
+	}
+
+	if etcd.Spec.Backup.GarbageCollectionPolicy != nil {
+		backupValues["garbageCollectionPolicy"] = etcd.Spec.Backup.GarbageCollectionPolicy
+	}
+
+	if etcd.Spec.Backup.GarbageCollectionPeriod != nil {
+		backupValues["garbageCollectionPeriod"] = etcd.Spec.Backup.GarbageCollectionPeriod
+	}
+
+	if etcd.Spec.Backup.DeltaSnapshotPeriod != nil {
+		backupValues["deltaSnapshotPeriod"] = etcd.Spec.Backup.DeltaSnapshotPeriod
+	}
+
+	if etcd.Spec.Backup.Port != nil {
+		backupValues["port"] = etcd.Spec.Backup.Port
 	}
 
 	if etcd.Spec.Backup.Image == nil {
@@ -920,9 +948,11 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 			return nil, err
 		}
 		storeValues := map[string]interface{}{
-			"storageContainer": etcd.Spec.Backup.Store.Container,
-			"storePrefix":      etcd.Spec.Backup.Store.Prefix,
-			"storageProvider":  storageProvider,
+			"storePrefix":     etcd.Spec.Backup.Store.Prefix,
+			"storageProvider": storageProvider,
+		}
+		if etcd.Spec.Backup.Store.Container != nil {
+			storeValues["storageContainer"] = etcd.Spec.Backup.Store.Container
 		}
 		if etcd.Spec.Backup.Store.SecretRef != nil {
 			storeValues["storeSecret"] = etcd.Spec.Backup.Store.SecretRef.Name

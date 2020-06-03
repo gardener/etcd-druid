@@ -79,9 +79,13 @@ var _ = Describe("Etcd", func() {
 })
 
 func getEtcd(name, namespace string) *Etcd {
-	clientPort := 2379
-	serverPort := 2380
-	port := 8080
+	var (
+		clientPort  int32        = 2379
+		serverPort  int32        = 2380
+		backupPort  int32        = 8080
+		metricLevel MetricsLevel = Basic
+	)
+
 	garbageCollectionPeriod := metav1.Duration{
 		Duration: 43200 * time.Second,
 	}
@@ -140,7 +144,7 @@ func getEtcd(name, namespace string) *Etcd {
 
 			Backup: BackupSpec{
 				Image:                    &imageBR,
-				Port:                     &port,
+				Port:                     &backupPort,
 				FullSnapshotSchedule:     &snapshotSchedule,
 				GarbageCollectionPolicy:  &garbageCollectionPolicy,
 				GarbageCollectionPeriod:  &garbageCollectionPeriod,
@@ -168,7 +172,7 @@ func getEtcd(name, namespace string) *Etcd {
 			},
 			Etcd: EtcdConfig{
 				Quota:                   &quota,
-				Metrics:                 Basic,
+				Metrics:                 &metricLevel,
 				Image:                   &imageEtcd,
 				DefragmentationSchedule: &defragSchedule,
 				Resources: &corev1.ResourceRequirements{
