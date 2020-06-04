@@ -1,0 +1,83 @@
+apiVersion: druid.gardener.cloud/v1beta1
+kind: Etcd
+metadata:
+  annotations:
+    gardener.cloud/timestamp: 2020-06-03 04:34:17.129919918 +0000 UTC
+  creationTimestamp: "2020-03-19T11:33:21Z"
+  finalizers:
+  - druid.gardener.cloud/etcd-druid
+  generation: 601
+  labels:
+    garden.sapcloud.io/role: controlplane
+    role: events
+  name: etcd-events
+  namespace: shoot--core--seci308301
+  resourceVersion: "3152508676"
+  selfLink: /apis/druid.gardener.cloud/v1alpha1/namespaces/shoot--core--seci308301/etcds/etcd-events
+  uid: b316dbe2-d71c-47f5-a6c2-75bf72863315
+spec:
+  annotations:
+    checksum/secret-etcd-ca: b67146162b11dffe8f4093f7963e1cf995303467f84fdfc4beb22ae32dee2d66
+    checksum/secret-etcd-client-tls: 302b29922909763d500d9aed1b0b25953874be8f9a29a7e24aa054c9b6a52a8b
+    checksum/secret-etcd-server-cert: 211aa6098dd368f59938538b2121ce61827ad3c92e6c66f911ac78c73b8de132
+  backup:
+    garbageCollectionPeriod: 12h0m0s
+    garbageCollectionPolicy: Exponential
+    port: 8080
+    resources:
+      limits:
+        cpu: "1"
+        memory: 10G
+      requests:
+        cpu: 23m
+        memory: 128Mi
+  etcd:
+    clientPort: 2379
+    defragmentationSchedule: 19 4 */3 * *
+    metrics: basic
+    resources:
+      limits:
+        cpu: 90m
+        memory: 360M
+      requests:
+        cpu: 50m
+        memory: 200M
+    serverPort: 2380
+    tls:
+      clientTLSSecretRef:
+        name: etcd-client-tls
+        namespace: shoot--core--seci308301
+      serverTLSSecretRef:
+        name: etcd-server-cert
+        namespace: shoot--core--seci308301
+      tlsCASecretRef:
+        name: ca-etcd
+        namespace: shoot--core--seci308301
+  labels:
+    app: etcd-statefulset
+    garden.sapcloud.io/role: controlplane
+    networking.gardener.cloud/to-dns: allowed
+    networking.gardener.cloud/to-private-networks: allowed
+    networking.gardener.cloud/to-public-networks: allowed
+    role: events
+  priorityClassName: gardener-shoot-controlplane
+  replicas: 1
+  selector:
+    matchLabels:
+      app: etcd-statefulset
+      garden.sapcloud.io/role: controlplane
+      role: events
+  storageCapacity: 10Gi
+  storageClass: ""
+  volumeClaimTemplate: etcd-events
+status:
+  currentReplicas: 1
+  etcd:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: etcd-events
+  observedGeneration: 601
+  ready: true
+  readyReplicas: 1
+  serviceName: etcd-events-client
+  updatedReplicas: 1

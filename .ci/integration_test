@@ -1,0 +1,331 @@
+#!/usr/bin/env bash
+# Copyright (c) 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+set -ex
+
+# For the test step concourse will set the following environment variables:
+# SOURCE_PATH - path to component repository root directory.
+
+if [[ -z "${SOURCE_PATH}" ]]; then
+  export SOURCE_PATH="$(readlink -f "$(dirname ${0})/..")"
+else
+  export SOURCE_PATH="$(readlink -f "${SOURCE_PATH}")"
+fi
+
+VCS="github.com"
+ORGANIZATION="gardener"
+PROJECT="etcd-druid"
+REPOSITORY=${VCS}/${ORGANIZATION}/${PROJECT}
+VERSION_FILE="$(readlink -f "${SOURCE_PATH}/VERSION")"
+VERSION="$(cat "${VERSION_FILE}")"
+
+export KUBECONFIG="$TM_KUBECONFIG_PATH/shoot.config"
+
+export GOBIN="${SOURCE_PATH}/bin"
+export PATH="${GOBIN}:${PATH}"
+
+export RESOURCE_GROUP="zhj1awquz2"                      # base64 druid.gardener.cloud = ZHJ1aWQuZ2FyZGVuZXIuY2xvdWQK first 10 letters
+export STORAGE_ACCOUNT="zhj1awquz2"                     # base64 druid.gardener.cloud = ZHJ1aWQuZ2FyZGVuZXIuY2xvdWQK first 10 letters
+
+export BUCKET="druid-test-zhj1awquz2fyzgvuzxiuy2xvdwqk" # base64 druid.gardener.cloud = ZHJ1aWQuZ2FyZGVuZXIuY2xvdWQK
+
+cd "${SOURCE_PATH}"
+
+if [ "$ACCESS_KEY_ID" == "" ] || [ "$SECRET_ACCESS_KEY" == "" ] ; then
+    echo "AWS S3 credentials unavailable. Exiting."
+    exit 1
+fi
+if [ "$CLIENTID" == "" ] || [ "$PASSWORD" == "" ] || [ "$TENANTID" == "" ] || [ "$SUBSCRIPTIONID" == "" ] ; then
+    echo "Azure Blobstorage credentials unavailable. Exiting."
+    exit 1
+fi
+if [ "$SERVICEACCOUNT_JSONPATH" == "" ] ; then
+    export SERVICEACCOUNT_JSONPATH="/tmp/servicaccount.json"
+    if [ -f "$SERVICEACCOUNT_JSONPATH" ] ; then
+      echo "GCP credentials unavailable. Exiting."
+      exit 1
+    fi
+fi
+
+if [ "$AWS_REGION" == "" ] ; then
+  export AWS_REGION="eu-west-1"
+fi
+
+if [ "$AZ_REGION" == "" ] ; then
+  export AZ_REGION="westeurope"
+fi
+##############################################################################
+
+# Declare global variables
+TEST_ID=
+ETCD_VER=
+ETCD_DATA_DIR=
+TEST_DIR=
+
+function setup_test_enviornment() {
+  setup_ginkgo
+  setup_py_tools
+  install_jq
+  setup_awscli
+  setup_azcli
+  setup_gcloud
+  setup_kubectl
+
+}
+
+function setup_py_tools() {
+  echo "Installing py tools..."
+  apt update
+  apt install -y python3-pip
+  echo "Successfully installed py tools..."
+}
+function setup_ginkgo() {
+  echo "Installing Ginkgo..."
+  GO111MODULE=off go get -u github.com/onsi/ginkgo/ginkgo
+  echo "Successfully installed Ginkgo."
+}
+
+function setup_awscli() {
+  echo "Installing awscli..."
+  pip3 install awscli
+  echo "Successfully installed awscli."
+}
+
+function setup_gcloud() {
+  echo "Installing gcloud..."
+  curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-296.0.0-linux-x86_64.tar.gz
+  tar zxvf google-cloud-sdk-296.0.0-linux-x86_64.tar.gz google-cloud-sdk
+  export PATH=$PATH:$(pwd)/google-cloud-sdk/bin
+  PROJECT_ID=$(cat "${SERVICEACCOUNT_JSONPATH}" | jq -r ".project_id")
+  gcloud auth activate-service-account --key-file "${SERVICEACCOUNT_JSONPATH}" --project "${PROJECT_ID}"
+  echo "Successfully installed gcloud."
+}
+
+function setup_azcli() {
+  echo "Installing az-cli..."
+  pip3 install azure-cli
+  echo "Successfully installed az-cli."
+}
+
+function install_jq() {
+  echo "Installing jq..."
+  apt update
+  apt install -y jq
+  echo "Successfully installed jq."
+}
+
+function setup_kubectl() {
+  echo "Installing kubectl"
+  curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.18.0/bin/linux/amd64/kubectl
+  chmod +x ./kubectl
+  mv ./kubectl /usr/local/bin/kubectl
+}
+
+function get_test_id() {
+  git_commit=$(git show -s --format="%H")
+  export TEST_ID=druid-test-${git_commit}
+  echo "Test id: ${TEST_ID}"
+}
+
+#############################
+#        AWS Setup          #
+#############################
+
+function setup_secret_for_aws() {
+  cat <<EOF >"${HOME}"/etcd-backup-aws.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: etcd-backup-aws
+  namespace: test
+type: Opaque
+data:
+  accessKeyID: $(echo -n ${ACCESS_KEY_ID} | base64)
+  secretAccessKey: $(echo -n ${SECRET_ACCESS_KEY} | base64)
+  bucketName: $(echo -n ${BUCKET} | base64)
+  region: $(echo -n ${AWS_REGION} | base64)
+EOF
+  set +e
+  kubectl apply -f "${HOME}"/etcd-backup-aws.yaml
+  set -e
+}
+
+function cleanup_namespace_and_secret() {
+  kubectl delete secret etcd-backup-aws -n test
+  kubectl delete secret etcd-backup-azure -n test
+  kubectl delete secret etcd-backup-gcp -n test
+  kubectl delete namespace test
+}
+
+function create_aws_secret() {
+  echo "Creating aws credentials for API access..."
+  mkdir "${HOME}"/.aws
+  cat <<EOF >"${HOME}"/.aws/credentials
+[default]
+aws_access_key_id = ${ACCESS_KEY_ID}
+aws_secret_access_key = ${SECRET_ACCESS_KEY}
+EOF
+  cat <<EOF >"${HOME}"/.aws/config
+[default]
+region = ${AWS_REGION}
+EOF
+  echo "Successfully created aws credentials."
+}
+
+function delete_aws_secret() {
+  rm -rf "${HOME}"/.aws
+}
+
+function cleanup-aws-infrastructure() {
+  aws s3 rb s3://${BUCKET} --force
+  delete_aws_secret
+}
+
+function create_s3_bucket() {
+  aws s3api create-bucket --bucket ${BUCKET} --region ${AWS_REGION} --create-bucket-configuration LocationConstraint=${AWS_REGION}
+}
+
+function setup-aws-infrastructure() {
+  echo "Setting up AWS infrastructure..."
+  create_aws_secret
+  create_s3_bucket
+  echo "AWS infrastructure setup completed."
+}
+
+function setup_secret_for_azure() {
+  cat <<EOF >"${HOME}"/etcd-backup-azure.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: etcd-backup-azure
+  namespace: test
+type: Opaque
+data:
+  storageAccount: $(echo -n "${STORAGE_ACCOUNT}" | base64)
+  storageKey: $(echo -n "${STORAGE_KEY}" | base64 -w 0)
+  region: $(echo -n "${AZ_REGION}" | base64)
+EOF
+  set +e
+  kubectl apply -f "${HOME}"/etcd-backup-azure.yaml
+  set -e
+}
+
+function create_az_secret_and_login() {
+  echo "Logging in using az credentials for API access..."
+  az login --service-principal -u "$CLIENTID" -p "$PASSWORD" --tenant "$TENANTID"
+  az account set --subscription "$SUBSCRIPTIONID"
+  echo "Successfully logged in using az credentials."
+}
+
+function create_az_resource_group_and_storage_account() {
+  az group create --location "$AZ_REGION" --name "$RESOURCE_GROUP"
+  az storage account create --kind BlobStorage --access-tier Hot -g "$RESOURCE_GROUP" --name "$STORAGE_ACCOUNT" --https-only
+  export STORAGE_KEY=$(az storage account keys list -g "$RESOURCE_GROUP" --account-name "$STORAGE_ACCOUNT" | jq -r '.[0].value')
+}
+
+function create_az_bucket() {
+  az storage container create -g "$RESOURCE_GROUP" --name "$BUCKET" --account-name "$STORAGE_ACCOUNT"
+}
+
+function setup-az-infrastructure() {
+  echo "Setting up Azure infrastructure..."
+  create_az_secret_and_login
+  create_az_resource_group_and_storage_account
+  create_az_bucket
+  echo "Azure infrastructure setup completed."
+}
+
+function delete_az_bucket() {
+  az storage container delete --name "$BUCKET" --account-name "$STORAGE_ACCOUNT"
+}
+
+function delete_az_resource_group_and_storage_account() {
+  az storage account delete -g "$RESOURCE_GROUP" --name "$STORAGE_ACCOUNT" -y
+  az group delete --name "$RESOURCE_GROUP" -y
+}
+
+function cleanup-az-infrastructure() {
+  delete_az_bucket
+  delete_az_resource_group_and_storage_account
+}
+
+function setup_secret_for_gcp() {
+  set +e
+  kubectl create secret generic etcd-backup-gcp --from-file="${SERVICEACCOUNT_JSONPATH}" -n test
+  set -e
+}
+
+function create_gcs_bucket() {
+  gsutil mb -b on gs://${BUCKET}
+}
+
+function cleanup-gcp-infrastructure() {
+  gsutil rm -r gs://"${BUCKET}"/
+  #gsutil rb gs://${BUCKET}
+}
+
+function setup-gcp-infrastructure() {
+  echo "Setting up GCP infrastructure..."
+  create_gcs_bucket
+  echo "GCS infrastructure setup completed."
+}
+
+function cleanup_namespace_and_secret() {
+  kubectl delete secret etcd-backup-aws -n test
+  kubectl delete secret etcd-backup-azure -n test
+  kubectl delete secret etcd-backup-gcp -n test
+  kubectl delete namespace test
+}
+
+##############################################################################
+function setup_test_cluster() {
+  setup-aws-infrastructure
+  setup-az-infrastructure
+  setup-gcp-infrastructure
+
+  kubectl create namespace test
+
+  setup_secret_for_aws
+  setup_secret_for_azure
+  setup_secret_for_gcp
+}
+
+function cleanup_test_environment() {
+  cleanup_namespace_and_secret
+  cleanup-aws-infrastructure
+  cleanup-az-infrastructure
+  cleanup-gcp-infrastructure
+}
+
+###############################################################################
+echo "Setting up test environment..."
+setup_test_enviornment
+echo "Setting up test cluster..."
+setup_test_cluster
+
+echo "Starting integration tests..."
+cd tests/e2e/integration
+
+set +e
+ginkgo -r
+TEST_RESULT=$?
+set -e
+
+echo "Done with integration tests."
+
+echo "Deleting test enviornment..."
+cleanup_test_environment
+echo "Successfully completed all tests."
+
+exit $TEST_RESULT

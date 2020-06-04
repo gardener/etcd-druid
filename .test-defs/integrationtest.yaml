@@ -1,0 +1,15 @@
+kind: TestDefinition
+metadata:
+  name: etcddruid-integration-test
+spec:
+  owner: george.kuruvilla@sap.com
+  description: Tests the deployment and functioning of etcd-druid.
+
+  activeDeadlineSeconds: 1800
+  labels: ["playground"]
+
+  command: [bash, -c]
+  args:
+    - >-
+      .ci/integration_test
+  image: eu.gcr.io/gardener-project/cc/job-image-golang:0.11.0

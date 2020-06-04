@@ -1,0 +1,61 @@
+apiVersion: druid.gardener.cloud/v1alpha1
+kind: Etcd
+metadata:
+  labels:
+    role: main
+  name: etcd-main
+  namespace: test
+spec:
+  annotations:
+  backup:
+    deltaSnapshotMemoryLimit: 100Mi
+    deltaSnapshotPeriod: 1m0s
+    fullSnapshotSchedule: "*/10 * * * *"
+    garbageCollectionPeriod: 12h0m0s
+    garbageCollectionPolicy: Exponential
+    port: 8080
+    resources:
+      limits:
+        cpu: "1"
+        memory: 2G
+      requests:
+        cpu: 23m
+        memory: 128Mi
+    store:
+      container: druid-test-zhj1awquz2fyzgvuzxiuy2xvdwqk
+      prefix: tmp
+      provider: azure
+      secretRef:
+        name: etcd-backup-azure
+  etcd:
+    clientPort: 2379
+    defragmentationSchedule: 19 4 */3 * *
+    metrics: extensive
+    resources:
+      limits:
+        cpu: "4"
+        memory: 2G
+      requests:
+        cpu: 300m
+        memory: 1G
+    serverPort: 2380
+    tls:
+      clientTLSSecretRef:
+        name: etcd-client-tls
+        namespace: test
+      serverTLSSecretRef:
+        name: etcd-server-cert
+        namespace: test
+      tlsCASecretRef:
+        name: ca-etcd
+        namespace: test
+  labels:
+    app: etcd-statefulset
+    role: main
+  replicas: 1
+  selector:
+    matchLabels:
+      app: etcd-statefulset
+      role: main
+  storageCapacity: 80Gi
+  volumeClaimTemplate: main-etcd
