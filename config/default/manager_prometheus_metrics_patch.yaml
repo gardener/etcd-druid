@@ -3,17 +3,17 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: controller
-  namespace: test
+  namespace: system
 spec:
   template:
     metadata:
       annotations:
-        prometheus.io/scrape: 'true'
+        prometheus.io/scrape: "true"
     spec:
       containers:
-      # Expose the prometheus metrics on default port
-      - name: druid
-        ports:
-        - containerPort: 8080
-          name: metrics
-          protocol: TCP
+        # Expose the prometheus metrics on default port
+        - name: druid
+          ports:
+            - containerPort: 8080
+              name: metrics
+              protocol: TCP
