@@ -6,8 +6,8 @@ require (
 	github.com/gardener/gardener v1.3.1
 	github.com/ghodss/yaml v1.0.0
 	github.com/huandu/xstrings v1.3.1 // indirect
-	github.com/onsi/ginkgo v1.10.1
-	github.com/onsi/gomega v1.7.0
+	github.com/onsi/ginkgo v1.12.1
+	github.com/onsi/gomega v1.10.1
 	github.com/sirupsen/logrus v1.4.2
 	k8s.io/api v0.17.0
 	k8s.io/apimachinery v0.17.0
