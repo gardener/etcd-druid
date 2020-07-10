@@ -30,6 +30,11 @@ const (
 	Basic MetricsLevel = "basic"
 	// Extensive is a constant for metrics level extensive.
 	Extensive MetricsLevel = "extensive"
+
+	// VolumeRetentionPolicyDelete defines the delete policy for retaining old volumes
+	VolumeRetentionPolicyDelete VolumeRetentionPolicy = "Delete"
+	// VolumeRetentionPolicyRetain defines the retain policy for retaining old volumes
+	VolumeRetentionPolicyRetain VolumeRetentionPolicy = "Retain"
 )
 
 // MetricsLevel defines the level 'basic' or 'extensive'.
@@ -39,6 +44,10 @@ type MetricsLevel string
 // GarbageCollectionPolicy defines the type of policy for snapshot garbage collection.
 // +kubebuilder:validation:Enum=Exponential;LimitBased
 type GarbageCollectionPolicy string
+
+// VolumeRetentionPolicy defines the type of policy for retaining volumes on etcd scale-down or deletion.
+// +kubebuilder:validation:Enum=Delete;Retain
+type VolumeRetentionPolicy string
 
 // StorageProvider defines the type of object store provider for storing backups.
 type StorageProvider string
@@ -153,9 +162,13 @@ type EtcdSpec struct {
 	// StorageCapacity defines the size of persistent volume.
 	// +optional
 	StorageCapacity *resource.Quantity `json:"storageCapacity,omitempty"`
-	// VolumeClaimTemplate defines the volume claim template to be created
+	// VolumeClaimTemplate defines the volume claim template to be created.
+	// TODO: make immutable
 	// +optional
 	VolumeClaimTemplate *string `json:"volumeClaimTemplate,omitempty"`
+	// VolumeRetentionPolicy defines the policy for retaining volumes on etcd scale-down and deletion
+	// +optional
+	VolumeRetentionPolicy *VolumeRetentionPolicy `json:"volumeRetentionPolicy,omitempty"`
 }
 
 // CrossVersionObjectReference contains enough information to let you identify the referred resource.

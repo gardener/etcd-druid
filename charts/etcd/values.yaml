@@ -49,6 +49,7 @@ backup:
 volumeClaimTemplateName: test
 storageClass: ""
 storageCapacity: 16Gi
+volumeRetentionPolicy: Delete
 
 store:
   storageProvider: ""

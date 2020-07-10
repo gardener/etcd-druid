@@ -350,8 +350,15 @@ spec:
                 by the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
               type: string
             volumeClaimTemplate:
-              description: VolumeClaimTemplate defines the volume claim template to
-                be created
+              description: 'VolumeClaimTemplate defines the volume claim template
+                to be created. TODO: make immutable'
+              type: string
+            volumeRetentionPolicy:
+              description: VolumeRetentionPolicy defines the policy for retaining
+                volumes on etcd scale-down and deletion
+              enum:
+              - Delete
+              - Retain
               type: string
           required:
           - backup

@@ -71,6 +71,14 @@ vet:
 generate: controller-gen
 	$(CONTROLLER_GEN) object:headerFile=./hack/boilerplate.go.txt paths=./api/...
 
+# Build controller binary
+build:
+	@.ci/build
+
+# Build controller binary for local development
+build-local:
+	@env LOCAL_BUILD=1 .ci/build
+
 # Build the docker image
 docker-build:
 	docker build . -t ${IMG} --rm

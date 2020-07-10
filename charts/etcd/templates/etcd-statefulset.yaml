@@ -19,7 +19,7 @@ spec:
   updateStrategy:
     type: RollingUpdate
   serviceName: {{ .Values.serviceName }}
-  replicas: {{ .Values.statefulsetReplicas }}
+  replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
       name: etcd

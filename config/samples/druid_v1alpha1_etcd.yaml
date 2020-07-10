@@ -29,7 +29,7 @@ spec:
         role: test
     etcd:
         metrics: basic
-        image: quay.io/coreos/etcd:v3.3.13
+        image: quay.io/coreos/etcd:v3.3.17
         defragmentationSchedule: "0 */24 * * *"
         resources:
             limits: { cpu: 2500m, memory: 4Gi }
@@ -37,7 +37,7 @@ spec:
         clientPort: 2379
         serverPort: 2380
     backup:
-        image: eu.gcr.io/gardener-project/gardener/etcdbrctl:0.8.0
+        image: eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.9.1
         port: 8080
         fullSnapshotSchedule: "0 */24 * * *"
         resources:
@@ -51,7 +51,7 @@ spec:
         store:
             secretRef:
                 name: etcd-backup
-            container: shoot--dev--i308301-1--b3cab
+            container: bucket-name
             provider: aws
             prefix: etcd-test
     replicas: 1
