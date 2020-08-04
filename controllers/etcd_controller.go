@@ -59,8 +59,17 @@ import (
 )
 
 var (
-	logger  = logrus.New()
-	etcdGVK = druidv1alpha1.GroupVersion.WithKind("Etcd")
+	logger                 = logrus.New()
+	etcdGVK                = druidv1alpha1.GroupVersion.WithKind("Etcd")
+	reconcileResultRequeue = ctrl.Result{
+		Requeue: true,
+	}
+	reconcileResultRequeueAfter = ctrl.Result{
+		RequeueAfter: DefaultInterval,
+	}
+	reconcileResultRequeueNone = ctrl.Result{
+		Requeue: false,
+	}
 )
 
 const (
@@ -70,6 +79,8 @@ const (
 	DefaultImageVector = "images.yaml"
 	// DefaultTimeout is the default timeout for retry operations.
 	DefaultTimeout = time.Minute
+	// SnapshotTimeout is the timeout for taking etcd snapshot.
+	SnapshotTimeout = 5 * time.Minute
 	// DefaultInterval is the default interval for retry operations.
 	DefaultInterval = 5 * time.Second
 	// EtcdReady implies that etcd is ready
@@ -177,10 +188,10 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		if errors.IsNotFound(err) {
 			// Object not found, return. Created objects are automatically garbage collected.
 			// For additional cleanup logic use finalizers.
-			return ctrl.Result{}, nil
+			return reconcileResultRequeueNone, nil
 		}
 		// Error reading the object - requeue the request.
-		return ctrl.Result{}, err
+		return reconcileResultRequeueNone, err
 	}
 
 	logger.Infof("Reconciling etcd: %s/%s", etcd.GetNamespace(), etcd.GetName())
@@ -191,150 +202,95 @@ func (r *EtcdReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 }
 
 func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
+	etcd, err := r.updateEtcdStatusAsNotReady(etcd, "reconciling etcd resource", druidv1alpha1.LastOperationTypeReconcile)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return reconcileResultRequeueNone, nil
+		}
+		return reconcileResultRequeue, err
+	}
+
 	// Add Finalizers to Etcd
 	if finalizers := sets.NewString(etcd.Finalizers...); !finalizers.Has(FinalizerName) {
 		logger.Infof("Adding finalizer (%s) to etcd %s", FinalizerName, etcd.GetName())
 		finalizers.Insert(FinalizerName)
 		etcd.Finalizers = finalizers.UnsortedList()
 		if err := r.Update(ctx, etcd); err != nil {
-			if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
-				return ctrl.Result{
-					Requeue: true,
-				}, err
+			if err := r.updateEtcdErrorStatus(etcd, nil, err, "failed to add finalizers to etcd resource", druidv1alpha1.LastOperationTypeReconcile); err != nil {
+				return reconcileResultRequeue, err
 			}
-			return ctrl.Result{
-				Requeue: true,
-			}, err
+			return reconcileResultRequeue, err
 		}
 	}
 	if err := r.addFinalizersToDependantSecrets(ctx, etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
-			return ctrl.Result{
-				Requeue: true,
-			}, err
+		if err := r.updateEtcdErrorStatus(etcd, nil, err, "failed to add finalizers to dependent secrets", druidv1alpha1.LastOperationTypeReconcile); err != nil {
+			return reconcileResultRequeue, err
 		}
 	}
 
-	ss, err := r.getStatefulSet(ctx, etcd)
+	svc, ss, ctrlResult, operationType, err := r.reconcileEtcd(etcd)
 	if err != nil {
-		logger.Error(err, "error getting statefulset")
-		return ctrl.Result{
-			Requeue: true,
-		}, err
-	}
-
-	pvcList := &v1.PersistentVolumeClaimList{}
-	if ss != nil {
-		pvcList, err = r.listPersistentVolumeClaims(ss)
-		if err != nil {
-			return ctrl.Result{
-				Requeue: true,
-			}, err
+		if err := r.updateEtcdErrorStatus(etcd, ss, err, "failed to reconcile etcd resource", operationType); err != nil {
+			return reconcileResultRequeue, err
 		}
+		return *ctrlResult, err
 	}
 
-	handleEtcdScaleDown := etcd.Spec.Replicas == 0 && len(pvcList.Items) != 0
-
-	etcd, err = r.updateEtcdStatusAsNotReady(etcd)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return ctrl.Result{}, nil
-		}
-		return ctrl.Result{
-			Requeue: true,
-		}, err
+	if err := r.updateEtcdStatus(etcd, svc, ss, "successfully reconciled etcd resource", operationType, 100); err != nil {
+		return reconcileResultRequeue, err
 	}
 
-	svc, ss, err := r.reconcileEtcd(etcd, handleEtcdScaleDown)
-	if err != nil {
-		if err := r.updateEtcdErrorStatus(etcd, ss, err); err != nil {
-			return ctrl.Result{
-				Requeue: true,
-			}, err
-		}
-		return ctrl.Result{
-			Requeue: true,
-		}, err
-	}
-
-	if err := r.updateEtcdStatus(etcd, svc, ss); err != nil {
-		return ctrl.Result{
-			Requeue: true,
-		}, err
-	}
-
-	return ctrl.Result{
-		Requeue: false,
-	}, nil
+	return reconcileResultRequeueNone, nil
 }
 
 func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	logger.Infof("Deletion timestamp set for etcd: %s", etcd.GetName())
 
-	svc, err := r.getService(ctx, etcd)
+	etcd, err := r.updateEtcdStatusAsNotReady(etcd, "deleting etcd resource", druidv1alpha1.LastOperationTypeDelete)
 	if err != nil {
-		logger.Error(err, "error getting service")
-		return ctrl.Result{
-			Requeue: true,
-		}, err
-	}
-
-	ss, err := r.getStatefulSet(ctx, etcd)
-	if err != nil {
-		logger.Error(err, "error getting statefulset")
-		return ctrl.Result{
-			Requeue: true,
-		}, err
+		if errors.IsNotFound(err) {
+			return reconcileResultRequeueNone, nil
+		}
+		return reconcileResultRequeue, err
 	}
 
 	pvcList := &v1.PersistentVolumeClaimList{}
-	if ss != nil {
-		pvcList, err = r.listPersistentVolumeClaims(ss)
-		if err != nil {
-			return ctrl.Result{
-				Requeue: true,
-			}, err
-		}
-	}
 
-	if svc != nil && len(pvcList.Items) > 0 {
-		snapshotCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-		defer cancel()
-		if err := r.takeFullSnapshot(snapshotCtx, etcd, svc); err != nil {
-			return ctrl.Result{
-				Requeue: true,
-			}, err
+	// take full snapshot only if etcd was previously reconciled successfully
+	if etcd.Status.LastOperation.Type == druidv1alpha1.LastOperationTypeReconcile && etcd.Status.LastOperation.State == druidv1alpha1.LastOperationStateSucceeded {
+		svc, err := r.getService(ctx, etcd)
+		if err != nil {
+			logger.Error(err, "error getting service")
+			return reconcileResultRequeue, err
+		}
+
+		if svc != nil && etcd.Status.ReadyReplicas > 0 {
+			snapshotCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
+			defer cancel()
+			if pvcList, err = r.prepareEtcdForScaleDown(snapshotCtx, etcd, svc); err != nil {
+				return reconcileResultRequeueAfter, err
+			}
 		}
 	}
 
 	if err := r.removeDependantStatefulset(ctx, etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
-			return ctrl.Result{
-				Requeue: true,
-			}, err
+		if err := r.updateEtcdErrorStatus(etcd, nil, err, "failed to delete dependent statefulset", druidv1alpha1.LastOperationTypeDelete); err != nil {
+			return reconcileResultRequeue, err
 		}
-		return ctrl.Result{
-			Requeue: true,
-		}, err
+		return reconcileResultRequeue, err
 	}
 
-	if etcd.Spec.VolumeRetentionPolicy == nil || *etcd.Spec.VolumeRetentionPolicy == druidv1alpha1.VolumeRetentionPolicyDelete {
+	if etcd.Spec.VolumeRetentionPolicy == nil || *etcd.Spec.VolumeRetentionPolicy == druidv1alpha1.VolumeRetentionPolicyDeleteAll {
 		if err := r.removePVCs(pvcList.Items); err != nil {
-			return ctrl.Result{
-				Requeue: true,
-			}, err
+			return reconcileResultRequeueAfter, err
 		}
 	}
 
 	if err := r.removeFinalizersFromDependantSecrets(ctx, etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
-			return ctrl.Result{
-				Requeue: true,
-			}, err
+		if err := r.updateEtcdErrorStatus(etcd, nil, err, "failed to remove finalizers from dependent secrets", druidv1alpha1.LastOperationTypeDelete); err != nil {
+			return reconcileResultRequeue, err
 		}
-		return ctrl.Result{
-			Requeue: true,
-		}, err
+		return reconcileResultRequeue, err
 	}
 
 	if sets.NewString(etcd.Finalizers...).Has(FinalizerName) {
@@ -346,13 +302,11 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 		finalizers.Delete(FinalizerName)
 		etcdCopy.Finalizers = finalizers.UnsortedList()
 		if err := r.Patch(ctx, etcdCopy, client.MergeFrom(etcd)); client.IgnoreNotFound(err) != nil {
-			return ctrl.Result{
-				Requeue: true,
-			}, err
+			return reconcileResultRequeue, err
 		}
 	}
 	logger.Infof("Deleted etcd %s successfully.", etcd.GetName())
-	return ctrl.Result{}, nil
+	return reconcileResultRequeueNone, nil
 }
 
 func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd, renderedChart *chartrenderer.RenderedChart) (*corev1.Service, error) {
@@ -601,12 +555,12 @@ func (r *EtcdReconciler) getConfigMapFromEtcd(etcd *druidv1alpha1.Etcd, rendered
 	return decoded, nil
 }
 
-func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.Service, etcd *druidv1alpha1.Etcd, values map[string]interface{}, handleScaleDown bool) (*appsv1.StatefulSet, error) {
+func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.Service, etcd *druidv1alpha1.Etcd, values map[string]interface{}, handleScaleDown bool) (*appsv1.StatefulSet, *ctrl.Result, druidv1alpha1.LastOperationType, error) {
 	logger.Infof("Reconciling etcd statefulset for etcd:%s in namespace:%s", etcd.Name, etcd.Namespace)
 	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 	if err != nil {
 		logger.Error(err, "error converting etcd selector to labelSelector")
-		return nil, err
+		return nil, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeReconcile, err
 	}
 
 	// list all statefulsets to include the statefulsets that don't match the etcd`s selector
@@ -615,7 +569,7 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 	err = r.List(context.TODO(), statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
 	if err != nil {
 		logger.Error(err, "error listing statefulsets")
-		return nil, err
+		return nil, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeReconcile, err
 	}
 
 	// NOTE: filteredStatefulSets are pointing to deepcopies of the cache, but this could change in the future.
@@ -623,7 +577,7 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 	// if you need to modify them, you need to copy it first.
 	filteredStatefulSets, err := r.claimStatefulSets(etcd, selector, statefulSets)
 	if err != nil {
-		return nil, err
+		return nil, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeReconcile, err
 	}
 
 	if len(filteredStatefulSets) > 0 {
@@ -641,52 +595,84 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 		// Return the updated statefulset
 		ss := &appsv1.StatefulSet{}
 		if err := r.Get(context.TODO(), types.NamespacedName{Name: filteredStatefulSets[0].Name, Namespace: filteredStatefulSets[0].Namespace}, ss); err != nil {
-			return nil, err
+			return nil, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeReconcile, err
 		}
 
-		// delete PVC on etcd scale down based on volumeRetentionPolicy
+		pvcList := &corev1.PersistentVolumeClaimList{}
 		if handleScaleDown {
-			pvcList := &corev1.PersistentVolumeClaimList{}
-			if pvcList, err = r.prepareEtcdForScaleDown(etcd, ss, svc); err != nil {
-				return nil, err
+			// if volume(s) are already marked for deletion, check if they are deleted
+			if etcd.Status.LastOperation.Type == druidv1alpha1.LastOperationTypeVolumeDelete {
+				ctx, cancel := context.WithTimeout(context.TODO(), DefaultTimeout)
+				defer cancel()
+				arePVCsDeleted, err := r.arePVCsDeleted(ctx, ss)
+				if err != nil {
+					return nil, &reconcileResultRequeueAfter, druidv1alpha1.LastOperationTypeVolumeDelete, err
+				}
+				if !arePVCsDeleted {
+					return ss, &reconcileResultRequeueAfter, druidv1alpha1.LastOperationTypeVolumeDelete, nil
+				}
+
+				return ss, &reconcileResultRequeueNone, druidv1alpha1.LastOperationTypeReconcile, nil
 			}
-			if etcd.Spec.VolumeRetentionPolicy == nil || *etcd.Spec.VolumeRetentionPolicy == druidv1alpha1.VolumeRetentionPolicyDelete {
-				defer r.removePVCs(pvcList.Items)
+
+			ctx, cancel := context.WithTimeout(context.TODO(), DefaultTimeout)
+			defer cancel()
+			pvcList, err = r.prepareEtcdForScaleDown(ctx, etcd, svc)
+			if err != nil {
+				return nil, &reconcileResultRequeueAfter, druidv1alpha1.LastOperationTypeReconcile, err
 			}
 		}
 
 		// Statefulset is claimed by for this etcd. Just sync the specs
 		if ss, err = r.syncStatefulSetSpec(ss, cm, svc, etcd, values); err != nil {
-			return nil, err
+			return nil, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeReconcile, err
 		}
 
 		// restart etcd pods in crashloop backoff
 		selector, err := metav1.LabelSelectorAsSelector(ss.Spec.Selector)
 		if err != nil {
 			logger.Error(err, "error converting statefulset selector to selector")
-			return nil, err
+			return nil, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeReconcile, err
 		}
 		podList := &v1.PodList{}
 		if err := r.List(context.TODO(), podList, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
-			return nil, err
+			return nil, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeReconcile, err
 		}
 
-		for _, pod := range podList.Items {
+		errs := make([]error, len(podList.Items))
+		for i, pod := range podList.Items {
 			if utils.IsPodInCrashloopBackoff(pod.Status) {
 				if err := r.Delete(context.TODO(), &pod); err != nil {
 					logger.Error(err, fmt.Sprintf("error deleting etcd pod in crashloop: %s/%s", pod.Namespace, pod.Name))
-					return nil, err
+					errs[i] = err
 				}
 			}
 		}
+		for _, err := range errs {
+			if err != nil {
+				return nil, &reconcileResultRequeueAfter, druidv1alpha1.LastOperationTypeReconcile, err
+			}
+		}
 
-		return r.waitUntilStatefulSetReady(ss)
+		s, err := r.waitUntilStatefulSetReady(ss)
+		if err != nil {
+			return s, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeReconcile, err
+		}
+
+		// delete PVC on etcd scale down based on volumeRetentionPolicy
+		if handleScaleDown {
+			if etcd.Spec.VolumeRetentionPolicy == nil || *etcd.Spec.VolumeRetentionPolicy == druidv1alpha1.VolumeRetentionPolicyDeleteAll {
+				return s, &reconcileResultRequeueAfter, druidv1alpha1.LastOperationTypeVolumeDelete, r.removePVCs(pvcList.Items)
+			}
+		}
+
+		return s, &reconcileResultRequeueNone, druidv1alpha1.LastOperationTypeReconcile, nil
 	}
 
 	// Required statefulset doesn't exist. Create new
 	ss, err := r.getStatefulSetFromEtcd(etcd, cm, svc, values)
 	if err != nil {
-		return nil, err
+		return nil, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeCreate, err
 	}
 
 	err = r.Create(context.TODO(), ss)
@@ -698,10 +684,15 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 		err = nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeCreate, err
 	}
 
-	return r.waitUntilStatefulSetReady(ss)
+	sts, err := r.waitUntilStatefulSetReady(ss)
+	if err != nil {
+		return sts, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeCreate, err
+	}
+
+	return sts, &reconcileResultRequeueNone, druidv1alpha1.LastOperationTypeCreate, nil
 }
 
 func getContainerMapFromPodTemplateSpec(spec v1.PodSpec) map[string]v1.Container {
@@ -798,20 +789,22 @@ func (r *EtcdReconciler) getStatefulSetFromEtcd(etcd *druidv1alpha1.Etcd, cm *co
 	return decoded, nil
 }
 
-func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd, handleEtcdScaleDown bool) (*corev1.Service, *appsv1.StatefulSet, error) {
+func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd) (*corev1.Service, *appsv1.StatefulSet, *ctrl.Result, druidv1alpha1.LastOperationType, error) {
+	handleEtcdScaleDown := etcd.Spec.Replicas == 0 && etcd.Status.Provider != nil
+
 	values, err := r.getMapFromEtcd(etcd)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeReconcile, err
 	}
 
 	chartPath := getChartPath()
 	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeReconcile, err
 	}
 	svc, err := r.reconcileServices(etcd, renderedChart)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeReconcile, err
 	}
 	if svc != nil {
 		values["serviceName"] = svc.Name
@@ -819,18 +812,18 @@ func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd, handleEtcdScale
 
 	cm, err := r.reconcileConfigMaps(etcd, renderedChart)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, &reconcileResultRequeue, druidv1alpha1.LastOperationTypeReconcile, err
 	}
 	if cm != nil {
 		values["configMapName"] = cm.Name
 	}
 
-	ss, err := r.reconcileStatefulSet(cm, svc, etcd, values, handleEtcdScaleDown)
+	ss, ctrlResult, operationType, err := r.reconcileStatefulSet(cm, svc, etcd, values, handleEtcdScaleDown)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, ctrlResult, operationType, err
 	}
 
-	return svc, ss, nil
+	return svc, ss, nil, operationType, nil
 }
 
 func checkEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
@@ -975,8 +968,8 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		volumeClaimTemplateName = *etcd.Spec.VolumeClaimTemplate
 	}
 
-	// default policy will be `Delete`
-	var volumeRetentionPolicy = druidv1alpha1.VolumeRetentionPolicyDelete
+	// default policy will be `DeleteAll`
+	var volumeRetentionPolicy = druidv1alpha1.VolumeRetentionPolicyDeleteAll
 	if etcd.Spec.VolumeRetentionPolicy != nil {
 		volumeRetentionPolicy = *etcd.Spec.VolumeRetentionPolicy
 	}
@@ -1139,7 +1132,7 @@ func canDeleteStatefulset(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) boo
 
 }
 
-func (r *EtcdReconciler) updateEtcdErrorStatus(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
+func (r *EtcdReconciler) updateEtcdErrorStatus(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error, description string, operationType druidv1alpha1.LastOperationType) error {
 	lastErrStr := fmt.Sprintf("%v", lastError)
 	etcd.Status.LastError = &lastErrStr
 	etcd.Status.ObservedGeneration = &etcd.Generation
@@ -1147,6 +1140,14 @@ func (r *EtcdReconciler) updateEtcdErrorStatus(etcd *druidv1alpha1.Etcd, sts *ap
 		ready := health.CheckStatefulSet(sts) == nil
 		etcd.Status.Ready = &ready
 	}
+	etcd.Status.LastOperation = druidv1alpha1.LastOperation{
+		Description:    description,
+		LastUpdateTime: metav1.Now(),
+		Progress:       100,
+		State:          druidv1alpha1.LastOperationStateError,
+		Type:           operationType,
+	}
+	etcd.Status.Provider = etcd.Spec.Backup.Store.Provider
 
 	if err := r.Status().Update(context.TODO(), etcd); err != nil && !errors.IsNotFound(err) {
 		return err
@@ -1154,8 +1155,7 @@ func (r *EtcdReconciler) updateEtcdErrorStatus(etcd *druidv1alpha1.Etcd, sts *ap
 	return r.removeOperationAnnotation(etcd)
 }
 
-func (r *EtcdReconciler) updateEtcdStatus(etcd *druidv1alpha1.Etcd, svc *corev1.Service, sts *appsv1.StatefulSet) error {
-
+func (r *EtcdReconciler) updateEtcdStatus(etcd *druidv1alpha1.Etcd, svc *corev1.Service, sts *appsv1.StatefulSet, description string, operationType druidv1alpha1.LastOperationType, operationProgress int) error {
 	svcName := svc.Name
 	etcd.Status.Etcd = druidv1alpha1.CrossVersionObjectReference{
 		APIVersion: sts.APIVersion,
@@ -1178,6 +1178,14 @@ func (r *EtcdReconciler) updateEtcdStatus(etcd *druidv1alpha1.Etcd, svc *corev1.
 	etcd.Status.LastError = nil
 	etcd.Status.ObservedGeneration = &etcd.Generation
 	etcd.Status.Ready = &ready
+	etcd.Status.LastOperation = druidv1alpha1.LastOperation{
+		Description:    description,
+		LastUpdateTime: metav1.Now(),
+		Progress:       operationProgress,
+		State:          druidv1alpha1.LastOperationStateSucceeded,
+		Type:           operationType,
+	}
+	etcd.Status.Provider = etcd.Spec.Backup.Store.Provider
 
 	if err := r.Status().Update(context.TODO(), etcd); err != nil && !errors.IsNotFound(err) {
 		return err
@@ -1257,10 +1265,32 @@ func (r *EtcdReconciler) listPersistentVolumeClaims(ss *appsv1.StatefulSet) (*co
 	return persistentVolumeClaimList, nil
 }
 
-func (r *EtcdReconciler) prepareEtcdForScaleDown(etcd *druidv1alpha1.Etcd, ss *appsv1.StatefulSet, svc *v1.Service) (*corev1.PersistentVolumeClaimList, error) {
+func (r *EtcdReconciler) arePVCsDeleted(parentCtx context.Context, ss *appsv1.StatefulSet) (bool, error) {
+	pvcList, err := r.listPersistentVolumeClaims(ss)
+	if err != nil {
+		return false, err
+	}
+
+	for _, pvc := range pvcList.Items {
+		if pvc.DeletionTimestamp != nil {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func (r *EtcdReconciler) prepareEtcdForScaleDown(parentCtx context.Context, etcd *druidv1alpha1.Etcd, svc *v1.Service) (*corev1.PersistentVolumeClaimList, error) {
 	// TODO: wait for etcd health to be false so that etcd is not serving traffic
 
-	ctx, cancel := context.WithTimeout(context.TODO(), DefaultTimeout)
+	ss, err := r.getStatefulSet(parentCtx, etcd)
+	if err != nil {
+		return nil, err
+	}
+
+	if parentCtx == nil {
+		parentCtx = context.TODO()
+	}
+	ctx, cancel := context.WithTimeout(parentCtx, SnapshotTimeout)
 	defer cancel()
 	if err := r.takeFullSnapshot(ctx, etcd, svc); err != nil {
 		return nil, err
@@ -1279,27 +1309,8 @@ func (r *EtcdReconciler) removePVCs(pvcList []corev1.PersistentVolumeClaim) erro
 		if err := r.Delete(context.TODO(), &pvc); err != nil && !errors.IsNotFound(err) {
 			return err
 		}
-		ctx, cancel := context.WithTimeout(context.TODO(), DefaultTimeout)
-		defer cancel()
-		if err := r.waitForPVCDeletion(ctx, pvc.Name, pvc.Namespace); err != nil {
-			return err
-		}
 	}
 	return nil
-}
-
-func (r *EtcdReconciler) waitForPVCDeletion(ctx context.Context, name, namespace string) error {
-	pvc := &corev1.PersistentVolumeClaim{}
-	err := gardenerretry.Until(context.TODO(), DefaultInterval, func(ctx context.Context) (bool, error) {
-		if err := r.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, pvc); err != nil {
-			if errors.IsNotFound(err) {
-				return gardenerretry.Ok()
-			}
-			return gardenerretry.SevereError(err)
-		}
-		return gardenerretry.MinorError(fmt.Errorf("pvc still exists"))
-	})
-	return err
 }
 
 func (r *EtcdReconciler) removeOperationAnnotation(etcd *druidv1alpha1.Etcd) error {
@@ -1310,10 +1321,19 @@ func (r *EtcdReconciler) removeOperationAnnotation(etcd *druidv1alpha1.Etcd) err
 	return nil
 }
 
-func (r *EtcdReconciler) updateEtcdStatusAsNotReady(etcd *druidv1alpha1.Etcd) (*druidv1alpha1.Etcd, error) {
+func (r *EtcdReconciler) updateEtcdStatusAsNotReady(etcd *druidv1alpha1.Etcd, description string, operationType druidv1alpha1.LastOperationType) (*druidv1alpha1.Etcd, error) {
 	etcdCopy := etcd.DeepCopy()
 	etcdCopy.Status.Ready = nil
 	etcdCopy.Status.ReadyReplicas = 0
+	etcdCopy.Status.LastOperation = druidv1alpha1.LastOperation{
+		Description:    description,
+		LastUpdateTime: metav1.Now(),
+		Progress:       0,
+		State:          druidv1alpha1.LastOperationStateError,
+		Type:           operationType,
+	}
+	etcd.Status.Provider = etcd.Spec.Backup.Store.Provider
+
 	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		return r.Status().Patch(context.TODO(), etcdCopy, client.MergeFrom(etcd))
 	})

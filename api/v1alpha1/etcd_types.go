@@ -31,10 +31,12 @@ const (
 	// Extensive is a constant for metrics level extensive.
 	Extensive MetricsLevel = "extensive"
 
-	// VolumeRetentionPolicyDelete defines the delete policy for retaining old volumes
-	VolumeRetentionPolicyDelete VolumeRetentionPolicy = "Delete"
-	// VolumeRetentionPolicyRetain defines the retain policy for retaining old volumes
-	VolumeRetentionPolicyRetain VolumeRetentionPolicy = "Retain"
+	// VolumeRetentionPolicyDeleteAll defines the delete policy for deleting old volumes of all etcd nodes
+	VolumeRetentionPolicyDeleteAll VolumeRetentionPolicy = "DeleteAll"
+	// VolumeRetentionPolicyRetainAll defines the retain policy for retaining old volumes of all etcd nodes
+	VolumeRetentionPolicyRetainAll VolumeRetentionPolicy = "RetainAll"
+	// VolumeRetentionPolicyRetainLeader defines the retain policy for retaining the old volume of the etcd cluster's leader node
+	VolumeRetentionPolicyRetainLeader VolumeRetentionPolicy = "RetainLeader"
 )
 
 // MetricsLevel defines the level 'basic' or 'extensive'.
@@ -46,7 +48,7 @@ type MetricsLevel string
 type GarbageCollectionPolicy string
 
 // VolumeRetentionPolicy defines the type of policy for retaining volumes on etcd scale-down or deletion.
-// +kubebuilder:validation:Enum=Delete;Retain
+// +kubebuilder:validation:Enum=DeleteAll;RetainAll;RetainLeader
 type VolumeRetentionPolicy string
 
 // StorageProvider defines the type of object store provider for storing backups.
@@ -235,6 +237,8 @@ const (
 	LastOperationTypeCreate LastOperationType = "Create"
 	// LastOperationTypeReconcile indicates a 'reconcile' operation.
 	LastOperationTypeReconcile LastOperationType = "Reconcile"
+	// LastOperationTypeVolumeDelete indicates a 'volume deletion' operation.
+	LastOperationTypeVolumeDelete LastOperationType = "VolumeDelete"
 	// LastOperationTypeDelete indicates a 'delete' operation.
 	LastOperationTypeDelete LastOperationType = "Delete"
 )
@@ -268,7 +272,7 @@ type LastOperation struct {
 	Progress int `json:"progress,omitempty"`
 	// Status of the last operation, one of Aborted, Processing, Succeeded, Error, Failed.
 	State LastOperationState `json:"state,omitempty"`
-	// Type of the last operation, one of Create, Reconcile, Delete.
+	// Type of the last operation, one of Create, Reconcile, VolumeDelete, Delete.
 	Type LastOperationType `json:"type,omitempty"`
 }
 
@@ -299,7 +303,12 @@ type EtcdStatus struct {
 	// It must match the pod template's labels.
 	// +optional
 	LabelSelector *metav1.LabelSelector `json:"labelSelector,omitempty"`
-	//LastOperation   LastOperation               `json:"lastOperation,omitempty"`
+	// LastOperation holds information about the last operation on the Etcd
+	// +optional
+	LastOperation LastOperation `json:"lastOperation,omitempty"`
+	// Provider holds information about the object storage provider configured for the Etcd
+	// +optional
+	Provider *StorageProvider `json:"provider,omitempty"`
 }
 
 // +genclient
