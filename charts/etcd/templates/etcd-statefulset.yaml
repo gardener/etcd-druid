@@ -243,6 +243,22 @@ spec:
             secretKeyRef:
               name: {{ .Values.store.storeSecret }}
               key: "accessKeyID"
+{{- else if eq .Values.store.storageProvider "ECS" }}
+        - name: "ECS_ENDPOINT"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "endpoint"
+        - name: "ECS_ACCESS_KEY_ID"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "accessKeyID"
+        - name: "ECS_SECRET_ACCESS_KEY"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.store.storeSecret }}
+              key: "secretAccessKey"
 {{- end }}
         volumeMounts:
         - name: {{ .Values.volumeClaimTemplateName }}

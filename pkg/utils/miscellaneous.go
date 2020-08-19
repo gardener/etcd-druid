@@ -34,6 +34,7 @@ const (
 	gcp       = "gcp"
 	alicloud  = "alicloud"
 	openstack = "openstack"
+	dell      = "dell"
 )
 
 const (
@@ -43,6 +44,7 @@ const (
 	oss   = "OSS"
 	swift = "Swift"
 	local = "Local"
+	ecs   = "ECS"
 )
 
 // ValueExists returns true or false, depending on whether the given string <value>
@@ -166,6 +168,8 @@ func StorageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) (str
 		return swift, nil
 	case gcp, gcs:
 		return gcs, nil
+	case dell, ecs:
+		return ecs, nil
 	case local:
 		return local, nil
 	default:
