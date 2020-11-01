@@ -15,6 +15,8 @@
 package v1alpha1
 
 import (
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -121,13 +123,16 @@ type WorkerPool struct {
 	Volume *Volume `json:"volume,omitempty"`
 	// DataVolumes contains a list of additional worker volumes.
 	// +optional
-	DataVolumes []Volume `json:"dataVolumes,omitempty"`
+	DataVolumes []DataVolume `json:"dataVolumes,omitempty"`
 	// KubeletDataVolumeName contains the name of a dataVolume that should be used for storing kubelet state.
 	// +optional
 	KubeletDataVolumeName *string `json:"kubeletDataVolumeName,omitempty"`
 	// Zones contains information about availability zones for this worker pool.
 	// +optional
 	Zones []string `json:"zones,omitempty"`
+	// MachineControllerManagerSettings contains configurations for different worker-pools. Eg. MachineDrainTimeout, MachineHealthTimeout.
+	// +optional
+	MachineControllerManagerSettings *gardencorev1beta1.MachineControllerManagerSettings `json:"machineControllerManager,omitempty"`
 }
 
 // MachineImage contains logical information about the name and the version of the machie image that
@@ -145,6 +150,20 @@ type Volume struct {
 	// Name of the volume to make it referencable.
 	// +optional
 	Name *string `json:"name,omitempty"`
+	// Type is the type of the volume.
+	// +optional
+	Type *string `json:"type,omitempty"`
+	// Size is the of the root volume.
+	Size string `json:"size"`
+	// Encrypted determines if the volume should be encrypted.
+	// +optional
+	Encrypted *bool `json:"encrypted,omitempty"`
+}
+
+// DataVolume contains information about a data volume.
+type DataVolume struct {
+	// Name of the volume to make it referencable.
+	Name string `json:"name"`
 	// Type is the type of the volume.
 	// +optional
 	Type *string `json:"type,omitempty"`
@@ -175,3 +194,6 @@ type MachineDeployment struct {
 	// Maximum is the maximum number for this machine deployment.
 	Maximum int32 `json:"maximum"`
 }
+
+// WorkerRollingUpdate is a constant for a condition type indicating a rolling update for any worker pool of the Shoot.
+const WorkerRollingUpdate gardencorev1beta1.ConditionType = "RollingUpdate"

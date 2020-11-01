@@ -30,10 +30,14 @@ import (
 func RegisterDefaults(scheme *runtime.Scheme) error {
 	scheme.AddTypeDefaultingFunc(&CloudProfile{}, func(obj interface{}) { SetObjectDefaults_CloudProfile(obj.(*CloudProfile)) })
 	scheme.AddTypeDefaultingFunc(&CloudProfileList{}, func(obj interface{}) { SetObjectDefaults_CloudProfileList(obj.(*CloudProfileList)) })
+	scheme.AddTypeDefaultingFunc(&ControllerRegistration{}, func(obj interface{}) { SetObjectDefaults_ControllerRegistration(obj.(*ControllerRegistration)) })
+	scheme.AddTypeDefaultingFunc(&ControllerRegistrationList{}, func(obj interface{}) { SetObjectDefaults_ControllerRegistrationList(obj.(*ControllerRegistrationList)) })
 	scheme.AddTypeDefaultingFunc(&Project{}, func(obj interface{}) { SetObjectDefaults_Project(obj.(*Project)) })
 	scheme.AddTypeDefaultingFunc(&ProjectList{}, func(obj interface{}) { SetObjectDefaults_ProjectList(obj.(*ProjectList)) })
 	scheme.AddTypeDefaultingFunc(&SecretBinding{}, func(obj interface{}) { SetObjectDefaults_SecretBinding(obj.(*SecretBinding)) })
 	scheme.AddTypeDefaultingFunc(&SecretBindingList{}, func(obj interface{}) { SetObjectDefaults_SecretBindingList(obj.(*SecretBindingList)) })
+	scheme.AddTypeDefaultingFunc(&Seed{}, func(obj interface{}) { SetObjectDefaults_Seed(obj.(*Seed)) })
+	scheme.AddTypeDefaultingFunc(&SeedList{}, func(obj interface{}) { SetObjectDefaults_SeedList(obj.(*SeedList)) })
 	scheme.AddTypeDefaultingFunc(&Shoot{}, func(obj interface{}) { SetObjectDefaults_Shoot(obj.(*Shoot)) })
 	scheme.AddTypeDefaultingFunc(&ShootList{}, func(obj interface{}) { SetObjectDefaults_ShootList(obj.(*ShootList)) })
 	return nil
@@ -54,6 +58,23 @@ func SetObjectDefaults_CloudProfileList(in *CloudProfileList) {
 	for i := range in.Items {
 		a := &in.Items[i]
 		SetObjectDefaults_CloudProfile(a)
+	}
+}
+
+func SetObjectDefaults_ControllerRegistration(in *ControllerRegistration) {
+	for i := range in.Spec.Resources {
+		a := &in.Spec.Resources[i]
+		SetDefaults_ControllerResource(a)
+	}
+	if in.Spec.Deployment != nil {
+		SetDefaults_ControllerDeployment(in.Spec.Deployment)
+	}
+}
+
+func SetObjectDefaults_ControllerRegistrationList(in *ControllerRegistrationList) {
+	for i := range in.Items {
+		a := &in.Items[i]
+		SetObjectDefaults_ControllerRegistration(a)
 	}
 }
 
@@ -79,12 +100,26 @@ func SetObjectDefaults_SecretBindingList(in *SecretBindingList) {
 	}
 }
 
+func SetObjectDefaults_Seed(in *Seed) {
+	SetDefaults_Seed(in)
+}
+
+func SetObjectDefaults_SeedList(in *SeedList) {
+	for i := range in.Items {
+		a := &in.Items[i]
+		SetObjectDefaults_Seed(a)
+	}
+}
+
 func SetObjectDefaults_Shoot(in *Shoot) {
 	SetDefaults_Shoot(in)
 	if in.Spec.Addons != nil {
 		if in.Spec.Addons.NginxIngress != nil {
 			SetDefaults_NginxIngress(in.Spec.Addons.NginxIngress)
 		}
+	}
+	if in.Spec.Kubernetes.VerticalPodAutoscaler != nil {
+		SetDefaults_VerticalPodAutoscaler(in.Spec.Kubernetes.VerticalPodAutoscaler)
 	}
 	if in.Spec.Maintenance != nil {
 		SetDefaults_Maintenance(in.Spec.Maintenance)

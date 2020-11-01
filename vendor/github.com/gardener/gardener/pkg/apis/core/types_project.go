@@ -63,6 +63,8 @@ type ProjectSpec struct {
 	// Namespace is the name of the namespace that has been created for the Project object.
 	// A nil value means that Gardener will determine the name of the namespace.
 	Namespace *string
+	// Tolerations contains the default tolerations and a whitelist for taints on seed clusters.
+	Tolerations *ProjectTolerations
 }
 
 // ProjectStatus holds the most recently observed status of the project.
@@ -71,6 +73,11 @@ type ProjectStatus struct {
 	ObservedGeneration int64
 	// Phase is the current phase of the project.
 	Phase ProjectPhase
+	// StaleSinceTimestamp contains the timestamp when the project was first discovered to be stale/unused.
+	StaleSinceTimestamp *metav1.Time
+	// StaleAutoDeleteTimestamp contains the timestamp when the project will be garbage-collected/automatically deleted
+	// because it's stale/unused.
+	StaleAutoDeleteTimestamp *metav1.Time
 }
 
 // ProjectMember is a member of a project.
@@ -82,6 +89,23 @@ type ProjectMember struct {
 	Roles []string
 }
 
+// ProjectTolerations contains the tolerations for taints on seed clusters.
+type ProjectTolerations struct {
+	// Defaults contains a list of tolerations that are added to the shoots in this project by default.
+	Defaults []Toleration
+	// Whitelist contains a list of tolerations that are allowed to be added to the shoots in this project. Please note
+	// that this list may only be added by users having the `spec-tolerations-whitelist` verb for project resources.
+	Whitelist []Toleration
+}
+
+// Toleration is a toleration for a seed taint.
+type Toleration struct {
+	// Key is the toleration key to be applied to a project or shoot.
+	Key string
+	// Value is the toleration value corresponding to the toleration key.
+	Value *string
+}
+
 const (
 	// ProjectMemberAdmin is a const for a role that provides full admin access.
 	ProjectMemberAdmin = "admin"
@@ -89,7 +113,8 @@ const (
 	ProjectMemberOwner = "owner"
 	// ProjectMemberViewer is a const for a role that provides limited permissions to only view some resources.
 	ProjectMemberViewer = "viewer"
-
+	// ProjectMemberUserAccessManager is a const for a role that provides permissions to manage human user(s, (groups)).
+	ProjectMemberUserAccessManager = "uam"
 	// ProjectMemberExtensionPrefix is a prefix for custom roles that are not known by Gardener.
 	ProjectMemberExtensionPrefix = "extension:"
 )
