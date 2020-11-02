@@ -17,12 +17,16 @@ package v1beta1
 import (
 	"math"
 
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/utils"
 	versionutils "github.com/gardener/gardener/pkg/utils/version"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/pointer"
 )
 
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
@@ -52,6 +56,14 @@ func SetDefaults_Project(obj *Project) {
 		if len(member.Role) == 0 && len(member.Roles) == 0 {
 			obj.Spec.Members[i].Role = ProjectMemberViewer
 		}
+	}
+
+	if obj.Spec.Namespace != nil && *obj.Spec.Namespace == v1beta1constants.GardenNamespace {
+		if obj.Spec.Tolerations == nil {
+			obj.Spec.Tolerations = &ProjectTolerations{}
+		}
+		addTolerations(&obj.Spec.Tolerations.Whitelist, Toleration{Key: SeedTaintProtected})
+		addTolerations(&obj.Spec.Tolerations.Defaults, Toleration{Key: SeedTaintProtected})
 	}
 }
 
@@ -84,17 +96,55 @@ func SetDefaults_VolumeType(obj *VolumeType) {
 	}
 }
 
+// SetDefaults_Seed sets default values for Seed objects.
+func SetDefaults_Seed(obj *Seed) {
+	if obj.Spec.Settings == nil {
+		obj.Spec.Settings = &SeedSettings{}
+	}
+
+	if obj.Spec.Settings.ExcessCapacityReservation == nil {
+		enabled := true
+		for _, taint := range obj.Spec.Taints {
+			if taint.Key == DeprecatedSeedTaintDisableCapacityReservation {
+				enabled = false
+			}
+		}
+		obj.Spec.Settings.ExcessCapacityReservation = &SeedSettingExcessCapacityReservation{Enabled: enabled}
+	}
+
+	if obj.Spec.Settings.Scheduling == nil {
+		visible := true
+		for _, taint := range obj.Spec.Taints {
+			if taint.Key == DeprecatedSeedTaintInvisible {
+				visible = false
+			}
+		}
+		obj.Spec.Settings.Scheduling = &SeedSettingScheduling{Visible: visible}
+	}
+
+	if obj.Spec.Settings.ShootDNS == nil {
+		enabled := true
+		for _, taint := range obj.Spec.Taints {
+			if taint.Key == DeprecatedSeedTaintDisableDNS {
+				enabled = false
+			}
+		}
+		obj.Spec.Settings.ShootDNS = &SeedSettingShootDNS{Enabled: enabled}
+	}
+
+	if obj.Spec.Settings.VerticalPodAutoscaler == nil {
+		obj.Spec.Settings.VerticalPodAutoscaler = &SeedSettingVerticalPodAutoscaler{Enabled: true}
+	}
+}
+
 // SetDefaults_Shoot sets default values for Shoot objects.
 func SetDefaults_Shoot(obj *Shoot) {
 	k8sVersionLessThan116, _ := versionutils.CompareVersions(obj.Spec.Kubernetes.Version, "<", "1.16")
 	// Error is ignored here because we cannot do anything meaningful with it.
 	// k8sVersionLessThan116 will default to `false`.
 
-	trueVar := true
-	falseVar := false
-
 	if obj.Spec.Kubernetes.AllowPrivilegedContainers == nil {
-		obj.Spec.Kubernetes.AllowPrivilegedContainers = &trueVar
+		obj.Spec.Kubernetes.AllowPrivilegedContainers = pointer.BoolPtr(true)
 	}
 
 	if obj.Spec.Kubernetes.KubeAPIServer == nil {
@@ -102,9 +152,9 @@ func SetDefaults_Shoot(obj *Shoot) {
 	}
 	if obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication == nil {
 		if k8sVersionLessThan116 {
-			obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication = &trueVar
+			obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication = pointer.BoolPtr(true)
 		} else {
-			obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication = &falseVar
+			obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication = pointer.BoolPtr(false)
 		}
 	}
 
@@ -143,14 +193,44 @@ func SetDefaults_Shoot(obj *Shoot) {
 		p := ShootPurposeEvaluation
 		obj.Spec.Purpose = &p
 	}
+
+	// In previous Gardener versions that weren't supporting tolerations, it was hard-coded to (only) allow shoots in the
+	// `garden` namespace to use seeds that had the 'protected' taint. In order to be backwards compatible, now with the
+	// introduction of tolerations, we add the 'protected' toleration to the garden namespace by default.
+	if obj.Namespace == v1beta1constants.GardenNamespace {
+		addTolerations(&obj.Spec.Tolerations, Toleration{Key: SeedTaintProtected})
+	}
+
+	if obj.Spec.Kubernetes.Kubelet == nil {
+		obj.Spec.Kubernetes.Kubelet = &KubeletConfig{}
+	}
+	if obj.Spec.Kubernetes.Kubelet.FailSwapOn == nil {
+		obj.Spec.Kubernetes.Kubelet.FailSwapOn = pointer.BoolPtr(true)
+	}
+
+	var (
+		kubeReservedMemory = resource.MustParse("1Gi")
+		kubeReservedCPU    = resource.MustParse("80m")
+	)
+
+	if obj.Spec.Kubernetes.Kubelet.KubeReserved == nil {
+		obj.Spec.Kubernetes.Kubelet.KubeReserved = &KubeletConfigReserved{Memory: &kubeReservedMemory, CPU: &kubeReservedCPU}
+	} else {
+		if obj.Spec.Kubernetes.Kubelet.KubeReserved.Memory == nil {
+			obj.Spec.Kubernetes.Kubelet.KubeReserved.Memory = &kubeReservedMemory
+		}
+		if obj.Spec.Kubernetes.Kubelet.KubeReserved.CPU == nil {
+			obj.Spec.Kubernetes.Kubelet.KubeReserved.CPU = &kubeReservedCPU
+		}
+	}
+
+	if obj.Spec.Maintenance == nil {
+		obj.Spec.Maintenance = &Maintenance{}
+	}
 }
 
 // SetDefaults_Maintenance sets default values for Maintenance objects.
 func SetDefaults_Maintenance(obj *Maintenance) {
-	if obj == nil {
-		obj = &Maintenance{}
-	}
-
 	if obj.AutoUpdate == nil {
 		obj.AutoUpdate = &MaintenanceAutoUpdate{
 			KubernetesVersion:   true,
@@ -167,6 +247,38 @@ func SetDefaults_Maintenance(obj *Maintenance) {
 	}
 }
 
+// SetDefaults_VerticalPodAutoscaler sets default values for VerticalPodAutoscaler objects.
+func SetDefaults_VerticalPodAutoscaler(obj *VerticalPodAutoscaler) {
+	if obj.EvictAfterOOMThreshold == nil {
+		v := DefaultEvictAfterOOMThreshold
+		obj.EvictAfterOOMThreshold = &v
+	}
+	if obj.EvictionRateBurst == nil {
+		v := DefaultEvictionRateBurst
+		obj.EvictionRateBurst = &v
+	}
+	if obj.EvictionRateLimit == nil {
+		v := DefaultEvictionRateLimit
+		obj.EvictionRateLimit = &v
+	}
+	if obj.EvictionTolerance == nil {
+		v := DefaultEvictionTolerance
+		obj.EvictionTolerance = &v
+	}
+	if obj.RecommendationMarginFraction == nil {
+		v := DefaultRecommendationMarginFraction
+		obj.RecommendationMarginFraction = &v
+	}
+	if obj.UpdaterInterval == nil {
+		v := DefaultUpdaterInterval
+		obj.UpdaterInterval = &v
+	}
+	if obj.RecommenderInterval == nil {
+		v := DefaultRecommenderInterval
+		obj.RecommenderInterval = &v
+	}
+}
+
 // SetDefaults_Worker sets default values for Worker objects.
 func SetDefaults_Worker(obj *Worker) {
 	if obj.MaxSurge == nil {
@@ -175,6 +287,11 @@ func SetDefaults_Worker(obj *Worker) {
 	if obj.MaxUnavailable == nil {
 		obj.MaxUnavailable = &DefaultWorkerMaxUnavailable
 	}
+	if obj.SystemComponents == nil {
+		obj.SystemComponents = &WorkerSystemComponents{
+			Allow: DefaultWorkerSystemComponentsAllow,
+		}
+	}
 }
 
 // SetDefaults_NginxIngress sets default values for NginxIngress objects.
@@ -182,6 +299,21 @@ func SetDefaults_NginxIngress(obj *NginxIngress) {
 	if obj.ExternalTrafficPolicy == nil {
 		v := corev1.ServiceExternalTrafficPolicyTypeCluster
 		obj.ExternalTrafficPolicy = &v
+	}
+}
+
+// SetDefaults_ControllerResource sets default values for ControllerResource objects.
+func SetDefaults_ControllerResource(obj *ControllerResource) {
+	if obj.Primary == nil {
+		obj.Primary = pointer.BoolPtr(true)
+	}
+}
+
+// SetDefaults_ControllerDeployment sets default values for ControllerDeployment objects.
+func SetDefaults_ControllerDeployment(obj *ControllerDeployment) {
+	p := ControllerDeploymentPolicyOnDemand
+	if obj.Policy == nil {
+		obj.Policy = &p
 	}
 }
 
@@ -203,4 +335,21 @@ func calculateDefaultNodeCIDRMaskSize(kubelet *KubeletConfig, workers []Worker) 
 	// by having approximately twice as many available IP addresses as possible Pods, Kubernetes is able to mitigate IP address reuse as Pods are added to and removed from a node.
 	nodeCidrRange := int32(32 - int(math.Ceil(math.Log2(float64(maxPods*2)))))
 	return &nodeCidrRange
+}
+
+func addTolerations(tolerations *[]Toleration, additionalTolerations ...Toleration) {
+	existingTolerations := sets.NewString()
+	for _, toleration := range *tolerations {
+		existingTolerations.Insert(utils.IDForKeyWithOptionalValue(toleration.Key, toleration.Value))
+	}
+
+	for _, toleration := range additionalTolerations {
+		if existingTolerations.Has(toleration.Key) {
+			continue
+		}
+		if existingTolerations.Has(utils.IDForKeyWithOptionalValue(toleration.Key, toleration.Value)) {
+			continue
+		}
+		*tolerations = append(*tolerations, toleration)
+	}
 }

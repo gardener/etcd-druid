@@ -17,6 +17,7 @@ package core
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // +genclient
@@ -59,7 +60,7 @@ type ControllerInstallationStatus struct {
 	Conditions []Condition
 	// ProviderStatus contains type-specific status.
 	// +optional
-	ProviderStatus *ProviderConfig
+	ProviderStatus *runtime.RawExtension
 }
 
 const (
@@ -69,4 +70,7 @@ const (
 	ControllerInstallationInstalled ConditionType = "Installed"
 	// ControllerInstallationValid is a condition type for indicating whether the installation request is valid.
 	ControllerInstallationValid ConditionType = "Valid"
+	// ControllerInstallationRequired is a condition type for indicating that the respective extension controller is
+	// still required on the seed cluster as corresponding extension resources still exist.
+	ControllerInstallationRequired ConditionType = "Required"
 )

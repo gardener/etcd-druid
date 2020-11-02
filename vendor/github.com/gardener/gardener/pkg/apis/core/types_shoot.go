@@ -17,9 +17,11 @@ package core
 import (
 	"time"
 
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -80,6 +82,16 @@ type ShootSpec struct {
 	SecretBindingName string
 	// SeedName is the name of the seed cluster that runs the control plane of the Shoot.
 	SeedName *string
+	// SeedSelector is an optional selector which must match a seed's labels for the shoot to be scheduled on that seed.
+	SeedSelector *SeedSelector
+	// Resources holds a list of named resource references that can be referred to in extension configs by their names.
+	Resources []NamedResourceReference
+	// Tolerations contains the tolerations for taints on seed clusters.
+	Tolerations []Toleration
+}
+
+func (s *Shoot) GetProviderType() string {
+	return s.Spec.Provider.Type
 }
 
 // ShootStatus holds the most recently observed status of the Shoot cluster.
@@ -111,6 +123,8 @@ type ShootStatus struct {
 	// UID is a unique identifier for the Shoot cluster to avoid portability between Kubernetes clusters.
 	// It is used to compute unique hashes.
 	UID types.UID
+	// ClusterIdentity is the identity of the Shoot cluster
+	ClusterIdentity *string
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -209,7 +223,21 @@ type Extension struct {
 	// Type is the type of the extension resource.
 	Type string
 	// ProviderConfig is the configuration passed to extension resource.
-	ProviderConfig *ProviderConfig
+	ProviderConfig *runtime.RawExtension
+	// Disabled allows to disable extensions that were marked as 'globally enabled' by Gardener administrators.
+	Disabled *bool
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+// NamedResourceReference relevant types                                                        //
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+// NamedResourceReference is a named reference to a resource.
+type NamedResourceReference struct {
+	// Name of the resource reference.
+	Name string
+	// ResourceRef is a reference to a resource.
+	ResourceRef autoscalingv1.CrossVersionObjectReference
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -245,7 +273,7 @@ type HibernationSchedule struct {
 type Kubernetes struct {
 	// AllowPrivilegedContainers indicates whether privileged containers are allowed in the Shoot (default: true).
 	AllowPrivilegedContainers *bool
-	// ClusterAutoscaler contains the configration flags for the Kubernetes cluster autoscaler.
+	// ClusterAutoscaler contains the configuration flags for the Kubernetes cluster autoscaler.
 	ClusterAutoscaler *ClusterAutoscaler
 	// KubeAPIServer contains configuration settings for the kube-apiserver.
 	KubeAPIServer *KubeAPIServerConfig
@@ -259,9 +287,11 @@ type Kubernetes struct {
 	Kubelet *KubeletConfig
 	// Version is the semantic Kubernetes version to use for the Shoot cluster.
 	Version string
+	// VerticalPodAutoscaler contains the configuration flags for the Kubernetes vertical pod autoscaler.
+	VerticalPodAutoscaler *VerticalPodAutoscaler
 }
 
-// ClusterAutoscaler contains the configration flags for the Kubernetes cluster autoscaler.
+// ClusterAutoscaler contains the configuration flags for the Kubernetes cluster autoscaler.
 type ClusterAutoscaler struct {
 	// ScaleDownDelayAfterAdd defines how long after scale up that scale down evaluation resumes (default: 1 hour).
 	ScaleDownDelayAfterAdd *metav1.Duration
@@ -275,6 +305,30 @@ type ClusterAutoscaler struct {
 	ScaleDownUtilizationThreshold *float64
 	// ScanInterval how often cluster is reevaluated for scale up or down (default: 10 secs).
 	ScanInterval *metav1.Duration
+}
+
+// VerticalPodAutoscaler contains the configuration flags for the Kubernetes vertical pod autoscaler.
+type VerticalPodAutoscaler struct {
+	// Enabled specifies whether the Kubernetes VPA shall be enabled for the shoot cluster.
+	Enabled bool
+	// EvictAfterOOMThreshold defines the threshold that will lead to pod eviction in case it OOMed in less than the given
+	// threshold since its start and if it has only one container (default: 10m0s).
+	EvictAfterOOMThreshold *metav1.Duration
+	// EvictionRateBurst defines the burst of pods that can be evicted (default: 1)
+	EvictionRateBurst *int32
+	// EvictionRateLimit defines the number of pods that can be evicted per second. A rate limit set to 0 or -1 will
+	// disable the rate limiter (default: -1).
+	EvictionRateLimit *float64
+	// EvictionTolerance defines the fraction of replica count that can be evicted for update in case more than one
+	// pod can be evicted (default: 0.5).
+	EvictionTolerance *float64
+	// RecommendationMarginFraction is the fraction of usage added as the safety margin to the recommended request
+	// (default: 0.15).
+	RecommendationMarginFraction *float64
+	// UpdaterInterval is the interval how often the updater should run (default: 1m0s).
+	UpdaterInterval *metav1.Duration
+	// RecommenderInterval is the interval how often metrics should be fetched (default: 1m0s).
+	RecommenderInterval *metav1.Duration
 }
 
 // KubernetesConfig contains common configuration fields for the control plane components.
@@ -304,6 +358,14 @@ type KubeAPIServerConfig struct {
 	// ServiceAccountConfig contains configuration settings for the service account handling
 	// of the kube-apiserver.
 	ServiceAccountConfig *ServiceAccountConfig
+	// WatchCacheSizes contains configuration of the API server's watch cache sizes.
+	// Configuring these flags might be useful for large-scale Shoot clusters with a lot of parallel update requests
+	// and a lot of watching controllers (e.g. large shooted Seed clusters). When the API server's watch cache's
+	// capacity is too small to cope with the amount of update requests and watchers for a particular resource, it
+	// might happen that controller watches are permanently stopped with `too old resource version` errors.
+	// Starting from kubernetes v1.19, the API server's watch cache size is adapted dynamically and setting the watch
+	// cache size flags will have no effect, except when setting it to 0 (which disables the watch cache).
+	WatchCacheSizes *WatchCacheSizes
 }
 
 // ServiceAccountConfig is the kube-apiserver configuration for service accounts.
@@ -371,7 +433,31 @@ type AdmissionPlugin struct {
 	// Name is the name of the plugin.
 	Name string
 	// Config is the configuration of the plugin.
-	Config *ProviderConfig
+	Config *runtime.RawExtension
+}
+
+// WatchCacheSizes contains configuration of the API server's watch cache sizes.
+type WatchCacheSizes struct {
+	// Default configures the default watch cache size of the kube-apiserver
+	// (flag `--default-watch-cache-size`, defaults to 100).
+	// See: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/
+	Default *int32
+	// Resources configures the watch cache size of the kube-apiserver per resource
+	// (flag `--watch-cache-sizes`).
+	// See: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/
+	Resources []ResourceWatchCacheSize
+}
+
+// ResourceWatchCacheSize contains configuration of the API server's watch cache size for one specific resource.
+type ResourceWatchCacheSize struct {
+	// APIGroup is the API group of the resource for which the watch cache size should be configured.
+	// An unset value is used to specify the legacy core API (e.g. for `secrets`).
+	APIGroup *string
+	// Resource is the name of the resource for which the watch cache size should be configured
+	// (in lowercase plural form, e.g. `secrets`).
+	Resource string
+	// CacheSize specifies the watch cache size that should be configured for the specified resource.
+	CacheSize int32
 }
 
 // KubeControllerManagerConfig contains configuration settings for the kube-controller-manager.
@@ -422,6 +508,11 @@ const (
 // KubeSchedulerConfig contains configuration settings for the kube-scheduler.
 type KubeSchedulerConfig struct {
 	KubernetesConfig
+	// KubeMaxPDVols allows to configure the `KUBE_MAX_PD_VOLS` environment variable for the kube-scheduler.
+	// Please find more information here: https://kubernetes.io/docs/concepts/storage/storage-limits/#custom-limits
+	// Note that using this field is considered alpha-/experimental-level and is on your own risk. You should be aware
+	// of all the side-effects and consequences when changing it.
+	KubeMaxPDVols *string
 }
 
 // KubeProxyConfig contains configuration settings for the kube-proxy.
@@ -495,6 +586,15 @@ type KubeletConfig struct {
 	// ImagePullProgressDeadline describes the time limit under which if no pulling progress is made, the image pulling will be cancelled.
 	// Default: 1m
 	ImagePullProgressDeadline *metav1.Duration
+	// FailSwapOn makes the Kubelet fail to start if swap is enabled on the node. (default true).
+	FailSwapOn *bool
+	// KubeReserved is the configuration for resources reserved for kubernetes node components (mainly kubelet and container runtime).
+	// When updating these values, be aware that cgroup resizes may not succeed on active worker nodes. Look for the NodeAllocatableEnforced event to determine if the configuration was applied.
+	// Default: cpu=80m,memory=1Gi
+	KubeReserved *KubeletConfigReserved
+	// SystemReserved is the configuration for resources reserved for system processes not managed by kubernetes (e.g. journald).
+	// When updating these values, be aware that cgroup resizes may not succeed on active worker nodes. Look for the NodeAllocatableEnforced event to determine if the configuration was applied.
+	SystemReserved *KubeletConfigReserved
 }
 
 // KubeletConfigEviction contains kubelet eviction thresholds supporting either a resource.Quantity or a percentage based value.
@@ -539,6 +639,19 @@ type KubeletConfigEvictionSoftGracePeriod struct {
 	NodeFSInodesFree *metav1.Duration
 }
 
+// KubeletConfigReserved contains reserved resources for daemons
+type KubeletConfigReserved struct {
+	// CPU is the reserved cpu.
+	CPU *resource.Quantity
+	// Memory is the reserved memory.
+	Memory *resource.Quantity
+	// EphemeralStorage is the reserved ephemeral-storage.
+	EphemeralStorage *resource.Quantity
+	// PID is the reserved process-ids.
+	// To reserve PID, the SupportNodePidsLimit feature gate must be enabled in Kubernetes versions < 1.15.
+	PID *resource.Quantity
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////
 // Networking relevant types                                                                    //
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -548,7 +661,7 @@ type Networking struct {
 	// Type identifies the type of the networking plugin.
 	Type string
 	// ProviderConfig is the configuration passed to network resource.
-	ProviderConfig *ProviderConfig
+	ProviderConfig *runtime.RawExtension
 	// Pods is the CIDR of the pod network.
 	Pods *string
 	// Nodes is the CIDR of the entire node network.
@@ -575,6 +688,10 @@ type Maintenance struct {
 	AutoUpdate *MaintenanceAutoUpdate
 	// TimeWindow contains information about the time window for maintenance operations.
 	TimeWindow *MaintenanceTimeWindow
+	// ConfineSpecUpdateRollout prevents that changes/updates to the shoot specification will be rolled out immediately.
+	// Instead, they are rolled out during the shoot's maintenance time window. There is one exception that will trigger
+	// an immediate roll out which is changes to the Spec.Hibernation.Enabled field.
+	ConfineSpecUpdateRollout *bool
 }
 
 // MaintenanceAutoUpdate contains information about which constraints should be automatically updated.
@@ -622,10 +739,10 @@ type Provider struct {
 	Type string
 	// ControlPlaneConfig contains the provider-specific control plane config blob. Please look up the concrete
 	// definition in the documentation of your provider extension.
-	ControlPlaneConfig *ProviderConfig
+	ControlPlaneConfig *runtime.RawExtension
 	// InfrastructureConfig contains the provider-specific infrastructure config blob. Please look up the concrete
 	// definition in the documentation of your provider extension.
-	InfrastructureConfig *ProviderConfig
+	InfrastructureConfig *runtime.RawExtension
 	// Workers is a list of worker groups.
 	Workers []Worker
 }
@@ -655,18 +772,42 @@ type Worker struct {
 	// MaxUnavailable is the maximum number of VMs that can be unavailable during an update.
 	MaxUnavailable *intstr.IntOrString
 	// ProviderConfig is the provider-specific configuration for this worker pool.
-	ProviderConfig *ProviderConfig
+	ProviderConfig *runtime.RawExtension
+	// SystemComponents contains configuration for system components related to this worker pool
+	SystemComponents *WorkerSystemComponents
 	// Taints is a list of taints for all the `Node` objects in this worker pool.
 	Taints []corev1.Taint
 	// Volume contains information about the volume type and size.
 	Volume *Volume
 	// DataVolumes contains a list of additional worker volumes.
-	DataVolumes []Volume
+	DataVolumes []DataVolume
 	// KubeletDataVolumeName contains the name of a dataVolume that should be used for storing kubelet state.
 	KubeletDataVolumeName *string
 	// Zones is a list of availability zones that are used to evenly distribute this worker pool. Optional
 	// as not every provider may support availability zones.
 	Zones []string
+	// MachineControllerManagerSettings contains configurations for different worker-pools. Eg. MachineDrainTimeout, MachineHealthTimeout.
+	MachineControllerManagerSettings *MachineControllerManagerSettings
+}
+
+// MachineControllerManagerSettings contains configurations for different worker-pools. Eg. MachineDrainTimeout, MachineHealthTimeout.
+type MachineControllerManagerSettings struct {
+	// MachineDrainTimeout is the period after which machine is forcefully deleted.
+	MachineDrainTimeout *metav1.Duration
+	// MachineHealthTimeout is the period after which machine is declared failed.
+	MachineHealthTimeout *metav1.Duration
+	// MachineCreationTimeout is the period after which creation of the machine is declared failed.
+	MachineCreationTimeout *metav1.Duration
+	// MaxEvictRetries are the number of eviction retries on a pod after which drain is declared failed, and forceful deletion is triggered.
+	MaxEvictRetries *int32
+	// NodeConditions are the set of conditions if set to true for the period of MachineHealthTimeout, machine will be declared failed.
+	NodeConditions []string
+}
+
+// WorkerSystemComponents contains configuration for system components related to this worker pool
+type WorkerSystemComponents struct {
+	// Allow determines whether the pool should be allowed to host system components or not (defaults to true)
+	Allow bool
 }
 
 // WorkerKubernetes contains configuration for Kubernetes components related to this worker pool.
@@ -690,7 +831,7 @@ type ShootMachineImage struct {
 	// Name is the name of the image.
 	Name string
 	// ProviderConfig is the shoot's individual configuration passed to an extension resource.
-	ProviderConfig *ProviderConfig
+	ProviderConfig *runtime.RawExtension
 	// Version is the version of the shoot's image.
 	// If version is not provided, it will be defaulted to the latest version from the CloudProfile.
 	Version string
@@ -700,6 +841,18 @@ type ShootMachineImage struct {
 type Volume struct {
 	// Name of the volume to make it referencable.
 	Name *string
+	// Type is the type of the volume.
+	Type *string
+	// VolumeSize is the size of the volume.
+	VolumeSize string
+	// Encrypted determines if the volume should be encrypted.
+	Encrypted *bool
+}
+
+// DataVolume contains information about a data volume.
+type DataVolume struct {
+	// Name of the volume to make it referencable.
+	Name string
 	// Type is the type of the volume.
 	Type *string
 	// VolumeSize is the size of the volume.
@@ -728,7 +881,7 @@ type ContainerRuntime struct {
 	// Type is the type of the Container Runtime.
 	Type string
 	// ProviderConfig is the configuration passed to the ContainerRuntime resource.
-	ProviderConfig *ProviderConfig
+	ProviderConfig *runtime.RawExtension
 }
 
 var (
@@ -743,11 +896,14 @@ var (
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
 const (
-	// ShootEventMaintenanceDone indicates that a maintenance operation has been performed.
-	ShootEventMaintenanceDone = "MaintenanceDone"
-	// ShootEventMaintenanceError indicates that a maintenance operation has failed.
-	ShootEventMaintenanceError = "MaintenanceError"
-
+	// ShootEventImageVersionMaintenance indicates that a maintenance operation regarding the image version has been performed.
+	ShootEventImageVersionMaintenance = "MachineImageVersionMaintenance"
+	// ShootEventK8sVersionMaintenance indicates that a maintenance operation regarding the K8s version has been performed.
+	ShootEventK8sVersionMaintenance = "KubernetesVersionMaintenance"
+	// ShootEventHibernationEnabled indicates that hibernation started.
+	ShootEventHibernationEnabled = "Hibernated"
+	// ShootEventHibernationDisabled indicates that hibernation ended.
+	ShootEventHibernationDisabled = "WokenUp"
 	// ShootEventSchedulingSuccessful indicates that a scheduling decision was taken successfully.
 	ShootEventSchedulingSuccessful = "SchedulingSuccessful"
 	// ShootEventSchedulingFailed indicates that a scheduling decision failed.

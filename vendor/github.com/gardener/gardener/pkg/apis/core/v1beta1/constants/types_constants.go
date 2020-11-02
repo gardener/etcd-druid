@@ -74,12 +74,15 @@ const (
 	// DeploymentNameKubeStateMetricsShoot is a constant for the name of a Kubernetes deployment object that contains
 	// the kube-state-metrics pod.
 	DeploymentNameKubeStateMetricsShoot = "kube-state-metrics"
-	// DeploymentNameKubeStateMetricsSeed is a constant for the name of a Kubernetes deployment object that contains
-	// the kube-state-metrics-seed pod.
-	DeploymentNameKubeStateMetricsSeed = "kube-state-metrics-seed"
-	// DeploymentNameKibana is a constant for the name of a Kubernetes deployment object that contains
-	// the kibana-logging pod.
-	DeploymentNameKibana = "kibana-logging"
+
+	// DeploymentNameVPAAdmissionController is a constant for the name of the VPA admission controller deployment.
+	DeploymentNameVPAAdmissionController = "vpa-admission-controller"
+	// DeploymentNameVPAExporter is a constant for the name of the VPA exporter deployment.
+	DeploymentNameVPAExporter = "vpa-exporter"
+	// DeploymentNameVPARecommender is a constant for the name of the VPA recommender deployment.
+	DeploymentNameVPARecommender = "vpa-recommender"
+	// DeploymentNameVPAUpdater is a constant for the name of the VPA updater deployment.
+	DeploymentNameVPAUpdater = "vpa-updater"
 
 	// StatefulSetNameAlertManager is a constant for the name of a Kubernetes stateful set object that contains
 	// the alertmanager pod.
@@ -88,9 +91,9 @@ const (
 	ETCDMain = "etcd-main"
 	// ETCDEvents is a constant for the name of etcd-events Etcd object.
 	ETCDEvents = "etcd-events"
-	// StatefulSetNameElasticSearch is a constant for the name of a Kubernetes stateful set object that contains
-	// the elasticsearch-logging pod.
-	StatefulSetNameElasticSearch = "elasticsearch-logging"
+	// StatefulSetNameLoki is a constant for the name of a Kubernetes stateful set object that contains
+	// the loki pod.
+	StatefulSetNameLoki = "loki"
 	// StatefulSetNamePrometheus is a constant for the name of a Kubernetes stateful set object that contains
 	// the prometheus pod.
 	StatefulSetNamePrometheus = "prometheus"
@@ -103,12 +106,18 @@ const (
 	// GardenerOperationReconcile is a constant for the value of the operation annotation describing a reconcile
 	// operation.
 	GardenerOperationReconcile = "reconcile"
+	// GardenerTimestamp is a constant for an annotation on a resource that describes the timestamp when a reconciliation has been requested.
+	// It is only used to guarantee an update event for watching clients in case the operation-annotation is already present.
+	GardenerTimestamp = "gardener.cloud/timestamp"
 	// GardenerOperationMigrate is a constant for the value of the operation annotation describing a migration
 	// operation.
 	GardenerOperationMigrate = "migrate"
 	// GardenerOperationRestore is a constant for the value of the operation annotation describing a restoration
 	// operation.
 	GardenerOperationRestore = "restore"
+	// GardenerOperationWaitForState is a constant for the value of the operation annotation describing a wait
+	// operation.
+	GardenerOperationWaitForState = "wait-for-state"
 
 	// DeprecatedGardenRole is the key for an annotation on a Kubernetes object indicating what it is used for.
 	//
@@ -134,6 +143,10 @@ const (
 	GardenRoleMonitoring = "monitoring"
 	// GardenRoleOptionalAddon is the value of the GardenRole key indicating type 'optional-addon'.
 	GardenRoleOptionalAddon = "optional-addon"
+	// GardenRoleKubeconfig is the value of the GardenRole key indicating type 'kubeconfig'.
+	GardenRoleKubeconfig = "kubeconfig"
+	// GardenRoleSSHKeyPair is the value of the GardenRole key indicating type 'ssh-keypair'.
+	GardenRoleSSHKeyPair = "ssh-keypair"
 
 	// DeprecatedShootUID is an annotation key for the shoot namespace in the seed cluster,
 	// which value will be the value of `shoot.status.uid`
@@ -177,11 +190,11 @@ const (
 	// LabelNetworkPolicyToShootAPIServer allows Egress from pods labeled with 'networking.gardener.cloud/to-shoot-apiserver=allowed' to talk to Shoot's
 	// Kubernetes API Server.
 	LabelNetworkPolicyToShootAPIServer = "networking.gardener.cloud/to-shoot-apiserver"
+	// LabelNetworkPolicyFromShootAPIServer allows Egress from Shoot's Kubernetes API Server to talk to pods labeled with
+	// 'networking.gardener.cloud/from-shoot-apiserver=allowed'.
+	LabelNetworkPolicyFromShootAPIServer = "networking.gardener.cloud/from-shoot-apiserver"
 	// LabelNetworkPolicyToAll disables all Ingress and Egress traffic into/from this namespace when set to "disallowed".
 	LabelNetworkPolicyToAll = "networking.gardener.cloud/to-all"
-	// LabelNetworkPolicyToElasticSearch allows Ingress to the ElasticSearch API pods labeled with 'networking.gardener.cloud/to-elasticsearch=allowed',
-	// and fluentd in 'garden' namespace.
-	LabelNetworkPolicyToElasticSearch = "networking.gardener.cloud/to-elasticsearch"
 	// LabelNetworkPolicyFromPrometheus allows Ingress from Prometheus to pods labeled with 'networking.gardener.cloud/from-prometheus=allowed' and ports
 	// named 'metrics' in the PodSpecification.
 	LabelNetworkPolicyFromPrometheus = "networking.gardener.cloud/from-prometheus"
@@ -273,6 +286,16 @@ const (
 
 	// LabelWorkerPool is a constant for a label that indicates the worker pool the node belongs to
 	LabelWorkerPool = "worker.gardener.cloud/pool"
-	// LabelWorkerPool is a deprecated constant for a label that indicates the worker pool the node belongs to
+	// LabelWorkerPoolDeprecated is a deprecated constant for a label that indicates the worker pool the node belongs to
 	LabelWorkerPoolDeprecated = "worker.garden.sapcloud.io/group"
+
+	// LabelWorkerPoolSystemComponents is a constant that indicates whether the worker pool should host system components
+	LabelWorkerPoolSystemComponents = "worker.gardener.cloud/system-components"
+
+	// ReferencedResourcesPrefix is the prefix used when copying referenced resources to the Shoot namespace in the Seed,
+	// to avoid naming collisions with resources managed by Gardener.
+	ReferencedResourcesPrefix = "ref-"
+
+	// ClusterIdentity is a constant equal to the name and data key (that stores the identity) of the cluster-identity ConfigMap
+	ClusterIdentity = "cluster-identity"
 )

@@ -20,16 +20,20 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 type ErrorCode string
 
 const (
-	// ErrorInfraUnauthorized indicates that the last error occurred due to invalid cloud provider credentials.
+	// ErrorInfraUnauthorized indicates that the last error occurred due to invalid infrastructure credentials.
 	ErrorInfraUnauthorized ErrorCode = "ERR_INFRA_UNAUTHORIZED"
-	// ErrorInfraInsufficientPrivileges indicates that the last error occurred due to insufficient cloud provider privileges.
+	// ErrorInfraInsufficientPrivileges indicates that the last error occurred due to insufficient infrastructure privileges.
 	ErrorInfraInsufficientPrivileges ErrorCode = "ERR_INFRA_INSUFFICIENT_PRIVILEGES"
-	// ErrorInfraQuotaExceeded indicates that the last error occurred due to cloud provider quota limits.
+	// ErrorInfraQuotaExceeded indicates that the last error occurred due to infrastructure quota limits.
 	ErrorInfraQuotaExceeded ErrorCode = "ERR_INFRA_QUOTA_EXCEEDED"
-	// ErrorInfraDependencies indicates that the last error occurred due to dependent objects on the cloud provider level.
+	// ErrorInfraDependencies indicates that the last error occurred due to dependent objects on the infrastructure level.
 	ErrorInfraDependencies ErrorCode = "ERR_INFRA_DEPENDENCIES"
-	// ErrorCleanupClusterResources indicates that the last error occurred due to resources in the cluster are stuck in deletion.
+	// ErrorInfraResourcesDepleted indicates that the last error occurred due to depleted resource in the infrastructure.
+	ErrorInfraResourcesDepleted ErrorCode = "ERR_INFRA_RESOURCES_DEPLETED"
+	// ErrorCleanupClusterResources indicates that the last error occurred due to resources in the cluster that are stuck in deletion.
 	ErrorCleanupClusterResources ErrorCode = "ERR_CLEANUP_CLUSTER_RESOURCES"
+	// ErrorConfigurationProblem indicates that the last error occurred due to a configuration problem.
+	ErrorConfigurationProblem ErrorCode = "ERR_CONFIGURATION_PROBLEM"
 )
 
 // LastError indicates the last occurred error for an operation on a resource.
@@ -47,26 +51,6 @@ type LastError struct {
 	LastUpdateTime *metav1.Time `json:"lastUpdateTime,omitempty" protobuf:"bytes,4,opt,name=lastUpdateTime"`
 }
 
-// GetDescription implements LastError.
-func (l *LastError) GetDescription() string {
-	return l.Description
-}
-
-// GetTaskID implements LastError
-func (l *LastError) GetTaskID() *string {
-	return l.TaskID
-}
-
-// GetCodes implements LastError.
-func (l *LastError) GetCodes() []ErrorCode {
-	return l.Codes
-}
-
-// GetLastUpdateTime implements LastError.
-func (l *LastError) GetLastUpdateTime() *metav1.Time {
-	return l.LastUpdateTime
-}
-
 // LastOperationType is a string alias.
 type LastOperationType string
 
@@ -79,6 +63,8 @@ const (
 	LastOperationTypeDelete LastOperationType = "Delete"
 	// LastOperationTypeMigrate indicates a 'migrate' operation.
 	LastOperationTypeMigrate LastOperationType = "Migrate"
+	// LastOperationTypeRestore indicates a 'restore' operation.
+	LastOperationTypeRestore LastOperationType = "Restore"
 )
 
 // LastOperationState is a string alias.
@@ -112,31 +98,6 @@ type LastOperation struct {
 	State LastOperationState `json:"state" protobuf:"bytes,4,opt,name=state,casttype=LastOperationState"`
 	// Type of the last operation, one of Create, Reconcile, Delete.
 	Type LastOperationType `json:"type" protobuf:"bytes,5,opt,name=type,casttype=LastOperationType"`
-}
-
-// GetDescription implements LastOperation.
-func (l *LastOperation) GetDescription() string {
-	return l.Description
-}
-
-// GetLastUpdateTime implements LastOperation.
-func (l *LastOperation) GetLastUpdateTime() metav1.Time {
-	return l.LastUpdateTime
-}
-
-// GetProgress implements LastOperation.
-func (l *LastOperation) GetProgress() int32 {
-	return l.Progress
-}
-
-// GetState implements LastOperation.
-func (l *LastOperation) GetState() LastOperationState {
-	return l.State
-}
-
-// GetType implements LastOperation.
-func (l *LastOperation) GetType() LastOperationType {
-	return l.Type
 }
 
 // Gardener holds the information about the Gardener version that operated a resource.
@@ -176,6 +137,10 @@ const (
 	EventDeleted = "Deleted"
 	// EventDeleteError indicates that the a Delete operation failed.
 	EventDeleteError = "DeleteError"
-	// EventOperationPending
-	EventOperationPending = "OperationPending"
+	// EventPrepareMigration indicates that a Prepare Migration operation started.
+	EventPrepareMigration = "PrepareMigration"
+	// EventMigrationPrepared indicates that Migration preparation was successful.
+	EventMigrationPrepared = "MigrationPrepared"
+	// EventMigrationPreparationFailed indicates that Migration preparation failed.
+	EventMigrationPreparationFailed = "MigrationPreparationFailed"
 )

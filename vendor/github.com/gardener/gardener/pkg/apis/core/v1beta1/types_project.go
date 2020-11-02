@@ -77,6 +77,9 @@ type ProjectSpec struct {
 	// A nil value means that Gardener will determine the name of the namespace.
 	// +optional
 	Namespace *string `json:"namespace,omitempty" protobuf:"bytes,6,opt,name=namespace"`
+	// Tolerations contains the tolerations for taints on seed clusters.
+	// +optional
+	Tolerations *ProjectTolerations `json:"tolerations,omitempty" protobuf:"bytes,7,opt,name=tolerations"`
 }
 
 // ProjectStatus holds the most recently observed status of the project.
@@ -86,6 +89,13 @@ type ProjectStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration,omitempty" protobuf:"varint,1,opt,name=observedGeneration"`
 	// Phase is the current phase of the project.
 	Phase ProjectPhase `json:"phase,omitempty" protobuf:"bytes,2,opt,name=phase,casttype=ProjectPhase"`
+	// StaleSinceTimestamp contains the timestamp when the project was first discovered to be stale/unused.
+	// +optional
+	StaleSinceTimestamp *metav1.Time `json:"staleSinceTimestamp,omitempty" protobuf:"bytes,3,opt,name=staleSinceTimestamp"`
+	// StaleAutoDeleteTimestamp contains the timestamp when the project will be garbage-collected/automatically deleted
+	// because it's stale/unused.
+	// +optional
+	StaleAutoDeleteTimestamp *metav1.Time `json:"staleAutoDeleteTimestamp,omitempty" protobuf:"bytes,4,opt,name=staleAutoDeleteTimestamp"`
 }
 
 // ProjectMember is a member of a project.
@@ -103,14 +113,39 @@ type ProjectMember struct {
 	Roles []string `json:"roles,omitempty" protobuf:"bytes,3,rep,name=roles"`
 }
 
+// ProjectTolerations contains the tolerations for taints on seed clusters.
+type ProjectTolerations struct {
+	// Defaults contains a list of tolerations that are added to the shoots in this project by default.
+	// +patchMergeKey=key
+	// +patchStrategy=merge
+	// +optional
+	Defaults []Toleration `json:"defaults,omitempty" patchStrategy:"merge" patchMergeKey:"key" protobuf:"bytes,1,rep,name=defaults"`
+	// Whitelist contains a list of tolerations that are allowed to be added to the shoots in this project. Please note
+	// that this list may only be added by users having the `spec-tolerations-whitelist` verb for project resources.
+	// +patchMergeKey=key
+	// +patchStrategy=merge
+	// +optional
+	Whitelist []Toleration `json:"whitelist,omitempty" patchStrategy:"merge" patchMergeKey:"key" protobuf:"bytes,2,rep,name=whitelist"`
+}
+
+// Toleration is a toleration for a seed taint.
+type Toleration struct {
+	// Key is the toleration key to be applied to a project or shoot.
+	Key string `json:"key" protobuf:"bytes,1,opt,name=key"`
+	// Value is the toleration value corresponding to the toleration key.
+	// +optional
+	Value *string `json:"value,omitempty" protobuf:"bytes,2,opt,name=value"`
+}
+
 const (
 	// ProjectMemberAdmin is a const for a role that provides full admin access.
 	ProjectMemberAdmin = "admin"
 	// ProjectMemberOwner is a const for a role that provides full owner access.
 	ProjectMemberOwner = "owner"
+	// ProjectMemberUserAccessManager is a const for a role that provides permissions to manage human user(s, (groups)).
+	ProjectMemberUserAccessManager = "uam"
 	// ProjectMemberViewer is a const for a role that provides limited permissions to only view some resources.
 	ProjectMemberViewer = "viewer"
-
 	// ProjectMemberExtensionPrefix is a prefix for custom roles that are not known by Gardener.
 	ProjectMemberExtensionPrefix = "extension:"
 )

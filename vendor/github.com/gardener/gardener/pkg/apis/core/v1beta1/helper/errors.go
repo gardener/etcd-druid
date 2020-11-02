@@ -25,31 +25,37 @@ import (
 
 	errors2 "github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-type errorWithCode struct {
-	code    gardencorev1beta1.ErrorCode
+// ErrorWithCodes contains error codes and an error message.
+type ErrorWithCodes struct {
 	message string
+	codes   []gardencorev1beta1.ErrorCode
 }
 
-// NewErrorWithCode creates a new error that additionally exposes the given code via the Coder interface.
-func NewErrorWithCode(code gardencorev1beta1.ErrorCode, message string) error {
-	return &errorWithCode{code, message}
+// NewErrorWithCodes creates a new error that additionally exposes the given codes via the Coder interface.
+func NewErrorWithCodes(message string, codes ...gardencorev1beta1.ErrorCode) error {
+	return &ErrorWithCodes{message, codes}
 }
 
-func (e *errorWithCode) Code() gardencorev1beta1.ErrorCode {
-	return e.code
+// Codes returns all error codes.
+func (e *ErrorWithCodes) Codes() []gardencorev1beta1.ErrorCode {
+	return e.codes
 }
 
-func (e *errorWithCode) Error() string {
+// Error returns the error message.
+func (e *ErrorWithCodes) Error() string {
 	return e.message
 }
 
 var (
-	unauthorizedRegexp           = regexp.MustCompile(`(?i)(Unauthorized|InvalidClientTokenId|SignatureDoesNotMatch|Authentication failed|AuthFailure|AuthorizationFailed|invalid character|invalid_grant|invalid_client|Authorization Profile was not found|cannot fetch token|no active subscriptions|InvalidAccessKeyId|InvalidSecretAccessKey)`)
-	quotaExceededRegexp          = regexp.MustCompile(`(?i)(LimitExceeded|Quota)`)
-	insufficientPrivilegesRegexp = regexp.MustCompile(`(?i)(AccessDenied|Forbidden|deny|denied)`)
-	dependenciesRegexp           = regexp.MustCompile(`(?i)(PendingVerification|Access Not Configured|accessNotConfigured|DependencyViolation|OptInRequired|DeleteConflict|Conflict|inactive billing state|ReadOnlyDisabledSubscription|is already being used|InUseSubnetCannotBeDeleted|not available in the current hardware cluster)`)
+	unauthorizedRegexp           = regexp.MustCompile(`(?i)(Unauthorized|InvalidClientTokenId|SignatureDoesNotMatch|Authentication failed|AuthFailure|AuthorizationFailed|invalid character|invalid_grant|invalid_client|Authorization Profile was not found|cannot fetch token|no active subscriptions|InvalidAccessKeyId|InvalidSecretAccessKey|query returned no results|UnauthorizedOperation|not authorized)`)
+	quotaExceededRegexp          = regexp.MustCompile(`(?i)(LimitExceeded|Quota|Throttling)`)
+	insufficientPrivilegesRegexp = regexp.MustCompile(`(?i)(AccessDenied|OperationNotAllowed)`)
+	dependenciesRegexp           = regexp.MustCompile(`(?i)(PendingVerification|Access Not Configured|accessNotConfigured|DependencyViolation|OptInRequired|DeleteConflict|Conflict|inactive billing state|ReadOnlyDisabledSubscription|is already being used|InUseSubnetCannotBeDeleted|VnetInUse|timeout while waiting for state to become|InvalidCidrBlock|already busy for|InsufficientFreeAddressesInSubnet|InternalServerError)`)
+	resourcesDepletedRegexp      = regexp.MustCompile(`(?i)(not available in the current hardware cluster|InsufficientInstanceCapacity|SkuNotAvailable|ZonalAllocationFailed)`)
+	configurationProblemRegexp   = regexp.MustCompile(`(?i)(AzureBastionSubnet|not supported in your requested Availability Zone|InvalidParameter|InvalidParameterValue|not found|notFound|NetcfgInvalidSubnet|InvalidSubnet|Invalid value|KubeletHasInsufficientMemory|KubeletHasDiskPressure|KubeletHasInsufficientPID|violates constraint|no attached internet gateway found|Your query returned no results|PrivateEndpointNetworkPoliciesCannotBeEnabledOnPrivateEndpointSubnet|invalid VPC attributes)`)
 )
 
 // DetermineError determines the Garden error code for the given error and creates a new error with the given message.
@@ -63,43 +69,60 @@ func DetermineError(err error, message string) error {
 		errMsg = err.Error()
 	}
 
-	code := determineErrorCode(err)
-	if code == "" {
+	codes := DetermineErrorCodes(err)
+	if codes == nil {
 		return errors.New(errMsg)
 	}
-	return &errorWithCode{code, errMsg}
+	return &ErrorWithCodes{errMsg, codes}
 }
 
-func determineErrorCode(err error) gardencorev1beta1.ErrorCode {
-	var coder Coder
+// DetermineErrorCodes determines error codes based on the given error.
+func DetermineErrorCodes(err error) []gardencorev1beta1.ErrorCode {
+	var (
+		coder   Coder
+		message = err.Error()
+		codes   = sets.NewString()
+	)
 
-	// first try to re-use code from error
+	// try to re-use codes from error
 	if errors.As(err, &coder) {
-		switch coder.Code() {
-		case gardencorev1beta1.ErrorInfraUnauthorized, gardencorev1beta1.ErrorInfraQuotaExceeded, gardencorev1beta1.ErrorInfraInsufficientPrivileges, gardencorev1beta1.ErrorInfraDependencies:
-			return coder.Code()
+		for _, code := range coder.Codes() {
+			codes.Insert(string(code))
 		}
 	}
 
-	message := err.Error()
-	switch {
-	case unauthorizedRegexp.MatchString(message):
-		return gardencorev1beta1.ErrorInfraUnauthorized
-	case quotaExceededRegexp.MatchString(message):
-		return gardencorev1beta1.ErrorInfraQuotaExceeded
-	case insufficientPrivilegesRegexp.MatchString(message):
-		return gardencorev1beta1.ErrorInfraInsufficientPrivileges
-	case dependenciesRegexp.MatchString(message):
-		return gardencorev1beta1.ErrorInfraDependencies
-	default:
-		return ""
+	// determine error codes
+	if unauthorizedRegexp.MatchString(message) {
+		codes.Insert(string(gardencorev1beta1.ErrorInfraUnauthorized))
 	}
+	if quotaExceededRegexp.MatchString(message) {
+		codes.Insert(string(gardencorev1beta1.ErrorInfraQuotaExceeded))
+	}
+	if insufficientPrivilegesRegexp.MatchString(message) {
+		codes.Insert(string(gardencorev1beta1.ErrorInfraInsufficientPrivileges))
+	}
+	if dependenciesRegexp.MatchString(message) {
+		codes.Insert(string(gardencorev1beta1.ErrorInfraDependencies))
+	}
+	if resourcesDepletedRegexp.MatchString(message) {
+		codes.Insert(string(gardencorev1beta1.ErrorInfraResourcesDepleted))
+	}
+	if configurationProblemRegexp.MatchString(message) {
+		codes.Insert(string(gardencorev1beta1.ErrorConfigurationProblem))
+	}
+
+	// compute error code list based on code string set
+	var out []gardencorev1beta1.ErrorCode
+	for _, c := range codes.List() {
+		out = append(out, gardencorev1beta1.ErrorCode(c))
+	}
+	return out
 }
 
-// Coder is an error that may produce an ErrorCode visible to the outside.
+// Coder is an error that may produce a ErrorCodes visible to the outside.
 type Coder interface {
 	error
-	Code() gardencorev1beta1.ErrorCode
+	Codes() []gardencorev1beta1.ErrorCode
 }
 
 // ExtractErrorCodes extracts all error codes from the given error by using utilerrors.Errors
@@ -108,7 +131,7 @@ func ExtractErrorCodes(err error) []gardencorev1beta1.ErrorCode {
 	for _, err := range utilerrors.Errors(err) {
 		var coder Coder
 		if errors.As(err, &coder) {
-			codes = append(codes, coder.Code())
+			codes = append(codes, coder.Codes()...)
 		}
 	}
 	return codes
@@ -167,4 +190,17 @@ func LastErrorWithTaskID(description string, taskID string, codes ...gardencorev
 			Time: time.Now(),
 		},
 	}
+}
+
+// HasNonRetryableErrorCode returns true if at least one of given list of last errors has at least one error code that
+// indicates that an automatic retry would not help fixing the problem.
+func HasNonRetryableErrorCode(lastErrors ...gardencorev1beta1.LastError) bool {
+	for _, lastError := range lastErrors {
+		for _, code := range lastError.Codes {
+			if code == gardencorev1beta1.ErrorInfraUnauthorized || code == gardencorev1beta1.ErrorConfigurationProblem {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -16,17 +16,16 @@ package helper
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	"github.com/gardener/gardener/pkg/logger"
 	versionutils "github.com/gardener/gardener/pkg/utils/version"
 
 	"github.com/Masterminds/semver"
-	errors "github.com/pkg/errors"
+	"github.com/pkg/errors"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -37,31 +36,15 @@ var Now = metav1.Now
 
 // InitCondition initializes a new Condition with an Unknown status.
 func InitCondition(conditionType gardencorev1beta1.ConditionType) gardencorev1beta1.Condition {
+	now := Now()
 	return gardencorev1beta1.Condition{
 		Type:               conditionType,
 		Status:             gardencorev1beta1.ConditionUnknown,
 		Reason:             "ConditionInitialized",
 		Message:            "The condition has been initialized but its semantic check has not been performed yet.",
-		LastTransitionTime: Now(),
+		LastTransitionTime: now,
+		LastUpdateTime:     now,
 	}
-}
-
-// NewConditions initializes the provided conditions based on an existing list. If a condition type does not exist
-// in the list yet, it will be set to default values.
-func NewConditions(conditions []gardencorev1beta1.Condition, conditionTypes ...gardencorev1beta1.ConditionType) []*gardencorev1beta1.Condition {
-	newConditions := []*gardencorev1beta1.Condition{}
-
-	// We retrieve the current conditions in order to update them appropriately.
-	for _, conditionType := range conditionTypes {
-		if c := GetCondition(conditions, conditionType); c != nil {
-			newConditions = append(newConditions, c)
-			continue
-		}
-		initializedCondition := InitCondition(conditionType)
-		newConditions = append(newConditions, &initializedCondition)
-	}
-
-	return newConditions
 }
 
 // GetCondition returns the condition with the given <conditionType> out of the list of <conditions>.
@@ -86,28 +69,39 @@ func GetOrInitCondition(conditions []gardencorev1beta1.Condition, conditionType 
 }
 
 // UpdatedCondition updates the properties of one specific condition.
-func UpdatedCondition(condition gardencorev1beta1.Condition, status gardencorev1beta1.ConditionStatus, reason, message string) gardencorev1beta1.Condition {
-	newCondition := gardencorev1beta1.Condition{
-		Type:               condition.Type,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		LastTransitionTime: condition.LastTransitionTime,
-		LastUpdateTime:     Now(),
-	}
+func UpdatedCondition(condition gardencorev1beta1.Condition, status gardencorev1beta1.ConditionStatus, reason, message string, codes ...gardencorev1beta1.ErrorCode) gardencorev1beta1.Condition {
+	var (
+		newCondition = gardencorev1beta1.Condition{
+			Type:               condition.Type,
+			Status:             status,
+			Reason:             reason,
+			Message:            message,
+			LastTransitionTime: condition.LastTransitionTime,
+			LastUpdateTime:     condition.LastUpdateTime,
+			Codes:              codes,
+		}
+		now = Now()
+	)
 
 	if condition.Status != status {
-		newCondition.LastTransitionTime = Now()
+		newCondition.LastTransitionTime = now
 	}
+
+	if condition.Reason != reason || condition.Message != message || !apiequality.Semantic.DeepEqual(condition.Codes, codes) {
+		newCondition.LastUpdateTime = now
+	}
+
 	return newCondition
 }
 
-func UpdatedConditionUnknownError(condition gardencorev1beta1.Condition, err error) gardencorev1beta1.Condition {
-	return UpdatedConditionUnknownErrorMessage(condition, err.Error())
+// UpdatedConditionUnknownError updates the condition to 'Unknown' status and the message of the given error.
+func UpdatedConditionUnknownError(condition gardencorev1beta1.Condition, err error, codes ...gardencorev1beta1.ErrorCode) gardencorev1beta1.Condition {
+	return UpdatedConditionUnknownErrorMessage(condition, err.Error(), codes...)
 }
 
-func UpdatedConditionUnknownErrorMessage(condition gardencorev1beta1.Condition, message string) gardencorev1beta1.Condition {
-	return UpdatedCondition(condition, gardencorev1beta1.ConditionUnknown, gardencorev1beta1.ConditionCheckError, message)
+// UpdatedConditionUnknownErrorMessage updates the condition with 'Unknown' status and the given message.
+func UpdatedConditionUnknownErrorMessage(condition gardencorev1beta1.Condition, message string, codes ...gardencorev1beta1.ErrorCode) gardencorev1beta1.Condition {
+	return UpdatedCondition(condition, gardencorev1beta1.ConditionUnknown, gardencorev1beta1.ConditionCheckError, message, codes...)
 }
 
 // MergeConditions merges the given <oldConditions> with the <newConditions>. Existing conditions are superseded by
@@ -170,7 +164,17 @@ func IsControllerInstallationSuccessful(controllerInstallation gardencorev1beta1
 	return installed && healthy
 }
 
-// ComputeOperationType checksthe <lastOperation> and determines whether is it is Create operation or reconcile operation
+// IsControllerInstallationRequired returns true if a ControllerInstallation has been marked as "required".
+func IsControllerInstallationRequired(controllerInstallation gardencorev1beta1.ControllerInstallation) bool {
+	for _, condition := range controllerInstallation.Status.Conditions {
+		if condition.Type == gardencorev1beta1.ControllerInstallationRequired && condition.Status == gardencorev1beta1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+// ComputeOperationType checks the <lastOperation> and determines whether it is Create, Delete, Reconcile, Migrate or Restore operation
 func ComputeOperationType(meta metav1.ObjectMeta, lastOperation *gardencorev1beta1.LastOperation) gardencorev1beta1.LastOperationType {
 	switch {
 	case meta.Annotations[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationMigrate:
@@ -179,10 +183,12 @@ func ComputeOperationType(meta metav1.ObjectMeta, lastOperation *gardencorev1bet
 		return gardencorev1beta1.LastOperationTypeDelete
 	case lastOperation == nil:
 		return gardencorev1beta1.LastOperationTypeCreate
-	case (lastOperation.Type == gardencorev1beta1.LastOperationTypeCreate && lastOperation.State != gardencorev1beta1.LastOperationStateSucceeded):
+	case lastOperation.Type == gardencorev1beta1.LastOperationTypeCreate && lastOperation.State != gardencorev1beta1.LastOperationStateSucceeded:
 		return gardencorev1beta1.LastOperationTypeCreate
-	case (lastOperation.Type == gardencorev1beta1.LastOperationTypeMigrate && lastOperation.State != gardencorev1beta1.LastOperationStateSucceeded):
+	case lastOperation.Type == gardencorev1beta1.LastOperationTypeMigrate && lastOperation.State != gardencorev1beta1.LastOperationStateSucceeded:
 		return gardencorev1beta1.LastOperationTypeMigrate
+	case lastOperation.Type == gardencorev1beta1.LastOperationTypeRestore && lastOperation.State != gardencorev1beta1.LastOperationStateSucceeded:
+		return gardencorev1beta1.LastOperationTypeRestore
 	}
 	return gardencorev1beta1.LastOperationTypeReconcile
 }
@@ -195,6 +201,46 @@ func TaintsHave(taints []gardencorev1beta1.SeedTaint, key string) bool {
 		}
 	}
 	return false
+}
+
+// TaintsAreTolerated returns true when all the given taints are tolerated by the given tolerations. It ignores the
+// deprecated taints that were migrated into the new `settings` field in the Seed specification.
+func TaintsAreTolerated(taints []gardencorev1beta1.SeedTaint, tolerations []gardencorev1beta1.Toleration) bool {
+	var relevantTaints []gardencorev1beta1.SeedTaint
+	for _, taint := range taints {
+		if taint.Key == gardencorev1beta1.DeprecatedSeedTaintDisableDNS || taint.Key == gardencorev1beta1.DeprecatedSeedTaintInvisible || taint.Key == gardencorev1beta1.DeprecatedSeedTaintDisableCapacityReservation {
+			continue
+		}
+		relevantTaints = append(relevantTaints, taint)
+	}
+
+	if len(relevantTaints) == 0 {
+		return true
+	}
+	if len(relevantTaints) > len(tolerations) {
+		return false
+	}
+
+	tolerationKeyValues := make(map[string]string, len(tolerations))
+	for _, toleration := range tolerations {
+		v := ""
+		if toleration.Value != nil {
+			v = *toleration.Value
+		}
+		tolerationKeyValues[toleration.Key] = v
+	}
+
+	for _, taint := range relevantTaints {
+		tolerationValue, ok := tolerationKeyValues[taint.Key]
+		if !ok {
+			return false
+		}
+		if taint.Value != nil && *taint.Value != tolerationValue {
+			return false
+		}
+	}
+
+	return true
 }
 
 type ShootedSeed struct {
@@ -552,6 +598,11 @@ func ShootWantsClusterAutoscaler(shoot *gardencorev1beta1.Shoot) (bool, error) {
 	return false, nil
 }
 
+// ShootWantsVerticalPodAutoscaler checks if the given Shoot needs a VPA.
+func ShootWantsVerticalPodAutoscaler(shoot *gardencorev1beta1.Shoot) bool {
+	return shoot.Spec.Kubernetes.VerticalPodAutoscaler != nil && shoot.Spec.Kubernetes.VerticalPodAutoscaler.Enabled
+}
+
 // ShootIgnoresAlerts checks if the alerts for the annotated shoot cluster should be ignored.
 func ShootIgnoresAlerts(shoot *gardencorev1beta1.Shoot) bool {
 	ignore := false
@@ -577,17 +628,6 @@ func ShootWantsBasicAuthentication(shoot *gardencorev1beta1.Shoot) bool {
 // ShootUsesUnmanagedDNS returns true if the shoot's DNS section is marked as 'unmanaged'.
 func ShootUsesUnmanagedDNS(shoot *gardencorev1beta1.Shoot) bool {
 	return shoot.Spec.DNS != nil && len(shoot.Spec.DNS.Providers) > 0 && shoot.Spec.DNS.Providers[0].Type != nil && *shoot.Spec.DNS.Providers[0].Type == "unmanaged"
-}
-
-// GetMachineImagesFor returns a list of all machine images for a given shoot.
-func GetMachineImagesFor(shoot *gardencorev1beta1.Shoot) []*gardencorev1beta1.ShootMachineImage {
-	var workerMachineImages []*gardencorev1beta1.ShootMachineImage
-	for _, worker := range shoot.Spec.Provider.Workers {
-		if worker.Machine.Image != nil {
-			workerMachineImages = append(workerMachineImages, worker.Machine.Image)
-		}
-	}
-	return workerMachineImages
 }
 
 // DetermineMachineImageForName finds the cloud specific machine images in the <cloudProfile> for the given <name> and
@@ -617,33 +657,31 @@ func ShootMachineImageVersionExists(constraint gardencorev1beta1.MachineImage, i
 	return false, 0
 }
 
-// DetermineLatestMachineImageVersion determines the latest MachineImageVersion from a MachineImage
-func DetermineLatestMachineImageVersion(image gardencorev1beta1.MachineImage) (*semver.Version, gardencorev1beta1.ExpirableVersion, error) {
-	var (
-		latestSemVerVersion       *semver.Version
-		latestMachineImageVersion gardencorev1beta1.ExpirableVersion
-	)
-
-	for _, imageVersion := range image.Versions {
-		v, err := semver.NewVersion(imageVersion.Version)
-		if err != nil {
-			return nil, gardencorev1beta1.ExpirableVersion{}, fmt.Errorf("error while parsing machine image version '%s' of machine image '%s': version not valid: %s", imageVersion.Version, image.Name, err.Error())
-		}
-		if latestSemVerVersion == nil || v.GreaterThan(latestSemVerVersion) {
-			latestSemVerVersion = v
-			latestMachineImageVersion = imageVersion
-		}
+func toExpirableVersions(versions []gardencorev1beta1.MachineImageVersion) []gardencorev1beta1.ExpirableVersion {
+	expVersions := []gardencorev1beta1.ExpirableVersion{}
+	for _, version := range versions {
+		expVersions = append(expVersions, version.ExpirableVersion)
 	}
-	return latestSemVerVersion, latestMachineImageVersion, nil
+	return expVersions
 }
 
-// GetShootMachineImageFromLatestMachineImageVersion determines the latest version in a machine image and returns that as a ShootMachineImage
-func GetShootMachineImageFromLatestMachineImageVersion(image gardencorev1beta1.MachineImage) (*semver.Version, gardencorev1beta1.ShootMachineImage, error) {
-	latestSemVerVersion, latestImage, err := DetermineLatestMachineImageVersion(image)
+// GetLatestQualifyingShootMachineImage determines the latest qualifying version in a machine image and returns that as a ShootMachineImage
+// A version qualifies if its classification is not preview and the version is not expired.
+func GetLatestQualifyingShootMachineImage(image gardencorev1beta1.MachineImage, predicates ...VersionPredicate) (bool, *gardencorev1beta1.ShootMachineImage, error) {
+	predicates = append(predicates, FilterExpiredVersion())
+	qualifyingVersionFound, latestImageVersion, err := GetLatestQualifyingVersion(toExpirableVersions(image.Versions), predicates...)
 	if err != nil {
-		return nil, gardencorev1beta1.ShootMachineImage{}, err
+		return false, nil, err
 	}
-	return latestSemVerVersion, gardencorev1beta1.ShootMachineImage{Name: image.Name, Version: &latestImage.Version}, nil
+	if !qualifyingVersionFound {
+		return false, nil, nil
+	}
+	return true, &gardencorev1beta1.ShootMachineImage{Name: image.Name, Version: &latestImageVersion.Version}, nil
+}
+
+// SystemComponentsAllowed checks if the given worker allows system components to be scheduled onto it
+func SystemComponentsAllowed(worker *gardencorev1beta1.Worker) bool {
+	return worker.SystemComponents == nil || worker.SystemComponents.Allow
 }
 
 // UpdateMachineImages updates the machine images in place.
@@ -651,7 +689,6 @@ func UpdateMachineImages(workers []gardencorev1beta1.Worker, machineImages []*ga
 	for _, machineImage := range machineImages {
 		for idx, worker := range workers {
 			if worker.Machine.Image != nil && machineImage.Name == worker.Machine.Image.Name {
-				logger.Logger.Infof("Updating worker images of worker '%s' from version %s to version %s", worker.Name, *worker.Machine.Image.Version, *machineImage.Version)
 				workers[idx].Machine.Image = machineImage
 			}
 		}
@@ -672,60 +709,8 @@ func KubernetesVersionExistsInCloudProfile(cloudProfile *gardencorev1beta1.Cloud
 	return false, gardencorev1beta1.ExpirableVersion{}, nil
 }
 
-// DetermineLatestKubernetesPatchVersion finds the latest Kubernetes patch version in the <cloudProfile> compared
-// to the given <currentVersion>. In case it does not find a newer patch version, it returns false. Otherwise,
-// true and the found version will be returned.
-func DetermineLatestKubernetesPatchVersion(cloudProfile *gardencorev1beta1.CloudProfile, currentVersion string) (bool, string, error) {
-	ok, newerVersions, _, err := determineNextKubernetesVersions(cloudProfile, currentVersion, "~")
-	if err != nil || !ok {
-		return ok, "", err
-	}
-	sort.Strings(newerVersions)
-	return true, newerVersions[len(newerVersions)-1], nil
-}
-
-// DetermineNextKubernetesMinorVersion finds the next available Kubernetes minor version in the <cloudProfile> compared
-// to the given <currentVersion>. In case it does not find a newer minor version, it returns false. Otherwise,
-// true and the found version will be returned.
-func DetermineNextKubernetesMinorVersion(cloudProfile *gardencorev1beta1.CloudProfile, currentVersion string) (bool, string, error) {
-	ok, newerVersions, _, err := determineNextKubernetesVersions(cloudProfile, currentVersion, "^")
-	if err != nil || !ok {
-		return ok, "", err
-	}
-	sort.Strings(newerVersions)
-	return true, newerVersions[0], nil
-}
-
-// determineKubernetesVersions finds newer Kubernetes versions in the <cloudProfile> compared
-// with the <operator> to the given <currentVersion>. The <operator> has to be a github.com/Masterminds/semver
-// range comparison symbol. In case it does not find a newer version, it returns false. Otherwise,
-// true and the found version will be returned.
-func determineNextKubernetesVersions(cloudProfile *gardencorev1beta1.CloudProfile, currentVersion, operator string) (bool, []string, []gardencorev1beta1.ExpirableVersion, error) {
-	var (
-		newerVersions       = []gardencorev1beta1.ExpirableVersion{}
-		newerVersionsString = []string{}
-	)
-
-	for _, version := range cloudProfile.Spec.Kubernetes.Versions {
-		ok, err := versionutils.CompareVersions(version.Version, operator, currentVersion)
-		if err != nil {
-			return false, []string{}, []gardencorev1beta1.ExpirableVersion{}, err
-		}
-		if version.Version != currentVersion && ok {
-			newerVersions = append(newerVersions, version)
-			newerVersionsString = append(newerVersionsString, version.Version)
-		}
-	}
-
-	if len(newerVersions) == 0 {
-		return false, []string{}, []gardencorev1beta1.ExpirableVersion{}, nil
-	}
-
-	return true, newerVersionsString, newerVersions, nil
-}
-
 // SetMachineImageVersionsToMachineImage sets imageVersions to the matching imageName in the machineImages.
-func SetMachineImageVersionsToMachineImage(machineImages []gardencorev1beta1.MachineImage, imageName string, imageVersions []gardencorev1beta1.ExpirableVersion) ([]gardencorev1beta1.MachineImage, error) {
+func SetMachineImageVersionsToMachineImage(machineImages []gardencorev1beta1.MachineImage, imageName string, imageVersions []gardencorev1beta1.MachineImageVersion) ([]gardencorev1beta1.MachineImage, error) {
 	for index, image := range machineImages {
 		if strings.EqualFold(image.Name, imageName) {
 			machineImages[index].Versions = imageVersions
@@ -776,9 +761,227 @@ func FindPrimaryDNSProvider(providers []gardencorev1beta1.DNSProvider) *gardenco
 			return &primaryProvider
 		}
 	}
-	// TODO: timuthy - Only required for migration and can be removed in a future version.
-	if len(providers) > 0 {
-		return &providers[0]
+	return nil
+}
+
+type VersionPredicate func(expirableVersion gardencorev1beta1.ExpirableVersion, version *semver.Version) (bool, error)
+
+// GetKubernetesVersionForPatchUpdate finds the latest Kubernetes patch version for its minor version in the <cloudProfile> compared
+// to the given <currentVersion>. Preview and expired versions do not qualify for the kubernetes patch update. In case it does not find a newer patch version, it returns false. Otherwise,
+// true and the found version will be returned.
+func GetKubernetesVersionForPatchUpdate(cloudProfile *gardencorev1beta1.CloudProfile, currentVersion string) (bool, string, error) {
+	currentSemVerVersion, err := semver.NewVersion(currentVersion)
+	if err != nil {
+		return false, "", err
+	}
+
+	qualifyingVersionFound, latestVersion, err := GetLatestQualifyingVersion(cloudProfile.Spec.Kubernetes.Versions, FilterDifferentMajorMinorVersion(*currentSemVerVersion), FilterSameVersion(*currentSemVerVersion), FilterExpiredVersion())
+	if err != nil {
+		return false, "", err
+	}
+	// latest version cannot be found. Do not return an error, but allow for minor upgrade if Shoot's machine image version is expired.
+	if !qualifyingVersionFound {
+		return false, "", nil
+	}
+
+	return true, latestVersion.Version, nil
+}
+
+// GetKubernetesVersionForMinorUpdate finds a Kubernetes version in the <cloudProfile> that qualifies for a Kubernetes minor level update given a <currentVersion>.
+// A qualifying version is a non-preview version having the minor version increased by exactly one version.
+// In case the consecutive minor version has only expired versions, picks the latest expired version (will do another minor update during the next maintenance time)
+// If a version can be found, returns true and the qualifying patch version of the next minor version.
+// In case it does not find a version, it returns false.
+func GetKubernetesVersionForMinorUpdate(cloudProfile *gardencorev1beta1.CloudProfile, currentVersion string) (bool, string, error) {
+	currentSemVerVersion, err := semver.NewVersion(currentVersion)
+	if err != nil {
+		return false, "", err
+	}
+
+	qualifyingVersionFound, latestVersion, err := GetLatestQualifyingVersion(cloudProfile.Spec.Kubernetes.Versions, FilterNonConsecutiveMinorVersion(*currentSemVerVersion), FilterSameVersion(*currentSemVerVersion), FilterExpiredVersion())
+	if err != nil {
+		return false, "", err
+	}
+	if !qualifyingVersionFound {
+		// in case there are only expired versions in the consecutive minor version, pick the latest expired version
+		qualifyingVersionFound, latestVersion, err = GetLatestQualifyingVersion(cloudProfile.Spec.Kubernetes.Versions, FilterNonConsecutiveMinorVersion(*currentSemVerVersion), FilterSameVersion(*currentSemVerVersion))
+		if err != nil {
+			return false, "", err
+		}
+		if !qualifyingVersionFound {
+			return false, "", nil
+		}
+	}
+
+	return true, latestVersion.Version, nil
+}
+
+// GetLatestQualifyingVersion returns the latest expirable version from a set of expirable versions
+// A version qualifies if its classification is not preview and the optional predicate does not filter out the version.
+// If the predicate returns true, the version is not considered for the latest qualifying version.
+func GetLatestQualifyingVersion(versions []gardencorev1beta1.ExpirableVersion, predicate ...VersionPredicate) (qualifyingVersionFound bool, latest *gardencorev1beta1.ExpirableVersion, err error) {
+	latestSemanticVersion := &semver.Version{}
+	var latestVersion *gardencorev1beta1.ExpirableVersion
+OUTER:
+	for _, v := range versions {
+		if v.Classification != nil && *v.Classification == gardencorev1beta1.ClassificationPreview {
+			continue
+		}
+
+		semver, err := semver.NewVersion(v.Version)
+		if err != nil {
+			return false, nil, fmt.Errorf("error while parsing version '%s': %s", v.Version, err.Error())
+		}
+
+		for _, p := range predicate {
+			if p == nil {
+				continue
+			}
+
+			shouldFilter, err := p(v, semver)
+			if err != nil {
+				return false, nil, fmt.Errorf("error while evaluation predicate: '%s'", err.Error())
+			}
+			if shouldFilter {
+				continue OUTER
+			}
+		}
+
+		if semver.GreaterThan(latestSemanticVersion) {
+			latestSemanticVersion = semver
+			// avoid DeepCopy
+			latest := v
+			latestVersion = &latest
+		}
+	}
+	// unable to find qualified versions
+	if latestVersion == nil {
+		return false, nil, nil
+	}
+	return true, latestVersion, nil
+}
+
+// FilterDifferentMajorMinorVersion returns a VersionPredicate(closure) that evaluates whether a given version v has a different same major.minor version compared to the currentSemVerVersion
+// returns true if v has a different major.minor version
+func FilterDifferentMajorMinorVersion(currentSemVerVersion semver.Version) VersionPredicate {
+	return func(_ gardencorev1beta1.ExpirableVersion, v *semver.Version) (bool, error) {
+		isWithinRange, err := versionutils.CompareVersions(v.String(), "~", currentSemVerVersion.String())
+		if err != nil {
+			return true, err
+		}
+		return !isWithinRange, nil
+	}
+}
+
+// FilterNonConsecutiveMinorVersion returns a VersionPredicate(closure) that evaluates whether a given version v has a consecutive minor version compared to the currentSemVerVersion
+// returns true if v does not have a consecutive minor version
+func FilterNonConsecutiveMinorVersion(currentSemVerVersion semver.Version) VersionPredicate {
+	return func(_ gardencorev1beta1.ExpirableVersion, v *semver.Version) (bool, error) {
+		isWithinRange, err := versionutils.CompareVersions(v.String(), "^", currentSemVerVersion.String())
+		if err != nil {
+			return true, err
+		}
+
+		if !isWithinRange {
+			return true, nil
+		}
+
+		hasIncorrectMinor := currentSemVerVersion.Minor()+1 != v.Minor()
+		return hasIncorrectMinor, nil
+	}
+}
+
+// FilterSameVersion returns a VersionPredicate(closure) that evaluates whether a given version v is equal to the currentSemVerVersion
+// returns true it it is equal
+func FilterSameVersion(currentSemVerVersion semver.Version) VersionPredicate {
+	return func(_ gardencorev1beta1.ExpirableVersion, v *semver.Version) (bool, error) {
+		return v.Equal(&currentSemVerVersion), nil
+	}
+}
+
+// FilterLowerVersion returns a VersionPredicate(closure) that evaluates whether a given version v is lower than the currentSemVerVersion
+// returns true if it is lower
+func FilterLowerVersion(currentSemVerVersion semver.Version) VersionPredicate {
+	return func(_ gardencorev1beta1.ExpirableVersion, v *semver.Version) (bool, error) {
+		return v.LessThan(&currentSemVerVersion), nil
+	}
+}
+
+// FilterExpiredVersion returns a closure that evaluates whether a given expirable version is expired
+// returns true it it is expired
+func FilterExpiredVersion() func(expirableVersion gardencorev1beta1.ExpirableVersion, version *semver.Version) (bool, error) {
+	return func(expirableVersion gardencorev1beta1.ExpirableVersion, _ *semver.Version) (bool, error) {
+		return expirableVersion.ExpirationDate != nil && (time.Now().UTC().After(expirableVersion.ExpirationDate.UTC()) || time.Now().UTC().Equal(expirableVersion.ExpirationDate.UTC())), nil
+	}
+}
+
+// GetResourceByName returns the first NamedResourceReference with the given name in the given slice, or nil if not found.
+func GetResourceByName(resources []gardencorev1beta1.NamedResourceReference, name string) *gardencorev1beta1.NamedResourceReference {
+	for _, resource := range resources {
+		if resource.Name == name {
+			return &resource
+		}
 	}
 	return nil
+}
+
+// UpsertLastError adds a 'last error' to the given list of existing 'last errors' if it does not exist yet. Otherwise,
+// it updates it.
+func UpsertLastError(lastErrors []gardencorev1beta1.LastError, lastError gardencorev1beta1.LastError) []gardencorev1beta1.LastError {
+	var (
+		out   []gardencorev1beta1.LastError
+		found bool
+	)
+
+	for _, lastErr := range lastErrors {
+		if lastErr.TaskID != nil && lastError.TaskID != nil && *lastErr.TaskID == *lastError.TaskID {
+			out = append(out, lastError)
+			found = true
+		} else {
+			out = append(out, lastErr)
+		}
+	}
+
+	if !found {
+		out = append(out, lastError)
+	}
+
+	return out
+}
+
+// DeleteLastErrorByTaskID removes the 'last error' with the given task ID from the given 'last error' list.
+func DeleteLastErrorByTaskID(lastErrors []gardencorev1beta1.LastError, taskID string) []gardencorev1beta1.LastError {
+	var out []gardencorev1beta1.LastError
+	for _, lastErr := range lastErrors {
+		if lastErr.TaskID == nil || taskID != *lastErr.TaskID {
+			out = append(out, lastErr)
+		}
+	}
+	return out
+}
+
+// ShootItems provides helper functions with ShootLists
+type ShootItems gardencorev1beta1.ShootList
+
+// Union returns a set of Shoots that presents either in s or shootList
+func (s *ShootItems) Union(shootItems *ShootItems) []gardencorev1beta1.Shoot {
+	unionedShoots := make(map[string]gardencorev1beta1.Shoot)
+	for _, s := range s.Items {
+		unionedShoots[objectKey(s.Namespace, s.Name)] = s
+	}
+
+	for _, s := range shootItems.Items {
+		unionedShoots[objectKey(s.Namespace, s.Name)] = s
+	}
+
+	shoots := make([]gardencorev1beta1.Shoot, 0, len(unionedShoots))
+	for _, v := range unionedShoots {
+		shoots = append(shoots, v)
+	}
+
+	return shoots
+}
+
+func objectKey(namesapce, name string) string {
+	return fmt.Sprintf("%s/%s", namesapce, name)
 }
