@@ -27,15 +27,17 @@ CRD_OPTIONS ?= "crd:trivialVersions=true"
 
 .PHONY: revendor
 revendor:
-	@env GO111MODULE=on go mod vendor
+	@cd $(REPO_ROOT)/api && go mod tidy
 	@env GO111MODULE=on go mod tidy
+	@env GO111MODULE=on go mod vendor
 	@chmod +x $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/*
+
 
 all: druid
 
 # Run tests
 test: fmt vet manifests
-	@env GO111MODULE=on go test ./api/... ./controllers/... -coverprofile cover.out
+	@env GO111MODULE=on go test ./api_tests/... ./controllers/... -coverprofile cover.out
 
 # Build manager binary
 druid: fmt vet
@@ -56,7 +58,8 @@ deploy: manifests
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role paths="./api/...;./controllers/..." output:crd:artifacts:config=config/crd/bases
+	cd $(REPO_ROOT)/api && $(CONTROLLER_GEN) $(CRD_OPTIONS) paths="./..." output:crd:artifacts:config=../config/crd/bases
+	$(CONTROLLER_GEN) rbac:roleName=manager-role paths="./controllers/..."
 
 # Run go fmt against code
 fmt:
@@ -69,7 +72,7 @@ vet:
 
 # Generate code
 generate: controller-gen
-	$(CONTROLLER_GEN) object:headerFile=./hack/boilerplate.go.txt paths=./api/...
+	cd $(REPO_ROOT)/api && $(CONTROLLER_GEN) object:headerFile=../hack/boilerplate.go.txt paths=./...
 
 # Build the docker image
 docker-build:
@@ -85,7 +88,7 @@ docker-push:
 # download controller-gen if necessary
 controller-gen:
 ifeq (, $(shell which controller-gen))
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.4
+	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.5
 CONTROLLER_GEN=$(shell go env GOPATH)/bin/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
