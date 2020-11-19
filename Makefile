@@ -35,7 +35,7 @@ all: druid
 
 # Run tests
 test: fmt vet manifests
-	@env GO111MODULE=on go test ./api/... ./controllers/... -coverprofile cover.out
+	.ci/test
 
 # Build manager binary
 druid: fmt vet
