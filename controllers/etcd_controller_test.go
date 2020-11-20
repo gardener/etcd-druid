@@ -17,11 +17,12 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"os"
+	"time"
+
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/ghodss/yaml"
-	"os"
-	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/utils"
@@ -85,8 +86,8 @@ var (
 	clientPort              int32 = 2379
 	serverPort              int32 = 2380
 	backupPort              int32 = 8080
-	imageEtcd                     = "quay.io/coreos/etcd:v3.3.13"
-	imageBR                       = "eu.gcr.io/gardener-project/gardener/etcdbrctl:0.8.0"
+	imageEtcd                     = "eu.gcr.io/gardener-project/gardener/etcd:v3.4.13"
+	imageBR                       = "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.11.1"
 	snapshotSchedule              = "0 */24 * * *"
 	defragSchedule                = "0 */24 * * *"
 	container                     = "default.bkp"
@@ -1616,11 +1617,11 @@ func createStatefulset(name, namespace string, labels map[string]string) *appsv1
 					Containers: []corev1.Container{
 						{
 							Name:  "etcd",
-							Image: "quay.io/coreos/etcd:v3.3.13",
+							Image: "eu.gcr.io/gardener-project/gardener/etcd:v3.4.13",
 						},
 						{
 							Name:  "backup-restore",
-							Image: "quay.io/coreos/etcd:v3.3.17",
+							Image: "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.11.1",
 						},
 					},
 				},
@@ -1668,11 +1669,11 @@ func createPod(name, namespace string, labels map[string]string) *corev1.Pod {
 			Containers: []corev1.Container{
 				{
 					Name:  "etcd",
-					Image: "quay.io/coreos/etcd:v3.3.17",
+					Image: "eu.gcr.io/gardener-project/gardener/etcd:v3.4.13",
 				},
 				{
 					Name:  "backup-restore",
-					Image: "quay.io/coreos/etcd:v3.3.17",
+					Image: "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.11.1",
 				},
 			},
 		},

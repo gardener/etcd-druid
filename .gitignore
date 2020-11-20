@@ -6,6 +6,7 @@
 
 *.coverprofile
 /cover.out
+*coverprofile.out
 *.html
 .vscode
 .idea

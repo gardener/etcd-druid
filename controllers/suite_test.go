@@ -110,7 +110,7 @@ var _ = BeforeSuite(func(done Done) {
 var _ = AfterSuite(func() {
 	close(stopMgr)
 	mgrStopped.Wait()
-
+	Expect(testEnv.Stop()).To(Succeed())
 })
 
 func startTestManager(mgr manager.Manager) (chan struct{}, *sync.WaitGroup) {

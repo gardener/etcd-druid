@@ -51,7 +51,8 @@ spec:
     fullSnapshotSchedule: 0 */24 * * *
     garbageCollectionPeriod: 43200s
     garbageCollectionPolicy: Exponential
-    Version: 0.8.0-dev
+    imageRepository: eu.gcr.io/gardener-project/gardener/etcdbrctl
+    imageVersion: v0.11.1
     port: 8080
     resources:
       limits:
@@ -66,8 +67,8 @@ spec:
     clientPort: 2379
     defragmentationSchedule: 0 */24 * * *
     enableTLS: false
-    imageRepository: quay.io/coreos/etcd
-    imageVersion: v3.3.13
+    imageRepository: eu.gcr.io/gardener-project/gardener/etcd
+    imageVersion: v3.4.13
     initialClusterState: new
     initialClusterToken: new
     metrics: basic

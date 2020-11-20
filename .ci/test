@@ -16,10 +16,18 @@ set -ex
 
 # For the test step concourse will set the following environment variables:
 # SOURCE_PATH - path to component repository root directory.
-if [[ -z "${SOURCE_PATH}" ]]; then
-  export SOURCE_PATH="$(readlink -f "$(dirname ${0})/..")"
+if [[ $(uname) == 'Darwin' ]]; then
+  READLINK_BIN="greadlink"
+  SED_BIN="gsed"
 else
-  export SOURCE_PATH="$(readlink -f "${SOURCE_PATH}")"
+  READLINK_BIN="readlink"
+  SED_BIN="sed"
+fi
+
+if [[ -z "${SOURCE_PATH}" ]]; then
+  export SOURCE_PATH="$(${READLINK_BIN} -f "$(dirname ${0})/..")"
+else
+  export SOURCE_PATH="$(${READLINK_BIN} -f "${SOURCE_PATH}")"
 fi
 
 VCS="github.com"
@@ -47,19 +55,90 @@ fi
 # Install Ginkgo (test framework) to be able to execute the tests.
 GO111MODULE=off go get github.com/onsi/ginkgo/ginkgo
 
+tmp_root=/tmp
+kb_root_dir=$tmp_root/kubebuilder
+ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION:-"1.19.2"}
+
+# Turn colors in this script off by setting the NO_COLOR variable in your
+# environment to any value:
+#
+# $ NO_COLOR=1 test.sh
+NO_COLOR=${NO_COLOR:-""}
+if [ -z "$NO_COLOR" ]; then
+  header=$'\e[1;33m'
+  reset=$'\e[0m'
+else
+  header=''
+  reset=''
+fi
+
+function header_text {
+  echo "$header$*$reset"
+}
+
+# fetch k8s API gen tools and make it available under envtest_root_dir/bin.
+#
+# Skip fetching and untaring the tools by setting the SKIP_FETCH_TOOLS variable
+# in your environment to any value:
+#
+# $ SKIP_FETCH_TOOLS=1 ./check-everything.sh
+#
+# If you skip fetching tools, this script will use the tools already on your
+# machine.
+function fetch_envtest_tools {
+  SKIP_FETCH_TOOLS=${SKIP_FETCH_TOOLS:-""}
+  if [ -n "$SKIP_FETCH_TOOLS" ]; then
+    return 0
+  fi
+
+  tmp_root=/tmp
+  envtest_root_dir=$tmp_root/envtest
+
+  k8s_version="${ENVTEST_K8S_VERSION:-1.19.2}"
+  goarch="$(go env GOARCH)"
+  goos="$(go env GOOS)"
+
+  if [[ "$goos" != "linux" && "$goos" != "darwin" ]]; then
+    echo "OS '$goos' not supported. Aborting." >&2
+    return 1
+  fi
+
+  local dest_dir="${1}"
+
+  # use the pre-existing version in the temporary folder if it matches our k8s version
+  if [[ -x "${dest_dir}/bin/kube-apiserver" ]]; then
+    version=$("${dest_dir}"/bin/kube-apiserver --version)
+    if [[ $version == *"${k8s_version}"* ]]; then
+      header_text "Using cached envtest tools from ${dest_dir}"
+      return 0
+    fi
+  fi
+
+  header_text "fetching envtest tools@${k8s_version} (into '${dest_dir}')"
+  envtest_tools_archive_name="kubebuilder-tools-$k8s_version-$goos-$goarch.tar.gz"
+  envtest_tools_download_url="https://storage.googleapis.com/kubebuilder-tools/$envtest_tools_archive_name"
+
+  envtest_tools_archive_path="$tmp_root/$envtest_tools_archive_name"
+  if [ ! -f $envtest_tools_archive_path ]; then
+    curl -sL ${envtest_tools_download_url} -o "$envtest_tools_archive_path"
+  fi
+
+  mkdir -p "${dest_dir}"
+  tar -C "${dest_dir}" --strip-components=1 -zvxf "$envtest_tools_archive_path"
+}
+
 ###############################################################################
 
-# Install Kubebuilder test dependencies
-OS=$(go env GOOS)
-ARCH=$(go env GOARCH)
+function setup_envtest_env {
+  header_text "setting up env vars"
 
-# download kubebuilder and extract it to tmp
-curl -sL https://go.kubebuilder.io/dl/2.2.0/${OS}/${ARCH} | tar -xz -C /tmp/
-
-# move to a long-term location and put it on your path
-# (you'll need to set the KUBEBUILDER_ASSETS env var if you put it somewhere else)
-mv /tmp/kubebuilder_2.2.0_${OS}_${ARCH} /usr/local/kubebuilder
-export PATH=$PATH:/usr/local/kubebuilder/bin
+  # Setup env vars
+  KUBEBUILDER_ASSETS=${KUBEBUILDER_ASSETS:-""}
+  if [[ -z "${KUBEBUILDER_ASSETS}" ]]; then
+    export KUBEBUILDER_ASSETS=$1/bin
+  fi
+  echo "KUBEBUILDER_ASSETS = $KUBEBUILDER_ASSETS"
+}
 
 ###############################################################################
 
@@ -69,13 +148,16 @@ function test_with_coverage() {
   local coverprofile_file=coverprofile.out
   mkdir -p test/output
   ginkgo $GINKGO_COMMON_FLAGS --coverprofile ${coverprofile_file} -covermode=set -outputdir ${output_dir} ${TEST_PACKAGES}
-  sed -i '/mode: set/d' ${output_dir}/${coverprofile_file}
+  ${SED_BIN} -i '/mode: set/d' ${output_dir}/${coverprofile_file}
   {( echo "mode: set"; cat ${output_dir}/${coverprofile_file} )} > ${output_dir}/${coverprofile_file}.temp
   mv ${output_dir}/${coverprofile_file}.temp ${output_dir}/${coverprofile_file} 
   go tool cover -func ${output_dir}/${coverprofile_file}
 }
 
 ################################################################################
+
+fetch_envtest_tools "$kb_root_dir"
+setup_envtest_env "$kb_root_dir"
 
 TEST_PACKAGES="api controllers"
 GINKGO_COMMON_FLAGS="-r -timeout=1h0m0s --randomizeAllSpecs --randomizeSuites --failOnPending --progress"
