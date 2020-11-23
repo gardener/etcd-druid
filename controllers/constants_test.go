@@ -18,7 +18,7 @@ const (
 	scriptWithTLS = `#!/bin/sh
 VALIDATION_MARKER=/var/etcd/data/validation_marker
 # Add self-signed CA to list of root CA-certificates
-cat /var/etcd/ssl/ca/ca.crt >> /etc/ssl/cert.pem
+cat /var/etcd/ssl/ca/ca.crt >> /etc/ssl/certs/ca-certificates.crt
 if [ $? -ne 0 ]
 then
   echo "failed to update root certificate list"
