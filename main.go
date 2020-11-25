@@ -96,6 +96,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	custodian := controllers.NewEtcdCustodian(mgr)
+
+	err = custodian.SetupWithManager(mgr, workers)
+	if err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Etcd Custodian")
+		os.Exit(1)
+	}
+
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")

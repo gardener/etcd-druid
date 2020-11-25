@@ -33,7 +33,6 @@ import (
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
-	"github.com/gardener/gardener/pkg/utils/kubernetes/health"
 	gardenerretry "github.com/gardener/gardener/pkg/utils/retry"
 
 	"github.com/sirupsen/logrus"
@@ -238,6 +237,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 	svc, ss, err := r.reconcileEtcd(ctx, etcd)
 	if err != nil {
 		if err := r.updateEtcdErrorStatus(ctx, etcd, ss, err); err != nil {
+			logger.Errorf("Error during reconciling ETCD in ETCD controller: %v", err)
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -556,25 +556,33 @@ func (r *EtcdReconciler) getConfigMapFromEtcd(etcd *druidv1alpha1.Etcd, rendered
 
 func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, cm *corev1.ConfigMap, svc *corev1.Service, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*appsv1.StatefulSet, error) {
 	logger.Infof("Reconciling etcd statefulset for etcd:%s in namespace:%s", etcd.Name, etcd.Namespace)
+
+	// If any adoptions are attempted, we should first recheck for deletion with
+	// an uncached quorum read sometime after listing Machines (see #42639).
+	canAdoptFunc := RecheckDeletionTimestamp(func() (metav1.Object, error) {
+		foundEtcd := &druidv1alpha1.Etcd{}
+		err := r.Get(context.TODO(), types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)
+		if err != nil {
+			return nil, err
+		}
+
+		if foundEtcd.GetDeletionTimestamp() != nil {
+			return nil, fmt.Errorf("%v/%v etcd is marked for deletion", etcd.Namespace, etcd.Name)
+		}
+
+		if foundEtcd.UID != etcd.UID {
+			return nil, fmt.Errorf("original %v/%v etcd gone: got uid %v, wanted %v", etcd.Namespace, etcd.Name, foundEtcd.UID, etcd.UID)
+		}
+		return foundEtcd, nil
+	})
+
 	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 	if err != nil {
 		logger.Error(err, "Error converting etcd selector to selector")
 		return nil, err
 	}
-
-	// list all statefulsets to include the statefulsets that don't match the etcd`s selector
-	// anymore but has the stale controller ref.
-	statefulSets := &appsv1.StatefulSetList{}
-	err = r.List(ctx, statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
-	if err != nil {
-		logger.Error(err, "Error listing statefulsets")
-		return nil, err
-	}
-
-	// NOTE: filteredStatefulSets are pointing to deepcopies of the cache, but this could change in the future.
-	// Ref: https://github.com/kubernetes-sigs/controller-runtime/blob/release-0.2/pkg/cache/internal/cache_reader.go#L74
-	// if you need to modify them, you need to copy it first.
-	filteredStatefulSets, err := r.claimStatefulSets(ctx, etcd, selector, statefulSets)
+	dm := NewEtcdDruidRefManager(r.Client, r.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
+	filteredStatefulSets, err := dm.FetchStatefulSet(etcd)
 	if err != nil {
 		return nil, err
 	}
@@ -591,7 +599,7 @@ func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, cm *corev1.Co
 			}
 		}
 
-		// Return the updated statefulset
+		// Fetch the updated statefulset
 		ss := &appsv1.StatefulSet{}
 		if err := r.Get(ctx, types.NamespacedName{Name: filteredStatefulSets[0].Name, Namespace: filteredStatefulSets[0].Namespace}, ss); err != nil {
 			return nil, err
@@ -622,7 +630,7 @@ func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, cm *corev1.Co
 			}
 		}
 
-		return r.waitUntilStatefulSetReady(ctx, ss)
+		return r.waitUntilStatefulSetReady(ctx, etcd, ss)
 	}
 
 	// Required statefulset doesn't exist. Create new
@@ -643,7 +651,7 @@ func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, cm *corev1.Co
 		return nil, err
 	}
 
-	return r.waitUntilStatefulSetReady(ctx, ss)
+	return r.waitUntilStatefulSetReady(ctx, etcd, ss)
 }
 
 func getContainerMapFromPodTemplateSpec(spec v1.PodSpec) map[string]v1.Container {
@@ -1088,11 +1096,16 @@ func canDeleteStatefulset(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) boo
 }
 
 func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
+	if err := r.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, etcd); err != nil {
+		logger.Errorf("Error during fetching ETCD resource in ETCD controller: %v", err)
+		return err
+	}
+
 	lastErrStr := fmt.Sprintf("%v", lastError)
 	etcd.Status.LastError = &lastErrStr
 	etcd.Status.ObservedGeneration = &etcd.Generation
 	if sts != nil {
-		ready := health.CheckStatefulSet(sts) == nil
+		ready := CheckStatefulSet(etcd, sts) == nil
 		etcd.Status.Ready = &ready
 	}
 
@@ -1103,28 +1116,17 @@ func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv
 }
 
 func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, svc *corev1.Service, sts *appsv1.StatefulSet) error {
+	if err := r.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, etcd); err != nil {
+		logger.Errorf("Error during fetching ETCD resource in ETCD controller: %v", err)
+		return err
+	}
 
+	ready := CheckStatefulSet(etcd, sts) == nil
+	etcd.Status.Ready = &ready
 	svcName := svc.Name
-	etcd.Status.Etcd = druidv1alpha1.CrossVersionObjectReference{
-		APIVersion: sts.APIVersion,
-		Kind:       sts.Kind,
-		Name:       sts.Name,
-	}
-	ready := health.CheckStatefulSet(sts) == nil
-	conditions := []druidv1alpha1.Condition{}
-	for _, condition := range sts.Status.Conditions {
-		conditions = append(conditions, convertConditionsToEtcd(&condition))
-	}
-	etcd.Status.Conditions = conditions
-
-	// To be changed once we have multiple replicas.
-	etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
-	etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
-	etcd.Status.UpdatedReplicas = sts.Status.UpdatedReplicas
 	etcd.Status.ServiceName = &svcName
 	etcd.Status.LastError = nil
 	etcd.Status.ObservedGeneration = &etcd.Generation
-	etcd.Status.Ready = &ready
 
 	if err := r.Status().Update(ctx, etcd); err != nil && !apierrors.IsNotFound(err) {
 		return err
@@ -1132,7 +1134,7 @@ func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alph
 	return r.removeOperationAnnotation(ctx, etcd)
 }
 
-func (r *EtcdReconciler) waitUntilStatefulSetReady(ctx context.Context, sts *appsv1.StatefulSet) (*appsv1.StatefulSet, error) {
+func (r *EtcdReconciler) waitUntilStatefulSetReady(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) (*appsv1.StatefulSet, error) {
 	var (
 		ss = &appsv1.StatefulSet{}
 	)
@@ -1144,7 +1146,7 @@ func (r *EtcdReconciler) waitUntilStatefulSetReady(ctx context.Context, sts *app
 			}
 			return gardenerretry.SevereError(err)
 		}
-		if err := health.CheckStatefulSet(ss); err != nil {
+		if err := CheckStatefulSet(etcd, ss); err != nil {
 			return gardenerretry.MinorError(err)
 		}
 		return gardenerretry.Ok()
@@ -1220,24 +1222,6 @@ func convertConditionsToEtcd(condition *appsv1.StatefulSetCondition) druidv1alph
 	}
 }
 
-func (r *EtcdReconciler) claimStatefulSets(ctx context.Context, etcd *druidv1alpha1.Etcd, selector labels.Selector, ss *appsv1.StatefulSetList) ([]*appsv1.StatefulSet, error) {
-	// If any adoptions are attempted, we should first recheck for deletion with
-	// an uncached quorum read sometime after listing Machines (see #42639).
-	canAdoptFunc := RecheckDeletionTimestamp(func() (metav1.Object, error) {
-		foundEtcd := &druidv1alpha1.Etcd{}
-		err := r.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)
-		if err != nil {
-			return nil, err
-		}
-		if foundEtcd.UID != etcd.UID {
-			return nil, fmt.Errorf("original %v/%v hvpa gone: got uid %v, wanted %v", etcd.Namespace, etcd.Name, foundEtcd.UID, etcd.UID)
-		}
-		return foundEtcd, nil
-	})
-	cm := NewEtcdDruidRefManager(r, etcd, selector, etcdGVK, canAdoptFunc)
-	return cm.ClaimStatefulsets(ss)
-}
-
 func (r *EtcdReconciler) claimServices(ctx context.Context, etcd *druidv1alpha1.Etcd, selector labels.Selector, ss *corev1.ServiceList) ([]*corev1.Service, error) {
 	// If any adoptions are attempted, we should first recheck for deletion with
 	// an uncached quorum read sometime after listing Machines (see #42639).
@@ -1252,7 +1236,7 @@ func (r *EtcdReconciler) claimServices(ctx context.Context, etcd *druidv1alpha1.
 		}
 		return foundEtcd, nil
 	})
-	cm := NewEtcdDruidRefManager(r, etcd, selector, etcdGVK, canAdoptFunc)
+	cm := NewEtcdDruidRefManager(r.Client, r.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
 	return cm.ClaimServices(ss)
 }
 
@@ -1270,7 +1254,7 @@ func (r *EtcdReconciler) claimConfigMaps(ctx context.Context, etcd *druidv1alpha
 		}
 		return foundEtcd, nil
 	})
-	cm := NewEtcdDruidRefManager(r, etcd, selector, etcdGVK, canAdoptFunc)
+	cm := NewEtcdDruidRefManager(r.Client, r.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
 	return cm.ClaimConfigMaps(ss)
 }
 
