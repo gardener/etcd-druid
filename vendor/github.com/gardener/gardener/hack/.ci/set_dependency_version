@@ -108,9 +108,7 @@ elif name == 'vpn':
 elif name == 'external-dns-management':
     names = ['dns-controller-manager']
 elif name == 'logging':
-    names = ['fluentd-es', 'curator-es']
-elif name == 'etcd-custom-image':
-    names = ['etcd']
+    names = ['fluent-bit-plugin-installer']
 else:
     names = [name]
 

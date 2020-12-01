@@ -16,8 +16,11 @@ package v1alpha1
 
 import (
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+
+	dnsv1alpha1 "github.com/gardener/external-dns-management/pkg/apis/dns/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // Status is the status of an Object.
@@ -31,40 +34,21 @@ type Status interface {
 	SetConditions([]gardencorev1beta1.Condition)
 	// GetLastOperation retrieves the LastOperation of a status.
 	// LastOperation may be nil.
-	GetLastOperation() LastOperation
+	GetLastOperation() *gardencorev1beta1.LastOperation
 	// GetObservedGeneration retrieves the last generation observed by the extension controller.
 	GetObservedGeneration() int64
 	// GetLastError retrieves the LastError of a status.
 	// LastError may be nil.
-	GetLastError() LastError
+	GetLastError() *gardencorev1beta1.LastError
 	// GetState retrieves the State of the extension
 	GetState() *runtime.RawExtension
-}
-
-// LastOperation is the last operation on an object.
-type LastOperation interface {
-	// GetDescription returns the description of the last operation.
-	GetDescription() string
-	// GetLastUpdateTime returns the last update time of the last operation.
-	GetLastUpdateTime() metav1.Time
-	// GetProgress returns progress of the last operation.
-	GetProgress() int32
-	// GetState returns the LastOperationState of the last operation.
-	GetState() gardencorev1beta1.LastOperationState
-	// GetType returns the LastOperationType of the last operation.
-	GetType() gardencorev1beta1.LastOperationType
-}
-
-// LastError is the last error on an object.
-type LastError interface {
-	// GetDescription gets the description of the last occurred error.
-	GetDescription() string
-	// GetTaskID gets the task ID of the last error.
-	GetTaskID() *string
-	// GetCodes gets the error codes of the last error.
-	GetCodes() []gardencorev1beta1.ErrorCode
-	// GetLastUpdateTime retrieves the last time the error was updated.
-	GetLastUpdateTime() *metav1.Time
+	// SetState sets the State of the extension
+	SetState(state *runtime.RawExtension)
+	// GetResources retrieves the list of named resource references referred to in the State by their names.
+	GetResources() []gardencorev1beta1.NamedResourceReference
+	// SetResources sets a list of named resource references in the Status, that are referred by
+	// their names in the State.
+	SetResources(namedResourceReferences []gardencorev1beta1.NamedResourceReference)
 }
 
 // Spec is the spec section of an Object.
@@ -80,8 +64,24 @@ type Spec interface {
 // Object is an extension object resource.
 type Object interface {
 	metav1.Object
-	// GetExtensionStatus retrieves the object's status.
-	GetExtensionStatus() Status
+	runtime.Object
+
 	// GetExtensionSpec retrieves the object's spec.
 	GetExtensionSpec() Spec
+	// GetExtensionStatus retrieves the object's status.
+	GetExtensionStatus() Status
 }
+
+// ExtensionKinds contains all supported extension kinds.
+var ExtensionKinds = sets.NewString(
+	BackupBucketResource,
+	BackupEntryResource,
+	ContainerRuntimeResource,
+	ControlPlaneResource,
+	dnsv1alpha1.DNSProviderKind,
+	ExtensionResource,
+	InfrastructureResource,
+	NetworkResource,
+	OperatingSystemConfigResource,
+	WorkerResource,
+)

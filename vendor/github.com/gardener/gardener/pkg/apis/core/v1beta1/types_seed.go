@@ -18,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // +genclient
@@ -71,6 +72,9 @@ type SeedSpec struct {
 	// Volume contains settings for persistentvolumes created in the seed cluster.
 	// +optional
 	Volume *SeedVolume `json:"volume,omitempty" protobuf:"bytes,7,opt,name=volume"`
+	// Settings contains certain settings for this seed cluster.
+	// +optional
+	Settings *SeedSettings `json:"settings,omitempty" protobuf:"bytes,8,opt,name=settings"`
 }
 
 // SeedStatus is the status of a Seed.
@@ -90,6 +94,16 @@ type SeedStatus struct {
 	// Seed's generation, which is updated on mutation by the API Server.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty" protobuf:"varint,4,opt,name=observedGeneration"`
+	// ClusterIdentity is the identity of the Seed cluster
+	// +optional
+	ClusterIdentity *string `json:"clusterIdentity,omitempty" protobuf:"bytes,5,opt,name=clusterIdentity"`
+	// Capacity represents the total resources of a seed.
+	// +optional
+	Capacity corev1.ResourceList `json:"capacity,omitempty" protobuf:"bytes,6,rep,name=capacity"`
+	// Allocatable represents the resources of a seed that are available for scheduling.
+	// Defaults to Capacity.
+	// +optional
+	Allocatable corev1.ResourceList `json:"allocatable,omitempty" protobuf:"bytes,7,rep,name=allocatable"`
 }
 
 // SeedBackup contains the object store configuration for backups for shoot (currently only etcd).
@@ -98,7 +112,7 @@ type SeedBackup struct {
 	Provider string `json:"provider" protobuf:"bytes,1,opt,name=provider"`
 	// ProviderConfig is the configuration passed to BackupBucket resource.
 	// +optional
-	ProviderConfig *ProviderConfig `json:"providerConfig,omitempty" protobuf:"bytes,2,opt,name=providerConfig"`
+	ProviderConfig *runtime.RawExtension `json:"providerConfig,omitempty" protobuf:"bytes,2,opt,name=providerConfig"`
 	// Region is a region name.
 	// +optional
 	Region *string `json:"region,omitempty" protobuf:"bytes,3,opt,name=region"`
@@ -149,9 +163,69 @@ type SeedProvider struct {
 	Type string `json:"type" protobuf:"bytes,1,opt,name=type"`
 	// ProviderConfig is the configuration passed to Seed resource.
 	// +optional
-	ProviderConfig *ProviderConfig `json:"providerConfig,omitempty" protobuf:"bytes,2,opt,name=providerConfig"`
+	ProviderConfig *runtime.RawExtension `json:"providerConfig,omitempty" protobuf:"bytes,2,opt,name=providerConfig"`
 	// Region is a name of a region.
 	Region string `json:"region" protobuf:"bytes,3,opt,name=region"`
+}
+
+// SeedSettings contains certain settings for this seed cluster.
+type SeedSettings struct {
+	// ExcessCapacityReservation controls the excess capacity reservation for shoot control planes in the seed.
+	// +optional
+	ExcessCapacityReservation *SeedSettingExcessCapacityReservation `json:"excessCapacityReservation,omitempty" protobuf:"bytes,1,opt,name=excessCapacityReservation"`
+	// Scheduling controls settings for scheduling decisions for the seed.
+	// +optional
+	Scheduling *SeedSettingScheduling `json:"scheduling,omitempty" protobuf:"bytes,2,opt,name=scheduling"`
+	// ShootDNS controls the shoot DNS settings for the seed.
+	// +optional
+	ShootDNS *SeedSettingShootDNS `json:"shootDNS,omitempty" protobuf:"bytes,3,opt,name=shootDNS"`
+	// LoadBalancerServices controls certain settings for services of type load balancer that are created in the
+	// seed.
+	// +optional
+	LoadBalancerServices *SeedSettingLoadBalancerServices `json:"loadBalancerServices,omitempty" protobuf:"bytes,4,opt,name=loadBalancerServices"`
+	// VerticalPodAutoscaler controls certain settings for the vertical pod autoscaler components deployed in the seed.
+	// +optional
+	VerticalPodAutoscaler *SeedSettingVerticalPodAutoscaler `json:"verticalPodAutoscaler,omitempty" protobuf:"bytes,5,opt,name=verticalPodAutoscaler"`
+}
+
+// SeedSettingExcessCapacityReservation controls the excess capacity reservation for shoot control planes in the
+// seed. When enabled then this is done via PodPriority and requires the Seed cluster to have Kubernetes version 1.11
+// or the PodPriority feature gate as well as the scheduling.k8s.io/v1alpha1 API group enabled.
+type SeedSettingExcessCapacityReservation struct {
+	// Enabled controls whether the excess capacity reservation should be enabled.
+	Enabled bool `json:"enabled" protobuf:"bytes,1,opt,name=enabled"`
+}
+
+// SeedSettingShootDNS controls the shoot DNS settings for the seed.
+type SeedSettingShootDNS struct {
+	// Enabled controls whether the DNS for shoot clusters should be enabled. When disabled then all shoots using the
+	// seed won't get any DNS providers, DNS records, and no DNS extension controller is required to be installed here.
+	// This is useful for environments where DNS is not required.
+	Enabled bool `json:"enabled" protobuf:"bytes,1,opt,name=enabled"`
+}
+
+// SeedSettingScheduling controls settings for scheduling decisions for the seed.
+type SeedSettingScheduling struct {
+	// Visible controls whether the gardener-scheduler shall consider this seed when scheduling shoots. Invisible seeds
+	// are not considered by the scheduler.
+	Visible bool `json:"visible" protobuf:"bytes,1,opt,name=visible"`
+}
+
+// SeedSettingLoadBalancerServices controls certain settings for services of type load balancer that are created in the
+// seed.
+type SeedSettingLoadBalancerServices struct {
+	// Annotations is a map of annotations that will be injected/merged into every load balancer service object.
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty" protobuf:"bytes,1,rep,name=annotations"`
+}
+
+// SeedSettingVerticalPodAutoscaler controls certain settings for the vertical pod autoscaler components deployed in the
+// seed.
+type SeedSettingVerticalPodAutoscaler struct {
+	// Enabled controls whether the VPA components shall be deployed into the garden namespace in the seed cluster. It
+	// is enabled by default because Gardener heavily relies on a VPA being deployed. You should only disable this if
+	// your seed cluster already has another, manually/custom managed VPA deployment.
+	Enabled bool `json:"enabled" protobuf:"bytes,1,opt,name=enabled"`
 }
 
 // SeedTaint describes a taint on a seed.
@@ -164,20 +238,9 @@ type SeedTaint struct {
 }
 
 const (
-	// SeedTaintDisableDNS is a constant for a taint key on a seed that marks it for disabling DNS. All shoots
-	// using this seed won't get any DNS providers, DNS records, and no DNS extension controller is required to
-	// be installed here. This is useful for environment where DNS is not required.
-	SeedTaintDisableDNS = "seed.gardener.cloud/disable-dns"
 	// SeedTaintProtected is a constant for a taint key on a seed that marks it as protected. Protected seeds
 	// may only be used by shoots in the `garden` namespace.
 	SeedTaintProtected = "seed.gardener.cloud/protected"
-	// SeedTaintInvisible is a constant for a taint key on a seed that marks it as invisible. Invisible seeds
-	// are not considered by the gardener-scheduler.
-	SeedTaintInvisible = "seed.gardener.cloud/invisible"
-	// SeedTaintDisableCapacityReservation is a constant for a taint key on a seed that marks it for disabling
-	// excess capacity reservation. This can be useful for seed clusters which only host shooted seeds to reduce
-	// costs.
-	SeedTaintDisableCapacityReservation = "seed.gardener.cloud/disable-capacity-reservation"
 )
 
 // SeedVolume contains settings for persistentvolumes created in the seed cluster.
@@ -208,4 +271,10 @@ const (
 	SeedExtensionsReady ConditionType = "ExtensionsReady"
 	// SeedGardenletReady is a constant for a condition type indicating that the Gardenlet is ready.
 	SeedGardenletReady ConditionType = "GardenletReady"
+)
+
+// Resource constants for Gardener object types
+const (
+	// ResourceShoots is a resource constant for the number of shoots.
+	ResourceShoots corev1.ResourceName = "shoots"
 )
