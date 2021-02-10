@@ -35,7 +35,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -364,7 +363,7 @@ func (m *EtcdDruidRefManager) AdoptResource(obj metav1.Object) error {
 		return fmt.Errorf("cannot adopt resource: %s", objType)
 	}
 
-	return m.reconciler.Patch(context.TODO(), clone.(runtime.Object), client.MergeFrom(obj.(runtime.Object)))
+	return m.reconciler.Patch(context.TODO(), clone.(client.Object), client.MergeFrom(obj.(client.Object)))
 }
 
 // ReleaseResource sends a patch to free the resource from the control of the controller.
@@ -389,7 +388,7 @@ func (m *EtcdDruidRefManager) ReleaseResource(obj metav1.Object) error {
 
 	m.disown(clone)
 
-	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), clone.(runtime.Object), client.MergeFrom(obj.(runtime.Object))))
+	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), clone.(client.Object), client.MergeFrom(obj.(client.Object))))
 	if errors.IsInvalid(err) {
 		// Invalid error will be returned in two cases: 1. the etcd
 		// has no owner reference, 2. the uid of the etcd doesn't

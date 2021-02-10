@@ -17,6 +17,7 @@ package core
 import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // +genclient
@@ -55,17 +56,33 @@ type CloudProfileSpec struct {
 	// MachineTypes contains constraints regarding allowed values for machine types in the 'workers' block in the Shoot specification.
 	MachineTypes []MachineType
 	// ProviderConfig contains provider-specific configuration for the profile.
-	ProviderConfig *ProviderConfig
+	ProviderConfig *runtime.RawExtension
 	// Regions contains constraints regarding allowed values for regions and zones.
 	Regions []Region
 	// SeedSelector contains an optional list of labels on `Seed` resources that marks those seeds whose shoots may use this provider profile.
 	// An empty list means that all seeds of the same provider type are supported.
 	// This is useful for environments that are of the same type (like openstack) but may have different "instances"/landscapes.
-	SeedSelector *metav1.LabelSelector
+	// Optionally a list of possible providers can be added to enable cross-provider scheduling. By default, the provider
+	// type of the seed must match the shoot's provider.
+	SeedSelector *SeedSelector
 	// Type is the name of the provider.
 	Type string
 	// VolumeTypes contains constraints regarding allowed values for volume types in the 'workers' block in the Shoot specification.
 	VolumeTypes []VolumeType
+}
+
+func (c *CloudProfile) GetProviderType() string {
+	return c.Spec.Type
+}
+
+// SeedSelector contains constraints for selecting seed to be usable for shoots using a profile
+type SeedSelector struct {
+	// LabelSelector is optional and can be used to select seeds by their label settings
+	*metav1.LabelSelector
+	// ProviderTypes contains a list of allowed provider types used by the Gardener scheduler to restricting seeds by
+	// their provider type and enable cross-provider scheduling.
+	// By default, Shoots are only scheduled on Seeds having the same provider type.
+	ProviderTypes []string
 }
 
 // KubernetesSettings contains constraints regarding allowed values of the 'kubernetes' block in the Shoot specification.
@@ -78,8 +95,15 @@ type KubernetesSettings struct {
 type MachineImage struct {
 	// Name is the name of the image.
 	Name string
-	// Versions contains versions and expiration dates of the machine image
-	Versions []ExpirableVersion
+	// Versions contains versions, expiration dates and container runtimes of the machine image
+	Versions []MachineImageVersion
+}
+
+// MachineImageVersion is an expirable version with list of supported container runtimes and interfaces
+type MachineImageVersion struct {
+	ExpirableVersion
+	// CRI list of supported container runtime and interfaces supported by this version
+	CRI []CRI
 }
 
 // ExpirableVersion contains a version and an expiration date.
@@ -124,6 +148,10 @@ type Region struct {
 	Name string
 	// Zones is a list of availability zones in this region.
 	Zones []AvailabilityZone
+	// Labels is an optional set of key-value pairs that contain certain administrator-controlled labels for this region.
+	// It can be used by Gardener administrators/operators to provide additional information about a region, e.g. wrt
+	// quality, reliability, access restrictions, etc.
+	Labels map[string]string
 }
 
 // AvailabilityZone is an availability zone.
