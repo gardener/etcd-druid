@@ -16,7 +16,6 @@ package v1beta1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 const (
@@ -25,22 +24,6 @@ const (
 	// EventSchedulingFailed is an event reason for failed scheduling.
 	EventSchedulingFailed = "SchedulingFailed"
 )
-
-// ProviderConfig is a workaround for missing OpenAPI functions on runtime.RawExtension struct.
-// https://github.com/kubernetes/kubernetes/issues/55890
-// https://github.com/kubernetes-sigs/cluster-api/issues/137
-type ProviderConfig struct {
-	runtime.RawExtension `json:",inline" protobuf:"bytes,1,opt,name=rawExtension"`
-}
-
-// OpenAPISchemaType is used by the kube-openapi generator when constructing
-// the OpenAPI spec of this type.
-// See: https://github.com/kubernetes/kube-openapi/tree/master/pkg/generators
-func (ProviderConfig) OpenAPISchemaType() []string { return []string{"object"} }
-
-// OpenAPISchemaFormat is used by the kube-openapi generator when constructing
-// the OpenAPI spec of this type.
-func (ProviderConfig) OpenAPISchemaFormat() string { return "" }
 
 // ConditionStatus is the status of a condition.
 type ConditionStatus string
@@ -62,6 +45,9 @@ type Condition struct {
 	Reason string `json:"reason" protobuf:"bytes,5,opt,name=reason"`
 	// A human readable message indicating details about the transition.
 	Message string `json:"message" protobuf:"bytes,6,opt,name=message"`
+	// Well-defined error codes in case the condition reports a problem.
+	// +optional
+	Codes []ErrorCode `json:"codes,omitempty" protobuf:"bytes,7,rep,name=codes,casttype=ErrorCode"`
 }
 
 const (
@@ -77,4 +63,10 @@ const (
 
 	// ConditionCheckError is a constant for a reason in condition.
 	ConditionCheckError = "ConditionCheckError"
+	// ManagedResourceMissingConditionError is a constant for a reason in a condition that indicates
+	// one or multiple missing conditions in the observed managed resource.
+	ManagedResourceMissingConditionError = "MissingManagedResourceCondition"
+	// OutdatedStatusError is a constant for a reason in a condition that indicates
+	// that the observed generation in a status is outdated.
+	OutdatedStatusError = "OutdatedStatus"
 )

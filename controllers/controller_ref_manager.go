@@ -35,7 +35,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -78,7 +77,7 @@ func (m *BaseControllerRefManager) CanAdopt() error {
 // own the object.
 //
 // No reconciliation will be attempted if the controller is being deleted.
-func (m *BaseControllerRefManager) claimObject(obj metav1.Object, match func(metav1.Object) bool, adopt, release func(metav1.Object) error) (bool, error) {
+func (m *BaseControllerRefManager) claimObject(obj client.Object, match func(metav1.Object) bool, adopt, release func(client.Object) error) (bool, error) {
 	controllerRef := metav1.GetControllerOf(obj)
 	if controllerRef != nil {
 		if controllerRef.UID != m.Controller.GetUID() {
@@ -329,12 +328,12 @@ func (m *EtcdDruidRefManager) ClaimConfigMaps(cms *corev1.ConfigMapList, filters
 
 // AdoptResource sends a patch to take control of the Etcd. It returns the error if
 // the patching fails.
-func (m *EtcdDruidRefManager) AdoptResource(obj metav1.Object) error {
+func (m *EtcdDruidRefManager) AdoptResource(obj client.Object) error {
 	if err := m.CanAdopt(); err != nil {
 		return fmt.Errorf("can't adopt resource %v/%v (%v): %v", obj.GetNamespace(), obj.GetName(), obj.GetUID(), err)
 	}
 
-	var clone metav1.Object
+	var clone client.Object
 	switch objType := obj.(type) {
 	case *appsv1.StatefulSet:
 		clone = obj.(*appsv1.StatefulSet).DeepCopy()
@@ -364,13 +363,13 @@ func (m *EtcdDruidRefManager) AdoptResource(obj metav1.Object) error {
 		return fmt.Errorf("cannot adopt resource: %s", objType)
 	}
 
-	return m.reconciler.Patch(context.TODO(), clone.(runtime.Object), client.MergeFrom(obj.(runtime.Object)))
+	return m.reconciler.Patch(context.TODO(), clone, client.MergeFrom(obj))
 }
 
 // ReleaseResource sends a patch to free the resource from the control of the controller.
 // It returns the error if the patching fails. 404 and 422 errors are ignored.
-func (m *EtcdDruidRefManager) ReleaseResource(obj metav1.Object) error {
-	var clone metav1.Object
+func (m *EtcdDruidRefManager) ReleaseResource(obj client.Object) error {
+	var clone client.Object
 	switch objType := obj.(type) {
 	case *appsv1.StatefulSet:
 		clone = obj.(*appsv1.StatefulSet).DeepCopy()
@@ -389,7 +388,7 @@ func (m *EtcdDruidRefManager) ReleaseResource(obj metav1.Object) error {
 
 	m.disown(clone)
 
-	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), clone.(runtime.Object), client.MergeFrom(obj.(runtime.Object))))
+	err := client.IgnoreNotFound(m.reconciler.Patch(context.TODO(), clone, client.MergeFrom(obj)))
 	if errors.IsInvalid(err) {
 		// Invalid error will be returned in two cases: 1. the etcd
 		// has no owner reference, 2. the uid of the etcd doesn't

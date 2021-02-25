@@ -199,7 +199,7 @@ func TargetVersion(version string) FindOptionFunc {
 	}
 }
 
-var r = regexp.MustCompile(`^(v?[0-9]+|=)`)
+var r = regexp.MustCompile(`^(v?[0-9]+\.[0-9]+\.[0-9]+|=)`)
 
 func checkConstraint(constraint, version *string) (score int, ok bool, err error) {
 	if constraint == nil || version == nil {
@@ -325,4 +325,13 @@ func (i *Image) String() string {
 	}
 
 	return i.Repository + delimiter + *i.Tag
+}
+
+// ImageMapToValues transforms the given image name to image mapping into chart Values.
+func ImageMapToValues(m map[string]*Image) map[string]interface{} {
+	out := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		out[k] = v.String()
+	}
+	return out
 }

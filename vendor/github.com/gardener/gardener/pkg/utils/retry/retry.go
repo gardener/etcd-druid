@@ -78,56 +78,66 @@ func DefaultIntervalFactory() IntervalFactory {
 }
 
 // SevereError indicates an operation was not successful due to the given error and cannot be retried.
-func SevereError(severeErr error) (done bool, err error) {
+func SevereError(severeErr error) (bool, error) {
 	return true, severeErr
 }
 
 // MinorError indicates an operation was not successful due to the given error but can be retried.
-func MinorError(minorErr error) (done bool, err error) {
+func MinorError(minorErr error) (bool, error) {
 	return false, minorErr
 }
 
 // Ok indicates that an operation was successful and does not need to be retried.
-func Ok() (done bool, err error) {
+func Ok() (bool, error) {
 	return true, nil
 }
 
 // NotOk indicates that an operation was not successful but can be retried.
 // It does not indicate an error. For better error reporting, consider MinorError.
-func NotOk() (done bool, err error) {
+func NotOk() (bool, error) {
 	return false, nil
 }
 
-type retryError struct {
+// MinorOrSevereError returns a "severe" error in case the retry count exceeds the threshold. Otherwise, it returns
+// a "minor" error.
+func MinorOrSevereError(retryCountUntilSevere, threshold int, err error) (bool, error) {
+	if retryCountUntilSevere > threshold {
+		return SevereError(err)
+	}
+	return MinorError(err)
+}
+
+// Error is an error that occurred during a retry operation.
+type Error struct {
 	ctxError error
 	err      error
 }
 
 // Cause implements Causer.
-func (r *retryError) Cause() error {
-	if r.err != nil {
-		return r.err
+func (e *Error) Cause() error {
+	if e.err != nil {
+		return e.err
 	}
-	return r.ctxError
+	return e.ctxError
 }
 
 // Unwrap implements the Unwrap function
 // https://golang.org/pkg/errors/#Unwrap
-func (r *retryError) Unwrap() error {
-	return r.err
+func (e *Error) Unwrap() error {
+	return e.err
 }
 
 // Error implements error.
-func (r *retryError) Error() string {
-	if r.err != nil {
-		return fmt.Sprintf("retry failed with %v, last error: %v", r.ctxError, r.err)
+func (e *Error) Error() string {
+	if e.err != nil {
+		return fmt.Sprintf("retry failed with %v, last error: %v", e.ctxError, e.err)
 	}
-	return fmt.Sprintf("retry failed with %v", r.ctxError)
+	return fmt.Sprintf("retry failed with %v", e.ctxError)
 }
 
-// NewRetryError returns a new error with the given context error and error. The non-context error is optional.
-func NewRetryError(ctxError, err error) error {
-	return &retryError{ctxError, err}
+// NewError returns a new error with the given context error and error. The non-context error is optional.
+func NewError(ctxError, err error) error {
+	return &Error{ctxError, err}
 }
 
 // UntilFor keeps retrying the given Func until it either errors severely or the context expires.
@@ -157,12 +167,12 @@ func UntilFor(ctx context.Context, waitFunc WaitFunc, agg ErrorAggregator, f Fun
 			case <-waitDone:
 				select {
 				case <-ctxDone:
-					return NewRetryError(ctx.Err(), agg.Error())
+					return NewError(ctx.Err(), agg.Error())
 				default:
 					return nil
 				}
 			case <-ctxDone:
-				return NewRetryError(ctx.Err(), agg.Error())
+				return NewError(ctx.Err(), agg.Error())
 			}
 		}(); err != nil {
 			return err

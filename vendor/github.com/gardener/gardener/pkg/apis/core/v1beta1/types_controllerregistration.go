@@ -16,6 +16,7 @@ package v1beta1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // +genclient
@@ -47,7 +48,8 @@ type ControllerRegistrationList struct {
 type ControllerRegistrationSpec struct {
 	// Resources is a list of combinations of kinds (DNSProvider, Infrastructure, Generic, ...) and their actual types
 	// (aws-route53, gcp, auditlog, ...).
-	Resources []ControllerResource `json:"resources" protobuf:"bytes,1,rep,name=resources"`
+	// +optional
+	Resources []ControllerResource `json:"resources,omitempty" protobuf:"bytes,1,opt,name=resources"`
 	// Deployment contains information for how this controller is deployed.
 	// +optional
 	Deployment *ControllerDeployment `json:"deployment,omitempty" protobuf:"bytes,2,opt,name=deployment"`
@@ -66,6 +68,11 @@ type ControllerResource struct {
 	// ReconcileTimeout defines how long Gardener should wait for the resource reconciliation.
 	// +optional
 	ReconcileTimeout *metav1.Duration `json:"reconcileTimeout,omitempty" protobuf:"bytes,4,opt,name=reconcileTimeout"`
+	// Primary determines if the controller backed by this ControllerRegistration is responsible for the extension
+	// resource's lifecycle. This field defaults to true. There must be exactly one primary controller for this kind/type
+	// combination.
+	// +optional
+	Primary *bool `json:"primary,omitempty" protobuf:"varint,5,opt,name=primary"`
 }
 
 // ControllerDeployment contains information for how this controller is deployed.
@@ -74,5 +81,28 @@ type ControllerDeployment struct {
 	Type string `json:"type" protobuf:"bytes,1,opt,name=type"`
 	// ProviderConfig contains type-specific configuration.
 	// +optional
-	ProviderConfig *ProviderConfig `json:"providerConfig,omitempty" protobuf:"bytes,2,opt,name=providerConfig"`
+	ProviderConfig *runtime.RawExtension `json:"providerConfig,omitempty" protobuf:"bytes,2,opt,name=providerConfig"`
+	// Policy controls how the controller is deployed. It defaults to 'OnDemand'.
+	// +optional
+	Policy *ControllerDeploymentPolicy `json:"policy,omitempty" protobuf:"bytes,3,opt,name=policy"`
+	// SeedSelector contains an optional label selector for seeds. Only if the labels match then this controller will be
+	// considered for a deployment.
+	// An empty list means that all seeds are selected.
+	// +optional
+	SeedSelector *metav1.LabelSelector `json:"seedSelector,omitempty" protobuf:"bytes,4,opt,name=seedSelector"`
 }
+
+// ControllerDeploymentPolicy is a string alias.
+type ControllerDeploymentPolicy string
+
+const (
+	// ControllerDeploymentPolicyOnDemand specifies that the controller shall be only deployed if required by another
+	// resource. If nothing requires it then the controller shall not be deployed.
+	ControllerDeploymentPolicyOnDemand ControllerDeploymentPolicy = "OnDemand"
+	// ControllerDeploymentPolicyAlways specifies that the controller shall be deployed always, independent of whether
+	// another resource requires it or the respective seed has shoots.
+	ControllerDeploymentPolicyAlways ControllerDeploymentPolicy = "Always"
+	// ControllerDeploymentPolicyAlwaysExceptNoShoots specifies that the controller shall be deployed always, independent of
+	// whether another resource requires it, but only when the respective seed has at least one shoot.
+	ControllerDeploymentPolicyAlwaysExceptNoShoots ControllerDeploymentPolicy = "AlwaysExceptNoShoots"
+)

@@ -16,15 +16,7 @@ package core
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
-
-// ProviderConfig is a workaround for missing OpenAPI functions on runtime.RawExtension struct.
-// https://github.com/kubernetes/kubernetes/issues/55890
-// https://github.com/kubernetes-sigs/cluster-api/issues/137
-type ProviderConfig struct {
-	runtime.RawExtension
-}
 
 // Condition holds the information about the state of a resource.
 type Condition struct {
@@ -40,6 +32,8 @@ type Condition struct {
 	Reason string
 	// A human readable message indicating details about the transition.
 	Message string
+	// Well-defined error codes in case the condition reports a problem.
+	Codes []ErrorCode
 }
 
 // ConditionStatus is the status of a condition.

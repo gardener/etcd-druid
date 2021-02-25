@@ -11,7 +11,7 @@ need to adjust how you think about logging a bit.
 
 With structured logging, we associate a *constant* log message with some
 variable key-value pairs.  For instance, suppose we wanted to log that we
-were starting reconciliation on a pod.  In the Go standard libary logger,
+were starting reconciliation on a pod.  In the Go standard library logger,
 we might write:
 
 ```go
@@ -89,6 +89,9 @@ providing stack traces in debug mode).
 It's acceptable to log call `log.Error` with a nil error object.  This
 conveys that an error occurred in some capacity, but that no actual
 `error` object was involved.
+
+Errors returned by the `Reconcile` implementation of the `Reconciler` interface are commonly logged as a `Reconciler error`.
+It's a developer choice to create an additional error log in the `Reconcile` implementation so a more specific file name and line for the error are returned. 
 
 ## Logging messages
 
