@@ -29,67 +29,75 @@ CRD_OPTIONS ?= "crd:trivialVersions=true"
 revendor:
 	@env GO111MODULE=on go mod vendor
 	@env GO111MODULE=on go mod tidy
+	@chmod +x $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/*
 	@chmod +x $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/*
+	@$(REPO_ROOT)/hack/update-github-templates.sh
 
 all: druid
 
 # Run tests
-test: fmt vet manifests
+.PHONY: test
+test: fmt check manifests
 	.ci/test
 
 # Build manager binary
-druid: fmt vet
+.PHONY: druid
+druid: fmt check
 	@env GO111MODULE=on go build -o bin/druid main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
-run: fmt vet
+.PHONY: run
+run: fmt check
 	go run ./main.go
 
 # Install CRDs into a cluster
+.PHONY: install
 install: manifests
 	kubectl apply -f config/crd/bases
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
+.PHONY: deploy
 deploy: manifests
 	kubectl apply -f config/crd/bases
 	kustomize build config/default | kubectl apply -f -
 
 # Generate manifests e.g. CRD, RBAC etc.
-manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role paths="./api/...;./controllers/..." output:crd:artifacts:config=config/crd/bases
+.PHONY: manifests
+manifests: install-requirements
+	@controller-gen $(CRD_OPTIONS) rbac:roleName=manager-role paths="./api/...;./controllers/..." output:crd:artifacts:config=config/crd/bases
 
 # Run go fmt against code
+.PHONY: fmt
 fmt:
 	@env GO111MODULE=on go fmt ./...
 
-# Run go vet against code
-vet:
-	PACKAGES="$(shell GO111MODULE=on go list -mod=vendor -e ./... | grep -vE '/api|/api/v1alpha1')"
-	@env GO111MODULE=on go vet $(PACKAGES)
+# Check packages
+.PHONY: check
+check:
+	@$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh --golangci-lint-config=./.golangci.yaml . ./api/... ./pkg/... ./controllers/...
 
 # Generate code
-generate: controller-gen
-	$(CONTROLLER_GEN) object:headerFile=./hack/boilerplate.go.txt paths=./api/...
+.PHONY: generate
+generate: install-requirements
+	@controller-gen object:headerFile=./hack/boilerplate.go.txt paths=./api/...
 
 # Build the docker image
+.PHONY: docker-build
 docker-build:
 	docker build . -t ${IMG} --rm
 	@echo "updating kustomize image patch file for manager resource"
 	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml
 
 # Push the docker image
+.PHONY: docker-push
 docker-push:
 	docker push ${IMG}
 
 # find or download controller-gen
 # download controller-gen if necessary
-controller-gen:
-ifeq (, $(shell which controller-gen))
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.4
-CONTROLLER_GEN=$(shell go env GOPATH)/bin/controller-gen
-else
-CONTROLLER_GEN=$(shell which controller-gen)
-endif
+.PHONY: install-requirements
+install-requirements:
+	@go install -mod=vendor sigs.k8s.io/controller-tools/cmd/controller-gen
 
 .PHONY: update-dependencies
 update-dependencies:

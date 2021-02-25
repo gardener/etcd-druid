@@ -14,6 +14,7 @@ require (
 	k8s.io/helm v2.16.1+incompatible
 	k8s.io/utils v0.0.0-20200912215256-4140de9c8800
 	sigs.k8s.io/controller-runtime v0.7.1
+	sigs.k8s.io/controller-tools v0.4.1
 )
 
 replace (

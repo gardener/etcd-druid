@@ -29,4 +29,5 @@ config.vmdk
 .fuse_hidden*
 
 .cache_ggshield
+.gitguardian.yaml
 
