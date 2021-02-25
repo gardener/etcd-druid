@@ -23,6 +23,7 @@ import (
 	"github.com/gardener/etcd-druid/controllers"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	schemev1 "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -37,8 +38,8 @@ var (
 )
 
 func init() {
-	schemev1.AddToScheme(scheme)
-	druidv1alpha1.AddToScheme(scheme)
+	utilruntime.Must(schemev1.AddToScheme(scheme))
+	utilruntime.Must(druidv1alpha1.AddToScheme(scheme))
 
 	// +kubebuilder:scaffold:scheme
 }

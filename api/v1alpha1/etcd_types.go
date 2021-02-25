@@ -99,7 +99,7 @@ type BackupSpec struct {
 	DeltaSnapshotMemoryLimit *resource.Quantity `json:"deltaSnapshotMemoryLimit,omitempty"`
 }
 
-// EtcdConfig defines parametes associated etcd deployed
+// EtcdConfig defines parameters associated etcd deployed
 type EtcdConfig struct {
 	// Quota defines the etcd DB quota.
 	// +optional

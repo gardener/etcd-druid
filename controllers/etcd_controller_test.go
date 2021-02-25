@@ -20,6 +20,8 @@ import (
 	"os"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/ghodss/yaml"
@@ -48,23 +50,6 @@ const (
 	WithoutOwner        StatefulSetInitializer = 0
 	WithOwnerReference  StatefulSetInitializer = 1
 	WithOwnerAnnotation StatefulSetInitializer = 2
-)
-
-const (
-	aws       = "aws"
-	azure     = "azure"
-	gcp       = "gcp"
-	alicloud  = "alicloud"
-	openstack = "openstack"
-)
-
-const (
-	s3    = "S3"
-	abs   = "ABS"
-	gcs   = "GCS"
-	oss   = "OSS"
-	swift = "Swift"
-	local = "Local"
 )
 
 const (
@@ -168,15 +153,16 @@ var _ = Describe("Druid", func() {
 					Name: instance.Namespace,
 				},
 			}
-			c.Create(context.TODO(), &ns)
+			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+			Expect(err).To(Not(HaveOccurred()))
+
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
 			errors := createSecrets(c, instance.Namespace, storeSecret)
 			Expect(len(errors)).Should(BeZero())
 		})
 		It("should create and adopt statefulset", func() {
 			defer WithWd("..")()
-			err = c.Create(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(c.Create(context.TODO(), instance)).To(Succeed())
 			ss := appsv1.StatefulSet{}
 			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, &ss) }, timeout, pollingInterval).Should(BeNil())
 			setStatefulSetReady(&ss)
@@ -184,42 +170,66 @@ var _ = Describe("Druid", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 		AfterEach(func() {
-			c.Delete(context.TODO(), instance)
+			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
 		})
 	})
 
 	DescribeTable("when adding etcd resources with statefulset already present",
 		func(name string, setupStatefulSet StatefulSetInitializer) {
-			var ss *appsv1.StatefulSet
+			var sts *appsv1.StatefulSet
 			instance := getEtcd(name, "default", false)
 			c := mgr.GetClient()
+
 			switch setupStatefulSet {
 			case WithoutOwner:
-				ss = createStatefulset(name, "default", instance.Spec.Labels)
-				Expect(ss.OwnerReferences).Should(BeNil())
+				sts = createStatefulset(name, "default", instance.Spec.Labels)
+				Expect(sts.OwnerReferences).Should(BeNil())
 			case WithOwnerReference:
-				ss = createStatefulsetWithOwnerReference(instance)
-				Expect(len(ss.OwnerReferences)).ShouldNot(BeZero())
+				sts = createStatefulsetWithOwnerReference(instance)
+				Expect(len(sts.OwnerReferences)).Should(Equal(1))
 			case WithOwnerAnnotation:
-				ss = createStatefulsetWithOwnerAnnotations(instance)
+				sts = createStatefulsetWithOwnerAnnotations(instance)
 			default:
 				Fail("StatefulSetInitializer invalid")
 			}
-
+			needsOwnerRefUpdate := len(sts.OwnerReferences) > 0
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+
+			// Create Secrets
 			errors := createSecrets(c, instance.Namespace, storeSecret)
 			Expect(len(errors)).Should(BeZero())
-			c.Create(context.TODO(), ss)
+
+			// Create StatefulSet
+			Expect(c.Create(context.TODO(), sts)).To(Succeed())
+
+			// Create StatefulSet
 			defer WithWd("..")()
-			err := c.Create(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
-			s := &appsv1.StatefulSet{}
-			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
-			setStatefulSetReady(s)
-			err = c.Status().Update(context.TODO(), s)
-			Expect(err).NotTo(HaveOccurred())
-			err = c.Delete(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(c.Create(context.TODO(), instance)).To(Succeed())
+
+			// Update OwnerRef with UID from just created `etcd` instance
+			if needsOwnerRefUpdate {
+				Eventually(func() error {
+					if err := c.Get(context.TODO(), client.ObjectKeyFromObject(instance), instance); err != nil {
+						return err
+					}
+					if instance.UID != "" {
+						instance.TypeMeta = metav1.TypeMeta{
+							APIVersion: "druid.gardener.cloud/v1alpha1",
+							Kind:       "etcd",
+						}
+						return nil
+					}
+					return fmt.Errorf("etcd object not yet created")
+				}, timeout, pollingInterval).Should(BeNil())
+				sts.OwnerReferences[0].UID = instance.UID
+				Expect(c.Update(context.TODO(), sts)).To(Succeed())
+			}
+
+			sts = &appsv1.StatefulSet{}
+			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+			setStatefulSetReady(sts)
+			Expect(c.Status().Update(context.TODO(), sts)).To(Succeed())
+			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
 		},
 		Entry("when statefulset not owned by etcd, druid should adopt the statefulset", "foo20", WithoutOwner),
 		Entry("when statefulset owned by etcd with owner reference set, druid should remove ownerref and add annotations", "foo21", WithOwnerReference),
@@ -240,10 +250,8 @@ var _ = Describe("Druid", func() {
 				c = mgr.GetClient()
 				p = createPod(fmt.Sprintf("%s-0", instance.Name), "default", instance.Spec.Labels)
 				ss = createStatefulset(instance.Name, instance.Namespace, instance.Spec.Labels)
-				err = c.Create(context.TODO(), p)
-				Expect(err).NotTo(HaveOccurred())
-				err = c.Create(context.TODO(), ss)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(c.Create(context.TODO(), p)).To(Succeed())
+				Expect(c.Create(context.TODO(), ss)).To(Succeed())
 				p.Status.ContainerStatuses = []corev1.ContainerStatus{
 					{
 						Name: "Container-0",
@@ -264,54 +272,79 @@ var _ = Describe("Druid", func() {
 			})
 			It("should restart pod", func() {
 				defer WithWd("..")()
-				err = c.Create(context.TODO(), instance)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(c.Create(context.TODO(), instance)).To(Succeed())
 				Eventually(func() error { return podDeleted(c, instance) }, timeout, pollingInterval).Should(BeNil())
 			})
 			AfterEach(func() {
 				s := &appsv1.StatefulSet{}
 				Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
 				setStatefulSetReady(s)
-				err = c.Status().Update(context.TODO(), s)
-				Expect(err).NotTo(HaveOccurred())
-				c.Delete(context.TODO(), instance)
+				Expect(c.Status().Update(context.TODO(), s)).To(Succeed())
+				Expect(c.Delete(context.TODO(), instance)).To(Succeed())
 			})
 		})
 	})
 
 	DescribeTable("when deleting etcd resources",
 		func(name string, setupStatefulSet StatefulSetInitializer) {
-			var ss *appsv1.StatefulSet
-			var sts appsv1.StatefulSet
+			var sts *appsv1.StatefulSet
 			instance := getEtcd(name, "default", false)
 			c := mgr.GetClient()
+
 			switch setupStatefulSet {
 			case WithoutOwner:
-				ss = createStatefulset(name, "default", instance.Spec.Labels)
-				Expect(ss.OwnerReferences).Should(BeNil())
+				sts = createStatefulset(name, "default", instance.Spec.Labels)
+				Expect(sts.OwnerReferences).Should(BeNil())
 			case WithOwnerReference:
-				ss = createStatefulsetWithOwnerReference(instance)
-				Expect(len(ss.OwnerReferences)).ShouldNot(BeZero())
+				sts = createStatefulsetWithOwnerReference(instance)
+				Expect(len(sts.OwnerReferences)).ShouldNot(BeZero())
 			case WithOwnerAnnotation:
-				ss = createStatefulsetWithOwnerAnnotations(instance)
+				sts = createStatefulsetWithOwnerAnnotations(instance)
 			default:
 				Fail("StatefulSetInitializer invalid")
 			}
 			stopCh := make(chan struct{})
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+			needsOwnerRefUpdate := len(sts.OwnerReferences) > 0
+
+			// Create Secrets
 			errors := createSecrets(c, instance.Namespace, storeSecret)
 			Expect(len(errors)).Should(BeZero())
-			c.Create(context.TODO(), ss)
+
+			// Create StatefulSet
+			Expect(c.Create(context.TODO(), sts)).To(Succeed())
+
+			// Create StatefulSet
 			defer WithWd("..")()
-			err := c.Create(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
-			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, &sts) }, timeout, pollingInterval).Should(BeNil())
+			Expect(c.Create(context.TODO(), instance)).To(Succeed())
+
+			// Update OwnerRef with UID from just created `etcd` instance
+			if needsOwnerRefUpdate {
+				Eventually(func() error {
+					if err := c.Get(context.TODO(), client.ObjectKeyFromObject(instance), instance); err != nil {
+						return err
+					}
+					if instance.UID != "" {
+						instance.TypeMeta = metav1.TypeMeta{
+							APIVersion: "druid.gardener.cloud/v1alpha1",
+							Kind:       "etcd",
+						}
+						return nil
+					}
+					return fmt.Errorf("etcd object not yet created")
+				}, timeout, pollingInterval).Should(BeNil())
+				sts.OwnerReferences[0].UID = instance.UID
+				Expect(c.Update(context.TODO(), sts)).To(Succeed())
+			}
+
+			sts = &appsv1.StatefulSet{}
+			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 			// This go-routine is to set that statefulset is ready manually as statefulset controller is absent for tests.
 			go func() {
 				for {
 					select {
 					case <-time.After(time.Second * 2):
-						setAndCheckStatefulSetReady(c, instance)
+						Expect(setAndCheckStatefulSetReady(c, instance)).To(Succeed())
 					case <-stopCh:
 						return
 					}
@@ -319,9 +352,8 @@ var _ = Describe("Druid", func() {
 			}()
 			Eventually(func() error { return isEtcdReady(c, instance) }, timeout, pollingInterval).Should(BeNil())
 			close(stopCh)
-			err = c.Delete(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
-			Eventually(func() error { return statefulSetRemoved(c, &sts) }, timeout, pollingInterval).Should(BeNil())
+			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
+			Eventually(func() error { return statefulSetRemoved(c, sts) }, timeout, pollingInterval).Should(BeNil())
 			Eventually(func() error { return etcdRemoved(c, instance) }, timeout, pollingInterval).Should(BeNil())
 		},
 		Entry("when  statefulset with ownerReference and without owner annotations, druid should adopt and delete statefulset", "foo61", WithOwnerReference),
@@ -346,7 +378,10 @@ var _ = Describe("Druid", func() {
 					Name: instance.Namespace,
 				},
 			}
-			c.Create(context.TODO(), &ns)
+
+			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+			Expect(err).To(Not(HaveOccurred()))
+
 			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
 				errors := createSecrets(c, instance.Namespace, storeSecret)
@@ -408,7 +443,7 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 
 	// Validate Metrics MetricsLevel
 	Expect(instance.Spec.Etcd.Metrics).To(BeNil())
-	Expect(config).To(HaveKeyWithValue(metricsKey, fmt.Sprintf("%s", druidv1alpha1.Basic)))
+	Expect(config).To(HaveKeyWithValue(metricsKey, string(druidv1alpha1.Basic)))
 
 	// Validate DefragmentationSchedule *string
 	Expect(instance.Spec.Etcd.DefragmentationSchedule).To(BeNil())
@@ -754,7 +789,7 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 
 	// Validate Metrics MetricsLevel
 	Expect(instance.Spec.Etcd.Metrics).NotTo(BeNil())
-	Expect(config).To(HaveKeyWithValue(metricsKey, fmt.Sprintf("%s", *instance.Spec.Etcd.Metrics)))
+	Expect(config).To(HaveKeyWithValue(metricsKey, string(*instance.Spec.Etcd.Metrics)))
 
 	// Validate DefragmentationSchedule *string
 	Expect(instance.Spec.Etcd.DefragmentationSchedule).NotTo(BeNil())
@@ -795,7 +830,7 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 	Expect(config).To(MatchKeys(IgnoreExtras, Keys{
 		"name":                      Equal(fmt.Sprintf("etcd-%s", instance.UID[:6])),
 		"data-dir":                  Equal("/var/etcd/data/new.etcd"),
-		"metrics":                   Equal(fmt.Sprintf("%s", *instance.Spec.Etcd.Metrics)),
+		"metrics":                   Equal(string(*instance.Spec.Etcd.Metrics)),
 		"snapshot-count":            Equal(float64(75000)),
 		"enable-v2":                 Equal(false),
 		"quota-backend-bytes":       Equal(float64(instance.Spec.Etcd.Quota.Value())),
@@ -1031,7 +1066,7 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 								fmt.Sprintf("--defragmentation-schedule=%s", *instance.Spec.Etcd.DefragmentationSchedule):                           Equal(fmt.Sprintf("--defragmentation-schedule=%s", *instance.Spec.Etcd.DefragmentationSchedule)),
 								fmt.Sprintf("--schedule=%s", *instance.Spec.Backup.FullSnapshotSchedule):                                            Equal(fmt.Sprintf("--schedule=%s", *instance.Spec.Backup.FullSnapshotSchedule)),
 								fmt.Sprintf("%s=%s", "--garbage-collection-policy", *instance.Spec.Backup.GarbageCollectionPolicy):                  Equal(fmt.Sprintf("%s=%s", "--garbage-collection-policy", *instance.Spec.Backup.GarbageCollectionPolicy)),
-								fmt.Sprintf("%s=%s", "--storage-provider", store):                                                                   Equal(fmt.Sprintf("%s=%s", "--storage-provider", fmt.Sprintf("%s", store))),
+								fmt.Sprintf("%s=%s", "--storage-provider", store):                                                                   Equal(fmt.Sprintf("%s=%s", "--storage-provider", store)),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):                                           Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 								fmt.Sprintf("--delta-snapshot-memory-limit=%d", instance.Spec.Backup.DeltaSnapshotMemoryLimit.Value()):              Equal(fmt.Sprintf("--delta-snapshot-memory-limit=%d", instance.Spec.Backup.DeltaSnapshotMemoryLimit.Value())),
 								fmt.Sprintf("--garbage-collection-policy=%s", *instance.Spec.Backup.GarbageCollectionPolicy):                        Equal(fmt.Sprintf("--garbage-collection-policy=%s", *instance.Spec.Backup.GarbageCollectionPolicy)),
@@ -1048,7 +1083,7 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 									ContainerPort: backupPort,
 								},
 							}),
-							"Image":           Equal(fmt.Sprintf("%s", *instance.Spec.Backup.Image)),
+							"Image":           Equal(*instance.Spec.Backup.Image),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
 							"VolumeMounts": MatchElements(volumeMountIterator, IgnoreExtras, Elements{
 								*instance.Spec.VolumeClaimTemplate: MatchFields(IgnoreExtras, Fields{
@@ -1542,7 +1577,7 @@ func statefulsetIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.E
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	req := types.NamespacedName{
-		Name:      fmt.Sprintf("%s", instance.Name),
+		Name:      instance.Name,
 		Namespace: instance.Namespace,
 	}
 
@@ -1638,10 +1673,10 @@ func createStatefulsetWithOwnerReference(etcd *druidv1alpha1.Etcd) *appsv1.State
 	ss := createStatefulset(etcd.Name, etcd.Namespace, etcd.Spec.Labels)
 	ss.SetOwnerReferences([]metav1.OwnerReference{
 		{
-			APIVersion:         etcd.TypeMeta.APIVersion,
-			Kind:               etcd.TypeMeta.Kind,
+			APIVersion:         "druid.gardener.cloud/v1alpha1",
+			Kind:               "etcd",
 			Name:               etcd.Name,
-			UID:                etcd.UID,
+			UID:                "foo",
 			Controller:         pointer.BoolPtr(true),
 			BlockOwnerDeletion: pointer.BoolPtr(true),
 		},
@@ -1754,10 +1789,6 @@ func getEtcdWithOSS(name, namespace string) *druidv1alpha1.Etcd {
 
 func getEtcdWithTLS(name, namespace string) *druidv1alpha1.Etcd {
 	return getEtcd(name, namespace, true)
-}
-
-func getEtcdWithoutTLS(name, namespace string) *druidv1alpha1.Etcd {
-	return getEtcd(name, namespace, false)
 }
 
 func getEtcdWithDefault(name, namespace string) *druidv1alpha1.Etcd {

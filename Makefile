@@ -74,7 +74,7 @@ fmt:
 # Check packages
 .PHONY: check
 check:
-	@$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh --golangci-lint-config=./.golangci.yaml . ./api/... ./pkg/... ./controllers/...
+	@$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
 
 # Generate code
 .PHONY: generate

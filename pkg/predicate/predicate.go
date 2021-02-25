@@ -16,7 +16,6 @@ package predicate
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -24,11 +23,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-)
-
-// Log is the logger for predicates.
-var (
-	logger = logrus.New()
 )
 
 type or struct {
