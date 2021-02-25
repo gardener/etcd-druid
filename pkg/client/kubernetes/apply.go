@@ -76,10 +76,7 @@ func (c *Applier) applyObject(ctx context.Context, desired *unstructured.Unstruc
 		desired.SetNamespace(metav1.NamespaceDefault)
 	}
 
-	key, err := client.ObjectKeyFromObject(desired)
-	if err != nil {
-		return err
-	}
+	key := client.ObjectKeyFromObject(desired)
 
 	if len(key.Name) == 0 {
 		return fmt.Errorf("Missing 'metadata.name' in: %+v", desired)
@@ -87,7 +84,7 @@ func (c *Applier) applyObject(ctx context.Context, desired *unstructured.Unstruc
 
 	current := &unstructured.Unstructured{}
 	current.SetGroupVersionKind(desired.GroupVersionKind())
-	err = c.client.Get(ctx, key, current)
+	err := c.client.Get(ctx, key, current)
 	if meta.IsNoMatchError(err) {
 		c.discovery.Invalidate()
 		err = c.client.Get(ctx, key, current)

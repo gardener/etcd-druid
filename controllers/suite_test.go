@@ -15,6 +15,7 @@
 package controllers
 
 import (
+	"context"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -32,25 +33,27 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	// +kubebuilder:scaffold:imports
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
-var cfg *rest.Config
-var k8sClient client.Client
-var testEnv *envtest.Environment
-var mgr manager.Manager
-var recFn reconcile.Reconciler
-var requests chan reconcile.Request
-var stopMgr chan struct{}
-var mgrStopped *sync.WaitGroup
 var (
+	mgrCtx     context.Context
+	mgrCancel  context.CancelFunc
+	cfg        *rest.Config
+	k8sClient  client.Client
+	testEnv    *envtest.Environment
+	mgr        manager.Manager
+	recFn      reconcile.Reconciler
+	requests   chan reconcile.Request
+	mgrStopped *sync.WaitGroup
+
 	testLog = ctrl.Log.WithName("test")
 )
 
@@ -59,13 +62,14 @@ func TestAPIs(t *testing.T) {
 
 	RunSpecsWithDefaultAndCustomReporters(t,
 		"Controller Suite",
-		[]Reporter{envtest.NewlineReporter{}})
+		[]Reporter{printer.NewlineReporter{}})
 }
 
 var _ = BeforeSuite(func(done Done) {
+	mgrCtx, mgrCancel = context.WithCancel(context.Background())
 	var err error
 	//logf.SetLogger(zap.LoggerTo(GinkgoWriter, true))
-	ctrl.SetLogger(zap.Logger(true))
+	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{filepath.Join("..", "config", "crd", "bases")},
@@ -102,26 +106,25 @@ var _ = BeforeSuite(func(done Done) {
 	err = er.SetupWithManager(mgr, 1, true)
 	Expect(err).NotTo(HaveOccurred())
 
-	stopMgr, mgrStopped = startTestManager(mgr)
+	mgrStopped = startTestManager(mgrCtx, mgr)
 
 	close(done)
 }, 60)
 
 var _ = AfterSuite(func() {
-	close(stopMgr)
+	mgrCancel()
 	mgrStopped.Wait()
 	Expect(testEnv.Stop()).To(Succeed())
 })
 
-func startTestManager(mgr manager.Manager) (chan struct{}, *sync.WaitGroup) {
-	stop := make(chan struct{})
+func startTestManager(ctx context.Context, mgr manager.Manager) *sync.WaitGroup {
 	wg := &sync.WaitGroup{}
 	go func() {
 		wg.Add(1)
-		Expect(mgr.Start(stop)).NotTo(HaveOccurred())
+		Expect(mgr.Start(ctx)).NotTo(HaveOccurred())
 		wg.Done()
 	}()
-	return stop, wg
+	return wg
 }
 
 func SetupWithManager(mgr ctrl.Manager, r reconcile.Reconciler) error {

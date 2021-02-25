@@ -17,8 +17,10 @@ package utils
 import (
 	"net"
 	"regexp"
+	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -121,4 +123,37 @@ func TestEmail(email string) bool {
 // IsTrue returns true if the passed bool pointer is not nil and true.
 func IsTrue(value *bool) bool {
 	return value != nil && *value
+}
+
+// IDForKeyWithOptionalValue returns an identifier for the given key + optional value.
+func IDForKeyWithOptionalValue(key string, value *string) string {
+	v := ""
+	if value != nil {
+		v = "=" + *value
+	}
+	return key + v
+}
+
+// QuantityPtr returns a Quantity pointer to its argument.
+func QuantityPtr(q resource.Quantity) *resource.Quantity {
+	return &q
+}
+
+// DurationPtr returns a time.Duration pointer to its argument.
+func DurationPtr(d time.Duration) *time.Duration {
+	return &d
+}
+
+// Indent indents the given string with the given number of spaces.
+func Indent(str string, spaces int) string {
+	return strings.ReplaceAll(str, "\n", "\n"+strings.Repeat(" ", spaces))
+}
+
+// ShallowCopyMapStringInterface creates a shallow copy of the given map.
+func ShallowCopyMapStringInterface(values map[string]interface{}) map[string]interface{} {
+	copiedValues := make(map[string]interface{}, len(values))
+	for k, v := range values {
+		copiedValues[k] = v
+	}
+	return copiedValues
 }
