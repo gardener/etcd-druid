@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -50,8 +51,6 @@ var (
 	k8sClient  client.Client
 	testEnv    *envtest.Environment
 	mgr        manager.Manager
-	recFn      reconcile.Reconciler
-	requests   chan reconcile.Request
 	mgrStopped *sync.WaitGroup
 
 	testLog = ctrl.Log.WithName("test")
@@ -119,11 +118,14 @@ var _ = AfterSuite(func() {
 
 func startTestManager(ctx context.Context, mgr manager.Manager) *sync.WaitGroup {
 	wg := &sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		Expect(mgr.Start(ctx)).NotTo(HaveOccurred())
 		wg.Done()
 	}()
+	syncCtx, syncCancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer syncCancel()
+	mgr.GetCache().WaitForCacheSync(syncCtx)
 	return wg
 }
 
