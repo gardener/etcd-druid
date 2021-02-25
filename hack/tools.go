@@ -18,5 +18,8 @@
 package tools
 
 import (
+	_ "github.com/gardener/gardener/.github"
+	_ "github.com/gardener/gardener/hack"
 	_ "github.com/gardener/gardener/hack/.ci"
+	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
 )
