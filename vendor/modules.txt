@@ -40,6 +40,7 @@ github.com/gardener/external-dns-management/pkg/apis/dns/v1alpha1
 # github.com/gardener/gardener v1.17.1
 ## explicit
 github.com/gardener/gardener/.github
+github.com/gardener/gardener/extensions/pkg/util/test
 github.com/gardener/gardener/hack
 github.com/gardener/gardener/hack/.ci
 github.com/gardener/gardener/pkg/apis/core
@@ -72,9 +73,12 @@ github.com/gardener/gardener/pkg/logger
 github.com/gardener/gardener/pkg/utils
 github.com/gardener/gardener/pkg/utils/context
 github.com/gardener/gardener/pkg/utils/errors
+github.com/gardener/gardener/pkg/utils/flow
 github.com/gardener/gardener/pkg/utils/imagevector
+github.com/gardener/gardener/pkg/utils/kubernetes
 github.com/gardener/gardener/pkg/utils/kubernetes/health
 github.com/gardener/gardener/pkg/utils/retry
+github.com/gardener/gardener/pkg/utils/test/matchers
 github.com/gardener/gardener/pkg/utils/version
 # github.com/gardener/gardener-resource-manager v0.18.0
 github.com/gardener/gardener-resource-manager/pkg/apis/resources
@@ -505,6 +509,7 @@ k8s.io/apimachinery/pkg/types
 k8s.io/apimachinery/pkg/util/cache
 k8s.io/apimachinery/pkg/util/clock
 k8s.io/apimachinery/pkg/util/diff
+k8s.io/apimachinery/pkg/util/duration
 k8s.io/apimachinery/pkg/util/errors
 k8s.io/apimachinery/pkg/util/framer
 k8s.io/apimachinery/pkg/util/httpstream
@@ -616,6 +621,9 @@ k8s.io/client-go/util/jsonpath
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/retry
 k8s.io/client-go/util/workqueue
+# k8s.io/cluster-bootstrap v0.19.6
+k8s.io/cluster-bootstrap/token/api
+k8s.io/cluster-bootstrap/token/util
 # k8s.io/code-generator v0.19.6 => k8s.io/code-generator v0.19.6
 k8s.io/code-generator
 k8s.io/code-generator/cmd/client-gen

@@ -25,13 +25,14 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/chartrenderer"
-	kubernetes "github.com/gardener/etcd-druid/pkg/client/kubernetes"
+	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	"github.com/gardener/etcd-druid/pkg/common"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
+	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/kubernetes/health"
 	gardenerretry "github.com/gardener/gardener/pkg/utils/retry"
 
@@ -40,7 +41,9 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	eventsv1 "k8s.io/api/events/v1"
+	eventsv1beta1 "k8s.io/api/events/v1beta1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -61,6 +64,13 @@ import (
 var (
 	logger  = logrus.New()
 	etcdGVK = druidv1alpha1.GroupVersion.WithKind("Etcd")
+
+	// UncachedObjectList is a list of objects which should not be cached.
+	UncachedObjectList = []client.Object{
+		&corev1.Event{},
+		&eventsv1beta1.Event{},
+		&eventsv1.Event{},
+	}
 )
 
 const (
@@ -68,12 +78,15 @@ const (
 	FinalizerName = "druid.gardener.cloud/etcd-druid"
 	// DefaultImageVector is a constant for the path to the default image vector file.
 	DefaultImageVector = "images.yaml"
-	// DefaultTimeout is the default timeout for retry operations.
-	DefaultTimeout = time.Minute
 	// DefaultInterval is the default interval for retry operations.
 	DefaultInterval = 5 * time.Second
 	// EtcdReady implies that etcd is ready
 	EtcdReady = true
+)
+
+var (
+	// DefaultTimeout is the default timeout for retry operations.
+	DefaultTimeout = 1 * time.Minute
 )
 
 // EtcdReconciler reconciles a Etcd object
@@ -173,7 +186,7 @@ func (r *EtcdReconciler) InitializeControllerWithImageVector() (*EtcdReconciler,
 func (r *EtcdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	etcd := &druidv1alpha1.Etcd{}
 	if err := r.Get(ctx, req.NamespacedName, etcd); err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// Object not found, return. Created objects are automatically garbage collected.
 			// For additional cleanup logic use finalizers.
 			return ctrl.Result{}, nil
@@ -196,7 +209,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		finalizers.Insert(FinalizerName)
 		etcd.Finalizers = finalizers.UnsortedList()
 		if err := r.Update(ctx, etcd); err != nil {
-			if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
+			if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 				return ctrl.Result{
 					Requeue: true,
 				}, err
@@ -207,26 +220,24 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		}
 	}
 	if err := r.addFinalizersToDependantSecrets(ctx, etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
+		if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
 		}
 	}
-
-	etcd, err := r.updateEtcdStatusAsNotReady(etcd)
+	etcd, err := r.updateEtcdStatusAsNotReady(ctx, etcd)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{
 			Requeue: true,
 		}, err
 	}
-
-	svc, ss, err := r.reconcileEtcd(etcd)
+	svc, ss, err := r.reconcileEtcd(ctx, etcd)
 	if err != nil {
-		if err := r.updateEtcdErrorStatus(etcd, ss, err); err != nil {
+		if err := r.updateEtcdErrorStatus(ctx, etcd, ss, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -236,7 +247,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		}, err
 	}
 
-	if err := r.updateEtcdStatus(etcd, svc, ss); err != nil {
+	if err := r.updateEtcdStatus(ctx, etcd, svc, ss); err != nil {
 		return ctrl.Result{
 			Requeue: true,
 		}, err
@@ -251,7 +262,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 	logger.Infof("Deletion timestamp set for etcd: %s", etcd.GetName())
 
 	if err := r.removeDependantStatefulset(ctx, etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
+		if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -262,7 +273,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 	}
 
 	if err := r.removeFinalizersToDependantSecrets(ctx, etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(etcd, nil, err); err != nil {
+		if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -290,7 +301,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 	return ctrl.Result{}, nil
 }
 
-func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd, renderedChart *chartrenderer.RenderedChart) (*corev1.Service, error) {
+func (r *EtcdReconciler) reconcileServices(ctx context.Context, etcd *druidv1alpha1.Etcd, renderedChart *chartrenderer.RenderedChart) (*corev1.Service, error) {
 	logger.Infof("Reconciling etcd services for etcd:%s in namespace:%s", etcd.Name, etcd.Namespace)
 
 	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
@@ -302,7 +313,7 @@ func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd, renderedCha
 	// list all services to include the services that don't match the etcd`s selector
 	// anymore but has the stale controller ref.
 	services := &corev1.ServiceList{}
-	err = r.List(context.TODO(), services, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
+	err = r.List(ctx, services, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
 	if err != nil {
 		logger.Error(err, "Error listing services")
 		return nil, err
@@ -311,7 +322,7 @@ func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd, renderedCha
 	// NOTE: filteredStatefulSets are pointing to deepcopies of the cache, but this could change in the future.
 	// Ref: https://github.com/kubernetes-sigs/controller-runtime/blob/release-0.2/pkg/cache/internal/cache_reader.go#L74
 	// if you need to modify them, you need to copy it first.
-	filteredServices, err := r.claimServices(etcd, selector, services)
+	filteredServices, err := r.claimServices(ctx, etcd, selector, services)
 	if err != nil {
 		logger.Error(err, "Error claiming service")
 		return nil, err
@@ -323,7 +334,7 @@ func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd, renderedCha
 		// Keep only 1 Service. Delete the rest
 		for i := 1; i < len(filteredServices); i++ {
 			ss := filteredServices[i]
-			if err := r.Delete(context.TODO(), ss); err != nil {
+			if err := r.Delete(ctx, ss); err != nil {
 				logger.Error(err, "Error in deleting duplicate StatefulSet")
 				continue
 			}
@@ -331,13 +342,13 @@ func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd, renderedCha
 
 		// Return the updated Service
 		service := &corev1.Service{}
-		err = r.Get(context.TODO(), types.NamespacedName{Name: filteredServices[0].Name, Namespace: filteredServices[0].Namespace}, service)
+		err = r.Get(ctx, types.NamespacedName{Name: filteredServices[0].Name, Namespace: filteredServices[0].Namespace}, service)
 		if err != nil {
 			return nil, err
 		}
 
 		// Service is claimed by for this etcd. Just sync the specs
-		if service, err = r.syncServiceSpec(service, etcd, renderedChart); err != nil {
+		if service, err = r.syncServiceSpec(ctx, service, etcd, renderedChart); err != nil {
 			return nil, err
 		}
 
@@ -351,7 +362,7 @@ func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd, renderedCha
 		return nil, err
 	}
 
-	err = r.Create(context.TODO(), ss)
+	err = r.Create(ctx, ss)
 
 	// Ignore the precondition violated error, this service is already updated
 	// with the desired label.
@@ -371,7 +382,7 @@ func (r *EtcdReconciler) reconcileServices(etcd *druidv1alpha1.Etcd, renderedCha
 	return ss.DeepCopy(), err
 }
 
-func (r *EtcdReconciler) syncServiceSpec(ss *corev1.Service, etcd *druidv1alpha1.Etcd, renderedChart *chartrenderer.RenderedChart) (*corev1.Service, error) {
+func (r *EtcdReconciler) syncServiceSpec(ctx context.Context, ss *corev1.Service, etcd *druidv1alpha1.Etcd, renderedChart *chartrenderer.RenderedChart) (*corev1.Service, error) {
 	decoded, err := r.getServiceFromEtcd(etcd, renderedChart)
 	if err != nil {
 		return nil, err
@@ -386,7 +397,7 @@ func (r *EtcdReconciler) syncServiceSpec(ss *corev1.Service, etcd *druidv1alpha1
 	ssCopy.Spec.ClusterIP = ss.Spec.ClusterIP
 
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		return r.Patch(context.TODO(), ssCopy, client.MergeFrom(ss))
+		return r.Patch(ctx, ssCopy, client.MergeFrom(ss))
 	})
 
 	// Ignore the precondition violated error, this machine is already updated
@@ -417,7 +428,7 @@ func (r *EtcdReconciler) getServiceFromEtcd(etcd *druidv1alpha1.Etcd, renderedCh
 	return decoded, nil
 }
 
-func (r *EtcdReconciler) reconcileConfigMaps(etcd *druidv1alpha1.Etcd, renderedChart *chartrenderer.RenderedChart) (*corev1.ConfigMap, error) {
+func (r *EtcdReconciler) reconcileConfigMaps(ctx context.Context, etcd *druidv1alpha1.Etcd, renderedChart *chartrenderer.RenderedChart) (*corev1.ConfigMap, error) {
 	logger.Infof("Reconciling etcd configmap for etcd:%s in namespace:%s", etcd.Name, etcd.Namespace)
 
 	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
@@ -429,7 +440,7 @@ func (r *EtcdReconciler) reconcileConfigMaps(etcd *druidv1alpha1.Etcd, renderedC
 	// list all configmaps to include the configmaps that don't match the etcd`s selector
 	// anymore but has the stale controller ref.
 	cms := &corev1.ConfigMapList{}
-	err = r.List(context.TODO(), cms, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
+	err = r.List(ctx, cms, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
 	if err != nil {
 		logger.Error(err, "Error listing statefulsets")
 		return nil, err
@@ -438,7 +449,7 @@ func (r *EtcdReconciler) reconcileConfigMaps(etcd *druidv1alpha1.Etcd, renderedC
 	// NOTE: filteredStatefulSets are pointing to deepcopies of the cache, but this could change in the future.
 	// Ref: https://github.com/kubernetes-sigs/controller-runtime/blob/release-0.2/pkg/cache/internal/cache_reader.go#L74
 	// if you need to modify them, you need to copy it first.
-	filteredCMs, err := r.claimConfigMaps(etcd, selector, cms)
+	filteredCMs, err := r.claimConfigMaps(ctx, etcd, selector, cms)
 	if err != nil {
 		return nil, err
 	}
@@ -449,7 +460,7 @@ func (r *EtcdReconciler) reconcileConfigMaps(etcd *druidv1alpha1.Etcd, renderedC
 		// Keep only 1 Configmap. Delete the rest
 		for i := 1; i < len(filteredCMs); i++ {
 			ss := filteredCMs[i]
-			if err := r.Delete(context.TODO(), ss); err != nil {
+			if err := r.Delete(ctx, ss); err != nil {
 				logger.Error(err, "Error in deleting duplicate StatefulSet")
 				continue
 			}
@@ -457,13 +468,13 @@ func (r *EtcdReconciler) reconcileConfigMaps(etcd *druidv1alpha1.Etcd, renderedC
 
 		// Return the updated Configmap
 		cm := &corev1.ConfigMap{}
-		err = r.Get(context.TODO(), types.NamespacedName{Name: filteredCMs[0].Name, Namespace: filteredCMs[0].Namespace}, cm)
+		err = r.Get(ctx, types.NamespacedName{Name: filteredCMs[0].Name, Namespace: filteredCMs[0].Namespace}, cm)
 		if err != nil {
 			return nil, err
 		}
 
 		// ConfigMap is claimed by for this etcd. Just sync the data
-		if cm, err = r.syncConfigMapData(cm, etcd, renderedChart); err != nil {
+		if cm, err = r.syncConfigMapData(ctx, cm, etcd, renderedChart); err != nil {
 			return nil, err
 		}
 
@@ -477,7 +488,7 @@ func (r *EtcdReconciler) reconcileConfigMaps(etcd *druidv1alpha1.Etcd, renderedC
 		return nil, err
 	}
 
-	err = r.Create(context.TODO(), cm)
+	err = r.Create(ctx, cm)
 
 	// Ignore the precondition violated error, this machine is already updated
 	// with the desired label.
@@ -497,7 +508,7 @@ func (r *EtcdReconciler) reconcileConfigMaps(etcd *druidv1alpha1.Etcd, renderedC
 	return cm.DeepCopy(), err
 }
 
-func (r *EtcdReconciler) syncConfigMapData(cm *corev1.ConfigMap, etcd *druidv1alpha1.Etcd, renderedChart *chartrenderer.RenderedChart) (*corev1.ConfigMap, error) {
+func (r *EtcdReconciler) syncConfigMapData(ctx context.Context, cm *corev1.ConfigMap, etcd *druidv1alpha1.Etcd, renderedChart *chartrenderer.RenderedChart) (*corev1.ConfigMap, error) {
 	decoded, err := r.getConfigMapFromEtcd(etcd, renderedChart)
 	if err != nil {
 		return nil, err
@@ -510,7 +521,7 @@ func (r *EtcdReconciler) syncConfigMapData(cm *corev1.ConfigMap, etcd *druidv1al
 	cmCopy.Data = decoded.Data
 
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		return r.Patch(context.TODO(), cmCopy, client.MergeFrom(cm))
+		return r.Patch(ctx, cmCopy, client.MergeFrom(cm))
 	})
 
 	// Ignore the precondition violated error, this machine is already updated
@@ -543,7 +554,7 @@ func (r *EtcdReconciler) getConfigMapFromEtcd(etcd *druidv1alpha1.Etcd, rendered
 	return decoded, nil
 }
 
-func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.Service, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*appsv1.StatefulSet, error) {
+func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, cm *corev1.ConfigMap, svc *corev1.Service, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*appsv1.StatefulSet, error) {
 	logger.Infof("Reconciling etcd statefulset for etcd:%s in namespace:%s", etcd.Name, etcd.Namespace)
 	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 	if err != nil {
@@ -554,7 +565,7 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 	// list all statefulsets to include the statefulsets that don't match the etcd`s selector
 	// anymore but has the stale controller ref.
 	statefulSets := &appsv1.StatefulSetList{}
-	err = r.List(context.TODO(), statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
+	err = r.List(ctx, statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
 	if err != nil {
 		logger.Error(err, "Error listing statefulsets")
 		return nil, err
@@ -563,7 +574,7 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 	// NOTE: filteredStatefulSets are pointing to deepcopies of the cache, but this could change in the future.
 	// Ref: https://github.com/kubernetes-sigs/controller-runtime/blob/release-0.2/pkg/cache/internal/cache_reader.go#L74
 	// if you need to modify them, you need to copy it first.
-	filteredStatefulSets, err := r.claimStatefulSets(etcd, selector, statefulSets)
+	filteredStatefulSets, err := r.claimStatefulSets(ctx, etcd, selector, statefulSets)
 	if err != nil {
 		return nil, err
 	}
@@ -574,7 +585,7 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 		// Keep only 1 statefulset. Delete the rest
 		for i := 1; i < len(filteredStatefulSets); i++ {
 			ss := filteredStatefulSets[i]
-			if err := r.Delete(context.TODO(), ss); err != nil {
+			if err := r.Delete(ctx, ss); err != nil {
 				logger.Error(err, "Error in deleting duplicate StatefulSet")
 				continue
 			}
@@ -582,12 +593,12 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 
 		// Return the updated statefulset
 		ss := &appsv1.StatefulSet{}
-		if err := r.Get(context.TODO(), types.NamespacedName{Name: filteredStatefulSets[0].Name, Namespace: filteredStatefulSets[0].Namespace}, ss); err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: filteredStatefulSets[0].Name, Namespace: filteredStatefulSets[0].Namespace}, ss); err != nil {
 			return nil, err
 		}
 
 		// Statefulset is claimed by for this etcd. Just sync the specs
-		if ss, err = r.syncStatefulSetSpec(ss, cm, svc, etcd, values); err != nil {
+		if ss, err = r.syncStatefulSetSpec(ctx, ss, etcd, values); err != nil {
 			return nil, err
 		}
 
@@ -598,29 +609,29 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 			return nil, err
 		}
 		podList := &v1.PodList{}
-		if err := r.List(context.TODO(), podList, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
+		if err := r.List(ctx, podList, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
 			return nil, err
 		}
 
 		for _, pod := range podList.Items {
 			if utils.IsPodInCrashloopBackoff(pod.Status) {
-				if err := r.Delete(context.TODO(), &pod); err != nil {
+				if err := r.Delete(ctx, &pod); err != nil {
 					logger.Error(err, fmt.Sprintf("error deleting etcd pod in crashloop: %s/%s", pod.Namespace, pod.Name))
 					return nil, err
 				}
 			}
 		}
 
-		return r.waitUntilStatefulSetReady(ss)
+		return r.waitUntilStatefulSetReady(ctx, ss)
 	}
 
 	// Required statefulset doesn't exist. Create new
-	ss, err := r.getStatefulSetFromEtcd(etcd, cm, svc, values)
+	ss, err := r.getStatefulSetFromEtcd(etcd, values)
 	if err != nil {
 		return nil, err
 	}
 
-	err = r.Create(context.TODO(), ss)
+	err = r.Create(ctx, ss)
 
 	// Ignore the precondition violated error, this machine is already updated
 	// with the desired label.
@@ -632,7 +643,7 @@ func (r *EtcdReconciler) reconcileStatefulSet(cm *corev1.ConfigMap, svc *corev1.
 		return nil, err
 	}
 
-	return r.waitUntilStatefulSetReady(ss)
+	return r.waitUntilStatefulSetReady(ctx, ss)
 }
 
 func getContainerMapFromPodTemplateSpec(spec v1.PodSpec) map[string]v1.Container {
@@ -643,8 +654,8 @@ func getContainerMapFromPodTemplateSpec(spec v1.PodSpec) map[string]v1.Container
 	return containers
 }
 
-func (r *EtcdReconciler) syncStatefulSetSpec(ss *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*appsv1.StatefulSet, error) {
-	decoded, err := r.getStatefulSetFromEtcd(etcd, cm, svc, values)
+func (r *EtcdReconciler) syncStatefulSetSpec(ctx context.Context, ss *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*appsv1.StatefulSet, error) {
+	decoded, err := r.getStatefulSetFromEtcd(etcd, values)
 	if err != nil {
 		return nil, err
 	}
@@ -676,10 +687,10 @@ func (r *EtcdReconciler) syncStatefulSetSpec(ss *appsv1.StatefulSet, cm *corev1.
 
 	if recreateSTS {
 		logger.Infof("selector changed, recreating statefulset: %s", ssCopy.Name)
-		err = r.recreateStatefulset(decoded)
+		err = r.recreateStatefulset(ctx, decoded)
 	} else {
 		err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-			return r.Patch(context.TODO(), ssCopy, client.MergeFrom(ss))
+			return r.Patch(ctx, ssCopy, client.MergeFrom(ss))
 		})
 	}
 
@@ -695,21 +706,21 @@ func (r *EtcdReconciler) syncStatefulSetSpec(ss *appsv1.StatefulSet, cm *corev1.
 	return ssCopy, err
 }
 
-func (r *EtcdReconciler) recreateStatefulset(ss *appsv1.StatefulSet) error {
+func (r *EtcdReconciler) recreateStatefulset(ctx context.Context, ss *appsv1.StatefulSet) error {
 	skipDelete := false
 	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		if !skipDelete {
-			if err := r.Delete(context.TODO(), ss); err != nil && !errors.IsNotFound(err) {
+			if err := r.Delete(ctx, ss); err != nil && !apierrors.IsNotFound(err) {
 				return err
 			}
 		}
 		skipDelete = true
-		return r.Create(context.TODO(), ss)
+		return r.Create(ctx, ss)
 	})
 	return err
 }
 
-func (r *EtcdReconciler) getStatefulSetFromEtcd(etcd *druidv1alpha1.Etcd, cm *corev1.ConfigMap, svc *corev1.Service, values map[string]interface{}) (*appsv1.StatefulSet, error) {
+func (r *EtcdReconciler) getStatefulSetFromEtcd(etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*appsv1.StatefulSet, error) {
 	var err error
 	decoded := &appsv1.StatefulSet{}
 	statefulSetPath := getChartPathForStatefulSet()
@@ -729,7 +740,7 @@ func (r *EtcdReconciler) getStatefulSetFromEtcd(etcd *druidv1alpha1.Etcd, cm *co
 	return decoded, nil
 }
 
-func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd) (*corev1.Service, *appsv1.StatefulSet, error) {
+func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, etcd *druidv1alpha1.Etcd) (*corev1.Service, *appsv1.StatefulSet, error) {
 
 	values, err := r.getMapFromEtcd(etcd)
 	if err != nil {
@@ -741,7 +752,7 @@ func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd) (*corev1.Servic
 	if err != nil {
 		return nil, nil, err
 	}
-	svc, err := r.reconcileServices(etcd, renderedChart)
+	svc, err := r.reconcileServices(ctx, etcd, renderedChart)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -749,7 +760,7 @@ func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd) (*corev1.Servic
 		values["serviceName"] = svc.Name
 	}
 
-	cm, err := r.reconcileConfigMaps(etcd, renderedChart)
+	cm, err := r.reconcileConfigMaps(ctx, etcd, renderedChart)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -757,7 +768,7 @@ func (r *EtcdReconciler) reconcileEtcd(etcd *druidv1alpha1.Etcd) (*corev1.Servic
 		values["configMapName"] = cm.Name
 	}
 
-	ss, err := r.reconcileStatefulSet(cm, svc, etcd, values)
+	ss, err := r.reconcileStatefulSet(ctx, cm, svc, etcd, values)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1018,7 +1029,7 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(ctx context.Context,
 			Name:      secretRef.Name,
 			Namespace: etcd.Namespace,
 		}, secret); err != nil {
-			if !errors.IsNotFound(err) {
+			if !apierrors.IsNotFound(err) {
 				return err
 			}
 		} else if finalizers := sets.NewString(secret.Finalizers...); finalizers.Has(FinalizerName) {
@@ -1065,7 +1076,7 @@ func canDeleteStatefulset(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) boo
 
 }
 
-func (r *EtcdReconciler) updateEtcdErrorStatus(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
+func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
 	lastErrStr := fmt.Sprintf("%v", lastError)
 	etcd.Status.LastError = &lastErrStr
 	etcd.Status.ObservedGeneration = &etcd.Generation
@@ -1074,13 +1085,13 @@ func (r *EtcdReconciler) updateEtcdErrorStatus(etcd *druidv1alpha1.Etcd, sts *ap
 		etcd.Status.Ready = &ready
 	}
 
-	if err := r.Status().Update(context.TODO(), etcd); err != nil && !errors.IsNotFound(err) {
+	if err := r.Status().Update(ctx, etcd); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
-	return r.removeOperationAnnotation(etcd)
+	return r.removeOperationAnnotation(ctx, etcd)
 }
 
-func (r *EtcdReconciler) updateEtcdStatus(etcd *druidv1alpha1.Etcd, svc *corev1.Service, sts *appsv1.StatefulSet) error {
+func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, svc *corev1.Service, sts *appsv1.StatefulSet) error {
 
 	svcName := svc.Name
 	etcd.Status.Etcd = druidv1alpha1.CrossVersionObjectReference{
@@ -1104,17 +1115,20 @@ func (r *EtcdReconciler) updateEtcdStatus(etcd *druidv1alpha1.Etcd, svc *corev1.
 	etcd.Status.ObservedGeneration = &etcd.Generation
 	etcd.Status.Ready = &ready
 
-	if err := r.Status().Update(context.TODO(), etcd); err != nil && !errors.IsNotFound(err) {
+	if err := r.Status().Update(ctx, etcd); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
-	return r.removeOperationAnnotation(etcd)
+	return r.removeOperationAnnotation(ctx, etcd)
 }
 
-func (r *EtcdReconciler) waitUntilStatefulSetReady(sts *appsv1.StatefulSet) (*appsv1.StatefulSet, error) {
-	ss := &appsv1.StatefulSet{}
-	err := gardenerretry.UntilTimeout(context.TODO(), DefaultInterval, DefaultTimeout, func(ctx context.Context) (bool, error) {
-		if err := r.Get(context.TODO(), types.NamespacedName{Name: sts.Name, Namespace: sts.Namespace}, ss); err != nil {
-			if errors.IsNotFound(err) {
+func (r *EtcdReconciler) waitUntilStatefulSetReady(ctx context.Context, sts *appsv1.StatefulSet) (*appsv1.StatefulSet, error) {
+	var (
+		ss = &appsv1.StatefulSet{}
+	)
+
+	err := gardenerretry.UntilTimeout(ctx, DefaultInterval, DefaultTimeout, func(ctx context.Context) (bool, error) {
+		if err := r.Get(ctx, types.NamespacedName{Name: sts.Name, Namespace: sts.Namespace}, ss); err != nil {
+			if apierrors.IsNotFound(err) {
 				return gardenerretry.MinorError(err)
 			}
 			return gardenerretry.SevereError(err)
@@ -1124,23 +1138,63 @@ func (r *EtcdReconciler) waitUntilStatefulSetReady(sts *appsv1.StatefulSet) (*ap
 		}
 		return gardenerretry.Ok()
 	})
+	if err != nil {
+		messages, err2 := r.fetchPVCEventsFor(ctx, ss)
+		if err2 != nil {
+			logger.Error(err2)
+			// don't expose this error since fetching events is a best effort
+			// and shouldn't be confused with the actual error
+			return ss, err
+		}
+		if messages != "" {
+			return ss, fmt.Errorf("%w\n\n%s", err, messages)
+		}
+	}
+
 	return ss, err
 }
 
-func (r *EtcdReconciler) removeOperationAnnotation(etcd *druidv1alpha1.Etcd) error {
+func (r *EtcdReconciler) fetchPVCEventsFor(ctx context.Context, ss *appsv1.StatefulSet) (string, error) {
+	pvcs := &corev1.PersistentVolumeClaimList{}
+	if err := r.List(ctx, pvcs, client.InNamespace(ss.GetNamespace())); err != nil {
+		return "", err
+	}
+
+	var (
+		pvcMessages  string
+		volumeClaims = ss.Spec.VolumeClaimTemplates
+	)
+	for _, volumeClaim := range volumeClaims {
+		for _, pvc := range pvcs.Items {
+			if pvc.Status.Phase != corev1.ClaimBound && !strings.HasPrefix(pvc.GetName(), fmt.Sprintf("%s-%s", volumeClaim.Name, ss.Name)) {
+				continue
+			}
+			messages, err := kutil.FetchEventMessages(ctx, r.Client, &pvc, corev1.EventTypeWarning, 2)
+			if err != nil {
+				return "", err
+			}
+			if messages != "" {
+				pvcMessages += fmt.Sprintf("Warning for PVC %s:\n%s\n", pvc.Name, messages)
+			}
+		}
+	}
+	return pvcMessages, nil
+}
+
+func (r *EtcdReconciler) removeOperationAnnotation(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
 	if _, ok := etcd.Annotations[v1beta1constants.GardenerOperation]; ok {
 		delete(etcd.Annotations, v1beta1constants.GardenerOperation)
-		return r.Update(context.TODO(), etcd)
+		return r.Update(ctx, etcd)
 	}
 	return nil
 }
 
-func (r *EtcdReconciler) updateEtcdStatusAsNotReady(etcd *druidv1alpha1.Etcd) (*druidv1alpha1.Etcd, error) {
+func (r *EtcdReconciler) updateEtcdStatusAsNotReady(ctx context.Context, etcd *druidv1alpha1.Etcd) (*druidv1alpha1.Etcd, error) {
 	etcdCopy := etcd.DeepCopy()
 	etcdCopy.Status.Ready = nil
 	etcdCopy.Status.ReadyReplicas = 0
 	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		return r.Status().Patch(context.TODO(), etcdCopy, client.MergeFrom(etcd))
+		return r.Status().Patch(ctx, etcdCopy, client.MergeFrom(etcd))
 	})
 	return etcdCopy, err
 }
@@ -1155,12 +1209,12 @@ func convertConditionsToEtcd(condition *appsv1.StatefulSetCondition) druidv1alph
 	}
 }
 
-func (r *EtcdReconciler) claimStatefulSets(etcd *druidv1alpha1.Etcd, selector labels.Selector, ss *appsv1.StatefulSetList) ([]*appsv1.StatefulSet, error) {
+func (r *EtcdReconciler) claimStatefulSets(ctx context.Context, etcd *druidv1alpha1.Etcd, selector labels.Selector, ss *appsv1.StatefulSetList) ([]*appsv1.StatefulSet, error) {
 	// If any adoptions are attempted, we should first recheck for deletion with
 	// an uncached quorum read sometime after listing Machines (see #42639).
 	canAdoptFunc := RecheckDeletionTimestamp(func() (metav1.Object, error) {
 		foundEtcd := &druidv1alpha1.Etcd{}
-		err := r.Get(context.TODO(), types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)
+		err := r.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)
 		if err != nil {
 			return nil, err
 		}
@@ -1173,12 +1227,12 @@ func (r *EtcdReconciler) claimStatefulSets(etcd *druidv1alpha1.Etcd, selector la
 	return cm.ClaimStatefulsets(ss)
 }
 
-func (r *EtcdReconciler) claimServices(etcd *druidv1alpha1.Etcd, selector labels.Selector, ss *corev1.ServiceList) ([]*corev1.Service, error) {
+func (r *EtcdReconciler) claimServices(ctx context.Context, etcd *druidv1alpha1.Etcd, selector labels.Selector, ss *corev1.ServiceList) ([]*corev1.Service, error) {
 	// If any adoptions are attempted, we should first recheck for deletion with
 	// an uncached quorum read sometime after listing Machines (see #42639).
 	canAdoptFunc := RecheckDeletionTimestamp(func() (metav1.Object, error) {
 		foundEtcd := &druidv1alpha1.Etcd{}
-		err := r.Get(context.TODO(), types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)
+		err := r.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)
 		if err != nil {
 			return nil, err
 		}
@@ -1191,12 +1245,12 @@ func (r *EtcdReconciler) claimServices(etcd *druidv1alpha1.Etcd, selector labels
 	return cm.ClaimServices(ss)
 }
 
-func (r *EtcdReconciler) claimConfigMaps(etcd *druidv1alpha1.Etcd, selector labels.Selector, ss *corev1.ConfigMapList) ([]*corev1.ConfigMap, error) {
+func (r *EtcdReconciler) claimConfigMaps(ctx context.Context, etcd *druidv1alpha1.Etcd, selector labels.Selector, ss *corev1.ConfigMapList) ([]*corev1.ConfigMap, error) {
 	// If any adoptions are attempted, we should first recheck for deletion with
 	// an uncached quorum read sometime after listing Machines (see #42639).
 	canAdoptFunc := RecheckDeletionTimestamp(func() (metav1.Object, error) {
 		foundEtcd := &druidv1alpha1.Etcd{}
-		err := r.Get(context.TODO(), types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)
+		err := r.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)
 		if err != nil {
 			return nil, err
 		}
