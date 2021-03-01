@@ -109,8 +109,6 @@ elif name == 'external-dns-management':
     names = ['dns-controller-manager']
 elif name == 'logging':
     names = ['fluentd-es', 'curator-es']
-elif name == 'etcd-custom-image':
-    names = ['etcd']
 else:
     names = [name]
 
