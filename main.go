@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	schemev1 "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	// +kubebuilder:scaffold:imports
@@ -44,16 +45,26 @@ func init() {
 
 func main() {
 	var (
-		metricsAddr               string
-		enableLeaderElection      bool
-		workers                   int
-		ignoreOperationAnnotation bool
+		metricsAddr                string
+		enableLeaderElection       bool
+		leaderElectionID           string
+		leaderElectionResourceLock string
+		workers                    int
+		ignoreOperationAnnotation  bool
+
+		// TODO: migrate default to `leases` in one of the next releases
+		defaultLeaderElectionResourceLock = resourcelock.ConfigMapsLeasesResourceLock
+		defaultLeaderElectionID           = "druid-leader-election"
 	)
 
 	flag.IntVar(&workers, "workers", 3, "Number of worker threads.")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&leaderElectionID, "leader-election-id", defaultLeaderElectionID, "Name of the resource that leader election will use for holding the leader lock. "+
+		"Defaults to 'druid-leader-election'.")
+	flag.StringVar(&leaderElectionResourceLock, "leader-election-resource-lock", defaultLeaderElectionResourceLock, "Which resource type to use for leader election. "+
+		"Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'.")
 	flag.BoolVar(&ignoreOperationAnnotation, "ignore-operation-annotation", true, "Ignore the operation annotation or not.")
 
 	flag.Parse()
@@ -61,9 +72,11 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: metricsAddr,
-		LeaderElection:     enableLeaderElection,
+		Scheme:                     scheme,
+		MetricsBindAddress:         metricsAddr,
+		LeaderElection:             enableLeaderElection,
+		LeaderElectionID:           leaderElectionID,
+		LeaderElectionResourceLock: leaderElectionResourceLock,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
