@@ -8,6 +8,7 @@ etcd-druid:
           'inject-commit-hash'
         inject_effective_version: true
       publish:
+        oci-builder: 'kaniko'
         dockerimages:
           etcd-druid:
             registry: 'gcr-readwrite'
@@ -20,11 +21,11 @@ etcd-druid:
                 build: ~
     steps:
       check:
-        image: 'golang:1.13'
+        image: 'golang:1.15.8'
       test:
-        image: 'golang:1.13'
+        image: 'golang:1.15.8'
       build:
-        image: 'golang:1.13'
+        image: 'golang:1.15.8'
         output_dir: 'binary'
 
   jobs:
