@@ -98,6 +98,7 @@ docker-push:
 .PHONY: install-requirements
 install-requirements:
 	@go install -mod=vendor sigs.k8s.io/controller-tools/cmd/controller-gen
+	@$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/install-requirements.sh
 
 .PHONY: update-dependencies
 update-dependencies:
