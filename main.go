@@ -73,6 +73,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		ClientDisableCacheFor:      controllers.UncachedObjectList,
 		Scheme:                     scheme,
 		MetricsBindAddress:         metricsAddr,
 		LeaderElection:             enableLeaderElection,

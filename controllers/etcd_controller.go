@@ -1166,7 +1166,7 @@ func (r *EtcdReconciler) fetchPVCEventsFor(ctx context.Context, ss *appsv1.State
 	)
 	for _, volumeClaim := range volumeClaims {
 		for _, pvc := range pvcs.Items {
-			if pvc.Status.Phase != corev1.ClaimBound && !strings.HasPrefix(pvc.GetName(), fmt.Sprintf("%s-%s", volumeClaim.Name, ss.Name)) {
+			if !strings.HasPrefix(pvc.GetName(), fmt.Sprintf("%s-%s", volumeClaim.Name, ss.Name)) || pvc.Status.Phase == corev1.ClaimBound {
 				continue
 			}
 			messages, err := kutil.FetchEventMessages(ctx, r.Client, &pvc, corev1.EventTypeWarning, 2)
