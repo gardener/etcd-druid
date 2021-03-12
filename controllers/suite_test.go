@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gardener/gardener/extensions/pkg/util/test"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -52,6 +54,8 @@ var (
 	testEnv    *envtest.Environment
 	mgr        manager.Manager
 	mgrStopped *sync.WaitGroup
+
+	revertFns []func()
 
 	testLog = ctrl.Log.WithName("test")
 )
@@ -88,17 +92,19 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
+	revertFns = []func(){
+		test.WithVar(&DefaultTimeout, 20*time.Second),
+		WithWd(".."),
+	}
+
 	Expect(cfg).ToNot(BeNil())
 	mgr, err = manager.New(cfg, manager.Options{
-		MetricsBindAddress: "0",
+		MetricsBindAddress:    "0",
+		ClientDisableCacheFor: UncachedObjectList,
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	Expect(cfg).ToNot(BeNil())
-	mgr, err = manager.New(cfg, manager.Options{})
-
 	Expect(err).NotTo(HaveOccurred())
-	defer WithWd("..")()
 	er, err := NewEtcdReconcilerWithImageVector(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -114,6 +120,9 @@ var _ = AfterSuite(func() {
 	mgrCancel()
 	mgrStopped.Wait()
 	Expect(testEnv.Stop()).To(Succeed())
+	for _, f := range revertFns {
+		f()
+	}
 })
 
 func startTestManager(ctx context.Context, mgr manager.Manager) *sync.WaitGroup {
