@@ -904,6 +904,17 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		backupValues["port"] = etcd.Spec.Backup.Port
 	}
 
+	if etcd.Spec.Backup.SnapshotCompression != nil {
+		compressionValues := make(map[string]interface{})
+		if etcd.Spec.Backup.SnapshotCompression.Enabled {
+			compressionValues["enabled"] = etcd.Spec.Backup.SnapshotCompression.Enabled
+		}
+		if etcd.Spec.Backup.SnapshotCompression.CompressionPolicy != nil {
+			compressionValues["policy"] = etcd.Spec.Backup.SnapshotCompression.CompressionPolicy
+		}
+		backupValues["compression"] = compressionValues
+	}
+
 	if etcd.Spec.Backup.Image == nil {
 		val, ok := images[common.BackupRestore]
 		if !ok {

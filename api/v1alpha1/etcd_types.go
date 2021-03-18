@@ -65,6 +65,14 @@ type TLSConfig struct {
 	TLSCASecretRef corev1.SecretReference `json:"tlsCASecretRef"`
 }
 
+// CompressionSpec defines parameters related to compression of Snapshots(full as well as delta).
+type CompressionSpec struct {
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+	// +optional
+	CompressionPolicy *string `json:"policy,omitempty"`
+}
+
 // BackupSpec defines parametes associated with the full and delta snapshots of etcd
 type BackupSpec struct {
 	// Port define the port on which etcd-backup-restore server will exposed.
@@ -97,6 +105,9 @@ type BackupSpec struct {
 	// DeltaSnapshotMemoryLimit defines the memory limit after which delta snapshots will be taken
 	// +optional
 	DeltaSnapshotMemoryLimit *resource.Quantity `json:"deltaSnapshotMemoryLimit,omitempty"`
+	// SnapshotCompression defines the specification for compression of Snapshots.
+	// +optional
+	SnapshotCompression *CompressionSpec `json:"compression,omitempty"`
 }
 
 // EtcdConfig defines parameters associated etcd deployed
