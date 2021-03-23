@@ -82,7 +82,7 @@ data:
           echo "$VALIDATION_MARKER file present. Check return status and decide on initialization"
           run_status=$(cat $VALIDATION_MARKER)
           echo "$VALIDATION_MARKER content: $run_status"
-          if [ $run_status == '143' ] || [ $run_status == '130' ] || [ $run_status == '0' ] ; then
+          if [ $run_status = '143' ] || [ $run_status = '130' ] || [ $run_status = '0' ] ; then
                 echo "Requesting sidecar to perform sanity validation"
                 check_and_start_etcd sanity
           else
