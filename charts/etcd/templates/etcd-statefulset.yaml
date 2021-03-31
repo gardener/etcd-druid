@@ -159,6 +159,14 @@ spec:
 {{- if .Values.backup.garbageCollectionPeriod }}
         - --garbage-collection-period={{ .Values.backup.garbageCollectionPeriod }}
 {{- end }}
+{{- if .Values.backup.compression }}
+        {{- if .Values.backup.compression.enabled }}
+        - --compress-snapshots={{ .Values.backup.compression.enabled }}
+        {{- end }}
+        {{- if .Values.backup.compression.policy }}        
+        - --compression-policy={{ .Values.backup.compression.policy }}
+        {{- end }}
+{{- end }}
         - --snapstore-temp-directory={{ .Values.backup.snapstoreTempDir }}
         image: {{ .Values.backup.image }}
         imagePullPolicy: {{ .Values.backup.pullPolicy }}

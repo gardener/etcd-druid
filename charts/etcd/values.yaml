@@ -45,6 +45,9 @@ backup:
     requests:
       cpu: 50m
       memory: 128Mi
+  # compression:
+  #   enabled: true
+  #   policy: "gzip"
 
 volumeClaimTemplateName: test
 storageClass: ""
