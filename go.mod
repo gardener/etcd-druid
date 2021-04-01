@@ -6,7 +6,7 @@ require (
 	github.com/gardener/gardener v1.17.1
 	github.com/ghodss/yaml v1.0.0
 	github.com/onsi/ginkgo v1.14.1
-	github.com/onsi/gomega v1.10.5
+	github.com/onsi/gomega v1.11.0
 	github.com/sirupsen/logrus v1.6.0
 	k8s.io/api v0.19.6
 	k8s.io/apimachinery v0.19.6
