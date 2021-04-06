@@ -34,66 +34,81 @@ This document proposes an approach (along with some alternatives) to support pro
     - [Ephemeral](#ephemeral)
       - [In-memory](#in-memory)
     - [Recommendation](#recommendation)
-  - [Health Check](#health-check)
-    - [Cutting off client requests on backup failure](#cutting-off-client-requests-on-backup-failure)
+  - [Separating peer and client traffic](#separating-peer-and-client-traffic)
+    - [Cutting off client requests](#cutting-off-client-requests)
       - [Manipulating Client Service podSelector](#manipulating-client-service-podselector)
+  - [Health Check](#health-check)
+    - [Backup Failure](#backup-failure)
         - [Alternative](#alternative-3)
   - [Status](#status)
-    - [Note](#note-1)
+    - [Members](#members)
+    - [Conditions](#conditions)
     - [Alternative](#alternative-4)
   - [Decision table for etcd-druid based on the status](#decision-table-for-etcd-druid-based-on-the-status)
     - [1. Pink of health](#1-pink-of-health)
       - [Observed state](#observed-state)
       - [Recommended Action](#recommended-action)
-    - [2. Some members have not updated their status for a while](#2-some-members-have-not-updated-their-status-for-a-while)
+    - [2. All members are Ready but AllMembersReady condition is stale](#2-all-members-are-ready-but-allmembersready-condition-is-stale)
       - [Observed state](#observed-state-1)
       - [Recommended Action](#recommended-action-1)
-    - [3. Some members have been in Unknown status for a while](#3-some-members-have-been-in-unknown-status-for-a-while)
+    - [3. Not all members are Ready but AllMembersReady condition is stale](#3-not-all-members-are-ready-but-allmembersready-condition-is-stale)
       - [Observed state](#observed-state-2)
       - [Recommended Action](#recommended-action-2)
-    - [4. Some member pods are not Ready but have not had the change to update their status](#4-some-member-pods-are-not-ready-but-have-not-had-the-change-to-update-their-status)
+    - [4. Majority members are Ready but Ready condition is stale](#4-majority-members-are-ready-but-ready-condition-is-stale)
       - [Observed state](#observed-state-3)
       - [Recommended Action](#recommended-action-3)
-    - [5. Quorate cluster with a minority of members NotReady](#5-quorate-cluster-with-a-minority-of-members-notready)
+    - [5. Majority members are NotReady but Ready condition is stale](#5-majority-members-are-notready-but-ready-condition-is-stale)
       - [Observed state](#observed-state-4)
       - [Recommended Action](#recommended-action-4)
-    - [6. Quorum lost with a majority of members NotReady](#6-quorum-lost-with-a-majority-of-members-notready)
+    - [6. Some members have not updated their status for a while](#6-some-members-have-not-updated-their-status-for-a-while)
       - [Observed state](#observed-state-5)
       - [Recommended Action](#recommended-action-5)
-    - [7. Scale up of a healthy cluster](#7-scale-up-of-a-healthy-cluster)
+    - [7. Some members have been in Unknown status for a while](#7-some-members-have-been-in-unknown-status-for-a-while)
       - [Observed state](#observed-state-6)
       - [Recommended Action](#recommended-action-6)
-    - [8. Scale down of a healthy cluster](#8-scale-down-of-a-healthy-cluster)
+    - [8. Some member pods are not Ready but have not had the chance to update their status](#8-some-member-pods-are-not-ready-but-have-not-had-the-chance-to-update-their-status)
       - [Observed state](#observed-state-7)
       - [Recommended Action](#recommended-action-7)
-    - [9. Superfluous member entries in Etcd status](#9-superfluous-member-entries-in-etcd-status)
+    - [9. Quorate cluster with a minority of members NotReady](#9-quorate-cluster-with-a-minority-of-members-notready)
       - [Observed state](#observed-state-8)
       - [Recommended Action](#recommended-action-8)
-  - [Decision table for etcd-backup-restore during initialization](#decision-table-for-etcd-backup-restore-during-initialization)
-    - [1. First member during bootstrap of a fresh etcd cluster](#1-first-member-during-bootstrap-of-a-fresh-etcd-cluster)
+    - [10. Quorum lost with a majority of members NotReady](#10-quorum-lost-with-a-majority-of-members-notready)
       - [Observed state](#observed-state-9)
       - [Recommended Action](#recommended-action-9)
-    - [2. Addition of a new following member during bootstrap of a fresh etcd cluster](#2-addition-of-a-new-following-member-during-bootstrap-of-a-fresh-etcd-cluster)
+    - [11. Scale up of a healthy cluster](#11-scale-up-of-a-healthy-cluster)
       - [Observed state](#observed-state-10)
       - [Recommended Action](#recommended-action-10)
-    - [3. Restart of an existing member of a quorate cluster with valid metadata and data](#3-restart-of-an-existing-member-of-a-quorate-cluster-with-valid-metadata-and-data)
+    - [12. Scale down of a healthy cluster](#12-scale-down-of-a-healthy-cluster)
       - [Observed state](#observed-state-11)
       - [Recommended Action](#recommended-action-11)
-    - [4. Restart of an existing member of a quorate cluster with valid metadata but without valid data](#4-restart-of-an-existing-member-of-a-quorate-cluster-with-valid-metadata-but-without-valid-data)
+    - [13. Superfluous member entries in Etcd status](#13-superfluous-member-entries-in-etcd-status)
       - [Observed state](#observed-state-12)
       - [Recommended Action](#recommended-action-12)
-    - [5. Restart of an existing member of a quorate cluster without valid metadata](#5-restart-of-an-existing-member-of-a-quorate-cluster-without-valid-metadata)
+  - [Decision table for etcd-backup-restore during initialization](#decision-table-for-etcd-backup-restore-during-initialization)
+    - [1. First member during bootstrap of a fresh etcd cluster](#1-first-member-during-bootstrap-of-a-fresh-etcd-cluster)
       - [Observed state](#observed-state-13)
       - [Recommended Action](#recommended-action-13)
-    - [6. Restart of an existing member of a non-quorate cluster with valid metadata and data](#6-restart-of-an-existing-member-of-a-non-quorate-cluster-with-valid-metadata-and-data)
+    - [2. Addition of a new following member during bootstrap of a fresh etcd cluster](#2-addition-of-a-new-following-member-during-bootstrap-of-a-fresh-etcd-cluster)
       - [Observed state](#observed-state-14)
       - [Recommended Action](#recommended-action-14)
-    - [7. Restart of the first member of a non-quorate cluster without valid data](#7-restart-of-the-first-member-of-a-non-quorate-cluster-without-valid-data)
+    - [3. Restart of an existing member of a quorate cluster with valid metadata and data](#3-restart-of-an-existing-member-of-a-quorate-cluster-with-valid-metadata-and-data)
       - [Observed state](#observed-state-15)
       - [Recommended Action](#recommended-action-15)
-    - [8. Restart of a following member of a non-quorate cluster without valid data](#8-restart-of-a-following-member-of-a-non-quorate-cluster-without-valid-data)
+    - [4. Restart of an existing member of a quorate cluster with valid metadata but without valid data](#4-restart-of-an-existing-member-of-a-quorate-cluster-with-valid-metadata-but-without-valid-data)
       - [Observed state](#observed-state-16)
       - [Recommended Action](#recommended-action-16)
+    - [5. Restart of an existing member of a quorate cluster without valid metadata](#5-restart-of-an-existing-member-of-a-quorate-cluster-without-valid-metadata)
+      - [Observed state](#observed-state-17)
+      - [Recommended Action](#recommended-action-17)
+    - [6. Restart of an existing member of a non-quorate cluster with valid metadata and data](#6-restart-of-an-existing-member-of-a-non-quorate-cluster-with-valid-metadata-and-data)
+      - [Observed state](#observed-state-18)
+      - [Recommended Action](#recommended-action-18)
+    - [7. Restart of the first member of a non-quorate cluster without valid data](#7-restart-of-the-first-member-of-a-non-quorate-cluster-without-valid-data)
+      - [Observed state](#observed-state-19)
+      - [Recommended Action](#recommended-action-19)
+    - [8. Restart of a following member of a non-quorate cluster without valid data](#8-restart-of-a-following-member-of-a-non-quorate-cluster-without-valid-data)
+      - [Observed state](#observed-state-20)
+      - [Recommended Action](#recommended-action-20)
   - [Backup](#backup)
     - [Leading ETCD main container’s sidecar is the backup leader](#leading-etcd-main-containers-sidecar-is-the-backup-leader)
     - [Independent leader election between backup-restore sidecars](#independent-leader-election-between-backup-restore-sidecars)
@@ -240,6 +255,7 @@ Such information needs to be passed to the individual members during startup usi
 A [new member can be added](https://etcd.io/docs/v3.4.0/op-guide/runtime-configuration/#add-a-new-member) to an existing etcd cluster instance using the following steps.
 
 1. If the latest backup snapshot exists, restore the member's etcd data to the latest backup snapshot. This can reduce the load on the leader to bring the new member up to date when it joins the cluster.
+   1. If the latest backup snapshot doesn't exist or if the latest backup snapshot is not accessible (please see [backup failure](#backup-failure)) and if the cluster itself is quorate, then the new member can be started with an empty data. But this will will be suboptimal because the new member will fetch all the data from the leading member to get up-to-date.
 1. The cluster is informed that a new member is being added using the [`MemberAdd` API](https://github.com/etcd-io/etcd/blob/6e800b9b0161ef874784fc6c679325acd67e2452/client/v3/cluster.go#L40) including information like the member name and its advertised peer URLs.
 1. The new etcd member is then started with `ETCD_INITIAL_CLUSTER_STATE=existing` apart from other required configuration.
 
@@ -394,35 +410,78 @@ I.e. every time an etcd container restarts, [the old member (represented by the 
 
 Though [ephemeral](#ephemeral) persistence has performance and logistics advantages,
 it is recommended to start with [persistent](#persistent) data for the member pods.
-The idea is to gain experience about how frequently member containers/pods get restarted/recreated, how frequently leader election happens among members of an etcd cluster and how frequently etcd clusters lose quorum.
+In addition to the reasons and concerns listed above, there is also the additional concern that in case of [backup failure](#backup-failure), the risk of additional data loss is a bit higher if ephemeral persistence is used (simultaneous quoram loss is sufficient) when compared to persistent storage (simultaenous quorum loss with majority persistence loss is needed).
+The risk might still be acceptable but the idea is to gain experience about how frequently member containers/pods get restarted/recreated, how frequently leader election happens among members of an etcd cluster and how frequently etcd clusters lose quorum.
 Based on this experience, we can move towards using [ephemeral](#ephemeral) (perhaps even [in-memory](#in-memory)) persistence for the member pods.
 
-## Health Check
+## Separating peer and client traffic
 
-The etcd main container and the etcd-backup-restore sidecar containers will be configured with livenessProbe and readinessProbe which will indicate the health of the containers and effectively the corresponding ETCD cluster member pod. 
+The current single-node ETCD cluster implementation in `etcd-druid` and `etcd-backup-restore` uses a single `service` object to act as the entry point for the client traffic.
+There is no separation or distinction between the client and peer traffic because there is not much benefit to be had by making that distinction.
 
-### Cutting off client requests on backup failure 
+In the multi-node ETCD cluster scenario, it makes sense to distinguish between and separate the peer and client traffic. 
+This can be done by using two `services`.
+
+- peer
+  - To be used for peer communication. This could be a `headless` service. 
+- client
+  - To be used for client communication. This could be a normal `ClusterIP` service like it is in the single-node case.
+
+The main advantage of this approach is that it makes it possible (if needed) to allow only peer to peer communication while blocking client communication. Such a thing might be required during some phases of some maintenance tasks (manual or automated).
+
+### Cutting off client requests
 
 At present, in the single-node ETCD instances, etcd-druid configures the readinessProbe of the etcd main container to probe the healthz endpoint of the etcd-backup-restore sidecar which considers the status of the latest backup upload in addition to the regular checks about etcd and the side car being up and healthy. This has the effect of setting the etcd main container (and hence the etcd pod) as not ready if the latest backup upload failed. This results in the endpoints controller removing the pod IP address from the endpoints list for the service which eventually cuts off ingress traffic coming into the etcd pod via the etcd client service. The rationale for this is to fail early when the backup upload fails rather than continuing to serve requests while the gap between the last backup and the current data increases which might lead to unacceptably large amount of data loss if disaster strikes. 
 
 This approach will not work in the multi-node scenario because we need the individual member pods to be able to talk to each other to maintain the cluster quorum when backup upload fails but need to cut off only client ingress traffic. 
 
-In such a case, we will need two different services. 
-
-- peer
-  - To be used for peer communication. This could be a `headless` service. 
-- client
-  - To be used for client communication. This could be a normal `ClusterIP` service like it is in the single-node case. 
-
-Also, the etcd main container readinessProbe of the member pods will then have to restrict themselves to just the etcd and the sidecar health and readiness and not consider the latest backup upload health which can be done in a different way as follows. 
+It is recommended to separate the backup health condition tracking taking appropriate remedial actions.
+With that, the backup health condition tracking is now separated to the [`BackupReady` condition](#conditions) in the [`Etcd` resource `status`](#status) and the cutting off of client traffic (which could now be done for more reasons than failed backups) can be achieved in a different way described [below](#manipulating-client-service-podselector).
 
 #### Manipulating Client Service podSelector 
 
-Based on the health check criteria already considered by the etcd-backup-restore sidecar as well as the health of the last backup upload, if the health of either the etcd cluster or the last backup fails then some component can update the `podSelector` of the client service to add an additional label (say, unhealthy or disabled) such that the `podSelector` no longer matches the member pods created by the statefulset.
+The client traffic can be cut off by updating (manually or automatically by some component) the `podSelector` of the client service to add an additional label (say, unhealthy or disabled) such that the `podSelector` no longer matches the member pods created by the statefulset.
 This will result in the client ingress traffic being cut off.
-The peer service is left unmodified so that peer communication is always possible. 
+The peer service is left unmodified so that peer communication is always possible.
 
-This proposal recommends to enhance `etcd-backup-restore` (i.e. the leading `etcd-backup-restore` sidecar that is in charge of taking the backups at the moment) to implement the [above functionality](#manipulating-client-service-podselector).
+## Health Check
+
+The etcd main container and the etcd-backup-restore sidecar containers will be configured with livenessProbe and readinessProbe which will indicate the health of the containers and effectively the corresponding ETCD cluster member pod. 
+
+### Backup Failure
+
+As described [above](#cutting-off-client-requests) using `readinessProbe` failures based on latest backup failure is not viable in the multi-node ETCD scenario.
+
+Though cutting off traffic by [manipulating client `service` `podSelector`](#manipulating-client-service-podselector) is workable, it may not be desirable.
+
+It is recommended that on backup failure, the leading `etcd-backup-restore` sidecar (the one that is responsible for taking backups at that point in time, as explained in the [backup section below](#backup), updates the [`BackupReady` condition](#conditions) in the [`Etcd` status](#status) and raises a high priority alert to the landscape operators but *_does not_* cut off the client traffic.
+
+The reasoning behind this decision to not cut off the client traffic on backup failure is to allow the Kubernetes cluster's control plane (which relies on the ETCD cluster) to keep functioning as long as possible and to avoid bringing down the control-plane due to a missed backup.
+
+The risk of this approach is that with a cascaded sequence of failures (on top of the backup failure), there is a chance of more data loss than the frequency of backup would otherwise indicate.
+
+To be precise, the risk of such an additional data loss manifests only when backup failure as well as a special case of quorum loss (majority of the members are not ready) happen in such a way that the ETCD cluster needs to be re-bootstrapped from the backup.
+As described [here](#recovering-an-etcd-cluster-from-failure-of-majority-of-members), re-bootstrapping the ETCD cluster requires restoration from the latest backup only when a majority of members no longer have uncorrupted data persistence.
+
+If [persistent storage](#persistent) is used, this will happen only when backup failure as well as a majority of the disks/volumes backing the ETCD cluster members fail simultaneously.
+This would indeed be rare and might be an acceptable risk.
+
+If [ephemeral storage](#ephemeral) is used (especially, [in-memory](#in-memory)), the data loss will happen if a majority of the ETCD cluster members become `NotReady` (requiring a pod restart) at the same time as the backup failure.
+This may not be as rare as majority members' disk/volume failure.
+The risk can be somewhat mitigated at least for planned maintenance operations by postponing potentially disruptive maintenance operations when `BackupReady` condition is `false` (vertical scaling, rolling updates, evictions due to node roll-outs).
+
+But in practice (when [ephemeral storage](#ephemeral) is used), the current proposal suggests restoring from the latest full backup even when a minority of ETCD members (even a single pod) [restart](#restarting-an-existing-member-of-an-etcd-cluster) both to speed up the process of the new member catching up to the latest revision but also to avoid load on the leading member which needs to supply the data to bring the new member up-to-date.
+But as described [here](#adding-a-new-member-to-an-etcd-cluster), in case of a minority member failure while using ephemeral storage, it is possible to restart the new member with empty data and let it fetch all the data from the leading member (only if backup is not accessible).
+Though this is suboptimal, it is workable given the constraints and conditions.
+With this, the risk of additional data loss in the case of ephemeral storage is only if backup failure as well as quorum loss happens.
+While this is still less rare than the risk of additional data loss in case of persistent storage, the risk might be tolerable. Provided the risk of quorum loss is not too high. This needs to be monitored/evaluated before opting for ephemeral storage.
+
+Given these constraints, it is better to dynamically avoid/postpone some potentially disruptive operations when `BackupReady` condition is `false`.
+This has the effect of allowing `n/2` members to be evicted when the backups are healthy and completely disabling evictions when backups are not healthy.
+1. Skip/postpone potentially disruptive maintenance operations (listed below) when the `BackupReady` condition is `false`.
+  1. Vertical scaling.
+  1. Rolling updates, Basically, any updates to the `StatefulSet` spec which includes vertical scaling.
+1. Dynamically toggle the `minAvailable` field of the [`PodDisruptionBudget`](#poddisruptionbudget) between `n/2 + 1` and `n` (where `n` is the ETCD desired cluster size) whenever the `BackupReady` condition toggles between `true` and `false`.
 
 This will mean that `etcd-backup-restore` becomes Kubernetes-aware. But there might be reasons for making `etcd-backup-restore` Kubernetes-aware anyway (e.g. to update the `etcd` resource [status](#status) with latest full snapshot details).
 This enhancement should keep `etcd-backup-restore` backward compatible.
@@ -453,6 +512,23 @@ spec:
 ...
 status:
   ...
+  conditions:
+  - type: Ready                 # Condition type for the readiness of the ETCD cluster
+    status: "True"              # Indicates of the ETCD Cluster is ready or not
+    lastHeartbeatTime:          "2020-11-10T12:48:01Z"
+    lastTransitionTime:         "2020-11-10T12:48:01Z"
+    reason: Quorate             # Quorate|QuorumLost
+  - type: AllMembersReady       # Condition type for the readiness of all the member of the ETCD cluster
+    status: "True"              # Indicates if all the members of the ETCD Cluster are ready
+    lastHeartbeatTime:          "2020-11-10T12:48:01Z"
+    lastTransitionTime:         "2020-11-10T12:48:01Z"
+    reason: AllMembersReady     # AllMembersReady|NotAllMembersReady
+  - type: BackupReady           # Condition type for the readiness of the backup of the ETCD cluster
+    status: "True"              # Indicates if the backup of the ETCD cluster is ready
+    lastHeartbeatTime:          "2020-11-10T12:48:01Z"
+    lastTransitionTime:         "2020-11-10T12:48:01Z"
+    reason: FullBackupSucceeded # FullBackupSucceeded|IncrementalBackupSucceeded|FullBackupFailed|IncrementalBackupFailed
+  ...
   replicas: 3
   ...
   members:
@@ -473,14 +549,30 @@ status:
 ```
 
 This proposal recommendations to enhance `etcd-backup-restore` so that the _leading_ backup-restore sidecar container maintains the above status information in the `Etcd` status sub-resource.
-This will mean that `etcd-backup-restore` becomes Kubernetes-aware. But there are other reasons for making `etcd-backup-restore` Kubernetes-aware anyway (e.g. to [cut off client requests](#cutting-off-client-requests-on-backup-failure)).
+This will mean that `etcd-backup-restore` becomes Kubernetes-aware. But there are other reasons for making `etcd-backup-restore` Kubernetes-aware anyway (e.g. to [maintain health conditions](#health-check)).
 This enhancement should keep `etcd-backup-restore` backward compatible.
 But it should be possible to use `etcd-backup-restore` Kubernetes-unaware as before this proposal. This is possible either by auto-detecting the existence of kubeconfig or by an explicit command-line flag (such as `--enable-etcd-status-updates` which can be defaulted to `false` for backward compatibility).
 
-### Note
+### Members
 
-With approach [above](#status), members can be marked with `status: Ready` only by their `etcd-backup-restore` sidecar container.
+The `members` section of the status is intended to be updated by the `etcd-backup-restore` sidecar container corresponding to the member for the most part.
+Especially, members can be marked with `status: Ready` only by their `etcd-backup-restore` sidecar container.
 However, they can be marked with `status: NotReady` either by their `etcd-backup-restore` sidecar container (with `reason: HeartbeatFailed`) or by `etcd-druid` (as explained [below](#decision-table-for-etcd-druid-based-on-the-status)).
+
+### Conditions
+
+The `conditions` section in the status describe the overall condition of the ETCD cluster.
+The condition type `Ready` indicates if the ETCD cluster as a whole is ready to serve requests (i.e. the cluster is quorate) even though some minority of the members are not ready.
+The condition type `AllMembersReady` indicates of all the members of the ETCD cluster are ready.
+The distinction between these conditions could be significant for both external consumers of the status as well as `etcd-druid` itself.
+Some maintenance operations might be safe to do (e.g. rolling updates) only when all members of the cluster are ready.
+The condition type `BackupReady` indicates of the most recent backup upload (full or incremental) succeeded.
+This information also might be significant because some maintenance operations might be safe to do (e.g. anything that involves re-bootstrapping the ETCD cluster) only when backup is ready.
+
+The `Ready` and `AllMembersReady` conditions can be maintained by `etcd-druid` based on the status in the [`members` section](#members).
+The `BackupReady` condition will be maintained by the leading `etcd-backup-restore` sidecar that is in charge of taking backups.
+
+More condition types could be introduced in the future if specific purposes arise.
 
 ### Alternative
 
@@ -493,7 +585,7 @@ Also, the recommended approach above is more robust because it can work even if 
 
 The following decision table describes the various criteria `etcd-druid` takes into consideration to determine the different etcd cluster management scenarios and the corresponding reconciliation actions it must take.
 The general principle is to detect the scenario and take the minimum action to move the cluster along the path to good health.
-The path from any one scenario to a state of good health will typically involve going through multiple reconciliation actions which probably take the cluster through many other cluter management scenarios.
+The path from any one scenario to a state of good health will typically involve going through multiple reconciliation actions which probably take the cluster through many other cluster management scenarios.
 Especially, it is proposed that individual members auto-heal where possible, even in the case of the failure of a majority of members of the etcd cluster and that `etcd-druid` takes action only if the auto-healing doesn't happen for a configured period of time.
 
 ### 1. Pink of health
@@ -506,18 +598,133 @@ Especially, it is proposed that individual members auto-heal where possible, eve
 - `StatefulSet` replicas
   - Desired: `n`
   - Ready: `n`
-- `Etcd` status members
-  - Total: `n`
-  - Ready: `n`
-  - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `0`
-  - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `0`
-  - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: `0`
+- `Etcd` status
+  - members
+    - Total: `n`
+    - Ready: `n`
+    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `0`
+    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `0`
+    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: `0`
+  - conditions:
+    - Ready: `true`
+    - AllMembersReady: `true`
+    - BackupReady: `true`
 
 #### Recommended Action
 
 Nothing to do
 
-### 2. Some members have not updated their status for a while
+### 2. All members are `Ready` but `AllMembersReady` condition is stale
+
+#### Observed state
+
+- Cluster Size
+  - Desired: N/A
+  - Current: N/A
+- `StatefulSet` replicas
+  - Desired: `n`
+  - Ready: N/A
+- `Etcd` status
+  - members
+    - Total: `n`
+    - Ready: `n`
+    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `0`
+    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `0`
+    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: `0`
+  - conditions:
+    - Ready: N/A
+    - AllMembersReady: false
+    - BackupReady: N/A
+
+#### Recommended Action
+
+Mark the status condition type `AllMembersReady` to `true`.
+
+### 3. Not all members are `Ready` but `AllMembersReady` condition is stale
+
+#### Observed state
+
+- Cluster Size
+  - Desired: N/A
+  - Current: N/A
+- `StatefulSet` replicas
+  - Desired: `n`
+  - Ready: N/A
+- `Etcd` status
+  - members
+    - Total: N/A
+    - Ready: `r` where `0 <= r < n`
+    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `nr` where `0 < nr < n`
+    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `u` where `0 < u < n`
+    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: `h` where `0 < h < n`
+  - conditions:
+    - Ready: N/A
+    - AllMembersReady: true
+    - BackupReady: N/A
+
+  where `(nr + u + h) > 0` or `r < n`
+
+#### Recommended Action
+
+Mark the status condition type `AllMembersReady` to `false`.
+
+### 4. Majority members are `Ready` but `Ready` condition is stale
+
+#### Observed state
+
+- Cluster Size
+  - Desired: N/A
+  - Current: N/A
+- `StatefulSet` replicas
+  - Desired: `n`
+  - Ready: N/A
+- `Etcd` status
+  - members
+    - Total: `n`
+    - Ready: `r` where `r > n/2`
+    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `nr` where `0 < nr < n/2`
+    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `u` where `0 < u < n/2`
+    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: `h` where `0 < h < n/2`
+  - conditions:
+    - Ready: `false`
+    - AllMembersReady: N/A
+    - BackupReady: N/A
+  
+  where `0 < (nr + u + h) < n/2`
+
+#### Recommended Action
+
+Mark the status condition type `Ready` to `true`.
+
+### 5. Majority members are `NotReady` but `Ready` condition is stale
+
+#### Observed state
+
+- Cluster Size
+  - Desired: N/A
+  - Current: N/A
+- `StatefulSet` replicas
+  - Desired: `n`
+  - Ready: N/A
+- `Etcd` status
+  - members
+    - Total: `n`
+    - Ready: `r` where `0 < r < n`
+    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `nr` where `0 < nr < n`
+    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `u` where `0 < u < n`
+    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: `h` where `0 < h < n`
+  - conditions:
+    - Ready: `true`
+    - AllMembersReady: N/A
+    - BackupReady: N/A
+  
+  where `(nr + u + h) > n/2` or `r < n/2`
+
+#### Recommended Action
+
+Mark the status condition type `Ready` to `false`.
+
+### 6. Some members have not updated their status for a while
 
 #### Observed state
 
@@ -527,18 +734,23 @@ Nothing to do
 - `StatefulSet` replicas
   - Desired: N/A
   - Ready: N/A
-- `Etcd` status members
-  - Total: N/A
-  - Ready: N/A
-  - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: N/A
-  - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: N/A
-  - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: `h` where `h <= n`
+- `Etcd` status
+  - members
+    - Total: N/A
+    - Ready: N/A
+    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: N/A
+    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: N/A
+    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: `h` where `h <= n`
+  - conditions:
+    - Ready: N/A
+    - AllMembersReady: N/A
+    - BackupReady: N/A
 
 #### Recommended Action
 
 Mark the `h` members as `Unknown` in `Etcd` status with `reason: HeartbeatGracePeriodExceeded`.
 
-### 3. Some members have been in `Unknown` status for a while
+### 7. Some members have been in `Unknown` status for a while
 
 #### Observed state
 
@@ -548,18 +760,23 @@ Mark the `h` members as `Unknown` in `Etcd` status with `reason: HeartbeatGraceP
 - `StatefulSet` replicas
   - Desired: N/A
   - Ready: N/A
-- `Etcd` status members
-  - Total: N/A
-  - Ready: N/A
-  - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: N/A
-  - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `u` where `u <= n`
-  - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+- `Etcd` status
+  - members
+    - Total: N/A
+    - Ready: N/A
+    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: N/A
+    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `u` where `u <= n`
+    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+  - conditions:
+    - Ready: N/A
+    - AllMembersReady: N/A
+    - BackupReady: N/A
 
 #### Recommended Action
 
 Mark the `u` members as `NotReady` in `Etcd` status with `reason: UnknownGracePeriodExceeded`.
 
-### 4. Some member pods are not `Ready` but have not had the change to update their status
+### 8. Some member pods are not `Ready` but have not had the chance to update their status
 
 #### Observed state
 
@@ -569,18 +786,23 @@ Mark the `u` members as `NotReady` in `Etcd` status with `reason: UnknownGracePe
 - `StatefulSet` replicas
   - Desired: `n`
   - Ready: `s` where `s < n`
-- `Etcd` status members
-  - Total: N/A
-  - Ready: N/A
-  - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: N/A
-  - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: N/A
-  - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+- `Etcd` status
+  - members
+    - Total: N/A
+    - Ready: N/A
+    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: N/A
+    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: N/A
+    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+  - conditions:
+    - Ready: N/A
+    - AllMembersReady: N/A
+    - BackupReady: N/A
 
 #### Recommended Action
 
 Mark the `n - s` members (corresponding to the pods that are not `Ready`) as `NotReady` in `Etcd` status with `reason: PodNotReady`
 
-### 5. Quorate cluster with a minority of members `NotReady`
+### 9. Quorate cluster with a minority of members `NotReady`
 
 #### Observed state
 
@@ -590,18 +812,23 @@ Mark the `n - s` members (corresponding to the pods that are not `Ready`) as `No
 - `StatefulSet` replicas
   - Desired: N/A
   - Ready: N/A
-- `Etcd` status members
-  - Total: `n`
-  - Ready: `n - f`
-  - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `f` where `f < n/2`
-  - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `0`
-  - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+- `Etcd` status
+  - members
+    - Total: `n`
+    - Ready: `n - f`
+    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `f` where `f < n/2`
+    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `0`
+    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+  - conditions:
+    - Ready: true
+    - AllMembersReady: false
+    - BackupReady: true
 
 #### Recommended Action
 
 Delete the `f` `NotReady` member pods to force restart of the pods if they do not automatically restart via failed `livenessProbe`. The expectation is that they will either re-join the cluster as an existing member or remove themselves and join as new members on restart of the container or pod.
 
-### 6. Quorum lost with a majority of members `NotReady`
+### 10. Quorum lost with a majority of members `NotReady`
 
 #### Observed state
 
@@ -611,18 +838,23 @@ Delete the `f` `NotReady` member pods to force restart of the pods if they do no
 - `StatefulSet` replicas
   - Desired: N/A
   - Ready: N/A
-- `Etcd` status members
-  - Total: `n`
-  - Ready: `n - f`
-  - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `f` where `f >= n/2`
-  - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: N/A
-  - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+- `Etcd` status
+  - members
+    - Total: `n`
+    - Ready: `n - f`
+    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `f` where `f >= n/2`
+    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: N/A
+    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+  - conditions:
+    - Ready: false
+    - AllMembersReady: false
+    - BackupReady: true
 
 #### Recommended Action
 
 Scale down the `StatefulSet` to `replicas: 0`. Ensure that all member pods are deleted. Ensure that all the members are removed from `Etcd` status. Recover the cluster from loss of quorum as discussed [here](#recovering-an-etcd-cluster-from-failure-of-majority-of-members).
 
-### 7. Scale up of a healthy cluster
+### 11. Scale up of a healthy cluster
 
 #### Observed state
 
@@ -632,18 +864,23 @@ Scale down the `StatefulSet` to `replicas: 0`. Ensure that all member pods are d
 - `StatefulSet` replicas
   - Desired: N/A
   - Ready: `n`
-- `Etcd` status members
-  - Total: `n`
-  - Ready: `n`
-  - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: 0
-  - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: 0
-  - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: 0
+- `Etcd` status
+  - members
+    - Total: `n`
+    - Ready: `n`
+    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: 0
+    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: 0
+    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: 0
+  - conditions:
+    - Ready: true
+    - AllMembersReady: true
+    - BackupReady: true
 
 #### Recommended Action
 
 Add `d - n` new members by scaling the `StatefulSet` to `replicas: d`. The rest of the `StatefulSet` spec need not be updated until the next cluster bootstrapping (alternatively, the rest of the `StatefulSet` spec can be updated pro-actively once the new members join the cluster. This will trigger a rolling update).
 
-### 8. Scale down of a healthy cluster
+### 12. Scale down of a healthy cluster
 
 #### Observed state
 
@@ -653,18 +890,23 @@ Add `d - n` new members by scaling the `StatefulSet` to `replicas: d`. The rest 
 - `StatefulSet` replicas
   - Desired: `n`
   - Ready: `n`
-- `Etcd` status members
-  - Total: `n`
-  - Ready: `n`
-  - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: 0
-  - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: 0
-  - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: 0
+- `Etcd` status
+  - members
+    - Total: `n`
+    - Ready: `n`
+    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: 0
+    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: 0
+    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: 0
+  - conditions:
+    - Ready: true
+    - AllMembersReady: true
+    - BackupReady: true
 
 #### Recommended Action
 
 Remove `d - n` existing members (numbered `d`, `d + 1` ... `n`) by scaling the `StatefulSet` to `replicas: d`. The `StatefulSet` spec need not be updated until the next cluster bootstrapping (alternatively, the `StatefulSet` spec can be updated pro-actively once the superfluous members exit the cluster. This will trigger a rolling update).
 
-### 9. Superfluous member entries in `Etcd` status
+### 13. Superfluous member entries in `Etcd` status
 
 #### Observed state
 
@@ -674,12 +916,17 @@ Remove `d - n` existing members (numbered `d`, `d + 1` ... `n`) by scaling the `
 - `StatefulSet` replicas
   - Desired: n
   - Ready: n
-- `Etcd` status members
-  - Total: `m` where `m > n`
-  - Ready: N/A
-  - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: N/A
-  - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: N/A
-  - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+- `Etcd` status
+  - members
+    - Total: `m` where `m > n`
+    - Ready: N/A
+    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: N/A
+    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: N/A
+    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+  - conditions:
+    - Ready: N/A
+    - AllMembersReady: N/A
+    - BackupReady: N/A
 
 #### Recommended Action
 
@@ -875,7 +1122,7 @@ The disadvantage is that this approach may not age well in the future if we thin
 
 We could use the etcd `lease` mechanism to perform leader election among the backup-restore sidecars. For example, using something like [`go.etcd.io/etcd/clientv3/concurrency`](https://pkg.go.dev/go.etcd.io/etcd/clientv3/concurrency#Election.Campaign).
 
-The advantage and disadvanges are pretty much the opposite of the approach [above](#leading-etcd-main-containers-sidecar-is-the-backup-leader).
+The advantage and disadvantages are pretty much the opposite of the approach [above](#leading-etcd-main-containers-sidecar-is-the-backup-leader).
 The advantage being that this approach may age well in the future if we think about moving the backup-restore container as a separate pod rather than a sidecar container.
 
 The disadvantages are as follows.
@@ -902,6 +1149,7 @@ Some of these work-flows are sensitive to which `etcd-backup-restore` container 
 
 The life-cycle of these work-flows is shown below.
 ![etcd-backup-restore work-flows life-cycle](images/etcd-backup-restore-work-flows-life-cycle.png)
+
 ## High Availability
 
 Considering that high-availability is the primary reason for using a multi-node etcd cluster, it makes sense to distribute the individual member pods of the etcd cluster across different physical nodes.
@@ -987,12 +1235,21 @@ Hence, it is better to keep `etcd-druid` altogether agnostic of issues related t
 
 ### PodDisruptionBudget
 
-This proposal recommends that `etcd-druid` should deploy [`PodDisruptionBudget`](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-budgets) (`maxUnavailable` set to `floor(<cluster size>/2)`) for multi-node etcd clusters to ensure that any planned disruptive operation can try and honour the disruption budget to ensure high availability of the etcd cluster.
+This proposal recommends that `etcd-druid` should deploy [`PodDisruptionBudget`](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-budgets) (`minAvailable` set to `floor(<cluster size>/2) + 1`) for multi-node etcd clusters (if `AllMembersReady` [condition](#conditions) is `true`) to ensure that any planned disruptive operation can try and honour the disruption budget to ensure high availability of the etcd cluster while making potentially disrupting maintenance operations.
+
+In addition, it is recommended to toggle the `minAvailable ` field between `floor(<cluster size>/2) + 1` and `<cluster size>` whenever the `BackupReady` condition toggles between `true` and `false`.
+This is to disable eviction of member pods when backups are not healthy.
+
+Also, it is recommended to toggle the `minAvailable` field between `floor(<cluster size>/2)` and `<number of members with status Ready true>` whenever the `AllMembersReady` condition toggles between `true` and `false`.
+This is to disable eviction of any member pods when not all members are `Ready`.
+
+In case of a conflict, the recommendation is to use the highest of the applicable values for `minAvailable`.
 
 ## Rolling updates to etcd members
 
 Any changes to the `Etcd` resource spec that might result in a change to `StatefulSet` spec or otherwise result in a rolling update of member pods should be applied/propagated by `etcd-druid` only when the etcd cluster is fully healthy to reduce the risk of quorum loss during the updates.
-If the cluster is unhealthy, `etcd-druid` must restore it to full health before proceeding with the rolling update.
+This would include vertical autoscaling changes (via, [HVPA](https://github.com/gsrdener/hvpa-controller)).
+If the cluster [status](#status) unhealthy (i.e. if either `AllMembersReady` or `BackupReady` [conditions](#conditions) are `false`), `etcd-druid` must restore it to full health [before proceeding](#backup-failure) with such operations that lead to rolling updates.
 This can be further optimized in the future to handle the cases where rolling updates can still be performed on an etcd cluster that is not fully healthy.
 
 ## Follow Up
@@ -1013,6 +1270,8 @@ Here, we should compare different persistence option for the multi-nodeetcd clus
 There are already metrics exported by etcd and `etcd-backup-restore` which are visualized in monitoring dashboards and also used in triggering alerts.
 These might have hidden assumptions about single-node etcd clusters.
 These might need to be enhanced and potentially new metrics, dashboards and alerts configured to cover the multi-node etcd cluster scenario.
+
+Especially, a high priority alert must be raised if `BackupReady` [condition](#condition) becomes [`false`](#backup-failure).
 
 ### Costs
 
