@@ -60,7 +60,6 @@ data:
             "New")
                   wget "http{{ if .Values.etcd.enableTLS }}s{{ end }}://{{ .Values.name }}-local:{{ .Values.backup.port }}/initialization/start?mode=$1{{- if .Values.backup.failBelowRevision }}&failbelowrevision={{ int $.Values.backup.failBelowRevision }}{{- end }}" -S -O - ;;
             "Progress")
-                  sleep 1;
                   continue;;
             "Failed")
                   continue;;
@@ -70,6 +69,7 @@ data:
                   break
                   ;;
             esac;
+            sleep 1;
           done
     }
 
