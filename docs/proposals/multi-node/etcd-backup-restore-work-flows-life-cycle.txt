@@ -7,7 +7,6 @@ participant etcd-backup-restore http server (initialize)
 participant health checker and staus updater
 participant etcd-backup-restore leader elector/detector
 participant snapshotter
-participant client request disconnector
 participant defragmenter
 
 activate etcd-backup-restore http server (initialize)
@@ -17,8 +16,7 @@ activate etcd-backup-restore leader elector/detector
 etcd-backup-restore leader elector/detector->etcd-backup-restore leader elector/detector: OnLeaderStart
 etcd-backup-restore leader elector/detector->snapshotter: Start
 activate snapshotter
-etcd-backup-restore leader elector/detector->client request disconnector: Start
-activate client request disconnector
+
 etcd-backup-restore leader elector/detector->defragmenter: Start
 activate defragmenter
 
@@ -26,7 +24,6 @@ etcd-backup-restore leader elector/detector->etcd-backup-restore leader elector/
 OnLeaderStart
 etcd-backup-restore leader elector/detector->snapshotter: Stop
 deactivate snapshotter
-etcd-backup-restore leader elector/detector->client request disconnector: Stop
-deactivate client request disconnector
+
 etcd-backup-restore leader elector/detector->defragmenter: Stop
 deactivate defragmenter
