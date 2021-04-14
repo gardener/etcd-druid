@@ -33,7 +33,10 @@ This document proposes an approach (along with some alternatives) to support pro
     - [Persistent](#persistent)
     - [Ephemeral](#ephemeral)
       - [In-memory](#in-memory)
-    - [Recommendation](#recommendation)
+    - [How to detect if valid metadata exists in an etcd member](#how-to-detect-if-valid-metadata-exists-in-an-etcd-member)
+      - [Recommendation](#recommendation)
+    - [How to detect if valid data exists in an etcd member](#how-to-detect-if-valid-data-exists-in-an-etcd-member)
+    - [Recommendation](#recommendation-1)
   - [Separating peer and client traffic](#separating-peer-and-client-traffic)
     - [Cutting off client requests](#cutting-off-client-requests)
       - [Manipulating Client Service podSelector](#manipulating-client-service-podselector)
@@ -405,6 +408,25 @@ Similarly, in addition to the disadvantages of [ephemeral persistence](#ephemera
 - More memory required for the individual member pods. 
 - Individual members may not at all retain their data and identity across container restarts let alone across pod restarts/deletion/recreation across Kubernetes nodes.
 I.e. every time an etcd container restarts, [the old member (represented by the container) will have to be removed and a new member has to be added](#restarting-an-existing-member-of-an-etcd-cluster).
+
+### How to detect if valid metadata exists in an etcd member
+
+Since the likelyhood of a member not having valid metadata in the WAL files is much more likely in the [ephemeral](#ephemeral) persistence scenario, one option is to pass the information that ephemeral persistence is being used to the `etcd-backup-restore` sidecar (say, via command-line flags or environment variables).
+
+But in principle, it might be better to determine this from the WAL files directly so that the possibility of corrupted WAL files also gets handled correctly.
+To do this, the [wal](https://github.com/etcd-io/etcd/tree/master/server/wal) package has [some](https://github.com/etcd-io/etcd/blob/57a092b45d0eae6c9e600e62513ffcd2f1f25a92/server/wal/wal.go#L324-L326) [functions](https://github.com/etcd-io/etcd/blob/57a092b45d0eae6c9e600e62513ffcd2f1f25a92/server/wal/wal.go#L429-L548) that might be useful.
+
+#### Recommendation
+
+It might be possible that using the [wal](https://github.com/etcd-io/etcd/tree/master/server/wal) package for verifying if valid metadata exists might be performance intensive.
+So, the performance impact needs to be measured.
+If the performance impact is acceptable (both in terms of resource usage and time), it is recommended to use this way to verify if the member contains valid metadata.
+Otherwise, alternatives such as a simple check that WAL folder exists coupled with the static information about use of [persistent](#persistent) or [ephemeral](#ephemeral) storage might be considered.
+
+### How to detect if valid data exists in an etcd member
+
+The [initialization sequence](#decision-table-for-etcd-backup-restore-during-initialization) in `etcd-backup-restore` already includes [database verification](https://github.com/gardener/etcd-backup-restore/blob/c98f76c7c55f7d1039687cc293536d7caf893ba5/pkg/initializer/validator/datavalidator.go#L78-L94).
+This would suffice to determine if the member has valid data.
 
 ### Recommendation
 
