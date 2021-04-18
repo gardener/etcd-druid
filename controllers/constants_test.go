@@ -67,7 +67,6 @@ check_and_start_etcd(){
         "New")
               wget "http://%[1]s-local:%[2]d/initialization/start?mode=$1" -S -O - ;;
         "Progress")
-              sleep 1;
               continue;;
         "Failed")
               continue;;
@@ -77,6 +76,7 @@ check_and_start_etcd(){
               break
               ;;
         esac;
+        sleep 1;
       done
 }`
 
@@ -91,7 +91,6 @@ check_and_start_etcd(){
         "New")
               wget "https://%[1]s-local:%[2]d/initialization/start?mode=$1" -S -O - ;;
         "Progress")
-              sleep 1;
               continue;;
         "Failed")
               continue;;
@@ -101,6 +100,7 @@ check_and_start_etcd(){
               break
               ;;
         esac;
+        sleep 1;
       done
 }`
 
@@ -115,7 +115,7 @@ else
       echo "$VALIDATION_MARKER file present. Check return status and decide on initialization"
       run_status=$(cat $VALIDATION_MARKER)
       echo "$VALIDATION_MARKER content: $run_status"
-      if [ $run_status == '143' ] || [ $run_status == '130' ] || [ $run_status == '0' ] ; then
+      if [ $run_status = '143' ] || [ $run_status = '130' ] || [ $run_status = '0' ] ; then
             echo "Requesting sidecar to perform sanity validation"
             check_and_start_etcd sanity
       else
