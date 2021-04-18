@@ -14,7 +14,7 @@
 
 # Image URL to use all building/pushing image targets
 VERSION             := $(shell cat VERSION)
-REPO_ROOT           := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
 REGISTRY            := eu.gcr.io/gardener-project/gardener
 IMAGE_REPOSITORY    := $(REGISTRY)/etcd-druid
 IMAGE_TAG           := $(VERSION)
@@ -29,9 +29,9 @@ CRD_OPTIONS ?= "crd:trivialVersions=true"
 revendor:
 	@env GO111MODULE=on go mod vendor
 	@env GO111MODULE=on go mod tidy
-	@chmod +x $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/*
-	@chmod +x $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/*
-	@$(REPO_ROOT)/hack/update-github-templates.sh
+	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/"*
+	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/"*
+	@"$(REPO_ROOT)/hack/update-github-templates.sh"
 
 all: druid
 
@@ -74,7 +74,7 @@ fmt:
 # Check packages
 .PHONY: check
 check:
-	@$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
+	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
 
 # Generate code
 .PHONY: generate
@@ -98,7 +98,7 @@ docker-push:
 .PHONY: install-requirements
 install-requirements:
 	@go install -mod=vendor sigs.k8s.io/controller-tools/cmd/controller-gen
-	@$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/install-requirements.sh
+	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/install-requirements.sh"
 
 .PHONY: update-dependencies
 update-dependencies:
