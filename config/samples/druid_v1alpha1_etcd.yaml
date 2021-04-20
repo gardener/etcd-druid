@@ -29,7 +29,7 @@ spec:
         role: test
     etcd:
         metrics: basic
-        image: eu.gcr.io/gardener-project/gardener/etcd:v3.4.13
+        image: eu.gcr.io/gardener-project/gardener/etcd:v3.4.13-bootstrap
         defragmentationSchedule: "0 */24 * * *"
         resources:
             limits: { cpu: 2500m, memory: 4Gi }
@@ -37,7 +37,7 @@ spec:
         clientPort: 2379
         serverPort: 2380
     backup:
-        image: eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.12.0-dev-34f854c06838d14d6e7b08099d6cfa6fca2ad50d
+        image: eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.12.0
         port: 8080
         fullSnapshotSchedule: "0 */24 * * *"
         resources:

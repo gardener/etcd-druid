@@ -151,7 +151,7 @@ func getChartPathForStatefulSet() string {
 }
 
 func getChartPathForConfigMap() string {
-	return filepath.Join("etcd", "templates", "etcd-bootstrap-configmap.yaml")
+	return filepath.Join("etcd", "templates", "etcd-configmap.yaml")
 }
 
 func getChartPathForService() string {
@@ -470,11 +470,11 @@ func (r *EtcdReconciler) reconcileConfigMaps(ctx context.Context, etcd *druidv1a
 	cms := &corev1.ConfigMapList{}
 	err = r.List(ctx, cms, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
 	if err != nil {
-		logger.Error(err, "Error listing statefulsets")
+		logger.Error(err, "Error listing configmaps")
 		return nil, err
 	}
 
-	// NOTE: filteredStatefulSets are pointing to deepcopies of the cache, but this could change in the future.
+	// NOTE: filteredCMs are pointing to deepcopies of the cache, but this could change in the future.
 	// Ref: https://github.com/kubernetes-sigs/controller-runtime/blob/release-0.2/pkg/cache/internal/cache_reader.go#L74
 	// if you need to modify them, you need to copy it first.
 	filteredCMs, err := r.claimConfigMaps(ctx, etcd, selector, cms)

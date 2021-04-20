@@ -72,8 +72,8 @@ var (
 	clientPort              int32 = 2379
 	serverPort              int32 = 2380
 	backupPort              int32 = 8080
-	imageEtcd                     = "eu.gcr.io/gardener-project/gardener/etcd:v3.4.13"
-	imageBR                       = "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.11.1"
+	imageEtcd                     = "eu.gcr.io/gardener-project/gardener/etcd:v3.4.13-bootstrap"
+	imageBR                       = "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.12.0"
 	snapshotSchedule              = "0 */24 * * *"
 	defragSchedule                = "0 */24 * * *"
 	container                     = "default.bkp"
@@ -651,12 +651,6 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 	// Validate TLS. Ensure that enableTLS flag is not triggered in the go-template
 	Expect(instance.Spec.Etcd.TLS).To(BeNil())
 
-	Expect(*cm).To(MatchFields(IgnoreExtras, Fields{
-		"Data": MatchKeys(IgnoreExtras, Keys{
-			"bootstrap.sh": Equal(fmt.Sprintf(bootstrapScriptWithoutTLS, instance.Name, backupPort)),
-		}),
-	}))
-
 	Expect(config).To(MatchKeys(IgnoreExtras, Keys{
 		"name":                      Equal(fmt.Sprintf("etcd-%s", instance.UID[:6])),
 		"data-dir":                  Equal("/var/etcd/data/new.etcd"),
@@ -843,10 +837,6 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 									"Name":      Equal(instance.Name),
 									"MountPath": Equal("/var/etcd/data/"),
 								}),
-								"etcd-bootstrap-sh": MatchFields(IgnoreExtras, Fields{
-									"Name":      Equal("etcd-bootstrap-sh"),
-									"MountPath": Equal("/var/etcd/bin/"),
-								}),
 								"etcd-config-file": MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal("etcd-config-file"),
 									"MountPath": Equal("/var/etcd/config/"),
@@ -900,23 +890,6 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 						}),
 					}),
 					"Volumes": MatchAllElements(volumeIterator, Elements{
-						"etcd-bootstrap-sh": MatchFields(IgnoreExtras, Fields{
-							"Name": Equal("etcd-bootstrap-sh"),
-							"VolumeSource": MatchFields(IgnoreExtras, Fields{
-								"ConfigMap": PointTo(MatchFields(IgnoreExtras, Fields{
-									"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-										"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
-									}),
-									"DefaultMode": PointTo(Equal(int32(356))),
-									"Items": MatchAllElements(keyIterator, Elements{
-										"bootstrap.sh": MatchFields(IgnoreExtras, Fields{
-											"Key":  Equal("bootstrap.sh"),
-											"Path": Equal("bootstrap.sh"),
-										}),
-									}),
-								})),
-							}),
-						}),
 						"etcd-config-file": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("etcd-config-file"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
@@ -1003,9 +976,6 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 					"BlockOwnerDeletion": PointTo(Equal(true)),
 				}),
 			}),
-		}),
-		"Data": MatchKeys(IgnoreExtras, Keys{
-			"bootstrap.sh": Equal(fmt.Sprintf(bootstrapScriptWithTLS, instance.Name, backupPort)),
 		}),
 	}))
 
@@ -1208,10 +1178,6 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 									"Name":      Equal(*instance.Spec.VolumeClaimTemplate),
 									"MountPath": Equal("/var/etcd/data/"),
 								}),
-								"etcd-bootstrap-sh": MatchFields(IgnoreExtras, Fields{
-									"Name":      Equal("etcd-bootstrap-sh"),
-									"MountPath": Equal("/var/etcd/bin/"),
-								}),
 								"etcd-config-file": MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal("etcd-config-file"),
 									"MountPath": Equal("/var/etcd/config/"),
@@ -1300,23 +1266,6 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 						}),
 					}),
 					"Volumes": MatchAllElements(volumeIterator, Elements{
-						"etcd-bootstrap-sh": MatchFields(IgnoreExtras, Fields{
-							"Name": Equal("etcd-bootstrap-sh"),
-							"VolumeSource": MatchFields(IgnoreExtras, Fields{
-								"ConfigMap": PointTo(MatchFields(IgnoreExtras, Fields{
-									"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-										"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
-									}),
-									"DefaultMode": PointTo(Equal(int32(356))),
-									"Items": MatchAllElements(keyIterator, Elements{
-										"bootstrap.sh": MatchFields(IgnoreExtras, Fields{
-											"Key":  Equal("bootstrap.sh"),
-											"Path": Equal("bootstrap.sh"),
-										}),
-									}),
-								})),
-							}),
-						}),
 						"etcd-config-file": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("etcd-config-file"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
@@ -1836,11 +1785,11 @@ func createStatefulset(name, namespace string, labels map[string]string) *appsv1
 					Containers: []corev1.Container{
 						{
 							Name:  "etcd",
-							Image: "eu.gcr.io/gardener-project/gardener/etcd:v3.4.13",
+							Image: "eu.gcr.io/gardener-project/gardener/etcd:v3.4.13-bootstrap",
 						},
 						{
 							Name:  "backup-restore",
-							Image: "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.11.1",
+							Image: "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.12.0",
 						},
 					},
 				},
@@ -1888,11 +1837,11 @@ func createPod(name, namespace string, labels map[string]string) *corev1.Pod {
 			Containers: []corev1.Container{
 				{
 					Name:  "etcd",
-					Image: "eu.gcr.io/gardener-project/gardener/etcd:v3.4.13",
+					Image: "eu.gcr.io/gardener-project/gardener/etcd:v3.4.13-bootstrap",
 				},
 				{
 					Name:  "backup-restore",
-					Image: "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.11.1",
+					Image: "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.12.0",
 				},
 			},
 		},
