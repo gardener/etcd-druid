@@ -124,10 +124,10 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {
 	logger.Infof("Reconciling etcd status in Custodian Controller for etcd statefulset status:%s in namespace:%s", etcd.Name, etcd.Namespace)
-	if err := ec.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, etcd); err != nil {
-		logger.Errorf("Error during fetching ETCD resource in ETCD controller: %v", err)
-		return err
-	}
+
+	m := getMutex()
+	m.Lock()
+	defer m.Unlock()
 
 	etcd.Status.Etcd = druidv1alpha1.CrossVersionObjectReference{
 		APIVersion: sts.APIVersion,
@@ -157,6 +157,10 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, etcd *druidv1alph
 
 func (ec *EtcdCustodian) updateEtcdStatusWithNoSts(ctx context.Context, etcd *druidv1alpha1.Etcd) {
 	logger.Infof("Reconciling etcd status in Custodian Controller when no statefulset found:%s in namespace:%s", etcd.Name, etcd.Namespace)
+
+	m := getMutex()
+	m.Lock()
+	defer m.Unlock()
 
 	conditions := []druidv1alpha1.Condition{}
 	etcd.Status.Conditions = conditions
