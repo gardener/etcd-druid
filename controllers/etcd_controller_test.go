@@ -254,6 +254,103 @@ var _ = Describe("Druid", func() {
 		})
 	})
 
+	Describe("Druid cuatodian controller", func() {
+		Context("when adding etcd resources with statefulset already present", func() {
+			var (
+				instance *druidv1alpha1.Etcd
+				sts      *appsv1.StatefulSet
+				c        client.Client
+			)
+
+			BeforeEach(func() {
+				ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+				defer cancel()
+
+				instance = getEtcd("foo81", "default", false)
+				c = mgr.GetClient()
+
+				// Create StatefulSet
+				sts = createStatefulset(instance.Name, instance.Namespace, instance.Spec.Labels)
+				Expect(c.Create(ctx, sts)).To(Succeed())
+
+				err := c.Get(ctx, client.ObjectKeyFromObject(instance), sts)
+				Expect(err).NotTo(HaveOccurred())
+				sts.Status.Replicas = 1
+				sts.Status.ReadyReplicas = 1
+				Expect(c.Status().Update(ctx, sts)).To(Succeed())
+
+				err = c.Get(ctx, client.ObjectKeyFromObject(instance), sts)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(int(sts.Status.ReadyReplicas)).Should(BeNumerically("==", 1))
+
+				// Create ETCD instance
+				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+				errors := createSecrets(c, instance.Namespace, storeSecret)
+				Expect(len(errors)).Should(BeZero())
+				Expect(c.Create(ctx, instance)).To(Succeed())
+
+				Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+
+				// Check if ETCD has ready replicas more than zero
+				Eventually(func() error {
+					err = c.Get(ctx, client.ObjectKeyFromObject(instance), instance)
+					if err != nil {
+						return err
+					}
+
+					if int(instance.Status.ReadyReplicas) < 1 {
+						return fmt.Errorf("ETCD ready replicas should be more than zero")
+					}
+					return nil
+				}, timeout, pollingInterval).Should(BeNil())
+			})
+			It("mark statefulset status not ready when no readyreplicas in statefulset", func() {
+				ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+				defer cancel()
+
+				err := c.Get(ctx, client.ObjectKeyFromObject(instance), sts)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Forcefully change readyreplicas in statefulset as zero which may cause due to facts like crashloopbackoff
+				sts.Status.ReadyReplicas = 0
+				Expect(c.Status().Update(ctx, sts)).To(Succeed())
+
+				Eventually(func() error {
+					err := c.Get(ctx, client.ObjectKeyFromObject(instance), sts)
+					if err != nil {
+						return err
+					}
+
+					if sts.Status.ReadyReplicas > 0 {
+						return fmt.Errorf("No readyreplicas of statefulset should exist at this point")
+					}
+
+					err = c.Get(ctx, client.ObjectKeyFromObject(instance), instance)
+					if err != nil {
+						return err
+					}
+
+					if instance.Status.ReadyReplicas > 0 {
+						return fmt.Errorf("ReadyReplicas should be zero in ETCD instance")
+					}
+
+					return nil
+				}, timeout, pollingInterval).Should(BeNil())
+			})
+			AfterEach(func() {
+				ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+				defer cancel()
+
+				// Delete `etcd` instance
+				Expect(c.Delete(ctx, instance)).To(Succeed())
+				Eventually(func() error {
+					return c.Get(ctx, client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
+				}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
+			})
+		})
+	})
+
 	DescribeTable("when adding etcd resources with statefulset already present",
 		func(name string, setupStatefulSet StatefulSetInitializer) {
 			var sts *appsv1.StatefulSet
@@ -316,7 +413,7 @@ var _ = Describe("Druid", func() {
 		Entry("when etcd has the spec changed, druid should reconcile statefulset", "foo3", WithoutOwner),
 	)
 
-	Context("when adding etcd resources with statefulset already present", func() {
+	Describe("when adding etcd resources with statefulset already present", func() {
 		Context("when statefulset is in crashloopbackoff", func() {
 			var err error
 			var instance *druidv1alpha1.Etcd
