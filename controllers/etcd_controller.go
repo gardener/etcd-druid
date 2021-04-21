@@ -917,8 +917,8 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		if etcd.Spec.Backup.SnapshotCompression.Enabled {
 			compressionValues["enabled"] = etcd.Spec.Backup.SnapshotCompression.Enabled
 		}
-		if etcd.Spec.Backup.SnapshotCompression.CompressionPolicy != nil {
-			compressionValues["policy"] = etcd.Spec.Backup.SnapshotCompression.CompressionPolicy
+		if etcd.Spec.Backup.SnapshotCompression.Policy != nil {
+			compressionValues["policy"] = etcd.Spec.Backup.SnapshotCompression.Policy
 		}
 		backupValues["compression"] = compressionValues
 	}

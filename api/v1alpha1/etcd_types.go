@@ -30,6 +30,18 @@ const (
 	Basic MetricsLevel = "basic"
 	// Extensive is a constant for metrics level extensive.
 	Extensive MetricsLevel = "extensive"
+
+	// GzipCompression is constant for gzip compression policy.
+	GzipCompression CompressionPolicy = "gzip"
+	// LzwCompression is constant for lzw compression policy.
+	LzwCompression CompressionPolicy = "lzw"
+	// ZlibCompression is constant for zlib compression policy.
+	ZlibCompression CompressionPolicy = "zlib"
+
+	// DefaultCompression is constant for default compression policy(only if compression is enabled).
+	DefaultCompression CompressionPolicy = GzipCompression
+	// DefaultCompressionEnabled is constant to define whether to compress the snapshots or not.
+	DefaultCompressionEnabled = false
 )
 
 // MetricsLevel defines the level 'basic' or 'extensive'.
@@ -42,6 +54,10 @@ type GarbageCollectionPolicy string
 
 // StorageProvider defines the type of object store provider for storing backups.
 type StorageProvider string
+
+// CompressionPolicy defines the type of policy for compression of snapshots.
+// +kubebuilder:validation:Enum=gzip;lzw;zlib
+type CompressionPolicy string
 
 // StoreSpec defines parameters related to ObjectStore persisting backups
 type StoreSpec struct {
@@ -70,7 +86,7 @@ type CompressionSpec struct {
 	// +optional
 	Enabled bool `json:"enabled,omitempty"`
 	// +optional
-	CompressionPolicy *string `json:"policy,omitempty"`
+	Policy *CompressionPolicy `json:"policy,omitempty"`
 }
 
 // BackupSpec defines parametes associated with the full and delta snapshots of etcd

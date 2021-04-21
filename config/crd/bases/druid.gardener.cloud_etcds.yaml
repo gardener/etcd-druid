@@ -52,6 +52,11 @@ spec:
                       enabled:
                         type: boolean
                       policy:
+                        description: CompressionPolicy defines the type of policy for compression of snapshots.
+                        enum:
+                        - gzip
+                        - lzw
+                        - zlib
                         type: string
                     type: object
                   deltaSnapshotMemoryLimit:
