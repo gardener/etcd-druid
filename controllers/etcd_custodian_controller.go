@@ -50,6 +50,7 @@ func NewEtcdCustodian(mgr manager.Manager) *EtcdCustodian {
 
 // Reconcile reconciles the etcd.
 func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger.Info("Custodian controller reconciliation started")
 	etcd := &druidv1alpha1.Etcd{}
 	if err := ec.Get(ctx, req.NamespacedName, etcd); err != nil {
 		if errors.IsNotFound(err) {
@@ -104,6 +105,7 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	// If no statefulsets could be fetched, requeue for reconcilation
 	if len(ss) < 1 {
+		ec.updateEtcdStatusWithNoSts(ctx, etcd)
 		return ctrl.Result{
 			RequeueAfter: time.Duration(5 * time.Second),
 		}, nil
@@ -151,6 +153,25 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, etcd *druidv1alph
 		return err
 	}
 	return nil
+}
+
+func (ec *EtcdCustodian) updateEtcdStatusWithNoSts(ctx context.Context, etcd *druidv1alpha1.Etcd) {
+	logger.Infof("Reconciling etcd status in Custodian Controller when no statefulset found:%s in namespace:%s", etcd.Name, etcd.Namespace)
+
+	conditions := []druidv1alpha1.Condition{}
+	etcd.Status.Conditions = conditions
+
+	// To be changed once we have multiple replicas.
+	etcd.Status.CurrentReplicas = 0
+	etcd.Status.ReadyReplicas = 0
+	etcd.Status.UpdatedReplicas = 0
+
+	ready := false
+	etcd.Status.Ready = &ready
+
+	if err := ec.Status().Update(ctx, etcd); err != nil {
+		logger.Errorf("Error while updating ETCD status for no statefulset in custodian controller: %v", err)
+	}
 }
 
 // SetupWithManager sets up manager with a new controller and ec as the reconcile.Reconciler
