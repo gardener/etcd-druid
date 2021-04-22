@@ -37,7 +37,7 @@ spec:
         clientPort: 2379
         serverPort: 2380
     backup:
-        image: eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.12.0-dev-e6df91b7463cf784f651bd6cc6ac7fc4d2e5a70b
+        image: eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.12.0-dev-34f854c06838d14d6e7b08099d6cfa6fca2ad50d
         port: 8080
         fullSnapshotSchedule: "0 */24 * * *"
         resources:
@@ -57,6 +57,11 @@ spec:
         compression:
             enabled: false
             policy: "gzip"
+    
+    sharedConfig:
+        autoCompactionMode: periodic
+        autoCompactionRetention: "30m"
+
     replicas: 1
     # priorityClassName: foo
     storageClass: gardener.cloud-fast

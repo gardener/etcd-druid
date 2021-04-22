@@ -82,6 +82,8 @@ var (
 	storageClass                  = "gardener.fast"
 	priorityClassName             = "class_priority"
 	deltaSnapShotMemLimit         = resource.MustParse("100Mi")
+	autoCompactionMode            = druidv1alpha1.Periodic
+	autoCompactionRetention       = "2m"
 	quota                         = resource.MustParse("8Gi")
 	provider                      = druidv1alpha1.StorageProvider("Local")
 	prefix                        = "/tmp"
@@ -666,8 +668,8 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 		"advertise-client-urls":     Equal(fmt.Sprintf("http://0.0.0.0:%d", clientPort)),
 		"initial-cluster-token":     Equal("initial"),
 		"initial-cluster-state":     Equal("new"),
-		"auto-compaction-mode":      Equal("periodic"),
-		"auto-compaction-retention": Equal("24"),
+		"auto-compaction-mode":      Equal(string(druidv1alpha1.Periodic)),
+		"auto-compaction-retention": Equal(DefaultAutoCompactionRetention),
 	}))
 
 	Expect(*svc).To(MatchFields(IgnoreExtras, Fields{
@@ -866,6 +868,8 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 								fmt.Sprintf("--endpoints=http://%s-local:%d", instance.Name, clientPort):                       Equal(fmt.Sprintf("--endpoints=http://%s-local:%d", instance.Name, clientPort)),
 								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(quota.Value())):                            Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(quota.Value()))),
 								fmt.Sprintf("--max-backups=%d", maxBackups):                                                    Equal(fmt.Sprintf("--max-backups=%d", maxBackups)),
+								fmt.Sprintf("--auto-compaction-mode=%s", druidv1alpha1.Periodic):                               Equal(fmt.Sprintf("--auto-compaction-mode=%s", druidv1alpha1.Periodic)),
+								fmt.Sprintf("--auto-compaction-retention=%s", DefaultAutoCompactionRetention):                  Equal(fmt.Sprintf("--auto-compaction-retention=%s", DefaultAutoCompactionRetention)),
 							}),
 							"Ports": ConsistOf([]corev1.ContainerPort{
 								corev1.ContainerPort{
@@ -1016,8 +1020,8 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 		"advertise-client-urls":     Equal(fmt.Sprintf("https://0.0.0.0:%d", *instance.Spec.Etcd.ClientPort)),
 		"initial-cluster-token":     Equal("initial"),
 		"initial-cluster-state":     Equal("new"),
-		"auto-compaction-mode":      Equal("periodic"),
-		"auto-compaction-retention": Equal("24"),
+		"auto-compaction-mode":      Equal(string(*instance.Spec.Common.AutoCompactionMode)),
+		"auto-compaction-retention": Equal(*instance.Spec.Common.AutoCompactionRetention),
 
 		"client-transport-security": MatchKeys(IgnoreExtras, Keys{
 			"cert-file":        Equal("/var/etcd/ssl/server/tls.crt"),
@@ -1252,6 +1256,8 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(instance.Spec.Etcd.Quota.Value())):                              Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(instance.Spec.Etcd.Quota.Value()))),
 								fmt.Sprintf("%s=%s", "--delta-snapshot-period", instance.Spec.Backup.DeltaSnapshotPeriod.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-period", instance.Spec.Backup.DeltaSnapshotPeriod.Duration.String())),
 								fmt.Sprintf("%s=%s", "--garbage-collection-period", instance.Spec.Backup.GarbageCollectionPeriod.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--garbage-collection-period", instance.Spec.Backup.GarbageCollectionPeriod.Duration.String())),
+								fmt.Sprintf("%s=%s", "--auto-compaction-mode", *instance.Spec.Common.AutoCompactionMode):                            Equal(fmt.Sprintf("%s=%s", "--auto-compaction-mode", autoCompactionMode)),
+								fmt.Sprintf("%s=%s", "--auto-compaction-retention", *instance.Spec.Common.AutoCompactionRetention):                  Equal(fmt.Sprintf("%s=%s", "--auto-compaction-retention", autoCompactionRetention)),
 							}),
 							"Ports": ConsistOf([]corev1.ContainerPort{
 								corev1.ContainerPort{
@@ -1994,6 +2000,7 @@ func getEtcdWithDefault(name, namespace string) *druidv1alpha1.Etcd {
 			Replicas: 1,
 			Backup:   druidv1alpha1.BackupSpec{},
 			Etcd:     druidv1alpha1.EtcdConfig{},
+			Common:   druidv1alpha1.SharedConfig{},
 		},
 	}
 	return instance
@@ -2072,6 +2079,10 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 				},
 				ClientPort: &clientPort,
 				ServerPort: &serverPort,
+			},
+			Common: druidv1alpha1.SharedConfig{
+				AutoCompactionMode:      &autoCompactionMode,
+				AutoCompactionRetention: &autoCompactionRetention,
 			},
 		},
 	}
