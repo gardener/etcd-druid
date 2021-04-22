@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -70,6 +71,9 @@ var (
 		&eventsv1beta1.Event{},
 		&eventsv1.Event{},
 	}
+
+	once  sync.Once
+	mutex *sync.Mutex
 )
 
 const (
@@ -87,6 +91,14 @@ var (
 	// DefaultTimeout is the default timeout for retry operations.
 	DefaultTimeout = 1 * time.Minute
 )
+
+// Use this mutex while updating ETCD resource
+func getMutex() *sync.Mutex {
+	once.Do(func() {
+		mutex = &sync.Mutex{}
+	})
+	return mutex
+}
 
 // EtcdReconciler reconciles a Etcd object
 type EtcdReconciler struct {
@@ -183,6 +195,7 @@ func (r *EtcdReconciler) InitializeControllerWithImageVector() (*EtcdReconciler,
 
 // Reconcile reconciles the etcd.
 func (r *EtcdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger.Info("ETCD controller reconciliation started")
 	etcd := &druidv1alpha1.Etcd{}
 	if err := r.Get(ctx, req.NamespacedName, etcd); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -285,6 +298,10 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 
 	if sets.NewString(etcd.Finalizers...).Has(FinalizerName) {
 		logger.Infof("Removing finalizer (%s) from etcd %s", FinalizerName, etcd.GetName())
+		m := getMutex()
+		m.Lock()
+		defer m.Unlock()
+
 		// Deep copy of etcd resource required here to patch the object. Update call results in
 		// StorageError. See also: https://github.com/kubernetes/kubernetes/issues/71139
 		etcdCopy := etcd.DeepCopy()
@@ -1096,10 +1113,9 @@ func canDeleteStatefulset(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) boo
 }
 
 func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
-	if err := r.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, etcd); err != nil {
-		logger.Errorf("Error during fetching ETCD resource in ETCD controller: %v", err)
-		return err
-	}
+	m := getMutex()
+	m.Lock()
+	defer m.Unlock()
 
 	lastErrStr := fmt.Sprintf("%v", lastError)
 	etcd.Status.LastError = &lastErrStr
@@ -1116,10 +1132,9 @@ func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv
 }
 
 func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, svc *corev1.Service, sts *appsv1.StatefulSet) error {
-	if err := r.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, etcd); err != nil {
-		logger.Errorf("Error during fetching ETCD resource in ETCD controller: %v", err)
-		return err
-	}
+	m := getMutex()
+	m.Lock()
+	defer m.Unlock()
 
 	ready := CheckStatefulSet(etcd, sts) == nil
 	etcd.Status.Ready = &ready

@@ -254,7 +254,7 @@ var _ = Describe("Druid", func() {
 		})
 	})
 
-	Describe("Druid cuatodian controller", func() {
+	Describe("Druid custodian controller", func() {
 		Context("when adding etcd resources with statefulset already present", func() {
 			var (
 				instance *druidv1alpha1.Etcd
@@ -345,7 +345,12 @@ var _ = Describe("Druid", func() {
 				// Delete `etcd` instance
 				Expect(c.Delete(ctx, instance)).To(Succeed())
 				Eventually(func() error {
-					return c.Get(ctx, client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
+					err := c.Get(ctx, client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
+					if err != nil {
+						return err
+					}
+
+					return c.Get(ctx, client.ObjectKeyFromObject(instance), sts)
 				}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 			})
 		})
