@@ -85,6 +85,8 @@ const (
 	DefaultInterval = 5 * time.Second
 	// EtcdReady implies that etcd is ready
 	EtcdReady = true
+	// DefaultAutoCompactionRetention defines the default auto-compaction-retention length for etcd.
+	DefaultAutoCompactionRetention = "30m"
 )
 
 var (
@@ -220,7 +222,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		logger.Infof("Adding finalizer (%s) to etcd %s", FinalizerName, etcd.GetName())
 		finalizers.Insert(FinalizerName)
 		etcd.Finalizers = finalizers.UnsortedList()
-		if err := r.Update(ctx, etcd); err != nil {
+		if err := r.updateWithLock(ctx, etcd); err != nil {
 			if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 				return ctrl.Result{
 					Requeue: true,
@@ -269,6 +271,15 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 	return ctrl.Result{
 		Requeue: false,
 	}, nil
+}
+
+// updateWithLock is wrapper function which helps in synchronization between controller threads(etcd-druid controller and custodian controller).
+func (r *EtcdReconciler) updateWithLock(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+	m := getMutex()
+	m.Lock()
+	defer m.Unlock()
+
+	return r.Update(ctx, etcd)
 }
 
 func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
@@ -955,6 +966,19 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		volumeClaimTemplateName = *etcd.Spec.VolumeClaimTemplate
 	}
 
+	sharedConfigValues := map[string]interface{}{
+		"autoCompactionMode":      druidv1alpha1.Periodic,
+		"autoCompactionRetention": DefaultAutoCompactionRetention,
+	}
+
+	if etcd.Spec.Common.AutoCompactionMode != nil {
+		sharedConfigValues["autoCompactionMode"] = etcd.Spec.Common.AutoCompactionMode
+	}
+
+	if etcd.Spec.Common.AutoCompactionRetention != nil {
+		sharedConfigValues["autoCompactionRetention"] = etcd.Spec.Common.AutoCompactionRetention
+	}
+
 	values := map[string]interface{}{
 		"name":                    etcd.Name,
 		"uid":                     etcd.UID,
@@ -963,6 +987,7 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		"annotations":             etcd.Spec.Annotations,
 		"etcd":                    etcdValues,
 		"backup":                  backupValues,
+		"sharedConfig":            sharedConfigValues,
 		"replicas":                etcd.Spec.Replicas,
 		"statefulsetReplicas":     statefulsetReplicas,
 		"serviceName":             fmt.Sprintf("%s-client", etcd.Name),
@@ -1218,6 +1243,9 @@ func (r *EtcdReconciler) removeOperationAnnotation(ctx context.Context, etcd *dr
 }
 
 func (r *EtcdReconciler) updateEtcdStatusAsNotReady(ctx context.Context, etcd *druidv1alpha1.Etcd) (*druidv1alpha1.Etcd, error) {
+	m := getMutex()
+	m.Lock()
+	defer m.Unlock()
 	etcdCopy := etcd.DeepCopy()
 	etcdCopy.Status.Ready = nil
 	etcdCopy.Status.ReadyReplicas = 0

@@ -125,9 +125,17 @@ data:
     # Initial cluster state ('new' or 'existing').
     initial-cluster-state: {{ .Values.etcd.initialClusterState }}
 
-    # keep one day of history
-    auto-compaction-mode: periodic
-    auto-compaction-retention: "24"
+    {{- if .Values.sharedConfig }}
+    # auto-compaction-mode ("periodic" or "revision").
+    {{- if .Values.sharedConfig.autoCompactionMode }}
+    auto-compaction-mode: {{ .Values.sharedConfig.autoCompactionMode }}
+    {{- end }}
+
+    # auto-compaction-retention defines Auto compaction retention length for etcd.
+    {{- if .Values.sharedConfig.autoCompactionRetention }}
+    auto-compaction-retention: {{ .Values.sharedConfig.autoCompactionRetention }}
+    {{- end }}
+    {{- end }}
 
 {{- if .Values.etcd.enableTLS }}
     client-transport-security:

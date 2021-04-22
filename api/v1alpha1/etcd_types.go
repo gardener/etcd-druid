@@ -42,6 +42,11 @@ const (
 	DefaultCompression CompressionPolicy = GzipCompression
 	// DefaultCompressionEnabled is constant to define whether to compress the snapshots or not.
 	DefaultCompressionEnabled = false
+
+	// Periodic is a constant to set auto-compaction-mode 'periodic' for duration based retention.
+	Periodic CompactionMode = "periodic"
+	// Revision is a constant to set auto-compaction-mode 'revision' for revision number based retention.
+	Revision CompactionMode = "revision"
 )
 
 // MetricsLevel defines the level 'basic' or 'extensive'.
@@ -58,6 +63,11 @@ type StorageProvider string
 // CompressionPolicy defines the type of policy for compression of snapshots.
 // +kubebuilder:validation:Enum=gzip;lzw;zlib
 type CompressionPolicy string
+
+// CompactionMode defines the auto-compaction-mode: 'periodic' or 'revision'.
+// 'periodic' for duration based retention and 'revision' for revision number based retention.
+// +kubebuilder:validation:Enum=periodic;revision
+type CompactionMode string
 
 // StoreSpec defines parameters related to ObjectStore persisting backups
 type StoreSpec struct {
@@ -154,6 +164,16 @@ type EtcdConfig struct {
 	TLS *TLSConfig `json:"tls,omitempty"`
 }
 
+// SharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.
+type SharedConfig struct {
+	// AutoCompactionMode defines the auto-compaction-mode:'periodic' mode or 'revision' mode for etcd and embedded-Etcd of backup-restore sidecar.
+	// +optional
+	AutoCompactionMode *CompactionMode `json:"autoCompactionMode,omitempty"`
+	//AutoCompactionRetention defines the auto-compaction-retention length for etcd as well as for embedded-Etcd of backup-restore sidecar.
+	// +optional
+	AutoCompactionRetention *string `json:"autoCompactionRetention,omitempty"`
+}
+
 // EtcdSpec defines the desired state of Etcd
 type EtcdSpec struct {
 	// selector is a label query over pods that should match the replica count.
@@ -168,6 +188,8 @@ type EtcdSpec struct {
 	Etcd EtcdConfig `json:"etcd"`
 	// +required
 	Backup BackupSpec `json:"backup"`
+	// +optional
+	Common SharedConfig `json:"sharedConfig,omitempty"`
 	// +required
 	Replicas int `json:"replicas"`
 	// PriorityClassName is the name of a priority class that shall be used for the etcd pods.

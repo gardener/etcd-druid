@@ -310,6 +310,19 @@ spec:
                     description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                     type: object
                 type: object
+              sharedConfig:
+                description: SharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.
+                properties:
+                  autoCompactionMode:
+                    description: AutoCompactionMode defines the auto-compaction-mode:'periodic' mode or 'revision' mode for etcd and embedded-Etcd of backup-restore sidecar.
+                    enum:
+                    - periodic
+                    - revision
+                    type: string
+                  autoCompactionRetention:
+                    description: AutoCompactionRetention defines the auto-compaction-retention length for etcd as well as for embedded-Etcd of backup-restore sidecar.
+                    type: string
+                type: object
               storageCapacity:
                 anyOf:
                 - type: integer
