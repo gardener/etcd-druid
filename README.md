@@ -52,7 +52,7 @@ spec:
     garbageCollectionPeriod: 43200s
     garbageCollectionPolicy: Exponential
     imageRepository: eu.gcr.io/gardener-project/gardener/etcdbrctl
-    imageVersion: v0.11.1
+    imageVersion: v0.12.0
     port: 8080
     resources:
       limits:
@@ -68,7 +68,7 @@ spec:
     defragmentationSchedule: 0 */24 * * *
     enableTLS: false
     imageRepository: eu.gcr.io/gardener-project/gardener/etcd
-    imageVersion: v3.4.13
+    imageVersion: v3.4.13-bootstrap
     initialClusterState: new
     initialClusterToken: new
     metrics: basic
@@ -83,6 +83,9 @@ spec:
     serverPort: 2380
     storageCapacity: 80Gi
     storageClass: gardener.cloud-fast
+  sharedConfig:
+    autoCompactionMode: periodic
+    autoCompactionRetention: 30m
   labels:
     app: etcd-statefulset
     garden.sapcloud.io/role: controlplane

@@ -92,8 +92,8 @@ func getEtcd(name, namespace string) *Etcd {
 	deltaSnapshotPeriod := metav1.Duration{
 		Duration: 300 * time.Second,
 	}
-	imageEtcd := "eu.gcr.io/gardener-project/gardener/etcd:v3.4.13"
-	imageBR := "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.11.1"
+	imageEtcd := "eu.gcr.io/gardener-project/gardener/etcd:v3.4.13-bootstrap"
+	imageBR := "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.12.0"
 	snapshotSchedule := "0 */24 * * *"
 	defragSchedule := "0 */24 * * *"
 	container := "shoot--dev--i308301-1--b3caa"
