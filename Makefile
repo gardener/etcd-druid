@@ -27,6 +27,7 @@ CRD_OPTIONS ?= "crd:trivialVersions=true"
 
 .PHONY: revendor
 revendor:
+	@cd "$(REPO_ROOT)/api" && go mod tidy
 	@env GO111MODULE=on go mod vendor
 	@env GO111MODULE=on go mod tidy
 	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/"*
@@ -64,7 +65,8 @@ deploy: manifests
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: manifests
 manifests: install-requirements
-	@controller-gen $(CRD_OPTIONS) rbac:roleName=manager-role paths="./api/...;./controllers/..." output:crd:artifacts:config=config/crd/bases
+	"cd $(REPO_ROOT)/api" && "$(CONTROLLER_GEN)" $(CRD_OPTIONS) paths="./..." output:crd:artifacts:config=../config/crd/bases
+	"$(CONTROLLER_GEN)" rbac:roleName=manager-role paths="./controllers/..."
 
 # Run go fmt against code
 .PHONY: fmt
@@ -79,7 +81,7 @@ check:
 # Generate code
 .PHONY: generate
 generate: install-requirements
-	@controller-gen object:headerFile=./hack/boilerplate.go.txt paths=./api/...
+	cd "$(REPO_ROOT)/api" && "$(CONTROLLER_GEN)" object:headerFile=../hack/boilerplate.go.txt paths=./...
 
 # Build the docker image
 .PHONY: docker-build

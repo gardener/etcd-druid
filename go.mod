@@ -3,6 +3,7 @@ module github.com/gardener/etcd-druid
 go 1.15
 
 require (
+	github.com/gardener/etcd-druid/api v0.0.0-00010101000000-000000000000
 	github.com/gardener/gardener v1.17.1
 	github.com/ghodss/yaml v1.0.0
 	github.com/onsi/ginkgo v1.14.1
@@ -18,6 +19,7 @@ require (
 )
 
 replace (
+	github.com/gardener/etcd-druid/api => ./api
 	k8s.io/api => k8s.io/api v0.19.6
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.19.6
 	k8s.io/apimachinery => k8s.io/apimachinery v0.19.6
