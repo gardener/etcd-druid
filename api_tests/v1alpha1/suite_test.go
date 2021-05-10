@@ -23,6 +23,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,7 +59,7 @@ var _ = BeforeSuite(func(done Done) {
 		CRDDirectoryPaths: []string{filepath.Join("..", "..", "config", "crd", "bases")},
 	}
 
-	err := SchemeBuilder.AddToScheme(scheme.Scheme)
+	err := druidv1alpha1.SchemeBuilder.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	cfg, err = testEnv.Start()
