@@ -73,7 +73,7 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	}
 
 	// If any adoptions are attempted, we should first recheck for deletion with
-	// an uncached quorum read sometime after listing Machines (see #42639).
+	// an uncached quorum read some time after listing Machines (see #42639).
 	canAdoptFunc := RecheckDeletionTimestamp(func() (metav1.Object, error) {
 		foundEtcd := &druidv1alpha1.Etcd{}
 		err := ec.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)

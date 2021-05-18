@@ -204,7 +204,7 @@ func (m *EtcdDruidRefManager) FetchStatefulSet(etcd *druidv1alpha1.Etcd) ([]*app
 		return nil, err
 	}
 
-	// NOTE: filteredStatefulSets are pointing to deepcopies of the cache, but this could change in the future.
+	// NOTE: filteredStatefulSets are pointing to deep copies of the cache, but this could change in the future.
 	// Ref: https://github.com/kubernetes-sigs/controller-runtime/blob/release-0.2/pkg/cache/internal/cache_reader.go#L74
 	// if you need to modify them, you need to copy it first.
 	filteredStatefulSets, err := m.ClaimStatefulsets(statefulSets)
