@@ -65,8 +65,8 @@ deploy: manifests
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: manifests
 manifests: install-requirements
-	"cd $(REPO_ROOT)/api" && "$(CONTROLLER_GEN)" $(CRD_OPTIONS) paths="./..." output:crd:artifacts:config=../config/crd/bases
-	"$(CONTROLLER_GEN)" rbac:roleName=manager-role paths="./controllers/..."
+	@cd "$(REPO_ROOT)/api" && controller-gen $(CRD_OPTIONS) paths="./..." output:crd:artifacts:config=../config/crd/bases
+	@controller-gen rbac:roleName=manager-role paths="./controllers/..."
 
 # Run go fmt against code
 .PHONY: fmt
@@ -82,7 +82,7 @@ check:
 # Generate code
 .PHONY: generate
 generate: install-requirements
-	cd "$(REPO_ROOT)/api" && "$(CONTROLLER_GEN)" object:headerFile=../hack/boilerplate.go.txt paths=./...
+	cd "$(REPO_ROOT)/api" && controller-gen object:headerFile=../hack/boilerplate.go.txt paths=./...
 
 # Build the docker image
 .PHONY: docker-build
@@ -101,7 +101,7 @@ docker-push:
 .PHONY: install-requirements
 install-requirements:
 	@go install -mod=vendor sigs.k8s.io/controller-tools/cmd/controller-gen
-	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/install-requirements.sh"
+	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/install-requirements.sh" > /dev/null
 
 .PHONY: update-dependencies
 update-dependencies:
