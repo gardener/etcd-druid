@@ -77,6 +77,16 @@ func HasMetaDataAnnotation(meta metav1.Object, key, value string) bool {
 	return ok && val == value
 }
 
+// SetAnnotationAndUpdate sets the annotation on the given object and updates it.
+func SetAnnotationAndUpdate(ctx context.Context, c client.Client, obj client.Object, key, value string) error {
+	if !HasMetaDataAnnotation(obj, key, value) {
+		objCopy := obj.DeepCopyObject()
+		SetMetaDataAnnotation(obj, key, value)
+		return c.Patch(ctx, obj, client.MergeFrom(objCopy))
+	}
+	return nil
+}
+
 func nameAndNamespace(namespaceOrName string, nameOpt ...string) (namespace, name string) {
 	if len(nameOpt) > 1 {
 		panic(fmt.Sprintf("more than name/namespace for key specified: %s/%v", namespaceOrName, nameOpt))
@@ -185,7 +195,8 @@ func WaitUntilLoadBalancerIsReady(ctx context.Context, kubeClient kubernetes.Int
 	}); err != nil {
 		const eventsLimit = 2
 
-		eventsErrorMessage, err2 := FetchEventMessages(ctx, kubeClient.DirectClient(), service, corev1.EventTypeWarning, eventsLimit)
+		// use API reader here, we don't want to cache all events
+		eventsErrorMessage, err2 := FetchEventMessages(ctx, kubeClient.Client().Scheme(), kubeClient.APIReader(), service, corev1.EventTypeWarning, eventsLimit)
 		if err2 != nil {
 			logger.Errorf("error %q occured while fetching events for error %q", err2, err)
 			return "", fmt.Errorf("'%w' occurred but could not fetch events for more information", err)
@@ -301,13 +312,10 @@ func ReconcileServicePorts(existingPorts []corev1.ServicePort, desiredPorts []co
 
 // FetchEventMessages gets events for the given object of the given `eventType` and returns them as a formatted output.
 // The function expects that the given `obj` is specified with a proper `metav1.TypeMeta`.
-func FetchEventMessages(ctx context.Context, c client.Client, obj client.Object, eventType string, eventsLimit int) (string, error) {
-	if c.Scheme() == nil {
-		return "", errors.New("scheme is not provided")
-	}
-	gvk, err := apiutil.GVKForObject(obj, c.Scheme())
+func FetchEventMessages(ctx context.Context, scheme *runtime.Scheme, reader client.Reader, obj client.Object, eventType string, eventsLimit int) (string, error) {
+	gvk, err := apiutil.GVKForObject(obj, scheme)
 	if err != nil {
-		return "", fmt.Errorf("failed identify GVK for object: %w", err)
+		return "", fmt.Errorf("failed to identify GVK for object: %w", err)
 	}
 
 	apiVersion, kind := gvk.ToAPIVersionAndKind()
@@ -325,7 +333,7 @@ func FetchEventMessages(ctx context.Context, c client.Client, obj client.Object,
 		"type":                      eventType,
 	}
 	eventList := &corev1.EventList{}
-	if err := c.List(ctx, eventList, fieldSelector); err != nil {
+	if err := reader.List(ctx, eventList, fieldSelector); err != nil {
 		return "", fmt.Errorf("error '%v' occurred while fetching more details", err)
 	}
 
@@ -430,7 +438,7 @@ func OwnedBy(obj client.Object, apiVersion, kind, name string, uid types.UID) bo
 // is provided then it will be applied for each object right after listing all objects. If no object remains then nil
 // is returned. The Items field in the list object will be populated with the result returned from the server after
 // applying the filter function (if provided).
-func NewestObject(ctx context.Context, c client.Client, listObj client.ObjectList, filterFn func(client.Object) bool, listOpts ...client.ListOption) (client.Object, error) {
+func NewestObject(ctx context.Context, c client.Reader, listObj client.ObjectList, filterFn func(client.Object) bool, listOpts ...client.ListOption) (client.Object, error) {
 	if err := c.List(ctx, listObj, listOpts...); err != nil {
 		return nil, err
 	}
@@ -478,7 +486,7 @@ func NewestObject(ctx context.Context, c client.Client, listObj client.ObjectLis
 }
 
 // NewestPodForDeployment returns the most recently created Pod object for the given deployment.
-func NewestPodForDeployment(ctx context.Context, c client.Client, deployment *appsv1.Deployment) (*corev1.Pod, error) {
+func NewestPodForDeployment(ctx context.Context, c client.Reader, deployment *appsv1.Deployment) (*corev1.Pod, error) {
 	listOpts := []client.ListOption{client.InNamespace(deployment.Namespace)}
 	if deployment.Spec.Selector != nil {
 		listOpts = append(listOpts, client.MatchingLabels(deployment.Spec.Selector.MatchLabels))
@@ -536,7 +544,8 @@ func MostRecentCompleteLogs(
 	podInterface corev1client.PodInterface,
 	pod *corev1.Pod,
 	containerName string,
-	tailLines *int64,
+	tailLines,
+	headBytes *int64,
 ) (
 	string,
 	error,
@@ -549,7 +558,7 @@ func MostRecentCompleteLogs(
 		}
 	}
 
-	logs, err := kubernetes.GetPodLogs(ctx, podInterface, pod.Name, &corev1.PodLogOptions{
+	lastLogLines, err := kubernetes.GetPodLogs(ctx, podInterface, pod.Name, &corev1.PodLogOptions{
 		Container: containerName,
 		TailLines: tailLines,
 		Previous:  previousLogs,
@@ -558,5 +567,27 @@ func MostRecentCompleteLogs(
 		return "", err
 	}
 
-	return string(logs), nil
+	if headBytes == nil || *headBytes <= 0 {
+		return string(lastLogLines), nil
+	}
+
+	firstLogLines, err := kubernetes.GetPodLogs(ctx, podInterface, pod.Name, &corev1.PodLogOptions{
+		Container:  containerName,
+		Previous:   previousLogs,
+		LimitBytes: headBytes,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s\n...\n%s", firstLogLines, lastLogLines), nil
+}
+
+// IgnoreAlreadyExists returns nil on AlreadyExists errors.
+// All other values that are not AlreadyExists errors or nil are returned unmodified.
+func IgnoreAlreadyExists(err error) error {
+	if apierrors.IsAlreadyExists(err) {
+		return nil
+	}
+	return err
 }

@@ -128,7 +128,7 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, etcd *druidv1alph
 	logger.Infof("Reconciling etcd status in Custodian Controller for etcd statefulset status:%s in namespace:%s", etcd.Name, etcd.Namespace)
 
 	return kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
-		etcd.Status.Etcd = druidv1alpha1.CrossVersionObjectReference{
+		etcd.Status.Etcd = &druidv1alpha1.CrossVersionObjectReference{
 			APIVersion: sts.APIVersion,
 			Kind:       sts.Kind,
 			Name:       sts.Name,

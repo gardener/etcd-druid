@@ -36,7 +36,7 @@ core_groups() {
     github.com/gardener/gardener/pkg/apis \
     "core:v1alpha1,v1beta1" \
     -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
-  
+
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
     conversion \
     github.com/gardener/gardener/pkg/client/core \
@@ -65,14 +65,14 @@ export -f extensions_groups
 
 seedmanagement_groups() {
   echo "Generating API groups for pkg/apis/seedmanagement"
-  
+
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-groups.sh \
     "all" \
     github.com/gardener/gardener/pkg/client/seedmanagement \
     github.com/gardener/gardener/pkg/apis \
     "seedmanagement:v1alpha1" \
     -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
-  
+
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
     "deepcopy,defaulter,conversion" \
     github.com/gardener/gardener/pkg/client/seedmanagement \
@@ -94,7 +94,7 @@ settings_groups() {
     github.com/gardener/gardener/pkg/apis \
     "settings:v1alpha1" \
     -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
-  
+
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
     "deepcopy,defaulter,conversion" \
     github.com/gardener/gardener/pkg/client/settings \
@@ -104,6 +104,29 @@ settings_groups() {
     -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
 }
 export -f settings_groups
+
+# operations.gardener.cloud APIs
+
+operations_groups() {
+  echo "Generating API groups for pkg/apis/operations"
+
+  bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
+    deepcopy,defaulter,client,lister,informer \
+    github.com/gardener/gardener/pkg/client/operations \
+    github.com/gardener/gardener/pkg/apis \
+    github.com/gardener/gardener/pkg/apis \
+    "operations:v1alpha1" \
+    -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
+
+  bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
+    conversion \
+    github.com/gardener/gardener/pkg/client/operations \
+    github.com/gardener/gardener/pkg/apis \
+    github.com/gardener/gardener/pkg/apis \
+    "operations:v1alpha1" \
+    -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
+}
+export -f operations_groups
 
 # Componentconfig for controller-manager
 
@@ -117,7 +140,7 @@ controllermanager_groups() {
     github.com/gardener/gardener/pkg/controllermanager/apis \
     "config:v1alpha1" \
     -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
-  
+
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
     conversion \
     github.com/gardener/gardener/pkg/client/componentconfig \
@@ -133,7 +156,7 @@ export -f controllermanager_groups
 
 admissioncontroller_groups() {
   echo "Generating API groups for pkg/admissioncontroller/apis/config"
-  
+
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
     deepcopy,defaulter \
     github.com/gardener/gardener/pkg/client/admissioncontrollerconfig \
@@ -141,7 +164,7 @@ admissioncontroller_groups() {
     github.com/gardener/gardener/pkg/admissioncontroller/apis \
     "config:v1alpha1" \
     -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
-  
+
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
     conversion \
     github.com/gardener/gardener/pkg/client/admissioncontrollerconfig \
@@ -157,7 +180,7 @@ export -f admissioncontroller_groups
 
 scheduler_groups() {
   echo "Generating API groups for pkg/scheduler/apis/config"
-  
+
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
     deepcopy,defaulter \
     github.com/gardener/gardener/pkg/scheduler/client \
@@ -165,7 +188,7 @@ scheduler_groups() {
     github.com/gardener/gardener/pkg/scheduler/apis \
     "config:v1alpha1" \
     -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
-  
+
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
     conversion \
     github.com/gardener/gardener/pkg/scheduler/client \
@@ -181,7 +204,7 @@ export -f scheduler_groups
 
 gardenlet_groups() {
   echo "Generating API groups for pkg/gardenlet/apis/config"
-  
+
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
     deepcopy,defaulter \
     github.com/gardener/gardener/pkg/client/componentconfig \
@@ -189,7 +212,7 @@ gardenlet_groups() {
     github.com/gardener/gardener/pkg/gardenlet/apis \
     "config:v1alpha1" \
     -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
-  
+
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
     conversion \
     github.com/gardener/gardener/pkg/client/componentconfig \
@@ -201,11 +224,35 @@ gardenlet_groups() {
 }
 export -f gardenlet_groups
 
+# Componentconfig for landscaper-gardenlet
+
+landscapergardenlet_groups() {
+  echo "Generating API groups for landscaper/gardenlet/pkg/apis/imports"
+
+  bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
+    deepcopy,defaulter \
+    github.com/gardener/gardener/pkg/client/componentconfig \
+    github.com/gardener/gardener/landscaper/pkg/gardenlet/apis \
+    github.com/gardener/gardener/landscaper/pkg/gardenlet/apis \
+    "imports:v1alpha1" \
+    -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
+
+  bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
+    conversion \
+    github.com/gardener/gardener/pkg/client/componentconfig \
+    github.com/gardener/gardener/landscaper/pkg/gardenlet/apis \
+    github.com/gardener/gardener/landscaper/pkg/gardenlet/apis \
+    "imports:v1alpha1" \
+    --extra-peer-dirs=github.com/gardener/gardener/pkg/gardenlet/apis/config,github.com/gardener/landscaper/apis/core/v1alpha1,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/conversion,k8s.io/apimachinery/pkg/runtime \
+    -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
+}
+export -f landscapergardenlet_groups
+
 # Componentconfig for admission plugins
 
 shoottolerationrestriction_groups() {
   echo "Generating API groups for plugin/pkg/shoot/tolerationrestriction/apis/shoottolerationrestriction"
-  
+
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
     deepcopy,defaulter \
     github.com/gardener/gardener/pkg/client/componentconfig \
@@ -213,7 +260,7 @@ shoottolerationrestriction_groups() {
     github.com/gardener/gardener/plugin/pkg/shoot/tolerationrestriction/apis \
     "shoottolerationrestriction:v1alpha1" \
     -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
-  
+
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
     conversion \
     github.com/gardener/gardener/pkg/client/componentconfig \
@@ -238,9 +285,11 @@ openapi_definitions() {
     --input-dirs=github.com/gardener/gardener/pkg/apis/core/v1beta1 \
     --input-dirs=github.com/gardener/gardener/pkg/apis/settings/v1alpha1 \
     --input-dirs=github.com/gardener/gardener/pkg/apis/seedmanagement/v1alpha1 \
+    --input-dirs=github.com/gardener/gardener/pkg/apis/operations/v1alpha1 \
     --input-dirs=k8s.io/api/core/v1 \
     --input-dirs=k8s.io/api/rbac/v1 \
     --input-dirs=k8s.io/api/autoscaling/v1 \
+    --input-dirs=k8s.io/api/networking/v1 \
     --input-dirs=k8s.io/apimachinery/pkg/apis/meta/v1 \
     --input-dirs=k8s.io/apimachinery/pkg/api/resource \
     --input-dirs=k8s.io/apimachinery/pkg/types \
@@ -259,22 +308,26 @@ if [[ $# -gt 0 && "$1" == "--parallel" ]]; then
     core_groups \
     extensions_groups \
     seedmanagement_groups \
+    operations_groups \
     settings_groups \
     controllermanager_groups \
     admissioncontroller_groups \
     scheduler_groups \
     gardenlet_groups \
-    shoottolerationrestriction_groups
+    shoottolerationrestriction_groups \
+    landscapergardenlet_groups
 else
   core_groups
   extensions_groups
   seedmanagement_groups
+  operations_groups
   settings_groups
   controllermanager_groups
   admissioncontroller_groups
   scheduler_groups
   gardenlet_groups
-  shoottolerationrestriction_groups  
+  shoottolerationrestriction_groups
+  landscapergardenlet_groups
 fi
 
 openapi_definitions "$@"

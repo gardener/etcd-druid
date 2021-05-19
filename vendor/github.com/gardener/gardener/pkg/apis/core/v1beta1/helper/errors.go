@@ -50,12 +50,15 @@ func (e *ErrorWithCodes) Error() string {
 }
 
 var (
-	unauthorizedRegexp           = regexp.MustCompile(`(?i)(Unauthorized|InvalidClientTokenId|InvalidAuthenticationTokenTenant|SignatureDoesNotMatch|Authentication failed|AuthFailure|AuthorizationFailed|invalid character|invalid_grant|invalid_client|Authorization Profile was not found|cannot fetch token|no active subscriptions|InvalidAccessKeyId|InvalidSecretAccessKey|query returned no results|UnauthorizedOperation|not authorized)`)
-	quotaExceededRegexp          = regexp.MustCompile(`(?i)(LimitExceeded|Quota|Throttling|Too many requests)`)
-	insufficientPrivilegesRegexp = regexp.MustCompile(`(?i)(AccessDenied|OperationNotAllowed|Error 403)`)
-	dependenciesRegexp           = regexp.MustCompile(`(?i)(PendingVerification|Access Not Configured|accessNotConfigured|DependencyViolation|OptInRequired|DeleteConflict|Conflict|inactive billing state|ReadOnlyDisabledSubscription|is already being used|InUseSubnetCannotBeDeleted|VnetInUse|InUseRouteTableCannotBeDeleted|timeout while waiting for state to become|InvalidCidrBlock|already busy for|InsufficientFreeAddressesInSubnet|InternalServerError|RetryableError|Future#WaitForCompletion: context has been cancelled|internalerror|internal server error|A resource with the ID|VnetAddressSpaceCannotChangeDueToPeerings)`)
-	resourcesDepletedRegexp      = regexp.MustCompile(`(?i)(not available in the current hardware cluster|InsufficientInstanceCapacity|SkuNotAvailable|ZonalAllocationFailed|out of stock)`)
-	configurationProblemRegexp   = regexp.MustCompile(`(?i)(AzureBastionSubnet|not supported in your requested Availability Zone|InvalidParameter|InvalidParameterValue|notFound|NetcfgInvalidSubnet|InvalidSubnet|Invalid value|KubeletHasInsufficientMemory|KubeletHasDiskPressure|KubeletHasInsufficientPID|violates constraint|no attached internet gateway found|Your query returned no results|PrivateEndpointNetworkPoliciesCannotBeEnabledOnPrivateEndpointSubnet|invalid VPC attributes|PrivateLinkServiceNetworkPoliciesCannotBeEnabledOnPrivateLinkServiceSubnet|unrecognized feature gate|runtime-config invalid key|LoadBalancingRuleMustDisableSNATSinceSameFrontendIPConfigurationIsReferencedByOutboundRule)`)
+	unauthorizedRegexp                  = regexp.MustCompile(`(?i)(Unauthorized|InvalidClientTokenId|InvalidAuthenticationTokenTenant|SignatureDoesNotMatch|Authentication failed|AuthFailure|AuthorizationFailed|invalid character|invalid_grant|invalid_client|Authorization Profile was not found|cannot fetch token|no active subscriptions|InvalidAccessKeyId|InvalidSecretAccessKey|query returned no results|UnauthorizedOperation|not authorized|InvalidSubscriptionId)`)
+	quotaExceededRegexp                 = regexp.MustCompile(`(?i)(LimitExceeded|Quotas)`)
+	rateLimitsExceededRegexp            = regexp.MustCompile(`(?i)(Throttling|Too many requests)`)
+	insufficientPrivilegesRegexp        = regexp.MustCompile(`(?i)(AccessDenied|OperationNotAllowed|Error 403)`)
+	dependenciesRegexp                  = regexp.MustCompile(`(?i)(PendingVerification|Access Not Configured|accessNotConfigured|DependencyViolation|OptInRequired|DeleteConflict|Conflict|inactive billing state|ReadOnlyDisabledSubscription|is already being used|InUseSubnetCannotBeDeleted|VnetInUse|InUseRouteTableCannotBeDeleted|timeout while waiting for state to become|InvalidCidrBlock|already busy for|InsufficientFreeAddressesInSubnet|InternalServerError|Future#WaitForCompletion: context has been cancelled|internalerror|internal server error|A resource with the ID|VnetAddressSpaceCannotChangeDueToPeerings|InternalBillingError)`)
+	retryableDependenciesRegexp         = regexp.MustCompile(`(?i)(RetryableError)`)
+	resourcesDepletedRegexp             = regexp.MustCompile(`(?i)(not available in the current hardware cluster|InsufficientInstanceCapacity|SkuNotAvailable|ZonalAllocationFailed|out of stock)`)
+	configurationProblemRegexp          = regexp.MustCompile(`(?i)(AzureBastionSubnet|not supported in your requested Availability Zone|InvalidParameter|InvalidParameterValue|notFound|NetcfgInvalidSubnet|InvalidSubnet|Invalid value|KubeletHasInsufficientMemory|KubeletHasDiskPressure|KubeletHasInsufficientPID|violates constraint|no attached internet gateway found|Your query returned no results|PrivateEndpointNetworkPoliciesCannotBeEnabledOnPrivateEndpointSubnet|invalid VPC attributes|PrivateLinkServiceNetworkPoliciesCannotBeEnabledOnPrivateLinkServiceSubnet|unrecognized feature gate|runtime-config invalid key|LoadBalancingRuleMustDisableSNATSinceSameFrontendIPConfigurationIsReferencedByOutboundRule|strict decoder error|not allowed to configure an unsupported)`)
+	retryableConfigurationProblemRegexp = regexp.MustCompile(`(?i)(is misconfigured and requires zero voluntary evictions)`)
 )
 
 // DetermineError determines the Garden error code for the given error and creates a new error with the given message.
@@ -82,33 +85,34 @@ func DetermineErrorCodes(err error) []gardencorev1beta1.ErrorCode {
 		coder   Coder
 		message = err.Error()
 		codes   = sets.NewString()
+
+		knownCodes = map[gardencorev1beta1.ErrorCode]func(string) bool{
+			gardencorev1beta1.ErrorInfraUnauthorized:             unauthorizedRegexp.MatchString,
+			gardencorev1beta1.ErrorInfraQuotaExceeded:            quotaExceededRegexp.MatchString,
+			gardencorev1beta1.ErrorInfraRateLimitsExceeded:       rateLimitsExceededRegexp.MatchString,
+			gardencorev1beta1.ErrorInfraInsufficientPrivileges:   insufficientPrivilegesRegexp.MatchString,
+			gardencorev1beta1.ErrorInfraDependencies:             dependenciesRegexp.MatchString,
+			gardencorev1beta1.ErrorRetryableInfraDependencies:    retryableDependenciesRegexp.MatchString,
+			gardencorev1beta1.ErrorInfraResourcesDepleted:        resourcesDepletedRegexp.MatchString,
+			gardencorev1beta1.ErrorConfigurationProblem:          configurationProblemRegexp.MatchString,
+			gardencorev1beta1.ErrorRetryableConfigurationProblem: retryableConfigurationProblemRegexp.MatchString,
+		}
 	)
 
 	// try to re-use codes from error
 	if errors.As(err, &coder) {
 		for _, code := range coder.Codes() {
 			codes.Insert(string(code))
+			// found codes don't need to be checked any more
+			delete(knownCodes, code)
 		}
 	}
 
 	// determine error codes
-	if unauthorizedRegexp.MatchString(message) {
-		codes.Insert(string(gardencorev1beta1.ErrorInfraUnauthorized))
-	}
-	if quotaExceededRegexp.MatchString(message) {
-		codes.Insert(string(gardencorev1beta1.ErrorInfraQuotaExceeded))
-	}
-	if insufficientPrivilegesRegexp.MatchString(message) {
-		codes.Insert(string(gardencorev1beta1.ErrorInfraInsufficientPrivileges))
-	}
-	if dependenciesRegexp.MatchString(message) {
-		codes.Insert(string(gardencorev1beta1.ErrorInfraDependencies))
-	}
-	if resourcesDepletedRegexp.MatchString(message) {
-		codes.Insert(string(gardencorev1beta1.ErrorInfraResourcesDepleted))
-	}
-	if configurationProblemRegexp.MatchString(message) {
-		codes.Insert(string(gardencorev1beta1.ErrorConfigurationProblem))
+	for code, matchFn := range knownCodes {
+		if !codes.Has(string(code)) && matchFn(message) {
+			codes.Insert(string(code))
+		}
 	}
 
 	// compute error code list based on code string set
@@ -160,7 +164,7 @@ func NewWrappedLastErrors(description string, err error) *WrappedLastErrors {
 		lastErrors = append(lastErrors, *LastErrorWithTaskID(
 			partError.Error(),
 			utilerrors.GetID(partError),
-			ExtractErrorCodes(errors2.Cause(partError))...))
+			DetermineErrorCodes(errors2.Cause(partError))...))
 	}
 
 	return &WrappedLastErrors{
@@ -197,10 +201,29 @@ func LastErrorWithTaskID(description string, taskID string, codes ...gardencorev
 func HasNonRetryableErrorCode(lastErrors ...gardencorev1beta1.LastError) bool {
 	for _, lastError := range lastErrors {
 		for _, code := range lastError.Codes {
-			if code == gardencorev1beta1.ErrorInfraUnauthorized || code == gardencorev1beta1.ErrorConfigurationProblem {
+			if code == gardencorev1beta1.ErrorInfraUnauthorized ||
+				code == gardencorev1beta1.ErrorInfraInsufficientPrivileges ||
+				code == gardencorev1beta1.ErrorInfraDependencies ||
+				code == gardencorev1beta1.ErrorInfraQuotaExceeded ||
+				code == gardencorev1beta1.ErrorInfraRateLimitsExceeded ||
+				code == gardencorev1beta1.ErrorConfigurationProblem {
 				return true
 			}
 		}
 	}
+	return false
+}
+
+// HasErrorCode checks whether at least one LastError from the given slice of LastErrors <lastErrors>
+// contains the given ErrorCode <code>.
+func HasErrorCode(lastErrors []gardencorev1beta1.LastError, code gardencorev1beta1.ErrorCode) bool {
+	for _, lastError := range lastErrors {
+		for _, current := range lastError.Codes {
+			if current == code {
+				return true
+			}
+		}
+	}
+
 	return false
 }

@@ -121,10 +121,10 @@ type GardenletControllerConfiguration struct {
 	ShootCare *ShootCareControllerConfiguration
 	// ShootStateSync defines the configuration of the ShootState controller.
 	ShootStateSync *ShootStateSyncControllerConfiguration
-	// ShootedSeedRegistration the configuration of the shooted seed registration controller.
-	ShootedSeedRegistration *ShootedSeedRegistrationControllerConfiguration
 	// SeedAPIServerNetworkPolicy defines the configuration of the SeedAPIServerNetworkPolicy controller.
 	SeedAPIServerNetworkPolicy *SeedAPIServerNetworkPolicyControllerConfiguration
+	// ManagedSeedControllerConfiguration the configuration of the ManagedSeed controller.
+	ManagedSeed *ManagedSeedControllerConfiguration
 }
 
 // BackupBucketControllerConfiguration defines the configuration of the BackupBucket
@@ -142,6 +142,9 @@ type BackupEntryControllerConfiguration struct {
 	// DeletionGracePeriodHours holds the period in number of hours to delete the BackupEntry after deletion timestamp is set.
 	// If value is set to 0 then the BackupEntryController will trigger deletion immediately.
 	DeletionGracePeriodHours *int
+	// DeletionGracePeriodShootPurposes is a list of shoot purposes for which the deletion grace period applies. All
+	// BackupEntries corresponding to Shoots with different purposes will be deleted immediately.
+	DeletionGracePeriodShootPurposes []gardencore.ShootPurpose
 }
 
 // ControllerInstallationControllerConfiguration defines the configuration of the
@@ -234,14 +237,6 @@ type StaleExtensionHealthChecks struct {
 	Threshold *metav1.Duration
 }
 
-// ShootedSeedRegistrationControllerConfiguration defines the configuration of the shooted seed registration controller.
-type ShootedSeedRegistrationControllerConfiguration struct {
-	// SyncJitterPeriod is a jitter duration for the reconciler sync that can be used to distribute the syncs randomly.
-	// If its value is greater than 0 then the shooted seeds will not be enqueued immediately but only after a random
-	// duration between 0 and the configured value. It is defaulted to 5m.
-	SyncJitterPeriod *metav1.Duration
-}
-
 // ConditionThreshold defines the duration how long a flappy condition stays in progressing state.
 type ConditionThreshold struct {
 	// Type is the type of the condition to define the threshold for.
@@ -264,6 +259,21 @@ type ShootStateSyncControllerConfiguration struct {
 type SeedAPIServerNetworkPolicyControllerConfiguration struct {
 	// ConcurrentSyncs is the number of workers used for the controller to work on events.
 	ConcurrentSyncs *int
+}
+
+// ManagedSeedControllerConfiguration defines the configuration of the ManagedSeed controller.
+type ManagedSeedControllerConfiguration struct {
+	// ConcurrentSyncs is the number of workers used for the controller to work on
+	// events.
+	ConcurrentSyncs *int
+	// SyncPeriod is the duration how often the existing resources are reconciled.
+	SyncPeriod *metav1.Duration
+	// WaitSyncPeriod is the duration how often an existing resource is reconciled when the controller is waiting for an event.
+	WaitSyncPeriod *metav1.Duration
+	// SyncJitterPeriod is a jitter duration for the reconciler sync that can be used to distribute the syncs randomly.
+	// If its value is greater than 0 then the managed seeds will not be enqueued immediately but only after a random
+	// duration between 0 and the configured value. It is defaulted to 5m.
+	SyncJitterPeriod *metav1.Duration
 }
 
 // ResourcesConfiguration defines the total capacity for seed resources and the amount reserved for use by Gardener.
@@ -303,10 +313,24 @@ type FluentBit struct {
 	OutputSection *string
 }
 
+// Loki contains configuration for the Loki.
+type Loki struct {
+	// Garden contains configuration for the Loki in garden namespace.
+	Garden *GardenLoki
+}
+
+// GardenLoki contains configuration for the Loki in garden namespace.
+type GardenLoki struct {
+	// Priority is the priority value for the Loki
+	Priority *int32
+}
+
 // Logging contains configuration for the logging stack.
 type Logging struct {
 	// FluentBit contains configurations for the fluent-bit
 	FluentBit *FluentBit
+	// Loki contains configuration for the Loki
+	Loki *Loki
 }
 
 // ServerConfiguration contains details for the HTTP(S) servers.

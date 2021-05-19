@@ -47,10 +47,18 @@ type ManagedSeedList struct {
 	Items []ManagedSeed
 }
 
+// ManagedSeedTemplate is a template for creating a ManagedSeed object.
+type ManagedSeedTemplate struct {
+	// Standard object metadata.
+	metav1.ObjectMeta
+	// Specification of the desired behavior of the ManagedSeed.
+	Spec ManagedSeedSpec
+}
+
 // ManagedSeedSpec is the specification of a ManagedSeed.
 type ManagedSeedSpec struct {
 	// Shoot references a Shoot that should be registered as Seed.
-	Shoot Shoot
+	Shoot *Shoot
 	// SeedTemplate is a template for a Seed object, that should be used to register a given cluster as a Seed.
 	// Either SeedTemplate or Gardenlet must be specified. When Seed is specified, the ManagedSeed controller will not deploy a gardenlet into the cluster
 	// and an existing gardenlet reconciling the new Seed is required.
@@ -77,8 +85,8 @@ type Gardenlet struct {
 	// If set to ServiceAccount or BootstrapToken, a service account or a bootstrap token will be created in the garden cluster and used to compute the bootstrap kubeconfig.
 	// If set to None, the gardenClientConnection.kubeconfig field will be used to connect to the Garden cluster. Defaults to BootstrapToken.
 	Bootstrap *Bootstrap
-	// MergeWithParent specifies whether the deployment parameters and GardenletConfiguration of the parent gardenlet
-	// should be merged with the specified deployment parameters and GardenletConfiguration. Defaults to true.
+	// MergeWithParent specifies whether the GardenletConfiguration of the parent gardenlet
+	// should be merged with the specified GardenletConfiguration. Defaults to true.
 	MergeWithParent *bool
 }
 
@@ -143,8 +151,6 @@ type ManagedSeedStatus struct {
 }
 
 const (
-	// ManagedSeedShootExists is a condition type for indicating whether the ManagedSeed's shoot exists.
-	ManagedSeedShootExists gardencore.ConditionType = "ShootExists"
 	// ManagedSeedShootReconciled is a condition type for indicating whether the ManagedSeed's shoot has been reconciled.
 	ManagedSeedShootReconciled gardencore.ConditionType = "ShootReconciled"
 	// ManagedSeedSeedRegistered is a condition type for indicating whether the ManagedSeed's seed has been registered,

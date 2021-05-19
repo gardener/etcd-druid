@@ -440,12 +440,12 @@ spec:
                     id:
                       description: ID is the ID of the etcd member.
                       type: string
-                    lastHeartbeatTime:
-                      description: LastUpdateTime is the last time this condition was updated.
-                      format: date-time
-                      type: string
                     lastTransitionTime:
                       description: LastTransitionTime is the last time the condition's status changed.
+                      format: date-time
+                      type: string
+                    lastUpdateTime:
+                      description: LastUpdateTime is the last time this condition was updated.
                       format: date-time
                       type: string
                     name:
@@ -462,8 +462,8 @@ spec:
                       type: string
                   required:
                   - id
-                  - lastHeartbeatTime
                   - lastTransitionTime
+                  - lastUpdateTime
                   - name
                   - reason
                   - role

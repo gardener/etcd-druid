@@ -72,12 +72,11 @@ func SetDefaults_GardenletConfiguration(obj *GardenletConfiguration) {
 	if obj.Controllers.ShootStateSync == nil {
 		obj.Controllers.ShootStateSync = &ShootStateSyncControllerConfiguration{}
 	}
-	if obj.Controllers.ShootedSeedRegistration == nil {
-		obj.Controllers.ShootedSeedRegistration = &ShootedSeedRegistrationControllerConfiguration{}
-	}
-
 	if obj.Controllers.SeedAPIServerNetworkPolicy == nil {
 		obj.Controllers.SeedAPIServerNetworkPolicy = &SeedAPIServerNetworkPolicyControllerConfiguration{}
+	}
+	if obj.Controllers.ManagedSeed == nil {
+		obj.Controllers.ManagedSeed = &ManagedSeedControllerConfiguration{}
 	}
 
 	if obj.LeaderElection == nil {
@@ -122,10 +121,7 @@ func SetDefaults_ClientConnectionConfiguration(obj *componentbaseconfigv1alpha1.
 // SetDefaults_LeaderElectionConfiguration sets defaults for the leader election of the gardenlet.
 func SetDefaults_LeaderElectionConfiguration(obj *LeaderElectionConfiguration) {
 	if obj.ResourceLock == "" {
-		// TODO: change default to leases after a few releases
-		// make sure, we had configmapsleases as default for a few releases before migrating to leases to ensure,
-		// all users had at least one version running with the hybrid lock to avoid split-brain scenarios when migrating.
-		obj.ResourceLock = resourcelock.ConfigMapsLeasesResourceLock
+		obj.ResourceLock = resourcelock.LeasesResourceLock
 	}
 
 	componentbaseconfigv1alpha1.RecommendedDefaultLeaderElectionConfiguration(&obj.LeaderElectionConfiguration)
@@ -278,20 +274,35 @@ func SetDefaults_ShootStateSyncControllerConfiguration(obj *ShootStateSyncContro
 	}
 }
 
-// SetDefaults_ShootedSeedRegistrationControllerConfiguration sets defaults for the shooted seed registration controller.
-func SetDefaults_ShootedSeedRegistrationControllerConfiguration(obj *ShootedSeedRegistrationControllerConfiguration) {
-	if obj.SyncJitterPeriod == nil {
-		v := metav1.Duration{Duration: 5 * time.Minute}
-		obj.SyncJitterPeriod = &v
-	}
-}
-
 // SetDefaults_SeedAPIServerNetworkPolicyControllerConfiguration sets defaults for the seed apiserver endpoints controller.
 func SetDefaults_SeedAPIServerNetworkPolicyControllerConfiguration(obj *SeedAPIServerNetworkPolicyControllerConfiguration) {
 	if obj.ConcurrentSyncs == nil {
 		// only use few workers for each seed, as the API server endpoints should stay the same most of the time.
 		v := 3
 		obj.ConcurrentSyncs = &v
+	}
+}
+
+// SetDefaults_ManagedSeedControllerConfiguration sets defaults for the managed seed controller.
+func SetDefaults_ManagedSeedControllerConfiguration(obj *ManagedSeedControllerConfiguration) {
+	if obj.ConcurrentSyncs == nil {
+		v := DefaultControllerConcurrentSyncs
+		obj.ConcurrentSyncs = &v
+	}
+
+	if obj.SyncPeriod == nil {
+		v := metav1.Duration{Duration: 1 * time.Hour}
+		obj.SyncPeriod = &v
+	}
+
+	if obj.WaitSyncPeriod == nil {
+		v := metav1.Duration{Duration: 15 * time.Second}
+		obj.WaitSyncPeriod = &v
+	}
+
+	if obj.SyncJitterPeriod == nil {
+		v := metav1.Duration{Duration: 5 * time.Minute}
+		obj.SyncJitterPeriod = &v
 	}
 }
 
