@@ -20,11 +20,13 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -125,55 +127,47 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {
 	logger.Infof("Reconciling etcd status in Custodian Controller for etcd statefulset status:%s in namespace:%s", etcd.Name, etcd.Namespace)
 
-	m := getMutex()
-	m.Lock()
-	defer m.Unlock()
+	return kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
+		etcd.Status.Etcd = druidv1alpha1.CrossVersionObjectReference{
+			APIVersion: sts.APIVersion,
+			Kind:       sts.Kind,
+			Name:       sts.Name,
+		}
+		ready := CheckStatefulSet(etcd, sts) == nil
+		conditions := []druidv1alpha1.Condition{}
+		for _, condition := range sts.Status.Conditions {
+			conditions = append(conditions, convertConditionsToEtcd(&condition))
+		}
+		etcd.Status.Conditions = conditions
 
-	etcd.Status.Etcd = druidv1alpha1.CrossVersionObjectReference{
-		APIVersion: sts.APIVersion,
-		Kind:       sts.Kind,
-		Name:       sts.Name,
-	}
-	ready := CheckStatefulSet(etcd, sts) == nil
-	conditions := []druidv1alpha1.Condition{}
-	for _, condition := range sts.Status.Conditions {
-		conditions = append(conditions, convertConditionsToEtcd(&condition))
-	}
-	etcd.Status.Conditions = conditions
-
-	// To be changed once we have multiple replicas.
-	etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
-	etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
-	etcd.Status.UpdatedReplicas = sts.Status.UpdatedReplicas
-	etcd.Status.Ready = &ready
-
-	logger.Infof("ETCD status updated for statefulset current replicas: %v, ready replicas: %v, updated replicas: %v", sts.Status.CurrentReplicas, sts.Status.ReadyReplicas, sts.Status.UpdatedReplicas)
-	if err := ec.Status().Update(ctx, etcd); err != nil && !errors.IsNotFound(err) {
-		logger.Errorf("Error while updating ETCD status in custodian controller: %v", err)
-		return err
-	}
-	return nil
+		// To be changed once we have multiple replicas.
+		etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
+		etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
+		etcd.Status.UpdatedReplicas = sts.Status.UpdatedReplicas
+		etcd.Status.Ready = &ready
+		logger.Infof("ETCD status updated for statefulset current replicas: %v, ready replicas: %v, updated replicas: %v", sts.Status.CurrentReplicas, sts.Status.ReadyReplicas, sts.Status.UpdatedReplicas)
+		return nil
+	})
 }
 
 func (ec *EtcdCustodian) updateEtcdStatusWithNoSts(ctx context.Context, etcd *druidv1alpha1.Etcd) {
 	logger.Infof("Reconciling etcd status in Custodian Controller when no statefulset found:%s in namespace:%s", etcd.Name, etcd.Namespace)
 
-	m := getMutex()
-	m.Lock()
-	defer m.Unlock()
+	err := kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
+		conditions := []druidv1alpha1.Condition{}
+		etcd.Status.Conditions = conditions
 
-	conditions := []druidv1alpha1.Condition{}
-	etcd.Status.Conditions = conditions
+		// To be changed once we have multiple replicas.
+		etcd.Status.CurrentReplicas = 0
+		etcd.Status.ReadyReplicas = 0
+		etcd.Status.UpdatedReplicas = 0
 
-	// To be changed once we have multiple replicas.
-	etcd.Status.CurrentReplicas = 0
-	etcd.Status.ReadyReplicas = 0
-	etcd.Status.UpdatedReplicas = 0
+		ready := false
+		etcd.Status.Ready = &ready
+		return nil
+	})
 
-	ready := false
-	etcd.Status.Ready = &ready
-
-	if err := ec.Status().Update(ctx, etcd); err != nil {
+	if err != nil {
 		logger.Errorf("Error while updating ETCD status for no statefulset in custodian controller: %v", err)
 	}
 }

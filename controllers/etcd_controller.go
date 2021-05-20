@@ -21,7 +21,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -71,9 +70,6 @@ var (
 		&eventsv1beta1.Event{},
 		&eventsv1.Event{},
 	}
-
-	once  sync.Once
-	mutex *sync.Mutex
 )
 
 const (
@@ -93,14 +89,6 @@ var (
 	// DefaultTimeout is the default timeout for retry operations.
 	DefaultTimeout = 1 * time.Minute
 )
-
-// Use this mutex while updating ETCD resource
-func getMutex() *sync.Mutex {
-	once.Do(func() {
-		mutex = &sync.Mutex{}
-	})
-	return mutex
-}
 
 // EtcdReconciler reconciles a Etcd object
 type EtcdReconciler struct {
@@ -222,7 +210,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		logger.Infof("Adding finalizer (%s) to etcd %s", FinalizerName, etcd.GetName())
 		finalizers.Insert(FinalizerName)
 		etcd.Finalizers = finalizers.UnsortedList()
-		if err := r.updateWithLock(ctx, etcd); err != nil {
+		if err := r.Update(ctx, etcd); err != nil {
 			if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 				return ctrl.Result{
 					Requeue: true,
@@ -273,15 +261,6 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 	}, nil
 }
 
-// updateWithLock is wrapper function which helps in synchronization between controller threads(etcd-druid controller and custodian controller).
-func (r *EtcdReconciler) updateWithLock(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
-	m := getMutex()
-	m.Lock()
-	defer m.Unlock()
-
-	return r.Update(ctx, etcd)
-}
-
 func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	logger.Infof("Deletion timestamp set for etcd: %s", etcd.GetName())
 
@@ -309,9 +288,6 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 
 	if sets.NewString(etcd.Finalizers...).Has(FinalizerName) {
 		logger.Infof("Removing finalizer (%s) from etcd %s", FinalizerName, etcd.GetName())
-		m := getMutex()
-		m.Lock()
-		defer m.Unlock()
 
 		// Deep copy of etcd resource required here to patch the object. Update call results in
 		// StorageError. See also: https://github.com/kubernetes/kubernetes/issues/71139
@@ -1138,37 +1114,35 @@ func canDeleteStatefulset(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) boo
 }
 
 func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
-	m := getMutex()
-	m.Lock()
-	defer m.Unlock()
+	err := kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
+		lastErrStr := fmt.Sprintf("%v", lastError)
+		etcd.Status.LastError = &lastErrStr
+		etcd.Status.ObservedGeneration = &etcd.Generation
+		if sts != nil {
+			ready := CheckStatefulSet(etcd, sts) == nil
+			etcd.Status.Ready = &ready
+		}
+		return nil
+	})
 
-	lastErrStr := fmt.Sprintf("%v", lastError)
-	etcd.Status.LastError = &lastErrStr
-	etcd.Status.ObservedGeneration = &etcd.Generation
-	if sts != nil {
-		ready := CheckStatefulSet(etcd, sts) == nil
-		etcd.Status.Ready = &ready
-	}
-
-	if err := r.Status().Update(ctx, etcd); err != nil && !apierrors.IsNotFound(err) {
+	if err != nil {
 		return err
 	}
 	return r.removeOperationAnnotation(ctx, etcd)
 }
 
 func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, svc *corev1.Service, sts *appsv1.StatefulSet) error {
-	m := getMutex()
-	m.Lock()
-	defer m.Unlock()
+	err := kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
+		ready := CheckStatefulSet(etcd, sts) == nil
+		etcd.Status.Ready = &ready
+		svcName := svc.Name
+		etcd.Status.ServiceName = &svcName
+		etcd.Status.LastError = nil
+		etcd.Status.ObservedGeneration = &etcd.Generation
+		return nil
+	})
 
-	ready := CheckStatefulSet(etcd, sts) == nil
-	etcd.Status.Ready = &ready
-	svcName := svc.Name
-	etcd.Status.ServiceName = &svcName
-	etcd.Status.LastError = nil
-	etcd.Status.ObservedGeneration = &etcd.Generation
-
-	if err := r.Status().Update(ctx, etcd); err != nil && !apierrors.IsNotFound(err) {
+	if err != nil {
 		return err
 	}
 	return r.removeOperationAnnotation(ctx, etcd)
@@ -1243,16 +1217,12 @@ func (r *EtcdReconciler) removeOperationAnnotation(ctx context.Context, etcd *dr
 }
 
 func (r *EtcdReconciler) updateEtcdStatusAsNotReady(ctx context.Context, etcd *druidv1alpha1.Etcd) (*druidv1alpha1.Etcd, error) {
-	m := getMutex()
-	m.Lock()
-	defer m.Unlock()
-	etcdCopy := etcd.DeepCopy()
-	etcdCopy.Status.Ready = nil
-	etcdCopy.Status.ReadyReplicas = 0
-	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		return r.Status().Patch(ctx, etcdCopy, client.MergeFrom(etcd))
+	err := kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
+		etcd.Status.Ready = nil
+		etcd.Status.ReadyReplicas = 0
+		return nil
 	})
-	return etcdCopy, err
+	return etcd, err
 }
 
 func convertConditionsToEtcd(condition *appsv1.StatefulSetCondition) druidv1alpha1.Condition {
