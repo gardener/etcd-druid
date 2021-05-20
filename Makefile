@@ -64,7 +64,7 @@ deploy: manifests
 
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: manifests
-manifests: install-requirements
+manifests:
 	@cd "$(REPO_ROOT)/api" && controller-gen $(CRD_OPTIONS) paths="./..." output:crd:artifacts:config=../config/crd/bases
 	@controller-gen rbac:roleName=manager-role paths="./controllers/..."
 
@@ -73,16 +73,24 @@ manifests: install-requirements
 fmt:
 	@env GO111MODULE=on go fmt ./...
 
+.PHONY: clean
+clean:
+	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/clean.sh" ./api/... ./controllers/... ./pkg/...
+
 # Check packages
 .PHONY: check
 check:
 	@cd "$(REPO_ROOT)/api" && "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=../.golangci.yaml ./...
 	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./pkg/... ./controllers/...
 
+.PHONY: check-generate
+check-generate:
+	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check-generate.sh" "$(REPO_ROOT)"
+
 # Generate code
 .PHONY: generate
-generate: install-requirements
-	cd "$(REPO_ROOT)/api" && controller-gen object:headerFile=../hack/boilerplate.go.txt paths=./...
+generate:
+	@"$(REPO_ROOT)/hack/update-codegen.sh"
 
 # Build the docker image
 .PHONY: docker-build
