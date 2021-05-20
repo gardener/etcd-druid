@@ -150,12 +150,12 @@ type GardenletControllerConfiguration struct {
 	// ShootStateSync defines the configuration of the ShootState controller
 	// +optional
 	ShootStateSync *ShootStateSyncControllerConfiguration `json:"shootStateSync,omitempty"`
-	// ShootedSeedRegistration the configuration of the shooted seed registration controller.
-	// +optional
-	ShootedSeedRegistration *ShootedSeedRegistrationControllerConfiguration `json:"shootedSeedRegistration,omitempty"`
 	// SeedAPIServerNetworkPolicy defines the configuration of the SeedAPIServerNetworkPolicy controller
 	// +optional
 	SeedAPIServerNetworkPolicy *SeedAPIServerNetworkPolicyControllerConfiguration `json:"seedAPIServerNetworkPolicy,omitempty"`
+	// ManagedSeedControllerConfiguration the configuration of the ManagedSeed controller.
+	// +optional
+	ManagedSeed *ManagedSeedControllerConfiguration `json:"managedSeed,omitempty"`
 }
 
 // BackupBucketControllerConfiguration defines the configuration of the BackupBucket
@@ -176,6 +176,10 @@ type BackupEntryControllerConfiguration struct {
 	// If value is set to 0 then the BackupEntryController will trigger deletion immediately.
 	// +optional
 	DeletionGracePeriodHours *int `json:"deletionGracePeriodHours,omitempty"`
+	// DeletionGracePeriodShootPurposes is a list of shoot purposes for which the deletion grace period applies. All
+	// BackupEntries corresponding to Shoots with different purposes will be deleted immediately.
+	// +optional
+	DeletionGracePeriodShootPurposes []gardencorev1beta1.ShootPurpose `json:"deletionGracePeriodShootPurposes,omitempty"`
 }
 
 // ControllerInstallationControllerConfiguration defines the configuration of the
@@ -286,15 +290,6 @@ type StaleExtensionHealthChecks struct {
 	Threshold *metav1.Duration `json:"threshold,omitempty"`
 }
 
-// ShootedSeedRegistrationControllerConfiguration defines the configuration of the shooted seed registration controller.
-type ShootedSeedRegistrationControllerConfiguration struct {
-	// SyncJitterPeriod is a jitter duration for the reconciler sync that can be used to distribute the syncs randomly.
-	// If its value is greater than 0 then the shooted seeds will not be enqueued immediately but only after a random
-	// duration between 0 and the configured value. It is defaulted to 5m.
-	// +optional
-	SyncJitterPeriod *metav1.Duration `json:"syncJitterPeriod,omitempty"`
-}
-
 // ConditionThreshold defines the duration how long a flappy condition stays in progressing state.
 type ConditionThreshold struct {
 	// Type is the type of the condition to define the threshold for.
@@ -320,6 +315,25 @@ type SeedAPIServerNetworkPolicyControllerConfiguration struct {
 	// ConcurrentSyncs is the number of workers used for the controller to work on events.
 	// +optional
 	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
+}
+
+// ManagedSeedControllerConfiguration defines the configuration of the ManagedSeed controller.
+type ManagedSeedControllerConfiguration struct {
+	// ConcurrentSyncs is the number of workers used for the controller to work on
+	// events.
+	// +optional
+	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
+	// SyncPeriod is the duration how often the existing resources are reconciled.
+	// +optional
+	SyncPeriod *metav1.Duration `json:"syncPeriod,omitempty"`
+	// WaitSyncPeriod is the duration how often an existing resource is reconciled when the controller is waiting for an event.
+	// +optional
+	WaitSyncPeriod *metav1.Duration `json:"waitSyncPeriod,omitempty"`
+	// SyncJitterPeriod is a jitter duration for the reconciler sync that can be used to distribute the syncs randomly.
+	// If its value is greater than 0 then the managed seeds will not be enqueued immediately but only after a random
+	// duration between 0 and the configured value. It is defaulted to 5m.
+	// +optional
+	SyncJitterPeriod *metav1.Duration `json:"syncJitterPeriod,omitempty"`
 }
 
 // ResourcesConfiguration defines the total capacity for seed resources and the amount reserved for use by Gardener.
@@ -366,11 +380,26 @@ type FluentBit struct {
 	OutputSection *string `json:"output,omitempty" yaml:"output,omitempty"`
 }
 
+// Loki contains configuration for the Loki.
+type Loki struct {
+	// Garden contains configuration for the Loki in garden namespace.
+	Garden *GardenLoki `json:"garden,omitempty" yaml:"garden,omitempty"`
+}
+
+// GardenLoki contains configuration for the Loki in garden namespace.
+type GardenLoki struct {
+	// Priority is the priority value for the Loki
+	Priority *int `json:"priority,omitempty" yaml:"priority,omitempty"`
+}
+
 // Logging contains configuration for the logging stack.
 type Logging struct {
 	// FluentBit contains configurations for the fluent-bit
 	// +optional
 	FluentBit *FluentBit `json:"fluentBit,omitempty" yaml:"fluentBit,omitempty"`
+	// Loki contains configuration for the Loki
+	// +optional
+	Loki *Loki `json:"loki,omitempty" yaml:"loki,omitempty"`
 }
 
 // ServerConfiguration contains details for the HTTP(S) servers.

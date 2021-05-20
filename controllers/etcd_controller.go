@@ -1196,7 +1196,7 @@ func (r *EtcdReconciler) fetchPVCEventsFor(ctx context.Context, ss *appsv1.State
 			if !strings.HasPrefix(pvc.GetName(), fmt.Sprintf("%s-%s", volumeClaim.Name, ss.Name)) || pvc.Status.Phase == corev1.ClaimBound {
 				continue
 			}
-			messages, err := kutil.FetchEventMessages(ctx, r.Client, &pvc, corev1.EventTypeWarning, 2)
+			messages, err := kutil.FetchEventMessages(ctx, r.Client.Scheme(), r.Client, &pvc, corev1.EventTypeWarning, 2)
 			if err != nil {
 				return "", err
 			}

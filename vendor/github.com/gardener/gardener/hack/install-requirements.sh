@@ -18,7 +18,7 @@ set -e
 
 echo "> Installing requirements"
 
-GO111MODULE=off go get golang.org/x/tools/cmd/goimports
+GO111MODULE=off go get -u golang.org/x/tools/cmd/goimports
 
 export GO111MODULE=on
 curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.27.0
@@ -45,11 +45,12 @@ Please make sure you have installed the following requirements:
 - GNU Parallel
 
 Brew command:
-$ brew install coreutils gnu-tar gnu-sed jq parallel
+$ brew install coreutils gnu-sed gnu-tar grep jq parallel
 
 Please allow them to be used without their "g" prefix:
 $ export PATH=/usr/local/opt/coreutils/libexec/gnubin:\$PATH
-$ export PATH=/usr/local/opt/gnu-tar/libexec/gnubin:\$PATH
 $ export PATH=/usr/local/opt/gnu-sed/libexec/gnubin:\$PATH
+$ export PATH=/usr/local/opt/gnu-tar/libexec/gnubin:\$PATH
+$ export PATH=/usr/local/opt/grep/libexec/gnubin:\$PATH
 EOM
 fi

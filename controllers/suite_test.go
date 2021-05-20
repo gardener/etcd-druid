@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gardener/gardener/extensions/pkg/util/test"
+	"github.com/gardener/gardener/pkg/utils/test"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

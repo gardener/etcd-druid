@@ -1,68 +1,65 @@
 apiVersion: druid.gardener.cloud/v1alpha1
 kind: Etcd
 metadata:
-    name: test
-    namespace: test
-    labels:
-        app: etcd-statefulset
-        garden.sapcloud.io/role: controlplane
-        role: test
+  name: etcd-test
+  labels:
+    app: etcd-statefulset
+    garden.sapcloud.io/role: controlplane
+    role: test
 spec:
-    selector:
-        matchLabels:
-            app: etcd-statefulset
-            garden.sapcloud.io/role: controlplane
-            role: test
-    annotations:
-        app: etcd-statefulset
-        garden.sapcloud.io/role: controlplane
-        networking.gardener.cloud/to-dns: allowed
-        networking.gardener.cloud/to-private-networks: allowed
-        networking.gardener.cloud/to-public-networks: allowed
-        role: test
-    labels:
-        app: etcd-statefulset
-        garden.sapcloud.io/role: controlplane
-        networking.gardener.cloud/to-dns: allowed
-        networking.gardener.cloud/to-private-networks: allowed
-        networking.gardener.cloud/to-public-networks: allowed
-        role: test
-    etcd:
-        metrics: basic
-        image: eu.gcr.io/gardener-project/gardener/etcd:v3.4.13-bootstrap
-        defragmentationSchedule: "0 */24 * * *"
-        resources:
-            limits: { cpu: 2500m, memory: 4Gi }
-            requests: { cpu: 500m, memory: 1000Mi }
-        clientPort: 2379
-        serverPort: 2380
-    backup:
-        image: eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.12.0
-        port: 8080
-        fullSnapshotSchedule: "0 */24 * * *"
-        resources:
-            limits: { cpu: 500m, memory: 2Gi }
-            requests: { cpu: 23m, memory: 128Mi }
-        garbageCollectionPolicy: Exponential
-        quota: 8Gi
-        garbageCollectionPeriod: 43200s
-        deltaSnapshotPeriod: 300s
-        deltaSnapshotMemoryLimit: 1Gi
-        store:
-            secretRef:
-                name: etcd-backup
-            container: shoot--dev--i308301-1--b3cab
-            provider: aws
-            prefix: etcd-test
-        compression:
-            enabled: false
-            policy: "gzip"
-    
-    sharedConfig:
-        autoCompactionMode: periodic
-        autoCompactionRetention: "30m"
+  selector:
+    matchLabels:
+      app: etcd-statefulset
+      garden.sapcloud.io/role: controlplane
+      role: test
+  annotations:
+    app: etcd-statefulset
+    garden.sapcloud.io/role: controlplane
+    networking.gardener.cloud/to-dns: allowed
+    networking.gardener.cloud/to-private-networks: allowed
+    networking.gardener.cloud/to-public-networks: allowed
+    role: test
+  labels:
+    app: etcd-statefulset
+    garden.sapcloud.io/role: controlplane
+    networking.gardener.cloud/to-dns: allowed
+    networking.gardener.cloud/to-private-networks: allowed
+    networking.gardener.cloud/to-public-networks: allowed
+    role: test
+  etcd:
+    metrics: basic
+    defragmentationSchedule: "0 */24 * * *"
+    resources:
+      limits: { cpu: 2500m, memory: 4Gi }
+      requests: { cpu: 500m, memory: 1000Mi }
+    clientPort: 2379
+    serverPort: 2380
+    quota: 8Gi
+  backup:
+    port: 8080
+    fullSnapshotSchedule: "0 */24 * * *"
+    resources:
+      limits: { cpu: 500m, memory: 2Gi }
+      requests: { cpu: 23m, memory: 128Mi }
+    garbageCollectionPolicy: Exponential
+    garbageCollectionPeriod: 43200s
+    deltaSnapshotPeriod: 300s
+    deltaSnapshotMemoryLimit: 1Gi
+#   store:
+#     secretRef:
+#       name: etcd-backup
+#     container: shoot--dev--i308301-1--b3cab
+#     provider: aws
+#     prefix: etcd-test
+    compression:
+      enabled: false
+      policy: "gzip"
+  
+  sharedConfig:
+    autoCompactionMode: periodic
+    autoCompactionRetention: "30m"
 
-    replicas: 1
-    # priorityClassName: foo
-    storageClass: gardener.cloud-fast
-    storageCapacity: 80Gi
+  replicas: 1
+# priorityClassName: foo
+  storageClass: standard
+  storageCapacity: 10Gi

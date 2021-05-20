@@ -18,7 +18,9 @@ import (
 	"context"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gardener/gardener/pkg/utils/flow"
@@ -26,11 +28,14 @@ import (
 
 // ObjectName returns the name of the given object in the format <namespace>/<name>
 func ObjectName(obj client.Object) string {
+	if obj.GetNamespace() == "" {
+		return obj.GetName()
+	}
 	return client.ObjectKeyFromObject(obj).String()
 }
 
 // DeleteObjects deletes a list of Kubernetes objects.
-func DeleteObjects(ctx context.Context, c client.Client, objects ...client.Object) error {
+func DeleteObjects(ctx context.Context, c client.Writer, objects ...client.Object) error {
 	for _, obj := range objects {
 		if err := DeleteObject(ctx, c, obj); err != nil {
 			return err
@@ -40,7 +45,7 @@ func DeleteObjects(ctx context.Context, c client.Client, objects ...client.Objec
 }
 
 // DeleteObject deletes a Kubernetes object. It ignores 'not found' and 'no match' errors.
-func DeleteObject(ctx context.Context, c client.Client, object client.Object) error {
+func DeleteObject(ctx context.Context, c client.Writer, object client.Object) error {
 	if err := c.Delete(ctx, object); client.IgnoreNotFound(err) != nil && !meta.IsNoMatchError(err) {
 		return err
 	}
@@ -64,4 +69,16 @@ func DeleteObjectsFromListConditionally(ctx context.Context, c client.Client, li
 	}
 
 	return flow.Parallel(fns...)(ctx)
+}
+
+// IsNamespaceInUse checks if there are is at least one object of the given kind left inside the given namespace.
+func IsNamespaceInUse(ctx context.Context, reader client.Reader, namespace string, gvk schema.GroupVersionKind) (bool, error) {
+	objects := &metav1.PartialObjectMetadataList{}
+	objects.SetGroupVersionKind(gvk)
+
+	if err := reader.List(ctx, objects, client.InNamespace(namespace), client.Limit(1)); err != nil {
+		return true, err
+	}
+
+	return len(objects.Items) > 0, nil
 }

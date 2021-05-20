@@ -24,6 +24,8 @@ type BackupEntryExpansion interface{}
 
 type CloudProfileExpansion interface{}
 
+type ControllerDeploymentExpansion interface{}
+
 type ControllerInstallationExpansion interface{}
 
 type ControllerRegistrationExpansion interface{}
@@ -39,5 +41,7 @@ type SecretBindingExpansion interface{}
 type SeedExpansion interface{}
 
 type ShootExpansion interface{}
+
+type ShootExtensionStatusExpansion interface{}
 
 type ShootStateExpansion interface{}

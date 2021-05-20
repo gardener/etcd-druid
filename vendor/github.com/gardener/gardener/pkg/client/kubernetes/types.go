@@ -21,8 +21,10 @@ import (
 	gardencoreclientset "github.com/gardener/gardener/pkg/client/core/clientset/versioned"
 	gardencorescheme "github.com/gardener/gardener/pkg/client/core/clientset/versioned/scheme"
 	gardenextensionsscheme "github.com/gardener/gardener/pkg/client/extensions/clientset/versioned/scheme"
+	gardenoperationsscheme "github.com/gardener/gardener/pkg/client/operations/clientset/versioned/scheme"
 	gardenseedmanagementclientset "github.com/gardener/gardener/pkg/client/seedmanagement/clientset/versioned"
 	gardenseedmanagementscheme "github.com/gardener/gardener/pkg/client/seedmanagement/clientset/versioned/scheme"
+	gardensettingsscheme "github.com/gardener/gardener/pkg/client/settings/clientset/versioned/scheme"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	dnsv1alpha1 "github.com/gardener/external-dns-management/pkg/apis/dns/v1alpha1"
@@ -94,6 +96,9 @@ func init() {
 		corescheme.AddToScheme,
 		gardencorescheme.AddToScheme,
 		gardenseedmanagementscheme.AddToScheme,
+		gardensettingsscheme.AddToScheme,
+		gardenoperationsscheme.AddToScheme,
+		apiregistrationscheme.AddToScheme,
 	)
 	utilruntime.Must(gardenSchemeBuilder.AddToScheme(GardenScheme))
 
@@ -145,8 +150,11 @@ type Interface interface {
 	// Client returns the ClientSet's controller-runtime client. This client should be used by default, as it carries
 	// a cache, which uses SharedIndexInformers to keep up-to-date.
 	Client() client.Client
+	// APIReader returns a client.Reader that directly reads from the API server.
+	APIReader() client.Reader
 	// DirectClient returns a controller-runtime client, which can be used to talk to the API server directly
 	// (without using a cache).
+	// Deprecated: used APIReader instead, if the controller can't tolerate stale reads.
 	DirectClient() client.Client
 	// Cache returns the ClientSet's controller-runtime cache. It can be used to get Informers for arbitrary objects.
 	Cache() cache.Cache
