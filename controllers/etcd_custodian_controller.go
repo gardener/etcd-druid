@@ -1,4 +1,4 @@
-// Copyright (c) 2019 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright (c) 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	if etcd.Status.LastError != nil {
 		if *etcd.Status.LastError != "" {
 			return ctrl.Result{
-				RequeueAfter: time.Duration(30 * time.Second),
+				RequeueAfter: 30 * time.Second,
 			}, fmt.Errorf(*etcd.Status.LastError)
 		}
 	}
@@ -109,7 +109,7 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	if len(ss) < 1 {
 		ec.updateEtcdStatusWithNoSts(ctx, etcd)
 		return ctrl.Result{
-			RequeueAfter: time.Duration(5 * time.Second),
+			RequeueAfter: 5 * time.Second,
 		}, nil
 	}
 

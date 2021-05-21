@@ -50,7 +50,8 @@ func main() {
 		enableLeaderElection       bool
 		leaderElectionID           string
 		leaderElectionResourceLock string
-		workers                    int
+		etcdWorkers                int
+		custodianWorkers           int
 		ignoreOperationAnnotation  bool
 
 		// TODO: migrate default to `leases` in one of the next releases
@@ -58,7 +59,8 @@ func main() {
 		defaultLeaderElectionID           = "druid-leader-election"
 	)
 
-	flag.IntVar(&workers, "workers", 3, "Number of worker threads.")
+	flag.IntVar(&etcdWorkers, "workers", 3, "Number of worker threads of the etcd controller.")
+	flag.IntVar(&custodianWorkers, "custodian-workers", 3, "Number of worker threads of the custodian controller.")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
@@ -81,34 +83,33 @@ func main() {
 		LeaderElectionResourceLock: leaderElectionResourceLock,
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
+		setupLog.Error(err, "Unable to start manager")
 		os.Exit(1)
 	}
 
-	ec, err := controllers.NewEtcdReconcilerWithImageVector(mgr)
+	etcd, err := controllers.NewEtcdReconcilerWithImageVector(mgr)
 	if err != nil {
-		setupLog.Error(err, "unable to initialize controller with image vector")
+		setupLog.Error(err, "Unable to initialize controller with image vector")
 		os.Exit(1)
 	}
-	err = ec.SetupWithManager(mgr, workers, ignoreOperationAnnotation)
-	if err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Etcd")
+
+	if err := etcd.SetupWithManager(mgr, etcdWorkers, ignoreOperationAnnotation); err != nil {
+		setupLog.Error(err, "Unable to create controller", "Controller", "Etcd")
 		os.Exit(1)
 	}
 
 	custodian := controllers.NewEtcdCustodian(mgr)
 
-	err = custodian.SetupWithManager(mgr, workers)
-	if err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Etcd Custodian")
+	if err := custodian.SetupWithManager(mgr, custodianWorkers); err != nil {
+		setupLog.Error(err, "Unable to create controller", "Controller", "Etcd Custodian")
 		os.Exit(1)
 	}
 
 	// +kubebuilder:scaffold:builder
 
-	setupLog.Info("starting manager")
+	setupLog.Info("Starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
+		setupLog.Error(err, "Problem running manager")
 		os.Exit(1)
 	}
 }
