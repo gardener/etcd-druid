@@ -275,16 +275,21 @@ var _ = Describe("Druid", func() {
 				sts = createStatefulset(instance.Name, instance.Namespace, instance.Spec.Labels)
 				Expect(c.Create(ctx, sts)).To(Succeed())
 
-				err := c.Get(ctx, client.ObjectKeyFromObject(instance), sts)
-				Expect(err).NotTo(HaveOccurred())
+				Eventually(func() error { return c.Get(ctx, client.ObjectKeyFromObject(instance), sts) }, timeout, pollingInterval).Should(Succeed())
+
 				sts.Status.Replicas = 1
 				sts.Status.ReadyReplicas = 1
 				Expect(c.Status().Update(ctx, sts)).To(Succeed())
 
-				err = c.Get(ctx, client.ObjectKeyFromObject(instance), sts)
-				Expect(err).NotTo(HaveOccurred())
-
-				Expect(int(sts.Status.ReadyReplicas)).Should(BeNumerically("==", 1))
+				Eventually(func() error {
+					if err := c.Get(ctx, client.ObjectKeyFromObject(instance), sts); err != nil {
+						return err
+					}
+					if sts.Status.ReadyReplicas != 1 {
+						return fmt.Errorf("ReadyReplicas != 1")
+					}
+					return nil
+				}, timeout, pollingInterval).Should(Succeed())
 
 				// Create ETCD instance
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
@@ -296,8 +301,7 @@ var _ = Describe("Druid", func() {
 
 				// Check if ETCD has ready replicas more than zero
 				Eventually(func() error {
-					err = c.Get(ctx, client.ObjectKeyFromObject(instance), instance)
-					if err != nil {
+					if err := c.Get(ctx, client.ObjectKeyFromObject(instance), instance); err != nil {
 						return err
 					}
 
