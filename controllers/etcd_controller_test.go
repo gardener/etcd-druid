@@ -2104,7 +2104,6 @@ func WithWd(path string) func() {
 }
 
 func setStatefulSetReady(s *appsv1.StatefulSet) {
-	logger.Infof("Setting statefulset ready explicitly")
 	s.Status.ObservedGeneration = s.Generation
 
 	replicas := int32(1)

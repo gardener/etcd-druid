@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
+	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,13 +30,17 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 )
 
 // EtcdCustodian reconciles status of Etcd object
 type EtcdCustodian struct {
 	client.Client
 	Scheme *runtime.Scheme
+	logger logr.Logger
 }
 
 // NewEtcdCustodian creates a new EtcdCustodian object
@@ -44,6 +48,7 @@ func NewEtcdCustodian(mgr manager.Manager) *EtcdCustodian {
 	return &EtcdCustodian{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		logger: log.Log.WithName("custodian-controller"),
 	}
 }
 
@@ -52,7 +57,7 @@ func NewEtcdCustodian(mgr manager.Manager) *EtcdCustodian {
 
 // Reconcile reconciles the etcd.
 func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger.Info("Custodian controller reconciliation started")
+	ec.logger.Info("Custodian controller reconciliation started")
 	etcd := &druidv1alpha1.Etcd{}
 	if err := ec.Get(ctx, req.NamespacedName, etcd); err != nil {
 		if errors.IsNotFound(err) {
@@ -63,6 +68,8 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		// Error reading the object - requeue the request.
 		return ctrl.Result{}, err
 	}
+
+	logger := ec.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
 
 	if etcd.Status.LastError != nil {
 		if *etcd.Status.LastError != "" {
@@ -98,7 +105,7 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	cm := NewEtcdDruidRefManager(ec.Client, ec.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
 
-	ss, err := cm.FetchStatefulSet(etcd)
+	ss, err := cm.FetchStatefulSet(ctx, etcd)
 	if err != nil {
 		return ctrl.Result{
 			Requeue: true,
@@ -107,13 +114,13 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	// If no statefulsets could be fetched, requeue for reconcilation
 	if len(ss) < 1 {
-		ec.updateEtcdStatusWithNoSts(ctx, etcd)
+		ec.updateEtcdStatusWithNoSts(ctx, logger, etcd)
 		return ctrl.Result{
 			RequeueAfter: 5 * time.Second,
 		}, nil
 	}
 
-	if err := ec.updateEtcdStatus(ctx, etcd, ss[0]); err != nil {
+	if err := ec.updateEtcdStatus(ctx, logger, etcd, ss[0]); err != nil {
 		return ctrl.Result{
 			Requeue: true,
 		}, err
@@ -124,8 +131,8 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	}, nil
 }
 
-func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {
-	logger.Infof("Reconciling etcd status in Custodian Controller for etcd statefulset status:%s in namespace:%s", etcd.Name, etcd.Namespace)
+func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {
+	logger.Info("Reconciling etcd status for etcd statefulset status")
 
 	return kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
 		etcd.Status.Etcd = &druidv1alpha1.CrossVersionObjectReference{
@@ -145,15 +152,15 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, etcd *druidv1alph
 		etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
 		etcd.Status.UpdatedReplicas = sts.Status.UpdatedReplicas
 		etcd.Status.Ready = &ready
-		logger.Infof("ETCD status updated for statefulset current replicas: %v, ready replicas: %v, updated replicas: %v", sts.Status.CurrentReplicas, sts.Status.ReadyReplicas, sts.Status.UpdatedReplicas)
+		logger.Info(fmt.Sprintf("ETCD status updated for statefulset current replicas: %v, ready replicas: %v, updated replicas: %v", sts.Status.CurrentReplicas, sts.Status.ReadyReplicas, sts.Status.UpdatedReplicas))
 		return nil
 	})
 }
 
-func (ec *EtcdCustodian) updateEtcdStatusWithNoSts(ctx context.Context, etcd *druidv1alpha1.Etcd) {
-	logger.Infof("Reconciling etcd status in Custodian Controller when no statefulset found:%s in namespace:%s", etcd.Name, etcd.Namespace)
+func (ec *EtcdCustodian) updateEtcdStatusWithNoSts(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) {
+	logger.Info("Reconciling etcd status when no statefulset found")
 
-	err := kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
+	if err := kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
 		conditions := []druidv1alpha1.Condition{}
 		etcd.Status.Conditions = conditions
 
@@ -165,10 +172,8 @@ func (ec *EtcdCustodian) updateEtcdStatusWithNoSts(ctx context.Context, etcd *dr
 		ready := false
 		etcd.Status.Ready = &ready
 		return nil
-	})
-
-	if err != nil {
-		logger.Errorf("Error while updating ETCD status for no statefulset in custodian controller: %v", err)
+	}); err != nil {
+		logger.Error(err, "Error while updating ETCD status when no statefulset found")
 	}
 }
 

@@ -96,6 +96,7 @@ github.com/gardener/hvpa-controller/api/v1alpha1
 ## explicit
 github.com/ghodss/yaml
 # github.com/go-logr/logr v0.3.0
+## explicit
 github.com/go-logr/logr
 # github.com/go-logr/zapr v0.2.0
 github.com/go-logr/zapr
@@ -283,7 +284,6 @@ github.com/russross/blackfriday/v2
 # github.com/shurcooL/sanitized_anchor_name v1.0.0
 github.com/shurcooL/sanitized_anchor_name
 # github.com/sirupsen/logrus v1.6.0
-## explicit
 github.com/sirupsen/logrus
 # github.com/spf13/cobra v1.1.1
 github.com/spf13/cobra
