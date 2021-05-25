@@ -28,6 +28,8 @@ import (
 	"strings"
 	"sync"
 
+	"k8s.io/client-go/tools/cache"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 
@@ -373,7 +375,12 @@ func (m *EtcdDruidRefManager) AdoptResource(ctx context.Context, obj client.Obje
 		if annotations == nil {
 			annotations = map[string]string{}
 		}
-		annotations[common.GardenerOwnedBy] = fmt.Sprintf("%s/%s", m.Controller.GetNamespace(), m.Controller.GetName())
+		objectKey, err := cache.MetaNamespaceKeyFunc(m.Controller)
+		if err != nil {
+			return err
+		}
+
+		annotations[common.GardenerOwnedBy] = objectKey
 		annotations[common.GardenerOwnerType] = strings.ToLower(etcdGVK.Kind)
 		clone.SetAnnotations(annotations)
 	case *corev1.ConfigMap:

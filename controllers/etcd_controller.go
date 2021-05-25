@@ -1252,7 +1252,7 @@ func (r *EtcdReconciler) claimServices(ctx context.Context, etcd *druidv1alpha1.
 	return cm.ClaimServices(ctx, ss)
 }
 
-func (r *EtcdReconciler) claimConfigMaps(ctx context.Context, etcd *druidv1alpha1.Etcd, selector labels.Selector, ss *corev1.ConfigMapList) ([]*corev1.ConfigMap, error) {
+func (r *EtcdReconciler) claimConfigMaps(ctx context.Context, etcd *druidv1alpha1.Etcd, selector labels.Selector, configMaps *corev1.ConfigMapList) ([]*corev1.ConfigMap, error) {
 	// If any adoptions are attempted, we should first recheck for deletion with
 	// an uncached quorum read sometime after listing Machines (see #42639).
 	canAdoptFunc := RecheckDeletionTimestamp(func() (metav1.Object, error) {
@@ -1267,7 +1267,7 @@ func (r *EtcdReconciler) claimConfigMaps(ctx context.Context, etcd *druidv1alpha
 		return foundEtcd, nil
 	})
 	cm := NewEtcdDruidRefManager(r.Client, r.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
-	return cm.ClaimConfigMaps(ctx, ss)
+	return cm.ClaimConfigMaps(ctx, configMaps)
 }
 
 // SetupWithManager sets up manager with a new controller and r as the reconcile.Reconciler
@@ -1282,7 +1282,7 @@ func (r *EtcdReconciler) SetupWithManager(mgr ctrl.Manager, workers int, ignoreO
 	if !ignoreOperationAnnotation {
 		predicates = append(predicates, druidpredicates.HasOperationAnnotation())
 	}
-	builder = builder.WithEventFilter(druidpredicates.Or(predicates...)).For(&druidv1alpha1.Etcd{})
+	builder = builder.WithEventFilter(predicate.Or(predicates...)).For(&druidv1alpha1.Etcd{})
 	if ignoreOperationAnnotation {
 		builder = builder.Owns(&v1.Service{}).
 			Owns(&v1.ConfigMap{}).

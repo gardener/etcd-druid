@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"time"
 
+	extensionshandler "github.com/gardener/gardener/extensions/pkg/handler"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -28,12 +29,16 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidmapper "github.com/gardener/etcd-druid/pkg/mapper"
+	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 )
 
 // EtcdCustodian reconciles status of Etcd object
@@ -71,6 +76,7 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	logger := ec.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
 
+	// TODO: (timuthy) remove this as it could block important health checks
 	if etcd.Status.LastError != nil {
 		if *etcd.Status.LastError != "" {
 			return ctrl.Result{
@@ -81,6 +87,7 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	// If any adoptions are attempted, we should first recheck for deletion with
 	// an uncached quorum read some time after listing Machines (see #42639).
+	// TODO: (timuthy) check if we really need this
 	canAdoptFunc := RecheckDeletionTimestamp(func() (metav1.Object, error) {
 		foundEtcd := &druidv1alpha1.Etcd{}
 		err := ec.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)
@@ -105,7 +112,7 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	cm := NewEtcdDruidRefManager(ec.Client, ec.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
 
-	ss, err := cm.FetchStatefulSet(ctx, etcd)
+	sts, err := cm.FetchStatefulSet(ctx, etcd)
 	if err != nil {
 		return ctrl.Result{
 			Requeue: true,
@@ -113,14 +120,14 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	}
 
 	// If no statefulsets could be fetched, requeue for reconcilation
-	if len(ss) < 1 {
+	if len(sts) < 1 {
 		ec.updateEtcdStatusWithNoSts(ctx, logger, etcd)
 		return ctrl.Result{
 			RequeueAfter: 5 * time.Second,
 		}, nil
 	}
 
-	if err := ec.updateEtcdStatus(ctx, logger, etcd, ss[0]); err != nil {
+	if err := ec.updateEtcdStatus(ctx, logger, etcd, sts[0]); err != nil {
 		return ctrl.Result{
 			Requeue: true,
 		}, err
@@ -178,10 +185,17 @@ func (ec *EtcdCustodian) updateEtcdStatusWithNoSts(ctx context.Context, logger l
 }
 
 // SetupWithManager sets up manager with a new controller and ec as the reconcile.Reconciler
-func (ec *EtcdCustodian) SetupWithManager(mgr ctrl.Manager, workers int) error {
+func (ec *EtcdCustodian) SetupWithManager(ctx context.Context, mgr ctrl.Manager, workers int) error {
 	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
 		MaxConcurrentReconciles: workers,
 	})
 
-	return builder.For(&appsv1.StatefulSet{}).Owns(&druidv1alpha1.Etcd{}).Complete(ec)
+	return builder.
+		For(&druidv1alpha1.Etcd{}).
+		Watches(
+			&source.Kind{Type: &appsv1.StatefulSet{}},
+			extensionshandler.EnqueueRequestsFromMapper(druidmapper.StatefulSetToEtcd(ctx, mgr.GetClient()), extensionshandler.UpdateWithNew),
+			ctrlbuilder.WithPredicates(druidpredicates.StatefulSetStatusChange()),
+		).
+		Complete(ec)
 }

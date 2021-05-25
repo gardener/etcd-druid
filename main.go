@@ -74,6 +74,8 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
+	ctx := ctrl.SetupSignalHandler()
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		ClientDisableCacheFor:      controllers.UncachedObjectList,
 		Scheme:                     scheme,
@@ -100,7 +102,7 @@ func main() {
 
 	custodian := controllers.NewEtcdCustodian(mgr)
 
-	if err := custodian.SetupWithManager(mgr, custodianWorkers); err != nil {
+	if err := custodian.SetupWithManager(ctx, mgr, custodianWorkers); err != nil {
 		setupLog.Error(err, "Unable to create controller", "Controller", "Etcd Custodian")
 		os.Exit(1)
 	}
@@ -108,7 +110,7 @@ func main() {
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("Starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "Problem running manager")
 		os.Exit(1)
 	}
