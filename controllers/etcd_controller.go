@@ -585,39 +585,45 @@ func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, logger logr.L
 		return nil, err
 	}
 	dm := NewEtcdDruidRefManager(r.Client, r.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
-	filteredStatefulSets, err := dm.FetchStatefulSet(ctx, etcd)
+	statefulSets, err := dm.FetchStatefulSet(ctx, etcd)
 	if err != nil {
-		logger.Error(err, "Error while fetching statefulset")
+		logger.Error(err, "Error while fetching StatefulSet")
 		return nil, err
 	}
 
-	if len(filteredStatefulSets) > 0 {
-		logger.Info("Claiming existing etcd statefulsets")
+	logger.Info("Claiming existing etcd StatefulSet")
+	claimedStatefulSets, err := dm.ClaimStatefulsets(ctx, statefulSets)
+	if err != nil {
+		return nil, err
+	}
 
+	if len(claimedStatefulSets) > 0 {
 		// Keep only 1 statefulset. Delete the rest
-		for i := 1; i < len(filteredStatefulSets); i++ {
-			ss := filteredStatefulSets[i]
-			if err := r.Delete(ctx, ss); err != nil {
-				logger.Error(err, "Error in deleting duplicate StatefulSet")
+		for i := 1; i < len(claimedStatefulSets); i++ {
+			sts := claimedStatefulSets[i]
+			logger.Info("Found duplicate StatefulSet, deleting it", "statefulset", kutil.Key(sts.Namespace, sts.Name).String())
+			if err := r.Delete(ctx, sts); err != nil {
+				logger.Error(err, "Error in deleting duplicate StatefulSet", "statefulset", kutil.Key(sts.Namespace, sts.Name).String())
 				continue
 			}
 		}
 
 		// Fetch the updated statefulset
-		ss := &appsv1.StatefulSet{}
-		if err := r.Get(ctx, types.NamespacedName{Name: filteredStatefulSets[0].Name, Namespace: filteredStatefulSets[0].Namespace}, ss); err != nil {
+		// TODO: (timuthy) Check if this is really needed.
+		sts := &appsv1.StatefulSet{}
+		if err := r.Get(ctx, types.NamespacedName{Name: claimedStatefulSets[0].Name, Namespace: claimedStatefulSets[0].Namespace}, sts); err != nil {
 			return nil, err
 		}
 
 		// Statefulset is claimed by for this etcd. Just sync the specs
-		if ss, err = r.syncStatefulSetSpec(ctx, logger, ss, etcd, values); err != nil {
+		if sts, err = r.syncStatefulSetSpec(ctx, logger, sts, etcd, values); err != nil {
 			return nil, err
 		}
 
 		// restart etcd pods in crashloop backoff
-		selector, err := metav1.LabelSelectorAsSelector(ss.Spec.Selector)
+		selector, err := metav1.LabelSelectorAsSelector(sts.Spec.Selector)
 		if err != nil {
-			logger.Error(err, "error converting statefulset selector to selector")
+			logger.Error(err, "error converting StatefulSet selector to selector")
 			return nil, err
 		}
 		podList := &v1.PodList{}
@@ -634,28 +640,28 @@ func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, logger logr.L
 			}
 		}
 
-		return r.waitUntilStatefulSetReady(ctx, logger, etcd, ss)
+		return r.waitUntilStatefulSetReady(ctx, logger, etcd, sts)
 	}
 
 	// Required statefulset doesn't exist. Create new
-	ss, err := r.getStatefulSetFromEtcd(etcd, values)
+	sts, err := r.getStatefulSetFromEtcd(etcd, values)
 	if err != nil {
 		return nil, err
 	}
 
-	err = r.Create(ctx, ss)
+	err = r.Create(ctx, sts)
 
 	// Ignore the precondition violated error, this machine is already updated
 	// with the desired label.
 	if err == errorsutil.ErrPreconditionViolated {
-		logger.Info("StatefulSet %s precondition doesn't hold, skip updating it.", "statefulset", kutil.Key(ss.Namespace, ss.Name).String())
+		logger.Info("StatefulSet %s precondition doesn't hold, skip updating it.", "statefulset", kutil.Key(sts.Namespace, sts.Name).String())
 		err = nil
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	return r.waitUntilStatefulSetReady(ctx, logger, etcd, ss)
+	return r.waitUntilStatefulSetReady(ctx, logger, etcd, sts)
 }
 
 func getContainerMapFromPodTemplateSpec(spec v1.PodSpec) map[string]v1.Container {

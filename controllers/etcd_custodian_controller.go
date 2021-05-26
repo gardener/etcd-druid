@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -77,17 +78,15 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	logger := ec.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
 
 	// TODO: (timuthy) remove this as it could block important health checks
-	if etcd.Status.LastError != nil {
-		if *etcd.Status.LastError != "" {
-			return ctrl.Result{
-				RequeueAfter: 30 * time.Second,
-			}, fmt.Errorf(*etcd.Status.LastError)
-		}
+	if etcd.Status.LastError != nil && *etcd.Status.LastError != "" {
+		logger.Info(fmt.Sprintf("Requeue item because of last error: %v", *etcd.Status.LastError))
+		return ctrl.Result{
+			RequeueAfter: 30 * time.Second,
+		}, nil
 	}
 
 	// If any adoptions are attempted, we should first recheck for deletion with
 	// an uncached quorum read some time after listing Machines (see #42639).
-	// TODO: (timuthy) check if we really need this
 	canAdoptFunc := RecheckDeletionTimestamp(func() (metav1.Object, error) {
 		foundEtcd := &druidv1alpha1.Etcd{}
 		err := ec.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)
@@ -110,36 +109,31 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	cm := NewEtcdDruidRefManager(ec.Client, ec.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
+	refMgr := NewEtcdDruidRefManager(ec.Client, ec.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
 
-	sts, err := cm.FetchStatefulSet(ctx, etcd)
+	stsList, err := refMgr.FetchStatefulSet(ctx, etcd)
 	if err != nil {
-		return ctrl.Result{
-			Requeue: true,
-		}, err
+		return ctrl.Result{}, err
 	}
 
-	// If no statefulsets could be fetched, requeue for reconcilation
-	if len(sts) < 1 {
+	// Requeue if we found more than one or no StatefulSet.
+	// The Etcd controller needs to decide what to do in such situations.
+	if len(stsList.Items) != 1 {
 		ec.updateEtcdStatusWithNoSts(ctx, logger, etcd)
 		return ctrl.Result{
 			RequeueAfter: 5 * time.Second,
 		}, nil
 	}
 
-	if err := ec.updateEtcdStatus(ctx, logger, etcd, sts[0]); err != nil {
-		return ctrl.Result{
-			Requeue: true,
-		}, err
+	if err := ec.updateEtcdStatus(ctx, logger, etcd, &stsList.Items[0]); err != nil {
+		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{
-		Requeue: false,
-	}, nil
+	return ctrl.Result{}, nil
 }
 
 func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {
-	logger.Info("Reconciling etcd status for etcd statefulset status")
+	logger.Info("Updating etcd status with statefulset information")
 
 	return kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
 		etcd.Status.Etcd = &druidv1alpha1.CrossVersionObjectReference{
@@ -165,9 +159,10 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logge
 }
 
 func (ec *EtcdCustodian) updateEtcdStatusWithNoSts(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) {
-	logger.Info("Reconciling etcd status when no statefulset found")
+	logger.Info("Updating etcd status when no statefulset found")
 
 	if err := kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
+		// TODO: (timuthy) Don't reset all conditions as some of them will be maintained by other actors (e.g. etcd-backup-restore)
 		conditions := []druidv1alpha1.Condition{}
 		etcd.Status.Conditions = conditions
 
@@ -176,8 +171,7 @@ func (ec *EtcdCustodian) updateEtcdStatusWithNoSts(ctx context.Context, logger l
 		etcd.Status.ReadyReplicas = 0
 		etcd.Status.UpdatedReplicas = 0
 
-		ready := false
-		etcd.Status.Ready = &ready
+		etcd.Status.Ready = pointer.BoolPtr(false)
 		return nil
 	}); err != nil {
 		logger.Error(err, "Error while updating ETCD status when no statefulset found")

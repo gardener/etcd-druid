@@ -190,7 +190,7 @@ func NewEtcdDruidRefManager(
 }
 
 // FetchStatefulSet fetches statefulset based on ETCD resource
-func (m *EtcdDruidRefManager) FetchStatefulSet(ctx context.Context, etcd *druidv1alpha1.Etcd) ([]*appsv1.StatefulSet, error) {
+func (m *EtcdDruidRefManager) FetchStatefulSet(ctx context.Context, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSetList, error) {
 	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 	if err != nil {
 		return nil, err
@@ -204,15 +204,7 @@ func (m *EtcdDruidRefManager) FetchStatefulSet(ctx context.Context, etcd *druidv
 		return nil, err
 	}
 
-	// NOTE: filteredStatefulSets are pointing to deep copies of the cache, but this could change in the future.
-	// Ref: https://github.com/kubernetes-sigs/controller-runtime/blob/release-0.2/pkg/cache/internal/cache_reader.go#L74
-	// if you need to modify them, you need to copy it first.
-	filteredStatefulSets, err := m.ClaimStatefulsets(ctx, statefulSets)
-	if err != nil {
-		return nil, err
-	}
-
-	return filteredStatefulSets, err
+	return statefulSets, err
 }
 
 // ClaimStatefulsets tries to take ownership of a list of Statefulsets.
@@ -231,9 +223,11 @@ func (m *EtcdDruidRefManager) FetchStatefulSet(ctx context.Context, etcd *druidv
 //
 // If the error is nil, either the reconciliation succeeded, or no
 // reconciliation was necessary. The list of statefulsets that you now own is returned.
-func (m *EtcdDruidRefManager) ClaimStatefulsets(ctx context.Context, sts *appsv1.StatefulSetList, filters ...func(*appsv1.StatefulSet) bool) ([]*appsv1.StatefulSet, error) {
-	var claimed []*appsv1.StatefulSet
-	var errlist []error
+func (m *EtcdDruidRefManager) ClaimStatefulsets(ctx context.Context, statefulSetList *appsv1.StatefulSetList, filters ...func(*appsv1.StatefulSet) bool) ([]*appsv1.StatefulSet, error) {
+	var (
+		claimed []*appsv1.StatefulSet
+		errlist []error
+	)
 
 	match := func(obj metav1.Object) bool {
 		ss := obj.(*appsv1.StatefulSet)
@@ -249,15 +243,15 @@ func (m *EtcdDruidRefManager) ClaimStatefulsets(ctx context.Context, sts *appsv1
 		return true
 	}
 
-	for k := range sts.Items {
-		ss := &sts.Items[k]
-		ok, err := m.claimObject(ctx, ss, match, m.AdoptResource, m.ReleaseResource)
+	for k := range statefulSetList.Items {
+		sts := &statefulSetList.Items[k]
+		ok, err := m.claimObject(ctx, sts, match, m.AdoptResource, m.ReleaseResource)
 		if err != nil {
 			errlist = append(errlist, err)
 			continue
 		}
 		if ok {
-			claimed = append(claimed, ss)
+			claimed = append(claimed, sts)
 		}
 	}
 	return claimed, utilerrors.NewAggregate(errlist)
