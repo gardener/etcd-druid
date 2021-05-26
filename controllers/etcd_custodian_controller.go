@@ -142,11 +142,6 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logge
 			Name:       sts.Name,
 		}
 		ready := CheckStatefulSet(etcd, sts) == nil
-		conditions := []druidv1alpha1.Condition{}
-		for _, condition := range sts.Status.Conditions {
-			conditions = append(conditions, convertConditionsToEtcd(&condition))
-		}
-		etcd.Status.Conditions = conditions
 
 		// To be changed once we have multiple replicas.
 		etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas

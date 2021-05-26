@@ -1230,16 +1230,6 @@ func (r *EtcdReconciler) updateEtcdStatusAsNotReady(ctx context.Context, etcd *d
 	return etcd, err
 }
 
-func convertConditionsToEtcd(condition *appsv1.StatefulSetCondition) druidv1alpha1.Condition {
-	return druidv1alpha1.Condition{
-		Type:               druidv1alpha1.ConditionType(condition.Type),
-		Status:             druidv1alpha1.ConditionStatus(condition.Status),
-		LastTransitionTime: condition.LastTransitionTime,
-		Reason:             condition.Reason,
-		Message:            condition.Message,
-	}
-}
-
 func (r *EtcdReconciler) claimServices(ctx context.Context, etcd *druidv1alpha1.Etcd, selector labels.Selector, ss *corev1.ServiceList) ([]*corev1.Service, error) {
 	// If any adoptions are attempted, we should first recheck for deletion with
 	// an uncached quorum read sometime after listing Machines (see #42639).
