@@ -18,9 +18,11 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/controllers"
+	"github.com/gardener/etcd-druid/controllers/config"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -54,6 +56,8 @@ func main() {
 		custodianWorkers           int
 		ignoreOperationAnnotation  bool
 
+		etcdStaleMemberThreshold time.Duration
+
 		// TODO: migrate default to `leases` in one of the next releases
 		defaultLeaderElectionResourceLock = resourcelock.ConfigMapsLeasesResourceLock
 		defaultLeaderElectionID           = "druid-leader-election"
@@ -69,6 +73,7 @@ func main() {
 	flag.StringVar(&leaderElectionResourceLock, "leader-election-resource-lock", defaultLeaderElectionResourceLock, "Which resource type to use for leader election. "+
 		"Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'.")
 	flag.BoolVar(&ignoreOperationAnnotation, "ignore-operation-annotation", true, "Ignore the operation annotation or not.")
+	flag.DurationVar(&etcdStaleMemberThreshold, "etcd-member-threshold", 1*time.Minute, "Threshold after which an etcd member status is considered unknown if no heartbeat happened.")
 
 	flag.Parse()
 
@@ -100,7 +105,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	custodian := controllers.NewEtcdCustodian(mgr)
+	custodian := controllers.NewEtcdCustodian(mgr, config.EtcdCustodianController{
+		EtcdStaleMemberThreshold: etcdStaleMemberThreshold,
+	})
 
 	if err := custodian.SetupWithManager(ctx, mgr, custodianWorkers); err != nil {
 		setupLog.Error(err, "Unable to create controller", "Controller", "Etcd Custodian")

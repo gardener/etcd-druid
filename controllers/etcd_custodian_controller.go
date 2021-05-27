@@ -26,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -38,6 +37,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/controllers/config"
+	"github.com/gardener/etcd-druid/pkg/health/status"
 	druidmapper "github.com/gardener/etcd-druid/pkg/mapper"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 )
@@ -47,14 +48,16 @@ type EtcdCustodian struct {
 	client.Client
 	Scheme *runtime.Scheme
 	logger logr.Logger
+	config config.EtcdCustodianController
 }
 
 // NewEtcdCustodian creates a new EtcdCustodian object
-func NewEtcdCustodian(mgr manager.Manager) *EtcdCustodian {
+func NewEtcdCustodian(mgr manager.Manager, config config.EtcdCustodianController) *EtcdCustodian {
 	return &EtcdCustodian{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		logger: log.Log.WithName("custodian-controller"),
+		config: config,
 	}
 }
 
@@ -85,31 +88,19 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		}, nil
 	}
 
-	// If any adoptions are attempted, we should first recheck for deletion with
-	// an uncached quorum read some time after listing Machines (see #42639).
-	canAdoptFunc := RecheckDeletionTimestamp(func() (metav1.Object, error) {
-		foundEtcd := &druidv1alpha1.Etcd{}
-		err := ec.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)
-		if err != nil {
-			return nil, err
-		}
-
-		if foundEtcd.GetDeletionTimestamp() != nil {
-			return nil, fmt.Errorf("%v/%v etcd is marked for deletion", etcd.Namespace, etcd.Name)
-		}
-		if foundEtcd.UID != etcd.UID {
-			return nil, fmt.Errorf("original %v/%v etcd gone: got uid %v, wanted %v", etcd.Namespace, etcd.Name, foundEtcd.UID, etcd.UID)
-		}
-		return foundEtcd, nil
-	})
-
 	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 	if err != nil {
 		logger.Error(err, "Error converting etcd selector to selector")
 		return ctrl.Result{}, err
 	}
 
-	refMgr := NewEtcdDruidRefManager(ec.Client, ec.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
+	statusCheck := status.NewChecker(ec.config)
+	if err := statusCheck.Check(ctx, &etcd.Status); err != nil {
+		logger.Error(err, "Error executing status checks")
+		return ctrl.Result{}, err
+	}
+
+	refMgr := NewEtcdDruidRefManager(ec.Client, ec.Scheme, etcd, selector, etcdGVK, nil)
 
 	stsList, err := refMgr.FetchStatefulSet(ctx, etcd)
 	if err != nil {
@@ -134,6 +125,7 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {
 	logger.Info("Updating etcd status with statefulset information")
+	conditions := etcd.Status.Conditions
 
 	return kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
 		etcd.Status.Etcd = &druidv1alpha1.CrossVersionObjectReference{
@@ -141,6 +133,9 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logge
 			Kind:       sts.Kind,
 			Name:       sts.Name,
 		}
+
+		etcd.Status.Conditions = conditions
+
 		ready := CheckStatefulSet(etcd, sts) == nil
 
 		// To be changed once we have multiple replicas.
@@ -155,12 +150,10 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logge
 
 func (ec *EtcdCustodian) updateEtcdStatusWithNoSts(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) {
 	logger.Info("Updating etcd status when no statefulset found")
+	conditions := etcd.Status.Conditions
 
 	if err := kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
-		// TODO: (timuthy) Don't reset all conditions as some of them will be maintained by other actors (e.g. etcd-backup-restore)
-		conditions := []druidv1alpha1.Condition{}
 		etcd.Status.Conditions = conditions
-
 		// To be changed once we have multiple replicas.
 		etcd.Status.CurrentReplicas = 0
 		etcd.Status.ReadyReplicas = 0

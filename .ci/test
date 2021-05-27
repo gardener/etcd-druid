@@ -159,7 +159,7 @@ function test_with_coverage() {
 fetch_envtest_tools "$kb_root_dir"
 setup_envtest_env "$kb_root_dir"
 
-TEST_PACKAGES="api api_tests controllers"
+TEST_PACKAGES="api api_tests controllers pkg"
 GINKGO_COMMON_FLAGS="-r -timeout=1h0m0s --randomizeAllSpecs --randomizeSuites --failOnPending --progress"
 if [ -z $COVER ] || [ "$COVER" = false ] ; then
   echo "[INFO] Test coverage is disabled."
