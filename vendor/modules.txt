@@ -682,7 +682,7 @@ k8s.io/gengo/generator
 k8s.io/gengo/namer
 k8s.io/gengo/parser
 k8s.io/gengo/types
-# k8s.io/helm v2.16.1+incompatible => k8s.io/helm v2.13.1+incompatible
+# k8s.io/helm v2.17.0+incompatible => k8s.io/helm v2.13.1+incompatible
 ## explicit
 k8s.io/helm/pkg/chartutil
 k8s.io/helm/pkg/engine
