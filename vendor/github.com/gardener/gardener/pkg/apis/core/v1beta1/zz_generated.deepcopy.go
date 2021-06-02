@@ -1444,6 +1444,11 @@ func (in *KubeAPIServerConfig) DeepCopyInto(out *KubeAPIServerConfig) {
 		*out = new(KubeAPIServerRequests)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.EnableAnonymousAuthentication != nil {
+		in, out := &in.EnableAnonymousAuthentication, &out.EnableAnonymousAuthentication
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 
@@ -3722,6 +3727,11 @@ func (in *ShootSpec) DeepCopyInto(out *ShootSpec) {
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
+	}
+	if in.ExposureClassName != nil {
+		in, out := &in.ExposureClassName, &out.ExposureClassName
+		*out = new(string)
+		**out = **in
 	}
 	return
 }

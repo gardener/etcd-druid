@@ -188,8 +188,8 @@ github.com/gardener/gardener v1.3.1/go.mod h1:936P5tQbg6ViiW8BVC9ELM95sFrk4DgobK
 github.com/gardener/gardener v1.4.1-0.20200519155656-a8ccc6cc779a/go.mod h1:t9oESM37bAMIuezi9I0H0I8+++8jy8BUPitcf4ERRXY=
 github.com/gardener/gardener v1.11.3/go.mod h1:5DzqfOm+G8UftKu5zUbYJ+9Cnfd4XrvRNDabkM9AIp4=
 github.com/gardener/gardener v1.17.1/go.mod h1:uucRHq0xV46xd9MpJJjRswx/Slq3+ipbbJg09FVUtvM=
-github.com/gardener/gardener v1.23.0 h1:fXtV2tKMcSR05GqmxPuhpBhlvUWwBNYfj1ggPRW/kU8=
-github.com/gardener/gardener v1.23.0/go.mod h1:xS/sYyzYsq2W0C79mT98G/qoOTvy/hHTfApHIVF3v2o=
+github.com/gardener/gardener v1.24.0 h1:leLdgrnNBAo/ldJk+mCU1KXnmbHKT1uCarF25U0uf04=
+github.com/gardener/gardener v1.24.0/go.mod h1:Ka66bCr/+tUwkf2Ov4JDMEEvdeeGtHsCfUqw46k7w5A=
 github.com/gardener/gardener-resource-manager v0.10.0/go.mod h1:0pKTHOhvU91eQB0EYr/6Ymd7lXc/5Hi8P8tF/gpV0VQ=
 github.com/gardener/gardener-resource-manager v0.13.1/go.mod h1:0No/XttYRUwDn5lSppq9EqlKdo/XJQ44aCZz5BVu3Vw=
 github.com/gardener/gardener-resource-manager v0.18.0 h1:bNB0yKhSqe8DnsvIp3xZr9nsFB4fm+AUAqj1EoIvWU8=
@@ -1032,7 +1032,7 @@ k8s.io/apiserver v0.0.0-20191010014313-3893be10d307/go.mod h1:6bqaTSOSJavUIXUtfa
 k8s.io/apiserver v0.16.8/go.mod h1:FzppK0uWsEZnS/FUCOTLQuMRSItRGYstLxTx4nU1Wc4=
 k8s.io/apiserver v0.18.8/go.mod h1:12u5FuGql8Cc497ORNj79rhPdiXQC4bf53X/skR/1YM=
 k8s.io/apiserver v0.19.6/go.mod h1:05XquZxCDzQ27ebk7uV2LrFIK4lm5Yt47XkkUvLAoAM=
-k8s.io/apiserver v0.20.6/go.mod h1:QIJXNt6i6JB+0YQRNcS0hdRHJlMhflFmsBDeSgT1r8Q=
+k8s.io/apiserver v0.20.7/go.mod h1:7gbB7UjDdP1/epYBGnIUE6jWY4Wpz99cZ7igfDa9rv4=
 k8s.io/autoscaler v0.0.0-20190805135949-100e91ba756e h1:5AX59ZgftHpbmNupSWosdtW4q/rCnF4s/0J0dEfJkAQ=
 k8s.io/autoscaler v0.0.0-20190805135949-100e91ba756e/go.mod h1:QEXezc9uKPT91dwqhSJq3GNI3B1HxFRQHiku9kmrsSA=
 k8s.io/client-go v0.19.6 h1:vtPb33nP8DBMW+/CyuJ8fiie36c3CM1Ts6L4Tsr+PtU=
@@ -1041,8 +1041,8 @@ k8s.io/cluster-bootstrap v0.0.0-20190918163108-da9fdfce26bb/go.mod h1:mQVbtFRxlw
 k8s.io/cluster-bootstrap v0.16.8/go.mod h1:fT1U/qWmXNmIColCsCBg4G881nWFaEqONL0xmP48rkI=
 k8s.io/cluster-bootstrap v0.18.8/go.mod h1:guq0Uc+QwazHgpS1yAw5Z7yUlBCtGppbgWQkbN3lxIY=
 k8s.io/cluster-bootstrap v0.19.6/go.mod h1:9Ft1ED2O3k+4+gtkkth/Y0qHCdi9y+IMI8wh4HszXi4=
-k8s.io/cluster-bootstrap v0.20.6 h1:T5FGM1+l2Mw//LZLc6LUzX5RooUb6hPYYxyei89oBNg=
-k8s.io/cluster-bootstrap v0.20.6/go.mod h1:kSVTdUK8hR8oGkc2nONa/MV35QHiL+1rrbaqfjvRnB0=
+k8s.io/cluster-bootstrap v0.20.7 h1:6x9i43ZgtCcjGMvxH0Gs0AZgQA3jvRh/W07q6QtYBH8=
+k8s.io/cluster-bootstrap v0.20.7/go.mod h1:OQUNUEnAEjjPxmETEfo9EJtqfSDAI69CivwVG74lmOs=
 k8s.io/code-generator v0.19.6 h1:N7PlZyX25j5Jl9oIBphWN2qp1AKZOwXdDVfj2Z0V0p8=
 k8s.io/code-generator v0.19.6/go.mod h1:lwEq3YnLYb/7uVXLorOJfxg+cUu2oihFhHZ0n9NIla0=
 k8s.io/component-base v0.0.0-20190918160511-547f6c5d7090/go.mod h1:933PBGtQFJky3TEwYx4aEPZ4IxqhWh3R6DCmzqIn1hA=
@@ -1051,8 +1051,8 @@ k8s.io/component-base v0.18.8/go.mod h1:00frPRDas29rx58pPCxNkhUfPbwajlyyvu8ruNgS
 k8s.io/component-base v0.19.2/go.mod h1:g5LrsiTiabMLZ40AR6Hl45f088DevyGY+cCE2agEIVo=
 k8s.io/component-base v0.19.6/go.mod h1:8Btsf8J00/fVDa/YFmXjei7gVkcFrlKZXjSeP4SZNJg=
 k8s.io/component-base v0.20.2/go.mod h1:pzFtCiwe/ASD0iV7ySMu8SYVJjCapNM9bjvk7ptpKh0=
-k8s.io/component-base v0.20.6 h1:G0inASS5vAqCpzs7M4Sp9dv9d0aElpz39zDHbSB4f4g=
-k8s.io/component-base v0.20.6/go.mod h1:6f1MPBAeI+mvuts3sIdtpjljHWBQ2cIy38oBIWMYnrM=
+k8s.io/component-base v0.20.7 h1:TdRMMGxxxhcArvkem+FVqBljPOczs9j+tVGpYRM6TM8=
+k8s.io/component-base v0.20.7/go.mod h1:878UWprXC07P2CWFg+jjvTfxJSlkHp1v2m1MTkNQnJY=
 k8s.io/gengo v0.0.0-20190128074634-0689ccc1d7d6/go.mod h1:ezvh/TsK7cY6rbqRK0oQQ8IAqLxYwwyPxAX1Pzy0ii0=
 k8s.io/gengo v0.0.0-20190826232639-a874a240740c/go.mod h1:ezvh/TsK7cY6rbqRK0oQQ8IAqLxYwwyPxAX1Pzy0ii0=
 k8s.io/gengo v0.0.0-20200413195148-3a45101e95ac/go.mod h1:ezvh/TsK7cY6rbqRK0oQQ8IAqLxYwwyPxAX1Pzy0ii0=
@@ -1075,12 +1075,12 @@ k8s.io/kube-aggregator v0.19.6/go.mod h1:BeD33Jp5LLaDH4t9oh1B+LkOY9D5+xhAC8I3ZSv
 k8s.io/kubelet v0.16.8/go.mod h1:mzDpnryQg2dlB6V3/WAgb1baIamiICtWpXMFrPOFh6I=
 k8s.io/kubelet v0.18.8/go.mod h1:6z1jHCk0NPE6WshFStfqcgQ1bnD3tetcPmhC2915aio=
 k8s.io/kubelet v0.19.6/go.mod h1:/yashsvRBHMGFnxpmTjtaI0sJ4rLJno9zXzc6PPU8Ls=
-k8s.io/kubelet v0.20.6/go.mod h1:U+v9PkJBpX61n7Id7VZqwejmwy1lV/Axm3Lbzb9UeW4=
+k8s.io/kubelet v0.20.7/go.mod h1:vi8kw8D/5TKskvxNL7nQmg5wySxAUJuqJGQXz/7PMfw=
 k8s.io/metrics v0.0.0-20191004105854-2e8cf7d0888c/go.mod h1:a25VAbm3QT3xiVl1jtoF1ueAKQM149UdZ+L93ePfV3M=
 k8s.io/metrics v0.16.8/go.mod h1:uBIJKJKdga8vL76a1dl+eRlUqOAdCbBpvFHC28SbUIY=
 k8s.io/metrics v0.18.8/go.mod h1:j7JzZdiyhLP2BsJm/Fzjs+j5Lb1Y7TySjhPWqBPwRXA=
 k8s.io/metrics v0.19.6/go.mod h1:jM61saf/bjMRmow6zan2cAk8vFDmqvbNXFRbB4g7TNs=
-k8s.io/metrics v0.20.6/go.mod h1:d+OAIaXutom9kGWcBit/M8OkDpIzBKTsm47+KcUt7VI=
+k8s.io/metrics v0.20.7/go.mod h1:jK7/+xoCSElO1tepQHLKqA8Jps/j9ByuwrWr6fJeTAg=
 k8s.io/utils v0.0.0-20190506122338-8fab8cb257d5/go.mod h1:sZAwmy6armz5eXlNoLmJcl4F1QuKu7sr+mFQ0byX7Ew=
 k8s.io/utils v0.0.0-20190801114015-581e00157fb1/go.mod h1:sZAwmy6armz5eXlNoLmJcl4F1QuKu7sr+mFQ0byX7Ew=
 k8s.io/utils v0.0.0-20191218082557-f07c713de883/go.mod h1:sZAwmy6armz5eXlNoLmJcl4F1QuKu7sr+mFQ0byX7Ew=
