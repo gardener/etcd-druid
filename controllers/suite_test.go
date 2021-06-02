@@ -113,7 +113,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	custodian := NewEtcdCustodian(mgr)
 
-	err = custodian.SetupWithManager(mgr, 1)
+	err = custodian.SetupWithManager(mgrCtx, mgr, 1)
 	Expect(err).NotTo(HaveOccurred())
 
 	mgrStopped = startTestManager(mgrCtx, mgr)

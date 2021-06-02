@@ -90,6 +90,7 @@ check-generate:
 # Generate code
 .PHONY: generate
 generate:
+	@go generate "$(REPO_ROOT)/pkg/..."
 	@"$(REPO_ROOT)/hack/update-codegen.sh"
 
 # Build the docker image
@@ -109,7 +110,8 @@ docker-push:
 .PHONY: install-requirements
 install-requirements:
 	@go install -mod=vendor sigs.k8s.io/controller-tools/cmd/controller-gen
-	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/install-requirements.sh" > /dev/null
+	@go install -mod=vendor github.com/golang/mock/mockgen
+	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/install-requirements.sh"
 
 .PHONY: update-dependencies
 update-dependencies:

@@ -15,63 +15,17 @@
 package predicate
 
 import (
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"k8s.io/apimachinery/pkg/runtime"
-
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
+	"reflect"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 )
-
-type or struct {
-	predicates []predicate.Predicate
-}
-
-func (o *or) orRange(f func(predicate.Predicate) bool) bool {
-	for _, p := range o.predicates {
-		if f(p) {
-			return true
-		}
-	}
-	return false
-}
-
-// Create implements Predicate.
-func (o *or) Create(event event.CreateEvent) bool {
-	return o.orRange(func(p predicate.Predicate) bool { return p.Create(event) })
-}
-
-// Delete implements Predicate.
-func (o *or) Delete(event event.DeleteEvent) bool {
-	return o.orRange(func(p predicate.Predicate) bool { return p.Delete(event) })
-}
-
-// Update implements Predicate.
-func (o *or) Update(event event.UpdateEvent) bool {
-	return o.orRange(func(p predicate.Predicate) bool { return p.Update(event) })
-}
-
-// Generic implements Predicate.
-func (o *or) Generic(event event.GenericEvent) bool {
-	return o.orRange(func(p predicate.Predicate) bool { return p.Generic(event) })
-}
-
-// InjectFunc implements Injector.
-func (o *or) InjectFunc(f inject.Func) error {
-	for _, p := range o.predicates {
-		if err := f(p); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Or builds a logical OR gate of passed predicates.
-func Or(predicates ...predicate.Predicate) predicate.Predicate {
-	return &or{predicates}
-}
 
 // HasOperationAnnotation is a predicate for the operation annotation.
 func HasOperationAnnotation() predicate.Predicate {
@@ -151,4 +105,34 @@ func (GenerationChangedPredicate) Create(e event.CreateEvent) bool {
 		return false
 	}
 	return etcd.Status.ObservedGeneration == nil || *etcd.Status.ObservedGeneration != etcd.Generation
+}
+
+// StatefulSetStatusChange is a predicate for status changes of `StatefulSet` resources.
+func StatefulSetStatusChange() predicate.Predicate {
+	statusChange := func(objOld, objNew client.Object) bool {
+		stsOld, ok := objOld.(*appsv1.StatefulSet)
+		if !ok {
+			return false
+		}
+		stsNew, ok := objNew.(*appsv1.StatefulSet)
+		if !ok {
+			return false
+		}
+		return !reflect.DeepEqual(stsOld.Status, stsNew.Status)
+	}
+
+	return predicate.Funcs{
+		CreateFunc: func(event event.CreateEvent) bool {
+			return true
+		},
+		UpdateFunc: func(event event.UpdateEvent) bool {
+			return statusChange(event.ObjectOld, event.ObjectNew)
+		},
+		GenericFunc: func(event event.GenericEvent) bool {
+			return true
+		},
+		DeleteFunc: func(event event.DeleteEvent) bool {
+			return true
+		},
+	}
 }
