@@ -54,6 +54,7 @@ func main() {
 		leaderElectionResourceLock string
 		etcdWorkers                int
 		custodianWorkers           int
+		custodianSyncPeriod        time.Duration
 		ignoreOperationAnnotation  bool
 
 		etcdStaleMemberThreshold time.Duration
@@ -65,6 +66,7 @@ func main() {
 
 	flag.IntVar(&etcdWorkers, "workers", 3, "Number of worker threads of the etcd controller.")
 	flag.IntVar(&custodianWorkers, "custodian-workers", 3, "Number of worker threads of the custodian controller.")
+	flag.DurationVar(&custodianSyncPeriod, "custodian-sync-period", 30*time.Second, "Sync period of the custodian controller.")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
@@ -107,6 +109,7 @@ func main() {
 
 	custodian := controllers.NewEtcdCustodian(mgr, config.EtcdCustodianController{
 		EtcdStaleMemberThreshold: etcdStaleMemberThreshold,
+		SyncPeriod:               custodianSyncPeriod,
 	})
 
 	if err := custodian.SetupWithManager(ctx, mgr, custodianWorkers); err != nil {

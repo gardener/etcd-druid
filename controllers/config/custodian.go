@@ -19,4 +19,5 @@ import "time"
 // EtcdCustodianController contains configuration for the etcd custodian controller.
 type EtcdCustodianController struct {
 	EtcdStaleMemberThreshold time.Duration
+	SyncPeriod               time.Duration
 }

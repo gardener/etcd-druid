@@ -120,12 +120,15 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: ec.config.SyncPeriod}, nil
 }
 
 func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {
 	logger.Info("Updating etcd status with statefulset information")
-	conditions := etcd.Status.Conditions
+	var (
+		conditions = etcd.Status.Conditions
+		members    = etcd.Status.Members
+	)
 
 	return kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
 		etcd.Status.Etcd = &druidv1alpha1.CrossVersionObjectReference{
@@ -135,6 +138,7 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logge
 		}
 
 		etcd.Status.Conditions = conditions
+		etcd.Status.Members = members
 
 		ready := CheckStatefulSet(etcd, sts) == nil
 
