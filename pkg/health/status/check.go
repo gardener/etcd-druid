@@ -20,10 +20,10 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/gardener/etcd-druid/controllers/config"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 	"github.com/gardener/etcd-druid/pkg/health/condition"
 	"github.com/gardener/etcd-druid/pkg/health/etcdmember"
 )
@@ -32,7 +32,7 @@ import (
 type ConditionCheckFn func() condition.Checker
 
 // EtcdMemberCheckFn is a type alias for a function which returns an implementation of `Check`.
-type EtcdMemberCheckFn func(config.EtcdCustodianController) etcdmember.Checker
+type EtcdMemberCheckFn func(client.Client, controllersconfig.EtcdCustodianController) etcdmember.Checker
 
 // TimeNow is the function used to get the current time.
 var TimeNow = time.Now
@@ -54,7 +54,8 @@ var (
 )
 
 type checker struct {
-	config              config.EtcdCustodianController
+	cl                  client.Client
+	config              controllersconfig.EtcdCustodianController
 	conditionCheckFns   []ConditionCheckFn
 	conditionBuilderFn  func() condition.Builder
 	etcdMemberCheckFns  []EtcdMemberCheckFn
@@ -62,14 +63,14 @@ type checker struct {
 }
 
 // Check executes the status checks and mutates the passed status object with the corresponding results.
-func (c *checker) Check(ctx context.Context, status *druidv1alpha1.EtcdStatus) error {
+func (c *checker) Check(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
 	// First execute the etcd member checks for the status.
-	if err := c.executeEtcdMemberChecks(status); err != nil {
+	if err := c.executeEtcdMemberChecks(ctx, etcd); err != nil {
 		return err
 	}
 
 	// Execute condition checks after the etcd member checks because we need their result here.
-	if err := c.executeConditionChecks(status); err != nil {
+	if err := c.executeConditionChecks(&etcd.Status); err != nil {
 		return err
 	}
 	return nil
@@ -115,27 +116,28 @@ func (c *checker) executeConditionChecks(status *druidv1alpha1.EtcdStatus) error
 
 // executeEtcdMemberChecks runs all registered etcd member checks **sequentially**.
 // The result of a check is passed via the `status` sub-resources to the next check.
-func (c *checker) executeEtcdMemberChecks(status *druidv1alpha1.EtcdStatus) error {
+func (c *checker) executeEtcdMemberChecks(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
 	// Run etcd member checks sequentially as most of them act on multiple elements.
 	for _, newCheck := range c.etcdMemberCheckFns {
-		results := newCheck(c.config).Check(*status)
+		results := newCheck(c.cl, c.config).Check(ctx, *etcd)
 
 		// Build and assign the results after each check, so that the next check
 		// can act on the latest results.
 		memberStatuses := c.etcdMemberBuilderFn().
 			WithNowFunc(func() metav1.Time { return metav1.NewTime(TimeNow()) }).
-			WithOldMembers(status.Members).
+			WithOldMembers(etcd.Status.Members).
 			WithResults(results).
 			Build()
 
-		status.Members = memberStatuses
+		etcd.Status.Members = memberStatuses
 	}
 	return nil
 }
 
 // NewChecker creates a new instance for checking the etcd status.
-func NewChecker(config config.EtcdCustodianController) *checker {
+func NewChecker(cl client.Client, config controllersconfig.EtcdCustodianController) *checker {
 	return &checker{
+		cl:                  cl,
 		config:              config,
 		conditionCheckFns:   ConditionChecks,
 		conditionBuilderFn:  NewDefaultConditionBuilder,

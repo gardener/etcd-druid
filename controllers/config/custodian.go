@@ -18,6 +18,15 @@ import "time"
 
 // EtcdCustodianController contains configuration for the etcd custodian controller.
 type EtcdCustodianController struct {
-	EtcdStaleMemberThreshold time.Duration
-	SyncPeriod               time.Duration
+	// EtcdMember holds configuration related to etcd members.
+	EtcdMember EtcdMemberConfig
+	// SyncPeriod is the duration after which re-enqueuing happens.
+	SyncPeriod time.Duration
+}
+
+type EtcdMemberConfig struct {
+	// EtcdMemberUnknownThreshold is the duration after which a etcd member's state is considered `Unknown`.
+	EtcdMemberUnknownThreshold time.Duration
+	// EtcdMemberUnknownThreshold is the duration after which a etcd member's state is considered `NotReady`.
+	EtcdMemberNotReadyThreshold time.Duration
 }

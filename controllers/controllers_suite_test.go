@@ -22,7 +22,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/controllers/config"
+	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 
 	"github.com/gardener/gardener/pkg/utils/test"
 	. "github.com/onsi/ginkgo"
@@ -110,8 +110,11 @@ var _ = BeforeSuite(func(done Done) {
 	err = er.SetupWithManager(mgr, 1, true)
 	Expect(err).NotTo(HaveOccurred())
 
-	custodian := NewEtcdCustodian(mgr, config.EtcdCustodianController{
-		EtcdStaleMemberThreshold: 1 * time.Minute,
+	custodian := NewEtcdCustodian(mgr, controllersconfig.EtcdCustodianController{
+		EtcdMember: controllersconfig.EtcdMemberConfig{
+			EtcdMemberUnknownThreshold:  1 * time.Minute,
+			EtcdMemberNotReadyThreshold: 1 * time.Minute,
+		},
 	})
 
 	err = custodian.SetupWithManager(mgrCtx, mgr, 1)

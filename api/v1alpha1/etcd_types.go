@@ -297,6 +297,8 @@ type EtcdMemberStatus struct {
 	Name string `json:"name"`
 	// ID is the ID of the etcd member.
 	ID string `json:"id"`
+	// PodRef is the reference to the Pod which hosts the etcd member.
+	PodRef corev1.LocalObjectReference `json:"podRef"`
 	// Role is the role in the etcd cluster, either `Member` or `Learner`.
 	Role EtcdRole `json:"role"`
 	// Status of the condition, one of True, False, Unknown.

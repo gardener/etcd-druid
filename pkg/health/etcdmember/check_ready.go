@@ -15,42 +15,83 @@
 package etcdmember
 
 import (
+	"context"
 	"time"
 
-	"github.com/gardener/etcd-druid/controllers/config"
+	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 )
 
 type readyCheck struct {
-	etcdStaleMemberThreshold time.Duration
+	memberConfig controllersconfig.EtcdMemberConfig
+	cl           client.Client
 }
 
 // TimeNow is the function used by this check to get the current time.
 var TimeNow = time.Now
 
-func (r *readyCheck) Check(status druidv1alpha1.EtcdStatus) []Result {
+func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Result {
 	var (
 		results   []Result
-		threshold = TimeNow().UTC().Add(-1 * r.etcdStaleMemberThreshold)
+		checkTime = TimeNow().UTC()
 	)
 
-	for _, etcd := range status.Members {
-		if etcd.LastUpdateTime.Time.Before(threshold) {
+	for _, member := range etcd.Status.Members {
+		// Check if status must be changed from Unknown to NotReady.
+		if member.Status == druidv1alpha1.EtcdMemeberStatusUnknown &&
+			member.LastTransitionTime.Time.Add(r.memberConfig.EtcdMemberNotReadyThreshold).Before(checkTime) {
 			results = append(results, &result{
-				id:     etcd.ID,
-				status: druidv1alpha1.EtcdMemeberStatusUnknown,
-				reason: "UnknownMemberStatus",
+				id:     member.ID,
+				status: druidv1alpha1.EtcdMemeberStatusNotReady,
+				reason: "UnkownStateTimeout",
 			})
+			continue
 		}
+
+		// Skip if status is not already Unknown and LastUpdateTime is within grace period.
+		if !member.LastUpdateTime.Time.Add(r.memberConfig.EtcdMemberUnknownThreshold).Before(checkTime) {
+			continue
+		}
+
+		// If pod is not running or cannot be found then we deduce that the status is NotReady.
+		ready, err := r.checkPodIsRunning(ctx, etcd.Namespace, member)
+		if (err == nil && !ready) || apierrors.IsNotFound(err) {
+			results = append(results, &result{
+				id:     member.ID,
+				status: druidv1alpha1.EtcdMemeberStatusNotReady,
+				reason: "PodNotRunning",
+			})
+			continue
+		}
+
+		// For every other reason the status is Unknown.
+		results = append(results, &result{
+			id:     member.ID,
+			status: druidv1alpha1.EtcdMemeberStatusUnknown,
+			reason: "UnknownMemberStatus",
+		})
 	}
 
 	return results
 }
 
+func (r *readyCheck) checkPodIsRunning(ctx context.Context, namespace string, member druidv1alpha1.EtcdMemberStatus) (bool, error) {
+	pod := &corev1.Pod{}
+	if err := r.cl.Get(ctx, kutil.Key(namespace, member.PodRef.Name), pod); err != nil {
+		return false, err
+	}
+	return pod.Status.Phase == corev1.PodRunning, nil
+}
+
 // ReadyCheck returns a check for the "Ready" condition.
-func ReadyCheck(config config.EtcdCustodianController) Checker {
+func ReadyCheck(cl client.Client, config controllersconfig.EtcdCustodianController) Checker {
 	return &readyCheck{
-		etcdStaleMemberThreshold: config.EtcdStaleMemberThreshold,
+		cl:           cl,
+		memberConfig: config.EtcdMember,
 	}
 }

@@ -37,7 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/controllers/config"
+	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 	"github.com/gardener/etcd-druid/pkg/health/status"
 	druidmapper "github.com/gardener/etcd-druid/pkg/mapper"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
@@ -48,11 +48,11 @@ type EtcdCustodian struct {
 	client.Client
 	Scheme *runtime.Scheme
 	logger logr.Logger
-	config config.EtcdCustodianController
+	config controllersconfig.EtcdCustodianController
 }
 
 // NewEtcdCustodian creates a new EtcdCustodian object
-func NewEtcdCustodian(mgr manager.Manager, config config.EtcdCustodianController) *EtcdCustodian {
+func NewEtcdCustodian(mgr manager.Manager, config controllersconfig.EtcdCustodianController) *EtcdCustodian {
 	return &EtcdCustodian{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
@@ -94,8 +94,8 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	statusCheck := status.NewChecker(ec.config)
-	if err := statusCheck.Check(ctx, &etcd.Status); err != nil {
+	statusCheck := status.NewChecker(ec.Client, ec.config)
+	if err := statusCheck.Check(ctx, etcd); err != nil {
 		logger.Error(err, "Error executing status checks")
 		return ctrl.Result{}, err
 	}

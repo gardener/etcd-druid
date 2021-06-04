@@ -18,26 +18,27 @@ import (
 	"context"
 	"time"
 
-	"github.com/gardener/gardener/pkg/utils/test"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	controllerconfig "github.com/gardener/etcd-druid/controllers/config"
 	"github.com/gardener/etcd-druid/pkg/health/condition"
 	"github.com/gardener/etcd-druid/pkg/health/etcdmember"
+	"github.com/gardener/gardener/pkg/utils/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 	. "github.com/gardener/etcd-druid/pkg/health/status"
 )
 
 var _ = Describe("Check", func() {
 	Describe("#Check", func() {
 		It("should correctly execute checks and fill status", func() {
-			config := controllerconfig.EtcdCustodianController{
-				EtcdStaleMemberThreshold: 1 * time.Minute,
+			config := controllersconfig.EtcdCustodianController{
+				EtcdMember: controllersconfig.EtcdMemberConfig{
+					EtcdMemberUnknownThreshold: 1 * time.Minute,
+				},
 			}
 			timeBefore, _ := time.Parse(time.RFC3339, "2021-06-01T00:00:00Z")
 			timeNow := timeBefore.Add(1 * time.Hour)
@@ -100,6 +101,10 @@ var _ = Describe("Check", func() {
 				},
 			}
 
+			etcd := &druidv1alpha1.Etcd{
+				Status: status,
+			}
+
 			defer test.WithVar(&ConditionChecks, []ConditionCheckFn{
 				func() condition.Checker {
 					return createConditionCheck(druidv1alpha1.ConditionTypeReady, druidv1alpha1.ConditionFalse, "FailedConditionCheck", "check failed")
@@ -110,18 +115,18 @@ var _ = Describe("Check", func() {
 			})()
 
 			defer test.WithVar(&EtcdMemberChecks, []EtcdMemberCheckFn{
-				func(_ controllerconfig.EtcdCustodianController) etcdmember.Checker {
+				func(_ client.Client, _ controllersconfig.EtcdCustodianController) etcdmember.Checker {
 					return createEtcdMemberCheck("1", druidv1alpha1.EtcdMemeberStatusUnknown, "Unknown")
 				},
 			})()
 
 			defer test.WithVar(&TimeNow, func() time.Time { return timeNow })()
 
-			checker := NewChecker(config)
+			checker := NewChecker(nil, config)
 
-			Expect(checker.Check(context.Background(), &status)).To(Succeed())
+			Expect(checker.Check(context.Background(), etcd)).To(Succeed())
 
-			Expect(status.Conditions).To(ConsistOf(
+			Expect(etcd.Status.Conditions).To(ConsistOf(
 				MatchFields(IgnoreExtras, Fields{
 					"Type":               Equal(druidv1alpha1.ConditionTypeReady),
 					"Status":             Equal(druidv1alpha1.ConditionFalse),
@@ -148,7 +153,7 @@ var _ = Describe("Check", func() {
 				}),
 			))
 
-			Expect(status.Members).To(ConsistOf(
+			Expect(etcd.Status.Members).To(ConsistOf(
 				MatchFields(IgnoreExtras, Fields{
 					"ID":                 Equal("1"),
 					"Name":               Equal("Member1"),
@@ -246,7 +251,7 @@ type etcdMemberTestChecker struct {
 	result *etcdMemberResult
 }
 
-func (t *etcdMemberTestChecker) Check(_ druidv1alpha1.EtcdStatus) []etcdmember.Result {
+func (t *etcdMemberTestChecker) Check(_ context.Context, _ druidv1alpha1.Etcd) []etcdmember.Result {
 	return []etcdmember.Result{
 		t.result,
 	}
