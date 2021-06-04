@@ -170,3 +170,26 @@ var _ = Describe("Builder", func() {
 		})
 	})
 })
+
+type result struct {
+	ConType    druidv1alpha1.ConditionType
+	ConStatus  druidv1alpha1.ConditionStatus
+	ConReason  string
+	ConMessage string
+}
+
+func (r *result) ConditionType() druidv1alpha1.ConditionType {
+	return r.ConType
+}
+
+func (r *result) Status() druidv1alpha1.ConditionStatus {
+	return r.ConStatus
+}
+
+func (r *result) Reason() string {
+	return r.ConReason
+}
+
+func (r *result) Message() string {
+	return r.ConMessage
+}

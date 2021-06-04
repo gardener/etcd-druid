@@ -135,3 +135,21 @@ var _ = Describe("Builder", func() {
 		})
 	})
 })
+
+type result struct {
+	MemberID     string
+	MemberStatus druidv1alpha1.EtcdMemberConditionStatus
+	MemberReason string
+}
+
+func (r *result) ID() string {
+	return r.MemberID
+}
+
+func (r *result) Reason() string {
+	return r.MemberReason
+}
+
+func (r *result) Status() druidv1alpha1.EtcdMemberConditionStatus {
+	return r.MemberStatus
+}

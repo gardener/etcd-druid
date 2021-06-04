@@ -19,29 +19,9 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 )
 
 func TestEtcdMember(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Etcd Member Suite")
-}
-
-type result struct {
-	MemberID     string
-	MemberStatus druidv1alpha1.EtcdMemberConditionStatus
-	MemberReason string
-}
-
-func (r *result) ID() string {
-	return r.MemberID
-}
-
-func (r *result) Reason() string {
-	return r.MemberReason
-}
-
-func (r *result) Status() druidv1alpha1.EtcdMemberConditionStatus {
-	return r.MemberStatus
 }

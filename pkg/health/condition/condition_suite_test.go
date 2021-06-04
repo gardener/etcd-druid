@@ -19,34 +19,9 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 )
 
 func TestCondition(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Condition Suite")
-}
-
-type result struct {
-	ConType    druidv1alpha1.ConditionType
-	ConStatus  druidv1alpha1.ConditionStatus
-	ConReason  string
-	ConMessage string
-}
-
-func (r *result) ConditionType() druidv1alpha1.ConditionType {
-	return r.ConType
-}
-
-func (r *result) Status() druidv1alpha1.ConditionStatus {
-	return r.ConStatus
-}
-
-func (r *result) Reason() string {
-	return r.ConReason
-}
-
-func (r *result) Message() string {
-	return r.ConMessage
 }

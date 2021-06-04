@@ -44,7 +44,7 @@ func (r *readyCheck) Check(status druidv1alpha1.EtcdStatus) Result {
 			conType: druidv1alpha1.ConditionTypeReady,
 			status:  druidv1alpha1.ConditionFalse,
 			reason:  "QuorumLost",
-			message: "The majority of ETCD nodes are not ready",
+			message: "The majority of ETCD members is not ready",
 		}
 	}
 
@@ -52,7 +52,7 @@ func (r *readyCheck) Check(status druidv1alpha1.EtcdStatus) Result {
 		conType: druidv1alpha1.ConditionTypeReady,
 		status:  druidv1alpha1.ConditionTrue,
 		reason:  "Quorate",
-		message: "The majority of ETCD nodes is ready",
+		message: "The majority of ETCD members is ready",
 	}
 }
 
