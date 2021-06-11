@@ -135,6 +135,9 @@ spec:
 {{- if .Values.backup.etcdQuotaBytes }}
         - --embedded-etcd-quota-bytes={{ int $.Values.backup.etcdQuotaBytes }}
 {{- end }}
+{{- if .Values.backup.enableProfiling }}
+        - --enable-profiling={{ .Values.backup.enableProfiling }}
+{{- end }}
 {{- if .Values.etcd.enableTLS }}
         - --cert=/var/etcd/ssl/client/tls.crt
         - --key=/var/etcd/ssl/client/tls.key
