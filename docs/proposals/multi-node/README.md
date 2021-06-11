@@ -46,6 +46,7 @@ This document proposes an approach (along with some alternatives) to support pro
   - [Status](#status)
     - [Members](#members)
     - [Conditions](#conditions)
+    - [ClusterSize](#clustersize)
     - [Alternative](#alternative-4)
   - [Decision table for etcd-druid based on the status](#decision-table-for-etcd-druid-based-on-the-status)
     - [1. Pink of health](#1-pink-of-health)
@@ -118,6 +119,8 @@ This document proposes an approach (along with some alternatives) to support pro
   - [History Compaction](#history-compaction)
   - [Defragmentation](#defragmentation)
   - [Work-flows in etcd-backup-restore](#work-flows-in-etcd-backup-restore)
+    - [Work-flows independent of leader election in all members](#work-flows-independent-of-leader-election-in-all-members)
+    - [Work-flows only on the leading member](#work-flows-only-on-the-leading-member)
   - [High Availability](#high-availability)
     - [Zonal Cluster - Single Availability Zone](#zonal-cluster---single-availability-zone)
       - [Alternative](#alternative-5)
@@ -551,6 +554,8 @@ status:
     lastTransitionTime:         "2020-11-10T12:48:01Z"
     reason: FullBackupSucceeded # FullBackupSucceeded|IncrementalBackupSucceeded|FullBackupFailed|IncrementalBackupFailed
   ...
+  clusterSize: 3
+  ...
   replicas: 3
   ...
   members:
@@ -581,6 +586,18 @@ The `members` section of the status is intended to be updated by the `etcd-backu
 Especially, members can be marked with `status: Ready` only by their `etcd-backup-restore` sidecar container.
 However, they can be marked with `status: NotReady` either by their `etcd-backup-restore` sidecar container (with `reason: HeartbeatFailed`) or by `etcd-druid` (as explained [below](#decision-table-for-etcd-druid-based-on-the-status)).
 
+In an ETCD cluster, the member `id` is the [unique identifier for a member](https://etcd.io/docs/v3.4/dev-guide/api_reference_v3/#message-member-etcdserveretcdserverpbrpcproto).
+However, this proposal recommends using a [single `StatefulSet`](#kubernetes-context) whose pods form the members of the ETCD cluster and `Pods` of a `StatefulSet` have [uniquely indexed names](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#ordinal-index) as well as [uniquely addressible DNS](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#stable-network-id).
+
+This proposal recommends that the `name` of the member (which is the same as the name of the member `Pod`) be used as the unique key to identify a member in the `members` array.
+This can minimise the need to cleanup superfluous entries in the `members` array after the member pods are gone to some extent because the replacement pods for any member will share the same `name` and will overwrite the entry with a [possibly new](#restarting-an-existing-member-of-an-etcd-cluster) member `id`. 
+
+There is still the possibility of not only [superfluous entries in the `members` array](#13-superfluous-member-entries-in-etcd-status) but also [superfluous `members` in the ETCD cluster](#work-flows-only-on-the-leading-member) for which there is no corresponding pod in the `StatefulSet` anymore.
+
+For example, if an ETCD cluster is scaled up from `3` to `5` and the new members were failing constantly due to insufficient resources and then if the ETCD client is scaled back down to `3` and failing member pods may not have the chance to clean up their `member` entries (from the `members` array as well as from the ETCD cluster) leading to superfluous members in the cluster that may have adverse effect on quorum of the cluster.
+
+Hence, the superfluous entries in both `members` array as well as the ETCD cluster need to be [cleaned up](#recommended-action-12) [as appropriate](#work-flows-only-on-the-leading-member).
+
 ### Conditions
 
 The `conditions` section in the status describe the overall condition of the ETCD cluster.
@@ -595,6 +612,15 @@ The `Ready` and `AllMembersReady` conditions can be maintained by `etcd-druid` b
 The `BackupReady` condition will be maintained by the leading `etcd-backup-restore` sidecar that is in charge of taking backups.
 
 More condition types could be introduced in the future if specific purposes arise.
+
+### ClusterSize
+
+The `clusterSize` field contains the current size of the ETCD cluster. It will be actively kept up-to-date by `etcd-druid` in all scenarios.
+
+- Before [bootstrapping](#bootstrapping) the ETCD cluster (during cluster creation or later bootstrapping because of [quorum failure](#recommended-action-9)), `etcd-druid` will clear the `status.members` array and set `status.clusterSize` to be equal to `spec.replicas`.
+- While the ETCD cluster is quorate, `etcd-druid` will actively set `status.clusterSize` to be equal to length of the `status.members` whenever the length of the array changes (say, due to scaling of the ETCD cluster).
+
+Given that `clusterSize` reliably represents the size of the ETCD cluster, it can be used to calculate the `Ready` [condition](#conditions).
 
 ### Alternative
 
@@ -928,6 +954,9 @@ Add `d - n` new members by scaling the `StatefulSet` to `replicas: d`. The rest 
 
 Remove `d - n` existing members (numbered `d`, `d + 1` ... `n`) by scaling the `StatefulSet` to `replicas: d`. The `StatefulSet` spec need not be updated until the next cluster bootstrapping (alternatively, the `StatefulSet` spec can be updated pro-actively once the superfluous members exit the cluster. This will trigger a rolling update).
 
+The [superfluous entries in the `members` array](13-superfluous-member-entries-in-etcd-status) will be cleaned up as explained [here](#recommended-action-12).
+The superfluous members in the ETCD cluster will be cleaned up by the [leading `etcd-backup-restore` sidecar](#work-flows-only-on-the-leading-member).
+
 ### 13. Superfluous member entries in `Etcd` status
 
 #### Observed state
@@ -953,6 +982,7 @@ Remove `d - n` existing members (numbered `d`, `d + 1` ... `n`) by scaling the `
 #### Recommended Action
 
 Remove the superfluous `m - n` member entries from `Etcd` status (numbered `n`, `n+1` ... `m`).
+The superfluous members in the ETCD cluster will be cleaned up by the [leading `etcd-backup-restore` sidecar](#work-flows-only-on-the-leading-member).
 
 ## Decision table for etcd-backup-restore during initialization
 
@@ -1160,6 +1190,7 @@ This proposal recommends to configure [automatic history compaction](https://etc
 Defragmentation is already [triggered periodically](https://github.com/gardener/etcd-backup-restore/blob/0dfdd50fbfc5ebc88238be3bc79c3ac3fc242c08/cmd/options.go#L209) by `etcd-backup-restore`.
 This proposal recommends to enhance this functionality to be performed only by the [leading](#backup) backup-restore container.
 The defragmentation must be performed only when etcd cluster is in full health and must be done in a rolling manner for each members to [avoid disruption](https://etcd.io/docs/v3.2.17/op-guide/maintenance/#defragmentation).
+The leading member should be defragmented last after all the rest of the members have been defragmented to minimise potential leadership changes caused by defragmentation.
 If the etcd cluster is unhealthy when it is time to trigger scheduled defragmentation, the defragmentation must be postponed until the cluster becomes healthy. This check must be done before triggering defragmentation for each member.
 
 ## Work-flows in etcd-backup-restore
@@ -1171,6 +1202,18 @@ Some of these work-flows are sensitive to which `etcd-backup-restore` container 
 
 The life-cycle of these work-flows is shown below.
 ![etcd-backup-restore work-flows life-cycle](images/etcd-backup-restore-work-flows-life-cycle.png)
+
+### Work-flows independent of leader election in all members
+
+- Serve the HTTP API that all members are expected to support currently
+- Check the health of the respective etcd member and update the corresponding entry in the [`status.members` array](#members)
+
+### Work-flows only on the leading member
+
+- Take [backups](#backup) (full and incremental) at configured regular intervals
+- [Defragment](#defragmentation) all the members sequentially at configured regular intervals
+- Cleanup superflous members from the ETCD cluster for which there is no corresponding pod (the [ordinal](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#ordinal-index) in the pod name is greater than the [cluster size](#clustersize)) at regular intervals (or whenever the `Etcd` resource [status](#status) changes by watching it)
+  - The cleanup of [superfluous entries in `status.members` array](#13-superfluous-member-entries-in-etcd-status) is already covered [here](#recommended-action-12)
 
 ## High Availability
 
