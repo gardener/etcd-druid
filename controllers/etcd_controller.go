@@ -51,6 +51,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -209,7 +210,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		finalizers.Insert(FinalizerName)
 		etcd.Finalizers = finalizers.UnsortedList()
 		if err := r.Update(ctx, etcd); err != nil {
-			if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
+			if err := r.updateEtcdErrorStatus(ctx, noOp, etcd, nil, err); err != nil {
 				return ctrl.Result{
 					Requeue: true,
 				}, err
@@ -220,7 +221,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		}
 	}
 	if err := r.addFinalizersToDependantSecrets(ctx, logger, etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
+		if err := r.updateEtcdErrorStatus(ctx, noOp, etcd, nil, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -235,9 +236,9 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 			Requeue: true,
 		}, err
 	}
-	svc, ss, err := r.reconcileEtcd(ctx, logger, etcd)
+	op, svc, sts, err := r.reconcileEtcd(ctx, logger, etcd)
 	if err != nil {
-		if err := r.updateEtcdErrorStatus(ctx, etcd, ss, err); err != nil {
+		if err := r.updateEtcdErrorStatus(ctx, op, etcd, sts, err); err != nil {
 			logger.Error(err, "Error during reconciling ETCD")
 			return ctrl.Result{
 				Requeue: true,
@@ -247,8 +248,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 			Requeue: true,
 		}, err
 	}
-
-	if err := r.updateEtcdStatus(ctx, etcd, svc, ss); err != nil {
+	if err := r.updateEtcdStatus(ctx, op, etcd, svc, sts); err != nil {
 		return ctrl.Result{
 			Requeue: true,
 		}, err
@@ -264,7 +264,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 	logger.Info("Starting operation")
 
 	if err := r.removeDependantStatefulset(ctx, logger, etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
+		if err := r.updateEtcdErrorStatus(ctx, deleteOp, etcd, nil, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -275,7 +275,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 	}
 
 	if err := r.removeFinalizersToDependantSecrets(ctx, logger, etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
+		if err := r.updateEtcdErrorStatus(ctx, deleteOp, etcd, nil, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -557,7 +557,16 @@ func (r *EtcdReconciler) getConfigMapFromEtcd(etcd *druidv1alpha1.Etcd, rendered
 	return decoded, nil
 }
 
-func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*appsv1.StatefulSet, error) {
+type operationResult string
+
+const (
+	bootstrapOp operationResult = "bootstrap"
+	reconcileOp operationResult = "reconcile"
+	deleteOp    operationResult = "delete"
+	noOp        operationResult = "none"
+)
+
+func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (operationResult, *appsv1.StatefulSet, error) {
 	logger.Info("Reconciling etcd statefulset")
 
 	// If any adoptions are attempted, we should first recheck for deletion with
@@ -582,19 +591,19 @@ func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, logger logr.L
 	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 	if err != nil {
 		logger.Error(err, "Error converting etcd selector to selector")
-		return nil, err
+		return noOp, nil, err
 	}
 	dm := NewEtcdDruidRefManager(r.Client, r.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
 	statefulSets, err := dm.FetchStatefulSet(ctx, etcd)
 	if err != nil {
 		logger.Error(err, "Error while fetching StatefulSet")
-		return nil, err
+		return noOp, nil, err
 	}
 
 	logger.Info("Claiming existing etcd StatefulSet")
 	claimedStatefulSets, err := dm.ClaimStatefulsets(ctx, statefulSets)
 	if err != nil {
-		return nil, err
+		return noOp, nil, err
 	}
 
 	if len(claimedStatefulSets) > 0 {
@@ -612,41 +621,42 @@ func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, logger logr.L
 		// TODO: (timuthy) Check if this is really needed.
 		sts := &appsv1.StatefulSet{}
 		if err := r.Get(ctx, types.NamespacedName{Name: claimedStatefulSets[0].Name, Namespace: claimedStatefulSets[0].Namespace}, sts); err != nil {
-			return nil, err
+			return noOp, nil, err
 		}
 
 		// Statefulset is claimed by for this etcd. Just sync the specs
 		if sts, err = r.syncStatefulSetSpec(ctx, logger, sts, etcd, values); err != nil {
-			return nil, err
+			return noOp, nil, err
 		}
 
 		// restart etcd pods in crashloop backoff
 		selector, err := metav1.LabelSelectorAsSelector(sts.Spec.Selector)
 		if err != nil {
 			logger.Error(err, "error converting StatefulSet selector to selector")
-			return nil, err
+			return noOp, nil, err
 		}
 		podList := &v1.PodList{}
 		if err := r.List(ctx, podList, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
-			return nil, err
+			return noOp, nil, err
 		}
 
 		for _, pod := range podList.Items {
 			if utils.IsPodInCrashloopBackoff(pod.Status) {
 				if err := r.Delete(ctx, &pod); err != nil {
 					logger.Error(err, fmt.Sprintf("error deleting etcd pod in crashloop: %s/%s", pod.Namespace, pod.Name))
-					return nil, err
+					return noOp, nil, err
 				}
 			}
 		}
 
-		return r.waitUntilStatefulSetReady(ctx, logger, etcd, sts)
+		sts, err = r.waitUntilStatefulSetReady(ctx, logger, etcd, sts)
+		return reconcileOp, sts, err
 	}
 
 	// Required statefulset doesn't exist. Create new
 	sts, err := r.getStatefulSetFromEtcd(etcd, values)
 	if err != nil {
-		return nil, err
+		return noOp, nil, err
 	}
 
 	err = r.Create(ctx, sts)
@@ -658,10 +668,11 @@ func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, logger logr.L
 		err = nil
 	}
 	if err != nil {
-		return nil, err
+		return noOp, nil, err
 	}
 
-	return r.waitUntilStatefulSetReady(ctx, logger, etcd, sts)
+	sts, err = r.waitUntilStatefulSetReady(ctx, logger, etcd, sts)
+	return bootstrapOp, sts, err
 }
 
 func getContainerMapFromPodTemplateSpec(spec v1.PodSpec) map[string]v1.Container {
@@ -758,21 +769,20 @@ func (r *EtcdReconciler) getStatefulSetFromEtcd(etcd *druidv1alpha1.Etcd, values
 	return decoded, nil
 }
 
-func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*corev1.Service, *appsv1.StatefulSet, error) {
-
+func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (operationResult, *corev1.Service, *appsv1.StatefulSet, error) {
 	values, err := r.getMapFromEtcd(etcd)
 	if err != nil {
-		return nil, nil, err
+		return noOp, nil, nil, err
 	}
 
 	chartPath := getChartPath()
 	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
 	if err != nil {
-		return nil, nil, err
+		return noOp, nil, nil, err
 	}
 	svc, err := r.reconcileServices(ctx, logger, etcd, renderedChart)
 	if err != nil {
-		return nil, nil, err
+		return noOp, nil, nil, err
 	}
 	if svc != nil {
 		values["serviceName"] = svc.Name
@@ -780,18 +790,18 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 
 	cm, err := r.reconcileConfigMaps(ctx, logger, etcd, renderedChart)
 	if err != nil {
-		return nil, nil, err
+		return noOp, nil, nil, err
 	}
 	if cm != nil {
 		values["configMapName"] = cm.Name
 	}
 
-	ss, err := r.reconcileStatefulSet(ctx, logger, etcd, values)
+	op, sts, err := r.reconcileStatefulSet(ctx, logger, etcd, values)
 	if err != nil {
-		return nil, nil, err
+		return noOp, nil, nil, err
 	}
 
-	return svc, ss, nil
+	return op, svc, sts, nil
 }
 
 func checkEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
@@ -1118,7 +1128,12 @@ func canDeleteStatefulset(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) boo
 
 }
 
-func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
+func bootstrapReset(etcd *druidv1alpha1.Etcd) {
+	etcd.Status.Members = nil
+	etcd.Status.ClusterSize = pointer.Int32Ptr(int32(etcd.Spec.Replicas))
+}
+
+func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, op operationResult, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
 	err := kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
 		lastErrStr := fmt.Sprintf("%v", lastError)
 		etcd.Status.LastError = &lastErrStr
@@ -1126,6 +1141,11 @@ func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv
 		if sts != nil {
 			ready := CheckStatefulSet(etcd, sts) == nil
 			etcd.Status.Ready = &ready
+
+			if op == bootstrapOp {
+				// Reset members in bootstrap phase to ensure depending conditions can be calculated correctly.
+				bootstrapReset(etcd)
+			}
 		}
 		return nil
 	})
@@ -1136,7 +1156,7 @@ func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv
 	return r.removeOperationAnnotation(ctx, etcd)
 }
 
-func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, svc *corev1.Service, sts *appsv1.StatefulSet) error {
+func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, op operationResult, etcd *druidv1alpha1.Etcd, svc *corev1.Service, sts *appsv1.StatefulSet) error {
 	err := kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
 		ready := CheckStatefulSet(etcd, sts) == nil
 		etcd.Status.Ready = &ready
@@ -1144,6 +1164,11 @@ func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alph
 		etcd.Status.ServiceName = &svcName
 		etcd.Status.LastError = nil
 		etcd.Status.ObservedGeneration = &etcd.Generation
+
+		if op == bootstrapOp {
+			// Reset members in bootstrap phase to ensure depending conditions can be calculated correctly.
+			bootstrapReset(etcd)
+		}
 		return nil
 	})
 

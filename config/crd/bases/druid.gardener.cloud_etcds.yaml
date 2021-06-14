@@ -423,6 +423,10 @@ spec:
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:
+              clusterSize:
+                description: Cluster size is the size of the etcd cluster.
+                format: int32
+                type: integer
               conditions:
                 description: Conditions represents the latest available observations
                   of an etcd's current state.

@@ -14,22 +14,26 @@
 
 package condition
 
-import druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+import (
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/pkg/utils"
+)
 
 type readyCheck struct{}
 
 func (r *readyCheck) Check(status druidv1alpha1.EtcdStatus) Result {
-	if len(status.Members) == 0 {
+	if status.ClusterSize == nil {
 		return &result{
 			conType: druidv1alpha1.ConditionTypeReady,
 			status:  druidv1alpha1.ConditionUnknown,
-			reason:  "NoMembersInStatus",
-			message: "Cannot determine readiness of cluster since status has no members",
+			reason:  "ClusterSizeUnknown",
+			message: "Cannot determine readiness of cluster since no cluster size has been calculated",
 		}
 	}
 
 	var (
-		quorum       = len(status.Members)/2 + 1
+		size         = utils.Max(int(*status.ClusterSize), len(status.Members))
+		quorum       = size/2 + 1
 		readyMembers = 0
 	)
 

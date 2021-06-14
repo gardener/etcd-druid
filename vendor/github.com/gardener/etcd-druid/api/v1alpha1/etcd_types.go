@@ -325,6 +325,9 @@ type EtcdStatus struct {
 	// LastError represents the last occurred error.
 	// +optional
 	LastError *string `json:"lastError,omitempty"`
+	// Cluster size is the size of the etcd cluster.
+	// +optional
+	ClusterSize *int32 `json:"clusterSize,omitempty"`
 	// CurrentReplicas is the current replica count for the etcd cluster.
 	// +optional
 	CurrentReplicas int32 `json:"currentReplicas,omitempty"`

@@ -110,7 +110,9 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	// Requeue if we found more than one or no StatefulSet.
 	// The Etcd controller needs to decide what to do in such situations.
 	if len(stsList.Items) != 1 {
-		ec.updateEtcdStatusWithNoSts(ctx, logger, etcd)
+		if err := ec.updateEtcdStatus(ctx, logger, etcd, nil); err != nil {
+			logger.Error(err, "Error while updating ETCD status when no statefulset found")
+		}
 		return ctrl.Result{
 			RequeueAfter: 5 * time.Second,
 		}, nil
@@ -131,43 +133,47 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logge
 	)
 
 	return kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
-		etcd.Status.Etcd = &druidv1alpha1.CrossVersionObjectReference{
-			APIVersion: sts.APIVersion,
-			Kind:       sts.Kind,
-			Name:       sts.Name,
-		}
-
 		etcd.Status.Conditions = conditions
 		etcd.Status.Members = members
 
-		ready := CheckStatefulSet(etcd, sts) == nil
+		// Bootstrap is a special case which is handled by the etcd controller.
+		if !inBootstrap(etcd) && len(members) != 0 {
+			etcd.Status.ClusterSize = pointer.Int32Ptr(int32(len(members)))
+		}
 
-		// To be changed once we have multiple replicas.
-		etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
-		etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
-		etcd.Status.UpdatedReplicas = sts.Status.UpdatedReplicas
-		etcd.Status.Ready = &ready
-		logger.Info(fmt.Sprintf("ETCD status updated for statefulset current replicas: %v, ready replicas: %v, updated replicas: %v", sts.Status.CurrentReplicas, sts.Status.ReadyReplicas, sts.Status.UpdatedReplicas))
-		return nil
-	})
-}
+		if sts != nil {
+			etcd.Status.Etcd = &druidv1alpha1.CrossVersionObjectReference{
+				APIVersion: sts.APIVersion,
+				Kind:       sts.Kind,
+				Name:       sts.Name,
+			}
 
-func (ec *EtcdCustodian) updateEtcdStatusWithNoSts(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) {
-	logger.Info("Updating etcd status when no statefulset found")
-	conditions := etcd.Status.Conditions
+			ready := CheckStatefulSet(etcd, sts) == nil
 
-	if err := kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
-		etcd.Status.Conditions = conditions
-		// To be changed once we have multiple replicas.
+			// To be changed once we have multiple replicas.
+			etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
+			etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
+			etcd.Status.UpdatedReplicas = sts.Status.UpdatedReplicas
+			etcd.Status.Ready = &ready
+			logger.Info(fmt.Sprintf("ETCD status updated for statefulset current replicas: %v, ready replicas: %v, updated replicas: %v", sts.Status.CurrentReplicas, sts.Status.ReadyReplicas, sts.Status.UpdatedReplicas))
+			return nil
+		}
+
 		etcd.Status.CurrentReplicas = 0
 		etcd.Status.ReadyReplicas = 0
 		etcd.Status.UpdatedReplicas = 0
 
 		etcd.Status.Ready = pointer.BoolPtr(false)
 		return nil
-	}); err != nil {
-		logger.Error(err, "Error while updating ETCD status when no statefulset found")
+	})
+}
+
+func inBootstrap(etcd *druidv1alpha1.Etcd) bool {
+	if etcd.Status.ClusterSize == nil {
+		return true
 	}
+	return len(etcd.Status.Members) == 0 ||
+		(len(etcd.Status.Members) < etcd.Spec.Replicas && int32(etcd.Spec.Replicas) == *etcd.Status.ClusterSize)
 }
 
 // SetupWithManager sets up manager with a new controller and ec as the reconcile.Reconciler

@@ -191,6 +191,12 @@ var _ = Describe("Druid", func() {
 			err = c.Status().Update(context.TODO(), sts)
 			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 			Expect(err).NotTo(HaveOccurred())
+			Eventually(func() (*int32, error) {
+				if err := c.Get(context.TODO(), client.ObjectKeyFromObject(instance), instance); err != nil {
+					return nil, err
+				}
+				return instance.Status.ClusterSize, nil
+			}, timeout, pollingInterval).Should(Equal(pointer.Int32Ptr(int32(instance.Spec.Replicas))))
 		})
 		It("should create and adopt statefulset and printing events", func() {
 			// Check StatefulSet requirements

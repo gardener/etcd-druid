@@ -17,6 +17,7 @@ package condition_test
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"k8s.io/utils/pointer"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	. "github.com/gardener/etcd-druid/pkg/health/condition"
@@ -38,6 +39,7 @@ var _ = Describe("ReadyCheck", func() {
 		Context("when members in status", func() {
 			It("should return that the cluster has a quorum (all members ready)", func() {
 				status := druidv1alpha1.EtcdStatus{
+					ClusterSize: pointer.Int32Ptr(3),
 					Members: []druidv1alpha1.EtcdMemberStatus{
 						readyMember,
 						readyMember,
@@ -54,6 +56,7 @@ var _ = Describe("ReadyCheck", func() {
 
 			It("should return that the cluster has a quorum (one member not ready)", func() {
 				status := druidv1alpha1.EtcdStatus{
+					ClusterSize: pointer.Int32Ptr(3),
 					Members: []druidv1alpha1.EtcdMemberStatus{
 						readyMember,
 						notReadyMember,
@@ -70,6 +73,7 @@ var _ = Describe("ReadyCheck", func() {
 
 			It("should return that the cluster has lost its quorum", func() {
 				status := druidv1alpha1.EtcdStatus{
+					ClusterSize: pointer.Int32Ptr(3),
 					Members: []druidv1alpha1.EtcdMemberStatus{
 						readyMember,
 						notReadyMember,
@@ -97,7 +101,7 @@ var _ = Describe("ReadyCheck", func() {
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
-				Expect(result.Reason()).To(Equal("NoMembersInStatus"))
+				Expect(result.Reason()).To(Equal("ClusterSizeUnknown"))
 			})
 		})
 	})
