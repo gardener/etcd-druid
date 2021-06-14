@@ -166,6 +166,9 @@ type EtcdConfig struct {
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 	// +optional
 	TLS *TLSConfig `json:"tls,omitempty"`
+	// EnableProfiling defines if profiling should be enabled for the etcd-backup-restore-sidecar
+	// +optional
+	EnableProfiling *bool `json:"enableProfiling,omitempty"`
 }
 
 // SharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.

@@ -890,12 +890,19 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		deltaSnapshotMemoryLimit = etcd.Spec.Backup.DeltaSnapshotMemoryLimit.Value()
 	}
 
+	var enableProfiling = false
+	if etcd.Spec.Etcd.EnableProfiling != nil {
+		enableProfiling = *etcd.Spec.Etcd.EnableProfiling
+
+	}
+
 	backupValues := map[string]interface{}{
 		"pullPolicy":               corev1.PullIfNotPresent,
 		"etcdQuotaBytes":           quota,
 		"etcdConnectionTimeout":    "5m",
 		"snapstoreTempDir":         "/var/etcd/data/temp",
 		"deltaSnapshotMemoryLimit": deltaSnapshotMemoryLimit,
+		"enableProfiling":          enableProfiling,
 	}
 
 	if etcd.Spec.Backup.Resources != nil {
