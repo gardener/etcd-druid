@@ -72,7 +72,7 @@ var _ = Describe("ReadyCheck", func() {
 			)
 
 			BeforeEach(func() {
-				podName = "etcd-main-0"
+				podName = "member1"
 				etcd = druidv1alpha1.Etcd{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "etcd",
@@ -81,11 +81,8 @@ var _ = Describe("ReadyCheck", func() {
 					Status: druidv1alpha1.EtcdStatus{
 						Members: []druidv1alpha1.EtcdMemberStatus{
 							{
-								Name: "member1",
-								ID:   "1",
-								PodRef: corev1.LocalObjectReference{
-									Name: podName,
-								},
+								Name:               podName,
+								ID:                 "1",
 								Role:               druidv1alpha1.EtcdRoleMember,
 								Status:             druidv1alpha1.EtcdMemeberStatusReady,
 								Reason:             "foo reason",
@@ -93,11 +90,8 @@ var _ = Describe("ReadyCheck", func() {
 								LastUpdateTime:     metav1.NewTime(now.Add(-301 * time.Second)),
 							},
 							{
-								Name: "member2",
-								ID:   "2",
-								PodRef: corev1.LocalObjectReference{
-									Name: "etcd-main-1",
-								},
+								Name:               "member2",
+								ID:                 "2",
 								Role:               druidv1alpha1.EtcdRoleMember,
 								Status:             druidv1alpha1.EtcdMemeberStatusReady,
 								Reason:             "bar reason",
@@ -255,11 +249,8 @@ var _ = Describe("ReadyCheck", func() {
 					Status: druidv1alpha1.EtcdStatus{
 						Members: []druidv1alpha1.EtcdMemberStatus{
 							{
-								Name: "member1",
-								ID:   "1",
-								PodRef: corev1.LocalObjectReference{
-									Name: "etcd-main-0",
-								},
+								Name:               "member1",
+								ID:                 "1",
 								Role:               druidv1alpha1.EtcdRoleMember,
 								Status:             druidv1alpha1.EtcdMemeberStatusReady,
 								Reason:             "foo reason",
@@ -267,11 +258,8 @@ var _ = Describe("ReadyCheck", func() {
 								LastUpdateTime:     metav1.Now(),
 							},
 							{
-								Name: "member2",
-								ID:   "2",
-								PodRef: corev1.LocalObjectReference{
-									Name: "etcd-main-1",
-								},
+								Name:               "member2",
+								ID:                 "2",
 								Role:               druidv1alpha1.EtcdRoleMember,
 								Status:             druidv1alpha1.EtcdMemeberStatusReady,
 								Reason:             "bar reason",

@@ -82,7 +82,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 
 func (r *readyCheck) checkPodIsRunning(ctx context.Context, namespace string, member druidv1alpha1.EtcdMemberStatus) (bool, error) {
 	pod := &corev1.Pod{}
-	if err := r.cl.Get(ctx, kutil.Key(namespace, member.PodRef.Name), pod); err != nil {
+	if err := r.cl.Get(ctx, kutil.Key(namespace, member.Name), pod); err != nil {
 		return false, err
 	}
 	return pod.Status.Phase == corev1.PodRunning, nil

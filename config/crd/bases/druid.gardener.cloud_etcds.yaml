@@ -548,17 +548,9 @@ spec:
                       format: date-time
                       type: string
                     name:
-                      description: Name is the name of the etcd member.
+                      description: Name is the name of the etcd member. It is the
+                        name of the backing `Pod`.
                       type: string
-                    podRef:
-                      description: PodRef is the reference to the Pod which hosts
-                        the etcd member.
-                      properties:
-                        name:
-                          description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            TODO: Add other useful fields. apiVersion, kind, uid?'
-                          type: string
-                      type: object
                     reason:
                       description: The reason for the condition's last transition.
                       type: string
@@ -574,7 +566,6 @@ spec:
                   - lastTransitionTime
                   - lastUpdateTime
                   - name
-                  - podRef
                   - reason
                   - role
                   - status
