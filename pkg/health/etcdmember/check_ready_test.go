@@ -118,7 +118,12 @@ var _ = Describe("ReadyCheck", func() {
 					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod) error {
 						*pod = corev1.Pod{
 							Status: corev1.PodStatus{
-								Phase: corev1.PodRunning,
+								Conditions: []corev1.PodCondition{
+									{
+										Type:   corev1.ContainersReady,
+										Status: corev1.ConditionTrue,
+									},
+								},
 							},
 						}
 						return nil
@@ -156,7 +161,7 @@ var _ = Describe("ReadyCheck", func() {
 				Expect(results[0].ID()).To(Equal("1"))
 			})
 
-			It("should set the affected condition to FAILED because Pod is not running", func() {
+			It("should set the affected condition to FAILED because containers are not ready", func() {
 				defer test.WithVar(&TimeNow, func() time.Time {
 					return now
 				})()
@@ -171,7 +176,12 @@ var _ = Describe("ReadyCheck", func() {
 					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod) error {
 						*pod = corev1.Pod{
 							Status: corev1.PodStatus{
-								Phase: corev1.PodFailed,
+								Conditions: []corev1.PodCondition{
+									{
+										Type:   corev1.ContainersReady,
+										Status: corev1.ConditionFalse,
+									},
+								},
 							},
 						}
 						return nil

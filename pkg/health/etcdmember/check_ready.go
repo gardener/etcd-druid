@@ -59,12 +59,12 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		}
 
 		// If pod is not running or cannot be found then we deduce that the status is NotReady.
-		ready, err := r.checkPodIsRunning(ctx, etcd.Namespace, member)
+		ready, err := r.checkContainersAreReady(ctx, etcd.Namespace, member)
 		if (err == nil && !ready) || apierrors.IsNotFound(err) {
 			results = append(results, &result{
 				id:     member.ID,
 				status: druidv1alpha1.EtcdMemeberStatusNotReady,
-				reason: "PodNotRunning",
+				reason: "ContainersNotReady",
 			})
 			continue
 		}
@@ -80,12 +80,19 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 	return results
 }
 
-func (r *readyCheck) checkPodIsRunning(ctx context.Context, namespace string, member druidv1alpha1.EtcdMemberStatus) (bool, error) {
+func (r *readyCheck) checkContainersAreReady(ctx context.Context, namespace string, member druidv1alpha1.EtcdMemberStatus) (bool, error) {
 	pod := &corev1.Pod{}
 	if err := r.cl.Get(ctx, kutil.Key(namespace, member.Name), pod); err != nil {
 		return false, err
 	}
-	return pod.Status.Phase == corev1.PodRunning, nil
+
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type == corev1.ContainersReady {
+			return cond.Status == corev1.ConditionTrue, nil
+		}
+	}
+
+	return false, nil
 }
 
 // ReadyCheck returns a check for the "Ready" condition.
