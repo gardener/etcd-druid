@@ -197,3 +197,11 @@ func isContainerInCrashLoopBackOff(containerState v1.ContainerState) bool {
 	}
 	return false
 }
+
+// Max returns the larger of x or y.
+func Max(x, y int) int {
+	if y > x {
+		return x
+	}
+	return x
+}

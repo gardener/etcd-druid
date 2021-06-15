@@ -423,6 +423,10 @@ spec:
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:
+              clusterSize:
+                description: Cluster size is the size of the etcd cluster.
+                format: int32
+                type: integer
               conditions:
                 description: Conditions represents the latest available observations
                   of an etcd's current state.
@@ -548,7 +552,8 @@ spec:
                       format: date-time
                       type: string
                     name:
-                      description: Name is the name of the etcd member.
+                      description: Name is the name of the etcd member. It is the
+                        name of the backing `Pod`.
                       type: string
                     reason:
                       description: The reason for the condition's last transition.

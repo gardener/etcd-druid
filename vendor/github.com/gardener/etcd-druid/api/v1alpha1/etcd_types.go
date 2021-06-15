@@ -293,7 +293,7 @@ const (
 
 // EtcdMemberStatus holds information about a etcd cluster membership.
 type EtcdMemberStatus struct {
-	// Name is the name of the etcd member.
+	// Name is the name of the etcd member. It is the name of the backing `Pod`.
 	Name string `json:"name"`
 	// ID is the ID of the etcd member.
 	ID string `json:"id"`
@@ -325,6 +325,9 @@ type EtcdStatus struct {
 	// LastError represents the last occurred error.
 	// +optional
 	LastError *string `json:"lastError,omitempty"`
+	// Cluster size is the size of the etcd cluster.
+	// +optional
+	ClusterSize *int32 `json:"clusterSize,omitempty"`
 	// CurrentReplicas is the current replica count for the etcd cluster.
 	// +optional
 	CurrentReplicas int32 `json:"currentReplicas,omitempty"`

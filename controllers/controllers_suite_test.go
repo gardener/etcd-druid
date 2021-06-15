@@ -21,13 +21,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gardener/gardener/pkg/utils/test"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 
+	"github.com/gardener/gardener/pkg/utils/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -111,7 +110,12 @@ var _ = BeforeSuite(func(done Done) {
 	err = er.SetupWithManager(mgr, 1, true)
 	Expect(err).NotTo(HaveOccurred())
 
-	custodian := NewEtcdCustodian(mgr)
+	custodian := NewEtcdCustodian(mgr, controllersconfig.EtcdCustodianController{
+		EtcdMember: controllersconfig.EtcdMemberConfig{
+			EtcdMemberUnknownThreshold:  1 * time.Minute,
+			EtcdMemberNotReadyThreshold: 1 * time.Minute,
+		},
+	})
 
 	err = custodian.SetupWithManager(mgrCtx, mgr, 1)
 	Expect(err).NotTo(HaveOccurred())
