@@ -229,6 +229,10 @@ spec:
                     description: DefragmentationSchedule defines the cron standard
                       schedule for defragmentation of etcd.
                     type: string
+                  enableProfiling:
+                    description: EnableProfiling defines if profiling should be enabled
+                      for the etcd-backup-restore-sidecar
+                    type: boolean
                   image:
                     description: Image defines the etcd container image and tag
                     type: string
