@@ -1,4 +1,4 @@
-// Copyright (c) 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright (c) 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,17 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcd
+package configmap
 
 import (
-	"github.com/gardener/etcd-druid/pkg/component/etcd/configmap"
-	"github.com/gardener/etcd-druid/pkg/component/etcd/lease"
-	"github.com/gardener/etcd-druid/pkg/component/etcd/service"
+	"testing"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
-// Values contains all values relevant for deploying etcd components.
-type Values struct {
-	ConfigMap *configmap.Values
-	Service   service.Values
-	Lease     lease.Values
+func TestService(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Configmap Component Suite")
 }
