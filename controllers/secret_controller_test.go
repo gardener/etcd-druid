@@ -58,7 +58,7 @@ var _ = Describe("SecretController", func() {
 		}
 
 		By("creating new etcd with secret references")
-		secretNames := []string{"ca-etcd", "etcd-server-tls", "etcd-client-tls", "etcd-backup"}
+		secretNames := []string{"client-url-ca-etcd", "client-url-etcd-client-tls", "client-url-etcd-server-tls", "peer-url-ca-etcd", "peer-url-etcd-server-tls", "etcd-backup"}
 		Expect(createSecrets(k8sClient, namespace.Name, secretNames...)).To(BeEmpty())
 
 		Expect(k8sClient.Create(ctx, etcd)).To(Succeed())
@@ -69,13 +69,15 @@ var _ = Describe("SecretController", func() {
 		}
 
 		By("updating existing etcd with new secret references")
-		newSecretNames := []string{"ca-etcd2", "etcd-server-tls2", "etcd-client-tls2", "etcd-backup2"}
+		newSecretNames := []string{"client-url-ca-etcd2", "client-url-etcd-client-tls2", "client-url-etcd-server-tls2", "peer-url-ca-etcd2", "peer-url-etcd-server-tls2", "etcd-backup2"}
 		Expect(createSecrets(k8sClient, namespace.Name, newSecretNames...)).To(BeEmpty())
 
 		patch := client.MergeFrom(etcd.DeepCopy())
-		etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name += "2"
-		etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name += "2"
-		etcd.Spec.Etcd.TLS.TLSCASecretRef.Name += "2"
+		etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name += "2"
+		etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name += "2"
+		etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name += "2"
+		etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name += "2"
+		etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name += "2"
 		etcd.Spec.Backup.Store.SecretRef.Name += "2"
 		Expect(k8sClient.Patch(ctx, etcd, patch)).To(Succeed())
 

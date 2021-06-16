@@ -85,10 +85,12 @@ func New(c client.Client, namespace string, values Values) gardenercomponent.Dep
 }
 
 func (c *component) emptyLease(name string) *coordinationv1.Lease {
+	labels := map[string]string{"name": "etcd", "instance": c.values.EtcdName}
 	return &coordinationv1.Lease{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: c.namespace,
+			Labels:    labels,
 		},
 	}
 }

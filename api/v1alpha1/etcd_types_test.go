@@ -104,17 +104,28 @@ func getEtcd(name, namespace string) *Etcd {
 	prefix := "etcd-test"
 	garbageCollectionPolicy := GarbageCollectionPolicy(GarbageCollectionPolicyExponential)
 
-	tlsConfig := &TLSConfig{
-		ClientTLSSecretRef: corev1.SecretReference{
-			Name: "etcd-client-tls",
-		},
-		ServerTLSSecretRef: corev1.SecretReference{
-			Name: "etcd-server-tls",
-		},
+	clientTlsConfig := &TLSConfig{
 		TLSCASecretRef: SecretReference{
 			SecretReference: corev1.SecretReference{
-				Name: "ca-etcd",
+				Name: "client-url-ca-etcd",
 			},
+		},
+		ClientTLSSecretRef: corev1.SecretReference{
+			Name: "client-url-etcd-client-tls",
+		},
+		ServerTLSSecretRef: corev1.SecretReference{
+			Name: "client-url-etcd-server-tls",
+		},
+	}
+
+	peerTlsConfig := &TLSConfig{
+		TLSCASecretRef: SecretReference{
+			SecretReference: corev1.SecretReference{
+				Name: "peer-url-ca-etcd",
+			},
+		},
+		ServerTLSSecretRef: corev1.SecretReference{
+			Name: "peer-url-etcd-server-tls",
 		},
 	}
 
@@ -146,6 +157,7 @@ func getEtcd(name, namespace string) *Etcd {
 			Backup: BackupSpec{
 				Image:                    &imageBR,
 				Port:                     &backupPort,
+				TLS:                      clientTlsConfig,
 				FullSnapshotSchedule:     &snapshotSchedule,
 				GarbageCollectionPolicy:  &garbageCollectionPolicy,
 				GarbageCollectionPeriod:  &garbageCollectionPeriod,
@@ -186,9 +198,10 @@ func getEtcd(name, namespace string) *Etcd {
 						"memory": parseQuantity("1000Mi"),
 					},
 				},
-				ClientPort: &clientPort,
-				ServerPort: &serverPort,
-				TLS:        tlsConfig,
+				ClientPort:   &clientPort,
+				ServerPort:   &serverPort,
+				ClientUrlTLS: clientTlsConfig,
+				PeerUrlTLS:   peerTlsConfig,
 			},
 		},
 	}

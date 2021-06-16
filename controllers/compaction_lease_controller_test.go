@@ -68,7 +68,7 @@ var _ = Describe("Lease Controller", func() {
 			cm = &corev1.ConfigMap{}
 			Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
 			svc = &corev1.Service{}
-			Eventually(func() error { return serviceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return clientServiceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
 		})
 
 		AfterEach(func() {
@@ -382,7 +382,7 @@ func validateEtcdForCmpctJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
 
 	Expect(*j).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(getJobName(instance)),
+			"Name":      Equal(utils.GetJobName(instance)),
 			"Namespace": Equal(instance.Namespace),
 			"OwnerReferences": MatchElements(ownerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
@@ -708,7 +708,7 @@ func jobIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, job
 	defer cancel()
 
 	req := types.NamespacedName{
-		Name:      getJobName(instance),
+		Name:      utils.GetJobName(instance),
 		Namespace: instance.Namespace,
 	}
 
@@ -726,7 +726,7 @@ func jobIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, job
 func createJob(instance *druidv1alpha1.Etcd) *batchv1.Job {
 	j := batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      getJobName(instance),
+			Name:      utils.GetJobName(instance),
 			Namespace: instance.Namespace,
 			Labels:    instance.Labels,
 		},
