@@ -891,8 +891,8 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	}
 
 	var enableProfiling = false
-	if etcd.Spec.Etcd.EnableProfiling != nil {
-		enableProfiling = *etcd.Spec.Etcd.EnableProfiling
+	if etcd.Spec.Backup.EnableProfiling != nil {
+		enableProfiling = *etcd.Spec.Backup.EnableProfiling
 
 	}
 
