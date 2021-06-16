@@ -138,6 +138,9 @@ type BackupSpec struct {
 	// SnapshotCompression defines the specification for compression of Snapshots.
 	// +optional
 	SnapshotCompression *CompressionSpec `json:"compression,omitempty"`
+	// EnableProfiling defines if profiling should be enabled for the etcd-backup-restore-sidecar
+	// +optional
+	EnableProfiling *bool `json:"enableProfiling,omitempty"`
 }
 
 // EtcdConfig defines parameters associated etcd deployed

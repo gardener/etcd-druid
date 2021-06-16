@@ -36,6 +36,7 @@ backup:
   snapstoreTempDir: "/var/etcd/data/temp"
   etcdConnectionTimeout: 5m
   etcdQuotaBytes: 8Gi
+  enableProfiling: false
   garbageCollectionPolicy: LimitBased
   maxBackups: 7
   resources:
