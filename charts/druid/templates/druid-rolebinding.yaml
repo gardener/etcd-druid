@@ -1,0 +1,16 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gardener.cloud:system:etcd-druid
+  namespace: {{ .Release.Namespace }}
+  labels:
+    gardener.cloud/role: etcd-druid
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gardener.cloud:system:etcd-druid
+subjects:
+- kind: ServiceAccount
+  name: etcd-druid
+  namespace: {{ .Release.Namespace }}

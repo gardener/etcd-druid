@@ -1,0 +1,4 @@
+image: eu.gcr.io/gardener-project/gardener/etcd-druid
+version: v0.6.0-dev-a47e74fd1756951720f8f309cfa34060c677c021
+replicas: 0
+ignoreOperationAnnotation: false

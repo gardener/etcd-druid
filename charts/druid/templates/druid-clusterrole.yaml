@@ -1,0 +1,99 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gardener.cloud:system:etcd-druid
+  namespace: {{ .Release.Namespace }}
+  labels:
+    gardener.cloud/role: etcd-druid
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - list
+  - watch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  - endpoints
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - patch
+  - update
+
+- apiGroups:
+  - ""
+  - apps
+  resources:
+  - services
+  - configmaps
+  - statefulsets
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+  - create
+  - delete
+- apiGroups:
+  - druid.gardener.cloud
+  resources:
+  - etcds
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+- apiGroups:
+  - druid.gardener.cloud
+  resources:
+  - etcds/status
+  - etcds/finalizers
+  verbs:
+  - get
+  - update
+  - patch
+  - create
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+- apiGroups:
+  - coordination.k8s.io
+  resourceNames:
+  - druid-leader-election
+  resources:
+  - leases
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  verbs:
+  - get
+  - list
+  - watch

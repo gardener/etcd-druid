@@ -1,0 +1,428 @@
+#!/usr/bin/env bash
+# Copyright (c) 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+set -e
+
+# For the test step concourse will set the following environment variables:
+# SOURCE_PATH - path to component repository root directory.
+if [[ $(uname) == 'Darwin' ]]; then
+  READLINK_BIN="greadlink"
+else
+  READLINK_BIN="readlink"
+fi
+
+if [[ -z "${SOURCE_PATH}" ]]; then
+  export SOURCE_PATH="$(${READLINK_BIN} -f "$(dirname ${0})/..")"
+else
+  export SOURCE_PATH="$(${READLINK_BIN} -f "${SOURCE_PATH}")"
+fi
+
+VCS="github.com"
+ORGANIZATION="gardener"
+PROJECT="etcd-druid"
+REPOSITORY=${VCS}/${ORGANIZATION}/${PROJECT}
+URL=https://${REPOSITORY}.git
+VERSION_FILE="$(${READLINK_BIN} -f "${SOURCE_PATH}/VERSION")"
+VERSION="$(cat "${VERSION_FILE}")"
+TEST_ID_PREFIX="etcd-druid-test"
+TM_TEST_ID_PREFIX="etcd-druid-tm-test"
+TM_SHOOT_KUBECONFIG=$TM_KUBECONFIG_PATH/shoot.config
+
+export GOBIN="${SOURCE_PATH}/bin"
+export PATH="${GOBIN}:${PATH}"
+cd "${SOURCE_PATH}"
+
+export GCP_SERVICEACCOUNT_JSON_PATH="${HOME}/.gcp/serviceaccount.json"
+
+##############################################################################
+
+# Declare global variables
+TEST_ID=
+DRUID_VER=
+TEST_RESULT=
+BUCKETS_EXIST=
+SETUP_AWS=
+SETUP_AZ=
+SETUP_GCP=
+USE_CC_SERVER_CACHE=
+CC_CACHE_FILE_FLAG=
+
+function setup_ginkgo() {
+    echo "Installing Ginkgo..."
+    GO111MODULE=off go get -u github.com/onsi/ginkgo/ginkgo
+    echo "Successfully installed Ginkgo."
+}
+
+function get_test_id() {
+  git_commit=`git show -s --format="%H"`
+  export TEST_ID=${TEST_ID_PREFIX}-${git_commit}
+  echo "Test id: ${TEST_ID}"
+}
+
+function get_tm_test_id() {
+  export TEST_ID=${TM_TEST_ID_PREFIX}-${GIT_REVISION}
+  echo "Test id: ${TEST_ID}"
+}
+
+#############################
+#        AWS Setup          #
+#############################
+
+function setup_awscli() {
+  echo "Installing awscli..."
+  pip3 install awscli
+  echo "Successfully installed awscli."
+}
+
+function fetch_aws_secret() {
+  echo "Fetching aws credentials from secret server..."
+  export ACCESS_KEY_ID=`/cc/utils/cli.py config $CC_CACHE_FILE_FLAG attribute --cfg-type aws --cfg-name etcd-backup-restore --key access_key_id`
+  export SECRET_ACCESS_KEY=`/cc/utils/cli.py config $CC_CACHE_FILE_FLAG attribute --cfg-type aws --cfg-name etcd-backup-restore --key secret_access_key`
+  export REGION=`/cc/utils/cli.py config $CC_CACHE_FILE_FLAG attribute --cfg-type aws --cfg-name etcd-backup-restore --key region`
+  echo "Successfully fetched aws credentials from secret server."
+}
+
+function write_aws_secret() {
+  echo "Creating aws credentials for API access..."
+  mkdir ${HOME}/.aws
+  cat << EOF > ${HOME}/.aws/credentials
+[default]
+aws_access_key_id = $1
+aws_secret_access_key = $2
+EOF
+  cat << EOF > ${HOME}/.aws/config
+[default]
+region = $3
+EOF
+}
+
+function create_aws_secret() {
+  fetch_aws_secret
+  write_aws_secret "${ACCESS_KEY_ID}" "${SECRET_ACCESS_KEY}" "${REGION}"
+  echo "Successfully created aws credentials."
+}
+
+function create_s3_bucket() {
+  echo "Creating S3 bucket ${TEST_ID} in region ${REGION}"
+  aws s3api create-bucket --bucket ${TEST_ID} --region ${REGION} --create-bucket-configuration LocationConstraint=${REGION}
+}
+
+function delete_aws_secret() {
+  rm -rf ${HOME}/.aws
+}
+
+function delete_s3_bucket() {
+  echo "Deleting S3 bucket ${TEST_ID}"
+  aws s3 rb s3://${TEST_ID} --force
+}
+
+#############################
+#        Azure Setup        #
+#############################
+
+function setup_azcli() {
+  echo "Installing az-cli..."
+  pip3 install azure-cli
+  echo "Successfully installed az-cli."
+}
+
+function fetch_az_secret() {
+  echo "Fetching azure credentials from secret server..."
+  export AZ_STORAGE_ACCOUNT=`/cc/utils/cli.py config $CC_CACHE_FILE_FLAG attribute --cfg-type azure_storage_account --cfg-name etcd-backup-restore --key storage_account_name`
+  export AZ_STORAGE_KEY=`/cc/utils/cli.py config $CC_CACHE_FILE_FLAG attribute --cfg-type azure_storage_account --cfg-name etcd-backup-restore --key access_key`
+  echo "Successfully fetched azure credentials from secret server."
+}
+
+function create_az_secret() {
+  fetch_az_secret
+  echo "Successfully created azure credentials."
+}
+
+function create_az_bucket() {
+  echo "Creating ABS bucket ${TEST_ID} in storage account ${AZ_STORAGE_ACCOUNT} ..."
+  az storage container create --account-name "${AZ_STORAGE_ACCOUNT}" --account-key "${AZ_STORAGE_KEY}" --name "${TEST_ID}"
+  echo "Successfully created ABS bucket ${TEST_ID} in storage account ${AZ_STORAGE_ACCOUNT} ."
+
+}
+
+function delete_az_bucket() {
+  echo "Deleting ABS bucket ${TEST_ID} from storage acount ${AZ_STORAGE_ACCOUNT} ..."
+  az storage container delete --account-name "${AZ_STORAGE_ACCOUNT}" --account-key "${AZ_STORAGE_KEY}" --name "${TEST_ID}"
+  echo "Successfully deleted ABS bucket ${TEST_ID} from storage acount ${AZ_STORAGE_ACCOUNT} ."
+}
+
+#############################
+#        GCP Setup          #
+#############################
+
+function setup_gcloud() {
+  echo "Installing gcloud..."
+  cd ${HOME}
+  curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-346.0.0-linux-x86_64.tar.gz
+  tar -xvzf google-cloud-sdk-346.0.0-linux-x86_64.tar.gz
+  ./google-cloud-sdk/install.sh -q
+  export PATH=$PATH:${HOME}/google-cloud-sdk/bin
+  cd "${SOURCE_PATH}"
+  echo "Successfully installed gcloud."
+}
+
+function fetch_gcp_secret() {
+  echo "Fetching gcp credentials from secret server..."
+  export SERVICEACCOUNT_JSON=`/cc/utils/cli.py config $CC_CACHE_FILE_FLAG attribute --cfg-type gcp --cfg-name etcd-backup-restore --key service_account_key | tr "'" '"'`
+  export PROJECT_ID=`/cc/utils/cli.py config $CC_CACHE_FILE_FLAG attribute --cfg-type gcp --cfg-name etcd-backup-restore --key project`
+  echo "Successfully fetched gcp credentials from secret server."
+}
+
+function write_gcp_secret() {
+  echo "Creating gcp credentials for API access..."
+  mkdir -p ${HOME}/.gcp
+  echo $1 > $GCP_SERVICEACCOUNT_JSON_PATH
+  export GOOGLE_APPLICATION_CREDENTIALS=$GCP_SERVICEACCOUNT_JSON_PATH
+  echo "Wrote gcp serviceaccount key to ${GCP_SERVICEACCOUNT_JSON_PATH}"
+}
+
+function configure_gcloud() {
+  echo "Configuring gcloud..."
+  gcloud auth activate-service-account --key-file "$GCP_SERVICEACCOUNT_JSON_PATH" --project "$PROJECT_ID"
+  echo "Successfully configured gcloud."
+}
+
+function create_gcp_secret() {
+  fetch_gcp_secret
+  write_gcp_secret "${SERVICEACCOUNT_JSON}"
+  if [ "$(command -v gcloud)" != "" ]; then
+    configure_gcloud
+  fi
+  echo "Successfully created gcp credentials."
+}
+
+function create_gcs_bucket() {
+  echo "Creating GCS bucket ${TEST_ID} ..."
+  gsutil mb -b on gs://${TEST_ID}
+  echo "Successfully created GCS bucket ${TEST_ID} ."
+}
+
+function delete_gcs_bucket() {
+  echo "Deleting GCS bucket ${TEST_ID} ..."
+  gsutil rm -r gs://"${TEST_ID}"/
+  echo "Successfully deleted GCS bucket ${TEST_ID} ."
+}
+
+function delete_gcp_secret() {
+  rm $GCP_SERVICEACCOUNT_JSON_PATH
+}
+
+##############################################################################
+
+function setup_infrastructure_cli() {
+  if [ "$SETUP_AWS" == "true" ]; then setup_awscli; fi
+  if [ "$SETUP_AZ"  == "true" ]; then setup_azcli;  fi
+  if [ "$SETUP_GCP" == "true" ]; then setup_gcloud; fi
+}
+
+function write_infrastructure_secrets() {
+  if [ "$SETUP_AWS" == "true" ]; then
+    write_aws_secret "${ACCESS_KEY_ID}" "${SECRET_ACCESS_KEY}" "${REGION}"
+  fi
+  if [ "$SETUP_GCP" == "true" ]; then
+    write_gcp_secret "${SERVICEACCOUNT_JSON}"
+  fi
+}
+
+function create_infrastructure_secrets() {
+  if [ "$SETUP_AWS" == "true" ]; then create_aws_secret; fi
+  if [ "$SETUP_AZ"  == "true" ]; then create_az_secret;  fi
+  if [ "$SETUP_GCP" == "true" ]; then create_gcp_secret; fi
+}
+
+function setup_infrastructure() {
+  if [ "$SETUP_AWS" == "true" ]; then
+    create_s3_bucket
+  fi
+  if [ "$SETUP_AZ"  == "true" ]; then
+    create_az_bucket
+  fi
+  if [ "$SETUP_GCP" == "true" ]; then
+    create_gcs_bucket
+  fi
+}
+
+function remove_infrastructure() {
+  if [ "$SETUP_AWS" == "true" ]; then
+    delete_s3_bucket
+  fi
+  if [ "$SETUP_AZ"  == "true" ]; then
+    delete_az_bucket
+  fi
+  if [ "$SETUP_GCP" == "true" ]; then
+    delete_gcs_bucket
+  fi
+}
+
+function delete_infrastructure_secrets() {
+  if [ "$SETUP_AWS" == "true" ]; then delete_aws_secret; fi
+  if [ "$SETUP_GCP" == "true" ]; then delete_gcp_secret; fi
+}
+
+###############################################################################
+
+function run_test_on_cluster() {
+  export TEST_ID=$STORAGE_CONTAINER
+  if [ "$BUCKETS_EXIST" == "true" ]; then
+    if [ "$STORAGE_CONTAINER" == "" ]; then
+      echo "Please pass env var STORAGE_CONTAINER, and ensure that buckets specified by this name exist on each provider. Exiting."
+      exit 1
+    fi
+    if [ "$SERVICEACCOUNT_JSON" != "" ]; then
+      write_gcp_secret "${SERVICEACCOUNT_JSON}" # special handling required for local testing
+    fi
+  else
+    if [ "$STORAGE_CONTAINER" == "" ]; then
+      get_test_id
+    fi
+  fi
+  
+  echo "TEST_ID: $TEST_ID"
+
+  # aggregate all env vars for setting up CLIs
+  export AWS_ACCESS_KEY_ID=${ACCESS_KEY_ID:-${AWS_ACCESS_KEY_ID:-""}}
+  export AWS_SECRET_ACCESS_KEY=${SECRET_ACCESS_KEY:-${AWS_SECRET_ACCESS_KEY:-""}}
+  export AWS_REGION=${REGION:-${AWS_REGION:-""}}
+  export AZ_STORAGE_ACCOUNT=${STORAGE_ACCOUNT:-${AZ_STORAGE_ACCOUNT:-""}}
+  export AZ_STORAGE_KEY=${STORAGE_KEY:-${AZ_STORAGE_KEY:-""}}
+  export GCP_SERVICEACCOUNT_JSON=${SERVICEACCOUNT_JSON:-${GCP_SERVICEACCOUNT_JSON:-""}}
+
+  if [ "$IS_TM_TEST" == "true" ] ; then
+    echo "Tests are enabled for AWS, Azure, GCP, Local."
+    export SETUP_AWS=true
+    export SETUP_AZ=true
+    export SETUP_GCP=true
+  else
+    if [ "$AWS_ACCESS_KEY_ID" != "" ] && [ "$AWS_SECRET_ACCESS_KEY" != "" ] && [ "$AWS_REGION" != "" ] ; then
+      echo "Tests are enabled for AWS."
+      if [ "$BUCKETS_EXIST" != "true" ]; then
+        export SETUP_AWS=true
+      fi
+    else
+      echo "Tests are disabled for AWS."
+    fi
+
+    if [ "$AZ_STORAGE_ACCOUNT" != "" ] && [ "$AZ_STORAGE_KEY" != "" ] ; then
+      echo "Tests are enabled for AZ."
+      if [ "$BUCKETS_EXIST" != "true" ]; then
+        export SETUP_AZ=true
+      fi
+    else
+      echo "Tests are disabled for AZ."
+    fi
+    
+    if [ "$GCP_SERVICEACCOUNT_JSON" != "" ] ; then
+      echo "Tests are enabled for GCP."
+      if [ "$BUCKETS_EXIST" != "true" ]; then
+        export SETUP_GCP=true
+      fi
+    else
+      echo "Tests are disabled for GCP."
+    fi
+  fi
+
+  if [ "$USE_CC_SERVER_CACHE" == true ] ; then
+    export CC_CACHE_FILE_FLAG="--cache-file dev/server.cache"
+  fi
+
+  setup_infrastructure_cli
+  create_infrastructure_secrets
+  setup_infrastructure
+
+  export DRUID_VERSION=${DRUID_VERSION:-${DRUID_VER:-"v0.6.0-dev-a47e74fd1756951720f8f309cfa34060c677c021"}}
+  echo "Etcd-druid version: ${DRUID_VERSION}"
+
+  if [ "$(command -v ginkgo)" != "" ]; then
+    setup_ginkgo
+  fi
+
+  # rewrite all env vars to be passed into the test
+  export ACCESS_KEY_ID=${ACCESS_KEY_ID:-${AWS_ACCESS_KEY_ID:-""}}
+  export SECRET_ACCESS_KEY=${SECRET_ACCESS_KEY:-${AWS_SECRET_ACCESS_KEY:-""}}
+  export REGION=${REGION:-${AWS_REGION:-""}}
+  export STORAGE_ACCOUNT=${STORAGE_ACCOUNT:-${AZ_STORAGE_ACCOUNT:-""}}
+  export STORAGE_KEY=${STORAGE_KEY:-${AZ_STORAGE_KEY:-""}}
+  export SERVICEACCOUNT_JSON=${SERVICEACCOUNT_JSON:-${GCP_SERVICEACCOUNT_JSON:-""}}
+
+  # TODO: remove when adding as TM test to CI pipeline
+  echo "BUCKET: $TEST_ID"
+  echo "ACCESS_KEY_ID: $ACCESS_KEY_ID"
+  echo "SECRET_ACCESS_KEY: $SECRET_ACCESS_KEY"
+  echo "REGION: $REGION"
+  echo "STORAGE_ACCOUNT: $STORAGE_ACCOUNT"
+  echo "STORAGE_KEY: $STORAGE_KEY"
+  echo "SERVICEACCOUNT_JSON: $SERVICEACCOUNT_JSON"
+
+  echo "Starting integration tests on k8s cluster."
+  set +e
+
+  if [ -r "$INTEGRATION_TEST_KUBECONFIG" ]; then
+    KUBECONFIG=$INTEGRATION_TEST_KUBECONFIG STORAGE_CONTAINER=$TEST_ID ginkgo -v -timeout=40m -mod=vendor test/integration
+    TEST_RESULT=$?
+    echo "Successfully completed all tests."
+  else
+    echo "Invalid kubeconfig for integration test $INTEGRATION_TEST_KUBECONFIG"
+    TEST_RESULT=255
+  fi
+
+  set -e
+  echo "Done with integration test on k8s cluster."
+
+  remove_infrastructure
+  delete_infrastructure_secrets
+}
+
+function run_test_on_tm() {
+  export IS_TM_TEST=true
+  get_tm_test_id
+  export BUCKETS_EXIST=false
+  export STORAGE_CONTAINER=$TEST_ID
+  export DRUID_VER=$EFFECTIVE_VERSION
+  export INTEGRATION_TEST_KUBECONFIG=${INTEGRATION_TEST_KUBECONFIG:-$TM_SHOOT_KUBECONFIG}
+
+  echo "Starting integration tests on TM cluster $PROJECT_NAMESPACE/$SHOOT_NAME."
+  run_test_on_cluster
+  echo "Done with integration test on TM cluster."
+}
+
+case $2 in
+  bucket_exists)
+    export BUCKETS_EXIST=true
+    ;;
+  *)
+    export BUCKETS_EXIST=false
+    ;;
+esac
+
+case $1 in
+  tm)
+    run_test_on_tm
+    ;;
+  cluster)
+    export BUCKETS_EXIST=true
+    echo "Note: Ensure that buckets specified by env 'STORAGE_CONTAINER' exist on each provider. Continuing..."
+    run_test_on_cluster
+    ;;
+  *)
+    echo "Invalid command. Exiting"
+    TEST_RESULT=1
+    ;;
+esac
+
+exit $TEST_RESULT
