@@ -45,6 +45,11 @@ cd "${SOURCE_PATH}"
 
 export GCP_SERVICEACCOUNT_JSON_PATH="${HOME}/.gcp/serviceaccount.json"
 
+if [ "$USE_CC_SERVER_CACHE" == true ] ; then
+  export CC_CACHE_FILE_FLAG="--cache-file dev/server.cache"
+fi
+source .ci/fetch_secrets_util
+
 ##############################################################################
 
 # Declare global variables
@@ -85,14 +90,6 @@ function setup_awscli() {
   echo "Successfully installed awscli."
 }
 
-function fetch_aws_secret() {
-  echo "Fetching aws credentials from secret server..."
-  export ACCESS_KEY_ID=`/cc/utils/cli.py config $CC_CACHE_FILE_FLAG attribute --cfg-type aws --cfg-name etcd-backup-restore --key access_key_id`
-  export SECRET_ACCESS_KEY=`/cc/utils/cli.py config $CC_CACHE_FILE_FLAG attribute --cfg-type aws --cfg-name etcd-backup-restore --key secret_access_key`
-  export REGION=`/cc/utils/cli.py config $CC_CACHE_FILE_FLAG attribute --cfg-type aws --cfg-name etcd-backup-restore --key region`
-  echo "Successfully fetched aws credentials from secret server."
-}
-
 function write_aws_secret() {
   echo "Creating aws credentials for API access..."
   mkdir ${HOME}/.aws
@@ -108,7 +105,7 @@ EOF
 }
 
 function create_aws_secret() {
-  fetch_aws_secret
+  fetch_aws_secret $CLI_PY_PATH $CC_CACHE_FILE_FLAG
   write_aws_secret "${ACCESS_KEY_ID}" "${SECRET_ACCESS_KEY}" "${REGION}"
   echo "Successfully created aws credentials."
 }
@@ -137,15 +134,8 @@ function setup_azcli() {
   echo "Successfully installed az-cli."
 }
 
-function fetch_az_secret() {
-  echo "Fetching azure credentials from secret server..."
-  export AZ_STORAGE_ACCOUNT=`/cc/utils/cli.py config $CC_CACHE_FILE_FLAG attribute --cfg-type azure_storage_account --cfg-name etcd-backup-restore --key storage_account_name`
-  export AZ_STORAGE_KEY=`/cc/utils/cli.py config $CC_CACHE_FILE_FLAG attribute --cfg-type azure_storage_account --cfg-name etcd-backup-restore --key access_key`
-  echo "Successfully fetched azure credentials from secret server."
-}
-
 function create_az_secret() {
-  fetch_az_secret
+  fetch_az_secret $CLI_PY_PATH $CC_CACHE_FILE_FLAG
   echo "Successfully created azure credentials."
 }
 
@@ -177,13 +167,6 @@ function setup_gcloud() {
   echo "Successfully installed gcloud."
 }
 
-function fetch_gcp_secret() {
-  echo "Fetching gcp credentials from secret server..."
-  export SERVICEACCOUNT_JSON=`/cc/utils/cli.py config $CC_CACHE_FILE_FLAG attribute --cfg-type gcp --cfg-name etcd-backup-restore --key service_account_key | tr "'" '"'`
-  export PROJECT_ID=`/cc/utils/cli.py config $CC_CACHE_FILE_FLAG attribute --cfg-type gcp --cfg-name etcd-backup-restore --key project`
-  echo "Successfully fetched gcp credentials from secret server."
-}
-
 function write_gcp_secret() {
   echo "Creating gcp credentials for API access..."
   mkdir -p ${HOME}/.gcp
@@ -199,7 +182,7 @@ function configure_gcloud() {
 }
 
 function create_gcp_secret() {
-  fetch_gcp_secret
+  fetch_gcp_secret $CLI_PY_PATH $CC_CACHE_FILE_FLAG
   write_gcp_secret "${SERVICEACCOUNT_JSON}"
   if [ "$(command -v gcloud)" != "" ]; then
     configure_gcloud
@@ -278,6 +261,7 @@ function delete_infrastructure_secrets() {
 ###############################################################################
 
 function run_test_on_cluster() {
+  export CLI_PY_PATH="/cc/utils/cli.py"
   export TEST_ID=$STORAGE_CONTAINER
   if [ "$BUCKETS_EXIST" == "true" ]; then
     if [ "$STORAGE_CONTAINER" == "" ]; then
@@ -337,10 +321,6 @@ function run_test_on_cluster() {
     fi
   fi
 
-  if [ "$USE_CC_SERVER_CACHE" == true ] ; then
-    export CC_CACHE_FILE_FLAG="--cache-file dev/server.cache"
-  fi
-
   setup_infrastructure_cli
   create_infrastructure_secrets
   setup_infrastructure
@@ -389,6 +369,24 @@ function run_test_on_cluster() {
 }
 
 function run_test_on_tm() {
+  if [ "$AWS_ACCESS_KEY_ID" == "" ] || [ "$AWS_SECRET_ACCESS_KEY_B64" == "" ] || [ "$AWS_REGION" == "" ] ; then
+    echo "AWS S3 credentials unavailable. Exiting."
+    exit 1
+  fi
+  export AWS_SECRET_ACCESS_KEY=`echo $AWS_SECRET_ACCESS_KEY_B64 | base64 -d`
+
+  if [ "$AZ_STORAGE_ACCOUNT" == "" ] || [ "$AZ_STORAGE_KEY_B64" == "" ] ; then
+    echo "Azure ABS credentials unavailable. Exiting."
+    exit 1
+  fi
+  export AZ_STORAGE_KEY=`echo $AZ_STORAGE_KEY_B64 | base64 -d`
+
+  if [ "$GCP_SERVICEACCOUNT_JSON_B64" == "" ] || [ "$GCP_PROJECT_ID" == "" ] ; then
+    echo "GCP GCS credentials unavailable. Exiting."
+    exit 1
+  fi
+  export GCP_SERVICEACCOUNT_JSON=`echo $GCP_SERVICEACCOUNT_JSON_B64 | base64 -d`
+
   export IS_TM_TEST=true
   get_tm_test_id
   export BUCKETS_EXIST=false

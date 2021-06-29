@@ -1,0 +1,40 @@
+# Default values for testruns.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+
+testrunName: ""
+shoot:
+  name: ""
+  domain: ""
+  projectNamespace: ""
+  cloudprovider: ""
+  cloudprofile: ""
+  secretBinding: ""
+  region: ""
+  zone: ""
+  k8sVersion: ""
+  effectiveVersion: ""
+  gitRevision: ""
+  machinetype: ""
+  autoscalerMin: ""
+  autoscalerMax: ""
+  floatingPoolName: ""
+  loadbalancerProvider: ""
+
+etcdbr:
+  aws:
+    accessKeyId: ""
+    secretAccessKey: ""
+    region: ""
+  az:
+    storageAccount: ""
+    storageKey: ""
+  gcp:
+    serviceaccountJSON: ""
+    projectID: ""
+
+kubeconfigs:
+  gardener: ""
+  seed: ""
+  shoot: ""

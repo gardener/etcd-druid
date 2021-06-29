@@ -27,6 +27,18 @@ etcd-druid:
       build:
         image: 'golang:1.16.4'
         output_dir: 'binary'
+      tm_test:
+        trait_depends:
+        - publish
+        image: eu.gcr.io/gardener-project/gardener/testmachinery/testmachinery-run:stable
+        execute:
+        - tm-tests-playground
+        - --flavor-tm-chart=etcd
+        - --landscape=playground
+        - --tm-landscape=external
+        - --
+        - --testrun-prefix=playground
+        - --set=projectNamespace=garden-it
 
   jobs:
     head-update:

@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+set -e
+
+TESTRUN_CHART=""
+FLAVOR_TESTRUN_CHART=""
+FLAVOR_CONFIG="min-shoot-flavor.yaml"
+TM_LANDSCAPE="external"
+LANDSCAPE=""
+ARGUMENTS=""
+
+if [ "$USE_CC_SERVER_CACHE" == true ] ; then
+  export CC_CACHE_FILE_FLAG="--cache-file dev/server.cache"
+fi
+source .ci/fetch_secrets_util
+
+for i in "$@"
+do
+echo $i
+case $i in
+        -tm-chart=*|--tm-chart=*)
+        TESTRUN_CHART="${i#*=}"
+        shift
+    ;;
+        -flavor-tm-chart=*|--flavor-tm-chart=*)
+        FLAVOR_TESTRUN_CHART="${i#*=}"
+        shift
+    ;;
+        -flavor-config=*|--flavor-config=*)
+        FLAVOR_CONFIG="${i#*=}"
+        shift
+    ;;
+        -tm-landscape=*|--tm-landscape=*)
+        TM_LANDSCAPE="${i#*=}"
+        shift
+    ;;
+        -landscape=*|--landscape=*)
+        LANDSCAPE="${i#*=}"
+        shift
+    ;;
+        --)
+        ARGUMENTS="${@:2}"
+        break
+    ;;
+    *)
+        # unknown option
+        echo "Unknown option ${i#*=}"
+        exit 1
+    ;;
+esac
+done
+
+if [[ $TM_LANDSCAPE == "" ]]; then
+    echo "Required paramter: -tm-landscape : external | internal"
+    exit 1
+fi
+if [[ $LANDSCAPE == "" ]]; then
+    echo "Required paramter: -landscape"
+    exit 1
+fi
+
+if [[ $TM_LANDSCAPE == "internal" ]]; then
+    TM_CONFIG_NAME=testmachinery-internal
+    S3_ENDPOINT="storage.googleapis.com"
+fi
+if [[ $TM_LANDSCAPE == "external" ]]; then
+    TM_CONFIG_NAME=testmachinery
+    S3_ENDPOINT="storage.googleapis.com"
+fi
+if [[ $TM_LANDSCAPE == "staging" ]]; then
+    TM_CONFIG_NAME=testmachinery-staging
+    S3_ENDPOINT="storage.googleapis.com"
+fi
+if [[ $TM_LANDSCAPE == "it" ]]; then
+    TM_CONFIG_NAME=testmachinery-it
+    S3_ENDPOINT="minio.ingress.tm-it.core.shoot.canary.k8s-hana.ondemand.com"
+fi
+
+echo "Testmachinery config name: ${TM_CONFIG_NAME}"
+echo "Testmachinery landscape: ${TM_LANDSCAPE}"
+echo "Arguments: ${ARGUMENTS}"
+echo "EFFECTIVE_VERSION: ${EFFECTIVE_VERSION}"
+
+export GIT_REVISION="${EFFECTIVE_VERSION##*\-}" # split string by '-' and get last item
+echo "GIT_REVISION: ${GIT_REVISION}"
+
+export CLI_PY_PATH="cli.py"
+fetch_aws_secret $CLI_PY_PATH ""
+fetch_az_secret $CLI_PY_PATH ""
+fetch_gcp_secret $CLI_PY_PATH ""
+export AWS_ACCESS_KEY_ID=$ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY_B64=`echo $SECRET_ACCESS_KEY | base64`
+export AWS_REGION=$REGION
+export AZ_STORAGE_ACCOUNT=$STORAGE_ACCOUNT
+export AZ_STORAGE_KEY_B64=`echo $STORAGE_KEY | base64`
+export GCP_SERVICEACCOUNT_JSON_B64=`echo $SERVICEACCOUNT_JSON | base64`
+export GCP_PROJECT_ID=$PROJECT_ID
+
+export SOURCE_PATH="$(readlink -f "$(dirname ${0})/..")"
+mkdir -p /tm
+TM_CLUSTER=/tm/kubeconfig
+ACTIVE_GARDEN_CLUSTER=/tm/gardener.kubeconfig
+cli.py config attribute --cfg-type kubernetes --cfg-name garden-dev-virtual --key kubeconfig > $ACTIVE_GARDEN_CLUSTER
+
+if [[ $TESTRUN_CHART != "" ]]; then
+    TESTRUN_CHART_PATH="$SOURCE_PATH/testmachinery/testruns/$TESTRUN_CHART"
+fi
+if [[ $FLAVOR_TESTRUN_CHART != "" ]]; then
+    FLAVOR_TESTRUN_CHART_PATH="$SOURCE_PATH/testmachinery/testruns/$FLAVOR_TESTRUN_CHART"
+fi
+
+mkdir -p /tm
+cli.py config attribute --cfg-type kubernetes --cfg-name $TM_CONFIG_NAME --key kubeconfig > $TM_CLUSTER
+
+export KUBECONFIG=$TM_CLUSTER
+kubectl cluster-info
+
+# timeout to 6h
+/testrunner run \
+    --gardener-kubeconfig-path=$ACTIVE_GARDEN_CLUSTER \
+    --tm-kubeconfig-path=$TM_CLUSTER \
+    --timeout=21600 \
+    --interval=60 \
+    --es-config-name=sap_internal \
+    --landscape=$LANDSCAPE \
+    --s3-endpoint=$S3_ENDPOINT \
+    --s3-ssl=true \
+    --shoot-name="tm-" \
+    --testruns-chart-path=$TESTRUN_CHART_PATH \
+    --flavored-testruns-chart-path=$FLAVOR_TESTRUN_CHART_PATH \
+    --flavor-config=$SOURCE_PATH/testmachinery/flavors/$FLAVOR_CONFIG \
+    --set=shoot.effectiveVersion=$EFFECTIVE_VERSION \
+    --set=shoot.gitRevision=$GIT_REVISION \
+    --set=etcdbr.aws.accessKeyId=$AWS_ACCESS_KEY_ID \
+    --set=etcdbr.aws.secretAccessKey=$AWS_SECRET_ACCESS_KEY_B64 \
+    --set=etcdbr.aws.region=$AWS_REGION \
+    --set=etcdbr.az.storageAccount=$AZ_STORAGE_ACCOUNT \
+    --set=etcdbr.az.storageKey=$AZ_STORAGE_KEY_B64 \
+    --set=etcdbr.gcp.serviceaccountJSON=$GCP_SERVICEACCOUNT_JSON_B64 \
+    --set=etcdbr.gcp.projectID=$GCP_PROJECT_ID \
+    $ARGUMENTS
