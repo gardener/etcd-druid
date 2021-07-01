@@ -783,6 +783,12 @@ message KubeAPIServerConfig {
   // Requests contains configuration for request-specific settings for the kube-apiserver.
   // +optional
   optional KubeAPIServerRequests requests = 10;
+
+  // EnableAnonymousAuthentication defines whether anonymous requests to the secure port
+  // of the API server should be allowed (flag `--anonymous-auth`).
+  // See: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/
+  // +optional
+  optional bool enableAnonymousAuthentication = 11;
 }
 
 // KubeAPIServerRequests contains configuration for request-specific settings for the kube-apiserver.
@@ -2085,6 +2091,10 @@ message ShootSpec {
   // +patchStrategy=merge
   // +optional
   repeated Toleration tolerations = 17;
+
+  // ExposureClassName is the optional name of an exposure class to apply a control plane endpoint exposure strategy.
+  // +optional
+  optional string exposureClassName = 18;
 }
 
 // ShootStatus holds the most recently observed status of the Shoot cluster.

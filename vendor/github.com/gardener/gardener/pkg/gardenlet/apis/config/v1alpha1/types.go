@@ -83,6 +83,9 @@ type GardenletConfiguration struct {
 	// by the Gardenlet in the seed clusters.
 	// +optional
 	SNI *SNI `json:"sni,omitempty"`
+	// ExposureClassHandlers is a list of optional of exposure class handlers.
+	// +optional
+	ExposureClassHandlers []ExposureClassHandler `json:"exposureClassHandlers,omitempty"`
 }
 
 // GardenClientConnection specifies the kubeconfig file and the client connection settings
@@ -125,10 +128,13 @@ type ShootClientConnection struct {
 type GardenletControllerConfiguration struct {
 	// BackupBucket defines the configuration of the BackupBucket controller.
 	// +optional
-	BackupBucket *BackupBucketControllerConfiguration `json:"backupBucket"`
+	BackupBucket *BackupBucketControllerConfiguration `json:"backupBucket,omitempty"`
 	// BackupEntry defines the configuration of the BackupEntry controller.
 	// +optional
-	BackupEntry *BackupEntryControllerConfiguration `json:"backupEntry"`
+	BackupEntry *BackupEntryControllerConfiguration `json:"backupEntry,omitempty"`
+	// Bastion defines the configuration of the Bastion controller.
+	// +optional
+	Bastion *BastionControllerConfiguration `json:"bastion,omitempty"`
 	// ControllerInstallation defines the configuration of the ControllerInstallation controller.
 	// +optional
 	ControllerInstallation *ControllerInstallationControllerConfiguration `json:"controllerInstallation,omitempty"`
@@ -180,6 +186,14 @@ type BackupEntryControllerConfiguration struct {
 	// BackupEntries corresponding to Shoots with different purposes will be deleted immediately.
 	// +optional
 	DeletionGracePeriodShootPurposes []gardencorev1beta1.ShootPurpose `json:"deletionGracePeriodShootPurposes,omitempty"`
+}
+
+// BastionControllerConfiguration defines the configuration of the Bastion
+// controller.
+type BastionControllerConfiguration struct {
+	// ConcurrentSyncs is the number of workers used for the controller to work on events.
+	// +optional
+	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 }
 
 // ControllerInstallationControllerConfiguration defines the configuration of the
@@ -456,6 +470,26 @@ type SNIIngress struct {
 	// Defaults to "istio: ingressgateway".
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
+}
+
+// ExposureClassHandler contains configuration for an exposure class handler.
+type ExposureClassHandler struct {
+	// Name is the name of the exposure class handler.
+	Name string `json:"name"`
+	// LoadBalancerService contains configuration which is used to configure the underlying
+	// load balancer to apply the control plane endpoint exposure strategy.
+	LoadBalancerService LoadBalancerServiceConfig `json:"loadBalancerService"`
+	// SNI contains optional configuration for a dedicated ingressgateway belonging to
+	// an exposure class handler. This is only required in context of the APIServerSNI feature of the gardenlet.
+	// +optional
+	SNI *SNI `json:"sni,omitempty"`
+}
+
+// LoadBalancerService contains configuration which is used to configure the underlying
+// load balancer to apply the control plane endpoint exposure strategy.
+type LoadBalancerServiceConfig struct {
+	// Annotations is a key value map to annotate the underlying load balancer services.
+	Annotations map[string]string `json:"annotations"`
 }
 
 const (

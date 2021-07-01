@@ -184,6 +184,7 @@ func WaitUntilLoadBalancerIsReady(ctx context.Context, kubeClient kubernetes.Int
 		loadBalancerIngress string
 		service             = &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
 	)
+
 	if err := retry.UntilTimeout(ctx, 5*time.Second, timeout, func(ctx context.Context) (done bool, err error) {
 		loadBalancerIngress, err = GetLoadBalancerIngress(ctx, kubeClient.Client(), service)
 		if err != nil {
@@ -193,12 +194,12 @@ func WaitUntilLoadBalancerIsReady(ctx context.Context, kubeClient kubernetes.Int
 		}
 		return retry.Ok()
 	}); err != nil {
-		const eventsLimit = 2
+		logger.Errorf("error %v occurred while waiting for load balancer to be ready", err)
 
 		// use API reader here, we don't want to cache all events
-		eventsErrorMessage, err2 := FetchEventMessages(ctx, kubeClient.Client().Scheme(), kubeClient.APIReader(), service, corev1.EventTypeWarning, eventsLimit)
+		eventsErrorMessage, err2 := FetchEventMessages(ctx, kubeClient.Client().Scheme(), kubeClient.Client(), service, corev1.EventTypeWarning, 2)
 		if err2 != nil {
-			logger.Errorf("error %q occured while fetching events for error %q", err2, err)
+			logger.Errorf("error %v occurred while fetching events for load balancer service", err2)
 			return "", fmt.Errorf("'%w' occurred but could not fetch events for more information", err)
 		}
 		if eventsErrorMessage != "" {
@@ -513,13 +514,26 @@ func NewestPodForDeployment(ctx context.Context, c client.Reader, deployment *ap
 		return nil, fmt.Errorf("object is not of type *appsv1.ReplicaSet but %T", replicaSet)
 	}
 
+	if newestReplicaSet.Spec.Selector == nil {
+		return nil, fmt.Errorf("no pod selector specified in replicaSet %s/%s", newestReplicaSet.Namespace, newestReplicaSet.Name)
+	}
+
+	if len(newestReplicaSet.Spec.Selector.MatchLabels)+len(newestReplicaSet.Spec.Selector.MatchExpressions) == 0 {
+		return nil, fmt.Errorf("no matchLabels or matchExpressions specified in replicaSet %s/%s", newestReplicaSet.Namespace, newestReplicaSet.Name)
+	}
+
+	podSelector, err := metav1.LabelSelectorAsSelector(newestReplicaSet.Spec.Selector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert the pod selector from ReplicaSet %s/%s: %v", newestReplicaSet.Namespace, newestReplicaSet.Name, err)
+	}
+
+	listOpts = append(listOpts, client.MatchingLabelsSelector{Selector: podSelector})
+
 	pod, err := NewestObject(
 		ctx,
 		c,
 		&corev1.PodList{},
-		func(obj client.Object) bool {
-			return OwnedBy(obj, appsv1.SchemeGroupVersion.String(), "ReplicaSet", newestReplicaSet.Name, newestReplicaSet.UID)
-		},
+		nil,
 		listOpts...,
 	)
 	if err != nil {

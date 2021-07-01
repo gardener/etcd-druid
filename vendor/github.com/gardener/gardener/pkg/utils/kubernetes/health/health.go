@@ -38,9 +38,7 @@ import (
 	gardencorev1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	seedmanagementv1alpha1 "github.com/gardener/gardener/pkg/apis/seedmanagement/v1alpha1"
-	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/utils"
-	"github.com/gardener/gardener/pkg/utils/retry"
 )
 
 func requiredConditionMissing(conditionType string) error {
@@ -324,6 +322,21 @@ func CheckManagedSeed(managedSeed *seedmanagementv1alpha1.ManagedSeed) error {
 	return nil
 }
 
+// ObjectHasAnnotationWithValue returns a health check function that checks if a given Object has an annotation with
+// a specified value.
+func ObjectHasAnnotationWithValue(key, value string) Func {
+	return func(o client.Object) error {
+		actual, ok := o.GetAnnotations()[key]
+		if !ok {
+			return fmt.Errorf("object does not have %q annotation", key)
+		}
+		if actual != value {
+			return fmt.Errorf("object's %q annotation is not %q but %q", key, value, actual)
+		}
+		return nil
+	}
+}
+
 // CheckExtensionObject checks if an extension Object is healthy or not.
 // An extension object is healthy if
 // * Its observed generation is up-to-date
@@ -351,25 +364,34 @@ func ExtensionOperationHasBeenUpdatedSince(lastUpdateTime metav1.Time) Func {
 
 		lastOperation := obj.GetExtensionStatus().GetLastOperation()
 		if lastOperation == nil || !lastOperation.LastUpdateTime.After(lastUpdateTime.Time) {
-			return fmt.Errorf("extension operation was not updated yet")
+			return fmt.Errorf("extension operation has not been updated yet")
 		}
 		return nil
 	}
 }
 
-// CheckBackupBucket checks if an backup bucket Object is healthy or not.
-func CheckBackupBucket(bb client.Object) error {
-	obj, ok := bb.(*gardencorev1beta1.BackupBucket)
+// CheckBackupBucket checks if an backup bucket object is healthy or not.
+func CheckBackupBucket(obj client.Object) error {
+	bb, ok := obj.(*gardencorev1beta1.BackupBucket)
 	if !ok {
-		return fmt.Errorf("expected gardencorev1beta1.BackupBucket but got %T", bb)
+		return fmt.Errorf("expected *gardencorev1beta1.BackupBucket but got %T", obj)
 	}
-	return checkExtensionObject(obj.Generation, obj.Status.ObservedGeneration, obj.Annotations, obj.Status.LastError, obj.Status.LastOperation)
+	return checkExtensionObject(bb.Generation, bb.Status.ObservedGeneration, bb.Annotations, bb.Status.LastError, bb.Status.LastOperation)
+}
+
+// CheckBackupEntry checks if an backup entry object is healthy or not.
+func CheckBackupEntry(obj client.Object) error {
+	be, ok := obj.(*gardencorev1beta1.BackupEntry)
+	if !ok {
+		return fmt.Errorf("expected *gardencorev1beta1.BackupEntry but got %T", obj)
+	}
+	return checkExtensionObject(be.Generation, be.Status.ObservedGeneration, be.Annotations, be.Status.LastError, be.Status.LastOperation)
 }
 
 // checkExtensionObject checks if an extension Object is healthy or not.
 func checkExtensionObject(generation int64, observedGeneration int64, annotations map[string]string, lastError *gardencorev1beta1.LastError, lastOperation *gardencorev1beta1.LastOperation) error {
 	if lastError != nil {
-		return gardencorev1beta1helper.NewErrorWithCodes(fmt.Sprintf("extension encountered error during reconciliation: %s", lastError.Description), lastError.Codes...)
+		return gardencorev1beta1helper.NewErrorWithCodes(fmt.Sprintf("error during reconciliation: %s", lastError.Description), lastError.Codes...)
 	}
 
 	if observedGeneration != generation {
@@ -464,33 +486,4 @@ func getManagedResourceCondition(conditions []resourcesv1alpha1.ManagedResourceC
 		}
 	}
 	return nil
-}
-
-// CheckTunnelConnection checks if the tunnel connection between the control plane and the shoot networks
-// is established.
-func CheckTunnelConnection(ctx context.Context, shootClient kubernetes.Interface, logger logrus.FieldLogger, tunnelName string) (bool, error) {
-	podList := &corev1.PodList{}
-	if err := shootClient.Client().List(ctx, podList, client.InNamespace(metav1.NamespaceSystem), client.MatchingLabels{"app": tunnelName}); err != nil {
-		return retry.SevereError(err)
-	}
-
-	var tunnelPod *corev1.Pod
-	for _, pod := range podList.Items {
-		if pod.Status.Phase == corev1.PodRunning {
-			tunnelPod = &pod
-			break
-		}
-	}
-
-	if tunnelPod == nil {
-		logger.Infof("Waiting until a running %s pod exists in the Shoot cluster...", tunnelName)
-		return retry.MinorError(fmt.Errorf("no running %s pod found yet in the shoot cluster", tunnelName))
-	}
-	if err := shootClient.CheckForwardPodPort(tunnelPod.Namespace, tunnelPod.Name, 0, 22); err != nil {
-		logger.Info("Waiting until the tunnel connection has been established...")
-		return retry.MinorError(fmt.Errorf("could not forward to %s pod: %v", tunnelName, err))
-	}
-
-	logger.Info("Tunnel connection has been established.")
-	return retry.Ok()
 }

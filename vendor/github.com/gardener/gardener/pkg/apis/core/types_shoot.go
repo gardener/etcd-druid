@@ -96,6 +96,8 @@ type ShootSpec struct {
 	Resources []NamedResourceReference
 	// Tolerations contains the tolerations for taints on seed clusters.
 	Tolerations []Toleration
+	// ExposureClassName is the optional name of an exposure class to apply a control plane endpoint exposure strategy.
+	ExposureClassName *string
 }
 
 func (s *Shoot) GetProviderType() string {
@@ -386,6 +388,10 @@ type KubeAPIServerConfig struct {
 	WatchCacheSizes *WatchCacheSizes
 	// Requests contains configuration for request-specific settings for the kube-apiserver.
 	Requests *KubeAPIServerRequests
+	// EnableAnonymousAuthentication defines whether anonymous requests to the secure port
+	// of the API server should be allowed (flag `--anonymous-auth`).
+	// See: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/
+	EnableAnonymousAuthentication *bool
 }
 
 // KubeAPIServerRequests contains configuration for request-specific settings for the kube-apiserver.

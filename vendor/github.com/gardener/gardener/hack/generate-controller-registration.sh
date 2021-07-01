@@ -45,9 +45,9 @@ VERSION_FILE="$3"
 DEST="$4"
 KIND_AND_TYPE="$5"
 
-VERSION="$(cat "$VERSION_FILE")"
-
 ( [[ -z "$NAME" ]] || [[ -z "$CHART_DIR" ]] || [[ -z "$DEST" ]] || [[ -z "$KIND_AND_TYPE" ]]) && usage
+
+VERSION="$(cat "$VERSION_FILE")"
 
 KINDS_AND_TYPES=("$KIND_AND_TYPE" "${@:6}")
 
@@ -79,13 +79,12 @@ apiVersion: core.gardener.cloud/v1beta1
 kind: ControllerDeployment
 metadata:
   name: $NAME
-spec:
-  type: helm
-  providerConfig:
-    chart: $chart
-    values:
-      image:
-        tag: $VERSION
+type: helm
+providerConfig:
+  chart: $chart
+  values:
+    image:
+      tag: $VERSION
 ---
 apiVersion: core.gardener.cloud/v1beta1
 kind: ControllerRegistration
