@@ -8,8 +8,8 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.3.0
 	github.com/golang/mock v1.5.0
-	github.com/onsi/ginkgo v1.14.2
-	github.com/onsi/gomega v1.10.5
+	github.com/onsi/ginkgo v1.16.2
+	github.com/onsi/gomega v1.13.0
 	k8s.io/api v0.20.6
 	k8s.io/apimachinery v0.20.6
 	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
