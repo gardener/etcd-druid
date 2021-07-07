@@ -29,6 +29,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/utils/kubernetes/health"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -45,6 +46,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 type StatefulSetInitializer int
@@ -2828,3 +2831,91 @@ func setStatefulSetReady(s *appsv1.StatefulSet) {
 	s.Status.Replicas = replicas
 	s.Status.ReadyReplicas = replicas
 }
+
+var _ = Describe("buildPredicate", func() {
+	var (
+		etcd                              *druidv1alpha1.Etcd
+		evalCreate                        = func(p predicate.Predicate, obj client.Object) bool { return p.Create(event.CreateEvent{Object: obj}) }
+		evalDelete                        = func(p predicate.Predicate, obj client.Object) bool { return p.Delete(event.DeleteEvent{Object: obj}) }
+		evalGeneric                       = func(p predicate.Predicate, obj client.Object) bool { return p.Generic(event.GenericEvent{Object: obj}) }
+		evalUpdateWithoutGenerationChange = func(p predicate.Predicate, obj client.Object) bool {
+			return p.Update(event.UpdateEvent{ObjectOld: obj, ObjectNew: obj.DeepCopyObject().(client.Object)})
+		}
+		evalUpdateWithGenerationChange = func(p predicate.Predicate, obj client.Object) bool {
+			objCopy := obj.DeepCopyObject().(client.Object)
+			objCopy.SetGeneration(obj.GetGeneration() + 1)
+			return p.Update(event.UpdateEvent{ObjectOld: obj, ObjectNew: objCopy})
+		}
+	)
+
+	BeforeEach(func() {
+		etcd = &druidv1alpha1.Etcd{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{},
+			},
+		}
+	})
+
+	DescribeTable(
+		"with ignoreOperationAnnotation true",
+		func(evalFn func(p predicate.Predicate, obj client.Object) bool, expect bool) {
+			Expect(evalFn(buildPredicate(true), etcd)).To(Equal(expect))
+		},
+		Entry("Create should match", evalCreate, true),
+		Entry("Delete should match", evalDelete, true),
+		Entry("Generic should match", evalGeneric, true),
+		Entry("Update without generation change should not match", evalUpdateWithoutGenerationChange, false),
+		Entry("Update with generation change should match", evalUpdateWithGenerationChange, true),
+	)
+
+	Describe("with ignoreOperationAnnotation false", func() {
+		DescribeTable(
+			"without operation annotation or last error or deletion timestamp",
+			func(evalFn func(p predicate.Predicate, obj client.Object) bool, expect bool) {
+				Expect(evalFn(buildPredicate(false), etcd)).To(Equal(expect))
+			},
+			Entry("Create should not match", evalCreate, false),
+			Entry("Delete should match", evalDelete, true),
+			Entry("Generic should  not match", evalGeneric, false),
+			Entry("Update without generation change should not match", evalUpdateWithoutGenerationChange, false),
+			Entry("Update with generation change should not match", evalUpdateWithGenerationChange, false),
+		)
+		DescribeTable(
+			"with operation annotation",
+			func(evalFn func(p predicate.Predicate, obj client.Object) bool, expect bool) {
+				etcd.Annotations[v1beta1constants.GardenerOperation] = v1beta1constants.GardenerOperationReconcile
+				Expect(evalFn(buildPredicate(false), etcd)).To(Equal(expect))
+			},
+			Entry("Create should match", evalCreate, true),
+			Entry("Delete should match", evalDelete, true),
+			Entry("Generic should match", evalGeneric, true),
+			Entry("Update without generation change should match", evalUpdateWithoutGenerationChange, true),
+			Entry("Update with generation change should match", evalUpdateWithGenerationChange, true),
+		)
+		DescribeTable(
+			"with last error",
+			func(evalFn func(p predicate.Predicate, obj client.Object) bool, expect bool) {
+				etcd.Status.LastError = pointer.StringPtr("error")
+				Expect(evalFn(buildPredicate(false), etcd)).To(Equal(expect))
+			},
+			Entry("Create should match", evalCreate, true),
+			Entry("Delete should match", evalDelete, true),
+			Entry("Generic should match", evalGeneric, true),
+			Entry("Update without generation change should match", evalUpdateWithoutGenerationChange, true),
+			Entry("Update with generation change should match", evalUpdateWithGenerationChange, true),
+		)
+		DescribeTable(
+			"with deletion timestamp",
+			func(evalFn func(p predicate.Predicate, obj client.Object) bool, expect bool) {
+				now := metav1.Time{Time: time.Now()}
+				etcd.DeletionTimestamp = &now
+				Expect(evalFn(buildPredicate(false), etcd)).To(Equal(expect))
+			},
+			Entry("Create should match", evalCreate, true),
+			Entry("Delete should match", evalDelete, true),
+			Entry("Generic should match", evalGeneric, true),
+			Entry("Update without generation change should match", evalUpdateWithoutGenerationChange, true),
+			Entry("Update with generation change should match", evalUpdateWithGenerationChange, true),
+		)
+	})
+})

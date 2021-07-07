@@ -26,6 +26,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	. "github.com/gardener/etcd-druid/pkg/predicate"
+
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 var _ = Describe("Druid Predicate", func() {
@@ -55,6 +57,12 @@ var _ = Describe("Druid Predicate", func() {
 	})
 
 	Describe("#StatefulSet", func() {
+		var pred predicate.Predicate
+
+		JustBeforeEach(func() {
+			pred = StatefulSetStatusChange()
+		})
+
 		Context("when status matches", func() {
 			BeforeEach(func() {
 				obj = &appsv1.StatefulSet{
@@ -70,12 +78,10 @@ var _ = Describe("Druid Predicate", func() {
 			})
 
 			It("should return false", func() {
-				predicate := StatefulSetStatusChange()
-
-				gomega.Expect(predicate.Create(createEvent)).To(gomega.BeTrue())
-				gomega.Expect(predicate.Update(updateEvent)).To(gomega.BeFalse())
-				gomega.Expect(predicate.Delete(deleteEvent)).To(gomega.BeTrue())
-				gomega.Expect(predicate.Generic(genericEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
 			})
 		})
 
@@ -94,182 +100,185 @@ var _ = Describe("Druid Predicate", func() {
 			})
 
 			It("should return true", func() {
-				predicate := StatefulSetStatusChange()
-
-				gomega.Expect(predicate.Create(createEvent)).To(gomega.BeTrue())
-				gomega.Expect(predicate.Update(updateEvent)).To(gomega.BeTrue())
-				gomega.Expect(predicate.Delete(deleteEvent)).To(gomega.BeTrue())
-				gomega.Expect(predicate.Generic(genericEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
 			})
 		})
 	})
 
-	Describe("#GenerationChanged", func() {
-		Context("when generation matches", func() {
+	Describe("#LastOperationNotSuccessful", func() {
+		var pred predicate.Predicate
+
+		JustBeforeEach(func() {
+			pred = LastOperationNotSuccessful()
+		})
+
+		Context("when last error is not set", func() {
 			BeforeEach(func() {
 				obj = &druidv1alpha1.Etcd{
-					ObjectMeta: metav1.ObjectMeta{
-						Generation: 1,
-					},
 					Status: druidv1alpha1.EtcdStatus{
-						ObservedGeneration: pointer.Int64Ptr(1),
+						LastError: nil,
 					},
 				}
 			})
 
 			It("should return false", func() {
-				predicate := GenerationChangedPredicate{}
-
-				gomega.Expect(predicate.Create(createEvent)).To(gomega.BeFalse())
-				gomega.Expect(predicate.Update(updateEvent)).To(gomega.BeFalse())
-				gomega.Expect(predicate.Delete(deleteEvent)).To(gomega.BeTrue())
-				gomega.Expect(predicate.Generic(genericEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
 			})
 		})
 
-		Context("when generation differs", func() {
+		Context("when last error is set", func() {
 			BeforeEach(func() {
 				obj = &druidv1alpha1.Etcd{
-					ObjectMeta: metav1.ObjectMeta{
-						Generation: 2,
-					},
 					Status: druidv1alpha1.EtcdStatus{
-						ObservedGeneration: pointer.Int64Ptr(1),
+						LastError: pointer.StringPtr("foo error"),
 					},
 				}
 			})
 
 			It("should return true", func() {
-				predicate := GenerationChangedPredicate{}
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+	})
 
-				gomega.Expect(predicate.Create(createEvent)).To(gomega.BeTrue())
-				gomega.Expect(predicate.Update(updateEvent)).To(gomega.BeTrue())
-				gomega.Expect(predicate.Delete(deleteEvent)).To(gomega.BeTrue())
-				gomega.Expect(predicate.Generic(genericEvent)).To(gomega.BeTrue())
+	Describe("#HasOperationAnnotation", func() {
+		var pred predicate.Predicate
+
+		JustBeforeEach(func() {
+			pred = HasOperationAnnotation()
+		})
+
+		Context("when has no operation annotation", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: make(map[string]string),
+					},
+				}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
 			})
 		})
 
-		Describe("#LastOperationNotSuccessful", func() {
-			Context("when last error is not set", func() {
-				BeforeEach(func() {
-					obj = &druidv1alpha1.Etcd{
-						Status: druidv1alpha1.EtcdStatus{
-							LastError: nil,
+		Context("when has operation annotation", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
 						},
-					}
-				})
-
-				It("should return false", func() {
-					predicate := LastOperationNotSuccessful()
-
-					gomega.Expect(predicate.Create(createEvent)).To(gomega.BeFalse())
-					gomega.Expect(predicate.Update(updateEvent)).To(gomega.BeFalse())
-					gomega.Expect(predicate.Delete(deleteEvent)).To(gomega.BeFalse())
-					gomega.Expect(predicate.Generic(genericEvent)).To(gomega.BeFalse())
-				})
+					},
+				}
 			})
 
-			Context("when last error is set", func() {
-				BeforeEach(func() {
-					obj = &druidv1alpha1.Etcd{
-						Status: druidv1alpha1.EtcdStatus{
-							LastError: pointer.StringPtr("foo error"),
-						},
-					}
-				})
+			It("should return true", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+	})
 
-				It("should return true", func() {
-					predicate := LastOperationNotSuccessful()
+	Describe("#OR", func() {
+		var pred predicate.Predicate
 
-					gomega.Expect(predicate.Create(createEvent)).To(gomega.BeTrue())
-					gomega.Expect(predicate.Update(updateEvent)).To(gomega.BeTrue())
-					gomega.Expect(predicate.Delete(deleteEvent)).To(gomega.BeTrue())
-					gomega.Expect(predicate.Generic(genericEvent)).To(gomega.BeTrue())
-				})
+		JustBeforeEach(func() {
+			pred = predicate.Or(
+				HasOperationAnnotation(),
+				LastOperationNotSuccessful(),
+			)
+		})
+
+		Context("when has neither operation annotation nor last error", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: make(map[string]string),
+					},
+				}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
 			})
 		})
 
-		Describe("#HasOperationAnnotation", func() {
-			Context("when has no operation annotation", func() {
-				BeforeEach(func() {
-					obj = &druidv1alpha1.Etcd{
-						ObjectMeta: metav1.ObjectMeta{
-							Annotations: make(map[string]string),
+		Context("when has operation annotation", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
 						},
-					}
-				})
-
-				It("should return false", func() {
-					predicate := HasOperationAnnotation()
-
-					gomega.Expect(predicate.Create(createEvent)).To(gomega.BeFalse())
-					gomega.Expect(predicate.Update(updateEvent)).To(gomega.BeFalse())
-					gomega.Expect(predicate.Delete(deleteEvent)).To(gomega.BeTrue())
-					gomega.Expect(predicate.Generic(genericEvent)).To(gomega.BeFalse())
-				})
+					},
+				}
 			})
 
-			Context("when has operation annotation", func() {
-				BeforeEach(func() {
-					obj = &druidv1alpha1.Etcd{
-						ObjectMeta: metav1.ObjectMeta{
-							Annotations: map[string]string{
-								v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
-							},
-						},
-					}
-				})
-
-				It("should return false", func() {
-					predicate := HasOperationAnnotation()
-
-					gomega.Expect(predicate.Create(createEvent)).To(gomega.BeTrue())
-					gomega.Expect(predicate.Update(updateEvent)).To(gomega.BeTrue())
-					gomega.Expect(predicate.Delete(deleteEvent)).To(gomega.BeTrue())
-					gomega.Expect(predicate.Generic(genericEvent)).To(gomega.BeTrue())
-				})
+			It("should return true", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
 			})
 		})
 
-		Describe("#OR", func() {
-			Context("when has no operation annotation", func() {
-				BeforeEach(func() {
-					obj = &druidv1alpha1.Etcd{
-						ObjectMeta: metav1.ObjectMeta{
-							Annotations: make(map[string]string),
-						},
-					}
-				})
-
-				It("should return false", func() {
-					predicate := HasOperationAnnotation()
-
-					gomega.Expect(predicate.Create(createEvent)).To(gomega.BeFalse())
-					gomega.Expect(predicate.Update(updateEvent)).To(gomega.BeFalse())
-					gomega.Expect(predicate.Delete(deleteEvent)).To(gomega.BeTrue())
-					gomega.Expect(predicate.Generic(genericEvent)).To(gomega.BeFalse())
-				})
+		Context("when has last error", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: make(map[string]string),
+					},
+					Status: druidv1alpha1.EtcdStatus{
+						LastError: pointer.StringPtr("error"),
+					},
+				}
 			})
 
-			Context("when has operation annotation", func() {
-				BeforeEach(func() {
-					obj = &druidv1alpha1.Etcd{
-						ObjectMeta: metav1.ObjectMeta{
-							Annotations: map[string]string{
-								v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
-							},
+			It("should return true", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+
+		Context("when has both operation annotation and last error", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
 						},
-					}
-				})
+					},
+					Status: druidv1alpha1.EtcdStatus{
+						LastError: pointer.StringPtr("error"),
+					},
+				}
+			})
 
-				It("should return false", func() {
-					predicate := HasOperationAnnotation()
-
-					gomega.Expect(predicate.Create(createEvent)).To(gomega.BeTrue())
-					gomega.Expect(predicate.Update(updateEvent)).To(gomega.BeTrue())
-					gomega.Expect(predicate.Delete(deleteEvent)).To(gomega.BeTrue())
-					gomega.Expect(predicate.Generic(genericEvent)).To(gomega.BeTrue())
-				})
+			It("should return true", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
 			})
 		})
 	})
