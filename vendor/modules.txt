@@ -102,7 +102,6 @@ github.com/gardener/gardener/pkg/utils/kubernetes
 github.com/gardener/gardener/pkg/utils/kubernetes/health
 github.com/gardener/gardener/pkg/utils/retry
 github.com/gardener/gardener/pkg/utils/test
-github.com/gardener/gardener/pkg/utils/test/matchers
 github.com/gardener/gardener/pkg/utils/version
 # github.com/gardener/gardener-resource-manager v0.18.0
 github.com/gardener/gardener-resource-manager/pkg/apis/resources
