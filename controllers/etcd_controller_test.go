@@ -16,37 +16,42 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
 	"github.com/gardener/gardener/pkg/utils/imagevector"
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/ghodss/yaml"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
+	"github.com/gardener/etcd-druid/pkg/chartrenderer"
+	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	"github.com/gardener/etcd-druid/pkg/common"
+	mockclient "github.com/gardener/etcd-druid/pkg/mock/controller-runtime/client"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	"github.com/gardener/gardener/pkg/utils/kubernetes/health"
+	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	appsv1 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/batch/v1"
-	batchv1 "k8s.io/api/batch/v1beta1"
+	batchv1beta1 "k8s.io/api/batch/v1beta1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/helm/pkg/engine"
 	"k8s.io/utils/pointer"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
@@ -59,12 +64,10 @@ const (
 )
 
 const (
-	timeout         = time.Minute * 2
-	pollingInterval = time.Second * 2
-	etcdConfig      = "etcd.conf.yaml"
-	quotaKey        = "quota-backend-bytes"
-	backupRestore   = "backup-restore"
-	metricsKey      = "metrics"
+	etcdConfig    = "etcd.conf.yaml"
+	quotaKey      = "quota-backend-bytes"
+	backupRestore = "backup-restore"
+	metricsKey    = "metrics"
 )
 
 var (
@@ -153,654 +156,954 @@ func cmdIterator(element interface{}) string {
 	return string(element.(string))
 }
 
-var _ = Describe("Druid", func() {
-	//Reconciliation of new etcd resource deployment without any existing statefulsets.
-	Context("when adding etcd resources", func() {
-		var (
-			err      error
-			instance *druidv1alpha1.Etcd
-			sts      *appsv1.StatefulSet
-			svc      *corev1.Service
-			c        client.Client
-		)
+var _ = Describe("setup", func() {
+	var (
+		ctx      context.Context
+		mockCtrl *gomock.Controller
+		cl       *mockclient.MockClient
+		sw       *mockclient.MockStatusWriter
+		instance *druidv1alpha1.Etcd
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		mockCtrl = gomock.NewController(GinkgoT())
+		cl = mockclient.NewMockClient(mockCtrl)
+		sw = mockclient.NewMockStatusWriter(mockCtrl)
+		instance = getEtcd("foo1", "default", false)
+
+		cl.EXPECT().Status().Return(sw).AnyTimes()
+		cl.EXPECT().Scheme().Return(scheme.Scheme).AnyTimes()
+
+		Expect(metav1.LabelSelectorAsSelector(instance.Spec.Selector)).ToNot(BeNil())
+	})
+
+	Describe("EtcdCustodian", func() {
+		var etcdCustodian *EtcdCustodian
 
 		BeforeEach(func() {
-			instance = getEtcd("foo1", "default", false)
-			c = mgr.GetClient()
-			ns := corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: instance.Namespace,
-				},
-			}
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
-
-			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-			errors := createSecrets(c, instance.Namespace, storeSecret)
-			Expect(len(errors)).Should(BeZero())
-			Expect(c.Create(context.TODO(), instance)).To(Succeed())
-
-			sts = &appsv1.StatefulSet{}
-			// Wait until StatefulSet has been created by controller
-			Eventually(func() error {
-				return c.Get(context.TODO(), types.NamespacedName{
-					Name:      instance.Name,
-					Namespace: instance.Namespace,
-				}, sts)
-			}, timeout, pollingInterval).Should(BeNil())
-
-			svc = &corev1.Service{}
-			// Wait until Service has been created by controller
-			Eventually(func() error {
-				return c.Get(context.TODO(), types.NamespacedName{
-					Name:      fmt.Sprintf("%s-client", instance.Name),
-					Namespace: instance.Namespace,
-				}, svc)
-			}, timeout, pollingInterval).Should(BeNil())
-
+			etcdCustodian = createEtcdCustodian(cl)
 		})
-		It("should create and adopt statefulset", func() {
-			setStatefulSetReady(sts)
-			err = c.Status().Update(context.TODO(), sts)
-			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
-			Expect(err).NotTo(HaveOccurred())
-			Eventually(func() (*int32, error) {
-				if err := c.Get(context.TODO(), client.ObjectKeyFromObject(instance), instance); err != nil {
-					return nil, err
-				}
-				return instance.Status.ClusterSize, nil
-			}, timeout, pollingInterval).Should(Equal(pointer.Int32Ptr(int32(instance.Spec.Replicas))))
-		})
-		It("should create and adopt statefulset and printing events", func() {
-			// Check StatefulSet requirements
-			Expect(len(sts.Spec.VolumeClaimTemplates)).To(Equal(1))
-			Expect(sts.Spec.Replicas).To(PointTo(Equal(int32(1))))
 
-			// Create PVC
-			pvc := &corev1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      fmt.Sprintf("%s-%s-%d", sts.Spec.VolumeClaimTemplates[0].Name, sts.Name, 0),
-					Namespace: sts.Namespace,
-				},
-				Spec: corev1.PersistentVolumeClaimSpec{
-					AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-					Resources: corev1.ResourceRequirements{
-						Requests: corev1.ResourceList{
-							corev1.ResourceStorage: resource.MustParse("1Gi"),
-						},
-					},
-				},
-			}
-			Expect(c.Create(context.TODO(), pvc)).To(Succeed())
-
-			// Create PVC warning Event
-			pvcMessage := "Failed to provision volume"
-			Expect(c.Create(context.TODO(), &corev1.Event{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "pvc-event-1",
-					Namespace: pvc.Namespace,
-				},
-				InvolvedObject: corev1.ObjectReference{
-					APIVersion: "v1",
-					Kind:       "PersistentVolumeClaim",
-					Name:       pvc.Name,
-					Namespace:  pvc.Namespace,
-				},
-				Type:    corev1.EventTypeWarning,
-				Message: pvcMessage,
-			})).To(Succeed())
-
-			// Eventually, warning message should be reflected in `etcd` object status.
-			Eventually(func() string {
-				if err := c.Get(context.TODO(), client.ObjectKeyFromObject(instance), instance); err != nil {
-					return ""
-				}
-				if instance.Status.LastError == nil {
-					return ""
-				}
-				return *instance.Status.LastError
-			}, timeout, pollingInterval).Should(ContainSubstring(pvcMessage))
-		})
-		AfterEach(func() {
-			// Delete `etcd` instance
-			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
-			Eventually(func() error {
-				return c.Get(context.TODO(), client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
-			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
-			// Delete service manually because garbage collection is not available in `envtest`
-			Expect(c.Delete(context.TODO(), svc)).To(Succeed())
-			Eventually(func() error {
-				return c.Get(context.TODO(), client.ObjectKeyFromObject(svc), &corev1.Service{})
-			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
-
-		})
-	})
-
-	Describe("Druid custodian controller", func() {
-		Context("when adding etcd resources with statefulset already present", func() {
+		Describe("Reconcile", func() {
 			var (
-				instance *druidv1alpha1.Etcd
-				sts      *appsv1.StatefulSet
-				c        client.Client
+				reconcileResult             ctrl.Result
+				reconcileErr                error
+				reconcileShouldSucceed      func()
+				reconcileShouldRequeueAfter func()
 			)
 
-			BeforeEach(func() {
-				ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-				defer cancel()
+			JustBeforeEach(func() {
+				mockGetAndUpdateEtcd(cl, sw, instance).AnyTimes()
 
-				instance = getEtcd("foo81", "default", false)
-				c = mgr.GetClient()
-
-				// Create StatefulSet
-				sts = createStatefulset(instance.Name, instance.Namespace, instance.Spec.Labels)
-				Expect(c.Create(ctx, sts)).To(Succeed())
-
-				Eventually(func() error { return c.Get(ctx, client.ObjectKeyFromObject(instance), sts) }, timeout, pollingInterval).Should(Succeed())
-
-				sts.Status.Replicas = 1
-				sts.Status.ReadyReplicas = 1
-				Expect(c.Status().Update(ctx, sts)).To(Succeed())
-
-				Eventually(func() error {
-					if err := c.Get(ctx, client.ObjectKeyFromObject(instance), sts); err != nil {
-						return err
-					}
-					if sts.Status.ReadyReplicas != 1 {
-						return fmt.Errorf("ReadyReplicas != 1")
-					}
-					return nil
-				}, timeout, pollingInterval).Should(Succeed())
-
-				// Create ETCD instance
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-				Expect(c.Create(ctx, instance)).To(Succeed())
-
-				Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
-
-				// Check if ETCD has ready replicas more than zero
-				Eventually(func() error {
-					if err := c.Get(ctx, client.ObjectKeyFromObject(instance), instance); err != nil {
-						return err
-					}
-
-					if int(instance.Status.ReadyReplicas) < 1 {
-						return fmt.Errorf("ETCD ready replicas should be more than zero")
-					}
-					return nil
-				}, timeout, pollingInterval).Should(BeNil())
+				reconcileResult, reconcileErr = etcdCustodian.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(instance)})
 			})
-			It("mark statefulset status not ready when no readyreplicas in statefulset", func() {
-				ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-				defer cancel()
 
-				err := c.Get(ctx, client.ObjectKeyFromObject(instance), sts)
-				Expect(err).NotTo(HaveOccurred())
-
-				// Forcefully change readyreplicas in statefulset as zero which may cause due to facts like crashloopbackoff
-				sts.Status.ReadyReplicas = 0
-				Expect(c.Status().Update(ctx, sts)).To(Succeed())
-
-				Eventually(func() error {
-					err := c.Get(ctx, client.ObjectKeyFromObject(instance), sts)
-					if err != nil {
-						return err
-					}
-
-					if sts.Status.ReadyReplicas > 0 {
-						return fmt.Errorf("No readyreplicas of statefulset should exist at this point")
-					}
-
-					err = c.Get(ctx, client.ObjectKeyFromObject(instance), instance)
-					if err != nil {
-						return err
-					}
-
-					if instance.Status.ReadyReplicas > 0 {
-						return fmt.Errorf("ReadyReplicas should be zero in ETCD instance")
-					}
-
-					return nil
-				}, timeout, pollingInterval).Should(BeNil())
-			})
-			AfterEach(func() {
-				ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-				defer cancel()
-
-				// Delete `etcd` instance
-				Expect(c.Delete(ctx, instance)).To(Succeed())
-				Eventually(func() error {
-					err := c.Get(ctx, client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
-					if err != nil {
-						return err
-					}
-
-					return c.Get(ctx, client.ObjectKeyFromObject(instance), sts)
-				}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
-			})
-		})
-	})
-
-	DescribeTable("when adding etcd resources with statefulset already present",
-		func(name string, setupStatefulSet StatefulSetInitializer) {
-			var sts *appsv1.StatefulSet
-			instance := getEtcd(name, "default", false)
-			c := mgr.GetClient()
-
-			switch setupStatefulSet {
-			case WithoutOwner:
-				sts = createStatefulset(name, "default", instance.Spec.Labels)
-				Expect(sts.OwnerReferences).Should(BeNil())
-			case WithOwnerReference:
-				sts = createStatefulsetWithOwnerReference(instance)
-				Expect(len(sts.OwnerReferences)).Should(Equal(1))
-			case WithOwnerAnnotation:
-				sts = createStatefulsetWithOwnerAnnotations(instance)
-			default:
-				Fail("StatefulSetInitializer invalid")
-			}
-			needsOwnerRefUpdate := len(sts.OwnerReferences) > 0
-			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-
-			// Create Secrets
-			errors := createSecrets(c, instance.Namespace, storeSecret)
-			Expect(len(errors)).Should(BeZero())
-
-			// Create StatefulSet
-			Expect(c.Create(context.TODO(), sts)).To(Succeed())
-
-			// Create StatefulSet
-			Expect(c.Create(context.TODO(), instance)).To(Succeed())
-
-			// Update OwnerRef with UID from just created `etcd` instance
-			if needsOwnerRefUpdate {
-				Eventually(func() error {
-					if err := c.Get(context.TODO(), client.ObjectKeyFromObject(instance), instance); err != nil {
-						return err
-					}
-					if instance.UID != "" {
-						instance.TypeMeta = metav1.TypeMeta{
-							APIVersion: "druid.gardener.cloud/v1alpha1",
-							Kind:       "etcd",
-						}
-						return nil
-					}
-					return fmt.Errorf("etcd object not yet created")
-				}, timeout, pollingInterval).Should(BeNil())
-				sts.OwnerReferences[0].UID = instance.UID
-				Expect(c.Update(context.TODO(), sts)).To(Succeed())
+			reconcileShouldSucceed = func() {
+				It("should reconcile successfully", func() {
+					Expect(reconcileErr).ToNot(HaveOccurred())
+					Expect(reconcileResult).To(Equal(ctrl.Result{}))
+				})
 			}
 
-			sts = &appsv1.StatefulSet{}
-			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
-			setStatefulSetReady(sts)
-			Expect(c.Status().Update(context.TODO(), sts)).To(Succeed())
-			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
-		},
-		Entry("when statefulset not owned by etcd, druid should adopt the statefulset", "foo20", WithoutOwner),
-		Entry("when statefulset owned by etcd with owner reference set, druid should remove ownerref and add annotations", "foo21", WithOwnerReference),
-		Entry("when statefulset owned by etcd with owner annotations set, druid should persist the annotations", "foo22", WithOwnerAnnotation),
-		Entry("when etcd has the spec changed, druid should reconcile statefulset", "foo3", WithoutOwner),
-	)
+			reconcileShouldRequeueAfter = func() {
+				It("should reconcile successfully but should requeue after", func() {
+					Expect(reconcileErr).ToNot(HaveOccurred())
+					Expect(reconcileResult.RequeueAfter).ToNot(BeNumerically("==", 0))
+				})
+			}
 
-	Describe("when adding etcd resources with statefulset already present", func() {
-		Context("when statefulset is in crashloopbackoff", func() {
-			var err error
-			var instance *druidv1alpha1.Etcd
-			var c client.Client
-			var p *corev1.Pod
-			var ss *appsv1.StatefulSet
-			BeforeEach(func() {
-				instance = getEtcd("foo4", "default", false)
-				Expect(err).NotTo(HaveOccurred())
-				c = mgr.GetClient()
-				p = createPod(fmt.Sprintf("%s-0", instance.Name), "default", instance.Spec.Labels)
-				ss = createStatefulset(instance.Name, instance.Namespace, instance.Spec.Labels)
-				Expect(c.Create(context.TODO(), p)).To(Succeed())
-				Expect(c.Create(context.TODO(), ss)).To(Succeed())
-				p.Status.ContainerStatuses = []corev1.ContainerStatus{
-					{
-						Name: "Container-0",
-						State: corev1.ContainerState{
-							Waiting: &corev1.ContainerStateWaiting{
-								Reason:  "CrashLoopBackOff",
-								Message: "Container is in CrashLoopBackOff.",
-							},
+			Describe("when listing leases", func() {
+				var (
+					lease        *coordinationv1.Lease
+					leaseListErr error
+
+					describeLeaseVariations = func(embedFn func()) {
+						Describe("fails", func() {
+							BeforeEach(func() {
+								leaseListErr = errors.New("error")
+							})
+
+							AfterEach(func() {
+								Expect(instance.Status.Members).To(Or(BeNil(), BeEmpty()), "Members status must be empty")
+							})
+
+							embedFn()
+						})
+
+						Describe("succeeds", func() {
+							BeforeEach(func() {
+								leaseListErr = nil
+							})
+
+							Describe("with no leases", func() {
+								BeforeEach(func() {
+									lease = nil
+								})
+
+								AfterEach(func() {
+									Expect(instance.Status.Members).To(Or(BeNil(), BeEmpty()), "Members status must be empty")
+								})
+
+								embedFn()
+							})
+
+							Describe("with a lease", func() {
+								var (
+									memberName string
+									memberID   string
+									memberRole druidv1alpha1.EtcdRole
+									renewTime  metav1.MicroTime
+								)
+
+								BeforeEach(func() {
+									memberName = fmt.Sprintf("%s-%d", instance.Name, 0)
+									memberID = "0"
+									memberRole = druidv1alpha1.EtcdRoleLeader
+									renewTime = metav1.NewMicroTime(time.Now())
+
+									lease = &coordinationv1.Lease{
+										ObjectMeta: metav1.ObjectMeta{
+											Name:      memberName,
+											Namespace: instance.Namespace,
+										},
+										Spec: coordinationv1.LeaseSpec{
+											HolderIdentity:       pointer.StringPtr(fmt.Sprintf("%s:%s", memberID, memberRole)),
+											LeaseDurationSeconds: pointer.Int32Ptr(300),
+											RenewTime:            &renewTime,
+										},
+									}
+								})
+
+								AfterEach(func() {
+									Expect(instance.Status.Members).To(ConsistOf(MatchFields(IgnoreExtras, Fields{
+										"Name":   Equal(memberName),
+										"ID":     PointTo(Equal(memberID)),
+										"Role":   PointTo(Equal(memberRole)),
+										"Status": Equal(druidv1alpha1.EtcdMemberStatusReady),
+										"Reason": Equal("LeaseSucceeded"),
+									})))
+								})
+
+								embedFn()
+							})
+						})
+					}
+				)
+
+				BeforeEach(func() {
+					cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&coordinationv1.LeaseList{}), gomock.Any()).DoAndReturn(
+						func(_ context.Context, target *coordinationv1.LeaseList, _ ...client.ListOption) error {
+							if leaseListErr != nil {
+								return leaseListErr
+							}
+
+							if lease == nil {
+								target.Items = nil
+							} else {
+								target.Items = []coordinationv1.Lease{*lease.DeepCopy()}
+							}
+
+							return nil
 						},
-					},
-				}
-				err = c.Status().Update(context.TODO(), p)
-				Expect(err).NotTo(HaveOccurred())
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
+					)
+				})
 
-			})
-			It("should restart pod", func() {
-				Expect(c.Create(context.TODO(), instance)).To(Succeed())
-				Eventually(func() error { return podDeleted(c, instance) }, timeout, pollingInterval).Should(BeNil())
-			})
-			AfterEach(func() {
-				s := &appsv1.StatefulSet{}
-				Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
-				setStatefulSetReady(s)
-				Expect(c.Status().Update(context.TODO(), s)).To(Succeed())
-				Expect(c.Delete(context.TODO(), instance)).To(Succeed())
-			})
-		})
-	})
+				Describe("without any statefulset", func() {
+					BeforeEach(func() {
+						mockListGetAndUpdateStatefulSet(cl).AnyTimes()
+					})
 
-	DescribeTable("when deleting etcd resources",
-		func(name string, setupStatefulSet StatefulSetInitializer) {
-			var sts *appsv1.StatefulSet
-			instance := getEtcd(name, "default", false)
-			c := mgr.GetClient()
+					describeLeaseVariations(func() {
+						reconcileShouldRequeueAfter()
 
-			switch setupStatefulSet {
-			case WithoutOwner:
-				sts = createStatefulset(name, "default", instance.Spec.Labels)
-				Expect(sts.OwnerReferences).Should(BeNil())
-			case WithOwnerReference:
-				sts = createStatefulsetWithOwnerReference(instance)
-				Expect(len(sts.OwnerReferences)).ShouldNot(BeZero())
-			case WithOwnerAnnotation:
-				sts = createStatefulsetWithOwnerAnnotations(instance)
-			default:
-				Fail("StatefulSetInitializer invalid")
-			}
-			stopCh := make(chan struct{})
-			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-			needsOwnerRefUpdate := len(sts.OwnerReferences) > 0
+						It("should mark etcd resource as not ready", func() {
+							Expect(instance.Status).To(MatchFields(IgnoreExtras, Fields{
+								"Ready":         PointTo(BeFalse()),
+								"ReadyReplicas": Equal(int32(0)),
+							}))
+						})
+					})
+				})
 
-			// Create Secrets
-			errors := createSecrets(c, instance.Namespace, storeSecret)
-			Expect(len(errors)).Should(BeZero())
+				Describe("with a statefulset", func() {
+					var (
+						sts *appsv1.StatefulSet
+					)
 
-			// Create StatefulSet
-			Expect(c.Create(context.TODO(), sts)).To(Succeed())
-
-			// Create StatefulSet
-			Expect(c.Create(context.TODO(), instance)).To(Succeed())
-
-			// Update OwnerRef with UID from just created `etcd` instance
-			if needsOwnerRefUpdate {
-				Eventually(func() error {
-					if err := c.Get(context.TODO(), client.ObjectKeyFromObject(instance), instance); err != nil {
-						return err
-					}
-					if instance.UID != "" {
-						instance.TypeMeta = metav1.TypeMeta{
-							APIVersion: "druid.gardener.cloud/v1alpha1",
-							Kind:       "etcd",
+					BeforeEach(func() {
+						sts = &appsv1.StatefulSet{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      instance.Name,
+								Namespace: instance.Namespace,
+							},
 						}
-						return nil
-					}
-					return fmt.Errorf("etcd object not yet created")
-				}, timeout, pollingInterval).Should(BeNil())
-				sts.OwnerReferences[0].UID = instance.UID
-				Expect(c.Update(context.TODO(), sts)).To(Succeed())
-			}
+						mockListGetAndUpdateStatefulSet(cl, sts).AnyTimes()
+					})
 
-			sts = &appsv1.StatefulSet{}
-			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
-			// This go-routine is to set that statefulset is ready manually as statefulset controller is absent for tests.
-			go func() {
-				for {
-					select {
-					case <-time.After(time.Second * 2):
-						Expect(setAndCheckStatefulSetReady(c, instance)).To(Succeed())
-					case <-stopCh:
-						return
-					}
-				}
-			}()
-			Eventually(func() error { return isEtcdReady(c, instance) }, timeout, pollingInterval).Should(BeNil())
-			close(stopCh)
-			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
-			Eventually(func() error { return statefulSetRemoved(c, sts) }, timeout, pollingInterval).Should(BeNil())
-			Eventually(func() error { return etcdRemoved(c, instance) }, timeout, pollingInterval).Should(BeNil())
-		},
-		Entry("when  statefulset with ownerReference and without owner annotations, druid should adopt and delete statefulset", "foo61", WithOwnerReference),
-		Entry("when statefulset without ownerReference and without owner annotations, druid should adopt and delete statefulset", "foo62", WithoutOwner),
-		Entry("when  statefulset without ownerReference and with owner annotations, druid should adopt and delete statefulset", "foo63", WithOwnerAnnotation),
-	)
+					Describe("if the statefulset is not claimed", func() {
+						describeLeaseVariations(func() {
+							reconcileShouldSucceed()
 
-	DescribeTable("when etcd resource is created",
-		func(name string, generateEtcd func(string, string) *druidv1alpha1.Etcd, validate func(*appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *druidv1alpha1.Etcd)) {
-			var err error
-			var instance *druidv1alpha1.Etcd
-			var c client.Client
-			var s *appsv1.StatefulSet
-			var cm *corev1.ConfigMap
-			var svc *corev1.Service
+							It("should mark etcd resource as not ready", func() {
+								Expect(instance.Status).To(MatchFields(IgnoreExtras, Fields{
+									"Ready":         PointTo(BeFalse()),
+									"ReadyReplicas": Equal(int32(0)),
+								}))
+							})
+						})
+					})
 
-			instance = generateEtcd(name, "default")
-			c = mgr.GetClient()
-			ns := corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: instance.Namespace,
-				},
-			}
+					Describe("if the statefulset is claimed", func() {
+						BeforeEach(func() {
+							sts.Annotations = map[string]string{
+								common.GardenerOwnedBy:   client.ObjectKeyFromObject(instance).String(),
+								common.GardenerOwnerType: strings.ToLower(etcdGVK.Kind),
+							}
+						})
 
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
+						Describe("if statefulset is ready", func() {
+							BeforeEach(func() {
+								setStatefulSetReady(sts)
+							})
 
-			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-			}
-			err = c.Create(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
-			s = &appsv1.StatefulSet{}
-			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
-			cm = &corev1.ConfigMap{}
-			Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
-			svc = &corev1.Service{}
-			Eventually(func() error { return serviceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
+							describeLeaseVariations(func() {
+								reconcileShouldSucceed()
 
-			validate(s, cm, svc, instance)
+								It("should mark etcd resource as ready", func() {
+									Expect(instance.Status).To(MatchFields(IgnoreExtras, Fields{
+										"Ready":         PointTo(BeTrue()),
+										"ReadyReplicas": Equal(int32(instance.Spec.Replicas)),
+									}))
+								})
+							})
+						})
 
-			setStatefulSetReady(s)
-			err = c.Status().Update(context.TODO(), s)
-			Expect(err).NotTo(HaveOccurred())
-		},
-		Entry("if fields are not set in etcd.Spec, the statefulset should reflect the spec changes", "foo51", getEtcdWithDefault, validateEtcdWithDefaults),
-		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", "foo52", getEtcdWithTLS, validateEtcd),
-		Entry("if the store is GCS, the statefulset should reflect the spec changes", "foo53", getEtcdWithGCS, validateStoreGCP),
-		Entry("if the store is S3, the statefulset should reflect the spec changes", "foo54", getEtcdWithS3, validateStoreAWS),
-		Entry("if the store is ABS, the statefulset should reflect the spec changes", "foo55", getEtcdWithABS, validateStoreAzure),
-		Entry("if the store is Swift, the statefulset should reflect the spec changes", "foo56", getEtcdWithSwift, validateStoreOpenstack),
-		Entry("if the store is OSS, the statefulset should reflect the spec changes", "foo57", getEtcdWithOSS, validateStoreAlicloud),
-	)
+						Describe("if statefulset is not ready", func() {
+							describeLeaseVariations(func() {
+								reconcileShouldSucceed()
 
-	DescribeTable("when etcd resource is created with backupCompactionSchedule field",
-		func(name string, generateEtcd func(string, string) *druidv1alpha1.Etcd, validate func(*appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *batchv1.CronJob, *druidv1alpha1.Etcd)) {
-			var err error
-			var instance *druidv1alpha1.Etcd
-			var c client.Client
-			var s *appsv1.StatefulSet
-			var cm *corev1.ConfigMap
-			var svc *corev1.Service
-			var cj *batchv1.CronJob
+								It("should mark etcd resource as not ready", func() {
+									Expect(instance.Status).To(MatchFields(IgnoreExtras, Fields{
+										"Ready":         PointTo(BeFalse()),
+										"ReadyReplicas": Equal(int32(0)),
+									}))
+								})
+							})
+						})
+					})
 
-			instance = generateEtcd(name, "default")
-			c = mgr.GetClient()
-			ns := corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: instance.Namespace,
-				},
-			}
-
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
-
-			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-			}
-			err = c.Create(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
-			s = &appsv1.StatefulSet{}
-			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
-			cm = &corev1.ConfigMap{}
-			Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
-			svc = &corev1.Service{}
-			Eventually(func() error { return serviceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
-			cj = &batchv1.CronJob{}
-			Eventually(func() error { return cronJobIsCorrectlyReconciled(c, instance, cj) }, timeout, pollingInterval).Should(BeNil())
-
-			//validate(s, cm, svc, instance)
-			validate(s, cm, svc, cj, instance)
-
-			setStatefulSetReady(s)
-			err = c.Status().Update(context.TODO(), s)
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
-			Eventually(func() error { return statefulSetRemoved(c, s) }, timeout, pollingInterval).Should(BeNil())
-			Eventually(func() error { return etcdRemoved(c, instance) }, timeout, pollingInterval).Should(BeNil())
-		},
-		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", "foo42", getEtcdWithCmpctScheduleTLS, validateEtcdWithCronjob),
-		Entry("if the store is GCS, the statefulset and cronjob should reflect the spec changes", "foo43", getEtcdWithCmpctScheduleGCS, validateStoreGCPWithCronjob),
-		Entry("if the store is S3, the statefulset and cronjob should reflect the spec changes", "foo44", getEtcdWithCmpctScheduleS3, validateStoreAWSWithCronjob),
-		Entry("if the store is ABS, the statefulset and cronjob should reflect the spec changes", "foo45", getEtcdWithCmpctScheduleABS, validateStoreAzureWithCronjob),
-		Entry("if the store is Swift, the statefulset and cronjob should reflect the spec changes", "foo46", getEtcdWithCmpctScheduleSwift, validateStoreOpenstackWithCronjob),
-		Entry("if the store is OSS, the statefulset and cronjob should reflect the spec changes", "foo47", getEtcdWithCmpctScheduleOSS, validateStoreAlicloudWithCronjob),
-	)
-
-	Describe("with etcd resources without backupCompactionScheduled field", func() {
-		Context("when creating an etcd object", func() {
-			It("should not create a cronjob", func() {
-				var err error
-				var instance *druidv1alpha1.Etcd
-				var c client.Client
-				var s *appsv1.StatefulSet
-				var cm *corev1.ConfigMap
-				var svc *corev1.Service
-				var cj *batchv1.CronJob
-
-				instance = getEtcd("foo48", "default", true)
-				c = mgr.GetClient()
-				ns := corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: instance.Namespace,
-					},
-				}
-
-				_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
-				Expect(err).To(Not(HaveOccurred()))
-
-				if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
-					storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-					errors := createSecrets(c, instance.Namespace, storeSecret)
-					Expect(len(errors)).Should(BeZero())
-				}
-				err = c.Create(context.TODO(), instance)
-				Expect(err).NotTo(HaveOccurred())
-				s = &appsv1.StatefulSet{}
-				Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
-				cm = &corev1.ConfigMap{}
-				Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
-				svc = &corev1.Service{}
-				Eventually(func() error { return serviceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
-				cj = &batchv1.CronJob{}
-				Eventually(func() error { return cronJobIsCorrectlyReconciled(c, instance, cj) }, timeout, pollingInterval).ShouldNot(BeNil())
-
-				setStatefulSetReady(s)
-				err = c.Status().Update(context.TODO(), s)
-				Expect(err).NotTo(HaveOccurred())
-
-				Expect(c.Delete(context.TODO(), instance)).To(Succeed())
-				Eventually(func() error { return statefulSetRemoved(c, s) }, timeout, pollingInterval).Should(BeNil())
-				Eventually(func() error { return etcdRemoved(c, instance) }, timeout, pollingInterval).Should(BeNil())
-			})
-		})
-
-		Context("when an existing cronjob is already present", func() {
-			It("should delete the existing cronjob", func() {
-				var err error
-				var instance *druidv1alpha1.Etcd
-				var c client.Client
-				var s *appsv1.StatefulSet
-				var cm *corev1.ConfigMap
-				var svc *corev1.Service
-				var cj *batchv1.CronJob
-
-				ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-				defer cancel()
-
-				instance = getEtcd("foo49", "default", true)
-				c = mgr.GetClient()
-				ns := corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: instance.Namespace,
-					},
-				}
-
-				// Create CronJob
-				cj = createCronJob(getCronJobName(instance), instance.Namespace, instance.Spec.Labels)
-				Expect(c.Create(ctx, cj)).To(Succeed())
-				Eventually(func() error { return cronJobIsCorrectlyReconciled(c, instance, cj) }, timeout, pollingInterval).Should(BeNil())
-
-				_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
-				Expect(err).To(Not(HaveOccurred()))
-
-				if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
-					storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-					errors := createSecrets(c, instance.Namespace, storeSecret)
-					Expect(len(errors)).Should(BeZero())
-				}
-				err = c.Create(context.TODO(), instance)
-				Expect(err).NotTo(HaveOccurred())
-
-				s = &appsv1.StatefulSet{}
-				Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
-				cm = &corev1.ConfigMap{}
-				Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
-				svc = &corev1.Service{}
-				Eventually(func() error { return serviceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
-				//Cronjob should not exist
-				cj = &batchv1.CronJob{}
-				Eventually(func() error { return cronJobRemoved(c, cj) }, timeout, pollingInterval).Should(BeNil())
-
-				setStatefulSetReady(s)
-				err = c.Status().Update(context.TODO(), s)
-				Expect(err).NotTo(HaveOccurred())
-
-				Expect(c.Delete(context.TODO(), instance)).To(Succeed())
-				Eventually(func() error { return statefulSetRemoved(c, s) }, timeout, pollingInterval).Should(BeNil())
-				Eventually(func() error { return etcdRemoved(c, instance) }, timeout, pollingInterval).Should(BeNil())
+				})
 			})
 		})
 	})
 
+	Describe("EtcdReconciler", func() {
+		var etcdReconciler *EtcdReconciler
+
+		BeforeEach(func() {
+			var err error
+
+			etcdReconciler, err = createEtcdReconciler(cl)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Describe("Reconcile", func() {
+			var (
+				reconcileResult               ctrl.Result
+				reconcileErr                  error
+				reconcileShouldSucceed        func()
+				reconcileShouldFailAndRequeue func()
+			)
+
+			JustBeforeEach(func() {
+				mockGetAndUpdateEtcd(cl, sw, instance).AnyTimes()
+
+				reconcileResult, reconcileErr = etcdReconciler.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(instance)})
+			})
+
+			reconcileShouldSucceed = func() {
+				It("should reconcile successfully", func() {
+					Expect(reconcileErr).ToNot(HaveOccurred())
+					Expect(reconcileResult).To(Equal(ctrl.Result{}))
+				})
+			}
+
+			reconcileShouldFailAndRequeue = func() {
+				It("should fail to reconcile and should requeue", func() {
+					Expect(reconcileErr).To(HaveOccurred())
+					Expect(reconcileResult).To(Equal(ctrl.Result{Requeue: true}))
+				})
+			}
+
+			Describe("when backup secrets are present", func() {
+				var backupSecret *corev1.Secret
+
+				BeforeEach(func() {
+					backupSecret = getSecret(instance.Spec.Backup.Store.SecretRef.Name, instance.Namespace)
+					mockGetAndUpdateSecrets(cl, backupSecret).AnyTimes()
+				})
+
+				Describe("delete", func() {
+					BeforeEach(func() {
+						instance.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+						instance.Finalizers = append(instance.Finalizers, FinalizerName)
+						backupSecret.Finalizers = append(backupSecret.Finalizers, FinalizerName)
+					})
+
+					Describe("on patching finalizers successfully", func() {
+						BeforeEach(func() {
+							expectPatchType := types.MergePatchType
+							expectPatchData := []byte(`{"metadata":{"finalizers":null}}`)
+
+							cl.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(instance), gomock.Any()).DoAndReturn(
+								func(_ context.Context, src *druidv1alpha1.Etcd, p client.Patch) error {
+									Expect(p).ToNot(BeNil())
+									Expect(p.Type()).To(Equal(expectPatchType))
+									Expect(p.Data(src)).To(Equal(expectPatchData))
+
+									instance.Finalizers = nil
+									return nil
+								},
+							)
+
+							cl.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(backupSecret), gomock.Any()).DoAndReturn(
+								func(_ context.Context, src *corev1.Secret, p client.Patch) error {
+									Expect(p).ToNot(BeNil())
+									Expect(p.Type()).To(Equal(expectPatchType))
+									Expect(p.Data(src)).To(Equal(expectPatchData))
+
+									backupSecret.Finalizers = nil
+									return nil
+								},
+							)
+						})
+
+						AfterEach(func() {
+							Expect(backupSecret.Finalizers).To(BeEmpty(), "finalizers should be removed from the backup secret")
+							Expect(instance.Finalizers).To(BeEmpty(), "finalizer should be removed from the etcd resource")
+						})
+
+						Describe("without any statefulset", func() {
+							BeforeEach(func() {
+								mockListGetAndUpdateStatefulSet(cl).AnyTimes()
+							})
+
+							reconcileShouldSucceed()
+						})
+
+						Describe("with a statefulset", func() {
+							var (
+								sts *appsv1.StatefulSet
+							)
+
+							BeforeEach(func() {
+								sts = &appsv1.StatefulSet{
+									ObjectMeta: metav1.ObjectMeta{
+										Name:      instance.Name,
+										Namespace: instance.Namespace,
+									},
+								}
+								mockListGetAndUpdateStatefulSet(cl, sts).AnyTimes()
+							})
+
+							Describe("if statefulset is not claimed", func() {
+								reconcileShouldSucceed()
+
+								It("should not delete the statefulset", func() {
+									Expect(sts.DeletionTimestamp).To(BeNil())
+								})
+							})
+
+							Describe("if statefulset is claimed", func() {
+								BeforeEach(func() {
+									cl.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(sts), gomock.Any()).DoAndReturn(
+										func(_ context.Context, _ *appsv1.StatefulSet, _ ...client.DeleteOption) error {
+											sts.DeletionTimestamp = instance.DeletionTimestamp
+											return nil
+										},
+									)
+								})
+
+								AfterEach(func() {
+									Expect(sts.DeletionTimestamp).ToNot(BeNil(), "statefulset should be deleted")
+								})
+
+								Describe("statefulset has owner references", func() {
+									BeforeEach(func() {
+										sts.OwnerReferences = []metav1.OwnerReference{
+											{
+												APIVersion:         etcdGVK.GroupVersion().String(),
+												Kind:               strings.ToLower(etcdGVK.Kind),
+												Name:               instance.Name,
+												UID:                instance.UID,
+												Controller:         pointer.BoolPtr(true),
+												BlockOwnerDeletion: pointer.BoolPtr(true),
+											},
+										}
+									})
+
+									reconcileShouldSucceed()
+								})
+
+								Describe("statefulset has owner annotations", func() {
+									BeforeEach(func() {
+										sts.Annotations = map[string]string{
+											common.GardenerOwnedBy:   client.ObjectKeyFromObject(instance).String(),
+											common.GardenerOwnerType: strings.ToLower(etcdGVK.Kind),
+										}
+									})
+
+									reconcileShouldSucceed()
+								})
+							})
+						})
+					})
+				})
+
+				Describe("create or update", func() {
+					AfterEach(func() {
+						Expect(instance.Finalizers).To(ContainElement(FinalizerName), "etcd resource should have finalizer added")
+
+						if instance.Spec.Backup.Store != nil {
+							Expect(backupSecret.Finalizers).To(ContainElement(FinalizerName), "backup secret should have finalizer added")
+						}
+					})
+
+					Describe("without services and configmaps", func() {
+						var (
+							svc *corev1.Service
+							cm  *corev1.ConfigMap
+						)
+
+						BeforeEach(func() {
+							mockListGetAndUpdateService(cl).Times(1)
+							mockListGetAndUpdateConfigMap(cl).Times(1)
+
+							svc = &corev1.Service{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      getServiceNameFor(instance),
+									Namespace: instance.Namespace,
+								},
+							}
+							mockListGetAndUpdateService(cl, svc).AnyTimes().After(
+								cl.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(svc), gomock.Any()).DoAndReturn(
+									func(_ context.Context, src *corev1.Service) error {
+										src.DeepCopyInto(svc)
+										return nil
+									},
+								),
+							)
+
+							cm = &corev1.ConfigMap{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      getConfigMapNameFor(instance),
+									Namespace: instance.Namespace,
+								},
+							}
+							mockListGetAndUpdateConfigMap(cl, cm).AnyTimes().After(
+								cl.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(cm), gomock.Any()).DoAndReturn(
+									func(_ context.Context, src *corev1.ConfigMap) error {
+										src.DeepCopyInto(cm)
+										return nil
+									},
+								),
+							)
+						})
+
+						AfterEach(func() {
+							Expect(client.ObjectKeyFromObject(svc)).To(Equal(client.ObjectKey{
+								Name:      getServiceNameFor(instance),
+								Namespace: instance.Namespace,
+							}))
+							Expect(client.ObjectKeyFromObject(cm)).To(Equal(client.ObjectKey{
+								Name:      getConfigMapNameFor(instance),
+								Namespace: instance.Namespace,
+							}))
+
+							Expect(svc).To(PointTo(MatchFields(IgnoreExtras, Fields{
+								"ObjectMeta": MatchFields(IgnoreExtras, Fields{
+									"OwnerReferences": ContainElement(MatchFields(IgnoreExtras, Fields{
+										"UID": Equal(instance.UID),
+									})),
+								}),
+							})))
+
+							Expect(cm).To(PointTo(MatchFields(IgnoreExtras, Fields{
+								"ObjectMeta": MatchFields(IgnoreExtras, Fields{
+									"OwnerReferences": ContainElement(MatchFields(IgnoreExtras, Fields{
+										"UID": Equal(instance.UID),
+									})),
+								}),
+							})))
+						})
+
+						Describe("statefulset success", func() {
+							var (
+								sts                                 *appsv1.StatefulSet
+								describeStatefulSetReady            func(doMarkStatefulSetAsReady func())
+								describeStatefulSetReadyAndNotReady func(doMarkStatefulSetAsReady func(), checkPVC bool)
+								cj                                  *batchv1beta1.CronJob
+							)
+
+							describeStatefulSetReady = func(doMarkStatefulSetAsReady func()) {
+								Describe("when statefulset is ready", func() {
+									BeforeEach(func() {
+										doMarkStatefulSetAsReady()
+									})
+
+									reconcileShouldSucceed()
+
+									It("should mark etcd resource as ready", func() {
+										Expect(instance.Status.Ready).To(PointTo(BeTrue()))
+									})
+								})
+							}
+							describeStatefulSetReadyAndNotReady = func(doMarkStatefulSetAsReady func(), checkPVC bool) {
+								describeStatefulSetReady(doMarkStatefulSetAsReady)
+
+								Describe("when statefulset is not ready", func() {
+									var (
+										pvcName string
+
+										// Save original wait period so that it can be restored later
+										oldDefaultInterval = DefaultInterval
+										oldDefaultTimeout  = DefaultTimeout
+									)
+
+									BeforeEach(func() {
+										// Shorten the wait period because statefulset is not going to be ready anyway
+										DefaultInterval = 1 * time.Millisecond
+										DefaultTimeout = 2 * DefaultInterval
+
+										if checkPVC {
+											// Create PVC
+											pvcName := fmt.Sprintf("%s-%s-%d", volumeClaimTemplateName, sts.Name, 0)
+											mockListPVC(cl, &corev1.PersistentVolumeClaim{
+												ObjectMeta: metav1.ObjectMeta{
+													Name:      pvcName,
+													Namespace: sts.Namespace,
+												},
+												Spec: corev1.PersistentVolumeClaimSpec{
+													AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+													Resources: corev1.ResourceRequirements{
+														Requests: corev1.ResourceList{
+															corev1.ResourceStorage: resource.MustParse("1Gi"),
+														},
+													},
+												},
+											}).AnyTimes()
+										} else {
+											mockListPVC(cl).AnyTimes()
+										}
+									})
+
+									AfterEach(func() {
+										// Restore original wait period
+										DefaultInterval = oldDefaultInterval
+										DefaultTimeout = oldDefaultTimeout
+
+										Expect(instance.Status).To(MatchFields(IgnoreExtras, Fields{
+											"Ready":     Not(PointTo(BeTrue())), // should not be ready
+											"LastError": Not(BeNil()),           // should report error
+										}))
+									})
+
+									if checkPVC {
+										Describe("when PVCs are provisioned properly", func() {
+											BeforeEach(func() {
+												mockListEvents(cl).AnyTimes()
+											})
+
+											reconcileShouldFailAndRequeue()
+										})
+
+										Describe("when PVCs fail to provision", func() {
+											var pvcMessage string
+
+											BeforeEach(func() {
+												// Create PVC warning Event
+												pvcMessage = "Failed to provision volume"
+												mockListEvents(cl, &corev1.Event{
+													ObjectMeta: metav1.ObjectMeta{
+														Name:      "pvc-event-1",
+														Namespace: sts.Namespace,
+													},
+													InvolvedObject: corev1.ObjectReference{
+														APIVersion: "v1",
+														Kind:       "PersistentVolumeClaim",
+														Name:       pvcName,
+														Namespace:  sts.Namespace,
+													},
+													Type:    corev1.EventTypeWarning,
+													Message: pvcMessage,
+												}).AnyTimes()
+											})
+
+											reconcileShouldFailAndRequeue()
+
+											It("should report error events in etcd resource status", func() {
+												Expect(instance.Status.LastError).To(PointTo(ContainSubstring(pvcMessage)))
+											})
+										})
+									} else {
+										reconcileShouldFailAndRequeue()
+									}
+								})
+							}
+
+							AfterEach(func() {
+								Expect(client.ObjectKeyFromObject(sts)).To(Equal(client.ObjectKeyFromObject(instance)))
+
+								Expect(sts).To(PointTo(MatchFields(IgnoreExtras, Fields{
+									"ObjectMeta": MatchFields(IgnoreExtras, Fields{
+										"Annotations": MatchKeys(IgnoreExtras, Keys{
+											common.GardenerOwnedBy:   Equal(client.ObjectKeyFromObject(instance).String()),
+											common.GardenerOwnerType: Equal(strings.ToLower(etcdGVK.Kind)),
+										}),
+										"OwnerReferences": Not(ContainElement(MatchFields(IgnoreExtras, Fields{
+											"UID": Equal(instance.UID),
+										}))),
+									}),
+									"Spec": MatchFields(IgnoreExtras, Fields{
+										"Replicas": PointTo(Equal(int32(instance.Spec.Replicas))),
+									}),
+								})))
+							})
+
+							Describe("without statefulset", func() {
+								var (
+									createStatefulSetCall          *gomock.Call
+									setStatefulSetReadyAfterCreate = func() {
+										createStatefulSetCall.Do(
+											func(_ context.Context, _ *appsv1.StatefulSet) {
+												setStatefulSetReady(sts)
+											},
+										)
+									}
+								)
+
+								BeforeEach(func() {
+									mockListGetAndUpdateStatefulSet(cl).Times(1)
+
+									sts = &appsv1.StatefulSet{
+										ObjectMeta: metav1.ObjectMeta{
+											Name:      instance.Name,
+											Namespace: instance.Namespace,
+										},
+									}
+
+									createStatefulSetCall = cl.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(sts), gomock.Any()).DoAndReturn(
+										func(_ context.Context, src *appsv1.StatefulSet) error {
+											src.DeepCopyInto(sts)
+
+											return nil
+										},
+									)
+									mockListGetAndUpdateStatefulSet(cl, sts).AnyTimes().After(createStatefulSetCall)
+								})
+
+								AfterEach(func() {
+									if instance.Status.Ready != nil && *instance.Status.Ready {
+										Expect(instance.Status.ClusterSize).To(
+											PointTo(Equal(int32(instance.Spec.Replicas))),
+											"Status cluster size should be re-initialized in the bootstrap case",
+										)
+									}
+								})
+
+								Describe("with cronjob", func() {
+									BeforeEach(func() {
+										cj = &batchv1beta1.CronJob{
+											ObjectMeta: metav1.ObjectMeta{
+												Name:      getCronJobName(instance),
+												Namespace: instance.Namespace,
+											},
+										}
+										mockListGetAndUpdateCronJob(cl, cj).AnyTimes()
+
+										cl.EXPECT().Delete(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(cj), HasSameNamespacedNameAs(cj)), gomock.Any()).DoAndReturn(
+											func(_ context.Context, _ *batchv1beta1.CronJob, _ ...client.DeleteOption) error {
+												cj.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+												return nil
+											},
+										).AnyTimes()
+									})
+
+									AfterEach(func() {
+										Expect(cj.DeletionTimestamp).ToNot(BeNil(), "cronjob should be deleted")
+										cj = nil
+									})
+
+									Describe("without backup compaction schedule", func() {
+										describeStatefulSetReady(setStatefulSetReadyAfterCreate)
+									})
+								})
+
+								Describe("without cronjob", func() {
+									var describeGeneratedResourceValidation = func(
+										spec string,
+										generateEtcd func(string, string) *druidv1alpha1.Etcd,
+										validate func(*appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *batchv1beta1.CronJob, *druidv1alpha1.Etcd),
+									) {
+										Describe(spec, func() {
+											var tlsSecrets []*corev1.Secret
+
+											BeforeEach(func() {
+												generateEtcd(instance.Name, instance.Namespace).DeepCopyInto(instance)
+
+												if instance.Spec.Etcd.TLS != nil {
+													var tls = instance.Spec.Etcd.TLS
+													for _, secretName := range []string{
+														tls.ServerTLSSecretRef.Name,
+														tls.ClientTLSSecretRef.Name,
+														tls.TLSCASecretRef.Name,
+													} {
+														tlsSecrets = append(tlsSecrets, getSecret(secretName, instance.Namespace))
+													}
+
+													mockGetAndUpdateSecrets(cl, tlsSecrets...).AnyTimes()
+												}
+											})
+
+											AfterEach(func() {
+												validate(sts, cm, svc, cj, instance)
+
+												if instance.Spec.Etcd.TLS != nil {
+													for _, secret := range tlsSecrets {
+														Expect(secret.Finalizers).To(ContainElement(FinalizerName), "TLS secret should have finalizer added")
+													}
+												}
+
+												tlsSecrets = nil
+											})
+
+											describeStatefulSetReady(setStatefulSetReadyAfterCreate)
+										})
+									}
+
+									BeforeEach(func() {
+										cj = nil
+										mockListGetAndUpdateCronJob(cl).Times(1).After(
+											cl.EXPECT().Get(
+												gomock.Any(),
+												types.NamespacedName{
+													Name:      getCronJobName(instance),
+													Namespace: instance.Namespace,
+												},
+												gomock.AssignableToTypeOf(cj),
+											).Return(errors.New("error")),
+										)
+									})
+
+									Describe("without backup compaction schedule", func() {
+										describeStatefulSetReadyAndNotReady(setStatefulSetReadyAfterCreate, true)
+
+										Describe("validation of generated resources", func() {
+											describeGeneratedResourceValidation("if fields are not set in etcd.Spec, the statefulset should reflect the spec changes", getEtcdWithDefault, validateEtcdWithDefaults)
+											describeGeneratedResourceValidation("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", getEtcdWithTLS, validateEtcd)
+											describeGeneratedResourceValidation("if the store is GCS, the statefulset should reflect the spec changes", getEtcdWithGCS, validateStoreGCP)
+											describeGeneratedResourceValidation("if the store is S3, the statefulset should reflect the spec changes", getEtcdWithS3, validateStoreAWS)
+											describeGeneratedResourceValidation("if the store is ABS, the statefulset should reflect the spec changes", getEtcdWithABS, validateStoreAzure)
+											describeGeneratedResourceValidation("if the store is Swift, the statefulset should reflect the spec changes", getEtcdWithSwift, validateStoreOpenstack)
+											describeGeneratedResourceValidation("if the store is OSS, the statefulset should reflect the spec changes", getEtcdWithOSS, validateStoreAlicloud)
+										})
+									})
+
+									Describe("with backup compaction schedule", func() {
+										BeforeEach(func() {
+											cj = &batchv1beta1.CronJob{
+												ObjectMeta: metav1.ObjectMeta{
+													Name:      getCronJobName(instance),
+													Namespace: instance.Namespace,
+												},
+											}
+											mockListGetAndUpdateCronJob(cl, cj).AnyTimes().After(
+												cl.EXPECT().Create(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(cj), HasSameNamespacedNameAs(cj)), gomock.Any()).DoAndReturn(
+													func(_ context.Context, src *batchv1beta1.CronJob) error {
+														src.DeepCopyInto(cj)
+														return nil
+													},
+												),
+											)
+										})
+
+										AfterEach(func() {
+											Expect(cj).To(PointTo(MatchFields(IgnoreExtras, Fields{
+												"ObjectMeta": MatchFields(IgnoreExtras, Fields{
+													"OwnerReferences": ContainElement(MatchFields(IgnoreExtras, Fields{
+														"UID": Equal(instance.UID),
+													})),
+												}),
+											})))
+
+											cj = nil
+										})
+
+										Describe("validation of generated resources", func() {
+											describeGeneratedResourceValidation("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", getEtcdWithCmpctScheduleTLS, validateEtcdWithCronjob)
+											describeGeneratedResourceValidation("if the store is GCS, the statefulset and cronjob should reflect the spec changes", getEtcdWithCmpctScheduleGCS, validateStoreGCPWithCronjob)
+											describeGeneratedResourceValidation("if the store is S3, the statefulset and cronjob should reflect the spec changes", getEtcdWithCmpctScheduleS3, validateStoreAWSWithCronjob)
+											describeGeneratedResourceValidation("if the store is ABS, the statefulset and cronjob should reflect the spec changes", getEtcdWithCmpctScheduleABS, validateStoreAzureWithCronjob)
+											describeGeneratedResourceValidation("if the store is Swift, the statefulset and cronjob should reflect the spec changes", getEtcdWithCmpctScheduleSwift, validateStoreOpenstackWithCronjob)
+											describeGeneratedResourceValidation("if the store is OSS, the statefulset and cronjob should reflect the spec changes", getEtcdWithCmpctScheduleOSS, validateStoreAlicloudWithCronjob)
+										})
+									})
+								})
+							})
+
+							Describe("with a statefulset", func() {
+								var (
+									patchStatefulSetCall          *gomock.Call
+									describeWithAndWithoutPods    func()
+									setStatefulSetReadyAfterPatch = func() {
+										patchStatefulSetCall.Do(
+											func(_ context.Context, _ *appsv1.StatefulSet, _ client.Patch) {
+												setStatefulSetReady(sts)
+											},
+										)
+									}
+								)
+
+								BeforeEach(func() {
+									sts = createStatefulset(instance.Name, "default", instance.Spec.Labels)
+									mockListGetAndUpdateStatefulSet(cl, sts).AnyTimes()
+
+									patchStatefulSetCall = cl.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(sts), gomock.Any()).DoAndReturn(
+										func(_ context.Context, src *appsv1.StatefulSet, _ client.Patch) error {
+											src.DeepCopyInto(sts)
+											return nil
+										},
+									).AnyTimes()
+
+									//Without cronjob
+									mockListGetAndUpdateCronJob(cl).Times(1).After(
+										cl.EXPECT().Get(
+											gomock.Any(),
+											types.NamespacedName{
+												Name:      getCronJobName(instance),
+												Namespace: instance.Namespace,
+											},
+											gomock.AssignableToTypeOf(cj),
+										).Return(errors.New("error")),
+									)
+								})
+
+								describeWithAndWithoutPods = func() {
+									Describe("when there are no pods", func() {
+										BeforeEach(func() {
+											mockListPods(cl)
+										})
+
+										describeStatefulSetReadyAndNotReady(func() {
+											patchStatefulSetCall.Do(
+												func(_ context.Context, _ *appsv1.StatefulSet, _ client.Patch) {
+													setStatefulSetReady(sts)
+												},
+											)
+										}, false)
+									})
+
+									Describe("when there are enough pods", func() {
+										var pods []*corev1.Pod
+
+										BeforeEach(func() {
+											pods = append(pods, createPod(fmt.Sprintf("%s-0", instance.Name), instance.Namespace, instance.Spec.Labels))
+											mockListPods(cl, pods...)
+										})
+
+										AfterEach(func() {
+											pods = nil
+										})
+
+										Describe("when pods are not in CrashloopBackoff", func() {
+											describeStatefulSetReadyAndNotReady(setStatefulSetReadyAfterPatch, false)
+										})
+
+										Describe("when pods are in CrashloopBackoff", func() {
+											BeforeEach(func() {
+												// In the multi-node scenario, this can be tweaked to only crash a subset of pods
+												for _, pod := range pods {
+													pod.Status.ContainerStatuses = []corev1.ContainerStatus{
+														{
+															Name: "Container-0",
+															State: corev1.ContainerState{
+																Waiting: &corev1.ContainerStateWaiting{
+																	Reason:  "CrashLoopBackOff",
+																	Message: "Container is in CrashLoopBackOff.",
+																},
+															},
+														},
+													}
+												}
+
+												cl.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Pod{}), gomock.Any()).DoAndReturn(
+													func(_ context.Context, src *corev1.Pod, _ ...client.DeleteOption) error {
+														for _, p := range pods {
+															if p.Name == src.Name {
+																p.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+															}
+														}
+														return nil
+													},
+												).AnyTimes()
+											})
+
+											AfterEach(func() {
+												for _, p := range pods {
+													Expect(p.DeletionTimestamp).ToNot(BeNil(), "crashing pod should be deleted")
+												}
+											})
+
+											describeStatefulSetReadyAndNotReady(setStatefulSetReadyAfterPatch, false)
+										})
+									})
+								}
+
+								Describe("if the statefulset is not claimed in anyway", func() {
+									describeWithAndWithoutPods()
+								})
+
+								Describe("if the statefulset has been claimed", func() {
+									Describe("if the statefulset has owner references", func() {
+										BeforeEach(func() {
+											sts.OwnerReferences = []metav1.OwnerReference{
+												{
+													APIVersion:         etcdGVK.GroupVersion().String(),
+													Kind:               strings.ToLower(etcdGVK.Kind),
+													Name:               instance.Name,
+													UID:                instance.UID,
+													Controller:         pointer.BoolPtr(true),
+													BlockOwnerDeletion: pointer.BoolPtr(true),
+												},
+											}
+										})
+
+										describeWithAndWithoutPods()
+									})
+
+									Describe("if the statefulset has owner annotations", func() {
+										BeforeEach(func() {
+											sts.Annotations = map[string]string{
+												common.GardenerOwnedBy:   client.ObjectKeyFromObject(instance).String(),
+												common.GardenerOwnerType: strings.ToLower(etcdGVK.Kind),
+											}
+										})
+
+										describeWithAndWithoutPods()
+									})
+								})
+							})
+						})
+					})
+				})
+			})
+		})
+	})
 })
 
-func podDeleted(c client.Client, etcd *druidv1alpha1.Etcd) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	pod := &corev1.Pod{}
-	req := types.NamespacedName{
-		Name:      fmt.Sprintf("%s-0", etcd.Name),
-		Namespace: etcd.Namespace,
-	}
-	if err := c.Get(ctx, req, pod); err != nil {
-		if errors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers
-			return nil
-		}
-		return err
-	}
-	return fmt.Errorf("pod not deleted")
-
-}
-
-func validateEtcdWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1.CronJob, instance *druidv1alpha1.Etcd) {
-	validateEtcd(s, cm, svc, instance)
+func validateEtcdWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1beta1.CronJob, instance *druidv1alpha1.Etcd) {
+	validateEtcd(s, cm, svc, cj, instance)
 
 	store, err := utils.StorageProviderFromInfraProvider(instance.Spec.Backup.Store.Provider)
 	Expect(err).NotTo(HaveOccurred())
@@ -825,7 +1128,7 @@ func validateEtcdWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *c
 			}),
 		}),
 		"Spec": MatchFields(IgnoreExtras, Fields{
-			"ConcurrencyPolicy": Equal(batchv1.ForbidConcurrent),
+			"ConcurrencyPolicy": Equal(batchv1beta1.ForbidConcurrent),
 			"JobTemplate": MatchFields(IgnoreExtras, Fields{
 				"Spec": MatchFields(IgnoreExtras, Fields{
 					"BackoffLimit": PointTo(Equal(int32(0))),
@@ -908,8 +1211,8 @@ func validateEtcdWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *c
 	}))
 }
 
-func validateStoreGCPWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1.CronJob, instance *druidv1alpha1.Etcd) {
-	validateStoreGCP(s, cm, svc, instance)
+func validateStoreGCPWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1beta1.CronJob, instance *druidv1alpha1.Etcd) {
+	validateStoreGCP(s, cm, svc, cj, instance)
 
 	Expect(*cj).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
@@ -981,8 +1284,8 @@ func validateStoreGCPWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, sv
 	}))
 }
 
-func validateStoreAWSWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1.CronJob, instance *druidv1alpha1.Etcd) {
-	validateStoreAWS(s, cm, svc, instance)
+func validateStoreAWSWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1beta1.CronJob, instance *druidv1alpha1.Etcd) {
+	validateStoreAWS(s, cm, svc, cj, instance)
 
 	Expect(*cj).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
@@ -1046,8 +1349,8 @@ func validateStoreAWSWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, sv
 	}))
 }
 
-func validateStoreAzureWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1.CronJob, instance *druidv1alpha1.Etcd) {
-	validateStoreAzure(s, cm, svc, instance)
+func validateStoreAzureWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1beta1.CronJob, instance *druidv1alpha1.Etcd) {
+	validateStoreAzure(s, cm, svc, cj, instance)
 
 	Expect(*cj).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
@@ -1100,8 +1403,8 @@ func validateStoreAzureWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, 
 	}))
 }
 
-func validateStoreOpenstackWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1.CronJob, instance *druidv1alpha1.Etcd) {
-	validateStoreOpenstack(s, cm, svc, instance)
+func validateStoreOpenstackWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1beta1.CronJob, instance *druidv1alpha1.Etcd) {
+	validateStoreOpenstack(s, cm, svc, cj, instance)
 
 	Expect(*cj).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
@@ -1187,8 +1490,8 @@ func validateStoreOpenstackWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigM
 	}))
 }
 
-func validateStoreAlicloudWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1.CronJob, instance *druidv1alpha1.Etcd) {
-	validateStoreAlicloud(s, cm, svc, instance)
+func validateStoreAlicloudWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1beta1.CronJob, instance *druidv1alpha1.Etcd) {
+	validateStoreAlicloud(s, cm, svc, cj, instance)
 
 	Expect(*cj).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
@@ -1253,7 +1556,7 @@ func validateStoreAlicloudWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMa
 	}))
 }
 
-func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, instance *druidv1alpha1.Etcd) {
+func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, _ *batchv1beta1.CronJob, instance *druidv1alpha1.Etcd) {
 	// Validate Quota
 	configYML := cm.Data[etcdConfig]
 	config := map[string]string{}
@@ -1450,7 +1753,7 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 										"Port": MatchFields(IgnoreExtras, Fields{
 											"IntVal": Equal(int32(8080)),
 										}),
-										"Scheme": Equal(corev1.URISchemeHTTP),
+										"Scheme": Or(BeEmpty(), Equal(corev1.URISchemeHTTP)),
 									})),
 								}),
 								"InitialDelaySeconds": Equal(int32(15)),
@@ -1575,7 +1878,7 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 
 }
 
-func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, instance *druidv1alpha1.Etcd) {
+func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, _ *batchv1beta1.CronJob, instance *druidv1alpha1.Etcd) {
 
 	// Validate Quota
 	configYML := cm.Data[etcdConfig]
@@ -1977,7 +2280,7 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 	}))
 }
 
-func validateStoreGCP(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, instance *druidv1alpha1.Etcd) {
+func validateStoreGCP(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, _ *batchv1beta1.CronJob, instance *druidv1alpha1.Etcd) {
 
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
@@ -2025,7 +2328,7 @@ func validateStoreGCP(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.S
 
 }
 
-func validateStoreAzure(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, instance *druidv1alpha1.Etcd) {
+func validateStoreAzure(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, _ *batchv1beta1.CronJob, instance *druidv1alpha1.Etcd) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -2073,7 +2376,7 @@ func validateStoreAzure(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1
 	}))
 }
 
-func validateStoreOpenstack(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, instance *druidv1alpha1.Etcd) {
+func validateStoreOpenstack(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, _ *batchv1beta1.CronJob, instance *druidv1alpha1.Etcd) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -2154,7 +2457,7 @@ func validateStoreOpenstack(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *co
 	}))
 }
 
-func validateStoreAlicloud(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, instance *druidv1alpha1.Etcd) {
+func validateStoreAlicloud(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, _ *batchv1beta1.CronJob, instance *druidv1alpha1.Etcd) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -2215,7 +2518,7 @@ func validateStoreAlicloud(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *cor
 	}))
 }
 
-func validateStoreAWS(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, instance *druidv1alpha1.Etcd) {
+func validateStoreAWS(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, _ *batchv1beta1.CronJob, instance *druidv1alpha1.Etcd) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -2276,204 +2579,6 @@ func validateStoreAWS(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.S
 	}))
 }
 
-func etcdRemoved(c client.Client, etcd *druidv1alpha1.Etcd) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	e := &druidv1alpha1.Etcd{}
-	req := types.NamespacedName{
-		Name:      etcd.Name,
-		Namespace: etcd.Namespace,
-	}
-	if err := c.Get(ctx, req, e); err != nil {
-		if errors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers
-			return nil
-		}
-		return err
-	}
-	return fmt.Errorf("etcd not deleted")
-}
-
-func isEtcdReady(c client.Client, etcd *druidv1alpha1.Etcd) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	e := &druidv1alpha1.Etcd{}
-	req := types.NamespacedName{
-		Name:      etcd.Name,
-		Namespace: etcd.Namespace,
-	}
-	if err := c.Get(ctx, req, e); err != nil {
-		return err
-	}
-	if e.Status.Ready == nil || !*e.Status.Ready {
-		return fmt.Errorf("etcd not ready")
-	}
-	return nil
-}
-
-func setAndCheckStatefulSetReady(c client.Client, etcd *druidv1alpha1.Etcd) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	ss := &appsv1.StatefulSet{}
-	req := types.NamespacedName{
-		Name:      etcd.Name,
-		Namespace: etcd.Namespace,
-	}
-	if err := c.Get(ctx, req, ss); err != nil {
-		return err
-	}
-	setStatefulSetReady(ss)
-	if err := c.Status().Update(context.TODO(), ss); err != nil {
-		return err
-	}
-	if err := health.CheckStatefulSet(ss); err != nil {
-		return err
-	}
-	return nil
-}
-
-func statefulSetRemoved(c client.Client, ss *appsv1.StatefulSet) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	sts := &appsv1.StatefulSet{}
-	req := types.NamespacedName{
-		Name:      ss.Name,
-		Namespace: ss.Namespace,
-	}
-	if err := c.Get(ctx, req, sts); err != nil {
-		if errors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers
-			return nil
-		}
-		return err
-	}
-	return fmt.Errorf("statefulset not removed")
-}
-
-func cronJobRemoved(c client.Client, cj *batchv1.CronJob) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	cronjob := &batchv1.CronJob{}
-	req := types.NamespacedName{
-		Name:      cj.Name,
-		Namespace: cj.Namespace,
-	}
-	if err := c.Get(ctx, req, cronjob); err != nil {
-		if errors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers
-			return nil
-		}
-		return err
-	}
-	return fmt.Errorf("statefulset not removed")
-}
-
-func statefulsetIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.StatefulSet) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	req := types.NamespacedName{
-		Name:      instance.Name,
-		Namespace: instance.Namespace,
-	}
-
-	if err := c.Get(ctx, req, ss); err != nil {
-		return err
-	}
-	if !checkEtcdAnnotations(ss.GetAnnotations(), instance) {
-		return fmt.Errorf("no annotations")
-	}
-	if checkEtcdOwnerReference(ss.GetOwnerReferences(), instance) {
-		return fmt.Errorf("ownerReference exists")
-	}
-	return nil
-}
-
-func configMapIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, cm *corev1.ConfigMap) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	req := types.NamespacedName{
-		Name:      fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6])),
-		Namespace: instance.Namespace,
-	}
-
-	if err := c.Get(ctx, req, cm); err != nil {
-		return err
-	}
-
-	if !checkEtcdOwnerReference(cm.GetOwnerReferences(), instance) {
-		return fmt.Errorf("ownerReference does not exists")
-	}
-	return nil
-}
-
-func serviceIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, svc *corev1.Service) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	req := types.NamespacedName{
-		Name:      fmt.Sprintf("%s-client", instance.Name),
-		Namespace: instance.Namespace,
-	}
-
-	if err := c.Get(ctx, req, svc); err != nil {
-		return err
-	}
-
-	if !checkEtcdOwnerReference(svc.GetOwnerReferences(), instance) {
-		return fmt.Errorf("ownerReference does not exists")
-	}
-	return nil
-}
-
-func cronJobIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, cj *batchv1.CronJob) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	req := types.NamespacedName{
-		Name:      getCronJobName(instance),
-		Namespace: instance.Namespace,
-	}
-
-	if err := c.Get(ctx, req, cj); err != nil {
-		return err
-	}
-	return nil
-}
-
-func createCronJob(name, namespace string, labels map[string]string) *batchv1.CronJob {
-	cj := batchv1.CronJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    labels,
-		},
-		Spec: batchv1.CronJobSpec{
-			Schedule:          backupCompactionSchedule,
-			ConcurrencyPolicy: "Forbid",
-			JobTemplate: batchv1.JobTemplateSpec{
-				Spec: v1.JobSpec{
-					Template: corev1.PodTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Labels: labels,
-						},
-						Spec: corev1.PodSpec{
-							RestartPolicy: "Never",
-							Containers: []corev1.Container{
-								{
-									Name:  "compact-backup",
-									Image: "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.12.0",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	return &cj
-}
-
 func createStatefulset(name, namespace string, labels map[string]string) *appsv1.StatefulSet {
 	var replicas int32 = 0
 	ss := appsv1.StatefulSet{
@@ -2512,30 +2617,6 @@ func createStatefulset(name, namespace string, labels map[string]string) *appsv1
 		},
 	}
 	return &ss
-}
-
-func createStatefulsetWithOwnerReference(etcd *druidv1alpha1.Etcd) *appsv1.StatefulSet {
-	ss := createStatefulset(etcd.Name, etcd.Namespace, etcd.Spec.Labels)
-	ss.SetOwnerReferences([]metav1.OwnerReference{
-		{
-			APIVersion:         "druid.gardener.cloud/v1alpha1",
-			Kind:               "etcd",
-			Name:               etcd.Name,
-			UID:                "foo",
-			Controller:         pointer.BoolPtr(true),
-			BlockOwnerDeletion: pointer.BoolPtr(true),
-		},
-	})
-	return ss
-}
-
-func createStatefulsetWithOwnerAnnotations(etcd *druidv1alpha1.Etcd) *appsv1.StatefulSet {
-	ss := createStatefulset(etcd.Name, etcd.Namespace, etcd.Spec.Labels)
-	ss.SetAnnotations(map[string]string{
-		"gardener.cloud/owned-by":   fmt.Sprintf("%s/%s", etcd.Namespace, etcd.Name),
-		"gardener.cloud/owner-type": "etcd",
-	})
-	return ss
 }
 
 func createPod(name, namespace string, labels map[string]string) *corev1.Pod {
@@ -2677,6 +2758,7 @@ func getEtcdWithDefault(name, namespace string) *druidv1alpha1.Etcd {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
+			UID:       types.UID("1234567890"),
 		},
 		Spec: druidv1alpha1.EtcdSpec{
 			Annotations: map[string]string{
@@ -2707,8 +2789,10 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 
 	instance := &druidv1alpha1.Etcd{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:       name,
+			Namespace:  namespace,
+			Generation: 1,
+			UID:        types.UID("1234567890"),
 		},
 		Spec: druidv1alpha1.EtcdSpec{
 			Annotations: map[string]string{
@@ -2808,27 +2892,369 @@ func parseQuantity(q string) resource.Quantity {
 	return val
 }
 
-func createSecrets(c client.Client, namespace string, secrets ...string) []error {
-	var errors []error
-	for _, name := range secrets {
-		secret := corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
-			},
-			Data: map[string][]byte{
-				"test": []byte("test"),
-			},
-		}
-		err := c.Create(context.TODO(), &secret)
-		if apierrors.IsAlreadyExists(err) {
-			continue
-		}
-		if err != nil {
-			errors = append(errors, err)
+type calls []*gomock.Call
+
+func (c calls) AnyTimes() calls {
+	return c.Times(0)
+}
+
+func (c calls) Times(times int) calls {
+	for _, call := range c {
+		if times > 0 {
+			call.Times(times)
+		} else {
+			call.AnyTimes()
 		}
 	}
-	return errors
+
+	return c
+}
+
+func (c calls) After(preReq *gomock.Call) calls {
+	if preReq == nil {
+		return c
+	}
+
+	for _, call := range c {
+		call.After(preReq)
+	}
+
+	return c
+}
+
+func getSecret(name, namespace string) *corev1.Secret {
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			"test": []byte("test"),
+		},
+	}
+}
+
+func mockGetAndUpdateSecrets(cl *mockclient.MockClient, secrets ...*corev1.Secret) calls {
+	var (
+		ret       []*gomock.Call
+		expectGet = func(src *corev1.Secret) *gomock.Call {
+			return cl.EXPECT().Get(gomock.Any(), client.ObjectKeyFromObject(src), gomock.AssignableToTypeOf(src)).DoAndReturn(
+				func(_ context.Context, _ client.ObjectKey, target *corev1.Secret) error {
+					src.DeepCopyInto(target)
+					return nil
+				},
+			)
+		}
+		expectUpdate = func(target *corev1.Secret) *gomock.Call {
+			return cl.EXPECT().Update(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(target), HasSameNamespacedNameAs(target))).DoAndReturn(
+				func(_ context.Context, src *corev1.Secret) error {
+					src.DeepCopyInto(target)
+					return nil
+				},
+			)
+		}
+	)
+
+	for _, secret := range secrets {
+		ret = append(ret, expectGet(secret), expectUpdate(secret))
+	}
+
+	return calls(ret)
+}
+
+func mockGetAndUpdateEtcd(cl *mockclient.MockClient, sw *mockclient.MockStatusWriter, etcd *druidv1alpha1.Etcd) calls {
+	var ret []*gomock.Call
+
+	ret = append(
+		ret,
+		cl.EXPECT().Get(gomock.Any(), client.ObjectKeyFromObject(etcd), gomock.AssignableToTypeOf(etcd)).DoAndReturn(
+			func(_ context.Context, _ client.ObjectKey, target *druidv1alpha1.Etcd) error {
+				etcd.DeepCopyInto(target)
+				return nil
+			},
+		),
+		cl.EXPECT().Update(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(etcd), HasSameNamespacedNameAs(etcd)), gomock.Any()).DoAndReturn(
+			func(_ context.Context, src *druidv1alpha1.Etcd) error {
+				src.DeepCopyInto(etcd)
+				return nil
+			},
+		),
+		sw.EXPECT().Update(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(etcd), HasSameNamespacedNameAs(etcd))).DoAndReturn(
+			func(_ context.Context, src *druidv1alpha1.Etcd) error {
+				src.Status.DeepCopyInto(&etcd.Status)
+				return nil
+			},
+		),
+	)
+
+	return calls(ret)
+}
+
+func mockListGetAndUpdateStatefulSet(cl *mockclient.MockClient, ss ...*appsv1.StatefulSet) calls {
+	var (
+		ret       []*gomock.Call
+		expectGet = func(src *appsv1.StatefulSet) *gomock.Call {
+			return cl.EXPECT().Get(gomock.Any(), client.ObjectKeyFromObject(src), gomock.AssignableToTypeOf(src)).DoAndReturn(
+				func(_ context.Context, _ client.ObjectKey, target *appsv1.StatefulSet) error {
+					src.DeepCopyInto(target)
+					return nil
+				},
+			)
+		}
+		expectUpdate = func(target *appsv1.StatefulSet) *gomock.Call {
+			return cl.EXPECT().Update(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(target), HasSameNamespacedNameAs(target))).DoAndReturn(
+				func(_ context.Context, src *appsv1.StatefulSet) error {
+					src.DeepCopyInto(target)
+					return nil
+				},
+			)
+		}
+	)
+
+	for _, s := range ss {
+		ret = append(ret, expectGet(s), expectUpdate(s))
+	}
+
+	return calls(append(
+		ret,
+		cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any()).DoAndReturn(
+			func(_ context.Context, target *appsv1.StatefulSetList, opts ...client.ListOption) error {
+				var listOpts = &client.ListOptions{}
+				for _, opt := range opts {
+					opt.ApplyToList(listOpts)
+				}
+
+				for _, s := range ss {
+					target.Items = append(target.Items, *s)
+				}
+				return nil
+			},
+		),
+	))
+}
+
+func mockListGetAndUpdateService(cl *mockclient.MockClient, ss ...*corev1.Service) calls {
+	var (
+		ret       []*gomock.Call
+		expectGet = func(src *corev1.Service) *gomock.Call {
+			return cl.EXPECT().Get(gomock.Any(), client.ObjectKeyFromObject(src), gomock.AssignableToTypeOf(src)).DoAndReturn(
+				func(_ context.Context, _ client.ObjectKey, target *corev1.Service) error {
+					src.DeepCopyInto(target)
+					return nil
+				},
+			)
+		}
+		expectUpdate = func(target *corev1.Service) *gomock.Call {
+			return cl.EXPECT().Update(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(target), HasSameNamespacedNameAs(target))).DoAndReturn(
+				func(_ context.Context, src *corev1.Service) error {
+					src.DeepCopyInto(target)
+					return nil
+				},
+			)
+		}
+	)
+
+	for _, s := range ss {
+		ret = append(ret, expectGet(s), expectUpdate(s))
+	}
+
+	return calls(append(
+		ret,
+		cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.ServiceList{}), gomock.Any()).DoAndReturn(
+			func(_ context.Context, target *corev1.ServiceList, opts ...client.ListOption) error {
+				var listOpts = &client.ListOptions{}
+				for _, opt := range opts {
+					opt.ApplyToList(listOpts)
+				}
+
+				for _, s := range ss {
+					target.Items = append(target.Items, *s)
+				}
+				return nil
+			},
+		),
+	))
+}
+
+func mockListGetAndUpdateConfigMap(cl *mockclient.MockClient, cms ...*corev1.ConfigMap) calls {
+	var (
+		ret       []*gomock.Call
+		expectGet = func(src *corev1.ConfigMap) *gomock.Call {
+			return cl.EXPECT().Get(gomock.Any(), client.ObjectKeyFromObject(src), gomock.AssignableToTypeOf(src)).DoAndReturn(
+				func(_ context.Context, _ client.ObjectKey, target *corev1.ConfigMap) error {
+					src.DeepCopyInto(target)
+					return nil
+				},
+			)
+		}
+		expectUpdate = func(target *corev1.ConfigMap) *gomock.Call {
+			return cl.EXPECT().Update(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(target), HasSameNamespacedNameAs(target))).DoAndReturn(
+				func(_ context.Context, src *corev1.ConfigMap) error {
+					src.DeepCopyInto(target)
+					return nil
+				},
+			)
+		}
+	)
+
+	for _, cm := range cms {
+		ret = append(ret, expectGet(cm), expectUpdate(cm))
+	}
+
+	return calls(append(
+		ret,
+		cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.ConfigMapList{}), gomock.Any()).DoAndReturn(
+			func(_ context.Context, target *corev1.ConfigMapList, opts ...client.ListOption) error {
+				var listOpts = &client.ListOptions{}
+				for _, opt := range opts {
+					opt.ApplyToList(listOpts)
+				}
+
+				for _, cm := range cms {
+					target.Items = append(target.Items, *cm)
+				}
+				return nil
+			},
+		),
+	))
+}
+
+func mockListGetAndUpdateCronJob(cl *mockclient.MockClient, cjs ...*batchv1beta1.CronJob) calls {
+	var (
+		ret       []*gomock.Call
+		expectGet = func(src *batchv1beta1.CronJob) *gomock.Call {
+			return cl.EXPECT().Get(gomock.Any(), client.ObjectKeyFromObject(src), gomock.AssignableToTypeOf(src)).DoAndReturn(
+				func(_ context.Context, _ client.ObjectKey, target *batchv1beta1.CronJob) error {
+					src.DeepCopyInto(target)
+					return nil
+				},
+			)
+		}
+		expectUpdate = func(target *batchv1beta1.CronJob) *gomock.Call {
+			return cl.EXPECT().Update(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(target), HasSameNamespacedNameAs(target))).DoAndReturn(
+				func(_ context.Context, src *batchv1beta1.CronJob) error {
+					src.DeepCopyInto(target)
+					return nil
+				},
+			)
+		}
+	)
+
+	for _, cj := range cjs {
+		ret = append(ret, expectGet(cj), expectUpdate(cj))
+	}
+
+	return calls(append(
+		ret,
+		cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&batchv1beta1.CronJobList{}), gomock.Any()).DoAndReturn(
+			func(_ context.Context, target *batchv1beta1.CronJobList, opts ...client.ListOption) error {
+				var listOpts = &client.ListOptions{}
+				for _, opt := range opts {
+					opt.ApplyToList(listOpts)
+				}
+
+				for _, cj := range cjs {
+					target.Items = append(target.Items, *cj)
+				}
+				return nil
+			},
+		),
+	))
+}
+
+func mockListPVC(cl *mockclient.MockClient, pvcs ...*corev1.PersistentVolumeClaim) *gomock.Call {
+	return cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PersistentVolumeClaimList{}), gomock.Any()).DoAndReturn(
+		func(_ context.Context, target *corev1.PersistentVolumeClaimList, _ ...client.ListOption) error {
+			for _, pvc := range pvcs {
+				target.Items = append(target.Items, *pvc)
+			}
+			return nil
+		},
+	)
+}
+
+func mockListEvents(cl *mockclient.MockClient, events ...*corev1.Event) *gomock.Call {
+	return cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.EventList{}), gomock.Any()).DoAndReturn(
+		func(_ context.Context, target *corev1.EventList, _ ...client.ListOption) error {
+			for _, event := range events {
+				target.Items = append(target.Items, *event)
+			}
+			return nil
+		},
+	)
+}
+
+func mockListPods(cl *mockclient.MockClient, pods ...*corev1.Pod) *gomock.Call {
+	return cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PodList{}), gomock.Any()).DoAndReturn(
+		func(_ context.Context, target *corev1.PodList, _ ...client.ListOption) error {
+			for _, pod := range pods {
+				target.Items = append(target.Items, *pod)
+			}
+			return nil
+		},
+	)
+}
+
+func createEtcdReconciler(cl *mockclient.MockClient) (*EtcdReconciler, error) {
+	applier, err := kubernetes.NewApplierWithAllFields(cl, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewEtcdReconcilerWithAllFields(
+		cl,
+		scheme.Scheme,
+		kubernetes.NewChartApplier(
+			chartrenderer.New(engine.New(), nil),
+			applier,
+		),
+		nil,
+		false,
+		nil,
+		log.Log.WithName("etcd-controller"),
+	).InitializeControllerWithImageVector()
+}
+
+func createEtcdCustodian(cl *mockclient.MockClient) *EtcdCustodian {
+	return NewEtcdCustodianWithAllFields(
+		cl,
+		scheme.Scheme,
+		log.Log.WithName("custodian-controller"),
+		controllersconfig.EtcdCustodianController{
+			EtcdMember: controllersconfig.EtcdMemberConfig{
+				EtcdMemberNotReadyThreshold: 1 * time.Minute,
+			},
+		},
+	)
+}
+
+type namespacedNameMatcher types.NamespacedName
+
+func (m namespacedNameMatcher) Matches(x interface{}) bool {
+	if k, ok := x.(types.NamespacedName); ok {
+		return m.equal(types.NamespacedName(m), k)
+	}
+	if obj, ok := x.(client.Object); ok {
+		return m.equal(types.NamespacedName(m), client.ObjectKeyFromObject(obj))
+	}
+
+	return false
+}
+
+func (m namespacedNameMatcher) equal(a, b types.NamespacedName) bool {
+	return a.String() == b.String()
+}
+
+func (m namespacedNameMatcher) String() string {
+	return fmt.Sprintf("matches key %q", types.NamespacedName(m).String())
+}
+
+func HasNamespacedName(key types.NamespacedName) gomock.Matcher {
+	return namespacedNameMatcher(key)
+}
+
+func HasSameNamespacedNameAs(obj client.Object) gomock.Matcher {
+	return HasNamespacedName(client.ObjectKeyFromObject(obj))
 }
 
 // WithWd sets the working directory and returns a function to revert to the previous one.

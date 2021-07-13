@@ -53,10 +53,25 @@ type EtcdCustodian struct {
 
 // NewEtcdCustodian creates a new EtcdCustodian object
 func NewEtcdCustodian(mgr manager.Manager, config controllersconfig.EtcdCustodianController) *EtcdCustodian {
+	return NewEtcdCustodianWithAllFields(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		log.Log.WithName("custodian-controller"),
+		config,
+	)
+}
+
+// NewEtcdCustodianWithAllFields creates a new EtcdCustodian object using the supplied arguments.
+func NewEtcdCustodianWithAllFields(
+	c client.Client,
+	scheme *runtime.Scheme,
+	logger logr.Logger,
+	config controllersconfig.EtcdCustodianController,
+) *EtcdCustodian {
 	return &EtcdCustodian{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		logger: log.Log.WithName("custodian-controller"),
+		Client: c,
+		Scheme: scheme,
+		logger: logger,
 		config: config,
 	}
 }

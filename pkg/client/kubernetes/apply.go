@@ -57,6 +57,12 @@ func NewApplierInternal(config *rest.Config, discoveryClient discovery.CachedDis
 		return nil, err
 	}
 
+	return NewApplierWithAllFields(c, discoveryClient)
+}
+
+// NewApplierWithAllFields creates a new Applier object.
+// It must be directly used only for testing purposes
+func NewApplierWithAllFields(c client.Client, discoveryClient discovery.CachedDiscoveryInterface) (*Applier, error) {
 	return &Applier{client: c, discovery: discoveryClient}, nil
 }
 
@@ -85,7 +91,7 @@ func (c *Applier) applyObject(ctx context.Context, desired *unstructured.Unstruc
 	current := &unstructured.Unstructured{}
 	current.SetGroupVersionKind(desired.GroupVersionKind())
 	err := c.client.Get(ctx, key, current)
-	if meta.IsNoMatchError(err) {
+	if meta.IsNoMatchError(err) && c.discovery != nil {
 		c.discovery.Invalidate()
 		err = c.client.Get(ctx, key, current)
 	}
