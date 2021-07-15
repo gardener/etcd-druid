@@ -37,6 +37,8 @@ import (
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
+
+	batchv1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
@@ -142,6 +144,10 @@ func getChartPathForConfigMap() string {
 
 func getChartPathForService() string {
 	return filepath.Join("etcd", "templates", "etcd-service.yaml")
+}
+
+func getChartPathForCronJob() string {
+	return filepath.Join("etcd", "templates", "etcd-compaction-cronjob.yaml")
 }
 
 func getImageYAMLPath() string {
@@ -769,6 +775,144 @@ func (r *EtcdReconciler) getStatefulSetFromEtcd(etcd *druidv1alpha1.Etcd, values
 	return decoded, nil
 }
 
+func (r *EtcdReconciler) reconcileCronJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*batchv1.CronJob, error) {
+	logger.Info("Reconcile etcd compaction cronjob")
+
+	var cronJob batchv1.CronJob
+	err := r.Get(ctx, types.NamespacedName{Name: getCronJobName(etcd), Namespace: etcd.Namespace}, &cronJob)
+
+	//If backupCompactionSchedule is present in the etcd spec, continue with reconciliation of cronjob
+	//If backupCompactionSchedule is not present in the etcd spec, do not proceed with cronjob
+	//reconciliation. Furthermore, delete any already existing cronjobs corresponding with this etcd
+	backupCompactionScheduleFound := false
+	if values["backup"].(map[string]interface{})["backupCompactionSchedule"] != nil {
+		backupCompactionScheduleFound = true
+	}
+
+	if !backupCompactionScheduleFound {
+		if err == nil {
+			err = r.Delete(ctx, &cronJob, client.PropagationPolicy(metav1.DeletePropagationForeground))
+			if err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
+	}
+
+	if err == nil {
+		logger.Info("Claiming cronjob object")
+		// If any adoptions are attempted, we should first recheck for deletion with
+		// an uncached quorum read sometime after listing Machines (see #42639).
+		//TODO: Consider putting this claim logic just after creating a new cronjob
+		canAdoptFunc := RecheckDeletionTimestamp(func() (metav1.Object, error) {
+			foundEtcd := &druidv1alpha1.Etcd{}
+			err := r.Get(context.TODO(), types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)
+			if err != nil {
+				return nil, err
+			}
+
+			if foundEtcd.GetDeletionTimestamp() != nil {
+				return nil, fmt.Errorf("%v/%v etcd is marked for deletion", etcd.Namespace, etcd.Name)
+			}
+
+			if foundEtcd.UID != etcd.UID {
+				return nil, fmt.Errorf("original %v/%v etcd gone: got uid %v, wanted %v", etcd.Namespace, etcd.Name, foundEtcd.UID, etcd.UID)
+			}
+			return foundEtcd, nil
+		})
+
+		selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
+		if err != nil {
+			logger.Error(err, "Error converting etcd selector to selector")
+			return nil, err
+		}
+		dm := NewEtcdDruidRefManager(r.Client, r.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
+
+		logger.Info("Claiming existing cronjob")
+		claimedCronJob, err := dm.ClaimCronJob(ctx, &cronJob)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err = r.syncCronJobSpec(ctx, claimedCronJob, etcd, values, logger); err != nil {
+			return nil, err
+		}
+
+		return claimedCronJob, err
+	}
+
+	// Required cronjob doesn't exist. Create new
+	cj, err := r.getCronJobFromEtcd(etcd, values, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("Creating cronjob", "cronjob", kutil.Key(cj.Namespace, cj.Name).String())
+	err = r.Create(ctx, cj)
+
+	// Ignore the precondition violated error, this machine is already updated
+	// with the desired label.
+	if err == errorsutil.ErrPreconditionViolated {
+		logger.Info("Cronjob precondition doesn't hold, skip updating it", "cronjob", kutil.Key(cj.Namespace, cj.Name).String())
+		err = nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	//TODO: Evaluate necessity of claiming object here after creation
+
+	return cj, err
+}
+
+func (r *EtcdReconciler) syncCronJobSpec(ctx context.Context, cj *batchv1.CronJob, etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*batchv1.CronJob, error) {
+	decoded, err := r.getCronJobFromEtcd(etcd, values, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	if reflect.DeepEqual(cj.Spec, decoded.Spec) {
+		return cj, nil
+	}
+
+	cjCopy := cj.DeepCopy()
+	cjCopy.Spec = decoded.Spec
+
+	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		return r.Patch(ctx, cjCopy, client.MergeFrom(cj))
+	})
+
+	if err == errorsutil.ErrPreconditionViolated {
+		logger.Info("cronjob precondition doesn't hold, skip updating it", "cronjob", kutil.Key(cjCopy.Namespace, cjCopy.Name).String())
+		err = nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return cjCopy, err
+}
+
+func (r *EtcdReconciler) getCronJobFromEtcd(etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*batchv1.CronJob, error) {
+	var err error
+	decoded := &batchv1.CronJob{}
+	cronJobPath := getChartPathForCronJob()
+	chartPath := getChartPath()
+	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
+	if err != nil {
+		return nil, err
+	}
+	if content, ok := renderedChart.Files()[cronJobPath]; ok {
+		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
+		if err = decoder.Decode(&decoded); err != nil {
+			return nil, err
+		}
+		return decoded, nil
+	}
+
+	return nil, fmt.Errorf("missing cronjob template file in the charts: %v", cronJobPath)
+}
+
 func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (operationResult, *corev1.Service, *appsv1.StatefulSet, error) {
 	values, err := r.getMapFromEtcd(etcd)
 	if err != nil {
@@ -780,6 +924,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 	if err != nil {
 		return noOp, nil, nil, err
 	}
+
 	svc, err := r.reconcileServices(ctx, logger, etcd, renderedChart)
 	if err != nil {
 		return noOp, nil, nil, err
@@ -794,6 +939,14 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 	}
 	if cm != nil {
 		values["configMapName"] = cm.Name
+	}
+
+	cj, err := r.reconcileCronJob(ctx, logger, etcd, values)
+	if err != nil {
+		return noOp, nil, nil, err
+	}
+	if cj != nil {
+		values["cronJobName"] = cj.Name
 	}
 
 	op, sts, err := r.reconcileStatefulSet(ctx, logger, etcd, values)
@@ -935,6 +1088,10 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		backupValues["deltaSnapshotPeriod"] = etcd.Spec.Backup.DeltaSnapshotPeriod
 	}
 
+	if etcd.Spec.Backup.BackupCompactionSchedule != nil {
+		backupValues["backupCompactionSchedule"] = etcd.Spec.Backup.BackupCompactionSchedule
+	}
+
 	if etcd.Spec.Backup.Port != nil {
 		backupValues["port"] = etcd.Spec.Backup.Port
 	}
@@ -991,6 +1148,7 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		"statefulsetReplicas":     statefulsetReplicas,
 		"serviceName":             fmt.Sprintf("%s-client", etcd.Name),
 		"configMapName":           fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
+		"cronJobName":             getCronJobName(etcd),
 		"volumeClaimTemplateName": volumeClaimTemplateName,
 	}
 
@@ -1035,7 +1193,6 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 }
 
 func (r *EtcdReconciler) addFinalizersToDependantSecrets(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
-
 	secrets := []*corev1.SecretReference{}
 	if etcd.Spec.Etcd.TLS != nil {
 		// As the secrets inside TLS field are required, we error in case they are not found.
@@ -1317,4 +1474,8 @@ func (r *EtcdReconciler) SetupWithManager(mgr ctrl.Manager, workers int, ignoreO
 			Owns(&appsv1.StatefulSet{})
 	}
 	return builder.Complete(r)
+}
+
+func getCronJobName(etcd *druidv1alpha1.Etcd) string {
+	return fmt.Sprintf("%s-compact-backup", etcd.Name)
 }
