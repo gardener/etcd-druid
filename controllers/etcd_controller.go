@@ -30,6 +30,7 @@ import (
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
 
+	extensionspredicate "github.com/gardener/gardener/extensions/pkg/predicate"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -1457,17 +1458,10 @@ func (r *EtcdReconciler) claimConfigMaps(ctx context.Context, etcd *druidv1alpha
 
 // SetupWithManager sets up manager with a new controller and r as the reconcile.Reconciler
 func (r *EtcdReconciler) SetupWithManager(mgr ctrl.Manager, workers int, ignoreOperationAnnotation bool) error {
-	predicates := []predicate.Predicate{
-		druidpredicates.GenerationChangedPredicate{},
-		druidpredicates.LastOperationNotSuccessful(),
-	}
 	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
 		MaxConcurrentReconciles: workers,
 	})
-	if !ignoreOperationAnnotation {
-		predicates = append(predicates, druidpredicates.HasOperationAnnotation())
-	}
-	builder = builder.WithEventFilter(predicate.Or(predicates...)).For(&druidv1alpha1.Etcd{})
+	builder = builder.WithEventFilter(buildPredicate(ignoreOperationAnnotation)).For(&druidv1alpha1.Etcd{})
 	if ignoreOperationAnnotation {
 		builder = builder.Owns(&v1.Service{}).
 			Owns(&v1.ConfigMap{}).
@@ -1478,4 +1472,16 @@ func (r *EtcdReconciler) SetupWithManager(mgr ctrl.Manager, workers int, ignoreO
 
 func getCronJobName(etcd *druidv1alpha1.Etcd) string {
 	return fmt.Sprintf("%s-compact-backup", etcd.Name)
+}
+
+func buildPredicate(ignoreOperationAnnotation bool) predicate.Predicate {
+	if ignoreOperationAnnotation {
+		return predicate.GenerationChangedPredicate{}
+	}
+
+	return predicate.Or(
+		druidpredicates.HasOperationAnnotation(),
+		druidpredicates.LastOperationNotSuccessful(),
+		extensionspredicate.IsDeleting(),
+	)
 }

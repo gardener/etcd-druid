@@ -82,31 +82,6 @@ func LastOperationNotSuccessful() predicate.Predicate {
 	}
 }
 
-// GenerationChangedPredicate implements a update predicate function on Generation or ResourceVersion change.
-type GenerationChangedPredicate struct {
-	predicate.Funcs
-}
-
-// Update implements default UpdateEvent filter for validating generation change
-func (GenerationChangedPredicate) Update(e event.UpdateEvent) bool {
-	etcd, ok := e.ObjectNew.(*druidv1alpha1.Etcd)
-	if !ok {
-		// Reconcile triggers for other resources should return true.
-		return true
-	}
-	return etcd.Status.ObservedGeneration == nil || *etcd.Status.ObservedGeneration != etcd.Generation
-}
-
-// Create implements default CreateEvent filter for validating generation change
-func (GenerationChangedPredicate) Create(e event.CreateEvent) bool {
-	etcd, ok := e.Object.(*druidv1alpha1.Etcd)
-	if !ok {
-		// We are creating the other resources so we needn't reconcile etcd here.
-		return false
-	}
-	return etcd.Status.ObservedGeneration == nil || *etcd.Status.ObservedGeneration != etcd.Generation
-}
-
 // StatefulSetStatusChange is a predicate for status changes of `StatefulSet` resources.
 func StatefulSetStatusChange() predicate.Predicate {
 	statusChange := func(objOld, objNew client.Object) bool {
