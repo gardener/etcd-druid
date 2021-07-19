@@ -243,6 +243,15 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 			Requeue: true,
 		}, err
 	}
+	if err = r.removeOperationAnnotation(ctx, logger, etcd); err != nil {
+		if apierrors.IsNotFound(err) {
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{
+			Requeue: true,
+		}, err
+	}
+
 	op, svc, sts, err := r.reconcileEtcd(ctx, logger, etcd)
 	if err != nil {
 		if err := r.updateEtcdErrorStatus(ctx, op, etcd, sts, err); err != nil {
@@ -1290,7 +1299,6 @@ func canDeleteStatefulset(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) boo
 	// delete path.
 	return checkEtcdOwnerReference(sts.GetOwnerReferences(), etcd) ||
 		checkEtcdAnnotations(sts.GetAnnotations(), etcd)
-
 }
 
 func bootstrapReset(etcd *druidv1alpha1.Etcd) {
@@ -1299,7 +1307,7 @@ func bootstrapReset(etcd *druidv1alpha1.Etcd) {
 }
 
 func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, op operationResult, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
-	err := kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
+	return kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
 		lastErrStr := fmt.Sprintf("%v", lastError)
 		etcd.Status.LastError = &lastErrStr
 		etcd.Status.ObservedGeneration = &etcd.Generation
@@ -1314,15 +1322,10 @@ func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, op operation
 		}
 		return nil
 	})
-
-	if err != nil {
-		return err
-	}
-	return r.removeOperationAnnotation(ctx, etcd)
 }
 
 func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, op operationResult, etcd *druidv1alpha1.Etcd, svc *corev1.Service, sts *appsv1.StatefulSet) error {
-	err := kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
+	return kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
 		ready := CheckStatefulSet(etcd, sts) == nil
 		etcd.Status.Ready = &ready
 		svcName := svc.Name
@@ -1336,11 +1339,6 @@ func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, op operationResul
 		}
 		return nil
 	})
-
-	if err != nil {
-		return err
-	}
-	return r.removeOperationAnnotation(ctx, etcd)
 }
 
 func (r *EtcdReconciler) waitUntilStatefulSetReady(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) (*appsv1.StatefulSet, error) {
@@ -1403,8 +1401,9 @@ func (r *EtcdReconciler) fetchPVCEventsFor(ctx context.Context, ss *appsv1.State
 	return pvcMessages, nil
 }
 
-func (r *EtcdReconciler) removeOperationAnnotation(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+func (r *EtcdReconciler) removeOperationAnnotation(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
 	if _, ok := etcd.Annotations[v1beta1constants.GardenerOperation]; ok {
+		logger.Info("Removing operation annotation")
 		delete(etcd.Annotations, v1beta1constants.GardenerOperation)
 		return r.Update(ctx, etcd)
 	}
