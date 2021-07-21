@@ -1,12 +1,11 @@
+{{- if .Values.backup.backupCompactionSchedule }}
 apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
   name: {{ .Values.cronJobName }}
   namespace: {{ .Release.Namespace }}
-  annotations:
-    gardener.cloud/owned-by: "{{ .Release.Namespace }}/{{ .Values.name }}"
-    gardener.cloud/owner-type: "etcd"
 {{- if .Values.annotations }}
+  annotations:
 {{ toYaml .Values.annotations | indent 4 }}
 {{- end }}
   labels:
@@ -21,7 +20,7 @@ metadata:
     controller: true
     kind: Etcd
     name: {{ .Values.name }}
-    uid: {{ .Values.uid }}
+    uid: {{ .Values.uid | quote }}
 spec:
   schedule: {{ .Values.backup.backupCompactionSchedule }} 
   concurrencyPolicy: Forbid
@@ -238,4 +237,5 @@ spec:
           - name: etcd-backup
             secret:
               secretName: {{ .Values.store.storeSecret }}
+{{- end }}
 {{- end }}

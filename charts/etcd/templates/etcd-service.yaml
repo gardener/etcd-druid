@@ -14,7 +14,7 @@ metadata:
     controller: true
     kind: Etcd
     name: {{ .Values.name }}
-    uid: {{ .Values.uid }}
+    uid: {{ .Values.uid | quote }}
 spec:
 # Note: Changing service type will require change in handling the re-sync of the service.
   type: ClusterIP

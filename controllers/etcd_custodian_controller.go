@@ -24,6 +24,7 @@ import (
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
@@ -103,37 +104,36 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		}, nil
 	}
 
-	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
-	if err != nil {
-		logger.Error(err, "Error converting etcd selector to selector")
-		return ctrl.Result{}, err
-	}
-
 	statusCheck := status.NewChecker(ec.Client, ec.config)
 	if err := statusCheck.Check(ctx, logger, etcd); err != nil {
 		logger.Error(err, "Error executing status checks")
 		return ctrl.Result{}, err
 	}
 
-	refMgr := NewEtcdDruidRefManager(ec.Client, ec.Scheme, etcd, selector, etcdGVK, nil)
-
-	stsList, err := refMgr.FetchStatefulSet(ctx, etcd)
-	if err != nil {
-		return ctrl.Result{}, err
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      getStatefulSetNameFor(etcd),
+			Namespace: etcd.Namespace,
+		},
 	}
+	if err := ec.Client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
+		logger.Error(err, "Error getting statefulset")
+		if apierrors.IsNotFound(err) {
+			if err2 := ec.updateEtcdStatus(ctx, logger, etcd, nil); err2 != nil {
+				logger.Error(err2, "Error while updating ETCD status when no statefulset found")
+			}
 
-	// Requeue if we found more than one or no StatefulSet.
-	// The Etcd controller needs to decide what to do in such situations.
-	if len(stsList.Items) != 1 {
-		if err := ec.updateEtcdStatus(ctx, logger, etcd, nil); err != nil {
-			logger.Error(err, "Error while updating ETCD status when no statefulset found")
+			return ctrl.Result{
+				RequeueAfter: 5 * time.Second,
+			}, nil
 		}
+
 		return ctrl.Result{
 			RequeueAfter: 5 * time.Second,
-		}, nil
+		}, err
 	}
 
-	if err := ec.updateEtcdStatus(ctx, logger, etcd, &stsList.Items[0]); err != nil {
+	if err := ec.updateEtcdStatus(ctx, logger, etcd, sts); err != nil {
 		return ctrl.Result{}, err
 	}
 

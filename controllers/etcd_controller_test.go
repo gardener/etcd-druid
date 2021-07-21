@@ -16,7 +16,6 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -42,14 +41,18 @@ import (
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/helm/pkg/engine"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -178,11 +181,23 @@ var _ = Describe("setup", func() {
 		Expect(metav1.LabelSelectorAsSelector(instance.Spec.Selector)).ToNot(BeNil())
 	})
 
+	AfterEach(func() {
+		ctx = nil
+		mockCtrl = nil
+		cl = nil
+		sw = nil
+		instance = nil
+	})
+
 	Describe("EtcdCustodian", func() {
 		var etcdCustodian *EtcdCustodian
 
 		BeforeEach(func() {
 			etcdCustodian = createEtcdCustodian(cl)
+		})
+
+		AfterEach(func() {
+			etcdCustodian = nil
 		})
 
 		Describe("Reconcile", func() {
@@ -194,9 +209,18 @@ var _ = Describe("setup", func() {
 			)
 
 			JustBeforeEach(func() {
-				mockGetAndUpdateEtcd(cl, sw, instance).AnyTimes()
+				mockGet(cl, instance).Times(2)
+				mockUpdate(cl, instance)
+				mockUpdateStatus(cl, sw, instance)
 
 				reconcileResult, reconcileErr = etcdCustodian.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(instance)})
+			})
+
+			AfterEach(func() {
+				reconcileResult = ctrl.Result{}
+				reconcileErr = nil
+				reconcileShouldSucceed = nil
+				reconcileShouldRequeueAfter = nil
 			})
 
 			reconcileShouldSucceed = func() {
@@ -309,24 +333,7 @@ var _ = Describe("setup", func() {
 					)
 				})
 
-				Describe("without any statefulset", func() {
-					BeforeEach(func() {
-						mockListGetAndUpdateStatefulSet(cl).AnyTimes()
-					})
-
-					describeLeaseVariations(func() {
-						reconcileShouldRequeueAfter()
-
-						It("should mark etcd resource as not ready", func() {
-							Expect(instance.Status).To(MatchFields(IgnoreExtras, Fields{
-								"Ready":         PointTo(BeFalse()),
-								"ReadyReplicas": Equal(int32(0)),
-							}))
-						})
-					})
-				})
-
-				Describe("with a statefulset", func() {
+				Describe("statefulset", func() {
 					var (
 						sts *appsv1.StatefulSet
 					)
@@ -334,52 +341,39 @@ var _ = Describe("setup", func() {
 					BeforeEach(func() {
 						sts = &appsv1.StatefulSet{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:      instance.Name,
+								Name:      getStatefulSetNameFor(instance),
 								Namespace: instance.Namespace,
 							},
 						}
-						mockListGetAndUpdateStatefulSet(cl, sts).AnyTimes()
 					})
 
-					Describe("if the statefulset is not claimed", func() {
+					AfterEach(func() {
+						sts = nil
+					})
+
+					Describe("without any statefulset", func() {
+						BeforeEach(func() {
+							mockGetNotFound(cl, sts)
+						})
+
 						describeLeaseVariations(func() {
-							reconcileShouldSucceed()
+							reconcileShouldRequeueAfter()
 
 							It("should mark etcd resource as not ready", func() {
 								Expect(instance.Status).To(MatchFields(IgnoreExtras, Fields{
-									"Ready":         PointTo(BeFalse()),
+									"Ready":         Not(PointTo(BeTrue())),
 									"ReadyReplicas": Equal(int32(0)),
 								}))
 							})
 						})
 					})
 
-					Describe("if the statefulset is claimed", func() {
+					Describe("with a statefulset", func() {
 						BeforeEach(func() {
-							sts.Annotations = map[string]string{
-								common.GardenerOwnedBy:   client.ObjectKeyFromObject(instance).String(),
-								common.GardenerOwnerType: strings.ToLower(etcdGVK.Kind),
-							}
+							mockGet(cl, sts)
 						})
-
-						Describe("if statefulset is ready", func() {
-							BeforeEach(func() {
-								setStatefulSetReady(sts)
-							})
-
-							describeLeaseVariations(func() {
-								reconcileShouldSucceed()
-
-								It("should mark etcd resource as ready", func() {
-									Expect(instance.Status).To(MatchFields(IgnoreExtras, Fields{
-										"Ready":         PointTo(BeTrue()),
-										"ReadyReplicas": Equal(int32(instance.Spec.Replicas)),
-									}))
-								})
-							})
-						})
-
-						Describe("if statefulset is not ready", func() {
+						
+						Describe("if the statefulset is not claimed", func() {
 							describeLeaseVariations(func() {
 								reconcileShouldSucceed()
 
@@ -391,8 +385,46 @@ var _ = Describe("setup", func() {
 								})
 							})
 						})
-					})
 
+						Describe("if the statefulset is claimed", func() {
+							BeforeEach(func() {
+								sts.Annotations = map[string]string{
+									common.GardenerOwnedBy:   client.ObjectKeyFromObject(instance).String(),
+									common.GardenerOwnerType: strings.ToLower(etcdGVK.Kind),
+								}
+							})
+
+							Describe("if statefulset is ready", func() {
+								BeforeEach(func() {
+									setStatefulSetReady(sts)
+								})
+
+								describeLeaseVariations(func() {
+									reconcileShouldSucceed()
+
+									It("should mark etcd resource as ready", func() {
+										Expect(instance.Status).To(MatchFields(IgnoreExtras, Fields{
+											"Ready":         PointTo(BeTrue()),
+											"ReadyReplicas": Equal(int32(instance.Spec.Replicas)),
+										}))
+									})
+								})
+							})
+
+							Describe("if statefulset is not ready", func() {
+								describeLeaseVariations(func() {
+									reconcileShouldSucceed()
+
+									It("should mark etcd resource as not ready", func() {
+										Expect(instance.Status).To(MatchFields(IgnoreExtras, Fields{
+											"Ready":         PointTo(BeFalse()),
+											"ReadyReplicas": Equal(int32(0)),
+										}))
+									})
+								})
+							})
+						})
+					})
 				})
 			})
 		})
@@ -408,6 +440,10 @@ var _ = Describe("setup", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
+		AfterEach(func() {
+			etcdReconciler = nil
+		})
+
 		Describe("Reconcile", func() {
 			var (
 				reconcileResult               ctrl.Result
@@ -417,9 +453,18 @@ var _ = Describe("setup", func() {
 			)
 
 			JustBeforeEach(func() {
-				mockGetAndUpdateEtcd(cl, sw, instance).AnyTimes()
+				mockGet(cl, instance).AnyTimes()
+				mockUpdate(cl, instance)
+				mockUpdateStatus(cl, sw, instance)
 
 				reconcileResult, reconcileErr = etcdReconciler.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(instance)})
+			})
+
+			AfterEach(func() {
+				reconcileResult = ctrl.Result{}
+				reconcileErr = nil
+				reconcileShouldSucceed = nil
+				reconcileShouldFailAndRequeue = nil
 			})
 
 			reconcileShouldSucceed = func() {
@@ -441,7 +486,11 @@ var _ = Describe("setup", func() {
 
 				BeforeEach(func() {
 					backupSecret = getSecret(instance.Spec.Backup.Store.SecretRef.Name, instance.Namespace)
-					mockGetAndUpdateSecrets(cl, backupSecret).AnyTimes()
+					mockUpdate(cl, backupSecret).After(mockGet(cl, backupSecret))
+				})
+
+				AfterEach(func() {
+					backupSecret = nil
 				})
 
 				Describe("delete", func() {
@@ -480,19 +529,15 @@ var _ = Describe("setup", func() {
 						})
 
 						AfterEach(func() {
+							if reconcileResult.RequeueAfter > time.Duration(0) {
+								return // Finalizers are not removed if waiting for statefulset deletion
+							}
+
 							Expect(backupSecret.Finalizers).To(BeEmpty(), "finalizers should be removed from the backup secret")
 							Expect(instance.Finalizers).To(BeEmpty(), "finalizer should be removed from the etcd resource")
 						})
 
-						Describe("without any statefulset", func() {
-							BeforeEach(func() {
-								mockListGetAndUpdateStatefulSet(cl).AnyTimes()
-							})
-
-							reconcileShouldSucceed()
-						})
-
-						Describe("with a statefulset", func() {
+						Describe("statefulset", func() {
 							var (
 								sts *appsv1.StatefulSet
 							)
@@ -500,61 +545,84 @@ var _ = Describe("setup", func() {
 							BeforeEach(func() {
 								sts = &appsv1.StatefulSet{
 									ObjectMeta: metav1.ObjectMeta{
-										Name:      instance.Name,
+										Name:      getStatefulSetNameFor(instance),
 										Namespace: instance.Namespace,
 									},
 								}
-								mockListGetAndUpdateStatefulSet(cl, sts).AnyTimes()
 							})
 
-							Describe("if statefulset is not claimed", func() {
-								reconcileShouldSucceed()
-
-								It("should not delete the statefulset", func() {
-									Expect(sts.DeletionTimestamp).To(BeNil())
-								})
+							AfterEach(func() {
+								sts = nil
 							})
 
-							Describe("if statefulset is claimed", func() {
+							Describe("without any statefulset", func() {
 								BeforeEach(func() {
-									cl.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(sts), gomock.Any()).DoAndReturn(
-										func(_ context.Context, _ *appsv1.StatefulSet, _ ...client.DeleteOption) error {
-											sts.DeletionTimestamp = instance.DeletionTimestamp
-											return nil
-										},
+									mockGetNotFound(cl, sts)
+								})
+
+								reconcileShouldSucceed()
+							})
+
+							Describe("with a statefulset", func() {
+								BeforeEach(func() {
+									mockGet(cl, sts)
+								})
+
+								Describe("if statefulset is not claimed", func() {
+									reconcileShouldSucceed()
+
+									It("should not delete the statefulset", func() {
+										Expect(sts.DeletionTimestamp).To(BeNil())
+									})
+								})
+
+								Describe("if statefulset is claimed", func() {
+									var (
+										itShouldReconcileAndRequeueAfter = func() {
+											It("should reconcile and requeue after", func() {
+												Expect(reconcileErr).ToNot(HaveOccurred())
+												Expect(reconcileResult).To(Equal(ctrl.Result{
+													RequeueAfter: 30 * time.Second,
+												}))
+											})
+										}
 									)
-								})
 
-								AfterEach(func() {
-									Expect(sts.DeletionTimestamp).ToNot(BeNil(), "statefulset should be deleted")
-								})
-
-								Describe("statefulset has owner references", func() {
 									BeforeEach(func() {
-										sts.OwnerReferences = []metav1.OwnerReference{
-											{
-												APIVersion:         etcdGVK.GroupVersion().String(),
-												Kind:               strings.ToLower(etcdGVK.Kind),
-												Name:               instance.Name,
-												UID:                instance.UID,
-												Controller:         pointer.BoolPtr(true),
-												BlockOwnerDeletion: pointer.BoolPtr(true),
-											},
-										}
+										mockDelete(cl, sts)
 									})
 
-									reconcileShouldSucceed()
-								})
-
-								Describe("statefulset has owner annotations", func() {
-									BeforeEach(func() {
-										sts.Annotations = map[string]string{
-											common.GardenerOwnedBy:   client.ObjectKeyFromObject(instance).String(),
-											common.GardenerOwnerType: strings.ToLower(etcdGVK.Kind),
-										}
+									AfterEach(func() {
+										Expect(sts.DeletionTimestamp).ToNot(BeNil(), "statefulset should be deleted")
 									})
 
-									reconcileShouldSucceed()
+									Describe("statefulset has owner references", func() {
+										BeforeEach(func() {
+											sts.OwnerReferences = []metav1.OwnerReference{
+												{
+													APIVersion:         etcdGVK.GroupVersion().String(),
+													Kind:               strings.ToLower(etcdGVK.Kind),
+													Name:               instance.Name,
+													UID:                instance.UID,
+													Controller:         pointer.BoolPtr(true),
+													BlockOwnerDeletion: pointer.BoolPtr(true),
+												},
+											}
+										})
+
+										itShouldReconcileAndRequeueAfter()
+									})
+
+									Describe("statefulset has owner annotations", func() {
+										BeforeEach(func() {
+											sts.Annotations = map[string]string{
+												common.GardenerOwnedBy:   client.ObjectKeyFromObject(instance).String(),
+												common.GardenerOwnerType: strings.ToLower(etcdGVK.Kind),
+											}
+										})
+
+										itShouldReconcileAndRequeueAfter()
+									})
 								})
 							})
 						})
@@ -570,30 +638,19 @@ var _ = Describe("setup", func() {
 						}
 					})
 
-					Describe("without services and configmaps", func() {
+					Describe("without services and configmaps", func() { // TODO with services and configmaps
 						var (
 							svc *corev1.Service
 							cm  *corev1.ConfigMap
 						)
 
 						BeforeEach(func() {
-							mockListGetAndUpdateService(cl).Times(1)
-							mockListGetAndUpdateConfigMap(cl).Times(1)
-
 							svc = &corev1.Service{
 								ObjectMeta: metav1.ObjectMeta{
 									Name:      getServiceNameFor(instance),
 									Namespace: instance.Namespace,
 								},
 							}
-							mockListGetAndUpdateService(cl, svc).AnyTimes().After(
-								cl.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(svc), gomock.Any()).DoAndReturn(
-									func(_ context.Context, src *corev1.Service) error {
-										src.DeepCopyInto(svc)
-										return nil
-									},
-								),
-							)
 
 							cm = &corev1.ConfigMap{
 								ObjectMeta: metav1.ObjectMeta{
@@ -601,14 +658,9 @@ var _ = Describe("setup", func() {
 									Namespace: instance.Namespace,
 								},
 							}
-							mockListGetAndUpdateConfigMap(cl, cm).AnyTimes().After(
-								cl.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(cm), gomock.Any()).DoAndReturn(
-									func(_ context.Context, src *corev1.ConfigMap) error {
-										src.DeepCopyInto(cm)
-										return nil
-									},
-								),
-							)
+
+							mockCreate(cl, svc).After(mockGetNotFound(cl, svc))
+							mockCreate(cl, cm).After(mockGetNotFound(cl, cm))
 						})
 
 						AfterEach(func() {
@@ -636,6 +688,9 @@ var _ = Describe("setup", func() {
 									})),
 								}),
 							})))
+
+							svc = nil
+							cm = nil
 						})
 
 						Describe("statefulset success", func() {
@@ -699,6 +754,8 @@ var _ = Describe("setup", func() {
 									})
 
 									AfterEach(func() {
+										pvcName = ""
+
 										// Restore original wait period
 										DefaultInterval = oldDefaultInterval
 										DefaultTimeout = oldDefaultTimeout
@@ -740,6 +797,10 @@ var _ = Describe("setup", func() {
 												}).AnyTimes()
 											})
 
+											AfterEach(func() {
+												pvcMessage = ""
+											})
+
 											reconcileShouldFailAndRequeue()
 
 											It("should report error events in etcd resource status", func() {
@@ -751,6 +812,22 @@ var _ = Describe("setup", func() {
 									}
 								})
 							}
+
+							BeforeEach(func() {
+								sts = &appsv1.StatefulSet{
+									ObjectMeta: metav1.ObjectMeta{
+										Name:      getStatefulSetNameFor(instance),
+										Namespace: instance.Namespace,
+									},
+								}
+
+								cj = &batchv1beta1.CronJob{
+									ObjectMeta: metav1.ObjectMeta{
+										Name:      getCronJobName(instance),
+										Namespace: instance.Namespace,
+									},
+								}
+							})
 
 							AfterEach(func() {
 								Expect(client.ObjectKeyFromObject(sts)).To(Equal(client.ObjectKeyFromObject(instance)))
@@ -769,6 +846,11 @@ var _ = Describe("setup", func() {
 										"Replicas": PointTo(Equal(int32(instance.Spec.Replicas))),
 									}),
 								})))
+
+								sts = nil
+								cj = nil
+								describeStatefulSetReady = nil
+								describeStatefulSetReadyAndNotReady = nil
 							})
 
 							Describe("without statefulset", func() {
@@ -776,7 +858,7 @@ var _ = Describe("setup", func() {
 									createStatefulSetCall          *gomock.Call
 									setStatefulSetReadyAfterCreate = func() {
 										createStatefulSetCall.Do(
-											func(_ context.Context, _ *appsv1.StatefulSet) {
+											func(_ context.Context, _ client.Object) {
 												setStatefulSetReady(sts)
 											},
 										)
@@ -784,23 +866,8 @@ var _ = Describe("setup", func() {
 								)
 
 								BeforeEach(func() {
-									mockListGetAndUpdateStatefulSet(cl).Times(1)
-
-									sts = &appsv1.StatefulSet{
-										ObjectMeta: metav1.ObjectMeta{
-											Name:      instance.Name,
-											Namespace: instance.Namespace,
-										},
-									}
-
-									createStatefulSetCall = cl.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(sts), gomock.Any()).DoAndReturn(
-										func(_ context.Context, src *appsv1.StatefulSet) error {
-											src.DeepCopyInto(sts)
-
-											return nil
-										},
-									)
-									mockListGetAndUpdateStatefulSet(cl, sts).AnyTimes().After(createStatefulSetCall)
+									createStatefulSetCall = mockCreate(cl, sts).After(mockGetNotFound(cl, sts))
+									mockGet(cl, sts).AnyTimes().After(createStatefulSetCall)
 								})
 
 								AfterEach(func() {
@@ -810,29 +877,18 @@ var _ = Describe("setup", func() {
 											"Status cluster size should be re-initialized in the bootstrap case",
 										)
 									}
+
+									createStatefulSetCall = nil
+									setStatefulSetReadyAfterCreate = nil
 								})
 
 								Describe("with cronjob", func() {
 									BeforeEach(func() {
-										cj = &batchv1beta1.CronJob{
-											ObjectMeta: metav1.ObjectMeta{
-												Name:      getCronJobName(instance),
-												Namespace: instance.Namespace,
-											},
-										}
-										mockListGetAndUpdateCronJob(cl, cj).AnyTimes()
-
-										cl.EXPECT().Delete(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(cj), HasSameNamespacedNameAs(cj)), gomock.Any()).DoAndReturn(
-											func(_ context.Context, _ *batchv1beta1.CronJob, _ ...client.DeleteOption) error {
-												cj.DeletionTimestamp = &metav1.Time{Time: time.Now()}
-												return nil
-											},
-										).AnyTimes()
+										mockDelete(cl, cj).After(mockGet(cl, cj))
 									})
 
 									AfterEach(func() {
 										Expect(cj.DeletionTimestamp).ToNot(BeNil(), "cronjob should be deleted")
-										cj = nil
 									})
 
 									Describe("without backup compaction schedule", func() {
@@ -841,59 +897,60 @@ var _ = Describe("setup", func() {
 								})
 
 								Describe("without cronjob", func() {
-									var describeGeneratedResourceValidation = func(
-										spec string,
-										generateEtcd func(string, string) *druidv1alpha1.Etcd,
-										validate func(*appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *batchv1beta1.CronJob, *druidv1alpha1.Etcd),
-									) {
-										Describe(spec, func() {
-											var tlsSecrets []*corev1.Secret
+									var (
+										getCronJobNotFoundCall              *gomock.Call
+										describeGeneratedResourceValidation = func(
+											spec string,
+											generateEtcd func(string, string) *druidv1alpha1.Etcd,
+											validate func(*appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *batchv1beta1.CronJob, *druidv1alpha1.Etcd),
+										) {
+											Describe(spec, func() {
+												var tlsSecrets []*corev1.Secret
 
-											BeforeEach(func() {
-												generateEtcd(instance.Name, instance.Namespace).DeepCopyInto(instance)
+												BeforeEach(func() {
+													generateEtcd(instance.Name, instance.Namespace).DeepCopyInto(instance)
 
-												if instance.Spec.Etcd.TLS != nil {
-													var tls = instance.Spec.Etcd.TLS
-													for _, secretName := range []string{
-														tls.ServerTLSSecretRef.Name,
-														tls.ClientTLSSecretRef.Name,
-														tls.TLSCASecretRef.Name,
-													} {
-														tlsSecrets = append(tlsSecrets, getSecret(secretName, instance.Namespace))
+													if instance.Spec.Etcd.TLS != nil {
+														var tls = instance.Spec.Etcd.TLS
+														for _, secretName := range []string{
+															tls.ServerTLSSecretRef.Name,
+															tls.ClientTLSSecretRef.Name,
+															tls.TLSCASecretRef.Name,
+														} {
+															tlsSecrets = append(tlsSecrets, getSecret(secretName, instance.Namespace))
+														}
+
+														for _, s := range tlsSecrets {
+															mockGet(cl, s)
+															mockUpdate(cl, s)
+														}
+													}
+												})
+
+												AfterEach(func() {
+													validate(sts, cm, svc, cj, instance)
+
+													if instance.Spec.Etcd.TLS != nil {
+														for _, secret := range tlsSecrets {
+															Expect(secret.Finalizers).To(ContainElement(FinalizerName), "TLS secret should have finalizer added")
+														}
 													}
 
-													mockGetAndUpdateSecrets(cl, tlsSecrets...).AnyTimes()
-												}
+													tlsSecrets = nil
+												})
+
+												describeStatefulSetReady(setStatefulSetReadyAfterCreate)
 											})
-
-											AfterEach(func() {
-												validate(sts, cm, svc, cj, instance)
-
-												if instance.Spec.Etcd.TLS != nil {
-													for _, secret := range tlsSecrets {
-														Expect(secret.Finalizers).To(ContainElement(FinalizerName), "TLS secret should have finalizer added")
-													}
-												}
-
-												tlsSecrets = nil
-											})
-
-											describeStatefulSetReady(setStatefulSetReadyAfterCreate)
-										})
-									}
+										}
+									)
 
 									BeforeEach(func() {
-										cj = nil
-										mockListGetAndUpdateCronJob(cl).Times(1).After(
-											cl.EXPECT().Get(
-												gomock.Any(),
-												types.NamespacedName{
-													Name:      getCronJobName(instance),
-													Namespace: instance.Namespace,
-												},
-												gomock.AssignableToTypeOf(cj),
-											).Return(errors.New("error")),
-										)
+										getCronJobNotFoundCall = mockGetNotFound(cl, cj)
+									})
+
+									AfterEach(func() {
+										getCronJobNotFoundCall = nil
+										describeGeneratedResourceValidation = nil
 									})
 
 									Describe("without backup compaction schedule", func() {
@@ -912,20 +969,7 @@ var _ = Describe("setup", func() {
 
 									Describe("with backup compaction schedule", func() {
 										BeforeEach(func() {
-											cj = &batchv1beta1.CronJob{
-												ObjectMeta: metav1.ObjectMeta{
-													Name:      getCronJobName(instance),
-													Namespace: instance.Namespace,
-												},
-											}
-											mockListGetAndUpdateCronJob(cl, cj).AnyTimes().After(
-												cl.EXPECT().Create(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(cj), HasSameNamespacedNameAs(cj)), gomock.Any()).DoAndReturn(
-													func(_ context.Context, src *batchv1beta1.CronJob) error {
-														src.DeepCopyInto(cj)
-														return nil
-													},
-												),
-											)
+											mockCreate(cl, cj).After(getCronJobNotFoundCall)
 										})
 
 										AfterEach(func() {
@@ -936,8 +980,6 @@ var _ = Describe("setup", func() {
 													})),
 												}),
 											})))
-
-											cj = nil
 										})
 
 										Describe("validation of generated resources", func() {
@@ -954,11 +996,11 @@ var _ = Describe("setup", func() {
 
 							Describe("with a statefulset", func() {
 								var (
-									patchStatefulSetCall          *gomock.Call
-									describeWithAndWithoutPods    func()
-									setStatefulSetReadyAfterPatch = func() {
-										patchStatefulSetCall.Do(
-											func(_ context.Context, _ *appsv1.StatefulSet, _ client.Patch) {
+									updateStatefulSetCall          *gomock.Call
+									describeWithAndWithoutPods     func()
+									setStatefulSetReadyAfterUpdate = func() {
+										updateStatefulSetCall.Do(
+											func(_ context.Context, _ client.Object) {
 												setStatefulSetReady(sts)
 											},
 										)
@@ -966,27 +1008,20 @@ var _ = Describe("setup", func() {
 								)
 
 								BeforeEach(func() {
-									sts = createStatefulset(instance.Name, "default", instance.Spec.Labels)
-									mockListGetAndUpdateStatefulSet(cl, sts).AnyTimes()
+									sts = createStatefulset(getStatefulSetNameFor(instance), instance.Namespace, instance.Spec.Labels)
 
-									patchStatefulSetCall = cl.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(sts), gomock.Any()).DoAndReturn(
-										func(_ context.Context, src *appsv1.StatefulSet, _ client.Patch) error {
-											src.DeepCopyInto(sts)
-											return nil
-										},
-									).AnyTimes()
+									updateStatefulSetCall = mockUpdate(cl, sts).After(mockGet(cl, sts))
+									mockGet(cl, sts).AnyTimes().After(updateStatefulSetCall)
+									mockUpdate(cl, sts).After(updateStatefulSetCall)
 
 									//Without cronjob
-									mockListGetAndUpdateCronJob(cl).Times(1).After(
-										cl.EXPECT().Get(
-											gomock.Any(),
-											types.NamespacedName{
-												Name:      getCronJobName(instance),
-												Namespace: instance.Namespace,
-											},
-											gomock.AssignableToTypeOf(cj),
-										).Return(errors.New("error")),
-									)
+									mockGetNotFound(cl, cj)
+								})
+
+								AfterEach(func() {
+									updateStatefulSetCall = nil
+									describeWithAndWithoutPods = nil
+									setStatefulSetReadyAfterUpdate = nil
 								})
 
 								describeWithAndWithoutPods = func() {
@@ -996,8 +1031,8 @@ var _ = Describe("setup", func() {
 										})
 
 										describeStatefulSetReadyAndNotReady(func() {
-											patchStatefulSetCall.Do(
-												func(_ context.Context, _ *appsv1.StatefulSet, _ client.Patch) {
+											updateStatefulSetCall.Do(
+												func(_ context.Context, _ client.Object) {
 													setStatefulSetReady(sts)
 												},
 											)
@@ -1017,7 +1052,7 @@ var _ = Describe("setup", func() {
 										})
 
 										Describe("when pods are not in CrashloopBackoff", func() {
-											describeStatefulSetReadyAndNotReady(setStatefulSetReadyAfterPatch, false)
+											describeStatefulSetReadyAndNotReady(setStatefulSetReadyAfterUpdate, false)
 										})
 
 										Describe("when pods are in CrashloopBackoff", func() {
@@ -1035,18 +1070,9 @@ var _ = Describe("setup", func() {
 															},
 														},
 													}
-												}
 
-												cl.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Pod{}), gomock.Any()).DoAndReturn(
-													func(_ context.Context, src *corev1.Pod, _ ...client.DeleteOption) error {
-														for _, p := range pods {
-															if p.Name == src.Name {
-																p.DeletionTimestamp = &metav1.Time{Time: time.Now()}
-															}
-														}
-														return nil
-													},
-												).AnyTimes()
+													mockDelete(cl, pod)
+												}
 											})
 
 											AfterEach(func() {
@@ -1055,7 +1081,7 @@ var _ = Describe("setup", func() {
 												}
 											})
 
-											describeStatefulSetReadyAndNotReady(setStatefulSetReadyAfterPatch, false)
+											describeStatefulSetReadyAndNotReady(setStatefulSetReadyAfterUpdate, false)
 										})
 									})
 								}
@@ -2892,36 +2918,6 @@ func parseQuantity(q string) resource.Quantity {
 	return val
 }
 
-type calls []*gomock.Call
-
-func (c calls) AnyTimes() calls {
-	return c.Times(0)
-}
-
-func (c calls) Times(times int) calls {
-	for _, call := range c {
-		if times > 0 {
-			call.Times(times)
-		} else {
-			call.AnyTimes()
-		}
-	}
-
-	return c
-}
-
-func (c calls) After(preReq *gomock.Call) calls {
-	if preReq == nil {
-		return c
-	}
-
-	for _, call := range c {
-		call.After(preReq)
-	}
-
-	return c
-}
-
 func getSecret(name, namespace string) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2934,232 +2930,71 @@ func getSecret(name, namespace string) *corev1.Secret {
 	}
 }
 
-func mockGetAndUpdateSecrets(cl *mockclient.MockClient, secrets ...*corev1.Secret) calls {
-	var (
-		ret       []*gomock.Call
-		expectGet = func(src *corev1.Secret) *gomock.Call {
-			return cl.EXPECT().Get(gomock.Any(), client.ObjectKeyFromObject(src), gomock.AssignableToTypeOf(src)).DoAndReturn(
-				func(_ context.Context, _ client.ObjectKey, target *corev1.Secret) error {
-					src.DeepCopyInto(target)
-					return nil
+func mockGetNotFound(cl *mockclient.MockClient, src client.Object) *gomock.Call {
+	return cl.EXPECT().Get(gomock.Any(), client.ObjectKeyFromObject(src), SameGroupKindAs(src, cl.Scheme())).DoAndReturn(
+		func(_ context.Context, _ client.ObjectKey, _ client.Object) error {
+			gvk, err := apiutil.GVKForObject(src, cl.Scheme())
+			if err != nil {
+				return nil
+			}
+
+			return apierrors.NewNotFound(
+				schema.GroupResource{
+					Group:    gvk.Group,
+					Resource: strings.ToLower(gvk.Kind),
 				},
+				src.GetName(),
 			)
-		}
-		expectUpdate = func(target *corev1.Secret) *gomock.Call {
-			return cl.EXPECT().Update(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(target), HasSameNamespacedNameAs(target))).DoAndReturn(
-				func(_ context.Context, src *corev1.Secret) error {
-					src.DeepCopyInto(target)
-					return nil
-				},
-			)
-		}
+		},
 	)
-
-	for _, secret := range secrets {
-		ret = append(ret, expectGet(secret), expectUpdate(secret))
-	}
-
-	return calls(ret)
 }
 
-func mockGetAndUpdateEtcd(cl *mockclient.MockClient, sw *mockclient.MockStatusWriter, etcd *druidv1alpha1.Etcd) calls {
-	var ret []*gomock.Call
-
-	ret = append(
-		ret,
-		cl.EXPECT().Get(gomock.Any(), client.ObjectKeyFromObject(etcd), gomock.AssignableToTypeOf(etcd)).DoAndReturn(
-			func(_ context.Context, _ client.ObjectKey, target *druidv1alpha1.Etcd) error {
-				etcd.DeepCopyInto(target)
-				return nil
-			},
-		),
-		cl.EXPECT().Update(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(etcd), HasSameNamespacedNameAs(etcd)), gomock.Any()).DoAndReturn(
-			func(_ context.Context, src *druidv1alpha1.Etcd) error {
-				src.DeepCopyInto(etcd)
-				return nil
-			},
-		),
-		sw.EXPECT().Update(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(etcd), HasSameNamespacedNameAs(etcd))).DoAndReturn(
-			func(_ context.Context, src *druidv1alpha1.Etcd) error {
-				src.Status.DeepCopyInto(&etcd.Status)
-				return nil
-			},
-		),
+func mockGet(cl *mockclient.MockClient, src client.Object) *gomock.Call {
+	return cl.EXPECT().Get(gomock.Any(), client.ObjectKeyFromObject(src), SameGroupKindAs(src, cl.Scheme())).DoAndReturn(
+		func(_ context.Context, _ client.ObjectKey, target client.Object) error {
+			Expect(cl.Scheme().Convert(src, target, nil)).To(Succeed())
+			return nil
+		},
 	)
-
-	return calls(ret)
 }
 
-func mockListGetAndUpdateStatefulSet(cl *mockclient.MockClient, ss ...*appsv1.StatefulSet) calls {
-	var (
-		ret       []*gomock.Call
-		expectGet = func(src *appsv1.StatefulSet) *gomock.Call {
-			return cl.EXPECT().Get(gomock.Any(), client.ObjectKeyFromObject(src), gomock.AssignableToTypeOf(src)).DoAndReturn(
-				func(_ context.Context, _ client.ObjectKey, target *appsv1.StatefulSet) error {
-					src.DeepCopyInto(target)
-					return nil
-				},
-			)
-		}
-		expectUpdate = func(target *appsv1.StatefulSet) *gomock.Call {
-			return cl.EXPECT().Update(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(target), HasSameNamespacedNameAs(target))).DoAndReturn(
-				func(_ context.Context, src *appsv1.StatefulSet) error {
-					src.DeepCopyInto(target)
-					return nil
-				},
-			)
-		}
+func mockUpdate(cl *mockclient.MockClient, target client.Object) *gomock.Call {
+	return cl.EXPECT().Update(gomock.Any(), gomock.All(SameGroupKindAs(target, cl.Scheme()), SameNamespacedNameAs(target))).DoAndReturn(
+		func(_ context.Context, src client.Object) error {
+			Expect(cl.Scheme().Convert(src, target, nil)).To(Succeed())
+			return nil
+		},
 	)
-
-	for _, s := range ss {
-		ret = append(ret, expectGet(s), expectUpdate(s))
-	}
-
-	return calls(append(
-		ret,
-		cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any()).DoAndReturn(
-			func(_ context.Context, target *appsv1.StatefulSetList, opts ...client.ListOption) error {
-				var listOpts = &client.ListOptions{}
-				for _, opt := range opts {
-					opt.ApplyToList(listOpts)
-				}
-
-				for _, s := range ss {
-					target.Items = append(target.Items, *s)
-				}
-				return nil
-			},
-		),
-	))
 }
 
-func mockListGetAndUpdateService(cl *mockclient.MockClient, ss ...*corev1.Service) calls {
-	var (
-		ret       []*gomock.Call
-		expectGet = func(src *corev1.Service) *gomock.Call {
-			return cl.EXPECT().Get(gomock.Any(), client.ObjectKeyFromObject(src), gomock.AssignableToTypeOf(src)).DoAndReturn(
-				func(_ context.Context, _ client.ObjectKey, target *corev1.Service) error {
-					src.DeepCopyInto(target)
-					return nil
-				},
-			)
-		}
-		expectUpdate = func(target *corev1.Service) *gomock.Call {
-			return cl.EXPECT().Update(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(target), HasSameNamespacedNameAs(target))).DoAndReturn(
-				func(_ context.Context, src *corev1.Service) error {
-					src.DeepCopyInto(target)
-					return nil
-				},
-			)
-		}
+func mockCreate(cl *mockclient.MockClient, target client.Object) *gomock.Call {
+	return cl.EXPECT().Create(gomock.Any(), gomock.All(SameGroupKindAs(target, cl.Scheme()), SameNamespacedNameAs(target)), gomock.Any()).DoAndReturn(
+		func(_ context.Context, src client.Object, _ ...client.CreateOption) error {
+			Expect(cl.Scheme().Convert(src, target, nil)).To(Succeed())
+			if (src.GetName() == "foo1-client" || src.GetName() == "etcd-bootstrap-123456") && len(src.GetOwnerReferences()) <= 0 {
+				panic(src)
+			}
+			return nil
+		},
 	)
-
-	for _, s := range ss {
-		ret = append(ret, expectGet(s), expectUpdate(s))
-	}
-
-	return calls(append(
-		ret,
-		cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.ServiceList{}), gomock.Any()).DoAndReturn(
-			func(_ context.Context, target *corev1.ServiceList, opts ...client.ListOption) error {
-				var listOpts = &client.ListOptions{}
-				for _, opt := range opts {
-					opt.ApplyToList(listOpts)
-				}
-
-				for _, s := range ss {
-					target.Items = append(target.Items, *s)
-				}
-				return nil
-			},
-		),
-	))
 }
 
-func mockListGetAndUpdateConfigMap(cl *mockclient.MockClient, cms ...*corev1.ConfigMap) calls {
-	var (
-		ret       []*gomock.Call
-		expectGet = func(src *corev1.ConfigMap) *gomock.Call {
-			return cl.EXPECT().Get(gomock.Any(), client.ObjectKeyFromObject(src), gomock.AssignableToTypeOf(src)).DoAndReturn(
-				func(_ context.Context, _ client.ObjectKey, target *corev1.ConfigMap) error {
-					src.DeepCopyInto(target)
-					return nil
-				},
-			)
-		}
-		expectUpdate = func(target *corev1.ConfigMap) *gomock.Call {
-			return cl.EXPECT().Update(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(target), HasSameNamespacedNameAs(target))).DoAndReturn(
-				func(_ context.Context, src *corev1.ConfigMap) error {
-					src.DeepCopyInto(target)
-					return nil
-				},
-			)
-		}
+func mockDelete(cl *mockclient.MockClient, target client.Object) *gomock.Call {
+	return cl.EXPECT().Delete(gomock.Any(), gomock.All(SameGroupKindAs(target, cl.Scheme()), SameNamespacedNameAs(target)), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ client.Object, _ ...client.DeleteOption) error {
+			target.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
+			return nil
+		},
 	)
-
-	for _, cm := range cms {
-		ret = append(ret, expectGet(cm), expectUpdate(cm))
-	}
-
-	return calls(append(
-		ret,
-		cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.ConfigMapList{}), gomock.Any()).DoAndReturn(
-			func(_ context.Context, target *corev1.ConfigMapList, opts ...client.ListOption) error {
-				var listOpts = &client.ListOptions{}
-				for _, opt := range opts {
-					opt.ApplyToList(listOpts)
-				}
-
-				for _, cm := range cms {
-					target.Items = append(target.Items, *cm)
-				}
-				return nil
-			},
-		),
-	))
 }
 
-func mockListGetAndUpdateCronJob(cl *mockclient.MockClient, cjs ...*batchv1beta1.CronJob) calls {
-	var (
-		ret       []*gomock.Call
-		expectGet = func(src *batchv1beta1.CronJob) *gomock.Call {
-			return cl.EXPECT().Get(gomock.Any(), client.ObjectKeyFromObject(src), gomock.AssignableToTypeOf(src)).DoAndReturn(
-				func(_ context.Context, _ client.ObjectKey, target *batchv1beta1.CronJob) error {
-					src.DeepCopyInto(target)
-					return nil
-				},
-			)
-		}
-		expectUpdate = func(target *batchv1beta1.CronJob) *gomock.Call {
-			return cl.EXPECT().Update(gomock.Any(), gomock.All(gomock.AssignableToTypeOf(target), HasSameNamespacedNameAs(target))).DoAndReturn(
-				func(_ context.Context, src *batchv1beta1.CronJob) error {
-					src.DeepCopyInto(target)
-					return nil
-				},
-			)
-		}
+func mockUpdateStatus(cl *mockclient.MockClient, sw *mockclient.MockStatusWriter, target client.Object) *gomock.Call {
+	return sw.EXPECT().Update(gomock.Any(), gomock.All(SameGroupKindAs(target, cl.Scheme()), SameNamespacedNameAs(target))).DoAndReturn(
+		func(_ context.Context, src client.Object) error {
+			Expect(cl.Scheme().Convert(src, target, nil)).To(Succeed())
+			return nil
+		},
 	)
-
-	for _, cj := range cjs {
-		ret = append(ret, expectGet(cj), expectUpdate(cj))
-	}
-
-	return calls(append(
-		ret,
-		cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&batchv1beta1.CronJobList{}), gomock.Any()).DoAndReturn(
-			func(_ context.Context, target *batchv1beta1.CronJobList, opts ...client.ListOption) error {
-				var listOpts = &client.ListOptions{}
-				for _, opt := range opts {
-					opt.ApplyToList(listOpts)
-				}
-
-				for _, cj := range cjs {
-					target.Items = append(target.Items, *cj)
-				}
-				return nil
-			},
-		),
-	))
 }
 
 func mockListPVC(cl *mockclient.MockClient, pvcs ...*corev1.PersistentVolumeClaim) *gomock.Call {
@@ -3253,8 +3088,58 @@ func HasNamespacedName(key types.NamespacedName) gomock.Matcher {
 	return namespacedNameMatcher(key)
 }
 
-func HasSameNamespacedNameAs(obj client.Object) gomock.Matcher {
+func SameNamespacedNameAs(obj client.Object) gomock.Matcher {
 	return HasNamespacedName(client.ObjectKeyFromObject(obj))
+}
+
+type groupKindMatcher struct {
+	schema.GroupKind
+	scheme *runtime.Scheme
+}
+
+func (m groupKindMatcher) Matches(x interface{}) bool {
+	if obj, ok := x.(runtime.Object); ok {
+		if gvk, err := apiutil.GVKForObject(obj, m.scheme); err != nil {
+			return false
+		} else {
+			return m.GroupKind == gvk.GroupKind()
+		}
+	}
+
+	return false
+}
+
+func (m groupKindMatcher) String() string {
+	return fmt.Sprintf("is of GroupKind %q", m.GroupKind)
+}
+
+func OfGroupKind(gk schema.GroupKind, s *runtime.Scheme) gomock.Matcher {
+	return groupKindMatcher{
+		GroupKind: gk,
+		scheme:    s,
+	}
+}
+
+func SameGroupKindAs(obj client.Object, s *runtime.Scheme) gomock.Matcher {
+	if gk, err := apiutil.GVKForObject(obj, s); err != nil {
+		return Nothing()
+	} else {
+		return OfGroupKind(gk.GroupKind(), s)
+	}
+}
+
+type nothingMatcher struct{}
+
+func (m nothingMatcher) Matches(x interface{}) bool {
+	return false
+}
+
+func (m nothingMatcher) String() string {
+	return "is nothing"
+}
+
+func Nothing() gomock.Matcher {
+	return nothingMatcher{}
 }
 
 // WithWd sets the working directory and returns a function to revert to the previous one.

@@ -93,7 +93,7 @@ spec:
 {{ toYaml .Values.etcd.resources | indent 10 }}
         env:
         - name: ENABLE_TLS
-          value: {{ .Values.etcd.enableTLS }}
+          value: {{ .Values.etcd.enableTLS | quote }}
         - name: BACKUP_ENDPOINT
           value: "http{{ if .Values.etcd.enableTLS }}s{{ end }}://{{ .Values.name }}-local:{{ .Values.backup.port }}"
         - name: FAIL_BELOW_REVISION_PARAMETER

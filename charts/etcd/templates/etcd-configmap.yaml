@@ -16,7 +16,7 @@ metadata:
     controller: true
     kind: Etcd
     name: {{ .Values.name }}
-    uid: {{ .Values.uid }}
+    uid: {{ .Values.uid | quote }}
 data:
   etcd.conf.yaml: |-
     # Human-readable name for this member.
