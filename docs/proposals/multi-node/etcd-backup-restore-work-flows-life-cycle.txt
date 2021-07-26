@@ -4,14 +4,14 @@ title etcd-backup-restore work-flow life-cycle
 
 
 participant etcd-backup-restore http server (initialize)
-participant health checker and staus updater
+participant health checker and lease renewer
 participant etcd-backup-restore leader elector/detector
 participant snapshotter
 participant defragmenter
 participant member-garbagecollector
 
 activate etcd-backup-restore http server (initialize)
-activate health checker and staus updater
+activate health checker and lease renewer
 activate etcd-backup-restore leader elector/detector
 
 etcd-backup-restore leader elector/detector->etcd-backup-restore leader elector/detector: OnLeaderStart
