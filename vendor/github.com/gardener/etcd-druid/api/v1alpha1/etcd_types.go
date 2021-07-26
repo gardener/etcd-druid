@@ -302,15 +302,12 @@ type EtcdMemberStatus struct {
 	// Name is the name of the etcd member. It is the name of the backing `Pod`.
 	Name string `json:"name"`
 	// ID is the ID of the etcd member.
-	ID string `json:"id"`
-	// Role is the role in the etcd cluster, either `Member` or `Learner`.
-	Role EtcdRole `json:"role"`
+	// +optional
+	ID *string `json:"id,omitempty"`
 	// Status of the condition, one of True, False, Unknown.
 	Status EtcdMemberConditionStatus `json:"status"`
 	// The reason for the condition's last transition.
 	Reason string `json:"reason"`
-	// LastUpdateTime is the last time this condition was updated.
-	LastUpdateTime metav1.Time `json:"lastUpdateTime"`
 	// LastTransitionTime is the last time the condition's status changed.
 	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
 }
