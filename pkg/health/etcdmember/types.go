@@ -26,19 +26,25 @@ type Checker interface {
 }
 
 type Result interface {
-	ID() string
+	ID() *string
+	Name() string
 	Status() druidv1alpha1.EtcdMemberConditionStatus
 	Reason() string
 }
 
 type result struct {
-	id     string
+	id     *string
+	name   string
 	status druidv1alpha1.EtcdMemberConditionStatus
 	reason string
 }
 
-func (r *result) ID() string {
+func (r *result) ID() *string {
 	return r.id
+}
+
+func (r *result) Name() string {
+	return r.name
 }
 
 func (r *result) Status() druidv1alpha1.EtcdMemberConditionStatus {

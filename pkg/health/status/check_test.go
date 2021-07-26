@@ -18,6 +18,10 @@ import (
 	"context"
 	"time"
 
+	"k8s.io/utils/pointer"
+
+	"github.com/go-logr/logr"
+
 	"github.com/gardener/etcd-druid/pkg/health/condition"
 	"github.com/gardener/etcd-druid/pkg/health/etcdmember"
 	"github.com/gardener/gardener/pkg/utils/test"
@@ -26,6 +30,7 @@ import (
 	. "github.com/onsi/gomega/gstruct"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
@@ -36,9 +41,7 @@ var _ = Describe("Check", func() {
 	Describe("#Check", func() {
 		It("should correctly execute checks and fill status", func() {
 			config := controllersconfig.EtcdCustodianController{
-				EtcdMember: controllersconfig.EtcdMemberConfig{
-					EtcdMemberUnknownThreshold: 1 * time.Minute,
-				},
+				EtcdMember: controllersconfig.EtcdMemberConfig{},
 			}
 			timeBefore, _ := time.Parse(time.RFC3339, "2021-06-01T00:00:00Z")
 			timeNow := timeBefore.Add(1 * time.Hour)
@@ -72,30 +75,24 @@ var _ = Describe("Check", func() {
 				},
 				Members: []druidv1alpha1.EtcdMemberStatus{
 					{
-						ID:                 "1",
-						Name:               "Member1",
-						Role:               druidv1alpha1.EtcdRoleMember,
+						ID:                 pointer.StringPtr("1"),
+						Name:               "member1",
 						Status:             druidv1alpha1.EtcdMemeberStatusReady,
 						LastTransitionTime: metav1.NewTime(timeBefore),
-						LastUpdateTime:     metav1.NewTime(timeBefore),
 						Reason:             "foo reason",
 					},
 					{
-						ID:                 "2",
-						Name:               "Member2",
-						Role:               druidv1alpha1.EtcdRoleLearner,
+						ID:                 pointer.StringPtr("2"),
+						Name:               "member2",
 						Status:             druidv1alpha1.EtcdMemeberStatusNotReady,
 						LastTransitionTime: metav1.NewTime(timeBefore),
-						LastUpdateTime:     metav1.NewTime(timeBefore),
 						Reason:             "bar reason",
 					},
 					{
-						ID:                 "3",
-						Name:               "Member3",
-						Role:               druidv1alpha1.EtcdRoleMember,
+						ID:                 pointer.StringPtr("3"),
+						Name:               "member3",
 						Status:             druidv1alpha1.EtcdMemeberStatusReady,
 						LastTransitionTime: metav1.NewTime(timeBefore),
-						LastUpdateTime:     metav1.NewTime(timeBefore),
 						Reason:             "foobar reason",
 					},
 				},
@@ -115,8 +112,12 @@ var _ = Describe("Check", func() {
 			})()
 
 			defer test.WithVar(&EtcdMemberChecks, []EtcdMemberCheckFn{
-				func(_ client.Client, _ controllersconfig.EtcdCustodianController) etcdmember.Checker {
-					return createEtcdMemberCheck("1", druidv1alpha1.EtcdMemeberStatusUnknown, "Unknown")
+				func(_ client.Client, _ logr.Logger, _ controllersconfig.EtcdCustodianController) etcdmember.Checker {
+					return createEtcdMemberCheck(
+						etcdMemberResult{pointer.StringPtr("1"), "member1", druidv1alpha1.EtcdMemeberStatusUnknown, "Unknown"},
+						etcdMemberResult{pointer.StringPtr("2"), "member2", druidv1alpha1.EtcdMemeberStatusNotReady, "bar reason"},
+						etcdMemberResult{pointer.StringPtr("3"), "member3", druidv1alpha1.EtcdMemeberStatusReady, "foobar reason"},
+					)
 				},
 			})()
 
@@ -124,7 +125,7 @@ var _ = Describe("Check", func() {
 
 			checker := NewChecker(nil, config)
 
-			Expect(checker.Check(context.Background(), etcd)).To(Succeed())
+			Expect(checker.Check(context.Background(), log.NullLogger{}, etcd)).To(Succeed())
 
 			Expect(etcd.Status.Conditions).To(ConsistOf(
 				MatchFields(IgnoreExtras, Fields{
@@ -155,30 +156,24 @@ var _ = Describe("Check", func() {
 
 			Expect(etcd.Status.Members).To(ConsistOf(
 				MatchFields(IgnoreExtras, Fields{
-					"ID":                 Equal("1"),
-					"Name":               Equal("Member1"),
-					"Role":               Equal(druidv1alpha1.EtcdRoleMember),
+					"ID":                 PointTo(Equal("1")),
+					"Name":               Equal("member1"),
 					"Status":             Equal(druidv1alpha1.EtcdMemeberStatusUnknown),
 					"LastTransitionTime": Equal(metav1.NewTime(timeNow)),
-					"LastUpdateTime":     Equal(metav1.NewTime(timeNow)),
 					"Reason":             Equal("Unknown"),
 				}),
 				MatchFields(IgnoreExtras, Fields{
-					"ID":                 Equal("2"),
-					"Name":               Equal("Member2"),
-					"Role":               Equal(druidv1alpha1.EtcdRoleLearner),
+					"ID":                 PointTo(Equal("2")),
+					"Name":               Equal("member2"),
 					"Status":             Equal(druidv1alpha1.EtcdMemeberStatusNotReady),
 					"LastTransitionTime": Equal(metav1.NewTime(timeBefore)),
-					"LastUpdateTime":     Equal(metav1.NewTime(timeBefore)),
 					"Reason":             Equal("bar reason"),
 				}),
 				MatchFields(IgnoreExtras, Fields{
-					"ID":                 Equal("3"),
-					"Name":               Equal("Member3"),
-					"Role":               Equal(druidv1alpha1.EtcdRoleMember),
+					"ID":                 PointTo(Equal("3")),
+					"Name":               Equal("member3"),
 					"Status":             Equal(druidv1alpha1.EtcdMemeberStatusReady),
 					"LastTransitionTime": Equal(metav1.NewTime(timeBefore)),
-					"LastUpdateTime":     Equal(metav1.NewTime(timeBefore)),
 					"Reason":             Equal("foobar reason"),
 				}),
 			))
@@ -230,13 +225,18 @@ func createConditionCheck(conType druidv1alpha1.ConditionType, status druidv1alp
 }
 
 type etcdMemberResult struct {
-	id     string
+	id     *string
+	name   string
 	status druidv1alpha1.EtcdMemberConditionStatus
 	reason string
 }
 
-func (r *etcdMemberResult) ID() string {
+func (r *etcdMemberResult) ID() *string {
 	return r.id
+}
+
+func (r *etcdMemberResult) Name() string {
+	return r.name
 }
 
 func (r *etcdMemberResult) Status() druidv1alpha1.EtcdMemberConditionStatus {
@@ -248,21 +248,21 @@ func (r *etcdMemberResult) Reason() string {
 }
 
 type etcdMemberTestChecker struct {
-	result *etcdMemberResult
+	results []etcdMemberResult
 }
 
 func (t *etcdMemberTestChecker) Check(_ context.Context, _ druidv1alpha1.Etcd) []etcdmember.Result {
-	return []etcdmember.Result{
-		t.result,
+	var results []etcdmember.Result
+	for _, r := range t.results {
+		result := r
+		results = append(results, &result)
 	}
+
+	return results
 }
 
-func createEtcdMemberCheck(id string, status druidv1alpha1.EtcdMemberConditionStatus, reason string) etcdmember.Checker {
+func createEtcdMemberCheck(results ...etcdMemberResult) etcdmember.Checker {
 	return &etcdMemberTestChecker{
-		result: &etcdMemberResult{
-			id:     id,
-			status: status,
-			reason: reason,
-		},
+		results: results,
 	}
 }

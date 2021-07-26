@@ -57,7 +57,6 @@ func main() {
 		custodianSyncPeriod        time.Duration
 		ignoreOperationAnnotation  bool
 
-		etcdMemberUnknownThreshold  time.Duration
 		etcdMemberNotReadyThreshold time.Duration
 
 		// TODO: migrate default to `leases` in one of the next releases
@@ -76,7 +75,6 @@ func main() {
 	flag.StringVar(&leaderElectionResourceLock, "leader-election-resource-lock", defaultLeaderElectionResourceLock, "Which resource type to use for leader election. "+
 		"Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'.")
 	flag.BoolVar(&ignoreOperationAnnotation, "ignore-operation-annotation", true, "Ignore the operation annotation or not.")
-	flag.DurationVar(&etcdMemberUnknownThreshold, "etcd-member-unknown-threshold", 60*time.Second, "Threshold after which an etcd member status is considered unknown if no heartbeat happened.")
 	flag.DurationVar(&etcdMemberNotReadyThreshold, "etcd-member-notready-threshold", 5*time.Minute, "Threshold after which an etcd member is considered not ready if the status was unknown before.")
 
 	flag.Parse()
@@ -111,7 +109,6 @@ func main() {
 
 	custodian := controllers.NewEtcdCustodian(mgr, controllersconfig.EtcdCustodianController{
 		EtcdMember: controllersconfig.EtcdMemberConfig{
-			EtcdMemberUnknownThreshold:  etcdMemberUnknownThreshold,
 			EtcdMemberNotReadyThreshold: etcdMemberNotReadyThreshold,
 		},
 		SyncPeriod: custodianSyncPeriod,

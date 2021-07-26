@@ -112,7 +112,6 @@ var _ = BeforeSuite(func(done Done) {
 
 	custodian := NewEtcdCustodian(mgr, controllersconfig.EtcdCustodianController{
 		EtcdMember: controllersconfig.EtcdMemberConfig{
-			EtcdMemberUnknownThreshold:  1 * time.Minute,
 			EtcdMemberNotReadyThreshold: 1 * time.Minute,
 		},
 	})
