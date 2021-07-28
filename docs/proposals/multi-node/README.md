@@ -45,6 +45,9 @@ This document proposes an approach (along with some alternatives) to support pro
         - [Alternative](#alternative-3)
   - [Status](#status)
     - [Members](#members)
+      - [Note](#note-1)
+      - [Member name as the key](#member-name-as-the-key)
+      - [Member Leases](#member-leases)
     - [Conditions](#conditions)
     - [ClusterSize](#clustersize)
     - [Alternative](#alternative-4)
@@ -52,19 +55,19 @@ This document proposes an approach (along with some alternatives) to support pro
     - [1. Pink of health](#1-pink-of-health)
       - [Observed state](#observed-state)
       - [Recommended Action](#recommended-action)
-    - [2. All members are Ready but AllMembersReady condition is stale](#2-all-members-are-ready-but-allmembersready-condition-is-stale)
+    - [2. Member status is out of sync with their leases](#2-member-status-is-out-of-sync-with-their-leases)
       - [Observed state](#observed-state-1)
       - [Recommended Action](#recommended-action-1)
-    - [3. Not all members are Ready but AllMembersReady condition is stale](#3-not-all-members-are-ready-but-allmembersready-condition-is-stale)
+    - [3. All members are Ready but AllMembersReady condition is stale](#3-all-members-are-ready-but-allmembersready-condition-is-stale)
       - [Observed state](#observed-state-2)
       - [Recommended Action](#recommended-action-2)
-    - [4. Majority members are Ready but Ready condition is stale](#4-majority-members-are-ready-but-ready-condition-is-stale)
+    - [4. Not all members are Ready but AllMembersReady condition is stale](#4-not-all-members-are-ready-but-allmembersready-condition-is-stale)
       - [Observed state](#observed-state-3)
       - [Recommended Action](#recommended-action-3)
-    - [5. Majority members are NotReady but Ready condition is stale](#5-majority-members-are-notready-but-ready-condition-is-stale)
+    - [5. Majority members are Ready but Ready condition is stale](#5-majority-members-are-ready-but-ready-condition-is-stale)
       - [Observed state](#observed-state-4)
       - [Recommended Action](#recommended-action-4)
-    - [6. Some members have not updated their status for a while](#6-some-members-have-not-updated-their-status-for-a-while)
+    - [6. Majority members are NotReady but Ready condition is stale](#6-majority-members-are-notready-but-ready-condition-is-stale)
       - [Observed state](#observed-state-5)
       - [Recommended Action](#recommended-action-5)
     - [7. Some members have been in Unknown status for a while](#7-some-members-have-been-in-unknown-status-for-a-while)
@@ -561,30 +564,36 @@ status:
   members:
   - name: etcd-main-0          # member pod name
     id: 272e204152             # member Id
-    role: Member               # Member|Learner
+    role: Leader               # Member|Leader
     status: Ready              # Ready|NotReady|Unknown
-    lastHeartbeatTime:         "2020-11-10T12:48:01Z"
     lastTransitionTime:        "2020-11-10T12:48:01Z"
-    reason: HeartbeatSucceeded # HeartbeatSucceeded|HeartbeatFailed|HeartbeatGracePeriodExceeded|UnknownGracePeriodExceeded|PodNotReady
+    reason: LeaseSucceeded     # LeaseSucceeded|LeaseExpired|UnknownGracePeriodExceeded|PodNotRead
   - name: etcd-main-1          # member pod name
-    id: 272e204152             # member Id
-    role: Member               # Member|Learner
+    id: 272e204153             # member Id
+    role: Member               # Member|Leader
     status: Ready              # Ready|NotReady|Unknown
-    lastHeartbeatTime:         "2020-11-10T12:48:01Z"
     lastTransitionTime:        "2020-11-10T12:48:01Z"
-    reason: HeartbeatSucceeded # HeartbeatSucceeded|HeartbeatFailed|HeartbeatGracePeriodExceeded|UnknownGracePeriodExceeded|PodNotReady
+    reason: LeaseSucceeded     # LeaseSucceeded|LeaseExpired|UnknownGracePeriodExceeded|PodNotRead
 ```
 
-This proposal recommendations to enhance `etcd-backup-restore` so that the _leading_ backup-restore sidecar container maintains the above status information in the `Etcd` status sub-resource.
+This proposal recommends that `etcd-druid` (preferrably, the `custodian` controller in `etcd-druid`) maintains most of the information in the `status` of the `Etcd` resources described above.
+
+One exception to this is the `BackupReady` condition which is recommended to be maintained by the _leading_ `etcd-backup-restore` sidecar container.
 This will mean that `etcd-backup-restore` becomes Kubernetes-aware. But there are other reasons for making `etcd-backup-restore` Kubernetes-aware anyway (e.g. to [maintain health conditions](#health-check)).
 This enhancement should keep `etcd-backup-restore` backward compatible.
 But it should be possible to use `etcd-backup-restore` Kubernetes-unaware as before this proposal. This is possible either by auto-detecting the existence of kubeconfig or by an explicit command-line flag (such as `--enable-etcd-status-updates` which can be defaulted to `false` for backward compatibility).
 
 ### Members
 
-The `members` section of the status is intended to be updated by the `etcd-backup-restore` sidecar container corresponding to the member for the most part.
-Especially, members can be marked with `status: Ready` only by their `etcd-backup-restore` sidecar container.
-However, they can be marked with `status: NotReady` either by their `etcd-backup-restore` sidecar container (with `reason: HeartbeatFailed`) or by `etcd-druid` (as explained [below](#decision-table-for-etcd-druid-based-on-the-status)).
+ The `members` section of the status is intended to be maintained by `etcd-druid` (preferraby, the `custodian` controller of `etcd-druid`) based on the [`leases` of the individual members](#member-leases).
+
+#### Note
+
+An earlier design in this proposal was for the individual `etcd-backup-restore` sidecars to update the corresponding `status.members` entries themselves. But this was redesigned to use [member `leases`](#member-leases) to avoid conflicts rising from frequent updates and the limitations in the support for [Server-Side Apply](https://kubernetes.io/docs/reference/using-api/server-side-apply/) in some versions of Kubernetes.
+
+The `spec.holderIdentity` field in the `leases` is used to communicate the ETCD member `id` and `role` between the `etcd-backup-restore` sidecars and `etcd-druid`.
+
+#### Member name as the key
 
 In an ETCD cluster, the member `id` is the [unique identifier for a member](https://etcd.io/docs/v3.4/dev-guide/api_reference_v3/#message-member-etcdserveretcdserverpbrpcproto).
 However, this proposal recommends using a [single `StatefulSet`](#kubernetes-context) whose pods form the members of the ETCD cluster and `Pods` of a `StatefulSet` have [uniquely indexed names](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#ordinal-index) as well as [uniquely addressible DNS](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#stable-network-id).
@@ -597,6 +606,25 @@ There is still the possibility of not only [superfluous entries in the `members`
 For example, if an ETCD cluster is scaled up from `3` to `5` and the new members were failing constantly due to insufficient resources and then if the ETCD client is scaled back down to `3` and failing member pods may not have the chance to clean up their `member` entries (from the `members` array as well as from the ETCD cluster) leading to superfluous members in the cluster that may have adverse effect on quorum of the cluster.
 
 Hence, the superfluous entries in both `members` array as well as the ETCD cluster need to be [cleaned up](#recommended-action-12) [as appropriate](#work-flows-only-on-the-leading-member).
+
+#### Member Leases
+
+One [Kubernetes `lease` object](https://kubernetes.io/docs/reference/kubernetes-api/cluster-resources/lease-v1/) per desired ETCD member is maintained by `etcd-druid` (preferrably, the `custodian` controller in `etcd-druid`).
+The `lease` objects will be created in the same `namespace` as their owning `Etcd` object and will have the same `name` as the member to which they correspond (which, in turn would be the same as [the `pod` name in which the member ETCD process runs](#member-name-as-the-key)).
+
+The `lease` objects are created and deleted only by `etcd-druid` but are continually renewed within the `leaseDurationSeconds` by the [individual `etcd-backup-restore` sidecars](#work-flows-independent-of-leader-election-in-all-members) (corresponding to their members) if the the corresponding ETCD member is ready and is part of the ETCD cluster.
+
+This will mean that `etcd-backup-restore` becomes Kubernetes-aware. But there are other reasons for making `etcd-backup-restore` Kubernetes-aware anyway (e.g. to [maintain health conditions](#health-check)).
+This enhancement should keep `etcd-backup-restore` backward compatible.
+But it should be possible to use `etcd-backup-restore` Kubernetes-unaware as before this proposal. This is possible either by auto-detecting the existence of kubeconfig or by an explicit command-line flag (such as `--enable-etcd-lease-renewal` which can be defaulted to `false` for backward compatibility).
+
+A `member` entry in the `Etcd` resource [`status`](#status) would be marked as `Ready` (with `reason: LeaseSucceeded`) if the corresponding `pod` is ready  and the corresponding `lease` has not yet expired.
+The `member` entry would be marked as `NotReady` if the corresponding `pod` is not ready (with reason `PodNotReady`) or as `Unknown` if the corresponding `lease` has expired (with `reason: LeaseExpired`).
+
+While renewing the lease, the `etcd-backup-restore` sidecars also maintain the ETCD member `id` and their `role` (`Leader` or `Member`) separated by `:` in the `spec.holderIdentity` field of the corresponding `lease` object since this information is only available to the `ETCD` member processes and the `etcd-backup-restore` sidecars (e.g. `272e204152:Leader` or `272e204153:Member`).
+When the `lease` objects are created by `etcd-druid`, the `spec.holderIdentity` field would be empty.
+
+The value in `spec.holderIdentity` in the `leases` is parsed and copied onto the `id` and `role` fields of the corresponding `status.members` by `etcd-druid`.
 
 ### Conditions
 
@@ -652,7 +680,7 @@ Especially, it is proposed that individual members auto-heal where possible, eve
     - Ready: `n`
     - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `0`
     - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `0`
-    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: `0`
+    - Members with expired `lease`: `0`
   - conditions:
     - Ready: `true`
     - AllMembersReady: `true`
@@ -662,7 +690,37 @@ Especially, it is proposed that individual members auto-heal where possible, eve
 
 Nothing to do
 
-### 2. All members are `Ready` but `AllMembersReady` condition is stale
+### 2. Member status is out of sync with their leases
+
+#### Observed state
+
+- Cluster Size
+  - Desired: `n`
+  - Current: `n`
+- `StatefulSet` replicas
+  - Desired: `n`
+  - Ready: `n`
+- `Etcd` status
+  - members
+    - Total: `n`
+    - Ready: `r`
+    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `0`
+    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `0`
+    - Members with expired `lease`: `l`
+  - conditions:
+    - Ready: `true`
+    - AllMembersReady: `true`
+    - BackupReady: `true`
+
+#### Recommended Action
+
+Mark the `l` members corresponding to the expired `leases` as `Unknown` with reason `LeaseExpired` and with `id` populated from `spec.holderIdentity` of the `lease` if they are not already updated so.
+
+Mark the `n - l` members corresponding to the active `leases` as `Ready` with reason `LeaseSucceeded` and with `id` populated from `spec.holderIdentity` of the `lease` if they are not already updated so.
+
+Please refer [here](#member-leases) for more details.
+
+### 3. All members are `Ready` but `AllMembersReady` condition is stale
 
 #### Observed state
 
@@ -678,7 +736,7 @@ Nothing to do
     - Ready: `n`
     - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `0`
     - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `0`
-    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: `0`
+    - Members with expired `lease`: `0`
   - conditions:
     - Ready: N/A
     - AllMembersReady: false
@@ -688,7 +746,7 @@ Nothing to do
 
 Mark the status condition type `AllMembersReady` to `true`.
 
-### 3. Not all members are `Ready` but `AllMembersReady` condition is stale
+### 4. Not all members are `Ready` but `AllMembersReady` condition is stale
 
 #### Observed state
 
@@ -704,7 +762,7 @@ Mark the status condition type `AllMembersReady` to `true`.
     - Ready: `r` where `0 <= r < n`
     - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `nr` where `0 < nr < n`
     - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `u` where `0 < u < n`
-    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: `h` where `0 < h < n`
+    - Members with expired `lease`: `h` where `0 < h < n`
   - conditions:
     - Ready: N/A
     - AllMembersReady: true
@@ -716,7 +774,7 @@ Mark the status condition type `AllMembersReady` to `true`.
 
 Mark the status condition type `AllMembersReady` to `false`.
 
-### 4. Majority members are `Ready` but `Ready` condition is stale
+### 5. Majority members are `Ready` but `Ready` condition is stale
 
 #### Observed state
 
@@ -732,7 +790,7 @@ Mark the status condition type `AllMembersReady` to `false`.
     - Ready: `r` where `r > n/2`
     - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `nr` where `0 < nr < n/2`
     - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `u` where `0 < u < n/2`
-    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: `h` where `0 < h < n/2`
+    - Members with expired `lease`: N/A
   - conditions:
     - Ready: `false`
     - AllMembersReady: N/A
@@ -744,7 +802,7 @@ Mark the status condition type `AllMembersReady` to `false`.
 
 Mark the status condition type `Ready` to `true`.
 
-### 5. Majority members are `NotReady` but `Ready` condition is stale
+### 6. Majority members are `NotReady` but `Ready` condition is stale
 
 #### Observed state
 
@@ -760,7 +818,7 @@ Mark the status condition type `Ready` to `true`.
     - Ready: `r` where `0 < r < n`
     - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `nr` where `0 < nr < n`
     - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `u` where `0 < u < n`
-    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: `h` where `0 < h < n`
+    - Members with expired `lease`: N/A
   - conditions:
     - Ready: `true`
     - AllMembersReady: N/A
@@ -771,32 +829,6 @@ Mark the status condition type `Ready` to `true`.
 #### Recommended Action
 
 Mark the status condition type `Ready` to `false`.
-
-### 6. Some members have not updated their status for a while
-
-#### Observed state
-
-- Cluster Size
-  - Desired: N/A
-  - Current: `n`
-- `StatefulSet` replicas
-  - Desired: N/A
-  - Ready: N/A
-- `Etcd` status
-  - members
-    - Total: N/A
-    - Ready: N/A
-    - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: N/A
-    - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: N/A
-    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: `h` where `h <= n`
-  - conditions:
-    - Ready: N/A
-    - AllMembersReady: N/A
-    - BackupReady: N/A
-
-#### Recommended Action
-
-Mark the `h` members as `Unknown` in `Etcd` status with `reason: HeartbeatGracePeriodExceeded`.
 
 ### 7. Some members have been in `Unknown` status for a while
 
@@ -814,7 +846,7 @@ Mark the `h` members as `Unknown` in `Etcd` status with `reason: HeartbeatGraceP
     - Ready: N/A
     - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: N/A
     - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `u` where `u <= n`
-    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+    - Members with expired `lease`: N/A
   - conditions:
     - Ready: N/A
     - AllMembersReady: N/A
@@ -840,7 +872,7 @@ Mark the `u` members as `NotReady` in `Etcd` status with `reason: UnknownGracePe
     - Ready: N/A
     - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: N/A
     - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: N/A
-    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+    - Members with expired `lease`: N/A
   - conditions:
     - Ready: N/A
     - AllMembersReady: N/A
@@ -866,7 +898,7 @@ Mark the `n - s` members (corresponding to the pods that are not `Ready`) as `No
     - Ready: `n - f`
     - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `f` where `f < n/2`
     - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: `0`
-    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+    - Members with expired `lease`: N/A
   - conditions:
     - Ready: true
     - AllMembersReady: false
@@ -874,7 +906,7 @@ Mark the `n - s` members (corresponding to the pods that are not `Ready`) as `No
 
 #### Recommended Action
 
-Delete the `f` `NotReady` member pods to force restart of the pods if they do not automatically restart via failed `livenessProbe`. The expectation is that they will either re-join the cluster as an existing member or remove themselves and join as new members on restart of the container or pod.
+Delete the `f` `NotReady` member pods to force restart of the pods if they do not automatically restart via failed `livenessProbe`. The expectation is that they will either re-join the cluster as an existing member or remove themselves and join as new members on restart of the container or pod and [renew their `leases`](#member-leases).
 
 ### 10. Quorum lost with a majority of members `NotReady`
 
@@ -892,7 +924,7 @@ Delete the `f` `NotReady` member pods to force restart of the pods if they do no
     - Ready: `n - f`
     - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: `f` where `f >= n/2`
     - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: N/A
-    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+    - Members with expired `lease`: N/A
   - conditions:
     - Ready: false
     - AllMembersReady: false
@@ -900,7 +932,7 @@ Delete the `f` `NotReady` member pods to force restart of the pods if they do no
 
 #### Recommended Action
 
-Scale down the `StatefulSet` to `replicas: 0`. Ensure that all member pods are deleted. Ensure that all the members are removed from `Etcd` status. Recover the cluster from loss of quorum as discussed [here](#recovering-an-etcd-cluster-from-failure-of-majority-of-members).
+Scale down the `StatefulSet` to `replicas: 0`. Ensure that all member pods are deleted. Ensure that all the members are removed from `Etcd` status. Delete and recreate all the [member `leases`](#member-leases). Recover the cluster from loss of quorum as discussed [here](#recovering-an-etcd-cluster-from-failure-of-majority-of-members).
 
 ### 11. Scale up of a healthy cluster
 
@@ -918,7 +950,7 @@ Scale down the `StatefulSet` to `replicas: 0`. Ensure that all member pods are d
     - Ready: `n`
     - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: 0
     - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: 0
-    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: 0
+    - Members with expired `lease`: 0
   - conditions:
     - Ready: true
     - AllMembersReady: true
@@ -927,6 +959,8 @@ Scale down the `StatefulSet` to `replicas: 0`. Ensure that all member pods are d
 #### Recommended Action
 
 Add `d - n` new members by scaling the `StatefulSet` to `replicas: d`. The rest of the `StatefulSet` spec need not be updated until the next cluster bootstrapping (alternatively, the rest of the `StatefulSet` spec can be updated pro-actively once the new members join the cluster. This will trigger a rolling update).
+
+Also, create the additional [member `leases`](#member-leases) for the `d - n` new members.
 
 ### 12. Scale down of a healthy cluster
 
@@ -944,7 +978,7 @@ Add `d - n` new members by scaling the `StatefulSet` to `replicas: d`. The rest 
     - Ready: `n`
     - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: 0
     - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: 0
-    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: 0
+    - Members with expired `lease`: 0
   - conditions:
     - Ready: true
     - AllMembersReady: true
@@ -953,6 +987,8 @@ Add `d - n` new members by scaling the `StatefulSet` to `replicas: d`. The rest 
 #### Recommended Action
 
 Remove `d - n` existing members (numbered `d`, `d + 1` ... `n`) by scaling the `StatefulSet` to `replicas: d`. The `StatefulSet` spec need not be updated until the next cluster bootstrapping (alternatively, the `StatefulSet` spec can be updated pro-actively once the superfluous members exit the cluster. This will trigger a rolling update).
+
+Also, delete the [member `leases`](#member-leases) for the `d - n` members being removed.
 
 The [superfluous entries in the `members` array](13-superfluous-member-entries-in-etcd-status) will be cleaned up as explained [here](#recommended-action-12).
 The superfluous members in the ETCD cluster will be cleaned up by the [leading `etcd-backup-restore` sidecar](#work-flows-only-on-the-leading-member).
@@ -973,7 +1009,7 @@ The superfluous members in the ETCD cluster will be cleaned up by the [leading `
     - Ready: N/A
     - Members `NotReady` for long enough to be evicted, i.e. `lastTransitionTime > notReadyGracePeriod`: N/A
     - Members with readiness status `Unknown` long enough to be considered `NotReady`, i.e. `lastTransitionTime > unknownGracePeriod`: N/A
-    - Members with heartbeat stale enough to be considered as of `Unknown` readiness status, i.e. `lastHeartbeatTime > heartbeatGracePeriod`: N/A
+    - Members with expired `lease`: N/A
   - conditions:
     - Ready: N/A
     - AllMembersReady: N/A
@@ -982,6 +1018,7 @@ The superfluous members in the ETCD cluster will be cleaned up by the [leading `
 #### Recommended Action
 
 Remove the superfluous `m - n` member entries from `Etcd` status (numbered `n`, `n+1` ... `m`).
+Remove the superfluous `m - n` [member `leases`](#member-leases) if they exist.
 The superfluous members in the ETCD cluster will be cleaned up by the [leading `etcd-backup-restore` sidecar](#work-flows-only-on-the-leading-member).
 
 ## Decision table for etcd-backup-restore during initialization
@@ -1206,7 +1243,7 @@ The life-cycle of these work-flows is shown below.
 ### Work-flows independent of leader election in all members
 
 - Serve the HTTP API that all members are expected to support currently
-- Check the health of the respective etcd member and update the corresponding entry in the [`status.members` array](#members)
+- Check the health of the respective etcd member and renew the corresponding [member `lease`](#member-leases).
 
 ### Work-flows only on the leading member
 
