@@ -348,5 +348,54 @@ var _ = Describe("ReadyCheck", func() {
 				Expect(results[2].Role()).To(BeNil())
 			})
 		})
+
+		Context("when lease has not been acquired", func() {
+			var (
+				member2Name string
+			)
+
+			BeforeEach(func() {
+				member2Name = "member2"
+				renewTime := metav1.NewMicroTime(now.Add(-1 * leaseDuration))
+				leasesList = &coordinationv1.LeaseList{
+					Items: []coordinationv1.Lease{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      member1Name,
+								Namespace: etcd.Namespace,
+							},
+							Spec: coordinationv1.LeaseSpec{
+								HolderIdentity:       pointer.StringPtr(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
+								LeaseDurationSeconds: leaseDurationSeconds,
+								RenewTime:            &renewTime,
+							},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      member2Name,
+								Namespace: etcd.Namespace,
+							},
+							Spec: coordinationv1.LeaseSpec{
+								HolderIdentity:       pointer.StringPtr("foo"),
+								LeaseDurationSeconds: leaseDurationSeconds,
+							},
+						},
+					},
+				}
+			})
+
+			It("should only contain members which acquired lease once", func() {
+				defer test.WithVar(&TimeNow, func() time.Time {
+					return now
+				})()
+
+				results := check.Check(ctx, etcd)
+
+				Expect(results).To(HaveLen(1))
+				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemeberStatusReady))
+				Expect(results[0].ID()).To(Equal(member1ID))
+				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
+			})
+		})
 	})
 })
