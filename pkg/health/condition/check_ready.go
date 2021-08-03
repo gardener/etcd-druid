@@ -31,6 +31,16 @@ func (r *readyCheck) Check(status druidv1alpha1.EtcdStatus) Result {
 		}
 	}
 
+	// TODO: remove this case as soon as leases are completely supported by etcd-backup-restore
+	if len(status.Members) == 0 {
+		return &result{
+			conType: druidv1alpha1.ConditionTypeReady,
+			status:  druidv1alpha1.ConditionUnknown,
+			reason:  "NoMembersInStatus",
+			message: "Cannot determine readiness since status has no members",
+		}
+	}
+
 	var (
 		size         = utils.Max(int(*status.ClusterSize), len(status.Members))
 		quorum       = size/2 + 1
