@@ -90,6 +90,7 @@ func (b *defaultBuilder) Build() []druidv1alpha1.EtcdMemberStatus {
 		memberStatus := druidv1alpha1.EtcdMemberStatus{
 			ID:                 res.ID(),
 			Name:               res.Name(),
+			Role:               res.Role(),
 			Status:             res.Status(),
 			Reason:             res.Reason(),
 			LastTransitionTime: now,

@@ -17,6 +17,7 @@ package etcdmember
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -59,6 +60,15 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 			continue
 		}
 
+		var (
+			id, role = separateIdFromRole(lease.Spec.HolderIdentity)
+			res      = &result{
+				id:   id,
+				name: lease.Name,
+				role: role,
+			}
+		)
+
 		// Check if member is in bootstrapping phase
 		// Members are supposed to be added to the members array only if they have joined the cluster (== RenewTime is set).
 		// This behavior is expected by the `Ready` condition and it will become imprecise if members are added here too early.
@@ -70,12 +80,9 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 
 		// Check if member state must be considered as not ready
 		if renew.Add(time.Duration(*leaseDurationSeconds) * time.Second).Add(r.memberConfig.EtcdMemberNotReadyThreshold).Before(checkTime) {
-			results = append(results, &result{
-				id:     lease.Spec.HolderIdentity,
-				name:   lease.Name,
-				status: druidv1alpha1.EtcdMemeberStatusNotReady,
-				reason: "LeaseExpired",
-			})
+			res.status = druidv1alpha1.EtcdMemeberStatusNotReady
+			res.reason = "LeaseExpired"
+			results = append(results, res)
 			continue
 		}
 
@@ -84,33 +91,48 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 			// If pod is not running or cannot be found then we deduce that the status is NotReady.
 			ready, err := r.checkContainersAreReady(ctx, lease.Namespace, lease.Name)
 			if (err == nil && !ready) || apierrors.IsNotFound(err) {
-				results = append(results, &result{
-					id:     lease.Spec.HolderIdentity,
-					name:   lease.Name,
-					status: druidv1alpha1.EtcdMemeberStatusNotReady,
-					reason: "ContainersNotReady",
-				})
+				res.status = druidv1alpha1.EtcdMemeberStatusNotReady
+				res.reason = "ContainersNotReady"
+				results = append(results, res)
 				continue
 			}
 
-			results = append(results, &result{
-				id:     lease.Spec.HolderIdentity,
-				name:   lease.Name,
-				status: druidv1alpha1.EtcdMemeberStatusUnknown,
-				reason: "LeaseExpired",
-			})
+			res.status = druidv1alpha1.EtcdMemeberStatusUnknown
+			res.reason = "LeaseExpired"
+			results = append(results, res)
 			continue
 		}
 
-		results = append(results, &result{
-			id:     lease.Spec.HolderIdentity,
-			name:   lease.Name,
-			status: druidv1alpha1.EtcdMemeberStatusReady,
-			reason: "LeaseSucceeded",
-		})
+		res.status = druidv1alpha1.EtcdMemeberStatusReady
+		res.reason = "LeaseSucceeded"
+		results = append(results, res)
 	}
 
 	return results
+}
+
+const holderIdentitySeparator = ":"
+
+func separateIdFromRole(holderIdentity *string) (*string, *druidv1alpha1.EtcdRole) {
+	if holderIdentity == nil {
+		return nil, nil
+	}
+	parts := strings.SplitN(*holderIdentity, holderIdentitySeparator, 2)
+	id := &parts[0]
+	if len(parts) != 2 {
+		return id, nil
+	}
+
+	switch druidv1alpha1.EtcdRole(parts[1]) {
+	case druidv1alpha1.EtcdRoleLeader:
+		role := druidv1alpha1.EtcdRoleLeader
+		return id, &role
+	case druidv1alpha1.EtcdRoleMember:
+		role := druidv1alpha1.EtcdRoleMember
+		return id, &role
+	default:
+		return id, nil
+	}
 }
 
 func (r *readyCheck) checkContainersAreReady(ctx context.Context, namespace string, name string) (bool, error) {

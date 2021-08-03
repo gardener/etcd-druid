@@ -291,10 +291,10 @@ const (
 type EtcdRole string
 
 const (
+	// EtcdRoleLeader describes the etcd role `Leader`.
+	EtcdRoleLeader EtcdRole = "Leader"
 	// EtcdRoleMember describes the etcd role `Member`.
 	EtcdRoleMember EtcdRole = "Member"
-	// EtcdRoleLearner describes the etcd role `Learner`.
-	EtcdRoleLearner EtcdRole = "Learner"
 )
 
 // EtcdMemberStatus holds information about a etcd cluster membership.
@@ -304,6 +304,9 @@ type EtcdMemberStatus struct {
 	// ID is the ID of the etcd member.
 	// +optional
 	ID *string `json:"id,omitempty"`
+	// Role is the role in the etcd cluster, either `Leader` or `Member`.
+	// +optional
+	Role *EtcdRole `json:"role,omitempty"`
 	// Status of the condition, one of True, False, Unknown.
 	Status EtcdMemberConditionStatus `json:"status"`
 	// The reason for the condition's last transition.

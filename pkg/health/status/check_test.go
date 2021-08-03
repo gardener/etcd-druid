@@ -40,6 +40,9 @@ import (
 var _ = Describe("Check", func() {
 	Describe("#Check", func() {
 		It("should correctly execute checks and fill status", func() {
+			memberRoleLeader := druidv1alpha1.EtcdRoleLeader
+			memberRoleMember := druidv1alpha1.EtcdRoleMember
+
 			config := controllersconfig.EtcdCustodianController{
 				EtcdMember: controllersconfig.EtcdMemberConfig{},
 			}
@@ -114,9 +117,9 @@ var _ = Describe("Check", func() {
 			defer test.WithVar(&EtcdMemberChecks, []EtcdMemberCheckFn{
 				func(_ client.Client, _ logr.Logger, _ controllersconfig.EtcdCustodianController) etcdmember.Checker {
 					return createEtcdMemberCheck(
-						etcdMemberResult{pointer.StringPtr("1"), "member1", druidv1alpha1.EtcdMemeberStatusUnknown, "Unknown"},
-						etcdMemberResult{pointer.StringPtr("2"), "member2", druidv1alpha1.EtcdMemeberStatusNotReady, "bar reason"},
-						etcdMemberResult{pointer.StringPtr("3"), "member3", druidv1alpha1.EtcdMemeberStatusReady, "foobar reason"},
+						etcdMemberResult{pointer.StringPtr("1"), "member1", &memberRoleLeader, druidv1alpha1.EtcdMemeberStatusUnknown, "Unknown"},
+						etcdMemberResult{pointer.StringPtr("2"), "member2", &memberRoleMember, druidv1alpha1.EtcdMemeberStatusNotReady, "bar reason"},
+						etcdMemberResult{pointer.StringPtr("3"), "member3", &memberRoleMember, druidv1alpha1.EtcdMemeberStatusReady, "foobar reason"},
 					)
 				},
 			})()
@@ -158,6 +161,7 @@ var _ = Describe("Check", func() {
 				MatchFields(IgnoreExtras, Fields{
 					"ID":                 PointTo(Equal("1")),
 					"Name":               Equal("member1"),
+					"Role":               PointTo(Equal(druidv1alpha1.EtcdRoleLeader)),
 					"Status":             Equal(druidv1alpha1.EtcdMemeberStatusUnknown),
 					"LastTransitionTime": Equal(metav1.NewTime(timeNow)),
 					"Reason":             Equal("Unknown"),
@@ -165,6 +169,7 @@ var _ = Describe("Check", func() {
 				MatchFields(IgnoreExtras, Fields{
 					"ID":                 PointTo(Equal("2")),
 					"Name":               Equal("member2"),
+					"Role":               PointTo(Equal(druidv1alpha1.EtcdRoleMember)),
 					"Status":             Equal(druidv1alpha1.EtcdMemeberStatusNotReady),
 					"LastTransitionTime": Equal(metav1.NewTime(timeBefore)),
 					"Reason":             Equal("bar reason"),
@@ -172,6 +177,7 @@ var _ = Describe("Check", func() {
 				MatchFields(IgnoreExtras, Fields{
 					"ID":                 PointTo(Equal("3")),
 					"Name":               Equal("member3"),
+					"Role":               PointTo(Equal(druidv1alpha1.EtcdRoleMember)),
 					"Status":             Equal(druidv1alpha1.EtcdMemeberStatusReady),
 					"LastTransitionTime": Equal(metav1.NewTime(timeBefore)),
 					"Reason":             Equal("foobar reason"),
@@ -227,6 +233,7 @@ func createConditionCheck(conType druidv1alpha1.ConditionType, status druidv1alp
 type etcdMemberResult struct {
 	id     *string
 	name   string
+	role   *druidv1alpha1.EtcdRole
 	status druidv1alpha1.EtcdMemberConditionStatus
 	reason string
 }
@@ -237,6 +244,10 @@ func (r *etcdMemberResult) ID() *string {
 
 func (r *etcdMemberResult) Name() string {
 	return r.name
+}
+
+func (r *etcdMemberResult) Role() *druidv1alpha1.EtcdRole {
+	return r.role
 }
 
 func (r *etcdMemberResult) Status() druidv1alpha1.EtcdMemberConditionStatus {

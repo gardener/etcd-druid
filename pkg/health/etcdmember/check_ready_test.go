@@ -17,6 +17,7 @@ package etcdmember_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -24,6 +25,7 @@ import (
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gstruct"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -104,7 +106,7 @@ var _ = Describe("ReadyCheck", func() {
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       member1ID,
+								HolderIdentity:       pointer.StringPtr(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &renewTime,
 							},
@@ -139,6 +141,7 @@ var _ = Describe("ReadyCheck", func() {
 				Expect(results).To(HaveLen(1))
 				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemeberStatusUnknown))
 				Expect(results[0].ID()).To(Equal(member1ID))
+				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
 			})
 
 			It("should set the affected condition to UNKNOWN because Pod cannot be received", func() {
@@ -157,6 +160,7 @@ var _ = Describe("ReadyCheck", func() {
 				Expect(results).To(HaveLen(1))
 				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemeberStatusUnknown))
 				Expect(results[0].ID()).To(Equal(member1ID))
+				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
 			})
 
 			It("should set the affected condition to FAILED because containers are not ready", func() {
@@ -185,6 +189,7 @@ var _ = Describe("ReadyCheck", func() {
 				Expect(results).To(HaveLen(1))
 				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemeberStatusNotReady))
 				Expect(results[0].ID()).To(Equal(member1ID))
+				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
 			})
 
 			It("should set the affected condition to FAILED because Pod is not found", func() {
@@ -203,6 +208,7 @@ var _ = Describe("ReadyCheck", func() {
 				Expect(results).To(HaveLen(1))
 				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemeberStatusNotReady))
 				Expect(results[0].ID()).To(Equal(member1ID))
+				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
 			})
 		})
 
@@ -229,7 +235,7 @@ var _ = Describe("ReadyCheck", func() {
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       member1ID,
+								HolderIdentity:       pointer.StringPtr(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &shortExpirationTime,
 							},
@@ -240,7 +246,7 @@ var _ = Describe("ReadyCheck", func() {
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       member2ID,
+								HolderIdentity:       pointer.StringPtr(fmt.Sprintf("%s:%s", *member2ID, druidv1alpha1.EtcdRoleMember)),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &longExpirationTime,
 							},
@@ -265,13 +271,24 @@ var _ = Describe("ReadyCheck", func() {
 				Expect(results).To(HaveLen(2))
 				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemeberStatusUnknown))
 				Expect(results[0].ID()).To(Equal(member1ID))
+				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
 				Expect(results[1].Status()).To(Equal(druidv1alpha1.EtcdMemeberStatusNotReady))
 				Expect(results[1].ID()).To(Equal(member2ID))
+				Expect(results[1].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleMember)))
 			})
 		})
 
 		Context("when lease is up-to-date", func() {
+			var (
+				member2Name, member3Name string
+				member2ID, member3ID     *string
+			)
+
 			BeforeEach(func() {
+				member2Name = "member2"
+				member2ID = pointer.StringPtr("2")
+				member3Name = "member3"
+				member3ID = pointer.StringPtr("3")
 				renewTime := metav1.NewMicroTime(now.Add(-1 * leaseDuration))
 				leasesList = &coordinationv1.LeaseList{
 					Items: []coordinationv1.Lease{
@@ -281,7 +298,29 @@ var _ = Describe("ReadyCheck", func() {
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       member1ID,
+								HolderIdentity:       pointer.StringPtr(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
+								LeaseDurationSeconds: leaseDurationSeconds,
+								RenewTime:            &renewTime,
+							},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      member2Name,
+								Namespace: etcd.Namespace,
+							},
+							Spec: coordinationv1.LeaseSpec{
+								HolderIdentity:       member2ID,
+								LeaseDurationSeconds: leaseDurationSeconds,
+								RenewTime:            &renewTime,
+							},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      member3Name,
+								Namespace: etcd.Namespace,
+							},
+							Spec: coordinationv1.LeaseSpec{
+								HolderIdentity:       pointer.StringPtr(fmt.Sprintf("%s:%s", *member3ID, "foo")),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &renewTime,
 							},
@@ -297,9 +336,16 @@ var _ = Describe("ReadyCheck", func() {
 
 				results := check.Check(ctx, etcd)
 
-				Expect(results).To(HaveLen(1))
+				Expect(results).To(HaveLen(3))
 				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemeberStatusReady))
 				Expect(results[0].ID()).To(Equal(member1ID))
+				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
+				Expect(results[1].Status()).To(Equal(druidv1alpha1.EtcdMemeberStatusReady))
+				Expect(results[1].ID()).To(Equal(member2ID))
+				Expect(results[1].Role()).To(BeNil())
+				Expect(results[2].Status()).To(Equal(druidv1alpha1.EtcdMemeberStatusReady))
+				Expect(results[2].ID()).To(Equal(member3ID))
+				Expect(results[2].Role()).To(BeNil())
 			})
 		})
 	})

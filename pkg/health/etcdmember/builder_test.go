@@ -107,17 +107,28 @@ var _ = Describe("Builder", func() {
 		})
 
 		Context("when Builder has no old members", func() {
+			var (
+				memberRoleLeader, memberRoleMember druidv1alpha1.EtcdRole
+			)
+
+			BeforeEach(func() {
+				memberRoleLeader = druidv1alpha1.EtcdRoleLeader
+				memberRoleMember = druidv1alpha1.EtcdRoleMember
+			})
+
 			It("should not add any members", func() {
 				builder.WithResults([]Result{
 					&result{
 						MemberID:     pointer.StringPtr("1"),
 						MemberName:   "member1",
+						MemberRole:   &memberRoleLeader,
 						MemberStatus: druidv1alpha1.EtcdMemeberStatusUnknown,
 						MemberReason: "unknown reason",
 					},
 					&result{
 						MemberID:     pointer.StringPtr("2"),
 						MemberName:   "member2",
+						MemberRole:   &memberRoleMember,
 						MemberStatus: druidv1alpha1.EtcdMemeberStatusReady,
 						MemberReason: "foo reason",
 					},
@@ -129,6 +140,7 @@ var _ = Describe("Builder", func() {
 					MatchFields(IgnoreExtras, Fields{
 						"Name":               Equal("member1"),
 						"ID":                 PointTo(Equal("1")),
+						"Role":               PointTo(Equal(druidv1alpha1.EtcdRoleLeader)),
 						"Status":             Equal(druidv1alpha1.EtcdMemeberStatusUnknown),
 						"Reason":             Equal("unknown reason"),
 						"LastTransitionTime": Equal(metav1.NewTime(now)),
@@ -136,6 +148,7 @@ var _ = Describe("Builder", func() {
 					MatchFields(IgnoreExtras, Fields{
 						"Name":               Equal("member2"),
 						"ID":                 PointTo(Equal("2")),
+						"Role":               PointTo(Equal(druidv1alpha1.EtcdRoleMember)),
 						"Status":             Equal(druidv1alpha1.EtcdMemeberStatusReady),
 						"Reason":             Equal("foo reason"),
 						"LastTransitionTime": Equal(metav1.NewTime(now)),
@@ -149,6 +162,7 @@ var _ = Describe("Builder", func() {
 type result struct {
 	MemberID     *string
 	MemberName   string
+	MemberRole   *druidv1alpha1.EtcdRole
 	MemberStatus druidv1alpha1.EtcdMemberConditionStatus
 	MemberReason string
 }
@@ -159,6 +173,10 @@ func (r *result) ID() *string {
 
 func (r *result) Name() string {
 	return r.MemberName
+}
+
+func (r *result) Role() *druidv1alpha1.EtcdRole {
+	return r.MemberRole
 }
 
 func (r *result) Reason() string {

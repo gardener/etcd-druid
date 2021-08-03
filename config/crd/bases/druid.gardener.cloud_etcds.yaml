@@ -460,6 +460,9 @@ spec:
                     reason:
                       description: The reason for the condition's last transition.
                       type: string
+                    role:
+                      description: Role is the role in the etcd cluster, either `Leader` or `Member`.
+                      type: string
                     status:
                       description: Status of the condition, one of True, False, Unknown.
                       type: string

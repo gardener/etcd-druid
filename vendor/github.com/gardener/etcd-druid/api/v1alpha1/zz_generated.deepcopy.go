@@ -283,6 +283,11 @@ func (in *EtcdMemberStatus) DeepCopyInto(out *EtcdMemberStatus) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.Role != nil {
+		in, out := &in.Role, &out.Role
+		*out = new(EtcdRole)
+		**out = **in
+	}
 	in.LastTransitionTime.DeepCopyInto(&out.LastTransitionTime)
 }
 
