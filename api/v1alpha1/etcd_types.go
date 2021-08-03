@@ -279,12 +279,12 @@ type Condition struct {
 type EtcdMemberConditionStatus string
 
 const (
-	// EtcdMemeberStatusReady means a etcd member is ready.
-	EtcdMemeberStatusReady EtcdMemberConditionStatus = "Ready"
-	// EtcdMemeberStatusNotReady means a etcd member is not ready.
-	EtcdMemeberStatusNotReady EtcdMemberConditionStatus = "NotReady"
-	// EtcdMemeberStatusUnknown means the status of an etcd member is unkown.
-	EtcdMemeberStatusUnknown EtcdMemberConditionStatus = "Unknown"
+	// EtcdMemberStatusReady means a etcd member is ready.
+	EtcdMemberStatusReady EtcdMemberConditionStatus = "Ready"
+	// EtcdMemberStatusNotReady means a etcd member is not ready.
+	EtcdMemberStatusNotReady EtcdMemberConditionStatus = "NotReady"
+	// EtcdMemberStatusUnknown means the status of an etcd member is unkown.
+	EtcdMemberStatusUnknown EtcdMemberConditionStatus = "Unknown"
 )
 
 // EtcdRole is the role of an etcd cluster member.

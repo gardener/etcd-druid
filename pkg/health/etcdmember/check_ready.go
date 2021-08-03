@@ -80,8 +80,8 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 
 		// Check if member state must be considered as not ready
 		if renew.Add(time.Duration(*leaseDurationSeconds) * time.Second).Add(r.memberConfig.EtcdMemberNotReadyThreshold).Before(checkTime) {
-			res.status = druidv1alpha1.EtcdMemeberStatusNotReady
-			res.reason = "LeaseExpired"
+			res.status = druidv1alpha1.EtcdMemberStatusNotReady
+			res.reason = "UnknownGracePeriodExceeded"
 			results = append(results, res)
 			continue
 		}
@@ -91,19 +91,19 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 			// If pod is not running or cannot be found then we deduce that the status is NotReady.
 			ready, err := r.checkContainersAreReady(ctx, lease.Namespace, lease.Name)
 			if (err == nil && !ready) || apierrors.IsNotFound(err) {
-				res.status = druidv1alpha1.EtcdMemeberStatusNotReady
+				res.status = druidv1alpha1.EtcdMemberStatusNotReady
 				res.reason = "ContainersNotReady"
 				results = append(results, res)
 				continue
 			}
 
-			res.status = druidv1alpha1.EtcdMemeberStatusUnknown
+			res.status = druidv1alpha1.EtcdMemberStatusUnknown
 			res.reason = "LeaseExpired"
 			results = append(results, res)
 			continue
 		}
 
-		res.status = druidv1alpha1.EtcdMemeberStatusReady
+		res.status = druidv1alpha1.EtcdMemberStatusReady
 		res.reason = "LeaseSucceeded"
 		results = append(results, res)
 	}
