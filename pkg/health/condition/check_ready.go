@@ -48,9 +48,10 @@ func (r *readyCheck) Check(status druidv1alpha1.EtcdStatus) Result {
 	)
 
 	for _, member := range status.Members {
-		if member.Status == druidv1alpha1.EtcdMemeberStatusReady {
-			readyMembers++
+		if member.Status == druidv1alpha1.EtcdMemeberStatusNotReady {
+			continue
 		}
+		readyMembers++
 	}
 
 	if readyMembers < quorum {
