@@ -101,6 +101,12 @@ var (
 		common.BackupRestore,
 	}
 	backupCompactionSchedule = "15 */24 * * *"
+	etcdSnapshotTimeout      = metav1.Duration{
+		Duration: 10 * time.Minute,
+	}
+	etcdDefragTimeout = metav1.Duration{
+		Duration: 10 * time.Minute,
+	}
 )
 
 func ownerRefIterator(element interface{}) string {
@@ -829,12 +835,14 @@ func validateEtcdWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *c
 							"Containers": MatchElements(containerIterator, IgnoreExtras, Elements{
 								"compact-backup": MatchFields(IgnoreExtras, Fields{
 									"Command": MatchElements(cmdIterator, IgnoreExtras, Elements{
-										"--data-dir=/var/etcd/data":                                                            Equal("--data-dir=/var/etcd/data"),
-										"--snapstore-temp-directory=/var/etcd/data/tmp":                                        Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
-										fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):              Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
-										fmt.Sprintf("%s=%s", "--storage-provider", store):                                      Equal(fmt.Sprintf("%s=%s", "--storage-provider", store)),
-										fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container):       Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
-										fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(instance.Spec.Etcd.Quota.Value())): Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(instance.Spec.Etcd.Quota.Value()))),
+										"--data-dir=/var/etcd/data":                                                                                 Equal("--data-dir=/var/etcd/data"),
+										"--snapstore-temp-directory=/var/etcd/data/tmp":                                                             Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
+										fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):                                   Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
+										fmt.Sprintf("%s=%s", "--storage-provider", store):                                                           Equal(fmt.Sprintf("%s=%s", "--storage-provider", store)),
+										fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container):                            Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
+										fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(instance.Spec.Etcd.Quota.Value())):                      Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(instance.Spec.Etcd.Quota.Value()))),
+										fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String())),
+										fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String()):       Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String())),
 									}),
 									"Ports": ConsistOf([]corev1.ContainerPort{
 										corev1.ContainerPort{
@@ -1493,6 +1501,8 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 								fmt.Sprintf("--max-backups=%d", maxBackups):                                                    Equal(fmt.Sprintf("--max-backups=%d", maxBackups)),
 								fmt.Sprintf("--auto-compaction-mode=%s", druidv1alpha1.Periodic):                               Equal(fmt.Sprintf("--auto-compaction-mode=%s", druidv1alpha1.Periodic)),
 								fmt.Sprintf("--auto-compaction-retention=%s", DefaultAutoCompactionRetention):                  Equal(fmt.Sprintf("--auto-compaction-retention=%s", DefaultAutoCompactionRetention)),
+								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", "8m"):                                          Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", "8m")),
+								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", "8m"):                                            Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", "8m")),
 							}),
 							"Ports": ConsistOf([]corev1.ContainerPort{
 								corev1.ContainerPort{
@@ -1857,6 +1867,8 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 								fmt.Sprintf("%s=%s", "--garbage-collection-period", instance.Spec.Backup.GarbageCollectionPeriod.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--garbage-collection-period", instance.Spec.Backup.GarbageCollectionPeriod.Duration.String())),
 								fmt.Sprintf("%s=%s", "--auto-compaction-mode", *instance.Spec.Common.AutoCompactionMode):                            Equal(fmt.Sprintf("%s=%s", "--auto-compaction-mode", autoCompactionMode)),
 								fmt.Sprintf("%s=%s", "--auto-compaction-retention", *instance.Spec.Common.AutoCompactionRetention):                  Equal(fmt.Sprintf("%s=%s", "--auto-compaction-retention", autoCompactionRetention)),
+								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String())),
+								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String()):               Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String())),
 							}),
 							"Ports": ConsistOf([]corev1.ContainerPort{
 								corev1.ContainerPort{
@@ -2727,6 +2739,7 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 				GarbageCollectionPeriod:  &garbageCollectionPeriod,
 				DeltaSnapshotPeriod:      &deltaSnapshotPeriod,
 				DeltaSnapshotMemoryLimit: &deltaSnapShotMemLimit,
+				EtcdSnapshotTimeout:      &etcdSnapshotTimeout,
 
 				Resources: &corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
@@ -2752,6 +2765,7 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 				Metrics:                 &metricsBasic,
 				Image:                   &imageEtcd,
 				DefragmentationSchedule: &defragSchedule,
+				EtcdDefragTimeout:       &etcdDefragTimeout,
 				Resources: &corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
 						"cpu":    parseQuantity("2500m"),

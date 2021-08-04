@@ -1045,6 +1045,10 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		etcdValues["clientPort"] = etcd.Spec.Etcd.ClientPort
 	}
 
+	if etcd.Spec.Etcd.EtcdDefragTimeout != nil {
+		etcdValues["etcdDefragTimeout"] = etcd.Spec.Etcd.EtcdDefragTimeout
+	}
+
 	if etcd.Spec.Etcd.Image == nil {
 		val, ok := images[common.Etcd]
 		if !ok {
@@ -1105,6 +1109,10 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	}
 
 	backupValues["enableBackupCompactionJobTempFS"] = r.enableBackupCompactionJobTempFS
+
+	if etcd.Spec.Backup.EtcdSnapshotTimeout != nil {
+		backupValues["etcdSnapshotTimeout"] = etcd.Spec.Backup.EtcdSnapshotTimeout
+	}
 
 	if etcd.Spec.Backup.Port != nil {
 		backupValues["port"] = etcd.Spec.Backup.Port

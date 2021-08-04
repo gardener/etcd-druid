@@ -183,6 +183,12 @@ spec:
         - --auto-compaction-retention={{ .Values.sharedConfig.autoCompactionRetention }}
         {{- end }}
 {{- end }}
+{{- if .Values.backup.etcdSnapshotTimeout }}
+        - --etcd-snapshot-timeout={{ .Values.backup.etcdSnapshotTimeout }}
+{{- end }}
+{{- if .Values.etcd.etcdDefragTimeout }}
+        - --etcd-defrag-timeout={{ .Values.etcd.etcdDefragTimeout }}
+{{- end }}
         - --snapstore-temp-directory={{ .Values.backup.snapstoreTempDir }}
         image: {{ .Values.backup.image }}
         imagePullPolicy: {{ .Values.backup.pullPolicy }}
