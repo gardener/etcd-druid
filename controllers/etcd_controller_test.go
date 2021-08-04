@@ -829,7 +829,8 @@ func validateEtcdWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *c
 							"Containers": MatchElements(containerIterator, IgnoreExtras, Elements{
 								"compact-backup": MatchFields(IgnoreExtras, Fields{
 									"Command": MatchElements(cmdIterator, IgnoreExtras, Elements{
-										"--data-dir=/var/etcd/data/new.etcd":                                                   Equal("--data-dir=/var/etcd/data/new.etcd"),
+										"--data-dir=/var/etcd/data":                                                            Equal("--data-dir=/var/etcd/data"),
+										"--snapstore-temp-directory=/var/etcd/data/tmp":                                        Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
 										fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):              Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 										fmt.Sprintf("%s=%s", "--storage-provider", store):                                      Equal(fmt.Sprintf("%s=%s", "--storage-provider", store)),
 										fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container):       Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
@@ -849,6 +850,10 @@ func validateEtcdWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *c
 										"etcd-config-file": MatchFields(IgnoreExtras, Fields{
 											"Name":      Equal("etcd-config-file"),
 											"MountPath": Equal("/var/etcd/config/"),
+										}),
+										"etcd-workspace-dir": MatchFields(IgnoreExtras, Fields{
+											"Name":      Equal("etcd-workspace-dir"),
+											"MountPath": Equal("/var/etcd/data"),
 										}),
 									}),
 									"Env": MatchElements(envIterator, IgnoreExtras, Elements{
@@ -874,6 +879,15 @@ func validateEtcdWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *c
 													"Path": Equal("etcd.conf.yaml"),
 												}),
 											}),
+										})),
+									}),
+								}),
+								"etcd-workspace-dir": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("etcd-workspace-dir"),
+									"VolumeSource": MatchFields(IgnoreExtras, Fields{
+										"HostPath": BeNil(),
+										"EmptyDir": PointTo(MatchFields(IgnoreExtras, Fields{
+											"SizeLimit": BeNil(),
 										})),
 									}),
 								}),
