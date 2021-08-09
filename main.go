@@ -24,6 +24,8 @@ import (
 	"github.com/gardener/etcd-druid/controllers"
 	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 
+	coordinationv1 "k8s.io/api/coordination/v1"
+	coordinationv1beta1 "k8s.io/api/coordination/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	schemev1 "k8s.io/client-go/kubernetes/scheme"
@@ -55,6 +57,7 @@ func main() {
 		etcdWorkers                int
 		custodianWorkers           int
 		custodianSyncPeriod        time.Duration
+		disableLeaseCache          bool
 		ignoreOperationAnnotation  bool
 
 		etcdMemberNotReadyThreshold time.Duration
@@ -74,6 +77,7 @@ func main() {
 		"Defaults to 'druid-leader-election'.")
 	flag.StringVar(&leaderElectionResourceLock, "leader-election-resource-lock", defaultLeaderElectionResourceLock, "Which resource type to use for leader election. "+
 		"Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'.")
+	flag.BoolVar(&disableLeaseCache, "disable-lease-cache", false, "Disable cache for lease.coordination.k8s.io resources.")
 	flag.BoolVar(&ignoreOperationAnnotation, "ignore-operation-annotation", true, "Ignore the operation annotation or not.")
 	flag.DurationVar(&etcdMemberNotReadyThreshold, "etcd-member-notready-threshold", 5*time.Minute, "Threshold after which an etcd member is considered not ready if the status was unknown before.")
 
@@ -83,8 +87,14 @@ func main() {
 
 	ctx := ctrl.SetupSignalHandler()
 
+	// TODO this can be removed once we have an improved informer, see https://github.com/gardener/etcd-druid/issues/215
+	uncachedObjects := controllers.UncachedObjectList
+	if disableLeaseCache {
+		uncachedObjects = append(uncachedObjects, &coordinationv1.Lease{}, &coordinationv1beta1.Lease{})
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		ClientDisableCacheFor:      controllers.UncachedObjectList,
+		ClientDisableCacheFor:      uncachedObjects,
 		Scheme:                     scheme,
 		MetricsBindAddress:         metricsAddr,
 		LeaderElection:             enableLeaderElection,
