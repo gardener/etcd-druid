@@ -36,7 +36,7 @@ func (a *allMembersReady) Check(status druidv1alpha1.EtcdStatus) Result {
 	}
 
 	for _, member := range status.Members {
-		if member.Status != druidv1alpha1.EtcdMemeberStatusReady {
+		if member.Status != druidv1alpha1.EtcdMemberStatusReady {
 			result.status = druidv1alpha1.ConditionFalse
 			result.reason = "NotAllMembersReady"
 			result.message = "At least one member is not ready"

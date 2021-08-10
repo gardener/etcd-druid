@@ -279,22 +279,22 @@ type Condition struct {
 type EtcdMemberConditionStatus string
 
 const (
-	// EtcdMemeberStatusReady means a etcd member is ready.
-	EtcdMemeberStatusReady EtcdMemberConditionStatus = "Ready"
-	// EtcdMemeberStatusNotReady means a etcd member is not ready.
-	EtcdMemeberStatusNotReady EtcdMemberConditionStatus = "NotReady"
-	// EtcdMemeberStatusUnknown means the status of an etcd member is unkown.
-	EtcdMemeberStatusUnknown EtcdMemberConditionStatus = "Unknown"
+	// EtcdMemberStatusReady means a etcd member is ready.
+	EtcdMemberStatusReady EtcdMemberConditionStatus = "Ready"
+	// EtcdMemberStatusNotReady means a etcd member is not ready.
+	EtcdMemberStatusNotReady EtcdMemberConditionStatus = "NotReady"
+	// EtcdMemberStatusUnknown means the status of an etcd member is unkown.
+	EtcdMemberStatusUnknown EtcdMemberConditionStatus = "Unknown"
 )
 
 // EtcdRole is the role of an etcd cluster member.
 type EtcdRole string
 
 const (
+	// EtcdRoleLeader describes the etcd role `Leader`.
+	EtcdRoleLeader EtcdRole = "Leader"
 	// EtcdRoleMember describes the etcd role `Member`.
 	EtcdRoleMember EtcdRole = "Member"
-	// EtcdRoleLearner describes the etcd role `Learner`.
-	EtcdRoleLearner EtcdRole = "Learner"
 )
 
 // EtcdMemberStatus holds information about a etcd cluster membership.
@@ -302,15 +302,15 @@ type EtcdMemberStatus struct {
 	// Name is the name of the etcd member. It is the name of the backing `Pod`.
 	Name string `json:"name"`
 	// ID is the ID of the etcd member.
-	ID string `json:"id"`
-	// Role is the role in the etcd cluster, either `Member` or `Learner`.
-	Role EtcdRole `json:"role"`
+	// +optional
+	ID *string `json:"id,omitempty"`
+	// Role is the role in the etcd cluster, either `Leader` or `Member`.
+	// +optional
+	Role *EtcdRole `json:"role,omitempty"`
 	// Status of the condition, one of True, False, Unknown.
 	Status EtcdMemberConditionStatus `json:"status"`
 	// The reason for the condition's last transition.
 	Reason string `json:"reason"`
-	// LastUpdateTime is the last time this condition was updated.
-	LastUpdateTime metav1.Time `json:"lastUpdateTime"`
 	// LastTransitionTime is the last time the condition's status changed.
 	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
 }

@@ -19,6 +19,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -32,7 +34,7 @@ import (
 type ConditionCheckFn func() condition.Checker
 
 // EtcdMemberCheckFn is a type alias for a function which returns an implementation of `Check`.
-type EtcdMemberCheckFn func(client.Client, controllersconfig.EtcdCustodianController) etcdmember.Checker
+type EtcdMemberCheckFn func(client.Client, logr.Logger, controllersconfig.EtcdCustodianController) etcdmember.Checker
 
 // TimeNow is the function used to get the current time.
 var TimeNow = time.Now
@@ -63,9 +65,9 @@ type checker struct {
 }
 
 // Check executes the status checks and mutates the passed status object with the corresponding results.
-func (c *checker) Check(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+func (c *checker) Check(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
 	// First execute the etcd member checks for the status.
-	if err := c.executeEtcdMemberChecks(ctx, etcd); err != nil {
+	if err := c.executeEtcdMemberChecks(ctx, logger, etcd); err != nil {
 		return err
 	}
 
@@ -116,10 +118,10 @@ func (c *checker) executeConditionChecks(status *druidv1alpha1.EtcdStatus) error
 
 // executeEtcdMemberChecks runs all registered etcd member checks **sequentially**.
 // The result of a check is passed via the `status` sub-resources to the next check.
-func (c *checker) executeEtcdMemberChecks(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+func (c *checker) executeEtcdMemberChecks(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
 	// Run etcd member checks sequentially as most of them act on multiple elements.
 	for _, newCheck := range c.etcdMemberCheckFns {
-		results := newCheck(c.cl, c.config).Check(ctx, *etcd)
+		results := newCheck(c.cl, logger, c.config).Check(ctx, *etcd)
 
 		// Build and assign the results after each check, so that the next check
 		// can act on the latest results.

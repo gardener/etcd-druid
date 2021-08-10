@@ -17,6 +17,8 @@ package etcdmember_test
 import (
 	"time"
 
+	"k8s.io/utils/pointer"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
@@ -52,29 +54,23 @@ var _ = Describe("Builder", func() {
 				oldMembers = map[string]druidv1alpha1.EtcdMemberStatus{
 					"1": {
 						Name:               "member1",
-						ID:                 "1",
-						Role:               druidv1alpha1.EtcdRoleMember,
-						Status:             druidv1alpha1.EtcdMemeberStatusReady,
+						ID:                 pointer.StringPtr("1"),
+						Status:             druidv1alpha1.EtcdMemberStatusReady,
 						Reason:             "foo reason",
-						LastUpdateTime:     metav1.NewTime(now.Add(-12 * time.Hour)),
 						LastTransitionTime: metav1.NewTime(now.Add(-12 * time.Hour)),
 					},
 					"2": {
 						Name:               "member2",
-						ID:                 "2",
-						Role:               druidv1alpha1.EtcdRoleMember,
-						Status:             druidv1alpha1.EtcdMemeberStatusReady,
+						ID:                 pointer.StringPtr("2"),
+						Status:             druidv1alpha1.EtcdMemberStatusReady,
 						Reason:             "bar reason",
-						LastUpdateTime:     metav1.NewTime(now.Add(-6 * time.Hour)),
 						LastTransitionTime: metav1.NewTime(now.Add(-6 * time.Hour)),
 					},
 					"3": {
 						Name:               "member3",
-						ID:                 "3",
-						Role:               druidv1alpha1.EtcdRoleMember,
-						Status:             druidv1alpha1.EtcdMemeberStatusReady,
+						ID:                 pointer.StringPtr("3"),
+						Status:             druidv1alpha1.EtcdMemberStatusReady,
 						Reason:             "foobar reason",
-						LastUpdateTime:     metav1.NewTime(now.Add(-18 * time.Hour)),
 						LastTransitionTime: metav1.NewTime(now.Add(-18 * time.Hour)),
 					},
 				}
@@ -86,11 +82,12 @@ var _ = Describe("Builder", func() {
 				})
 			})
 
-			It("should correctly merge them", func() {
+			It("should correctly set the LastTransitionTime", func() {
 				builder.WithResults([]Result{
 					&result{
-						MemberID:     "3",
-						MemberStatus: druidv1alpha1.EtcdMemeberStatusUnknown,
+						MemberID:     pointer.StringPtr("3"),
+						MemberName:   "member3",
+						MemberStatus: druidv1alpha1.EtcdMemberStatusUnknown,
 						MemberReason: "unknown reason",
 					},
 				})
@@ -98,15 +95,11 @@ var _ = Describe("Builder", func() {
 				conditions := builder.Build()
 
 				Expect(conditions).To(ConsistOf(
-					oldMembers["1"],
-					oldMembers["2"],
 					MatchFields(IgnoreExtras, Fields{
 						"Name":               Equal("member3"),
-						"ID":                 Equal("3"),
-						"Role":               Equal(druidv1alpha1.EtcdRoleMember),
-						"Status":             Equal(druidv1alpha1.EtcdMemeberStatusUnknown),
+						"ID":                 PointTo(Equal("3")),
+						"Status":             Equal(druidv1alpha1.EtcdMemberStatusUnknown),
 						"Reason":             Equal("unknown reason"),
-						"LastUpdateTime":     Equal(metav1.NewTime(now)),
 						"LastTransitionTime": Equal(metav1.NewTime(now)),
 					}),
 				))
@@ -114,36 +107,76 @@ var _ = Describe("Builder", func() {
 		})
 
 		Context("when Builder has no old members", func() {
+			var (
+				memberRoleLeader, memberRoleMember druidv1alpha1.EtcdRole
+			)
+
+			BeforeEach(func() {
+				memberRoleLeader = druidv1alpha1.EtcdRoleLeader
+				memberRoleMember = druidv1alpha1.EtcdRoleMember
+			})
+
 			It("should not add any members", func() {
 				builder.WithResults([]Result{
 					&result{
-						MemberID:     "1",
-						MemberStatus: druidv1alpha1.EtcdMemeberStatusUnknown,
+						MemberID:     pointer.StringPtr("1"),
+						MemberName:   "member1",
+						MemberRole:   &memberRoleLeader,
+						MemberStatus: druidv1alpha1.EtcdMemberStatusUnknown,
 						MemberReason: "unknown reason",
 					},
 					&result{
-						MemberID:     "2",
-						MemberStatus: druidv1alpha1.EtcdMemeberStatusReady,
+						MemberID:     pointer.StringPtr("2"),
+						MemberName:   "member2",
+						MemberRole:   &memberRoleMember,
+						MemberStatus: druidv1alpha1.EtcdMemberStatusReady,
 						MemberReason: "foo reason",
 					},
 				})
 
 				conditions := builder.Build()
 
-				Expect(conditions).To(BeEmpty())
+				Expect(conditions).To(ConsistOf(
+					MatchFields(IgnoreExtras, Fields{
+						"Name":               Equal("member1"),
+						"ID":                 PointTo(Equal("1")),
+						"Role":               PointTo(Equal(druidv1alpha1.EtcdRoleLeader)),
+						"Status":             Equal(druidv1alpha1.EtcdMemberStatusUnknown),
+						"Reason":             Equal("unknown reason"),
+						"LastTransitionTime": Equal(metav1.NewTime(now)),
+					}),
+					MatchFields(IgnoreExtras, Fields{
+						"Name":               Equal("member2"),
+						"ID":                 PointTo(Equal("2")),
+						"Role":               PointTo(Equal(druidv1alpha1.EtcdRoleMember)),
+						"Status":             Equal(druidv1alpha1.EtcdMemberStatusReady),
+						"Reason":             Equal("foo reason"),
+						"LastTransitionTime": Equal(metav1.NewTime(now)),
+					}),
+				))
 			})
 		})
 	})
 })
 
 type result struct {
-	MemberID     string
+	MemberID     *string
+	MemberName   string
+	MemberRole   *druidv1alpha1.EtcdRole
 	MemberStatus druidv1alpha1.EtcdMemberConditionStatus
 	MemberReason string
 }
 
-func (r *result) ID() string {
+func (r *result) ID() *string {
 	return r.MemberID
+}
+
+func (r *result) Name() string {
+	return r.MemberName
+}
+
+func (r *result) Role() *druidv1alpha1.EtcdRole {
+	return r.MemberRole
 }
 
 func (r *result) Reason() string {

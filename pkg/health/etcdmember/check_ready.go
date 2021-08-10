@@ -16,18 +16,25 @@ package etcdmember
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
+	"github.com/go-logr/logr"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
+	"github.com/gardener/etcd-druid/pkg/common"
 )
 
 type readyCheck struct {
+	logger logr.Logger
+
 	memberConfig controllersconfig.EtcdMemberConfig
 	cl           client.Client
 }
@@ -41,48 +48,96 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		checkTime = TimeNow().UTC()
 	)
 
-	for _, member := range etcd.Status.Members {
-		// Check if status must be changed from Unknown to NotReady.
-		if member.Status == druidv1alpha1.EtcdMemeberStatusUnknown &&
-			member.LastTransitionTime.Time.Add(r.memberConfig.EtcdMemberNotReadyThreshold).Before(checkTime) {
-			results = append(results, &result{
-				id:     member.ID,
-				status: druidv1alpha1.EtcdMemeberStatusNotReady,
-				reason: "UnkownStateTimeout",
-			})
+	leases := &coordinationv1.LeaseList{}
+	if err := r.cl.List(ctx, leases, client.InNamespace(etcd.Namespace), client.MatchingLabels{common.GardenerOwnedBy: etcd.Name}); err != nil {
+		r.logger.Error(err, "failed to get leases for etcd member readiness check")
+	}
+
+	for _, lease := range leases.Items {
+		leaseDurationSeconds := lease.Spec.LeaseDurationSeconds
+		if leaseDurationSeconds == nil {
+			r.logger.Error(fmt.Errorf("leaseDurationSeconds not set for lease object %s/%s", lease.Namespace, lease.Name), "Failed to perform member readiness check")
 			continue
 		}
 
-		// Skip if status is not already Unknown and LastUpdateTime is within grace period.
-		if !member.LastUpdateTime.Time.Add(r.memberConfig.EtcdMemberUnknownThreshold).Before(checkTime) {
+		var (
+			id, role = separateIdFromRole(lease.Spec.HolderIdentity)
+			res      = &result{
+				id:   id,
+				name: lease.Name,
+				role: role,
+			}
+		)
+
+		// Check if member is in bootstrapping phase
+		// Members are supposed to be added to the members array only if they have joined the cluster (== RenewTime is set).
+		// This behavior is expected by the `Ready` condition and it will become imprecise if members are added here too early.
+		renew := lease.Spec.RenewTime
+		if renew == nil {
+			r.logger.Info("Member hasn't acquired lease yet, still in bootstrapping phase", "name", lease.Name)
 			continue
 		}
 
-		// If pod is not running or cannot be found then we deduce that the status is NotReady.
-		ready, err := r.checkContainersAreReady(ctx, etcd.Namespace, member)
-		if (err == nil && !ready) || apierrors.IsNotFound(err) {
-			results = append(results, &result{
-				id:     member.ID,
-				status: druidv1alpha1.EtcdMemeberStatusNotReady,
-				reason: "ContainersNotReady",
-			})
+		// Check if member state must be considered as not ready
+		if renew.Add(time.Duration(*leaseDurationSeconds) * time.Second).Add(r.memberConfig.EtcdMemberNotReadyThreshold).Before(checkTime) {
+			res.status = druidv1alpha1.EtcdMemberStatusNotReady
+			res.reason = "UnknownGracePeriodExceeded"
+			results = append(results, res)
 			continue
 		}
 
-		// For every other reason the status is Unknown.
-		results = append(results, &result{
-			id:     member.ID,
-			status: druidv1alpha1.EtcdMemeberStatusUnknown,
-			reason: "UnknownMemberStatus",
-		})
+		// Check if member state must be considered as unknown
+		if renew.Add(time.Duration(*leaseDurationSeconds) * time.Second).Before(checkTime) {
+			// If pod is not running or cannot be found then we deduce that the status is NotReady.
+			ready, err := r.checkContainersAreReady(ctx, lease.Namespace, lease.Name)
+			if (err == nil && !ready) || apierrors.IsNotFound(err) {
+				res.status = druidv1alpha1.EtcdMemberStatusNotReady
+				res.reason = "ContainersNotReady"
+				results = append(results, res)
+				continue
+			}
+
+			res.status = druidv1alpha1.EtcdMemberStatusUnknown
+			res.reason = "LeaseExpired"
+			results = append(results, res)
+			continue
+		}
+
+		res.status = druidv1alpha1.EtcdMemberStatusReady
+		res.reason = "LeaseSucceeded"
+		results = append(results, res)
 	}
 
 	return results
 }
 
-func (r *readyCheck) checkContainersAreReady(ctx context.Context, namespace string, member druidv1alpha1.EtcdMemberStatus) (bool, error) {
+const holderIdentitySeparator = ":"
+
+func separateIdFromRole(holderIdentity *string) (*string, *druidv1alpha1.EtcdRole) {
+	if holderIdentity == nil {
+		return nil, nil
+	}
+	parts := strings.SplitN(*holderIdentity, holderIdentitySeparator, 2)
+	id := &parts[0]
+	if len(parts) != 2 {
+		return id, nil
+	}
+
+	switch druidv1alpha1.EtcdRole(parts[1]) {
+	case druidv1alpha1.EtcdRoleLeader:
+		role := druidv1alpha1.EtcdRoleLeader
+		return id, &role
+	case druidv1alpha1.EtcdRoleMember:
+		role := druidv1alpha1.EtcdRoleMember
+		return id, &role
+	default:
+		return id, nil
+	}
+}
+
+func (r *readyCheck) checkContainersAreReady(ctx context.Context, namespace string, name string) (bool, error) {
 	pod := &corev1.Pod{}
-	if err := r.cl.Get(ctx, kutil.Key(namespace, member.Name), pod); err != nil {
+	if err := r.cl.Get(ctx, kutil.Key(namespace, name), pod); err != nil {
 		return false, err
 	}
 
@@ -96,8 +151,10 @@ func (r *readyCheck) checkContainersAreReady(ctx context.Context, namespace stri
 }
 
 // ReadyCheck returns a check for the "Ready" condition.
-func ReadyCheck(cl client.Client, config controllersconfig.EtcdCustodianController) Checker {
+func ReadyCheck(cl client.Client, logger logr.Logger, config controllersconfig.EtcdCustodianController) Checker {
 	return &readyCheck{
+		logger: logger,
+
 		cl:           cl,
 		memberConfig: config.EtcdMember,
 	}

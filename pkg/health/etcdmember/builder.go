@@ -50,7 +50,7 @@ func NewBuilder() Builder {
 // WithOldMember sets the old etcd member statuses. It can be used to provide default values.
 func (b *defaultBuilder) WithOldMembers(members []druidv1alpha1.EtcdMemberStatus) Builder {
 	for _, member := range members {
-		b.old[member.ID] = member
+		b.old[member.Name] = member
 	}
 
 	return b
@@ -62,7 +62,7 @@ func (b *defaultBuilder) WithResults(results []Result) Builder {
 		if res == nil {
 			continue
 		}
-		b.results[res.ID()] = res
+		b.results[res.Name()] = res
 	}
 
 	return b
@@ -79,7 +79,6 @@ func (b *defaultBuilder) WithNowFunc(now func() metav1.Time) Builder {
 // It merges the existing members with the results added to the builder.
 // If OldCondition is provided:
 // - Any changes to status set the `LastTransitionTime`
-// - `LastUpdateTime` is always set.
 func (b *defaultBuilder) Build() []druidv1alpha1.EtcdMemberStatus {
 	var (
 		now = b.nowFunc()
@@ -87,25 +86,24 @@ func (b *defaultBuilder) Build() []druidv1alpha1.EtcdMemberStatus {
 		members []druidv1alpha1.EtcdMemberStatus
 	)
 
-	for id, res := range b.results {
-		member, ok := b.old[id]
-		if !ok {
-			// Continue if we can't find an existing member because druid is not supposed to add one.
-			continue
+	for name, res := range b.results {
+		memberStatus := druidv1alpha1.EtcdMemberStatus{
+			ID:                 res.ID(),
+			Name:               res.Name(),
+			Role:               res.Role(),
+			Status:             res.Status(),
+			Reason:             res.Reason(),
+			LastTransitionTime: now,
 		}
 
-		member.Status = res.Status()
-		member.LastTransitionTime = now
-		member.LastUpdateTime = now
-		member.Reason = res.Reason()
+		// Don't reset LastTransitionTime if status didn't change
+		if oldMemberStatus, ok := b.old[name]; ok {
+			if oldMemberStatus.Status == res.Status() {
+				memberStatus.LastTransitionTime = oldMemberStatus.LastTransitionTime
+			}
+		}
 
-		members = append(members, member)
-		delete(b.old, id)
-	}
-
-	for _, member := range b.old {
-		// Add existing members as they were. This needs to be changed when SSA is used.
-		members = append(members, member)
+		members = append(members, memberStatus)
 	}
 
 	return members

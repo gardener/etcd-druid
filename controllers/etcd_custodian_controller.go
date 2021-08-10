@@ -95,7 +95,7 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	}
 
 	statusCheck := status.NewChecker(ec.Client, ec.config)
-	if err := statusCheck.Check(ctx, etcd); err != nil {
+	if err := statusCheck.Check(ctx, logger, etcd); err != nil {
 		logger.Error(err, "Error executing status checks")
 		return ctrl.Result{}, err
 	}

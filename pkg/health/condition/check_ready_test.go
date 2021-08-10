@@ -25,14 +25,17 @@ import (
 
 var _ = Describe("ReadyCheck", func() {
 	Describe("#Check", func() {
-		var readyMember, notReadyMember druidv1alpha1.EtcdMemberStatus
+		var readyMember, notReadyMember, unknownMember druidv1alpha1.EtcdMemberStatus
 
 		BeforeEach(func() {
 			readyMember = druidv1alpha1.EtcdMemberStatus{
-				Status: druidv1alpha1.EtcdMemeberStatusReady,
+				Status: druidv1alpha1.EtcdMemberStatusReady,
 			}
 			notReadyMember = druidv1alpha1.EtcdMemberStatus{
-				Status: druidv1alpha1.EtcdMemeberStatusNotReady,
+				Status: druidv1alpha1.EtcdMemberStatusNotReady,
+			}
+			unknownMember = druidv1alpha1.EtcdMemberStatus{
+				Status: druidv1alpha1.EtcdMemberStatusUnknown,
 			}
 		})
 
@@ -44,6 +47,23 @@ var _ = Describe("ReadyCheck", func() {
 						readyMember,
 						readyMember,
 						readyMember,
+					},
+				}
+				check := ReadyCheck()
+
+				result := check.Check(status)
+
+				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
+				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
+			})
+
+			It("should return that the cluster has a quorum (members are partly unknown)", func() {
+				status := druidv1alpha1.EtcdStatus{
+					ClusterSize: pointer.Int32Ptr(3),
+					Members: []druidv1alpha1.EtcdMemberStatus{
+						readyMember,
+						unknownMember,
+						unknownMember,
 					},
 				}
 				check := ReadyCheck()
