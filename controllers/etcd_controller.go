@@ -96,16 +96,17 @@ var (
 // EtcdReconciler reconciles a Etcd object
 type EtcdReconciler struct {
 	client.Client
-	Scheme       *runtime.Scheme
-	chartApplier kubernetes.ChartApplier
-	Config       *rest.Config
-	ImageVector  imagevector.ImageVector
-	logger       logr.Logger
+	Scheme                          *runtime.Scheme
+	chartApplier                    kubernetes.ChartApplier
+	Config                          *rest.Config
+	ImageVector                     imagevector.ImageVector
+	logger                          logr.Logger
+	enableBackupCompactionJobTempFS bool
 }
 
 // NewReconcilerWithImageVector creates a new EtcdReconciler object with an image vector
 func NewReconcilerWithImageVector(mgr manager.Manager) (*EtcdReconciler, error) {
-	etcdReconciler, err := NewEtcdReconciler(mgr)
+	etcdReconciler, err := NewEtcdReconciler(mgr, false)
 	if err != nil {
 		return nil, err
 	}
@@ -113,18 +114,19 @@ func NewReconcilerWithImageVector(mgr manager.Manager) (*EtcdReconciler, error) 
 }
 
 // NewEtcdReconciler creates a new EtcdReconciler object
-func NewEtcdReconciler(mgr manager.Manager) (*EtcdReconciler, error) {
+func NewEtcdReconciler(mgr manager.Manager, enableBackupCompactionJobTempFS bool) (*EtcdReconciler, error) {
 	return (&EtcdReconciler{
-		Client: mgr.GetClient(),
-		Config: mgr.GetConfig(),
-		Scheme: mgr.GetScheme(),
-		logger: log.Log.WithName("etcd-controller"),
+		Client:                          mgr.GetClient(),
+		Config:                          mgr.GetConfig(),
+		Scheme:                          mgr.GetScheme(),
+		logger:                          log.Log.WithName("etcd-controller"),
+		enableBackupCompactionJobTempFS: enableBackupCompactionJobTempFS,
 	}).InitializeControllerWithChartApplier()
 }
 
 // NewEtcdReconcilerWithImageVector creates a new EtcdReconciler object
-func NewEtcdReconcilerWithImageVector(mgr manager.Manager) (*EtcdReconciler, error) {
-	ec, err := NewEtcdReconciler(mgr)
+func NewEtcdReconcilerWithImageVector(mgr manager.Manager, enableBackupCompactionJobTempFS bool) (*EtcdReconciler, error) {
+	ec, err := NewEtcdReconciler(mgr, enableBackupCompactionJobTempFS)
 	if err != nil {
 		return nil, err
 	}
@@ -1101,6 +1103,8 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	if etcd.Spec.Backup.BackupCompactionSchedule != nil {
 		backupValues["backupCompactionSchedule"] = etcd.Spec.Backup.BackupCompactionSchedule
 	}
+
+	backupValues["enableBackupCompactionJobTempFS"] = r.enableBackupCompactionJobTempFS
 
 	if etcd.Spec.Backup.Port != nil {
 		backupValues["port"] = etcd.Spec.Backup.Port

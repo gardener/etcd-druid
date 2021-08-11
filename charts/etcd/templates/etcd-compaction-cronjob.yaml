@@ -25,6 +25,11 @@ metadata:
 spec:
   schedule: {{ .Values.backup.backupCompactionSchedule }} 
   concurrencyPolicy: Forbid
+{{- if eq (int $.Values.statefulsetReplicas) 0 }}
+  suspend: true
+{{- else }}
+  suspend: false
+{{- end }}
   jobTemplate:
     spec:
       backoffLimit: 0
@@ -50,7 +55,8 @@ spec:
             command:
             - etcdbrctl
             - compact
-            - --data-dir=/var/etcd/data/new.etcd
+            - --data-dir=/var/etcd/data
+            - --snapstore-temp-directory=/var/etcd/data/tmp
 {{- if  .Values.store.storageProvider }}
             - --storage-provider={{ .Values.store.storageProvider }}
 {{- end }}
@@ -68,7 +74,11 @@ spec:
               name: server
               protocol: TCP
             resources:
-{{ toYaml .Values.backup.resources | indent 14 }}
+{{- if .Values.backup.enableBackupCompactionJobTempFS }}
+{{ toYaml .Values.backup.compactionResourcesTempFS | indent 14 }}
+{{- else }}
+{{ toYaml .Values.backup.compactionResources | indent 14 }}
+{{- end }}
             env:
             - name: STORAGE_CONTAINER
               value: {{ .Values.store.storageContainer }}
@@ -195,6 +205,8 @@ spec:
                   optional: true
 {{- end }}
             volumeMounts:
+            - name: etcd-workspace-dir
+              mountPath: /var/etcd/data
             - name: etcd-config-file
               mountPath: /var/etcd/config/
 {{- if eq .Values.store.storageProvider "GCS" }}
@@ -202,6 +214,13 @@ spec:
               mountPath: "/root/.gcp/"
 {{- end }}
           volumes:
+          - name: etcd-workspace-dir
+{{- if .Values.backup.enableBackupCompactionJobTempFS }}
+            emptyDir:
+              medium: Memory
+{{- else }}
+            emptyDir: {} 
+{{- end }}
           - name: etcd-config-file
             configMap:
               name: {{ .Values.configMapName }}

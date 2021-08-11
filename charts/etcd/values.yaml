@@ -46,6 +46,20 @@ backup:
     requests:
       cpu: 50m
       memory: 128Mi
+  compactionResources:
+    limits:
+      cpu: 700m
+      memory: 3Gi
+    requests:
+      cpu: 500m
+      memory: 2Gi
+  compactionResourcesTempFS:
+    limits:
+      cpu: 900m
+      memory: 12Gi
+    requests:
+      cpu: 700m
+      memory: 10Gi
   # compression:
   #   enabled: true
   #   policy: "gzip"

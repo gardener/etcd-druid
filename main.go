@@ -50,15 +50,16 @@ func init() {
 
 func main() {
 	var (
-		metricsAddr                string
-		enableLeaderElection       bool
-		leaderElectionID           string
-		leaderElectionResourceLock string
-		etcdWorkers                int
-		custodianWorkers           int
-		custodianSyncPeriod        time.Duration
-		disableLeaseCache          bool
-		ignoreOperationAnnotation  bool
+		metricsAddr                     string
+		enableLeaderElection            bool
+		leaderElectionID                string
+		leaderElectionResourceLock      string
+		etcdWorkers                     int
+		custodianWorkers                int
+		custodianSyncPeriod             time.Duration
+		disableLeaseCache               bool
+		ignoreOperationAnnotation       bool
+		enableBackupCompactionJobTempFS bool
 
 		etcdMemberNotReadyThreshold time.Duration
 
@@ -80,6 +81,7 @@ func main() {
 	flag.BoolVar(&disableLeaseCache, "disable-lease-cache", false, "Disable cache for lease.coordination.k8s.io resources.")
 	flag.BoolVar(&ignoreOperationAnnotation, "ignore-operation-annotation", true, "Ignore the operation annotation or not.")
 	flag.DurationVar(&etcdMemberNotReadyThreshold, "etcd-member-notready-threshold", 5*time.Minute, "Threshold after which an etcd member is considered not ready if the status was unknown before.")
+	flag.BoolVar(&enableBackupCompactionJobTempFS, "enable-backup-compaction-job-tempfs", false, "Enable the backup compaction job to use tempfs as its volume mount")
 
 	flag.Parse()
 
@@ -106,7 +108,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	etcd, err := controllers.NewEtcdReconcilerWithImageVector(mgr)
+	etcd, err := controllers.NewEtcdReconcilerWithImageVector(mgr, enableBackupCompactionJobTempFS)
 	if err != nil {
 		setupLog.Error(err, "Unable to initialize controller with image vector")
 		os.Exit(1)
