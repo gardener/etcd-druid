@@ -49,6 +49,9 @@ spec:
                   backupCompactionSchedule:
                     description: BackupCompactionSchedule defines the cron standard for compacting the snapstore
                     type: string
+                  etcdSnapshotTimeout:
+                    description: EtcdSnapshotTimeout defines the timeout duration for etcd FullSnapshot operation
+                    type: string
                   compression:
                     description: SnapshotCompression defines the specification for compression of Snapshots.
                     properties:
@@ -198,6 +201,9 @@ spec:
                     type: integer
                   defragmentationSchedule:
                     description: DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd.
+                    type: string
+                  etcdDefragTimeout:
+                    description: EtcdDefragTimeout defines the timeout duration for etcd defrag call
                     type: string
                   image:
                     description: Image defines the etcd container image and tag

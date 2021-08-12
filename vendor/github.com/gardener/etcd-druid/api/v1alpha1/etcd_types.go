@@ -144,6 +144,9 @@ type BackupSpec struct {
 	// BackupCompactionSchedule defines the cron standard for compacting the snapstore
 	// +optional
 	BackupCompactionSchedule *string `json:"backupCompactionSchedule,omitempty"`
+	// EtcdSnapshotTimeout defines the timeout duration for etcd FullSnapshot operation
+	// +optional
+	EtcdSnapshotTimeout *metav1.Duration `json:"etcdSnapshotTimeout,omitempty"`
 }
 
 // EtcdConfig defines parameters associated etcd deployed
@@ -172,6 +175,9 @@ type EtcdConfig struct {
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 	// +optional
 	TLS *TLSConfig `json:"tls,omitempty"`
+	// EtcdDefragTimeout defines the timeout duration for etcd defrag call
+	// +optional
+	EtcdDefragTimeout *metav1.Duration `json:"etcdDefragTimeout,omitempty"`
 }
 
 // SharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.

@@ -50,7 +50,7 @@ spec:
           restartPolicy: Never
           containers:
           - name: compact-backup
-            image: {{ .Values.backup.image }} 
+            image: {{ .Values.backup.image }}
             imagePullPolicy: {{ .Values.backup.pullPolicy }} 
             command:
             - etcdbrctl
@@ -68,6 +68,12 @@ spec:
 {{- end }}
 {{- if .Values.store.storageContainer }}
             - --store-container={{ .Values.store.storageContainer }}
+{{- end }}
+{{- if .Values.backup.etcdSnapshotTimeout }}
+            - --etcd-snapshot-timeout={{ .Values.backup.etcdSnapshotTimeout }}
+{{- end }}
+{{- if .Values.etcd.etcdDefragTimeout }}
+            - --etcd-defrag-timeout={{ .Values.etcd.etcdDefragTimeout }}
 {{- end }}
             ports:
             - containerPort: {{ .Values.backup.port }}

@@ -20,6 +20,7 @@ etcd:
   metrics: basic
   clientPort: 2379
   serverPort: 2380
+  etcdDefragTimeout: 8m
   resources:
     limits:
       cpu: 100m
@@ -39,6 +40,7 @@ backup:
   enableProfiling: false
   garbageCollectionPolicy: LimitBased
   maxBackups: 7
+  etcdSnapshotTimeout: 8m
   resources:
     limits:
       cpu: 100m
