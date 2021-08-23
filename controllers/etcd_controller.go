@@ -443,20 +443,13 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		}
 
 		gk := gvk.GroupKind()
-		switch gk {
-		case gkStatefulSet:
-			if err := r.Scheme.Convert(renderedObj, sts, nil); err != nil {
-				return op, svc, sts, err
-			}
-			isStatefulSet = true
 
-		case gkService:
-			if err := r.Scheme.Convert(renderedObj, svc, nil); err != nil {
-				return op, svc, sts, err
-			}
+		if gk == gkStatefulSet {
+			isStatefulSet = true
 		}
 
 		renderedObj.DeepCopyInto(obj)
+
 		result, err := controllerutil.CreateOrUpdate(ctx, r.Client, obj, func() error {
 			if immutableFieldPaths, ok := immutableFieldPathsForGroupKinds[gk]; ok {
 				if err := validateImmutableFields(gk, obj, renderedObj, immutableFieldPaths); err != nil {
@@ -479,6 +472,12 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 				return err
 			}
 
+			if isStatefulSet {
+				if err := preserveStatefulSetResources(r.Scheme, oldObj, obj); err != nil {
+					return err
+				}
+			}
+
 			return forceOverwriteFields(gk, renderedObj, obj, forceOverWriteFieldPaths)
 		})
 
@@ -488,11 +487,23 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 			}
 
 			if apierrors.IsInvalid(err) && result == controllerutil.OperationResultUpdated {
-				if err := recreate(ctx, r.Client, obj, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
+				if err = recreate(ctx, r.Client, obj, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 					return op, svc, sts, err
 				}
 
 				result = controllerutil.OperationResultCreated
+			}
+		}
+
+		switch gk {
+		case gkStatefulSet:
+			if err := r.Scheme.Convert(obj, sts, nil); err != nil {
+				return op, svc, sts, err
+			}
+
+		case gkService:
+			if err := r.Scheme.Convert(obj, svc, nil); err != nil {
+				return op, svc, sts, err
 			}
 		}
 
@@ -620,6 +631,43 @@ func preserveFields(gk schema.GroupKind, oldObj, newObj *unstructured.Unstructur
 	}
 
 	return nil
+}
+
+func preserveStatefulSetResources(sch *runtime.Scheme, oldObj, newObj *unstructured.Unstructured) error {
+	var (
+		oldSts         = &appsv1.StatefulSet{}
+		newSts         = &appsv1.StatefulSet{}
+		emptyResources = &corev1.ResourceRequirements{}
+	)
+
+	if err := sch.Convert(oldObj, oldSts, nil); err != nil {
+		return err
+	}
+
+	if err := sch.Convert(newObj, newSts, nil); err != nil {
+		return err
+	}
+
+	for i := range oldSts.Spec.Template.Spec.Containers {
+		var c = &oldSts.Spec.Template.Spec.Containers[i]
+		if reflect.DeepEqual(&c.Resources, emptyResources) {
+			continue // Do not overwrite with empty resources
+		}
+
+		deepCopyContainerResources(c.Name, &c.Resources, newSts.Spec.Template.Spec.Containers)
+	}
+
+	return sch.Convert(newSts, newObj, nil)
+}
+
+func deepCopyContainerResources(containerName string, res *corev1.ResourceRequirements, containers []corev1.Container) {
+	for i := range containers {
+		var c = &containers[i]
+		if c.Name == containerName {
+			res.DeepCopyInto(&c.Resources)
+			return
+		}
+	}
 }
 
 func forceOverwriteFields(gk schema.GroupKind, src, target *unstructured.Unstructured, fieldPaths [][]string) error {

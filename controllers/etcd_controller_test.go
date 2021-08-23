@@ -16,8 +16,10 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -36,7 +38,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
 	. "github.com/onsi/gomega/gstruct"
+	gomegatypes "github.com/onsi/gomega/types"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -44,6 +48,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -372,7 +377,7 @@ var _ = Describe("setup", func() {
 						BeforeEach(func() {
 							mockGet(cl, sts)
 						})
-						
+
 						Describe("if the statefulset is not claimed", func() {
 							describeLeaseVariations(func() {
 								reconcileShouldSucceed()
@@ -1091,6 +1096,103 @@ var _ = Describe("setup", func() {
 								})
 
 								Describe("if the statefulset has been claimed", func() {
+									var (
+										matcherForResourceList = func(rl corev1.ResourceList) gomegatypes.GomegaMatcher {
+											if rl == nil {
+												return BeNil()
+											}
+
+											if len(rl) <= 0 {
+												return BeEmpty()
+											}
+
+											var r = &KeysMatcher{IgnoreExtras: true, Keys: Keys{}}
+
+											for k, v := range rl {
+												r.Keys[k] = EqualQuantity(&v)
+											}
+
+											return r
+										}
+
+										matcherForResources = func(res *corev1.ResourceRequirements) gomegatypes.GomegaMatcher {
+											if res == nil {
+												return BeNil()
+											}
+
+											var r = &FieldsMatcher{IgnoreExtras: true, Fields: Fields{}}
+
+											r.Fields["Requests"] = matcherForResourceList(res.Requests)
+											r.Fields["Limits"] = matcherForResourceList(res.Limits)
+
+											return r
+										}
+
+										describeStatefulSetResourcesVariationsWithAndWithoutPods = func() {
+											Describe("and has empty resources", func() {
+												BeforeEach(func() {
+													for i := range sts.Spec.Template.Spec.Containers {
+														var c = &sts.Spec.Template.Spec.Containers[i]
+														c.Resources = corev1.ResourceRequirements{}
+													}
+												})
+
+												AfterEach(func() {
+													Expect(sts.Spec.Template.Spec.Containers).To(ConsistOf(
+														MatchFields(IgnoreExtras, Fields{
+															"Name":      Equal("etcd"),
+															"Resources": matcherForResources(instance.Spec.Etcd.Resources),
+														}),
+														MatchFields(IgnoreExtras, Fields{
+															"Name":      Equal("backup-restore"),
+															"Resources": matcherForResources(instance.Spec.Backup.Resources),
+														}),
+													), "The statefulset should default the resources from the etcd instance.")
+												})
+
+												describeWithAndWithoutPods()
+											})
+
+											Describe("and has existing resources", func() {
+												var containerMatcherForResources []interface{}
+												BeforeEach(func() {
+													containerMatcherForResources = nil
+
+													for i := range sts.Spec.Template.Spec.Containers {
+														var (
+															c    = &sts.Spec.Template.Spec.Containers[i]
+															base = (i + 1) * 100
+														)
+														c.Resources = corev1.ResourceRequirements{
+															Requests: corev1.ResourceList{
+																corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%d", base+1)),
+																corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%d", base+2)),
+															},
+															Limits: corev1.ResourceList{
+																corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%d", base+3)),
+																corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%d", base+4)),
+															},
+														}
+
+														containerMatcherForResources = append(containerMatcherForResources, MatchFields(IgnoreExtras, Fields{
+															"Name":      Equal(c.Name),
+															"Resources": matcherForResources(c.Resources.DeepCopy()),
+														}))
+													}
+												})
+
+												AfterEach(func() {
+													Expect(sts.Spec.Template.Spec.Containers).To(
+														ConsistOf(containerMatcherForResources...),
+														"The statefulset should preserve the existing resources.",
+													)
+												})
+
+												describeWithAndWithoutPods()
+											})
+										}
+									)
+
 									Describe("if the statefulset has owner references", func() {
 										BeforeEach(func() {
 											sts.OwnerReferences = []metav1.OwnerReference{
@@ -1105,7 +1207,7 @@ var _ = Describe("setup", func() {
 											}
 										})
 
-										describeWithAndWithoutPods()
+										describeStatefulSetResourcesVariationsWithAndWithoutPods()
 									})
 
 									Describe("if the statefulset has owner annotations", func() {
@@ -1116,7 +1218,7 @@ var _ = Describe("setup", func() {
 											}
 										})
 
-										describeWithAndWithoutPods()
+										describeStatefulSetResourcesVariationsWithAndWithoutPods()
 									})
 								})
 							})
@@ -3142,6 +3244,38 @@ func Nothing() gomock.Matcher {
 	return nothingMatcher{}
 }
 
+type quantityMatcher struct {
+	resource.Quantity
+}
+
+func (m *quantityMatcher) Match(actual interface{}) (success bool, err error) {
+	if q, ok := actual.(resource.Quantity); ok {
+		return m.Quantity.Equal(q), nil
+	}
+
+	return false, fmt.Errorf("EqualQuantity matcher expects resource.Quantity. Got: %t", actual)
+}
+
+func (m *quantityMatcher) FailureMessage(actual interface{}) (message string) {
+	return format.Message(actual, "to equal", m.Quantity)
+}
+
+func (m *quantityMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+	return format.Message(actual, "not to equal", m.Quantity)
+}
+
+func (m *quantityMatcher) String() string {
+	return fmt.Sprintf("resource.Quantity.MustParse(%q)", m.Quantity.String())
+}
+
+func EqualQuantity(q *resource.Quantity) gomegatypes.GomegaMatcher {
+	if q == nil {
+		return BeNil()
+	}
+
+	return &quantityMatcher{Quantity: q.DeepCopy()}
+}
+
 // WithWd sets the working directory and returns a function to revert to the previous one.
 func WithWd(path string) func() {
 	oldPath, err := os.Getwd()
@@ -3170,6 +3304,235 @@ func setStatefulSetReady(s *appsv1.StatefulSet) {
 	s.Status.Replicas = replicas
 	s.Status.ReadyReplicas = replicas
 }
+
+var _ = Describe("preserveStatefulSetResources", func() {
+	var (
+		sch                                  *runtime.Scheme
+		oldObj, newObj, newObjBeforeMutation client.Object
+		matchErr                             gomegatypes.GomegaMatcher
+	)
+
+	BeforeEach(func() {
+		sch = scheme.Scheme
+	})
+
+	JustBeforeEach(func() {
+		var (
+			err  error
+			oldU = &unstructured.Unstructured{}
+			newU = &unstructured.Unstructured{}
+		)
+
+		newObjBeforeMutation = &unstructured.Unstructured{}
+
+		Expect(sch.Convert(oldObj, oldU, nil)).To(Succeed())
+		Expect(sch.Convert(newObj, newU, nil)).To(Succeed())
+		Expect(sch.Convert(newObj, newObjBeforeMutation, nil)).To(Succeed())
+
+		err = preserveStatefulSetResources(sch, oldU, newU)
+		Expect(err).To(matchErr)
+
+		if err != nil {
+			Expect(newU).To(Equal(newObjBeforeMutation))
+		} else {
+			Expect(newU).To(Equal(func() *unstructured.Unstructured {
+				var (
+					oldSts         = &appsv1.StatefulSet{}
+					newSts         = &appsv1.StatefulSet{}
+					expectedNewObj = &unstructured.Unstructured{}
+					emptyResources = &corev1.ResourceRequirements{}
+				)
+
+				Expect(sch.Convert(oldObj, oldSts, nil)).To(Succeed())
+				Expect(sch.Convert(newObjBeforeMutation, newSts, nil)).To(Succeed())
+
+				for _, oc := range oldSts.Spec.Template.Spec.Containers {
+					if reflect.DeepEqual(&oc.Resources, emptyResources) {
+						continue // Do not overwrite with empty resources
+					}
+
+					for _, nc := range newSts.Spec.Template.Spec.Containers {
+						if oc.Name == nc.Name {
+							oc.Resources.DeepCopyInto(&nc.Resources)
+						}
+					}
+				}
+
+				Expect(sch.Convert(newSts, expectedNewObj, nil)).To(Succeed())
+
+				return expectedNewObj
+			}()))
+		}
+	})
+
+	Describe("when both objects are not statefulsets", func() {
+		BeforeEach(func() {
+			oldObj = &corev1.Pod{}
+			newObj = &corev1.Pod{}
+			matchErr = HaveOccurred()
+		})
+
+		It("should fail", func() {})
+	})
+
+	Describe("when old object is not a statefulset", func() {
+		BeforeEach(func() {
+			oldObj = &corev1.Pod{}
+			newObj = &appsv1.StatefulSet{}
+			matchErr = HaveOccurred()
+		})
+
+		It("should fail", func() {})
+	})
+
+	Describe("when new object is not a statefulset", func() {
+		BeforeEach(func() {
+			oldObj = &appsv1.StatefulSet{}
+			newObj = &corev1.Pod{}
+			matchErr = HaveOccurred()
+		})
+
+		It("should fail", func() {})
+	})
+
+	Describe("when both objects are statefulsets", func() {
+		var (
+			oldSts, newSts *appsv1.StatefulSet
+
+			baseQ = resource.MustParse("100")
+			incrQ = resource.MustParse("1")
+
+			nextQuantity = func() resource.Quantity {
+				baseQ.Add(incrQ)
+				return baseQ.DeepCopy()
+			}
+
+			setContainerResources = func(containers []corev1.Container, generateResourceQuantities bool) {
+				for _, c := range containers {
+					if generateResourceQuantities {
+						c.Resources = corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    nextQuantity(),
+								corev1.ResourceMemory: nextQuantity(),
+							},
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    nextQuantity(),
+								corev1.ResourceMemory: nextQuantity(),
+							},
+						}
+					} else {
+						c.Resources = corev1.ResourceRequirements{}
+					}
+				}
+			}
+
+			describeResourceVariations = func(getContainersFn func() []corev1.Container, embedFn func()) {
+				Describe("with no resources", func() {
+					BeforeEach(func() {
+						setContainerResources(getContainersFn(), false)
+					})
+
+					embedFn()
+				})
+
+				Describe("with resources", func() {
+					BeforeEach(func() {
+						setContainerResources(getContainersFn(), false)
+					})
+
+					embedFn()
+				})
+			}
+
+			describeContainerVariationsInNew = func(embedFn func()) {
+				Describe("when there are no containers in the new object", func() {
+					BeforeEach(func() {
+						newSts.Spec.Template.Spec.Containers = nil
+					})
+
+					It("should succeed", func() {})
+				})
+
+				Describe("when there are some containers in the new object", func() {
+					BeforeEach(func() {
+						newSts.Spec.Template.Spec.Containers = []corev1.Container{
+							{Name: "new-1"},
+							{Name: "new-2"},
+						}
+					})
+
+					describeResourceVariations(
+						func() []corev1.Container {
+							return newSts.Spec.Template.Spec.Containers
+						},
+						embedFn,
+					)
+				})
+			}
+		)
+
+		BeforeEach(func() {
+			oldSts = &appsv1.StatefulSet{}
+			newSts = &appsv1.StatefulSet{}
+
+			oldObj = oldSts
+			newObj = newSts
+
+			matchErr = Succeed()
+		})
+
+		Describe("when there are no containers in the old object", func() {
+			BeforeEach(func() {
+				oldSts.Spec.Template.Spec.Containers = nil
+			})
+
+			describeContainerVariationsInNew(func() {
+				It("should succeed", func() {})
+			})
+		})
+
+		Describe("when there are some containers in the old object", func() {
+			BeforeEach(func() {
+				oldSts.Spec.Template.Spec.Containers = []corev1.Container{
+					{Name: "old-1"},
+					{Name: "old-2"},
+				}
+			})
+
+			describeResourceVariations(
+				func() []corev1.Container {
+					return oldSts.Spec.Template.Spec.Containers
+				},
+				func() {
+					describeContainerVariationsInNew(func() {
+						Describe("with no containers in common", func() {
+							It("should succeed", func() {})
+						})
+
+						Describe("with containers in common", func() {
+							BeforeEach(func() {
+								newSts.Spec.Template.Spec.Containers = append(
+									newSts.Spec.Template.Spec.Containers,
+									corev1.Container{Name: "old-2"},
+									corev1.Container{Name: "old-2"},
+								)
+							})
+
+							describeResourceVariations(
+								func() []corev1.Container {
+									return newSts.Spec.Template.Spec.Containers
+								},
+								func() {
+									It("should succeeed", func() {})
+								},
+							)
+						})
+					})
+				},
+			)
+		})
+	})
+})
 
 var _ = Describe("buildPredicate", func() {
 	var (
