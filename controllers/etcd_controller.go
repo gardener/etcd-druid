@@ -1293,15 +1293,20 @@ func (r *EtcdReconciler) removeDependantStatefulset(ctx context.Context, logger 
 	if err = r.List(ctx, statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
 		return err
 	}
+
+	var errs []error
 	for _, sts := range statefulSets.Items {
 		if canDeleteStatefulset(&sts, etcd) {
-			logger.Info("Deleting statefulset", "statefulset", kutil.Key(sts.GetNamespace(), sts.GetName()).String())
-			if err := r.Delete(ctx, &sts); err != nil {
-				return err
+			var key = kutil.Key(sts.GetNamespace(), sts.GetName()).String()
+			logger.Info("Deleting statefulset", "statefulset", key)
+			if err := r.Delete(ctx, &sts, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil {
+				errs = append(errs, fmt.Errorf("Error deleting statefulset %q: %s", key, err))
+			} else {
+				errs = append(errs, fmt.Errorf("Waiting for statefulset %q to be deleted", key))
 			}
 		}
 	}
-	return nil
+	return errorsutil.NewAggregate(errs)
 }
 
 func canDeleteStatefulset(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) bool {
