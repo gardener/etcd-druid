@@ -281,8 +281,8 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 	logger := r.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String(), "operation", "delete")
 	logger.Info("Starting operation")
 
-	if err := r.removeDependantStatefulset(ctx, logger, etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(ctx, deleteOp, etcd, nil, err); err != nil {
+	if waitForStatefulSetCleanup, err := r.removeDependantStatefulset(ctx, logger, etcd); err != nil {
+		if err = r.updateEtcdErrorStatus(ctx, deleteOp, etcd, nil, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -290,6 +290,10 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 		return ctrl.Result{
 			Requeue: true,
 		}, err
+	} else if waitForStatefulSetCleanup {
+		return ctrl.Result{
+			RequeueAfter: 30 * time.Second,
+		}, nil
 	}
 
 	if err := r.removeFinalizersToDependantSecrets(ctx, logger, etcd); err != nil {
@@ -1283,30 +1287,33 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(ctx context.Context,
 	return nil
 }
 
-func (r *EtcdReconciler) removeDependantStatefulset(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
+func (r *EtcdReconciler) removeDependantStatefulset(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (waitForStatefulSetCleanup bool, err error) {
 	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	statefulSets := &appsv1.StatefulSetList{}
 	if err = r.List(ctx, statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
-		return err
+		return false, err
 	}
 
-	var errs []error
+	waitForStatefulSetCleanup = false
+
 	for _, sts := range statefulSets.Items {
 		if canDeleteStatefulset(&sts, etcd) {
 			var key = kutil.Key(sts.GetNamespace(), sts.GetName()).String()
 			logger.Info("Deleting statefulset", "statefulset", key)
 			if err := r.Delete(ctx, &sts, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil {
-				errs = append(errs, fmt.Errorf("Error deleting statefulset %q: %s", key, err))
-			} else {
-				errs = append(errs, fmt.Errorf("Waiting for statefulset %q to be deleted", key))
+				return false, err
 			}
+
+			// StatefultSet deletion succeeded. Now we need to wait for it to be cleaned up.
+			waitForStatefulSetCleanup = true
 		}
 	}
-	return errorsutil.NewAggregate(errs)
+
+	return waitForStatefulSetCleanup, nil
 }
 
 func canDeleteStatefulset(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) bool {
