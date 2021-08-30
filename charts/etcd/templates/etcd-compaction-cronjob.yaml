@@ -23,7 +23,7 @@ metadata:
     name: {{ .Values.name }}
     uid: {{ .Values.uid }}
 spec:
-  schedule: {{ .Values.backup.backupCompactionSchedule }} 
+  schedule: {{ .Values.backup.backupCompactionSchedule | quote }} 
   concurrencyPolicy: Forbid
 {{- if eq (int $.Values.statefulsetReplicas) 0 }}
   suspend: true
@@ -41,7 +41,7 @@ spec:
 {{ toYaml .Values.annotations | indent 12 }}
 {{- end }}
           labels:
-            name: etcd
+            name: etcd-backup-compaction
             instance: {{ .Values.name }}
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 12 }}
