@@ -104,7 +104,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).NotTo(HaveOccurred())
 
 	Expect(err).NotTo(HaveOccurred())
-	er, err := NewEtcdReconcilerWithImageVector(mgr, false)
+	er, err := NewEtcdReconcilerWithImageVector(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = er.SetupWithManager(mgr, 1, true)
