@@ -1,0 +1,159 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.4.1
+  creationTimestamp: null
+  name: etcdcopybackupstasks.druid.gardener.cloud
+spec:
+  group: druid.gardener.cloud
+  names:
+    kind: EtcdCopyBackupsTask
+    listKind: EtcdCopyBackupsTaskList
+    plural: etcdcopybackupstasks
+    singular: etcdcopybackupstask
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.ready
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: EtcdCopyBackupsTask is the Schema for the EtcdCopyBackupsTask object that is responsible for declaring the parameters for etcd backup copy operation.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: EtcdCopyBackupsTaskSpec defines the parameters for the copy operation
+            properties:
+              image:
+                description: Image defines the backup-restore container image and tag
+                type: string
+              maxBackupAge:
+                description: MaxBackupAge is the maximum age in days that a snapshot must have in order to be copied. By default all snapshots will be copied.
+                format: int32
+                type: integer
+              maxBackups:
+                description: MaxBackups is the maximum number of snapshots that will be copied starting with the most recent ones.
+                format: int32
+                type: integer
+              sourceStore:
+                description: SourceStore defines the specification of object store provider for storing backups.
+                properties:
+                  container:
+                    description: Container is the name of the container the backup is stored at.
+                    type: string
+                  prefix:
+                    description: Prefix is the prefix used for the store.
+                    type: string
+                  provider:
+                    description: Provider is the name of the backup provider.
+                    type: string
+                  secretRef:
+                    description: SecretRef is the reference to the secret which used to connect to the backup store.
+                    properties:
+                      name:
+                        description: Name is unique within a namespace to reference a secret resource.
+                        type: string
+                      namespace:
+                        description: Namespace defines the space within which the secret name must be unique.
+                        type: string
+                    type: object
+                required:
+                - prefix
+                type: object
+              targetStore:
+                description: TargetStore defines the specification of object store provider for storing backups.
+                properties:
+                  container:
+                    description: Container is the name of the container the backup is stored at.
+                    type: string
+                  prefix:
+                    description: Prefix is the prefix used for the store.
+                    type: string
+                  provider:
+                    description: Provider is the name of the backup provider.
+                    type: string
+                  secretRef:
+                    description: SecretRef is the reference to the secret which used to connect to the backup store.
+                    properties:
+                      name:
+                        description: Name is unique within a namespace to reference a secret resource.
+                        type: string
+                      namespace:
+                        description: Namespace defines the space within which the secret name must be unique.
+                        type: string
+                    type: object
+                required:
+                - prefix
+                type: object
+            type: object
+          status:
+            description: EtcdCopyBackupsTaskStatus defines parameters that contains the current state of the etcd backup copy operation
+            properties:
+              lastError:
+                description: LastError represents the last occurred error.
+                type: string
+              lastOperation:
+                description: LastOperation represents the latest available observations of an etcd backup copy task current state.
+                properties:
+                  description:
+                    description: Description is a human readable message indicating details about the last operation.
+                    type: string
+                  lastUpdateTime:
+                    description: LastUpdateTime is the last time the operation state transitioned from one to another.
+                    format: date-time
+                    type: string
+                  state:
+                    description: State is the status of the last operation, one of Aborted, Processing, Succeeded, Error, Failed.
+                    type: string
+                required:
+                - description
+                - lastUpdateTime
+                - state
+                type: object
+              objectRef:
+                description: TaskReference represents the details of the task that is currently deployed to preform the copy operation.
+                properties:
+                  apiGroup:
+                    description: APIGroup is the group for the resource being referenced. If APIGroup is not specified, the specified Kind must be in the core API group. For any other third-party types, APIGroup is required.
+                    type: string
+                  kind:
+                    description: Kind is the type of resource being referenced
+                    type: string
+                  name:
+                    description: Name is the name of resource being referenced
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
+              observedGeneration:
+                description: ObservedGeneration is the most recent generation observed for this resource.
+                format: int64
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

@@ -1,0 +1,270 @@
+{{- if  .Values.sourceStore}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.jobName }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    gardener.cloud/owned-by: "{{ .Release.Namespace }}/{{ .Values.taskName }}"
+    gardener.cloud/owner-type: "etcd"
+{{- if .Values.annotations }}
+{{ toYaml .Values.annotations | indent 4 }}
+{{- end }}
+  labels:
+    networking.gardener.cloud/to-public-networks: allowed
+{{- if .Values.labels }}
+{{ toYaml .Values.labels | indent 4 }}
+{{- end }}
+  ownerReferences:
+  - apiVersion: druid.gardener.cloud/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: EtcdCopyBackupsTask
+    name: {{ .Values.taskName }}
+    uid: {{ .Values.uid }}
+spec:
+  template:
+    metadata:
+      labels:
+        networking.gardener.cloud/to-dns: allowed
+        networking.gardener.cloud/to-public-networks: allowed
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: etcd-copy
+        image: {{ .Values.image }}
+        imagePullPolicy: Always
+        command:
+        - etcdbrctl
+        - copy
+        - --snapstore-temp-directory=/var/etcd/data/tmp
+{{- if  .Values.targetStore.storageProvider }}
+        - --storage-provider={{ .Values.targetStore.storageProvider }}
+{{- end }}
+{{- if .Values.targetStore.storePrefix }}
+        - --store-prefix={{ .Values.targetStore.storePrefix }}
+{{- end }}
+{{- if .Values.targetStore.storageContainer }}
+        - --store-container={{ .Values.targetStore.storageContainer }}
+{{- end }}
+{{- if  .Values.sourceStore.storageProvider }}
+        - --source-storage-provider={{ .Values.sourceStore.storageProvider }}
+{{- end }}
+{{- if .Values.sourceStore.storePrefix }}
+        - --source-store-prefix={{ .Values.sourceStore.storePrefix }}
+{{- end }}
+{{- if .Values.sourceStore.storageContainer }}
+        - --source-store-container={{ .Values.sourceStore.storageContainer }}
+{{- end }}
+{{- if .Values.maxBackupAge }}
+        - --max-backup-age={{ .Values.maxBackupAge }}
+{{- end }}
+{{- if .Values.maxBackups }}
+        - --max-backups-to-copy={{ .Values.maxBackups }}
+{{- end }}
+        env:
+        - name: STORAGE_CONTAINER
+          value: {{ .Values.targetStore.storageContainer }}
+        - name: SOURCE_STORAGE_CONTAINER
+          value: {{ .Values.sourceStore.storageContainer }}
+{{- if eq .Values.targetStore.storageProvider "S3" }}
+        - name: "AWS_REGION"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "region"
+        - name: "AWS_SECRET_ACCESS_KEY"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "secretAccessKey"
+        - name: "AWS_ACCESS_KEY_ID"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "accessKeyID"
+        - name: "SOURCE_AWS_SECRET_ACCESS_KEY"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.sourceStore.storeSecret }}
+              key: "secretAccessKey"
+        - name: "SOURCE_AWS_ACCESS_KEY_ID"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.sourceStore.storeSecret }}
+              key: "accessKeyID"
+{{- else if eq .Values.targetStore.storageProvider "ABS" }}
+        - name: "STORAGE_ACCOUNT"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "storageAccount"
+        - name: "STORAGE_KEY"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "storageKey"
+        - name: "SOURCE_STORAGE_ACCOUNT"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.sourceStore.storeSecret }}
+              key: "storageAccount"
+        - name: "SOURCE_STORAGE_KEY"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.sourceStore.storeSecret }}
+              key: "storageKey"
+{{- else if eq .Values.targetStore.storageProvider "GCS" }}
+        - name: "GOOGLE_APPLICATION_CREDENTIALS"
+          value: "/root/.gcp/serviceaccount.json"
+        - name: SOURCE_GOOGLE_APPLICATION_CREDENTIALS
+          value: "/root/.source-gcp/serviceaccount.json"
+{{- else if eq .Values.targetStore.storageProvider "Swift" }}
+        - name: "OS_AUTH_URL"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "authURL"
+        - name: "OS_DOMAIN_NAME"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "domainName"
+        - name: "OS_USERNAME"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "username"
+        - name: "OS_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "password"
+        - name: "OS_TENANT_NAME"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "tenantName"
+        - name: "SOURCE_OS_AUTH_URL"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.sourceStore.storeSecret }}
+              key: "authURL"
+        - name: "SOURCE_OS_DOMAIN_NAME"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.sourceStore.storeSecret }}
+              key: "domainName"
+        - name: "SOURCE_OS_USERNAME"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.sourceStore.storeSecret }}
+              key: "username"
+        - name: "SOURCE_OS_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.sourceStore.storeSecret }}
+              key: "password"
+        - name: "SOURCE_OS_TENANT_NAME"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.sourceStore.storeSecret }}
+              key: "tenantName"
+{{- else if eq .Values.targetStore.storageProvider "OSS" }}
+        - name: "ALICLOUD_ENDPOINT"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "storageEndpoint"
+        - name: "ALICLOUD_ACCESS_KEY_SECRET"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "accessKeySecret"
+        - name: "ALICLOUD_ACCESS_KEY_ID"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "accessKeyID"
+        - name: "SOURCE_ALICLOUD_ENDPOINT"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "storageEndpoint"
+        - name: "SOURCE_ALICLOUD_ACCESS_KEY_SECRET"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "accessKeySecret"
+        - name: "SOURCE_ALICLOUD_ACCESS_KEY_ID"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "accessKeyID"
+{{- else if eq .Values.targetStore.storageProvider "ECS" }}
+        - name: "ECS_ENDPOINT"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "endpoint"
+        - name: "ECS_ACCESS_KEY_ID"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "accessKeyID"
+        - name: "ECS_SECRET_ACCESS_KEY"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "secretAccessKey"
+{{- else if eq .Values.targetStore.storageProvider "OCS" }}
+        - name: "OCS_ENDPOINT"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "endpoint"
+        - name: "OCS_ACCESS_KEY_ID"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "accessKeyID"
+        - name: "OCS_SECRET_ACCESS_KEY"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "secretAccessKey"
+        - name: "OCS_REGION"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "region"
+        - name: "OCS_DISABLE_SSL"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "disableSSL"
+              optional: true
+        - name: "OCS_INSECURE_SKIP_VERIFY"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.targetStore.storeSecret }}
+              key: "insecureSkipVerify"
+              optional: true
+{{- end }}
+        volumeMounts:
+{{- if eq .Values.targetStore.storageProvider "GCS" }}
+        - name: etcd-backup
+          mountPath: "/root/.gcp/"
+        - name: etcd-backup-source
+          mountPath: "/root/.source-gcp/"
+{{- end }}
+      volumes:
+{{- if eq .Values.targetStore.storageProvider "GCS" }}
+      - name: etcd-backup
+        secret:
+          secretName: {{ .Values.targetStore.storeSecret }}
+      - name: etcd-backup-source
+        secret:
+          secretName: {{ .Values.sourceStore.storeSecret }}
+{{- end }}
+{{- end }}

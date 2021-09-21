@@ -38,10 +38,9 @@ import (
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1beta1 "k8s.io/api/batch/v1beta1"
 
-	batchv1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	eventsv1beta1 "k8s.io/api/events/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -657,7 +656,7 @@ func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, logger logr.L
 			logger.Error(err, "error converting StatefulSet selector to selector")
 			return noOp, nil, err
 		}
-		podList := &v1.PodList{}
+		podList := &corev1.PodList{}
 		if err := r.List(ctx, podList, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
 			return noOp, nil, err
 		}
@@ -697,8 +696,8 @@ func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, logger logr.L
 	return bootstrapOp, sts, err
 }
 
-func getContainerMapFromPodTemplateSpec(spec v1.PodSpec) map[string]v1.Container {
-	containers := map[string]v1.Container{}
+func getContainerMapFromPodTemplateSpec(spec corev1.PodSpec) map[string]corev1.Container {
+	containers := map[string]corev1.Container{}
 	for _, c := range spec.Containers {
 		containers[c.Name] = c
 	}
@@ -791,10 +790,10 @@ func (r *EtcdReconciler) getStatefulSetFromEtcd(etcd *druidv1alpha1.Etcd, values
 	return decoded, nil
 }
 
-func (r *EtcdReconciler) reconcileCronJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*batchv1.CronJob, error) {
+func (r *EtcdReconciler) reconcileCronJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*batchv1beta1.CronJob, error) {
 	logger.Info("Reconcile etcd compaction cronjob")
 
-	var cronJob batchv1.CronJob
+	var cronJob batchv1beta1.CronJob
 	err := r.Get(ctx, types.NamespacedName{Name: getCronJobName(etcd), Namespace: etcd.Namespace}, &cronJob)
 
 	//If backupCompactionSchedule is present in the etcd spec, continue with reconciliation of cronjob
@@ -881,7 +880,7 @@ func (r *EtcdReconciler) reconcileCronJob(ctx context.Context, logger logr.Logge
 	return cj, err
 }
 
-func (r *EtcdReconciler) syncCronJobSpec(ctx context.Context, cj *batchv1.CronJob, etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*batchv1.CronJob, error) {
+func (r *EtcdReconciler) syncCronJobSpec(ctx context.Context, cj *batchv1beta1.CronJob, etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*batchv1beta1.CronJob, error) {
 	decoded, err := r.getCronJobFromEtcd(etcd, values, logger)
 	if err != nil {
 		return nil, err
@@ -909,24 +908,28 @@ func (r *EtcdReconciler) syncCronJobSpec(ctx context.Context, cj *batchv1.CronJo
 	return cjCopy, err
 }
 
-func (r *EtcdReconciler) getCronJobFromEtcd(etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*batchv1.CronJob, error) {
-	var err error
-	decoded := &batchv1.CronJob{}
+func (r *EtcdReconciler) getCronJobFromEtcd(etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*batchv1beta1.CronJob, error) {
+	decoded := &batchv1beta1.CronJob{}
 	cronJobPath := getChartPathForCronJob()
 	chartPath := getChartPath()
 	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
 	if err != nil {
 		return nil, err
 	}
-	if content, ok := renderedChart.Files()[cronJobPath]; ok {
-		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
-		if err = decoder.Decode(&decoded); err != nil {
-			return nil, err
-		}
-		return decoded, nil
+
+	if err := decodeObject(renderedChart, cronJobPath, &decoded); err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("missing cronjob template file in the charts: %v", cronJobPath)
+	return decoded, nil
+}
+
+func decodeObject(renderedChart *chartrenderer.RenderedChart, path string, object interface{}) error {
+	if content, ok := renderedChart.Files()[path]; ok {
+		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
+		return decoder.Decode(&object)
+	}
+	return fmt.Errorf("missing file %s in the rendered chart", path)
 }
 
 func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (operationResult, *corev1.Service, *appsv1.StatefulSet, error) {
@@ -1197,22 +1200,9 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	}
 
 	if etcd.Spec.Backup.Store != nil {
-		storageProvider, err := utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
-		if err != nil {
+		if values["store"], err = utils.GetStoreValues(etcd.Spec.Backup.Store); err != nil {
 			return nil, err
 		}
-		storeValues := map[string]interface{}{
-			"storePrefix":     etcd.Spec.Backup.Store.Prefix,
-			"storageProvider": storageProvider,
-		}
-		if etcd.Spec.Backup.Store.Container != nil {
-			storeValues["storageContainer"] = etcd.Spec.Backup.Store.Container
-		}
-		if etcd.Spec.Backup.Store.SecretRef != nil {
-			storeValues["storeSecret"] = etcd.Spec.Backup.Store.SecretRef.Name
-		}
-
-		values["store"] = storeValues
 	}
 
 	return values, nil
@@ -1486,8 +1476,8 @@ func (r *EtcdReconciler) SetupWithManager(mgr ctrl.Manager, workers int, ignoreO
 	})
 	builder = builder.WithEventFilter(buildPredicate(ignoreOperationAnnotation)).For(&druidv1alpha1.Etcd{})
 	if ignoreOperationAnnotation {
-		builder = builder.Owns(&v1.Service{}).
-			Owns(&v1.ConfigMap{}).
+		builder = builder.Owns(&corev1.Service{}).
+			Owns(&corev1.ConfigMap{}).
 			Owns(&appsv1.StatefulSet{})
 	}
 	return builder.Complete(r)
