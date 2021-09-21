@@ -131,6 +131,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	etcdCopyBackupsTaskController, err := controllers.NewEtcdCopyBackupsTaskReconcilerWithImageVector(mgr)
+	if err != nil {
+		setupLog.Error(err, "Unable to initialize controller with image vector")
+		os.Exit(1)
+	}
+
+	if err := etcdCopyBackupsTaskController.SetupWithManager(mgr, ignoreOperationAnnotation); err != nil {
+		setupLog.Error(err, "Unable to create controller", "Controller", "EtcdEtcdCopyBackupsTask")
+		os.Exit(1)
+	}
+
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("Starting manager")
