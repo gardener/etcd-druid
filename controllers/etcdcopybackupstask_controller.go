@@ -265,7 +265,7 @@ func (r *EtcdCopyBackupsTaskReconciler) doDelete(ctx context.Context, task *drui
 
 func (r *EtcdCopyBackupsTaskReconciler) getJob(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask) (*batchv1.Job, error) {
 	job := &batchv1.Job{}
-	if err := r.Get(ctx, kutil.Key(task.Namespace, getJobName(task)), job); err != nil {
+	if err := r.Get(ctx, kutil.Key(task.Namespace, getCopyBackupsJobName(task)), job); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
 		}
@@ -285,7 +285,7 @@ func (r *EtcdCopyBackupsTaskReconciler) updateStatus(ctx context.Context, task *
 
 func (r *EtcdCopyBackupsTaskReconciler) getChartValues(task *druidv1alpha1.EtcdCopyBackupsTask) (map[string]interface{}, error) {
 	values := map[string]interface{}{
-		"name":      getJobName(task),
+		"name":      getCopyBackupsJobName(task),
 		"ownerName": task.Name,
 		"ownerUID":  task.UID,
 	}
@@ -369,7 +369,7 @@ func getConditionType(jobConditionType batchv1.JobConditionType) druidv1alpha1.C
 	return ""
 }
 
-func getJobName(task *druidv1alpha1.EtcdCopyBackupsTask) string {
+func getCopyBackupsJobName(task *druidv1alpha1.EtcdCopyBackupsTask) string {
 	return task.Name + workerSuffix
 }
 

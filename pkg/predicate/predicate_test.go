@@ -20,6 +20,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -95,6 +96,58 @@ var _ = Describe("Druid Predicate", func() {
 				oldObj = &appsv1.StatefulSet{
 					Status: appsv1.StatefulSetStatus{
 						Replicas: 1,
+					},
+				}
+			})
+
+			It("should return true", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+	})
+
+	Describe("#Lease", func() {
+		var pred predicate.Predicate
+
+		JustBeforeEach(func() {
+			pred = LeaseHolderIdentityChange()
+		})
+
+		Context("when holder identity matches", func() {
+			BeforeEach(func() {
+				obj = &coordinationv1.Lease{
+					Spec: coordinationv1.LeaseSpec{
+						HolderIdentity: pointer.StringPtr("0"),
+					},
+				}
+				oldObj = &coordinationv1.Lease{
+					Spec: coordinationv1.LeaseSpec{
+						HolderIdentity: pointer.StringPtr("0"),
+					},
+				}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+
+		Context("when holder identity differs", func() {
+			BeforeEach(func() {
+				obj = &coordinationv1.Lease{
+					Spec: coordinationv1.LeaseSpec{
+						HolderIdentity: pointer.StringPtr("5"),
+					},
+				}
+				oldObj = &coordinationv1.Lease{
+					Spec: coordinationv1.LeaseSpec{
+						HolderIdentity: pointer.StringPtr("0"),
 					},
 				}
 			})

@@ -50,17 +50,19 @@ func init() {
 
 func main() {
 	var (
-		metricsAddr                     string
-		enableLeaderElection            bool
-		leaderElectionID                string
-		leaderElectionResourceLock      string
-		etcdWorkers                     int
-		custodianWorkers                int
-		etcdCopyBackupsTaskWorkers      int
-		custodianSyncPeriod             time.Duration
-		disableLeaseCache               bool
-		ignoreOperationAnnotation       bool
-		enableBackupCompactionJobTempFS bool
+		metricsAddr                string
+		enableLeaderElection       bool
+		leaderElectionID           string
+		leaderElectionResourceLock string
+		etcdWorkers                int
+		custodianWorkers           int
+		etcdCopyBackupsTaskWorkers int
+		custodianSyncPeriod        time.Duration
+		disableLeaseCache          bool
+		compactionWorkers          int
+		eventsThreshold            int64
+		activeDeadlineDuration     time.Duration
+		ignoreOperationAnnotation  bool
 
 		etcdMemberNotReadyThreshold time.Duration
 
@@ -73,6 +75,9 @@ func main() {
 	flag.IntVar(&custodianWorkers, "custodian-workers", 3, "Number of worker threads of the custodian controller.")
 	flag.IntVar(&etcdCopyBackupsTaskWorkers, "etcd-copy-backups-task-workers", 3, "Number of worker threads of the EtcdCopyBackupsTask controller.")
 	flag.DurationVar(&custodianSyncPeriod, "custodian-sync-period", 30*time.Second, "Sync period of the custodian controller.")
+	flag.IntVar(&compactionWorkers, "compaction-workers", 3, "Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. Setting this flag to 0 disabled the controller.")
+	flag.Int64Var(&eventsThreshold, "etcd-events-threshold", 1000000, "Total number of etcd events that can be allowed before a backup compaction job is triggered.")
+	flag.DurationVar(&activeDeadlineDuration, "active-deadline-duration", 3*time.Hour, "Duration after which a running backup compaction job will be killed (Ex: \"300ms\", \"20s\", \"-1.5h\" or \"2h45m\").")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
@@ -83,7 +88,6 @@ func main() {
 	flag.BoolVar(&disableLeaseCache, "disable-lease-cache", false, "Disable cache for lease.coordination.k8s.io resources.")
 	flag.BoolVar(&ignoreOperationAnnotation, "ignore-operation-annotation", true, "Ignore the operation annotation or not.")
 	flag.DurationVar(&etcdMemberNotReadyThreshold, "etcd-member-notready-threshold", 5*time.Minute, "Threshold after which an etcd member is considered not ready if the status was unknown before.")
-	flag.BoolVar(&enableBackupCompactionJobTempFS, "enable-backup-compaction-job-tempfs", false, "Enable the backup compaction job to use tempfs as its volume mount")
 
 	flag.Parse()
 
@@ -110,9 +114,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	etcd, err := controllers.NewEtcdReconcilerWithImageVector(mgr, enableBackupCompactionJobTempFS)
+	etcd, err := controllers.NewEtcdReconcilerWithImageVector(mgr)
 	if err != nil {
-		setupLog.Error(err, "Unable to initialize controller with image vector")
+		setupLog.Error(err, "Unable to initialize etcd controller with image vector")
 		os.Exit(1)
 	}
 
@@ -141,6 +145,20 @@ func main() {
 
 	if err := etcdCopyBackupsTask.SetupWithManager(mgr, etcdCopyBackupsTaskWorkers); err != nil {
 		setupLog.Error(err, "Unable to create controller", "Controller", "EtcdCopyBackupsTask")
+	}
+
+	lc, err := controllers.NewCompactionLeaseControllerWithImageVector(mgr, controllersconfig.CompactionLeaseConfig{
+		EventsThreshold:        eventsThreshold,
+		ActiveDeadlineDuration: activeDeadlineDuration,
+	})
+
+	if err != nil {
+		setupLog.Error(err, "Unable to initialize lease controller")
+		os.Exit(1)
+	}
+
+	if err := lc.SetupWithManager(mgr, compactionWorkers); err != nil {
+		setupLog.Error(err, "Unable to create controller", "Controller", "Lease")
 		os.Exit(1)
 	}
 

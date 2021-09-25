@@ -2,6 +2,7 @@ name: test
 uid: uuid-of-etcd-resource
 serviceName: test
 configMapName: test
+jobName: test
 
 replicas: 1
 #priorityClassName: foo
@@ -51,17 +52,10 @@ backup:
   compactionResources:
     limits:
       cpu: 700m
-      memory: 3Gi
+      memory: 4Gi
     requests:
       cpu: 500m
-      memory: 2Gi
-  compactionResourcesTempFS:
-    limits:
-      cpu: 900m
-      memory: 12Gi
-    requests:
-      cpu: 700m
-      memory: 10Gi
+      memory: 3Gi
   # compression:
   #   enabled: true
   #   policy: "gzip"

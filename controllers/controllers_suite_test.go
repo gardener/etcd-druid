@@ -27,18 +27,14 @@ import (
 	"github.com/gardener/gardener/pkg/utils/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -53,6 +49,9 @@ var (
 	testEnv    *envtest.Environment
 	mgr        manager.Manager
 	mgrStopped *sync.WaitGroup
+
+	activeDeadlineDuration   time.Duration
+	backupCompactionSchedule = "15 */24 * * *"
 
 	revertFns []func()
 
@@ -103,8 +102,7 @@ var _ = BeforeSuite(func(done Done) {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	Expect(err).NotTo(HaveOccurred())
-	er, err := NewEtcdReconcilerWithImageVector(mgr, false)
+	er, err := NewEtcdReconcilerWithImageVector(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = er.SetupWithManager(mgr, 1, true)
@@ -123,6 +121,18 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = etcdCopyBackupsTaskReconciler.SetupWithManager(mgr, 1)
+	Expect(err).NotTo(HaveOccurred())
+
+	activeDeadlineDuration, err = time.ParseDuration("2m")
+	Expect(err).NotTo(HaveOccurred())
+
+	lc, err := NewCompactionLeaseControllerWithImageVector(mgr, controllersconfig.CompactionLeaseConfig{
+		EventsThreshold:        1000000,
+		ActiveDeadlineDuration: activeDeadlineDuration,
+	})
+	Expect(err).NotTo(HaveOccurred())
+
+	err = lc.SetupWithManager(mgr, 1)
 	Expect(err).NotTo(HaveOccurred())
 
 	mgrStopped = startTestManager(mgrCtx, mgr)
@@ -150,15 +160,4 @@ func startTestManager(ctx context.Context, mgr manager.Manager) *sync.WaitGroup 
 	defer syncCancel()
 	mgr.GetCache().WaitForCacheSync(syncCtx)
 	return wg
-}
-
-func SetupWithManager(mgr ctrl.Manager, r reconcile.Reconciler) error {
-	return ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
-		MaxConcurrentReconciles: 10,
-	}).
-		For(&druidv1alpha1.Etcd{}).
-		Owns(&corev1.ConfigMap{}).
-		Owns(&corev1.Service{}).
-		Owns(&appsv1.StatefulSet{}).
-		Complete(r)
 }

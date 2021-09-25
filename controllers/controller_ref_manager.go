@@ -31,7 +31,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1beta1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 
@@ -259,36 +259,6 @@ func (m *EtcdDruidRefManager) ClaimStatefulsets(ctx context.Context, statefulSet
 	return claimed, utilerrors.NewAggregate(errlist)
 }
 
-func (m *EtcdDruidRefManager) ClaimCronJob(ctx context.Context, cronJob *batchv1.CronJob, filters ...func(*batchv1.CronJob) bool) (*batchv1.CronJob, error) {
-	var (
-		claimed *batchv1.CronJob
-		errlist []error
-	)
-
-	match := func(obj metav1.Object) bool {
-		cj := obj.(*batchv1.CronJob)
-		// Check selector first so filters only run on potentially matching cronjobs.
-		if !m.Selector.Matches(labels.Set(cj.Labels)) {
-			return false
-		}
-		for _, filter := range filters {
-			if !filter(cj) {
-				return false
-			}
-		}
-		return true
-	}
-
-	ok, err := m.claimObject(ctx, cronJob, match, m.AdoptResource, m.ReleaseResource)
-	if err != nil {
-		errlist = append(errlist, err)
-	}
-	if ok {
-		claimed = cronJob.DeepCopy()
-	}
-	return claimed, utilerrors.NewAggregate(errlist)
-}
-
 // ClaimServices tries to take ownership of a list of Services.
 //
 // It will reconcile the following:
@@ -423,8 +393,8 @@ func (m *EtcdDruidRefManager) AdoptResource(ctx context.Context, obj client.Obje
 		if err := controllerutil.SetControllerReference(m.Controller, clone, m.scheme); err != nil {
 			return err
 		}
-	case *batchv1.CronJob:
-		clone = obj.(*batchv1.CronJob).DeepCopy()
+	case *batchv1.Job:
+		clone = obj.(*batchv1.Job).DeepCopy()
 		// Note that ValidateOwnerReferences() will reject this patch if another
 		// OwnerReference exists with controller=true.
 		if err := controllerutil.SetControllerReference(m.Controller, clone, m.scheme); err != nil {

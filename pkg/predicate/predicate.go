@@ -19,6 +19,7 @@ import (
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	appsv1 "k8s.io/api/apps/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -102,6 +103,36 @@ func StatefulSetStatusChange() predicate.Predicate {
 		},
 		UpdateFunc: func(event event.UpdateEvent) bool {
 			return statusChange(event.ObjectOld, event.ObjectNew)
+		},
+		GenericFunc: func(event event.GenericEvent) bool {
+			return true
+		},
+		DeleteFunc: func(event event.DeleteEvent) bool {
+			return true
+		},
+	}
+}
+
+// LeaseHolderIdentityChange is a predicate for holderIdentity changes of `Lease` resources.
+func LeaseHolderIdentityChange() predicate.Predicate {
+	holderIdentityChange := func(objOld, objNew client.Object) bool {
+		leaseOld, ok := objOld.(*coordinationv1.Lease)
+		if !ok {
+			return false
+		}
+		leaseNew, ok := objNew.(*coordinationv1.Lease)
+		if !ok {
+			return false
+		}
+		return *leaseOld.Spec.HolderIdentity != *leaseNew.Spec.HolderIdentity
+	}
+
+	return predicate.Funcs{
+		CreateFunc: func(event event.CreateEvent) bool {
+			return true
+		},
+		UpdateFunc: func(event event.UpdateEvent) bool {
+			return holderIdentityChange(event.ObjectOld, event.ObjectNew)
 		},
 		GenericFunc: func(event event.GenericEvent) bool {
 			return true

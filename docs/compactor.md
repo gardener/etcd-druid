@@ -30,24 +30,13 @@ A secondary problem is that, though auto-compaction is enabled for etcd, it is n
 To help with the problem mentioned earlier, our proposal is to introduce `compact` subcommand with `etcdbrctl`. On execution of `compact` command, A separate embedded ETCD process will be started  where the ETCD data will be restored from the snapstore (exactly as in the restoration scenario today). Then the new ETCD database will be compacted and defragmented using ETCD API calls. The compaction will strip off the ETCD database of old revisions as per the ETCD auto-compaction configuration. The defragmentation will free up the unused fragment memory space released after compaction. Then a full snapshot of the compacted database will be saved in snapstore which then can be used as the base snapshot during any subsequent restoration (or backup compaction).
 
 ### How the solution works
-The newly introduced compact command does not disturb the running ETCD while compacting the backup snapshots. The command is designed to run potentially separately (from the main ETCD process/container/pod). ETCD Druid can be configured to periodically schedule the newly introduced compact command as a separate job (scheduled periodically) based on a parameter which is defined in ETCD CRD as  `backupCompactionSchedule`.
+The newly introduced compact command does not disturb the running ETCD while compacting the backup snapshots. The command is designed to run potentially separately (from the main ETCD process/container/pod). ETCD Druid can be configured to run the newly introduced compact command as a separate job (scheduled periodically) based on total number of ETCD events accumulated after the most recent full snapshot.
 
-### Example ETCD CRD: 
-```yaml
-apiVersion: druid.gardener.cloud/v1alpha1
-kind: Etcd
-...
-spec:
-  ...
-  backup:
-    ...
-    backupCompactionSchedule: "0/30 * * * *" # Backup compaction job is executed every 30m on the clock
-    ...
-  ...
-```
-
-### Example Cron Job:
-An example can be found [here](https://github.com/gardener/etcd-druid/blob/master/charts/etcd/templates/etcd-compaction-cronjob.yaml)
+### Druid flags:
+ETCD druid introduced following three flags to configure the compaction job:
+`compaction-workers` : If this flag is set to zero, no compaction job will be running. If it's set to any value greater than zero, druid controller will have that many threads to kickstart the compaction job.
+`etcd-events-threshold`: Set this flag with the value which will signify the number of ETCD events allowed after the most recent full snapshot. Once the number of ETCD events crosses the value mentioned in this flag, compaction job will be kickstarted. 
+`active-deadline-duration`: This flag signifies the maximum duration till which a compaction job won't be garbage-collected.
 
 ### **Points to take care while saving the compacted snapshot:**
 As compacted snapshot and the existing periodic full snapshots are taken by different processes running in different pods but accessing same store to save the snapshots, some problems may arise:
