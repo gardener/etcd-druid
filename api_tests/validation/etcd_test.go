@@ -80,22 +80,6 @@ var _ = Describe("Etcd validation tests", func() {
 			}))))
 		})
 
-		It("Should prevent updating of spec.backup.store", func() {
-			old := newEtcd("")
-			old.ResourceVersion = "1"
-
-			newetcd := newUpdatableEtcd(old)
-			newetcd.Spec.Backup.Store.Container = pointer.StringPtr("container-1")
-			newetcd.ResourceVersion = "2"
-
-			errList := validation.ValidateEtcdUpdate(newetcd, old)
-
-			Expect(errList).To(ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
-				"Type":  Equal(field.ErrorTypeInvalid),
-				"Field": Equal("spec.backup.store"),
-			}))))
-		})
-
 		It("should allow updating everything else", func() {
 			old := newEtcd("")
 			old.ResourceVersion = "1"
