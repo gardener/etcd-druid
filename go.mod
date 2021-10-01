@@ -11,7 +11,7 @@ require (
 	github.com/onsi/ginkgo v1.14.2
 	github.com/onsi/gomega v1.10.5
 	k8s.io/api v0.20.6
-	k8s.io/apimachinery v0.20.6
+	k8s.io/apimachinery v0.22.2
 	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
 	k8s.io/helm v2.16.1+incompatible
 	k8s.io/utils v0.0.0-20210111153108-fddb29f9d009
