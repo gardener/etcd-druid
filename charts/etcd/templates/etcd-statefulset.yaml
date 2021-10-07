@@ -203,6 +203,7 @@ spec:
         - --etcd-defrag-timeout={{ .Values.etcd.etcdDefragTimeout }}
 {{- end }}
         - --snapstore-temp-directory={{ .Values.backup.snapstoreTempDir }}
+        - --etcd-pid-command=ps ax -o pid,comm | grep 'etcd$' | awk '{print $1}' | { grep -Eo '[0-9]{1,}' || true; }
         image: {{ .Values.backup.image }}
         imagePullPolicy: {{ .Values.backup.pullPolicy }}
         ports:
@@ -353,6 +354,11 @@ spec:
         - name: etcd-backup
           mountPath: "/root/.gcp/"
 {{- end }}
+        securityContext:
+          capabilities:
+            add:
+            - SYS_PTRACE
+      shareProcessNamespace: true
       volumes:
       - name: etcd-config-file
         configMap:
