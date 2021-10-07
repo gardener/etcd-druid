@@ -107,6 +107,17 @@ var (
 	etcdDefragTimeout = metav1.Duration{
 		Duration: 10 * time.Minute,
 	}
+	ownerName          = "owner.foo.example.com"
+	ownerID            = "bar"
+	ownerCheckInterval = metav1.Duration{
+		Duration: 30 * time.Second,
+	}
+	ownerCheckTimeout = metav1.Duration{
+		Duration: 2 * time.Minute,
+	}
+	ownerCheckDNSCacheTTL = metav1.Duration{
+		Duration: 1 * time.Minute,
+	}
 )
 
 func ownerRefIterator(element interface{}) string {
@@ -1869,6 +1880,11 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 								fmt.Sprintf("%s=%s", "--auto-compaction-retention", *instance.Spec.Common.AutoCompactionRetention):                  Equal(fmt.Sprintf("%s=%s", "--auto-compaction-retention", autoCompactionRetention)),
 								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String())),
 								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String()):               Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String())),
+								fmt.Sprintf("%s=%s", "--owner-name", instance.Spec.Backup.OwnerCheck.Name):                                          Equal(fmt.Sprintf("%s=%s", "--owner-name", instance.Spec.Backup.OwnerCheck.Name)),
+								fmt.Sprintf("%s=%s", "--owner-id", instance.Spec.Backup.OwnerCheck.ID):                                              Equal(fmt.Sprintf("%s=%s", "--owner-id", instance.Spec.Backup.OwnerCheck.ID)),
+								fmt.Sprintf("%s=%s", "--owner-check-interval", instance.Spec.Backup.OwnerCheck.Interval.Duration.String()):          Equal(fmt.Sprintf("%s=%s", "--owner-check-interval", instance.Spec.Backup.OwnerCheck.Interval.Duration.String())),
+								fmt.Sprintf("%s=%s", "--owner-check-timeout", instance.Spec.Backup.OwnerCheck.Timeout.Duration.String()):            Equal(fmt.Sprintf("%s=%s", "--owner-check-timeout", instance.Spec.Backup.OwnerCheck.Timeout.Duration.String())),
+								fmt.Sprintf("%s=%s", "--owner-check-dns-cache-ttl", instance.Spec.Backup.OwnerCheck.DNSCacheTTL.Duration.String()):  Equal(fmt.Sprintf("%s=%s", "--owner-check-dns-cache-ttl", instance.Spec.Backup.OwnerCheck.DNSCacheTTL.Duration.String())),
 							}),
 							"Ports": ConsistOf([]corev1.ContainerPort{
 								corev1.ContainerPort{
@@ -2758,6 +2774,13 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 					Container: &container,
 					Provider:  &provider,
 					Prefix:    prefix,
+				},
+				OwnerCheck: &druidv1alpha1.OwnerCheckSpec{
+					Name:        ownerName,
+					ID:          ownerID,
+					Interval:    &ownerCheckInterval,
+					Timeout:     &ownerCheckTimeout,
+					DNSCacheTTL: &ownerCheckDNSCacheTTL,
 				},
 			},
 			Etcd: druidv1alpha1.EtcdConfig{

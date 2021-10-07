@@ -175,6 +175,19 @@ spec:
         - --compression-policy={{ .Values.backup.compression.policy }}
         {{- end }}
 {{- end }}
+{{- if .Values.backup.ownerCheck }}
+        - --owner-name={{ .Values.backup.ownerCheck.name }}
+        - --owner-id={{ .Values.backup.ownerCheck.id }}
+        {{- if .Values.backup.ownerCheck.interval }}
+        - --owner-check-interval={{ .Values.backup.ownerCheck.interval }}
+        {{- end }}
+        {{- if .Values.backup.ownerCheck.timeout }}
+        - --owner-check-timeout={{ .Values.backup.ownerCheck.timeout }}
+        {{- end }}
+        {{- if .Values.backup.ownerCheck.dnsCacheTTL }}
+        - --owner-check-dns-cache-ttl={{ .Values.backup.ownerCheck.dnsCacheTTL }}
+        {{- end }}
+{{- end }}
 {{- if .Values.sharedConfig }}
         {{- if .Values.sharedConfig.autoCompactionMode }}
         - --auto-compaction-mode={{ .Values.sharedConfig.autoCompactionMode }}

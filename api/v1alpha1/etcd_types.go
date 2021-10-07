@@ -103,6 +103,24 @@ type CompressionSpec struct {
 	Policy *CompressionPolicy `json:"policy,omitempty"`
 }
 
+// OwnerCheckSpec defines parameters related to checking if the seed is an owner
+// of the shoot. The ownership can change during control plane migration.
+type OwnerCheckSpec struct {
+	// Name is the domain name of the owner DNS record.
+	Name string `json:"name"`
+	// ID is the seed ID value that is expected to be found in the owner DNS record.
+	ID string `json:"id"`
+	// Interval is the time interval between owner checks.
+	// +optional
+	Interval *metav1.Duration `json:"interval,omitempty"`
+	// Timeout is the timeout for owner checks.
+	// +optional
+	Timeout *metav1.Duration `json:"timeout,omitempty"`
+	// DNSCacheTTL is the DNS cache TTL for owner checks.
+	// +optional
+	DNSCacheTTL *metav1.Duration `json:"dnsCacheTTL,omitempty"`
+}
+
 // BackupSpec defines parametes associated with the full and delta snapshots of etcd
 type BackupSpec struct {
 	// Port define the port on which etcd-backup-restore server will exposed.
@@ -147,6 +165,10 @@ type BackupSpec struct {
 	// EtcdSnapshotTimeout defines the timeout duration for etcd FullSnapshot operation
 	// +optional
 	EtcdSnapshotTimeout *metav1.Duration `json:"etcdSnapshotTimeout,omitempty"`
+	// OwnerCheck defines parameters related to checking if the seed is an owner
+	// of the shoot. The ownership can change during control plane migration.
+	// +optional
+	OwnerCheck *OwnerCheckSpec `json:"ownerCheck,omitempty"`
 }
 
 // EtcdConfig defines parameters associated etcd deployed
