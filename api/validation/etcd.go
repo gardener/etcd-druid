@@ -54,6 +54,25 @@ func ValidateEtcdSpec(etcd *v1alpha1.Etcd, path *field.Path) field.ErrorList {
 		allErrs = append(allErrs, validateBackupStorePrefix(prefix, etcd.Name, etcd.Namespace, path.Child("backup.store"))...)
 	}
 
+	if etcd.Spec.Backup.OwnerCheck != nil {
+		ownerCheckPath := path.Child("backup.ownerCheck")
+		if etcd.Spec.Backup.OwnerCheck.Name == "" {
+			allErrs = append(allErrs, field.Required(ownerCheckPath.Child("name"), "field is required"))
+		}
+		if etcd.Spec.Backup.OwnerCheck.ID == "" {
+			allErrs = append(allErrs, field.Required(ownerCheckPath.Child("id"), "field is required"))
+		}
+		if etcd.Spec.Backup.OwnerCheck.Interval != nil {
+			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(etcd.Spec.Backup.OwnerCheck.Interval.Duration), ownerCheckPath.Child("interval"))...)
+		}
+		if etcd.Spec.Backup.OwnerCheck.Timeout != nil {
+			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(etcd.Spec.Backup.OwnerCheck.Timeout.Duration), ownerCheckPath.Child("timeout"))...)
+		}
+		if etcd.Spec.Backup.OwnerCheck.DNSCacheTTL != nil {
+			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(etcd.Spec.Backup.OwnerCheck.DNSCacheTTL.Duration), ownerCheckPath.Child("dnsCacheTTL"))...)
+		}
+	}
+
 	return allErrs
 }
 
