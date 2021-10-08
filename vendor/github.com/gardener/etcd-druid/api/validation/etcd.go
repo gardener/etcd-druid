@@ -66,7 +66,10 @@ func ValidateEtcdSpecUpdate(new, old *v1alpha1.EtcdSpec, deletionTimestampSet bo
 		return allErrs
 	}
 
-	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Backup.Store.Prefix, old.Backup.Store.Prefix, path.Child("backup.store.prefix"))...)
+	//if !(new.Backup.Store == nil || old.Backup.Store == nil) {
+	if new.Backup.Store != nil && old.Backup.Store != nil {
+		allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.Backup.Store.Prefix, old.Backup.Store.Prefix, path.Child("backup.store.prefix"))...)
+	}
 
 	return allErrs
 }
