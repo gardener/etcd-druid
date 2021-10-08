@@ -16,9 +16,9 @@ package validation_test
 
 import (
 	"fmt"
+
 	"github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/api/validation"
-	"k8s.io/utils/pointer"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -27,6 +27,7 @@ import (
 	"github.com/onsi/gomega/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/pointer"
 )
 
 const (
@@ -118,18 +119,18 @@ var _ = Describe("Etcd validation tests", func() {
 				"Field": Equal("spec.backup.store.prefix"),
 			}))))
 		})
-	})
 
-	It("should allow updating everything else", func() {
-		etcd.ResourceVersion = "1"
+		It("should allow updating everything else", func() {
+			etcd.ResourceVersion = "1"
 
-		new := etcd.DeepCopy()
-		new.ResourceVersion = "2"
-		new.Spec.Replicas = 42
-		new.Spec.Backup.Store = nil
+			newEtcd := etcd.DeepCopy()
+			newEtcd.ResourceVersion = "2"
+			newEtcd.Spec.Replicas = 42
+			newEtcd.Spec.Backup.Store = nil
 
-		errList := validation.ValidateEtcdUpdate(new, etcd)
+			errList := validation.ValidateEtcdUpdate(newEtcd, etcd)
 
-		Expect(errList).To(BeEmpty())
+			Expect(errList).To(BeEmpty())
+		})
 	})
 })
