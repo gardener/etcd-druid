@@ -30,7 +30,31 @@ import (
 	"k8s.io/utils/pointer"
 )
 
+const (
+	name      = "etcd-main"
+	namespace = "shoot--foo--bar"
+	uuid      = "f1a38edd-e506-412a-82e6-e0fa839d0707"
+)
+
 var _ = Describe("Etcd validation tests", func() {
+	var etcd *v1alpha1.Etcd
+
+	BeforeEach(func() {
+		etcd = &v1alpha1.Etcd{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+			},
+			Spec: v1alpha1.EtcdSpec{
+				Backup: v1alpha1.BackupSpec{
+					Store: &v1alpha1.StoreSpec{
+						Prefix: fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
+					},
+				},
+			},
+		}
+	})
+
 	Describe("#ValidateEtcd", func() {
 		It("should forbid empty Etcd resources", func() {
 			errorList := validation.ValidateEtcd(new(v1alpha1.Etcd))
@@ -44,35 +68,36 @@ var _ = Describe("Etcd validation tests", func() {
 			}))))
 		})
 
-		DescribeTable("#BackupStorePrefix",
-			func(e *v1alpha1.Etcd, m types.GomegaMatcher) { Expect(validation.ValidateEtcd(e)).To(m) },
+		DescribeTable("validate spec.backup.store",
+			func(store *v1alpha1.StoreSpec, m types.GomegaMatcher) {
+				etcd.Spec.Backup.Store = store
+				Expect(validation.ValidateEtcd(etcd)).To(m)
+			},
 
-			Entry("should forbid some random name", newEtcd("non-valid"), ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
+			Entry("should forbid invalid spec.backup.store", &v1alpha1.StoreSpec{
+				Prefix: "invalid",
+			}, ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
 				"Type":  Equal(field.ErrorTypeInvalid),
 				"Field": Equal("spec.backup.store.prefix"),
 			})))),
-			Entry("should forbid name equal to etcd's name", newEtcd("etcd-name"), ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
-				"Type":  Equal(field.ErrorTypeInvalid),
-				"Field": Equal("spec.backup.store.prefix"),
-			})))),
-			Entry("should validate succesfully the object", newEtcd(""), BeNil()),
+			Entry("should allow valid spec.backup.store", &v1alpha1.StoreSpec{
+				Prefix: fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
+			}, BeNil()),
+			Entry("should allow nil spec.backup.store", nil, BeNil()),
 		)
-
 	})
 
 	Describe("#ValidateEtcdUpdate", func() {
-		It("should prevent updating anything if deletion time stamp is set", func() {
-			old := newEtcd("")
-
+		It("should prevent updating anything if deletion timestamp is set", func() {
 			now := metav1.Now()
-			old.DeletionTimestamp = &now
-			old.ResourceVersion = "1"
+			etcd.DeletionTimestamp = &now
+			etcd.ResourceVersion = "1"
 
-			newetcd := newUpdatableEtcd(old)
-			newetcd.DeletionTimestamp = &now
-			newetcd.Spec.Backup.Port = pointer.Int32Ptr(42)
+			newEtcd := etcd.DeepCopy()
+			newEtcd.ResourceVersion = "2"
+			newEtcd.Spec.Backup.Port = pointer.Int32Ptr(42)
 
-			errList := validation.ValidateEtcdUpdate(newetcd, old)
+			errList := validation.ValidateEtcdUpdate(newEtcd, etcd)
 
 			Expect(errList).To(ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
 				"Type":  Equal(field.ErrorTypeInvalid),
@@ -80,15 +105,14 @@ var _ = Describe("Etcd validation tests", func() {
 			}))))
 		})
 
-		It("Should prevent updating of spec.backup.store.prefix", func() {
-			old := newEtcd("")
-			old.ResourceVersion = "1"
+		It("should prevent updating spec.backup.store.prefix", func() {
+			etcd.ResourceVersion = "1"
 
-			newetcd := newUpdatableEtcd(old)
-			newetcd.Spec.Backup.Store.Prefix = newetcd.Spec.Backup.Store.Prefix + "--"
-			newetcd.ResourceVersion = "2"
+			newEtcd := etcd.DeepCopy()
+			newEtcd.ResourceVersion = "2"
+			newEtcd.Spec.Backup.Store.Prefix = namespace + "/" + name
 
-			errList := validation.ValidateEtcdUpdate(newetcd, old)
+			errList := validation.ValidateEtcdUpdate(newEtcd, etcd)
 
 			Expect(errList).To(ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
 				"Type":  Equal(field.ErrorTypeInvalid),
@@ -97,52 +121,16 @@ var _ = Describe("Etcd validation tests", func() {
 		})
 
 		It("should allow updating everything else", func() {
-			old := newEtcd("")
-			old.ResourceVersion = "1"
+			etcd.ResourceVersion = "1"
 
-			newetcd := newUpdatableEtcd(old)
-			newetcd.Status = v1alpha1.EtcdStatus{
-				Replicas: int32(42),
-			}
-			newetcd.Spec.Etcd = v1alpha1.EtcdConfig{}
-			newetcd.Spec.Common = v1alpha1.SharedConfig{}
-			newetcd.Spec.Replicas = 42
+			newEtcd := etcd.DeepCopy()
+			newEtcd.ResourceVersion = "2"
+			newEtcd.Spec.Replicas = 42
+			newEtcd.Spec.Backup.Store = nil
 
-			errList := validation.ValidateEtcdUpdate(newetcd, old)
+			errList := validation.ValidateEtcdUpdate(newEtcd, etcd)
 
 			Expect(errList).To(BeEmpty())
 		})
 	})
 })
-
-func newUpdatableEtcd(e *v1alpha1.Etcd) *v1alpha1.Etcd {
-	res := e.DeepCopy()
-	res.ResourceVersion = "2"
-
-	return res
-}
-
-func newEtcd(prefix string) *v1alpha1.Etcd {
-	var (
-		name = "etcd-name"
-		ns   = "shoot1--ns"
-	)
-
-	if prefix == "" {
-		prefix = fmt.Sprintf("%s--F1A38EDD-E506-412A-82E6-E0FA839D0707/%s", ns, name)
-	}
-
-	return &v1alpha1.Etcd{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
-		},
-		Spec: v1alpha1.EtcdSpec{
-			Backup: v1alpha1.BackupSpec{
-				Store: &v1alpha1.StoreSpec{
-					Prefix: prefix,
-				},
-			},
-		},
-	}
-}
