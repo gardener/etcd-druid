@@ -14,22 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v1alpha1_test
 
 import (
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-
 	"context"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
-	corev1 "k8s.io/api/core/v1"
+	. "github.com/gardener/etcd-druid/api/v1alpha1"
 )
 
 // These tests are written in BDD-style using Ginkgo framework. Refer to
@@ -38,7 +36,7 @@ import (
 var _ = Describe("Etcd", func() {
 	var (
 		key              types.NamespacedName
-		created, fetched *druidv1alpha1.Etcd
+		created, fetched *Etcd
 	)
 
 	BeforeEach(func() {
@@ -66,7 +64,7 @@ var _ = Describe("Etcd", func() {
 			By("creating an API obj")
 			Expect(k8sClient.Create(context.TODO(), created)).To(Succeed())
 
-			fetched = &druidv1alpha1.Etcd{}
+			fetched = &Etcd{}
 			Expect(k8sClient.Get(context.TODO(), key, fetched)).To(Succeed())
 			Expect(fetched).To(Equal(created))
 
@@ -79,12 +77,12 @@ var _ = Describe("Etcd", func() {
 
 })
 
-func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
+func getEtcd(name, namespace string) *Etcd {
 	var (
-		clientPort  int32                      = 2379
-		serverPort  int32                      = 2380
-		backupPort  int32                      = 8080
-		metricLevel druidv1alpha1.MetricsLevel = druidv1alpha1.Basic
+		clientPort  int32        = 2379
+		serverPort  int32        = 2380
+		backupPort  int32        = 8080
+		metricLevel MetricsLevel = Basic
 	)
 
 	garbageCollectionPeriod := metav1.Duration{
@@ -102,11 +100,11 @@ func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
 	deltaSnapShotMemLimit := resource.MustParse("100Mi")
 	quota := resource.MustParse("8Gi")
 	storageClass := "gardener.cloud-fast"
-	provider := druidv1alpha1.StorageProvider("aws")
+	provider := StorageProvider("aws")
 	prefix := "etcd-test"
-	garbageCollectionPolicy := druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
+	garbageCollectionPolicy := GarbageCollectionPolicy(GarbageCollectionPolicyExponential)
 
-	tlsConfig := &druidv1alpha1.TLSConfig{
+	tlsConfig := &TLSConfig{
 		ClientTLSSecretRef: corev1.SecretReference{
 			Name: "etcd-client-tls",
 		},
@@ -118,12 +116,12 @@ func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
 		},
 	}
 
-	instance := &druidv1alpha1.Etcd{
+	instance := &Etcd{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: druidv1alpha1.EtcdSpec{
+		Spec: EtcdSpec{
 			Annotations: map[string]string{
 				"app":  "etcd-statefulset",
 				"role": "test",
@@ -143,7 +141,7 @@ func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
 			StorageClass:    &storageClass,
 			StorageCapacity: &storageCapacity,
 
-			Backup: druidv1alpha1.BackupSpec{
+			Backup: BackupSpec{
 				Image:                    &imageBR,
 				Port:                     &backupPort,
 				FullSnapshotSchedule:     &snapshotSchedule,
@@ -162,7 +160,7 @@ func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
 						"memory": parseQuantity("128Mi"),
 					},
 				},
-				Store: &druidv1alpha1.StoreSpec{
+				Store: &StoreSpec{
 					SecretRef: &corev1.SecretReference{
 						Name: "etcd-backup",
 					},
@@ -171,7 +169,7 @@ func getEtcd(name, namespace string) *druidv1alpha1.Etcd {
 					Prefix:    prefix,
 				},
 			},
-			Etcd: druidv1alpha1.EtcdConfig{
+			Etcd: EtcdConfig{
 				Quota:                   &quota,
 				Metrics:                 &metricLevel,
 				Image:                   &imageEtcd,

@@ -27,7 +27,6 @@ CRD_OPTIONS ?= "crd:trivialVersions=true"
 
 .PHONY: revendor
 revendor:
-	@cd "$(REPO_ROOT)/api" && go mod tidy
 	@env GO111MODULE=on go mod vendor
 	@env GO111MODULE=on go mod tidy
 	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/"*
@@ -65,7 +64,7 @@ deploy: manifests
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: manifests
 manifests:
-	@cd "$(REPO_ROOT)/api" && controller-gen $(CRD_OPTIONS) paths="./..." output:crd:artifacts:config=../config/crd/bases
+	@controller-gen $(CRD_OPTIONS) paths="./api/..." output:crd:artifacts:config="./config/crd/bases"
 	@controller-gen rbac:roleName=manager-role paths="./controllers/..."
 
 # Run go fmt against code
@@ -80,8 +79,7 @@ clean:
 # Check packages
 .PHONY: check
 check:
-	@cd "$(REPO_ROOT)/api" && "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=../.golangci.yaml ./...
-	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./pkg/... ./controllers/...
+	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
 
 .PHONY: check-generate
 check-generate:
