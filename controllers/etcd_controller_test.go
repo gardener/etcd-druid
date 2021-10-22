@@ -154,6 +154,14 @@ func cmdIterator(element interface{}) string {
 	return string(element.(string))
 }
 
+func ruleIterator(element interface{}) string {
+	return string(element.(rbac.PolicyRule).APIGroups[0])
+}
+
+func stringArrayIterator(element interface{}) string {
+	return string(element.(string))
+}
+
 var _ = Describe("Druid", func() {
 	//Reconciliation of new etcd resource deployment without any existing statefulsets.
 	Context("when adding etcd resources", func() {
@@ -796,7 +804,89 @@ var _ = Describe("Druid", func() {
 		})
 	})
 
+	Describe("with etcd resource", func() {
+		Context("role, rolebinding, and serviceaccount should be deployed", func() {
+			It("role should provide permissions only for leases", func() {
+				var err error
+				var instance *druidv1alpha1.Etcd
+				var c client.Client
+				var sa *corev1.ServiceAccount
+				var role *rbac.Role
+				var rb *rbac.RoleBinding
+
+				instance = getEtcd("foo70", "default", true)
+				c = mgr.GetClient()
+				ns := corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: instance.Namespace,
+					},
+				}
+
+				_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+				Expect(err).To(Not(HaveOccurred()))
+
+				if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
+					storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+					errors := createSecrets(c, instance.Namespace, storeSecret)
+					Expect(len(errors)).Should(BeZero())
+				}
+				err = c.Create(context.TODO(), instance)
+				Expect(err).NotTo(HaveOccurred())
+
+				sa = &corev1.ServiceAccount{}
+				Eventually(func() error { return serviceAccountIsCorrectlyReconciled(c, instance, sa) }, timeout, pollingInterval).Should(BeNil())
+				role = &rbac.Role{}
+				Eventually(func() error { return roleIsCorrectlyReconciled(c, instance, role) }, timeout, pollingInterval).Should(BeNil())
+				rb = &rbac.RoleBinding{}
+				Eventually(func() error { return roleBindingIsCorrectlyReconciled(c, instance, rb) }, timeout, pollingInterval).Should(BeNil())
+
+				validateRole(role, instance)
+
+			})
+		})
+	})
+
 })
+
+func validateRole(role *rbac.Role, instance *druidv1alpha1.Etcd) {
+	Expect(*role).To(MatchFields(IgnoreExtras, Fields{
+		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
+			"Name":      Equal(fmt.Sprintf("%s-br-role", instance.Name)),
+			"Namespace": Equal(instance.Namespace),
+			"Labels": MatchKeys(IgnoreExtras, Keys{
+				"name":     Equal("etcd"),
+				"instance": Equal(instance.Name),
+			}),
+			"OwnerReferences": MatchElements(ownerRefIterator, IgnoreExtras, Elements{
+				instance.Name: MatchFields(IgnoreExtras, Fields{
+					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),
+					"Kind":               Equal("Etcd"),
+					"Name":               Equal(instance.Name),
+					"UID":                Equal(instance.UID),
+					"Controller":         PointTo(Equal(true)),
+					"BlockOwnerDeletion": PointTo(Equal(true)),
+				}),
+			}),
+		}),
+		"Rules": MatchAllElements(ruleIterator, Elements{
+			"coordination.k8s.io": MatchFields(IgnoreExtras, Fields{
+				"APIGroups": MatchAllElements(stringArrayIterator, Elements{
+					"coordination.k8s.io": Equal("coordination.k8s.io"),
+				}),
+				"Resources": MatchAllElements(stringArrayIterator, Elements{
+					"leases": Equal("leases"),
+				}),
+				"Verbs": MatchAllElements(stringArrayIterator, Elements{
+					"list":   Equal("list"),
+					"get":    Equal("get"),
+					"update": Equal("update"),
+					"patch":  Equal("patch"),
+					"watch":  Equal("watch"),
+				}),
+			}),
+		}),
+	}))
+}
 
 func podDeleted(c client.Client, etcd *druidv1alpha1.Etcd) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
