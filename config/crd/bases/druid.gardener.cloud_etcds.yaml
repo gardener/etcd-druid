@@ -46,6 +46,9 @@ spec:
               backup:
                 description: BackupSpec defines parametes associated with the full and delta snapshots of etcd
                 properties:
+                  backupCompactionSchedule:
+                    description: BackupCompactionSchedule defines the cron standard for compacting the snapstore
+                    type: string
                   compression:
                     description: SnapshotCompression defines the specification for compression of Snapshots.
                     properties:

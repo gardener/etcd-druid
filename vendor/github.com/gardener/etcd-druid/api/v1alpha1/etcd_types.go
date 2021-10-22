@@ -141,6 +141,9 @@ type BackupSpec struct {
 	// EnableProfiling defines if profiling should be enabled for the etcd-backup-restore-sidecar
 	// +optional
 	EnableProfiling *bool `json:"enableProfiling,omitempty"`
+	// BackupCompactionSchedule defines the cron standard for compacting the snapstore
+	// +optional
+	BackupCompactionSchedule *string `json:"backupCompactionSchedule,omitempty"`
 	// EtcdSnapshotTimeout defines the timeout duration for etcd FullSnapshot operation
 	// +optional
 	EtcdSnapshotTimeout *metav1.Duration `json:"etcdSnapshotTimeout,omitempty"`

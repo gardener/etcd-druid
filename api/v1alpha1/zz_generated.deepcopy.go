@@ -87,6 +87,11 @@ func (in *BackupSpec) DeepCopyInto(out *BackupSpec) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.BackupCompactionSchedule != nil {
+		in, out := &in.BackupCompactionSchedule, &out.BackupCompactionSchedule
+		*out = new(string)
+		**out = **in
+	}
 	if in.EtcdSnapshotTimeout != nil {
 		in, out := &in.EtcdSnapshotTimeout, &out.EtcdSnapshotTimeout
 		*out = new(metav1.Duration)
