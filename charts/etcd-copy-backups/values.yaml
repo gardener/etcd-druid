@@ -1,0 +1,15 @@
+name: test-worker
+ownerName: test
+ownerUID: test-uid
+
+annotations: {}
+labels: {}
+
+sourceStore:
+  storageProvider: ""
+  storePrefix: ""
+  storageContainer: ""
+targetStore:
+  storageProvider: ""
+  storePrefix: ""
+  storageContainer: ""

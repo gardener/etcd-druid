@@ -8,5 +8,5 @@ spec:
     spec:
       containers:
         # Change the value of image field below to your controller image URL
-        - image: eu.gcr.io/gardener-project/gardener/etcd-druid:v0.5.0-dev
+        - image: eu.gcr.io/gardener-project/gardener/etcd-druid:v0.7.0-dev
           name: druid

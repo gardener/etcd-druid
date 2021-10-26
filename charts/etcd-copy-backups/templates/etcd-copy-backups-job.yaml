@@ -1,12 +1,11 @@
-{{- if  .Values.sourceStore}}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ .Values.jobName }}
+  name: {{ .Values.name }}
   namespace: {{ .Release.Namespace }}
   annotations:
-    gardener.cloud/owned-by: "{{ .Release.Namespace }}/{{ .Values.taskName }}"
-    gardener.cloud/owner-type: "etcd"
+    gardener.cloud/owned-by: "{{ .Release.Namespace }}/{{ .Values.ownerName }}"
+    gardener.cloud/owner-type: "etcdcopybackupstask"
 {{- if .Values.annotations }}
 {{ toYaml .Values.annotations | indent 4 }}
 {{- end }}
@@ -20,8 +19,8 @@ metadata:
     blockOwnerDeletion: true
     controller: true
     kind: EtcdCopyBackupsTask
-    name: {{ .Values.taskName }}
-    uid: {{ .Values.uid }}
+    name: {{ .Values.ownerName }}
+    uid: {{ .Values.ownerUID }}
 spec:
   template:
     metadata:
@@ -251,20 +250,17 @@ spec:
               key: "insecureSkipVerify"
               optional: true
 {{- end }}
-        volumeMounts:
 {{- if eq .Values.targetStore.storageProvider "GCS" }}
+        volumeMounts:
         - name: etcd-backup
           mountPath: "/root/.gcp/"
         - name: etcd-backup-source
           mountPath: "/root/.source-gcp/"
-{{- end }}
       volumes:
-{{- if eq .Values.targetStore.storageProvider "GCS" }}
       - name: etcd-backup
         secret:
           secretName: {{ .Values.targetStore.storeSecret }}
       - name: etcd-backup-source
         secret:
           secretName: {{ .Values.sourceStore.storeSecret }}
-{{- end }}
 {{- end }}
