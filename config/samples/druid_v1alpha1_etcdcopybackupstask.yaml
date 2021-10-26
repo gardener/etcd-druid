@@ -1,0 +1,18 @@
+apiVersion: druid.gardener.cloud/v1alpha1
+kind: EtcdCopyBackupsTask
+metadata:
+  name: etcd-test
+  namespace: shoot--dev--test
+spec:
+  sourceStore:
+    container: foo
+    prefix: test/etcd-main
+    provider: gcp
+    secretRef:
+      name: source-etcd-backup
+  targetStore:
+    container: bar
+    prefix: test/etcd-main
+    provider: gcp
+    secretRef:
+      name: target-etcd-backup

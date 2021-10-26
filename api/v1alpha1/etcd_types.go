@@ -416,37 +416,12 @@ type EtcdList struct {
 	Items           []Etcd `json:"items"`
 }
 
-// LastOperationState is a string alias.
-type LastOperationState string
-
-const (
-	// LastOperationStateActive indicates that an operation is ongoing.
-	LastOperationStateActive LastOperationState = "Active"
-	// LastOperationStateSucceeded indicates that an operation has completed successfully.
-	LastOperationStateSucceeded LastOperationState = "Succeeded"
-	// LastOperationStateFailed indicates that an operation is completed with errors and won't be retried.
-	LastOperationStateFailed LastOperationState = "Failed"
-)
-
-// LastOperation indicates the type and the state of the last operation, along with a description
-// message and a progress indicator.
-type LastOperation struct {
-	// Description is a human readable message indicating details about the last operation.
-	Description string `json:"description" protobuf:"bytes,1,opt,name=description"`
-	// LastUpdateTime is the last time the operation state transitioned from one to another.
-	LastUpdateTime metav1.Time `json:"lastUpdateTime" protobuf:"bytes,2,opt,name=lastUpdateTime"`
-	// State is the status of the last operation, one of Aborted, Processing, Succeeded, Error, Failed.
-	State LastOperationState `json:"state" protobuf:"bytes,4,opt,name=state,casttype=LastOperationState"`
-}
-
-// EtcdCopyBackupsTaskSpec defines the parameters for the copy operation
+// EtcdCopyBackupsTaskSpec defines the parameters for the copy backups task.
 type EtcdCopyBackupsTaskSpec struct {
-	// SourceStore defines the specification of object store provider for storing backups.
-	// +required
-	SourceStore *StoreSpec `json:"sourceStore,omitempty"`
-	// TargetStore defines the specification of object store provider for storing backups.
-	// +required
-	TargetStore *StoreSpec `json:"targetStore,omitempty"`
+	// SourceStore defines the specification of the source object store provider for storing backups.
+	SourceStore StoreSpec `json:"sourceStore"`
+	// TargetStore defines the specification of the target object store provider for storing backups.
+	TargetStore StoreSpec `json:"targetStore"`
 	// MaxBackupAge is the maximum age in days that a snapshot must have in order to be copied.
 	// By default all snapshots will be copied.
 	// +optional
@@ -459,37 +434,41 @@ type EtcdCopyBackupsTaskSpec struct {
 	Image *string `json:"image,omitempty"`
 }
 
-// EtcdCopyBackupsTaskStatus defines parameters that contains the current state of the etcd backup copy operation
+// EtcdCopyBackupsTaskStatus defines the observed state of the copy backups task.
 type EtcdCopyBackupsTaskStatus struct {
+	// Conditions represents the latest available observations of an object's current state.
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +optional
+	Conditions []Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 	// ObservedGeneration is the most recent generation observed for this resource.
 	// +optional
 	ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
-	// LastOperation represents the latest available observations of an etcd backup copy task current state.
-	// +optional
-	LastOperation *LastOperation `json:"lastOperation,omitempty"`
-	// TaskReference represents the details of the task that is currently deployed to preform the copy operation.
-	// +optional
-	ObjectRef *corev1.TypedLocalObjectReference `json:"objectRef,omitempty"`
 	// LastError represents the last occurred error.
 	// +optional
 	LastError *string `json:"lastError,omitempty"`
 }
+
+const (
+	// EtcdCopyBackupsTaskSucceeded is a condition type indicating that a EtcdCopyBackupsTask has succeeded.
+	EtcdCopyBackupsTaskSucceeded ConditionType = "Succeeded"
+	// EtcdCopyBackupsTaskFailed is a condition type indicating that a EtcdCopyBackupsTask has failed.
+	EtcdCopyBackupsTaskFailed ConditionType = "Failed"
+)
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.ready`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
-// EtcdCopyBackupsTask is the Schema for the EtcdCopyBackupsTask object that
-// is responsible for declaring the parameters for etcd backup copy operation.
+// EtcdCopyBackupsTask is a task for copying etcd backups from a source to a target store.
 type EtcdCopyBackupsTask struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   *EtcdCopyBackupsTaskSpec  `json:"spec,omitempty"`
+	Spec   EtcdCopyBackupsTaskSpec   `json:"spec,omitempty"`
 	Status EtcdCopyBackupsTaskStatus `json:"status,omitempty"`
 }
 
@@ -498,7 +477,7 @@ type EtcdCopyBackupsTask struct {
 
 // +kubebuilder:object:root=true
 
-// EtcdCopyBackupsTaskList contains a list of Etcd
+// EtcdCopyBackupsTaskList contains a list of EtcdCopyBackupsTask objects.
 type EtcdCopyBackupsTaskList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

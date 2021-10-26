@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Helm chart for copying etcd backups
+name: etcd-copy-backups
+version: 0.1.0
