@@ -119,6 +119,12 @@ var _ = BeforeSuite(func(done Done) {
 	err = custodian.SetupWithManager(mgrCtx, mgr, 1)
 	Expect(err).NotTo(HaveOccurred())
 
+	etcdCopyBackupsTaskReconciler, err := NewEtcdCopyBackupsTaskReconcilerWithImageVector(mgr)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = etcdCopyBackupsTaskReconciler.SetupWithManager(mgr, 1)
+	Expect(err).NotTo(HaveOccurred())
+
 	mgrStopped = startTestManager(mgrCtx, mgr)
 
 	close(done)
