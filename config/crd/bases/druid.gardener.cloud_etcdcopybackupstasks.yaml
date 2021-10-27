@@ -97,6 +97,18 @@ spec:
                 required:
                 - prefix
                 type: object
+              waitForFinalSnapshot:
+                description: WaitForFinalSnapshot defines the parameters for waiting for a final full snapshot before copying backups.
+                properties:
+                  enabled:
+                    description: Enabled specifies whether to wait for a final full snapshot before copying backups.
+                    type: boolean
+                  timeout:
+                    description: Timeout is the timeout for waiting for a final full snapshot. When this timeout expires, the copying of backups will be performed anyway. No timeout or 0 means wait forever.
+                    type: string
+                required:
+                - enabled
+                type: object
             required:
             - sourceStore
             - targetStore

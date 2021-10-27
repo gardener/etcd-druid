@@ -6,10 +6,10 @@ annotations: {}
 labels: {}
 
 sourceStore:
-  storageProvider: "Local"
-  storePrefix: "/tmp"
-  storageContainer: "source-container"
+  storageProvider: ""
+  storePrefix: ""
+  storageContainer: ""
 targetStore:
-  storageProvider: "Local"
-  storePrefix: "/tmp"
-  storageContainer: "target-container"
+  storageProvider: ""
+  storePrefix: ""
+  storageContainer: ""

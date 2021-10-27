@@ -310,6 +310,13 @@ func (r *EtcdCopyBackupsTaskReconciler) getChartValues(task *druidv1alpha1.EtcdC
 		values["maxBackups"] = *task.Spec.MaxBackups
 	}
 
+	if task.Spec.WaitForFinalSnapshot != nil {
+		values["waitForFinalSnapshot"] = task.Spec.WaitForFinalSnapshot.Enabled
+		if task.Spec.WaitForFinalSnapshot.Timeout != nil {
+			values["waitForFinalSnapshotTimeout"] = task.Spec.WaitForFinalSnapshot.Timeout
+		}
+	}
+
 	if task.Spec.Image != nil {
 		values["image"] = task.Spec.Image
 	} else {

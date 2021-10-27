@@ -17,6 +17,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
@@ -112,23 +113,35 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 		},
 		Entry("should create the job, update the task status, and delete the job if the job completed",
-			getEtcdCopyBackupsTask("Local"), getJobStatus(batchv1.JobComplete, "", "")),
+			getEtcdCopyBackupsTask("Local", true), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job failed",
-			getEtcdCopyBackupsTask("Local"), getJobStatus(batchv1.JobFailed, "test reason", "test message")),
+			getEtcdCopyBackupsTask("Local", false), getJobStatus(batchv1.JobFailed, "test reason", "test message")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for aws",
-			getEtcdCopyBackupsTask("aws"), getJobStatus(batchv1.JobComplete, "", "")),
+			getEtcdCopyBackupsTask("aws", false), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for azure",
-			getEtcdCopyBackupsTask("azure"), getJobStatus(batchv1.JobComplete, "", "")),
+			getEtcdCopyBackupsTask("azure", false), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for gcp",
-			getEtcdCopyBackupsTask("gcp"), getJobStatus(batchv1.JobComplete, "", "")),
+			getEtcdCopyBackupsTask("gcp", false), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for openstack",
-			getEtcdCopyBackupsTask("openstack"), getJobStatus(batchv1.JobComplete, "", "")),
+			getEtcdCopyBackupsTask("openstack", false), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for alicloud",
-			getEtcdCopyBackupsTask("alicloud"), getJobStatus(batchv1.JobComplete, "", "")),
+			getEtcdCopyBackupsTask("alicloud", false), getJobStatus(batchv1.JobComplete, "", "")),
 	)
 })
 
-func getEtcdCopyBackupsTask(provider druidv1alpha1.StorageProvider) *druidv1alpha1.EtcdCopyBackupsTask {
+func getEtcdCopyBackupsTask(provider druidv1alpha1.StorageProvider, withOptionalFields bool) *druidv1alpha1.EtcdCopyBackupsTask {
+	var (
+		maxBackupAge, maxBackups *uint32
+		waitForFinalSnapshot     *druidv1alpha1.WaitForFinalSnapshotSpec
+	)
+	if withOptionalFields {
+		maxBackupAge = uint32Ptr(7)
+		maxBackups = uint32Ptr(42)
+		waitForFinalSnapshot = &druidv1alpha1.WaitForFinalSnapshotSpec{
+			Enabled: true,
+			Timeout: &metav1.Duration{Duration: 10 * time.Minute},
+		}
+	}
 	return &druidv1alpha1.EtcdCopyBackupsTask{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
@@ -151,8 +164,9 @@ func getEtcdCopyBackupsTask(provider druidv1alpha1.StorageProvider) *druidv1alph
 					Name: "target-etcd-backup",
 				},
 			},
-			MaxBackupAge: uint32Ptr(7),
-			MaxBackups:   uint32Ptr(42),
+			MaxBackupAge:         maxBackupAge,
+			MaxBackups:           maxBackups,
+			WaitForFinalSnapshot: waitForFinalSnapshot,
 		},
 	}
 }
@@ -205,29 +219,8 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask) GomegaMatcher {
 							"Name":            Equal("copy-backups"),
 							"Image":           Equal(fmt.Sprintf("%s:%s", images[common.BackupRestore].Repository, *images[common.BackupRestore].Tag)),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
-							"Command": MatchAllElements(cmdIterator, Elements{
-								"etcdbrctl": Equal("etcdbrctl"),
-								"copy":      Equal("copy"),
-								"--snapstore-temp-directory=/var/etcd/data/tmp":                                    Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
-								fmt.Sprintf("%s=%s", "--storage-provider", targetProvider):                         Equal(fmt.Sprintf("%s=%s", "--storage-provider", targetProvider)),
-								fmt.Sprintf("%s=%s", "--store-prefix", task.Spec.TargetStore.Prefix):               Equal(fmt.Sprintf("%s=%s", "--store-prefix", task.Spec.TargetStore.Prefix)),
-								fmt.Sprintf("%s=%s", "--store-container", *task.Spec.TargetStore.Container):        Equal(fmt.Sprintf("%s=%s", "--store-container", *task.Spec.TargetStore.Container)),
-								fmt.Sprintf("%s=%s", "--source-storage-provider", sourceProvider):                  Equal(fmt.Sprintf("%s=%s", "--source-storage-provider", sourceProvider)),
-								fmt.Sprintf("%s=%s", "--source-store-prefix", task.Spec.SourceStore.Prefix):        Equal(fmt.Sprintf("%s=%s", "--source-store-prefix", task.Spec.SourceStore.Prefix)),
-								fmt.Sprintf("%s=%s", "--source-store-container", *task.Spec.SourceStore.Container): Equal(fmt.Sprintf("%s=%s", "--source-store-container", *task.Spec.SourceStore.Container)),
-								fmt.Sprintf("%s=%d", "--max-backup-age", *task.Spec.MaxBackupAge):                  Equal(fmt.Sprintf("%s=%d", "--max-backup-age", *task.Spec.MaxBackupAge)),
-								fmt.Sprintf("%s=%d", "--max-backups-to-copy", *task.Spec.MaxBackups):               Equal(fmt.Sprintf("%s=%d", "--max-backups-to-copy", *task.Spec.MaxBackups)),
-							}),
-							"Env": MatchElements(envIterator, IgnoreExtras, Elements{
-								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("STORAGE_CONTAINER"),
-									"Value": Equal(*task.Spec.TargetStore.Container),
-								}),
-								"SOURCE_STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("SOURCE_STORAGE_CONTAINER"),
-									"Value": Equal(*task.Spec.SourceStore.Container),
-								}),
-							}),
+							"Command":         MatchAllElements(cmdIterator, getCmdElements(task, sourceProvider, targetProvider)),
+							"Env":             MatchElements(envIterator, IgnoreExtras, getEnvElements(task)),
 						}),
 					}),
 				}),
@@ -238,6 +231,62 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask) GomegaMatcher {
 	return And(matcher, matchJobWithProviders(task, sourceProvider, targetProvider))
 }
 
+func getCmdElements(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvider, targetProvider string) Elements {
+	elements := Elements{
+		"etcdbrctl": Equal("etcdbrctl"),
+		"copy":      Equal("copy"),
+		"--snapstore-temp-directory=/var/etcd/data/tmp": Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
+	}
+	if targetProvider != "" {
+		addEqual(elements, fmt.Sprintf("%s=%s", "--storage-provider", targetProvider))
+	}
+	if task.Spec.TargetStore.Prefix != "" {
+		addEqual(elements, fmt.Sprintf("%s=%s", "--store-prefix", task.Spec.TargetStore.Prefix))
+	}
+	if task.Spec.TargetStore.Container != nil && *task.Spec.TargetStore.Container != "" {
+		addEqual(elements, fmt.Sprintf("%s=%s", "--store-container", *task.Spec.TargetStore.Container))
+	}
+	if sourceProvider != "" {
+		addEqual(elements, fmt.Sprintf("%s=%s", "--source-storage-provider", sourceProvider))
+	}
+	if task.Spec.SourceStore.Prefix != "" {
+		addEqual(elements, fmt.Sprintf("%s=%s", "--source-store-prefix", task.Spec.SourceStore.Prefix))
+	}
+	if task.Spec.SourceStore.Container != nil && *task.Spec.SourceStore.Container != "" {
+		addEqual(elements, fmt.Sprintf("%s=%s", "--source-store-container", *task.Spec.SourceStore.Container))
+	}
+	if task.Spec.MaxBackupAge != nil && *task.Spec.MaxBackupAge != 0 {
+		addEqual(elements, fmt.Sprintf("%s=%d", "--max-backup-age", *task.Spec.MaxBackupAge))
+	}
+	if task.Spec.MaxBackups != nil && *task.Spec.MaxBackups != 0 {
+		addEqual(elements, fmt.Sprintf("%s=%d", "--max-backups-to-copy", *task.Spec.MaxBackups))
+	}
+	if task.Spec.WaitForFinalSnapshot != nil && task.Spec.WaitForFinalSnapshot.Enabled {
+		addEqual(elements, fmt.Sprintf("%s=%t", "--wait-for-final-snapshot", task.Spec.WaitForFinalSnapshot.Enabled))
+		if task.Spec.WaitForFinalSnapshot.Timeout != nil && task.Spec.WaitForFinalSnapshot.Timeout.Duration != 0 {
+			addEqual(elements, fmt.Sprintf("%s=%s", "--wait-for-final-snapshot-timeout", task.Spec.WaitForFinalSnapshot.Timeout.Duration.String()))
+		}
+	}
+	return elements
+}
+
+func getEnvElements(task *druidv1alpha1.EtcdCopyBackupsTask) Elements {
+	elements := Elements{}
+	if task.Spec.TargetStore.Container != nil && *task.Spec.TargetStore.Container != "" {
+		elements["STORAGE_CONTAINER"] = MatchFields(IgnoreExtras, Fields{
+			"Name":  Equal("STORAGE_CONTAINER"),
+			"Value": Equal(*task.Spec.TargetStore.Container),
+		})
+	}
+	if task.Spec.SourceStore.Container != nil && *task.Spec.SourceStore.Container != "" {
+		elements["SOURCE_STORAGE_CONTAINER"] = MatchFields(IgnoreExtras, Fields{
+			"Name":  Equal("SOURCE_STORAGE_CONTAINER"),
+			"Value": Equal(*task.Spec.SourceStore.Container),
+		})
+	}
+	return elements
+}
+
 func matchJobWithProviders(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvider, targetProvider string) GomegaMatcher {
 	matcher := MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
@@ -246,8 +295,8 @@ func matchJobWithProviders(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvid
 					"Containers": MatchAllElements(containerIterator, Elements{
 						"copy-backups": MatchFields(IgnoreExtras, Fields{
 							"Env": And(
-								MatchElements(envIterator, IgnoreExtras, getEnvElements(targetProvider, "", "", &task.Spec.TargetStore)),
-								MatchElements(envIterator, IgnoreExtras, getEnvElements(sourceProvider, "SOURCE_", "source-", &task.Spec.SourceStore)),
+								MatchElements(envIterator, IgnoreExtras, getProviderEnvElements(targetProvider, "", "", &task.Spec.TargetStore)),
+								MatchElements(envIterator, IgnoreExtras, getProviderEnvElements(sourceProvider, "SOURCE_", "source-", &task.Spec.SourceStore)),
 							),
 						}),
 					}),
@@ -281,7 +330,7 @@ func matchJobWithProviders(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvid
 	return matcher
 }
 
-func getEnvElements(storeProvider, prefix, volumePrefix string, store *druidv1alpha1.StoreSpec) Elements {
+func getProviderEnvElements(storeProvider, prefix, volumePrefix string, store *druidv1alpha1.StoreSpec) Elements {
 	switch storeProvider {
 	case "S3":
 		return Elements{
@@ -419,6 +468,10 @@ func matchFinalizer(finalizer string) GomegaMatcher {
 			}),
 		}),
 	})
+}
+
+func addEqual(elements Elements, s string) {
+	elements[s] = Equal(s)
 }
 
 func conditionIdentifier(element interface{}) string {

@@ -429,9 +429,22 @@ type EtcdCopyBackupsTaskSpec struct {
 	// MaxBackups is the maximum number of snapshots that will be copied starting with the most recent ones.
 	// +optional
 	MaxBackups *uint32 `json:"maxBackups,omitempty"`
+	// WaitForFinalSnapshot defines the parameters for waiting for a final full snapshot before copying backups.
+	// +optional
+	WaitForFinalSnapshot *WaitForFinalSnapshotSpec `json:"waitForFinalSnapshot,omitempty"`
 	// Image defines the backup-restore container image and tag
 	// +optional
 	Image *string `json:"image,omitempty"`
+}
+
+// WaitForFinalSnapshotSpec defines the parameters for waiting for a final full snapshot before copying backups.
+type WaitForFinalSnapshotSpec struct {
+	// Enabled specifies whether to wait for a final full snapshot before copying backups.
+	Enabled bool `json:"enabled"`
+	// Timeout is the timeout for waiting for a final full snapshot. When this timeout expires, the copying of backups
+	// will be performed anyway. No timeout or 0 means wait forever.
+	// +optional
+	Timeout *metav1.Duration `json:"timeout,omitempty"`
 }
 
 // EtcdCopyBackupsTaskStatus defines the observed state of the copy backups task.

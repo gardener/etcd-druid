@@ -61,11 +61,21 @@ spec:
 {{- if .Values.maxBackups }}
         - --max-backups-to-copy={{ .Values.maxBackups }}
 {{- end }}
+{{- if .Values.waitForFinalSnapshot }}
+        - --wait-for-final-snapshot={{ .Values.waitForFinalSnapshot }}
+{{- if .Values.waitForFinalSnapshotTimeout }}
+        - --wait-for-final-snapshot-timeout={{ .Values.waitForFinalSnapshotTimeout }}
+{{- end }}
+{{- end }}
         env:
+{{- if .Values.targetStore.storageContainer }}
         - name: STORAGE_CONTAINER
           value: {{ .Values.targetStore.storageContainer }}
+{{- end }}
+{{- if .Values.sourceStore.storageContainer }}
         - name: SOURCE_STORAGE_CONTAINER
           value: {{ .Values.sourceStore.storageContainer }}
+{{- end }}
 {{- if eq .Values.targetStore.storageProvider "S3" }}
         - name: "AWS_REGION"
           valueFrom:
