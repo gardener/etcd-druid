@@ -3,6 +3,10 @@ uid: uuid-of-etcd-resource
 serviceName: test
 configMapName: test
 
+pdb:
+  name: test-pod-disruption-budget
+  minAvailable: 0
+
 replicas: 1
 #priorityClassName: foo
 
