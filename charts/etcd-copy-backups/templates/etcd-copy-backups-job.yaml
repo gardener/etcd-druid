@@ -37,7 +37,7 @@ spec:
         - etcdbrctl
         - copy
         - --snapstore-temp-directory=/var/etcd/data/tmp
-{{- if  .Values.targetStore.storageProvider }}
+{{- if .Values.targetStore.storageProvider }}
         - --storage-provider={{ .Values.targetStore.storageProvider }}
 {{- end }}
 {{- if .Values.targetStore.storePrefix }}
@@ -46,7 +46,7 @@ spec:
 {{- if .Values.targetStore.storageContainer }}
         - --store-container={{ .Values.targetStore.storageContainer }}
 {{- end }}
-{{- if  .Values.sourceStore.storageProvider }}
+{{- if .Values.sourceStore.storageProvider }}
         - --source-storage-provider={{ .Values.sourceStore.storageProvider }}
 {{- end }}
 {{- if .Values.sourceStore.storePrefix }}

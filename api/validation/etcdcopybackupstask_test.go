@@ -110,7 +110,7 @@ var _ = Describe("Etcd validation tests", func() {
 
 			newTask := task.DeepCopy()
 			newTask.ResourceVersion = "2"
-			newTask.Spec.Image = pointer.StringPtr("image:tag")
+			newTask.Spec.SourceStore.Container = pointer.StringPtr("foo")
 
 			errList := validation.ValidateEtcdCopyBackupsTaskUpdate(newTask, task)
 

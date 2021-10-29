@@ -65,7 +65,7 @@ func NewEtcdCopyBackupsTaskReconciler(mgr manager.Manager) (*EtcdCopyBackupsTask
 	}).InitializeControllerWithChartApplier()
 }
 
-// NewEtcdCopyBackupsTaskReconcilerWithImageVector creates a new EtcdCopyBackupsTaskReconciler and initializes its imageVector.
+// NewEtcdCopyBackupsTaskReconcilerWithImageVector creates a new EtcdCopyBackupsTaskReconciler and initializes its image vector.
 func NewEtcdCopyBackupsTaskReconcilerWithImageVector(mgr manager.Manager) (*EtcdCopyBackupsTaskReconciler, error) {
 	r, err := NewEtcdCopyBackupsTaskReconciler(mgr)
 	if err != nil {
@@ -83,8 +83,7 @@ func (r *EtcdCopyBackupsTaskReconciler) SetupWithManager(mgr ctrl.Manager, worke
 		Complete(r)
 }
 
-// InitializeControllerWithChartApplier will use EtcdCopyBackupsTaskReconciler client to initialize a Kubernetes client as well as
-// a Chart renderer.
+// InitializeControllerWithChartApplier will use EtcdCopyBackupsTaskReconciler rest config to initialize a chart applier.
 func (r *EtcdCopyBackupsTaskReconciler) InitializeControllerWithChartApplier() (*EtcdCopyBackupsTaskReconciler, error) {
 	renderer, err := chartrenderer.NewForConfig(r.config)
 	if err != nil {
@@ -98,8 +97,7 @@ func (r *EtcdCopyBackupsTaskReconciler) InitializeControllerWithChartApplier() (
 	return r, nil
 }
 
-// InitializeControllerWithImageVector will use EtcdCopyBackupsTaskReconciler client to initialize image vector for etcd
-// and backup restore images.
+// InitializeControllerWithImageVector will use EtcdCopyBackupsTaskReconciler client to initialize an image vector.
 func (r *EtcdCopyBackupsTaskReconciler) InitializeControllerWithImageVector() (*EtcdCopyBackupsTaskReconciler, error) {
 	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(getImageYAMLPath())
 	if err != nil {
@@ -317,19 +315,15 @@ func (r *EtcdCopyBackupsTaskReconciler) getChartValues(task *druidv1alpha1.EtcdC
 		}
 	}
 
-	if task.Spec.Image != nil {
-		values["image"] = task.Spec.Image
-	} else {
-		images, err := imagevector.FindImages(r.imageVector, []string{common.BackupRestore})
-		if err != nil {
-			return nil, err
-		}
-		val, ok := images[common.BackupRestore]
-		if !ok {
-			return nil, errors.New("etcdbrctl image not found")
-		}
-		values["image"] = val.String()
+	images, err := imagevector.FindImages(r.imageVector, []string{common.BackupRestore})
+	if err != nil {
+		return nil, err
 	}
+	val, ok := images[common.BackupRestore]
+	if !ok {
+		return nil, errors.New("etcdbrctl image not found")
+	}
+	values["image"] = val.String()
 
 	return values, nil
 }

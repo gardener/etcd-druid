@@ -422,19 +422,16 @@ type EtcdCopyBackupsTaskSpec struct {
 	SourceStore StoreSpec `json:"sourceStore"`
 	// TargetStore defines the specification of the target object store provider for storing backups.
 	TargetStore StoreSpec `json:"targetStore"`
-	// MaxBackupAge is the maximum age in days that a snapshot must have in order to be copied.
-	// By default all snapshots will be copied.
+	// MaxBackupAge is the maximum age in days that a backup must have in order to be copied.
+	// By default all backups will be copied.
 	// +optional
 	MaxBackupAge *uint32 `json:"maxBackupAge,omitempty"`
-	// MaxBackups is the maximum number of snapshots that will be copied starting with the most recent ones.
+	// MaxBackups is the maximum number of backups that will be copied starting with the most recent ones.
 	// +optional
 	MaxBackups *uint32 `json:"maxBackups,omitempty"`
 	// WaitForFinalSnapshot defines the parameters for waiting for a final full snapshot before copying backups.
 	// +optional
 	WaitForFinalSnapshot *WaitForFinalSnapshotSpec `json:"waitForFinalSnapshot,omitempty"`
-	// Image defines the backup-restore container image and tag
-	// +optional
-	Image *string `json:"image,omitempty"`
 }
 
 // WaitForFinalSnapshotSpec defines the parameters for waiting for a final full snapshot before copying backups.

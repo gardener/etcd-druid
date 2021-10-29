@@ -36,15 +36,12 @@ spec:
           spec:
             description: EtcdCopyBackupsTaskSpec defines the parameters for the copy backups task.
             properties:
-              image:
-                description: Image defines the backup-restore container image and tag
-                type: string
               maxBackupAge:
-                description: MaxBackupAge is the maximum age in days that a snapshot must have in order to be copied. By default all snapshots will be copied.
+                description: MaxBackupAge is the maximum age in days that a backup must have in order to be copied. By default all backups will be copied.
                 format: int32
                 type: integer
               maxBackups:
-                description: MaxBackups is the maximum number of snapshots that will be copied starting with the most recent ones.
+                description: MaxBackups is the maximum number of backups that will be copied starting with the most recent ones.
                 format: int32
                 type: integer
               sourceStore:
