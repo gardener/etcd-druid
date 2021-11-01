@@ -94,13 +94,13 @@ spec:
                     description: Image defines the etcd container image and tag
                     type: string
                   ownerCheck:
-                    description: OwnerCheck defines parameters related to checking if the seed is an owner of the shoot. The ownership can change during control plane migration.
+                    description: OwnerCheck defines parameters related to checking if the cluster owner, as specified in the owner DNS record, is the expected one.
                     properties:
                       dnsCacheTTL:
                         description: DNSCacheTTL is the DNS cache TTL for owner checks.
                         type: string
                       id:
-                        description: ID is the seed ID value that is expected to be found in the owner DNS record.
+                        description: ID is the owner id value that is expected to be found in the owner DNS record.
                         type: string
                       interval:
                         description: Interval is the time interval between owner checks.

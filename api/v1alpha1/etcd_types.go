@@ -103,12 +103,12 @@ type CompressionSpec struct {
 	Policy *CompressionPolicy `json:"policy,omitempty"`
 }
 
-// OwnerCheckSpec defines parameters related to checking if the seed is an owner
-// of the shoot. The ownership can change during control plane migration.
+// OwnerCheckSpec defines parameters related to checking if the cluster owner, as specified in the owner DNS record,
+// is the expected one.
 type OwnerCheckSpec struct {
 	// Name is the domain name of the owner DNS record.
 	Name string `json:"name"`
-	// ID is the seed ID value that is expected to be found in the owner DNS record.
+	// ID is the owner id value that is expected to be found in the owner DNS record.
 	ID string `json:"id"`
 	// Interval is the time interval between owner checks.
 	// +optional
@@ -165,8 +165,8 @@ type BackupSpec struct {
 	// EtcdSnapshotTimeout defines the timeout duration for etcd FullSnapshot operation
 	// +optional
 	EtcdSnapshotTimeout *metav1.Duration `json:"etcdSnapshotTimeout,omitempty"`
-	// OwnerCheck defines parameters related to checking if the seed is an owner
-	// of the shoot. The ownership can change during control plane migration.
+	// OwnerCheck defines parameters related to checking if the cluster owner, as specified in the owner DNS record,
+	// is the expected one.
 	// +optional
 	OwnerCheck *OwnerCheckSpec `json:"ownerCheck,omitempty"`
 }
