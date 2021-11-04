@@ -1242,7 +1242,7 @@ The life-cycle of these work-flows is shown below.
 
 ### Work-flows independent of leader election in all members
 
-- Serve the HTTP API that all members are expected to support currently
+- Serve the [HTTP API](https://github.com/gardener/etcd-backup-restore/blob/master/pkg/server/httpAPI.go#L101-L107) that all members are expected to support currently but some HTTP API call which are used to take [out-of-sync delta or full snapshot](https://github.com/gardener/etcd-backup-restore/blob/5dfcc1f848a9f325d41a24eae4defb70d997c215/pkg/server/httpAPI.go#L103-L105) should delegate the incoming HTTP requests to the `leading-sidecar` and one of the possible approach to achieve this is via an [HTTP reverse proxy](https://pkg.go.dev/net/http/httputil#ReverseProxy.ServeHTTP).
 - Check the health of the respective etcd member and renew the corresponding [member `lease`](#member-leases).
 
 ### Work-flows only on the leading member
