@@ -201,6 +201,9 @@ type EtcdConfig struct {
 	// EtcdDefragTimeout defines the timeout duration for etcd defrag call
 	// +optional
 	EtcdDefragTimeout *metav1.Duration `json:"etcdDefragTimeout,omitempty"`
+	// MemberHeartbeat defines the time members send a heartbeat. The default value is 10s.
+	// +optional
+	MemberHeartbeat *metav1.Duration `json:"memberHeartbeat,omitempty"`
 }
 
 // SharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.

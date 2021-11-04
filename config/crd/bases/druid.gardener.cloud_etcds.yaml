@@ -249,6 +249,9 @@ spec:
                   image:
                     description: Image defines the etcd container image and tag
                     type: string
+                  memberHeartbeat:
+                    description: MemberHeartbeat defines the time members send a heartbeat. The default value is 10s.
+                    type: string
                   metrics:
                     description: Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics.
                     enum:

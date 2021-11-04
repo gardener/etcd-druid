@@ -1218,6 +1218,10 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (map[s
 		etcdValues["etcdDefragTimeout"] = etcd.Spec.Etcd.EtcdDefragTimeout
 	}
 
+	if etcd.Spec.Etcd.MemberHeartbeat != nil {
+		etcdValues["heartbeatDuration"] = etcd.Spec.Etcd.MemberHeartbeat
+	}
+
 	etcdImage, etcdBackupImage, err := getEtcdImages(im, etcd)
 	if err != nil {
 		return map[string]interface{}{}, err
@@ -1384,7 +1388,6 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (map[s
 		backupValues["fullSnapLeaseName"] = getFullSnapshotLeaseName(etcd)
 		backupValues["deltaSnapLeaseName"] = getDeltaSnapshotLeaseName(etcd)
 	}
-
 	return values, nil
 }
 

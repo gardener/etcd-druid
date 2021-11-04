@@ -210,6 +210,10 @@ spec:
 {{- end }}
         - --snapstore-temp-directory={{ .Values.backup.snapstoreTempDir }}
         - --etcd-process-name=etcd
+{{- if .Values.etcd.heartbeatDuration }}
+        - --enable-member-lease-renewal=true
+        - --k8s-heartbeat-duration={{ .Values.etcd.heartbeatDuration }}
+{{- end }}
         image: {{ .Values.backup.image }}
         imagePullPolicy: {{ .Values.backup.pullPolicy }}
         ports:
