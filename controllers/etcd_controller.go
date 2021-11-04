@@ -25,6 +25,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
+	componentetcd "github.com/gardener/etcd-druid/pkg/component/etcd"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
@@ -1088,7 +1089,14 @@ func (r *EtcdReconciler) reconcileRoleBinding(ctx context.Context, logger logr.L
 }
 
 func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (operationResult, *corev1.Service, *appsv1.StatefulSet, error) {
-	values, err := getMapFromEtcd(r.ImageVector, etcd)
+	etcdDeployer := componentetcd.New(r.Client, etcd.Namespace, componentetcd.Values{
+		BackupEnabled: etcd.Spec.Backup.Store != nil,
+		EtcdName:      etcd.Name,
+		EtcdUID:       etcd.UID,
+		Replicas:      etcd.Spec.Replicas,
+	})
+
+	values, err := r.getMapFromEtcd(r.ImageVector, etcd, etcdDeployer)
 	if err != nil {
 		return noOp, nil, nil, err
 	}
@@ -1096,6 +1104,16 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 	chartPath := getChartPath()
 	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
 	if err != nil {
+		return noOp, nil, nil, err
+	}
+
+	etcdDeployer := componentetcd.New(r.Client, etcd.Namespace, componentetcd.Values{
+		EtcdName: etcd.Name,
+		EtcdUID:  etcd.UID,
+		Replicas: etcd.Spec.Replicas,
+	})
+
+	if err := etcdDeployer.Deploy(ctx); err != nil {
 		return noOp, nil, nil, err
 	}
 

@@ -25,4 +25,6 @@ const (
 	GardenerOwnedBy = "gardener.cloud/owned-by"
 	// GardenerOwnerType is a constant for an annotation on a resource that describes the type of owner resource.
 	GardenerOwnerType = "gardener.cloud/owner-type"
+	// GardenerPurpose is a constant for an annotation or label on a resource that describes the purpose of the resource.
+	GardenerPurpose = "gardener.cloud/purpose"
 )
