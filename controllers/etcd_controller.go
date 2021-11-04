@@ -1107,12 +1107,6 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		return noOp, nil, nil, err
 	}
 
-	etcdDeployer := componentetcd.New(r.Client, etcd.Namespace, componentetcd.Values{
-		EtcdName: etcd.Name,
-		EtcdUID:  etcd.UID,
-		Replicas: etcd.Spec.Replicas,
-	})
-
 	if err := etcdDeployer.Deploy(ctx); err != nil {
 		return noOp, nil, nil, err
 	}
@@ -1185,6 +1179,24 @@ func checkEtcdAnnotations(annotations map[string]string, etcd metav1.Object) boo
 }
 
 func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (map[string]interface{}, error) {
+	var (
+		images map[string]*imagevector.Image
+		err    error
+	)
+
+	imageNames := []string{
+		common.Etcd,
+		common.BackupRestore,
+	}
+
+	if etcd.Spec.Etcd.Image == nil || etcd.Spec.Backup.Image == nil {
+
+		images, err = imagevector.FindImages(r.ImageVector, imageNames)
+		if err != nil {
+			return map[string]interface{}{}, err
+		}
+	}
+
 	var statefulsetReplicas int
 	if etcd.Spec.Replicas != 0 {
 		statefulsetReplicas = 1
@@ -1385,8 +1397,15 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (map[s
 			return nil, err
 		}
 
+<<<<<<< HEAD
 		backupValues["fullSnapLeaseName"] = getFullSnapshotLeaseName(etcd)
 		backupValues["deltaSnapLeaseName"] = getDeltaSnapshotLeaseName(etcd)
+=======
+		values["store"] = storeValues
+
+		backupValues["deltaSnapshotLeaseName"] = deployer.GetDeltaSnapshotLeaseName()
+		backupValues["fullSnapshotLeaseName"] = deployer.GetFullSnapshotLeaseName()
+>>>>>>> 3e479326 (Add snapshot leases)
 	}
 	return values, nil
 }
