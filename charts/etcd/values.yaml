@@ -65,9 +65,15 @@ backup:
   # compression:
   #   enabled: true
   #   policy: "gzip"
+  # ownerCheck:
+  #   name: "owner.foo.example.com"
+  #   id: "bar"
+  #   interval: 30s
+  #   timeout: 2m
+  #   dnsCacheTTL: 1m
 
 # sharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.
-sharedConfig: 
+sharedConfig:
   # autoCompaction defines the specification to be used by Etcd as well as by embedded-Etcd of backup-restore sidecar during restoration.
   # auto-compaction mode: 'periodic' mode or 'revision' mode for etcd as well as for embedded-Etcd of backup-restore sidecar.
   # auto-compaction retention length for etcd as well as for embedded-Etcd of backup-restore sidecar.

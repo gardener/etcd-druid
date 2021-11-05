@@ -1296,6 +1296,23 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		backupValues["image"] = etcd.Spec.Backup.Image
 	}
 
+	if etcd.Spec.Backup.OwnerCheck != nil {
+		ownerCheckValues := map[string]interface{}{
+			"name": etcd.Spec.Backup.OwnerCheck.Name,
+			"id":   etcd.Spec.Backup.OwnerCheck.ID,
+		}
+		if etcd.Spec.Backup.OwnerCheck.Interval != nil {
+			ownerCheckValues["interval"] = etcd.Spec.Backup.OwnerCheck.Interval
+		}
+		if etcd.Spec.Backup.OwnerCheck.Timeout != nil {
+			ownerCheckValues["timeout"] = etcd.Spec.Backup.OwnerCheck.Timeout
+		}
+		if etcd.Spec.Backup.OwnerCheck.DNSCacheTTL != nil {
+			ownerCheckValues["dnsCacheTTL"] = etcd.Spec.Backup.OwnerCheck.DNSCacheTTL
+		}
+		backupValues["ownerCheck"] = ownerCheckValues
+	}
+
 	volumeClaimTemplateName := etcd.Name
 	if etcd.Spec.VolumeClaimTemplate != nil && len(*etcd.Spec.VolumeClaimTemplate) != 0 {
 		volumeClaimTemplateName = *etcd.Spec.VolumeClaimTemplate

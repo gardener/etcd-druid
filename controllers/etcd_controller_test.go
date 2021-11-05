@@ -108,6 +108,17 @@ var (
 	etcdDefragTimeout = metav1.Duration{
 		Duration: 10 * time.Minute,
 	}
+	ownerName          = "owner.foo.example.com"
+	ownerID            = "bar"
+	ownerCheckInterval = metav1.Duration{
+		Duration: 30 * time.Second,
+	}
+	ownerCheckTimeout = metav1.Duration{
+		Duration: 2 * time.Minute,
+	}
+	ownerCheckDNSCacheTTL = metav1.Duration{
+		Duration: 1 * time.Minute,
+	}
 )
 
 func ownerRefIterator(element interface{}) string {
@@ -1562,6 +1573,8 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 								"--insecure-skip-tls-verify=true":                Equal("--insecure-skip-tls-verify=true"),
 								"--etcd-connection-timeout=5m":                   Equal("--etcd-connection-timeout=5m"),
 								"--snapstore-temp-directory=/var/etcd/data/temp": Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
+								"--etcd-process-name=etcd":                       Equal("--etcd-process-name=etcd"),
+
 								fmt.Sprintf("--delta-snapshot-memory-limit=%d", deltaSnapShotMemLimit.Value()):                 Equal(fmt.Sprintf("--delta-snapshot-memory-limit=%d", deltaSnapShotMemLimit.Value())),
 								fmt.Sprintf("--garbage-collection-policy=%s", druidv1alpha1.GarbageCollectionPolicyLimitBased): Equal(fmt.Sprintf("--garbage-collection-policy=%s", druidv1alpha1.GarbageCollectionPolicyLimitBased)),
 								fmt.Sprintf("--endpoints=http://%s-local:%d", instance.Name, clientPort):                       Equal(fmt.Sprintf("--endpoints=http://%s-local:%d", instance.Name, clientPort)),
@@ -1614,8 +1627,16 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 									})),
 								}),
 							}),
+							"SecurityContext": PointTo(MatchFields(IgnoreExtras, Fields{
+								"Capabilities": PointTo(MatchFields(IgnoreExtras, Fields{
+									"Add": ConsistOf([]corev1.Capability{
+										"SYS_PTRACE",
+									}),
+								})),
+							})),
 						}),
 					}),
+					"ShareProcessNamespace": Equal(pointer.BoolPtr(true)),
 					"Volumes": MatchAllElements(volumeIterator, Elements{
 						"etcd-config-file": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("etcd-config-file"),
@@ -1937,6 +1958,7 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 								"--insecure-transport=false":                     Equal("--insecure-transport=false"),
 								"--insecure-skip-tls-verify=false":               Equal("--insecure-skip-tls-verify=false"),
 								"--snapstore-temp-directory=/var/etcd/data/temp": Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
+								"--etcd-process-name=etcd":                       Equal("--etcd-process-name=etcd"),
 								"--etcd-connection-timeout=5m":                   Equal("--etcd-connection-timeout=5m"),
 								fmt.Sprintf("--defragmentation-schedule=%s", *instance.Spec.Etcd.DefragmentationSchedule):                           Equal(fmt.Sprintf("--defragmentation-schedule=%s", *instance.Spec.Etcd.DefragmentationSchedule)),
 								fmt.Sprintf("--schedule=%s", *instance.Spec.Backup.FullSnapshotSchedule):                                            Equal(fmt.Sprintf("--schedule=%s", *instance.Spec.Backup.FullSnapshotSchedule)),
@@ -1953,6 +1975,11 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 								fmt.Sprintf("%s=%s", "--auto-compaction-retention", *instance.Spec.Common.AutoCompactionRetention):                  Equal(fmt.Sprintf("%s=%s", "--auto-compaction-retention", autoCompactionRetention)),
 								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String())),
 								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String()):               Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String())),
+								fmt.Sprintf("%s=%s", "--owner-name", instance.Spec.Backup.OwnerCheck.Name):                                          Equal(fmt.Sprintf("%s=%s", "--owner-name", instance.Spec.Backup.OwnerCheck.Name)),
+								fmt.Sprintf("%s=%s", "--owner-id", instance.Spec.Backup.OwnerCheck.ID):                                              Equal(fmt.Sprintf("%s=%s", "--owner-id", instance.Spec.Backup.OwnerCheck.ID)),
+								fmt.Sprintf("%s=%s", "--owner-check-interval", instance.Spec.Backup.OwnerCheck.Interval.Duration.String()):          Equal(fmt.Sprintf("%s=%s", "--owner-check-interval", instance.Spec.Backup.OwnerCheck.Interval.Duration.String())),
+								fmt.Sprintf("%s=%s", "--owner-check-timeout", instance.Spec.Backup.OwnerCheck.Timeout.Duration.String()):            Equal(fmt.Sprintf("%s=%s", "--owner-check-timeout", instance.Spec.Backup.OwnerCheck.Timeout.Duration.String())),
+								fmt.Sprintf("%s=%s", "--owner-check-dns-cache-ttl", instance.Spec.Backup.OwnerCheck.DNSCacheTTL.Duration.String()):  Equal(fmt.Sprintf("%s=%s", "--owner-check-dns-cache-ttl", instance.Spec.Backup.OwnerCheck.DNSCacheTTL.Duration.String())),
 							}),
 							"Ports": ConsistOf([]corev1.ContainerPort{
 								corev1.ContainerPort{
@@ -2008,8 +2035,16 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 									})),
 								}),
 							}),
+							"SecurityContext": PointTo(MatchFields(IgnoreExtras, Fields{
+								"Capabilities": PointTo(MatchFields(IgnoreExtras, Fields{
+									"Add": ConsistOf([]corev1.Capability{
+										"SYS_PTRACE",
+									}),
+								})),
+							})),
 						}),
 					}),
+					"ShareProcessNamespace": Equal(pointer.BoolPtr(true)),
 					"Volumes": MatchAllElements(volumeIterator, Elements{
 						"etcd-config-file": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("etcd-config-file"),
@@ -2980,6 +3015,13 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 					Container: &container,
 					Provider:  &provider,
 					Prefix:    prefix,
+				},
+				OwnerCheck: &druidv1alpha1.OwnerCheckSpec{
+					Name:        ownerName,
+					ID:          ownerID,
+					Interval:    &ownerCheckInterval,
+					Timeout:     &ownerCheckTimeout,
+					DNSCacheTTL: &ownerCheckDNSCacheTTL,
 				},
 			},
 			Etcd: druidv1alpha1.EtcdConfig{
