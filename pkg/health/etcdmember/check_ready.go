@@ -16,7 +16,6 @@ package etcdmember
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -54,12 +53,6 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 	}
 
 	for _, lease := range leases.Items {
-		leaseDurationSeconds := lease.Spec.LeaseDurationSeconds
-		if leaseDurationSeconds == nil {
-			r.logger.Error(fmt.Errorf("leaseDurationSeconds not set for lease object %s/%s", lease.Namespace, lease.Name), "Failed to perform member readiness check")
-			continue
-		}
-
 		var (
 			id, role = separateIdFromRole(lease.Spec.HolderIdentity)
 			res      = &result{
@@ -79,7 +72,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		}
 
 		// Check if member state must be considered as not ready
-		if renew.Add(time.Duration(*leaseDurationSeconds) * time.Second).Add(r.memberConfig.EtcdMemberNotReadyThreshold).Before(checkTime) {
+		if renew.Add(r.memberConfig.EtcdMemberUnknownThreshold).Add(r.memberConfig.EtcdMemberNotReadyThreshold).Before(checkTime) {
 			res.status = druidv1alpha1.EtcdMemberStatusNotReady
 			res.reason = "UnknownGracePeriodExceeded"
 			results = append(results, res)
@@ -87,7 +80,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		}
 
 		// Check if member state must be considered as unknown
-		if renew.Add(time.Duration(*leaseDurationSeconds) * time.Second).Before(checkTime) {
+		if renew.Add(r.memberConfig.EtcdMemberUnknownThreshold).Before(checkTime) {
 			// If pod is not running or cannot be found then we deduce that the status is NotReady.
 			ready, err := r.checkContainersAreReady(ctx, lease.Namespace, lease.Name)
 			if (err == nil && !ready) || apierrors.IsNotFound(err) {
