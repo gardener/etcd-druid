@@ -54,6 +54,7 @@ func main() {
 		disableEtcdServiceAccountAutomount bool
 
 		etcdMemberNotReadyThreshold time.Duration
+		etcdMemberUnknownThreshold  time.Duration
 
 		// TODO: migrate default to `leases` in one of the next releases
 		defaultLeaderElectionResourceLock = resourcelock.ConfigMapsLeasesResourceLock
@@ -80,6 +81,7 @@ func main() {
 	flag.BoolVar(&ignoreOperationAnnotation, "ignore-operation-annotation", true, "Ignore the operation annotation or not.")
 	flag.DurationVar(&etcdMemberNotReadyThreshold, "etcd-member-notready-threshold", 5*time.Minute, "Threshold after which an etcd member is considered not ready if the status was unknown before.")
 	flag.BoolVar(&disableEtcdServiceAccountAutomount, "disable-etcd-serviceaccount-automount", false, "If true then .automountServiceAccountToken will be set to false for the ServiceAccount created for etcd statefulsets.")
+	flag.DurationVar(&etcdMemberUnknownThreshold, "etcd-member-unknown-threshold", 1*time.Minute, "Threshold after which an etcd member is considered unknown.")
 
 	flag.Parse()
 
@@ -120,6 +122,7 @@ func main() {
 	custodian := controllers.NewEtcdCustodian(mgr, controllersconfig.EtcdCustodianController{
 		EtcdMember: controllersconfig.EtcdMemberConfig{
 			EtcdMemberNotReadyThreshold: etcdMemberNotReadyThreshold,
+			EtcdMemberUnknownThreshold:  etcdMemberUnknownThreshold,
 		},
 		SyncPeriod: custodianSyncPeriod,
 	})

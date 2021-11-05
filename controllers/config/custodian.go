@@ -25,6 +25,8 @@ type EtcdCustodianController struct {
 }
 
 type EtcdMemberConfig struct {
-	// EtcdMemberUnknownThreshold is the duration after which a etcd member's state is considered `NotReady`.
+	// EtcdMemberNotReadyThreshold is the duration after which an etcd member's state is considered `NotReady`.
 	EtcdMemberNotReadyThreshold time.Duration
+	// EtcdMemberUnknownThreshold is the duration after which an etcd member's state is considered `Unknown`.
+	EtcdMemberUnknownThreshold time.Duration
 }
