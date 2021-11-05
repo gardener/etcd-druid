@@ -33,6 +33,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
@@ -424,6 +425,27 @@ func (m *EtcdDruidRefManager) AdoptResource(ctx context.Context, obj client.Obje
 		}
 	case *batchv1.CronJob:
 		clone = obj.(*batchv1.CronJob).DeepCopy()
+		// Note that ValidateOwnerReferences() will reject this patch if another
+		// OwnerReference exists with controller=true.
+		if err := controllerutil.SetControllerReference(m.Controller, clone, m.scheme); err != nil {
+			return err
+		}
+	case *corev1.ServiceAccount:
+		clone = obj.(*corev1.ServiceAccount).DeepCopy()
+		// Note that ValidateOwnerReferences() will reject this patch if another
+		// OwnerReference exists with controller=true.
+		if err := controllerutil.SetControllerReference(m.Controller, clone, m.scheme); err != nil {
+			return err
+		}
+	case *rbacv1.Role:
+		clone = obj.(*rbacv1.Role).DeepCopy()
+		// Note that ValidateOwnerReferences() will reject this patch if another
+		// OwnerReference exists with controller=true.
+		if err := controllerutil.SetControllerReference(m.Controller, clone, m.scheme); err != nil {
+			return err
+		}
+	case *rbacv1.RoleBinding:
+		clone = obj.(*rbacv1.RoleBinding).DeepCopy()
 		// Note that ValidateOwnerReferences() will reject this patch if another
 		// OwnerReference exists with controller=true.
 		if err := controllerutil.SetControllerReference(m.Controller, clone, m.scheme); err != nil {

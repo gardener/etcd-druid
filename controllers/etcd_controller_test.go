@@ -39,6 +39,7 @@ import (
 	v1 "k8s.io/api/batch/v1"
 	batchv1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -150,6 +151,14 @@ func accessModeIterator(element interface{}) string {
 }
 
 func cmdIterator(element interface{}) string {
+	return string(element.(string))
+}
+
+func ruleIterator(element interface{}) string {
+	return string(element.(rbac.PolicyRule).APIGroups[0])
+}
+
+func stringArrayIterator(element interface{}) string {
 	return string(element.(string))
 }
 
@@ -574,6 +583,9 @@ var _ = Describe("Druid", func() {
 			var s *appsv1.StatefulSet
 			var cm *corev1.ConfigMap
 			var svc *corev1.Service
+			var sa *corev1.ServiceAccount
+			var role *rbac.Role
+			var rb *rbac.RoleBinding
 
 			instance = generateEtcd(name, "default")
 			c = mgr.GetClient()
@@ -599,6 +611,12 @@ var _ = Describe("Druid", func() {
 			Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
 			svc = &corev1.Service{}
 			Eventually(func() error { return serviceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
+			sa = &corev1.ServiceAccount{}
+			Eventually(func() error { return serviceAccountIsCorrectlyReconciled(c, instance, sa) }, timeout, pollingInterval).Should(BeNil())
+			role = &rbac.Role{}
+			Eventually(func() error { return roleIsCorrectlyReconciled(c, instance, role) }, timeout, pollingInterval).Should(BeNil())
+			rb = &rbac.RoleBinding{}
+			Eventually(func() error { return roleBindingIsCorrectlyReconciled(c, instance, rb) }, timeout, pollingInterval).Should(BeNil())
 
 			validate(s, cm, svc, instance)
 
@@ -624,6 +642,9 @@ var _ = Describe("Druid", func() {
 			var cm *corev1.ConfigMap
 			var svc *corev1.Service
 			var cj *batchv1.CronJob
+			var sa *corev1.ServiceAccount
+			var role *rbac.Role
+			var rb *rbac.RoleBinding
 
 			instance = generateEtcd(name, "default")
 			c = mgr.GetClient()
@@ -651,9 +672,16 @@ var _ = Describe("Druid", func() {
 			Eventually(func() error { return serviceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
 			cj = &batchv1.CronJob{}
 			Eventually(func() error { return cronJobIsCorrectlyReconciled(c, instance, cj) }, timeout, pollingInterval).Should(BeNil())
+			sa = &corev1.ServiceAccount{}
+			Eventually(func() error { return serviceAccountIsCorrectlyReconciled(c, instance, sa) }, timeout, pollingInterval).Should(BeNil())
+			role = &rbac.Role{}
+			Eventually(func() error { return roleIsCorrectlyReconciled(c, instance, role) }, timeout, pollingInterval).Should(BeNil())
+			rb = &rbac.RoleBinding{}
+			Eventually(func() error { return roleBindingIsCorrectlyReconciled(c, instance, rb) }, timeout, pollingInterval).Should(BeNil())
 
 			//validate(s, cm, svc, instance)
 			validate(s, cm, svc, cj, instance)
+			validateRole(role, instance)
 
 			setStatefulSetReady(s)
 			err = c.Status().Update(context.TODO(), s)
@@ -778,6 +806,46 @@ var _ = Describe("Druid", func() {
 	})
 
 })
+
+func validateRole(role *rbac.Role, instance *druidv1alpha1.Etcd) {
+	Expect(*role).To(MatchFields(IgnoreExtras, Fields{
+		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
+			"Name":      Equal(fmt.Sprintf("%s-br-role", instance.Name)),
+			"Namespace": Equal(instance.Namespace),
+			"Labels": MatchKeys(IgnoreExtras, Keys{
+				"name":     Equal("etcd"),
+				"instance": Equal(instance.Name),
+			}),
+			"OwnerReferences": MatchElements(ownerRefIterator, IgnoreExtras, Elements{
+				instance.Name: MatchFields(IgnoreExtras, Fields{
+					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),
+					"Kind":               Equal("Etcd"),
+					"Name":               Equal(instance.Name),
+					"UID":                Equal(instance.UID),
+					"Controller":         PointTo(Equal(true)),
+					"BlockOwnerDeletion": PointTo(Equal(true)),
+				}),
+			}),
+		}),
+		"Rules": MatchAllElements(ruleIterator, Elements{
+			"coordination.k8s.io": MatchFields(IgnoreExtras, Fields{
+				"APIGroups": MatchAllElements(stringArrayIterator, Elements{
+					"coordination.k8s.io": Equal("coordination.k8s.io"),
+				}),
+				"Resources": MatchAllElements(stringArrayIterator, Elements{
+					"leases": Equal("leases"),
+				}),
+				"Verbs": MatchAllElements(stringArrayIterator, Elements{
+					"list":   Equal("list"),
+					"get":    Equal("get"),
+					"update": Equal("update"),
+					"patch":  Equal("patch"),
+					"watch":  Equal("watch"),
+				}),
+			}),
+		}),
+	}))
+}
 
 func podDeleted(c client.Client, etcd *druidv1alpha1.Etcd) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
@@ -1529,6 +1597,22 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 									"Name":  Equal("STORAGE_CONTAINER"),
 									"Value": Equal(""),
 								}),
+								"POD_NAME": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("POD_NAME"),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.name"),
+										})),
+									})),
+								}),
+								"POD_NAMESPACE": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("POD_NAMESPACE"),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.namespace"),
+										})),
+									})),
+								}),
 							}),
 						}),
 					}),
@@ -1907,6 +1991,22 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 									"Name":  Equal("STORAGE_CONTAINER"),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
 								}),
+								"POD_NAME": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("POD_NAME"),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.name"),
+										})),
+									})),
+								}),
+								"POD_NAMESPACE": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("POD_NAMESPACE"),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.namespace"),
+										})),
+									})),
+								}),
 							}),
 						}),
 					}),
@@ -2001,6 +2101,22 @@ func validateStoreGCP(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.S
 									"Name":  Equal("STORAGE_CONTAINER"),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
 								}),
+								"POD_NAME": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("POD_NAME"),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.name"),
+										})),
+									})),
+								}),
+								"POD_NAMESPACE": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("POD_NAMESPACE"),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.namespace"),
+										})),
+									})),
+								}),
 								"GOOGLE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("GOOGLE_APPLICATION_CREDENTIALS"),
 									"Value": Equal("/root/.gcp/serviceaccount.json"),
@@ -2041,6 +2157,22 @@ func validateStoreAzure(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1
 								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("STORAGE_CONTAINER"),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
+								}),
+								"POD_NAME": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("POD_NAME"),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.name"),
+										})),
+									})),
+								}),
+								"POD_NAMESPACE": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("POD_NAMESPACE"),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.namespace"),
+										})),
+									})),
 								}),
 								"STORAGE_ACCOUNT": MatchFields(IgnoreExtras, Fields{
 									"Name": Equal("STORAGE_ACCOUNT"),
@@ -2089,6 +2221,22 @@ func validateStoreOpenstack(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *co
 								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("STORAGE_CONTAINER"),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
+								}),
+								"POD_NAME": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("POD_NAME"),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.name"),
+										})),
+									})),
+								}),
+								"POD_NAMESPACE": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("POD_NAMESPACE"),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.namespace"),
+										})),
+									})),
 								}),
 								"OS_AUTH_URL": MatchFields(IgnoreExtras, Fields{
 									"Name": Equal("OS_AUTH_URL"),
@@ -2173,6 +2321,22 @@ func validateStoreAlicloud(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *cor
 									"Name":  Equal("STORAGE_CONTAINER"),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
 								}),
+								"POD_NAME": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("POD_NAME"),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.name"),
+										})),
+									})),
+								}),
+								"POD_NAMESPACE": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("POD_NAMESPACE"),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.namespace"),
+										})),
+									})),
+								}),
 								"ALICLOUD_ENDPOINT": MatchFields(IgnoreExtras, Fields{
 									"Name": Equal("ALICLOUD_ENDPOINT"),
 									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
@@ -2233,6 +2397,22 @@ func validateStoreAWS(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.S
 								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("STORAGE_CONTAINER"),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
+								}),
+								"POD_NAME": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("POD_NAME"),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.name"),
+										})),
+									})),
+								}),
+								"POD_NAMESPACE": MatchFields(IgnoreExtras, Fields{
+									"Name": Equal("POD_NAMESPACE"),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.namespace"),
+										})),
+									})),
 								}),
 								"AWS_REGION": MatchFields(IgnoreExtras, Fields{
 									"Name": Equal("AWS_REGION"),
@@ -2472,6 +2652,48 @@ func createCronJob(name, namespace string, labels map[string]string) *batchv1.Cr
 		},
 	}
 	return &cj
+}
+
+func serviceAccountIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, sa *corev1.ServiceAccount) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+	defer cancel()
+	req := types.NamespacedName{
+		Name:      fmt.Sprintf("%s-br-serviceaccount", instance.Name),
+		Namespace: instance.Namespace,
+	}
+
+	if err := c.Get(ctx, req, sa); err != nil {
+		return err
+	}
+	return nil
+}
+
+func roleIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, role *rbac.Role) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+	defer cancel()
+	req := types.NamespacedName{
+		Name:      fmt.Sprintf("%s-br-role", instance.Name),
+		Namespace: instance.Namespace,
+	}
+
+	if err := c.Get(ctx, req, role); err != nil {
+		return err
+	}
+	return nil
+}
+
+func roleBindingIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, rb *rbac.RoleBinding) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+	defer cancel()
+	req := types.NamespacedName{
+		Name:      fmt.Sprintf("%s-br-rolebinding", instance.Name),
+		Namespace: instance.Namespace,
+	}
+
+	if err := c.Get(ctx, req, rb); err != nil {
+		return err
+	}
+	return nil
 }
 
 func createStatefulset(name, namespace string, labels map[string]string) *appsv1.StatefulSet {

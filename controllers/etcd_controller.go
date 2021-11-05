@@ -44,6 +44,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	eventsv1beta1 "k8s.io/api/events/v1beta1"
+	rbac "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -151,6 +152,18 @@ func getChartPathForService() string {
 
 func getChartPathForCronJob() string {
 	return filepath.Join("etcd", "templates", "etcd-compaction-cronjob.yaml")
+}
+
+func getChartPathForServiceAccount() string {
+	return filepath.Join("etcd", "templates", "etcd-serviceaccount.yaml")
+}
+
+func getChartPathForRole() string {
+	return filepath.Join("etcd", "templates", "etcd-role.yaml")
+}
+
+func getChartPathForRoleBinding() string {
+	return filepath.Join("etcd", "templates", "etcd-rolebinding.yaml")
 }
 
 func getImageYAMLPath() string {
@@ -929,6 +942,131 @@ func (r *EtcdReconciler) getCronJobFromEtcd(etcd *druidv1alpha1.Etcd, values map
 	return nil, fmt.Errorf("missing cronjob template file in the charts: %v", cronJobPath)
 }
 
+func (r *EtcdReconciler) reconcileServiceAccount(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) error {
+	logger.Info("Reconciling serviceaccount")
+	var err error
+	decoded := &v1.ServiceAccount{}
+	serviceAccountPath := getChartPathForServiceAccount()
+	chartPath := getChartPath()
+	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
+	if err != nil {
+		return err
+	}
+	if content, ok := renderedChart.Files()[serviceAccountPath]; ok {
+		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
+		if err = decoder.Decode(&decoded); err != nil {
+			return err
+		}
+	}
+
+	obj := &v1.ServiceAccount{}
+	key := client.ObjectKeyFromObject(decoded)
+	if err := r.Get(ctx, key, obj); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+		if err := r.Create(ctx, decoded); err != nil {
+			return err
+		}
+		logger.Info("Creating serviceaccount", "serviceaccount", kutil.Key(decoded.Namespace, decoded.Name).String())
+		return nil
+	}
+
+	if !reflect.DeepEqual(decoded.Labels, obj.Labels) {
+		logger.Info("Update serviceaccount")
+		copy := obj.DeepCopy()
+		copy.Labels = decoded.Labels
+		if err := r.Patch(ctx, copy, client.MergeFrom(obj)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *EtcdReconciler) reconcileRole(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) error {
+	logger.Info("Reconciling role")
+	var err error
+	decoded := &rbac.Role{}
+	rolePath := getChartPathForRole()
+	chartPath := getChartPath()
+	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
+	if err != nil {
+		return err
+	}
+	if content, ok := renderedChart.Files()[rolePath]; ok {
+		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
+		if err = decoder.Decode(&decoded); err != nil {
+			return err
+		}
+	}
+
+	obj := &rbac.Role{}
+	key := client.ObjectKeyFromObject(decoded)
+	if err := r.Get(ctx, key, obj); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+		if err := r.Create(ctx, decoded); err != nil {
+			return err
+		}
+		logger.Info("Creating role", "role", kutil.Key(decoded.Namespace, decoded.Name).String())
+		return nil
+	}
+
+	if !reflect.DeepEqual(decoded.Rules, obj.Rules) {
+		copy := obj.DeepCopy()
+		copy.Rules = decoded.Rules
+		if err := r.Patch(ctx, copy, client.MergeFrom(obj)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *EtcdReconciler) reconcileRoleBinding(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) error {
+	logger.Info("Reconciling rolebinding")
+	var err error
+	decoded := &rbac.RoleBinding{}
+	roleBindingPath := getChartPathForRoleBinding()
+	chartPath := getChartPath()
+	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
+	if err != nil {
+		return err
+	}
+	if content, ok := renderedChart.Files()[roleBindingPath]; ok {
+		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
+		if err = decoder.Decode(&decoded); err != nil {
+			return err
+		}
+	}
+
+	obj := &rbac.RoleBinding{}
+	key := client.ObjectKeyFromObject(decoded)
+	if err := r.Get(ctx, key, obj); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+		if err := r.Create(ctx, decoded); err != nil {
+			return err
+		}
+		logger.Info("Creating rolebinding", "rolebinding", kutil.Key(decoded.Namespace, decoded.Name).String())
+		return nil
+	}
+
+	if !reflect.DeepEqual(decoded.RoleRef, obj.RoleRef) || !reflect.DeepEqual(decoded.Subjects, obj.Subjects) {
+		copy := obj.DeepCopy()
+		copy.RoleRef = decoded.RoleRef
+		copy.Subjects = decoded.Subjects
+		if err := r.Patch(ctx, copy, client.MergeFrom(obj)); err != nil {
+			return err
+		}
+	}
+
+	return err
+}
+
 func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (operationResult, *corev1.Service, *appsv1.StatefulSet, error) {
 	values, err := r.getMapFromEtcd(etcd)
 	if err != nil {
@@ -963,6 +1101,21 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 	}
 	if cj != nil {
 		values["cronJobName"] = cj.Name
+	}
+
+	err = r.reconcileServiceAccount(ctx, logger, etcd, values)
+	if err != nil {
+		return noOp, nil, nil, err
+	}
+
+	err = r.reconcileRole(ctx, logger, etcd, values)
+	if err != nil {
+		return noOp, nil, nil, err
+	}
+
+	err = r.reconcileRoleBinding(ctx, logger, etcd, values)
+	if err != nil {
+		return noOp, nil, nil, err
 	}
 
 	op, sts, err := r.reconcileStatefulSet(ctx, logger, etcd, values)
@@ -1176,6 +1329,9 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		"configMapName":           fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
 		"cronJobName":             getCronJobName(etcd),
 		"volumeClaimTemplateName": volumeClaimTemplateName,
+		"serviceAccountName":      fmt.Sprintf("%s-br-serviceaccount", etcd.Name),
+		"roleName":                fmt.Sprintf("%s-br-role", etcd.Name),
+		"roleBindingName":         fmt.Sprintf("%s-br-rolebinding", etcd.Name),
 	}
 
 	if etcd.Spec.StorageCapacity != nil {

@@ -45,6 +45,7 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
+      serviceAccountName: {{ .Values.serviceAccountName }}
       containers:
       - name: etcd
         image: {{ .Values.etcd.image }}
@@ -201,6 +202,14 @@ spec:
         env:
         - name: STORAGE_CONTAINER
           value: {{ .Values.store.storageContainer }}
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
 {{- if eq .Values.store.storageProvider "S3" }}
         - name: "AWS_REGION"
           valueFrom:
