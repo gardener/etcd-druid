@@ -190,9 +190,6 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask) GomegaMatcher {
 				"gardener.cloud/owned-by":   Equal(fmt.Sprintf("%s/%s", task.Namespace, task.Name)),
 				"gardener.cloud/owner-type": Equal("etcdcopybackupstask"),
 			}),
-			"Labels": MatchKeys(IgnoreExtras, Keys{
-				"networking.gardener.cloud/to-public-networks": Equal("allowed"),
-			}),
 			"OwnerReferences": MatchAllElements(ownerRefIterator, Elements{
 				task.Name: MatchAllFields(Fields{
 					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),

@@ -37,7 +37,7 @@ import (
 	gardenerretry "github.com/gardener/gardener/pkg/utils/retry"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1beta1 "k8s.io/api/batch/v1beta1"
+	batchv1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	eventsv1beta1 "k8s.io/api/events/v1beta1"
@@ -801,10 +801,10 @@ func (r *EtcdReconciler) getStatefulSetFromEtcd(etcd *druidv1alpha1.Etcd, values
 	return decoded, nil
 }
 
-func (r *EtcdReconciler) reconcileCronJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*batchv1beta1.CronJob, error) {
+func (r *EtcdReconciler) reconcileCronJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*batchv1.CronJob, error) {
 	logger.Info("Reconcile etcd compaction cronjob")
 
-	var cronJob batchv1beta1.CronJob
+	var cronJob batchv1.CronJob
 	err := r.Get(ctx, types.NamespacedName{Name: getCronJobName(etcd), Namespace: etcd.Namespace}, &cronJob)
 
 	//If backupCompactionSchedule is present in the etcd spec, continue with reconciliation of cronjob
@@ -891,7 +891,7 @@ func (r *EtcdReconciler) reconcileCronJob(ctx context.Context, logger logr.Logge
 	return cj, err
 }
 
-func (r *EtcdReconciler) syncCronJobSpec(ctx context.Context, cj *batchv1beta1.CronJob, etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*batchv1beta1.CronJob, error) {
+func (r *EtcdReconciler) syncCronJobSpec(ctx context.Context, cj *batchv1.CronJob, etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*batchv1.CronJob, error) {
 	decoded, err := r.getCronJobFromEtcd(etcd, values, logger)
 	if err != nil {
 		return nil, err
@@ -919,8 +919,8 @@ func (r *EtcdReconciler) syncCronJobSpec(ctx context.Context, cj *batchv1beta1.C
 	return cjCopy, err
 }
 
-func (r *EtcdReconciler) getCronJobFromEtcd(etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*batchv1beta1.CronJob, error) {
-	decoded := &batchv1beta1.CronJob{}
+func (r *EtcdReconciler) getCronJobFromEtcd(etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*batchv1.CronJob, error) {
+	decoded := &batchv1.CronJob{}
 	cronJobPath := getChartPathForCronJob()
 	chartPath := getChartPath()
 	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)

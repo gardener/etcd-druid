@@ -10,7 +10,6 @@ metadata:
 {{ toYaml .Values.annotations | indent 4 }}
 {{- end }}
   labels:
-    networking.gardener.cloud/to-public-networks: allowed
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 4 }}
 {{- end }}
