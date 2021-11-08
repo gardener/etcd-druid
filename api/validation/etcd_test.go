@@ -35,6 +35,7 @@ const (
 	name      = "etcd-main"
 	namespace = "shoot--foo--bar"
 	uuid      = "f1a38edd-e506-412a-82e6-e0fa839d0707"
+	provider  = "aws"
 )
 
 var _ = Describe("Etcd validation tests", func() {
@@ -49,7 +50,8 @@ var _ = Describe("Etcd validation tests", func() {
 			Spec: v1alpha1.EtcdSpec{
 				Backup: v1alpha1.BackupSpec{
 					Store: &v1alpha1.StoreSpec{
-						Prefix: fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
+						Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
+						Provider: (*v1alpha1.StorageProvider)(pointer.StringPtr(provider)),
 					},
 					OwnerCheck: &v1alpha1.OwnerCheckSpec{
 						Name:        "owner.foo.example.com",
@@ -65,7 +67,7 @@ var _ = Describe("Etcd validation tests", func() {
 
 	Describe("#ValidateEtcd", func() {
 		It("should forbid empty Etcd resources", func() {
-			errorList := validation.ValidateEtcd(new(v1alpha1.Etcd))
+			errorList := validation.ValidateEtcd(&v1alpha1.Etcd{})
 
 			Expect(errorList).To(ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
 				"Type":  Equal(field.ErrorTypeRequired),
@@ -83,14 +85,21 @@ var _ = Describe("Etcd validation tests", func() {
 			},
 
 			Entry("should forbid invalid spec.backup.store", &v1alpha1.StoreSpec{
-				Prefix: "invalid",
+				Prefix:   "invalid",
+				Provider: (*v1alpha1.StorageProvider)(pointer.StringPtr("invalid")),
 			}, ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
 				"Type":  Equal(field.ErrorTypeInvalid),
 				"Field": Equal("spec.backup.store.prefix"),
+			})), PointTo(MatchFields(IgnoreExtras, Fields{
+				"Type":  Equal(field.ErrorTypeInvalid),
+				"Field": Equal("spec.backup.store.provider"),
 			})))),
+
 			Entry("should allow valid spec.backup.store", &v1alpha1.StoreSpec{
-				Prefix: fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
+				Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
+				Provider: (*v1alpha1.StorageProvider)(pointer.StringPtr(provider)),
 			}, BeNil()),
+
 			Entry("should allow nil spec.backup.store", nil, BeNil()),
 		)
 
@@ -173,11 +182,12 @@ var _ = Describe("Etcd validation tests", func() {
 			newEtcd := etcd.DeepCopy()
 			newEtcd.ResourceVersion = "2"
 			newEtcd.Spec.Replicas = 42
-			newEtcd.Spec.Backup.Store = nil
 			newEtcd.Spec.Backup.OwnerCheck = &v1alpha1.OwnerCheckSpec{
 				Name: "owner.foo.example.com",
 				ID:   "baz",
 			}
+			newEtcd.Spec.Backup.Store.Container = pointer.StringPtr("foo")
+			newEtcd.Spec.Backup.Store.Provider = (*v1alpha1.StorageProvider)(pointer.StringPtr("gcp"))
 
 			errList := validation.ValidateEtcdUpdate(newEtcd, etcd)
 

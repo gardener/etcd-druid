@@ -56,6 +56,7 @@ func main() {
 		leaderElectionResourceLock      string
 		etcdWorkers                     int
 		custodianWorkers                int
+		etcdCopyBackupsTaskWorkers      int
 		custodianSyncPeriod             time.Duration
 		disableLeaseCache               bool
 		ignoreOperationAnnotation       bool
@@ -70,6 +71,7 @@ func main() {
 
 	flag.IntVar(&etcdWorkers, "workers", 3, "Number of worker threads of the etcd controller.")
 	flag.IntVar(&custodianWorkers, "custodian-workers", 3, "Number of worker threads of the custodian controller.")
+	flag.IntVar(&etcdCopyBackupsTaskWorkers, "etcd-copy-backups-task-workers", 3, "Number of worker threads of the EtcdCopyBackupsTask controller.")
 	flag.DurationVar(&custodianSyncPeriod, "custodian-sync-period", 30*time.Second, "Sync period of the custodian controller.")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
@@ -128,6 +130,17 @@ func main() {
 
 	if err := custodian.SetupWithManager(ctx, mgr, custodianWorkers); err != nil {
 		setupLog.Error(err, "Unable to create controller", "Controller", "Etcd Custodian")
+		os.Exit(1)
+	}
+
+	etcdCopyBackupsTask, err := controllers.NewEtcdCopyBackupsTaskReconcilerWithImageVector(mgr)
+	if err != nil {
+		setupLog.Error(err, "Unable to initialize controller with image vector")
+		os.Exit(1)
+	}
+
+	if err := etcdCopyBackupsTask.SetupWithManager(mgr, etcdCopyBackupsTaskWorkers); err != nil {
+		setupLog.Error(err, "Unable to create controller", "Controller", "EtcdCopyBackupsTask")
 		os.Exit(1)
 	}
 
