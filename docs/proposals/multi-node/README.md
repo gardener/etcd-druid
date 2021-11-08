@@ -32,6 +32,7 @@ This document proposes an approach (along with some alternatives) to support pro
   - [Data Persistence](#data-persistence)
     - [Persistent](#persistent)
     - [Ephemeral](#ephemeral)
+      - [Disk](#disk)
       - [In-memory](#in-memory)
     - [How to detect if valid metadata exists in an etcd member](#how-to-detect-if-valid-metadata-exists-in-an-etcd-member)
       - [Recommendation](#recommendation)
@@ -58,28 +59,28 @@ This document proposes an approach (along with some alternatives) to support pro
     - [2. Member status is out of sync with their leases](#2-member-status-is-out-of-sync-with-their-leases)
       - [Observed state](#observed-state-1)
       - [Recommended Action](#recommended-action-1)
-    - [3. All members are Ready but AllMembersReady condition is stale](#3-all-members-are-ready-but-allmembersready-condition-is-stale)
+    - [3. All members are `Ready` but `AllMembersReady` condition is stale](#3-all-members-are-ready-but-allmembersready-condition-is-stale)
       - [Observed state](#observed-state-2)
       - [Recommended Action](#recommended-action-2)
-    - [4. Not all members are Ready but AllMembersReady condition is stale](#4-not-all-members-are-ready-but-allmembersready-condition-is-stale)
+    - [4. Not all members are `Ready` but `AllMembersReady` condition is stale](#4-not-all-members-are-ready-but-allmembersready-condition-is-stale)
       - [Observed state](#observed-state-3)
       - [Recommended Action](#recommended-action-3)
-    - [5. Majority members are Ready but Ready condition is stale](#5-majority-members-are-ready-but-ready-condition-is-stale)
+    - [5. Majority members are `Ready` but `Ready` condition is stale](#5-majority-members-are-ready-but-ready-condition-is-stale)
       - [Observed state](#observed-state-4)
       - [Recommended Action](#recommended-action-4)
-    - [6. Majority members are NotReady but Ready condition is stale](#6-majority-members-are-notready-but-ready-condition-is-stale)
+    - [6. Majority members are `NotReady` but `Ready` condition is stale](#6-majority-members-are-notready-but-ready-condition-is-stale)
       - [Observed state](#observed-state-5)
       - [Recommended Action](#recommended-action-5)
-    - [7. Some members have been in Unknown status for a while](#7-some-members-have-been-in-unknown-status-for-a-while)
+    - [7. Some members have been in `Unknown` status for a while](#7-some-members-have-been-in-unknown-status-for-a-while)
       - [Observed state](#observed-state-6)
       - [Recommended Action](#recommended-action-6)
-    - [8. Some member pods are not Ready but have not had the chance to update their status](#8-some-member-pods-are-not-ready-but-have-not-had-the-chance-to-update-their-status)
+    - [8. Some member pods are not `Ready` but have not had the chance to update their status](#8-some-member-pods-are-not-ready-but-have-not-had-the-chance-to-update-their-status)
       - [Observed state](#observed-state-7)
       - [Recommended Action](#recommended-action-7)
-    - [9. Quorate cluster with a minority of members NotReady](#9-quorate-cluster-with-a-minority-of-members-notready)
+    - [9. Quorate cluster with a minority of members `NotReady`](#9-quorate-cluster-with-a-minority-of-members-notready)
       - [Observed state](#observed-state-8)
       - [Recommended Action](#recommended-action-8)
-    - [10. Quorum lost with a majority of members NotReady](#10-quorum-lost-with-a-majority-of-members-notready)
+    - [10. Quorum lost with a majority of members `NotReady`](#10-quorum-lost-with-a-majority-of-members-notready)
       - [Observed state](#observed-state-9)
       - [Recommended Action](#recommended-action-9)
     - [11. Scale up of a healthy cluster](#11-scale-up-of-a-healthy-cluster)
@@ -88,7 +89,7 @@ This document proposes an approach (along with some alternatives) to support pro
     - [12. Scale down of a healthy cluster](#12-scale-down-of-a-healthy-cluster)
       - [Observed state](#observed-state-11)
       - [Recommended Action](#recommended-action-11)
-    - [13. Superfluous member entries in Etcd status](#13-superfluous-member-entries-in-etcd-status)
+    - [13. Superfluous member entries in `Etcd` status](#13-superfluous-member-entries-in-etcd-status)
       - [Observed state](#observed-state-12)
       - [Recommended Action](#recommended-action-12)
   - [Decision table for etcd-backup-restore during initialization](#decision-table-for-etcd-backup-restore-during-initialization)
@@ -132,6 +133,7 @@ This document proposes an approach (along with some alternatives) to support pro
     - [PodDisruptionBudget](#poddisruptionbudget)
   - [Rolling updates to etcd members](#rolling-updates-to-etcd-members)
   - [Follow Up](#follow-up)
+    - [Ephemeral Volumes](#ephemeral-volumes)
     - [Shoot Control-Plane Migration](#shoot-control-plane-migration)
     - [Performance impact of multi-node etcd clusters](#performance-impact-of-multi-node-etcd-clusters)
     - [Metrics, Dashboards and Alerts](#metrics-dashboards-and-alerts)
@@ -384,7 +386,11 @@ The disadvantages of this approach are as follows.
 - Network-mounted persistentvolumes might eventually become a performance bottleneck under heavy load for a latency-sensitive component like ETCD. 
 - [Volume attach/detach issues](#single-node-etcd-cluster) when associated with etcd cluster instances cause downtimes to the target shoot clusters that are backed by those etcd cluster instances.
 
-### Ephemeral 
+### Ephemeral
+
+The ephemeral volumes use-case is considered as an optimization and may be planned as a follow-up action.
+
+#### Disk
 
 Ephemeral persistence can be achieved in Kubernetes by using either [`emptyDir`](https://kubernetes.io/docs/concepts/storage/volumes/#emptydir) volumes or [`local` persistentvolumes](https://kubernetes.io/docs/concepts/storage/volumes/#local) to persist ETCD data. 
 The advantages of this approach are as follows.
@@ -1355,6 +1361,10 @@ If the cluster [status](#status) unhealthy (i.e. if either `AllMembersReady` or 
 This can be further optimized in the future to handle the cases where rolling updates can still be performed on an etcd cluster that is not fully healthy.
 
 ## Follow Up
+
+### Ephemeral Volumes
+
+See section _[Ephemeral Volumes](#Ephemeral_Volumes)_.
 
 ### Shoot Control-Plane Migration
 
