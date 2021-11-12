@@ -1347,8 +1347,6 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (map[s
 		"statefulsetReplicas":     statefulsetReplicas,
 		"serviceName":             fmt.Sprintf("%s-client", etcd.Name),
 		"configMapName":           fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
-		"fullSnapLeaseName":       getFullSnapshotLeaseName(etcd),
-		"deltaSnapLeaseName":      getDeltaSnapshotLeaseName(etcd),
 		"jobName":                 getJobName(etcd),
 		"volumeClaimTemplateName": volumeClaimTemplateName,
 		"serviceAccountName":      getServiceAccountName(etcd),
@@ -1378,6 +1376,9 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (map[s
 		if values["store"], err = utils.GetStoreValues(etcd.Spec.Backup.Store); err != nil {
 			return nil, err
 		}
+
+		backupValues["fullSnapLeaseName"] = getFullSnapshotLeaseName(etcd)
+		backupValues["deltaSnapLeaseName"] = getDeltaSnapshotLeaseName(etcd)
 	}
 
 	return values, nil
