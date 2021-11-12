@@ -124,7 +124,8 @@ func LeaseHolderIdentityChange() predicate.Predicate {
 		if !ok {
 			return false
 		}
-		return *leaseOld.Spec.HolderIdentity != *leaseNew.Spec.HolderIdentity
+
+		return !reflect.DeepEqual(leaseOld.Spec.HolderIdentity, leaseNew.Spec.HolderIdentity)
 	}
 
 	return predicate.Funcs{

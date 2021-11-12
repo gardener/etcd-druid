@@ -116,6 +116,20 @@ var _ = Describe("Druid Predicate", func() {
 			pred = LeaseHolderIdentityChange()
 		})
 
+		Context("when holder identity is nil", func() {
+			BeforeEach(func() {
+				obj = &coordinationv1.Lease{}
+				oldObj = &coordinationv1.Lease{}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+
 		Context("when holder identity matches", func() {
 			BeforeEach(func() {
 				obj = &coordinationv1.Lease{

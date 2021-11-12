@@ -70,29 +70,7 @@ var _ = Describe("Lease Controller", func() {
 			svc = &corev1.Service{}
 			Eventually(func() error { return serviceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
 		})
-		It("no jobs will be scheduled because no store details are provided", func() {
-			// Verufy if the statefulset updated the specs
-			validateEtcdWithDefaults(instance, s, cm, svc)
 
-			setStatefulSetReady(s)
-			err = c.Status().Update(context.TODO(), s)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Verify if that the job is not created even if the holder identity in delta-snapshot-revision is greater than 1M
-			deltaLease := &coordinationv1.Lease{}
-			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			err = kutil.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
-				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
-				renewedTime := time.Now()
-				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
-				return nil
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			j := &batchv1.Job{}
-			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, time.Duration(30*time.Second), pollingInterval).ShouldNot(BeNil())
-
-		})
 		AfterEach(func() {
 			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
 			Eventually(func() error { return statefulSetRemoved(c, s) }, timeout, pollingInterval).Should(BeNil())
@@ -218,6 +196,16 @@ var _ = Describe("Lease Controller", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
+			// Deliberately update the full lease
+			fullLease := &coordinationv1.Lease{}
+			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(c, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
+			err = kutil.TryUpdate(context.TODO(), retry.DefaultBackoff, c, fullLease, func() error {
+				fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
+				renewedTime := time.Now()
+				fullLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
+				return nil
+			})
+
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
@@ -283,6 +271,26 @@ var _ = Describe("Lease Controller", func() {
 				return nil
 			})
 			Expect(err).NotTo(HaveOccurred())
+
+			// Deliberately update the full lease
+			fullLease := &coordinationv1.Lease{}
+			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(c, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
+			err = kutil.TryUpdate(context.TODO(), retry.DefaultBackoff, c, fullLease, func() error {
+				fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
+				renewedTime := time.Now()
+				fullLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
+				return nil
+			})
+
+			Eventually(func() error {
+				if err := c.Get(ctx, client.ObjectKeyFromObject(fullLease), fullLease); err != nil {
+					return err
+				}
+				if fullLease.Spec.HolderIdentity != nil {
+					return nil
+				}
+				return fmt.Errorf("no HolderIdentity")
+			}, 10*time.Second, pollingInterval)
 
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
