@@ -946,7 +946,6 @@ func getDeltaSnapshotLeaseName(etcd *druidv1alpha1.Etcd) string {
 }
 
 func createSnapshotLease(etcd *druidv1alpha1.Etcd, snapshotLeaseName string) *coordinationv1.Lease {
-	renewTime := metav1.NewMicroTime(time.Now())
 	return &coordinationv1.Lease{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      snapshotLeaseName,
@@ -961,10 +960,6 @@ func createSnapshotLease(etcd *druidv1alpha1.Etcd, snapshotLeaseName string) *co
 					UID:                etcd.UID,
 				},
 			},
-		},
-		Spec: coordinationv1.LeaseSpec{
-			HolderIdentity: pointer.StringPtr("0"),
-			RenewTime:      &renewTime,
 		},
 	}
 }
