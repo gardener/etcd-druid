@@ -165,15 +165,15 @@ func accessModeIterator(element interface{}) string {
 }
 
 func cmdIterator(element interface{}) string {
-	return string(element.(string))
+	return element.(string)
 }
 
 func ruleIterator(element interface{}) string {
-	return string(element.(rbac.PolicyRule).APIGroups[0])
+	return element.(rbac.PolicyRule).APIGroups[0]
 }
 
 func stringArrayIterator(element interface{}) string {
-	return string(element.(string))
+	return element.(string)
 }
 
 var _ = Describe("Druid", func() {
@@ -767,7 +767,7 @@ var _ = Describe("Cron Job", func() {
 func validateRole(instance *druidv1alpha1.Etcd, role *rbac.Role) {
 	Expect(*role).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(fmt.Sprintf("%s-br-role", instance.Name)),
+			"Name":      Equal(fmt.Sprintf("druid.gardener.cloud:etcd:%s", instance.Name)),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchKeys(IgnoreExtras, Keys{
 				"name":     Equal("etcd"),
@@ -2120,7 +2120,7 @@ func serviceAccountIsCorrectlyReconciled(c client.Client, instance *druidv1alpha
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	req := types.NamespacedName{
-		Name:      fmt.Sprintf("%s-br-serviceaccount", instance.Name),
+		Name:      instance.Name,
 		Namespace: instance.Namespace,
 	}
 
@@ -2134,7 +2134,7 @@ func roleIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, ro
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	req := types.NamespacedName{
-		Name:      fmt.Sprintf("%s-br-role", instance.Name),
+		Name:      fmt.Sprintf("druid.gardener.cloud:etcd:%s", instance.Name),
 		Namespace: instance.Namespace,
 	}
 
@@ -2148,7 +2148,7 @@ func roleBindingIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.E
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	req := types.NamespacedName{
-		Name:      fmt.Sprintf("%s-br-rolebinding", instance.Name),
+		Name:      fmt.Sprintf("druid.gardener.cloud:etcd:%s", instance.Name),
 		Namespace: instance.Namespace,
 	}
 

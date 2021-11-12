@@ -1350,8 +1350,8 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (map[s
 		"jobName":                 getJobName(etcd),
 		"volumeClaimTemplateName": volumeClaimTemplateName,
 		"serviceAccountName":      getServiceAccountName(etcd),
-		"roleName":                fmt.Sprintf("%s-br-role", etcd.Name),
-		"roleBindingName":         fmt.Sprintf("%s-br-rolebinding", etcd.Name),
+		"roleName":                fmt.Sprintf("druid.gardener.cloud:etcd:%s", etcd.Name),
+		"roleBindingName":         fmt.Sprintf("druid.gardener.cloud:etcd:%s", etcd.Name),
 	}
 
 	if etcd.Spec.StorageCapacity != nil {
@@ -1385,7 +1385,7 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (map[s
 }
 
 func getServiceAccountName(etcd *druidv1alpha1.Etcd) string {
-	return fmt.Sprintf("%s-br-serviceaccount", etcd.Name)
+	return etcd.Name
 }
 
 func getEtcdImages(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (string, string, error) {
