@@ -18,6 +18,8 @@ import "time"
 
 // CompactionLeaseConfig contains configuration for the compaction controller.
 type CompactionLeaseConfig struct {
+	// CompactionEnabled defines of compaction jobs should be created.
+	CompactionEnabled bool
 	// ActiveDeadlineDuration is the duration after which a running compaction job will be killed (Ex: "300ms", "20s", "-1.5h" or "2h45m")
 	ActiveDeadlineDuration time.Duration
 	// EventsThreshold is total number of etcd events that can be allowed before a backup compaction job is triggered

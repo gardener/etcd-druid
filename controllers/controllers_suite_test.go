@@ -127,6 +127,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).NotTo(HaveOccurred())
 
 	lc, err := NewCompactionLeaseControllerWithImageVector(mgr, controllersconfig.CompactionLeaseConfig{
+		CompactionEnabled:      true,
 		EventsThreshold:        1000000,
 		ActiveDeadlineDuration: activeDeadlineDuration,
 	})

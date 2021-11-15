@@ -44,7 +44,11 @@ import (
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 )
 
-const DefaultETCDQuota = 8 * 1024 * 1024 * 1024 // 8Gi
+const (
+	// DefaultETCDQuota is the default etcd quota.
+	DefaultETCDQuota = 8 * 1024 * 1024 * 1024 // 8Gi
+)
+
 // CompactionLeaseController reconciles compaction job
 type CompactionLeaseController struct {
 	client.Client
@@ -174,13 +178,16 @@ func (lc *CompactionLeaseController) reconcileJob(ctx context.Context, logger lo
 				RequeueAfter: 10 * time.Second,
 			}, fmt.Errorf("error while fetching compaction job: %v", err)
 		}
-		// Required job doesn't exist. Create new
-		job, err = lc.createCompactJob(ctx, logger, etcd)
-		logger.Info("Job Creation")
-		if err != nil {
-			return ctrl.Result{
-				RequeueAfter: 10 * time.Second,
-			}, fmt.Errorf("error during compaction job creation: %v", err)
+
+		if lc.config.CompactionEnabled {
+			// Required job doesn't exist. Create new
+			job, err = lc.createCompactJob(ctx, logger, etcd)
+			logger.Info("Job Creation")
+			if err != nil {
+				return ctrl.Result{
+					RequeueAfter: 10 * time.Second,
+				}, fmt.Errorf("error during compaction job creation: %v", err)
+			}
 		}
 	}
 
@@ -529,9 +536,11 @@ func (lc *CompactionLeaseController) SetupWithManager(mgr ctrl.Manager, workers 
 		MaxConcurrentReconciles: workers,
 	})
 
-	builder = builder.WithEventFilter(buildPredicateForLC()).For(&druidv1alpha1.Etcd{})
-	builder = builder.Owns(&coordinationv1.Lease{})
-	return builder.Complete(lc)
+	return builder.
+		For(&druidv1alpha1.Etcd{}).
+		Owns(&coordinationv1.Lease{}).
+		WithEventFilter(buildPredicateForLC()).
+		Complete(lc)
 }
 
 func buildPredicateForLC() predicate.Predicate {
