@@ -27,6 +27,8 @@ import (
 	"github.com/gardener/etcd-druid/pkg/common"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
+	batchv1beta1 "k8s.io/api/batch/v1beta1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 
 	extensionspredicate "github.com/gardener/gardener/extensions/pkg/predicate"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
@@ -37,11 +39,11 @@ import (
 	gardenerretry "github.com/gardener/gardener/pkg/utils/retry"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	eventsv1beta1 "k8s.io/api/events/v1beta1"
 	rbac "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -94,17 +96,16 @@ var (
 // EtcdReconciler reconciles a Etcd object
 type EtcdReconciler struct {
 	client.Client
-	Scheme                          *runtime.Scheme
-	chartApplier                    kubernetes.ChartApplier
-	Config                          *rest.Config
-	ImageVector                     imagevector.ImageVector
-	logger                          logr.Logger
-	enableBackupCompactionJobTempFS bool
+	Scheme       *runtime.Scheme
+	chartApplier kubernetes.ChartApplier
+	Config       *rest.Config
+	ImageVector  imagevector.ImageVector
+	logger       logr.Logger
 }
 
 // NewReconcilerWithImageVector creates a new EtcdReconciler object with an image vector
 func NewReconcilerWithImageVector(mgr manager.Manager) (*EtcdReconciler, error) {
-	etcdReconciler, err := NewEtcdReconciler(mgr, false)
+	etcdReconciler, err := NewEtcdReconciler(mgr)
 	if err != nil {
 		return nil, err
 	}
@@ -112,19 +113,18 @@ func NewReconcilerWithImageVector(mgr manager.Manager) (*EtcdReconciler, error) 
 }
 
 // NewEtcdReconciler creates a new EtcdReconciler object
-func NewEtcdReconciler(mgr manager.Manager, enableBackupCompactionJobTempFS bool) (*EtcdReconciler, error) {
+func NewEtcdReconciler(mgr manager.Manager) (*EtcdReconciler, error) {
 	return (&EtcdReconciler{
-		Client:                          mgr.GetClient(),
-		Config:                          mgr.GetConfig(),
-		Scheme:                          mgr.GetScheme(),
-		logger:                          log.Log.WithName("etcd-controller"),
-		enableBackupCompactionJobTempFS: enableBackupCompactionJobTempFS,
+		Client: mgr.GetClient(),
+		Config: mgr.GetConfig(),
+		Scheme: mgr.GetScheme(),
+		logger: log.Log.WithName("etcd-controller"),
 	}).InitializeControllerWithChartApplier()
 }
 
 // NewEtcdReconcilerWithImageVector creates a new EtcdReconciler object
-func NewEtcdReconcilerWithImageVector(mgr manager.Manager, enableBackupCompactionJobTempFS bool) (*EtcdReconciler, error) {
-	ec, err := NewEtcdReconciler(mgr, enableBackupCompactionJobTempFS)
+func NewEtcdReconcilerWithImageVector(mgr manager.Manager) (*EtcdReconciler, error) {
+	ec, err := NewEtcdReconciler(mgr)
 	if err != nil {
 		return nil, err
 	}
@@ -145,10 +145,6 @@ func getChartPathForConfigMap() string {
 
 func getChartPathForService() string {
 	return filepath.Join("etcd", "templates", "etcd-service.yaml")
-}
-
-func getChartPathForCronJob() string {
-	return filepath.Join("etcd", "templates", "etcd-compaction-cronjob.yaml")
 }
 
 func getChartPathForServiceAccount() string {
@@ -199,6 +195,7 @@ func (r *EtcdReconciler) InitializeControllerWithImageVector() (*EtcdReconciler,
 
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile reconciles the etcd.
 func (r *EtcdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -221,7 +218,7 @@ func (r *EtcdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	logger := r.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String(), "operation", "reconcile")
-	logger.Info("Starting operation")
+	logger.Info("ETCD controller reconciliation started")
 
 	// Add Finalizers to Etcd
 	if finalizers := sets.NewString(etcd.Finalizers...); !finalizers.Has(FinalizerName) {
@@ -264,6 +261,36 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		}, err
 	}
 
+	// TODO: (abdasgupta) Use the full snapshot lease available from the reconcile operation for setting backupready condition
+	fl, err := r.reconcileFullLease(ctx, logger, etcd)
+	if err != nil {
+		return ctrl.Result{
+			Requeue: true,
+		}, err
+	}
+	logger.Info("Available Full Snapshot Lease: " + fl.Name)
+
+	dl, err := r.reconcileDeltaLease(ctx, logger, etcd)
+	if err != nil {
+		return ctrl.Result{
+			Requeue: true,
+		}, err
+	}
+	logger.Info("Available Delta Snapshot Lease: " + dl.Name)
+
+	// Delete any existing cronjob if required.
+	// TODO(abdasgupta) : This is for backward compatibility towards ETCD-Druid 0.6.0. Remove it.
+	cronJob, err := r.cleanCronJobs(ctx, logger, etcd)
+	if err != nil {
+		return ctrl.Result{
+			Requeue: true,
+		}, fmt.Errorf("error while cleaning compaction cron job: %v", err)
+	}
+
+	if cronJob != nil {
+		logger.Info("The running cron job is: " + cronJob.Name)
+	}
+
 	op, svc, sts, err := r.reconcileEtcd(ctx, logger, etcd)
 	if err != nil {
 		if err := r.updateEtcdErrorStatus(ctx, op, etcd, sts, err); err != nil {
@@ -287,9 +314,57 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 	}, nil
 }
 
+func (r *EtcdReconciler) cleanCronJobs(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*batchv1beta1.CronJob, error) {
+	cronJob := &batchv1beta1.CronJob{}
+	err := r.Get(ctx, types.NamespacedName{Name: getCronJobName(etcd), Namespace: etcd.Namespace}, cronJob)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return nil, err
+		}
+
+		return nil, nil
+	}
+
+	// Delete cronJob if there is no active job
+	if len(cronJob.Status.Active) == 0 {
+		err = client.IgnoreNotFound(r.Delete(ctx, cronJob, client.PropagationPolicy(metav1.DeletePropagationForeground)))
+		if err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+
+	// Calculate time elapsed since the cron job is scheduled
+	timeElapsed := time.Since(cronJob.Status.LastScheduleTime.Time).Seconds()
+	// Delete the cron job if it's running for more than 3 hours
+	if timeElapsed > time.Duration(3*time.Hour).Seconds() {
+		if err := client.IgnoreNotFound(r.Delete(ctx, cronJob, client.PropagationPolicy(metav1.DeletePropagationForeground))); err != nil {
+			return nil, err
+		}
+		logger.Info("last cron job was stuck and deleted")
+		return nil, nil
+	}
+	return cronJob, nil
+}
+
 func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	logger := r.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String(), "operation", "delete")
 	logger.Info("Starting operation")
+
+	// TODO(abdasgupta) : This is for backward compatibility towards ETCD-Druid 0.6.0. Remove it.
+	cronJob := &batchv1beta1.CronJob{}
+	if err := client.IgnoreNotFound(r.Get(ctx, types.NamespacedName{Name: getCronJobName(etcd), Namespace: etcd.Namespace}, cronJob)); err != nil {
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, fmt.Errorf("error while fetching compaction cron job: %v", err)
+	}
+
+	if cronJob.Name == getCronJobName(etcd) && cronJob.DeletionTimestamp == nil {
+		logger.Info("Deleting cron job", "cronjob", kutil.ObjectName(cronJob))
+		if err := client.IgnoreNotFound(r.Delete(ctx, cronJob, client.PropagationPolicy(metav1.DeletePropagationForeground))); err != nil {
+			return ctrl.Result{
+				Requeue: true,
+			}, fmt.Errorf("error while deleting compaction cron job: %v", err)
+		}
+	}
 
 	if waitForStatefulSetCleanup, err := r.removeDependantStatefulset(ctx, logger, etcd); err != nil {
 		if err = r.updateEtcdErrorStatus(ctx, deleteOp, etcd, nil, err); err != nil {
@@ -801,140 +876,98 @@ func (r *EtcdReconciler) getStatefulSetFromEtcd(etcd *druidv1alpha1.Etcd, values
 	return decoded, nil
 }
 
-func (r *EtcdReconciler) reconcileCronJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*batchv1.CronJob, error) {
-	logger.Info("Reconcile etcd compaction cronjob")
-
-	var cronJob batchv1.CronJob
-	err := r.Get(ctx, types.NamespacedName{Name: getCronJobName(etcd), Namespace: etcd.Namespace}, &cronJob)
-
-	//If backupCompactionSchedule is present in the etcd spec, continue with reconciliation of cronjob
-	//If backupCompactionSchedule is not present in the etcd spec, do not proceed with cronjob
-	//reconciliation. Furthermore, delete any already existing cronjobs corresponding with this etcd
-	backupCompactionScheduleFound := false
-	if values["backup"].(map[string]interface{})["backupCompactionSchedule"] != nil {
-		backupCompactionScheduleFound = true
+func (r *EtcdReconciler) reconcileFullLease(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*coordinationv1.Lease, error) {
+	// Get or Create fullSnapshotRevisions lease object that will help to set BackupReady condition
+	fullSnapshotRevisions := getFullSnapshotLeaseName(etcd)
+	nsName := types.NamespacedName{
+		Name:      fullSnapshotRevisions,
+		Namespace: etcd.Namespace,
 	}
 
-	if !backupCompactionScheduleFound {
-		if err == nil {
-			err = r.Delete(ctx, &cronJob, client.PropagationPolicy(metav1.DeletePropagationForeground))
-			if err != nil {
-				return nil, err
+	fullLease := &coordinationv1.Lease{}
+	err1 := r.Get(ctx, nsName, fullLease)
+	if err1 != nil {
+		logger.Info("Couldn't fetch full snap lease " + fullSnapshotRevisions + ":" + err1.Error())
+
+		if apierrors.IsNotFound(err1) {
+			logger.Info("Creating the full snap lease " + fullSnapshotRevisions)
+
+			fullLease = createSnapshotLease(etcd, fullSnapshotRevisions)
+			err2 := r.Create(ctx, fullLease)
+			if err2 != nil {
+				logger.Error(err2, "Full snap lease "+fullSnapshotRevisions+" couldn't be created")
+				return nil, err2
 			}
+		} else {
+			return nil, err1
 		}
-		return nil, nil
 	}
 
-	if err == nil {
-		logger.Info("Claiming cronjob object")
-		// If any adoptions are attempted, we should first recheck for deletion with
-		// an uncached quorum read sometime after listing Machines (see #42639).
-		//TODO: Consider putting this claim logic just after creating a new cronjob
-		canAdoptFunc := RecheckDeletionTimestamp(func() (metav1.Object, error) {
-			foundEtcd := &druidv1alpha1.Etcd{}
-			err := r.Get(context.TODO(), types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)
-			if err != nil {
-				return nil, err
-			}
-
-			if foundEtcd.GetDeletionTimestamp() != nil {
-				return nil, fmt.Errorf("%v/%v etcd is marked for deletion", etcd.Namespace, etcd.Name)
-			}
-
-			if foundEtcd.UID != etcd.UID {
-				return nil, fmt.Errorf("original %v/%v etcd gone: got uid %v, wanted %v", etcd.Namespace, etcd.Name, foundEtcd.UID, etcd.UID)
-			}
-			return foundEtcd, nil
-		})
-
-		selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
-		if err != nil {
-			logger.Error(err, "Error converting etcd selector to selector")
-			return nil, err
-		}
-		dm := NewEtcdDruidRefManager(r.Client, r.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
-
-		logger.Info("Claiming existing cronjob")
-		claimedCronJob, err := dm.ClaimCronJob(ctx, &cronJob)
-		if err != nil {
-			return nil, err
-		}
-
-		if _, err = r.syncCronJobSpec(ctx, claimedCronJob, etcd, values, logger); err != nil {
-			return nil, err
-		}
-
-		return claimedCronJob, err
-	}
-
-	// Required cronjob doesn't exist. Create new
-	cj, err := r.getCronJobFromEtcd(etcd, values, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Info("Creating cronjob", "cronjob", kutil.Key(cj.Namespace, cj.Name).String())
-	err = r.Create(ctx, cj)
-
-	// Ignore the precondition violated error, this machine is already updated
-	// with the desired label.
-	if err == errorsutil.ErrPreconditionViolated {
-		logger.Info("Cronjob precondition doesn't hold, skip updating it", "cronjob", kutil.Key(cj.Namespace, cj.Name).String())
-		err = nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	//TODO: Evaluate necessity of claiming object here after creation
-
-	return cj, err
+	return fullLease, nil
 }
 
-func (r *EtcdReconciler) syncCronJobSpec(ctx context.Context, cj *batchv1.CronJob, etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*batchv1.CronJob, error) {
-	decoded, err := r.getCronJobFromEtcd(etcd, values, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	if reflect.DeepEqual(cj.Spec, decoded.Spec) {
-		return cj, nil
-	}
-
-	cjCopy := cj.DeepCopy()
-	cjCopy.Spec = decoded.Spec
-
-	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		return r.Patch(ctx, cjCopy, client.MergeFrom(cj))
-	})
-
-	if err == errorsutil.ErrPreconditionViolated {
-		logger.Info("cronjob precondition doesn't hold, skip updating it", "cronjob", kutil.Key(cjCopy.Namespace, cjCopy.Name).String())
-		err = nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	return cjCopy, err
+func getFullSnapshotLeaseName(etcd *druidv1alpha1.Etcd) string {
+	return fmt.Sprintf("%s-full-snap", string(etcd.Name))
 }
 
-func (r *EtcdReconciler) getCronJobFromEtcd(etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*batchv1.CronJob, error) {
-	decoded := &batchv1.CronJob{}
-	cronJobPath := getChartPathForCronJob()
-	chartPath := getChartPath()
-	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
-	if err != nil {
-		return nil, err
+func (r *EtcdReconciler) reconcileDeltaLease(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*coordinationv1.Lease, error) {
+	// Get or Create delta_snapshot_revisions lease object that will keep track of delta snapshot revisions based on which
+	// compaction job will be scheduled
+	deltaSnapshotRevisions := getDeltaSnapshotLeaseName(etcd)
+	nsName := types.NamespacedName{
+		Name:      deltaSnapshotRevisions,
+		Namespace: etcd.Namespace,
 	}
 
-	if err := decodeObject(renderedChart, cronJobPath, &decoded); err != nil {
-		return nil, err
+	deltaLease := &coordinationv1.Lease{}
+	err1 := r.Get(ctx, nsName, deltaLease)
+	if err1 != nil {
+		logger.Info("Couldn't fetch delta snap lease " + deltaSnapshotRevisions + " because: " + err1.Error())
+
+		if apierrors.IsNotFound(err1) {
+			logger.Info("Creating the delta snap lease " + deltaSnapshotRevisions)
+
+			deltaLease = createSnapshotLease(etcd, deltaSnapshotRevisions)
+			err2 := r.Create(ctx, deltaLease)
+			if err2 != nil {
+				logger.Error(err2, "Delta snap lease "+deltaSnapshotRevisions+" couldn't be created")
+				return nil, err2
+			}
+		} else {
+			return nil, err1
+		}
 	}
 
-	return decoded, nil
+	return deltaLease, nil
 }
 
+func getDeltaSnapshotLeaseName(etcd *druidv1alpha1.Etcd) string {
+	return fmt.Sprintf("%s-delta-snap", string(etcd.Name))
+}
+
+func createSnapshotLease(etcd *druidv1alpha1.Etcd, snapshotLeaseName string) *coordinationv1.Lease {
+	renewTime := metav1.NewMicroTime(time.Now())
+	return &coordinationv1.Lease{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      snapshotLeaseName,
+			Namespace: etcd.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "druid.gardener.cloud/v1alpha1",
+					BlockOwnerDeletion: pointer.BoolPtr(true),
+					Controller:         pointer.BoolPtr(true),
+					Kind:               "Etcd",
+					Name:               etcd.Name,
+					UID:                etcd.UID,
+				},
+			},
+		},
+		Spec: coordinationv1.LeaseSpec{
+			HolderIdentity: pointer.StringPtr("0"),
+			RenewTime:      &renewTime,
+		},
+	}
+}
 func decodeObject(renderedChart *chartrenderer.RenderedChart, path string, object interface{}) error {
 	if content, ok := renderedChart.Files()[path]; ok {
 		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
@@ -1069,7 +1102,7 @@ func (r *EtcdReconciler) reconcileRoleBinding(ctx context.Context, logger logr.L
 }
 
 func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (operationResult, *corev1.Service, *appsv1.StatefulSet, error) {
-	values, err := r.getMapFromEtcd(etcd)
+	values, err := getMapFromEtcd(r.ImageVector, etcd)
 	if err != nil {
 		return noOp, nil, nil, err
 	}
@@ -1094,14 +1127,6 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 	}
 	if cm != nil {
 		values["configMapName"] = cm.Name
-	}
-
-	cj, err := r.reconcileCronJob(ctx, logger, etcd, values)
-	if err != nil {
-		return noOp, nil, nil, err
-	}
-	if cj != nil {
-		values["cronJobName"] = cj.Name
 	}
 
 	err = r.reconcileServiceAccount(ctx, logger, etcd, values)
@@ -1155,25 +1180,7 @@ func checkEtcdAnnotations(annotations map[string]string, etcd metav1.Object) boo
 
 }
 
-func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]interface{}, error) {
-	var (
-		images map[string]*imagevector.Image
-		err    error
-	)
-
-	imageNames := []string{
-		common.Etcd,
-		common.BackupRestore,
-	}
-
-	if etcd.Spec.Etcd.Image == nil || etcd.Spec.Backup.Image == nil {
-
-		images, err = imagevector.FindImages(r.ImageVector, imageNames)
-		if err != nil {
-			return map[string]interface{}{}, err
-		}
-	}
-
+func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (map[string]interface{}, error) {
 	var statefulsetReplicas int
 	if etcd.Spec.Replicas != 0 {
 		statefulsetReplicas = 1
@@ -1207,16 +1214,19 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		etcdValues["etcdDefragTimeout"] = etcd.Spec.Etcd.EtcdDefragTimeout
 	}
 
+	etcdImage, etcdBackupImage, err := getEtcdImages(im, etcd)
+	if err != nil {
+		return map[string]interface{}{}, err
+	}
+
 	if etcd.Spec.Etcd.Image == nil {
-		val, ok := images[common.Etcd]
-		if !ok {
+		if etcdImage == "" {
 			return map[string]interface{}{}, fmt.Errorf("either etcd resource or image vector should have %s image", common.Etcd)
 		}
-		etcdValues["image"] = val.String()
+		etcdValues["image"] = etcdImage
 	} else {
 		etcdValues["image"] = etcd.Spec.Etcd.Image
 	}
-
 	var quota int64 = 8 * 1024 * 1024 * 1024 // 8Gi
 	if etcd.Spec.Etcd.Quota != nil {
 		quota = etcd.Spec.Etcd.Quota.Value()
@@ -1230,7 +1240,6 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	var enableProfiling = false
 	if etcd.Spec.Backup.EnableProfiling != nil {
 		enableProfiling = *etcd.Spec.Backup.EnableProfiling
-
 	}
 
 	backupValues := map[string]interface{}{
@@ -1262,12 +1271,6 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		backupValues["deltaSnapshotPeriod"] = etcd.Spec.Backup.DeltaSnapshotPeriod
 	}
 
-	if etcd.Spec.Backup.BackupCompactionSchedule != nil {
-		backupValues["backupCompactionSchedule"] = etcd.Spec.Backup.BackupCompactionSchedule
-	}
-
-	backupValues["enableBackupCompactionJobTempFS"] = r.enableBackupCompactionJobTempFS
-
 	if etcd.Spec.Backup.EtcdSnapshotTimeout != nil {
 		backupValues["etcdSnapshotTimeout"] = etcd.Spec.Backup.EtcdSnapshotTimeout
 	}
@@ -1288,11 +1291,10 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	}
 
 	if etcd.Spec.Backup.Image == nil {
-		val, ok := images[common.BackupRestore]
-		if !ok {
+		if etcdBackupImage == "" {
 			return map[string]interface{}{}, fmt.Errorf("either etcd resource or image vector should have %s image", common.BackupRestore)
 		}
-		backupValues["image"] = val.String()
+		backupValues["image"] = etcdBackupImage
 	} else {
 		backupValues["image"] = etcd.Spec.Backup.Image
 	}
@@ -1345,9 +1347,11 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		"statefulsetReplicas":     statefulsetReplicas,
 		"serviceName":             fmt.Sprintf("%s-client", etcd.Name),
 		"configMapName":           fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
-		"cronJobName":             getCronJobName(etcd),
+		"fullSnapLeaseName":       getFullSnapshotLeaseName(etcd),
+		"deltaSnapLeaseName":      getDeltaSnapshotLeaseName(etcd),
+		"jobName":                 getJobName(etcd),
 		"volumeClaimTemplateName": volumeClaimTemplateName,
-		"serviceAccountName":      fmt.Sprintf("%s-br-serviceaccount", etcd.Name),
+		"serviceAccountName":      getServiceAccountName(etcd),
 		"roleName":                fmt.Sprintf("%s-br-role", etcd.Name),
 		"roleBindingName":         fmt.Sprintf("%s-br-rolebinding", etcd.Name),
 	}
@@ -1377,6 +1381,46 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 	}
 
 	return values, nil
+}
+
+func getServiceAccountName(etcd *druidv1alpha1.Etcd) string {
+	return fmt.Sprintf("%s-br-serviceaccount", etcd.Name)
+}
+
+func getEtcdImages(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (string, string, error) {
+	var (
+		err                        error
+		images                     map[string]*imagevector.Image
+		etcdImage, etcdBackupImage string
+	)
+
+	imageNames := []string{
+		common.Etcd,
+		common.BackupRestore,
+	}
+
+	if etcd.Spec.Etcd.Image == nil || etcd.Spec.Backup.Image == nil {
+
+		images, err = imagevector.FindImages(im, imageNames)
+		if err != nil {
+			return "", "", err
+		}
+	}
+
+	val, ok := images[common.Etcd]
+	if !ok {
+		etcdImage = ""
+	} else {
+		etcdImage = val.String()
+	}
+
+	val, ok = images[common.BackupRestore]
+	if !ok {
+		etcdBackupImage = ""
+	} else {
+		etcdBackupImage = val.String()
+	}
+	return etcdImage, etcdBackupImage, nil
 }
 
 func (r *EtcdReconciler) addFinalizersToDependantSecrets(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
@@ -1652,10 +1696,6 @@ func (r *EtcdReconciler) SetupWithManager(mgr ctrl.Manager, workers int, ignoreO
 			Owns(&appsv1.StatefulSet{})
 	}
 	return builder.Complete(r)
-}
-
-func getCronJobName(etcd *druidv1alpha1.Etcd) string {
-	return fmt.Sprintf("%s-compact-backup", etcd.Name)
 }
 
 func buildPredicate(ignoreOperationAnnotation bool) predicate.Predicate {

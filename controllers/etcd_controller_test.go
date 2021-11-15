@@ -22,7 +22,9 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
+	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/ghodss/yaml"
 
@@ -36,8 +38,9 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	appsv1 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/batch/v1"
-	batchv1 "k8s.io/api/batch/v1beta1"
+	batchv1 "k8s.io/api/batch/v1"
+	batchv1beta1 "k8s.io/api/batch/v1beta1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -45,6 +48,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -101,8 +105,7 @@ var (
 		common.Etcd,
 		common.BackupRestore,
 	}
-	backupCompactionSchedule = "15 */24 * * *"
-	etcdSnapshotTimeout      = metav1.Duration{
+	etcdSnapshotTimeout = metav1.Duration{
 		Duration: 10 * time.Minute,
 	}
 	etcdDefragTimeout = metav1.Duration{
@@ -308,7 +311,7 @@ var _ = Describe("Druid", func() {
 				ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 				defer cancel()
 
-				instance = getEtcd("foo81", "default", false)
+				instance = getEtcd("foo19", "default", false)
 				c = mgr.GetClient()
 
 				// Create StatefulSet
@@ -461,7 +464,7 @@ var _ = Describe("Druid", func() {
 		Entry("when statefulset not owned by etcd, druid should adopt the statefulset", "foo20", WithoutOwner),
 		Entry("when statefulset owned by etcd with owner reference set, druid should remove ownerref and add annotations", "foo21", WithOwnerReference),
 		Entry("when statefulset owned by etcd with owner annotations set, druid should persist the annotations", "foo22", WithOwnerAnnotation),
-		Entry("when etcd has the spec changed, druid should reconcile statefulset", "foo3", WithoutOwner),
+		Entry("when etcd has the spec changed, druid should reconcile statefulset", "foo23", WithoutOwner),
 	)
 
 	Describe("when adding etcd resources with statefulset already present", func() {
@@ -472,7 +475,7 @@ var _ = Describe("Druid", func() {
 			var p *corev1.Pod
 			var ss *appsv1.StatefulSet
 			BeforeEach(func() {
-				instance = getEtcd("foo4", "default", false)
+				instance = getEtcd("foo24", "default", false)
 				Expect(err).NotTo(HaveOccurred())
 				c = mgr.GetClient()
 				p = createPod(fmt.Sprintf("%s-0", instance.Name), "default", instance.Spec.Labels)
@@ -581,13 +584,13 @@ var _ = Describe("Druid", func() {
 			Eventually(func() error { return statefulSetRemoved(c, sts) }, timeout, pollingInterval).Should(BeNil())
 			Eventually(func() error { return etcdRemoved(c, instance) }, timeout, pollingInterval).Should(BeNil())
 		},
-		Entry("when  statefulset with ownerReference and without owner annotations, druid should adopt and delete statefulset", "foo61", WithOwnerReference),
-		Entry("when statefulset without ownerReference and without owner annotations, druid should adopt and delete statefulset", "foo62", WithoutOwner),
-		Entry("when  statefulset without ownerReference and with owner annotations, druid should adopt and delete statefulset", "foo63", WithOwnerAnnotation),
+		Entry("when  statefulset with ownerReference and without owner annotations, druid should adopt and delete statefulset", "foo25", WithOwnerReference),
+		Entry("when statefulset without ownerReference and without owner annotations, druid should adopt and delete statefulset", "foo26", WithoutOwner),
+		Entry("when  statefulset without ownerReference and with owner annotations, druid should adopt and delete statefulset", "foo27", WithOwnerAnnotation),
 	)
 
 	DescribeTable("when etcd resource is created",
-		func(name string, generateEtcd func(string, string) *druidv1alpha1.Etcd, validate func(*appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *druidv1alpha1.Etcd)) {
+		func(name string, generateEtcd func(string, string) *druidv1alpha1.Etcd, validate func(*druidv1alpha1.Etcd, *appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service)) {
 			var err error
 			var instance *druidv1alpha1.Etcd
 			var c client.Client
@@ -629,196 +632,139 @@ var _ = Describe("Druid", func() {
 			rb = &rbac.RoleBinding{}
 			Eventually(func() error { return roleBindingIsCorrectlyReconciled(c, instance, rb) }, timeout, pollingInterval).Should(BeNil())
 
-			validate(s, cm, svc, instance)
+			validate(instance, s, cm, svc)
+			validateRole(instance, role)
 
 			setStatefulSetReady(s)
 			err = c.Status().Update(context.TODO(), s)
 			Expect(err).NotTo(HaveOccurred())
 		},
-		Entry("if fields are not set in etcd.Spec, the statefulset should reflect the spec changes", "foo51", getEtcdWithDefault, validateEtcdWithDefaults),
-		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", "foo52", getEtcdWithTLS, validateEtcd),
-		Entry("if the store is GCS, the statefulset should reflect the spec changes", "foo53", getEtcdWithGCS, validateStoreGCP),
-		Entry("if the store is S3, the statefulset should reflect the spec changes", "foo54", getEtcdWithS3, validateStoreAWS),
-		Entry("if the store is ABS, the statefulset should reflect the spec changes", "foo55", getEtcdWithABS, validateStoreAzure),
-		Entry("if the store is Swift, the statefulset should reflect the spec changes", "foo56", getEtcdWithSwift, validateStoreOpenstack),
-		Entry("if the store is OSS, the statefulset should reflect the spec changes", "foo57", getEtcdWithOSS, validateStoreAlicloud),
+		Entry("if fields are not set in etcd.Spec, the statefulset should reflect the spec changes", "foo28", getEtcdWithDefault, validateEtcdWithDefaults),
+		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", "foo29", getEtcdWithTLS, validateEtcd),
+		Entry("if the store is GCS, the statefulset should reflect the spec changes", "foo30", getEtcdWithGCS, validateStoreGCP),
+		Entry("if the store is S3, the statefulset should reflect the spec changes", "foo31", getEtcdWithS3, validateStoreAWS),
+		Entry("if the store is ABS, the statefulset should reflect the spec changes", "foo32", getEtcdWithABS, validateStoreAzure),
+		Entry("if the store is Swift, the statefulset should reflect the spec changes", "foo33", getEtcdWithSwift, validateStoreOpenstack),
+		Entry("if the store is OSS, the statefulset should reflect the spec changes", "foo34", getEtcdWithOSS, validateStoreAlicloud),
 	)
-
-	DescribeTable("when etcd resource is created with backupCompactionSchedule field",
-		func(name string, generateEtcd func(string, string) *druidv1alpha1.Etcd, validate func(*appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *batchv1.CronJob, *druidv1alpha1.Etcd)) {
-			var err error
-			var instance *druidv1alpha1.Etcd
-			var c client.Client
-			var s *appsv1.StatefulSet
-			var cm *corev1.ConfigMap
-			var svc *corev1.Service
-			var cj *batchv1.CronJob
-			var sa *corev1.ServiceAccount
-			var role *rbac.Role
-			var rb *rbac.RoleBinding
-
-			instance = generateEtcd(name, "default")
-			c = mgr.GetClient()
-			ns := corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: instance.Namespace,
-				},
-			}
-
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
-
-			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-			}
-			err = c.Create(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
-			s = &appsv1.StatefulSet{}
-			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
-			cm = &corev1.ConfigMap{}
-			Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
-			svc = &corev1.Service{}
-			Eventually(func() error { return serviceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
-			cj = &batchv1.CronJob{}
-			Eventually(func() error { return cronJobIsCorrectlyReconciled(c, instance, cj) }, timeout, pollingInterval).Should(BeNil())
-			sa = &corev1.ServiceAccount{}
-			Eventually(func() error { return serviceAccountIsCorrectlyReconciled(c, instance, sa) }, timeout, pollingInterval).Should(BeNil())
-			role = &rbac.Role{}
-			Eventually(func() error { return roleIsCorrectlyReconciled(c, instance, role) }, timeout, pollingInterval).Should(BeNil())
-			rb = &rbac.RoleBinding{}
-			Eventually(func() error { return roleBindingIsCorrectlyReconciled(c, instance, rb) }, timeout, pollingInterval).Should(BeNil())
-
-			//validate(s, cm, svc, instance)
-			validate(s, cm, svc, cj, instance)
-			validateRole(role, instance)
-
-			setStatefulSetReady(s)
-			err = c.Status().Update(context.TODO(), s)
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
-			Eventually(func() error { return statefulSetRemoved(c, s) }, timeout, pollingInterval).Should(BeNil())
-			Eventually(func() error { return etcdRemoved(c, instance) }, timeout, pollingInterval).Should(BeNil())
-		},
-		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", "foo42", getEtcdWithCmpctScheduleTLS, validateEtcdWithCronjob),
-		Entry("if the store is GCS, the statefulset and cronjob should reflect the spec changes", "foo43", getEtcdWithCmpctScheduleGCS, validateStoreGCPWithCronjob),
-		Entry("if the store is S3, the statefulset and cronjob should reflect the spec changes", "foo44", getEtcdWithCmpctScheduleS3, validateStoreAWSWithCronjob),
-		Entry("if the store is ABS, the statefulset and cronjob should reflect the spec changes", "foo45", getEtcdWithCmpctScheduleABS, validateStoreAzureWithCronjob),
-		Entry("if the store is Swift, the statefulset and cronjob should reflect the spec changes", "foo46", getEtcdWithCmpctScheduleSwift, validateStoreOpenstackWithCronjob),
-		Entry("if the store is OSS, the statefulset and cronjob should reflect the spec changes", "foo47", getEtcdWithCmpctScheduleOSS, validateStoreAlicloudWithCronjob),
-	)
-
-	Describe("with etcd resources without backupCompactionScheduled field", func() {
-		Context("when creating an etcd object", func() {
-			It("should not create a cronjob", func() {
-				var err error
-				var instance *druidv1alpha1.Etcd
-				var c client.Client
-				var s *appsv1.StatefulSet
-				var cm *corev1.ConfigMap
-				var svc *corev1.Service
-				var cj *batchv1.CronJob
-
-				instance = getEtcd("foo48", "default", true)
-				c = mgr.GetClient()
-				ns := corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: instance.Namespace,
-					},
-				}
-
-				_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
-				Expect(err).To(Not(HaveOccurred()))
-
-				if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
-					storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-					errors := createSecrets(c, instance.Namespace, storeSecret)
-					Expect(len(errors)).Should(BeZero())
-				}
-				err = c.Create(context.TODO(), instance)
-				Expect(err).NotTo(HaveOccurred())
-				s = &appsv1.StatefulSet{}
-				Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
-				cm = &corev1.ConfigMap{}
-				Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
-				svc = &corev1.Service{}
-				Eventually(func() error { return serviceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
-				cj = &batchv1.CronJob{}
-				Eventually(func() error { return cronJobIsCorrectlyReconciled(c, instance, cj) }, timeout, pollingInterval).ShouldNot(BeNil())
-
-				setStatefulSetReady(s)
-				err = c.Status().Update(context.TODO(), s)
-				Expect(err).NotTo(HaveOccurred())
-
-				Expect(c.Delete(context.TODO(), instance)).To(Succeed())
-				Eventually(func() error { return statefulSetRemoved(c, s) }, timeout, pollingInterval).Should(BeNil())
-				Eventually(func() error { return etcdRemoved(c, instance) }, timeout, pollingInterval).Should(BeNil())
-			})
-		})
-
-		Context("when an existing cronjob is already present", func() {
-			It("should delete the existing cronjob", func() {
-				var err error
-				var instance *druidv1alpha1.Etcd
-				var c client.Client
-				var s *appsv1.StatefulSet
-				var cm *corev1.ConfigMap
-				var svc *corev1.Service
-				var cj *batchv1.CronJob
-
-				ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-				defer cancel()
-
-				instance = getEtcd("foo49", "default", true)
-				c = mgr.GetClient()
-				ns := corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: instance.Namespace,
-					},
-				}
-
-				// Create CronJob
-				cj = createCronJob(getCronJobName(instance), instance.Namespace, instance.Spec.Labels)
-				Expect(c.Create(ctx, cj)).To(Succeed())
-				Eventually(func() error { return cronJobIsCorrectlyReconciled(c, instance, cj) }, timeout, pollingInterval).Should(BeNil())
-
-				_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
-				Expect(err).To(Not(HaveOccurred()))
-
-				if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
-					storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-					errors := createSecrets(c, instance.Namespace, storeSecret)
-					Expect(len(errors)).Should(BeZero())
-				}
-				err = c.Create(context.TODO(), instance)
-				Expect(err).NotTo(HaveOccurred())
-
-				s = &appsv1.StatefulSet{}
-				Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
-				cm = &corev1.ConfigMap{}
-				Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
-				svc = &corev1.Service{}
-				Eventually(func() error { return serviceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
-				//Cronjob should not exist
-				cj = &batchv1.CronJob{}
-				Eventually(func() error { return cronJobRemoved(c, cj) }, timeout, pollingInterval).Should(BeNil())
-
-				setStatefulSetReady(s)
-				err = c.Status().Update(context.TODO(), s)
-				Expect(err).NotTo(HaveOccurred())
-
-				Expect(c.Delete(context.TODO(), instance)).To(Succeed())
-				Eventually(func() error { return statefulSetRemoved(c, s) }, timeout, pollingInterval).Should(BeNil())
-				Eventually(func() error { return etcdRemoved(c, instance) }, timeout, pollingInterval).Should(BeNil())
-			})
-		})
-	})
-
 })
 
-func validateRole(role *rbac.Role, instance *druidv1alpha1.Etcd) {
+var _ = Describe("Cron Job", func() {
+	Context("when an existing cron job from older version is already present", func() {
+		var (
+			err      error
+			instance *druidv1alpha1.Etcd
+			c        client.Client
+			cj       *batchv1beta1.CronJob
+		)
+
+		It("should delete the existing cronjob if older than activeDeadlineDuration", func() {
+			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+			defer cancel()
+
+			instance = getEtcd("foo80", "default", true)
+			c = mgr.GetClient()
+			ns := corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: instance.Namespace,
+				},
+			}
+
+			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+			Expect(err).To(Not(HaveOccurred()))
+
+			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
+				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+				errors := createSecrets(c, instance.Namespace, storeSecret)
+				Expect(len(errors)).Should(BeZero())
+			}
+			err = c.Create(context.TODO(), instance)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Create CronJob
+			cj = createCronJob(instance)
+			cj.Status.LastScheduleTime = &metav1.Time{Time: time.Now().Add(-3 * time.Hour)}
+			Expect(c.Create(ctx, cj)).To(Succeed())
+			Eventually(func() error { return cronJobIsCorrectlyReconciled(c, instance, cj) }, timeout, pollingInterval).Should(BeNil())
+
+			// Deliberately update the delta lease
+			deltaLease := &coordinationv1.Lease{}
+			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
+			err = kutil.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
+				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
+				renewedTime := time.Now()
+				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
+				return nil
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			// Wait until the cron job gets the "foregroundDeletion" finalizer and remove it
+			Eventually(func() (*batchv1beta1.CronJob, error) {
+				if err := c.Get(ctx, client.ObjectKeyFromObject(cj), cj); err != nil {
+					return nil, err
+				}
+				return cj, nil
+			}, timeout, pollingInterval).Should(PointTo(matchFinalizer(metav1.FinalizerDeleteDependents)))
+			Expect(controllerutils.PatchRemoveFinalizers(ctx, c, cj, metav1.FinalizerDeleteDependents)).To(Succeed())
+
+			// Wait until the cron job has been deleted
+			Eventually(func() error {
+				return c.Get(ctx, client.ObjectKeyFromObject(cj), &batchv1beta1.CronJob{})
+			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
+		})
+
+		It("should let the existing active cronjob run if not older than activeDeadlineDuration", func() {
+			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+			defer cancel()
+
+			instance = getEtcd("foo81", "default", true)
+			c = mgr.GetClient()
+			ns := corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: instance.Namespace,
+				},
+			}
+
+			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+			Expect(err).To(Not(HaveOccurred()))
+
+			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
+				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+				errors := createSecrets(c, instance.Namespace, storeSecret)
+				Expect(len(errors)).Should(BeZero())
+			}
+			err = c.Create(context.TODO(), instance)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Create CronJob
+			cj = createCronJob(instance)
+			Expect(c.Create(ctx, cj)).To(Succeed())
+			Eventually(func() error { return cronJobIsCorrectlyReconciled(c, instance, cj) }, timeout, pollingInterval).Should(BeNil())
+
+			// Deliberately update the delta lease
+			deltaLease := &coordinationv1.Lease{}
+			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
+			err = kutil.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
+				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
+				renewedTime := time.Now()
+				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
+				return nil
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(func() error { return cronJobIsCorrectlyReconciled(c, instance, cj) }, timeout, pollingInterval).Should(BeNil())
+		})
+
+		AfterEach(func() {
+			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
+			Eventually(func() error {
+				return c.Get(context.TODO(), client.ObjectKeyFromObject(instance), &batchv1beta1.CronJob{})
+			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
+		})
+	})
+})
+
+func validateRole(instance *druidv1alpha1.Etcd, role *rbac.Role) {
 	Expect(*role).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 			"Name":      Equal(fmt.Sprintf("%s-br-role", instance.Name)),
@@ -878,461 +824,7 @@ func podDeleted(c client.Client, etcd *druidv1alpha1.Etcd) error {
 
 }
 
-func validateEtcdWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1.CronJob, instance *druidv1alpha1.Etcd) {
-	validateEtcd(s, cm, svc, instance)
-
-	store, err := utils.StorageProviderFromInfraProvider(instance.Spec.Backup.Store.Provider)
-	Expect(err).NotTo(HaveOccurred())
-
-	Expect(*cj).To(MatchFields(IgnoreExtras, Fields{
-		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(getCronJobName(instance)),
-			"Namespace": Equal(instance.Namespace),
-			"Labels": MatchKeys(IgnoreExtras, Keys{
-				"name":     Equal("etcd"),
-				"instance": Equal(instance.Name),
-			}),
-			"OwnerReferences": MatchElements(ownerRefIterator, IgnoreExtras, Elements{
-				instance.Name: MatchFields(IgnoreExtras, Fields{
-					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),
-					"Kind":               Equal("Etcd"),
-					"Name":               Equal(instance.Name),
-					"UID":                Equal(instance.UID),
-					"Controller":         PointTo(Equal(true)),
-					"BlockOwnerDeletion": PointTo(Equal(true)),
-				}),
-			}),
-		}),
-		"Spec": MatchFields(IgnoreExtras, Fields{
-			"ConcurrencyPolicy": Equal(batchv1.ForbidConcurrent),
-			"JobTemplate": MatchFields(IgnoreExtras, Fields{
-				"Spec": MatchFields(IgnoreExtras, Fields{
-					"BackoffLimit": PointTo(Equal(int32(0))),
-					"Template": MatchFields(IgnoreExtras, Fields{
-						"Spec": MatchFields(IgnoreExtras, Fields{
-							"RestartPolicy": Equal(corev1.RestartPolicyNever),
-							"Containers": MatchElements(containerIterator, IgnoreExtras, Elements{
-								"compact-backup": MatchFields(IgnoreExtras, Fields{
-									"Command": MatchElements(cmdIterator, IgnoreExtras, Elements{
-										"--data-dir=/var/etcd/data":                                                                                 Equal("--data-dir=/var/etcd/data"),
-										"--snapstore-temp-directory=/var/etcd/data/tmp":                                                             Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
-										fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):                                   Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
-										fmt.Sprintf("%s=%s", "--storage-provider", store):                                                           Equal(fmt.Sprintf("%s=%s", "--storage-provider", store)),
-										fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container):                            Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
-										fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(instance.Spec.Etcd.Quota.Value())):                      Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(instance.Spec.Etcd.Quota.Value()))),
-										fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String())),
-										fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String()):       Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String())),
-									}),
-									"Ports": ConsistOf([]corev1.ContainerPort{
-										corev1.ContainerPort{
-											Name:          "server",
-											Protocol:      corev1.ProtocolTCP,
-											HostPort:      0,
-											ContainerPort: backupPort,
-										},
-									}),
-									//"Image":           Equal(*instance.Spec.Backup.Image),
-									"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
-									"VolumeMounts": MatchElements(volumeMountIterator, IgnoreExtras, Elements{
-										"etcd-config-file": MatchFields(IgnoreExtras, Fields{
-											"Name":      Equal("etcd-config-file"),
-											"MountPath": Equal("/var/etcd/config/"),
-										}),
-										"etcd-workspace-dir": MatchFields(IgnoreExtras, Fields{
-											"Name":      Equal("etcd-workspace-dir"),
-											"MountPath": Equal("/var/etcd/data"),
-										}),
-									}),
-									"Env": MatchElements(envIterator, IgnoreExtras, Elements{
-										"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-											"Name":  Equal("STORAGE_CONTAINER"),
-											"Value": Equal(*instance.Spec.Backup.Store.Container),
-										}),
-									}),
-								}),
-							}),
-							"Volumes": MatchAllElements(volumeIterator, Elements{
-								"etcd-config-file": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("etcd-config-file"),
-									"VolumeSource": MatchFields(IgnoreExtras, Fields{
-										"ConfigMap": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
-											}),
-											"DefaultMode": PointTo(Equal(int32(0644))),
-											"Items": MatchAllElements(keyIterator, Elements{
-												"etcd.conf.yaml": MatchFields(IgnoreExtras, Fields{
-													"Key":  Equal("etcd.conf.yaml"),
-													"Path": Equal("etcd.conf.yaml"),
-												}),
-											}),
-										})),
-									}),
-								}),
-								"etcd-workspace-dir": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("etcd-workspace-dir"),
-									"VolumeSource": MatchFields(IgnoreExtras, Fields{
-										"HostPath": BeNil(),
-										"EmptyDir": PointTo(MatchFields(IgnoreExtras, Fields{
-											"SizeLimit": BeNil(),
-										})),
-									}),
-								}),
-							}),
-						}),
-					}),
-				}),
-			}),
-		}),
-	}))
-}
-
-func validateStoreGCPWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1.CronJob, instance *druidv1alpha1.Etcd) {
-	validateStoreGCP(s, cm, svc, instance)
-
-	Expect(*cj).To(MatchFields(IgnoreExtras, Fields{
-		"Spec": MatchFields(IgnoreExtras, Fields{
-			"JobTemplate": MatchFields(IgnoreExtras, Fields{
-				"Spec": MatchFields(IgnoreExtras, Fields{
-					"Template": MatchFields(IgnoreExtras, Fields{
-						"Spec": MatchFields(IgnoreExtras, Fields{
-							"Containers": MatchElements(containerIterator, IgnoreExtras, Elements{
-								"compact-backup": MatchFields(IgnoreExtras, Fields{
-									"Command": MatchElements(cmdIterator, IgnoreExtras, Elements{
-										"--storage-provider=GCS": Equal("--storage-provider=GCS"),
-										fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):        Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
-										fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
-									}),
-									"VolumeMounts": MatchElements(volumeMountIterator, IgnoreExtras, Elements{
-										"etcd-backup": MatchFields(IgnoreExtras, Fields{
-											"Name":      Equal("etcd-backup"),
-											"MountPath": Equal("/root/.gcp/"),
-										}),
-										"etcd-config-file": MatchFields(IgnoreExtras, Fields{
-											"Name":      Equal("etcd-config-file"),
-											"MountPath": Equal("/var/etcd/config/"),
-										}),
-									}),
-									"Env": MatchAllElements(envIterator, Elements{
-										"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-											"Name":  Equal("STORAGE_CONTAINER"),
-											"Value": Equal(*instance.Spec.Backup.Store.Container),
-										}),
-										"GOOGLE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-											"Name":  Equal("GOOGLE_APPLICATION_CREDENTIALS"),
-											"Value": Equal("/root/.gcp/serviceaccount.json"),
-										}),
-									}),
-								}),
-							}),
-							"Volumes": MatchElements(volumeIterator, IgnoreExtras, Elements{
-								"etcd-backup": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("etcd-backup"),
-									"VolumeSource": MatchFields(IgnoreExtras, Fields{
-										"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-											"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-										})),
-									}),
-								}),
-								"etcd-config-file": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("etcd-config-file"),
-									"VolumeSource": MatchFields(IgnoreExtras, Fields{
-										"ConfigMap": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
-											}),
-											"DefaultMode": PointTo(Equal(int32(0644))),
-											"Items": MatchAllElements(keyIterator, Elements{
-												"etcd.conf.yaml": MatchFields(IgnoreExtras, Fields{
-													"Key":  Equal("etcd.conf.yaml"),
-													"Path": Equal("etcd.conf.yaml"),
-												}),
-											}),
-										})),
-									}),
-								}),
-							}),
-						}),
-					}),
-				}),
-			}),
-		}),
-	}))
-}
-
-func validateStoreAWSWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1.CronJob, instance *druidv1alpha1.Etcd) {
-	validateStoreAWS(s, cm, svc, instance)
-
-	Expect(*cj).To(MatchFields(IgnoreExtras, Fields{
-		"Spec": MatchFields(IgnoreExtras, Fields{
-			"JobTemplate": MatchFields(IgnoreExtras, Fields{
-				"Spec": MatchFields(IgnoreExtras, Fields{
-					"Template": MatchFields(IgnoreExtras, Fields{
-						"Spec": MatchFields(IgnoreExtras, Fields{
-							"Containers": MatchElements(containerIterator, IgnoreExtras, Elements{
-								"compact-backup": MatchFields(IgnoreExtras, Fields{
-									"Command": MatchElements(cmdIterator, IgnoreExtras, Elements{
-										"--storage-provider=S3": Equal("--storage-provider=S3"),
-										fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):        Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
-										fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
-									}),
-									"Env": MatchAllElements(envIterator, Elements{
-										"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-											"Name":  Equal("STORAGE_CONTAINER"),
-											"Value": Equal(*instance.Spec.Backup.Store.Container),
-										}),
-										"AWS_REGION": MatchFields(IgnoreExtras, Fields{
-											"Name": Equal("AWS_REGION"),
-											"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-												"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-													"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-														"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-													}),
-													"Key": Equal("region"),
-												})),
-											})),
-										}),
-										"AWS_SECRET_ACCESS_KEY": MatchFields(IgnoreExtras, Fields{
-											"Name": Equal("AWS_SECRET_ACCESS_KEY"),
-											"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-												"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-													"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-														"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-													}),
-													"Key": Equal("secretAccessKey"),
-												})),
-											})),
-										}),
-										"AWS_ACCESS_KEY_ID": MatchFields(IgnoreExtras, Fields{
-											"Name": Equal("AWS_ACCESS_KEY_ID"),
-											"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-												"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-													"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-														"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-													}),
-													"Key": Equal("accessKeyID"),
-												})),
-											})),
-										}),
-									}),
-								}),
-							}),
-						}),
-					}),
-				}),
-			}),
-		}),
-	}))
-}
-
-func validateStoreAzureWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1.CronJob, instance *druidv1alpha1.Etcd) {
-	validateStoreAzure(s, cm, svc, instance)
-
-	Expect(*cj).To(MatchFields(IgnoreExtras, Fields{
-		"Spec": MatchFields(IgnoreExtras, Fields{
-			"JobTemplate": MatchFields(IgnoreExtras, Fields{
-				"Spec": MatchFields(IgnoreExtras, Fields{
-					"Template": MatchFields(IgnoreExtras, Fields{
-						"Spec": MatchFields(IgnoreExtras, Fields{
-							"Containers": MatchElements(containerIterator, IgnoreExtras, Elements{
-								"compact-backup": MatchFields(IgnoreExtras, Fields{
-									"Command": MatchElements(cmdIterator, IgnoreExtras, Elements{
-										"--storage-provider=ABS": Equal("--storage-provider=ABS"),
-										fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):        Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
-										fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
-									}),
-									"Env": MatchAllElements(envIterator, Elements{
-										"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-											"Name":  Equal("STORAGE_CONTAINER"),
-											"Value": Equal(*instance.Spec.Backup.Store.Container),
-										}),
-										"STORAGE_ACCOUNT": MatchFields(IgnoreExtras, Fields{
-											"Name": Equal("STORAGE_ACCOUNT"),
-											"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-												"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-													"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-														"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-													}),
-													"Key": Equal("storageAccount"),
-												})),
-											})),
-										}),
-										"STORAGE_KEY": MatchFields(IgnoreExtras, Fields{
-											"Name": Equal("STORAGE_KEY"),
-											"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-												"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-													"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-														"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-													}),
-													"Key": Equal("storageKey"),
-												})),
-											})),
-										}),
-									}),
-								}),
-							}),
-						}),
-					}),
-				}),
-			}),
-		}),
-	}))
-}
-
-func validateStoreOpenstackWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1.CronJob, instance *druidv1alpha1.Etcd) {
-	validateStoreOpenstack(s, cm, svc, instance)
-
-	Expect(*cj).To(MatchFields(IgnoreExtras, Fields{
-		"Spec": MatchFields(IgnoreExtras, Fields{
-			"JobTemplate": MatchFields(IgnoreExtras, Fields{
-				"Spec": MatchFields(IgnoreExtras, Fields{
-					"Template": MatchFields(IgnoreExtras, Fields{
-						"Spec": MatchFields(IgnoreExtras, Fields{
-							"Containers": MatchElements(containerIterator, IgnoreExtras, Elements{
-								"compact-backup": MatchFields(IgnoreExtras, Fields{
-									"Command": MatchElements(cmdIterator, IgnoreExtras, Elements{
-										"--storage-provider=Swift": Equal("--storage-provider=Swift"),
-										fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):        Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
-										fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
-									}),
-									"Env": MatchAllElements(envIterator, Elements{
-										"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-											"Name":  Equal("STORAGE_CONTAINER"),
-											"Value": Equal(*instance.Spec.Backup.Store.Container),
-										}),
-										"OS_AUTH_URL": MatchFields(IgnoreExtras, Fields{
-											"Name": Equal("OS_AUTH_URL"),
-											"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-												"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-													"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-														"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-													}),
-													"Key": Equal("authURL"),
-												})),
-											})),
-										}),
-										"OS_USERNAME": MatchFields(IgnoreExtras, Fields{
-											"Name": Equal("OS_USERNAME"),
-											"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-												"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-													"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-														"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-													}),
-													"Key": Equal("username"),
-												})),
-											})),
-										}),
-										"OS_TENANT_NAME": MatchFields(IgnoreExtras, Fields{
-											"Name": Equal("OS_TENANT_NAME"),
-											"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-												"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-													"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-														"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-													}),
-													"Key": Equal("tenantName"),
-												})),
-											})),
-										}),
-										"OS_PASSWORD": MatchFields(IgnoreExtras, Fields{
-											"Name": Equal("OS_PASSWORD"),
-											"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-												"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-													"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-														"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-													}),
-													"Key": Equal("password"),
-												})),
-											})),
-										}),
-										"OS_DOMAIN_NAME": MatchFields(IgnoreExtras, Fields{
-											"Name": Equal("OS_DOMAIN_NAME"),
-											"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-												"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-													"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-														"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-													}),
-													"Key": Equal("domainName"),
-												})),
-											})),
-										}),
-									}),
-								}),
-							}),
-						}),
-					}),
-				}),
-			}),
-		}),
-	}))
-}
-
-func validateStoreAlicloudWithCronjob(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, cj *batchv1.CronJob, instance *druidv1alpha1.Etcd) {
-	validateStoreAlicloud(s, cm, svc, instance)
-
-	Expect(*cj).To(MatchFields(IgnoreExtras, Fields{
-		"Spec": MatchFields(IgnoreExtras, Fields{
-			"JobTemplate": MatchFields(IgnoreExtras, Fields{
-				"Spec": MatchFields(IgnoreExtras, Fields{
-					"Template": MatchFields(IgnoreExtras, Fields{
-						"Spec": MatchFields(IgnoreExtras, Fields{
-							"Containers": MatchElements(containerIterator, IgnoreExtras, Elements{
-								"compact-backup": MatchFields(IgnoreExtras, Fields{
-									"Command": MatchElements(cmdIterator, IgnoreExtras, Elements{
-										"--storage-provider=OSS": Equal("--storage-provider=OSS"),
-										fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):        Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
-										fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
-									}),
-									"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
-									"Env": MatchAllElements(envIterator, Elements{
-										"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-											"Name":  Equal("STORAGE_CONTAINER"),
-											"Value": Equal(*instance.Spec.Backup.Store.Container),
-										}),
-										"ALICLOUD_ENDPOINT": MatchFields(IgnoreExtras, Fields{
-											"Name": Equal("ALICLOUD_ENDPOINT"),
-											"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-												"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-													"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-														"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-													}),
-													"Key": Equal("storageEndpoint"),
-												})),
-											})),
-										}),
-										"ALICLOUD_ACCESS_KEY_SECRET": MatchFields(IgnoreExtras, Fields{
-											"Name": Equal("ALICLOUD_ACCESS_KEY_SECRET"),
-											"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-												"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-													"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-														"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-													}),
-													"Key": Equal("accessKeySecret"),
-												})),
-											})),
-										}),
-										"ALICLOUD_ACCESS_KEY_ID": MatchFields(IgnoreExtras, Fields{
-											"Name": Equal("ALICLOUD_ACCESS_KEY_ID"),
-											"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-												"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-													"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-														"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-													}),
-													"Key": Equal("accessKeyID"),
-												})),
-											})),
-										}),
-									}),
-								}),
-							}),
-						}),
-					}),
-				}),
-			}),
-		}),
-	}))
-}
-
-func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, instance *druidv1alpha1.Etcd) {
+func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service) {
 	// Validate Quota
 	configYML := cm.Data[etcdConfig]
 	config := map[string]string{}
@@ -1494,13 +986,13 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 					"Containers": MatchAllElements(containerIterator, Elements{
 						common.Etcd: MatchFields(IgnoreExtras, Fields{
 							"Ports": ConsistOf([]corev1.ContainerPort{
-								corev1.ContainerPort{
+								{
 									Name:          "server",
 									Protocol:      corev1.ProtocolTCP,
 									HostPort:      0,
 									ContainerPort: serverPort,
 								},
-								corev1.ContainerPort{
+								{
 									Name:          "client",
 									Protocol:      corev1.ProtocolTCP,
 									HostPort:      0,
@@ -1586,7 +1078,7 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", "8m"):                                            Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", "8m")),
 							}),
 							"Ports": ConsistOf([]corev1.ContainerPort{
-								corev1.ContainerPort{
+								{
 									Name:          "server",
 									Protocol:      corev1.ProtocolTCP,
 									HostPort:      0,
@@ -1677,11 +1169,9 @@ func validateEtcdWithDefaults(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *
 			}),
 		}),
 	}))
-
 }
 
-func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, instance *druidv1alpha1.Etcd) {
-
+func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service) {
 	// Validate Quota
 	configYML := cm.Data[etcdConfig]
 	config := map[string]interface{}{}
@@ -2112,7 +1602,7 @@ func validateEtcd(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Servi
 	}))
 }
 
-func validateStoreGCP(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, instance *druidv1alpha1.Etcd) {
+func validateStoreGCP(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service) {
 
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
@@ -2176,7 +1666,7 @@ func validateStoreGCP(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.S
 
 }
 
-func validateStoreAzure(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, instance *druidv1alpha1.Etcd) {
+func validateStoreAzure(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -2240,7 +1730,7 @@ func validateStoreAzure(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1
 	}))
 }
 
-func validateStoreOpenstack(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, instance *druidv1alpha1.Etcd) {
+func validateStoreOpenstack(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -2337,7 +1827,7 @@ func validateStoreOpenstack(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *co
 	}))
 }
 
-func validateStoreAlicloud(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, instance *druidv1alpha1.Etcd) {
+func validateStoreAlicloud(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -2414,7 +1904,7 @@ func validateStoreAlicloud(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *cor
 	}))
 }
 
-func validateStoreAWS(s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service, instance *druidv1alpha1.Etcd) {
+func validateStoreAWS(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -2567,25 +2057,6 @@ func statefulSetRemoved(c client.Client, ss *appsv1.StatefulSet) error {
 	return fmt.Errorf("statefulset not removed")
 }
 
-func cronJobRemoved(c client.Client, cj *batchv1.CronJob) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	cronjob := &batchv1.CronJob{}
-	req := types.NamespacedName{
-		Name:      cj.Name,
-		Namespace: cj.Namespace,
-	}
-	if err := c.Get(ctx, req, cronjob); err != nil {
-		if errors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers
-			return nil
-		}
-		return err
-	}
-	return fmt.Errorf("statefulset not removed")
-}
-
 func statefulsetIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.StatefulSet) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
@@ -2640,53 +2111,6 @@ func serviceIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd,
 		return fmt.Errorf("ownerReference does not exists")
 	}
 	return nil
-}
-
-func cronJobIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, cj *batchv1.CronJob) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	req := types.NamespacedName{
-		Name:      getCronJobName(instance),
-		Namespace: instance.Namespace,
-	}
-
-	if err := c.Get(ctx, req, cj); err != nil {
-		return err
-	}
-	return nil
-}
-
-func createCronJob(name, namespace string, labels map[string]string) *batchv1.CronJob {
-	cj := batchv1.CronJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    labels,
-		},
-		Spec: batchv1.CronJobSpec{
-			Schedule:          backupCompactionSchedule,
-			ConcurrencyPolicy: "Forbid",
-			JobTemplate: batchv1.JobTemplateSpec{
-				Spec: v1.JobSpec{
-					Template: corev1.PodTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Labels: labels,
-						},
-						Spec: corev1.PodSpec{
-							RestartPolicy: "Never",
-							Containers: []corev1.Container{
-								{
-									Name:  "compact-backup",
-									Image: "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.12.0",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	return &cj
 }
 
 func serviceAccountIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, sa *corev1.ServiceAccount) error {
@@ -2816,42 +2240,6 @@ func createPod(name, namespace string, labels map[string]string) *corev1.Pod {
 		},
 	}
 	return &pod
-}
-
-func getEtcdWithCmpctScheduleTLS(name, namespace string) *druidv1alpha1.Etcd {
-	etcd := getEtcdWithTLS(name, namespace)
-	etcd.Spec.Backup.BackupCompactionSchedule = &backupCompactionSchedule
-	return etcd
-}
-
-func getEtcdWithCmpctScheduleGCS(name, namespace string) *druidv1alpha1.Etcd {
-	etcd := getEtcdWithGCS(name, namespace)
-	etcd.Spec.Backup.BackupCompactionSchedule = &backupCompactionSchedule
-	return etcd
-}
-
-func getEtcdWithCmpctScheduleS3(name, namespace string) *druidv1alpha1.Etcd {
-	etcd := getEtcdWithS3(name, namespace)
-	etcd.Spec.Backup.BackupCompactionSchedule = &backupCompactionSchedule
-	return etcd
-}
-
-func getEtcdWithCmpctScheduleABS(name, namespace string) *druidv1alpha1.Etcd {
-	etcd := getEtcdWithABS(name, namespace)
-	etcd.Spec.Backup.BackupCompactionSchedule = &backupCompactionSchedule
-	return etcd
-}
-
-func getEtcdWithCmpctScheduleSwift(name, namespace string) *druidv1alpha1.Etcd {
-	etcd := getEtcdWithSwift(name, namespace)
-	etcd.Spec.Backup.BackupCompactionSchedule = &backupCompactionSchedule
-	return etcd
-}
-
-func getEtcdWithCmpctScheduleOSS(name, namespace string) *druidv1alpha1.Etcd {
-	etcd := getEtcdWithOSS(name, namespace)
-	etcd.Spec.Backup.BackupCompactionSchedule = &backupCompactionSchedule
-	return etcd
 }
 
 func getEtcdWithGCS(name, namespace string) *druidv1alpha1.Etcd {
@@ -3122,6 +2510,54 @@ func setStatefulSetReady(s *appsv1.StatefulSet) {
 	}
 	s.Status.Replicas = replicas
 	s.Status.ReadyReplicas = replicas
+}
+
+func cronJobIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, cj *batchv1beta1.CronJob) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+	defer cancel()
+	req := types.NamespacedName{
+		Name:      getCronJobName(instance),
+		Namespace: instance.Namespace,
+	}
+
+	if err := c.Get(ctx, req, cj); err != nil {
+		return err
+	}
+	return nil
+}
+
+func createCronJob(instance *druidv1alpha1.Etcd) *batchv1beta1.CronJob {
+	cj := batchv1beta1.CronJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      getCronJobName(instance),
+			Namespace: instance.Namespace,
+			Labels:    instance.Labels,
+		},
+		Spec: batchv1beta1.CronJobSpec{
+			Schedule:          backupCompactionSchedule,
+			ConcurrencyPolicy: "Forbid",
+			JobTemplate: batchv1beta1.JobTemplateSpec{
+				Spec: batchv1.JobSpec{
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Labels: instance.Labels,
+						},
+						Spec: corev1.PodSpec{
+							RestartPolicy: "Never",
+							Containers: []corev1.Container{
+								{
+									Name:    "compact-backup",
+									Image:   "eu.gcr.io/gardener-project/alpine:3.14",
+									Command: []string{"sh", "-c", "tail -f /dev/null"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	return &cj
 }
 
 var _ = Describe("buildPredicate", func() {
