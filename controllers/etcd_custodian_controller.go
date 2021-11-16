@@ -17,15 +17,19 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	extensionshandler "github.com/gardener/gardener/extensions/pkg/handler"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
+	policyv1 "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -122,6 +126,10 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
+	if err := ec.updatePodDisruptionBudget(ctx, logger, etcd, refMgr); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{RequeueAfter: ec.config.SyncPeriod}, nil
 }
 
@@ -166,6 +174,87 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logge
 		etcd.Status.Ready = pointer.BoolPtr(false)
 		return nil
 	})
+}
+
+func calculatePDBminAvailable(etcd *druidv1alpha1.Etcd) int {
+	// do not enable in single mode
+	if etcd.Spec.Replicas < 2 {
+		return 0
+	}
+
+	// cluster is in bootstrap
+	if etcd.Status.ClusterSize == nil {
+		return 0
+	}
+
+	allMembersReady := false
+	backupReady := false
+	for _, condition := range etcd.Status.Conditions {
+		if condition.Type == druidv1alpha1.ConditionTypeAllMembersReady &&
+			condition.Status == druidv1alpha1.ConditionStatus(druidv1alpha1.EtcdMemberStatusReady) {
+			allMembersReady = true
+			continue
+		}
+
+		if condition.Type == druidv1alpha1.ConditionTypeBackupReady &&
+			condition.Status == druidv1alpha1.ConditionTrue {
+			backupReady = true
+			continue
+		}
+	}
+
+	clusterSize := int(*etcd.Status.ClusterSize)
+	value := 0
+
+	if !allMembersReady {
+		value = int(etcd.Status.ReadyReplicas)
+	}
+
+	if backupReady && clusterSize > value {
+		value = clusterSize
+	}
+
+	return value
+}
+
+func (ec *EtcdCustodian) updatePodDisruptionBudget(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, refMgr *EtcdDruidRefManager) error {
+	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		pdb := &policyv1.PodDisruptionBudget{}
+		err := ec.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, pdb)
+		if err != nil {
+			return err
+		}
+
+		logger.Info("Claiming pdb object")
+		claimedPdb, err := refMgr.ClaimPodDisruptionBudget(ctx, pdb)
+		if err != nil {
+			return err
+		}
+
+		controllerMinAvailable := parseAnnotation(claimedPdb, ControllerMinAvailableAnnotation)
+		custodianMinAvailable := parseAnnotation(claimedPdb, CustodianMinAvailableAnnotation)
+
+		// determine the maximum minAvailable value
+		newValue := calculatePDBminAvailable(etcd)
+		maxValue := newValue
+		if controllerMinAvailable > maxValue {
+			maxValue = controllerMinAvailable
+		}
+
+		if custodianMinAvailable == newValue &&
+			claimedPdb.Spec.MinAvailable.IntValue() == maxValue {
+			// do not update, nothing changed
+			return nil
+		}
+
+		// update fields
+		converted := intstr.FromInt(maxValue)
+		claimedPdb.Spec.MinAvailable = &converted
+		claimedPdb.Annotations[CustodianMinAvailableAnnotation] = strconv.Itoa(maxValue)
+		return ec.Update(ctx, claimedPdb)
+	})
+
+	return err
 }
 
 func inBootstrap(etcd *druidv1alpha1.Etcd) bool {

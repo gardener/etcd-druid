@@ -1,11 +1,13 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ .Values.pdb.name }}
+  name: {{ .Values.name }}
   namespace: {{ .Release.Namespace }}
   annotations:
     gardener.cloud/owned-by: "{{ .Release.Namespace }}/{{ .Values.name }}"
     gardener.cloud/owner-type: "etcd"
+    etcd-controller/min-available: "0"
+    etcd-custodian-controller/min-available: "0"
   labels:
     name: etcd
     instance: {{ .Values.name }}
@@ -20,7 +22,7 @@ metadata:
     name: {{ .Values.name }}
     uid: {{ .Values.uid }}
 spec:
-  minAvailable: {{ .Values.pdb.minAvailable }}
+  minAvailable: 0
   selector:
     matchLabels:
       instance: {{ .Values.name }}

@@ -21,6 +21,7 @@ import (
 	"math"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,6 +53,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	errorsutil "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/rest"
@@ -88,6 +90,9 @@ const (
 	EtcdReady = true
 	// DefaultAutoCompactionRetention defines the default auto-compaction-retention length for etcd.
 	DefaultAutoCompactionRetention = "30m"
+	// Keys of the Annotation that is used to store PDB minAvailable values
+	ControllerMinAvailableAnnotation = "etcd-controller/min-available"
+	CustodianMinAvailableAnnotation  = "etcd-custodian-controller/min-available"
 )
 
 var (
@@ -594,87 +599,19 @@ const (
 	noOp        operationResult = "none"
 )
 
-func calculatePDBminAvailable(etcd *druidv1alpha1.Etcd) int32 {
-	// cluster is in bootstrap
-	if etcd.Status.ClusterSize == nil {
-		return 0
-	}
-
-	allMembersReady := false
-	backupReady := false
-	for _, condition := range etcd.Status.Conditions {
-		if condition.Type == druidv1alpha1.ConditionTypeAllMembersReady &&
-			condition.Status == druidv1alpha1.ConditionStatus(druidv1alpha1.EtcdMemberStatusReady) {
-			allMembersReady = true
-			continue
-		}
-
-		if condition.Type == druidv1alpha1.ConditionTypeBackupReady &&
-			condition.Status == druidv1alpha1.ConditionTrue {
-			backupReady = true
-			continue
-		}
-	}
-
-	clusterSize := *etcd.Status.ClusterSize
-	values := make([]int32, int32(math.Floor(float64(clusterSize)/float64(2))+1))
-
-	if !allMembersReady {
-		values = append(values, etcd.Status.ReadyReplicas)
-	}
-
-	if backupReady {
-		values = append(values, clusterSize)
-	}
-
-	// calculate max value
-	max := values[0]
-	for i := 1; i < len(values); i++ {
-		if values[i] > max {
-			max = values[i]
-		}
-	}
-
-	return max
-}
-
 func (r *EtcdReconciler) reconcilePodDisruptionBudget(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*policyv1.PodDisruptionBudget, error) {
 	logger.Info("Reconcile PodDisruptionBudget")
 
 	var pdb policyv1.PodDisruptionBudget
-	err := r.Get(ctx, types.NamespacedName{Name: getPodDisruptionBudgetName(etcd), Namespace: etcd.Namespace}, &pdb)
-
-	// only enable pdb in cluster mode
-	if etcd.Spec.Replicas < 2 {
-		if err != nil {
-			return nil, nil
-		}
-
-		err := r.Delete(ctx, &pdb, client.PropagationPolicy(metav1.DeletePropagationForeground))
-		return nil, err
-	}
-
-	values["pdb"].(map[string]interface{})["minAvailable"] = calculatePDBminAvailable(etcd)
+	err := r.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, &pdb)
 
 	if err == nil {
-		// pdb already exists
-		selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
-		if err != nil {
-			logger.Error(err, "Error converting etcd selector to selector")
-			return nil, err
-		}
+		// pdb already exists, sync it
+		return r.syncPodDisruptionBudgetSpec(ctx, etcd, values, logger)
+	}
 
-		logger.Info("Claiming pdb object")
-		claimedPdb, err := r.claimPodDisruptionBudget(ctx, etcd, selector, &pdb)
-		if err != nil {
-			return nil, err
-		}
-
-		if _, err = r.syncPodDisruptionBudgetSpec(ctx, claimedPdb, etcd, values, logger); err != nil {
-			return nil, err
-		}
-
-		return claimedPdb, err
+	if !apierrors.IsNotFound(err) {
+		return nil, err
 	}
 
 	{
@@ -685,38 +622,77 @@ func (r *EtcdReconciler) reconcilePodDisruptionBudget(ctx context.Context, logge
 		}
 
 		logger.Info("Creating PodDisruptionBudget", "poddisruptionbudget", kutil.Key(pdb.Namespace, pdb.Name).String())
-		err = r.Create(ctx, pdb)
-
-		if err != nil {
+		if err := r.Create(ctx, pdb); err != nil {
 			return nil, err
 		}
 
-		return pdb, err
+		return pdb, nil
 	}
 }
 
-func (r *EtcdReconciler) syncPodDisruptionBudgetSpec(ctx context.Context, pdb *policyv1.PodDisruptionBudget, etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*policyv1.PodDisruptionBudget, error) {
-	decoded, err := r.getPodDisruptionBudgetFromEtcd(etcd, values, logger)
+func parseAnnotation(obj *policyv1.PodDisruptionBudget, annotation string) int {
+	if v, ok := obj.Annotations[annotation]; ok {
+		if parsed, err := strconv.Atoi(v); err != nil {
+			return parsed
+		}
+	}
+
+	return 0
+}
+
+func (r *EtcdReconciler) syncPodDisruptionBudgetSpec(ctx context.Context, etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*policyv1.PodDisruptionBudget, error) {
+	pdb := &policyv1.PodDisruptionBudget{}
+	var err error
+
+	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 	if err != nil {
+		logger.Error(err, "Error converting etcd selector to selector")
 		return nil, err
 	}
-
-	if reflect.DeepEqual(pdb.Spec, decoded.Spec) {
-		return pdb, nil
-	}
-
-	pdbCopy := pdb.DeepCopy()
-	pdbCopy.Spec = decoded.Spec
 
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		return r.Patch(ctx, pdbCopy, client.MergeFrom(pdb))
+		err := r.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, pdb)
+		if err != nil {
+			return err
+		}
+
+		logger.Info("Claiming pdb object")
+		claimedPdb, err := r.claimPodDisruptionBudget(ctx, etcd, selector, pdb)
+		if err != nil {
+			return err
+		}
+
+		controllerMinAvailable := parseAnnotation(claimedPdb, ControllerMinAvailableAnnotation)
+		custodianMinAvailable := parseAnnotation(claimedPdb, CustodianMinAvailableAnnotation)
+
+		// calculate new minAvailable
+		newValue := 0
+		if etcd.Spec.Replicas > 1 && etcd.Status.ClusterSize != nil {
+			clusterSize := *etcd.Status.ClusterSize
+			newValue = int(math.Floor(float64(clusterSize)/float64(2)) + 1)
+		}
+
+		// determine the maximum minAvailable value
+		maxValue := newValue
+		if custodianMinAvailable > maxValue {
+			maxValue = custodianMinAvailable
+		}
+
+		if controllerMinAvailable == newValue &&
+			claimedPdb.Spec.MinAvailable.IntValue() == maxValue {
+			// do not update, nothing changed
+			pdb = claimedPdb
+			return nil
+		}
+
+		// update fields
+		converted := intstr.FromInt(maxValue)
+		claimedPdb.Spec.MinAvailable = &converted
+		claimedPdb.Annotations[ControllerMinAvailableAnnotation] = strconv.Itoa(maxValue)
+		return r.Update(ctx, claimedPdb)
 	})
 
-	if err != nil {
-		return nil, err
-	}
-
-	return pdbCopy, err
+	return pdb, err
 }
 
 func (r *EtcdReconciler) getPodDisruptionBudgetFromEtcd(etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*policyv1.PodDisruptionBudget, error) {
@@ -1319,11 +1295,6 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		sharedConfigValues["autoCompactionRetention"] = etcd.Spec.Common.AutoCompactionRetention
 	}
 
-	pdbValues := map[string]interface{}{
-		"name":         getPodDisruptionBudgetName(etcd),
-		"minAvailable": 0,
-	}
-
 	values := map[string]interface{}{
 		"name":                    etcd.Name,
 		"uid":                     etcd.UID,
@@ -1338,7 +1309,6 @@ func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd) (map[string]in
 		"serviceName":             fmt.Sprintf("%s-client", etcd.Name),
 		"configMapName":           fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
 		"cronJobName":             getCronJobName(etcd),
-		"pdb":                     pdbValues,
 		"volumeClaimTemplateName": volumeClaimTemplateName,
 	}
 
@@ -1677,10 +1647,6 @@ func (r *EtcdReconciler) SetupWithManager(mgr ctrl.Manager, workers int, ignoreO
 
 func getCronJobName(etcd *druidv1alpha1.Etcd) string {
 	return fmt.Sprintf("%s-compact-backup", etcd.Name)
-}
-
-func getPodDisruptionBudgetName(etcd *druidv1alpha1.Etcd) string {
-	return fmt.Sprintf("%s-pod-disruption-budget", etcd.Name)
 }
 
 func buildPredicate(ignoreOperationAnnotation bool) predicate.Predicate {
