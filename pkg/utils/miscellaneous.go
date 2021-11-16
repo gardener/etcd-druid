@@ -153,6 +153,25 @@ func Key(namespaceOrName string, nameOpt ...string) client.ObjectKey {
 	return client.ObjectKey{Namespace: namespace, Name: name}
 }
 
+// GetStoreValues converts the values in the StoreSpec to a map, or returns an error if the storage provider is unsupported.
+func GetStoreValues(store *druidv1alpha1.StoreSpec) (map[string]interface{}, error) {
+	storageProvider, err := StorageProviderFromInfraProvider(store.Provider)
+	if err != nil {
+		return nil, err
+	}
+	storeValues := map[string]interface{}{
+		"storePrefix":     store.Prefix,
+		"storageProvider": storageProvider,
+	}
+	if store.Container != nil {
+		storeValues["storageContainer"] = store.Container
+	}
+	if store.SecretRef != nil {
+		storeValues["storeSecret"] = store.SecretRef.Name
+	}
+	return storeValues, nil
+}
+
 // StorageProviderFromInfraProvider converts infra to object store provider.
 func StorageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) (string, error) {
 	if infra == nil || len(*infra) == 0 {

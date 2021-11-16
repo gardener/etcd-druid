@@ -45,6 +45,7 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
+      serviceAccountName: {{ .Values.serviceAccountName }}
       containers:
       - name: etcd
         image: {{ .Values.etcd.image }}
@@ -115,6 +116,11 @@ spec:
         command:
         - etcdbrctl
         - server
+{{- if and .Values.backup.fullSnapLeaseName .Values.backup.deltaSnapLeaseName }}
+        - --enable-snapshot-lease-renewal=true
+        - --delta-snapshot-lease-name={{ .Values.backup.deltaSnapLeaseName }}
+        - --full-snapshot-lease-name={{ .Values.backup.fullSnapLeaseName }}
+{{- end }}
 {{- if .Values.etcd.defragmentationSchedule }}
         - --defragmentation-schedule={{ .Values.etcd.defragmentationSchedule }}
 {{- end }}
@@ -175,6 +181,19 @@ spec:
         - --compression-policy={{ .Values.backup.compression.policy }}
         {{- end }}
 {{- end }}
+{{- if .Values.backup.ownerCheck }}
+        - --owner-name={{ .Values.backup.ownerCheck.name }}
+        - --owner-id={{ .Values.backup.ownerCheck.id }}
+        {{- if .Values.backup.ownerCheck.interval }}
+        - --owner-check-interval={{ .Values.backup.ownerCheck.interval }}
+        {{- end }}
+        {{- if .Values.backup.ownerCheck.timeout }}
+        - --owner-check-timeout={{ .Values.backup.ownerCheck.timeout }}
+        {{- end }}
+        {{- if .Values.backup.ownerCheck.dnsCacheTTL }}
+        - --owner-check-dns-cache-ttl={{ .Values.backup.ownerCheck.dnsCacheTTL }}
+        {{- end }}
+{{- end }}
 {{- if .Values.sharedConfig }}
         {{- if .Values.sharedConfig.autoCompactionMode }}
         - --auto-compaction-mode={{ .Values.sharedConfig.autoCompactionMode }}
@@ -190,6 +209,7 @@ spec:
         - --etcd-defrag-timeout={{ .Values.etcd.etcdDefragTimeout }}
 {{- end }}
         - --snapstore-temp-directory={{ .Values.backup.snapstoreTempDir }}
+        - --etcd-process-name=etcd
         image: {{ .Values.backup.image }}
         imagePullPolicy: {{ .Values.backup.pullPolicy }}
         ports:
@@ -201,6 +221,14 @@ spec:
         env:
         - name: STORAGE_CONTAINER
           value: {{ .Values.store.storageContainer }}
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
 {{- if eq .Values.store.storageProvider "S3" }}
         - name: "AWS_REGION"
           valueFrom:
@@ -340,6 +368,11 @@ spec:
         - name: etcd-backup
           mountPath: "/root/.gcp/"
 {{- end }}
+        securityContext:
+          capabilities:
+            add:
+            - SYS_PTRACE
+      shareProcessNamespace: true
       volumes:
       - name: etcd-config-file
         configMap:
