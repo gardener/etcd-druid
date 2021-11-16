@@ -44,7 +44,11 @@ import (
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 )
 
-const DefaultETCDQuota = 8 * 1024 * 1024 * 1024 // 8Gi
+const (
+	// DefaultETCDQuota is the default etcd quota.
+	DefaultETCDQuota = 8 * 1024 * 1024 * 1024 // 8Gi
+)
+
 // CompactionLeaseController reconciles compaction job
 type CompactionLeaseController struct {
 	client.Client
@@ -104,17 +108,15 @@ func (lc *CompactionLeaseController) Reconcile(ctx context.Context, req ctrl.Req
 		return lc.delete(ctx, lc.logger, etcd)
 	}
 
-	logger := lc.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
-
-	// Get delta snapshot lease to check the HolderIdentity value to take decision on compaction job
-	nsName := types.NamespacedName{
-		Name:      getFullSnapshotLeaseName(etcd),
-		Namespace: etcd.Namespace,
+	if etcd.Spec.Backup.Store == nil {
+		return ctrl.Result{}, nil
 	}
 
+	logger := lc.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
+
+	// Get full and delta snapshot lease to check the HolderIdentity value to take decision on compaction job
 	fullLease := &coordinationv1.Lease{}
-	err := lc.Get(ctx, nsName, fullLease)
-	if err != nil {
+	if err := lc.Get(ctx, kutil.Key(etcd.Namespace, getFullSnapshotLeaseName(etcd)), fullLease); err != nil {
 		logger.Info("Couldn't fetch full snap lease because: " + err.Error())
 
 		return ctrl.Result{
@@ -122,14 +124,8 @@ func (lc *CompactionLeaseController) Reconcile(ctx context.Context, req ctrl.Req
 		}, err
 	}
 
-	nsName = types.NamespacedName{
-		Name:      getDeltaSnapshotLeaseName(etcd),
-		Namespace: etcd.Namespace,
-	}
-
 	deltaLease := &coordinationv1.Lease{}
-	err = lc.Get(ctx, nsName, deltaLease)
-	if err != nil {
+	if err := lc.Get(ctx, kutil.Key(etcd.Namespace, getDeltaSnapshotLeaseName(etcd)), deltaLease); err != nil {
 		logger.Info("Couldn't fetch delta snap lease because: " + err.Error())
 
 		return ctrl.Result{
@@ -137,35 +133,36 @@ func (lc *CompactionLeaseController) Reconcile(ctx context.Context, req ctrl.Req
 		}, err
 	}
 
-	// Run compaction job
-	if etcd.Spec.Backup.Store != nil {
-		full, err := strconv.ParseInt(*fullLease.Spec.HolderIdentity, 10, 64)
-		if err != nil {
-			logger.Error(err, "Can't convert holder identity of full snap lease to integer")
-			return ctrl.Result{
-				RequeueAfter: 10 * time.Second,
-			}, err
-		}
-
-		delta, err := strconv.ParseInt(*deltaLease.Spec.HolderIdentity, 10, 64)
-		if err != nil {
-			logger.Error(err, "Can't convert holder identity of delta snap lease to integer")
-			return ctrl.Result{
-				RequeueAfter: 10 * time.Second,
-			}, err
-		}
-
-		diff := delta - full
-
-		// Reconcile job only when number of accumulated revisions over the last full snapshot is more than the configured threshold value via 'events-threshold' flag
-		if diff >= lc.config.EventsThreshold {
-			return lc.reconcileJob(ctx, logger, etcd)
-		}
+	// Revisions have not been set yet by etcd-back-restore container.
+	// Skip further processing as we cannot calculate a revision delta.
+	if fullLease.Spec.HolderIdentity == nil || deltaLease.Spec.HolderIdentity == nil {
+		return ctrl.Result{}, nil
 	}
 
-	return ctrl.Result{
-		Requeue: false,
-	}, nil
+	full, err := strconv.ParseInt(*fullLease.Spec.HolderIdentity, 10, 64)
+	if err != nil {
+		logger.Error(err, "Can't convert holder identity of full snap lease to integer")
+		return ctrl.Result{
+			RequeueAfter: 10 * time.Second,
+		}, err
+	}
+
+	delta, err := strconv.ParseInt(*deltaLease.Spec.HolderIdentity, 10, 64)
+	if err != nil {
+		logger.Error(err, "Can't convert holder identity of delta snap lease to integer")
+		return ctrl.Result{
+			RequeueAfter: 10 * time.Second,
+		}, err
+	}
+
+	diff := delta - full
+
+	// Reconcile job only when number of accumulated revisions over the last full snapshot is more than the configured threshold value via 'events-threshold' flag
+	if diff >= lc.config.EventsThreshold {
+		return lc.reconcileJob(ctx, logger, etcd)
+	}
+
+	return ctrl.Result{}, nil
 }
 
 func (lc *CompactionLeaseController) reconcileJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
@@ -181,13 +178,16 @@ func (lc *CompactionLeaseController) reconcileJob(ctx context.Context, logger lo
 				RequeueAfter: 10 * time.Second,
 			}, fmt.Errorf("error while fetching compaction job: %v", err)
 		}
-		// Required job doesn't exist. Create new
-		job, err = lc.createCompactJob(ctx, logger, etcd)
-		logger.Info("Job Creation")
-		if err != nil {
-			return ctrl.Result{
-				RequeueAfter: 10 * time.Second,
-			}, fmt.Errorf("error during compaction job creation: %v", err)
+
+		if lc.config.CompactionEnabled {
+			// Required job doesn't exist. Create new
+			job, err = lc.createCompactJob(ctx, logger, etcd)
+			logger.Info("Job Creation")
+			if err != nil {
+				return ctrl.Result{
+					RequeueAfter: 10 * time.Second,
+				}, fmt.Errorf("error during compaction job creation: %v", err)
+			}
 		}
 	}
 
@@ -536,9 +536,11 @@ func (lc *CompactionLeaseController) SetupWithManager(mgr ctrl.Manager, workers 
 		MaxConcurrentReconciles: workers,
 	})
 
-	builder = builder.WithEventFilter(buildPredicateForLC()).For(&druidv1alpha1.Etcd{})
-	builder = builder.Owns(&coordinationv1.Lease{})
-	return builder.Complete(lc)
+	return builder.
+		For(&druidv1alpha1.Etcd{}).
+		Owns(&coordinationv1.Lease{}).
+		WithEventFilter(buildPredicateForLC()).
+		Complete(lc)
 }
 
 func buildPredicateForLC() predicate.Predicate {

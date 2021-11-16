@@ -52,6 +52,7 @@ func main() {
 	var (
 		metricsAddr                string
 		enableLeaderElection       bool
+		enableBackupCompaction     bool
 		leaderElectionID           string
 		leaderElectionResourceLock string
 		etcdWorkers                int
@@ -75,6 +76,8 @@ func main() {
 	flag.IntVar(&custodianWorkers, "custodian-workers", 3, "Number of worker threads of the custodian controller.")
 	flag.IntVar(&etcdCopyBackupsTaskWorkers, "etcd-copy-backups-task-workers", 3, "Number of worker threads of the EtcdCopyBackupsTask controller.")
 	flag.DurationVar(&custodianSyncPeriod, "custodian-sync-period", 30*time.Second, "Sync period of the custodian controller.")
+	flag.BoolVar(&enableBackupCompaction, "enable-backup-compaction", false,
+		"Enable automatic compaction of etcd backups.")
 	flag.IntVar(&compactionWorkers, "compaction-workers", 3, "Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. Setting this flag to 0 disabled the controller.")
 	flag.Int64Var(&eventsThreshold, "etcd-events-threshold", 1000000, "Total number of etcd events that can be allowed before a backup compaction job is triggered.")
 	flag.DurationVar(&activeDeadlineDuration, "active-deadline-duration", 3*time.Hour, "Duration after which a running backup compaction job will be killed (Ex: \"300ms\", \"20s\", \"-1.5h\" or \"2h45m\").")
@@ -148,6 +151,7 @@ func main() {
 	}
 
 	lc, err := controllers.NewCompactionLeaseControllerWithImageVector(mgr, controllersconfig.CompactionLeaseConfig{
+		CompactionEnabled:      enableBackupCompaction,
 		EventsThreshold:        eventsThreshold,
 		ActiveDeadlineDuration: activeDeadlineDuration,
 	})

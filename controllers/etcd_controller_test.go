@@ -165,15 +165,15 @@ func accessModeIterator(element interface{}) string {
 }
 
 func cmdIterator(element interface{}) string {
-	return string(element.(string))
+	return element.(string)
 }
 
 func ruleIterator(element interface{}) string {
-	return string(element.(rbac.PolicyRule).APIGroups[0])
+	return element.(rbac.PolicyRule).APIGroups[0]
 }
 
 func stringArrayIterator(element interface{}) string {
-	return string(element.(string))
+	return element.(string)
 }
 
 var _ = Describe("Druid", func() {
@@ -767,7 +767,7 @@ var _ = Describe("Cron Job", func() {
 func validateRole(instance *druidv1alpha1.Etcd, role *rbac.Role) {
 	Expect(*role).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(fmt.Sprintf("%s-br-role", instance.Name)),
+			"Name":      Equal(fmt.Sprintf("druid.gardener.cloud:etcd:%s", instance.Name)),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchKeys(IgnoreExtras, Keys{
 				"name":     Equal("etcd"),
@@ -1450,6 +1450,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								"--snapstore-temp-directory=/var/etcd/data/temp": Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
 								"--etcd-process-name=etcd":                       Equal("--etcd-process-name=etcd"),
 								"--etcd-connection-timeout=5m":                   Equal("--etcd-connection-timeout=5m"),
+								"--enable-snapshot-lease-renewal=true":           Equal("--enable-snapshot-lease-renewal=true"),
 								fmt.Sprintf("--defragmentation-schedule=%s", *instance.Spec.Etcd.DefragmentationSchedule):                           Equal(fmt.Sprintf("--defragmentation-schedule=%s", *instance.Spec.Etcd.DefragmentationSchedule)),
 								fmt.Sprintf("--schedule=%s", *instance.Spec.Backup.FullSnapshotSchedule):                                            Equal(fmt.Sprintf("--schedule=%s", *instance.Spec.Backup.FullSnapshotSchedule)),
 								fmt.Sprintf("%s=%s", "--garbage-collection-policy", *instance.Spec.Backup.GarbageCollectionPolicy):                  Equal(fmt.Sprintf("%s=%s", "--garbage-collection-policy", *instance.Spec.Backup.GarbageCollectionPolicy)),
@@ -1470,6 +1471,8 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								fmt.Sprintf("%s=%s", "--owner-check-interval", instance.Spec.Backup.OwnerCheck.Interval.Duration.String()):          Equal(fmt.Sprintf("%s=%s", "--owner-check-interval", instance.Spec.Backup.OwnerCheck.Interval.Duration.String())),
 								fmt.Sprintf("%s=%s", "--owner-check-timeout", instance.Spec.Backup.OwnerCheck.Timeout.Duration.String()):            Equal(fmt.Sprintf("%s=%s", "--owner-check-timeout", instance.Spec.Backup.OwnerCheck.Timeout.Duration.String())),
 								fmt.Sprintf("%s=%s", "--owner-check-dns-cache-ttl", instance.Spec.Backup.OwnerCheck.DNSCacheTTL.Duration.String()):  Equal(fmt.Sprintf("%s=%s", "--owner-check-dns-cache-ttl", instance.Spec.Backup.OwnerCheck.DNSCacheTTL.Duration.String())),
+								fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", getDeltaSnapshotLeaseName(instance)):                            Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", getDeltaSnapshotLeaseName(instance))),
+								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", getFullSnapshotLeaseName(instance)):                              Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", getFullSnapshotLeaseName(instance))),
 							}),
 							"Ports": ConsistOf([]corev1.ContainerPort{
 								corev1.ContainerPort{
@@ -2117,7 +2120,7 @@ func serviceAccountIsCorrectlyReconciled(c client.Client, instance *druidv1alpha
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	req := types.NamespacedName{
-		Name:      fmt.Sprintf("%s-br-serviceaccount", instance.Name),
+		Name:      instance.Name,
 		Namespace: instance.Namespace,
 	}
 
@@ -2131,7 +2134,7 @@ func roleIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, ro
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	req := types.NamespacedName{
-		Name:      fmt.Sprintf("%s-br-role", instance.Name),
+		Name:      fmt.Sprintf("druid.gardener.cloud:etcd:%s", instance.Name),
 		Namespace: instance.Namespace,
 	}
 
@@ -2145,7 +2148,7 @@ func roleBindingIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.E
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	req := types.NamespacedName{
-		Name:      fmt.Sprintf("%s-br-rolebinding", instance.Name),
+		Name:      fmt.Sprintf("druid.gardener.cloud:etcd:%s", instance.Name),
 		Namespace: instance.Namespace,
 	}
 

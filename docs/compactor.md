@@ -33,10 +33,11 @@ To help with the problem mentioned earlier, our proposal is to introduce `compac
 The newly introduced compact command does not disturb the running ETCD while compacting the backup snapshots. The command is designed to run potentially separately (from the main ETCD process/container/pod). ETCD Druid can be configured to run the newly introduced compact command as a separate job (scheduled periodically) based on total number of ETCD events accumulated after the most recent full snapshot.
 
 ### Druid flags:
-ETCD druid introduced following three flags to configure the compaction job:
-`compaction-workers` : If this flag is set to zero, no compaction job will be running. If it's set to any value greater than zero, druid controller will have that many threads to kickstart the compaction job.
-`etcd-events-threshold`: Set this flag with the value which will signify the number of ETCD events allowed after the most recent full snapshot. Once the number of ETCD events crosses the value mentioned in this flag, compaction job will be kickstarted. 
-`active-deadline-duration`: This flag signifies the maximum duration till which a compaction job won't be garbage-collected.
+ETCD druid introduced following flags to configure the compaction job:
+- `--enable-backup-compaction` (default `false`): Set this flag to `true` to enable the automatic compaction of etcd backups when `etcd-events-threshold` is exceeded.
+- `--compaction-workers` (default `3`): If this flag is set to zero, no compaction job will be running. If it's set to any value greater than zero, druid controller will have that many threads to kickstart the compaction job.
+- `--etcd-events-threshold` (default `1000000`): Set this flag with the value which will signify the number of ETCD events allowed after the most recent full snapshot. Once the number of ETCD events crosses the value mentioned in this flag, compaction job will be kickstarted. 
+- `--active-deadline-duration` (default `3h`): This flag signifies the maximum duration till which a compaction job won't be garbage-collected.
 
 ### **Points to take care while saving the compacted snapshot:**
 As compacted snapshot and the existing periodic full snapshots are taken by different processes running in different pods but accessing same store to save the snapshots, some problems may arise:

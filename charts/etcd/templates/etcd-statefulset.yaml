@@ -116,6 +116,11 @@ spec:
         command:
         - etcdbrctl
         - server
+{{- if and .Values.backup.fullSnapLeaseName .Values.backup.deltaSnapLeaseName }}
+        - --enable-snapshot-lease-renewal=true
+        - --delta-snapshot-lease-name={{ .Values.backup.deltaSnapLeaseName }}
+        - --full-snapshot-lease-name={{ .Values.backup.fullSnapLeaseName }}
+{{- end }}
 {{- if .Values.etcd.defragmentationSchedule }}
         - --defragmentation-schedule={{ .Values.etcd.defragmentationSchedule }}
 {{- end }}
