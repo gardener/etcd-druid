@@ -1530,6 +1530,7 @@ func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, op operation
 		if sts != nil {
 			ready := CheckStatefulSet(etcd, sts) == nil
 			etcd.Status.Ready = &ready
+			etcd.Status.Replicas = pointer.Int32PtrDerefOr(sts.Spec.Replicas, 0)
 
 			if op == bootstrapOp {
 				// Reset members in bootstrap phase to ensure dependent conditions can be calculated correctly.
@@ -1548,6 +1549,7 @@ func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, op operationResul
 		etcd.Status.ServiceName = &svcName
 		etcd.Status.LastError = nil
 		etcd.Status.ObservedGeneration = &etcd.Generation
+		etcd.Status.Replicas = pointer.Int32PtrDerefOr(sts.Spec.Replicas, 0)
 
 		if op == bootstrapOp {
 			// Reset members in bootstrap phase to ensure dependent conditions can be calculated correctly.
