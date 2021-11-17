@@ -1519,7 +1519,7 @@ func canDeleteStatefulset(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) boo
 
 func bootstrapReset(etcd *druidv1alpha1.Etcd) {
 	etcd.Status.Members = nil
-	etcd.Status.ClusterSize = pointer.Int32Ptr(int32(etcd.Spec.Replicas))
+	etcd.Status.ClusterSize = pointer.Int32Ptr(etcd.Spec.Replicas)
 }
 
 func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, op operationResult, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
@@ -1532,7 +1532,7 @@ func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, op operation
 			etcd.Status.Ready = &ready
 
 			if op == bootstrapOp {
-				// Reset members in bootstrap phase to ensure depending conditions can be calculated correctly.
+				// Reset members in bootstrap phase to ensure dependent conditions can be calculated correctly.
 				bootstrapReset(etcd)
 			}
 		}
@@ -1550,7 +1550,7 @@ func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, op operationResul
 		etcd.Status.ObservedGeneration = &etcd.Generation
 
 		if op == bootstrapOp {
-			// Reset members in bootstrap phase to ensure depending conditions can be calculated correctly.
+			// Reset members in bootstrap phase to ensure dependent conditions can be calculated correctly.
 			bootstrapReset(etcd)
 		}
 		return nil
