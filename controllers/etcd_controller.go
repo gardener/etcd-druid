@@ -25,7 +25,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
-	componentetcd "github.com/gardener/etcd-druid/pkg/component/etcd"
+	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
@@ -1089,14 +1089,18 @@ func (r *EtcdReconciler) reconcileRoleBinding(ctx context.Context, logger logr.L
 }
 
 func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (operationResult, *corev1.Service, *appsv1.StatefulSet, error) {
-	etcdDeployer := componentetcd.New(r.Client, etcd.Namespace, componentetcd.Values{
+	leaseDeployer := componentlease.New(r.Client, etcd.Namespace, componentlease.Values{
 		BackupEnabled: etcd.Spec.Backup.Store != nil,
 		EtcdName:      etcd.Name,
 		EtcdUID:       etcd.UID,
 		Replicas:      etcd.Spec.Replicas,
 	})
 
+<<<<<<< HEAD
 	values, err := r.getMapFromEtcd(r.ImageVector, etcd, etcdDeployer)
+=======
+	values, err := r.getMapFromEtcd(etcd, leaseDeployer)
+>>>>>>> bf09fa44 (Refactor to lease component)
 	if err != nil {
 		return noOp, nil, nil, err
 	}
@@ -1107,7 +1111,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		return noOp, nil, nil, err
 	}
 
-	if err := etcdDeployer.Deploy(ctx); err != nil {
+	if err := leaseDeployer.Deploy(ctx); err != nil {
 		return noOp, nil, nil, err
 	}
 
@@ -1178,7 +1182,11 @@ func checkEtcdAnnotations(annotations map[string]string, etcd metav1.Object) boo
 
 }
 
+<<<<<<< HEAD
 func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (map[string]interface{}, error) {
+=======
+func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd, deployer componentlease.Interface) (map[string]interface{}, error) {
+>>>>>>> bf09fa44 (Refactor to lease component)
 	var (
 		images map[string]*imagevector.Image
 		err    error

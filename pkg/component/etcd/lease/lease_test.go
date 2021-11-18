@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcd_test
+package lease_test
 
 import (
 	"context"
@@ -21,7 +21,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	"github.com/gardener/etcd-druid/pkg/common"
-	. "github.com/gardener/etcd-druid/pkg/component/etcd"
+	. "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo"
@@ -35,7 +35,7 @@ import (
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
-var _ = Describe("Etcd", func() {
+var _ = Describe("Lease", func() {
 	var (
 		ctx       context.Context
 		c         client.Client
