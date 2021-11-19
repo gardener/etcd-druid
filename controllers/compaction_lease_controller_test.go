@@ -21,7 +21,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
-	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -112,7 +111,7 @@ var _ = Describe("Lease Controller", func() {
 			// Verify if the job is created when difference between holder identities in delta-snapshot-revision and full-snapshot-revision is greater than 1M
 			fullLease := &coordinationv1.Lease{}
 			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(c, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
-			err = kutil.TryUpdate(context.TODO(), retry.DefaultBackoff, c, fullLease, func() error {
+			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, fullLease, func() error {
 				fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
 				renewedTime := time.Now()
 				fullLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
@@ -122,7 +121,7 @@ var _ = Describe("Lease Controller", func() {
 
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			err = kutil.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
+			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
 				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
 				renewedTime := time.Now()
 				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
@@ -190,7 +189,7 @@ var _ = Describe("Lease Controller", func() {
 			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, timeout, pollingInterval).Should(BeNil())
 
 			// Update job status as failed
-			err = kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, c, j, func() error {
+			err = controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, c, j, func() error {
 				j.Status.Failed = 1
 				return nil
 			})
@@ -199,7 +198,7 @@ var _ = Describe("Lease Controller", func() {
 			// Deliberately update the full lease
 			fullLease := &coordinationv1.Lease{}
 			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(c, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
-			err = kutil.TryUpdate(context.TODO(), retry.DefaultBackoff, c, fullLease, func() error {
+			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, fullLease, func() error {
 				fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
 				renewedTime := time.Now()
 				fullLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
@@ -209,7 +208,7 @@ var _ = Describe("Lease Controller", func() {
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			err = kutil.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
+			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
 				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
 				renewedTime := time.Now()
 				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
@@ -266,7 +265,7 @@ var _ = Describe("Lease Controller", func() {
 			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, timeout, pollingInterval).Should(BeNil())
 
 			// Update job status as succeeded
-			err = kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, c, j, func() error {
+			err = controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, c, j, func() error {
 				j.Status.Succeeded = 1
 				return nil
 			})
@@ -275,7 +274,7 @@ var _ = Describe("Lease Controller", func() {
 			// Deliberately update the full lease
 			fullLease := &coordinationv1.Lease{}
 			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(c, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
-			err = kutil.TryUpdate(context.TODO(), retry.DefaultBackoff, c, fullLease, func() error {
+			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, fullLease, func() error {
 				fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
 				renewedTime := time.Now()
 				fullLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
@@ -295,7 +294,7 @@ var _ = Describe("Lease Controller", func() {
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			err = kutil.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
+			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
 				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
 				renewedTime := time.Now()
 				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
@@ -348,7 +347,7 @@ var _ = Describe("Lease Controller", func() {
 			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, timeout, pollingInterval).Should(BeNil())
 
 			// Update job status as active
-			err = kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, c, j, func() error {
+			err = controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, c, j, func() error {
 				j.Status.Active = 1
 				return nil
 			})
@@ -357,7 +356,7 @@ var _ = Describe("Lease Controller", func() {
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			err = kutil.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
+			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
 				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
 				renewedTime := time.Now()
 				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}

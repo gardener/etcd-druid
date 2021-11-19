@@ -20,22 +20,22 @@ import (
 	"strings"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-
-	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
+	certificatesv1 "k8s.io/api/certificates/v1"
 )
 
 const (
-	seedNamespaceNamePrefix = "seed-"
+	// SeedNamespaceNamePrefix is the prefix used for seed namespaces.
+	SeedNamespaceNamePrefix = "seed-"
 )
 
 // ComputeGardenNamespace returns the name of the namespace belonging to the given seed in the Garden cluster.
 func ComputeGardenNamespace(seedName string) string {
-	return seedNamespaceNamePrefix + seedName
+	return SeedNamespaceNamePrefix + seedName
 }
 
 // ComputeSeedName computes the name of the seed out of the seed namespace in the Garden cluster.
 func ComputeSeedName(seedNamespaceName string) string {
-	seedName := strings.TrimPrefix(seedNamespaceName, seedNamespaceNamePrefix)
+	seedName := strings.TrimPrefix(seedNamespaceName, SeedNamespaceNamePrefix)
 	if seedName == seedNamespaceName {
 		return ""
 	}
@@ -44,7 +44,7 @@ func ComputeSeedName(seedNamespaceName string) string {
 
 // IsSeedClientCert returns true when the given CSR and usages match the requirements for a client certificate for a
 // seed.
-func IsSeedClientCert(x509cr *x509.CertificateRequest, usages []certificatesv1beta1.KeyUsage) bool {
+func IsSeedClientCert(x509cr *x509.CertificateRequest, usages []certificatesv1.KeyUsage) bool {
 	if !reflect.DeepEqual([]string{v1beta1constants.SeedsGroup}, x509cr.Subject.Organization) {
 		return false
 	}
@@ -53,10 +53,10 @@ func IsSeedClientCert(x509cr *x509.CertificateRequest, usages []certificatesv1be
 		return false
 	}
 
-	if !hasExactUsages(usages, []certificatesv1beta1.KeyUsage{
-		certificatesv1beta1.UsageKeyEncipherment,
-		certificatesv1beta1.UsageDigitalSignature,
-		certificatesv1beta1.UsageClientAuth,
+	if !hasExactUsages(usages, []certificatesv1.KeyUsage{
+		certificatesv1.UsageKeyEncipherment,
+		certificatesv1.UsageDigitalSignature,
+		certificatesv1.UsageClientAuth,
 	}) {
 		return false
 	}
@@ -64,12 +64,12 @@ func IsSeedClientCert(x509cr *x509.CertificateRequest, usages []certificatesv1be
 	return strings.HasPrefix(x509cr.Subject.CommonName, v1beta1constants.SeedUserNamePrefix)
 }
 
-func hasExactUsages(usages, requiredUsages []certificatesv1beta1.KeyUsage) bool {
+func hasExactUsages(usages, requiredUsages []certificatesv1.KeyUsage) bool {
 	if len(requiredUsages) != len(usages) {
 		return false
 	}
 
-	usageMap := map[certificatesv1beta1.KeyUsage]struct{}{}
+	usageMap := map[certificatesv1.KeyUsage]struct{}{}
 	for _, u := range usages {
 		usageMap[u] = struct{}{}
 	}

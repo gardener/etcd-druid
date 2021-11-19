@@ -1,3 +1,4 @@
+//go:build tools
 // +build tools
 
 // Copyright (c) 2019 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
@@ -19,11 +20,12 @@ package tools
 
 import (
 	_ "github.com/ahmetb/gen-crd-api-reference-docs"
+	_ "github.com/bronze1man/yaml2json"
 	_ "github.com/golang/mock/mockgen"
-	_ "github.com/onsi/ginkgo/ginkgo"
-	_ "golang.org/x/lint/golint"
+	_ "golang.org/x/tools/cmd/goimports"
 	_ "k8s.io/code-generator"
 	_ "k8s.io/code-generator/cmd/go-to-protobuf/protoc-gen-gogo"
 	_ "k8s.io/kube-openapi/cmd/openapi-gen"
+	_ "sigs.k8s.io/controller-runtime/tools/setup-envtest"
 	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
 )

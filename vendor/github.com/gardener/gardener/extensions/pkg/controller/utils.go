@@ -19,13 +19,13 @@ import (
 	"fmt"
 	"reflect"
 
-	controllererror "github.com/gardener/gardener/extensions/pkg/controller/error"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	"github.com/gardener/gardener/pkg/controllerutils"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 
-	resourcemanagerv1alpha1 "github.com/gardener/gardener-resource-manager/pkg/apis/resources/v1alpha1"
+	resourcesv1alpha1 "github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,14 +36,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 var (
 	localSchemeBuilder = runtime.NewSchemeBuilder(
 		scheme.AddToScheme,
 		extensionsv1alpha1.AddToScheme,
-		resourcemanagerv1alpha1.AddToScheme,
+		resourcesv1alpha1.AddToScheme,
 	)
 
 	// AddToScheme adds the Kubernetes and extension scheme to the given scheme.
@@ -56,32 +55,6 @@ var (
 
 func init() {
 	utilruntime.Must(AddToScheme(ExtensionsScheme))
-}
-
-// ReconcileErr returns a reconcile.Result or an error, depending on whether the error is a
-// RequeueAfterError or not.
-func ReconcileErr(err error) (reconcile.Result, error) {
-	if requeueAfter, ok := err.(*controllererror.RequeueAfterError); ok {
-		return reconcile.Result{Requeue: true, RequeueAfter: requeueAfter.RequeueAfter}, nil
-	}
-	return reconcile.Result{}, err
-}
-
-// ReconcileErrCause returns the cause in case the error is an RequeueAfterError. Otherwise,
-// it returns the input error.
-func ReconcileErrCause(err error) error {
-	if requeueAfter, ok := err.(*controllererror.RequeueAfterError); ok {
-		return requeueAfter.Cause
-	}
-	return err
-}
-
-// ReconcileErrCauseOrErr returns the cause of the error or the error if the cause is nil.
-func ReconcileErrCauseOrErr(err error) error {
-	if cause := ReconcileErrCause(err); cause != nil {
-		return cause
-	}
-	return err
 }
 
 // AddToManagerBuilder aggregates various AddToManager functions.
@@ -112,7 +85,7 @@ func (a *AddToManagerBuilder) AddToManager(m manager.Manager) error {
 
 // DeleteAllFinalizers removes all finalizers from the object and issues an  update.
 func DeleteAllFinalizers(ctx context.Context, client client.Client, obj client.Object) error {
-	return TryUpdate(ctx, retry.DefaultBackoff, client, obj, func() error {
+	return controllerutils.TryUpdate(ctx, retry.DefaultBackoff, client, obj, func() error {
 		obj.SetFinalizers(nil)
 		return nil
 	})
@@ -120,22 +93,6 @@ func DeleteAllFinalizers(ctx context.Context, client client.Client, obj client.O
 
 // GetSecretByReference returns the Secret object matching the given SecretReference.
 var GetSecretByReference = kutil.GetSecretByReference
-
-// TryPatch tries to apply the given transformation function onto the given object, and to patch it afterwards with optimistic locking.
-// It retries the patch with an exponential backoff.
-var TryPatch = kutil.TryPatch
-
-// TryPatchStatus tries to apply the given transformation function onto the given object, and to patch its
-// status afterwards with optimistic locking. It retries the status patch with an exponential backoff.
-var TryPatchStatus = kutil.TryPatchStatus
-
-// TryUpdate tries to apply the given transformation function onto the given object, and to update it afterwards.
-// It retries the update with an exponential backoff.
-var TryUpdate = kutil.TryUpdate
-
-// TryUpdateStatus tries to apply the given transformation function onto the given object, and to update its
-// status afterwards. It retries the status update with an exponential backoff.
-var TryUpdateStatus = kutil.TryUpdateStatus
 
 // WatchBuilder holds various functions which add watch controls to the passed Controller.
 type WatchBuilder []func(controller.Controller) error
@@ -184,7 +141,7 @@ func GetVerticalPodAutoscalerObject() *unstructured.Unstructured {
 
 // RemoveAnnotation removes an annotation key passed as annotation
 func RemoveAnnotation(ctx context.Context, c client.Client, obj client.Object, annotation string) error {
-	withAnnotation := obj.DeepCopyObject()
+	withAnnotation := obj.DeepCopyObject().(client.Object)
 
 	annotations := obj.GetAnnotations()
 	delete(annotations, annotation)
@@ -199,6 +156,11 @@ func IsMigrated(obj extensionsv1alpha1.Object) bool {
 	return lastOp != nil &&
 		lastOp.Type == gardencorev1beta1.LastOperationTypeMigrate &&
 		lastOp.State == gardencorev1beta1.LastOperationStateSucceeded
+}
+
+// ShouldSkipOperation checks if the current operation should be skipped depending on the lastOperation of the extension object.
+func ShouldSkipOperation(operationType gardencorev1beta1.LastOperationType, obj extensionsv1alpha1.Object) bool {
+	return operationType != gardencorev1beta1.LastOperationTypeMigrate && operationType != gardencorev1beta1.LastOperationTypeRestore && IsMigrated(obj)
 }
 
 // GetObjectByReference gets an object by the given reference, in the given namespace.

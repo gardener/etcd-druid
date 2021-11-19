@@ -26,6 +26,9 @@ const (
 	// DNSDomain is the key for an annotation on a Kubernetes Secret object whose value must point to a valid
 	// domain name.
 	DNSDomain = "dns.gardener.cloud/domain"
+	// DNSZone is the key for an annotation on a Kubernetes Secret object whose value must point to a valid
+	// DNS hosted zone id.
+	DNSZone = "dns.gardener.cloud/zone"
 	// DNSIncludeZones is the key for an annotation on a Kubernetes Secret object whose value must point to a list
 	// of zones that shall be included.
 	DNSIncludeZones = "dns.gardener.cloud/include-zones"
@@ -37,6 +40,10 @@ const (
 	// a Shoot cluster. For example, when a Shoot specifies domain 'cluster.example.com', the apiserver domain would be
 	// 'api.cluster.example.com'.
 	APIServerFQDNPrefix = "api"
+	// OwnerFQDNPrefix is the part of a FQDN which will be used to construct the domain name for the owner of
+	// a Shoot cluster. For example, when a Shoot specifies domain 'cluster.example.com', the owner domain would be
+	// 'owner.cluster.example.com'.
+	OwnerFQDNPrefix = "owner"
 	// IngressPrefix is the part of a FQDN which will be used to construct the domain name for an ingress controller of
 	// a Shoot cluster. For example, when a Shoot specifies domain 'cluster.example.com', the ingress domain would be
 	// '*.<IngressPrefix>.cluster.example.com'.
@@ -47,10 +54,10 @@ const (
 	InternalDomainKey = "internal"
 )
 
-// GetDomainInfoFromAnnotations returns the provider and the domain that is specified in the given annotations.
-func GetDomainInfoFromAnnotations(annotations map[string]string) (provider string, domain string, includeZones, excludeZones []string, err error) {
+// GetDomainInfoFromAnnotations returns the provider, domain, and zones that are specified in the given annotations.
+func GetDomainInfoFromAnnotations(annotations map[string]string) (provider string, domain string, zone string, includeZones, excludeZones []string, err error) {
 	if annotations == nil {
-		return "", "", nil, nil, fmt.Errorf("domain secret has no annotations")
+		return "", "", "", nil, nil, fmt.Errorf("domain secret has no annotations")
 	}
 
 	if providerAnnotation, ok := annotations[DNSProvider]; ok {
@@ -61,6 +68,10 @@ func GetDomainInfoFromAnnotations(annotations map[string]string) (provider strin
 		domain = domainAnnotation
 	}
 
+	if zoneAnnotation, ok := annotations[DNSZone]; ok {
+		zone = zoneAnnotation
+	}
+
 	if includeZonesAnnotation, ok := annotations[DNSIncludeZones]; ok {
 		includeZones = strings.Split(includeZonesAnnotation, ",")
 	}
@@ -69,19 +80,25 @@ func GetDomainInfoFromAnnotations(annotations map[string]string) (provider strin
 	}
 
 	if len(domain) == 0 {
-		return "", "", nil, nil, fmt.Errorf("missing dns domain annotation on domain secret")
+		return "", "", "", nil, nil, fmt.Errorf("missing dns domain annotation on domain secret")
 	}
 	if len(provider) == 0 {
-		return "", "", nil, nil, fmt.Errorf("missing dns provider annotation on domain secret")
+		return "", "", "", nil, nil, fmt.Errorf("missing dns provider annotation on domain secret")
 	}
 
 	return
 }
 
-// GetAPIServerDomain returns the fully qualified domain name of for the api-server for the Shoot cluster. The
+// GetAPIServerDomain returns the fully qualified domain name for the api-server of the Shoot cluster. The
 // end result is 'api.<domain>'.
 func GetAPIServerDomain(domain string) string {
 	return fmt.Sprintf("%s.%s", APIServerFQDNPrefix, domain)
+}
+
+// GetOwnerDomain returns the fully qualified domain name for the owner of the Shoot cluster. The
+// end result is 'owner.<domain>'.
+func GetOwnerDomain(domain string) string {
+	return fmt.Sprintf("%s.%s", OwnerFQDNPrefix, domain)
 }
 
 // GenerateDNSProviderName creates a name for the dns provider out of the passed `secretName` and `providerType`.

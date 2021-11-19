@@ -81,6 +81,7 @@ type SeedSpec struct {
 	Ingress *Ingress
 }
 
+// GetProviderType gets the type of the provider.
 func (s *Seed) GetProviderType() string {
 	return s.Spec.Provider.Type
 }
@@ -103,6 +104,8 @@ type SeedStatus struct {
 	// Allocatable represents the resources of a seed that are available for scheduling.
 	// Defaults to Capacity.
 	Allocatable corev1.ResourceList
+	// ClientCertificateExpirationTimestamp is the timestamp at which gardenlet's client certificate expires.
+	ClientCertificateExpirationTimestamp *metav1.Time
 }
 
 // SeedBackup contains the object store configuration for backups for shoot (currently only etcd).

@@ -18,7 +18,7 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	extensionshandler "github.com/gardener/gardener/extensions/pkg/handler"
+	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -67,7 +67,7 @@ func (m *statefulSetToEtcdMapper) Map(obj client.Object) []reconcile.Request {
 
 // StatefulSetToEtcd returns a mapper that returns a request for the Etcd resource
 // that owns the StatefulSet for which an event happened.
-func StatefulSetToEtcd(ctx context.Context, cl client.Client) extensionshandler.Mapper {
+func StatefulSetToEtcd(ctx context.Context, cl client.Client) mapper.Mapper {
 	return &statefulSetToEtcdMapper{
 		ctx: ctx,
 		cl:  cl,

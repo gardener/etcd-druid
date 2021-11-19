@@ -20,19 +20,16 @@ import (
 	"os"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
-	"github.com/gardener/gardener/pkg/controllerutils"
-	"github.com/gardener/gardener/pkg/utils/imagevector"
-	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
-	"github.com/ghodss/yaml"
-
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
+
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	"github.com/gardener/gardener/pkg/controllerutils"
+	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/gardener/gardener/pkg/utils/kubernetes/health"
+	"github.com/gardener/gardener/pkg/utils/test/matchers"
+	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -51,6 +48,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
@@ -690,7 +688,7 @@ var _ = Describe("Cron Job", func() {
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			err = kutil.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
+			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
 				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
 				renewedTime := time.Now()
 				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
@@ -744,7 +742,7 @@ var _ = Describe("Cron Job", func() {
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			err = kutil.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
+			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
 				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
 				renewedTime := time.Now()
 				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}

@@ -30,12 +30,19 @@ const (
 	// SecretNameCAMetricsServer is a constant for the name of a Kubernetes secret object that contains the CA
 	// certificate of the metrics-server of a shoot cluster.
 	SecretNameCAMetricsServer = "ca-metrics-server"
+	// SecretNameCAVPN is a constant for the name of a Kubernetes secret object that contains the CA
+	// certificate of the VPN components of a shoot cluster.
+	SecretNameCAVPN = "ca-vpn"
 	// SecretNameCloudProvider is a constant for the name of a Kubernetes secret object that contains the provider
 	// specific credentials that shall be used to create/delete the shoot.
 	SecretNameCloudProvider = "cloudprovider"
 	// SecretNameSSHKeyPair is a constant for the name of a Kubernetes secret object that contains the SSH key pair
 	// (public and private key) that can be used to SSH into the shoot nodes.
 	SecretNameSSHKeyPair = "ssh-keypair"
+	// SecretNameOldSSHKeyPair is a constant for the name of a Kubernetes secret object that contains the previous
+	// SSH key pair for a shoot cluster. This exists only after the first key rotation. Both the current and the
+	// old key are placed onto each shoot node.
+	SecretNameOldSSHKeyPair = "ssh-keypair.old"
 	// SecretNameServiceAccountKey is a constant for the name of a Kubernetes secret object that contains a
 	// PEM-encoded private RSA or ECDSA key used by the Kube Controller Manager to sign service account tokens
 	SecretNameServiceAccountKey = "service-account-key"
@@ -51,6 +58,14 @@ const (
 	// privileges. The difference to the "gardener" secret is that is contains the in-cluster endpoint as address to
 	// for the shoot API server instead the DNS name or load balancer address.
 	SecretNameGardenerInternal = "gardener-internal"
+
+	// SecretNameGenericTokenKubeconfig is a constant for the name of the kubeconfig used by the shoot controlplane
+	// components to authenticate against the shoot Kubernetes API server.
+	SecretNameGenericTokenKubeconfig = "generic-token-kubeconfig"
+
+	// SecretPrefixGeneratedBackupBucket is a constant for the prefix of a secret name in the garden cluster related to
+	// BackpuBuckets.
+	SecretPrefixGeneratedBackupBucket = "generated-bucket-"
 
 	// DeploymentNameClusterAutoscaler is a constant for the name of a Kubernetes deployment object that contains
 	// the cluster-autoscaler pod.
@@ -181,6 +196,8 @@ const (
 	GardenRoleOpenVPNDiffieHellman = "openvpn-diffie-hellman"
 	// GardenRoleGlobalMonitoring is the value of the GardenRole key indicating type 'global-monitoring'
 	GardenRoleGlobalMonitoring = "global-monitoring"
+	// GardenRoleGlobalShootRemoteWriteMonitoring is the value of the GardenRole key indicating type 'global-shoot-remote-write-monitoring'
+	GardenRoleGlobalShootRemoteWriteMonitoring = "global-shoot-remote-write-monitoring"
 	// GardenRoleAlerting is the value of GardenRole key indicating type 'alerting'.
 	GardenRoleAlerting = "alerting"
 	// GardenRoleHvpa is the value of GardenRole key indicating type 'hvpa'.
@@ -212,7 +229,7 @@ const (
 	// Note that this annotation is alpha and can be removed anytime without further notice. Only use it if you know
 	// what you do.
 	ShootAlphaScalingAPIServerClass = "alpha.kube-apiserver.scaling.shoot.gardener.cloud/class"
-	// ShootAlphaControlPlaneScaleDownDisabled is a constant for an annotation on the Shoot resource staiting that the
+	// ShootAlphaControlPlaneScaleDownDisabled is a constant for an annotation on the Shoot resource stating that the
 	// automatic scale-down shall be disabled for the etcd, kube-apiserver, kube-controller-manager.
 	// Note that this annotation is alpha and can be removed anytime without further notice. Only use it if you know
 	// what you do.
@@ -243,6 +260,9 @@ const (
 	// ShootOperationRotateKubeconfigCredentials is a constant for an annotation on a Shoot indicating that the credentials
 	// contained in the kubeconfig that is handed out to the user shall be rotated.
 	ShootOperationRotateKubeconfigCredentials = "rotate-kubeconfig-credentials"
+	// ShootOperationRotateSSHKeypair is a constant for an annotation on a Shoot indicating that the SSH keypair for the shoot
+	// nodes shall be rotated.
+	ShootOperationRotateSSHKeypair = "rotate-ssh-keypair"
 
 	// SeedResourceManagerClass is the resource-class managed by the Gardener-Resource-Manager
 	// instance in the garden namespace on the seeds.
@@ -255,8 +275,10 @@ const (
 	LabelShootProvider = "shoot.gardener.cloud/provider"
 	// LabelNetworkingProvider is used to identify the networking provider for the cni plugin.
 	LabelNetworkingProvider = "networking.shoot.gardener.cloud/provider"
+	// LabelExtensionPrefix is used to prefix extension specific labels.
+	LabelExtensionPrefix = "extensions.gardener.cloud/"
 	// LabelExtensionConfiguration is used to identify the provider's configuration which will be added to Gardener configuration
-	LabelExtensionConfiguration = "extensions.gardener.cloud/configuration"
+	LabelExtensionConfiguration = LabelExtensionPrefix + "configuration"
 	// LabelLogging is a constant for a label for logging stack configurations
 	LabelLogging = "logging"
 	// LabelMonitoring is a constant for a label for monitoring stack configurations
@@ -296,6 +318,8 @@ const (
 	LabelNetworkPolicyFromPrometheus = "networking.gardener.cloud/from-prometheus"
 	// LabelNetworkPolicyToAggregatePrometheus allows Egress traffic to the aggregate Prometheus.
 	LabelNetworkPolicyToAggregatePrometheus = "networking.gardener.cloud/to-aggregate-prometheus"
+	// LabelNetworkPolicyToSeedPrometheus allows Egress traffic to the seed Prometheus.
+	LabelNetworkPolicyToSeedPrometheus = "networking.gardener.cloud/to-seed-prometheus"
 	// LabelNetworkPolicyShootFromSeed allows Ingress traffic from the seed cluster (where the shoot's kube-apiserver
 	// runs).
 	LabelNetworkPolicyShootFromSeed = "networking.gardener.cloud/from-seed"
@@ -346,11 +370,32 @@ const (
 	// AnnotationShootSkipCleanup is a key for an annotation on a Shoot resource that declares that the clean up steps should be skipped when the
 	// cluster is deleted. Concretely, this will skip everything except the deletion of (load balancer) services and persistent volume resources.
 	AnnotationShootSkipCleanup = "shoot.gardener.cloud/skip-cleanup"
-	// AnnotationShootKonnectivityTunnel is the key for an annotation of a Shoot cluster whose value indicates
-	// if a konnectivity-tunnel should be deployed into the shoot cluster or not.
-	AnnotationShootKonnectivityTunnel = "alpha.featuregates.shoot.gardener.cloud/konnectivity-tunnel"
+	// AnnotationShootCleanupWebhooksFinalizeGracePeriodSeconds is a key for an annotation on a Shoot resource that
+	// declares the grace period in seconds for finalizing the resources handled in the 'cleanup webhooks' step.
+	// Concretely, after the specified seconds, all the finalizers of the affected resources are forcefully removed.
+	AnnotationShootCleanupWebhooksFinalizeGracePeriodSeconds = "shoot.gardener.cloud/cleanup-webhooks-finalize-grace-period-seconds"
+	// AnnotationShootCleanupExtendedAPIsFinalizeGracePeriodSeconds is a key for an annotation on a Shoot resource that
+	// declares the grace period in seconds for finalizing the resources handled in the 'cleanup extended APIs' step.
+	// Concretely, after the specified seconds, all the finalizers of the affected resources are forcefully removed.
+	AnnotationShootCleanupExtendedAPIsFinalizeGracePeriodSeconds = "shoot.gardener.cloud/cleanup-extended-apis-finalize-grace-period-seconds"
+	// AnnotationShootCleanupKubernetesResourcesFinalizeGracePeriodSeconds is a key for an annotation on a Shoot
+	// resource that declares the grace period in seconds for finalizing the resources handled in the 'cleanup
+	// Kubernetes resources' step. Concretely, after the specified seconds, all the finalizers of the affected resources
+	// are forcefully removed.
+	AnnotationShootCleanupKubernetesResourcesFinalizeGracePeriodSeconds = "shoot.gardener.cloud/cleanup-kubernetes-resources-finalize-grace-period-seconds"
+	// AnnotationShootCleanupNamespaceResourcesFinalizeGracePeriodSeconds is a key for an annotation on a Shoot
+	// resource that declares the grace period in seconds for finalizing the resources handled in the 'cleanup shoot
+	// namespaces' step. Concretely, after the specified seconds, all the finalizers of the affected resources are
+	// forcefully removed.
+	AnnotationShootCleanupNamespaceResourcesFinalizeGracePeriodSeconds = "shoot.gardener.cloud/cleanup-namespaces-finalize-grace-period-seconds"
 	// AnnotationReversedVPN moves the vpn-server to the seed.
 	AnnotationReversedVPN = "alpha.featuregates.shoot.gardener.cloud/reversed-vpn"
+	// AnnotationNodeLocalDNS enables a per node dns cache on the shoot cluster.
+	AnnotationNodeLocalDNS = "alpha.featuregates.shoot.gardener.cloud/node-local-dns"
+	// AnnotationNodeLocalDNSForceTcpToClusterDns enforces upgrade to tcp connections for communication between node local and cluster dns.
+	AnnotationNodeLocalDNSForceTcpToClusterDns = "alpha.featuregates.shoot.gardener.cloud/node-local-dns-force-tcp-to-cluster-dns"
+	// AnnotationNodeLocalDNSForceTcpToUpstreamDns enforces upgrade to tcp connections for communication between node local and upstream dns.
+	AnnotationNodeLocalDNSForceTcpToUpstreamDns = "alpha.featuregates.shoot.gardener.cloud/node-local-dns-force-tcp-to-upstream-dns"
 
 	// AnnotationShootAPIServerSNIPodInjector is the key for an annotation of a Shoot cluster whose value indicates
 	// if pod injection of 'KUBERNETES_SERVICE_HOST' environment variable should happen for clusters where APIServerSNI
@@ -371,6 +416,12 @@ const (
 	OperatingSystemConfigFilePathKernelSettings = "/etc/sysctl.d/99-k8s-general.conf"
 	// OperatingSystemConfigFilePathKubeletConfig is a constant for a path to a file in the operating system config that contains the kubelet configuration.
 	OperatingSystemConfigFilePathKubeletConfig = "/var/lib/kubelet/config/kubelet"
+	// OperatingSystemConfigUnitNamePromtailService is a constant for a unit in the operating system config that contains the promtail service.
+	OperatingSystemConfigUnitNamePromtailService = "promtail.service"
+	// OperatingSystemConfigFilePathPromtailConfig is a constant for a path to a file in the operating system config that contains the kubelet configuration.
+	OperatingSystemConfigFilePathPromtailConfig = "/var/lib/promtail/config/config"
+	// OperatingSystemConfigFilePathBinaries is a constant for a path to a directory in the operating system config that contains the binaries.
+	OperatingSystemConfigFilePathBinaries = "/opt/bin"
 
 	// FluentBitConfigMapKubernetesFilter is a constant for the Fluent Bit ConfigMap's section regarding Kubernetes filters
 	FluentBitConfigMapKubernetesFilter = "filter-kubernetes.conf"
@@ -391,6 +442,8 @@ const (
 	LabelPodMaintenanceRestart = "maintenance.gardener.cloud/restart"
 	// LabelWorkerPool is a constant for a label that indicates the worker pool the node belongs to
 	LabelWorkerPool = "worker.gardener.cloud/pool"
+	// LabelWorkerKubernetesVersion is a constant for a label that indicates the Kubernetes version used for the worker pool nodes.
+	LabelWorkerKubernetesVersion = "worker.gardener.cloud/kubernetes-version"
 	// LabelWorkerPoolDeprecated is a deprecated constant for a label that indicates the worker pool the node belongs to
 	LabelWorkerPoolDeprecated = "worker.garden.sapcloud.io/group"
 	// LabelWorkerPoolSystemComponents is a constant that indicates whether the worker pool should host system components
@@ -412,6 +465,8 @@ const (
 
 	// SeedNginxIngressClass defines the ingress class for the seed nginx ingress controller
 	SeedNginxIngressClass = "nginx-gardener"
+	// SeedNginxIngressClass122 defines the ingress class for the seed nginx ingress controller for K8s >= 1.22
+	SeedNginxIngressClass122 = "nginx-ingress-gardener"
 	// IngressKindNginx defines nginx as kind as managed Seed ingress
 	IngressKindNginx = "nginx"
 	// ShootNginxIngressClass defines the ingress class for the seed nginx ingress controller
@@ -439,6 +494,14 @@ const (
 
 	// DefaultVpnRange is the default network range for the vpn between seed and shoot cluster.
 	DefaultVpnRange = "192.168.123.0/24"
+
+	// BackupSecretName is the name of secret having credentials for etcd backups.
+	BackupSecretName string = "etcd-backup"
+	// DataKeyBackupBucketName is the name of a data key whose value contains the backup bucket name.
+	DataKeyBackupBucketName string = "bucketName"
+
+	// GardenerAudience is the identifier for Gardener controllers when interacting with the API Server
+	GardenerAudience = "gardener"
 )
 
 // ControlPlaneSecretRoles contains all role values used for control plane secrets synced to the Garden cluster.

@@ -19,7 +19,9 @@ import (
 	"fmt"
 	"time"
 
-	extensionshandler "github.com/gardener/gardener/extensions/pkg/handler"
+	"github.com/gardener/gardener/pkg/controllerutils"
+
+	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -132,7 +134,7 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logge
 		members    = etcd.Status.Members
 	)
 
-	return kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
+	return controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, ec.Client, etcd, func() error {
 		etcd.Status.Conditions = conditions
 		etcd.Status.Members = members
 
@@ -186,7 +188,7 @@ func (ec *EtcdCustodian) SetupWithManager(ctx context.Context, mgr ctrl.Manager,
 		For(&druidv1alpha1.Etcd{}).
 		Watches(
 			&source.Kind{Type: &appsv1.StatefulSet{}},
-			extensionshandler.EnqueueRequestsFromMapper(druidmapper.StatefulSetToEtcd(ctx, mgr.GetClient()), extensionshandler.UpdateWithNew),
+			mapper.EnqueueRequestsFrom(druidmapper.StatefulSetToEtcd(ctx, mgr.GetClient()), mapper.UpdateWithNew),
 			ctrlbuilder.WithPredicates(druidpredicates.StatefulSetStatusChange()),
 		).
 		Complete(ec)

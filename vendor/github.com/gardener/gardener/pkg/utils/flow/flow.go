@@ -25,7 +25,6 @@ import (
 	utilerrors "github.com/gardener/gardener/pkg/utils/errors"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -106,17 +105,11 @@ type Opts struct {
 	ErrorCleaner func(ctx context.Context, taskID string)
 	// ErrorContext is used to store any error related context.
 	ErrorContext *utilerrors.ErrorContext
-	// Context is the context used during flow execution.
-	Context context.Context
 }
 
 // Run starts an execution of a Flow.
 // It blocks until the Flow has finished and returns the error, if any.
-func (f *Flow) Run(opts Opts) error {
-	ctx := opts.Context
-	if ctx == nil {
-		ctx = context.Background()
-	}
+func (f *Flow) Run(ctx context.Context, opts Opts) error {
 	return newExecution(f, opts.Logger, opts.ProgressReporter, opts.ErrorCleaner, opts.ErrorContext).run(ctx)
 }
 
@@ -227,11 +220,11 @@ func (e *execution) runNode(ctx context.Context, id TaskID) {
 
 		if err != nil {
 			log.WithError(err).Error("Error")
+			err = fmt.Errorf("task %q failed: %w", id, err)
 		} else {
 			log.Info("Succeeded")
 		}
 
-		err = errors.Wrapf(err, "task %q failed", id)
 		e.done <- &nodeResult{TaskID: id, Error: err}
 	}()
 }
@@ -380,7 +373,7 @@ func Causes(err error) *multierror.Error {
 		causes = make([]error, 0, len(errs))
 	)
 	for _, err := range errs {
-		causes = append(causes, errors.Cause(err))
+		causes = append(causes, utilerrors.Unwrap(err))
 	}
 	return &multierror.Error{Errors: causes}
 }

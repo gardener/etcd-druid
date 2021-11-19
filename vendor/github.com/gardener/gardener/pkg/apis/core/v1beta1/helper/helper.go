@@ -25,7 +25,6 @@ import (
 	versionutils "github.com/gardener/gardener/pkg/utils/version"
 
 	"github.com/Masterminds/semver"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -33,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/json"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/pointer"
@@ -77,26 +77,15 @@ func GetOrInitCondition(conditions []gardencorev1beta1.Condition, conditionType 
 
 // UpdatedCondition updates the properties of one specific condition.
 func UpdatedCondition(condition gardencorev1beta1.Condition, status gardencorev1beta1.ConditionStatus, reason, message string, codes ...gardencorev1beta1.ErrorCode) gardencorev1beta1.Condition {
-	var (
-		newCondition = gardencorev1beta1.Condition{
-			Type:               condition.Type,
-			Status:             status,
-			Reason:             reason,
-			Message:            message,
-			LastTransitionTime: condition.LastTransitionTime,
-			LastUpdateTime:     condition.LastUpdateTime,
-			Codes:              codes,
-		}
-		now = Now()
-	)
-
-	if condition.Status != status {
-		newCondition.LastTransitionTime = now
-	}
-
-	if condition.Reason != reason || condition.Message != message || !apiequality.Semantic.DeepEqual(condition.Codes, codes) {
-		newCondition.LastUpdateTime = now
-	}
+	builder, err := NewConditionBuilder(condition.Type)
+	utilruntime.Must(err)
+	newCondition, _ := builder.
+		WithOldCondition(condition).
+		WithStatus(status).
+		WithReason(reason).
+		WithMessage(message).
+		WithCodes(codes...).
+		Build()
 
 	return newCondition
 }
@@ -188,6 +177,8 @@ func ComputeOperationType(meta metav1.ObjectMeta, lastOperation *gardencorev1bet
 		return gardencorev1beta1.LastOperationTypeMigrate
 	case meta.DeletionTimestamp != nil:
 		return gardencorev1beta1.LastOperationTypeDelete
+	case meta.Annotations[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationRestore:
+		return gardencorev1beta1.LastOperationTypeRestore
 	case lastOperation == nil:
 		return gardencorev1beta1.LastOperationTypeCreate
 	case lastOperation.Type == gardencorev1beta1.LastOperationTypeCreate && lastOperation.State != gardencorev1beta1.LastOperationStateSucceeded:
@@ -198,6 +189,13 @@ func ComputeOperationType(meta metav1.ObjectMeta, lastOperation *gardencorev1bet
 		return gardencorev1beta1.LastOperationTypeRestore
 	}
 	return gardencorev1beta1.LastOperationTypeReconcile
+}
+
+// HasOperationAnnotation returns true if the operation annotation is present and its value is "reconcile", "restore, or "migrate".
+func HasOperationAnnotation(meta metav1.ObjectMeta) bool {
+	return meta.Annotations[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationReconcile ||
+		meta.Annotations[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationRestore ||
+		meta.Annotations[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationMigrate
 }
 
 // TaintsHave returns true if the given key is part of the taints list.
@@ -241,6 +239,7 @@ func TaintsAreTolerated(taints []gardencorev1beta1.SeedTaint, tolerations []gard
 	return true
 }
 
+// ShootedSeed contains the configuration of a shooted seed.
 type ShootedSeed struct {
 	DisableDNS                      *bool
 	DisableCapacityReservation      *bool
@@ -261,16 +260,19 @@ type ShootedSeed struct {
 	Resources                       *ShootedSeedResources
 }
 
+// ShootedSeedAPIServer contains the configuration of a shooted seed API server.
 type ShootedSeedAPIServer struct {
 	Replicas   *int32
 	Autoscaler *ShootedSeedAPIServerAutoscaler
 }
 
+// ShootedSeedAPIServerAutoscaler contains the configuration of a shooted seed API server autoscaler.
 type ShootedSeedAPIServerAutoscaler struct {
 	MinReplicas *int32
 	MaxReplicas int32
 }
 
+// ShootedSeedResources contains the resources capacity and reserved values of a shooted seed.
 type ShootedSeedResources struct {
 	Capacity corev1.ResourceList
 	Reserved corev1.ResourceList
@@ -342,10 +344,10 @@ func parseShootedSeed(annotation string) (*ShootedSeed, error) {
 		shootedSeed.MinimumVolumeSize = &size
 	}
 	if _, ok := flags["disable-dns"]; ok {
-		shootedSeed.DisableDNS = pointer.BoolPtr(true)
+		shootedSeed.DisableDNS = pointer.Bool(true)
 	}
 	if _, ok := flags["disable-capacity-reservation"]; ok {
-		shootedSeed.DisableCapacityReservation = pointer.BoolPtr(true)
+		shootedSeed.DisableCapacityReservation = pointer.Bool(true)
 	}
 	if _, ok := flags["no-gardenlet"]; ok {
 		shootedSeed.NoGardenlet = true
@@ -357,16 +359,16 @@ func parseShootedSeed(annotation string) (*ShootedSeed, error) {
 		shootedSeed.WithSecretRef = true
 	}
 	if _, ok := flags["protected"]; ok {
-		shootedSeed.Protected = pointer.BoolPtr(true)
+		shootedSeed.Protected = pointer.Bool(true)
 	}
 	if _, ok := flags["unprotected"]; ok {
-		shootedSeed.Protected = pointer.BoolPtr(false)
+		shootedSeed.Protected = pointer.Bool(false)
 	}
 	if _, ok := flags["visible"]; ok {
-		shootedSeed.Visible = pointer.BoolPtr(true)
+		shootedSeed.Visible = pointer.Bool(true)
 	}
 	if _, ok := flags["invisible"]; ok {
-		shootedSeed.Visible = pointer.BoolPtr(false)
+		shootedSeed.Visible = pointer.Bool(false)
 	}
 
 	return &shootedSeed, nil
@@ -897,10 +899,22 @@ func toExpirableVersions(versions []gardencorev1beta1.MachineImageVersion) []gar
 	return expVersions
 }
 
-// GetLatestQualifyingShootMachineImage determines the latest qualifying version in a machine image and returns that as a ShootMachineImage
+// GetLatestQualifyingShootMachineImage determines the latest qualifying version in a machine image and returns that as a ShootMachineImage.
 // A version qualifies if its classification is not preview and the version is not expired.
+// Older but non-deprecated version is preferred over newer but deprecated one.
 func GetLatestQualifyingShootMachineImage(image gardencorev1beta1.MachineImage, predicates ...VersionPredicate) (bool, *gardencorev1beta1.ShootMachineImage, error) {
 	predicates = append(predicates, FilterExpiredVersion())
+
+	// Try to find non-deprecated version first
+	qualifyingVersionFound, latestNonDeprecatedImageVersion, err := GetLatestQualifyingVersion(toExpirableVersions(image.Versions), append(predicates, FilterDeprecatedVersion())...)
+	if err != nil {
+		return false, nil, err
+	}
+	if qualifyingVersionFound {
+		return true, &gardencorev1beta1.ShootMachineImage{Name: image.Name, Version: &latestNonDeprecatedImageVersion.Version}, nil
+	}
+
+	// It looks like there is no non-deprecated version, now look also into the deprecated versions
 	qualifyingVersionFound, latestImageVersion, err := GetLatestQualifyingVersion(toExpirableVersions(image.Versions), predicates...)
 	if err != nil {
 		return false, nil, err
@@ -965,7 +979,7 @@ func WrapWithLastError(err error, lastError *gardencorev1beta1.LastError) error 
 	if err == nil || lastError == nil {
 		return err
 	}
-	return errors.Wrapf(err, "last error: %s", lastError.Description)
+	return fmt.Errorf("last error: %w: %s", err, lastError.Description)
 }
 
 // IsAPIServerExposureManaged returns true, if the Object is managed by Gardener for API server exposure.
@@ -996,6 +1010,7 @@ func FindPrimaryDNSProvider(providers []gardencorev1beta1.DNSProvider) *gardenco
 	return nil
 }
 
+// VersionPredicate is a function that evaluates a condition on the given versions.
 type VersionPredicate func(expirableVersion gardencorev1beta1.ExpirableVersion, version *semver.Version) (bool, error)
 
 // GetKubernetesVersionForPatchUpdate finds the latest Kubernetes patch version for its minor version in the <cloudProfile> compared
@@ -1124,7 +1139,7 @@ func FilterNonConsecutiveMinorVersion(currentSemVerVersion semver.Version) Versi
 }
 
 // FilterSameVersion returns a VersionPredicate(closure) that evaluates whether a given version v is equal to the currentSemVerVersion
-// returns true it it is equal
+// returns true if it is equal
 func FilterSameVersion(currentSemVerVersion semver.Version) VersionPredicate {
 	return func(_ gardencorev1beta1.ExpirableVersion, v *semver.Version) (bool, error) {
 		return v.Equal(&currentSemVerVersion), nil
@@ -1140,10 +1155,18 @@ func FilterLowerVersion(currentSemVerVersion semver.Version) VersionPredicate {
 }
 
 // FilterExpiredVersion returns a closure that evaluates whether a given expirable version is expired
-// returns true it it is expired
+// returns true if it is expired
 func FilterExpiredVersion() func(expirableVersion gardencorev1beta1.ExpirableVersion, version *semver.Version) (bool, error) {
 	return func(expirableVersion gardencorev1beta1.ExpirableVersion, _ *semver.Version) (bool, error) {
 		return expirableVersion.ExpirationDate != nil && (time.Now().UTC().After(expirableVersion.ExpirationDate.UTC()) || time.Now().UTC().Equal(expirableVersion.ExpirationDate.UTC())), nil
+	}
+}
+
+// FilterDeprecatedVersion returns a closure that evaluates whether a given expirable version is deprecated
+// returns true if it is deprecated
+func FilterDeprecatedVersion() func(expirableVersion gardencorev1beta1.ExpirableVersion, version *semver.Version) (bool, error) {
+	return func(expirableVersion gardencorev1beta1.ExpirableVersion, _ *semver.Version) (bool, error) {
+		return expirableVersion.Classification != nil && *expirableVersion.Classification == gardencorev1beta1.ClassificationDeprecated, nil
 	}
 }
 
@@ -1340,4 +1363,37 @@ func ShootSecretResourceReferencesEqual(oldResources, newResources []gardencorev
 	}
 
 	return oldNames.Equal(newNames)
+}
+
+// ShootWantsAnonymousAuthentication returns true if anonymous authentication is set explicitly to 'true' and false otherwise.
+func ShootWantsAnonymousAuthentication(kubeAPIServerConfig *gardencorev1beta1.KubeAPIServerConfig) bool {
+	if kubeAPIServerConfig == nil {
+		return false
+	}
+	if kubeAPIServerConfig.EnableAnonymousAuthentication == nil {
+		return false
+	}
+	return *kubeAPIServerConfig.EnableAnonymousAuthentication
+}
+
+// CalculateSeedUsage returns a map representing the number of shoots per seed from the given list of shoots.
+// It takes both spec.seedName and status.seedName into account.
+func CalculateSeedUsage(shootList []gardencorev1beta1.Shoot) map[string]int {
+	m := map[string]int{}
+
+	for _, shoot := range shootList {
+		var (
+			specSeed   = pointer.StringDeref(shoot.Spec.SeedName, "")
+			statusSeed = pointer.StringDeref(shoot.Status.SeedName, "")
+		)
+
+		if specSeed != "" {
+			m[specSeed]++
+		}
+		if statusSeed != "" && specSeed != statusSeed {
+			m[statusSeed]++
+		}
+	}
+
+	return m
 }

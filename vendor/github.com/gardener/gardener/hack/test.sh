@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Copyright (c) 2019 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 #
@@ -13,19 +13,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-set -e
 
-TEST_BIN_DIR="$(dirname "${0}")/../dev/testbin"
-mkdir -p ${TEST_BIN_DIR}
-
-ENVTEST_ASSETS_DIR="$(realpath ${TEST_BIN_DIR})"
-
-source "$(dirname $0)/setup-envtest.sh"
-
-fetch_envtest_tools ${ENVTEST_ASSETS_DIR}
-setup_envtest_env ${ENVTEST_ASSETS_DIR}
+set -o errexit
+set -o nounset
+set -o pipefail
 
 echo "> Test"
 
-export KUBEBUILDER_CONTROLPLANE_START_TIMEOUT=1m
-GO111MODULE=on go test -race -mod=vendor $@ | grep -v 'no test files'
+GO111MODULE=on go test -race -timeout=2m -mod=vendor $@ | grep -v 'no test files'

@@ -16,13 +16,20 @@ package kubernetes
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/gardener/gardener/pkg/resourcemanager/controller/garbagecollector/references"
+	"github.com/gardener/gardener/pkg/utils"
 	"github.com/gardener/gardener/pkg/utils/flow"
 )
 
@@ -32,6 +39,15 @@ func ObjectName(obj client.Object) string {
 		return obj.GetName()
 	}
 	return client.ObjectKeyFromObject(obj).String()
+}
+
+// ParseObjectName parses the given object name (in the format <namespace>/<name>) to its constituent namespace and name.
+// If the given object name is not namespaced, an empty namespace is returned.
+func ParseObjectName(objectName string) (string, string) {
+	if parts := strings.Split(objectName, string(types.Separator)); len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+	return "", objectName
 }
 
 // DeleteObjects deletes a list of Kubernetes objects.
@@ -81,4 +97,37 @@ func IsNamespaceInUse(ctx context.Context, reader client.Reader, namespace strin
 	}
 
 	return len(objects.Items) > 0, nil
+}
+
+// MakeUnique takes either a *corev1.ConfigMap or a *corev1.Secret object and makes it immutable, i.e., it sets
+// .immutable=true, computes a checksum based on .data, and appends the first 8 characters of the computed checksum
+// to the name of the object. Additionally, it injects the `resources.gardener.cloud/garbage-collectable-reference=true`
+// label.
+func MakeUnique(obj runtime.Object) error {
+	var (
+		numberOfChecksumChars = 8
+		prependHyphen         = func(name string) string {
+			if strings.HasSuffix(name, "-") {
+				return ""
+			}
+			return "-"
+		}
+	)
+
+	switch o := obj.(type) {
+	case *corev1.Secret:
+		o.Immutable = pointer.Bool(true)
+		o.Name += prependHyphen(o.Name) + utils.ComputeSecretChecksum(o.Data)[:numberOfChecksumChars]
+		metav1.SetMetaDataLabel(&o.ObjectMeta, references.LabelKeyGarbageCollectable, references.LabelValueGarbageCollectable)
+
+	case *corev1.ConfigMap:
+		o.Immutable = pointer.Bool(true)
+		o.Name += prependHyphen(o.Name) + utils.ComputeConfigMapChecksum(o.Data)[:numberOfChecksumChars]
+		metav1.SetMetaDataLabel(&o.ObjectMeta, references.LabelKeyGarbageCollectable, references.LabelValueGarbageCollectable)
+
+	default:
+		return fmt.Errorf("unhandled object type: %T", obj)
+	}
+
+	return nil
 }

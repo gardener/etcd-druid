@@ -18,6 +18,10 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+# We need to explicitly pass GO111MODULE=off to k8s.io/code-generator as it is significantly slower otherwise,
+# see https://github.com/kubernetes/code-generator/issues/100.
+export GO111MODULE=off
+
 rm -f ${GOPATH}/bin/*-gen
 
 CURRENT_DIR=$(dirname $0)
@@ -53,13 +57,27 @@ extensions_groups() {
   echo "Generating API groups for pkg/apis/extensions"
 
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-groups.sh \
-    "deepcopy,client,informer,lister" \
-    github.com/gardener/gardener/pkg/client/extensions \
+    "deepcopy" \
+    github.com/gardener/gardener/pkg/apis \
     github.com/gardener/gardener/pkg/apis \
     "extensions:v1alpha1" \
     -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
 }
 export -f extensions_groups
+
+# resources.gardener.cloud APIs
+
+resources_groups() {
+  echo "Generating API groups for pkg/apis/resources"
+
+  bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-groups.sh \
+    deepcopy \
+    github.com/gardener/gardener/pkg/apis \
+    github.com/gardener/gardener/pkg/apis \
+    "resources:v1alpha1" \
+    -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
+}
+export -f resources_groups
 
 # seedmanagement.gardener.cloud APIs
 
@@ -111,8 +129,8 @@ operations_groups() {
   echo "Generating API groups for pkg/apis/operations"
 
   bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
-    deepcopy,defaulter,client,lister,informer \
-    github.com/gardener/gardener/pkg/client/operations \
+    deepcopy,defaulter \
+    github.com/gardener/gardener/pkg/apis \
     github.com/gardener/gardener/pkg/apis \
     github.com/gardener/gardener/pkg/apis \
     "operations:v1alpha1" \
@@ -127,6 +145,28 @@ operations_groups() {
     -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
 }
 export -f operations_groups
+
+# authentication.gardener.cloud APIs
+
+authentication_groups() {
+  echo "Generating API groups for pkg/apis/authentication"
+
+  bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-groups.sh \
+    deepcopy,defaulter \
+    github.com/gardener/gardener/pkg/client/authentication \
+    github.com/gardener/gardener/pkg/apis \
+    "authentication:v1alpha1" \
+    -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
+
+  bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
+    deepcopy,defaulter,conversion \
+    github.com/gardener/gardener/pkg/client/authentication \
+    github.com/gardener/gardener/pkg/apis \
+    github.com/gardener/gardener/pkg/apis \
+    "authentication:v1alpha1" \
+    -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
+}
+export -f authentication_groups
 
 # Componentconfig for controller-manager
 
@@ -224,7 +264,7 @@ gardenlet_groups() {
 }
 export -f gardenlet_groups
 
-# Componentconfig for landscaper-gardenlet
+# Componentconfig for the gardenlet landscaper component
 
 landscapergardenlet_groups() {
   echo "Generating API groups for landscaper/gardenlet/pkg/apis/imports"
@@ -247,6 +287,30 @@ landscapergardenlet_groups() {
     -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
 }
 export -f landscapergardenlet_groups
+
+# Componentconfig for control plane landscaper component
+
+landscapercontrolplane_groups() {
+  echo "Generating API groups for landscaper/controlplane/pkg/apis/imports"
+
+  bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
+    deepcopy,defaulter \
+    github.com/gardener/gardener/pkg/client/componentconfig \
+    github.com/gardener/gardener/landscaper/pkg/controlplane/apis \
+    github.com/gardener/gardener/landscaper/pkg/controlplane/apis \
+    "imports:v1alpha1" \
+    -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
+
+  bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
+    conversion \
+    github.com/gardener/gardener/pkg/client/componentconfig \
+    github.com/gardener/gardener/landscaper/pkg/controlplane/apis \
+    github.com/gardener/gardener/landscaper/pkg/controlplane/apis \
+    "imports:v1alpha1" \
+    --extra-peer-dirs=k8s.io/apiserver/pkg/apis/apiserver/v1,k8s.io/apiserver/pkg/apis/audit/v1,k8s.io/apiserver/pkg/apis/config/v1,github.com/gardener/hvpa-controller/api/v1alpha1,github.com/gardener/landscaper/apis/core/v1alpha1,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/conversion,k8s.io/apimachinery/pkg/runtime \
+    -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
+}
+export -f landscapercontrolplane_groups
 
 # Componentconfig for admission plugins
 
@@ -277,10 +341,10 @@ export -f shoottolerationrestriction_groups
 openapi_definitions() {
   echo "Generating openapi definitions"
   rm -Rf ./${PROJECT_ROOT}/openapi/openapi_generated.go
-  go install ./${PROJECT_ROOT}/vendor/k8s.io/kube-openapi/cmd/openapi-gen
-  ${GOPATH}/bin/openapi-gen "$@" \
+  openapi-gen "$@" \
     --v 1 \
     --logtostderr \
+    --input-dirs=github.com/gardener/gardener/pkg/apis/authentication/v1alpha1 \
     --input-dirs=github.com/gardener/gardener/pkg/apis/core/v1alpha1 \
     --input-dirs=github.com/gardener/gardener/pkg/apis/core/v1beta1 \
     --input-dirs=github.com/gardener/gardener/pkg/apis/settings/v1alpha1 \
@@ -305,8 +369,10 @@ export -f openapi_definitions
 if [[ $# -gt 0 && "$1" == "--parallel" ]]; then
   shift 1
   parallel --will-cite ::: \
+    authentication_groups \
     core_groups \
     extensions_groups \
+    resources_groups \
     seedmanagement_groups \
     operations_groups \
     settings_groups \
@@ -316,9 +382,12 @@ if [[ $# -gt 0 && "$1" == "--parallel" ]]; then
     gardenlet_groups \
     shoottolerationrestriction_groups \
     landscapergardenlet_groups
+    landscapercontrolplane_groups
 else
+  authentication_groups
   core_groups
   extensions_groups
+  resources_groups
   seedmanagement_groups
   operations_groups
   settings_groups
@@ -328,6 +397,7 @@ else
   gardenlet_groups
   shoottolerationrestriction_groups
   landscapergardenlet_groups
+  landscapercontrolplane_groups
 fi
 
 openapi_definitions "$@"

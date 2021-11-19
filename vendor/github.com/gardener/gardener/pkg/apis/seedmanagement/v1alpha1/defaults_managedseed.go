@@ -17,13 +17,12 @@ package v1alpha1
 import (
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
-	"github.com/gardener/gardener/pkg/apis/seedmanagement/helper"
+	"github.com/gardener/gardener/pkg/apis/seedmanagement/encoding"
 	configv1alpha1 "github.com/gardener/gardener/pkg/gardenlet/apis/config/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
@@ -47,12 +46,12 @@ func SetDefaults_ManagedSeed(obj *ManagedSeed) {
 func SetDefaults_GardenletDeployment(obj *GardenletDeployment) {
 	// Set default replica count
 	if obj.ReplicaCount == nil {
-		obj.ReplicaCount = pointer.Int32Ptr(1)
+		obj.ReplicaCount = pointer.Int32(1)
 	}
 
 	// Set default revision history limit
 	if obj.RevisionHistoryLimit == nil {
-		obj.RevisionHistoryLimit = pointer.Int32Ptr(1)
+		obj.RevisionHistoryLimit = pointer.Int32(10)
 	}
 
 	// Set default image
@@ -62,7 +61,7 @@ func SetDefaults_GardenletDeployment(obj *GardenletDeployment) {
 
 	// Set default VPA
 	if obj.VPA == nil {
-		obj.VPA = pointer.BoolPtr(true)
+		obj.VPA = pointer.Bool(true)
 	}
 }
 
@@ -88,7 +87,7 @@ func setDefaultsGardenlet(obj *Gardenlet, name, namespace string) {
 
 	// Decode gardenlet config to an external version
 	// Without defaults, since we don't want to set gardenlet config defaults in the resource at this point
-	gardenletConfig, err := helper.DecodeGardenletConfiguration(&obj.Config, false)
+	gardenletConfig, err := encoding.DecodeGardenletConfiguration(&obj.Config, false)
 	if err != nil {
 		return
 	}
@@ -119,7 +118,7 @@ func setDefaultsGardenlet(obj *Gardenlet, name, namespace string) {
 
 	// Set default merge with parent
 	if obj.MergeWithParent == nil {
-		obj.MergeWithParent = pointer.BoolPtr(true)
+		obj.MergeWithParent = pointer.Bool(true)
 	}
 }
 

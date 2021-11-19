@@ -22,8 +22,6 @@ BUILD_DIR           := build
 BIN_DIR             := bin
 
 IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_TAG}
-# Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
-CRD_OPTIONS ?= "crd:trivialVersions=true"
 
 .PHONY: revendor
 revendor:
@@ -64,7 +62,7 @@ deploy: manifests
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: manifests
 manifests:
-	@controller-gen $(CRD_OPTIONS) paths="./api/..." output:crd:artifacts:config="./config/crd/bases"
+	@controller-gen crd paths="./api/..." output:crd:artifacts:config="./config/crd/bases"
 	@controller-gen rbac:roleName=manager-role paths="./controllers/..."
 
 # Run go fmt against code
