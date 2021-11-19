@@ -25,6 +25,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
+	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
 
@@ -39,7 +40,6 @@ import (
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
-	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	eventsv1beta1 "k8s.io/api/events/v1beta1"
@@ -269,26 +269,6 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		}, err
 	}
 
-	// It isn't necessary to reconcile delta/full leases if no store configuration is given because potential compaction
-	// jobs need access to the store where backups are stored.
-	if etcd.Spec.Backup.Store != nil {
-		fl, err := r.reconcileFullLease(ctx, logger, etcd)
-		if err != nil {
-			return ctrl.Result{
-				Requeue: true,
-			}, err
-		}
-		logger.Info("Available Full Snapshot Lease: " + fl.Name)
-
-		dl, err := r.reconcileDeltaLease(ctx, logger, etcd)
-		if err != nil {
-			return ctrl.Result{
-				Requeue: true,
-			}, err
-		}
-		logger.Info("Available Delta Snapshot Lease: " + dl.Name)
-	}
-
 	// Delete any existing cronjob if required.
 	// TODO(abdasgupta) : This is for backward compatibility towards ETCD-Druid 0.6.0. Remove it.
 	cronJob, err := r.cleanCronJobs(ctx, logger, etcd)
@@ -398,6 +378,13 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 				Requeue: true,
 			}, err
 		}
+		return ctrl.Result{
+			Requeue: true,
+		}, err
+	}
+
+	leaseDeployer := componentlease.New(r.Client, etcd.Namespace, componentlease.GenerateValues(etcd))
+	if err := leaseDeployer.Destroy(ctx); err != nil {
 		return ctrl.Result{
 			Requeue: true,
 		}, err
@@ -935,81 +922,6 @@ func (r *EtcdReconciler) getStatefulSetFromEtcd(etcd *druidv1alpha1.Etcd, values
 	return decoded, nil
 }
 
-func (r *EtcdReconciler) reconcileFullLease(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*coordinationv1.Lease, error) {
-	// Get or Create fullSnapshotRevisions lease object that will help to set BackupReady condition
-	fullSnapshotRevisions := getFullSnapshotLeaseName(etcd)
-
-	fullLease := &coordinationv1.Lease{}
-	if err := r.Get(ctx, kutil.Key(etcd.Namespace, fullSnapshotRevisions), fullLease); err != nil {
-		logger.Info("Couldn't fetch full snap lease " + fullSnapshotRevisions + ":" + err.Error())
-
-		if !apierrors.IsNotFound(err) {
-			return nil, err
-		}
-
-		logger.Info("Creating the full snap lease " + fullSnapshotRevisions)
-
-		fullLease = createSnapshotLease(etcd, fullSnapshotRevisions)
-		if err := r.Create(ctx, fullLease); err != nil {
-			logger.Error(err, "Full snap lease "+fullSnapshotRevisions+" couldn't be created")
-			return nil, err
-		}
-	}
-
-	return fullLease, nil
-}
-
-func getFullSnapshotLeaseName(etcd *druidv1alpha1.Etcd) string {
-	return fmt.Sprintf("%s-full-snap", string(etcd.Name))
-}
-
-func (r *EtcdReconciler) reconcileDeltaLease(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*coordinationv1.Lease, error) {
-	// Get or Create delta_snapshot_revisions lease object that will keep track of delta snapshot revisions based on which
-	// compaction job will be scheduled
-	deltaSnapshotRevisions := getDeltaSnapshotLeaseName(etcd)
-
-	deltaLease := &coordinationv1.Lease{}
-	if err := r.Get(ctx, kutil.Key(etcd.Namespace, deltaSnapshotRevisions), deltaLease); err != nil {
-		logger.Info("Couldn't fetch delta snap lease " + deltaSnapshotRevisions + " because: " + err.Error())
-
-		if !apierrors.IsNotFound(err) {
-			return nil, err
-		}
-
-		logger.Info("Creating the delta snap lease " + deltaSnapshotRevisions)
-
-		deltaLease = createSnapshotLease(etcd, deltaSnapshotRevisions)
-		if err := r.Create(ctx, deltaLease); err != nil {
-			logger.Error(err, "Delta snap lease "+deltaSnapshotRevisions+" couldn't be created")
-			return nil, err
-		}
-	}
-
-	return deltaLease, nil
-}
-
-func getDeltaSnapshotLeaseName(etcd *druidv1alpha1.Etcd) string {
-	return fmt.Sprintf("%s-delta-snap", string(etcd.Name))
-}
-
-func createSnapshotLease(etcd *druidv1alpha1.Etcd, snapshotLeaseName string) *coordinationv1.Lease {
-	return &coordinationv1.Lease{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      snapshotLeaseName,
-			Namespace: etcd.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion:         "druid.gardener.cloud/v1alpha1",
-					BlockOwnerDeletion: pointer.BoolPtr(true),
-					Controller:         pointer.BoolPtr(true),
-					Kind:               "Etcd",
-					Name:               etcd.Name,
-					UID:                etcd.UID,
-				},
-			},
-		},
-	}
-}
 func decodeObject(renderedChart *chartrenderer.RenderedChart, path string, object interface{}) error {
 	if content, ok := renderedChart.Files()[path]; ok {
 		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
@@ -1144,7 +1056,9 @@ func (r *EtcdReconciler) reconcileRoleBinding(ctx context.Context, logger logr.L
 }
 
 func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*corev1.Service, *appsv1.StatefulSet, error) {
-	values, err := getMapFromEtcd(r.ImageVector, etcd, r.disableEtcdServiceAccountAutomount)
+	leaseValues := componentlease.GenerateValues(etcd)
+
+	values, err := getMapFromEtcd(r.ImageVector, etcd, leaseValues, r.disableEtcdServiceAccountAutomount)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1152,6 +1066,12 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 	chartPath := getChartPath()
 	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
 	if err != nil {
+		return nil, nil, err
+	}
+
+	leaseDeployer := componentlease.New(r.Client, etcd.Namespace, leaseValues)
+
+	if err := leaseDeployer.Deploy(ctx); err != nil {
 		return nil, nil, err
 	}
 
@@ -1227,7 +1147,7 @@ func checkEtcdAnnotations(annotations map[string]string, etcd metav1.Object) boo
 
 }
 
-func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd, disableEtcdServiceAccountAutomount bool) (map[string]interface{}, error) {
+func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd, leaseValues componentlease.Values, disableEtcdServiceAccountAutomount bool) (map[string]interface{}, error) {
 	var statefulsetReplicas int
 	if etcd.Spec.Replicas != 0 {
 		statefulsetReplicas = 1
@@ -1431,8 +1351,8 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd, disabl
 			return nil, err
 		}
 
-		backupValues["fullSnapLeaseName"] = getFullSnapshotLeaseName(etcd)
-		backupValues["deltaSnapLeaseName"] = getDeltaSnapshotLeaseName(etcd)
+		backupValues["fullSnapLeaseName"] = leaseValues.FullSnapshotLeaseName
+		backupValues["deltaSnapLeaseName"] = leaseValues.DeltaSnapshotLeaseName
 	}
 
 	return values, nil
