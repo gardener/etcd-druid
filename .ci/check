@@ -26,6 +26,5 @@ mkdir -p /go/src/github.com/gardener/etcd-druid
 cp -r . /go/src/github.com/gardener/etcd-druid
 cd /go/src/github.com/gardener/etcd-druid
 
-make install-requirements
 make check
 make check-generate

@@ -19,9 +19,15 @@ REGISTRY            := eu.gcr.io/gardener-project/gardener
 IMAGE_REPOSITORY    := $(REGISTRY)/etcd-druid
 IMAGE_TAG           := $(VERSION)
 BUILD_DIR           := build
-BIN_DIR             := bin
 
 IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_TAG}
+
+#########################################
+# Tools                                 #
+#########################################
+
+TOOLS_DIR := hack/tools
+include $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/tools.mk
 
 .PHONY: revendor
 revendor:
@@ -61,8 +67,8 @@ deploy: manifests
 
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: manifests
-manifests:
-	@controller-gen crd paths="./api/..." output:crd:artifacts:config="./config/crd/bases"
+manifests: $(CONTROLLER_GEN)
+	@go generate ./config/crd/bases
 	@controller-gen rbac:roleName=manager-role paths="./controllers/..."
 
 # Run go fmt against code
@@ -76,7 +82,7 @@ clean:
 
 # Check packages
 .PHONY: check
-check:
+check: $(GOLANGCI_LINT)
 	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
 
 .PHONY: check-generate
@@ -85,7 +91,7 @@ check-generate:
 
 # Generate code
 .PHONY: generate
-generate:
+generate: $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
 	@go generate "$(REPO_ROOT)/pkg/..."
 	@"$(REPO_ROOT)/hack/update-codegen.sh"
 
@@ -100,14 +106,6 @@ docker-build:
 .PHONY: docker-push
 docker-push:
 	docker push ${IMG}
-
-# find or download controller-gen
-# download controller-gen if necessary
-.PHONY: install-requirements
-install-requirements:
-	@go install -mod=vendor sigs.k8s.io/controller-tools/cmd/controller-gen
-	@go install -mod=vendor github.com/golang/mock/mockgen
-	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/install-requirements.sh"
 
 .PHONY: update-dependencies
 update-dependencies:
