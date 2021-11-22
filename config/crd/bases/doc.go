@@ -12,6 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate ../../../vendor/github.com/gardener/gardener/hack/generate-seed-crds.sh "" druid.gardener.cloud
+//go:generate ../../../vendor/github.com/gardener/gardener/hack/generate-seed-crds.sh "10-crd-" druid.gardener.cloud
 
 package bases
