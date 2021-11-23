@@ -17,7 +17,7 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"strconv"
+	"math"
 	"time"
 
 	extensionshandler "github.com/gardener/gardener/extensions/pkg/handler"
@@ -204,57 +204,62 @@ func calculatePDBminAvailable(etcd *druidv1alpha1.Etcd) int {
 	}
 
 	clusterSize := int(*etcd.Status.ClusterSize)
-	value := 0
+	values := make([]int, int(math.Floor(float64(clusterSize)/float64(2))+1))
 
 	if !allMembersReady {
-		value = int(etcd.Status.ReadyReplicas)
+		readyMembers := 0
+		for _, member := range etcd.Status.Members {
+			if member.Status == druidv1alpha1.EtcdMemberStatusReady {
+				readyMembers += 1
+			}
+		}
+		values = append(values, readyMembers)
 	}
 
-	if backupReady && clusterSize > value {
-		value = clusterSize
+	if backupReady {
+		values = append(values, clusterSize)
 	}
 
-	return value
+	// calculate max value
+	max := values[0]
+	for i := 1; i < len(values); i++ {
+		if values[i] > max {
+			max = values[i]
+		}
+	}
+
+	return max
 }
 
 func (ec *EtcdCustodian) updatePodDisruptionBudget(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, refMgr *EtcdDruidRefManager) error {
-	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		pdb := &policyv1.PodDisruptionBudget{}
-		err := ec.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, pdb)
-		if err != nil {
-			return err
-		}
+	pdb := &policyv1.PodDisruptionBudget{}
+	err := ec.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, pdb)
+	if errors.IsNotFound(err) {
+		logger.Info("PDB is not yet created")
+		return nil
+	}
 
-		logger.Info("Claiming pdb object")
-		claimedPdb, err := refMgr.ClaimPodDisruptionBudget(ctx, pdb)
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 
-		controllerMinAvailable := parseAnnotation(claimedPdb, ControllerMinAvailableAnnotation)
-		custodianMinAvailable := parseAnnotation(claimedPdb, CustodianMinAvailableAnnotation)
+	logger.Info("Claiming pdb object")
+	claimedPdb, err := refMgr.ClaimPodDisruptionBudget(ctx, pdb)
+	if err != nil {
+		return err
+	}
 
-		// determine the maximum minAvailable value
-		newValue := calculatePDBminAvailable(etcd)
-		maxValue := newValue
-		if controllerMinAvailable > maxValue {
-			maxValue = controllerMinAvailable
-		}
+	// determine the maximum minAvailable value
+	minAvailable := calculatePDBminAvailable(etcd)
+	if claimedPdb.Spec.MinAvailable.IntValue() == minAvailable {
+		// do not update, nothing changed
+		return nil
+	}
 
-		if custodianMinAvailable == newValue &&
-			claimedPdb.Spec.MinAvailable.IntValue() == maxValue {
-			// do not update, nothing changed
-			return nil
-		}
-
-		// update fields
-		converted := intstr.FromInt(maxValue)
-		claimedPdb.Spec.MinAvailable = &converted
-		claimedPdb.Annotations[CustodianMinAvailableAnnotation] = strconv.Itoa(maxValue)
-		return ec.Update(ctx, claimedPdb)
-	})
-
-	return err
+	// update fields
+	converted := intstr.FromInt(minAvailable)
+	claimedPdb.Spec.MinAvailable = &converted
+	return ec.Update(ctx, claimedPdb)
 }
 
 func inBootstrap(etcd *druidv1alpha1.Etcd) bool {

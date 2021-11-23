@@ -6,8 +6,6 @@ metadata:
   annotations:
     gardener.cloud/owned-by: "{{ .Release.Namespace }}/{{ .Values.name }}"
     gardener.cloud/owner-type: "etcd"
-    etcd-controller/min-available: "0"
-    etcd-custodian-controller/min-available: "0"
   labels:
     name: etcd
     instance: {{ .Values.name }}
@@ -22,7 +20,7 @@ metadata:
     name: {{ .Values.name }}
     uid: {{ .Values.uid }}
 spec:
-  minAvailable: 0
+  minAvailable: {{ .Values.pdbMinAvailable }}
   selector:
     matchLabels:
       instance: {{ .Values.name }}
