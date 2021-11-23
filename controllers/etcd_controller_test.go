@@ -232,7 +232,7 @@ var _ = Describe("Druid", func() {
 					return nil, err
 				}
 				return instance.Status.ClusterSize, nil
-			}, timeout, pollingInterval).Should(Equal(pointer.Int32Ptr(int32(instance.Spec.Replicas))))
+			}, timeout, pollingInterval).Should(Equal(pointer.Int32Ptr(instance.Spec.Replicas)))
 		})
 		It("should create and adopt statefulset and printing events", func() {
 			// Check StatefulSet requirements
