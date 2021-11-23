@@ -552,7 +552,7 @@ func CheckStatefulSet(etcd *druidv1alpha1.Etcd, statefulSet *appsv1.StatefulSet)
 	replicas := int32(1)
 
 	if etcd != nil {
-		replicas = int32(etcd.Spec.Replicas)
+		replicas = etcd.Spec.Replicas
 	}
 
 	if statefulSet.Status.ReadyReplicas < replicas {

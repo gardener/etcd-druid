@@ -237,7 +237,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		finalizers.Insert(FinalizerName)
 		etcd.Finalizers = finalizers.UnsortedList()
 		if err := r.Update(ctx, etcd); err != nil {
-			if err := r.updateEtcdErrorStatus(ctx, noOp, etcd, nil, err); err != nil {
+			if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 				return ctrl.Result{
 					Requeue: true,
 				}, err
@@ -248,7 +248,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		}
 	}
 	if err := r.addFinalizersToDependantSecrets(ctx, logger, etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(ctx, noOp, etcd, nil, err); err != nil {
+		if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -305,9 +305,9 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		logger.Info("The running cron job is: " + cronJob.Name)
 	}
 
-	op, svc, sts, err := r.reconcileEtcd(ctx, logger, etcd)
+	svc, sts, err := r.reconcileEtcd(ctx, logger, etcd)
 	if err != nil {
-		if err := r.updateEtcdErrorStatus(ctx, op, etcd, sts, err); err != nil {
+		if err := r.updateEtcdErrorStatus(ctx, etcd, sts, err); err != nil {
 			logger.Error(err, "Error during reconciling ETCD")
 			return ctrl.Result{
 				Requeue: true,
@@ -317,7 +317,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 			Requeue: true,
 		}, err
 	}
-	if err := r.updateEtcdStatus(ctx, op, etcd, svc, sts); err != nil {
+	if err := r.updateEtcdStatus(ctx, etcd, svc, sts); err != nil {
 		return ctrl.Result{
 			Requeue: true,
 		}, err
@@ -381,7 +381,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 	}
 
 	if waitForStatefulSetCleanup, err := r.removeDependantStatefulset(ctx, logger, etcd); err != nil {
-		if err = r.updateEtcdErrorStatus(ctx, deleteOp, etcd, nil, err); err != nil {
+		if err = r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -396,7 +396,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 	}
 
 	if err := r.removeFinalizersToDependantSecrets(ctx, logger, etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(ctx, deleteOp, etcd, nil, err); err != nil {
+		if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -828,19 +828,19 @@ func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, logger logr.L
 	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 	if err != nil {
 		logger.Error(err, "Error converting etcd selector to selector")
-		return noOp, nil, err
+		return nil, err
 	}
 	dm := NewEtcdDruidRefManager(r.Client, r.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
 	statefulSets, err := dm.FetchStatefulSet(ctx, etcd)
 	if err != nil {
 		logger.Error(err, "Error while fetching StatefulSet")
-		return noOp, nil, err
+		return nil, err
 	}
 
 	logger.Info("Claiming existing etcd StatefulSet")
 	claimedStatefulSets, err := dm.ClaimStatefulsets(ctx, statefulSets)
 	if err != nil {
-		return noOp, nil, err
+		return nil, err
 	}
 
 	if len(claimedStatefulSets) > 0 {
@@ -858,42 +858,42 @@ func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, logger logr.L
 		// TODO: (timuthy) Check if this is really needed.
 		sts := &appsv1.StatefulSet{}
 		if err := r.Get(ctx, types.NamespacedName{Name: claimedStatefulSets[0].Name, Namespace: claimedStatefulSets[0].Namespace}, sts); err != nil {
-			return noOp, nil, err
+			return nil, err
 		}
 
 		// Statefulset is claimed by for this etcd. Just sync the specs
 		if sts, err = r.syncStatefulSetSpec(ctx, logger, sts, etcd, values); err != nil {
-			return noOp, nil, err
+			return nil, err
 		}
 
 		// restart etcd pods in crashloop backoff
 		selector, err := metav1.LabelSelectorAsSelector(sts.Spec.Selector)
 		if err != nil {
 			logger.Error(err, "error converting StatefulSet selector to selector")
-			return noOp, nil, err
+			return nil, err
 		}
 		podList := &corev1.PodList{}
 		if err := r.List(ctx, podList, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
-			return noOp, nil, err
+			return nil, err
 		}
 
 		for _, pod := range podList.Items {
 			if utils.IsPodInCrashloopBackoff(pod.Status) {
 				if err := r.Delete(ctx, &pod); err != nil {
 					logger.Error(err, fmt.Sprintf("error deleting etcd pod in crashloop: %s/%s", pod.Namespace, pod.Name))
-					return noOp, nil, err
+					return nil, err
 				}
 			}
 		}
 
 		sts, err = r.waitUntilStatefulSetReady(ctx, logger, etcd, sts)
-		return reconcileOp, sts, err
+		return sts, err
 	}
 
 	// Required statefulset doesn't exist. Create new
 	sts, err := r.getStatefulSetFromEtcd(etcd, values)
 	if err != nil {
-		return noOp, nil, err
+		return nil, err
 	}
 
 	err = r.Create(ctx, sts)
@@ -905,11 +905,11 @@ func (r *EtcdReconciler) reconcileStatefulSet(ctx context.Context, logger logr.L
 		err = nil
 	}
 	if err != nil {
-		return noOp, nil, err
+		return nil, err
 	}
 
 	sts, err = r.waitUntilStatefulSetReady(ctx, logger, etcd, sts)
-	return bootstrapOp, sts, err
+	return sts, err
 }
 
 func getContainerMapFromPodTemplateSpec(spec corev1.PodSpec) map[string]corev1.Container {
@@ -1214,21 +1214,21 @@ func (r *EtcdReconciler) reconcileRoleBinding(ctx context.Context, logger logr.L
 	return err
 }
 
-func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (operationResult, *corev1.Service, *appsv1.StatefulSet, error) {
+func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*corev1.Service, *appsv1.StatefulSet, error) {
 	values, err := getMapFromEtcd(r.ImageVector, etcd)
 	if err != nil {
-		return noOp, nil, nil, err
+		return nil, nil, err
 	}
 
 	chartPath := getChartPath()
 	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
 	if err != nil {
-		return noOp, nil, nil, err
+		return nil, nil, err
 	}
 
 	svc, err := r.reconcileServices(ctx, logger, etcd, renderedChart)
 	if err != nil {
-		return noOp, nil, nil, err
+		return nil, nil, err
 	}
 	if svc != nil {
 		values["serviceName"] = svc.Name
@@ -1236,7 +1236,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 
 	cm, err := r.reconcileConfigMaps(ctx, logger, etcd, renderedChart)
 	if err != nil {
-		return noOp, nil, nil, err
+		return nil, nil, err
 	}
 	if cm != nil {
 		values["configMapName"] = cm.Name
@@ -1244,17 +1244,17 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 
 	err = r.reconcileServiceAccount(ctx, logger, etcd, values)
 	if err != nil {
-		return noOp, nil, nil, err
+		return nil, nil, err
 	}
 
 	err = r.reconcileRole(ctx, logger, etcd, values)
 	if err != nil {
-		return noOp, nil, nil, err
+		return nil, nil, err
 	}
 
 	err = r.reconcileRoleBinding(ctx, logger, etcd, values)
 	if err != nil {
-		return noOp, nil, nil, err
+		return nil, nil, err
 	}
 
 	{
@@ -1264,12 +1264,12 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		}
 	}
 
-	op, sts, err := r.reconcileStatefulSet(ctx, logger, etcd, values)
+	sts, err := r.reconcileStatefulSet(ctx, logger, etcd, values)
 	if err != nil {
-		return noOp, nil, nil, err
+		return nil, nil, err
 	}
 
-	return op, svc, sts, nil
+	return svc, sts, nil
 }
 
 func checkEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
@@ -1653,40 +1653,47 @@ func canDeleteStatefulset(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) boo
 
 func bootstrapReset(etcd *druidv1alpha1.Etcd) {
 	etcd.Status.Members = nil
-	etcd.Status.ClusterSize = pointer.Int32Ptr(int32(etcd.Spec.Replicas))
+	etcd.Status.ClusterSize = pointer.Int32Ptr(etcd.Spec.Replicas)
 }
 
-func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, op operationResult, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
+func clusterInBootstrap(etcd *druidv1alpha1.Etcd) bool {
+	return etcd.Status.Replicas == 0 ||
+		(etcd.Spec.Replicas > 1 && etcd.Status.Replicas == 1)
+}
+
+func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
 	return kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
 		lastErrStr := fmt.Sprintf("%v", lastError)
 		etcd.Status.LastError = &lastErrStr
 		etcd.Status.ObservedGeneration = &etcd.Generation
 		if sts != nil {
-			ready := CheckStatefulSet(etcd, sts) == nil
-			etcd.Status.Ready = &ready
-
-			if op == bootstrapOp {
-				// Reset members in bootstrap phase to ensure depending conditions can be calculated correctly.
+			if clusterInBootstrap(etcd) {
+				// Reset members in bootstrap phase to ensure dependent conditions can be calculated correctly.
 				bootstrapReset(etcd)
 			}
+
+			ready := CheckStatefulSet(etcd, sts) == nil
+			etcd.Status.Ready = &ready
+			etcd.Status.Replicas = pointer.Int32PtrDerefOr(sts.Spec.Replicas, 0)
 		}
 		return nil
 	})
 }
 
-func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, op operationResult, etcd *druidv1alpha1.Etcd, svc *corev1.Service, sts *appsv1.StatefulSet) error {
+func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, svc *corev1.Service, sts *appsv1.StatefulSet) error {
 	return kutil.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
+		if clusterInBootstrap(etcd) {
+			// Reset members in bootstrap phase to ensure dependent conditions can be calculated correctly.
+			bootstrapReset(etcd)
+		}
+
 		ready := CheckStatefulSet(etcd, sts) == nil
 		etcd.Status.Ready = &ready
 		svcName := svc.Name
 		etcd.Status.ServiceName = &svcName
 		etcd.Status.LastError = nil
 		etcd.Status.ObservedGeneration = &etcd.Generation
-
-		if op == bootstrapOp {
-			// Reset members in bootstrap phase to ensure depending conditions can be calculated correctly.
-			bootstrapReset(etcd)
-		}
+		etcd.Status.Replicas = pointer.Int32PtrDerefOr(sts.Spec.Replicas, 0)
 		return nil
 	})
 }

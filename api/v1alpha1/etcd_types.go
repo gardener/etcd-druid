@@ -230,7 +230,7 @@ type EtcdSpec struct {
 	// +optional
 	Common SharedConfig `json:"sharedConfig,omitempty"`
 	// +required
-	Replicas int `json:"replicas"`
+	Replicas int32 `json:"replicas"`
 	// PriorityClassName is the name of a priority class that shall be used for the etcd pods.
 	// +optional
 	PriorityClassName *string `json:"priorityClassName,omitempty"`

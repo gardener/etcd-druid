@@ -262,7 +262,7 @@ func inBootstrap(etcd *druidv1alpha1.Etcd) bool {
 		return true
 	}
 	return len(etcd.Status.Members) == 0 ||
-		(len(etcd.Status.Members) < etcd.Spec.Replicas && int32(etcd.Spec.Replicas) == *etcd.Status.ClusterSize)
+		(len(etcd.Status.Members) < int(etcd.Spec.Replicas) && etcd.Spec.Replicas == *etcd.Status.ClusterSize)
 }
 
 // SetupWithManager sets up manager with a new controller and ec as the reconcile.Reconciler
