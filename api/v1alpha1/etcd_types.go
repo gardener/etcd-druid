@@ -121,9 +121,9 @@ type OwnerCheckSpec struct {
 	DNSCacheTTL *metav1.Duration `json:"dnsCacheTTL,omitempty"`
 }
 
-// BackupSpec defines parametes associated with the full and delta snapshots of etcd
+// BackupSpec defines parameters associated with the full and delta snapshots of etcd.
 type BackupSpec struct {
-	// Port define the port on which etcd-backup-restore server will exposed.
+	// Port define the port on which etcd-backup-restore server will be exposed.
 	// +optional
 	Port *int32 `json:"port,omitempty"`
 	// +optional
@@ -134,11 +134,11 @@ type BackupSpec struct {
 	// Store defines the specification of object store provider for storing backups.
 	// +optional
 	Store *StoreSpec `json:"store,omitempty"`
-	// Resources defines the compute Resources required by backup-restore container.
+	// Resources defines compute Resources required by backup-restore container.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
-	// CompactionResources defines the compute Resources required by compaction job.
+	// CompactionResources defines compute Resources required by compaction job.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional
 	CompactionResources *corev1.ResourceRequirements `json:"compactionResources,omitempty"`
@@ -201,6 +201,9 @@ type EtcdConfig struct {
 	// EtcdDefragTimeout defines the timeout duration for etcd defrag call
 	// +optional
 	EtcdDefragTimeout *metav1.Duration `json:"etcdDefragTimeout,omitempty"`
+	// HeartbeatDuration defines the time members send a heartbeat. The default value is 10s.
+	// +optional
+	HeartbeatDuration *metav1.Duration `json:"heartbeatDuration,omitempty"`
 }
 
 // SharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.

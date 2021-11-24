@@ -1346,6 +1346,10 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd, leaseV
 		values["tlsCASecret"] = etcd.Spec.Etcd.TLS.TLSCASecretRef.Name
 	}
 
+	if heartBeatDuration := etcd.Spec.Etcd.HeartbeatDuration; heartBeatDuration != nil {
+		values["heartbeatDuration"] = heartBeatDuration
+	}
+
 	if etcd.Spec.Backup.Store != nil {
 		if values["store"], err = utils.GetStoreValues(etcd.Spec.Backup.Store); err != nil {
 			return nil, err
