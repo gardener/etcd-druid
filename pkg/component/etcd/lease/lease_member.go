@@ -87,10 +87,13 @@ func (c *component) syncMemberLeases(ctx context.Context) error {
 	return flow.Parallel(fns...)(ctx)
 }
 
+// PurposeMemberLease is a constant used as a purpose for etcd member lease objects.
+const PurposeMemberLease = "etcd-member-lease"
+
 func getMemberLeaseLabels(val Values) map[string]string {
 	return map[string]string{
 		common.GardenerOwnedBy:           val.EtcdName,
-		v1beta1constants.GardenerPurpose: "etcd-member-lease",
+		v1beta1constants.GardenerPurpose: PurposeMemberLease,
 	}
 }
 

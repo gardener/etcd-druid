@@ -20,6 +20,10 @@ import (
 	"strings"
 	"time"
 
+	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
+
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -49,7 +53,8 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 	)
 
 	leases := &coordinationv1.LeaseList{}
-	if err := r.cl.List(ctx, leases, client.InNamespace(etcd.Namespace), client.MatchingLabels{common.GardenerOwnedBy: etcd.Name}); err != nil {
+	if err := r.cl.List(ctx, leases, client.InNamespace(etcd.Namespace), client.MatchingLabels{
+		common.GardenerOwnedBy: etcd.Name, v1beta1constants.GardenerPurpose: componentlease.PurposeMemberLease}); err != nil {
 		r.logger.Error(err, "failed to get leases for etcd member readiness check")
 	}
 
