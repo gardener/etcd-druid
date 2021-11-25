@@ -28,6 +28,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
+	certificatesv1 "k8s.io/api/certificates/v1"
+	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -37,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/duration"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
+	clientcmdv1 "k8s.io/client-go/tools/clientcmd/api/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
@@ -80,7 +83,7 @@ func HasMetaDataAnnotation(meta metav1.Object, key, value string) bool {
 // SetAnnotationAndUpdate sets the annotation on the given object and updates it.
 func SetAnnotationAndUpdate(ctx context.Context, c client.Client, obj client.Object, key, value string) error {
 	if !HasMetaDataAnnotation(obj, key, value) {
-		objCopy := obj.DeepCopyObject()
+		objCopy := obj.DeepCopyObject().(client.Object)
 		SetMetaDataAnnotation(obj, key, value)
 		return c.Patch(ctx, obj, client.MergeFrom(objCopy))
 	}
@@ -179,26 +182,27 @@ func WaitUntilResourceDeletedWithDefaults(ctx context.Context, c client.Client, 
 
 // WaitUntilLoadBalancerIsReady waits until the given external load balancer has
 // been created (i.e., its ingress information has been updated in the service status).
-func WaitUntilLoadBalancerIsReady(ctx context.Context, kubeClient kubernetes.Interface, namespace, name string, timeout time.Duration, logger *logrus.Entry) (string, error) {
+func WaitUntilLoadBalancerIsReady(ctx context.Context, c client.Client, namespace, name string, timeout time.Duration, logger logrus.FieldLogger) (string, error) {
 	var (
 		loadBalancerIngress string
 		service             = &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
 	)
+
 	if err := retry.UntilTimeout(ctx, 5*time.Second, timeout, func(ctx context.Context) (done bool, err error) {
-		loadBalancerIngress, err = GetLoadBalancerIngress(ctx, kubeClient.Client(), service)
+		loadBalancerIngress, err = GetLoadBalancerIngress(ctx, c, service)
 		if err != nil {
-			logger.Infof("Waiting until the %s service deployed is ready...", name)
+			logger.Infof("Waiting until the %s service is ready...", name)
 			// TODO(AC): This is a quite optimistic check / we should differentiate here
-			return retry.MinorError(fmt.Errorf("%s service deployed is not ready: %v", name, err))
+			return retry.MinorError(fmt.Errorf("%s service is not ready: %v", name, err))
 		}
 		return retry.Ok()
 	}); err != nil {
-		const eventsLimit = 2
+		logger.Errorf("error %v occurred while waiting for load balancer to be ready", err)
 
 		// use API reader here, we don't want to cache all events
-		eventsErrorMessage, err2 := FetchEventMessages(ctx, kubeClient.Client().Scheme(), kubeClient.APIReader(), service, corev1.EventTypeWarning, eventsLimit)
+		eventsErrorMessage, err2 := FetchEventMessages(ctx, c.Scheme(), c, service, corev1.EventTypeWarning, 2)
 		if err2 != nil {
-			logger.Errorf("error %q occured while fetching events for error %q", err2, err)
+			logger.Errorf("error %v occurred while fetching events for load balancer service", err2)
 			return "", fmt.Errorf("'%w' occurred but could not fetch events for more information", err)
 		}
 		if eventsErrorMessage != "" {
@@ -256,28 +260,34 @@ func LookupObject(ctx context.Context, c client.Client, apiReader client.Reader,
 // FeatureGatesToCommandLineParameter transforms feature gates given as string/bool map to a command line parameter that
 // is understood by Kubernetes components.
 func FeatureGatesToCommandLineParameter(fg map[string]bool) string {
-	if len(fg) == 0 {
+	return MapStringBoolToCommandLineParameter(fg, "--feature-gates=")
+}
+
+// MapStringBoolToCommandLineParameter transforms a string/bool map to a command line parameter that is understood by
+// Kubernetes components.
+func MapStringBoolToCommandLineParameter(m map[string]bool, param string) string {
+	if len(m) == 0 {
 		return ""
 	}
 
-	keys := make([]string, 0, len(fg))
-	for k := range fg {
+	keys := make([]string, 0, len(m))
+	for k := range m {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
-	out := "--feature-gates="
+	out := param
 	for _, key := range keys {
-		out += fmt.Sprintf("%s=%s,", key, strconv.FormatBool(fg[key]))
+		out += fmt.Sprintf("%s=%s,", key, strconv.FormatBool(m[key]))
 	}
-	return out
+	return strings.TrimSuffix(out, ",")
 }
 
 // ReconcileServicePorts reconciles the existing service ports with the desired ports. This means that it takes the
 // existing port (identified by name), and applies the settings from the desired port to it. This way it can keep fields
 // that are defaulted by controllers, e.g. the node port. However, it does not keep ports that are not part of the
 // desired list.
-func ReconcileServicePorts(existingPorts []corev1.ServicePort, desiredPorts []corev1.ServicePort) []corev1.ServicePort {
+func ReconcileServicePorts(existingPorts []corev1.ServicePort, desiredPorts []corev1.ServicePort, desiredServiceType corev1.ServiceType) []corev1.ServicePort {
 	var out []corev1.ServicePort
 
 	for _, desiredPort := range desiredPorts {
@@ -300,7 +310,16 @@ func ReconcileServicePorts(existingPorts []corev1.ServicePort, desiredPorts []co
 		if desiredPort.TargetPort.Type == intstr.Int || desiredPort.TargetPort.Type == intstr.String {
 			port.TargetPort = desiredPort.TargetPort
 		}
-		if desiredPort.NodePort != 0 {
+
+		// If the desired service type is "LoadBalancer" or "NodePort", then overwrite the existing nodePort
+		// only when the desired nodePort != 0 (in this way we preserve the value defaulted by the controller).
+		// Otherwise, always set the existing nodePort to the desired one.
+		switch desiredServiceType {
+		case corev1.ServiceTypeLoadBalancer, corev1.ServiceTypeNodePort:
+			if desiredPort.NodePort != 0 {
+				port.NodePort = desiredPort.NodePort
+			}
+		default:
 			port.NodePort = desiredPort.NodePort
 		}
 
@@ -333,8 +352,8 @@ func FetchEventMessages(ctx context.Context, scheme *runtime.Scheme, reader clie
 		"type":                      eventType,
 	}
 	eventList := &corev1.EventList{}
-	if err := reader.List(ctx, eventList, fieldSelector); err != nil {
-		return "", fmt.Errorf("error '%v' occurred while fetching more details", err)
+	if err := reader.List(ctx, eventList, fieldSelector, client.InNamespace(obj.GetNamespace())); err != nil {
+		return "", fmt.Errorf("error '%w' occurred while fetching more details", err)
 	}
 
 	if len(eventList.Items) > 0 {
@@ -513,13 +532,26 @@ func NewestPodForDeployment(ctx context.Context, c client.Reader, deployment *ap
 		return nil, fmt.Errorf("object is not of type *appsv1.ReplicaSet but %T", replicaSet)
 	}
 
+	if newestReplicaSet.Spec.Selector == nil {
+		return nil, fmt.Errorf("no pod selector specified in replicaSet %s/%s", newestReplicaSet.Namespace, newestReplicaSet.Name)
+	}
+
+	if len(newestReplicaSet.Spec.Selector.MatchLabels)+len(newestReplicaSet.Spec.Selector.MatchExpressions) == 0 {
+		return nil, fmt.Errorf("no matchLabels or matchExpressions specified in replicaSet %s/%s", newestReplicaSet.Namespace, newestReplicaSet.Name)
+	}
+
+	podSelector, err := metav1.LabelSelectorAsSelector(newestReplicaSet.Spec.Selector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert the pod selector from ReplicaSet %s/%s: %w", newestReplicaSet.Namespace, newestReplicaSet.Name, err)
+	}
+
+	listOpts = append(listOpts, client.MatchingLabelsSelector{Selector: podSelector})
+
 	pod, err := NewestObject(
 		ctx,
 		c,
 		&corev1.PodList{},
-		func(obj client.Object) bool {
-			return OwnedBy(obj, appsv1.SchemeGroupVersion.String(), "ReplicaSet", newestReplicaSet.Name, newestReplicaSet.UID)
-		},
+		nil,
 		listOpts...,
 	)
 	if err != nil {
@@ -590,4 +622,38 @@ func IgnoreAlreadyExists(err error) error {
 		return nil
 	}
 	return err
+}
+
+// CertificatesV1beta1UsagesToCertificatesV1Usages converts []certificatesv1beta1.KeyUsage to []certificatesv1.KeyUsage.
+func CertificatesV1beta1UsagesToCertificatesV1Usages(usages []certificatesv1beta1.KeyUsage) []certificatesv1.KeyUsage {
+	var out []certificatesv1.KeyUsage
+	for _, u := range usages {
+		out = append(out, certificatesv1.KeyUsage(u))
+	}
+	return out
+}
+
+// NewKubeconfig returns a new kubeconfig structure.
+func NewKubeconfig(contextName, server string, caCert []byte, authInfo clientcmdv1.AuthInfo) *clientcmdv1.Config {
+	return &clientcmdv1.Config{
+		CurrentContext: contextName,
+		Clusters: []clientcmdv1.NamedCluster{{
+			Name: contextName,
+			Cluster: clientcmdv1.Cluster{
+				Server:                   `https://` + server,
+				CertificateAuthorityData: caCert,
+			},
+		}},
+		AuthInfos: []clientcmdv1.NamedAuthInfo{{
+			Name:     contextName,
+			AuthInfo: authInfo,
+		}},
+		Contexts: []clientcmdv1.NamedContext{{
+			Name: contextName,
+			Context: clientcmdv1.Context{
+				Cluster:  contextName,
+				AuthInfo: contextName,
+			},
+		}},
+	}
 }

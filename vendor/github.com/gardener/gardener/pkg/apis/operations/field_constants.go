@@ -18,6 +18,6 @@ package operations
 // representation.
 const (
 	// BastionSeedName is the field selector path for finding
-	// the Seed cluster of a core.gardener.cloud/v1alpha1 Bastion.
+	// the Seed cluster of a operations.gardener.cloud/v1alpha1 Bastion.
 	BastionSeedName = "spec.seedName"
 )

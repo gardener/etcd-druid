@@ -30,7 +30,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
-	. "github.com/onsi/gomega/types"
+	gomegatypes "github.com/onsi/gomega/types"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -171,7 +171,7 @@ func getEtcdCopyBackupsTask(provider druidv1alpha1.StorageProvider, withOptional
 	}
 }
 
-func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask) GomegaMatcher {
+func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask) gomegatypes.GomegaMatcher {
 	sourceProvider, err := utils.StorageProviderFromInfraProvider(task.Spec.SourceStore.Provider)
 	Expect(err).NotTo(HaveOccurred())
 	targetProvider, err := utils.StorageProviderFromInfraProvider(task.Spec.TargetStore.Provider)
@@ -284,7 +284,7 @@ func getEnvElements(task *druidv1alpha1.EtcdCopyBackupsTask) Elements {
 	return elements
 }
 
-func matchJobWithProviders(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvider, targetProvider string) GomegaMatcher {
+func matchJobWithProviders(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvider, targetProvider string) gomegatypes.GomegaMatcher {
 	matcher := MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -398,7 +398,7 @@ func getVolumesElements(storeProvider, volumePrefix string, store *druidv1alpha1
 	}
 }
 
-func matchEnvValueFrom(name string, store *druidv1alpha1.StoreSpec, key string) GomegaMatcher {
+func matchEnvValueFrom(name string, store *druidv1alpha1.StoreSpec, key string) gomegatypes.GomegaMatcher {
 	return MatchFields(IgnoreExtras, Fields{
 		"Name": Equal(name),
 		"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
@@ -428,7 +428,7 @@ func getJobStatus(conditionType batchv1.JobConditionType, reason, message string
 	}
 }
 
-func matchTaskStatus(jobStatus *batchv1.JobStatus) GomegaMatcher {
+func matchTaskStatus(jobStatus *batchv1.JobStatus) gomegatypes.GomegaMatcher {
 	conditionElements := Elements{}
 	for _, jobCondition := range jobStatus.Conditions {
 		var conditionType druidv1alpha1.ConditionType
@@ -457,7 +457,7 @@ func matchTaskStatus(jobStatus *batchv1.JobStatus) GomegaMatcher {
 	})
 }
 
-func matchFinalizer(finalizer string) GomegaMatcher {
+func matchFinalizer(finalizer string) gomegatypes.GomegaMatcher {
 	return MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 			"Finalizers": MatchAllElements(stringIdentifier, Elements{

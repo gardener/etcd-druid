@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 
-	extensionshandler "github.com/gardener/gardener/extensions/pkg/handler"
+	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
@@ -43,7 +43,7 @@ var _ = Describe("Druid Mapper", func() {
 
 		name, namespace, key string
 		statefulset          *appsv1.StatefulSet
-		mapper               extensionshandler.Mapper
+		mapper               mapper.Mapper
 	)
 
 	BeforeEach(func() {

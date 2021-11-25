@@ -226,7 +226,7 @@ message BackupEntryStatus {
 
 // CRI contains information about the Container Runtimes.
 message CRI {
-  // The name of the CRI library
+  // The name of the CRI library. Supported values are `docker` and `containerd`.
   optional string name = 1;
 
   // ContainerRuntimes is the list of the required container runtimes supported for a worker pool.
@@ -317,7 +317,7 @@ message ClusterAutoscaler {
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Duration scaleDownDelayAfterAdd = 1;
 
-  // ScaleDownDelayAfterDelete how long after node deletion that scale down evaluation resumes, defaults to scanInterval (defaults to ScanInterval).
+  // ScaleDownDelayAfterDelete how long after node deletion that scale down evaluation resumes, defaults to scanInterval (default: 0 secs).
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Duration scaleDownDelayAfterDelete = 2;
 
@@ -329,13 +329,26 @@ message ClusterAutoscaler {
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Duration scaleDownUnneededTime = 4;
 
-  // ScaleDownUtilizationThreshold defines the threshold in % under which a node is being removed
+  // ScaleDownUtilizationThreshold defines the threshold in decimal (0.0 - 1.0) under which a node is being removed (default: 0.5).
   // +optional
   optional double scaleDownUtilizationThreshold = 5;
 
   // ScanInterval how often cluster is reevaluated for scale up or down (default: 10 secs).
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Duration scanInterval = 6;
+
+  // Expander defines the algorithm to use during scale up (default: least-waste).
+  // See: https://github.com/gardener/autoscaler/blob/machine-controller-manager-provider/cluster-autoscaler/FAQ.md#what-are-expanders.
+  // +optional
+  optional string expander = 7;
+
+  // MaxNodeProvisionTime defines how long CA waits for node to be provisioned (default: 20 mins).
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Duration maxNodeProvisionTime = 8;
+
+  // MaxGracefulTerminationSeconds is the number of seconds CA waits for pod termination when trying to scale down a node (default: 600).
+  // +optional
+  optional int32 maxGracefulTerminationSeconds = 9;
 }
 
 // ClusterInfo contains information about the Plant cluster
@@ -349,7 +362,7 @@ message ClusterInfo {
 
 // Condition holds the information about the state of a resource.
 message Condition {
-  // Type of the Shoot condition.
+  // Type of the condition.
   optional string type = 1;
 
   // Status of the condition, one of True, False, Unknown.
@@ -463,16 +476,6 @@ message ControllerRegistration {
 
 // ControllerRegistrationDeployment contains information for how this controller is deployed.
 message ControllerRegistrationDeployment {
-  // Type is the deployment type.
-  // Deprecated: Declare type via `ControllerDeployment` instead.
-  // +optional
-  optional string type = 1;
-
-  // ProviderConfig contains type-specific configuration.
-  // Deprecated: Use `DeploymentRefs` instead.
-  // +optional
-  optional k8s.io.apimachinery.pkg.runtime.RawExtension providerConfig = 2;
-
   // Policy controls how the controller is deployed. It defaults to 'OnDemand'.
   // +optional
   optional string policy = 3;
@@ -549,12 +552,13 @@ message DNS {
   repeated DNSProvider providers = 2;
 }
 
+// DNSIncludeExclude contains information about which domains shall be included/excluded.
 message DNSIncludeExclude {
-  // Include is a list of resources that shall be included.
+  // Include is a list of domains that shall be included.
   // +optional
   repeated string include = 1;
 
-  // Exclude is a list of resources that shall be excluded.
+  // Exclude is a list of domains that shall be excluded.
   // +optional
   repeated string exclude = 2;
 }
@@ -632,6 +636,43 @@ message ExpirableVersion {
   // Classification defines the state of a version (preview, supported, deprecated)
   // +optional
   optional string classification = 3;
+}
+
+// ExposureClass represents a control plane endpoint exposure strategy.
+message ExposureClass {
+  // Standard object metadata.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
+
+  // Handler is the name of the handler which applies the control plane endpoint exposure strategy.
+  optional string handler = 2;
+
+  // Scheduling holds information how to select applicable Seed's for ExposureClass usage.
+  // +optional
+  optional ExposureClassScheduling scheduling = 3;
+}
+
+// ExposureClassList is a collection of ExposureClass.
+message ExposureClassList {
+  // Standard list object metadata.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.ListMeta metadata = 1;
+
+  // Items is the list of ExposureClasses.
+  repeated ExposureClass items = 2;
+}
+
+// ExposureClassScheduling holds information to select applicable Seed's for ExposureClass usage.
+message ExposureClassScheduling {
+  // SeedSelector is an optional label selector for Seed's which are suitable to use the ExposureClass.
+  // +optional
+  optional SeedSelector seedSelector = 1;
+
+  // Tolerations contains the tolerations for taints on Seed clusters.
+  // +patchMergeKey=key
+  // +patchStrategy=merge
+  // +optional
+  repeated Toleration tolerations = 2;
 }
 
 // Extension contains type and provider information for Shoot extensions.
@@ -836,6 +877,17 @@ message KubeAPIServerConfig {
   // Requests contains configuration for request-specific settings for the kube-apiserver.
   // +optional
   optional KubeAPIServerRequests requests = 10;
+
+  // EnableAnonymousAuthentication defines whether anonymous requests to the secure port
+  // of the API server should be allowed (flag `--anonymous-auth`).
+  // See: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/
+  // +optional
+  optional bool enableAnonymousAuthentication = 11;
+
+  // EventTTL controls the amount of time to retain events.
+  // Defaults to 1h.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Duration eventTTL = 12;
 }
 
 // KubeAPIServerRequests contains configuration for request-specific settings for the kube-apiserver.
@@ -880,6 +932,12 @@ message KubeProxyConfig {
   // defaults to IPTables.
   // +optional
   optional string mode = 2;
+
+  // Enabled indicates whether kube-proxy should be deployed or not.
+  // Depending on the networking extensions switching kube-proxy off might be rejected. Consulting the respective documentation of the used networking extension is recommended before using this field.
+  // defaults to true if not specified.
+  // +optional
+  optional bool enabled = 3;
 }
 
 // KubeSchedulerConfig contains configuration settings for the kube-scheduler.
@@ -979,6 +1037,16 @@ message KubeletConfig {
   // When updating these values, be aware that cgroup resizes may not succeed on active worker nodes. Look for the NodeAllocatableEnforced event to determine if the configuration was applied.
   // +optional
   optional KubeletConfigReserved systemReserved = 15;
+
+  // ImageGCHighThresholdPercent describes the percent of the disk usage which triggers image garbage collection.
+  // +optional
+  // Default: 50
+  optional int32 imageGCHighThresholdPercent = 16;
+
+  // ImageGCLowThresholdPercent describes the percent of the disk to which garbage collection attempts to free.
+  // +optional
+  // Default: 40
+  optional int32 imageGCLowThresholdPercent = 17;
 }
 
 // KubeletConfigEviction contains kubelet eviction thresholds supporting either a resource.Quantity or a percentage based value.
@@ -1421,6 +1489,7 @@ message OpenIDConnectClientAuthentication {
   optional string secret = 2;
 }
 
+// Plant represents an external kubernetes cluster.
 message Plant {
   // Standard object metadata.
   // +optional
@@ -1571,6 +1640,10 @@ message ProjectStatus {
   // because it's stale/unused.
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Time staleAutoDeleteTimestamp = 4;
+
+  // LastActivityTimestamp contains the timestamp from the last activity performed in this project.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastActivityTimestamp = 5;
 }
 
 // ProjectTolerations contains the tolerations for taints on seed clusters.
@@ -1611,6 +1684,7 @@ message Provider {
   repeated Worker workers = 4;
 }
 
+// Quota represents a quota on resources consumed by shoot clusters either per project or per provider secret.
 message Quota {
   // Standard object metadata.
   // +optional
@@ -1685,6 +1759,7 @@ message ResourceWatchCacheSize {
   optional int32 size = 3;
 }
 
+// SecretBinding represents a binding to a secret in the same or another namespace.
 message SecretBinding {
   // Standard object metadata.
   // +optional
@@ -1950,6 +2025,10 @@ message SeedStatus {
   // ClusterIdentity is the identity of the Seed cluster
   // +optional
   optional string clusterIdentity = 5;
+
+  // ClientCertificateExpirationTimestamp is the timestamp at which gardenlet's client certificate expires.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time clientCertificateExpirationTimestamp = 6;
 }
 
 // SeedTaint describes a taint on a seed.
@@ -1997,8 +2076,22 @@ message ServiceAccountConfig {
   // Only useful if service account tokens are also issued by another external system.
   // +optional
   optional k8s.io.api.core.v1.LocalObjectReference signingKeySecretName = 2;
+
+  // ExtendTokenExpiration turns on projected service account expiration extension during token generation, which
+  // helps safe transition from legacy token to bound service account token feature. If this flag is enabled,
+  // admission injected tokens would be extended up to 1 year to prevent unexpected failure during transition,
+  // ignoring value of service-account-max-token-expiration.
+  // +optional
+  optional bool extendTokenExpiration = 3;
+
+  // MaxTokenExpiration is the maximum validity duration of a token created by the service account token issuer. If an
+  // otherwise valid TokenRequest with a validity duration larger than this value is requested, a token will be issued
+  // with a validity duration of this value.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Duration maxTokenExpiration = 4;
 }
 
+// Shoot represents a Shoot cluster created and managed by Gardener.
 message Shoot {
   // Standard object metadata.
   // +optional
@@ -2149,6 +2242,10 @@ message ShootSpec {
   // +patchStrategy=merge
   // +optional
   repeated Toleration tolerations = 17;
+
+  // ExposureClassName is the optional name of an exposure class to apply a control plane endpoint exposure strategy.
+  // +optional
+  optional string exposureClassName = 18;
 }
 
 // ShootState contains a snapshot of the Shoot's state required to migrate the Shoot's control plane to a new Seed.
@@ -2363,7 +2460,8 @@ message Worker {
   // +optional
   optional string caBundle = 2;
 
-  // CRI contains configurations of CRI support of every machine in the worker pool
+  // CRI contains configurations of CRI support of every machine in the worker pool.
+  // Defaults to a CRI with name `containerd` when the Kubernetes version of the `Shoot` is >= 1.22.
   // +optional
   optional CRI cri = 3;
 

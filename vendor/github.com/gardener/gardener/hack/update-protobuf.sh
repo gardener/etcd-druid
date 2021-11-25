@@ -18,6 +18,10 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+# We need to explicitly pass GO111MODULE=off to k8s.io/code-generator as it is significantly slower otherwise,
+# see https://github.com/kubernetes/code-generator/issues/100.
+export GO111MODULE=off
+
 CURRENT_DIR="$(dirname $0)"
 PROJECT_ROOT="${CURRENT_DIR}"/..
 if [ "${PROJECT_ROOT#/}" == "${PROJECT_ROOT}" ]; then
@@ -32,13 +36,8 @@ APIROOTS=${APIROOTS:-$(git grep --files-with-matches -e '// +k8s:protobuf-gen=pa
 )}
 popd > /dev/null
 
-rm -f ${GOPATH}/bin/go-to-protobuf
-rm -f ${GOPATH}/bin/protoc-gen-gogo
-
-GOFLAGS="" go build -o ${GOPATH}/bin "$PROJECT_ROOT/vendor/k8s.io/code-generator/cmd/go-to-protobuf"
-GOFLAGS="" go build -o ${GOPATH}/bin "$PROJECT_ROOT/vendor/k8s.io/code-generator/cmd/go-to-protobuf/protoc-gen-gogo"
-
 if [[ -z "$(which protoc)" || "$(protoc --version)" != "libprotoc 3."* ]]; then
+  # TODO: install to local hack/tools/bin dir
   if [[ "$(uname -s)" == *"Darwin"* ]]; then
     brew install protobuf
   else

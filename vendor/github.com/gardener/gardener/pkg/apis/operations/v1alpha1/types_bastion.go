@@ -22,6 +22,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	// BastionReady is a condition type for indicating whether the bastion has been
+	// successfully reconciled on the seed cluster and is available to be used.
+	BastionReady gardenercorev1alpha1.ConditionType = "BastionReady"
+)
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
@@ -91,4 +97,8 @@ type BastionStatus struct {
 	// garbage collected.
 	// +optional
 	ExpirationTimestamp *metav1.Time `json:"expirationTimestamp,omitempty" protobuf:"bytes,4,opt,name=expirationTimestamp"`
+	// ObservedGeneration is the most recent generation observed for this Bastion. It corresponds to the
+	// Bastion's generation, which is updated on mutation by the API Server.
+	// +optional
+	ObservedGeneration *int64 `json:"observedGeneration,omitempty" protobuf:"varint,5,opt,name=observedGeneration"`
 }
