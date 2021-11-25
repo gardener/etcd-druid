@@ -260,11 +260,11 @@ func (m *EtcdDruidRefManager) ClaimStatefulsets(ctx context.Context, statefulSet
 	return claimed, utilerrors.NewAggregate(errlist)
 }
 
-func (m *EtcdDruidRefManager) ClaimPodDisruptionBudget(ctx context.Context, pdb *policyv1.PodDisruptionBudget, filters ...func(*policyv1.PodDisruptionBudget) bool) (*policyv1.PodDisruptionBudget, error) {
+func (m *EtcdDruidRefManager) ClaimPodDisruptionBudget(ctx context.Context, pdb *policyv1beta1.PodDisruptionBudget, filters ...func(*policyv1beta1.PodDisruptionBudget) bool) (*policyv1beta1.PodDisruptionBudget, error) {
 	var errlist []error
 
 	match := func(obj metav1.Object) bool {
-		tempPdb := obj.(*policyv1.PodDisruptionBudget)
+		tempPdb := obj.(*policyv1beta1.PodDisruptionBudget)
 		// Check selector first so filters only run on potentially matching poddisruptionbudgets
 		if !m.Selector.Matches(labels.Set(pdb.Labels)) {
 			return false
@@ -283,7 +283,7 @@ func (m *EtcdDruidRefManager) ClaimPodDisruptionBudget(ctx context.Context, pdb 
 		errlist = append(errlist, err)
 	}
 
-	var claimed *policyv1.PodDisruptionBudget
+	var claimed *policyv1beta1.PodDisruptionBudget
 	if ok {
 		claimed = pdb.DeepCopy()
 	}
@@ -452,8 +452,8 @@ func (m *EtcdDruidRefManager) AdoptResource(ctx context.Context, obj client.Obje
 		if err := controllerutil.SetControllerReference(m.Controller, clone, m.scheme); err != nil {
 			return err
 		}
-	case *policyv1.PodDisruptionBudget:
-		clone = obj.(*policyv1.PodDisruptionBudget).DeepCopy()
+	case *policyv1beta1.PodDisruptionBudget:
+		clone = obj.(*policyv1beta1.PodDisruptionBudget).DeepCopy()
 		// Note that ValidateOwnerReferences() will reject this patch if another
 		// OwnerReference exists with controller=true.
 		if err := controllerutil.SetControllerReference(m.Controller, clone, m.scheme); err != nil {
@@ -482,8 +482,8 @@ func (m *EtcdDruidRefManager) ReleaseResource(ctx context.Context, obj client.Ob
 		clone = obj.(*corev1.ConfigMap).DeepCopy()
 	case *corev1.Service:
 		clone = obj.(*corev1.Service).DeepCopy()
-	case *policyv1.PodDisruptionBudget:
-		clone = obj.(*policyv1.PodDisruptionBudget).DeepCopy()
+	case *policyv1beta1.PodDisruptionBudget:
+		clone = obj.(*policyv1beta1.PodDisruptionBudget).DeepCopy()
 	default:
 		return fmt.Errorf("cannot release resource: %s", objType)
 	}

@@ -672,10 +672,9 @@ func (r *EtcdReconciler) getConfigMapFromEtcd(etcd *druidv1alpha1.Etcd, rendered
 	return decoded, nil
 }
 
-func (r *EtcdReconciler) reconcilePodDisruptionBudget(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*policyv1.PodDisruptionBudget, error) {
+func (r *EtcdReconciler) reconcilePodDisruptionBudget(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) error {
 	logger.Info("Reconcile PodDisruptionBudget")
-
-	pdb := &policyv1.PodDisruptionBudget{}
+	pdb := &policyv1beta1.PodDisruptionBudget{}
 	err := r.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, pdb)
 
 	if err == nil {
@@ -684,34 +683,35 @@ func (r *EtcdReconciler) reconcilePodDisruptionBudget(ctx context.Context, logge
 		selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 		if err != nil {
 			logger.Error(err, "Error converting etcd selector to selector")
-			return nil, err
+			return err
 		}
 
 		logger.Info("Claiming pdb object")
-		return r.claimPodDisruptionBudget(ctx, etcd, selector, pdb)
+		_, err = r.claimPodDisruptionBudget(ctx, etcd, selector, pdb)
+		return err
 	}
 
 	if !apierrors.IsNotFound(err) {
-		return nil, err
+		return err
 	}
 
 	// Required podDisruptionBudget doesn't exist. Create new
 	pdb, err = r.getPodDisruptionBudgetFromEtcd(etcd, values, logger)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	logger.Info("Creating PodDisruptionBudget", "poddisruptionbudget", kutil.Key(pdb.Namespace, pdb.Name).String())
 	if err := r.Create(ctx, pdb); err != nil {
-		return nil, err
+		return err
 	}
 
-	return pdb, nil
+	return nil
 }
 
-func (r *EtcdReconciler) getPodDisruptionBudgetFromEtcd(etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*policyv1.PodDisruptionBudget, error) {
+func (r *EtcdReconciler) getPodDisruptionBudgetFromEtcd(etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*policyv1beta1.PodDisruptionBudget, error) {
 	var err error
-	decoded := &policyv1.PodDisruptionBudget{}
+	decoded := &policyv1beta1.PodDisruptionBudget{}
 	pdbPath := getChartPathForPodDisruptionBudget()
 	chartPath := getChartPath()
 	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
@@ -1183,11 +1183,9 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		return nil, nil, err
 	}
 
-	{
-		_, err := r.reconcilePodDisruptionBudget(ctx, logger, etcd, values)
-		if err != nil {
-			return nil, nil, err
-		}
+	err = r.reconcilePodDisruptionBudget(ctx, logger, etcd, values)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	sts, err := r.reconcileStatefulSet(ctx, logger, etcd, values)
@@ -1726,7 +1724,7 @@ func (r *EtcdReconciler) claimServices(ctx context.Context, etcd *druidv1alpha1.
 	return cm.ClaimServices(ctx, ss)
 }
 
-func (r *EtcdReconciler) claimPodDisruptionBudget(ctx context.Context, etcd *druidv1alpha1.Etcd, selector labels.Selector, pdb *policyv1.PodDisruptionBudget) (*policyv1.PodDisruptionBudget, error) {
+func (r *EtcdReconciler) claimPodDisruptionBudget(ctx context.Context, etcd *druidv1alpha1.Etcd, selector labels.Selector, pdb *policyv1beta1.PodDisruptionBudget) (*policyv1beta1.PodDisruptionBudget, error) {
 	// If any adoptions are attempted, we should first recheck for deletion with
 	// an uncached quorum read sometime after listing Machines (see #42639).
 	canAdoptFunc := RecheckDeletionTimestamp(func() (metav1.Object, error) {

@@ -24,7 +24,7 @@ import (
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
-	policyv1 "k8s.io/api/policy/v1beta1"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -191,7 +191,7 @@ func calculatePDBminAvailable(etcd *druidv1alpha1.Etcd) int {
 	backupReady := false
 	for _, condition := range etcd.Status.Conditions {
 		if condition.Type == druidv1alpha1.ConditionTypeAllMembersReady &&
-			condition.Status == druidv1alpha1.ConditionStatus(druidv1alpha1.EtcdMemberStatusReady) {
+			condition.Status == druidv1alpha1.ConditionTrue {
 			allMembersReady = true
 			continue
 		}
@@ -204,7 +204,8 @@ func calculatePDBminAvailable(etcd *druidv1alpha1.Etcd) int {
 	}
 
 	clusterSize := int(*etcd.Status.ClusterSize)
-	values := make([]int, int(math.Floor(float64(clusterSize)/float64(2))+1))
+	values := make([]int, 0)
+	values = append(values, int(math.Floor(float64(clusterSize)/float64(2))+1))
 
 	if !allMembersReady {
 		readyMembers := 0
@@ -232,7 +233,7 @@ func calculatePDBminAvailable(etcd *druidv1alpha1.Etcd) int {
 }
 
 func (ec *EtcdCustodian) updatePodDisruptionBudget(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, refMgr *EtcdDruidRefManager) error {
-	pdb := &policyv1.PodDisruptionBudget{}
+	pdb := &policyv1beta1.PodDisruptionBudget{}
 	err := ec.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, pdb)
 	if errors.IsNotFound(err) {
 		logger.Info("PDB is not yet created")
@@ -243,18 +244,19 @@ func (ec *EtcdCustodian) updatePodDisruptionBudget(ctx context.Context, logger l
 		return err
 	}
 
-
 	// determine the maximum minAvailable value
 	minAvailable := calculatePDBminAvailable(etcd)
-	if claimedPdb.Spec.MinAvailable.IntValue() == minAvailable {
+	if pdb.Spec.MinAvailable.IntValue() == minAvailable {
 		// do not update, nothing changed
 		return nil
 	}
 
 	// update fields
+	pdbCopy := pdb.DeepCopy()
 	converted := intstr.FromInt(minAvailable)
-	claimedPdb.Spec.MinAvailable = &converted
-	return ec.Update(ctx, claimedPdb)
+	pdbCopy.Spec.MinAvailable = &converted
+
+	return ec.Patch(ctx, pdbCopy, client.MergeFrom(pdb))
 }
 
 func inBootstrap(etcd *druidv1alpha1.Etcd) bool {
