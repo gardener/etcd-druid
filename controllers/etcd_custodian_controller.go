@@ -243,11 +243,6 @@ func (ec *EtcdCustodian) updatePodDisruptionBudget(ctx context.Context, logger l
 		return err
 	}
 
-	logger.Info("Claiming pdb object")
-	claimedPdb, err := refMgr.ClaimPodDisruptionBudget(ctx, pdb)
-	if err != nil {
-		return err
-	}
 
 	// determine the maximum minAvailable value
 	minAvailable := calculatePDBminAvailable(etcd)
