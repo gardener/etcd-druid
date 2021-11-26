@@ -1620,8 +1620,9 @@ func (r *EtcdReconciler) fetchPVCEventsFor(ctx context.Context, ss *appsv1.State
 func (r *EtcdReconciler) removeOperationAnnotation(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
 	if _, ok := etcd.Annotations[v1beta1constants.GardenerOperation]; ok {
 		logger.Info("Removing operation annotation")
+		withOpAnnotation := etcd.DeepCopy()
 		delete(etcd.Annotations, v1beta1constants.GardenerOperation)
-		return r.Update(ctx, etcd)
+		return r.Patch(ctx, etcd, client.MergeFrom(withOpAnnotation))
 	}
 	return nil
 }

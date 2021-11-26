@@ -177,13 +177,15 @@ func inBootstrap(etcd *druidv1alpha1.Etcd) bool {
 }
 
 // SetupWithManager sets up manager with a new controller and ec as the reconcile.Reconciler
-func (ec *EtcdCustodian) SetupWithManager(ctx context.Context, mgr ctrl.Manager, workers int) error {
+func (ec *EtcdCustodian) SetupWithManager(ctx context.Context, mgr ctrl.Manager, workers int, ignoreOperationAnnotation bool) error {
 	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
 		MaxConcurrentReconciles: workers,
 	})
 
 	return builder.
-		For(&druidv1alpha1.Etcd{}).
+		For(
+			&druidv1alpha1.Etcd{},
+			ctrlbuilder.WithPredicates(druidpredicates.EtcdReconciliationFinished(ignoreOperationAnnotation))).
 		Watches(
 			&source.Kind{Type: &appsv1.StatefulSet{}},
 			extensionshandler.EnqueueRequestsFromMapper(druidmapper.StatefulSetToEtcd(ctx, mgr.GetClient()), extensionshandler.UpdateWithNew),
