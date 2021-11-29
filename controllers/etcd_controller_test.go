@@ -322,6 +322,7 @@ var _ = Describe("Druid", func() {
 
 				sts.Status.Replicas = 1
 				sts.Status.ReadyReplicas = 1
+				sts.Status.ObservedGeneration = 2
 				Expect(c.Status().Update(ctx, sts)).To(Succeed())
 
 				Eventually(func() error {

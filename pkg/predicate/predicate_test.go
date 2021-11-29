@@ -349,4 +349,117 @@ var _ = Describe("Druid Predicate", func() {
 			})
 		})
 	})
+
+	Describe("#EtcdReconciliationFinished", func() {
+		var pred predicate.Predicate
+
+		BeforeEach(func() {
+			pred = EtcdReconciliationFinished(false)
+		})
+
+		Context("when etcd has no reconcile operation annotation and no ready status", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: make(map[string]string),
+					},
+				}
+			})
+
+			It("should return true", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
+			})
+		})
+
+		Context("when etcd has no reconcile operation annotation but ready status", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: make(map[string]string),
+					},
+					Status: druidv1alpha1.EtcdStatus{
+						Ready: pointer.BoolPtr(false),
+					},
+				}
+			})
+
+			It("should return true", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+
+		Context("when etcd has reconcile operation annotation", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+						},
+					},
+				}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
+			})
+		})
+
+		Context("when etcd changed ready status to false", func() {
+			BeforeEach(func() {
+				oldObj = &druidv1alpha1.Etcd{
+					Status: druidv1alpha1.EtcdStatus{
+						Ready: nil,
+					},
+				}
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+						},
+					},
+					Status: druidv1alpha1.EtcdStatus{
+						Ready: pointer.BoolPtr(false),
+					},
+				}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
+			})
+		})
+
+		Context("when etcd changed ready status to true", func() {
+			BeforeEach(func() {
+				oldObj = &druidv1alpha1.Etcd{
+					Status: druidv1alpha1.EtcdStatus{
+						Ready: nil,
+					},
+				}
+				obj = &druidv1alpha1.Etcd{
+					Status: druidv1alpha1.EtcdStatus{
+						Ready: pointer.BoolPtr(true),
+					},
+				}
+			})
+
+			It("should return true", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+	})
 })
