@@ -20,7 +20,9 @@ import (
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -28,25 +30,21 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 )
 
+func hasOperationAnnotation(obj client.Object) bool {
+	return obj.GetAnnotations()[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationReconcile
+}
+
 // HasOperationAnnotation is a predicate for the operation annotation.
 func HasOperationAnnotation() predicate.Predicate {
-	f := func(obj runtime.Object) bool {
-		etcd, ok := obj.(*druidv1alpha1.Etcd)
-		if !ok {
-			return false
-		}
-		return etcd.Annotations[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationReconcile
-	}
-
 	return predicate.Funcs{
 		CreateFunc: func(event event.CreateEvent) bool {
-			return f(event.Object)
+			return hasOperationAnnotation(event.Object)
 		},
 		UpdateFunc: func(event event.UpdateEvent) bool {
-			return f(event.ObjectNew)
+			return hasOperationAnnotation(event.ObjectNew)
 		},
 		GenericFunc: func(event event.GenericEvent) bool {
-			return f(event.Object)
+			return hasOperationAnnotation(event.Object)
 		},
 		DeleteFunc: func(event event.DeleteEvent) bool {
 			return true
@@ -94,7 +92,7 @@ func StatefulSetStatusChange() predicate.Predicate {
 		if !ok {
 			return false
 		}
-		return !reflect.DeepEqual(stsOld.Status, stsNew.Status)
+		return !apiequality.Semantic.DeepEqual(stsOld.Status, stsNew.Status)
 	}
 
 	return predicate.Funcs{
@@ -140,6 +138,53 @@ func LeaseHolderIdentityChange() predicate.Predicate {
 		},
 		DeleteFunc: func(event event.DeleteEvent) bool {
 			return true
+		},
+	}
+}
+
+// EtcdReconciliationFinished is a predicate to use for etcd resources whose reconciliation is finished.
+func EtcdReconciliationFinished(ignoreOperationAnnotation bool) predicate.Predicate {
+	reconciliationFinished := func(obj client.Object) bool {
+		etcd, ok := obj.(*druidv1alpha1.Etcd)
+		if !ok {
+			return false
+		}
+
+		if ignoreOperationAnnotation {
+			return etcd.Status.Ready != nil
+		}
+
+		return !hasOperationAnnotation(etcd) && etcd.Status.Ready != nil
+	}
+
+	reconciliationFinishedUpdate := func(objNew, objOld client.Object) bool {
+		etcdNew, ok := objNew.(*druidv1alpha1.Etcd)
+		if !ok {
+			return false
+		}
+		etcdOld, ok := objOld.(*druidv1alpha1.Etcd)
+		if !ok {
+			return false
+		}
+
+		readinessChanged := !reflect.DeepEqual(etcdNew.Status.Ready, etcdOld.Status.Ready)
+		ready := pointer.BoolPtrDerefOr(etcdNew.Status.Ready, false)
+
+		return readinessChanged && ready
+	}
+
+	return predicate.Funcs{
+		CreateFunc: func(event event.CreateEvent) bool {
+			return reconciliationFinished(event.Object)
+		},
+		UpdateFunc: func(event event.UpdateEvent) bool {
+			return reconciliationFinishedUpdate(event.ObjectNew, event.ObjectOld)
+		},
+		GenericFunc: func(event event.GenericEvent) bool {
+			return reconciliationFinished(event.Object)
+		},
+		DeleteFunc: func(event event.DeleteEvent) bool {
+			return false
 		},
 	}
 }

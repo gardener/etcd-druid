@@ -135,7 +135,7 @@ func main() {
 		SyncPeriod: custodianSyncPeriod,
 	})
 
-	if err := custodian.SetupWithManager(ctx, mgr, custodianWorkers); err != nil {
+	if err := custodian.SetupWithManager(ctx, mgr, custodianWorkers, ignoreOperationAnnotation); err != nil {
 		setupLog.Error(err, "Unable to create controller", "Controller", "Etcd Custodian")
 		os.Exit(1)
 	}

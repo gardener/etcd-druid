@@ -114,7 +114,7 @@ var _ = BeforeSuite(func(done Done) {
 		},
 	})
 
-	err = custodian.SetupWithManager(mgrCtx, mgr, 1)
+	err = custodian.SetupWithManager(mgrCtx, mgr, 1, true)
 	Expect(err).NotTo(HaveOccurred())
 
 	etcdCopyBackupsTaskReconciler, err := NewEtcdCopyBackupsTaskReconcilerWithImageVector(mgr)
