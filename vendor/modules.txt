@@ -105,7 +105,7 @@ github.com/gardener/hvpa-controller/api/v1alpha1
 # github.com/ghodss/yaml v1.0.0
 ## explicit
 github.com/ghodss/yaml
-# github.com/go-logr/logr v0.4.0
+# github.com/go-logr/logr v1.2.1
 ## explicit
 github.com/go-logr/logr
 # github.com/go-logr/zapr v0.4.0
