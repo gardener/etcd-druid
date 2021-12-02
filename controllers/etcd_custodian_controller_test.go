@@ -41,8 +41,8 @@ var _ = Describe("Custodian Controller", func() {
 			etcd := getEtcdWithStatus(3)
 			etcd.Status.ClusterSize = nil
 
-			It("should be set to 0", func() {
-				Expect(calculatePDBminAvailable(etcd)).To(BeEquivalentTo(0))
+			It("should be set to -1", func() {
+				Expect(calculatePDBminAvailable(etcd)).To(BeEquivalentTo(-1))
 			})
 		})
 

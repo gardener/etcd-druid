@@ -184,7 +184,8 @@ func calculatePDBminAvailable(etcd *druidv1alpha1.Etcd) int {
 
 	// cluster is in bootstrap
 	if etcd.Status.ClusterSize == nil {
-		return 0
+		// return of < 0 does nothing
+		return -1
 	}
 
 	allMembersReady := false
@@ -246,8 +247,8 @@ func (ec *EtcdCustodian) updatePodDisruptionBudget(ctx context.Context, logger l
 
 	// determine the maximum minAvailable value
 	minAvailable := calculatePDBminAvailable(etcd)
-	if pdb.Spec.MinAvailable.IntValue() == minAvailable {
-		// do not update, nothing changed
+	if minAvailable < 0 ||
+		pdb.Spec.MinAvailable.IntValue() == minAvailable {
 		return nil
 	}
 
