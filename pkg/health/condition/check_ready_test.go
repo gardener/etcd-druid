@@ -41,68 +41,76 @@ var _ = Describe("ReadyCheck", func() {
 
 		Context("when members in status", func() {
 			It("should return that the cluster has a quorum (all members ready)", func() {
-				status := druidv1alpha1.EtcdStatus{
-					ClusterSize: pointer.Int32Ptr(3),
-					Members: []druidv1alpha1.EtcdMemberStatus{
-						readyMember,
-						readyMember,
-						readyMember,
+				etcd := druidv1alpha1.Etcd{
+					Status: druidv1alpha1.EtcdStatus{
+						ClusterSize: pointer.Int32Ptr(3),
+						Members: []druidv1alpha1.EtcdMemberStatus{
+							readyMember,
+							readyMember,
+							readyMember,
+						},
 					},
 				}
-				check := ReadyCheck()
+				check := ReadyCheck(nil)
 
-				result := check.Check(status)
+				result := check.Check(etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
 			})
 
 			It("should return that the cluster has a quorum (members are partly unknown)", func() {
-				status := druidv1alpha1.EtcdStatus{
-					ClusterSize: pointer.Int32Ptr(3),
-					Members: []druidv1alpha1.EtcdMemberStatus{
-						readyMember,
-						unknownMember,
-						unknownMember,
+				etcd := druidv1alpha1.Etcd{
+					Status: druidv1alpha1.EtcdStatus{
+						ClusterSize: pointer.Int32Ptr(3),
+						Members: []druidv1alpha1.EtcdMemberStatus{
+							readyMember,
+							unknownMember,
+							unknownMember,
+						},
 					},
 				}
-				check := ReadyCheck()
+				check := ReadyCheck(nil)
 
-				result := check.Check(status)
+				result := check.Check(etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
 			})
 
 			It("should return that the cluster has a quorum (one member not ready)", func() {
-				status := druidv1alpha1.EtcdStatus{
-					ClusterSize: pointer.Int32Ptr(3),
-					Members: []druidv1alpha1.EtcdMemberStatus{
-						readyMember,
-						notReadyMember,
-						readyMember,
+				etcd := druidv1alpha1.Etcd{
+					Status: druidv1alpha1.EtcdStatus{
+						ClusterSize: pointer.Int32Ptr(3),
+						Members: []druidv1alpha1.EtcdMemberStatus{
+							readyMember,
+							notReadyMember,
+							readyMember,
+						},
 					},
 				}
-				check := ReadyCheck()
+				check := ReadyCheck(nil)
 
-				result := check.Check(status)
+				result := check.Check(etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
 			})
 
 			It("should return that the cluster has lost its quorum", func() {
-				status := druidv1alpha1.EtcdStatus{
-					ClusterSize: pointer.Int32Ptr(3),
-					Members: []druidv1alpha1.EtcdMemberStatus{
-						readyMember,
-						notReadyMember,
-						notReadyMember,
+				etcd := druidv1alpha1.Etcd{
+					Status: druidv1alpha1.EtcdStatus{
+						ClusterSize: pointer.Int32Ptr(3),
+						Members: []druidv1alpha1.EtcdMemberStatus{
+							readyMember,
+							notReadyMember,
+							notReadyMember,
+						},
 					},
 				}
-				check := ReadyCheck()
+				check := ReadyCheck(nil)
 
-				result := check.Check(status)
+				result := check.Check(etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
@@ -112,12 +120,14 @@ var _ = Describe("ReadyCheck", func() {
 
 		Context("when no members in status", func() {
 			It("should return that quorum is unknown", func() {
-				status := druidv1alpha1.EtcdStatus{
-					Members: []druidv1alpha1.EtcdMemberStatus{},
+				etcd := druidv1alpha1.Etcd{
+					Status: druidv1alpha1.EtcdStatus{
+						Members: []druidv1alpha1.EtcdMemberStatus{},
+					},
 				}
-				check := ReadyCheck()
+				check := ReadyCheck(nil)
 
-				result := check.Check(status)
+				result := check.Check(etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))

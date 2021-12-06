@@ -37,32 +37,36 @@ var _ = Describe("AllMembersReadyCheck", func() {
 
 		Context("when members in status", func() {
 			It("should return that all members are ready", func() {
-				status := druidv1alpha1.EtcdStatus{
-					Members: []druidv1alpha1.EtcdMemberStatus{
-						readyMember,
-						readyMember,
-						readyMember,
+				etcd := druidv1alpha1.Etcd{
+					Status: druidv1alpha1.EtcdStatus{
+						Members: []druidv1alpha1.EtcdMemberStatus{
+							readyMember,
+							readyMember,
+							readyMember,
+						},
 					},
 				}
-				check := AllMembersCheck()
+				check := AllMembersCheck(nil)
 
-				result := check.Check(status)
+				result := check.Check(etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeAllMembersReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
 			})
 
 			It("should return that members are not ready", func() {
-				status := druidv1alpha1.EtcdStatus{
-					Members: []druidv1alpha1.EtcdMemberStatus{
-						readyMember,
-						notReadyMember,
-						readyMember,
+				etcd := druidv1alpha1.Etcd{
+					Status: druidv1alpha1.EtcdStatus{
+						Members: []druidv1alpha1.EtcdMemberStatus{
+							readyMember,
+							notReadyMember,
+							readyMember,
+						},
 					},
 				}
-				check := AllMembersCheck()
+				check := AllMembersCheck(nil)
 
-				result := check.Check(status)
+				result := check.Check(etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeAllMembersReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
@@ -71,12 +75,14 @@ var _ = Describe("AllMembersReadyCheck", func() {
 
 		Context("when no members in status", func() {
 			It("should return that readiness is unknown", func() {
-				status := druidv1alpha1.EtcdStatus{
-					Members: []druidv1alpha1.EtcdMemberStatus{},
+				etcd := druidv1alpha1.Etcd{
+					Status: druidv1alpha1.EtcdStatus{
+						Members: []druidv1alpha1.EtcdMemberStatus{},
+					},
 				}
-				check := AllMembersCheck()
+				check := AllMembersCheck(nil)
 
-				result := check.Check(status)
+				result := check.Check(etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeAllMembersReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))

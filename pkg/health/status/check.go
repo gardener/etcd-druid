@@ -31,7 +31,7 @@ import (
 )
 
 // ConditionCheckFn is a type alias for a function which returns an implementation of `Check`.
-type ConditionCheckFn func() condition.Checker
+type ConditionCheckFn func(client.Client) condition.Checker
 
 // EtcdMemberCheckFn is a type alias for a function which returns an implementation of `Check`.
 type EtcdMemberCheckFn func(client.Client, logr.Logger, controllersconfig.EtcdCustodianController) etcdmember.Checker
@@ -48,6 +48,7 @@ var (
 	ConditionChecks = []ConditionCheckFn{
 		condition.AllMembersCheck,
 		condition.ReadyCheck,
+		condition.BackupReadyCheck,
 	}
 	// EtcdMemberChecks are the etcd member checks.
 	EtcdMemberChecks = []EtcdMemberCheckFn{
@@ -72,14 +73,14 @@ func (c *checker) Check(ctx context.Context, logger logr.Logger, etcd *druidv1al
 	}
 
 	// Execute condition checks after the etcd member checks because we need their result here.
-	if err := c.executeConditionChecks(&etcd.Status); err != nil {
+	if err := c.executeConditionChecks(etcd); err != nil {
 		return err
 	}
 	return nil
 }
 
 // executeConditionChecks runs all registered condition checks **in parallel**.
-func (c *checker) executeConditionChecks(status *druidv1alpha1.EtcdStatus) error {
+func (c *checker) executeConditionChecks(etcd *druidv1alpha1.Etcd) error {
 	var (
 		resultCh = make(chan condition.Result)
 
@@ -88,11 +89,11 @@ func (c *checker) executeConditionChecks(status *druidv1alpha1.EtcdStatus) error
 
 	// Run condition checks in parallel since they work independently from each other.
 	for _, newCheck := range c.conditionCheckFns {
-		c := newCheck()
+		c := newCheck(c.cl)
 		wg.Add(1)
 		go (func() {
 			defer wg.Done()
-			resultCh <- c.Check(*status)
+			resultCh <- c.Check(*etcd)
 		})()
 	}
 
@@ -108,11 +109,11 @@ func (c *checker) executeConditionChecks(status *druidv1alpha1.EtcdStatus) error
 
 	conditions := c.conditionBuilderFn().
 		WithNowFunc(func() metav1.Time { return metav1.NewTime(TimeNow()) }).
-		WithOldConditions(status.Conditions).
+		WithOldConditions(etcd.Status.Conditions).
 		WithResults(results).
 		Build()
 
-	status.Conditions = conditions
+	etcd.Status.Conditions = conditions
 	return nil
 }
 

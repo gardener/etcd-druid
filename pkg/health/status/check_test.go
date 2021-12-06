@@ -106,10 +106,10 @@ var _ = Describe("Check", func() {
 			}
 
 			defer test.WithVar(&ConditionChecks, []ConditionCheckFn{
-				func() condition.Checker {
+				func(client.Client) condition.Checker {
 					return createConditionCheck(druidv1alpha1.ConditionTypeReady, druidv1alpha1.ConditionFalse, "FailedConditionCheck", "check failed")
 				},
-				func() condition.Checker {
+				func(client.Client) condition.Checker {
 					return createConditionCheck(druidv1alpha1.ConditionTypeAllMembersReady, druidv1alpha1.ConditionTrue, "bar reason", "bar message")
 				},
 			})()
@@ -215,7 +215,7 @@ type testChecker struct {
 	result *conditionResult
 }
 
-func (t *testChecker) Check(_ druidv1alpha1.EtcdStatus) condition.Result {
+func (t *testChecker) Check(_ druidv1alpha1.Etcd) condition.Result {
 	return t.result
 }
 
