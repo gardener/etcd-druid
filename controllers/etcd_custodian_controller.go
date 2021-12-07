@@ -17,6 +17,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/gardener/gardener/pkg/controllerutils"
@@ -25,9 +26,12 @@ import (
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -124,6 +128,10 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
+	if err := ec.updatePodDisruptionBudget(ctx, logger, etcd, refMgr); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{RequeueAfter: ec.config.SyncPeriod}, nil
 }
 
@@ -168,6 +176,90 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logge
 		etcd.Status.Ready = pointer.BoolPtr(false)
 		return nil
 	})
+}
+
+func calculatePDBminAvailable(etcd *druidv1alpha1.Etcd) int {
+	// do not enable in single mode
+	if etcd.Spec.Replicas < 2 {
+		return 0
+	}
+
+	// cluster is in bootstrap
+	if etcd.Status.ClusterSize == nil {
+		// return of < 0 does nothing
+		return -1
+	}
+
+	allMembersReady := false
+	backupReady := false
+	for _, condition := range etcd.Status.Conditions {
+		if condition.Type == druidv1alpha1.ConditionTypeAllMembersReady &&
+			condition.Status == druidv1alpha1.ConditionTrue {
+			allMembersReady = true
+			continue
+		}
+
+		if condition.Type == druidv1alpha1.ConditionTypeBackupReady &&
+			condition.Status == druidv1alpha1.ConditionTrue {
+			backupReady = true
+			continue
+		}
+	}
+
+	clusterSize := int(*etcd.Status.ClusterSize)
+	values := make([]int, 0)
+	values = append(values, int(math.Floor(float64(clusterSize)/float64(2))+1))
+
+	if !allMembersReady {
+		readyMembers := 0
+		for _, member := range etcd.Status.Members {
+			if member.Status == druidv1alpha1.EtcdMemberStatusReady {
+				readyMembers += 1
+			}
+		}
+		values = append(values, readyMembers)
+	}
+
+	if backupReady {
+		values = append(values, clusterSize)
+	}
+
+	// calculate max value
+	max := values[0]
+	for i := 1; i < len(values); i++ {
+		if values[i] > max {
+			max = values[i]
+		}
+	}
+
+	return max
+}
+
+func (ec *EtcdCustodian) updatePodDisruptionBudget(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, refMgr *EtcdDruidRefManager) error {
+	pdb := &policyv1beta1.PodDisruptionBudget{}
+	err := ec.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, pdb)
+	if errors.IsNotFound(err) {
+		logger.Info("PDB is not yet created")
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+
+	// determine the maximum minAvailable value
+	minAvailable := calculatePDBminAvailable(etcd)
+	if minAvailable < 0 ||
+		pdb.Spec.MinAvailable.IntValue() == minAvailable {
+		return nil
+	}
+
+	// update fields
+	pdbCopy := pdb.DeepCopy()
+	converted := intstr.FromInt(minAvailable)
+	pdbCopy.Spec.MinAvailable = &converted
+
+	return ec.Patch(ctx, pdbCopy, client.MergeFrom(pdb))
 }
 
 func inBootstrap(etcd *druidv1alpha1.Etcd) bool {

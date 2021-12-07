@@ -4,6 +4,7 @@
 /.kube-secrets
 /tmp/*
 /dev
+*.test
 
 *.coverprofile
 /cover.out

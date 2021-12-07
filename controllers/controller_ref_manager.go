@@ -33,6 +33,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	rbacv1 "k8s.io/api/rbac/v1"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -259,6 +260,36 @@ func (m *EtcdDruidRefManager) ClaimStatefulsets(ctx context.Context, statefulSet
 	return claimed, utilerrors.NewAggregate(errlist)
 }
 
+func (m *EtcdDruidRefManager) ClaimPodDisruptionBudget(ctx context.Context, pdb *policyv1beta1.PodDisruptionBudget, filters ...func(*policyv1beta1.PodDisruptionBudget) bool) (*policyv1beta1.PodDisruptionBudget, error) {
+	var errlist []error
+
+	match := func(obj metav1.Object) bool {
+		tempPdb := obj.(*policyv1beta1.PodDisruptionBudget)
+		// Check selector first so filters only run on potentially matching poddisruptionbudgets
+		if !m.Selector.Matches(labels.Set(pdb.Labels)) {
+			return false
+		}
+		for _, filter := range filters {
+			if !filter(tempPdb) {
+				return false
+			}
+		}
+		return true
+	}
+
+	ok, err := m.claimObject(ctx, pdb, match, m.AdoptResource, m.ReleaseResource)
+
+	if err != nil {
+		errlist = append(errlist, err)
+	}
+
+	var claimed *policyv1beta1.PodDisruptionBudget
+	if ok {
+		claimed = pdb.DeepCopy()
+	}
+	return claimed, utilerrors.NewAggregate(errlist)
+}
+
 // ClaimServices tries to take ownership of a list of Services.
 //
 // It will reconcile the following:
@@ -421,6 +452,13 @@ func (m *EtcdDruidRefManager) AdoptResource(ctx context.Context, obj client.Obje
 		if err := controllerutil.SetControllerReference(m.Controller, clone, m.scheme); err != nil {
 			return err
 		}
+	case *policyv1beta1.PodDisruptionBudget:
+		clone = obj.(*policyv1beta1.PodDisruptionBudget).DeepCopy()
+		// Note that ValidateOwnerReferences() will reject this patch if another
+		// OwnerReference exists with controller=true.
+		if err := controllerutil.SetControllerReference(m.Controller, clone, m.scheme); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("cannot adopt resource: %s", objType)
 	}
@@ -444,6 +482,8 @@ func (m *EtcdDruidRefManager) ReleaseResource(ctx context.Context, obj client.Ob
 		clone = obj.(*corev1.ConfigMap).DeepCopy()
 	case *corev1.Service:
 		clone = obj.(*corev1.Service).DeepCopy()
+	case *policyv1beta1.PodDisruptionBudget:
+		clone = obj.(*policyv1beta1.PodDisruptionBudget).DeepCopy()
 	default:
 		return fmt.Errorf("cannot release resource: %s", objType)
 	}
