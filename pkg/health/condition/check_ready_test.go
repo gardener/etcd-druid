@@ -15,6 +15,8 @@
 package condition_test
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/utils/pointer"
@@ -53,7 +55,7 @@ var _ = Describe("ReadyCheck", func() {
 				}
 				check := ReadyCheck(nil)
 
-				result := check.Check(etcd)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
@@ -72,7 +74,7 @@ var _ = Describe("ReadyCheck", func() {
 				}
 				check := ReadyCheck(nil)
 
-				result := check.Check(etcd)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
@@ -91,7 +93,7 @@ var _ = Describe("ReadyCheck", func() {
 				}
 				check := ReadyCheck(nil)
 
-				result := check.Check(etcd)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
@@ -110,7 +112,7 @@ var _ = Describe("ReadyCheck", func() {
 				}
 				check := ReadyCheck(nil)
 
-				result := check.Check(etcd)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
@@ -127,7 +129,7 @@ var _ = Describe("ReadyCheck", func() {
 				}
 				check := ReadyCheck(nil)
 
-				result := check.Check(etcd)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))

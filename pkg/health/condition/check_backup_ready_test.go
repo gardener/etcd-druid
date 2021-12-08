@@ -86,11 +86,11 @@ var _ = Describe("BackupReadyCheck", func() {
 				).AnyTimes()
 
 				check := BackupReadyCheck(cl)
-				result := check.Check(etcd)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
-				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
+				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
 				Expect(result.Reason()).To(Equal(Unknown))
 			})
 		})
@@ -105,7 +105,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				).AnyTimes()
 
 				check := BackupReadyCheck(cl)
-				result := check.Check(etcd)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
@@ -130,7 +130,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				).AnyTimes()
 
 				check := BackupReadyCheck(cl)
-				result := check.Check(etcd)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
@@ -155,7 +155,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				).AnyTimes()
 
 				check := BackupReadyCheck(cl)
-				result := check.Check(etcd)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
@@ -174,7 +174,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				).AnyTimes()
 
 				check := BackupReadyCheck(cl)
-				result := check.Check(etcd)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))

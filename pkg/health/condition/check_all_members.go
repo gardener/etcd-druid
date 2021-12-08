@@ -15,15 +15,15 @@
 package condition
 
 import (
+	"context"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type allMembersReady struct {
-	cl client.Client
-}
+type allMembersReady struct{}
 
-func (a *allMembersReady) Check(etcd druidv1alpha1.Etcd) Result {
+func (a *allMembersReady) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
 	if len(etcd.Status.Members) == 0 {
 		return &result{
 			conType: druidv1alpha1.ConditionTypeAllMembersReady,
@@ -55,7 +55,5 @@ func (a *allMembersReady) Check(etcd druidv1alpha1.Etcd) Result {
 
 // AllMembersCheck returns a check for the "AllMembersReady" condition.
 func AllMembersCheck(cl client.Client) Checker {
-	return &allMembersReady{
-		cl: cl,
-	}
+	return &allMembersReady{}
 }

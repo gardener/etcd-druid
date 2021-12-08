@@ -14,11 +14,15 @@
 
 package condition
 
-import druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+import (
+	"context"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+)
 
 // Checker is an interface to check the etcd resource and to return condition results.
 type Checker interface {
-	Check(etcd druidv1alpha1.Etcd) Result
+	Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result
 }
 
 type Result interface {

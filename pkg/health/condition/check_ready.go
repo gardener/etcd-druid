@@ -15,16 +15,16 @@
 package condition
 
 import (
+	"context"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type readyCheck struct {
-	cl client.Client
-}
+type readyCheck struct{}
 
-func (r *readyCheck) Check(etcd druidv1alpha1.Etcd) Result {
+func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
 	if etcd.Status.ClusterSize == nil {
 		return &result{
 			conType: druidv1alpha1.ConditionTypeReady,
@@ -76,7 +76,5 @@ func (r *readyCheck) Check(etcd druidv1alpha1.Etcd) Result {
 
 // ReadyCheck returns a check for the "Ready" condition.
 func ReadyCheck(cl client.Client) Checker {
-	return &readyCheck{
-		cl: cl,
-	}
+	return &readyCheck{}
 }

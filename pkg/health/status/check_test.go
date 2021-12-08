@@ -215,7 +215,7 @@ type testChecker struct {
 	result *conditionResult
 }
 
-func (t *testChecker) Check(_ druidv1alpha1.Etcd) condition.Result {
+func (t *testChecker) Check(_ context.Context, _ druidv1alpha1.Etcd) condition.Result {
 	return t.result
 }
 

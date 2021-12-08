@@ -37,11 +37,11 @@ const (
 	Unknown             string = "Unknown"
 )
 
-func (a *backupReadyCheck) Check(etcd druidv1alpha1.Etcd) Result {
+func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
 	//Default case
 	result := &result{
 		conType: druidv1alpha1.ConditionTypeBackupReady,
-		status:  druidv1alpha1.ConditionFalse,
+		status:  druidv1alpha1.ConditionUnknown,
 		reason:  Unknown,
 		message: "Cannot determine etcd backup status since no snapshot leases present",
 	}
@@ -50,10 +50,10 @@ func (a *backupReadyCheck) Check(etcd druidv1alpha1.Etcd) Result {
 	fullSnapLease := &coordinationv1.Lease{}
 	deltaSnapLease := &coordinationv1.Lease{}
 	var fullSnapErr, incrSnapErr error
-	fullSnapErr = a.cl.Get(context.TODO(), types.NamespacedName{Name: getFullSnapLeaseName(&etcd), Namespace: "default"}, fullSnapLease)
-	incrSnapErr = a.cl.Get(context.TODO(), types.NamespacedName{Name: getDeltaSnapLeaseName(&etcd), Namespace: "default"}, deltaSnapLease)
+	fullSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getFullSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, fullSnapLease)
+	incrSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getDeltaSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, deltaSnapLease)
 
-	if fullSnapErr != nil && incrSnapErr != nil {
+	if fullSnapErr != nil || incrSnapErr != nil || (fullSnapLease.Spec.HolderIdentity == nil && deltaSnapLease.Spec.HolderIdentity == nil) {
 		return result
 	}
 
@@ -80,6 +80,7 @@ func (a *backupReadyCheck) Check(etcd druidv1alpha1.Etcd) Result {
 
 	//Cases where snapshot leases are not updated for a long time
 	//If snapshot leases are present and leases aren't updated, it is safe to assume that backup is not healthy
+	result.status = druidv1alpha1.ConditionFalse
 	result.reason = BackupFailed
 	result.message = "Stale snapshot leases. Not renewed in a long time"
 

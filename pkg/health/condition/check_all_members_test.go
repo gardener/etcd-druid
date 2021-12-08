@@ -15,6 +15,8 @@
 package condition_test
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -48,7 +50,7 @@ var _ = Describe("AllMembersReadyCheck", func() {
 				}
 				check := AllMembersCheck(nil)
 
-				result := check.Check(etcd)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeAllMembersReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
@@ -66,7 +68,7 @@ var _ = Describe("AllMembersReadyCheck", func() {
 				}
 				check := AllMembersCheck(nil)
 
-				result := check.Check(etcd)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeAllMembersReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
@@ -82,7 +84,7 @@ var _ = Describe("AllMembersReadyCheck", func() {
 				}
 				check := AllMembersCheck(nil)
 
-				result := check.Check(etcd)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeAllMembersReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))

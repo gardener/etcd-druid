@@ -73,14 +73,14 @@ func (c *checker) Check(ctx context.Context, logger logr.Logger, etcd *druidv1al
 	}
 
 	// Execute condition checks after the etcd member checks because we need their result here.
-	if err := c.executeConditionChecks(etcd); err != nil {
+	if err := c.executeConditionChecks(ctx, etcd); err != nil {
 		return err
 	}
 	return nil
 }
 
 // executeConditionChecks runs all registered condition checks **in parallel**.
-func (c *checker) executeConditionChecks(etcd *druidv1alpha1.Etcd) error {
+func (c *checker) executeConditionChecks(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
 	var (
 		resultCh = make(chan condition.Result)
 
@@ -93,7 +93,7 @@ func (c *checker) executeConditionChecks(etcd *druidv1alpha1.Etcd) error {
 		wg.Add(1)
 		go (func() {
 			defer wg.Done()
-			resultCh <- c.Check(*etcd)
+			resultCh <- c.Check(ctx, *etcd)
 		})()
 	}
 
