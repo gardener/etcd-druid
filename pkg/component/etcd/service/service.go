@@ -34,9 +34,16 @@ type component struct {
 }
 
 func (c *component) Deploy(ctx context.Context) error {
-	var clientService = c.emptyService(c.values.ClientServiceName)
+	var (
+		clientService = c.emptyService(c.values.ClientServiceName)
+		peerService   = c.emptyService(c.values.PeerServiceName)
+	)
 
 	if err := c.syncClientService(ctx, clientService); err != nil {
+		return err
+	}
+
+	if err := c.syncPeerService(ctx, peerService); err != nil {
 		return err
 	}
 
@@ -44,9 +51,20 @@ func (c *component) Deploy(ctx context.Context) error {
 }
 
 func (c *component) Destroy(ctx context.Context) error {
-	var clientService = c.emptyService(c.values.ClientServiceName)
+	var (
+		clientService = c.emptyService(c.values.ClientServiceName)
+		peerService   = c.emptyService(c.values.PeerServiceName)
+	)
 
-	return client.IgnoreNotFound(c.client.Delete(ctx, clientService))
+	if err := client.IgnoreNotFound(c.client.Delete(ctx, clientService)); err != nil {
+		return err
+	}
+
+	if err := client.IgnoreNotFound(c.client.Delete(ctx, peerService)); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // New creates a new service deployer instance.

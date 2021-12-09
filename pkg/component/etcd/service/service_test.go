@@ -46,6 +46,7 @@ var _ = Describe("Service", func() {
 		name                               string
 		uid                                types.UID
 		labels                             map[string]string
+		services                           []*corev1.Service
 
 		values          Values
 		serviceDeployer component.Deployer
@@ -61,6 +62,20 @@ var _ = Describe("Service", func() {
 		serverPort = 3333
 		labels = map[string]string{
 			"foo": "bar",
+		}
+		services = []*corev1.Service{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      values.ClientServiceName,
+					Namespace: values.EtcdName,
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      values.PeerServiceName,
+					Namespace: values.EtcdName,
+				},
+			},
 		}
 
 		etcd = &druidv1alpha1.Etcd{
@@ -86,60 +101,67 @@ var _ = Describe("Service", func() {
 	})
 
 	Describe("#Deploy", func() {
-		Context("when service does not exist", func() {
+		Context("when services do not exist", func() {
 			It("should create the service successfully", func() {
 				Expect(serviceDeployer.Deploy(ctx)).To(Succeed())
 
 				svc := &corev1.Service{}
+
 				Expect(cl.Get(ctx, kutil.Key(namespace, values.ClientServiceName), svc)).To(Succeed())
-				checkService(svc, values)
+				checkClientService(svc, values)
+
+				Expect(cl.Get(ctx, kutil.Key(namespace, values.PeerServiceName), svc)).To(Succeed())
+				checkPeerService(svc, values)
 			})
 		})
 
-		Context("when service exists", func() {
+		Context("when services exist", func() {
 			It("should update the service successfully", func() {
-				existingService := &corev1.Service{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      values.ClientServiceName,
-						Namespace: values.EtcdName,
-					},
+				for _, svc := range services {
+					Expect(cl.Create(ctx, svc)).To(Succeed())
 				}
-				Expect(cl.Create(ctx, existingService)).To(Succeed())
+
 				Expect(serviceDeployer.Deploy(ctx)).To(Succeed())
 
 				svc := &corev1.Service{}
+
 				Expect(cl.Get(ctx, kutil.Key(namespace, values.ClientServiceName), svc)).To(Succeed())
-				checkService(svc, values)
+				checkClientService(svc, values)
+
+				Expect(cl.Get(ctx, kutil.Key(namespace, values.PeerServiceName), svc)).To(Succeed())
+				checkPeerService(svc, values)
 			})
 		})
 	})
 
-	Describe("#Deploy", func() {
-		Context("when service does not exist", func() {
+	Describe("#Destroy", func() {
+		Context("when services do not exist", func() {
 			It("should destroy successfully", func() {
 				Expect(serviceDeployer.Destroy(ctx)).To(Succeed())
-				Expect(cl.Get(ctx, kutil.Key(namespace, values.ClientServiceName), &corev1.Service{})).To(BeNotFoundError())
+				for _, svc := range services {
+					Expect(cl.Get(ctx, client.ObjectKeyFromObject(svc), &corev1.Service{})).To(BeNotFoundError())
+				}
 			})
 		})
 
-		Context("when service exists", func() {
+		Context("when services exist", func() {
 			It("should destroy successfully", func() {
-				existingService := &corev1.Service{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      values.ClientServiceName,
-						Namespace: values.EtcdName,
-					},
+				for _, svc := range services {
+					Expect(cl.Create(ctx, svc)).To(Succeed())
 				}
-				Expect(cl.Create(ctx, existingService)).To(Succeed())
+
 				Expect(serviceDeployer.Destroy(ctx)).To(Succeed())
-				Expect(cl.Get(ctx, kutil.Key(namespace, values.ClientServiceName), &corev1.Service{})).To(BeNotFoundError())
+
+				for _, svc := range services {
+					Expect(cl.Get(ctx, kutil.Key(namespace, svc.Name), &corev1.Service{})).To(BeNotFoundError())
+				}
 			})
 		})
 	})
 })
 
-func checkService(svc *corev1.Service, values Values) {
-	Expect(svc.OwnerReferences).To(ConsistOf(Equal(metav1.OwnerReference{
+func checkServiceMetadata(meta *metav1.ObjectMeta, values Values) {
+	Expect(meta.OwnerReferences).To(ConsistOf(Equal(metav1.OwnerReference{
 		APIVersion:         druidv1alpha1.GroupVersion.String(),
 		Kind:               "Etcd",
 		Name:               values.EtcdName,
@@ -147,7 +169,11 @@ func checkService(svc *corev1.Service, values Values) {
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	})))
-	Expect(svc.Labels).To(Equal(serviceLabels(values)))
+	Expect(meta.Labels).To(Equal(serviceLabels(values)))
+}
+
+func checkClientService(svc *corev1.Service, values Values) {
+	checkServiceMetadata(&svc.ObjectMeta, values)
 	Expect(svc.Spec.Ports).To(ConsistOf(
 		Equal(corev1.ServicePort{
 			Name:       "client",
@@ -166,6 +192,19 @@ func checkService(svc *corev1.Service, values Values) {
 			Protocol:   corev1.ProtocolTCP,
 			Port:       values.BackupPort,
 			TargetPort: intstr.FromInt(int(values.BackupPort)),
+		}),
+	))
+}
+
+func checkPeerService(svc *corev1.Service, values Values) {
+	checkServiceMetadata(&svc.ObjectMeta, values)
+	Expect(svc.Spec.PublishNotReadyAddresses).To(BeTrue())
+	Expect(svc.Spec.Ports).To(ConsistOf(
+		Equal(corev1.ServicePort{
+			Name:       "peer",
+			Protocol:   corev1.ProtocolTCP,
+			Port:       values.ServerPort,
+			TargetPort: intstr.FromInt(int(values.ServerPort)),
 		}),
 	))
 }

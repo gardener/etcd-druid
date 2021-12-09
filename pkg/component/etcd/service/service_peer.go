@@ -22,32 +22,20 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-func (c *component) syncClientService(ctx context.Context, svc *corev1.Service) error {
+func (c *component) syncPeerService(ctx context.Context, svc *corev1.Service) error {
 	_, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, c.client, svc, func() error {
 		svc.Labels = getLabels(c.values)
 		svc.OwnerReferences = getOwnerReferences(c.values)
 		svc.Spec.Type = corev1.ServiceTypeClusterIP
 		svc.Spec.SessionAffinity = corev1.ServiceAffinityNone
 		svc.Spec.Selector = getLabels(c.values)
+		svc.Spec.PublishNotReadyAddresses = true
 		svc.Spec.Ports = []corev1.ServicePort{
 			{
-				Name:       "client",
-				Protocol:   corev1.ProtocolTCP,
-				Port:       c.values.ClientPort,
-				TargetPort: intstr.FromInt(int(c.values.ClientPort)),
-			},
-			// TODO: Remove the "server" port in a future release
-			{
-				Name:       "server",
+				Name:       "peer",
 				Protocol:   corev1.ProtocolTCP,
 				Port:       c.values.ServerPort,
 				TargetPort: intstr.FromInt(int(c.values.ServerPort)),
-			},
-			{
-				Name:       "backuprestore",
-				Protocol:   corev1.ProtocolTCP,
-				Port:       c.values.BackupPort,
-				TargetPort: intstr.FromInt(int(c.values.BackupPort)),
 			},
 		}
 

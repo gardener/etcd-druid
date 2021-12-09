@@ -76,6 +76,7 @@ var _ = Describe("#GenerateValues", func() {
 				"EtcdName":          Equal(etcd.Name),
 				"EtcdUID":           Equal(etcd.UID),
 				"Labels":            Equal(etcd.Labels),
+				"PeerServiceName":   Equal(fmt.Sprintf("%s-peer", etcd.Name)),
 				"ServerPort":        Equal(*etcd.Spec.Etcd.ServerPort),
 			}))
 		})
@@ -98,6 +99,7 @@ var _ = Describe("#GenerateValues", func() {
 				"EtcdName":          Equal(etcd.Name),
 				"EtcdUID":           Equal(etcd.UID),
 				"Labels":            Equal(etcd.Labels),
+				"PeerServiceName":   Equal(fmt.Sprintf("%s-peer", etcd.Name)),
 				"ServerPort":        Equal(int32(2380)),
 			}))
 		})

@@ -29,6 +29,8 @@ type Values struct {
 	EtcdUID types.UID
 	// Labels are the service labels.
 	Labels map[string]string
+	// PeerServiceName is the name of the service responsible for peer traffic.
+	PeerServiceName string
 	// ServerPort is the port used for etcd peer communication.
 	ServerPort int32
 }

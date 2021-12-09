@@ -37,6 +37,7 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
 		EtcdName:          etcd.Name,
 		EtcdUID:           etcd.UID,
 		Labels:            etcd.Spec.Labels,
+		PeerServiceName:   fmt.Sprintf("%s-peer", etcd.Name),
 		ServerPort:        pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, defaultServerPort),
 	}
 }
