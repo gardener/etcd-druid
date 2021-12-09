@@ -321,9 +321,9 @@ func getJobName(etcd *druidv1alpha1.Etcd) string {
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	return map[string]string{
-		"name":                             "etcd",
+		"name":                             "etcd-backup-compaction",
 		"instance":                         etcd.Name,
-		"garden.sapcloud.io/role":          "controlplane",
+		"gardener.cloud/role":              "controlplane",
 		"networking.gardener.cloud/to-dns": "allowed",
 		"networking.gardener.cloud/to-private-networks": "allowed",
 		"networking.gardener.cloud/to-public-networks":  "allowed",
