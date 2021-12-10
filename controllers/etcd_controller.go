@@ -229,9 +229,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 	// Add Finalizers to Etcd
 	if finalizers := sets.NewString(etcd.Finalizers...); !finalizers.Has(FinalizerName) {
 		logger.Info("Adding finalizer")
-		finalizers.Insert(FinalizerName)
-		etcd.Finalizers = finalizers.UnsortedList()
-		if err := r.Update(ctx, etcd); err != nil {
+		if err := controllerutils.PatchAddFinalizers(ctx, r.Client, etcd, FinalizerName); err != nil {
 			if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 				return ctrl.Result{
 					Requeue: true,
@@ -242,6 +240,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 			}, err
 		}
 	}
+
 	if err := r.addFinalizersToDependantSecrets(ctx, logger, etcd); err != nil {
 		if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 			return ctrl.Result{
@@ -249,6 +248,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 			}, err
 		}
 	}
+
 	etcd, err := r.updateEtcdStatusAsNotReady(ctx, etcd)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -258,6 +258,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 			Requeue: true,
 		}, err
 	}
+
 	if err = r.removeOperationAnnotation(ctx, logger, etcd); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -403,14 +404,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 
 	if sets.NewString(etcd.Finalizers...).Has(FinalizerName) {
 		logger.Info("Removing finalizer")
-
-		// Deep copy of etcd resource required here to patch the object. Update call results in
-		// StorageError. See also: https://github.com/kubernetes/kubernetes/issues/71139
-		etcdCopy := etcd.DeepCopy()
-		finalizers := sets.NewString(etcdCopy.Finalizers...)
-		finalizers.Delete(FinalizerName)
-		etcdCopy.Finalizers = finalizers.UnsortedList()
-		if err := r.Patch(ctx, etcdCopy, client.MergeFrom(etcd)); client.IgnoreNotFound(err) != nil {
+		if err := controllerutils.PatchRemoveFinalizers(ctx, r.Client, etcd, FinalizerName); client.IgnoreNotFound(err) != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -1500,9 +1494,7 @@ func (r *EtcdReconciler) addFinalizersToDependantSecrets(ctx context.Context, lo
 		}
 		if finalizers := sets.NewString(secret.Finalizers...); !finalizers.Has(FinalizerName) {
 			logger.Info("Adding finalizer for secret", "secret", kutil.Key(secret.Namespace, secret.Name).String())
-			finalizers.Insert(FinalizerName)
-			secret.Finalizers = finalizers.UnsortedList()
-			if err := r.Update(ctx, secret); err != nil {
+			if err := controllerutils.StrategicMergePatchAddFinalizers(ctx, r.Client, secret, FinalizerName); err != nil {
 				return err
 			}
 		}
@@ -1534,9 +1526,7 @@ func (r *EtcdReconciler) removeFinalizersToDependantSecrets(ctx context.Context,
 			}
 		} else if finalizers := sets.NewString(secret.Finalizers...); finalizers.Has(FinalizerName) {
 			logger.Info("Removing finalizer from secret", "secret", kutil.Key(secret.Namespace, secret.Name).String())
-			finalizers.Delete(FinalizerName)
-			secret.Finalizers = finalizers.UnsortedList()
-			if err := r.Update(ctx, secret); client.IgnoreNotFound(err) != nil {
+			if err := controllerutils.PatchRemoveFinalizers(ctx, r.Client, secret, FinalizerName); client.IgnoreNotFound(err) != nil {
 				return err
 			}
 		}
