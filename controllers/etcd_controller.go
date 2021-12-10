@@ -1320,7 +1320,7 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (map[s
 
 	if etcd.Spec.Backup.SnapshotCompression != nil {
 		compressionValues := make(map[string]interface{})
-		if etcd.Spec.Backup.SnapshotCompression.Enabled {
+		if pointer.BoolPtrDerefOr(etcd.Spec.Backup.SnapshotCompression.Enabled, false) {
 			compressionValues["enabled"] = etcd.Spec.Backup.SnapshotCompression.Enabled
 		}
 		if etcd.Spec.Backup.SnapshotCompression.Policy != nil {
