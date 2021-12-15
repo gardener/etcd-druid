@@ -23,7 +23,7 @@ import (
 
 type allMembersReady struct{}
 
-func (a *allMembersReady) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
+func (a *allMembersReady) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
 	if len(etcd.Status.Members) == 0 {
 		return &result{
 			conType: druidv1alpha1.ConditionTypeAllMembersReady,
@@ -54,6 +54,6 @@ func (a *allMembersReady) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Re
 }
 
 // AllMembersCheck returns a check for the "AllMembersReady" condition.
-func AllMembersCheck(cl client.Client) Checker {
+func AllMembersCheck(_ client.Client) Checker {
 	return &allMembersReady{}
 }

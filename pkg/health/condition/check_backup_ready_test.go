@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -96,7 +97,7 @@ var _ = Describe("BackupReadyCheck", func() {
 		})
 
 		Context("With both snapshot leases present", func() {
-			It("Should set status to IncrementalBackupSucceeded if both leases are recently renewed", func() {
+			It("Should set status to BackupSucceeded if both leases are recently renewed", func() {
 				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease) error {
 						*le = lease
@@ -110,15 +111,15 @@ var _ = Describe("BackupReadyCheck", func() {
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
-				Expect(result.Reason()).To(Equal(IncrBackupSucceeded))
+				Expect(result.Reason()).To(Equal(BackupSucceeded))
 			})
-			It("Should set status to IncrementalBackupSucceeded if only delta lease is recently renewed", func() {
+			It("Should set status to BackupSucceeded if delta snap lease is recently created and empty full snap lease has been created in the last 24h", func() {
 				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-full-snap", Namespace: "default"}, gomock.Any()).DoAndReturn(
 					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease) error {
 						*le = lease
-						le.Spec.RenewTime = &v1.MicroTime{
-							Time: time.Now().Add(-10 * time.Minute),
-						}
+						le.Spec.RenewTime = nil
+						le.Spec.HolderIdentity = nil
+						le.ObjectMeta.CreationTimestamp = v1.Now()
 						return nil
 					},
 				).AnyTimes()
@@ -135,9 +136,9 @@ var _ = Describe("BackupReadyCheck", func() {
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
-				Expect(result.Reason()).To(Equal(IncrBackupSucceeded))
+				Expect(result.Reason()).To(Equal(BackupSucceeded))
 			})
-			It("Should set status to FullBackupSucceeded if only full lease is recently renewed", func() {
+			It("Should set status to Unknown if empty delta snap lease is present but full snap lease is renewed recently", func() {
 				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-full-snap", Namespace: "default"}, gomock.Any()).DoAndReturn(
 					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease) error {
 						*le = lease
@@ -147,9 +148,8 @@ var _ = Describe("BackupReadyCheck", func() {
 				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-delta-snap", Namespace: "default"}, gomock.Any()).DoAndReturn(
 					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease) error {
 						*le = lease
-						le.Spec.RenewTime = &v1.MicroTime{
-							Time: time.Now().Add(-10 * time.Minute),
-						}
+						le.Spec.RenewTime = nil
+						le.Spec.HolderIdentity = nil
 						return nil
 					},
 				).AnyTimes()
@@ -159,8 +159,8 @@ var _ = Describe("BackupReadyCheck", func() {
 
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
-				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
-				Expect(result.Reason()).To(Equal(FullBackupSucceeded))
+				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
+				Expect(result.Reason()).To(Equal(Unknown))
 			})
 			It("Should set status to BackupFailed if both leases are stale", func() {
 				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(

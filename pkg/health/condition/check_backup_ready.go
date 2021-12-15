@@ -31,10 +31,9 @@ type backupReadyCheck struct {
 }
 
 const (
-	FullBackupSucceeded string = "FullBackupSucceeded"
-	IncrBackupSucceeded string = "IncrementalBackupSucceeded"
-	BackupFailed        string = "BackupFailed"
-	Unknown             string = "Unknown"
+	BackupSucceeded string = "BackupSucceeded"
+	BackupFailed    string = "BackupFailed"
+	Unknown         string = "Unknown"
 )
 
 func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
@@ -57,22 +56,31 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 		return result
 	}
 
-	//Cases where snpashots are taken and lease updated
-	if incrSnapErr == nil && deltaSnapLease.Spec.RenewTime != nil {
-		deltaLeaseRenewTime := deltaSnapLease.Spec.RenewTime
-		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration {
-			result.reason = IncrBackupSucceeded
-			result.message = "Delta snapshot taken"
+	deltaLeaseRenewTime := deltaSnapLease.Spec.RenewTime
+	fullLeaseRenewTime := fullSnapLease.Spec.RenewTime
+	fullLeaseCreateTime := &fullSnapLease.ObjectMeta.CreationTimestamp
+
+	if fullSnapLease.Spec.HolderIdentity == nil && deltaLeaseRenewTime != nil && fullLeaseCreateTime != nil {
+		//Most probable during reconcile of existing clusters if fresh leases are created
+		//Treat backup as succeeded if delta snap lease renewal happens in the required time window and full snap lease not more than 24h old
+		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseCreateTime.Time) < 24*time.Hour {
+			result.reason = BackupSucceeded
+			result.message = "Delta snapshot backup succeeded"
 			result.status = druidv1alpha1.ConditionTrue
 			return result
-
 		}
-	}
-	if fullSnapErr == nil && fullSnapLease.Spec.RenewTime != nil {
-		fullLeaseRenewTime := fullSnapLease.Spec.RenewTime
-		if time.Since(fullLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration {
-			result.reason = FullBackupSucceeded
-			result.message = "Full snapshot taken"
+	} else if deltaSnapLease.Spec.HolderIdentity == nil && fullLeaseRenewTime != nil {
+		//Most probable during a startup scenario for new clusters
+		//Special case. Return Unknown condition for some time to allow delta backups to start up
+		if time.Since(fullLeaseRenewTime.Time) < 5*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration {
+			result.message = "Periodic delta snapshots not started yet"
+			return result
+		}
+	} else if deltaLeaseRenewTime != nil && fullLeaseRenewTime != nil {
+		//Both snap leases are maintained. Both are expected to be renewed periodically
+		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseRenewTime.Time) < 24*time.Hour {
+			result.reason = BackupSucceeded
+			result.message = "Snapshot backup succeeded"
 			result.status = druidv1alpha1.ConditionTrue
 			return result
 		}

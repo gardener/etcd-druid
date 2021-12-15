@@ -24,7 +24,7 @@ import (
 
 type readyCheck struct{}
 
-func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
+func (r *readyCheck) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
 	if etcd.Status.ClusterSize == nil {
 		return &result{
 			conType: druidv1alpha1.ConditionTypeReady,
@@ -75,6 +75,6 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result 
 }
 
 // ReadyCheck returns a check for the "Ready" condition.
-func ReadyCheck(cl client.Client) Checker {
+func ReadyCheck(_ client.Client) Checker {
 	return &readyCheck{}
 }
