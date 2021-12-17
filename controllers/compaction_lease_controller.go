@@ -558,5 +558,6 @@ func (lc *CompactionLeaseController) SetupWithManager(mgr ctrl.Manager, workers 
 		&source.Kind{Type: &coordinationv1.Lease{}},
 		&handler.EnqueueRequestForOwner{OwnerType: &druidv1alpha1.Etcd{}, IsController: true},
 		druidpredicates.LeaseHolderIdentityChange(),
+		druidpredicates.IsSnapshotLease(),
 	)
 }
