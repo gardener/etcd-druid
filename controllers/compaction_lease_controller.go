@@ -193,6 +193,13 @@ func (lc *CompactionLeaseController) reconcileJob(ctx context.Context, logger lo
 		}
 	}
 
+	if !job.DeletionTimestamp.IsZero() {
+		logger.Info(fmt.Sprintf("Job %s/%s is already in deletion. A new job will only be created if the previous one has been deleted.", job.Namespace, job.Name))
+		return ctrl.Result{
+			RequeueAfter: 10 * time.Second,
+		}, nil
+	}
+
 	if job.Name != "" {
 		logger.Info(fmt.Sprintf("Current compaction job is %s/%s , status: %d", job.Namespace, job.Name, job.Status.Succeeded))
 	}
