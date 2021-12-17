@@ -50,20 +50,21 @@ func init() {
 
 func main() {
 	var (
-		metricsAddr                string
-		enableLeaderElection       bool
-		enableBackupCompaction     bool
-		leaderElectionID           string
-		leaderElectionResourceLock string
-		etcdWorkers                int
-		custodianWorkers           int
-		etcdCopyBackupsTaskWorkers int
-		custodianSyncPeriod        time.Duration
-		disableLeaseCache          bool
-		compactionWorkers          int
-		eventsThreshold            int64
-		activeDeadlineDuration     time.Duration
-		ignoreOperationAnnotation  bool
+		metricsAddr                        string
+		enableLeaderElection               bool
+		enableBackupCompaction             bool
+		leaderElectionID                   string
+		leaderElectionResourceLock         string
+		etcdWorkers                        int
+		custodianWorkers                   int
+		etcdCopyBackupsTaskWorkers         int
+		custodianSyncPeriod                time.Duration
+		disableLeaseCache                  bool
+		compactionWorkers                  int
+		eventsThreshold                    int64
+		activeDeadlineDuration             time.Duration
+		ignoreOperationAnnotation          bool
+		disableEtcdServiceAccountAutomount bool
 
 		etcdMemberNotReadyThreshold time.Duration
 
@@ -91,6 +92,7 @@ func main() {
 	flag.BoolVar(&disableLeaseCache, "disable-lease-cache", false, "Disable cache for lease.coordination.k8s.io resources.")
 	flag.BoolVar(&ignoreOperationAnnotation, "ignore-operation-annotation", true, "Ignore the operation annotation or not.")
 	flag.DurationVar(&etcdMemberNotReadyThreshold, "etcd-member-notready-threshold", 5*time.Minute, "Threshold after which an etcd member is considered not ready if the status was unknown before.")
+	flag.BoolVar(&disableEtcdServiceAccountAutomount, "disable-etcd-serviceaccount-automount", false, "If true then .automountServiceAccountToken will be set to false for the ServiceAccount created for etcd statefulsets.")
 
 	flag.Parse()
 
@@ -117,7 +119,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	etcd, err := controllers.NewEtcdReconcilerWithImageVector(mgr)
+	etcd, err := controllers.NewEtcdReconcilerWithImageVector(mgr, disableEtcdServiceAccountAutomount)
 	if err != nil {
 		setupLog.Error(err, "Unable to initialize etcd controller with image vector")
 		os.Exit(1)

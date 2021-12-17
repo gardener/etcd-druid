@@ -98,16 +98,17 @@ var (
 // EtcdReconciler reconciles a Etcd object
 type EtcdReconciler struct {
 	client.Client
-	Scheme       *runtime.Scheme
-	chartApplier kubernetes.ChartApplier
-	Config       *rest.Config
-	ImageVector  imagevector.ImageVector
-	logger       logr.Logger
+	Scheme                             *runtime.Scheme
+	chartApplier                       kubernetes.ChartApplier
+	Config                             *rest.Config
+	ImageVector                        imagevector.ImageVector
+	logger                             logr.Logger
+	disableEtcdServiceAccountAutomount bool
 }
 
 // NewReconcilerWithImageVector creates a new EtcdReconciler object with an image vector
-func NewReconcilerWithImageVector(mgr manager.Manager) (*EtcdReconciler, error) {
-	etcdReconciler, err := NewEtcdReconciler(mgr)
+func NewReconcilerWithImageVector(mgr manager.Manager, disableEtcdServiceAccountAutomount bool) (*EtcdReconciler, error) {
+	etcdReconciler, err := NewEtcdReconciler(mgr, disableEtcdServiceAccountAutomount)
 	if err != nil {
 		return nil, err
 	}
@@ -115,18 +116,19 @@ func NewReconcilerWithImageVector(mgr manager.Manager) (*EtcdReconciler, error) 
 }
 
 // NewEtcdReconciler creates a new EtcdReconciler object
-func NewEtcdReconciler(mgr manager.Manager) (*EtcdReconciler, error) {
+func NewEtcdReconciler(mgr manager.Manager, disableEtcdServiceAccountAutomount bool) (*EtcdReconciler, error) {
 	return (&EtcdReconciler{
-		Client: mgr.GetClient(),
-		Config: mgr.GetConfig(),
-		Scheme: mgr.GetScheme(),
-		logger: log.Log.WithName("etcd-controller"),
+		Client:                             mgr.GetClient(),
+		Config:                             mgr.GetConfig(),
+		Scheme:                             mgr.GetScheme(),
+		logger:                             log.Log.WithName("etcd-controller"),
+		disableEtcdServiceAccountAutomount: disableEtcdServiceAccountAutomount,
 	}).InitializeControllerWithChartApplier()
 }
 
 // NewEtcdReconcilerWithImageVector creates a new EtcdReconciler object
-func NewEtcdReconcilerWithImageVector(mgr manager.Manager) (*EtcdReconciler, error) {
-	ec, err := NewEtcdReconciler(mgr)
+func NewEtcdReconcilerWithImageVector(mgr manager.Manager, disableEtcdServiceAccountAutomount bool) (*EtcdReconciler, error) {
+	ec, err := NewEtcdReconciler(mgr, disableEtcdServiceAccountAutomount)
 	if err != nil {
 		return nil, err
 	}
@@ -1142,7 +1144,7 @@ func (r *EtcdReconciler) reconcileRoleBinding(ctx context.Context, logger logr.L
 }
 
 func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*corev1.Service, *appsv1.StatefulSet, error) {
-	values, err := getMapFromEtcd(r.ImageVector, etcd)
+	values, err := getMapFromEtcd(r.ImageVector, etcd, r.disableEtcdServiceAccountAutomount)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1225,7 +1227,7 @@ func checkEtcdAnnotations(annotations map[string]string, etcd metav1.Object) boo
 
 }
 
-func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (map[string]interface{}, error) {
+func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd, disableEtcdServiceAccountAutomount bool) (map[string]interface{}, error) {
 	var statefulsetReplicas int
 	if etcd.Spec.Replicas != 0 {
 		statefulsetReplicas = 1
@@ -1385,24 +1387,25 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (map[s
 	}
 
 	values := map[string]interface{}{
-		"name":                    etcd.Name,
-		"uid":                     etcd.UID,
-		"selector":                etcd.Spec.Selector,
-		"labels":                  etcd.Spec.Labels,
-		"annotations":             etcd.Spec.Annotations,
-		"etcd":                    etcdValues,
-		"backup":                  backupValues,
-		"sharedConfig":            sharedConfigValues,
-		"replicas":                etcd.Spec.Replicas,
-		"statefulsetReplicas":     statefulsetReplicas,
-		"serviceName":             fmt.Sprintf("%s-client", etcd.Name),
-		"configMapName":           fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
-		"jobName":                 getJobName(etcd),
-		"pdbMinAvailable":         pdbMinAvailable,
-		"volumeClaimTemplateName": volumeClaimTemplateName,
-		"serviceAccountName":      getServiceAccountName(etcd),
-		"roleName":                fmt.Sprintf("druid.gardener.cloud:etcd:%s", etcd.Name),
-		"roleBindingName":         fmt.Sprintf("druid.gardener.cloud:etcd:%s", etcd.Name),
+		"name":                               etcd.Name,
+		"uid":                                etcd.UID,
+		"selector":                           etcd.Spec.Selector,
+		"labels":                             etcd.Spec.Labels,
+		"annotations":                        etcd.Spec.Annotations,
+		"etcd":                               etcdValues,
+		"backup":                             backupValues,
+		"sharedConfig":                       sharedConfigValues,
+		"replicas":                           etcd.Spec.Replicas,
+		"statefulsetReplicas":                statefulsetReplicas,
+		"serviceName":                        fmt.Sprintf("%s-client", etcd.Name),
+		"configMapName":                      fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
+		"jobName":                            getJobName(etcd),
+		"pdbMinAvailable":                    pdbMinAvailable,
+		"volumeClaimTemplateName":            volumeClaimTemplateName,
+		"serviceAccountName":                 getServiceAccountName(etcd),
+		"disableEtcdServiceAccountAutomount": disableEtcdServiceAccountAutomount,
+		"roleName":                           fmt.Sprintf("druid.gardener.cloud:etcd:%s", etcd.Name),
+		"roleBindingName":                    fmt.Sprintf("druid.gardener.cloud:etcd:%s", etcd.Name),
 	}
 
 	if etcd.Spec.StorageCapacity != nil {

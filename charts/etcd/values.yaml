@@ -3,6 +3,8 @@ uid: uuid-of-etcd-resource
 serviceName: test
 configMapName: test
 jobName: test
+serviceAccountName: test
+disableEtcdServiceAccountAutomount: false
 
 replicas: 1
 #priorityClassName: foo
