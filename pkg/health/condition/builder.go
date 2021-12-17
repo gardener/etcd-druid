@@ -15,6 +15,7 @@
 package condition
 
 import (
+	"sort"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -112,6 +113,10 @@ func (b *defaultBuilder) Build() []druidv1alpha1.Condition {
 		// Add existing conditions as they were. This needs to be changed when SSA is used.
 		conditions = append(conditions, condition)
 	}
+
+	sort.Slice(conditions, func(i, j int) bool {
+		return conditions[i].Type < conditions[j].Type
+	})
 
 	return conditions
 }

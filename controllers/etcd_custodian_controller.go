@@ -86,7 +86,6 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	logger := ec.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
 
-	// TODO: (timuthy) remove this as it could block important health checks
 	if etcd.Status.LastError != nil && *etcd.Status.LastError != "" {
 		logger.Info(fmt.Sprintf("Requeue item because of last error: %v", *etcd.Status.LastError))
 		return ctrl.Result{
