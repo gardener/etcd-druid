@@ -34,10 +34,10 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
 
 // GetDeltaSnapshotLeaseName returns the name of the delta snapshot lease based on the given `etcd` object.
 func GetDeltaSnapshotLeaseName(etcd *druidv1alpha1.Etcd) string {
-	return fmt.Sprintf("delta-snapshot-%s", etcd.Name)
+	return fmt.Sprintf("%s-delta-snap", etcd.Name)
 }
 
 // GetFullSnapshotLeaseName returns the name of the full snapshot lease based on the given `etcd` object.
 func GetFullSnapshotLeaseName(etcd *druidv1alpha1.Etcd) string {
-	return fmt.Sprintf("full-snapshot-%s", etcd.Name)
+	return fmt.Sprintf("%s-full-snap", etcd.Name)
 }

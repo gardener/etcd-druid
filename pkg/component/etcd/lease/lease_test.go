@@ -203,11 +203,11 @@ var _ = Describe("Lease", func() {
 })
 
 func getSnapshotLease(ctx context.Context, c client.Client, namespace, name string) (*coordinationv1.Lease, error) {
-	fullLease := coordinationv1.Lease{}
-	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &fullLease); err != nil {
+	snapshotLease := coordinationv1.Lease{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &snapshotLease); err != nil {
 		return nil, err
 	}
-	return &fullLease, nil
+	return &snapshotLease, nil
 }
 
 func checkSnapshotLeases(ctx context.Context, c client.Client, etcd *druidv1alpha1.Etcd, val Values) {
