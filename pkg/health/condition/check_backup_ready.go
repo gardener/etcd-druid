@@ -45,14 +45,14 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 		message: "Cannot determine etcd backup status since no snapshot leases present",
 	}
 
-	//Fetch snpashot leases
+	//Fetch snapshot leases
 	fullSnapLease := &coordinationv1.Lease{}
 	deltaSnapLease := &coordinationv1.Lease{}
 	var fullSnapErr, incrSnapErr error
 	fullSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getFullSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, fullSnapLease)
 	incrSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getDeltaSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, deltaSnapLease)
 
-	if fullSnapErr != nil || incrSnapErr != nil || (fullSnapLease.Spec.HolderIdentity == nil && deltaSnapLease.Spec.HolderIdentity == nil) {
+	if fullSnapErr != nil || incrSnapErr != nil || (fullSnapLease.Spec.RenewTime == nil && deltaSnapLease.Spec.RenewTime == nil) {
 		return result
 	}
 
@@ -60,7 +60,7 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 	fullLeaseRenewTime := fullSnapLease.Spec.RenewTime
 	fullLeaseCreateTime := &fullSnapLease.ObjectMeta.CreationTimestamp
 
-	if fullSnapLease.Spec.HolderIdentity == nil && deltaLeaseRenewTime != nil && fullLeaseCreateTime != nil {
+	if fullLeaseRenewTime == nil && deltaLeaseRenewTime != nil && fullLeaseCreateTime != nil {
 		//Most probable during reconcile of existing clusters if fresh leases are created
 		//Treat backup as succeeded if delta snap lease renewal happens in the required time window and full snap lease not more than 24h old
 		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseCreateTime.Time) < 24*time.Hour {
@@ -69,7 +69,7 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 			result.status = druidv1alpha1.ConditionTrue
 			return result
 		}
-	} else if deltaSnapLease.Spec.HolderIdentity == nil && fullLeaseRenewTime != nil {
+	} else if deltaLeaseRenewTime == nil && fullLeaseRenewTime != nil {
 		//Most probable during a startup scenario for new clusters
 		//Special case. Return Unknown condition for some time to allow delta backups to start up
 		if time.Since(fullLeaseRenewTime.Time) < 5*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration {
