@@ -25,6 +25,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
+	componentetcd "github.com/gardener/etcd-druid/pkg/component/etcd"
 	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
@@ -1056,9 +1057,11 @@ func (r *EtcdReconciler) reconcileRoleBinding(ctx context.Context, logger logr.L
 }
 
 func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*corev1.Service, *appsv1.StatefulSet, error) {
-	leaseValues := componentlease.GenerateValues(etcd)
+	val := componentetcd.Values{
+		Lease: componentlease.GenerateValues(etcd),
+	}
 
-	values, err := getMapFromEtcd(r.ImageVector, etcd, leaseValues, r.disableEtcdServiceAccountAutomount)
+	values, err := getMapFromEtcd(r.ImageVector, etcd, val, r.disableEtcdServiceAccountAutomount)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1069,7 +1072,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		return nil, nil, err
 	}
 
-	leaseDeployer := componentlease.New(r.Client, etcd.Namespace, leaseValues)
+	leaseDeployer := componentlease.New(r.Client, etcd.Namespace, val.Lease)
 
 	if err := leaseDeployer.Deploy(ctx); err != nil {
 		return nil, nil, err
@@ -1147,7 +1150,7 @@ func checkEtcdAnnotations(annotations map[string]string, etcd metav1.Object) boo
 
 }
 
-func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd, leaseValues componentlease.Values, disableEtcdServiceAccountAutomount bool) (map[string]interface{}, error) {
+func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd, val componentetcd.Values, disableEtcdServiceAccountAutomount bool) (map[string]interface{}, error) {
 	var statefulsetReplicas int
 	if etcd.Spec.Replicas != 0 {
 		statefulsetReplicas = 1
@@ -1355,8 +1358,8 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd, leaseV
 			return nil, err
 		}
 
-		backupValues["fullSnapLeaseName"] = leaseValues.FullSnapshotLeaseName
-		backupValues["deltaSnapLeaseName"] = leaseValues.DeltaSnapshotLeaseName
+		backupValues["fullSnapLeaseName"] = val.Lease.FullSnapshotLeaseName
+		backupValues["deltaSnapLeaseName"] = val.Lease.DeltaSnapshotLeaseName
 	}
 
 	return values, nil
