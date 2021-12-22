@@ -22,6 +22,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
+	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 	"github.com/gardener/etcd-druid/pkg/utils"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
@@ -1065,6 +1066,8 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 								"--etcd-connection-timeout=5m":                   Equal("--etcd-connection-timeout=5m"),
 								"--snapstore-temp-directory=/var/etcd/data/temp": Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
 								"--etcd-process-name=etcd":                       Equal("--etcd-process-name=etcd"),
+								"--enable-member-lease-renewal=true":             Equal("--enable-member-lease-renewal=true"),
+								"--k8s-heartbeat-duration=10s":                   Equal("--k8s-heartbeat-duration=10s"),
 
 								fmt.Sprintf("--delta-snapshot-memory-limit=%d", deltaSnapShotMemLimit.Value()):                 Equal(fmt.Sprintf("--delta-snapshot-memory-limit=%d", deltaSnapShotMemLimit.Value())),
 								fmt.Sprintf("--garbage-collection-policy=%s", druidv1alpha1.GarbageCollectionPolicyLimitBased): Equal(fmt.Sprintf("--garbage-collection-policy=%s", druidv1alpha1.GarbageCollectionPolicyLimitBased)),
@@ -1450,6 +1453,8 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								"--etcd-process-name=etcd":                       Equal("--etcd-process-name=etcd"),
 								"--etcd-connection-timeout=5m":                   Equal("--etcd-connection-timeout=5m"),
 								"--enable-snapshot-lease-renewal=true":           Equal("--enable-snapshot-lease-renewal=true"),
+								"--enable-member-lease-renewal=true":             Equal("--enable-member-lease-renewal=true"),
+								"--k8s-heartbeat-duration=10s":                   Equal("--k8s-heartbeat-duration=10s"),
 								fmt.Sprintf("--defragmentation-schedule=%s", *instance.Spec.Etcd.DefragmentationSchedule):                           Equal(fmt.Sprintf("--defragmentation-schedule=%s", *instance.Spec.Etcd.DefragmentationSchedule)),
 								fmt.Sprintf("--schedule=%s", *instance.Spec.Backup.FullSnapshotSchedule):                                            Equal(fmt.Sprintf("--schedule=%s", *instance.Spec.Backup.FullSnapshotSchedule)),
 								fmt.Sprintf("%s=%s", "--garbage-collection-policy", *instance.Spec.Backup.GarbageCollectionPolicy):                  Equal(fmt.Sprintf("%s=%s", "--garbage-collection-policy", *instance.Spec.Backup.GarbageCollectionPolicy)),
@@ -1470,8 +1475,8 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								fmt.Sprintf("%s=%s", "--owner-check-interval", instance.Spec.Backup.OwnerCheck.Interval.Duration.String()):          Equal(fmt.Sprintf("%s=%s", "--owner-check-interval", instance.Spec.Backup.OwnerCheck.Interval.Duration.String())),
 								fmt.Sprintf("%s=%s", "--owner-check-timeout", instance.Spec.Backup.OwnerCheck.Timeout.Duration.String()):            Equal(fmt.Sprintf("%s=%s", "--owner-check-timeout", instance.Spec.Backup.OwnerCheck.Timeout.Duration.String())),
 								fmt.Sprintf("%s=%s", "--owner-check-dns-cache-ttl", instance.Spec.Backup.OwnerCheck.DNSCacheTTL.Duration.String()):  Equal(fmt.Sprintf("%s=%s", "--owner-check-dns-cache-ttl", instance.Spec.Backup.OwnerCheck.DNSCacheTTL.Duration.String())),
-								fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", getDeltaSnapshotLeaseName(instance)):                            Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", getDeltaSnapshotLeaseName(instance))),
-								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", getFullSnapshotLeaseName(instance)):                              Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", getFullSnapshotLeaseName(instance))),
+								fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", componentlease.GetDeltaSnapshotLeaseName(instance)):             Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", componentlease.GetDeltaSnapshotLeaseName(instance))),
+								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", componentlease.GetFullSnapshotLeaseName(instance)):               Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", componentlease.GetFullSnapshotLeaseName(instance))),
 							}),
 							"Ports": ConsistOf([]corev1.ContainerPort{
 								corev1.ContainerPort{

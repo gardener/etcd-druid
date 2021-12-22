@@ -16,9 +16,12 @@ package etcdmember
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
+
+	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
+
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
@@ -49,17 +52,12 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 	)
 
 	leases := &coordinationv1.LeaseList{}
-	if err := r.cl.List(ctx, leases, client.InNamespace(etcd.Namespace), client.MatchingLabels{common.GardenerOwnedBy: etcd.Name}); err != nil {
+	if err := r.cl.List(ctx, leases, client.InNamespace(etcd.Namespace), client.MatchingLabels{
+		common.GardenerOwnedBy: etcd.Name, v1beta1constants.GardenerPurpose: componentlease.PurposeMemberLease}); err != nil {
 		r.logger.Error(err, "failed to get leases for etcd member readiness check")
 	}
 
 	for _, lease := range leases.Items {
-		leaseDurationSeconds := lease.Spec.LeaseDurationSeconds
-		if leaseDurationSeconds == nil {
-			r.logger.Error(fmt.Errorf("leaseDurationSeconds not set for lease object %s/%s", lease.Namespace, lease.Name), "Failed to perform member readiness check")
-			continue
-		}
-
 		var (
 			id, role = separateIdFromRole(lease.Spec.HolderIdentity)
 			res      = &result{
@@ -79,7 +77,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		}
 
 		// Check if member state must be considered as not ready
-		if renew.Add(time.Duration(*leaseDurationSeconds) * time.Second).Add(r.memberConfig.EtcdMemberNotReadyThreshold).Before(checkTime) {
+		if renew.Add(r.memberConfig.EtcdMemberUnknownThreshold).Add(r.memberConfig.EtcdMemberNotReadyThreshold).Before(checkTime) {
 			res.status = druidv1alpha1.EtcdMemberStatusNotReady
 			res.reason = "UnknownGracePeriodExceeded"
 			results = append(results, res)
@@ -87,7 +85,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		}
 
 		// Check if member state must be considered as unknown
-		if renew.Add(time.Duration(*leaseDurationSeconds) * time.Second).Before(checkTime) {
+		if renew.Add(r.memberConfig.EtcdMemberUnknownThreshold).Before(checkTime) {
 			// If pod is not running or cannot be found then we deduce that the status is NotReady.
 			ready, err := r.checkContainersAreReady(ctx, lease.Namespace, lease.Name)
 			if (err == nil && !ready) || apierrors.IsNotFound(err) {

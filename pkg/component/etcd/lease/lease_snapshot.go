@@ -12,21 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package lease
 
-import "time"
+import (
+	"context"
 
-// EtcdCustodianController contains configuration for the etcd custodian controller.
-type EtcdCustodianController struct {
-	// EtcdMember holds configuration related to etcd members.
-	EtcdMember EtcdMemberConfig
-	// SyncPeriod is the duration after which re-enqueuing happens.
-	SyncPeriod time.Duration
+	"github.com/gardener/gardener/pkg/controllerutils"
+
+	coordinationv1 "k8s.io/api/coordination/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+func (c *component) deleteSnapshotLease(ctx context.Context, lease *coordinationv1.Lease) error {
+	return client.IgnoreNotFound(c.client.Delete(ctx, lease))
 }
 
-type EtcdMemberConfig struct {
-	// EtcdMemberNotReadyThreshold is the duration after which an etcd member's state is considered `NotReady`.
-	EtcdMemberNotReadyThreshold time.Duration
-	// EtcdMemberUnknownThreshold is the duration after which an etcd member's state is considered `Unknown`.
-	EtcdMemberUnknownThreshold time.Duration
+func (c *component) syncSnapshotLease(ctx context.Context, lease *coordinationv1.Lease) error {
+	if !c.values.BackupEnabled {
+		return c.deleteSnapshotLease(ctx, lease)
+	}
+	_, err := controllerutils.GetAndCreateOrMergePatch(ctx, c.client, lease, func() error {
+		lease.OwnerReferences = getOwnerReferences(c.values)
+		return nil
+	})
+	return err
 }

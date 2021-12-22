@@ -12,21 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package kubernetes
 
-import "time"
+import (
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
-// EtcdCustodianController contains configuration for the etcd custodian controller.
-type EtcdCustodianController struct {
-	// EtcdMember holds configuration related to etcd members.
-	EtcdMember EtcdMemberConfig
-	// SyncPeriod is the duration after which re-enqueuing happens.
-	SyncPeriod time.Duration
-}
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	schemev1 "k8s.io/client-go/kubernetes/scheme"
+)
 
-type EtcdMemberConfig struct {
-	// EtcdMemberNotReadyThreshold is the duration after which an etcd member's state is considered `NotReady`.
-	EtcdMemberNotReadyThreshold time.Duration
-	// EtcdMemberUnknownThreshold is the duration after which an etcd member's state is considered `Unknown`.
-	EtcdMemberUnknownThreshold time.Duration
+var Scheme = runtime.NewScheme()
+
+func init() {
+	localSchemeBuilder := runtime.NewSchemeBuilder(
+		druidv1alpha1.AddToScheme,
+		schemev1.AddToScheme,
+	)
+
+	utilruntime.Must(localSchemeBuilder.AddToScheme(Scheme))
 }

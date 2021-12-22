@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"time"
 
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/test"
 	"github.com/golang/mock/gomock"
@@ -37,6 +39,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 	"github.com/gardener/etcd-druid/pkg/common"
+	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 	. "github.com/gardener/etcd-druid/pkg/health/etcdmember"
 	mockclient "github.com/gardener/etcd-druid/pkg/mock/controller-runtime/client"
 )
@@ -44,13 +47,13 @@ import (
 var _ = Describe("ReadyCheck", func() {
 	Describe("#Check", func() {
 		var (
-			ctx                              context.Context
-			mockCtrl                         *gomock.Controller
-			cl                               *mockclient.MockClient
-			leaseDurationSeconds             *int32
-			leaseDuration, notReadyThreshold time.Duration
-			now                              time.Time
-			check                            Checker
+			ctx                                 context.Context
+			mockCtrl                            *gomock.Controller
+			cl                                  *mockclient.MockClient
+			leaseDurationSeconds                *int32
+			unknownThreshold, notReadyThreshold time.Duration
+			now                                 time.Time
+			check                               Checker
 
 			member1Name string
 			member1ID   *string
@@ -62,13 +65,13 @@ var _ = Describe("ReadyCheck", func() {
 			ctx = context.Background()
 			mockCtrl = gomock.NewController(GinkgoT())
 			cl = mockclient.NewMockClient(mockCtrl)
-			leaseDurationSeconds = pointer.Int32Ptr(300)
-			leaseDuration = time.Duration(*leaseDurationSeconds) * time.Second
+			unknownThreshold = 300 * time.Second
 			notReadyThreshold = 60 * time.Second
 			now, _ = time.Parse(time.RFC3339, "2021-06-01T00:00:00Z")
 			check = ReadyCheck(cl, log.NullLogger{}, controllersconfig.EtcdCustodianController{
 				EtcdMember: controllersconfig.EtcdMemberConfig{
 					EtcdMemberNotReadyThreshold: notReadyThreshold,
+					EtcdMemberUnknownThreshold:  unknownThreshold,
 				},
 			})
 
@@ -88,16 +91,18 @@ var _ = Describe("ReadyCheck", func() {
 		})
 
 		JustBeforeEach(func() {
-			cl.EXPECT().List(ctx, gomock.AssignableToTypeOf(&coordinationv1.LeaseList{}), client.InNamespace(etcd.Namespace), client.MatchingLabels{common.GardenerOwnedBy: etcd.Name}).DoAndReturn(
-				func(_ context.Context, leases *coordinationv1.LeaseList, _ ...client.ListOption) error {
-					*leases = *leasesList
-					return nil
-				})
+			cl.EXPECT().List(ctx, gomock.AssignableToTypeOf(&coordinationv1.LeaseList{}), client.InNamespace(etcd.Namespace),
+				client.MatchingLabels{common.GardenerOwnedBy: etcd.Name, v1beta1constants.GardenerPurpose: componentlease.PurposeMemberLease}).
+				DoAndReturn(
+					func(_ context.Context, leases *coordinationv1.LeaseList, _ ...client.ListOption) error {
+						*leases = *leasesList
+						return nil
+					})
 		})
 
 		Context("when just expired", func() {
 			BeforeEach(func() {
-				renewTime := metav1.NewMicroTime(now.Add(-1 * leaseDuration).Add(-1 * time.Second))
+				renewTime := metav1.NewMicroTime(now.Add(-1 * unknownThreshold).Add(-1 * time.Second))
 				leasesList = &coordinationv1.LeaseList{
 					Items: []coordinationv1.Lease{
 						{
@@ -223,8 +228,8 @@ var _ = Describe("ReadyCheck", func() {
 				member2ID = pointer.StringPtr("2")
 
 				var (
-					shortExpirationTime = metav1.NewMicroTime(now.Add(-1 * leaseDuration).Add(-1 * time.Second))
-					longExpirationTime  = metav1.NewMicroTime(now.Add(-1 * leaseDuration).Add(-1 * time.Second).Add(-1 * notReadyThreshold))
+					shortExpirationTime = metav1.NewMicroTime(now.Add(-1 * unknownThreshold).Add(-1 * time.Second))
+					longExpirationTime  = metav1.NewMicroTime(now.Add(-1 * unknownThreshold).Add(-1 * time.Second).Add(-1 * notReadyThreshold))
 				)
 
 				leasesList = &coordinationv1.LeaseList{
@@ -289,7 +294,7 @@ var _ = Describe("ReadyCheck", func() {
 				member2ID = pointer.StringPtr("2")
 				member3Name = "member3"
 				member3ID = pointer.StringPtr("3")
-				renewTime := metav1.NewMicroTime(now.Add(-1 * leaseDuration))
+				renewTime := metav1.NewMicroTime(now.Add(-1 * unknownThreshold))
 				leasesList = &coordinationv1.LeaseList{
 					Items: []coordinationv1.Lease{
 						{
@@ -356,7 +361,7 @@ var _ = Describe("ReadyCheck", func() {
 
 			BeforeEach(func() {
 				member2Name = "member2"
-				renewTime := metav1.NewMicroTime(now.Add(-1 * leaseDuration))
+				renewTime := metav1.NewMicroTime(now.Add(-1 * unknownThreshold))
 				leasesList = &coordinationv1.LeaseList{
 					Items: []coordinationv1.Lease{
 						{

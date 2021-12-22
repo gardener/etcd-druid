@@ -12,21 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package lease_test
 
-import "time"
+import (
+	"testing"
 
-// EtcdCustodianController contains configuration for the etcd custodian controller.
-type EtcdCustodianController struct {
-	// EtcdMember holds configuration related to etcd members.
-	EtcdMember EtcdMemberConfig
-	// SyncPeriod is the duration after which re-enqueuing happens.
-	SyncPeriod time.Duration
-}
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+)
 
-type EtcdMemberConfig struct {
-	// EtcdMemberNotReadyThreshold is the duration after which an etcd member's state is considered `NotReady`.
-	EtcdMemberNotReadyThreshold time.Duration
-	// EtcdMemberUnknownThreshold is the duration after which an etcd member's state is considered `Unknown`.
-	EtcdMemberUnknownThreshold time.Duration
+func TestLease(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Etcd Component Suite")
 }

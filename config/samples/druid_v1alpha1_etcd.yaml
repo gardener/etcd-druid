@@ -35,6 +35,7 @@ spec:
     clientPort: 2379
     serverPort: 2380
     quota: 8Gi
+#   heartbeatDuration: 10s
   backup:
     port: 8080
     fullSnapshotSchedule: "0 */24 * * *"

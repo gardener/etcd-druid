@@ -20,15 +20,12 @@ import (
 	"os"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/controllers"
 	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
+	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
 
 	coordinationv1 "k8s.io/api/coordination/v1"
 	coordinationv1beta1 "k8s.io/api/coordination/v1beta1"
-	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	schemev1 "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -36,17 +33,7 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
-var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
-)
-
-func init() {
-	utilruntime.Must(schemev1.AddToScheme(scheme))
-	utilruntime.Must(druidv1alpha1.AddToScheme(scheme))
-
-	// +kubebuilder:scaffold:scheme
-}
+var setupLog = ctrl.Log.WithName("setup")
 
 func main() {
 	var (
@@ -67,6 +54,7 @@ func main() {
 		disableEtcdServiceAccountAutomount bool
 
 		etcdMemberNotReadyThreshold time.Duration
+		etcdMemberUnknownThreshold  time.Duration
 
 		// TODO: migrate default to `leases` in one of the next releases
 		defaultLeaderElectionResourceLock = resourcelock.ConfigMapsLeasesResourceLock
@@ -93,6 +81,7 @@ func main() {
 	flag.BoolVar(&ignoreOperationAnnotation, "ignore-operation-annotation", true, "Ignore the operation annotation or not.")
 	flag.DurationVar(&etcdMemberNotReadyThreshold, "etcd-member-notready-threshold", 5*time.Minute, "Threshold after which an etcd member is considered not ready if the status was unknown before.")
 	flag.BoolVar(&disableEtcdServiceAccountAutomount, "disable-etcd-serviceaccount-automount", false, "If true then .automountServiceAccountToken will be set to false for the ServiceAccount created for etcd statefulsets.")
+	flag.DurationVar(&etcdMemberUnknownThreshold, "etcd-member-unknown-threshold", 1*time.Minute, "Threshold after which an etcd member is considered unknown.")
 
 	flag.Parse()
 
@@ -108,7 +97,7 @@ func main() {
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		ClientDisableCacheFor:      uncachedObjects,
-		Scheme:                     scheme,
+		Scheme:                     kubernetes.Scheme,
 		MetricsBindAddress:         metricsAddr,
 		LeaderElection:             enableLeaderElection,
 		LeaderElectionID:           leaderElectionID,
@@ -133,6 +122,7 @@ func main() {
 	custodian := controllers.NewEtcdCustodian(mgr, controllersconfig.EtcdCustodianController{
 		EtcdMember: controllersconfig.EtcdMemberConfig{
 			EtcdMemberNotReadyThreshold: etcdMemberNotReadyThreshold,
+			EtcdMemberUnknownThreshold:  etcdMemberUnknownThreshold,
 		},
 		SyncPeriod: custodianSyncPeriod,
 	})

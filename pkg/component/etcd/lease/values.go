@@ -12,21 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package lease
 
-import "time"
+import (
+	"k8s.io/apimachinery/pkg/types"
+)
 
-// EtcdCustodianController contains configuration for the etcd custodian controller.
-type EtcdCustodianController struct {
-	// EtcdMember holds configuration related to etcd members.
-	EtcdMember EtcdMemberConfig
-	// SyncPeriod is the duration after which re-enqueuing happens.
-	SyncPeriod time.Duration
-}
-
-type EtcdMemberConfig struct {
-	// EtcdMemberNotReadyThreshold is the duration after which an etcd member's state is considered `NotReady`.
-	EtcdMemberNotReadyThreshold time.Duration
-	// EtcdMemberUnknownThreshold is the duration after which an etcd member's state is considered `Unknown`.
-	EtcdMemberUnknownThreshold time.Duration
+type Values struct {
+	// BackupEnabled specifies if the backup functionality for the etcd cluster is enabled.
+	BackupEnabled bool
+	// EtcdName is the name of the etcd resource.
+	EtcdName string
+	// EtcdName is the UID of the etcd resource.
+	EtcdUID types.UID
+	// DeltaSnapshotLeaseName is the name of the delta snapshot lease object.
+	DeltaSnapshotLeaseName string
+	// FullSnapshotLeaseName is the name of the full snapshot lease object.
+	FullSnapshotLeaseName string
+	// Replicas is the replica count of the etcd cluster.
+	Replicas int32
 }

@@ -33,6 +33,7 @@ etcd:
       memory: 128Mi
   #username: username
   #password: password
+  heartbeatDuration: 10s
 
 backup:
   port: 8080
