@@ -60,22 +60,9 @@ var _ = Describe("Service", func() {
 		backupPort = 1111
 		clientPort = 2222
 		serverPort = 3333
+
 		labels = map[string]string{
 			"foo": "bar",
-		}
-		services = []*corev1.Service{
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      values.ClientServiceName,
-					Namespace: values.EtcdName,
-				},
-			},
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      values.PeerServiceName,
-					Namespace: values.EtcdName,
-				},
-			},
 		}
 
 		etcd = &druidv1alpha1.Etcd{
@@ -97,6 +84,22 @@ var _ = Describe("Service", func() {
 		}
 
 		values = GenerateValues(etcd)
+
+		services = []*corev1.Service{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      values.ClientServiceName,
+					Namespace: values.EtcdName,
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      values.PeerServiceName,
+					Namespace: values.EtcdName,
+				},
+			},
+		}
+
 		serviceDeployer = New(cl, namespace, values)
 	})
 
