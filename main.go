@@ -56,8 +56,7 @@ func main() {
 		etcdMemberNotReadyThreshold time.Duration
 		etcdMemberUnknownThreshold  time.Duration
 
-		// TODO: migrate default to `leases` in one of the next releases
-		defaultLeaderElectionResourceLock = resourcelock.ConfigMapsLeasesResourceLock
+		defaultLeaderElectionResourceLock = resourcelock.LeasesResourceLock
 		defaultLeaderElectionID           = "druid-leader-election"
 	)
 
