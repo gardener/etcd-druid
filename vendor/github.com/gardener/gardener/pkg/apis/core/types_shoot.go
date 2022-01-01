@@ -663,6 +663,8 @@ type KubeletConfig struct {
 	ImageGCHighThresholdPercent *int32
 	// ImageGCLowThresholdPercent describes the percent of the disk to which garbage collection attempts to free.
 	ImageGCLowThresholdPercent *int32
+	// SerializeImagePulls describes whether the images are pulled one at a time.
+	SerializeImagePulls *bool
 }
 
 // KubeletConfigEviction contains kubelet eviction thresholds supporting either a resource.Quantity or a percentage based value.
@@ -890,6 +892,11 @@ type WorkerKubernetes struct {
 	// Kubelet contains configuration settings for all kubelets of this worker pool.
 	// If set, all `spec.kubernetes.kubelet` settings will be overwritten for this worker pool (no merge of settings).
 	Kubelet *KubeletConfig
+	// Version is the semantic Kubernetes version to use for the Kubelet in this Worker Group.
+	// If not specified the kubelet version is derived from the global shoot cluster kubernetes version.
+	// version must be equal or lower than the version of the shoot kubernetes version.
+	// Only one minor version difference to other worker groups and global kubernetes version is allowed.
+	Version *string
 }
 
 // Machine contains information about the machine type and image.

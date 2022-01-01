@@ -3,7 +3,7 @@ module github.com/gardener/etcd-druid
 go 1.16
 
 require (
-	github.com/gardener/gardener v1.36.0
+	github.com/gardener/gardener v1.38.1
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.4.0
 	github.com/golang/mock v1.6.0
