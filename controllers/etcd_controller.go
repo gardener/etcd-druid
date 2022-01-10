@@ -411,36 +411,6 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 	return ctrl.Result{}, nil
 }
 
-func (r *EtcdReconciler) syncServiceSpec(ctx context.Context, logger logr.Logger, svc *corev1.Service, etcd *druidv1alpha1.Etcd, renderedChart *chartrenderer.RenderedChart) (*corev1.Service, error) {
-	decoded, err := r.getServiceFromEtcd(etcd, renderedChart)
-	if err != nil {
-		return nil, err
-	}
-
-	if reflect.DeepEqual(svc.Spec, decoded.Spec) {
-		return svc, nil
-	}
-	svcCopy := svc.DeepCopy()
-	decoded.Spec.DeepCopyInto(&svcCopy.Spec)
-	// Copy ClusterIP as the field is immutable
-	svcCopy.Spec.ClusterIP = svc.Spec.ClusterIP
-
-	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		return r.Patch(ctx, svcCopy, client.MergeFrom(svc))
-	})
-
-	// Ignore the precondition violated error, this machine is already updated
-	// with the desired label.
-	if err == errorsutil.ErrPreconditionViolated {
-		logger.Info("Service precondition doesn't hold, skip updating it.", "service", kutil.Key(svc.Namespace, svc.Name).String())
-		err = nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return svcCopy, err
-}
-
 func (r *EtcdReconciler) getServiceFromEtcd(etcd *druidv1alpha1.Etcd, renderedChart *chartrenderer.RenderedChart) (*corev1.Service, error) {
 	var err error
 	decoded := &corev1.Service{}
