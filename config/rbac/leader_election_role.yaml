@@ -7,7 +7,6 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - configmaps
   - leases
   verbs:
   - get
