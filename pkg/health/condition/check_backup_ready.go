@@ -42,7 +42,7 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 		conType: druidv1alpha1.ConditionTypeBackupReady,
 		status:  druidv1alpha1.ConditionUnknown,
 		reason:  Unknown,
-		message: "Cannot determine etcd backup status since no snapshot leases present",
+		message: "Cannot determine etcd backup status",
 	}
 
 	//Fetch snapshot leases
@@ -52,6 +52,7 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 	fullSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getFullSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, fullSnapLease)
 	incrSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getDeltaSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, deltaSnapLease)
 
+	//Set status to Unknown if errors in fetching snapshot leases or lease never renewed
 	if fullSnapErr != nil || incrSnapErr != nil || (fullSnapLease.Spec.RenewTime == nil && deltaSnapLease.Spec.RenewTime == nil) {
 		return result
 	}
@@ -88,10 +89,27 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 
 	//Cases where snapshot leases are not updated for a long time
 	//If snapshot leases are present and leases aren't updated, it is safe to assume that backup is not healthy
-	result.status = druidv1alpha1.ConditionFalse
-	result.reason = BackupFailed
-	result.message = "Stale snapshot leases. Not renewed in a long time"
 
+	if etcd.Status.Conditions != nil {
+		var prevBackupReadyStatus druidv1alpha1.Condition
+		for _, prevBackupReadyStatus = range etcd.Status.Conditions {
+			if prevBackupReadyStatus.Type == druidv1alpha1.ConditionTypeBackupReady {
+				break
+			}
+		}
+
+		// Transition to "False" state only if present state is "Unknown" or "False"
+		if deltaLeaseRenewTime != nil && (prevBackupReadyStatus.Status == druidv1alpha1.ConditionUnknown || prevBackupReadyStatus.Status == druidv1alpha1.ConditionFalse) {
+			if time.Since(deltaLeaseRenewTime.Time) > 3*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration {
+				result.status = druidv1alpha1.ConditionFalse
+				result.reason = BackupFailed
+				result.message = "Stale snapshot leases. Not renewed in a long time"
+				return result
+			}
+		}
+	}
+
+	//Transition to "Unknown" state is we cannot prove a "True" state
 	return result
 }
 

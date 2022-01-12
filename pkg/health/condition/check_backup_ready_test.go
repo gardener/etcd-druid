@@ -162,7 +162,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
 				Expect(result.Reason()).To(Equal(Unknown))
 			})
-			It("Should set status to BackupFailed if both leases are stale", func() {
+			It("Should set status to Unknown if both leases are stale", func() {
 				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease) error {
 						*le = lease
@@ -172,6 +172,41 @@ var _ = Describe("BackupReadyCheck", func() {
 						return nil
 					},
 				).AnyTimes()
+
+				etcd.Status.Conditions = []druidv1alpha1.Condition{
+					{
+						Type:    druidv1alpha1.ConditionTypeBackupReady,
+						Status:  druidv1alpha1.ConditionTrue,
+						Message: "True",
+					},
+				}
+
+				check := BackupReadyCheck(cl)
+				result := check.Check(context.TODO(), etcd)
+
+				Expect(result).ToNot(BeNil())
+				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
+				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
+				Expect(result.Reason()).To(Equal(Unknown))
+			})
+			It("Should set status to BackupFailed if both leases are stale and current condition is Unknown", func() {
+				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease) error {
+						*le = lease
+						le.Spec.RenewTime = &v1.MicroTime{
+							Time: time.Now().Add(-10 * time.Minute),
+						}
+						return nil
+					},
+				).AnyTimes()
+
+				etcd.Status.Conditions = []druidv1alpha1.Condition{
+					{
+						Type:    druidv1alpha1.ConditionTypeBackupReady,
+						Status:  druidv1alpha1.ConditionUnknown,
+						Message: "Unknown",
+					},
+				}
 
 				check := BackupReadyCheck(cl)
 				result := check.Check(context.TODO(), etcd)
