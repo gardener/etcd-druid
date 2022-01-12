@@ -12,15 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcd
+package service
 
-import (
-	"github.com/gardener/etcd-druid/pkg/component/etcd/lease"
-	"github.com/gardener/etcd-druid/pkg/component/etcd/service"
-)
+import "k8s.io/apimachinery/pkg/types"
 
-// Values contains all values relevant for deploying etcd components.
 type Values struct {
-	Lease   lease.Values
-	Service service.Values
+	// BackupPort is the port exposed by the etcd-backup-restore side-car.
+	BackupPort int32
+	// ClientPort is the port exposed by etcd for client communication.
+	ClientPort int32
+	// ClientServiceName is the name of the service responsible for client traffic.
+	ClientServiceName string
+	// EtcdName is the name of the etcd resource.
+	EtcdName string
+	// EtcdName is the UID of the etcd resource.
+	EtcdUID types.UID
+	// Labels are the service labels.
+	Labels map[string]string
+	// PeerServiceName is the name of the service responsible for peer traffic.
+	PeerServiceName string
+	// ServerPort is the port used for etcd peer communication.
+	ServerPort int32
 }

@@ -21,8 +21,6 @@ etcd:
   enableTLS: false
   pullPolicy: IfNotPresent
   metrics: basic
-  clientPort: 2379
-  serverPort: 2380
   etcdDefragTimeout: 8m
   resources:
     limits:
@@ -36,7 +34,6 @@ etcd:
   heartbeatDuration: 10s
 
 backup:
-  port: 8080
   pullPolicy: IfNotPresent
   snapstoreTempDir: "/var/etcd/data/temp"
   etcdConnectionTimeout: 5m

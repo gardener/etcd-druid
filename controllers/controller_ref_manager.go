@@ -290,54 +290,6 @@ func (m *EtcdDruidRefManager) ClaimPodDisruptionBudget(ctx context.Context, pdb 
 	return claimed, utilerrors.NewAggregate(errlist)
 }
 
-// ClaimServices tries to take ownership of a list of Services.
-//
-// It will reconcile the following:
-//   * Adopt orphans if the selector matches.
-//   * Release owned objects if the selector no longer matches.
-//
-// Optional: If one or more filters are specified, a Service will only be claimed if
-// all filters return true.
-//
-// A non-nil error is returned if some form of reconciliation was attempted and
-// failed. Usually, controllers should try again later in case reconciliation
-// is still needed.
-//
-// If the error is nil, either the reconciliation succeeded, or no
-// reconciliation was necessary. The list of Services that you now own is returned.
-func (m *EtcdDruidRefManager) ClaimServices(ctx context.Context, svcs *corev1.ServiceList, filters ...func(*corev1.Service) bool) ([]*corev1.Service, error) {
-	var claimed []*corev1.Service
-	var errlist []error
-
-	match := func(obj metav1.Object) bool {
-		svc := obj.(*corev1.Service)
-		// Check selector first so filters only run on potentially matching services.
-		if !m.Selector.Matches(labels.Set(svc.Labels)) {
-			return false
-		}
-		for _, filter := range filters {
-			if !filter(svc) {
-				return false
-			}
-		}
-		return true
-	}
-
-	for k := range svcs.Items {
-		svc := &svcs.Items[k]
-		ok, err := m.claimObject(ctx, svc, match, m.AdoptResource, m.ReleaseResource)
-
-		if err != nil {
-			errlist = append(errlist, err)
-			continue
-		}
-		if ok {
-			claimed = append(claimed, svc)
-		}
-	}
-	return claimed, utilerrors.NewAggregate(errlist)
-}
-
 // ClaimConfigMaps tries to take ownership of a list of ConfigMaps.
 //
 // It will reconcile the following:
@@ -417,13 +369,6 @@ func (m *EtcdDruidRefManager) AdoptResource(ctx context.Context, obj client.Obje
 		if err := controllerutil.SetControllerReference(m.Controller, clone, m.scheme); err != nil {
 			return err
 		}
-	case *corev1.Service:
-		clone = obj.(*corev1.Service).DeepCopy()
-		// Note that ValidateOwnerReferences() will reject this patch if another
-		// OwnerReference exists with controller=true.
-		if err := controllerutil.SetControllerReference(m.Controller, clone, m.scheme); err != nil {
-			return err
-		}
 	case *batchv1.Job:
 		clone = obj.(*batchv1.Job).DeepCopy()
 		// Note that ValidateOwnerReferences() will reject this patch if another
@@ -480,8 +425,6 @@ func (m *EtcdDruidRefManager) ReleaseResource(ctx context.Context, obj client.Ob
 		delete(clone.GetAnnotations(), common.GardenerOwnerType)
 	case *corev1.ConfigMap:
 		clone = obj.(*corev1.ConfigMap).DeepCopy()
-	case *corev1.Service:
-		clone = obj.(*corev1.Service).DeepCopy()
 	case *policyv1beta1.PodDisruptionBudget:
 		clone = obj.(*policyv1beta1.PodDisruptionBudget).DeepCopy()
 	default:

@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcd
+package service
 
 import (
-	"github.com/gardener/etcd-druid/pkg/component/etcd/lease"
-	"github.com/gardener/etcd-druid/pkg/component/etcd/service"
+	"testing"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
-// Values contains all values relevant for deploying etcd components.
-type Values struct {
-	Lease   lease.Values
-	Service service.Values
+func TestService(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Service Component Suite")
 }
