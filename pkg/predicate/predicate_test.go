@@ -366,7 +366,7 @@ var _ = Describe("Druid Predicate", func() {
 				}
 			})
 
-			It("should return true", func() {
+			It("should return false", func() {
 				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
 				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
 				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
@@ -459,6 +459,65 @@ var _ = Describe("Druid Predicate", func() {
 				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
 				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
 				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+	})
+
+	Describe("#IsSnapshotLease", func() {
+		var pred predicate.Predicate
+
+		BeforeEach(func() {
+			pred = IsSnapshotLease()
+		})
+
+		Context("when lease is delta snapshot lease", func() {
+			BeforeEach(func() {
+				obj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo-delta-snap",
+					},
+				}
+			})
+
+			It("should return true", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+
+		Context("when lease is full snapshot lease", func() {
+			BeforeEach(func() {
+				obj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo-full-snap",
+					},
+				}
+			})
+
+			It("should return true", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+
+		Context("when lease is any other lease", func() {
+			BeforeEach(func() {
+				obj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo",
+					},
+				}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
 			})
 		})
 	})

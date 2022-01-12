@@ -16,6 +16,7 @@ package predicate
 
 import (
 	"reflect"
+	"strings"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	appsv1 "k8s.io/api/apps/v1"
@@ -185,6 +186,33 @@ func EtcdReconciliationFinished(ignoreOperationAnnotation bool) predicate.Predic
 		},
 		DeleteFunc: func(event event.DeleteEvent) bool {
 			return false
+		},
+	}
+}
+
+// IsSnapshotLease is a predicate that is `true` if the passed lease object is a snapshot lease.
+func IsSnapshotLease() predicate.Predicate {
+	isSnapshotLease := func(obj client.Object) bool {
+		lease, ok := obj.(*coordinationv1.Lease)
+		if !ok {
+			return false
+		}
+
+		return strings.HasSuffix(lease.Name, "full-snap") || strings.HasSuffix(lease.Name, "delta-snap")
+	}
+
+	return predicate.Funcs{
+		CreateFunc: func(event event.CreateEvent) bool {
+			return isSnapshotLease(event.Object)
+		},
+		UpdateFunc: func(event event.UpdateEvent) bool {
+			return isSnapshotLease(event.ObjectNew)
+		},
+		GenericFunc: func(event event.GenericEvent) bool {
+			return isSnapshotLease(event.Object)
+		},
+		DeleteFunc: func(event event.DeleteEvent) bool {
+			return isSnapshotLease(event.Object)
 		},
 	}
 }

@@ -20,6 +20,9 @@ import (
 	"strconv"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
+
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -33,7 +36,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
@@ -192,7 +194,16 @@ func (lc *CompactionLeaseController) reconcileJob(ctx context.Context, logger lo
 		}
 	}
 
-	logger.Info("Current compaction job is: " + job.Name + ", status: " + strconv.FormatInt((int64(job.Status.Succeeded)), 32))
+	if !job.DeletionTimestamp.IsZero() {
+		logger.Info(fmt.Sprintf("Job %s/%s is already in deletion. A new job will only be created if the previous one has been deleted.", job.Namespace, job.Name))
+		return ctrl.Result{
+			RequeueAfter: 10 * time.Second,
+		}, nil
+	}
+
+	if job.Name != "" {
+		logger.Info(fmt.Sprintf("Current compaction job is %s/%s , status: %d", job.Namespace, job.Name, job.Status.Succeeded))
+	}
 
 	// Delete job and requeue if the job failed
 	if job.Status.Failed > 0 {
@@ -531,19 +542,23 @@ func getCompactJobCommands(etcd *druidv1alpha1.Etcd) []string {
 	return command
 }
 
+const compactionLeaseControllerName = "compaction-lease-controller"
+
 // SetupWithManager sets up manager with a new controller and ec as the reconcile.Reconciler
 func (lc *CompactionLeaseController) SetupWithManager(mgr ctrl.Manager, workers int) error {
-	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
+
+	ctrl, err := controller.New(compactionLeaseControllerName, mgr, controller.Options{
+		Reconciler:              lc,
 		MaxConcurrentReconciles: workers,
 	})
+	if err != nil {
+		return err
+	}
 
-	return builder.
-		For(&druidv1alpha1.Etcd{}).
-		Owns(&coordinationv1.Lease{}).
-		WithEventFilter(buildPredicateForLC()).
-		Complete(lc)
-}
-
-func buildPredicateForLC() predicate.Predicate {
-	return druidpredicates.LeaseHolderIdentityChange()
+	return ctrl.Watch(
+		&source.Kind{Type: &coordinationv1.Lease{}},
+		&handler.EnqueueRequestForOwner{OwnerType: &druidv1alpha1.Etcd{}, IsController: true},
+		druidpredicates.LeaseHolderIdentityChange(),
+		druidpredicates.IsSnapshotLease(),
+	)
 }

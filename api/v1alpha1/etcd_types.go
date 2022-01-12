@@ -98,7 +98,7 @@ type TLSConfig struct {
 // CompressionSpec defines parameters related to compression of Snapshots(full as well as delta).
 type CompressionSpec struct {
 	// +optional
-	Enabled bool `json:"enabled,omitempty"`
+	Enabled *bool `json:"enabled,omitempty"`
 	// +optional
 	Policy *CompressionPolicy `json:"policy,omitempty"`
 }
