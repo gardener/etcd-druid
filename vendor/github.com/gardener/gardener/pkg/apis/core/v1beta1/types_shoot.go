@@ -175,6 +175,9 @@ type ShootStatus struct {
 	// +patchMergeKey=name
 	// +patchStrategy=merge
 	AdvertisedAddresses []ShootAdvertisedAddress `json:"advertisedAddresses,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,13,rep,name=advertisedAddresses"`
+	// MigrationStartTime is the time when a migration to a different seed was initiated.
+	// +optional
+	MigrationStartTime *metav1.Time `json:"migrationStartTime,omitempty" protobuf:"bytes,14,opt,name=migrationStartTime"`
 }
 
 // ShootAdvertisedAddress contains information for the shoot's Kube API server.
@@ -411,6 +414,9 @@ type ClusterAutoscaler struct {
 	// MaxGracefulTerminationSeconds is the number of seconds CA waits for pod termination when trying to scale down a node (default: 600).
 	// +optional
 	MaxGracefulTerminationSeconds *int32 `json:"maxGracefulTerminationSeconds,omitempty" protobuf:"varint,9,opt,name=maxGracefulTerminationSeconds"`
+	// IgnoreTaints specifies a list of taint keys to ignore in node templates when considering to scale a node group.
+	// +optional
+	IgnoreTaints []string `json:"ignoreTaints,omitempty" protobuf:"bytes,10,opt,name=ignoreTaints"`
 }
 
 // ExpanderMode is type used for Expander values
@@ -848,6 +854,10 @@ type KubeletConfig struct {
 	// +optional
 	// Default: 40
 	ImageGCLowThresholdPercent *int32 `json:"imageGCLowThresholdPercent,omitempty" protobuf:"bytes,17,opt,name=imageGCLowThresholdPercent"`
+	// SerializeImagePulls describes whether the images are pulled one at a time.
+	// +optional
+	// Default: true
+	SerializeImagePulls *bool `json:"serializeImagePulls,omitempty" protobuf:"varint,18,opt,name=serializeImagePulls"`
 }
 
 // KubeletConfigEviction contains kubelet eviction thresholds supporting either a resource.Quantity or a percentage based value.
@@ -1128,6 +1138,12 @@ type WorkerKubernetes struct {
 	// If set, all `spec.kubernetes.kubelet` settings will be overwritten for this worker pool (no merge of settings).
 	// +optional
 	Kubelet *KubeletConfig `json:"kubelet,omitempty" protobuf:"bytes,1,opt,name=kubelet"`
+	// Version is the semantic Kubernetes version to use for the Kubelet in this Worker Group.
+	// If not specified the kubelet version is derived from the global shoot cluster kubernetes version.
+	// version must be equal or lower than the version of the shoot kubernetes version.
+	// Only one minor version difference to other worker groups and global kubernetes version is allowed.
+	// +optional
+	Version *string `json:"version,omitempty" protobuf:"bytes,2,opt,name=version"`
 }
 
 // Machine contains information about the machine type and image.

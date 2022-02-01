@@ -52,10 +52,10 @@ func (e *ErrorWithCodes) Error() string {
 }
 
 var (
-	unauthorizedRegexp                  = regexp.MustCompile(`(?i)(Unauthorized|InvalidClientTokenId|InvalidAuthenticationTokenTenant|SignatureDoesNotMatch|Authentication failed|AuthFailure|AuthorizationFailed|invalid character|invalid_grant|invalid_client|Authorization Profile was not found|cannot fetch token|no active subscriptions|InvalidAccessKeyId|InvalidSecretAccessKey|query returned no results|UnauthorizedOperation|not authorized|InvalidSubscriptionId)`)
-	quotaExceededRegexp                 = regexp.MustCompile(`(?i)((?:^|[^t]|(?:[^s]|^)t|(?:[^e]|^)st|(?:[^u]|^)est|(?:[^q]|^)uest|(?:[^e]|^)quest|(?:[^r]|^)equest)LimitExceeded|Quotas|Quota.*exceeded|exceeded quota|Quota has been met|QUOTA_EXCEEDED|Maximum number of ports exceeded|ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS)`)
+	unauthenticatedRegexp               = regexp.MustCompile(`(?i)(InvalidAuthenticationTokenTenant|Authentication failed|AuthFailure|invalid character|invalid_client|query returned no results|InvalidAccessKeyId|cannot fetch token|InvalidSecretAccessKey|InvalidSubscriptionId)`)
+	unauthorizedRegexp                  = regexp.MustCompile(`(?i)(Unauthorized|InvalidClientTokenId|SignatureDoesNotMatch|AuthorizationFailed|invalid_grant|Authorization Profile was not found|no active subscriptions|UnauthorizedOperation|not authorized|AccessDenied|OperationNotAllowed|Error 403)`)
+	quotaExceededRegexp                 = regexp.MustCompile(`(?i)((?:^|[^t]|(?:[^s]|^)t|(?:[^e]|^)st|(?:[^u]|^)est|(?:[^q]|^)uest|(?:[^e]|^)quest|(?:[^r]|^)equest)LimitExceeded|Quotas|Quota.*exceeded|exceeded quota|Quota has been met|QUOTA_EXCEEDED|Maximum number of ports exceeded|ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS|VolumeSizeExceedsAvailableQuota)`)
 	rateLimitsExceededRegexp            = regexp.MustCompile(`(?i)(RequestLimitExceeded|Throttling|Too many requests)`)
-	insufficientPrivilegesRegexp        = regexp.MustCompile(`(?i)(AccessDenied|OperationNotAllowed|Error 403)`)
 	dependenciesRegexp                  = regexp.MustCompile(`(?i)(PendingVerification|Access Not Configured|accessNotConfigured|DependencyViolation|OptInRequired|DeleteConflict|Conflict|inactive billing state|ReadOnlyDisabledSubscription|is already being used|InUseSubnetCannotBeDeleted|VnetInUse|InUseRouteTableCannotBeDeleted|timeout while waiting for state to become|InvalidCidrBlock|already busy for|InsufficientFreeAddressesInSubnet|InternalServerError|internalerror|internal server error|A resource with the ID|VnetAddressSpaceCannotChangeDueToPeerings|InternalBillingError|There are not enough hosts available)`)
 	retryableDependenciesRegexp         = regexp.MustCompile(`(?i)(RetryableError)`)
 	resourcesDepletedRegexp             = regexp.MustCompile(`(?i)(not available in the current hardware cluster|InsufficientInstanceCapacity|SkuNotAvailable|ZonalAllocationFailed|out of stock)`)
@@ -92,10 +92,11 @@ func DetermineErrorCodes(err error) []gardencorev1beta1.ErrorCode {
 		codes   = sets.NewString()
 
 		knownCodes = map[gardencorev1beta1.ErrorCode]func(string) bool{
+			gardencorev1beta1.ErrorInfraUnauthenticated:          unauthenticatedRegexp.MatchString,
 			gardencorev1beta1.ErrorInfraUnauthorized:             unauthorizedRegexp.MatchString,
+			gardencorev1beta1.ErrorInfraInsufficientPrivileges:   unauthorizedRegexp.MatchString,
 			gardencorev1beta1.ErrorInfraQuotaExceeded:            quotaExceededRegexp.MatchString,
 			gardencorev1beta1.ErrorInfraRateLimitsExceeded:       rateLimitsExceededRegexp.MatchString,
-			gardencorev1beta1.ErrorInfraInsufficientPrivileges:   insufficientPrivilegesRegexp.MatchString,
 			gardencorev1beta1.ErrorInfraDependencies:             dependenciesRegexp.MatchString,
 			gardencorev1beta1.ErrorRetryableInfraDependencies:    retryableDependenciesRegexp.MatchString,
 			gardencorev1beta1.ErrorInfraResourcesDepleted:        resourcesDepletedRegexp.MatchString,
@@ -144,6 +145,62 @@ func ExtractErrorCodes(err error) []gardencorev1beta1.ErrorCode {
 		}
 	}
 	return codes
+}
+
+var _ error = (*MultiErrorWithCodes)(nil)
+
+// MultiErrorWithCodes is a struct that contains multiple errors and ErrorCodes.
+type MultiErrorWithCodes struct {
+	errors      []error
+	errorFormat func(errs []error) string
+
+	errorCodeStr sets.String
+	codes        []gardencorev1beta1.ErrorCode
+}
+
+// NewMultiErrorWithCodes returns a new instance of `MultiErrorWithCodes`.
+func NewMultiErrorWithCodes(errorFormat func(errs []error) string) *MultiErrorWithCodes {
+	return &MultiErrorWithCodes{
+		errorFormat:  errorFormat,
+		errorCodeStr: sets.NewString(),
+	}
+}
+
+// Append appends the given error to the `MultiErrorWithCodes`.
+func (m *MultiErrorWithCodes) Append(err error) {
+	for _, code := range ExtractErrorCodes(err) {
+		if m.errorCodeStr.Has(string(code)) {
+			continue
+		}
+		m.errorCodeStr.Insert(string(code))
+		m.codes = append(m.codes, code)
+	}
+
+	m.errors = append(m.errors, err)
+}
+
+// Codes returns all underlying `gardencorev1beta1.ErrorCode` codes.
+func (m *MultiErrorWithCodes) Codes() []gardencorev1beta1.ErrorCode {
+	if m.codes == nil {
+		return nil
+	}
+
+	cp := make([]gardencorev1beta1.ErrorCode, len(m.codes))
+	copy(cp, m.codes)
+	return cp
+}
+
+// ErrorOrNil returns nil if no underlying errors are given.
+func (m *MultiErrorWithCodes) ErrorOrNil() error {
+	if len(m.errors) == 0 {
+		return nil
+	}
+	return m
+}
+
+// Error implements the error interface.
+func (m *MultiErrorWithCodes) Error() string {
+	return m.errorFormat(m.errors)
 }
 
 // FormatLastErrDescription formats the error message string for the last occurred error.
@@ -206,7 +263,8 @@ func LastErrorWithTaskID(description string, taskID string, codes ...gardencorev
 func HasNonRetryableErrorCode(lastErrors ...gardencorev1beta1.LastError) bool {
 	for _, lastError := range lastErrors {
 		for _, code := range lastError.Codes {
-			if code == gardencorev1beta1.ErrorInfraUnauthorized ||
+			if code == gardencorev1beta1.ErrorInfraUnauthenticated ||
+				code == gardencorev1beta1.ErrorInfraUnauthorized ||
 				code == gardencorev1beta1.ErrorInfraInsufficientPrivileges ||
 				code == gardencorev1beta1.ErrorInfraDependencies ||
 				code == gardencorev1beta1.ErrorInfraQuotaExceeded ||

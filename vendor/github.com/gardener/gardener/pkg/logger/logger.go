@@ -12,16 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package predicate
+package logger
 
 import (
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/util/runtime"
+
+	"github.com/gardener/gardener/pkg/utils"
 )
 
-// HasName returns a predicate that matches the given name of a resource.
-func HasName(name string) predicate.Predicate {
-	return FromMapper(MapperFunc(func(e event.GenericEvent) bool {
-		return e.Object.GetName() == name
-	}), CreateTrigger, UpdateNewTrigger, DeleteTrigger, GenericTrigger)
+// IDFieldName is the name of the id field for a logger.
+const IDFieldName = "process_id"
+
+// NewIDLogger extends an existing logger with a randomly generated id field (key `process_id`).
+func NewIDLogger(logger logr.Logger) logr.Logger {
+	id, err := utils.GenerateRandomString(8)
+	runtime.Must(err)
+	return logger.WithValues(IDFieldName, id)
 }
