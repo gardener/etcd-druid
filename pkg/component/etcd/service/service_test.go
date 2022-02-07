@@ -177,6 +177,7 @@ func checkServiceMetadata(meta *metav1.ObjectMeta, values Values) {
 
 func checkClientService(svc *corev1.Service, values Values) {
 	checkServiceMetadata(&svc.ObjectMeta, values)
+	Expect(svc.Spec.Type).To(Equal(corev1.ServiceType("ClusterIP")))
 	Expect(svc.Spec.Ports).To(ConsistOf(
 		Equal(corev1.ServicePort{
 			Name:       "client",
@@ -202,6 +203,8 @@ func checkClientService(svc *corev1.Service, values Values) {
 func checkPeerService(svc *corev1.Service, values Values) {
 	checkServiceMetadata(&svc.ObjectMeta, values)
 	Expect(svc.Spec.PublishNotReadyAddresses).To(BeTrue())
+	Expect(svc.Spec.Type).To(Equal(corev1.ServiceType("ClusterIP")))
+	Expect(svc.Spec.ClusterIP).To(Equal(("None")))
 	Expect(svc.Spec.Ports).To(ConsistOf(
 		Equal(corev1.ServicePort{
 			Name:       "peer",

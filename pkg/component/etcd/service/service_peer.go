@@ -27,6 +27,7 @@ func (c *component) syncPeerService(ctx context.Context, svc *corev1.Service) er
 		svc.Labels = getLabels(c.values)
 		svc.OwnerReferences = getOwnerReferences(c.values)
 		svc.Spec.Type = corev1.ServiceTypeClusterIP
+		svc.Spec.ClusterIP = corev1.ClusterIPNone
 		svc.Spec.SessionAffinity = corev1.ServiceAffinityNone
 		svc.Spec.Selector = getLabels(c.values)
 		svc.Spec.PublishNotReadyAddresses = true
