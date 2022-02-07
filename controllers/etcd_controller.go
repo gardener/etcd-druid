@@ -1195,7 +1195,7 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd, val co
 		"sharedConfig":                       sharedConfigValues,
 		"replicas":                           etcd.Spec.Replicas,
 		"statefulsetReplicas":                statefulsetReplicas,
-		"serviceName":                        val.Service.ClientServiceName,
+		"serviceName":                        val.Service.PeerServiceName,
 		"configMapName":                      fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6])),
 		"jobName":                            getJobName(etcd),
 		"pdbMinAvailable":                    pdbMinAvailable,
