@@ -721,6 +721,16 @@ func getContainerMapFromPodTemplateSpec(spec corev1.PodSpec) map[string]corev1.C
 	return containers
 }
 
+func clusterScaledUpToMultiNode(etcd *druidv1alpha1.Etcd) bool {
+	if etcd == nil {
+		return false
+	}
+	return etcd.Spec.Replicas != 1 &&
+		// Also consider `0` here because this field was not maintained in earlier releases.
+		(etcd.Status.Replicas == 0 ||
+			etcd.Status.Replicas == 1)
+}
+
 func (r *EtcdReconciler) syncStatefulSetSpec(ctx context.Context, logger logr.Logger, ss *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd, values map[string]interface{}) (*appsv1.StatefulSet, error) {
 	decoded, err := r.getStatefulSetFromEtcd(etcd, values)
 	if err != nil {
@@ -740,6 +750,14 @@ func (r *EtcdReconciler) syncStatefulSetSpec(ctx context.Context, logger logr.Lo
 		recreateSTS = true
 	}
 
+	// We introduced a peer service for multi-node etcd which must be set
+	// when the previous single-node StatefulSet still has the client service configured.
+	if ssCopy.Spec.ServiceName != decoded.Spec.ServiceName {
+		if clusterScaledUpToMultiNode(etcd) {
+			recreateSTS = true
+		}
+	}
+
 	// Applying suggestions from
 	containers := getContainerMapFromPodTemplateSpec(ssCopy.Spec.Template.Spec)
 	for i, c := range decoded.Spec.Template.Spec.Containers {
@@ -753,7 +771,7 @@ func (r *EtcdReconciler) syncStatefulSetSpec(ctx context.Context, logger logr.Lo
 	ssCopy.Spec.Template = decoded.Spec.Template
 
 	if recreateSTS {
-		logger.Info("Selector changed, recreating statefulset", "statefulset", kutil.Key(ssCopy.Namespace, ssCopy.Name).String())
+		logger.Info("StatefulSet change requires recreation", "statefulset", kutil.Key(ssCopy.Namespace, ssCopy.Name).String())
 		err = r.recreateStatefulset(ctx, decoded)
 	} else {
 		err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {

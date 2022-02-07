@@ -953,7 +953,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 			"UpdateStrategy": MatchFields(IgnoreExtras, Fields{
 				"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 			}),
-			"ServiceName": Equal(fmt.Sprintf("%s-client", instance.Name)),
+			"ServiceName": Equal(fmt.Sprintf("%s-peer", instance.Name)),
 			"Replicas":    PointTo(Equal(int32(instance.Spec.Replicas))),
 			"Selector": PointTo(MatchFields(IgnoreExtras, Fields{
 				"MatchLabels": MatchAllKeys(Keys{
@@ -1318,7 +1318,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"UpdateStrategy": MatchFields(IgnoreExtras, Fields{
 				"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 			}),
-			"ServiceName": Equal(fmt.Sprintf("%s-client", instance.Name)),
+			"ServiceName": Equal(fmt.Sprintf("%s-peer", instance.Name)),
 			"Replicas":    PointTo(Equal(int32(instance.Spec.Replicas))),
 			"Selector": PointTo(MatchFields(IgnoreExtras, Fields{
 				"MatchLabels": MatchAllKeys(Keys{
