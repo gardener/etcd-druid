@@ -1,0 +1,117 @@
+---
+apiVersion: skaffold/v2beta25
+kind: Config
+metadata:
+  name: etcd-druid
+build:
+  local:
+    useBuildkit: true
+  artifacts:
+  - image: eu.gcr.io/gardener-project/gardener/etcd-druid
+    docker:
+      dockerfile: Dockerfile
+      target: druid
+deploy:
+  helm:
+    releases:
+    - name: etcd-druid
+      chartPath: charts/druid
+      namespace: default
+      artifactOverrides:
+        image: eu.gcr.io/gardener-project/gardener/etcd-druid
+      imageStrategy:
+        helm: {}
+      # Dependency builds create new dep archives and thus circumvent Docker's build cache at the next run.
+      skipBuildDependencies: true
+---
+apiVersion: skaffold/v2beta25
+kind: Config
+metadata:
+  name: druid-e2e
+deploy:
+  kustomize:
+    hooks:
+      before:
+      - host:
+          command:
+          - sh
+          - -c
+          - |
+            echo "Deleting previous job"
+            namespace_flag=${SKAFFOLD_NAMESPACES:-""}
+            if [ -n "$namespace_flag" ]; then
+              namespace_flag="-n ${namespace_flag}"
+            fi
+            kubectl delete job -l role=infra-job --ignore-not-found=true $namespace_flag
+      after:
+      - host:
+          command:
+          - sh
+          - -c
+          - |
+            echo "Wait until job is ready"
+            namespace_flag=${SKAFFOLD_NAMESPACES:-""}
+            if [ -n "$namespace_flag" ]; then
+              namespace_flag="-n ${namespace_flag}"
+            fi
+            kubectl wait --for=condition=Complete job -l role=infra-job --timeout=5m $namespace_flag
+          os: [ darwin, linux ]
+profiles:
+# Profile to create the required S3 backup bucket for an e2e test.
+- name: aws-setup
+  patches:
+  - op: add
+    path: /deploy/kustomize/paths
+    value: [hack/e2e-test/infrastructure/overlays/aws/setup]
+- name: aws-cleanup
+# Profile to delete the S3 backup bucket from an e2e test.
+  patches:
+  - op: add
+    path: /deploy/kustomize/paths
+    value: [hack/e2e-test/infrastructure/overlays/aws/cleanup]
+# Profile to create the required Azure storage container for an e2e test.
+- name: azure-setup
+  patches:
+  - op: add
+    path: /deploy/kustomize/paths
+    value: [hack/e2e-test/infrastructure/overlays/azure/setup]
+- name: azure-cleanup
+# Profile to delete the Azure storage container from an e2e test.
+  patches:
+  - op: add
+    path: /deploy/kustomize/paths
+    value: [hack/e2e-test/infrastructure/overlays/azure/cleanup]
+# Profile to create the required GCP backup bucket for an e2e test.
+- name: gcp-setup
+  patches:
+  - op: add
+    path: /deploy/kustomize/paths
+    value: [hack/e2e-test/infrastructure/overlays/gcp/setup]
+  - op: add
+    path: /deploy/kustomize/hooks/before/-
+    value: {
+      "host": {
+        "command": [sh, -c, '
+      echo "Copying GCP service account json" &&
+      touch "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json" &&
+      cp "$GCP_SERVICEACCOUNT_JSON_PATH" "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json"'],
+        "os": [darwin, linux]
+      }
+    }
+- name: gcp-cleanup
+  # Profile to delete the GCP backup bucket from an e2e test.
+  patches:
+  - op: add
+    path: /deploy/kustomize/paths
+    value: [hack/e2e-test/infrastructure/overlays/gcp/cleanup]
+  - op: add
+    path: /deploy/kustomize/hooks/before/-
+    value: {
+      "host": {
+        "command": [sh, -c, '
+      echo "Copying GCP service account json" &&
+      touch "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json" &&
+      cp "$GCP_SERVICEACCOUNT_JSON_PATH" "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json"'],
+        "os": [darwin, linux]
+      }
+    }

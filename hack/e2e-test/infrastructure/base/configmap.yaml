@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: run-script
+data:
+  run.sh: |-
+    #!/bin/sh
+    
+    echo 1
