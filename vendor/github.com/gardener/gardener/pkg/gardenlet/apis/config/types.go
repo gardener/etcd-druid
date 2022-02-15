@@ -15,7 +15,6 @@
 package config
 
 import (
-	"github.com/gardener/gardener/pkg/apis/core"
 	gardencore "github.com/gardener/gardener/pkg/apis/core"
 
 	corev1 "k8s.io/api/core/v1"
@@ -67,6 +66,9 @@ type GardenletConfiguration struct {
 	// SNI contains an optional configuration for the APIServerSNI feature used
 	// by the Gardenlet in the seed clusters.
 	SNI *SNI
+	// ETCDConfig contains an optional configuration for the
+	// backup compaction feature of ETCD backup-restore functionality.
+	ETCDConfig *ETCDConfig
 	// ExposureClassHandlers is a list of optional of exposure class handlers.
 	ExposureClassHandlers []ExposureClassHandler
 	// MonitoringConfig is optional and adds additional settings for the monitoring stack.
@@ -111,6 +113,8 @@ type GardenletControllerConfiguration struct {
 	BackupBucket *BackupBucketControllerConfiguration
 	// BackupEntry defines the configuration of the BackupEntry controller.
 	BackupEntry *BackupEntryControllerConfiguration
+	// BackupEntryMigration defines the configuration of the BackupEntryMigration controller.
+	BackupEntryMigration *BackupEntryMigrationControllerConfiguration
 	// Bastion defines the configuration of the Bastion controller.
 	Bastion *BastionControllerConfiguration
 	// ControllerInstallation defines the configuration of the ControllerInstallation controller.
@@ -125,6 +129,8 @@ type GardenletControllerConfiguration struct {
 	Shoot *ShootControllerConfiguration
 	// ShootCare defines the configuration of the ShootCare controller.
 	ShootCare *ShootCareControllerConfiguration
+	// ShootMigration defines the configuration of the ShootMigration controller.
+	ShootMigration *ShootMigrationControllerConfiguration
 	// ShootStateSync defines the configuration of the ShootState controller.
 	ShootStateSync *ShootStateSyncControllerConfiguration
 	// SeedAPIServerNetworkPolicy defines the configuration of the SeedAPIServerNetworkPolicy controller.
@@ -151,6 +157,21 @@ type BackupEntryControllerConfiguration struct {
 	// DeletionGracePeriodShootPurposes is a list of shoot purposes for which the deletion grace period applies. All
 	// BackupEntries corresponding to Shoots with different purposes will be deleted immediately.
 	DeletionGracePeriodShootPurposes []gardencore.ShootPurpose
+}
+
+// BackupEntryMigrationControllerConfiguration defines the configuration of the BackupEntryMigration
+// controller.
+type BackupEntryMigrationControllerConfiguration struct {
+	// ConcurrentSyncs is the number of workers used for the controller to work on
+	// events.
+	ConcurrentSyncs *int
+	// SyncPeriod is the duration how often the existing resources are reconciled.
+	// It is only relevant for backup entries that are currently being migrated.
+	SyncPeriod *metav1.Duration
+	// GracePeriod is the period to wait before forcing the restoration after the migration has started.
+	GracePeriod *metav1.Duration
+	// LastOperationStaleDuration is the duration to consider the last operation stale after it was last updated.
+	LastOperationStaleDuration *metav1.Duration
 }
 
 // BastionControllerConfiguration defines the configuration of the Bastion
@@ -194,6 +215,13 @@ type SeedControllerConfiguration struct {
 	ConcurrentSyncs *int
 	// SyncPeriod is the duration how often the existing resources are reconciled.
 	SyncPeriod *metav1.Duration
+	// LeaseResyncSeconds defines how often (in seconds) the seed lease is renewed.
+	// Default: 2s
+	LeaseResyncSeconds *int32
+	// LeaseResyncMissThreshold is the amount of missed lease resyncs before the health status
+	// is changed to false.
+	// Default: 10
+	LeaseResyncMissThreshold *int32
 }
 
 // ShootControllerConfiguration defines the configuration of the Shoot
@@ -237,6 +265,21 @@ type ShootCareControllerConfiguration struct {
 	StaleExtensionHealthChecks *StaleExtensionHealthChecks
 	// ConditionThresholds defines the condition threshold per condition type.
 	ConditionThresholds []ConditionThreshold
+}
+
+// ShootMigrationControllerConfiguration defines the configuration of the ShootMigration
+// controller.
+type ShootMigrationControllerConfiguration struct {
+	// ConcurrentSyncs is the number of workers used for the controller to work on
+	// events.
+	ConcurrentSyncs *int
+	// SyncPeriod is the duration how often the existing resources are reconciled.
+	// It is only relevant for shoots that are currently being migrated.
+	SyncPeriod *metav1.Duration
+	// GracePeriod is the period to wait before forcing the restoration after the migration has started.
+	GracePeriod *metav1.Duration
+	// LastOperationStaleDuration is the duration to consider the last operation stale after it was last updated.
+	LastOperationStaleDuration *metav1.Duration
 }
 
 // StaleExtensionHealthChecks defines the configuration of the check for stale extension health checks.
@@ -335,7 +378,7 @@ type GardenLoki struct {
 // ShootNodeLogging contains configuration for the shoot node logging.
 type ShootNodeLogging struct {
 	// ShootPurposes determines which shoots can have node logging by their purpose
-	ShootPurposes []core.ShootPurpose
+	ShootPurposes []gardencore.ShootPurpose
 }
 
 // Logging contains configuration for the logging stack.
@@ -401,6 +444,46 @@ type SNIIngress struct {
 	// Labels of the ingressgateway
 	// Defaults to "istio: ingressgateway".
 	Labels map[string]string
+}
+
+// ETCDConfig contains ETCD related configs
+type ETCDConfig struct {
+	// ETCDController contains config specific to ETCD controller
+	ETCDController *ETCDController
+	// CustodianController contains config specific to custodian controller
+	CustodianController *CustodianController
+	// BackupCompactionController contains config specific to backup compaction controller
+	BackupCompactionController *BackupCompactionController
+}
+
+// ETCDController contains config specific to ETCD controller
+type ETCDController struct {
+	// Workers specify number of worker threads in ETCD controller
+	// Defaults to 50
+	Workers *int64
+}
+
+// CustodianController contains config specific to custodian controller
+type CustodianController struct {
+	// Workers specify number of worker threads in custodian controller
+	// Defaults to 10
+	Workers *int64
+}
+
+// BackupCompactionController contains config specific to backup compaction controller
+type BackupCompactionController struct {
+	// Workers specify number of worker threads in backup compaction controller
+	// Defaults to 3
+	Workers *int64
+	// EnableBackupCompaction enables automatic compaction of etcd backups
+	// Defaults to false
+	EnableBackupCompaction *bool
+	// EventsThreshold defines total number of etcd events that can be allowed before a backup compaction job is triggered
+	// Defaults to 1 Million events
+	EventsThreshold *int64
+	// ActiveDeadlineDuration defines duration after which a running backup compaction job will be killed
+	// Defaults to 3 hours
+	ActiveDeadlineDuration *metav1.Duration
 }
 
 // ExposureClassHandler contains configuration for an exposure class handler.

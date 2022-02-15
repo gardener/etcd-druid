@@ -22,22 +22,30 @@
 HACK_PKG_PATH              := $(shell go list -tags tools -f '{{ .Dir }}' github.com/gardener/gardener/hack)
 TOOLS_BIN_DIR              := $(TOOLS_DIR)/bin
 CONTROLLER_GEN             := $(TOOLS_BIN_DIR)/controller-gen
+DOCFORGE                   := $(TOOLS_BIN_DIR)/docforge
 GEN_CRD_API_REFERENCE_DOCS := $(TOOLS_BIN_DIR)/gen-crd-api-reference-docs
+GINKGO                     := $(TOOLS_BIN_DIR)/ginkgo
 GOIMPORTS                  := $(TOOLS_BIN_DIR)/goimports
 GOLANGCI_LINT              := $(TOOLS_BIN_DIR)/golangci-lint
 GO_TO_PROTOBUF             := $(TOOLS_BIN_DIR)/go-to-protobuf
 HELM                       := $(TOOLS_BIN_DIR)/helm
+IMPORT_BOSS                := $(TOOLS_BIN_DIR)/import-boss
+KIND                       := $(TOOLS_BIN_DIR)/kind
 MOCKGEN                    := $(TOOLS_BIN_DIR)/mockgen
 OPENAPI_GEN                := $(TOOLS_BIN_DIR)/openapi-gen
 PROMTOOL                   := $(TOOLS_BIN_DIR)/promtool
 PROTOC_GEN_GOGO            := $(TOOLS_BIN_DIR)/protoc-gen-gogo
 SETUP_ENVTEST              := $(TOOLS_BIN_DIR)/setup-envtest
+SKAFFOLD                   := $(TOOLS_BIN_DIR)/skaffold
 YAML2JSON                  := $(TOOLS_BIN_DIR)/yaml2json
 YQ                         := $(TOOLS_BIN_DIR)/yq
 
 # default tool versions
+DOCFORGE_VERSION ?= v0.21.0
 GOLANGCI_LINT_VERSION ?= v1.42.1
 HELM_VERSION ?= v3.5.4
+KIND_VERSION ?= v0.11.1
+SKAFFOLD_VERSION ?= v1.35.0
 YQ_VERSION ?= v4.9.6
 
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
@@ -74,8 +82,15 @@ clean-tools-bin:
 $(CONTROLLER_GEN): go.mod
 	go build -o $(CONTROLLER_GEN) sigs.k8s.io/controller-tools/cmd/controller-gen
 
+$(DOCFORGE): $(call tool_version_file,$(DOCFORGE),$(DOCFORGE_VERSION))
+	curl -L -o $(DOCFORGE) https://github.com/gardener/docforge/releases/download/$(DOCFORGE_VERSION)/docforge-$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m | sed 's/x86_64/amd64/')
+	chmod +x $(DOCFORGE)
+
 $(GEN_CRD_API_REFERENCE_DOCS): go.mod
 	go build -o $(GEN_CRD_API_REFERENCE_DOCS) github.com/ahmetb/gen-crd-api-reference-docs
+
+$(GINKGO):
+	go build -o $(GINKGO) github.com/onsi/ginkgo/v2/ginkgo
 
 $(GOIMPORTS): go.mod
 	go build -o $(GOIMPORTS) golang.org/x/tools/cmd/goimports
@@ -89,6 +104,13 @@ $(GO_TO_PROTOBUF): go.mod
 $(HELM): $(call tool_version_file,$(HELM),$(HELM_VERSION))
 	curl -sSfL https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | HELM_INSTALL_DIR=$(TOOLS_BIN_DIR) USE_SUDO=false bash -s -- --version $(HELM_VERSION)
 
+$(IMPORT_BOSS): go.mod
+	go build -o $(IMPORT_BOSS) k8s.io/code-generator/cmd/import-boss
+
+$(KIND): $(call tool_version_file,$(KIND),$(KIND_VERSION))
+	curl -L -o $(KIND) https://kind.sigs.k8s.io/dl/$(KIND_VERSION)/kind-$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m | sed 's/x86_64/amd64/')
+	chmod +x $(KIND)
+
 $(MOCKGEN): go.mod
 	go build -o $(MOCKGEN) github.com/golang/mock/mockgen
 
@@ -98,11 +120,15 @@ $(OPENAPI_GEN): go.mod
 $(PROMTOOL): $(HACK_PKG_PATH)/tools/install-promtool.sh
 	@$(HACK_PKG_PATH)/tools/install-promtool.sh
 
+$(PROTOC_GEN_GOGO): go.mod
+	go build -o $(PROTOC_GEN_GOGO) k8s.io/code-generator/cmd/go-to-protobuf/protoc-gen-gogo
+
 $(SETUP_ENVTEST): go.mod
 	go build -o $(SETUP_ENVTEST) sigs.k8s.io/controller-runtime/tools/setup-envtest
 
-$(PROTOC_GEN_GOGO): go.mod
-	go build -o $(PROTOC_GEN_GOGO) k8s.io/code-generator/cmd/go-to-protobuf/protoc-gen-gogo
+$(SKAFFOLD): $(call tool_version_file,$(SKAFFOLD),$(SKAFFOLD_VERSION))
+	curl -Lo $(SKAFFOLD) https://storage.googleapis.com/skaffold/releases/$(SKAFFOLD_VERSION)/skaffold-$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m | sed 's/x86_64/amd64/')
+	chmod +x $(SKAFFOLD)
 
 $(YAML2JSON): go.mod
 	go build -o $(YAML2JSON) github.com/bronze1man/yaml2json

@@ -336,6 +336,30 @@ shoottolerationrestriction_groups() {
 }
 export -f shoottolerationrestriction_groups
 
+# local.provider.extensions.gardener.cloud APIs
+
+provider_local_groups() {
+  echo "Generating API groups for pkg/provider-local/apis/local"
+
+  bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
+    deepcopy,defaulter \
+    github.com/gardener/gardener/pkg/client/provider-local \
+    github.com/gardener/gardener/pkg/provider-local/apis \
+    github.com/gardener/gardener/pkg/provider-local/apis \
+    "local:v1alpha1" \
+    -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
+
+  bash "${PROJECT_ROOT}"/vendor/k8s.io/code-generator/generate-internal-groups.sh \
+    conversion \
+    github.com/gardener/gardener/pkg/client/provider-local \
+    github.com/gardener/gardener/pkg/provider-local/apis \
+    github.com/gardener/gardener/pkg/provider-local/apis \
+    "local:v1alpha1" \
+    --extra-peer-dirs=github.com/gardener/gardener/pkg/provider-local/apis/local,github.com/gardener/gardener/pkg/provider-local/apis/local/v1alpha1,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/conversion,k8s.io/apimachinery/pkg/runtime \
+    -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
+}
+export -f provider_local_groups
+
 # OpenAPI definitions
 
 openapi_definitions() {
@@ -363,8 +387,23 @@ openapi_definitions() {
     --report-filename=${PROJECT_ROOT}/pkg/openapi/api_violations.report \
     --output-package=github.com/gardener/gardener/pkg/openapi \
     -h "${PROJECT_ROOT}/hack/LICENSE_BOILERPLATE.txt"
+
+  echo "Generating openapi definitions for the Landscaper controlplane component"
+  ./${PROJECT_ROOT}/landscaper/pkg/controlplane/generate/generate-openapi.sh
+
+  echo "Generating openapi definitions for the Landscaper gardenlet component"
+  ./${PROJECT_ROOT}/landscaper/pkg/gardenlet/generate/generate-openapi.sh
 }
 export -f openapi_definitions
+
+landscaper_blueprints() {
+    echo "Rendering blueprint for the Landscaper controlplane component"
+    go run ./${PROJECT_ROOT}/landscaper/pkg/controlplane/generate
+
+    echo "Rendering blueprint for the Landscaper gardenlet component"
+    go run ./${PROJECT_ROOT}/landscaper/pkg/gardenlet/generate
+}
+export -f landscaper_blueprints
 
 if [[ $# -gt 0 && "$1" == "--parallel" ]]; then
   shift 1
@@ -381,8 +420,9 @@ if [[ $# -gt 0 && "$1" == "--parallel" ]]; then
     scheduler_groups \
     gardenlet_groups \
     shoottolerationrestriction_groups \
-    landscapergardenlet_groups
-    landscapercontrolplane_groups
+    landscapergardenlet_groups \
+    landscapercontrolplane_groups \
+    provider_local_groups
 else
   authentication_groups
   core_groups
@@ -398,6 +438,8 @@ else
   shoottolerationrestriction_groups
   landscapergardenlet_groups
   landscapercontrolplane_groups
+  provider_local_groups
 fi
 
 openapi_definitions "$@"
+landscaper_blueprints

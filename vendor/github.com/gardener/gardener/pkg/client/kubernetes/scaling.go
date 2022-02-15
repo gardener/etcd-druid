@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/gardener/pkg/utils/retry"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -38,18 +37,6 @@ func ScaleStatefulSet(ctx context.Context, c client.Client, key client.ObjectKey
 	}
 
 	return scaleResource(ctx, c, statefulset, replicas)
-}
-
-// ScaleEtcd scales a Etcd resource.
-func ScaleEtcd(ctx context.Context, c client.Client, key client.ObjectKey, replicas int) error {
-	etcd := &druidv1alpha1.Etcd{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      key.Name,
-			Namespace: key.Namespace,
-		},
-	}
-
-	return scaleResource(ctx, c, etcd, int32(replicas))
 }
 
 // ScaleDeployment scales a Deployment.

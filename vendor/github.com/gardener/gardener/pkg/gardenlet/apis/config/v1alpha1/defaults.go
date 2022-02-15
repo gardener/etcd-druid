@@ -18,14 +18,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gardener/gardener/pkg/logger"
-
 	v1alpha1constants "github.com/gardener/gardener/pkg/apis/core/v1alpha1/constants"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
 	"k8s.io/utils/pointer"
 )
@@ -57,6 +54,9 @@ func SetDefaults_GardenletConfiguration(obj *GardenletConfiguration) {
 	if obj.Controllers.BackupEntry == nil {
 		obj.Controllers.BackupEntry = &BackupEntryControllerConfiguration{}
 	}
+	if obj.Controllers.BackupEntryMigration == nil {
+		obj.Controllers.BackupEntryMigration = &BackupEntryMigrationControllerConfiguration{}
+	}
 	if obj.Controllers.Bastion == nil {
 		obj.Controllers.Bastion = &BastionControllerConfiguration{}
 	}
@@ -78,6 +78,9 @@ func SetDefaults_GardenletConfiguration(obj *GardenletConfiguration) {
 	if obj.Controllers.ShootCare == nil {
 		obj.Controllers.ShootCare = &ShootCareControllerConfiguration{}
 	}
+	if obj.Controllers.ShootMigration == nil {
+		obj.Controllers.ShootMigration = &ShootMigrationControllerConfiguration{}
+	}
 	if obj.Controllers.ShootStateSync == nil {
 		obj.Controllers.ShootStateSync = &ShootStateSyncControllerConfiguration{}
 	}
@@ -93,12 +96,12 @@ func SetDefaults_GardenletConfiguration(obj *GardenletConfiguration) {
 	}
 
 	if obj.LogLevel == nil {
-		v := DefaultLogLevel
+		v := LogLevelInfo
 		obj.LogLevel = &v
 	}
 
 	if obj.LogFormat == nil {
-		v := logger.FormatJSON
+		v := LogFormatJSON
 		obj.LogFormat = &v
 	}
 
@@ -160,7 +163,9 @@ func SetDefaults_ClientConnectionConfiguration(obj *componentbaseconfigv1alpha1.
 // SetDefaults_LeaderElectionConfiguration sets defaults for the leader election of the gardenlet.
 func SetDefaults_LeaderElectionConfiguration(obj *componentbaseconfigv1alpha1.LeaderElectionConfiguration) {
 	if obj.ResourceLock == "" {
-		obj.ResourceLock = resourcelock.LeasesResourceLock
+		// Don't use a constant from the client-go resourcelock package here (resourcelock is not an API package, pulls
+		// in some other dependencies and is thereby not suitable to be used in this API package).
+		obj.ResourceLock = "leases"
 	}
 
 	componentbaseconfigv1alpha1.RecommendedDefaultLeaderElectionConfiguration(obj)
@@ -191,6 +196,29 @@ func SetDefaults_BackupEntryControllerConfiguration(obj *BackupEntryControllerCo
 	if obj.DeletionGracePeriodHours == nil || *obj.DeletionGracePeriodHours < 0 {
 		v := DefaultBackupEntryDeletionGracePeriodHours
 		obj.DeletionGracePeriodHours = &v
+	}
+}
+
+// SetDefaults_BackupEntryMigrationControllerConfiguration sets defaults for the backup entry migration controller.
+func SetDefaults_BackupEntryMigrationControllerConfiguration(obj *BackupEntryMigrationControllerConfiguration) {
+	if obj.ConcurrentSyncs == nil {
+		v := 5
+		obj.ConcurrentSyncs = &v
+	}
+
+	if obj.SyncPeriod == nil {
+		v := metav1.Duration{Duration: time.Minute}
+		obj.SyncPeriod = &v
+	}
+
+	if obj.GracePeriod == nil {
+		v := metav1.Duration{Duration: 10 * time.Minute}
+		obj.GracePeriod = &v
+	}
+
+	if obj.LastOperationStaleDuration == nil {
+		v := metav1.Duration{Duration: 2 * time.Minute}
+		obj.LastOperationStaleDuration = &v
 	}
 }
 
@@ -244,6 +272,14 @@ func SetDefaults_SeedControllerConfiguration(obj *SeedControllerConfiguration) {
 		v := DefaultControllerSyncPeriod
 		obj.SyncPeriod = &v
 	}
+
+	if obj.LeaseResyncSeconds == nil {
+		obj.LeaseResyncSeconds = pointer.Int32(2)
+	}
+
+	if obj.LeaseResyncMissThreshold == nil {
+		obj.LeaseResyncMissThreshold = pointer.Int32(10)
+	}
 }
 
 // SetDefaults_ShootControllerConfiguration sets defaults for the shoot controller.
@@ -293,6 +329,29 @@ func SetDefaults_ShootCareControllerConfiguration(obj *ShootCareControllerConfig
 	if obj.StaleExtensionHealthChecks == nil {
 		v := StaleExtensionHealthChecks{Enabled: true}
 		obj.StaleExtensionHealthChecks = &v
+	}
+}
+
+// SetDefaults_ShootMigrationControllerConfiguration sets defaults for the shoot migration controller.
+func SetDefaults_ShootMigrationControllerConfiguration(obj *ShootMigrationControllerConfiguration) {
+	if obj.ConcurrentSyncs == nil {
+		v := 5
+		obj.ConcurrentSyncs = &v
+	}
+
+	if obj.SyncPeriod == nil {
+		v := metav1.Duration{Duration: time.Minute}
+		obj.SyncPeriod = &v
+	}
+
+	if obj.GracePeriod == nil {
+		v := metav1.Duration{Duration: 2 * time.Hour}
+		obj.GracePeriod = &v
+	}
+
+	if obj.LastOperationStaleDuration == nil {
+		v := metav1.Duration{Duration: 10 * time.Minute}
+		obj.LastOperationStaleDuration = &v
 	}
 }
 
