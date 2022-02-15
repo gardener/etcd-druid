@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: run-script
+data:
+  run.sh: |-
+    #!/usr/bin/env bash
+    
+    set -e
+    
+    source /var/lib/infra/data/common/common.sh
+    
+    setup_azcli
+    delete_azure_bucket

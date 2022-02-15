@@ -22,6 +22,8 @@ config.ign.merged
 config.img
 config.vmdk
 
+hack/e2e-test/infrastructure/overlays/gcp/common/assets
+
 /test/integration/resources/charts/*
 /test/integration/resources/repository/cache
 /test/integration/resources/shoots
