@@ -307,6 +307,10 @@ spec:
               optional: true
 {{- end }}
         volumeMounts:
+{{- if eq .Values.store.storageProvider "Local" }}
+        - name: host-storage
+          mountPath: {{ .Values.store.storageContainer }}
+{{- end }}
         - name: {{ .Values.volumeClaimTemplateName }}
           mountPath: /var/etcd/data
         - name: etcd-config-file
@@ -345,6 +349,12 @@ spec:
             - SYS_PTRACE
       shareProcessNamespace: true
       volumes:
+{{- if eq .Values.store.storageProvider "Local" }}
+      - name: host-storage
+        hostPath:
+          path: {{ .Values.store.storageMountPath }}/{{ .Values.store.storageContainer }}
+          type: Directory
+{{- end }}
       - name: etcd-config-file
         configMap:
           name: {{ .Values.configMapName }}
