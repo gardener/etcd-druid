@@ -242,77 +242,20 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
 {{- if eq .Values.store.storageProvider "S3" }}
-        - name: "AWS_REGION"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "region"
-        - name: "AWS_SECRET_ACCESS_KEY"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "secretAccessKey"
-        - name: "AWS_ACCESS_KEY_ID"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "accessKeyID"
+        - name: "AWS_APPLICATION_CREDENTIALS"
+          value: "/root/etcd-backup"
 {{- else if eq .Values.store.storageProvider "ABS" }}
-        - name: "STORAGE_ACCOUNT"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "storageAccount"
-        - name: "STORAGE_KEY"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "storageKey"
+        - name: "AZURE_APPLICATION_CREDENTIALS"
+          value: "/root/etcd-backup"
 {{- else if eq .Values.store.storageProvider "GCS" }}
         - name: "GOOGLE_APPLICATION_CREDENTIALS"
           value: "/root/.gcp/serviceaccount.json"
 {{- else if eq .Values.store.storageProvider "Swift" }}
-        - name: "OS_AUTH_URL"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "authURL"
-        - name: "OS_DOMAIN_NAME"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "domainName"
-        - name: "OS_USERNAME"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "username"
-        - name: "OS_PASSWORD"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "password"
-        - name: "OS_TENANT_NAME"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "tenantName"
+        - name: "OPENSTACK_APPLICATION_CREDENTIALS"
+          value: "/root/etcd-backup"
 {{- else if eq .Values.store.storageProvider "OSS" }}
-        - name: "ALICLOUD_ENDPOINT"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "storageEndpoint"
-        - name: "ALICLOUD_ACCESS_KEY_SECRET"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "accessKeySecret"
-        - name: "ALICLOUD_ACCESS_KEY_ID"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "accessKeyID"
+        - name: "ALICLOUD_APPLICATION_CREDENTIALS"
+          value: "/root/etcd-backup"
 {{- else if eq .Values.store.storageProvider "ECS" }}
         - name: "ECS_ENDPOINT"
           valueFrom:
@@ -380,6 +323,22 @@ spec:
         - name: etcd-backup
           mountPath: "/root/.gcp/"
 {{- end }}
+{{- if eq .Values.store.storageProvider "S3" }}
+        - name: etcd-backup
+          mountPath: "/root/etcd-backup"
+{{- end }}
+{{- if eq .Values.store.storageProvider "ABS" }}
+        - name: etcd-backup
+          mountPath: "/root/etcd-backup"
+{{- end }}
+{{- if eq .Values.store.storageProvider "OSS" }}
+        - name: etcd-backup
+          mountPath: "/root/etcd-backup"
+{{- end }}
+{{- if eq .Values.store.storageProvider "Swift" }}
+        - name: etcd-backup
+          mountPath: "/root/etcd-backup"
+{{- end }}
         securityContext:
           capabilities:
             add:
@@ -405,6 +364,26 @@ spec:
           secretName: {{ .Values.tlsCASecret }}
 {{- end }}
 {{- if eq .Values.store.storageProvider "GCS" }}
+      - name: etcd-backup
+        secret:
+          secretName: {{ .Values.store.storeSecret }}
+{{- end }}
+{{- if eq .Values.store.storageProvider "S3" }}
+      - name: etcd-backup
+        secret:
+          secretName: {{ .Values.store.storeSecret }}
+{{- end }}
+{{- if eq .Values.store.storageProvider "ABS" }}
+      - name: etcd-backup
+        secret:
+          secretName: {{ .Values.store.storeSecret }}
+{{- end }}
+{{- if eq .Values.store.storageProvider "OSS" }}
+      - name: etcd-backup
+        secret:
+          secretName: {{ .Values.store.storeSecret }}
+{{- end }}
+{{- if eq .Values.store.storageProvider "Swift" }}
       - name: etcd-backup
         secret:
           secretName: {{ .Values.store.storeSecret }}
