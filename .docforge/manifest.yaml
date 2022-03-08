@@ -1,9 +1,3 @@
-{{- $vers := Split .versions "," -}}
-{{ $defaultBranch := (index $vers 0) }}
 structure:
 - name: _index.md
-  source: https://github.com/gardener/etcd-druid/blob/{{$defaultBranch}}/README.md
-links:
-  downloads:
-    scope:
-      "gardener/etcd-druid/(blob|raw)/(.*)/docs": ~
+  source: /README.md
