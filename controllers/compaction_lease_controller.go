@@ -364,6 +364,11 @@ func getCmpctJobVolumeMounts(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.
 			Name:      "etcd-backup",
 			MountPath: "/root/.gcp/",
 		})
+	} else if provider == "S3" || provider == "ABS" || provider == "OSS" || provider == "Swift" {
+		vms = append(vms, v1.VolumeMount{
+			Name:      "etcd-backup",
+			MountPath: "/root/etcd-backup/",
+		})
 	}
 
 	return vms
@@ -390,7 +395,7 @@ func getCmpctJobVolumes(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.Volum
 		return vs
 	}
 
-	if provider == "GCS" {
+	if provider == "GCS" || provider == "S3" || provider == "OSS" || provider == "ABS" || provider == "Swift" {
 		vs = append(vs, v1.Volume{
 			Name: "etcd-backup",
 			VolumeSource: v1.VolumeSource{
@@ -422,14 +427,11 @@ func getCmpctJobEnvVar(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.EnvVar
 	}
 
 	if provider == "S3" {
-		env = append(env, getEnvVarFromSecrets("AWS_REGION", storeValues.SecretRef.Name, "region"))
-		env = append(env, getEnvVarFromSecrets("AWS_SECRET_ACCESS_KEY", storeValues.SecretRef.Name, "secretAccessKey"))
-		env = append(env, getEnvVarFromSecrets("AWS_ACCESS_KEY_ID", storeValues.SecretRef.Name, "accessKeyID"))
+		env = append(env, getEnvVarFromValues("AWS_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
 	}
 
 	if provider == "ABS" {
-		env = append(env, getEnvVarFromSecrets("STORAGE_ACCOUNT", storeValues.SecretRef.Name, "storageAccount"))
-		env = append(env, getEnvVarFromSecrets("STORAGE_KEY", storeValues.SecretRef.Name, "storageKey"))
+		env = append(env, getEnvVarFromValues("AZURE_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
 	}
 
 	if provider == "GCS" {
@@ -437,17 +439,11 @@ func getCmpctJobEnvVar(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.EnvVar
 	}
 
 	if provider == "Swift" {
-		env = append(env, getEnvVarFromSecrets("OS_AUTH_URL", storeValues.SecretRef.Name, "authURL"))
-		env = append(env, getEnvVarFromSecrets("OS_DOMAIN_NAME", storeValues.SecretRef.Name, "domainName"))
-		env = append(env, getEnvVarFromSecrets("OS_USERNAME", storeValues.SecretRef.Name, "username"))
-		env = append(env, getEnvVarFromSecrets("OS_PASSWORD", storeValues.SecretRef.Name, "password"))
-		env = append(env, getEnvVarFromSecrets("OS_TENANT_NAME", storeValues.SecretRef.Name, "tenantName"))
+		env = append(env, getEnvVarFromValues("OPENSTACK_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
 	}
 
 	if provider == "OSS" {
-		env = append(env, getEnvVarFromSecrets("ALICLOUD_ENDPOINT", storeValues.SecretRef.Name, "storageEndpoint"))
-		env = append(env, getEnvVarFromSecrets("ALICLOUD_ACCESS_KEY_SECRET", storeValues.SecretRef.Name, "accessKeySecret"))
-		env = append(env, getEnvVarFromSecrets("ALICLOUD_ACCESS_KEY_ID", storeValues.SecretRef.Name, "accessKeyID"))
+		env = append(env, getEnvVarFromValues("ALICLOUD_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
 	}
 
 	if provider == "ECS" {
