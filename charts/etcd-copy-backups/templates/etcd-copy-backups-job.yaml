@@ -76,152 +76,37 @@ spec:
           value: {{ .Values.sourceStore.storageContainer }}
 {{- end }}
 {{- if eq .Values.targetStore.storageProvider "S3" }}
-        - name: "AWS_REGION"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.targetStore.storeSecret }}
-              key: "region"
-        - name: "AWS_SECRET_ACCESS_KEY"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.targetStore.storeSecret }}
-              key: "secretAccessKey"
-        - name: "AWS_ACCESS_KEY_ID"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.targetStore.storeSecret }}
-              key: "accessKeyID"
+        - name: AWS_APPLICATION_CREDENTIALS
+          value: "/root/etcd-backup"
 {{- else if eq .Values.targetStore.storageProvider "ABS" }}
-        - name: "STORAGE_ACCOUNT"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.targetStore.storeSecret }}
-              key: "storageAccount"
-        - name: "STORAGE_KEY"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.targetStore.storeSecret }}
-              key: "storageKey"
+        - name: AZURE_APPLICATION_CREDENTIALS
+          value: "/root/etcd-backup"
 {{- else if eq .Values.targetStore.storageProvider "GCS" }}
-        - name: "GOOGLE_APPLICATION_CREDENTIALS"
+        - name: GOOGLE_APPLICATION_CREDENTIALS
           value: "/root/.gcp/serviceaccount.json"
 {{- else if eq .Values.targetStore.storageProvider "Swift" }}
-        - name: "OS_AUTH_URL"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.targetStore.storeSecret }}
-              key: "authURL"
-        - name: "OS_DOMAIN_NAME"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.targetStore.storeSecret }}
-              key: "domainName"
-        - name: "OS_USERNAME"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.targetStore.storeSecret }}
-              key: "username"
-        - name: "OS_PASSWORD"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.targetStore.storeSecret }}
-              key: "password"
-        - name: "OS_TENANT_NAME"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.targetStore.storeSecret }}
-              key: "tenantName"
+        - name: OPENSTACK_APPLICATION_CREDENTIALS
+          value: "/root/etcd-backup"
 {{- else if eq .Values.targetStore.storageProvider "OSS" }}
-        - name: "ALICLOUD_ENDPOINT"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.targetStore.storeSecret }}
-              key: "storageEndpoint"
-        - name: "ALICLOUD_ACCESS_KEY_SECRET"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.targetStore.storeSecret }}
-              key: "accessKeySecret"
-        - name: "ALICLOUD_ACCESS_KEY_ID"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.targetStore.storeSecret }}
-              key: "accessKeyID"
+        - name: ALICLOUD_APPLICATION_CREDENTIALS
+          value: "/root/etcd-backup"
 {{- end }}
 {{- if eq .Values.sourceStore.storageProvider "S3" }}
-        - name: "SOURCE_AWS_REGION"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.sourceStore.storeSecret }}
-              key: "region"
-        - name: "SOURCE_AWS_SECRET_ACCESS_KEY"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.sourceStore.storeSecret }}
-              key: "secretAccessKey"
-        - name: "SOURCE_AWS_ACCESS_KEY_ID"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.sourceStore.storeSecret }}
-              key: "accessKeyID"
+        - name: SOURCE_AWS_APPLICATION_CREDENTIALS
+          value: "/root/source-etcd-backup"
 {{- else if eq .Values.sourceStore.storageProvider "ABS" }}
-        - name: "SOURCE_STORAGE_ACCOUNT"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.sourceStore.storeSecret }}
-              key: "storageAccount"
-        - name: "SOURCE_STORAGE_KEY"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.sourceStore.storeSecret }}
-              key: "storageKey"
+        - name: SOURCE_AZURE_APPLICATION_CREDENTIALS
+          value: "/root/source-etcd-backup"
 {{- else if eq .Values.sourceStore.storageProvider "GCS" }}
         - name: SOURCE_GOOGLE_APPLICATION_CREDENTIALS
           value: "/root/.source-gcp/serviceaccount.json"
 {{- else if eq .Values.sourceStore.storageProvider "Swift" }}
-        - name: "SOURCE_OS_AUTH_URL"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.sourceStore.storeSecret }}
-              key: "authURL"
-        - name: "SOURCE_OS_DOMAIN_NAME"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.sourceStore.storeSecret }}
-              key: "domainName"
-        - name: "SOURCE_OS_USERNAME"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.sourceStore.storeSecret }}
-              key: "username"
-        - name: "SOURCE_OS_PASSWORD"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.sourceStore.storeSecret }}
-              key: "password"
-        - name: "SOURCE_OS_TENANT_NAME"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.sourceStore.storeSecret }}
-              key: "tenantName"
+        - name: SOURCE_OPENSTACK_APPLICATION_CREDENTIALS
+          value: "/root/source-etcd-backup"
 {{- else if eq .Values.sourceStore.storageProvider "OSS" }}
-        - name: "SOURCE_ALICLOUD_ENDPOINT"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.sourceStore.storeSecret }}
-              key: "storageEndpoint"
-        - name: "SOURCE_ALICLOUD_ACCESS_KEY_SECRET"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.sourceStore.storeSecret }}
-              key: "accessKeySecret"
-        - name: "SOURCE_ALICLOUD_ACCESS_KEY_ID"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.sourceStore.storeSecret }}
-              key: "accessKeyID"
+        - name: SOURCE_ALICLOUD_APPLICATION_CREDENTIALS
+          value: "/root/source-etcd-backup"
 {{- end }}
-{{- if or (eq .Values.targetStore.storageProvider "GCS") (eq .Values.sourceStore.storageProvider "GCS") }}
         volumeMounts:
 {{- if eq .Values.targetStore.storageProvider "GCS" }}
         - name: etcd-backup
@@ -230,6 +115,38 @@ spec:
 {{- if eq .Values.sourceStore.storageProvider "GCS" }}
         - name: source-etcd-backup
           mountPath: "/root/.source-gcp/"
+{{- end }}
+{{- if eq .Values.targetStore.storageProvider "S3" }}
+        - name: etcd-backup
+          mountPath: "/root/etcd-backup"
+{{- end }}
+{{- if eq .Values.sourceStore.storageProvider "S3" }}
+        - name: source-etcd-backup
+          mountPath: "/root/source-etcd-backup"
+{{- end }}
+{{- if eq .Values.targetStore.storageProvider "ABS" }}
+        - name: etcd-backup
+          mountPath: "/root/etcd-backup"
+{{- end }}
+{{- if eq .Values.sourceStore.storageProvider "ABS" }}
+        - name: source-etcd-backup
+          mountPath: "/root/source-etcd-backup"
+{{- end }}
+{{- if eq .Values.targetStore.storageProvider "OSS" }}
+        - name: etcd-backup
+          mountPath: "/root/etcd-backup"
+{{- end }}
+{{- if eq .Values.sourceStore.storageProvider "OSS" }}
+        - name: source-etcd-backup
+          mountPath: "/root/source-etcd-backup"
+{{- end }}
+{{- if eq .Values.targetStore.storageProvider "Swift" }}
+        - name: etcd-backup
+          mountPath: "/root/etcd-backup"
+{{- end }}
+{{- if eq .Values.sourceStore.storageProvider "Swift" }}
+        - name: source-etcd-backup
+          mountPath: "/root/source-etcd-backup"
 {{- end }}
       volumes:
 {{- if eq .Values.targetStore.storageProvider "GCS" }}
@@ -242,4 +159,43 @@ spec:
         secret:
           secretName: {{ .Values.sourceStore.storeSecret }}
 {{- end }}
+{{- if eq .Values.targetStore.storageProvider "S3" }}
+      - name: etcd-backup
+        secret:
+          secretName: {{ .Values.targetStore.storeSecret }}
+{{- end }}
+{{- if eq .Values.sourceStore.storageProvider "S3" }}
+      - name: source-etcd-backup
+        secret:
+          secretName: {{ .Values.sourceStore.storeSecret }}
+{{- end }}
+{{- if eq .Values.targetStore.storageProvider "ABS" }}
+      - name: etcd-backup
+        secret:
+          secretName: {{ .Values.targetStore.storeSecret }}
+{{- end }}
+{{- if eq .Values.sourceStore.storageProvider "ABS" }}
+      - name: source-etcd-backup
+        secret:
+          secretName: {{ .Values.sourceStore.storeSecret }}
+{{- end }}
+{{- if eq .Values.targetStore.storageProvider "OSS" }}
+      - name: etcd-backup
+        secret:
+          secretName: {{ .Values.targetStore.storeSecret }}
+{{- end }}
+{{- if eq .Values.sourceStore.storageProvider "OSS" }}
+      - name: source-etcd-backup
+        secret:
+          secretName: {{ .Values.sourceStore.storeSecret }}
+{{- end }}
+{{- if eq .Values.targetStore.storageProvider "Swift" }}
+      - name: etcd-backup
+        secret:
+          secretName: {{ .Values.targetStore.storeSecret }}
+{{- end }}
+{{- if eq .Values.sourceStore.storageProvider "Swift" }}
+      - name: source-etcd-backup
+        secret:
+          secretName: {{ .Values.sourceStore.storeSecret }}
 {{- end }}
