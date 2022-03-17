@@ -121,6 +121,16 @@ type OwnerCheckSpec struct {
 	DNSCacheTTL *metav1.Duration `json:"dnsCacheTTL,omitempty"`
 }
 
+// LeaderElectionSpec defines parameters related to the LeaderElection configuration.
+type LeaderElectionSpec struct {
+	// ReelectionPeriod defines the Period after which leadership status of corresponding etcd is checked.
+	// +optional
+	ReelectionPeriod *metav1.Duration `json:"reelectionPeriod,omitempty"`
+	// EtcdConnectionTimeout defines the timeout duration for etcd client connection during leader election.
+	// +optional
+	EtcdConnectionTimeout *metav1.Duration `json:"etcdConnectionTimeout,omitempty"`
+}
+
 // BackupSpec defines parameters associated with the full and delta snapshots of etcd.
 type BackupSpec struct {
 	// Port define the port on which etcd-backup-restore server will be exposed.
@@ -170,6 +180,9 @@ type BackupSpec struct {
 	// is the expected one.
 	// +optional
 	OwnerCheck *OwnerCheckSpec `json:"ownerCheck,omitempty"`
+	// LeaderElection defines parameters related to the LeaderElection configuration.
+	// +optional
+	LeaderElection *LeaderElectionSpec `json:"leaderElection,omitempty"`
 }
 
 // EtcdConfig defines parameters associated etcd deployed

@@ -214,6 +214,14 @@ spec:
         - --enable-member-lease-renewal=true
         - --k8s-heartbeat-duration={{ .Values.etcd.heartbeatDuration }}
 {{- end }}
+{{- if .Values.backup.leaderElection }}
+        {{- if .Values.backup.leaderElection.etcdConnectionTimeout }}
+        - --etcd-connection-timeout-leader-election={{ .Values.backup.leaderElection.etcdConnectionTimeout }}
+        {{- end }}
+        {{- if .Values.backup.leaderElection.reelectionPeriod }}        
+        - --reelection-period={{ .Values.backup.leaderElection.reelectionPeriod }}
+        {{- end }}
+{{- end }}
         image: {{ .Values.backup.image }}
         imagePullPolicy: {{ .Values.backup.pullPolicy }}
         ports:

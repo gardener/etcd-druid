@@ -47,7 +47,6 @@ import (
 	eventsv1beta1 "k8s.io/api/events/v1beta1"
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	rbac "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -312,7 +311,7 @@ func (r *EtcdReconciler) cleanCronJobs(ctx context.Context, logger logr.Logger, 
 	cronJob := &batchv1beta1.CronJob{}
 	err := r.Get(ctx, types.NamespacedName{Name: getCronJobName(etcd), Namespace: etcd.Namespace}, cronJob)
 	if err != nil {
-		if !errors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return nil, err
 		}
 
@@ -1177,6 +1176,17 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd, val co
 			ownerCheckValues["dnsCacheTTL"] = etcd.Spec.Backup.OwnerCheck.DNSCacheTTL
 		}
 		backupValues["ownerCheck"] = ownerCheckValues
+	}
+
+	if etcd.Spec.Backup.LeaderElection != nil {
+		leaderElectionConfig := make(map[string]interface{})
+		if etcd.Spec.Backup.LeaderElection.EtcdConnectionTimeout != nil {
+			leaderElectionConfig["etcdConnectionTimeout"] = etcd.Spec.Backup.LeaderElection.EtcdConnectionTimeout
+		}
+		if etcd.Spec.Backup.LeaderElection.ReelectionPeriod != nil {
+			leaderElectionConfig["reelectionPeriod"] = etcd.Spec.Backup.LeaderElection.ReelectionPeriod
+		}
+		backupValues["leaderElection"] = leaderElectionConfig
 	}
 
 	volumeClaimTemplateName := etcd.Name

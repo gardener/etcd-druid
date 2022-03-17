@@ -65,6 +65,9 @@ backup:
   #   interval: 30s
   #   timeout: 2m
   #   dnsCacheTTL: 1m
+  # leaderElection:
+  #   reelectionPeriod: 5s
+  #   etcdConnectionTimeout: 5s
 
 # sharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.
 sharedConfig:
