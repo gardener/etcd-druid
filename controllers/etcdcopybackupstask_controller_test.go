@@ -331,14 +331,17 @@ func getProviderEnvElements(storeProvider, prefix, volumePrefix string, store *d
 	switch storeProvider {
 	case "S3":
 		return Elements{
-			prefix + "AWS_REGION":            matchEnvValueFrom(prefix+"AWS_REGION", store, "region"),
-			prefix + "AWS_SECRET_ACCESS_KEY": matchEnvValueFrom(prefix+"AWS_SECRET_ACCESS_KEY", store, "secretAccessKey"),
-			prefix + "AWS_ACCESS_KEY_ID":     matchEnvValueFrom(prefix+"AWS_ACCESS_KEY_ID", store, "accessKeyID"),
+			prefix + "AWS_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + "AWS_APPLICATION_CREDENTIALS"),
+				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+			}),
 		}
 	case "ABS":
 		return Elements{
-			prefix + "STORAGE_ACCOUNT": matchEnvValueFrom(prefix+"STORAGE_ACCOUNT", store, "storageAccount"),
-			prefix + "STORAGE_KEY":     matchEnvValueFrom(prefix+"STORAGE_KEY", store, "storageKey"),
+			prefix + "AZURE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + "AZURE_APPLICATION_CREDENTIALS"),
+				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+			}),
 		}
 	case "GCS":
 		return Elements{
@@ -349,17 +352,17 @@ func getProviderEnvElements(storeProvider, prefix, volumePrefix string, store *d
 		}
 	case "Swift":
 		return Elements{
-			prefix + "OS_AUTH_URL":    matchEnvValueFrom(prefix+"OS_AUTH_URL", store, "authURL"),
-			prefix + "OS_DOMAIN_NAME": matchEnvValueFrom(prefix+"OS_DOMAIN_NAME", store, "domainName"),
-			prefix + "OS_USERNAME":    matchEnvValueFrom(prefix+"OS_USERNAME", store, "username"),
-			prefix + "OS_PASSWORD":    matchEnvValueFrom(prefix+"OS_PASSWORD", store, "password"),
-			prefix + "OS_TENANT_NAME": matchEnvValueFrom(prefix+"OS_TENANT_NAME", store, "tenantName"),
+			prefix + "OPENSTACK_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + "OPENSTACK_APPLICATION_CREDENTIALS"),
+				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+			}),
 		}
 	case "OSS":
 		return Elements{
-			prefix + "ALICLOUD_ENDPOINT":          matchEnvValueFrom(prefix+"ALICLOUD_ENDPOINT", store, "storageEndpoint"),
-			prefix + "ALICLOUD_ACCESS_KEY_SECRET": matchEnvValueFrom(prefix+"ALICLOUD_ACCESS_KEY_SECRET", store, "accessKeySecret"),
-			prefix + "ALICLOUD_ACCESS_KEY_ID":     matchEnvValueFrom(prefix+"ALICLOUD_ACCESS_KEY_ID", store, "accessKeyID"),
+			prefix + "ALICLOUD_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + "ALICLOUD_APPLICATION_CREDENTIALS"),
+				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+			}),
 		}
 	default:
 		return nil
@@ -376,40 +379,27 @@ func getVolumeMountsElements(storeProvider, volumePrefix string) Elements {
 			}),
 		}
 	default:
-		return nil
+		return Elements{
+			volumePrefix + "etcd-backup": MatchFields(IgnoreExtras, Fields{
+				"Name":      Equal(volumePrefix + "etcd-backup"),
+				"MountPath": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+			}),
+		}
 	}
 }
 
 func getVolumesElements(storeProvider, volumePrefix string, store *druidv1alpha1.StoreSpec) Elements {
-	switch storeProvider {
-	case "GCS":
-		return Elements{
-			volumePrefix + "etcd-backup": MatchAllFields(Fields{
-				"Name": Equal(volumePrefix + "etcd-backup"),
-				"VolumeSource": MatchFields(IgnoreExtras, Fields{
-					"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-						"SecretName": Equal(store.SecretRef.Name),
-					})),
-				}),
-			}),
-		}
-	default:
-		return nil
-	}
-}
 
-func matchEnvValueFrom(name string, store *druidv1alpha1.StoreSpec, key string) gomegatypes.GomegaMatcher {
-	return MatchFields(IgnoreExtras, Fields{
-		"Name": Equal(name),
-		"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-			"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-				"LocalObjectReference": MatchAllFields(Fields{
-					"Name": Equal(store.SecretRef.Name),
-				}),
-				"Key": Equal(key),
-			})),
-		})),
-	})
+	return Elements{
+		volumePrefix + "etcd-backup": MatchAllFields(Fields{
+			"Name": Equal(volumePrefix + "etcd-backup"),
+			"VolumeSource": MatchFields(IgnoreExtras, Fields{
+				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
+					"SecretName": Equal(store.SecretRef.Name),
+				})),
+			}),
+		}),
+	}
 }
 
 func getJobStatus(conditionType batchv1.JobConditionType, reason, message string) *batchv1.JobStatus {

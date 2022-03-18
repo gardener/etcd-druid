@@ -1706,28 +1706,20 @@ func validateStoreAzure(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm 
 										})),
 									})),
 								}),
-								"STORAGE_ACCOUNT": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("STORAGE_ACCOUNT"),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key": Equal("storageAccount"),
-										})),
-									})),
+								"AZURE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal("AZURE_APPLICATION_CREDENTIALS"),
+									"Value": Equal("/root/etcd-backup"),
 								}),
-								"STORAGE_KEY": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("STORAGE_KEY"),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key": Equal("storageKey"),
-										})),
-									})),
-								}),
+							}),
+						}),
+					}),
+					"Volumes": MatchElements(volumeIterator, IgnoreExtras, Elements{
+						"etcd-backup": MatchFields(IgnoreExtras, Fields{
+							"Name": Equal("etcd-backup"),
+							"VolumeSource": MatchFields(IgnoreExtras, Fields{
+								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
+									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
+								})),
 							}),
 						}),
 					}),
@@ -1770,61 +1762,20 @@ func validateStoreOpenstack(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet,
 										})),
 									})),
 								}),
-								"OS_AUTH_URL": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("OS_AUTH_URL"),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key": Equal("authURL"),
-										})),
-									})),
+								"OPENSTACK_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal("OPENSTACK_APPLICATION_CREDENTIALS"),
+									"Value": Equal("/root/etcd-backup"),
 								}),
-								"OS_USERNAME": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("OS_USERNAME"),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key": Equal("username"),
-										})),
-									})),
-								}),
-								"OS_TENANT_NAME": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("OS_TENANT_NAME"),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key": Equal("tenantName"),
-										})),
-									})),
-								}),
-								"OS_PASSWORD": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("OS_PASSWORD"),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key": Equal("password"),
-										})),
-									})),
-								}),
-								"OS_DOMAIN_NAME": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("OS_DOMAIN_NAME"),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key": Equal("domainName"),
-										})),
-									})),
-								}),
+							}),
+						}),
+					}),
+					"Volumes": MatchElements(volumeIterator, IgnoreExtras, Elements{
+						"etcd-backup": MatchFields(IgnoreExtras, Fields{
+							"Name": Equal("etcd-backup"),
+							"VolumeSource": MatchFields(IgnoreExtras, Fields{
+								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
+									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
+								})),
 							}),
 						}),
 					}),
@@ -1869,39 +1820,20 @@ func validateStoreAlicloud(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, 
 										})),
 									})),
 								}),
-								"ALICLOUD_ENDPOINT": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("ALICLOUD_ENDPOINT"),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key": Equal("storageEndpoint"),
-										})),
-									})),
+								"ALICLOUD_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal("ALICLOUD_APPLICATION_CREDENTIALS"),
+									"Value": Equal("/root/etcd-backup"),
 								}),
-								"ALICLOUD_ACCESS_KEY_SECRET": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("ALICLOUD_ACCESS_KEY_SECRET"),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key": Equal("accessKeySecret"),
-										})),
-									})),
-								}),
-								"ALICLOUD_ACCESS_KEY_ID": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("ALICLOUD_ACCESS_KEY_ID"),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key": Equal("accessKeyID"),
-										})),
-									})),
-								}),
+							}),
+						}),
+					}),
+					"Volumes": MatchElements(volumeIterator, IgnoreExtras, Elements{
+						"etcd-backup": MatchFields(IgnoreExtras, Fields{
+							"Name": Equal("etcd-backup"),
+							"VolumeSource": MatchFields(IgnoreExtras, Fields{
+								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
+									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
+								})),
 							}),
 						}),
 					}),
@@ -1946,39 +1878,20 @@ func validateStoreAWS(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *c
 										})),
 									})),
 								}),
-								"AWS_REGION": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("AWS_REGION"),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key": Equal("region"),
-										})),
-									})),
+								"AWS_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal("AWS_APPLICATION_CREDENTIALS"),
+									"Value": Equal("/root/etcd-backup"),
 								}),
-								"AWS_SECRET_ACCESS_KEY": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("AWS_SECRET_ACCESS_KEY"),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key": Equal("secretAccessKey"),
-										})),
-									})),
-								}),
-								"AWS_ACCESS_KEY_ID": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("AWS_ACCESS_KEY_ID"),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key": Equal("accessKeyID"),
-										})),
-									})),
-								}),
+							}),
+						}),
+					}),
+					"Volumes": MatchElements(volumeIterator, IgnoreExtras, Elements{
+						"etcd-backup": MatchFields(IgnoreExtras, Fields{
+							"Name": Equal("etcd-backup"),
+							"VolumeSource": MatchFields(IgnoreExtras, Fields{
+								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
+									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
+								})),
 							}),
 						}),
 					}),
