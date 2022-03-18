@@ -55,6 +55,9 @@ spec:
     compression:
       enabled: false
       policy: "gzip"
+    leaderElection:
+      reelectionPeriod: 5s
+      etcdConnectionTimeout: 5s
   
   sharedConfig:
     autoCompactionMode: periodic

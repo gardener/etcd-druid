@@ -131,6 +131,19 @@ spec:
                   image:
                     description: Image defines the etcd container image and tag
                     type: string
+                  leaderElection:
+                    description: LeaderElection defines parameters related to the
+                      LeaderElection configuration.
+                    properties:
+                      etcdConnectionTimeout:
+                        description: EtcdConnectionTimeout defines the timeout duration
+                          for etcd client connection during leader election.
+                        type: string
+                      reelectionPeriod:
+                        description: ReelectionPeriod defines the Period after which
+                          leadership status of corresponding etcd is checked.
+                        type: string
+                    type: object
                   ownerCheck:
                     description: OwnerCheck defines parameters related to checking
                       if the cluster owner, as specified in the owner DNS record,
