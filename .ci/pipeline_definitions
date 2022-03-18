@@ -49,18 +49,3 @@ etcd-druid:
               channel_name: 'C0177NLL8V9' # gardener-etcd
               slack_cfg_name: 'scp_workspace'
         component_descriptor: ~
-
-etcd-druid-updates:
-  template: 'default'
-  jobs:
-    create_update_pull_requests:
-      repo:
-        trigger: false
-        disable_ci_skip: true
-      steps: ~
-      traits:
-        component_descriptor: ~
-        update_component_deps: ~
-        cronjob:
-          interval: '5m'
-        version: ~
