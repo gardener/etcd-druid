@@ -963,7 +963,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		Service: componentservice.GenerateValues(etcd),
 	}
 
-	values, err := getMapFromEtcd(r.ImageVector, etcd, val, r.disableEtcdServiceAccountAutomount)
+	values, err := getMapFromEtcd(ctx, r.Client, r.ImageVector, etcd, val, r.disableEtcdServiceAccountAutomount)
 
 	if err != nil {
 		return nil, nil, err
@@ -1051,7 +1051,7 @@ func checkEtcdAnnotations(annotations map[string]string, etcd metav1.Object) boo
 
 }
 
-func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd, val componentetcd.Values, disableEtcdServiceAccountAutomount bool) (map[string]interface{}, error) {
+func getMapFromEtcd(ctx context.Context, client client.Client, im imagevector.ImageVector, etcd *druidv1alpha1.Etcd, val componentetcd.Values, disableEtcdServiceAccountAutomount bool) (map[string]interface{}, error) {
 	var statefulsetReplicas int
 	if etcd.Spec.Replicas != 0 {
 		statefulsetReplicas = 1
@@ -1257,7 +1257,7 @@ func getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd, val co
 	}
 
 	if etcd.Spec.Backup.Store != nil {
-		if values["store"], err = utils.GetStoreValues(etcd.Spec.Backup.Store); err != nil {
+		if values["store"], err = utils.GetStoreValues(ctx, client, etcd.Spec.Backup.Store, etcd.Namespace); err != nil {
 			return nil, err
 		}
 

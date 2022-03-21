@@ -1509,6 +1509,10 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 									"Name":      Equal("etcd-client-tls"),
 									"MountPath": Equal("/var/etcd/ssl/client"),
 								}),
+								"host-storage": MatchFields(IgnoreExtras, Fields{
+									"Name":      Equal("host-storage"),
+									"MountPath": Equal(*instance.Spec.Backup.Store.Container),
+								}),
 							}),
 							"Env": MatchElements(envIterator, IgnoreExtras, Elements{
 								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
@@ -1543,6 +1547,15 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 					}),
 					"ShareProcessNamespace": Equal(pointer.BoolPtr(true)),
 					"Volumes": MatchAllElements(volumeIterator, Elements{
+						"host-storage": MatchFields(IgnoreExtras, Fields{
+							"Name": Equal("host-storage"),
+							"VolumeSource": MatchFields(IgnoreExtras, Fields{
+								"HostPath": PointTo(MatchFields(IgnoreExtras, Fields{
+									"Path": Equal(fmt.Sprintf("/etc/gardener/local-backupbuckets/%s", *instance.Spec.Backup.Store.Container)),
+									"Type": PointTo(Equal(corev1.HostPathType("Directory"))),
+								})),
+							}),
+						}),
 						"etcd-config-file": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("etcd-config-file"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{

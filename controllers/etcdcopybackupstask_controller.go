@@ -209,7 +209,7 @@ func (r *EtcdCopyBackupsTaskReconciler) doReconcile(ctx context.Context, task *d
 	}
 
 	// Get chart values
-	values, err := r.getChartValues(task)
+	values, err := r.getChartValues(ctx, task)
 	if err != nil {
 		return status, fmt.Errorf("could not get chart values: %w", err)
 	}
@@ -283,18 +283,18 @@ func (r *EtcdCopyBackupsTaskReconciler) updateStatus(ctx context.Context, task *
 	return r.Client.Status().Patch(ctx, task, patch)
 }
 
-func (r *EtcdCopyBackupsTaskReconciler) getChartValues(task *druidv1alpha1.EtcdCopyBackupsTask) (map[string]interface{}, error) {
+func (r *EtcdCopyBackupsTaskReconciler) getChartValues(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask) (map[string]interface{}, error) {
 	values := map[string]interface{}{
 		"name":      getCopyBackupsJobName(task),
 		"ownerName": task.Name,
 		"ownerUID":  task.UID,
 	}
 
-	sourceStoreValues, err := utils.GetStoreValues(&task.Spec.SourceStore)
+	sourceStoreValues, err := utils.GetStoreValues(ctx, r.Client, &task.Spec.SourceStore, task.Namespace)
 	if err != nil {
 		return nil, err
 	}
-	targetStoreValues, err := utils.GetStoreValues(&task.Spec.TargetStore)
+	targetStoreValues, err := utils.GetStoreValues(ctx, r.Client, &task.Spec.TargetStore, task.Namespace)
 	if err != nil {
 		return nil, err
 	}

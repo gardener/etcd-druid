@@ -108,6 +108,14 @@ spec:
           value: "/root/source-etcd-backup"
 {{- end }}
         volumeMounts:
+{{- if eq .Values.targetStore.storageProvider "Local" }}
+        - name: target-host-storage
+          mountPath: {{ .Values.targetStore.storageContainer }}
+{{- end }}
+{{- if eq .Values.sourceStore.storageProvider "Local" }}
+        - name: source-host-storage
+          mountPath: {{ .Values.sourceStore.storageContainer }}
+{{- end }}
 {{- if eq .Values.targetStore.storageProvider "GCS" }}
         - name: etcd-backup
           mountPath: "/root/.gcp/"
@@ -149,6 +157,18 @@ spec:
           mountPath: "/root/source-etcd-backup"
 {{- end }}
       volumes:
+{{- if eq .Values.targetStore.storageProvider "Local" }}
+      - name: target-host-storage
+        hostPath:
+          path: {{ .Values.targetStore.storageMountPath }}/{{ .Values.targetStore.storageContainer }}
+          type: Directory
+{{- end }}
+{{- if eq .Values.sourceStore.storageProvider "Local" }}
+      - name: source-host-storage
+        hostPath:
+          path: {{ .Values.sourceStore.storageMountPath }}/{{ .Values.sourceStore.storageContainer }}
+          type: Directory
+{{- end }}
 {{- if eq .Values.targetStore.storageProvider "GCS" }}
       - name: etcd-backup
         secret:
