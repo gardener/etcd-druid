@@ -217,13 +217,13 @@ func (r *EtcdCopyBackupsTaskReconciler) doReconcile(ctx context.Context, task *d
 	// Render chart
 	renderedChart, err := r.chartApplier.Render(getEtcdCopyBackupsChartPath(), task.Name, task.Namespace, values)
 	if err != nil {
-		return nil, fmt.Errorf("could not render chart: %w", err)
+		return status, fmt.Errorf("could not render chart: %w", err)
 	}
 
 	// Decode job object from chart
 	job = &batchv1.Job{}
 	if err := decodeObject(renderedChart, getJobPath(), &job); err != nil {
-		return nil, fmt.Errorf("could not decode job object from chart: %w", err)
+		return status, fmt.Errorf("could not decode job object from chart: %w", err)
 	}
 
 	// Create job
