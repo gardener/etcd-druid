@@ -1231,6 +1231,10 @@ func getMapFromEtcd(ctx context.Context, client client.Client, im imagevector.Im
 		values["tlsServerSecret"] = etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name
 		values["tlsClientSecret"] = etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name
 		values["tlsCASecret"] = etcd.Spec.Etcd.TLS.TLSCASecretRef.Name
+
+		if dataKey := etcd.Spec.Etcd.TLS.TLSCASecretRef.DataKey; dataKey != nil {
+			values["tlsCASecretKey"] = *dataKey
+		}
 	}
 
 	if heartBeatDuration := etcd.Spec.Etcd.HeartbeatDuration; heartBeatDuration != nil {
