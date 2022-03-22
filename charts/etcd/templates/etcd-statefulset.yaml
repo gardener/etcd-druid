@@ -71,7 +71,7 @@ spec:
 {{- if .Values.etcd.enableTLS }}
             - --cert=/var/etcd/ssl/client/tls.crt
             - --key=/var/etcd/ssl/client/tls.key
-            - --cacert=/var/etcd/ssl/ca/ca.crt
+            - --cacert=/var/etcd/ssl/ca/{{ .Values.tlsCASecretKey }}
             - --endpoints=https://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
 {{ else }}
             - --endpoints=http://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
@@ -147,7 +147,7 @@ spec:
 {{- if .Values.etcd.enableTLS }}
         - --cert=/var/etcd/ssl/client/tls.crt
         - --key=/var/etcd/ssl/client/tls.key
-        - --cacert=/var/etcd/ssl/ca/ca.crt
+        - --cacert=/var/etcd/ssl/ca/{{ .Values.tlsCASecretKey }}
         - --insecure-transport=false
         - --insecure-skip-tls-verify=false
         - --endpoints=https://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}

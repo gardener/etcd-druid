@@ -12,6 +12,7 @@ replicas: 1
 tlsServerSecret: etcd-server-tls
 tlsClientSecret: etcd-client-tls
 tlsCASecret: ca-etcd
+tlsCASecretKey: ca.crt
 annotations: {}
 labels: {}
 
