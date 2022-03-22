@@ -50,3 +50,13 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - druid.gardener.cloud
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch

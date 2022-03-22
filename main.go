@@ -44,6 +44,7 @@ func main() {
 		leaderElectionResourceLock         string
 		etcdWorkers                        int
 		custodianWorkers                   int
+		secretWorkers                      int
 		etcdCopyBackupsTaskWorkers         int
 		custodianSyncPeriod                time.Duration
 		disableLeaseCache                  bool
@@ -62,6 +63,7 @@ func main() {
 
 	flag.IntVar(&etcdWorkers, "workers", 3, "Number of worker threads of the etcd controller.")
 	flag.IntVar(&custodianWorkers, "custodian-workers", 3, "Number of worker threads of the custodian controller.")
+	flag.IntVar(&secretWorkers, "secret-workers", 10, "Number of worker threads of the secret controller.")
 	flag.IntVar(&etcdCopyBackupsTaskWorkers, "etcd-copy-backups-task-workers", 3, "Number of worker threads of the EtcdCopyBackupsTask controller.")
 	flag.DurationVar(&custodianSyncPeriod, "custodian-sync-period", 30*time.Second, "Sync period of the custodian controller.")
 	flag.BoolVar(&enableBackupCompaction, "enable-backup-compaction", false,
@@ -115,6 +117,13 @@ func main() {
 
 	if err := etcd.SetupWithManager(mgr, etcdWorkers, ignoreOperationAnnotation); err != nil {
 		setupLog.Error(err, "Unable to create controller", "Controller", "Etcd")
+		os.Exit(1)
+	}
+
+	secret := controllers.NewSecret(mgr)
+
+	if err := secret.SetupWithManager(mgr, secretWorkers); err != nil {
+		setupLog.Error(err, "Unable to create controller", "Controller", "Secret")
 		os.Exit(1)
 	}
 
