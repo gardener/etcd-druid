@@ -244,14 +244,6 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		}
 	}
 
-	if err := r.addFinalizersToDependantSecrets(ctx, logger, etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
-			return ctrl.Result{
-				Requeue: true,
-			}, err
-		}
-	}
-
 	etcd, err := r.updateEtcdStatusAsNotReady(ctx, etcd)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -372,17 +364,6 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 		return ctrl.Result{
 			RequeueAfter: 30 * time.Second,
 		}, nil
-	}
-
-	if err := r.removeFinalizersToDependantSecrets(ctx, logger, etcd); err != nil {
-		if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
-			return ctrl.Result{
-				Requeue: true,
-			}, err
-		}
-		return ctrl.Result{
-			Requeue: true,
-		}, err
 	}
 
 	leaseDeployer := componentlease.New(r.Client, etcd.Namespace, componentlease.GenerateValues(etcd))
@@ -1306,71 +1287,6 @@ func getEtcdImages(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (string
 		etcdBackupImage = val.String()
 	}
 	return etcdImage, etcdBackupImage, nil
-}
-
-func (r *EtcdReconciler) addFinalizersToDependantSecrets(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
-	secrets := []*corev1.SecretReference{}
-	if etcd.Spec.Etcd.TLS != nil {
-		// As the secrets inside TLS field are required, we error in case they are not found.
-		secrets = append(secrets,
-			&etcd.Spec.Etcd.TLS.ClientTLSSecretRef,
-			&etcd.Spec.Etcd.TLS.ServerTLSSecretRef,
-			&etcd.Spec.Etcd.TLS.TLSCASecretRef,
-		)
-	}
-	if etcd.Spec.Backup.Store != nil && etcd.Spec.Backup.Store.SecretRef != nil {
-		// As the store secret is required, we error in case it is not found as well.
-		secrets = append(secrets, etcd.Spec.Backup.Store.SecretRef)
-	}
-
-	for _, secretRef := range secrets {
-		secret := &corev1.Secret{}
-		if err := r.Client.Get(ctx, types.NamespacedName{
-			Name:      secretRef.Name,
-			Namespace: etcd.Namespace,
-		}, secret); err != nil {
-			return err
-		}
-		if finalizers := sets.NewString(secret.Finalizers...); !finalizers.Has(FinalizerName) {
-			logger.Info("Adding finalizer for secret", "secret", kutil.Key(secret.Namespace, secret.Name).String())
-			if err := controllerutils.StrategicMergePatchAddFinalizers(ctx, r.Client, secret, FinalizerName); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (r *EtcdReconciler) removeFinalizersToDependantSecrets(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
-	secrets := []*corev1.SecretReference{}
-	if etcd.Spec.Etcd.TLS != nil {
-		secrets = append(secrets,
-			&etcd.Spec.Etcd.TLS.ClientTLSSecretRef,
-			&etcd.Spec.Etcd.TLS.ServerTLSSecretRef,
-			&etcd.Spec.Etcd.TLS.TLSCASecretRef,
-		)
-	}
-	if etcd.Spec.Backup.Store != nil && etcd.Spec.Backup.Store.SecretRef != nil {
-		secrets = append(secrets, etcd.Spec.Backup.Store.SecretRef)
-	}
-
-	for _, secretRef := range secrets {
-		secret := &corev1.Secret{}
-		if err := r.Client.Get(ctx, types.NamespacedName{
-			Name:      secretRef.Name,
-			Namespace: etcd.Namespace,
-		}, secret); err != nil {
-			if !apierrors.IsNotFound(err) {
-				return err
-			}
-		} else if finalizers := sets.NewString(secret.Finalizers...); finalizers.Has(FinalizerName) {
-			logger.Info("Removing finalizer from secret", "secret", kutil.Key(secret.Namespace, secret.Name).String())
-			if err := controllerutils.PatchRemoveFinalizers(ctx, r.Client, secret, FinalizerName); client.IgnoreNotFound(err) != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 func (r *EtcdReconciler) removeDependantStatefulset(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (waitForStatefulSetCleanup bool, err error) {
