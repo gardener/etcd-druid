@@ -59,7 +59,9 @@ var _ = Describe("EtcdToSecret", func() {
 		etcd.Spec.Etcd.TLS = &druidv1alpha1.TLSConfig{
 			ClientTLSSecretRef: corev1.SecretReference{Name: secretClientTLS},
 			ServerTLSSecretRef: corev1.SecretReference{Name: secretServerTLS},
-			TLSCASecretRef:     corev1.SecretReference{Name: secretCATLS},
+			TLSCASecretRef: druidv1alpha1.SecretReference{
+				SecretReference: corev1.SecretReference{Name: secretCATLS},
+			},
 		}
 
 		etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{

@@ -2372,8 +2372,10 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 			ServerTLSSecretRef: corev1.SecretReference{
 				Name: "etcd-server-tls",
 			},
-			TLSCASecretRef: corev1.SecretReference{
-				Name: "ca-etcd",
+			TLSCASecretRef: druidv1alpha1.SecretReference{
+				SecretReference: corev1.SecretReference{
+					Name: "ca-etcd",
+				},
 			},
 		}
 		instance.Spec.Etcd.TLS = tlsConfig

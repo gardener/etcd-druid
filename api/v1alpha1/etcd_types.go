@@ -92,7 +92,15 @@ type TLSConfig struct {
 	// +required
 	ClientTLSSecretRef corev1.SecretReference `json:"clientTLSSecretRef"`
 	// +required
-	TLSCASecretRef corev1.SecretReference `json:"tlsCASecretRef"`
+	TLSCASecretRef SecretReference `json:"tlsCASecretRef"`
+}
+
+// SecretReference defines a reference to a secret.
+type SecretReference struct {
+	corev1.SecretReference `json:",inline"`
+	// DataKey is the name of the key in the data map containing the credentials.
+	// +optional
+	DataKey *string `json:"dataKey,omitempty"`
 }
 
 // CompressionSpec defines parameters related to compression of Snapshots(full as well as delta).
