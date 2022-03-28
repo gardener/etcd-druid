@@ -16,8 +16,10 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -27,6 +29,7 @@ import (
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
+	gardenerUtils "github.com/gardener/gardener/pkg/utils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/gardener/gardener/pkg/utils/kubernetes/health"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
@@ -66,7 +69,6 @@ const (
 	timeout         = time.Minute * 2
 	pollingInterval = time.Second * 2
 	etcdConfig      = "etcd.conf.yaml"
-	quotaKey        = "quota-backend-bytes"
 	backupRestore   = "backup-restore"
 	metricsKey      = "metrics"
 )
@@ -215,7 +217,7 @@ var _ = Describe("Druid", func() {
 			// Wait until Service has been created by controller
 			Eventually(func() error {
 				return c.Get(context.TODO(), types.NamespacedName{
-					Name:      fmt.Sprintf("%s-client", instance.Name),
+					Name:      utils.GetClientServiceName(instance),
 					Namespace: instance.Namespace,
 				}, svc)
 			}, timeout, pollingInterval).Should(BeNil())
@@ -590,13 +592,13 @@ var _ = Describe("Druid", func() {
 	)
 
 	DescribeTable("when etcd resource is created",
-		func(name string, generateEtcd func(string, string) *druidv1alpha1.Etcd, validate func(*druidv1alpha1.Etcd, *appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service)) {
+		func(name string, generateEtcd func(string, string) *druidv1alpha1.Etcd, validate func(*druidv1alpha1.Etcd, *appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *corev1.Service)) {
 			var err error
 			var instance *druidv1alpha1.Etcd
 			var c client.Client
 			var s *appsv1.StatefulSet
 			var cm *corev1.ConfigMap
-			var svc *corev1.Service
+			var clSvc, prSvc *corev1.Service
 			var sa *corev1.ServiceAccount
 			var role *rbac.Role
 			var rb *rbac.RoleBinding
@@ -623,8 +625,10 @@ var _ = Describe("Druid", func() {
 			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
 			cm = &corev1.ConfigMap{}
 			Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
-			svc = &corev1.Service{}
-			Eventually(func() error { return serviceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
+			clSvc = &corev1.Service{}
+			Eventually(func() error { return clientServiceIsCorrectlyReconciled(c, instance, clSvc) }, timeout, pollingInterval).Should(BeNil())
+			prSvc = &corev1.Service{}
+			Eventually(func() error { return peerServiceIsCorrectlyReconciled(c, instance, prSvc) }, timeout, pollingInterval).Should(BeNil())
 			sa = &corev1.ServiceAccount{}
 			Eventually(func() error { return serviceAccountIsCorrectlyReconciled(c, instance, sa) }, timeout, pollingInterval).Should(BeNil())
 			role = &rbac.Role{}
@@ -632,7 +636,7 @@ var _ = Describe("Druid", func() {
 			rb = &rbac.RoleBinding{}
 			Eventually(func() error { return roleBindingIsCorrectlyReconciled(c, instance, rb) }, timeout, pollingInterval).Should(BeNil())
 
-			validate(instance, s, cm, svc)
+			validate(instance, s, cm, clSvc, prSvc)
 			validateRole(instance, role)
 
 			setStatefulSetReady(s)
@@ -764,6 +768,144 @@ var _ = Describe("Cron Job", func() {
 	})
 })
 
+var _ = Describe("Multinode ETCD", func() {
+	//Reconciliation of new etcd resource deployment without any existing statefulsets.
+	Context("when adding etcd resources", func() {
+		var (
+			err      error
+			instance *druidv1alpha1.Etcd
+			sts      *appsv1.StatefulSet
+			svc      *corev1.Service
+			c        client.Client
+		)
+
+		BeforeEach(func() {
+			instance = getEtcd("foo82", "default", false)
+			c = mgr.GetClient()
+			ns := corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: instance.Namespace,
+				},
+			}
+			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+			Expect(err).To(Not(HaveOccurred()))
+
+			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+			errors := createSecrets(c, instance.Namespace, storeSecret)
+			Expect(len(errors)).Should(BeZero())
+		})
+		It("no statefulsets are created when ETCD replicas are even number", func() {
+			// Update replicas in ETCD resource with 0
+			instance.Spec.Replicas = 4
+			Expect(c.Create(context.TODO(), instance)).To(Succeed())
+
+			Eventually(func() error {
+				return c.Get(context.TODO(), types.NamespacedName{
+					Name:      instance.Name,
+					Namespace: instance.Namespace,
+				}, instance)
+			}, timeout, pollingInterval).Should(BeNil())
+
+			// No StatefulSet has been created by controller as even number of replicas are not allowed
+			sts = &appsv1.StatefulSet{}
+			Eventually(func() error {
+				return c.Get(context.TODO(), types.NamespacedName{
+					Name:      instance.Name,
+					Namespace: instance.Namespace,
+				}, sts)
+			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
+
+			// No Service has been created by controller as even number of replicas are not allowed
+			svc = &corev1.Service{}
+			Expect(c.Get(context.TODO(), types.NamespacedName{
+				Name:      utils.GetClientServiceName(instance),
+				Namespace: instance.Namespace,
+			}, svc)).Should(matchers.BeNotFoundError())
+			svc = nil
+		})
+		It("statefulsets are created when ETCD replicas are odd number", func() {
+			// Update replicas in ETCD resource with 0
+			instance.Spec.Replicas = 3
+			Expect(c.Create(context.TODO(), instance)).To(Succeed())
+
+			Eventually(func() error {
+				return c.Get(context.TODO(), types.NamespacedName{
+					Name:      instance.Name,
+					Namespace: instance.Namespace,
+				}, instance)
+			}, timeout, pollingInterval).Should(BeNil())
+
+			sts = &appsv1.StatefulSet{}
+			// StatefulSet has been created by controller
+			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+			Expect(int(*sts.Spec.Replicas)).To(Equal(3))
+		})
+		AfterEach(func() {
+			// Delete `etcd` instance
+			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
+			Eventually(func() error {
+				return c.Get(context.TODO(), client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
+			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
+			// Delete service manually because garbage collection is not available in `envtest`
+			if svc != nil {
+				Expect(c.Delete(context.TODO(), svc)).To(Succeed())
+				Eventually(func() error {
+					return c.Get(context.TODO(), client.ObjectKeyFromObject(svc), &corev1.Service{})
+				}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
+			}
+		})
+	})
+	DescribeTable("configmaps are mounted properly when ETCD replicas are odd number", func(name string, replicas int, getEtcdWithReplicas func(string, string, int) *druidv1alpha1.Etcd) {
+		var err error
+		var instance *druidv1alpha1.Etcd
+		var c client.Client
+		var sts *appsv1.StatefulSet
+		var cm *corev1.ConfigMap
+		var svc *corev1.Service
+
+		instance = getEtcdWithReplicas(name, "default", replicas)
+		c = mgr.GetClient()
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: instance.Namespace,
+			},
+		}
+
+		_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+		Expect(err).To(Not(HaveOccurred()))
+
+		if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
+			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
+			errors := createSecrets(c, instance.Namespace, storeSecret)
+			Expect(len(errors)).Should(BeZero())
+		}
+		err = c.Create(context.TODO(), instance)
+		Expect(err).NotTo(HaveOccurred())
+		sts = &appsv1.StatefulSet{}
+		Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+		cm = &corev1.ConfigMap{}
+		Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
+		svc = &corev1.Service{}
+		Eventually(func() error { return clientServiceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
+
+		// Validate statefulset
+		Expect(*sts.Spec.Replicas).To(Equal(int32(instance.Spec.Replicas)))
+
+		if instance.Spec.Replicas == 1 {
+			matcher := "initial-cluster: foo83-0=http://foo83-0.foo83-peer.default.svc:2380"
+			Expect(strings.Contains(cm.Data["etcd.conf.yaml"], matcher)).To(BeTrue())
+		}
+
+		if instance.Spec.Replicas > 1 {
+			matcher := "initial-cluster: foo84-0=http://foo84-0.foo84-peer.default.svc:2380,foo84-1=http://foo84-1.foo84-peer.default.svc:2380,foo84-2=http://foo84-2.foo84-peer.default.svc:2380"
+			Expect(strings.Contains(cm.Data["etcd.conf.yaml"], matcher)).To(BeTrue())
+		}
+	},
+		Entry("verify configmap mount path and etcd.conf.yaml when replica is 1 ", "foo83", 1, getEtcdWithReplicas),
+		Entry("verify configmap mount path and etcd.conf.yaml when replica is 3 ", "foo84", 3, getEtcdWithReplicas),
+	)
+})
+
 func validateRole(instance *druidv1alpha1.Etcd, role *rbac.Role) {
 	Expect(*role).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
@@ -824,14 +966,16 @@ func podDeleted(c client.Client, etcd *druidv1alpha1.Etcd) error {
 
 }
 
-func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service) {
-	// Validate Quota
+func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, clSvc *corev1.Service, prSvc *corev1.Service) {
 	configYML := cm.Data[etcdConfig]
-	config := map[string]string{}
+	config := map[string]interface{}{}
 	err := yaml.Unmarshal([]byte(configYML), &config)
 	Expect(err).NotTo(HaveOccurred())
-	Expect(instance.Spec.Etcd.Quota).To(BeNil())
-	Expect(config).To(HaveKeyWithValue(quotaKey, fmt.Sprintf("%d", int64(quota.Value()))))
+
+	// Validate ETCD annotation for configmap checksum
+	jsonString, err := json.Marshal(cm.Data)
+	Expect(err).NotTo(HaveOccurred())
+	configMapChecksum := gardenerUtils.ComputeSHA256Hex(jsonString)
 
 	// Validate Metrics MetricsLevel
 	Expect(instance.Spec.Etcd.Metrics).To(BeNil())
@@ -861,26 +1005,33 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 	Expect(instance.Spec.Etcd.Resources).To(BeNil())
 
 	// Validate TLS. Ensure that enableTLS flag is not triggered in the go-template
-	Expect(instance.Spec.Etcd.TLS).To(BeNil())
+	Expect(instance.Spec.Etcd.PeerUrlTLS).To(BeNil())
+
+	readinessProbeUrl := fmt.Sprintf("http://%s-local:%d/health", instance.Name, clientPort)
+	if int(instance.Spec.Replicas) == 1 {
+		readinessProbeUrl = fmt.Sprintf("http://%s-local:%d/healthz", instance.Name, backupPort)
+	}
 
 	Expect(config).To(MatchKeys(IgnoreExtras, Keys{
-		"name":                      Equal(fmt.Sprintf("etcd-%s", instance.UID[:6])),
-		"data-dir":                  Equal("/var/etcd/data/new.etcd"),
-		"metrics":                   Equal(string(druidv1alpha1.Basic)),
-		"snapshot-count":            Equal("75000"),
-		"enable-v2":                 Equal("false"),
-		"quota-backend-bytes":       Equal("8589934592"),
-		"listen-client-urls":        Equal(fmt.Sprintf("http://0.0.0.0:%d", clientPort)),
-		"advertise-client-urls":     Equal(fmt.Sprintf("http://0.0.0.0:%d", clientPort)),
-		"initial-cluster-token":     Equal("initial"),
-		"initial-cluster-state":     Equal("new"),
-		"auto-compaction-mode":      Equal(string(druidv1alpha1.Periodic)),
-		"auto-compaction-retention": Equal(DefaultAutoCompactionRetention),
+		"name":                        Equal(fmt.Sprintf("etcd-%s", instance.UID[:6])),
+		"data-dir":                    Equal("/var/etcd/data/new.etcd"),
+		"metrics":                     Equal(string(druidv1alpha1.Basic)),
+		"snapshot-count":              Equal(float64(75000)),
+		"enable-v2":                   Equal(false),
+		"quota-backend-bytes":         Equal(float64(8589934592)),
+		"listen-client-urls":          Equal(fmt.Sprintf("http://0.0.0.0:%d", clientPort)),
+		"advertise-client-urls":       Equal(fmt.Sprintf("%s@%s@%s@%d", "http", prSvc.Name, instance.Namespace, clientPort)),
+		"listen-peer-urls":            Equal(fmt.Sprintf("http://0.0.0.0:%d", serverPort)),
+		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "http", prSvc.Name, instance.Namespace, serverPort)),
+		"initial-cluster-token":       Equal("etcd-cluster"),
+		"initial-cluster-state":       Equal("new"),
+		"auto-compaction-mode":        Equal(string(druidv1alpha1.Periodic)),
+		"auto-compaction-retention":   Equal(DefaultAutoCompactionRetention),
 	}))
 
-	Expect(*svc).To(MatchFields(IgnoreExtras, Fields{
+	Expect(*clSvc).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(fmt.Sprintf("%s-client", instance.Name)),
+			"Name":      Equal(utils.GetClientServiceName(instance)),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
@@ -943,6 +1094,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 				"app":                       Equal("etcd-statefulset"),
 				"role":                      Equal("test"),
 				"instance":                  Equal(instance.Name),
+				"checksum/etcd-configmap":   Equal(configMapChecksum),
 			}),
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
@@ -953,7 +1105,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 			"UpdateStrategy": MatchFields(IgnoreExtras, Fields{
 				"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 			}),
-			"ServiceName": Equal(fmt.Sprintf("%s-peer", instance.Name)),
+			"ServiceName": Equal(utils.GetPeerServiceName(instance)),
 			"Replicas":    PointTo(Equal(int32(instance.Spec.Replicas))),
 			"Selector": PointTo(MatchFields(IgnoreExtras, Fields{
 				"MatchLabels": MatchAllKeys(Keys{
@@ -1016,12 +1168,11 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 							}),
 							"ReadinessProbe": PointTo(MatchFields(IgnoreExtras, Fields{
 								"Handler": MatchFields(IgnoreExtras, Fields{
-									"HTTPGet": PointTo(MatchFields(IgnoreExtras, Fields{
-										"Path": Equal("/healthz"),
-										"Port": MatchFields(IgnoreExtras, Fields{
-											"IntVal": Equal(int32(8080)),
+									"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
+										"Command": MatchAllElements(cmdIterator, Elements{
+											"/usr/bin/curl":   Equal("/usr/bin/curl"),
+											readinessProbeUrl: Equal(readinessProbeUrl),
 										}),
-										"Scheme": Equal(corev1.URISchemeHTTP),
 									})),
 								}),
 								"InitialDelaySeconds": Equal(int32(15)),
@@ -1048,10 +1199,6 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 								instance.Name: MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal(instance.Name),
 									"MountPath": Equal("/var/etcd/data/"),
-								}),
-								"etcd-config-file": MatchFields(IgnoreExtras, Fields{
-									"Name":      Equal("etcd-config-file"),
-									"MountPath": Equal("/var/etcd/config/"),
 								}),
 							}),
 						}),
@@ -1173,14 +1320,16 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 	}))
 }
 
-func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service) {
-	// Validate Quota
+func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, clSvc *corev1.Service, prSvc *corev1.Service) {
 	configYML := cm.Data[etcdConfig]
 	config := map[string]interface{}{}
 	err := yaml.Unmarshal([]byte(configYML), &config)
 	Expect(err).NotTo(HaveOccurred())
-	Expect(instance.Spec.Etcd.Quota).NotTo(BeNil())
-	Expect(config).To(HaveKeyWithValue(quotaKey, float64(instance.Spec.Etcd.Quota.Value())))
+
+	// Validate ETCD annotation for configmap checksum
+	jsonString, err := json.Marshal(cm.Data)
+	Expect(err).NotTo(HaveOccurred())
+	configMapChecksum := gardenerUtils.ComputeSHA256Hex(jsonString)
 
 	// Validate Metrics MetricsLevel
 	Expect(instance.Spec.Etcd.Metrics).NotTo(BeNil())
@@ -1197,6 +1346,11 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 
 	store, err := utils.StorageProviderFromInfraProvider(instance.Spec.Backup.Store.Provider)
 	Expect(err).NotTo(HaveOccurred())
+
+	readinessProbeUrl := fmt.Sprintf("https://%s-local:%d/health", instance.Name, clientPort)
+	if int(instance.Spec.Replicas) == 1 {
+		readinessProbeUrl = fmt.Sprintf("https://%s-local:%d/healthz", instance.Name, backupPort)
+	}
 
 	Expect(*cm).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
@@ -1220,31 +1374,42 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 	}))
 
 	Expect(config).To(MatchKeys(IgnoreExtras, Keys{
-		"name":                      Equal(fmt.Sprintf("etcd-%s", instance.UID[:6])),
-		"data-dir":                  Equal("/var/etcd/data/new.etcd"),
-		"metrics":                   Equal(string(*instance.Spec.Etcd.Metrics)),
-		"snapshot-count":            Equal(float64(75000)),
-		"enable-v2":                 Equal(false),
-		"quota-backend-bytes":       Equal(float64(instance.Spec.Etcd.Quota.Value())),
-		"listen-client-urls":        Equal(fmt.Sprintf("https://0.0.0.0:%d", *instance.Spec.Etcd.ClientPort)),
-		"advertise-client-urls":     Equal(fmt.Sprintf("https://0.0.0.0:%d", *instance.Spec.Etcd.ClientPort)),
-		"initial-cluster-token":     Equal("initial"),
+		"name":                Equal(fmt.Sprintf("etcd-%s", instance.UID[:6])),
+		"data-dir":            Equal("/var/etcd/data/new.etcd"),
+		"metrics":             Equal(string(*instance.Spec.Etcd.Metrics)),
+		"snapshot-count":      Equal(float64(75000)),
+		"enable-v2":           Equal(false),
+		"quota-backend-bytes": Equal(float64(instance.Spec.Etcd.Quota.Value())),
+
+		"client-transport-security": MatchKeys(IgnoreExtras, Keys{
+			"cert-file":        Equal("/var/etcd/ssl/client/server/tls.crt"),
+			"key-file":         Equal("/var/etcd/ssl/client/server/tls.key"),
+			"client-cert-auth": Equal(true),
+			"trusted-ca-file":  Equal("/var/etcd/ssl/client/ca/ca.crt"),
+			"auto-tls":         Equal(false),
+		}),
+		"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", *instance.Spec.Etcd.ClientPort)),
+		"advertise-client-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "https", prSvc.Name, instance.Namespace, *instance.Spec.Etcd.ClientPort)),
+
+		"peer-transport-security": MatchKeys(IgnoreExtras, Keys{
+			"cert-file":        Equal("/var/etcd/ssl/peer/server/tls.crt"),
+			"key-file":         Equal("/var/etcd/ssl/peer/server/tls.key"),
+			"client-cert-auth": Equal(true),
+			"trusted-ca-file":  Equal("/var/etcd/ssl/peer/ca/ca.crt"),
+			"auto-tls":         Equal(false),
+		}),
+		"listen-peer-urls":            Equal(fmt.Sprintf("https://0.0.0.0:%d", *instance.Spec.Etcd.ServerPort)),
+		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "https", prSvc.Name, instance.Namespace, *instance.Spec.Etcd.ServerPort)),
+
+		"initial-cluster-token":     Equal("etcd-cluster"),
 		"initial-cluster-state":     Equal("new"),
 		"auto-compaction-mode":      Equal(string(*instance.Spec.Common.AutoCompactionMode)),
 		"auto-compaction-retention": Equal(*instance.Spec.Common.AutoCompactionRetention),
-
-		"client-transport-security": MatchKeys(IgnoreExtras, Keys{
-			"cert-file":        Equal("/var/etcd/ssl/server/tls.crt"),
-			"key-file":         Equal("/var/etcd/ssl/server/tls.key"),
-			"client-cert-auth": Equal(true),
-			"trusted-ca-file":  Equal("/var/etcd/ssl/ca/ca.crt"),
-			"auto-tls":         Equal(false),
-		}),
 	}))
 
-	Expect(*svc).To(MatchFields(IgnoreExtras, Fields{
+	Expect(*clSvc).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(fmt.Sprintf("%s-client", instance.Name)),
+			"Name":      Equal(utils.GetClientServiceName(instance)),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
@@ -1307,6 +1472,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 				"app":                       Equal("etcd-statefulset"),
 				"role":                      Equal("test"),
 				"instance":                  Equal(instance.Name),
+				"checksum/etcd-configmap":   Equal(configMapChecksum),
 			}),
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
@@ -1318,7 +1484,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"UpdateStrategy": MatchFields(IgnoreExtras, Fields{
 				"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 			}),
-			"ServiceName": Equal(fmt.Sprintf("%s-peer", instance.Name)),
+			"ServiceName": Equal(utils.GetPeerServiceName(instance)),
 			"Replicas":    PointTo(Equal(int32(instance.Spec.Replicas))),
 			"Selector": PointTo(MatchFields(IgnoreExtras, Fields{
 				"MatchLabels": MatchAllKeys(Keys{
@@ -1352,13 +1518,13 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 					"Containers": MatchAllElements(containerIterator, Elements{
 						common.Etcd: MatchFields(IgnoreExtras, Fields{
 							"Ports": ConsistOf([]corev1.ContainerPort{
-								corev1.ContainerPort{
+								{
 									Name:          "server",
 									Protocol:      corev1.ProtocolTCP,
 									HostPort:      0,
 									ContainerPort: *instance.Spec.Etcd.ServerPort,
 								},
-								corev1.ContainerPort{
+								{
 									Name:          "client",
 									Protocol:      corev1.ProtocolTCP,
 									HostPort:      0,
@@ -1382,12 +1548,17 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 							}),
 							"ReadinessProbe": PointTo(MatchFields(IgnoreExtras, Fields{
 								"Handler": MatchFields(IgnoreExtras, Fields{
-									"HTTPGet": PointTo(MatchFields(IgnoreExtras, Fields{
-										"Path": Equal("/healthz"),
-										"Port": MatchFields(IgnoreExtras, Fields{
-											"IntVal": Equal(int32(8080)),
+									"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
+										"Command": MatchAllElements(cmdIterator, Elements{
+											"/usr/bin/curl":                       Equal("/usr/bin/curl"),
+											"--cert":                              Equal("--cert"),
+											"/var/etcd/ssl/client/client/tls.crt": Equal("/var/etcd/ssl/client/client/tls.crt"),
+											"--key":                               Equal("--key"),
+											"/var/etcd/ssl/client/client/tls.key": Equal("/var/etcd/ssl/client/client/tls.key"),
+											"--cacert":                            Equal("--cacert"),
+											"/var/etcd/ssl/client/ca/ca.crt":      Equal("/var/etcd/ssl/client/ca/ca.crt"),
+											readinessProbeUrl:                     Equal(readinessProbeUrl),
 										}),
-										"Scheme": Equal(corev1.URISchemeHTTPS),
 									})),
 								}),
 								"InitialDelaySeconds": Equal(int32(15)),
@@ -1397,13 +1568,13 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								"Handler": MatchFields(IgnoreExtras, Fields{
 									"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
 										"Command": MatchAllElements(cmdIterator, Elements{
-											"/bin/sh":                             Equal("/bin/sh"),
-											"-ec":                                 Equal("-ec"),
-											"ETCDCTL_API=3":                       Equal("ETCDCTL_API=3"),
-											"etcdctl":                             Equal("etcdctl"),
-											"--cert=/var/etcd/ssl/client/tls.crt": Equal("--cert=/var/etcd/ssl/client/tls.crt"),
-											"--key=/var/etcd/ssl/client/tls.key":  Equal("--key=/var/etcd/ssl/client/tls.key"),
-											"--cacert=/var/etcd/ssl/ca/ca.crt":    Equal("--cacert=/var/etcd/ssl/ca/ca.crt"),
+											"/bin/sh":       Equal("/bin/sh"),
+											"-ec":           Equal("-ec"),
+											"ETCDCTL_API=3": Equal("ETCDCTL_API=3"),
+											"etcdctl":       Equal("etcdctl"),
+											"--cert=/var/etcd/ssl/client/client/tls.crt":                              Equal("--cert=/var/etcd/ssl/client/client/tls.crt"),
+											"--key=/var/etcd/ssl/client/client/tls.key":                               Equal("--key=/var/etcd/ssl/client/client/tls.key"),
+											"--cacert=/var/etcd/ssl/client/ca/ca.crt":                                 Equal("--cacert=/var/etcd/ssl/client/ca/ca.crt"),
 											fmt.Sprintf("--endpoints=https://%s-local:%d", instance.Name, clientPort): Equal(fmt.Sprintf("--endpoints=https://%s-local:%d", instance.Name, clientPort)),
 											"get": Equal("get"),
 											"foo": Equal("foo"),
@@ -1418,43 +1589,47 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 									"Name":      Equal(*instance.Spec.VolumeClaimTemplate),
 									"MountPath": Equal("/var/etcd/data/"),
 								}),
-								"etcd-config-file": MatchFields(IgnoreExtras, Fields{
-									"Name":      Equal("etcd-config-file"),
-									"MountPath": Equal("/var/etcd/config/"),
+								"client-url-ca-etcd": MatchFields(IgnoreExtras, Fields{
+									"Name":      Equal("client-url-ca-etcd"),
+									"MountPath": Equal("/var/etcd/ssl/client/ca"),
 								}),
-								"ca-etcd": MatchFields(IgnoreExtras, Fields{
-									"Name":      Equal("ca-etcd"),
-									"MountPath": Equal("/var/etcd/ssl/ca"),
+								"client-url-etcd-server-tls": MatchFields(IgnoreExtras, Fields{
+									"Name":      Equal("client-url-etcd-server-tls"),
+									"MountPath": Equal("/var/etcd/ssl/client/server"),
 								}),
-								"etcd-server-tls": MatchFields(IgnoreExtras, Fields{
-									"Name":      Equal("etcd-server-tls"),
-									"MountPath": Equal("/var/etcd/ssl/server"),
+								"client-url-etcd-client-tls": MatchFields(IgnoreExtras, Fields{
+									"Name":      Equal("client-url-etcd-client-tls"),
+									"MountPath": Equal("/var/etcd/ssl/client/client"),
 								}),
-								"etcd-client-tls": MatchFields(IgnoreExtras, Fields{
-									"Name":      Equal("etcd-client-tls"),
-									"MountPath": Equal("/var/etcd/ssl/client"),
+								"peer-url-ca-etcd": MatchFields(IgnoreExtras, Fields{
+									"Name":      Equal("peer-url-ca-etcd"),
+									"MountPath": Equal("/var/etcd/ssl/peer/ca"),
+								}),
+								"peer-url-etcd-server-tls": MatchFields(IgnoreExtras, Fields{
+									"Name":      Equal("peer-url-etcd-server-tls"),
+									"MountPath": Equal("/var/etcd/ssl/peer/server"),
 								}),
 							}),
 						}),
 
 						backupRestore: MatchFields(IgnoreExtras, Fields{
 							"Command": MatchAllElements(cmdIterator, Elements{
-								"etcdbrctl":                                      Equal("etcdbrctl"),
-								"server":                                         Equal("server"),
-								"--cert=/var/etcd/ssl/client/tls.crt":            Equal("--cert=/var/etcd/ssl/client/tls.crt"),
-								"--key=/var/etcd/ssl/client/tls.key":             Equal("--key=/var/etcd/ssl/client/tls.key"),
-								"--cacert=/var/etcd/ssl/ca/ca.crt":               Equal("--cacert=/var/etcd/ssl/ca/ca.crt"),
-								"--server-cert=/var/etcd/ssl/server/tls.crt":     Equal("--server-cert=/var/etcd/ssl/server/tls.crt"),
-								"--server-key=/var/etcd/ssl/server/tls.key":      Equal("--server-key=/var/etcd/ssl/server/tls.key"),
-								"--data-dir=/var/etcd/data/new.etcd":             Equal("--data-dir=/var/etcd/data/new.etcd"),
-								"--insecure-transport=false":                     Equal("--insecure-transport=false"),
-								"--insecure-skip-tls-verify=false":               Equal("--insecure-skip-tls-verify=false"),
-								"--snapstore-temp-directory=/var/etcd/data/temp": Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
-								"--etcd-process-name=etcd":                       Equal("--etcd-process-name=etcd"),
-								"--etcd-connection-timeout=5m":                   Equal("--etcd-connection-timeout=5m"),
-								"--enable-snapshot-lease-renewal=true":           Equal("--enable-snapshot-lease-renewal=true"),
-								"--enable-member-lease-renewal=true":             Equal("--enable-member-lease-renewal=true"),
-								"--k8s-heartbeat-duration=10s":                   Equal("--k8s-heartbeat-duration=10s"),
+								"etcdbrctl": Equal("etcdbrctl"),
+								"server":    Equal("server"),
+								"--cert=/var/etcd/ssl/client/client/tls.crt":                                                                        Equal("--cert=/var/etcd/ssl/client/client/tls.crt"),
+								"--key=/var/etcd/ssl/client/client/tls.key":                                                                         Equal("--key=/var/etcd/ssl/client/client/tls.key"),
+								"--cacert=/var/etcd/ssl/client/ca/ca.crt":                                                                           Equal("--cacert=/var/etcd/ssl/client/ca/ca.crt"),
+								"--server-cert=/var/etcd/ssl/client/server/tls.crt":                                                                 Equal("--server-cert=/var/etcd/ssl/client/server/tls.crt"),
+								"--server-key=/var/etcd/ssl/client/server/tls.key":                                                                  Equal("--server-key=/var/etcd/ssl/client/server/tls.key"),
+								"--data-dir=/var/etcd/data/new.etcd":                                                                                Equal("--data-dir=/var/etcd/data/new.etcd"),
+								"--insecure-transport=false":                                                                                        Equal("--insecure-transport=false"),
+								"--insecure-skip-tls-verify=false":                                                                                  Equal("--insecure-skip-tls-verify=false"),
+								"--snapstore-temp-directory=/var/etcd/data/temp":                                                                    Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
+								"--etcd-process-name=etcd":                                                                                          Equal("--etcd-process-name=etcd"),
+								"--etcd-connection-timeout=5m":                                                                                      Equal("--etcd-connection-timeout=5m"),
+								"--enable-snapshot-lease-renewal=true":                                                                              Equal("--enable-snapshot-lease-renewal=true"),
+								"--enable-member-lease-renewal=true":                                                                                Equal("--enable-member-lease-renewal=true"),
+								"--k8s-heartbeat-duration=10s":                                                                                      Equal("--k8s-heartbeat-duration=10s"),
 								fmt.Sprintf("--defragmentation-schedule=%s", *instance.Spec.Etcd.DefragmentationSchedule):                           Equal(fmt.Sprintf("--defragmentation-schedule=%s", *instance.Spec.Etcd.DefragmentationSchedule)),
 								fmt.Sprintf("--schedule=%s", *instance.Spec.Backup.FullSnapshotSchedule):                                            Equal(fmt.Sprintf("--schedule=%s", *instance.Spec.Backup.FullSnapshotSchedule)),
 								fmt.Sprintf("%s=%s", "--garbage-collection-policy", *instance.Spec.Backup.GarbageCollectionPolicy):                  Equal(fmt.Sprintf("%s=%s", "--garbage-collection-policy", *instance.Spec.Backup.GarbageCollectionPolicy)),
@@ -1479,7 +1654,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", componentlease.GetFullSnapshotLeaseName(instance)):               Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", componentlease.GetFullSnapshotLeaseName(instance))),
 							}),
 							"Ports": ConsistOf([]corev1.ContainerPort{
-								corev1.ContainerPort{
+								{
 									Name:          "server",
 									Protocol:      corev1.ProtocolTCP,
 									HostPort:      0,
@@ -1496,18 +1671,6 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								"etcd-config-file": MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal("etcd-config-file"),
 									"MountPath": Equal("/var/etcd/config/"),
-								}),
-								"ca-etcd": MatchFields(IgnoreExtras, Fields{
-									"Name":      Equal("ca-etcd"),
-									"MountPath": Equal("/var/etcd/ssl/ca"),
-								}),
-								"etcd-server-tls": MatchFields(IgnoreExtras, Fields{
-									"Name":      Equal("etcd-server-tls"),
-									"MountPath": Equal("/var/etcd/ssl/server"),
-								}),
-								"etcd-client-tls": MatchFields(IgnoreExtras, Fields{
-									"Name":      Equal("etcd-client-tls"),
-									"MountPath": Equal("/var/etcd/ssl/client"),
 								}),
 								"host-storage": MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal("host-storage"),
@@ -1573,27 +1736,43 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								})),
 							}),
 						}),
-						"etcd-server-tls": MatchFields(IgnoreExtras, Fields{
-							"Name": Equal("etcd-server-tls"),
+						"client-url-etcd-server-tls": MatchFields(IgnoreExtras, Fields{
+							"Name": Equal("client-url-etcd-server-tls"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(instance.Spec.Etcd.TLS.ServerTLSSecretRef.Name),
+									"SecretName": Equal(instance.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name),
 								})),
 							}),
 						}),
-						"etcd-client-tls": MatchFields(IgnoreExtras, Fields{
-							"Name": Equal("etcd-client-tls"),
+						"client-url-etcd-client-tls": MatchFields(IgnoreExtras, Fields{
+							"Name": Equal("client-url-etcd-client-tls"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(instance.Spec.Etcd.TLS.ClientTLSSecretRef.Name),
+									"SecretName": Equal(instance.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name),
 								})),
 							}),
 						}),
-						"ca-etcd": MatchFields(IgnoreExtras, Fields{
-							"Name": Equal("ca-etcd"),
+						"client-url-ca-etcd": MatchFields(IgnoreExtras, Fields{
+							"Name": Equal("client-url-ca-etcd"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(instance.Spec.Etcd.TLS.TLSCASecretRef.Name),
+									"SecretName": Equal(instance.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name),
+								})),
+							}),
+						}),
+						"peer-url-etcd-server-tls": MatchFields(IgnoreExtras, Fields{
+							"Name": Equal("peer-url-etcd-server-tls"),
+							"VolumeSource": MatchFields(IgnoreExtras, Fields{
+								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
+									"SecretName": Equal(instance.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name),
+								})),
+							}),
+						}),
+						"peer-url-ca-etcd": MatchFields(IgnoreExtras, Fields{
+							"Name": Equal("peer-url-ca-etcd"),
+							"VolumeSource": MatchFields(IgnoreExtras, Fields{
+								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
+									"SecretName": Equal(instance.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name),
 								})),
 							}),
 						}),
@@ -1622,7 +1801,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 	}))
 }
 
-func validateStoreGCP(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service) {
+func validateStoreGCP(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, clSvc *corev1.Service, prSvc *corev1.Service) {
 
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
@@ -1686,7 +1865,7 @@ func validateStoreGCP(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *c
 
 }
 
-func validateStoreAzure(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service) {
+func validateStoreAzure(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, clSvc *corev1.Service, prSvc *corev1.Service) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -1742,7 +1921,7 @@ func validateStoreAzure(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm 
 	}))
 }
 
-func validateStoreOpenstack(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service) {
+func validateStoreOpenstack(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, clSvc *corev1.Service, prSvc *corev1.Service) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -1798,7 +1977,7 @@ func validateStoreOpenstack(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet,
 	}))
 }
 
-func validateStoreAlicloud(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service) {
+func validateStoreAlicloud(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, clSvc *corev1.Service, prSvc *corev1.Service) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -1856,7 +2035,7 @@ func validateStoreAlicloud(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, 
 	}))
 }
 
-func validateStoreAWS(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, svc *corev1.Service) {
+func validateStoreAWS(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, clSvc *corev1.Service, prSvc *corev1.Service) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -2028,11 +2207,29 @@ func configMapIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etc
 	return nil
 }
 
-func serviceIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, svc *corev1.Service) error {
+func clientServiceIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, svc *corev1.Service) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	req := types.NamespacedName{
-		Name:      fmt.Sprintf("%s-client", instance.Name),
+		Name:      utils.GetClientServiceName(instance),
+		Namespace: instance.Namespace,
+	}
+
+	if err := c.Get(ctx, req, svc); err != nil {
+		return err
+	}
+
+	if !checkEtcdOwnerReference(svc.GetOwnerReferences(), instance) {
+		return fmt.Errorf("ownerReference does not exists")
+	}
+	return nil
+}
+
+func peerServiceIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, svc *corev1.Service) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+	defer cancel()
+	req := types.NamespacedName{
+		Name:      utils.GetPeerServiceName(instance),
 		Namespace: instance.Namespace,
 	}
 
@@ -2372,19 +2569,49 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 	}
 
 	if tlsEnabled {
-		tlsConfig := &druidv1alpha1.TLSConfig{
+		clientTlsConfig := &druidv1alpha1.TLSConfig{
+			TLSCASecretRef: corev1.SecretReference{
+				Name: "client-url-ca-etcd",
+			},
 			ClientTLSSecretRef: corev1.SecretReference{
-				Name: "etcd-client-tls",
+				Name: "client-url-etcd-client-tls",
 			},
 			ServerTLSSecretRef: corev1.SecretReference{
-				Name: "etcd-server-tls",
-			},
-			TLSCASecretRef: corev1.SecretReference{
-				Name: "ca-etcd",
+				Name: "client-url-etcd-server-tls",
 			},
 		}
-		instance.Spec.Etcd.TLS = tlsConfig
+
+		peerTlsConfig := &druidv1alpha1.TLSConfig{
+			TLSCASecretRef: corev1.SecretReference{
+				Name: "peer-url-ca-etcd",
+			},
+			ServerTLSSecretRef: corev1.SecretReference{
+				Name: "peer-url-etcd-server-tls",
+			},
+		}
+
+		backupTlsConfig := &druidv1alpha1.TLSConfig{
+			ClientTLSSecretRef: corev1.SecretReference{
+				Name: "etcdbr-client-tls",
+			},
+			ServerTLSSecretRef: corev1.SecretReference{
+				Name: "etcdbr-server-tls",
+			},
+			TLSCASecretRef: corev1.SecretReference{
+				Name: "ca-etcdbr",
+			},
+		}
+
+		instance.Spec.Etcd.ClientUrlTLS = clientTlsConfig
+		instance.Spec.Etcd.PeerUrlTLS = peerTlsConfig
+		instance.Spec.Backup.TLS = backupTlsConfig
 	}
+	return instance
+}
+
+func getEtcdWithReplicas(name, namespace string, replicas int) *druidv1alpha1.Etcd {
+	instance := getEtcdWithDefault(name, namespace)
+	instance.Spec.Replicas = int32(replicas)
 	return instance
 }
 
@@ -2449,7 +2676,7 @@ func cronJobIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd,
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	req := types.NamespacedName{
-		Name:      getCronJobName(instance),
+		Name:      utils.GetCronJobName(instance),
 		Namespace: instance.Namespace,
 	}
 
@@ -2462,7 +2689,7 @@ func cronJobIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd,
 func createCronJob(instance *druidv1alpha1.Etcd) *batchv1beta1.CronJob {
 	cj := batchv1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      getCronJobName(instance),
+			Name:      utils.GetCronJobName(instance),
 			Namespace: instance.Namespace,
 			Labels:    instance.Labels,
 		},
