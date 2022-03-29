@@ -298,54 +298,6 @@ spec:
                   clientPort:
                     format: int32
                     type: integer
-                  clientUrlTls:
-                    description: ClientUrlTLS contains the ca, server TLS and client
-                      TLS secrets for client communication to ETCD cluster
-                    properties:
-                      clientTLSSecretRef:
-                        description: SecretReference represents a Secret Reference.
-                          It has enough information to retrieve secret in any namespace
-                        properties:
-                          name:
-                            description: Name is unique within a namespace to reference
-                              a secret resource.
-                            type: string
-                          namespace:
-                            description: Namespace defines the space within which
-                              the secret name must be unique.
-                            type: string
-                        type: object
-                      serverTLSSecretRef:
-                        description: SecretReference represents a Secret Reference.
-                          It has enough information to retrieve secret in any namespace
-                        properties:
-                          name:
-                            description: Name is unique within a namespace to reference
-                              a secret resource.
-                            type: string
-                          namespace:
-                            description: Namespace defines the space within which
-                              the secret name must be unique.
-                            type: string
-                        type: object
-                      tlsCASecretRef:
-                        description: SecretReference represents a Secret Reference.
-                          It has enough information to retrieve secret in any namespace
-                        properties:
-                          name:
-                            description: Name is unique within a namespace to reference
-                              a secret resource.
-                            type: string
-                          namespace:
-                            description: Namespace defines the space within which
-                              the secret name must be unique.
-                            type: string
-                        type: object
-                    required:
-                    - clientTLSSecretRef
-                    - serverTLSSecretRef
-                    - tlsCASecretRef
-                    type: object
                   defragmentationSchedule:
                     description: DefragmentationSchedule defines the cron standard
                       schedule for defragmentation of etcd.
@@ -368,56 +320,6 @@ spec:
                     - basic
                     - extensive
                     type: string
-                  peerUrlTls:
-                    description: PeerUrlTLS contains the ca and server TLS secrets
-                      for peer communication within ETCD cluster Currently, PeerUrlTLS
-                      does not require client TLS secrets for gardener implementation
-                      of ETCD cluster.
-                    properties:
-                      clientTLSSecretRef:
-                        description: SecretReference represents a Secret Reference.
-                          It has enough information to retrieve secret in any namespace
-                        properties:
-                          name:
-                            description: Name is unique within a namespace to reference
-                              a secret resource.
-                            type: string
-                          namespace:
-                            description: Namespace defines the space within which
-                              the secret name must be unique.
-                            type: string
-                        type: object
-                      serverTLSSecretRef:
-                        description: SecretReference represents a Secret Reference.
-                          It has enough information to retrieve secret in any namespace
-                        properties:
-                          name:
-                            description: Name is unique within a namespace to reference
-                              a secret resource.
-                            type: string
-                          namespace:
-                            description: Namespace defines the space within which
-                              the secret name must be unique.
-                            type: string
-                        type: object
-                      tlsCASecretRef:
-                        description: SecretReference represents a Secret Reference.
-                          It has enough information to retrieve secret in any namespace
-                        properties:
-                          name:
-                            description: Name is unique within a namespace to reference
-                              a secret resource.
-                            type: string
-                          namespace:
-                            description: Namespace defines the space within which
-                              the secret name must be unique.
-                            type: string
-                        type: object
-                    required:
-                    - clientTLSSecretRef
-                    - serverTLSSecretRef
-                    - tlsCASecretRef
-                    type: object
                   quota:
                     anyOf:
                     - type: integer
@@ -455,6 +357,53 @@ spec:
                   serverPort:
                     format: int32
                     type: integer
+                  tls:
+                    description: TLSConfig hold the TLS configuration details.
+                    properties:
+                      clientTLSSecretRef:
+                        description: SecretReference represents a Secret Reference.
+                          It has enough information to retrieve secret in any namespace
+                        properties:
+                          name:
+                            description: Name is unique within a namespace to reference
+                              a secret resource.
+                            type: string
+                          namespace:
+                            description: Namespace defines the space within which
+                              the secret name must be unique.
+                            type: string
+                        type: object
+                      serverTLSSecretRef:
+                        description: SecretReference represents a Secret Reference.
+                          It has enough information to retrieve secret in any namespace
+                        properties:
+                          name:
+                            description: Name is unique within a namespace to reference
+                              a secret resource.
+                            type: string
+                          namespace:
+                            description: Namespace defines the space within which
+                              the secret name must be unique.
+                            type: string
+                        type: object
+                      tlsCASecretRef:
+                        description: SecretReference represents a Secret Reference.
+                          It has enough information to retrieve secret in any namespace
+                        properties:
+                          name:
+                            description: Name is unique within a namespace to reference
+                              a secret resource.
+                            type: string
+                          namespace:
+                            description: Namespace defines the space within which
+                              the secret name must be unique.
+                            type: string
+                        type: object
+                    required:
+                    - clientTLSSecretRef
+                    - serverTLSSecretRef
+                    - tlsCASecretRef
+                    type: object
                 type: object
               labels:
                 additionalProperties:
