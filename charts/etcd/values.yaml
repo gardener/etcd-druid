@@ -9,21 +9,16 @@ disableEtcdServiceAccountAutomount: false
 replicas: 1
 #priorityClassName: foo
 
-clientUrlTlsCASecret: etcd-client-ca
-clientUrlTlsServerSecret: etcd-client-server
-clientUrlTlsClientSecret: etcd-client-client
-
-peerUrlTlsCASecret: etcd-peer-ca
-peerUrlTlsServerSecret: etcd-peer-server
-
+tlsServerSecret: etcd-server-tls
+tlsClientSecret: etcd-client-tls
+tlsCASecret: ca-etcd
 annotations: {}
 labels: {}
 
 etcd:
   initialClusterToken: initial
   initialClusterState: new
-  enableClientTLS: false
-  enablePeerTLS: false
+  enableTLS: false
   pullPolicy: IfNotPresent
   metrics: basic
   etcdDefragTimeout: 8m
@@ -39,8 +34,6 @@ etcd:
   heartbeatDuration: 10s
 
 backup:
-  port: 8080
-  enableTLS: false
   pullPolicy: IfNotPresent
   snapstoreTempDir: "/var/etcd/data/temp"
   etcdConnectionTimeout: 5m

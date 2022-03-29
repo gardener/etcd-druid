@@ -16,7 +16,6 @@ metadata:
 {{ toYaml .Values.labels | indent 4 }}
 {{- end }}
 spec:
-  podManagementPolicy: Parallel
   updateStrategy:
     type: RollingUpdate
   serviceName: {{ .Values.serviceName }}
@@ -28,6 +27,7 @@ spec:
   template:
     metadata:
       annotations:
+        checksum/etcd-configmap: {{ include (print $.Template.BasePath "/etcd-configmap.yaml") . | sha256sum }}
 {{- if .Values.annotations }}
 {{ toYaml .Values.annotations | indent 8 }}
 {{- end }}
@@ -53,20 +53,12 @@ spec:
         command:
         - /var/etcd/bin/bootstrap.sh
         readinessProbe:
-          exec:
-            command:
-            - /usr/bin/curl
-{{- if .Values.etcd.enableClientTLS }}
-            - --cert
-            - /var/etcd/ssl/client/client/tls.crt
-            - --key
-            - /var/etcd/ssl/client/client/tls.key
-            - --cacert
-            - /var/etcd/ssl/client/ca/ca.crt
-            - https://{{ .Values.name }}-local:{{- if eq .Values.replicas 1.0 }}{{ .Values.backup.port }}{{ else }}{{ .Values.etcd.clientPort }}{{ end }}/health{{- if eq .Values.replicas 1.0 }}z{{ end }}
-{{ else }}
-            - http://{{ .Values.name }}-local:{{- if eq .Values.replicas 1.0 }}{{ .Values.backup.port }}{{ else }}{{ .Values.etcd.clientPort }}{{ end }}/health{{- if eq .Values.replicas 1.0 }}z{{ end }}
-{{ end }}
+          httpGet:
+{{- if .Values.etcd.enableTLS }}
+            scheme: HTTPS
+{{- end }}
+            path: /healthz
+            port: {{ .Values.backup.port }}
           initialDelaySeconds: 15
           periodSeconds: 5
         livenessProbe:
@@ -76,10 +68,10 @@ spec:
             - -ec
             - ETCDCTL_API=3
             - etcdctl
-{{- if .Values.etcd.enableClientTLS }}
-            - --cert=/var/etcd/ssl/client/client/tls.crt
-            - --key=/var/etcd/ssl/client/client/tls.key
-            - --cacert=/var/etcd/ssl/client/ca/ca.crt
+{{- if .Values.etcd.enableTLS }}
+            - --cert=/var/etcd/ssl/client/tls.crt
+            - --key=/var/etcd/ssl/client/tls.key
+            - --cacert=/var/etcd/ssl/ca/ca.crt
             - --endpoints=https://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
 {{ else }}
             - --endpoints=http://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
@@ -102,27 +94,23 @@ spec:
 {{ toYaml .Values.etcd.resources | indent 10 }}
         env:
         - name: ENABLE_TLS
-          value: {{ .Values.etcd.enableClientTLS }}
+          value: {{ .Values.etcd.enableTLS }}
         - name: BACKUP_ENDPOINT
-          value: "http{{ if .Values.backup.enableTLS }}s{{ end }}://{{ .Values.name }}-local:{{ .Values.backup.port }}"
+          value: "http{{ if .Values.etcd.enableTLS }}s{{ end }}://{{ .Values.name }}-local:{{ .Values.backup.port }}"
         - name: FAIL_BELOW_REVISION_PARAMETER
           value: "{{ if .Values.backup.failBelowRevision }}&failbelowrevision={{ int $.Values.backup.failBelowRevision }}{{ end }}"
         volumeMounts:
         - name: {{ .Values.volumeClaimTemplateName }}
           mountPath: /var/etcd/data/
-{{- if .Values.etcd.enableClientTLS }}
-        - name: client-url-ca-etcd
-          mountPath: /var/etcd/ssl/client/ca
-        - name: client-url-etcd-server-tls
-          mountPath: /var/etcd/ssl/client/server
-        - name: client-url-etcd-client-tls
-          mountPath: /var/etcd/ssl/client/client
-{{- end }}
-{{- if .Values.etcd.enablePeerTLS }}
-        - name: peer-url-ca-etcd
-          mountPath: /var/etcd/ssl/peer/ca
-        - name: peer-url-etcd-server-tls
-          mountPath: /var/etcd/ssl/peer/server
+        - name: etcd-config-file
+          mountPath: /var/etcd/config/
+{{- if .Values.etcd.enableTLS }}
+        - name: ca-etcd
+          mountPath: /var/etcd/ssl/ca
+        - name: etcd-server-tls
+          mountPath: /var/etcd/ssl/server
+        - name: etcd-client-tls
+          mountPath: /var/etcd/ssl/client
 {{- end }}
       - name: backup-restore
         command:
@@ -156,16 +144,16 @@ spec:
 {{- if .Values.backup.enableProfiling }}
         - --enable-profiling={{ .Values.backup.enableProfiling }}
 {{- end }}
-{{- if .Values.backup.enableTLS }}
-        - --cert=/var/etcd/ssl/client/client/tls.crt
-        - --key=/var/etcd/ssl/client/client/tls.key
-        - --cacert=/var/etcd/ssl/client/ca/ca.crt
+{{- if .Values.etcd.enableTLS }}
+        - --cert=/var/etcd/ssl/client/tls.crt
+        - --key=/var/etcd/ssl/client/tls.key
+        - --cacert=/var/etcd/ssl/ca/ca.crt
         - --insecure-transport=false
         - --insecure-skip-tls-verify=false
         - --endpoints=https://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
         # enable TLS on backup-restore server reusing etcd cert bundle
-        - --server-cert=/var/etcd/ssl/client/server/tls.crt
-        - --server-key=/var/etcd/ssl/client/server/tls.key
+        - --server-cert=/var/etcd/ssl/server/tls.crt
+        - --server-key=/var/etcd/ssl/server/tls.key
 {{ else }}
         - --insecure-transport=true
         - --insecure-skip-tls-verify=true
@@ -189,7 +177,7 @@ spec:
         {{- if .Values.backup.compression.enabled }}
         - --compress-snapshots={{ .Values.backup.compression.enabled }}
         {{- end }}
-        {{- if .Values.backup.compression.policy }}
+        {{- if .Values.backup.compression.policy }}        
         - --compression-policy={{ .Values.backup.compression.policy }}
         {{- end }}
 {{- end }}
@@ -327,13 +315,13 @@ spec:
           mountPath: /var/etcd/data
         - name: etcd-config-file
           mountPath: /var/etcd/config/
-{{- if .Values.backup.enableTLS }}
-        - name: client-url-ca-etcd
-          mountPath: /var/etcd/ssl/client/ca
-        - name: client-url-etcd-server-tls
-          mountPath: /var/etcd/ssl/client/server
-        - name: client-url-etcd-client-tls
-          mountPath: /var/etcd/ssl/client/client
+{{- if .Values.etcd.enableTLS }}
+        - name: ca-etcd
+          mountPath: /var/etcd/ssl/ca
+        - name: etcd-server-tls
+          mountPath: /var/etcd/ssl/server
+        - name: etcd-client-tls
+          mountPath: /var/etcd/ssl/client
 {{- end }}
 {{- if eq .Values.store.storageProvider "GCS" }}
         - name: etcd-backup
@@ -374,24 +362,16 @@ spec:
           items:
           - key: etcd.conf.yaml
             path: etcd.conf.yaml
-{{- if .Values.etcd.enableClientTLS }}
-      - name: client-url-ca-etcd
+{{- if .Values.etcd.enableTLS }}
+      - name: etcd-server-tls
         secret:
-          secretName: {{ .Values.clientUrlTlsCASecret }}
-      - name: client-url-etcd-server-tls
+          secretName: {{ .Values.tlsServerSecret }}
+      - name: etcd-client-tls
         secret:
-          secretName: {{ .Values.clientUrlTlsServerSecret }}
-      - name: client-url-etcd-client-tls
+          secretName: {{ .Values.tlsClientSecret }}
+      - name: ca-etcd
         secret:
-          secretName: {{ .Values.clientUrlTlsClientSecret }}
-{{- end }}
-{{- if .Values.etcd.enablePeerTLS }}
-      - name: peer-url-ca-etcd
-        secret:
-          secretName: {{ .Values.peerUrlTlsCASecret }}
-      - name: peer-url-etcd-server-tls
-        secret:
-          secretName: {{ .Values.peerUrlTlsServerSecret }}
+          secretName: {{ .Values.tlsCASecret }}
 {{- end }}
 {{- if eq .Values.store.storageProvider "GCS" }}
       - name: etcd-backup

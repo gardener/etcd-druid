@@ -290,6 +290,54 @@ func (m *EtcdDruidRefManager) ClaimPodDisruptionBudget(ctx context.Context, pdb 
 	return claimed, utilerrors.NewAggregate(errlist)
 }
 
+// ClaimConfigMaps tries to take ownership of a list of ConfigMaps.
+//
+// It will reconcile the following:
+//   * Adopt orphans if the selector matches.
+//   * Release owned objects if the selector no longer matches.
+//
+// Optional: If one or more filters are specified, a Service will only be claimed if
+// all filters return true.
+//
+// A non-nil error is returned if some form of reconciliation was attempted and
+// failed. Usually, controllers should try again later in case reconciliation
+// is still needed.
+//
+// If the error is nil, either the reconciliation succeeded, or no
+// reconciliation was necessary. The list of Services that you now own is returned.
+func (m *EtcdDruidRefManager) ClaimConfigMaps(ctx context.Context, cms *corev1.ConfigMapList, filters ...func(*corev1.ConfigMap) bool) ([]*corev1.ConfigMap, error) {
+	var claimed []*corev1.ConfigMap
+	var errlist []error
+
+	match := func(obj metav1.Object) bool {
+		cm := obj.(*corev1.ConfigMap)
+		// Check selector first so filters only run on potentially matching configmaps.
+		if !m.Selector.Matches(labels.Set(cm.Labels)) {
+			return false
+		}
+		for _, filter := range filters {
+			if !filter(cm) {
+				return false
+			}
+		}
+		return true
+	}
+
+	for k := range cms.Items {
+		cm := &cms.Items[k]
+		ok, err := m.claimObject(ctx, cm, match, m.AdoptResource, m.ReleaseResource)
+
+		if err != nil {
+			errlist = append(errlist, err)
+			continue
+		}
+		if ok {
+			claimed = append(claimed, cm)
+		}
+	}
+	return claimed, utilerrors.NewAggregate(errlist)
+}
+
 // AdoptResource sends a patch to take control of the Etcd. It returns the error if
 // the patching fails.
 func (m *EtcdDruidRefManager) AdoptResource(ctx context.Context, obj client.Object) error {
@@ -314,6 +362,13 @@ func (m *EtcdDruidRefManager) AdoptResource(ctx context.Context, obj client.Obje
 		annotations[common.GardenerOwnedBy] = objectKey
 		annotations[common.GardenerOwnerType] = strings.ToLower(etcdGVK.Kind)
 		clone.SetAnnotations(annotations)
+	case *corev1.ConfigMap:
+		clone = obj.(*corev1.ConfigMap).DeepCopy()
+		// Note that ValidateOwnerReferences() will reject this patch if another
+		// OwnerReference exists with controller=true.
+		if err := controllerutil.SetControllerReference(m.Controller, clone, m.scheme); err != nil {
+			return err
+		}
 	case *batchv1.Job:
 		clone = obj.(*batchv1.Job).DeepCopy()
 		// Note that ValidateOwnerReferences() will reject this patch if another
@@ -368,6 +423,8 @@ func (m *EtcdDruidRefManager) ReleaseResource(ctx context.Context, obj client.Ob
 		// recommend if statefulset has an owner reference set.
 		delete(clone.GetAnnotations(), common.GardenerOwnedBy)
 		delete(clone.GetAnnotations(), common.GardenerOwnerType)
+	case *corev1.ConfigMap:
+		clone = obj.(*corev1.ConfigMap).DeepCopy()
 	case *policyv1beta1.PodDisruptionBudget:
 		clone = obj.(*policyv1beta1.PodDisruptionBudget).DeepCopy()
 	default:
