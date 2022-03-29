@@ -852,9 +852,6 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 
 	// Validate Resources
 	// resources:
-	//	  limits:
-	//		cpu: 100m
-	//		memory: 512Gi
 	//	  requests:
 	//		cpu: 50m
 	//		memory: 128Mi
@@ -1008,10 +1005,6 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 								"Requests": MatchKeys(IgnoreExtras, Keys{
 									corev1.ResourceCPU:    Equal(resource.MustParse("50m")),
 									corev1.ResourceMemory: Equal(resource.MustParse("128Mi")),
-								}),
-								"Limits": MatchKeys(IgnoreExtras, Keys{
-									corev1.ResourceCPU:    Equal(resource.MustParse("100m")),
-									corev1.ResourceMemory: Equal(resource.MustParse("512Gi")),
 								}),
 							}),
 							"ReadinessProbe": PointTo(MatchFields(IgnoreExtras, Fields{

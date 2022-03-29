@@ -23,9 +23,6 @@ etcd:
   metrics: basic
   etcdDefragTimeout: 8m
   resources:
-    limits:
-      cpu: 100m
-      memory: 512Gi
     requests:
       cpu: 50m
       memory: 128Mi
@@ -43,16 +40,10 @@ backup:
   maxBackups: 7
   etcdSnapshotTimeout: 8m
   resources:
-    limits:
-      cpu: 100m
-      memory: 512Gi
     requests:
       cpu: 50m
       memory: 128Mi
   compactionResources:
-    limits:
-      cpu: 700m
-      memory: 4Gi
     requests:
       cpu: 500m
       memory: 3Gi
