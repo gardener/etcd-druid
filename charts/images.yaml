@@ -6,4 +6,4 @@ images:
 - name: etcd
   sourceRepository: github.com/gardener/etcd-custom-image
   repository: eu.gcr.io/gardener-project/gardener/etcd
-  tag: "v3.4.13-bootstrap-1"
+  tag: "v3.4.13-bootstrap-2"

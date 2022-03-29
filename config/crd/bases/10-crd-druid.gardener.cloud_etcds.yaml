@@ -261,9 +261,12 @@ spec:
                             type: string
                         type: object
                       tlsCASecretRef:
-                        description: SecretReference represents a Secret Reference.
-                          It has enough information to retrieve secret in any namespace
+                        description: SecretReference defines a reference to a secret.
                         properties:
+                          dataKey:
+                            description: DataKey is the name of the key in the data
+                              map containing the credentials.
+                            type: string
                           name:
                             description: Name is unique within a namespace to reference
                               a secret resource.
@@ -387,9 +390,12 @@ spec:
                             type: string
                         type: object
                       tlsCASecretRef:
-                        description: SecretReference represents a Secret Reference.
-                          It has enough information to retrieve secret in any namespace
+                        description: SecretReference defines a reference to a secret.
                         properties:
+                          dataKey:
+                            description: DataKey is the name of the key in the data
+                              map containing the credentials.
+                            type: string
                           name:
                             description: Name is unique within a namespace to reference
                               a secret resource.

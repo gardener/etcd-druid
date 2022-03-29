@@ -111,8 +111,10 @@ func getEtcd(name, namespace string) *Etcd {
 		ServerTLSSecretRef: corev1.SecretReference{
 			Name: "etcd-server-tls",
 		},
-		TLSCASecretRef: corev1.SecretReference{
-			Name: "ca-etcd",
+		TLSCASecretRef: SecretReference{
+			SecretReference: corev1.SecretReference{
+				Name: "ca-etcd",
+			},
 		},
 	}
 

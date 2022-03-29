@@ -77,7 +77,7 @@ data:
       client-cert-auth: true
 
       # Path to the client server TLS trusted CA cert file.
-      trusted-ca-file: /var/etcd/ssl/ca/ca.crt
+      trusted-ca-file: /var/etcd/ssl/ca/{{ .Values.tlsCASecretKey }}
 
       # Client TLS using generated certificates
       auto-tls: false
