@@ -108,6 +108,11 @@ var _ = BeforeSuite(func(done Done) {
 	err = er.SetupWithManager(mgr, 1, true)
 	Expect(err).NotTo(HaveOccurred())
 
+	secret := NewSecret(mgr)
+
+	err = secret.SetupWithManager(mgr, 1)
+	Expect(err).NotTo(HaveOccurred())
+
 	custodian := NewEtcdCustodian(mgr, controllersconfig.EtcdCustodianController{
 		EtcdMember: controllersconfig.EtcdMemberConfig{
 			EtcdMemberNotReadyThreshold: 1 * time.Minute,
