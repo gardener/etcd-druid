@@ -33,20 +33,32 @@ func (m *etcdToSecretMapper) Map(obj client.Object) []reconcile.Request {
 
 	var requests []reconcile.Request
 
-	if etcd.Spec.Etcd.TLS != nil {
+	if etcd.Spec.Etcd.ClientUrlTLS != nil {
 		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
 			Namespace: etcd.Namespace,
-			Name:      etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name,
+			Name:      etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name,
 		}})
 
 		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
 			Namespace: etcd.Namespace,
-			Name:      etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name,
+			Name:      etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name,
 		}})
 
 		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
 			Namespace: etcd.Namespace,
-			Name:      etcd.Spec.Etcd.TLS.TLSCASecretRef.Name,
+			Name:      etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name,
+		}})
+	}
+
+	if etcd.Spec.Etcd.PeerUrlTLS != nil {
+		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
+			Namespace: etcd.Namespace,
+			Name:      etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name,
+		}})
+
+		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
+			Namespace: etcd.Namespace,
+			Name:      etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name,
 		}})
 	}
 

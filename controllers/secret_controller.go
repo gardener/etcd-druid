@@ -70,10 +70,18 @@ func (s *Secret) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, 
 	needsFinalizer := false
 
 	for _, etcd := range etcdList.Items {
-		if etcd.Spec.Etcd.TLS != nil &&
-			(etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name == secret.Name ||
-				etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name == secret.Name ||
-				etcd.Spec.Etcd.TLS.TLSCASecretRef.Name == secret.Name) {
+		if etcd.Spec.Etcd.ClientUrlTLS != nil &&
+			(etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name == secret.Name ||
+				etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name == secret.Name ||
+				etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name == secret.Name) {
+
+			needsFinalizer = true
+			break
+		}
+
+		if etcd.Spec.Etcd.PeerUrlTLS != nil &&
+			(etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name == secret.Name ||
+				etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name == secret.Name) { // Currently, no client certificate for peer url is used in ETCD cluster
 
 			needsFinalizer = true
 			break

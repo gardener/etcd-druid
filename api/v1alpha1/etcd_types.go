@@ -88,11 +88,11 @@ type StoreSpec struct {
 // TLSConfig hold the TLS configuration details.
 type TLSConfig struct {
 	// +required
-	ServerTLSSecretRef corev1.SecretReference `json:"serverTLSSecretRef"`
-	// +required
-	ClientTLSSecretRef corev1.SecretReference `json:"clientTLSSecretRef"`
-	// +required
 	TLSCASecretRef SecretReference `json:"tlsCASecretRef"`
+	// +required
+	ServerTLSSecretRef corev1.SecretReference `json:"serverTLSSecretRef"`
+	// +optional
+	ClientTLSSecretRef corev1.SecretReference `json:"clientTLSSecretRef"`
 }
 
 // SecretReference defines a reference to a secret.
@@ -217,8 +217,13 @@ type EtcdConfig struct {
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+	// ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster
 	// +optional
-	TLS *TLSConfig `json:"tls,omitempty"`
+	ClientUrlTLS *TLSConfig `json:"clientUrlTls,omitempty"`
+	// PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster
+	// Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.
+	// +optional
+	PeerUrlTLS *TLSConfig `json:"peerUrlTls,omitempty"`
 	// EtcdDefragTimeout defines the timeout duration for etcd defrag call
 	// +optional
 	EtcdDefragTimeout *metav1.Duration `json:"etcdDefragTimeout,omitempty"`

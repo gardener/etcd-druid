@@ -50,18 +50,27 @@ var _ = Describe("EtcdToSecret", func() {
 
 	It("should return four requests because Etcd is referencing secrets", func() {
 		var (
-			secretClientTLS   = "client"
-			secretServerTLS   = "server"
-			secretCATLS       = "ca"
-			secretBackupStore = "backup-store"
+			secretClientCATLS     = "client-url-ca-etcd"
+			secretClientServerTLS = "client-url-etcd-server-tls"
+			secretClientClientTLS = "client-url-etcd-client-tls"
+			secretPeerCATLS       = "peer-url-ca-etcd"
+			secretPeerServerTLS   = "peer-url-etcd-server-tls"
+			secretBackupStore     = "backup-store"
 		)
 
-		etcd.Spec.Etcd.TLS = &druidv1alpha1.TLSConfig{
-			ClientTLSSecretRef: corev1.SecretReference{Name: secretClientTLS},
-			ServerTLSSecretRef: corev1.SecretReference{Name: secretServerTLS},
+		etcd.Spec.Etcd.ClientUrlTLS = &druidv1alpha1.TLSConfig{
 			TLSCASecretRef: druidv1alpha1.SecretReference{
-				SecretReference: corev1.SecretReference{Name: secretCATLS},
+				SecretReference: corev1.SecretReference{Name: secretClientCATLS},
 			},
+			ServerTLSSecretRef: corev1.SecretReference{Name: secretClientServerTLS},
+			ClientTLSSecretRef: corev1.SecretReference{Name: secretClientClientTLS},
+		}
+
+		etcd.Spec.Etcd.PeerUrlTLS = &druidv1alpha1.TLSConfig{
+			TLSCASecretRef: druidv1alpha1.SecretReference{
+				SecretReference: corev1.SecretReference{Name: secretPeerCATLS},
+			},
+			ServerTLSSecretRef: corev1.SecretReference{Name: secretPeerServerTLS},
 		}
 
 		etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
@@ -70,15 +79,23 @@ var _ = Describe("EtcdToSecret", func() {
 
 		Expect(m.Map(etcd)).To(ConsistOf(
 			reconcile.Request{NamespacedName: types.NamespacedName{
-				Name:      secretClientTLS,
+				Name:      secretClientCATLS,
 				Namespace: namespace,
 			}},
 			reconcile.Request{NamespacedName: types.NamespacedName{
-				Name:      secretServerTLS,
+				Name:      secretClientServerTLS,
 				Namespace: namespace,
 			}},
 			reconcile.Request{NamespacedName: types.NamespacedName{
-				Name:      secretCATLS,
+				Name:      secretClientClientTLS,
+				Namespace: namespace,
+			}},
+			reconcile.Request{NamespacedName: types.NamespacedName{
+				Name:      secretPeerCATLS,
+				Namespace: namespace,
+			}},
+			reconcile.Request{NamespacedName: types.NamespacedName{
+				Name:      secretPeerServerTLS,
 				Namespace: namespace,
 			}},
 			reconcile.Request{NamespacedName: types.NamespacedName{
