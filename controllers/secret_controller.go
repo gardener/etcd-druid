@@ -52,8 +52,6 @@ func NewSecret(mgr manager.Manager) *Secret {
 
 // Reconcile reconciles the secret.
 func (s *Secret) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	s.logger.Info("Secret controller reconciliation started")
-
 	secret := &corev1.Secret{}
 	if err := s.Get(ctx, req.NamespacedName, secret); err != nil {
 		if errors.IsNotFound(err) {
