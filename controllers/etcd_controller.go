@@ -844,16 +844,27 @@ func (r *EtcdReconciler) reconcileServiceAccount(ctx context.Context, logger log
 		return nil
 	}
 
+	var (
+		mustPatch bool
+		copy      = obj.DeepCopy()
+	)
+
 	if !reflect.DeepEqual(decoded.Labels, obj.Labels) {
-		logger.Info("Update serviceaccount")
-		copy := obj.DeepCopy()
 		copy.Labels = decoded.Labels
-		if err := r.Patch(ctx, copy, client.MergeFrom(obj)); err != nil {
-			return err
-		}
+		mustPatch = true
 	}
 
-	return nil
+	if !reflect.DeepEqual(decoded.AutomountServiceAccountToken, obj.AutomountServiceAccountToken) {
+		copy.AutomountServiceAccountToken = decoded.AutomountServiceAccountToken
+		mustPatch = true
+	}
+
+	if !mustPatch {
+		return nil
+	}
+
+	logger.Info("Update serviceaccount")
+	return r.Patch(ctx, copy, client.MergeFrom(obj))
 }
 
 func (r *EtcdReconciler) reconcileRole(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) error {
