@@ -18,21 +18,21 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
-	"github.com/gardener/gardener/pkg/controllerutils"
+	resourcesv1alpha1 "github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 
-	resourcesv1alpha1 "github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
+	"github.com/Masterminds/semver"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	autoscalingv1beta2 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -81,14 +81,6 @@ func (a *AddToManagerBuilder) AddToManager(m manager.Manager) error {
 		}
 	}
 	return nil
-}
-
-// DeleteAllFinalizers removes all finalizers from the object and issues an  update.
-func DeleteAllFinalizers(ctx context.Context, client client.Client, obj client.Object) error {
-	return controllerutils.TryUpdate(ctx, retry.DefaultBackoff, client, obj, func() error {
-		obj.SetFinalizers(nil)
-		return nil
-	})
 }
 
 // GetSecretByReference returns the Secret object matching the given SecretReference.
@@ -167,4 +159,59 @@ func ShouldSkipOperation(operationType gardencorev1beta1.LastOperationType, obj 
 // If the object kind doesn't match the given reference kind this will result in an error.
 func GetObjectByReference(ctx context.Context, c client.Client, ref *autoscalingv1.CrossVersionObjectReference, namespace string, obj client.Object) error {
 	return c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: v1beta1constants.ReferencedResourcesPrefix + ref.Name}, obj)
+}
+
+var (
+	versionConstraintGreaterEqual136 *semver.Constraints
+	versionConstraintGreaterEqual137 *semver.Constraints
+)
+
+func init() {
+	var err error
+
+	versionConstraintGreaterEqual136, err = semver.NewConstraint(">= 1.36")
+	utilruntime.Must(err)
+	versionConstraintGreaterEqual137, err = semver.NewConstraint(">= 1.37")
+	utilruntime.Must(err)
+}
+
+func parseGardenerVersion(version string) (*semver.Version, error) {
+	v := version
+	if idx := strings.Index(v, "-"); idx >= 0 {
+		v = version[:idx]
+	}
+
+	return semver.NewVersion(v)
+}
+
+// UseTokenRequestor returns true when the provided Gardener version is large enough for supporting acquiring tokens
+// for shoot cluster control plane components running in the seed based on the TokenRequestor controller of
+// gardener-resource-manager (https://github.com/gardener/gardener/blob/master/docs/concepts/resource-manager.md#tokenrequestor).
+func UseTokenRequestor(gardenerVersion string) (bool, error) {
+	if gardenerVersion == "" {
+		return false, nil
+	}
+
+	gv, err := parseGardenerVersion(gardenerVersion)
+	if err != nil {
+		return false, fmt.Errorf("could not parse Gardener version: %w", err)
+	}
+
+	return versionConstraintGreaterEqual136.Check(gv), nil
+}
+
+// UseServiceAccountTokenVolumeProjection returns true when the provided Gardener version is large enough for supporting
+// automatic token volume projection for components running in the seed and shoot clusters based on the respective
+// webhook part of gardener-resource-manager (https://github.com/gardener/gardener/blob/master/docs/concepts/resource-manager.md#auto-mounting-projected-serviceaccount-tokens).
+func UseServiceAccountTokenVolumeProjection(gardenerVersion string) (bool, error) {
+	if gardenerVersion == "" {
+		return false, nil
+	}
+
+	gv, err := parseGardenerVersion(gardenerVersion)
+	if err != nil {
+		return false, fmt.Errorf("could not parse Gardener version: %w", err)
+	}
+
+	return versionConstraintGreaterEqual137.Check(gv), nil
 }
