@@ -335,6 +335,12 @@ spec:
         - name: client-url-etcd-client-tls
           mountPath: /var/etcd/ssl/client/client
 {{- end }}
+{{- if .Values.etcd.enablePeerTLS }}
+        - name: peer-url-ca-etcd
+          mountPath: /var/etcd/ssl/peer/ca
+        - name: peer-url-etcd-server-tls
+          mountPath: /var/etcd/ssl/peer/server
+{{- end }}
 {{- if eq .Values.store.storageProvider "GCS" }}
         - name: etcd-backup
           mountPath: "/root/.gcp/"
