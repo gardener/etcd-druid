@@ -242,6 +242,20 @@ type SharedConfig struct {
 	AutoCompactionRetention *string `json:"autoCompactionRetention,omitempty"`
 }
 
+// SchedulingConstraints defines the different scheduling constraints that must be applied to the
+// pod spec in the etcd statefulset.
+// Currently supported constraints are Affinity and TopologySpreadConstraints.
+type SchedulingConstraints struct {
+	// Affinity defines the various affinity and anti-affinity rules for a pod
+	// that are honoured by the kube-scheduler.
+	// +optional
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+	// TopologySpreadConstraints describes how a group of pods ought to spread across topology domains,
+	// that are honoured by the kube-scheduler.
+	// +optional
+	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
+}
+
 // EtcdSpec defines the desired state of Etcd
 type EtcdSpec struct {
 	// selector is a label query over pods that should match the replica count.
@@ -258,6 +272,8 @@ type EtcdSpec struct {
 	Backup BackupSpec `json:"backup"`
 	// +optional
 	Common SharedConfig `json:"sharedConfig,omitempty"`
+	// +optional
+	SchedulingConstraints SchedulingConstraints `json:"schedulingConstraints,omitempty"`
 	// +required
 	Replicas int32 `json:"replicas"`
 	// PriorityClassName is the name of a priority class that shall be used for the etcd pods.
