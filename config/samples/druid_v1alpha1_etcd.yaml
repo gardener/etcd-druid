@@ -64,7 +64,7 @@ spec:
     autoCompactionRetention: "30m"
   schedulingConstraints:
     affinity: {}
-    topologySpreadConstraints: {}
+    topologySpreadConstraints: []
 
   replicas: 1
 # priorityClassName: foo
