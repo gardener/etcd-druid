@@ -30,7 +30,7 @@ etcd:
   enablePeerTLS: false
   pullPolicy: IfNotPresent
   metrics: basic
-  etcdDefragTimeout: 8m
+  etcdDefragTimeout: 15m
   resources:
     requests:
       cpu: 50m
@@ -49,7 +49,7 @@ backup:
   enableProfiling: false
   garbageCollectionPolicy: LimitBased
   maxBackups: 7
-  etcdSnapshotTimeout: 8m
+  etcdSnapshotTimeout: 15m
   resources:
     requests:
       cpu: 50m
