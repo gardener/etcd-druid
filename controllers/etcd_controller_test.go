@@ -1059,7 +1059,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 								"--etcd-connection-timeout=5m":                   Equal("--etcd-connection-timeout=5m"),
 								"--snapstore-temp-directory=/var/etcd/data/temp": Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
 								"--etcd-process-name=etcd":                       Equal("--etcd-process-name=etcd"),
-								"--enable-member-lease-renewal=true":             Equal("--enable-member-lease-renewal=true"),
+								"--enable-member-lease-renewal=false":            Equal("--enable-member-lease-renewal=false"),
 								"--k8s-heartbeat-duration=10s":                   Equal("--k8s-heartbeat-duration=10s"),
 
 								fmt.Sprintf("--delta-snapshot-memory-limit=%d", deltaSnapShotMemLimit.Value()):                 Equal(fmt.Sprintf("--delta-snapshot-memory-limit=%d", deltaSnapShotMemLimit.Value())),
@@ -1446,7 +1446,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								"--etcd-process-name=etcd":                       Equal("--etcd-process-name=etcd"),
 								"--etcd-connection-timeout=5m":                   Equal("--etcd-connection-timeout=5m"),
 								"--enable-snapshot-lease-renewal=true":           Equal("--enable-snapshot-lease-renewal=true"),
-								"--enable-member-lease-renewal=true":             Equal("--enable-member-lease-renewal=true"),
+								"--enable-member-lease-renewal=false":            Equal("--enable-member-lease-renewal=false"),
 								"--k8s-heartbeat-duration=10s":                   Equal("--k8s-heartbeat-duration=10s"),
 								fmt.Sprintf("--defragmentation-schedule=%s", *instance.Spec.Etcd.DefragmentationSchedule):                           Equal(fmt.Sprintf("--defragmentation-schedule=%s", *instance.Spec.Etcd.DefragmentationSchedule)),
 								fmt.Sprintf("--schedule=%s", *instance.Spec.Backup.FullSnapshotSchedule):                                            Equal(fmt.Sprintf("--schedule=%s", *instance.Spec.Backup.FullSnapshotSchedule)),
