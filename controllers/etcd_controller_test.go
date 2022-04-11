@@ -1212,8 +1212,8 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 								fmt.Sprintf("--max-backups=%d", maxBackups):                                                    Equal(fmt.Sprintf("--max-backups=%d", maxBackups)),
 								fmt.Sprintf("--auto-compaction-mode=%s", druidv1alpha1.Periodic):                               Equal(fmt.Sprintf("--auto-compaction-mode=%s", druidv1alpha1.Periodic)),
 								fmt.Sprintf("--auto-compaction-retention=%s", DefaultAutoCompactionRetention):                  Equal(fmt.Sprintf("--auto-compaction-retention=%s", DefaultAutoCompactionRetention)),
-								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", "8m"):                                          Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", "8m")),
-								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", "8m"):                                            Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", "8m")),
+								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", "15m"):                                         Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", "15m")),
+								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", "15m"):                                           Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", "15m")),
 							}),
 							"Ports": ConsistOf([]corev1.ContainerPort{
 								{
