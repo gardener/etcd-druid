@@ -46,6 +46,16 @@ spec:
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
       serviceAccountName: {{ .Values.serviceAccountName }}
+{{- if .Values.schedulingConstraints }}
+{{- if .Values.schedulingConstraints.affinity }}
+      affinity:
+{{ toYaml .Values.schedulingConstraints.affinity | indent 8 }}
+{{- end }}
+{{- if .Values.schedulingConstraints.topologySpreadConstraints }}
+      topologySpreadConstraints:
+{{ toYaml .Values.schedulingConstraints.topologySpreadConstraints | indent 6 }}
+{{- end }}
+{{- end }}
       containers:
       - name: etcd
         image: {{ .Values.etcd.image }}

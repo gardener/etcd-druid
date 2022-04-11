@@ -1079,6 +1079,11 @@ func (r *EtcdReconciler) getMapFromEtcd(im imagevector.ImageVector, etcd *druidv
 		sharedConfigValues["autoCompactionRetention"] = etcd.Spec.Common.AutoCompactionRetention
 	}
 
+	schedulingConstraints := map[string]interface{}{
+		"affinity":                  etcd.Spec.SchedulingConstraints.Affinity,
+		"topologySpreadConstraints": etcd.Spec.SchedulingConstraints.TopologySpreadConstraints,
+	}
+
 	annotations := make(map[string]string)
 	if etcd.Spec.Annotations != nil {
 		for key, value := range etcd.Spec.Annotations {
@@ -1102,6 +1107,7 @@ func (r *EtcdReconciler) getMapFromEtcd(im imagevector.ImageVector, etcd *druidv
 		"etcd":                               etcdValues,
 		"backup":                             backupValues,
 		"sharedConfig":                       sharedConfigValues,
+		"schedulingConstraints":              schedulingConstraints,
 		"replicas":                           etcd.Spec.Replicas,
 		"statefulsetReplicas":                statefulsetReplicas,
 		"serviceName":                        val.Service.PeerServiceName,

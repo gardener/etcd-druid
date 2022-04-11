@@ -79,6 +79,29 @@ sharedConfig:
   autoCompactionMode: periodic
   autoCompactionRetention: "30m"
 
+schedulingConstraints: {}
+  ## affinity defines the various affinity and anti-affinity rules for a pod
+  ## that are honoured by the kube-scheduler.
+  # affinity:
+  #   podAffinity:
+  #     requiredDuringSchedulingIgnoredDuringExecution:
+  #     - labelSelector:
+  #         matchExpressions:
+  #         - key: key
+  #           operator: In
+  #           values:
+  #           - value
+  #       topologyKey: topology.kubernetes.io/zone
+  ## topologySpreadConstraints describes how a group of pods ought to spread across topology domains,
+  ## that are honoured by the kube-scheduler.
+  # topologySpreadConstraints:
+  # - maxSkew: 1
+  #   topologyKey: topology.kubernetes.io/zone
+  #   whenUnsatisfiable: DoNotSchedule
+  #   labelSelector:
+  #     matchLabels:
+  #       key: value
+
 volumeClaimTemplateName: test
 storageClass: ""
 storageCapacity: 16Gi

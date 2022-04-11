@@ -62,6 +62,9 @@ spec:
   sharedConfig:
     autoCompactionMode: periodic
     autoCompactionRetention: "30m"
+  schedulingConstraints:
+    affinity: {}
+    topologySpreadConstraints: []
 
   replicas: 1
 # priorityClassName: foo
