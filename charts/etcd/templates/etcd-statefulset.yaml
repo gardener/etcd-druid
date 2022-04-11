@@ -233,7 +233,7 @@ spec:
         - --snapstore-temp-directory={{ .Values.backup.snapstoreTempDir }}
         - --etcd-process-name=etcd
 {{- if .Values.etcd.heartbeatDuration }}
-        - --enable-member-lease-renewal=true
+        - --enable-member-lease-renewal=false
         - --k8s-heartbeat-duration={{ .Values.etcd.heartbeatDuration }}
 {{- end }}
 {{- if .Values.backup.leaderElection }}
