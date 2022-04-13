@@ -35,8 +35,9 @@ type component struct {
 
 func (c *component) Deploy(ctx context.Context) error {
 	var (
-		deltaSnapshotLease = c.emptyLease(c.values.DeltaSnapshotLeaseName)
-		fullSnapshotLease  = c.emptyLease(c.values.FullSnapshotLeaseName)
+		deltaSnapshotLease  = c.emptyLease(c.values.DeltaSnapshotLeaseName)
+		fullSnapshotLease   = c.emptyLease(c.values.FullSnapshotLeaseName)
+		clusterRestoreLease = c.emptyLease(c.values.ClusterRestoreLeaseName)
 	)
 
 	if err := c.syncSnapshotLease(ctx, deltaSnapshotLease); err != nil {
@@ -44,6 +45,10 @@ func (c *component) Deploy(ctx context.Context) error {
 	}
 
 	if err := c.syncSnapshotLease(ctx, fullSnapshotLease); err != nil {
+		return err
+	}
+
+	if err := c.syncClusterRestoreLease(ctx, clusterRestoreLease); err != nil {
 		return err
 	}
 
@@ -56,8 +61,9 @@ func (c *component) Deploy(ctx context.Context) error {
 
 func (c *component) Destroy(ctx context.Context) error {
 	var (
-		deltaSnapshotLease = c.emptyLease(c.values.DeltaSnapshotLeaseName)
-		fullSnapshotLease  = c.emptyLease(c.values.FullSnapshotLeaseName)
+		deltaSnapshotLease  = c.emptyLease(c.values.DeltaSnapshotLeaseName)
+		fullSnapshotLease   = c.emptyLease(c.values.FullSnapshotLeaseName)
+		clusterRestoreLease = c.emptyLease(c.values.ClusterRestoreLeaseName)
 	)
 
 	if err := c.deleteSnapshotLease(ctx, deltaSnapshotLease); err != nil {
@@ -65,6 +71,10 @@ func (c *component) Destroy(ctx context.Context) error {
 	}
 
 	if err := c.deleteSnapshotLease(ctx, fullSnapshotLease); err != nil {
+		return err
+	}
+
+	if err := c.deleteSnapshotLease(ctx, clusterRestoreLease); err != nil {
 		return err
 	}
 

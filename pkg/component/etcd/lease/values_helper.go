@@ -23,12 +23,13 @@ import (
 // GenerateValues generates `lease.Values` for the lease component with the given parameters.
 func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
 	return Values{
-		BackupEnabled:          etcd.Spec.Backup.Store != nil,
-		EtcdName:               etcd.Name,
-		EtcdUID:                etcd.UID,
-		DeltaSnapshotLeaseName: GetDeltaSnapshotLeaseName(etcd),
-		FullSnapshotLeaseName:  GetFullSnapshotLeaseName(etcd),
-		Replicas:               etcd.Spec.Replicas,
+		BackupEnabled:           etcd.Spec.Backup.Store != nil,
+		EtcdName:                etcd.Name,
+		EtcdUID:                 etcd.UID,
+		DeltaSnapshotLeaseName:  GetDeltaSnapshotLeaseName(etcd),
+		FullSnapshotLeaseName:   GetFullSnapshotLeaseName(etcd),
+		ClusterRestoreLeaseName: GetClusterRestoreLeaseName(etcd),
+		Replicas:                etcd.Spec.Replicas,
 	}
 }
 
@@ -40,4 +41,9 @@ func GetDeltaSnapshotLeaseName(etcd *druidv1alpha1.Etcd) string {
 // GetFullSnapshotLeaseName returns the name of the full snapshot lease based on the given `etcd` object.
 func GetFullSnapshotLeaseName(etcd *druidv1alpha1.Etcd) string {
 	return fmt.Sprintf("%s-full-snap", etcd.Name)
+}
+
+// GetClusterRestoreLeaseName returns the name of the cluster restore indicator lease based on the given `etcd` object.
+func GetClusterRestoreLeaseName(etcd *druidv1alpha1.Etcd) string {
+	return fmt.Sprintf("%s-restoration-indicator", etcd.Name)
 }

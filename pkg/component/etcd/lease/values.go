@@ -29,6 +29,8 @@ type Values struct {
 	DeltaSnapshotLeaseName string
 	// FullSnapshotLeaseName is the name of the full snapshot lease object.
 	FullSnapshotLeaseName string
+	// ClusterRestoreLeaseName is the name of the lease object responsible for indicating restoration status of ETCD cluster
+	ClusterRestoreLeaseName string
 	// Replicas is the replica count of the etcd cluster.
 	Replicas int32
 }

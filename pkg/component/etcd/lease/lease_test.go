@@ -86,6 +86,7 @@ var _ = Describe("Lease", func() {
 
 				checkMemberLeases(ctx, c, etcd)
 				checkSnapshotLeases(ctx, c, etcd, values)
+				checkClusterRestoreLease(ctx, c, etcd, values)
 			})
 		})
 
@@ -109,6 +110,7 @@ var _ = Describe("Lease", func() {
 
 				checkMemberLeases(ctx, c, etcd)
 				checkSnapshotLeases(ctx, c, etcd, values)
+				checkClusterRestoreLease(ctx, c, etcd, values)
 			})
 		})
 
@@ -128,6 +130,7 @@ var _ = Describe("Lease", func() {
 
 				checkMemberLeases(ctx, c, etcd)
 				checkSnapshotLeases(ctx, c, etcd, values)
+				checkClusterRestoreLease(ctx, c, etcd, values)
 			})
 		})
 
@@ -190,6 +193,9 @@ var _ = Describe("Lease", func() {
 				_, err = getSnapshotLease(ctx, c, namespace, values.FullSnapshotLeaseName)
 				Expect(err).To(matchers.BeNotFoundError())
 
+				_, err = getClusterRestoreLease(ctx, c, namespace, values.ClusterRestoreLeaseName)
+				Expect(err).To(matchers.BeNotFoundError())
+
 				leases := &coordinationv1.LeaseList{}
 				Expect(c.List(ctx, leases, client.InNamespace(etcd.Namespace), client.MatchingLabels(map[string]string{
 					common.GardenerOwnedBy:           etcd.Name,
@@ -218,6 +224,20 @@ func checkSnapshotLeases(ctx context.Context, c client.Client, etcd *druidv1alph
 	fullLease, err := getSnapshotLease(ctx, c, etcd.Namespace, val.FullSnapshotLeaseName)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(fullLease).To(PointTo(matchLeaseElement(fullLease.Name, etcd.Name, etcd.UID)))
+}
+
+func getClusterRestoreLease(ctx context.Context, c client.Client, namespace, name string) (*coordinationv1.Lease, error) {
+	clusterRestoreLease := coordinationv1.Lease{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &clusterRestoreLease); err != nil {
+		return nil, err
+	}
+	return &clusterRestoreLease, nil
+}
+
+func checkClusterRestoreLease(ctx context.Context, c client.Client, etcd *druidv1alpha1.Etcd, val Values) {
+	clusterRestore, err := getClusterRestoreLease(ctx, c, etcd.Namespace, val.ClusterRestoreLeaseName)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(clusterRestore).To(PointTo(matchLeaseElement("etcd-test-restoration-indicator", etcd.Name, etcd.UID)))
 }
 
 func checkMemberLeases(ctx context.Context, c client.Client, etcd *druidv1alpha1.Etcd) {
