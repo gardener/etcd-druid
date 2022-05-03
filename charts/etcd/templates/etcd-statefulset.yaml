@@ -278,6 +278,9 @@ spec:
 {{- else if eq .Values.store.storageProvider "OSS" }}
         - name: "ALICLOUD_APPLICATION_CREDENTIALS"
           value: "/root/etcd-backup"
+{{- else if eq .Values.store.storageProvider "OCS" }}
+        - name: OPENSHIFT_APPLICATION_CREDENTIALS
+          value: "/root/etcd-backup"
 {{- else if eq .Values.store.storageProvider "ECS" }}
         - name: "ECS_ENDPOINT"
           valueFrom:
@@ -367,6 +370,10 @@ spec:
         - name: etcd-backup
           mountPath: "/root/etcd-backup"
 {{- end }}
+{{- if eq .Values.store.storageProvider "OCS" }}
+        - name: etcd-backup
+          mountPath: "/root/etcd-backup"
+{{- end }}
 {{- if eq .Values.store.storageProvider "Swift" }}
         - name: etcd-backup
           mountPath: "/root/etcd-backup"
@@ -425,6 +432,11 @@ spec:
           secretName: {{ .Values.store.storeSecret }}
 {{- end }}
 {{- if eq .Values.store.storageProvider "OSS" }}
+      - name: etcd-backup
+        secret:
+          secretName: {{ .Values.store.storeSecret }}
+{{- end }}
+{{- if eq .Values.store.storageProvider "OCS" }}
       - name: etcd-backup
         secret:
           secretName: {{ .Values.store.storeSecret }}
