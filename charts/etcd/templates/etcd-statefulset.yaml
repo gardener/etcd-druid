@@ -297,39 +297,6 @@ spec:
             secretKeyRef:
               name: {{ .Values.store.storeSecret }}
               key: "secretAccessKey"
-{{- else if eq .Values.store.storageProvider "OCS" }}
-        - name: "OCS_ENDPOINT"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "endpoint"
-        - name: "OCS_ACCESS_KEY_ID"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "accessKeyID"
-        - name: "OCS_SECRET_ACCESS_KEY"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "secretAccessKey"
-        - name: "OCS_REGION"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "region"
-        - name: "OCS_DISABLE_SSL"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "disableSSL"
-              optional: true
-        - name: "OCS_INSECURE_SKIP_VERIFY"
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.store.storeSecret }}
-              key: "insecureSkipVerify"
-              optional: true
 {{- end }}
         volumeMounts:
 {{- if eq .Values.store.storageProvider "Local" }}
