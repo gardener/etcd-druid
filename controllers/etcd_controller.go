@@ -629,7 +629,8 @@ func (r *EtcdReconciler) syncStatefulSetSpec(ctx context.Context, logger logr.Lo
 		if !ok {
 			return nil, fmt.Errorf("container with name %s could not be fetched from statefulset %s", c.Name, decoded.Name)
 		}
-		decoded.Spec.Template.Spec.Containers[i].Resources = container.Resources
+		// only copy requested resources from the existing stateful set to avoid copying already removed (from the etcd resource) resource limits
+		decoded.Spec.Template.Spec.Containers[i].Resources.Requests = container.Resources.Requests
 	}
 
 	ssCopy.Spec.Template = decoded.Spec.Template
