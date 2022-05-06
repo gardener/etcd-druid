@@ -59,4 +59,6 @@ type Values struct {
 	ConfigMapName string
 	// ConfigMapChecksum is the checksum of deployed configmap
 	ConfigMapChecksum string
+	// Labels is the labels from the etcd object spec
+	Labels map[string]string
 }

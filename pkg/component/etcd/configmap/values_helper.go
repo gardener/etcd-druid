@@ -43,6 +43,7 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) *Values {
 		AutoCompactionMode:      etcd.Spec.Common.AutoCompactionMode,
 		AutoCompactionRetention: etcd.Spec.Common.AutoCompactionRetention,
 		ConfigMapName:           utils.GetConfigmapName(etcd),
+		Labels:                  etcd.Spec.Labels,
 	}
 	return values
 }
