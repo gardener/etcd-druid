@@ -428,6 +428,28 @@ func (r *EtcdReconciler) reconcileConfigMaps(ctx context.Context, logger logr.Lo
 		return nil, err
 	}
 
+	if len(filteredCMs) == 0 {
+		// This block is needed for backward compatibility when etcd-druid is downgraded from v0.9.x to v0.8.x
+		// etcd-druid v0.9.x adds alternate labels to the configmap that v0.8.x does not recognise and this can cause reconciliation to get stuck
+		var alternate_labels metav1.LabelSelector
+		alternate_labels.MatchLabels = make(map[string]string)
+		alternate_labels.MatchLabels["name"] = "etcd"
+		alternate_selector, err := metav1.LabelSelectorAsSelector(&alternate_labels)
+		if err != nil {
+			logger.Error(err, "Error converting etcd selector to selector")
+			return nil, err
+		}
+		err = r.List(ctx, cms, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: alternate_selector})
+		if err != nil {
+			logger.Error(err, "Error listing configmaps")
+			return nil, err
+		}
+		filteredCMs, err = r.claimConfigMaps(ctx, etcd, alternate_selector, cms)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if len(filteredCMs) > 0 {
 		logger.Info("Claiming existing etcd configmaps")
 
@@ -488,11 +510,12 @@ func (r *EtcdReconciler) syncConfigMapData(ctx context.Context, logger logr.Logg
 		return nil, err
 	}
 
-	if reflect.DeepEqual(cm.Data, decoded.Data) {
+	if reflect.DeepEqual(cm.Data, decoded.Data) && reflect.DeepEqual(cm.ObjectMeta.Labels, decoded.ObjectMeta.Labels) {
 		return cm, nil
 	}
 	cmCopy := cm.DeepCopy()
 	cmCopy.Data = decoded.Data
+	cmCopy.Labels = decoded.Labels
 
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		return r.Patch(ctx, cmCopy, client.MergeFrom(cm))
