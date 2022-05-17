@@ -81,7 +81,10 @@ var _ = Describe("Configmap", func() {
 		autoCompactionRetention = "30m"
 
 		labels = map[string]string{
-			"foo": "bar",
+			"app":      "etcd-statefulset",
+			"instance": "configmap",
+			"name":     "etcd",
+			"role":     "main",
 		}
 
 		etcd = &druidv1alpha1.Etcd{
@@ -91,6 +94,7 @@ var _ = Describe("Configmap", func() {
 				UID:       uid,
 			},
 			Spec: druidv1alpha1.EtcdSpec{
+				Labels:   labels,
 				Selector: metav1.SetAsLabelSelector(labels),
 				Replicas: 3,
 				Etcd: druidv1alpha1.EtcdConfig{
@@ -253,6 +257,8 @@ func configmapLabels(val *Values) map[string]string {
 	labels := map[string]string{
 		"name":     "etcd",
 		"instance": val.EtcdName,
+		"app":      "etcd-statefulset",
+		"role":     "main",
 	}
 
 	return labels
