@@ -229,6 +229,9 @@ func (c *component) emptyConfigmap(name string) *corev1.ConfigMap {
 
 func getObjectMeta(val *Values) metav1.ObjectMeta {
 	labels := map[string]string{"name": "etcd", "instance": val.EtcdName}
+	for key, value := range val.Labels {
+		labels[key] = value
+	}
 	return metav1.ObjectMeta{
 		Name:      val.ConfigMapName,
 		Namespace: val.EtcdNameSpace,
