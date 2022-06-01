@@ -110,13 +110,17 @@ if name == 'autoscaler':
 elif name == 'vpn':
     names = ['vpn-seed', 'vpn-shoot']
 elif name == 'vpn2':
-    names = ['vpn-seed-server']
+    names = ['vpn-seed-server', 'vpn-shoot-client']
 elif name == 'external-dns-management':
     names = ['dns-controller-manager']
 elif name == 'logging':
     names = ['fluent-bit-plugin-installer', 'loki-curator', 'telegraf']
 elif name == 'etcd-custom-image':
     names = ['etcd']
+elif name == 'egress-filter-refresher':
+    names = ['egress-filter-blackholer', 'egress-filter-firewaller']
+elif name == 'apiserver-proxy':
+    names = ['apiserver-proxy-sidecar', 'apiserver-proxy-pod-webhook']
 else:
     names = [name]
 
