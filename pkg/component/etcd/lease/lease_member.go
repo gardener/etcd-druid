@@ -66,7 +66,7 @@ func (c *component) syncMemberLeases(ctx context.Context) error {
 	}
 
 	leaseList := &coordinationv1.LeaseList{}
-	if err := c.client.List(ctx, leaseList, client.MatchingLabels(labels)); err != nil {
+	if err := c.client.List(ctx, leaseList, client.InNamespace(c.namespace), client.MatchingLabels(labels)); err != nil {
 		return err
 	}
 

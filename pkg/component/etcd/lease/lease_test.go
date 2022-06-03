@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/utils/pointer"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	"github.com/gardener/etcd-druid/pkg/common"
@@ -90,14 +92,26 @@ var _ = Describe("Lease", func() {
 		})
 
 		Context("when deployment is changed from 5 -> 3 replicas", func() {
+			var etcd2 *druidv1alpha1.Etcd
+
 			BeforeEach(func() {
+				etcd2 = etcd.DeepCopy()
+				etcd2.Namespace = "kube-system"
+				etcd2.Spec.Replicas = 5
+
 				// Create existing leases
 				for _, l := range []coordinationv1.Lease{
-					memberLease(etcd, 0),
-					memberLease(etcd, 1),
-					memberLease(etcd, 2),
-					memberLease(etcd, 3),
-					memberLease(etcd, 4),
+					memberLease(etcd, 0, false),
+					memberLease(etcd, 1, false),
+					memberLease(etcd, 2, false),
+					memberLease(etcd, 3, false),
+					memberLease(etcd, 4, false),
+					// Add leases for another etcd in a different namespace which is not scaled down.
+					memberLease(etcd2, 0, true),
+					memberLease(etcd2, 1, true),
+					memberLease(etcd2, 2, true),
+					memberLease(etcd2, 3, true),
+					memberLease(etcd2, 4, true),
 				} {
 					lease := l
 					Expect(c.Create(ctx, &lease)).To(Succeed())
@@ -108,6 +122,7 @@ var _ = Describe("Lease", func() {
 				Expect(leaseDeployer.Deploy(ctx)).To(Succeed())
 
 				checkMemberLeases(ctx, c, etcd)
+				checkMemberLeases(ctx, c, etcd2)
 				checkSnapshotLeases(ctx, c, etcd, values)
 			})
 		})
@@ -116,7 +131,7 @@ var _ = Describe("Lease", func() {
 			BeforeEach(func() {
 				// Create existing leases
 				for _, l := range []coordinationv1.Lease{
-					memberLease(etcd, 0),
+					memberLease(etcd, 0, false),
 				} {
 					lease := l
 					Expect(c.Create(ctx, &lease)).To(Succeed())
@@ -173,9 +188,9 @@ var _ = Describe("Lease", func() {
 		Context("when leases exist", func() {
 			It("should destroy without errors", func() {
 				for _, l := range []coordinationv1.Lease{
-					memberLease(etcd, 0),
-					memberLease(etcd, 1),
-					memberLease(etcd, 2),
+					memberLease(etcd, 0, false),
+					memberLease(etcd, 1, false),
+					memberLease(etcd, 2, false),
 					{ObjectMeta: metav1.ObjectMeta{Name: values.DeltaSnapshotLeaseName}},
 					{ObjectMeta: metav1.ObjectMeta{Name: values.FullSnapshotLeaseName}},
 				} {
@@ -255,13 +270,24 @@ func matchLeaseElement(leaseName, etcdName string, etcdUID types.UID) gomegatype
 	})
 }
 
-func memberLease(etcd *druidv1alpha1.Etcd, replica int) coordinationv1.Lease {
+func memberLease(etcd *druidv1alpha1.Etcd, replica int, withOwnerRef bool) coordinationv1.Lease {
 	return coordinationv1.Lease{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("%s-%d", etcd.Name, replica),
+			Name:      fmt.Sprintf("%s-%d", etcd.Name, replica),
+			Namespace: etcd.Namespace,
 			Labels: map[string]string{
 				common.GardenerOwnedBy:           etcd.Name,
 				v1beta1constants.GardenerPurpose: "etcd-member-lease",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         druidv1alpha1.GroupVersion.String(),
+					Kind:               "Etcd",
+					Name:               etcd.Name,
+					UID:                etcd.UID,
+					Controller:         pointer.Bool(true),
+					BlockOwnerDeletion: pointer.Bool(true),
+				},
 			},
 		},
 	}
