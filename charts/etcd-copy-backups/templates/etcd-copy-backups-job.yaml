@@ -87,7 +87,7 @@ spec:
 {{- else if eq .Values.targetStore.storageProvider "Swift" }}
         - name: OPENSTACK_APPLICATION_CREDENTIALS
           value: "/root/etcd-backup"
-{{- else if eq .Values.sourceStore.storageProvider "OCS" }}
+{{- else if eq .Values.targetStore.storageProvider "OCS" }}
         - name: OPENSHIFT_APPLICATION_CREDENTIALS
           value: "/root/etcd-backup"
 {{- else if eq .Values.targetStore.storageProvider "OSS" }}
