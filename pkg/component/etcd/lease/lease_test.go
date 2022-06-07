@@ -271,7 +271,7 @@ func matchLeaseElement(leaseName, etcdName string, etcdUID types.UID) gomegatype
 }
 
 func memberLease(etcd *druidv1alpha1.Etcd, replica int, withOwnerRef bool) coordinationv1.Lease {
-	return coordinationv1.Lease{
+	lease := coordinationv1.Lease{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-%d", etcd.Name, replica),
 			Namespace: etcd.Namespace,
@@ -279,16 +279,21 @@ func memberLease(etcd *druidv1alpha1.Etcd, replica int, withOwnerRef bool) coord
 				common.GardenerOwnedBy:           etcd.Name,
 				v1beta1constants.GardenerPurpose: "etcd-member-lease",
 			},
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion:         druidv1alpha1.GroupVersion.String(),
-					Kind:               "Etcd",
-					Name:               etcd.Name,
-					UID:                etcd.UID,
-					Controller:         pointer.Bool(true),
-					BlockOwnerDeletion: pointer.Bool(true),
-				},
-			},
 		},
 	}
+
+	if withOwnerRef {
+		lease.ObjectMeta.OwnerReferences = []metav1.OwnerReference{
+			{
+				APIVersion:         druidv1alpha1.GroupVersion.String(),
+				Kind:               "Etcd",
+				Name:               etcd.Name,
+				UID:                etcd.UID,
+				Controller:         pointer.Bool(true),
+				BlockOwnerDeletion: pointer.Bool(true),
+			},
+		}
+	}
+
+	return lease
 }
