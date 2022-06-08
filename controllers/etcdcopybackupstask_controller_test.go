@@ -364,6 +364,13 @@ func getProviderEnvElements(storeProvider, prefix, volumePrefix string, store *d
 				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
 			}),
 		}
+	case "OCS":
+		return Elements{
+			prefix + "OPENSHIFT_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + "OPENSHIFT_APPLICATION_CREDENTIALS"),
+				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+			}),
+		}
 	default:
 		return nil
 	}

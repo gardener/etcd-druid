@@ -358,7 +358,7 @@ func getCmpctJobVolumeMounts(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.
 			Name:      "etcd-backup",
 			MountPath: "/root/.gcp/",
 		})
-	} else if provider == "S3" || provider == "ABS" || provider == "OSS" || provider == "Swift" {
+	} else if provider == "S3" || provider == "ABS" || provider == "OSS" || provider == "Swift" || provider == "OCS" {
 		vms = append(vms, v1.VolumeMount{
 			Name:      "etcd-backup",
 			MountPath: "/root/etcd-backup/",
@@ -389,7 +389,7 @@ func getCmpctJobVolumes(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.Volum
 		return vs
 	}
 
-	if provider == "GCS" || provider == "S3" || provider == "OSS" || provider == "ABS" || provider == "Swift" {
+	if provider == "GCS" || provider == "S3" || provider == "OSS" || provider == "ABS" || provider == "Swift" || provider == "OCS" {
 		vs = append(vs, v1.Volume{
 			Name: "etcd-backup",
 			VolumeSource: v1.VolumeSource{
@@ -447,12 +447,7 @@ func getCmpctJobEnvVar(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.EnvVar
 	}
 
 	if provider == "OCS" {
-		env = append(env, getEnvVarFromSecrets("OCS_ENDPOINT", storeValues.SecretRef.Name, "endpoint"))
-		env = append(env, getEnvVarFromSecrets("OCS_ACCESS_KEY_ID", storeValues.SecretRef.Name, "accessKeyID"))
-		env = append(env, getEnvVarFromSecrets("OCS_SECRET_ACCESS_KEY", storeValues.SecretRef.Name, "secretAccessKey"))
-		env = append(env, getEnvVarFromSecrets("OCS_REGION", storeValues.SecretRef.Name, "region"))
-		env = append(env, getEnvVarFromSecrets("OCS_DISABLE_SSL", storeValues.SecretRef.Name, "disableSSL"))
-		env = append(env, getEnvVarFromSecrets("OCS_INSECURE_SKIP_VERIFY", storeValues.SecretRef.Name, "insecureSkipVerify"))
+		env = append(env, getEnvVarFromValues("OPENSHIFT_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
 	}
 
 	return env

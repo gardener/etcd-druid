@@ -87,6 +87,9 @@ spec:
 {{- else if eq .Values.targetStore.storageProvider "Swift" }}
         - name: OPENSTACK_APPLICATION_CREDENTIALS
           value: "/root/etcd-backup"
+{{- else if eq .Values.targetStore.storageProvider "OCS" }}
+        - name: OPENSHIFT_APPLICATION_CREDENTIALS
+          value: "/root/etcd-backup"
 {{- else if eq .Values.targetStore.storageProvider "OSS" }}
         - name: ALICLOUD_APPLICATION_CREDENTIALS
           value: "/root/etcd-backup"
@@ -102,6 +105,9 @@ spec:
           value: "/root/.source-gcp/serviceaccount.json"
 {{- else if eq .Values.sourceStore.storageProvider "Swift" }}
         - name: SOURCE_OPENSTACK_APPLICATION_CREDENTIALS
+          value: "/root/source-etcd-backup"
+{{- else if eq .Values.sourceStore.storageProvider "OCS" }}
+        - name: SOURCE_OPENSHIFT_APPLICATION_CREDENTIALS
           value: "/root/source-etcd-backup"
 {{- else if eq .Values.sourceStore.storageProvider "OSS" }}
         - name: SOURCE_ALICLOUD_APPLICATION_CREDENTIALS
@@ -153,6 +159,14 @@ spec:
           mountPath: "/root/etcd-backup"
 {{- end }}
 {{- if eq .Values.sourceStore.storageProvider "Swift" }}
+        - name: source-etcd-backup
+          mountPath: "/root/source-etcd-backup"
+{{- end }}
+{{- if eq .Values.targetStore.storageProvider "OCS" }}
+        - name: etcd-backup
+          mountPath: "/root/etcd-backup"
+{{- end }}
+{{- if eq .Values.sourceStore.storageProvider "OCS" }}
         - name: source-etcd-backup
           mountPath: "/root/source-etcd-backup"
 {{- end }}
@@ -215,6 +229,16 @@ spec:
           secretName: {{ .Values.targetStore.storeSecret }}
 {{- end }}
 {{- if eq .Values.sourceStore.storageProvider "Swift" }}
+      - name: source-etcd-backup
+        secret:
+          secretName: {{ .Values.sourceStore.storeSecret }}
+{{- end }}
+{{- if eq .Values.targetStore.storageProvider "OCS" }}
+      - name: etcd-backup
+        secret:
+          secretName: {{ .Values.targetStore.storeSecret }}
+{{- end }}
+{{- if eq .Values.sourceStore.storageProvider "OCS" }}
       - name: source-etcd-backup
         secret:
           secretName: {{ .Values.sourceStore.storeSecret }}
