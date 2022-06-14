@@ -79,6 +79,7 @@ spec:
 {{ end }}
           initialDelaySeconds: 15
           periodSeconds: 5
+          failureThreshold: 5
         livenessProbe:
           exec:
             command:
@@ -99,8 +100,10 @@ spec:
 # {{- end }}
             - get
             - foo
+            - --consistency=s
           initialDelaySeconds: 15
           periodSeconds: 5
+          failureThreshold: 5
         ports:
         - containerPort: {{ .Values.etcd.serverPort }}
           name: server
