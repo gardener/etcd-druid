@@ -266,6 +266,12 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: ETCD_ENDPOINT
+{{- if .Values.backup.enableTLS }}
+          value: https://{{ .Values.backup.etcdEndpoint }}
+{{ else }}
+          value: http://{{ .Values.backup.etcdEndpoint }}
+{{- end }}
 {{- if eq .Values.store.storageProvider "S3" }}
         - name: "AWS_APPLICATION_CREDENTIALS"
           value: "/root/etcd-backup"

@@ -988,6 +988,7 @@ func (r *EtcdReconciler) getMapFromEtcd(im imagevector.ImageVector, etcd *druidv
 		"snapstoreTempDir":         "/var/etcd/data/temp",
 		"deltaSnapshotMemoryLimit": deltaSnapshotMemoryLimit,
 		"enableProfiling":          enableProfiling,
+		"etcdEndpoint":             fmt.Sprintf("%s.%s.%s:%d", utils.GetPeerServiceName(etcd), etcd.Namespace, "svc", val.Service.ServerPort),
 	}
 
 	if etcd.Spec.Backup.Resources != nil {
