@@ -1,4 +1,4 @@
-// Copyright (c) 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright (c) 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,9 +31,12 @@ type backupReadyCheck struct {
 }
 
 const (
+	// BackupSucceeded is a constant that means that etcd backup has been sucessfully taken
 	BackupSucceeded string = "BackupSucceeded"
-	BackupFailed    string = "BackupFailed"
-	Unknown         string = "Unknown"
+	// BackupFailed is a constant that means that etcd backup has failed
+	BackupFailed string = "BackupFailed"
+	// Unknown is a constant that means that the etcd backup status is currently not known
+	Unknown string = "Unknown"
 )
 
 func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
@@ -46,9 +49,11 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 	}
 
 	//Fetch snapshot leases
-	fullSnapLease := &coordinationv1.Lease{}
-	deltaSnapLease := &coordinationv1.Lease{}
-	var fullSnapErr, incrSnapErr error
+	var (
+		fullSnapErr, incrSnapErr error
+		fullSnapLease            = &coordinationv1.Lease{}
+		deltaSnapLease           = &coordinationv1.Lease{}
+	)
 	fullSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getFullSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, fullSnapLease)
 	incrSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getDeltaSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, deltaSnapLease)
 
@@ -61,9 +66,9 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 	fullLeaseRenewTime := fullSnapLease.Spec.RenewTime
 	fullLeaseCreateTime := &fullSnapLease.ObjectMeta.CreationTimestamp
 
-	if fullLeaseRenewTime == nil && deltaLeaseRenewTime != nil && fullLeaseCreateTime != nil {
-		//Most probable during reconcile of existing clusters if fresh leases are created
-		//Treat backup as succeeded if delta snap lease renewal happens in the required time window and full snap lease not more than 24h old
+	if fullLeaseRenewTime == nil && deltaLeaseRenewTime != nil {
+		// Most probable during reconcile of existing clusters if fresh leases are created
+		// Treat backup as succeeded if delta snap lease renewal happens in the required time window and full snap lease is not older than 24h.
 		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseCreateTime.Time) < 24*time.Hour {
 			result.reason = BackupSucceeded
 			result.message = "Delta snapshot backup succeeded"
