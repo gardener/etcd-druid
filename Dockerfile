@@ -12,10 +12,8 @@ RUN .ci/build
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM alpine:3.12.3 AS druid
-RUN apk add --update bash \
-    && apk del curl
+FROM gcr.io/distroless/static-debian11:nonroot AS druid
 WORKDIR /
-COPY --from=builder /go/src/github.com/gardener/etcd-druid/bin/linux-amd64/etcd-druid bin/.
+COPY --from=builder /go/src/github.com/gardener/etcd-druid/bin/linux-amd64/etcd-druid /etcd-druid
 COPY charts charts
-ENTRYPOINT ["/bin/etcd-druid"]
+ENTRYPOINT ["/etcd-druid"]
