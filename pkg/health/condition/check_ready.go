@@ -15,14 +15,17 @@
 package condition
 
 import (
+	"context"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/utils"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type readyCheck struct{}
 
-func (r *readyCheck) Check(status druidv1alpha1.EtcdStatus) Result {
-	if status.ClusterSize == nil {
+func (r *readyCheck) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
+	if etcd.Status.ClusterSize == nil {
 		return &result{
 			conType: druidv1alpha1.ConditionTypeReady,
 			status:  druidv1alpha1.ConditionUnknown,
@@ -32,7 +35,7 @@ func (r *readyCheck) Check(status druidv1alpha1.EtcdStatus) Result {
 	}
 
 	// TODO: remove this case as soon as leases are completely supported by etcd-backup-restore
-	if len(status.Members) == 0 {
+	if len(etcd.Status.Members) == 0 {
 		return &result{
 			conType: druidv1alpha1.ConditionTypeReady,
 			status:  druidv1alpha1.ConditionUnknown,
@@ -42,12 +45,12 @@ func (r *readyCheck) Check(status druidv1alpha1.EtcdStatus) Result {
 	}
 
 	var (
-		size         = utils.Max(int(*status.ClusterSize), len(status.Members))
+		size         = utils.Max(int(*etcd.Status.ClusterSize), len(etcd.Status.Members))
 		quorum       = size/2 + 1
 		readyMembers = 0
 	)
 
-	for _, member := range status.Members {
+	for _, member := range etcd.Status.Members {
 		if member.Status == druidv1alpha1.EtcdMemberStatusNotReady {
 			continue
 		}
@@ -72,6 +75,6 @@ func (r *readyCheck) Check(status druidv1alpha1.EtcdStatus) Result {
 }
 
 // ReadyCheck returns a check for the "Ready" condition.
-func ReadyCheck() Checker {
+func ReadyCheck(_ client.Client) Checker {
 	return &readyCheck{}
 }

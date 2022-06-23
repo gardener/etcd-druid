@@ -14,12 +14,17 @@
 
 package condition
 
-import druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+import (
+	"context"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
 
 type allMembersReady struct{}
 
-func (a *allMembersReady) Check(status druidv1alpha1.EtcdStatus) Result {
-	if len(status.Members) == 0 {
+func (a *allMembersReady) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
+	if len(etcd.Status.Members) == 0 {
 		return &result{
 			conType: druidv1alpha1.ConditionTypeAllMembersReady,
 			status:  druidv1alpha1.ConditionUnknown,
@@ -35,7 +40,7 @@ func (a *allMembersReady) Check(status druidv1alpha1.EtcdStatus) Result {
 		message: "All members are ready",
 	}
 
-	for _, member := range status.Members {
+	for _, member := range etcd.Status.Members {
 		if member.Status != druidv1alpha1.EtcdMemberStatusReady {
 			result.status = druidv1alpha1.ConditionFalse
 			result.reason = "NotAllMembersReady"
@@ -49,6 +54,6 @@ func (a *allMembersReady) Check(status druidv1alpha1.EtcdStatus) Result {
 }
 
 // AllMembersCheck returns a check for the "AllMembersReady" condition.
-func AllMembersCheck() Checker {
+func AllMembersCheck(_ client.Client) Checker {
 	return &allMembersReady{}
 }
