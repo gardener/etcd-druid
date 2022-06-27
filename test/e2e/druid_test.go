@@ -56,9 +56,9 @@ var _ = Describe("Druid", func() {
 			defer cancelFunc()
 
 			_, err = controllerutil.CreateOrUpdate(ctx, client, etcd, func() error {
-				etcd.Spec.Etcd.TLS.TLSCASecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.TLSCASecretRef.Name, provider.Suffix)
-				etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.ServerTLSSecretRef.Name, provider.Suffix)
-				etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.ClientTLSSecretRef.Name, provider.Suffix)
+				etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.TLSCASecretRef.Name, provider.Suffix)
+				etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.ServerTLSSecretRef.Name, provider.Suffix)
+				etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.ClientTLSSecretRef.Name, provider.Suffix)
 
 				if providerName == providerLocal {
 					etcd.Spec.Backup.Store = nil
@@ -695,9 +695,9 @@ var _ = Describe("Druid", func() {
 			defer cancelFunc()
 
 			_, err = controllerutil.CreateOrUpdate(ctx, client, etcd, func() error {
-				etcd.Spec.Etcd.TLS.TLSCASecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.TLSCASecretRef.Name, provider.Suffix)
-				etcd.Spec.Etcd.TLS.ServerTLSSecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.ServerTLSSecretRef.Name, provider.Suffix)
-				etcd.Spec.Etcd.TLS.ClientTLSSecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.ClientTLSSecretRef.Name, provider.Suffix)
+				etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.TLSCASecretRef.Name, provider.Suffix)
+				etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.ServerTLSSecretRef.Name, provider.Suffix)
+				etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.ClientTLSSecretRef.Name, provider.Suffix)
 
 				if providerName == providerLocal {
 					etcd.Spec.Backup.Store = nil
