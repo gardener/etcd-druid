@@ -124,9 +124,11 @@ var (
 			Name:      "etcd-client-tls",
 			Namespace: namespace,
 		},
-		TLSCASecretRef: corev1.SecretReference{
-			Name:      "ca-etcd",
-			Namespace: namespace,
+		TLSCASecretRef: v1alpha1.SecretReference{
+			SecretReference: corev1.SecretReference{
+				Name:      "ca-etcd",
+				Namespace: namespace,
+			},
 		},
 	}
 
@@ -205,7 +207,7 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider Provider
 		Resources:               &etcdResources,
 		ClientPort:              &etcdClientPort,
 		ServerPort:              &etcdServerPort,
-		TLS:                     etcdTLS,
+		ClientUrlTLS:            etcdTLS,
 	}
 
 	backupStore := defaultBackupStore.DeepCopy()
@@ -348,7 +350,7 @@ func getProviders() (map[string]Provider, error) {
 				StorageProvider: "Local",
 			}
 		}
-			providers[p] = provider
+		providers[p] = provider
 	}
 
 	return providers, nil
