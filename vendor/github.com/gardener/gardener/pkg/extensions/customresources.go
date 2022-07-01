@@ -16,6 +16,7 @@ package extensions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -114,6 +115,7 @@ func WaitUntilObjectReadyWithHealthFunction(
 
 		if postReadyFunc != nil {
 			if err := postReadyFunc(); err != nil {
+				lastObservedError = err
 				return retry.SevereError(err)
 			}
 		}
@@ -223,7 +225,7 @@ func WaitUntilExtensionObjectDeleted(
 
 		if lastErr := obj.GetExtensionStatus().GetLastError(); lastErr != nil {
 			logger.Errorf("%s did not get deleted yet, lastError is: %s", extensionKey(kind, namespace, name), lastErr.Description)
-			lastObservedError = gardencorev1beta1helper.NewErrorWithCodes(lastErr.Description, lastErr.Codes...)
+			lastObservedError = gardencorev1beta1helper.NewErrorWithCodes(errors.New(lastErr.Description), lastErr.Codes...)
 		}
 
 		var message = fmt.Sprintf("%s is still present", extensionKey(kind, namespace, name))
@@ -344,6 +346,7 @@ func WaitUntilExtensionObjectMigrated(
 	ctx context.Context,
 	c client.Client,
 	obj extensionsv1alpha1.Object,
+	kind string,
 	interval time.Duration,
 	timeout time.Duration,
 ) error {
@@ -363,11 +366,7 @@ func WaitUntilExtensionObjectMigrated(
 			}
 		}
 
-		var extensionType string
-		if extensionSpec := obj.GetExtensionSpec(); extensionSpec != nil {
-			extensionType = extensionSpec.GetExtensionType()
-		}
-		return retry.MinorError(fmt.Errorf("lastOperation for %s with name %s and type %s is not Migrate=Succeeded", obj.GetObjectKind().GroupVersionKind().Kind, obj.GetName(), extensionType))
+		return retry.MinorError(fmt.Errorf("error while waiting for %s to be successfully migrated", extensionKey(kind, obj.GetNamespace(), obj.GetName())))
 	})
 }
 
@@ -376,12 +375,13 @@ func WaitUntilExtensionObjectsMigrated(
 	ctx context.Context,
 	c client.Client,
 	listObj client.ObjectList,
+	kind string,
 	namespace string,
 	interval time.Duration,
 	timeout time.Duration,
 ) error {
 	fns, err := applyFuncToExtensionObjects(ctx, c, listObj, namespace, nil, func(ctx context.Context, obj extensionsv1alpha1.Object) error {
-		return WaitUntilExtensionObjectMigrated(ctx, c, obj, interval, timeout)
+		return WaitUntilExtensionObjectMigrated(ctx, c, obj, kind, interval, timeout)
 	})
 	if err != nil {
 		return err

@@ -124,6 +124,23 @@ func MergeConditions(oldConditions []gardencorev1beta1.Condition, newConditions 
 	return out
 }
 
+// RemoveConditions removes the conditions with the given types from the given conditions slice.
+func RemoveConditions(conditions []gardencorev1beta1.Condition, conditionTypes ...gardencorev1beta1.ConditionType) []gardencorev1beta1.Condition {
+	conditionTypesMap := make(map[gardencorev1beta1.ConditionType]struct{}, len(conditionTypes))
+	for _, conditionType := range conditionTypes {
+		conditionTypesMap[conditionType] = struct{}{}
+	}
+
+	var newConditions []gardencorev1beta1.Condition
+	for _, condition := range conditions {
+		if _, ok := conditionTypesMap[condition.Type]; !ok {
+			newConditions = append(newConditions, condition)
+		}
+	}
+
+	return newConditions
+}
+
 // ConditionsNeedUpdate returns true if the <existingConditions> must be updated based on <newConditions>.
 func ConditionsNeedUpdate(existingConditions, newConditions []gardencorev1beta1.Condition) bool {
 	return existingConditions == nil || !apiequality.Semantic.DeepEqual(newConditions, existingConditions)
@@ -864,6 +881,26 @@ func SeedSettingVerticalPodAutoscalerEnabled(settings *gardencorev1beta1.SeedSet
 	return settings == nil || settings.VerticalPodAutoscaler == nil || settings.VerticalPodAutoscaler.Enabled
 }
 
+// SeedSettingOwnerChecksEnabled returns true if the 'ownerChecks' setting is enabled.
+func SeedSettingOwnerChecksEnabled(settings *gardencorev1beta1.SeedSettings) bool {
+	return settings == nil || settings.OwnerChecks == nil || settings.OwnerChecks.Enabled
+}
+
+// SeedSettingDependencyWatchdogEndpointEnabled returns true if the depedency-watchdog-endpoint is enabled.
+func SeedSettingDependencyWatchdogEndpointEnabled(settings *gardencorev1beta1.SeedSettings) bool {
+	return settings == nil || settings.DependencyWatchdog == nil || settings.DependencyWatchdog.Endpoint == nil || settings.DependencyWatchdog.Endpoint.Enabled
+}
+
+// SeedSettingDependencyWatchdogProbeEnabled returns true if the depedency-watchdog-probe is enabled.
+func SeedSettingDependencyWatchdogProbeEnabled(settings *gardencorev1beta1.SeedSettings) bool {
+	return settings == nil || settings.DependencyWatchdog == nil || settings.DependencyWatchdog.Probe == nil || settings.DependencyWatchdog.Probe.Enabled
+}
+
+// SeedUsesNginxIngressController returns true if the seed's specification requires an nginx ingress controller to be deployed.
+func SeedUsesNginxIngressController(seed *gardencorev1beta1.Seed) bool {
+	return seed.Spec.DNS.Provider != nil && seed.Spec.Ingress != nil && seed.Spec.Ingress.Controller.Kind == v1beta1constants.IngressKindNginx
+}
+
 // DetermineMachineImageForName finds the cloud specific machine images in the <cloudProfile> for the given <name> and
 // region. In case it does not find the machine image with the <name>, it returns false. Otherwise, true and the
 // cloud-specific machine image will be returned.
@@ -925,20 +962,19 @@ func GetLatestQualifyingShootMachineImage(image gardencorev1beta1.MachineImage, 
 	return true, &gardencorev1beta1.ShootMachineImage{Name: image.Name, Version: &latestImageVersion.Version}, nil
 }
 
+// FindMachineTypeByName tries to find the machine type details with the given name. If it cannot be found it returns nil.
+func FindMachineTypeByName(machines []gardencorev1beta1.MachineType, name string) *gardencorev1beta1.MachineType {
+	for _, m := range machines {
+		if m.Name == name {
+			return &m
+		}
+	}
+	return nil
+}
+
 // SystemComponentsAllowed checks if the given worker allows system components to be scheduled onto it
 func SystemComponentsAllowed(worker *gardencorev1beta1.Worker) bool {
 	return worker.SystemComponents == nil || worker.SystemComponents.Allow
-}
-
-// UpdateMachineImages updates the machine images in place.
-func UpdateMachineImages(workers []gardencorev1beta1.Worker, machineImages []*gardencorev1beta1.ShootMachineImage) {
-	for _, machineImage := range machineImages {
-		for idx, worker := range workers {
-			if worker.Machine.Image != nil && machineImage.Name == worker.Machine.Image.Name {
-				workers[idx].Machine.Image = machineImage
-			}
-		}
-	}
 }
 
 // KubernetesVersionExistsInCloudProfile checks if the given Kubernetes version exists in the CloudProfile
@@ -1259,6 +1295,11 @@ func NginxIngressEnabled(addons *gardencorev1beta1.Addons) bool {
 	return addons != nil && addons.NginxIngress != nil && addons.NginxIngress.Enabled
 }
 
+// KubeProxyEnabled returns true if the kube-proxy is enabled in the Shoot manifest.
+func KubeProxyEnabled(config *gardencorev1beta1.KubeProxyConfig) bool {
+	return config != nil && config.Enabled != nil && *config.Enabled
+}
+
 // BackupBucketIsErroneous returns `true` if the given BackupBucket has a last error.
 // It also returns the error description if available.
 func BackupBucketIsErroneous(bb *gardencorev1beta1.BackupBucket) (bool, string) {
@@ -1288,31 +1329,6 @@ func SeedBackupSecretRefEqual(oldBackup, newBackup *gardencorev1beta1.SeedBackup
 	}
 
 	return apiequality.Semantic.DeepEqual(oldSecretRef, newSecretRef)
-}
-
-// ShootAuditPolicyConfigMapRefEqual returns true if the name of the ConfigMap reference for the audit policy
-// configuration is the same.
-func ShootAuditPolicyConfigMapRefEqual(oldAPIServerConfig, newAPIServerConfig *gardencorev1beta1.KubeAPIServerConfig) bool {
-	var (
-		oldConfigMapRefName string
-		newConfigMapRefName string
-	)
-
-	if oldAPIServerConfig != nil &&
-		oldAPIServerConfig.AuditConfig != nil &&
-		oldAPIServerConfig.AuditConfig.AuditPolicy != nil &&
-		oldAPIServerConfig.AuditConfig.AuditPolicy.ConfigMapRef != nil {
-		oldConfigMapRefName = oldAPIServerConfig.AuditConfig.AuditPolicy.ConfigMapRef.Name
-	}
-
-	if newAPIServerConfig != nil &&
-		newAPIServerConfig.AuditConfig != nil &&
-		newAPIServerConfig.AuditConfig.AuditPolicy != nil &&
-		newAPIServerConfig.AuditConfig.AuditPolicy.ConfigMapRef != nil {
-		newConfigMapRefName = newAPIServerConfig.AuditConfig.AuditPolicy.ConfigMapRef.Name
-	}
-
-	return oldConfigMapRefName == newConfigMapRefName
 }
 
 // ShootDNSProviderSecretNamesEqual returns true when all the secretNames in the `.spec.dns.providers[]` list are the
@@ -1365,6 +1381,24 @@ func ShootSecretResourceReferencesEqual(oldResources, newResources []gardencorev
 	return oldNames.Equal(newNames)
 }
 
+// GetShootAuditPolicyConfigMapName returns the Shoot's ConfigMap reference name for the audit policy.
+func GetShootAuditPolicyConfigMapName(apiServerConfig *gardencorev1beta1.KubeAPIServerConfig) string {
+	if ref := GetShootAuditPolicyConfigMapRef(apiServerConfig); ref != nil {
+		return ref.Name
+	}
+	return ""
+}
+
+// GetShootAuditPolicyConfigMapRef returns the Shoot's ConfigMap reference for the audit policy.
+func GetShootAuditPolicyConfigMapRef(apiServerConfig *gardencorev1beta1.KubeAPIServerConfig) *corev1.ObjectReference {
+	if apiServerConfig != nil &&
+		apiServerConfig.AuditConfig != nil &&
+		apiServerConfig.AuditConfig.AuditPolicy != nil {
+		return apiServerConfig.AuditConfig.AuditPolicy.ConfigMapRef
+	}
+	return nil
+}
+
 // ShootWantsAnonymousAuthentication returns true if anonymous authentication is set explicitly to 'true' and false otherwise.
 func ShootWantsAnonymousAuthentication(kubeAPIServerConfig *gardencorev1beta1.KubeAPIServerConfig) bool {
 	if kubeAPIServerConfig == nil {
@@ -1396,4 +1430,275 @@ func CalculateSeedUsage(shootList []gardencorev1beta1.Shoot) map[string]int {
 	}
 
 	return m
+}
+
+// CalculateEffectiveKubernetesVersion if a shoot has kubernetes version specified by worker group, return this,
+// otherwise the shoot kubernetes version
+func CalculateEffectiveKubernetesVersion(controlPlaneVersion *semver.Version, workerKubernetes *gardencorev1beta1.WorkerKubernetes) (*semver.Version, error) {
+	if workerKubernetes != nil && workerKubernetes.Version != nil {
+		return semver.NewVersion(*workerKubernetes.Version)
+	}
+	return controlPlaneVersion, nil
+}
+
+// GetSecretBindingTypes returns the SecretBinding provider types.
+func GetSecretBindingTypes(secretBinding *gardencorev1beta1.SecretBinding) []string {
+	return strings.Split(secretBinding.Provider.Type, ",")
+}
+
+// SecretBindingHasType checks if the given SecretBinding has the given provider type.
+func SecretBindingHasType(secretBinding *gardencorev1beta1.SecretBinding, providerType string) bool {
+	if secretBinding.Provider == nil {
+		return false
+	}
+
+	types := GetSecretBindingTypes(secretBinding)
+	if len(types) == 0 {
+		return false
+	}
+
+	return sets.NewString(types...).Has(providerType)
+}
+
+// AddTypeToSecretBinding adds the given provider type to the SecretBinding.
+func AddTypeToSecretBinding(secretBinding *gardencorev1beta1.SecretBinding, providerType string) {
+	if secretBinding.Provider == nil {
+		secretBinding.Provider = &gardencorev1beta1.SecretBindingProvider{
+			Type: providerType,
+		}
+		return
+	}
+
+	types := GetSecretBindingTypes(secretBinding)
+	if !sets.NewString(types...).Has(providerType) {
+		types = append(types, providerType)
+	}
+	secretBinding.Provider.Type = strings.Join(types, ",")
+}
+
+// IsCoreDNSAutoscalingModeUsed indicates whether the specified autoscaling mode of CoreDNS is enabled or not.
+func IsCoreDNSAutoscalingModeUsed(systemComponents *gardencorev1beta1.SystemComponents, autoscalingMode gardencorev1beta1.CoreDNSAutoscalingMode) bool {
+	isDefaultMode := autoscalingMode == gardencorev1beta1.CoreDNSAutoscalingModeHorizontal
+	if systemComponents == nil {
+		return isDefaultMode
+	}
+
+	if systemComponents.CoreDNS == nil {
+		return isDefaultMode
+	}
+
+	if systemComponents.CoreDNS.Autoscaling == nil {
+		return isDefaultMode
+	}
+
+	return systemComponents.CoreDNS.Autoscaling.Mode == autoscalingMode
+}
+
+// IsNodeLocalDNSEnabled indicates whether the node local DNS cache is enabled or not.
+// It can be enabled via the annotation (legacy) or via the shoot specification.
+func IsNodeLocalDNSEnabled(systemComponents *gardencorev1beta1.SystemComponents, annotations map[string]string) bool {
+	fromSpec := false
+	if systemComponents != nil && systemComponents.NodeLocalDNS != nil {
+		fromSpec = systemComponents.NodeLocalDNS.Enabled
+	}
+	fromAnnotation := false
+	if annotationValue, err := strconv.ParseBool(annotations[v1beta1constants.AnnotationNodeLocalDNS]); err == nil {
+		fromAnnotation = annotationValue
+	}
+	return fromSpec || fromAnnotation
+}
+
+// IsTCPEnforcedForNodeLocalDNSToClusterDNS indicates whether TCP is enforced for connections from the node local DNS cache to the cluster DNS (Core DNS) or not.
+// It can be disabled via the annotation (legacy) or via the shoot specification.
+func IsTCPEnforcedForNodeLocalDNSToClusterDNS(systemComponents *gardencorev1beta1.SystemComponents, annotations map[string]string) bool {
+	fromSpec := true
+	if systemComponents != nil && systemComponents.NodeLocalDNS != nil && systemComponents.NodeLocalDNS.ForceTCPToClusterDNS != nil {
+		fromSpec = *systemComponents.NodeLocalDNS.ForceTCPToClusterDNS
+	}
+	fromAnnotation := true
+	if annotationValue, err := strconv.ParseBool(annotations[v1beta1constants.AnnotationNodeLocalDNSForceTcpToClusterDns]); err == nil {
+		fromAnnotation = annotationValue
+	}
+	return fromSpec && fromAnnotation
+}
+
+// IsTCPEnforcedForNodeLocalDNSToUpstreamDNS indicates whether TCP is enforced for connections from the node local DNS cache to the upstream DNS (infrastructure DNS) or not.
+// It can be disabled via the annotation (legacy) or via the shoot specification.
+func IsTCPEnforcedForNodeLocalDNSToUpstreamDNS(systemComponents *gardencorev1beta1.SystemComponents, annotations map[string]string) bool {
+	fromSpec := true
+	if systemComponents != nil && systemComponents.NodeLocalDNS != nil && systemComponents.NodeLocalDNS.ForceTCPToUpstreamDNS != nil {
+		fromSpec = *systemComponents.NodeLocalDNS.DeepCopy().ForceTCPToUpstreamDNS
+	}
+	fromAnnotation := true
+	if annotationValue, err := strconv.ParseBool(annotations[v1beta1constants.AnnotationNodeLocalDNSForceTcpToUpstreamDns]); err == nil {
+		fromAnnotation = annotationValue
+	}
+	return fromSpec && fromAnnotation
+}
+
+// GetShootCARotationPhase returns the specified shoot CA rotation phase or an empty string
+func GetShootCARotationPhase(credentials *gardencorev1beta1.ShootCredentials) gardencorev1beta1.ShootCredentialsRotationPhase {
+	if credentials != nil && credentials.Rotation != nil && credentials.Rotation.CertificateAuthorities != nil {
+		return credentials.Rotation.CertificateAuthorities.Phase
+	}
+	return ""
+}
+
+// MutateShootCARotation mutates the .status.credentials.rotation.certificateAuthorities field based on the provided
+// mutation function. If the field is nil then it is initialized.
+func MutateShootCARotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ShootCARotation)) {
+	if shoot.Status.Credentials == nil {
+		shoot.Status.Credentials = &gardencorev1beta1.ShootCredentials{}
+	}
+	if shoot.Status.Credentials.Rotation == nil {
+		shoot.Status.Credentials.Rotation = &gardencorev1beta1.ShootCredentialsRotation{}
+	}
+	if shoot.Status.Credentials.Rotation.CertificateAuthorities == nil {
+		shoot.Status.Credentials.Rotation.CertificateAuthorities = &gardencorev1beta1.ShootCARotation{}
+	}
+
+	f(shoot.Status.Credentials.Rotation.CertificateAuthorities)
+}
+
+// MutateShootKubeconfigRotation mutates the .status.credentials.rotation.kubeconfig field based on the provided
+// mutation function. If the field is nil then it is initialized.
+func MutateShootKubeconfigRotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ShootKubeconfigRotation)) {
+	if shoot.Status.Credentials == nil {
+		shoot.Status.Credentials = &gardencorev1beta1.ShootCredentials{}
+	}
+	if shoot.Status.Credentials.Rotation == nil {
+		shoot.Status.Credentials.Rotation = &gardencorev1beta1.ShootCredentialsRotation{}
+	}
+	if shoot.Status.Credentials.Rotation.Kubeconfig == nil {
+		shoot.Status.Credentials.Rotation.Kubeconfig = &gardencorev1beta1.ShootKubeconfigRotation{}
+	}
+
+	f(shoot.Status.Credentials.Rotation.Kubeconfig)
+}
+
+// IsShootKubeconfigRotationInitiationTimeAfterLastCompletionTime returns true when the lastInitiationTime in the
+// .status.credentials.rotation.kubeconfig field is newer than the lastCompletionTime. This is also true if the
+// lastCompletionTime is unset.
+func IsShootKubeconfigRotationInitiationTimeAfterLastCompletionTime(credentials *gardencorev1beta1.ShootCredentials) bool {
+	if credentials == nil ||
+		credentials.Rotation == nil ||
+		credentials.Rotation.Kubeconfig == nil ||
+		credentials.Rotation.Kubeconfig.LastInitiationTime == nil {
+		return false
+	}
+
+	return credentials.Rotation.Kubeconfig.LastCompletionTime == nil ||
+		credentials.Rotation.Kubeconfig.LastCompletionTime.Before(credentials.Rotation.Kubeconfig.LastInitiationTime)
+}
+
+// MutateShootSSHKeypairRotation mutates the .status.credentials.rotation.sshKeypair field based on the provided
+// mutation function. If the field is nil then it is initialized.
+func MutateShootSSHKeypairRotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ShootSSHKeypairRotation)) {
+	if shoot.Status.Credentials == nil {
+		shoot.Status.Credentials = &gardencorev1beta1.ShootCredentials{}
+	}
+	if shoot.Status.Credentials.Rotation == nil {
+		shoot.Status.Credentials.Rotation = &gardencorev1beta1.ShootCredentialsRotation{}
+	}
+	if shoot.Status.Credentials.Rotation.SSHKeypair == nil {
+		shoot.Status.Credentials.Rotation.SSHKeypair = &gardencorev1beta1.ShootSSHKeypairRotation{}
+	}
+
+	f(shoot.Status.Credentials.Rotation.SSHKeypair)
+}
+
+// IsShootSSHKeypairRotationInitiationTimeAfterLastCompletionTime returns true when the lastInitiationTime in the
+// .status.credentials.rotation.sshKeypair field is newer than the lastCompletionTime. This is also true if the
+// lastCompletionTime is unset.
+func IsShootSSHKeypairRotationInitiationTimeAfterLastCompletionTime(credentials *gardencorev1beta1.ShootCredentials) bool {
+	if credentials == nil ||
+		credentials.Rotation == nil ||
+		credentials.Rotation.SSHKeypair == nil ||
+		credentials.Rotation.SSHKeypair.LastInitiationTime == nil {
+		return false
+	}
+
+	return credentials.Rotation.SSHKeypair.LastCompletionTime == nil ||
+		credentials.Rotation.SSHKeypair.LastCompletionTime.Before(credentials.Rotation.SSHKeypair.LastInitiationTime)
+}
+
+// MutateObservabilityRotation mutates the .status.credentials.rotation.observability field based on the provided
+// mutation function. If the field is nil then it is initialized.
+func MutateObservabilityRotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ShootObservabilityRotation)) {
+	if shoot.Status.Credentials == nil {
+		shoot.Status.Credentials = &gardencorev1beta1.ShootCredentials{}
+	}
+	if shoot.Status.Credentials.Rotation == nil {
+		shoot.Status.Credentials.Rotation = &gardencorev1beta1.ShootCredentialsRotation{}
+	}
+	if shoot.Status.Credentials.Rotation.Observability == nil {
+		shoot.Status.Credentials.Rotation.Observability = &gardencorev1beta1.ShootObservabilityRotation{}
+	}
+
+	f(shoot.Status.Credentials.Rotation.Observability)
+}
+
+// IsShootObservabilityRotationInitiationTimeAfterLastCompletionTime returns true when the lastInitiationTime in the
+// .status.credentials.rotation.observability field is newer than the lastCompletionTime. This is also true if the
+// lastCompletionTime is unset.
+func IsShootObservabilityRotationInitiationTimeAfterLastCompletionTime(credentials *gardencorev1beta1.ShootCredentials) bool {
+	if credentials == nil ||
+		credentials.Rotation == nil ||
+		credentials.Rotation.Observability == nil ||
+		credentials.Rotation.Observability.LastInitiationTime == nil {
+		return false
+	}
+
+	return credentials.Rotation.Observability.LastCompletionTime == nil ||
+		credentials.Rotation.Observability.LastCompletionTime.Before(credentials.Rotation.Observability.LastInitiationTime)
+}
+
+// GetShootServiceAccountKeyRotationPhase returns the specified shoot service account key rotation phase or an empty
+// string.
+func GetShootServiceAccountKeyRotationPhase(credentials *gardencorev1beta1.ShootCredentials) gardencorev1beta1.ShootCredentialsRotationPhase {
+	if credentials != nil && credentials.Rotation != nil && credentials.Rotation.ServiceAccountKey != nil {
+		return credentials.Rotation.ServiceAccountKey.Phase
+	}
+	return ""
+}
+
+// MutateShootServiceAccountKeyRotation mutates the .status.credentials.rotation.serviceAccountKey field based on the
+// provided mutation function. If the field is nil then it is initialized.
+func MutateShootServiceAccountKeyRotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ShootServiceAccountKeyRotation)) {
+	if shoot.Status.Credentials == nil {
+		shoot.Status.Credentials = &gardencorev1beta1.ShootCredentials{}
+	}
+	if shoot.Status.Credentials.Rotation == nil {
+		shoot.Status.Credentials.Rotation = &gardencorev1beta1.ShootCredentialsRotation{}
+	}
+	if shoot.Status.Credentials.Rotation.ServiceAccountKey == nil {
+		shoot.Status.Credentials.Rotation.ServiceAccountKey = &gardencorev1beta1.ShootServiceAccountKeyRotation{}
+	}
+
+	f(shoot.Status.Credentials.Rotation.ServiceAccountKey)
+}
+
+// GetShootETCDEncryptionKeyRotationPhase returns the specified shoot ETCD encryption key rotation phase or an empty
+// string.
+func GetShootETCDEncryptionKeyRotationPhase(credentials *gardencorev1beta1.ShootCredentials) gardencorev1beta1.ShootCredentialsRotationPhase {
+	if credentials != nil && credentials.Rotation != nil && credentials.Rotation.ETCDEncryptionKey != nil {
+		return credentials.Rotation.ETCDEncryptionKey.Phase
+	}
+	return ""
+}
+
+// MutateShootETCDEncryptionKeyRotation mutates the .status.credentials.rotation.etcdEncryptionKey field based on the
+// provided mutation function. If the field is nil then it is initialized.
+func MutateShootETCDEncryptionKeyRotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ShootETCDEncryptionKeyRotation)) {
+	if shoot.Status.Credentials == nil {
+		shoot.Status.Credentials = &gardencorev1beta1.ShootCredentials{}
+	}
+	if shoot.Status.Credentials.Rotation == nil {
+		shoot.Status.Credentials.Rotation = &gardencorev1beta1.ShootCredentialsRotation{}
+	}
+	if shoot.Status.Credentials.Rotation.ETCDEncryptionKey == nil {
+		shoot.Status.Credentials.Rotation.ETCDEncryptionKey = &gardencorev1beta1.ShootETCDEncryptionKeyRotation{}
+	}
+
+	f(shoot.Status.Credentials.Rotation.ETCDEncryptionKey)
 }

@@ -87,7 +87,7 @@ type ControlledResourceEventHandler struct {
 	// Scheme is used to resolve types to their GroupKinds.
 	Scheme *runtime.Scheme
 	// Logger is used to log messages.
-	Logger *logrus.Logger
+	Logger logrus.FieldLogger
 }
 
 // ControllerType contains information about a controller type.
@@ -138,11 +138,6 @@ func (h *ControlledResourceEventHandler) OnUpdate(old, new interface{}) {
 	}
 	newObj, ok := new.(client.Object)
 	if !ok {
-		return
-	}
-
-	// Check resource versions, as we may receive update events for all object of certain kind
-	if newObj.GetResourceVersion() == oldObj.GetResourceVersion() {
 		return
 	}
 
