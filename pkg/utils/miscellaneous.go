@@ -50,14 +50,14 @@ const (
 )
 
 const (
-	s3    = "S3"
-	abs   = "ABS"
-	gcs   = "GCS"
-	oss   = "OSS"
-	swift = "Swift"
+	S3    = "S3"
+	ABS   = "ABS"
+	GCS   = "GCS"
+	OSS   = "OSS"
+	Swift = "Swift"
 	Local = "Local"
-	ecs   = "ECS"
-	ocs   = "OCS"
+	ECS   = "ECS"
+	OCS   = "OCS"
 )
 
 // ValueExists returns true or false, depending on whether the given string <value>
@@ -211,20 +211,20 @@ func StorageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) (str
 	}
 
 	switch *infra {
-	case aws, s3:
-		return s3, nil
-	case azure, abs:
-		return abs, nil
-	case alicloud, oss:
-		return oss, nil
-	case openstack, swift:
-		return swift, nil
-	case gcp, gcs:
-		return gcs, nil
-	case dell, ecs:
-		return ecs, nil
-	case openshift, ocs:
-		return ocs, nil
+	case aws, S3:
+		return S3, nil
+	case azure, ABS:
+		return ABS, nil
+	case alicloud, OSS:
+		return OSS, nil
+	case openstack, Swift:
+		return Swift, nil
+	case gcp, GCS:
+		return GCS, nil
+	case dell, ECS:
+		return ECS, nil
+	case openshift, OCS:
+		return OCS, nil
 	case Local, druidv1alpha1.StorageProvider(strings.ToLower(Local)):
 		return Local, nil
 	default:
