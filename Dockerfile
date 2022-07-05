@@ -14,6 +14,6 @@ RUN .ci/build
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static-debian11:nonroot AS druid
 WORKDIR /
-COPY --from=builder /go/src/github.com/gardener/etcd-druid/bin/linux-amd64/etcd-druid /etcd-druid
+COPY --from=builder /go/src/github.com/gardener/etcd-druid/bin/etcd-druid /etcd-druid
 COPY charts charts
 ENTRYPOINT ["/etcd-druid"]
