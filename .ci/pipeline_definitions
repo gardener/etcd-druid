@@ -8,7 +8,10 @@ etcd-druid:
           'inject-commit-hash'
         inject_effective_version: true
       publish:
-        oci-builder: 'kaniko'
+        oci-builder: 'docker-buildx'
+        platforms:
+        - linux/amd64
+        - linux/arm64
         dockerimages:
           etcd-druid:
             registry: 'gcr-readwrite'
