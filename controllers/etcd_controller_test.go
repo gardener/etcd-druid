@@ -953,6 +953,21 @@ func validateRole(instance *druidv1alpha1.Etcd, role *rbac.Role) {
 					"watch":  Equal("watch"),
 				}),
 			}),
+			"": MatchFields(IgnoreExtras, Fields{
+				"APIGroups": MatchAllElements(stringArrayIterator, Elements{
+					"": Equal(""),
+				}),
+				"Resources": MatchAllElements(stringArrayIterator, Elements{
+					"pods": Equal("pods"),
+				}),
+				"Verbs": MatchAllElements(stringArrayIterator, Elements{
+					"list":   Equal("list"),
+					"get":    Equal("get"),
+					"update": Equal("update"),
+					"patch":  Equal("patch"),
+					"watch":  Equal("watch"),
+				}),
+			}),
 		}),
 	}))
 }
