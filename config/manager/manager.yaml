@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - command:
-            - /bin/etcd-druid
+            - /etcd-druid
           args:
             - --enable-leader-election
           name: druid
