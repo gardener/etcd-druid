@@ -39,9 +39,9 @@ import (
 	"github.com/gardener/gardener/pkg/chartrenderer"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/controllerutils"
+	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
-	gardenerretry "github.com/gardener/gardener/pkg/utils/retry"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
@@ -369,7 +369,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 
 	var clientPort, serverPort, backupPort int32 = 2379, 2380, 8080
 	var etcdImage, backupImage string = "test", "test"
-	stsDeployer := componentsts.New(r.Client, etcd.Namespace, componentsts.GenerateValues(etcd, &clientPort, &serverPort, &backupPort, etcdImage, backupImage))
+	stsDeployer := componentsts.New(r.Client, logger, etcd.Namespace, componentsts.GenerateValues(etcd, &clientPort, &serverPort, &backupPort, etcdImage, backupImage))
 	if err := stsDeployer.Destroy(ctx); err != nil {
 		if err = r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 			return ctrl.Result{
@@ -692,20 +692,17 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		return nil, nil, err
 	}
 
-	stsDeployer := componentsts.New(r.Client, etcd.Namespace, val.StatefulSet)
-	err = stsDeployer.Deploy(ctx)
+	// Create an OpWaiter because after the depoyment we want to wait until the StatefulSet is ready.
+	var (
+		stsDeployer  = componentsts.New(r.Client, logger, etcd.Namespace, val.StatefulSet)
+		deployWaiter = gardenercomponent.OpWaiter(stsDeployer)
+	)
 
-	if err != nil {
+	if err := deployWaiter.Deploy(ctx); err != nil {
 		return nil, nil, err
 	}
 
-	sts := &appsv1.StatefulSet{}
-	err = r.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, sts)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cound not fetch statefulset after deploying a statefulset: %v", err)
-	}
-
-	sts, err = r.waitUntilStatefulSetReady(ctx, logger, etcd, sts)
+	sts, err := stsDeployer.Get(ctx)
 
 	return &val.Service.ClientServiceName, sts, err
 }
@@ -1042,7 +1039,7 @@ func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv
 				bootstrapReset(etcd)
 			}
 
-			ready := CheckStatefulSet(etcd, sts) == nil
+			ready := utils.CheckStatefulSet(etcd.Spec.Replicas, sts) == nil
 			etcd.Status.Ready = &ready
 			etcd.Status.Replicas = pointer.Int32PtrDerefOr(sts.Spec.Replicas, 0)
 		}
@@ -1057,7 +1054,7 @@ func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alph
 			bootstrapReset(etcd)
 		}
 
-		ready := CheckStatefulSet(etcd, sts) == nil
+		ready := utils.CheckStatefulSet(etcd.Spec.Replicas, sts) == nil
 		etcd.Status.Ready = &ready
 		svcName := serviceName
 		etcd.Status.ServiceName = &svcName
@@ -1066,39 +1063,6 @@ func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alph
 		etcd.Status.Replicas = pointer.Int32PtrDerefOr(sts.Spec.Replicas, 0)
 		return nil
 	})
-}
-
-func (r *EtcdReconciler) waitUntilStatefulSetReady(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) (*appsv1.StatefulSet, error) {
-	var (
-		ss = &appsv1.StatefulSet{}
-	)
-
-	err := gardenerretry.UntilTimeout(ctx, DefaultInterval, DefaultTimeout, func(ctx context.Context) (bool, error) {
-		if err := r.Get(ctx, types.NamespacedName{Name: sts.Name, Namespace: sts.Namespace}, ss); err != nil {
-			if apierrors.IsNotFound(err) {
-				return gardenerretry.MinorError(err)
-			}
-			return gardenerretry.SevereError(err)
-		}
-		if err := CheckStatefulSet(etcd, ss); err != nil {
-			return gardenerretry.MinorError(err)
-		}
-		return gardenerretry.Ok()
-	})
-	if err != nil {
-		messages, err2 := r.fetchPVCEventsFor(ctx, ss)
-		if err2 != nil {
-			logger.Error(err2, "Error while fetching events for depending PVC")
-			// don't expose this error since fetching events is a best effort
-			// and shouldn't be confused with the actual error
-			return ss, err
-		}
-		if messages != "" {
-			return ss, fmt.Errorf("%w\n\n%s", err, messages)
-		}
-	}
-
-	return ss, err
 }
 
 func (r *EtcdReconciler) fetchPVCEventsFor(ctx context.Context, ss *appsv1.StatefulSet) (string, error) {

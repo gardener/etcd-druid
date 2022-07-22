@@ -375,25 +375,3 @@ func RecheckDeletionTimestamp(getObject func() (metav1.Object, error)) func() er
 		return nil
 	}
 }
-
-// CheckStatefulSet checks whether the given StatefulSet is healthy.
-// A StatefulSet is considered healthy if its controller observed its current revision,
-// it is not in an update (i.e. UpdateRevision is empty) and if its current replicas are equal to
-// desired replicas specified in ETCD specs.
-func CheckStatefulSet(etcd *druidv1alpha1.Etcd, statefulSet *appsv1.StatefulSet) error {
-	if statefulSet.Status.ObservedGeneration < statefulSet.Generation {
-		return fmt.Errorf("observed generation outdated (%d/%d)", statefulSet.Status.ObservedGeneration, statefulSet.Generation)
-	}
-
-	replicas := int32(1)
-
-	if etcd != nil {
-		replicas = etcd.Spec.Replicas
-	}
-
-	if statefulSet.Status.ReadyReplicas < replicas {
-		return fmt.Errorf("not enough ready replicas (%d/%d)", statefulSet.Status.ReadyReplicas, replicas)
-	}
-
-	return nil
-}

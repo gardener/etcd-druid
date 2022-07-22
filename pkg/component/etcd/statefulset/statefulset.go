@@ -17,36 +17,59 @@ package statefulset
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
 	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
+	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
+	"github.com/gardener/gardener/pkg/utils/retry"
+	gardenerretry "github.com/gardener/gardener/pkg/utils/retry"
+	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/gardener/etcd-druid/pkg/utils"
 )
 
+// Interface contains functions for a StatefulSet deployer.
+type Interface interface {
+	gardenercomponent.DeployWaiter
+	// Get gets the etcd StatefulSet.
+	Get(context.Context) (*appsv1.StatefulSet, error)
+}
+
 type component struct {
-	client    client.Client
+	client client.Client
+	logger logr.Logger
+
 	namespace string
 
 	values Values
 }
 
-func (c *component) Deploy(ctx context.Context) error {
-	var (
-		sts    = c.emptyStatefulset(c.values.StsName)
-		create = false
-	)
+func (c *component) Get(ctx context.Context) (*appsv1.StatefulSet, error) {
+	sts := c.emptyStatefulset(c.values.StsName)
 
 	if err := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
+		return nil, err
+	}
+
+	return sts, nil
+}
+
+func (c *component) Deploy(ctx context.Context) error {
+	sts, err := c.Get(ctx)
+	if err != nil {
 		if !apierrors.IsNotFound(err) {
-			return fmt.Errorf("cound not fetch statefulset before deploying a statefulset: %v", err)
+			return err
 		}
-		create = true
+		sts = c.emptyStatefulset(c.values.StsName)
 	}
 
 	if sts.Generation > 1 && sts.Spec.ServiceName != c.values.ServiceName {
@@ -56,11 +79,11 @@ func (c *component) Deploy(ctx context.Context) error {
 			if err := c.client.Delete(ctx, sts); client.IgnoreNotFound(err) != nil {
 				return err
 			}
-			create = true
+			sts = c.emptyStatefulset(c.values.StsName)
 		}
 	}
 
-	return c.syncStatefulset(ctx, sts, create)
+	return c.syncStatefulset(ctx, sts, sts.Generation == 0)
 }
 
 func (c *component) Destroy(ctx context.Context) error {
@@ -77,6 +100,59 @@ func clusterScaledUpToMultiNode(val Values) bool {
 		// Also consider `0` here because this field was not maintained in earlier releases.
 		(val.StatusReplicas == 0 ||
 			val.StatusReplicas == 1)
+}
+
+const (
+	// DefaultInterval is the default interval for retry operations.
+	DefaultInterval = 5 * time.Second
+	// DefaultTimeout is the default timeout for retry operations.
+	DefaultTimeout = 1 * time.Minute
+)
+
+func (c *component) Wait(ctx context.Context) error {
+	sts := c.emptyStatefulset(c.values.StsName)
+
+	err := gardenerretry.UntilTimeout(ctx, DefaultInterval, DefaultTimeout, func(ctx context.Context) (bool, error) {
+		if err := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
+			if apierrors.IsNotFound(err) {
+				return gardenerretry.MinorError(err)
+			}
+			return gardenerretry.SevereError(err)
+		}
+		if err := utils.CheckStatefulSet(c.values.Replicas, sts); err != nil {
+			return gardenerretry.MinorError(err)
+		}
+		return gardenerretry.Ok()
+	})
+	if err != nil {
+		messages, err2 := c.fetchPVCEventsFor(ctx, sts)
+		if err2 != nil {
+			c.logger.Error(err2, "Error while fetching events for depending PVC")
+			// don't expose this error since fetching events is a best effort
+			// and shouldn't be confused with the actual error
+			return err
+		}
+		if messages != "" {
+			return fmt.Errorf("%w\n\n%s", err, messages)
+		}
+	}
+
+	return err
+}
+
+func (c *component) WaitCleanup(ctx context.Context) error {
+	return gardenerretry.UntilTimeout(ctx, DefaultInterval, DefaultTimeout, func(ctx context.Context) (done bool, err error) {
+		sts := c.emptyStatefulset(c.values.StsName)
+		err = c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts)
+		switch {
+		case apierrors.IsNotFound(err):
+			return retry.Ok()
+		case err == nil:
+			return retry.MinorError(err)
+		default:
+			return retry.SevereError(err)
+		}
+	})
 }
 
 func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet, create bool) error {
@@ -194,10 +270,38 @@ func (c *component) deleteStatefulset(ctx context.Context, sts *appsv1.StatefulS
 	return client.IgnoreNotFound(c.client.Delete(ctx, sts))
 }
 
+func (c *component) fetchPVCEventsFor(ctx context.Context, ss *appsv1.StatefulSet) (string, error) {
+	pvcs := &corev1.PersistentVolumeClaimList{}
+	if err := c.client.List(ctx, pvcs, client.InNamespace(ss.GetNamespace())); err != nil {
+		return "", err
+	}
+
+	var (
+		pvcMessages  string
+		volumeClaims = ss.Spec.VolumeClaimTemplates
+	)
+	for _, volumeClaim := range volumeClaims {
+		for _, pvc := range pvcs.Items {
+			if !strings.HasPrefix(pvc.GetName(), fmt.Sprintf("%s-%s", volumeClaim.Name, ss.Name)) || pvc.Status.Phase == corev1.ClaimBound {
+				continue
+			}
+			messages, err := kutil.FetchEventMessages(ctx, c.client.Scheme(), c.client, &pvc, corev1.EventTypeWarning, 2)
+			if err != nil {
+				return "", err
+			}
+			if messages != "" {
+				pvcMessages += fmt.Sprintf("Warning for PVC %s:\n%s\n", pvc.Name, messages)
+			}
+		}
+	}
+	return pvcMessages, nil
+}
+
 // New creates a new statefulset deployer instance.
-func New(c client.Client, namespace string, values Values) gardenercomponent.Deployer {
+func New(c client.Client, logger logr.Logger, namespace string, values Values) Interface {
 	return &component{
 		client:    c,
+		logger:    logger,
 		namespace: namespace,
 		values:    values,
 	}

@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gardener/gardener/pkg/controllerutils"
-
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
@@ -50,6 +49,7 @@ import (
 	"github.com/gardener/etcd-druid/pkg/health/status"
 	druidmapper "github.com/gardener/etcd-druid/pkg/mapper"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
+	"github.com/gardener/etcd-druid/pkg/utils"
 )
 
 // EtcdCustodian reconciles status of Etcd object
@@ -160,7 +160,7 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logge
 				Name:       sts.Name,
 			}
 
-			ready := CheckStatefulSet(etcd, sts) == nil
+			ready := utils.CheckStatefulSet(etcd.Spec.Replicas, sts) == nil
 
 			// To be changed once we have multiple replicas.
 			etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
