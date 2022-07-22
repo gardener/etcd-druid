@@ -23,11 +23,12 @@ import (
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	"github.com/gardener/etcd-druid/pkg/common"
 	. "github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
-
 	druidutils "github.com/gardener/etcd-druid/pkg/utils"
+
 	"github.com/gardener/gardener/pkg/operation/botanist/component"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
+	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
@@ -128,7 +129,7 @@ var _ = Describe("Statefulset", func() {
 			},
 		}
 
-		stsDeployer = New(cl, namespace, values)
+		stsDeployer = New(cl, logr.Discard(), namespace, values)
 	})
 
 	Describe("#Deploy", func() {
@@ -146,6 +147,8 @@ var _ = Describe("Statefulset", func() {
 
 		Context("when statefulset exists", func() {
 			It("should update the statefulset successfully", func() {
+				// The generation is usually increased by the Kube-Apiserver but as we use a fake client here, we need to manually do it.
+				sts.Generation = 1
 				Expect(cl.Create(ctx, sts)).To(Succeed())
 
 				Expect(stsDeployer.Deploy(ctx)).To(Succeed())
@@ -159,14 +162,14 @@ var _ = Describe("Statefulset", func() {
 	})
 
 	Describe("#Destroy", func() {
-		Context("when configmap do not exist", func() {
+		Context("when statefulset does not exist", func() {
 			It("should destroy successfully", func() {
 				Expect(stsDeployer.Destroy(ctx)).To(Succeed())
 				Expect(cl.Get(ctx, client.ObjectKeyFromObject(sts), &appsv1.StatefulSet{})).To(BeNotFoundError())
 			})
 		})
 
-		Context("when configmap exist", func() {
+		Context("when statefulset exists", func() {
 			It("should destroy successfully", func() {
 				Expect(cl.Create(ctx, sts)).To(Succeed())
 
@@ -202,6 +205,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
 				"instance": Equal(values.EtcdName),
+				"foo":      Equal("bar"),
 			}),
 		}),
 
@@ -226,6 +230,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 					"Labels": MatchAllKeys(Keys{
 						"name":     Equal("etcd"),
 						"instance": Equal(values.EtcdName),
+						"foo":      Equal("bar"),
 					}),
 				}),
 				//s.Spec.Template.Spec.HostAliases
@@ -546,12 +551,6 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 			Labels: map[string]string{
 				"name":     "etcd",
 				"instance": name,
-			},
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"name":     "etcd",
-					"instance": name,
-				},
 			},
 			Replicas:            1,
 			StorageCapacity:     &storageCapacity,

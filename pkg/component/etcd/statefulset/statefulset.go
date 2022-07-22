@@ -21,13 +21,10 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/gardener/gardener/pkg/controllerutils"
 	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -40,26 +37,30 @@ type component struct {
 }
 
 func (c *component) Deploy(ctx context.Context) error {
-	fetchedSts := &appsv1.StatefulSet{}
-	err := c.client.Get(ctx, types.NamespacedName{Name: c.values.EtcdName, Namespace: c.values.EtcdNameSpace}, fetchedSts)
-	if apierrors.IsNotFound(err) {
-		sts := c.emptyStatefulset(c.values.StsName)
+	var (
+		sts    = c.emptyStatefulset(c.values.StsName)
+		create = false
+	)
 
-		return c.syncStatefulset(ctx, sts)
-
+	if err := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return fmt.Errorf("cound not fetch statefulset before deploying a statefulset: %v", err)
+		}
+		create = true
 	}
 
-	if err != nil {
-		return fmt.Errorf("cound not fetch statefulset before deploying a statefulset: %v", err)
-	}
-
-	if fetchedSts.Spec.ServiceName != c.values.ServiceName {
+	if sts.Generation > 1 && sts.Spec.ServiceName != c.values.ServiceName {
+		// Earlier clusters referred to the client service in `sts.Spec.ServiceName` which must be changed
+		// when a multi-node cluster is used, see https://github.com/gardener/etcd-druid/pull/293.
 		if clusterScaledUpToMultiNode(c.values) {
-			return c.createStatefulset(ctx, fetchedSts)
+			if err := c.client.Delete(ctx, sts); client.IgnoreNotFound(err) != nil {
+				return err
+			}
+			create = true
 		}
 	}
 
-	return c.syncStatefulset(ctx, fetchedSts)
+	return c.syncStatefulset(ctx, sts, create)
 }
 
 func (c *component) Destroy(ctx context.Context) error {
@@ -78,127 +79,115 @@ func clusterScaledUpToMultiNode(val Values) bool {
 			val.StatusReplicas == 1)
 }
 
-func (c *component) createStatefulset(ctx context.Context, ss *appsv1.StatefulSet) error {
-	skipDelete := false
-	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		if !skipDelete {
-			if err := c.client.Delete(ctx, ss); err != nil && !apierrors.IsNotFound(err) {
-				return err
-			}
-		}
-		skipDelete = true
-		sts := c.emptyStatefulset(c.values.StsName)
+func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet, create bool) error {
+	patch := client.StrategicMergeFrom(sts.DeepCopy())
 
-		return c.syncStatefulset(ctx, sts)
-	})
-	return err
-}
-
-func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet) error {
-	_, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, c.client, sts, func() error {
-		sts.ObjectMeta = getObjectMeta(&c.values)
-		sts.Spec = appsv1.StatefulSetSpec{
-			VolumeClaimTemplates: []v1.PersistentVolumeClaim{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: c.values.VolumeClaimTemplateName,
-					},
-					Spec: v1.PersistentVolumeClaimSpec{
-						AccessModes: []v1.PersistentVolumeAccessMode{
-							v1.ReadWriteOnce,
-						},
-						StorageClassName: c.values.StorageClass,
-						Resources:        getStorageReq(c.values),
-					},
-				},
-			},
-			PodManagementPolicy: appsv1.ParallelPodManagement,
-			UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
-				Type: appsv1.RollingUpdateStatefulSetStrategyType,
-			},
-			Replicas:    pointer.Int32(c.values.Replicas),
-			ServiceName: c.values.ServiceName,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"name":     "etcd",
-					"instance": c.values.EtcdName,
-				},
-			},
-			Template: v1.PodTemplateSpec{
+	sts.ObjectMeta = getObjectMeta(&c.values)
+	sts.Spec = appsv1.StatefulSetSpec{
+		VolumeClaimTemplates: []v1.PersistentVolumeClaim{
+			{
 				ObjectMeta: metav1.ObjectMeta{
-					Annotations: c.values.Annotations,
-					Labels:      c.values.Labels,
+					Name: c.values.VolumeClaimTemplateName,
 				},
-				Spec: v1.PodSpec{
-					HostAliases: []v1.HostAlias{
-						{
-							IP:        "127.0.0.1",
-							Hostnames: []string{c.values.EtcdName + "-local"},
-						},
+				Spec: v1.PersistentVolumeClaimSpec{
+					AccessModes: []v1.PersistentVolumeAccessMode{
+						v1.ReadWriteOnce,
 					},
-					ServiceAccountName:        c.values.ServiceAccountName,
-					Affinity:                  c.values.Affinity,
-					TopologySpreadConstraints: c.values.TopologySpreadConstraints,
-					Containers: []v1.Container{
-						{
-							Name:            "etcd",
-							Image:           c.values.EtcdImage,
-							ImagePullPolicy: v1.PullIfNotPresent,
-							Command:         c.values.EtcdCommand,
-							ReadinessProbe: &v1.Probe{
-								Handler: v1.Handler{
-									Exec: &v1.ExecAction{
-										Command: c.values.ReadinessProbeCommand,
-									},
-								},
-								InitialDelaySeconds: 15,
-								PeriodSeconds:       5,
-								FailureThreshold:    5,
-							},
-							LivenessProbe: &v1.Probe{
-								Handler: v1.Handler{
-									Exec: &v1.ExecAction{
-										Command: c.values.LivenessProbCommand,
-									},
-								},
-								InitialDelaySeconds: 15,
-								PeriodSeconds:       5,
-								FailureThreshold:    5,
-							},
-							Ports:        getEtcdPorts(c.values),
-							Resources:    getEtcdResources(c.values),
-							Env:          getEtcdEnvVar(c.values),
-							VolumeMounts: getEtcdVolumeMounts(c.values),
-						},
-						{
-							Name:            "backup-restore",
-							Image:           c.values.BackupImage,
-							ImagePullPolicy: v1.PullIfNotPresent,
-							Command:         c.values.EtcdBackupCommand,
-							Ports:           getBackupPorts(c.values),
-							Resources:       getBackupResources(c.values),
-							Env:             getStsEnvVar(c.values),
-							VolumeMounts:    getBackupRestoreVolumeMounts(c.values),
-							SecurityContext: &v1.SecurityContext{
-								Capabilities: &v1.Capabilities{
-									Add: []v1.Capability{
-										v1.Capability("SYS_PTRACE"),
-									},
-								},
-							},
-						},
-					},
-					ShareProcessNamespace: pointer.Bool(true),
-					Volumes:               getBackupRestoreVolumes(c.values),
+					StorageClassName: c.values.StorageClass,
+					Resources:        getStorageReq(c.values),
 				},
 			},
-		}
-		if c.values.PriorityClassName != nil {
-			sts.Spec.Template.Spec.PriorityClassName = *c.values.PriorityClassName
-		}
-		return nil
-	})
-	return err
+		},
+		PodManagementPolicy: appsv1.ParallelPodManagement,
+		UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
+			Type: appsv1.RollingUpdateStatefulSetStrategyType,
+		},
+		Replicas:    pointer.Int32(c.values.Replicas),
+		ServiceName: c.values.ServiceName,
+		Selector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"name":     "etcd",
+				"instance": c.values.EtcdName,
+			},
+		},
+		Template: v1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: c.values.Annotations,
+				Labels:      c.values.Labels,
+			},
+			Spec: v1.PodSpec{
+				HostAliases: []v1.HostAlias{
+					{
+						IP:        "127.0.0.1",
+						Hostnames: []string{c.values.EtcdName + "-local"},
+					},
+				},
+				ServiceAccountName:        c.values.ServiceAccountName,
+				Affinity:                  c.values.Affinity,
+				TopologySpreadConstraints: c.values.TopologySpreadConstraints,
+				Containers: []v1.Container{
+					{
+						Name:            "etcd",
+						Image:           c.values.EtcdImage,
+						ImagePullPolicy: v1.PullIfNotPresent,
+						Command:         c.values.EtcdCommand,
+						ReadinessProbe: &v1.Probe{
+							Handler: v1.Handler{
+								Exec: &v1.ExecAction{
+									Command: c.values.ReadinessProbeCommand,
+								},
+							},
+							InitialDelaySeconds: 15,
+							PeriodSeconds:       5,
+							FailureThreshold:    5,
+						},
+						LivenessProbe: &v1.Probe{
+							Handler: v1.Handler{
+								Exec: &v1.ExecAction{
+									Command: c.values.LivenessProbCommand,
+								},
+							},
+							InitialDelaySeconds: 15,
+							PeriodSeconds:       5,
+							FailureThreshold:    5,
+						},
+						Ports:        getEtcdPorts(c.values),
+						Resources:    getEtcdResources(c.values),
+						Env:          getEtcdEnvVar(c.values),
+						VolumeMounts: getEtcdVolumeMounts(c.values),
+					},
+					{
+						Name:            "backup-restore",
+						Image:           c.values.BackupImage,
+						ImagePullPolicy: v1.PullIfNotPresent,
+						Command:         c.values.EtcdBackupCommand,
+						Ports:           getBackupPorts(c.values),
+						Resources:       getBackupResources(c.values),
+						Env:             getStsEnvVar(c.values),
+						VolumeMounts:    getBackupRestoreVolumeMounts(c.values),
+						SecurityContext: &v1.SecurityContext{
+							Capabilities: &v1.Capabilities{
+								Add: []v1.Capability{
+									v1.Capability("SYS_PTRACE"),
+								},
+							},
+						},
+					},
+				},
+				ShareProcessNamespace: pointer.Bool(true),
+				Volumes:               getBackupRestoreVolumes(c.values),
+			},
+		},
+	}
+	if c.values.PriorityClassName != nil {
+		sts.Spec.Template.Spec.PriorityClassName = *c.values.PriorityClassName
+	}
+
+	if create {
+		return c.client.Create(ctx, sts)
+	}
+
+	return c.client.Patch(ctx, sts, patch)
 }
 
 func (c *component) deleteStatefulset(ctx context.Context, sts *appsv1.StatefulSet) error {
