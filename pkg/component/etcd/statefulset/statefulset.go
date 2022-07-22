@@ -76,7 +76,8 @@ func (c *component) Deploy(ctx context.Context) error {
 		// Earlier clusters referred to the client service in `sts.Spec.ServiceName` which must be changed
 		// when a multi-node cluster is used, see https://github.com/gardener/etcd-druid/pull/293.
 		if clusterScaledUpToMultiNode(c.values) {
-			if err := c.client.Delete(ctx, sts); client.IgnoreNotFound(err) != nil {
+			deleteAndWait := gardenercomponent.OpDestroyAndWait(c)
+			if err := deleteAndWait.Destroy(ctx); err != nil {
 				return err
 			}
 			sts = c.emptyStatefulset(c.values.StsName)
