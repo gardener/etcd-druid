@@ -104,11 +104,26 @@ var _ = Describe("Statefulset", func() {
 		namespace string
 		name      string
 
-		sts *appsv1.StatefulSet
+		replicas *int32
+		sts      *appsv1.StatefulSet
 
 		values      Values
 		stsDeployer component.Deployer
 	)
+
+	JustBeforeEach(func() {
+		etcd = getEtcd(name, namespace, true, *replicas)
+		values = GenerateValues(etcd, pointer.Int32Ptr(clientPort), pointer.Int32Ptr(serverPort), pointer.Int32Ptr(backupPort), imageEtcd, imageBR)
+		stsDeployer = New(cl, logr.Discard(), values)
+
+		sts = &appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{
+
+				Name:      values.Name,
+				Namespace: values.Namespace,
+			},
+		}
+	})
 
 	BeforeEach(func() {
 		ctx = context.Background()
@@ -118,18 +133,9 @@ var _ = Describe("Statefulset", func() {
 		namespace = "default"
 		quota = resource.MustParse("8Gi")
 
-		etcd = getEtcd(name, namespace, true)
-
-		values = GenerateValues(etcd, pointer.Int32Ptr(clientPort), pointer.Int32Ptr(serverPort), pointer.Int32Ptr(backupPort), imageEtcd, imageBR)
-
-		sts = &appsv1.StatefulSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      values.StsName,
-				Namespace: values.EtcdNameSpace,
-			},
+		if replicas == nil {
+			replicas = pointer.Int32Ptr(1)
 		}
-
-		stsDeployer = New(cl, logr.Discard(), namespace, values)
 	})
 
 	Describe("#Deploy", func() {
@@ -139,7 +145,7 @@ var _ = Describe("Statefulset", func() {
 
 				sts := &appsv1.StatefulSet{}
 
-				Expect(cl.Get(ctx, kutil.Key(namespace, values.StsName), sts)).To(Succeed())
+				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
 				checkStatefulset(sts, values)
 			})
 		})
@@ -154,8 +160,29 @@ var _ = Describe("Statefulset", func() {
 
 				sts := &appsv1.StatefulSet{}
 
-				Expect(cl.Get(ctx, kutil.Key(namespace, values.StsName), sts)).To(Succeed())
+				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
 				checkStatefulset(sts, values)
+			})
+
+			Context("when multi-node cluster is configured", func() {
+				BeforeEach(func() {
+					replicas = pointer.Int32(3)
+				})
+
+				It("should re-create statefulset because serviceName is changed", func() {
+					sts.Generation = 1
+					sts.Spec.ServiceName = "foo"
+					sts.Spec.Replicas = pointer.Int32Ptr(3)
+					sts.Status.Replicas = 1
+					Expect(cl.Create(ctx, sts)).To(Succeed())
+
+					values.Replicas = 3
+					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
+
+					sts := &appsv1.StatefulSet{}
+					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
+					checkStatefulset(sts, values)
+				})
 			})
 		})
 	})
@@ -183,27 +210,27 @@ var _ = Describe("Statefulset", func() {
 func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 	checkStsMetadata(sts.ObjectMeta.OwnerReferences, values)
 
-	readinessProbeUrl := fmt.Sprintf("https://%s-local:%d/health", values.EtcdName, clientPort)
+	readinessProbeUrl := fmt.Sprintf("https://%s-local:%d/health", values.Name, clientPort)
 	if int(values.Replicas) == 1 {
-		readinessProbeUrl = fmt.Sprintf("https://%s-local:%d/healthz", values.EtcdName, backupPort)
+		readinessProbeUrl = fmt.Sprintf("https://%s-local:%d/healthz", values.Name, backupPort)
 	}
 
 	store, err := druidutils.StorageProviderFromInfraProvider(values.BackupStore.Provider)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(*sts).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(values.EtcdName),
-			"Namespace": Equal(values.EtcdNameSpace),
+			"Name":      Equal(values.Name),
+			"Namespace": Equal(values.Namespace),
 			"Annotations": MatchAllKeys(Keys{
-				"gardener.cloud/owned-by":   Equal(fmt.Sprintf("%s/%s", values.EtcdNameSpace, values.EtcdName)),
+				"gardener.cloud/owned-by":   Equal(fmt.Sprintf("%s/%s", values.Namespace, values.Name)),
 				"gardener.cloud/owner-type": Equal("etcd"),
 				"app":                       Equal("etcd-statefulset"),
 				"role":                      Equal("test"),
-				"instance":                  Equal(values.EtcdName),
+				"instance":                  Equal(values.Name),
 			}),
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
-				"instance": Equal(values.EtcdName),
+				"instance": Equal(values.Name),
 				"foo":      Equal("bar"),
 			}),
 		}),
@@ -212,11 +239,11 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 			"UpdateStrategy": MatchFields(IgnoreExtras, Fields{
 				"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 			}),
-			"Replicas": PointTo(Equal(int32(values.Replicas))),
+			"Replicas": PointTo(Equal(values.Replicas)),
 			"Selector": PointTo(MatchFields(IgnoreExtras, Fields{
 				"MatchLabels": MatchAllKeys(Keys{
 					"name":     Equal("etcd"),
-					"instance": Equal(values.EtcdName),
+					"instance": Equal(values.Name),
 				}),
 			})),
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -224,11 +251,11 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 					"Annotations": MatchKeys(IgnoreExtras, Keys{
 						"app":      Equal("etcd-statefulset"),
 						"role":     Equal("test"),
-						"instance": Equal(values.EtcdName),
+						"instance": Equal(values.Name),
 					}),
 					"Labels": MatchAllKeys(Keys{
 						"name":     Equal("etcd"),
-						"instance": Equal(values.EtcdName),
+						"instance": Equal(values.Name),
 						"foo":      Equal("bar"),
 					}),
 				}),
@@ -238,7 +265,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 						"127.0.0.1": MatchFields(IgnoreExtras, Fields{
 							"IP": Equal("127.0.0.1"),
 							"Hostnames": MatchAllElements(cmdIterator, Elements{
-								fmt.Sprintf("%s-local", values.EtcdName): Equal(fmt.Sprintf("%s-local", values.EtcdName)),
+								fmt.Sprintf("%s-local", values.Name): Equal(fmt.Sprintf("%s-local", values.Name)),
 							}),
 						}),
 					}),
@@ -289,10 +316,10 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 											"-ec":           Equal("-ec"),
 											"ETCDCTL_API=3": Equal("ETCDCTL_API=3"),
 											"etcdctl":       Equal("etcdctl"),
-											"--cert=/var/etcd/ssl/client/client/tls.crt":                                Equal("--cert=/var/etcd/ssl/client/client/tls.crt"),
-											"--key=/var/etcd/ssl/client/client/tls.key":                                 Equal("--key=/var/etcd/ssl/client/client/tls.key"),
-											"--cacert=/var/etcd/ssl/client/ca/ca.crt":                                   Equal("--cacert=/var/etcd/ssl/client/ca/ca.crt"),
-											fmt.Sprintf("--endpoints=https://%s-local:%d", values.EtcdName, clientPort): Equal(fmt.Sprintf("--endpoints=https://%s-local:%d", values.EtcdName, clientPort)),
+											"--cert=/var/etcd/ssl/client/client/tls.crt":                            Equal("--cert=/var/etcd/ssl/client/client/tls.crt"),
+											"--key=/var/etcd/ssl/client/client/tls.key":                             Equal("--key=/var/etcd/ssl/client/client/tls.key"),
+											"--cacert=/var/etcd/ssl/client/ca/ca.crt":                               Equal("--cacert=/var/etcd/ssl/client/ca/ca.crt"),
+											fmt.Sprintf("--endpoints=https://%s-local:%d", values.Name, clientPort): Equal(fmt.Sprintf("--endpoints=https://%s-local:%d", values.Name, clientPort)),
 											"get":             Equal("get"),
 											"foo":             Equal("foo"),
 											"--consistency=s": Equal("--consistency=s"),
@@ -355,7 +382,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 								fmt.Sprintf("%s=%s", "--store-prefix", values.BackupStore.Prefix):                                     Equal(fmt.Sprintf("%s=%s", "--store-prefix", values.BackupStore.Prefix)),
 								fmt.Sprintf("--delta-snapshot-memory-limit=%d", values.DeltaSnapshotMemoryLimit.Value()):              Equal(fmt.Sprintf("--delta-snapshot-memory-limit=%d", values.DeltaSnapshotMemoryLimit.Value())),
 								fmt.Sprintf("--garbage-collection-policy=%s", *values.GarbageCollectionPolicy):                        Equal(fmt.Sprintf("--garbage-collection-policy=%s", *values.GarbageCollectionPolicy)),
-								fmt.Sprintf("--endpoints=https://%s-local:%d", values.EtcdName, clientPort):                           Equal(fmt.Sprintf("--endpoints=https://%s-local:%d", values.EtcdName, clientPort)),
+								fmt.Sprintf("--endpoints=https://%s-local:%d", values.Name, clientPort):                               Equal(fmt.Sprintf("--endpoints=https://%s-local:%d", values.Name, clientPort)),
 								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(values.Quota.Value())):                            Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(values.Quota.Value()))),
 								fmt.Sprintf("%s=%s", "--delta-snapshot-period", values.DeltaSnapshotPeriod.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-period", values.DeltaSnapshotPeriod.Duration.String())),
 								fmt.Sprintf("%s=%s", "--garbage-collection-period", values.GarbageCollectionPeriod.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--garbage-collection-period", values.GarbageCollectionPeriod.Duration.String())),
@@ -526,14 +553,14 @@ func checkStsMetadata(ors []metav1.OwnerReference, values Values) {
 	Expect(ors).To(ConsistOf(Equal(metav1.OwnerReference{
 		APIVersion:         druidv1alpha1.GroupVersion.String(),
 		Kind:               "Etcd",
-		Name:               values.EtcdName,
+		Name:               values.Name,
 		UID:                values.EtcdUID,
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	})))
 }
 
-func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
+func getEtcd(name, namespace string, tlsEnabled bool, replicas int32) *druidv1alpha1.Etcd {
 	instance := &druidv1alpha1.Etcd{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -549,7 +576,7 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 			Labels: map[string]string{
 				"foo": "bar",
 			},
-			Replicas:            1,
+			Replicas:            replicas,
 			StorageCapacity:     &storageCapacity,
 			StorageClass:        &storageClass,
 			PriorityClassName:   &priorityClassName,
@@ -578,14 +605,6 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 						"memory": parseQuantity("128Mi"),
 					},
 				},
-				/*Store: &druidv1alpha1.StoreSpec{
-					SecretRef: &corev1.SecretReference{
-						Name: "etcd-backup",
-					},
-					Container: &container,
-					Provider:  &provider,
-					Prefix:    prefix,
-				},*/
 				OwnerCheck: &druidv1alpha1.OwnerCheckSpec{
 					Name:        ownerName,
 					ID:          ownerID,

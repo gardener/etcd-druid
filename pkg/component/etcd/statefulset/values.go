@@ -23,35 +23,33 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// Values contains the values necesary for creating ETCD statefulset
+// Values contains the values necessary for creating ETCD statefulset.
 type Values struct {
-	// EtcdName is the name of the etcd resource.
-	EtcdName string
-	// EtcdNameSpace is the namespace of etcd resource
-	EtcdNameSpace string
-	// EtcdName is the UID of the etcd resource.
+	// Name is the name of the etcd resource.
+	Name string
+	// Namespace is the namespace of etcd resource.
+	Namespace string
+	// Name is the UID of the etcd resource.
 	EtcdUID types.UID
 
-	// StsName is the name of ETCD statefulset
-	StsName string
-	// Replicas is the number of ETCD instance that the ETCD cluster will have
+	// Replicas is the number of ETCD instance that the ETCD cluster will have.
 	Replicas int32
-	// StatusReplicas is the number of replicas maintained in ETCD status
+	// StatusReplicas is the number of replicas maintained in ETCD status.
 	StatusReplicas int32
 
-	// Annotations is the annotation provided in ETCD spec
+	// Annotations is the annotation provided in ETCD spec.
 	Annotations map[string]string
-	// Labels is the labels provided in ETCD spec
+	// Labels is the labels provided in ETCD spec.
 	Labels map[string]string
-	// BackupImage is the backup restore image
+	// BackupImage is the backup restore image.
 	BackupImage string
-	// EtcdImage is the etcd custom image
+	// EtcdImage is the etcd custom image.
 	EtcdImage string
-	// priorityClassName is the Priority Class name
+	// PriorityClassName is the Priority Class name.
 	PriorityClassName *string
-	// ServiceName is the name of the peer service
+	// ServiceName is the name of the peer service.
 	ServiceName string
-	// ServiceAccountName is the service account name
+	// ServiceAccountName is the service account name.
 	ServiceAccountName        string
 	Affinity                  *corev1.Affinity
 	TopologySpreadConstraints []corev1.TopologySpreadConstraint
@@ -102,21 +100,22 @@ type Values struct {
 	// Quota defines the etcd DB quota.
 	Quota *resource.Quantity
 
-	// ClientUrlTLS hold the TLS configuration details for Client Communication
+	// ClientUrlTLS holds the TLS configuration details for client communication.
 	ClientUrlTLS *druidv1alpha1.TLSConfig
-	// PeerUrlTLS hold the TLS configuration details for Peer Communication
+	// PeerUrlTLS hold the TLS configuration details for peer communication.
 	PeerUrlTLS *druidv1alpha1.TLSConfig
-	// BackupTLS hold the TLS configuration for communication with Backup server
+	// BackupTLS hold the TLS configuration for communication with Backup server.
 	BackupTLS *druidv1alpha1.TLSConfig
 
-	//ClientServiceName is name of the etcd client service
+	//ClientServiceName is name of the etcd client service.
 	ClientServiceName string
-	// ClientPort holds the client port
+	// ClientPort holds the client port.
 	ClientPort *int32
-	//PeerServiceName is name of the etcd peer service
+	//PeerServiceName is name of the etcd peer service.
 	PeerServiceName string
-	// ServerPort holds the peer port
+	// ServerPort is the peer port.
 	ServerPort *int32
+	// ServerPort is the backup-restore side-car port.
 	BackupPort *int32
 
 	OwnerCheck *druidv1alpha1.OwnerCheckSpec
@@ -124,6 +123,6 @@ type Values struct {
 	AutoCompactionMode *druidv1alpha1.CompactionMode
 	//AutoCompactionRetention defines the auto-compaction-retention length for etcd as well as for embedded-Etcd of backup-restore sidecar.
 	AutoCompactionRetention *string
-	// ConfigMapName is the name of the configmap that holds the ETCD config
+	// ConfigMapName is the name of the configmap that holds the ETCD config.
 	ConfigMapName string
 }

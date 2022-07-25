@@ -40,11 +40,6 @@ func GetConfigmapName(etcd *druidv1alpha1.Etcd) string {
 	return fmt.Sprintf("etcd-bootstrap-%s", string(etcd.UID[:6]))
 }
 
-// GetETCDStsName returns the name of the main ETCD based on the given `etcd` object.
-func GetETCDStsName(etcd *druidv1alpha1.Etcd) string {
-	return etcd.Name
-}
-
 // GetCronJobName returns the legacy compaction cron job name
 func GetCronJobName(etcd *druidv1alpha1.Etcd) string {
 	return fmt.Sprintf("%s-compact-backup", etcd.Name)

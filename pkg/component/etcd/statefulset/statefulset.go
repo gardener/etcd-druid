@@ -48,13 +48,11 @@ type component struct {
 	client client.Client
 	logger logr.Logger
 
-	namespace string
-
 	values Values
 }
 
 func (c *component) Get(ctx context.Context) (*appsv1.StatefulSet, error) {
-	sts := c.emptyStatefulset(c.values.StsName)
+	sts := c.emptyStatefulset()
 
 	if err := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
 		return nil, err
@@ -69,7 +67,7 @@ func (c *component) Deploy(ctx context.Context) error {
 		if !apierrors.IsNotFound(err) {
 			return err
 		}
-		sts = c.emptyStatefulset(c.values.StsName)
+		sts = c.emptyStatefulset()
 	}
 
 	if sts.Generation > 1 && sts.Spec.ServiceName != c.values.ServiceName {
@@ -80,7 +78,7 @@ func (c *component) Deploy(ctx context.Context) error {
 			if err := deleteAndWait.Destroy(ctx); err != nil {
 				return err
 			}
-			sts = c.emptyStatefulset(c.values.StsName)
+			sts = c.emptyStatefulset()
 		}
 	}
 
@@ -88,7 +86,7 @@ func (c *component) Deploy(ctx context.Context) error {
 }
 
 func (c *component) Destroy(ctx context.Context) error {
-	sts := c.emptyStatefulset(c.values.StsName)
+	sts := c.emptyStatefulset()
 
 	if err := c.deleteStatefulset(ctx, sts); err != nil {
 		return err
@@ -111,7 +109,7 @@ const (
 )
 
 func (c *component) Wait(ctx context.Context) error {
-	sts := c.emptyStatefulset(c.values.StsName)
+	sts := c.emptyStatefulset()
 
 	err := gardenerretry.UntilTimeout(ctx, DefaultInterval, DefaultTimeout, func(ctx context.Context) (bool, error) {
 		if err := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
@@ -143,7 +141,7 @@ func (c *component) Wait(ctx context.Context) error {
 
 func (c *component) WaitCleanup(ctx context.Context) error {
 	return gardenerretry.UntilTimeout(ctx, DefaultInterval, DefaultTimeout, func(ctx context.Context) (done bool, err error) {
-		sts := c.emptyStatefulset(c.values.StsName)
+		sts := c.emptyStatefulset()
 		err = c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts)
 		switch {
 		case apierrors.IsNotFound(err):
@@ -193,7 +191,7 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 				HostAliases: []v1.HostAlias{
 					{
 						IP:        "127.0.0.1",
-						Hostnames: []string{c.values.EtcdName + "-local"},
+						Hostnames: []string{c.values.Name + "-local"},
 					},
 				},
 				ServiceAccountName:        c.values.ServiceAccountName,
@@ -237,12 +235,12 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 						Command:         c.values.EtcdBackupCommand,
 						Ports:           getBackupPorts(c.values),
 						Resources:       getBackupResources(c.values),
-						Env:             getStsEnvVar(c.values),
+						Env:             getBackupRestoreEnvVar(c.values),
 						VolumeMounts:    getBackupRestoreVolumeMounts(c.values),
 						SecurityContext: &v1.SecurityContext{
 							Capabilities: &v1.Capabilities{
 								Add: []v1.Capability{
-									v1.Capability("SYS_PTRACE"),
+									"SYS_PTRACE",
 								},
 							},
 						},
@@ -296,20 +294,19 @@ func (c *component) fetchPVCEventsFor(ctx context.Context, ss *appsv1.StatefulSe
 }
 
 // New creates a new statefulset deployer instance.
-func New(c client.Client, logger logr.Logger, namespace string, values Values) Interface {
+func New(c client.Client, logger logr.Logger, values Values) Interface {
 	return &component{
-		client:    c,
-		logger:    logger,
-		namespace: namespace,
-		values:    values,
+		client: c,
+		logger: logger,
+		values: values,
 	}
 }
 
-func (c *component) emptyStatefulset(name string) *appsv1.StatefulSet {
+func (c *component) emptyStatefulset() *appsv1.StatefulSet {
 	return &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: c.namespace,
+			Name:      c.values.Name,
+			Namespace: c.values.Namespace,
 		},
 	}
 }
@@ -317,7 +314,7 @@ func (c *component) emptyStatefulset(name string) *appsv1.StatefulSet {
 func getCommonLabels(val *Values) map[string]string {
 	return map[string]string{
 		"name":     "etcd",
-		"instance": val.EtcdName,
+		"instance": val.Name,
 	}
 }
 
@@ -325,7 +322,7 @@ func getObjectMeta(val *Values) metav1.ObjectMeta {
 	labels := utils.MergeStringMaps(getCommonLabels(val), val.Labels)
 
 	annotations := map[string]string{
-		"gardener.cloud/owned-by":   fmt.Sprintf("%s/%s", val.EtcdNameSpace, val.EtcdName),
+		"gardener.cloud/owned-by":   fmt.Sprintf("%s/%s", val.Namespace, val.Name),
 		"gardener.cloud/owner-type": "etcd",
 	}
 
@@ -339,7 +336,7 @@ func getObjectMeta(val *Values) metav1.ObjectMeta {
 		{
 			APIVersion:         druidv1alpha1.GroupVersion.String(),
 			Kind:               "Etcd",
-			Name:               val.EtcdName,
+			Name:               val.Name,
 			UID:                val.EtcdUID,
 			Controller:         pointer.BoolPtr(true),
 			BlockOwnerDeletion: pointer.BoolPtr(true),
@@ -347,8 +344,8 @@ func getObjectMeta(val *Values) metav1.ObjectMeta {
 	}
 
 	return metav1.ObjectMeta{
-		Name:            val.StsName,
-		Namespace:       val.EtcdNameSpace,
+		Name:            val.Name,
+		Namespace:       val.Namespace,
 		Labels:          labels,
 		Annotations:     annotations,
 		OwnerReferences: ownerRefs,

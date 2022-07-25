@@ -367,9 +367,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 		}
 	}
 
-	var clientPort, serverPort, backupPort int32 = 2379, 2380, 8080
-	var etcdImage, backupImage string = "test", "test"
-	stsDeployer := componentsts.New(r.Client, logger, etcd.Namespace, componentsts.GenerateValues(etcd, &clientPort, &serverPort, &backupPort, etcdImage, backupImage))
+	stsDeployer := componentsts.New(r.Client, logger, componentsts.GenerateValues(etcd, nil, nil, nil, "", ""))
 	if err := stsDeployer.Destroy(ctx); err != nil {
 		if err = r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 			return ctrl.Result{
@@ -694,7 +692,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 
 	// Create an OpWaiter because after the depoyment we want to wait until the StatefulSet is ready.
 	var (
-		stsDeployer  = componentsts.New(r.Client, logger, etcd.Namespace, val.StatefulSet)
+		stsDeployer  = componentsts.New(r.Client, logger, val.StatefulSet)
 		deployWaiter = gardenercomponent.OpWaiter(stsDeployer)
 	)
 

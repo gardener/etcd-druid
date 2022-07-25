@@ -26,18 +26,18 @@ import (
 )
 
 var (
-	defaultBackupPort              int32  = 8080
-	defaultServerPort              int32  = 2380
-	defaultClientPort              int32  = 2379
-	defaultheartbeatDuration       string = "10s"
-	defaultGbcPolicy               string = "LimitBased"
-	defaultAutoCompactionRetention string = "30m"
-	defaultEtcdSnapshotTimeout     string = "15m"
-	defaultEtcdDefragTimeout       string = "15m"
-	defaultAutoCompactionMode      string = "periodic"
-	defaultEtcdConnectionTimeout   string = "5m"
-	defaultStorageCapacity                = resource.MustParse("16Gi")
-	defaultLocalPrefix             string = "/etc/gardener/local-backupbuckets"
+	defaultBackupPort              int32 = 8080
+	defaultServerPort              int32 = 2380
+	defaultClientPort              int32 = 2379
+	defaultheartbeatDuration             = "10s"
+	defaultGbcPolicy                     = "LimitBased"
+	defaultAutoCompactionRetention       = "30m"
+	defaultEtcdSnapshotTimeout           = "15m"
+	defaultEtcdDefragTimeout             = "15m"
+	defaultAutoCompactionMode            = "periodic"
+	defaultEtcdConnectionTimeout         = "5m"
+	defaultStorageCapacity               = resource.MustParse("16Gi")
+	defaultLocalPrefix                   = "/etc/gardener/local-backupbuckets"
 )
 
 // GenerateValues generates `statefulset.Values` for the statefulset component with the given parameters.
@@ -48,10 +48,9 @@ func GenerateValues(etcd *druidv1alpha1.Etcd, clientPort, serverPort, backupPort
 	}
 
 	values := Values{
-		EtcdName:                  etcd.Name,
-		EtcdNameSpace:             etcd.Namespace,
+		Name:                      etcd.Name,
+		Namespace:                 etcd.Namespace,
 		EtcdUID:                   etcd.UID,
-		StsName:                   utils.GetETCDStsName(etcd),
 		Replicas:                  etcd.Spec.Replicas,
 		StatusReplicas:            etcd.Status.Replicas,
 		Annotations:               etcd.Spec.Annotations,
@@ -145,9 +144,9 @@ func getReadinessProbeCommand(val Values) []string {
 	}
 
 	if val.Replicas == 1 {
-		command = append(command, fmt.Sprintf("%s://%s-local:%d/healthz", protocol, val.EtcdName, pointer.Int32Deref(val.BackupPort, defaultBackupPort)))
+		command = append(command, fmt.Sprintf("%s://%s-local:%d/healthz", protocol, val.Name, pointer.Int32Deref(val.BackupPort, defaultBackupPort)))
 	} else {
-		command = append(command, fmt.Sprintf("%s://%s-local:%d/health", protocol, val.EtcdName, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
+		command = append(command, fmt.Sprintf("%s://%s-local:%d/health", protocol, val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
 	}
 
 	return command
@@ -160,15 +159,15 @@ func getLivenessProbeCommand(val Values) []string {
 	command = append(command, "etcdctl")
 
 	if val.ClientUrlTLS != nil {
-
 		command = append(command, "--cert=/var/etcd/ssl/client/client/tls.crt")
 		command = append(command, "--key=/var/etcd/ssl/client/client/tls.key")
+
 		if dataKey := val.ClientUrlTLS.TLSCASecretRef.DataKey; dataKey != nil {
 			command = append(command, "--cacert=/var/etcd/ssl/client/ca/"+*dataKey)
 		}
-		command = append(command, fmt.Sprintf("--endpoints=https://%s-local:%d", val.EtcdName, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
+		command = append(command, fmt.Sprintf("--endpoints=https://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
 	} else {
-		command = append(command, fmt.Sprintf("--endpoints=http://%s-local:%d", val.EtcdName, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
+		command = append(command, fmt.Sprintf("--endpoints=http://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
 	}
 	command = append(command, "get")
 	command = append(command, "foo")
@@ -235,14 +234,14 @@ func getEtcdBackupCommand(val Values) []string {
 		command = append(command, "--insecure-transport=false")
 		command = append(command, "--insecure-skip-tls-verify=false")
 
-		command = append(command, fmt.Sprintf("--endpoints=https://%s-local:%d", val.EtcdName, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
+		command = append(command, fmt.Sprintf("--endpoints=https://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
 
 		command = append(command, "--server-cert=/var/etcd/ssl/client/server/tls.crt")
 		command = append(command, "--server-key=/var/etcd/ssl/client/server/tls.key")
 	} else {
 		command = append(command, "--insecure-transport=true")
 		command = append(command, "--insecure-skip-tls-verify=true")
-		command = append(command, fmt.Sprintf("--endpoints=http://%s-local:%d", val.EtcdName, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
+		command = append(command, fmt.Sprintf("--endpoints=http://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
 	}
 
 	if val.LeaderElection != nil {
@@ -340,7 +339,7 @@ func getEtcdEnvVar(val Values) []corev1.EnvVar {
 		protocol = "https"
 	}
 
-	endpoint := fmt.Sprintf("%s://%s-local:%d", protocol, val.EtcdName, pointer.Int32Deref(val.BackupPort, defaultBackupPort))
+	endpoint := fmt.Sprintf("%s://%s-local:%d", protocol, val.Name, pointer.Int32Deref(val.BackupPort, defaultBackupPort))
 
 	var env []corev1.EnvVar
 	env = append(env, getEnvVarFromValues("ENABLE_TLS", strconv.FormatBool(val.BackupTLS != nil)))
@@ -349,7 +348,7 @@ func getEtcdEnvVar(val Values) []corev1.EnvVar {
 	return env
 }
 
-func getStsEnvVar(val Values) []corev1.EnvVar {
+func getBackupRestoreEnvVar(val Values) []corev1.EnvVar {
 	var env []corev1.EnvVar
 	env = append(env, getEnvVarFromFields("POD_NAME", "metadata.name"))
 	env = append(env, getEnvVarFromFields("POD_NAMESPACE", "metadata.namespace"))
@@ -368,33 +367,28 @@ func getStsEnvVar(val Values) []corev1.EnvVar {
 		return env
 	}
 
-	if provider == "S3" {
+	switch provider {
+	case "S3":
 		env = append(env, getEnvVarFromValues("AWS_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
-	}
 
-	if provider == "ABS" {
+	case "ABS":
 		env = append(env, getEnvVarFromValues("AZURE_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
-	}
 
-	if provider == "GCS" {
+	case "GCS":
 		env = append(env, getEnvVarFromValues("GOOGLE_APPLICATION_CREDENTIALS", "/root/.gcp/serviceaccount.json"))
-	}
 
-	if provider == "Swift" {
+	case "Swift":
 		env = append(env, getEnvVarFromValues("OPENSTACK_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
-	}
 
-	if provider == "OSS" {
+	case "OSS":
 		env = append(env, getEnvVarFromValues("ALICLOUD_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
-	}
 
-	if provider == "ECS" {
+	case "ECS":
 		env = append(env, getEnvVarFromSecrets("ECS_ENDPOINT", storeValues.SecretRef.Name, "endpoint"))
 		env = append(env, getEnvVarFromSecrets("ECS_ACCESS_KEY_ID", storeValues.SecretRef.Name, "accessKeyID"))
 		env = append(env, getEnvVarFromSecrets("ECS_SECRET_ACCESS_KEY", storeValues.SecretRef.Name, "secretAccessKey"))
-	}
 
-	if provider == "OCS" {
+	case "OCS":
 		env = append(env, getEnvVarFromValues("OPENSHIFT_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
 	}
 
