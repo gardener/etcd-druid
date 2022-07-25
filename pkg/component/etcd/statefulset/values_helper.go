@@ -251,15 +251,15 @@ func getEtcdBackupCommand(val Values) []string {
 
 	if val.LeaderElection != nil {
 		if val.LeaderElection.EtcdConnectionTimeout != nil {
-			command = append(command, "--etcd-connection-timeout="+val.LeaderElection.EtcdConnectionTimeout.Duration.String())
+			command = append(command, "--etcd-connection-timeout-leader-election="+val.LeaderElection.EtcdConnectionTimeout.Duration.String())
 		}
 
 		if val.LeaderElection.ReelectionPeriod != nil {
 			command = append(command, "--reelection-period="+val.LeaderElection.ReelectionPeriod.Duration.String())
 		}
-	} else {
-		command = append(command, "--etcd-connection-timeout="+defaultEtcdConnectionTimeout)
 	}
+
+	command = append(command, "--etcd-connection-timeout="+defaultEtcdConnectionTimeout)
 
 	if val.DeltaSnapshotPeriod != nil {
 		command = append(command, "--delta-snapshot-period="+val.DeltaSnapshotPeriod.Duration.String())

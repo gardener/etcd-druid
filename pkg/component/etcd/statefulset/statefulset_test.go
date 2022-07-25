@@ -79,9 +79,10 @@ var (
 	etcdDefragTimeout = metav1.Duration{
 		Duration: 10 * time.Minute,
 	}
-	etcdConnectionTimeout = metav1.Duration{
-		Duration: 5 * time.Minute,
+	etcdLeaderElectionConnectionTimeout = metav1.Duration{
+		Duration: 5 * time.Second,
 	}
+
 	ownerName          = "owner.foo.example.com"
 	ownerID            = "bar"
 	ownerCheckInterval = metav1.Duration{
@@ -372,17 +373,18 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 							"Command": MatchAllElements(cmdIterator, Elements{
 								"etcdbrctl": Equal("etcdbrctl"),
 								"server":    Equal("server"),
-								"--cert=/var/etcd/ssl/client/client/tls.crt":                                                          Equal("--cert=/var/etcd/ssl/client/client/tls.crt"),
-								"--key=/var/etcd/ssl/client/client/tls.key":                                                           Equal("--key=/var/etcd/ssl/client/client/tls.key"),
-								"--cacert=/var/etcd/ssl/client/ca/ca.crt":                                                             Equal("--cacert=/var/etcd/ssl/client/ca/ca.crt"),
-								"--server-cert=/var/etcd/ssl/client/server/tls.crt":                                                   Equal("--server-cert=/var/etcd/ssl/client/server/tls.crt"),
-								"--server-key=/var/etcd/ssl/client/server/tls.key":                                                    Equal("--server-key=/var/etcd/ssl/client/server/tls.key"),
-								"--data-dir=/var/etcd/data/new.etcd":                                                                  Equal("--data-dir=/var/etcd/data/new.etcd"),
-								"--insecure-transport=false":                                                                          Equal("--insecure-transport=false"),
-								"--insecure-skip-tls-verify=false":                                                                    Equal("--insecure-skip-tls-verify=false"),
-								"--snapstore-temp-directory=/var/etcd/data/temp":                                                      Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
-								"--etcd-process-name=etcd":                                                                            Equal("--etcd-process-name=etcd"),
-								fmt.Sprintf("%s=%s", "--etcd-connection-timeout", etcdConnectionTimeout.Duration.String()):            Equal(fmt.Sprintf("%s=%s", "--etcd-connection-timeout", values.LeaderElection.EtcdConnectionTimeout.Duration.String())),
+								"--cert=/var/etcd/ssl/client/client/tls.crt":        Equal("--cert=/var/etcd/ssl/client/client/tls.crt"),
+								"--key=/var/etcd/ssl/client/client/tls.key":         Equal("--key=/var/etcd/ssl/client/client/tls.key"),
+								"--cacert=/var/etcd/ssl/client/ca/ca.crt":           Equal("--cacert=/var/etcd/ssl/client/ca/ca.crt"),
+								"--server-cert=/var/etcd/ssl/client/server/tls.crt": Equal("--server-cert=/var/etcd/ssl/client/server/tls.crt"),
+								"--server-key=/var/etcd/ssl/client/server/tls.key":  Equal("--server-key=/var/etcd/ssl/client/server/tls.key"),
+								"--data-dir=/var/etcd/data/new.etcd":                Equal("--data-dir=/var/etcd/data/new.etcd"),
+								"--insecure-transport=false":                        Equal("--insecure-transport=false"),
+								"--insecure-skip-tls-verify=false":                  Equal("--insecure-skip-tls-verify=false"),
+								"--snapstore-temp-directory=/var/etcd/data/temp":    Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
+								"--etcd-process-name=etcd":                          Equal("--etcd-process-name=etcd"),
+								fmt.Sprintf("%s=%s", "--etcd-connection-timeout-leader-election", etcdLeaderElectionConnectionTimeout.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--etcd-connection-timeout-leader-election", values.LeaderElection.EtcdConnectionTimeout.Duration.String())),
+								"--etcd-connection-timeout=5m":                                                                        Equal("--etcd-connection-timeout=5m"),
 								"--enable-snapshot-lease-renewal=true":                                                                Equal("--enable-snapshot-lease-renewal=true"),
 								"--enable-member-lease-renewal=true":                                                                  Equal("--enable-member-lease-renewal=true"),
 								"--k8s-heartbeat-duration=10s":                                                                        Equal("--k8s-heartbeat-duration=10s"),
@@ -603,7 +605,7 @@ func getEtcd(name, namespace string, tlsEnabled bool, replicas int32) *druidv1al
 				DeltaSnapshotMemoryLimit: &deltaSnapShotMemLimit,
 				EtcdSnapshotTimeout:      &etcdSnapshotTimeout,
 				LeaderElection: &druidv1alpha1.LeaderElectionSpec{
-					EtcdConnectionTimeout: &etcdConnectionTimeout,
+					EtcdConnectionTimeout: &etcdLeaderElectionConnectionTimeout,
 				},
 
 				Resources: &corev1.ResourceRequirements{
