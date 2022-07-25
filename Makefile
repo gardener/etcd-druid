@@ -20,6 +20,9 @@ IMAGE_REPOSITORY    := $(REGISTRY)/etcd-druid
 IMAGE_TAG           := $(VERSION)
 BUILD_DIR           := build
 
+# TODO(timuthy): Remove this as soon as vendored to new gardener/gardener version.
+GOLANGCI_LINT_VERSION := v1.45.2
+
 IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_TAG}
 
 #########################################
