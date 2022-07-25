@@ -182,15 +182,12 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 		Replicas:    pointer.Int32(c.values.Replicas),
 		ServiceName: c.values.ServiceName,
 		Selector: &metav1.LabelSelector{
-			MatchLabels: map[string]string{
-				"name":     "etcd",
-				"instance": c.values.EtcdName,
-			},
+			MatchLabels: getCommonLabels(&c.values),
 		},
 		Template: v1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: c.values.Annotations,
-				Labels:      c.values.Labels,
+				Labels:      sts.GetLabels(),
 			},
 			Spec: v1.PodSpec{
 				HostAliases: []v1.HostAlias{
@@ -317,11 +314,15 @@ func (c *component) emptyStatefulset(name string) *appsv1.StatefulSet {
 	}
 }
 
-func getObjectMeta(val *Values) metav1.ObjectMeta {
-	labels := map[string]string{"name": "etcd", "instance": val.EtcdName}
-	for key, value := range val.Labels {
-		labels[key] = value
+func getCommonLabels(val *Values) map[string]string {
+	return map[string]string{
+		"name":     "etcd",
+		"instance": val.EtcdName,
 	}
+}
+
+func getObjectMeta(val *Values) metav1.ObjectMeta {
+	labels := utils.MergeStringMaps(getCommonLabels(val), val.Labels)
 
 	annotations := map[string]string{
 		"gardener.cloud/owned-by":   fmt.Sprintf("%s/%s", val.EtcdNameSpace, val.EtcdName),

@@ -141,7 +141,6 @@ var _ = Describe("Statefulset", func() {
 
 				Expect(cl.Get(ctx, kutil.Key(namespace, values.StsName), sts)).To(Succeed())
 				checkStatefulset(sts, values)
-
 			})
 		})
 
@@ -535,7 +534,6 @@ func checkStsMetadata(ors []metav1.OwnerReference, values Values) {
 }
 
 func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
-
 	instance := &druidv1alpha1.Etcd{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -549,8 +547,7 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 				"instance": name,
 			},
 			Labels: map[string]string{
-				"name":     "etcd",
-				"instance": name,
+				"foo": "bar",
 			},
 			Replicas:            1,
 			StorageCapacity:     &storageCapacity,
