@@ -41,7 +41,12 @@ var (
 )
 
 // GenerateValues generates `statefulset.Values` for the statefulset component with the given parameters.
-func GenerateValues(etcd *druidv1alpha1.Etcd, clientPort, serverPort, backupPort *int32, etcdImage, backupImage string) Values {
+func GenerateValues(
+	etcd *druidv1alpha1.Etcd,
+	clientPort, serverPort, backupPort *int32,
+	etcdImage, backupImage string,
+	checksumAnnotations map[string]string,
+) Values {
 	volumeClaimTemplateName := etcd.Name
 	if etcd.Spec.VolumeClaimTemplate != nil && len(*etcd.Spec.VolumeClaimTemplate) != 0 {
 		volumeClaimTemplateName = *etcd.Spec.VolumeClaimTemplate
@@ -53,7 +58,7 @@ func GenerateValues(etcd *druidv1alpha1.Etcd, clientPort, serverPort, backupPort
 		EtcdUID:                   etcd.UID,
 		Replicas:                  etcd.Spec.Replicas,
 		StatusReplicas:            etcd.Status.Replicas,
-		Annotations:               etcd.Spec.Annotations,
+		Annotations:               utils.MergeStringMaps(checksumAnnotations, etcd.Spec.Annotations),
 		Labels:                    etcd.Spec.Labels,
 		EtcdImage:                 etcdImage,
 		BackupImage:               backupImage,

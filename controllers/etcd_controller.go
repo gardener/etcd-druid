@@ -367,7 +367,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 		}
 	}
 
-	stsDeployer := componentsts.New(r.Client, logger, componentsts.GenerateValues(etcd, nil, nil, nil, "", ""))
+	stsDeployer := componentsts.New(r.Client, logger, componentsts.Values{Name: etcd.Name, Namespace: etcd.Namespace})
 	if err := stsDeployer.Destroy(ctx); err != nil {
 		if err = r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 			return ctrl.Result{
@@ -612,35 +612,6 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		return nil, nil, fmt.Errorf("Spec.Replicas should not be even number: %d", etcd.Spec.Replicas)
 	}
 
-	val := componentetcd.Values{
-		ConfigMap: componentconfigmap.GenerateValues(etcd),
-		Lease:     componentlease.GenerateValues(etcd),
-		Service:   componentservice.GenerateValues(etcd),
-	}
-
-	leaseDeployer := componentlease.New(r.Client, etcd.Namespace, val.Lease)
-
-	if err := leaseDeployer.Deploy(ctx); err != nil {
-		return nil, nil, err
-	}
-
-	serviceDeployer := componentservice.New(r.Client, etcd.Namespace, val.Service)
-
-	if err := serviceDeployer.Deploy(ctx); err != nil {
-		return nil, nil, err
-	}
-
-	cmDeployer := componentconfigmap.New(r.Client, etcd.Namespace, val.ConfigMap)
-	if err := cmDeployer.Deploy(ctx); err != nil {
-		return nil, nil, err
-	}
-
-	values, err := r.getMapFromEtcd(r.ImageVector, etcd, val, r.disableEtcdServiceAccountAutomount)
-
-	if err != nil {
-		return nil, nil, err
-	}
-
 	etcdImage, etcdBackupImage, err := getEtcdImages(r.ImageVector, etcd)
 	if err != nil {
 		return nil, nil, err
@@ -662,13 +633,30 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		etcdBackupImage = *etcd.Spec.Backup.Image
 	}
 
-	val.StatefulSet = statefulset.GenerateValues(etcd,
-		&val.Service.ClientPort,
-		&val.Service.ServerPort,
-		&val.Service.BackupPort,
-		etcdImage,
-		etcdBackupImage,
-	)
+	val := componentetcd.Values{}
+
+	val.Lease = componentlease.GenerateValues(etcd)
+	leaseDeployer := componentlease.New(r.Client, etcd.Namespace, val.Lease)
+	if err := leaseDeployer.Deploy(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	val.Service = componentservice.GenerateValues(etcd)
+	serviceDeployer := componentservice.New(r.Client, etcd.Namespace, val.Service)
+	if err := serviceDeployer.Deploy(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	val.ConfigMap = componentconfigmap.GenerateValues(etcd)
+	cmDeployer := componentconfigmap.New(r.Client, etcd.Namespace, val.ConfigMap)
+	if err := cmDeployer.Deploy(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	values, err := r.getMapFromEtcd(r.ImageVector, etcd, val, r.disableEtcdServiceAccountAutomount)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	err = r.reconcileServiceAccount(ctx, logger, etcd, values)
 	if err != nil {
@@ -689,6 +677,16 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 	if err != nil {
 		return nil, nil, err
 	}
+
+	val.StatefulSet = statefulset.GenerateValues(etcd,
+		&val.Service.ClientPort,
+		&val.Service.ServerPort,
+		&val.Service.BackupPort,
+		etcdImage,
+		etcdBackupImage,
+		map[string]string{
+			"checksum/etcd-configmap": val.ConfigMap.ConfigMapChecksum,
+		})
 
 	// Create an OpWaiter because after the depoyment we want to wait until the StatefulSet is ready.
 	var (
@@ -899,9 +897,6 @@ func (r *EtcdReconciler) getMapFromEtcd(im imagevector.ImageVector, etcd *druidv
 			annotations[key] = value
 		}
 	}
-
-	annotations["checksum/etcd-configmap"] = val.ConfigMap.ConfigMapChecksum
-	etcd.Spec.Annotations = annotations
 
 	pdbMinAvailable := 0
 	if etcd.Spec.Replicas > 1 {

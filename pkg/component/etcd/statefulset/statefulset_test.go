@@ -50,6 +50,9 @@ var (
 	garbageCollectionPeriod = metav1.Duration{
 		Duration: 43200 * time.Second,
 	}
+	checkSumAnnotations = map[string]string{
+		"checksum/etcd-configmap": "abc123",
+	}
 	clientPort              int32 = 2379
 	serverPort              int32 = 2380
 	backupPort              int32 = 8080
@@ -113,7 +116,14 @@ var _ = Describe("Statefulset", func() {
 
 	JustBeforeEach(func() {
 		etcd = getEtcd(name, namespace, true, *replicas)
-		values = GenerateValues(etcd, pointer.Int32Ptr(clientPort), pointer.Int32Ptr(serverPort), pointer.Int32Ptr(backupPort), imageEtcd, imageBR)
+		values = GenerateValues(
+			etcd,
+			pointer.Int32Ptr(clientPort),
+			pointer.Int32Ptr(serverPort),
+			pointer.Int32Ptr(backupPort),
+			imageEtcd,
+			imageBR,
+			checkSumAnnotations)
 		stsDeployer = New(cl, logr.Discard(), values)
 
 		sts = &appsv1.StatefulSet{
@@ -208,7 +218,7 @@ var _ = Describe("Statefulset", func() {
 })
 
 func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
-	checkStsMetadata(sts.ObjectMeta.OwnerReferences, values)
+	checkStsOwnerRefs(sts.ObjectMeta.OwnerReferences, values)
 
 	readinessProbeUrl := fmt.Sprintf("https://%s-local:%d/health", values.Name, clientPort)
 	if int(values.Replicas) == 1 {
@@ -222,6 +232,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 			"Name":      Equal(values.Name),
 			"Namespace": Equal(values.Namespace),
 			"Annotations": MatchAllKeys(Keys{
+				"checksum/etcd-configmap":   Equal("abc123"),
 				"gardener.cloud/owned-by":   Equal(fmt.Sprintf("%s/%s", values.Namespace, values.Name)),
 				"gardener.cloud/owner-type": Equal("etcd"),
 				"app":                       Equal("etcd-statefulset"),
@@ -549,7 +560,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 	}))
 }
 
-func checkStsMetadata(ors []metav1.OwnerReference, values Values) {
+func checkStsOwnerRefs(ors []metav1.OwnerReference, values Values) {
 	Expect(ors).To(ConsistOf(Equal(metav1.OwnerReference{
 		APIVersion:         druidv1alpha1.GroupVersion.String(),
 		Kind:               "Etcd",
