@@ -683,8 +683,8 @@ func getEtcdResources(val Values) corev1.ResourceRequirements {
 }
 
 func getBackupResources(val Values) corev1.ResourceRequirements {
-	if val.EtcdResources != nil {
-		return *val.EtcdResources
+	if val.BackupResources != nil {
+		return *val.BackupResources
 	}
 	return corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{

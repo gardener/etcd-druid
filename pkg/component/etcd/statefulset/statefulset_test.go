@@ -97,6 +97,26 @@ var (
 	heartbeatDuration = metav1.Duration{
 		Duration: 10 * time.Second,
 	}
+	backupRestoreResources = corev1.ResourceRequirements{
+		Limits: corev1.ResourceList{
+			"cpu":    parseQuantity("500m"),
+			"memory": parseQuantity("2Gi"),
+		},
+		Requests: corev1.ResourceList{
+			"cpu":    parseQuantity("23m"),
+			"memory": parseQuantity("128Mi"),
+		},
+	}
+	etcdResources = corev1.ResourceRequirements{
+		Limits: corev1.ResourceList{
+			"cpu":    parseQuantity("2500m"),
+			"memory": parseQuantity("4Gi"),
+		},
+		Requests: corev1.ResourceList{
+			"cpu":    parseQuantity("500m"),
+			"memory": parseQuantity("1000Mi"),
+		},
+	}
 )
 
 var _ = Describe("Statefulset", func() {
@@ -341,6 +361,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 								"InitialDelaySeconds": Equal(int32(15)),
 								"PeriodSeconds":       Equal(int32(5)),
 							})),
+							"Resources": Equal(etcdResources),
 							"VolumeMounts": MatchAllElements(volumeMountIterator, Elements{
 								values.VolumeClaimTemplateName: MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal(values.VolumeClaimTemplateName),
@@ -461,6 +482,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 									"Value": Equal("/root/etcd-backup"),
 								}),
 							}),
+							"Resources": Equal(backupRestoreResources),
 							"SecurityContext": PointTo(MatchFields(IgnoreExtras, Fields{
 								"Capabilities": PointTo(MatchFields(IgnoreExtras, Fields{
 									"Add": ConsistOf([]corev1.Capability{
@@ -608,16 +630,7 @@ func getEtcd(name, namespace string, tlsEnabled bool, replicas int32) *druidv1al
 					EtcdConnectionTimeout: &etcdLeaderElectionConnectionTimeout,
 				},
 
-				Resources: &corev1.ResourceRequirements{
-					Limits: corev1.ResourceList{
-						"cpu":    parseQuantity("500m"),
-						"memory": parseQuantity("2Gi"),
-					},
-					Requests: corev1.ResourceList{
-						"cpu":    parseQuantity("23m"),
-						"memory": parseQuantity("128Mi"),
-					},
-				},
+				Resources: &backupRestoreResources,
 				OwnerCheck: &druidv1alpha1.OwnerCheckSpec{
 					Name:        ownerName,
 					ID:          ownerID,
@@ -633,18 +646,9 @@ func getEtcd(name, namespace string, tlsEnabled bool, replicas int32) *druidv1al
 				DefragmentationSchedule: &defragSchedule,
 				EtcdDefragTimeout:       &etcdDefragTimeout,
 				HeartbeatDuration:       &heartbeatDuration,
-				Resources: &corev1.ResourceRequirements{
-					Limits: corev1.ResourceList{
-						"cpu":    parseQuantity("2500m"),
-						"memory": parseQuantity("4Gi"),
-					},
-					Requests: corev1.ResourceList{
-						"cpu":    parseQuantity("500m"),
-						"memory": parseQuantity("1000Mi"),
-					},
-				},
-				ClientPort: pointer.Int32Ptr(clientPort),
-				ServerPort: pointer.Int32Ptr(serverPort),
+				Resources:               &etcdResources,
+				ClientPort:              pointer.Int32Ptr(clientPort),
+				ServerPort:              pointer.Int32Ptr(serverPort),
 			},
 			Common: druidv1alpha1.SharedConfig{
 				AutoCompactionMode:      &autoCompactionMode,
