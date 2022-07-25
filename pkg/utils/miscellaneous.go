@@ -31,6 +31,7 @@ import (
 const (
 	// LocalProviderDefaultMountPath is the default path where the buckets directory is mounted.
 	LocalProviderDefaultMountPath = "/etc/gardener/local-backupbuckets"
+	BootstrapAnnotation           = "druid.gardener.cloud/bootstrap"
 	// EtcdBackupSecretHostPath is the hostPath field in the etcd-backup secret.
 	EtcdBackupSecretHostPath = "hostPath"
 )

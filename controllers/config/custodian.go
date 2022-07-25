@@ -22,6 +22,8 @@ type EtcdCustodianController struct {
 	EtcdMember EtcdMemberConfig
 	// SyncPeriod is the duration after which re-enqueuing happens.
 	SyncPeriod time.Duration
+	// EnableAutomaticQuorumLossHandling is the flag to enable automatic handling of quorum loss. Set it false by default.
+	EnableAutomaticQuorumLossHandling bool
 }
 
 type EtcdMemberConfig struct {

@@ -31,6 +31,10 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 )
 
+const (
+	QuorumLossAnnotation = "druid.gardener.cloud/quorum-loss"
+)
+
 func hasOperationAnnotation(obj client.Object) bool {
 	return obj.GetAnnotations()[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationReconcile
 }
@@ -46,6 +50,33 @@ func HasOperationAnnotation() predicate.Predicate {
 		},
 		GenericFunc: func(event event.GenericEvent) bool {
 			return hasOperationAnnotation(event.Object)
+		},
+		DeleteFunc: func(event event.DeleteEvent) bool {
+			return true
+		},
+	}
+}
+
+func hasQuorumLossAnnotation(obj client.Object) bool {
+	etcd, ok := obj.(*druidv1alpha1.Etcd)
+	if !ok {
+		return false
+	}
+	_, ok = etcd.Annotations[QuorumLossAnnotation]
+	return ok
+}
+
+// HasQuorumLossAnnotation is a predicate for the operation annotation.
+func HasQuorumLossAnnotation() predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(event event.CreateEvent) bool {
+			return hasQuorumLossAnnotation(event.Object)
+		},
+		UpdateFunc: func(event event.UpdateEvent) bool {
+			return hasQuorumLossAnnotation(event.ObjectNew)
+		},
+		GenericFunc: func(event event.GenericEvent) bool {
+			return hasQuorumLossAnnotation(event.Object)
 		},
 		DeleteFunc: func(event event.DeleteEvent) bool {
 			return true

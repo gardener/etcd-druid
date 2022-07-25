@@ -53,6 +53,7 @@ func main() {
 		activeDeadlineDuration             time.Duration
 		ignoreOperationAnnotation          bool
 		disableEtcdServiceAccountAutomount bool
+		enableAutomaticQuorumLossHandling  bool
 
 		etcdMemberNotReadyThreshold time.Duration
 		etcdMemberUnknownThreshold  time.Duration
@@ -82,6 +83,7 @@ func main() {
 	flag.BoolVar(&ignoreOperationAnnotation, "ignore-operation-annotation", true, "Ignore the operation annotation or not.")
 	flag.DurationVar(&etcdMemberNotReadyThreshold, "etcd-member-notready-threshold", 5*time.Minute, "Threshold after which an etcd member is considered not ready if the status was unknown before.")
 	flag.BoolVar(&disableEtcdServiceAccountAutomount, "disable-etcd-serviceaccount-automount", false, "If true then .automountServiceAccountToken will be set to false for the ServiceAccount created for etcd statefulsets.")
+	flag.BoolVar(&enableAutomaticQuorumLossHandling, "enable-automatic-quorum-loss-handling", false, "If true then the quorum loss case will be handled automatically. Default false.")
 	flag.DurationVar(&etcdMemberUnknownThreshold, "etcd-member-unknown-threshold", 1*time.Minute, "Threshold after which an etcd member is considered unknown.")
 
 	flag.Parse()
@@ -109,7 +111,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	etcd, err := controllers.NewEtcdReconcilerWithImageVector(mgr, disableEtcdServiceAccountAutomount)
+	waitDuration := 0 * time.Second
+	etcd, err := controllers.NewEtcdReconcilerWithImageVector(mgr, disableEtcdServiceAccountAutomount, waitDuration)
 	if err != nil {
 		setupLog.Error(err, "Unable to initialize etcd controller with image vector")
 		os.Exit(1)
@@ -132,7 +135,8 @@ func main() {
 			EtcdMemberNotReadyThreshold: etcdMemberNotReadyThreshold,
 			EtcdMemberUnknownThreshold:  etcdMemberUnknownThreshold,
 		},
-		SyncPeriod: custodianSyncPeriod,
+		SyncPeriod:                        custodianSyncPeriod,
+		EnableAutomaticQuorumLossHandling: enableAutomaticQuorumLossHandling,
 	})
 
 	if err := custodian.SetupWithManager(ctx, mgr, custodianWorkers, ignoreOperationAnnotation); err != nil {

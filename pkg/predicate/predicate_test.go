@@ -261,17 +261,62 @@ var _ = Describe("Druid Predicate", func() {
 		})
 	})
 
+	Describe("#HasQuorumLossAnnotation", func() {
+		var pred predicate.Predicate
+
+		JustBeforeEach(func() {
+			pred = HasQuorumLossAnnotation()
+		})
+
+		Context("when has no quorum loss annotation", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: make(map[string]string),
+					},
+				}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
+			})
+		})
+
+		Context("when has quorum loss annotation", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							QuorumLossAnnotation: "true",
+						},
+					},
+				}
+			})
+
+			It("should return true", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+	})
+
 	Describe("#OR", func() {
 		var pred predicate.Predicate
 
 		JustBeforeEach(func() {
 			pred = predicate.Or(
 				HasOperationAnnotation(),
+				HasQuorumLossAnnotation(),
 				LastOperationNotSuccessful(),
 			)
 		})
 
-		Context("when has neither operation annotation nor last error", func() {
+		Context("when has neither operation annotation nor quorum loss annotation nor last error", func() {
 			BeforeEach(func() {
 				obj = &druidv1alpha1.Etcd{
 					ObjectMeta: metav1.ObjectMeta{
@@ -294,6 +339,25 @@ var _ = Describe("Druid Predicate", func() {
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
 							v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+						},
+					},
+				}
+			})
+
+			It("should return true", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+
+		Context("when has quorum loss annotation", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							QuorumLossAnnotation: "true",
 						},
 					},
 				}

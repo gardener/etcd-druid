@@ -461,9 +461,18 @@ var _ = Describe("Druid", func() {
 			rb = &rbac.RoleBinding{}
 			Eventually(func() error { return roleBindingIsCorrectlyReconciled(c, instance, rb) }, timeout, pollingInterval).Should(BeNil())
 
+			Eventually(func() error { return setReniewTimeForMemberLeases(c, instance) }, timeout, pollingInterval).Should(BeNil())
+
 			validate(instance, s, cm, clSvc, prSvc)
 			validateRole(instance, role)
 
+			req := types.NamespacedName{
+				Name:      instance.Name,
+				Namespace: instance.Namespace,
+			}
+
+			err = c.Get(context.TODO(), req, s)
+			Expect(err).NotTo(HaveOccurred())
 			setStatefulSetReady(s)
 			err = c.Status().Update(context.TODO(), s)
 			Expect(err).NotTo(HaveOccurred())
@@ -709,7 +718,10 @@ var _ = Describe("Multinode ETCD", func() {
 		svc = &corev1.Service{}
 		Eventually(func() error { return clientServiceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
 
+		Eventually(func() error { return setReniewTimeForMemberLeases(c, instance) }, timeout, pollingInterval).Should(BeNil())
+
 		// Validate statefulset
+		Expect(sts.Spec.Replicas).ShouldNot(BeNil())
 		Expect(*sts.Spec.Replicas).To(Equal(int32(instance.Spec.Replicas)))
 
 		if instance.Spec.Replicas == 1 {
@@ -726,6 +738,177 @@ var _ = Describe("Multinode ETCD", func() {
 		Entry("verify configmap mount path and etcd.conf.yaml when replica is 3 ", "foo84", 3, getEtcdWithReplicas),
 	)
 })
+
+var (
+	unknownThreshold  = 300 * time.Second
+	notReadyThreshold = 60 * time.Second
+	expire            = time.Minute * 3
+)
+
+var _ = Describe("Quorum Loss Scenario", func() {
+	Context("when quorum is lost for multinode ETCD cluster", func() {
+		var (
+			err      error
+			instance *druidv1alpha1.Etcd
+			c        client.Client
+			s        *appsv1.StatefulSet
+			cm       *corev1.ConfigMap
+			svc      *corev1.Service
+			now      time.Time
+		)
+		BeforeEach(func() {
+			instance = getMultinodeEtcdDefault("foo85", "default")
+			c = mgr.GetClient()
+			ns := corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: instance.Namespace,
+				},
+			}
+
+			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+			Expect(err).To(Not(HaveOccurred()))
+
+			err = c.Create(context.TODO(), instance)
+			Expect(err).NotTo(HaveOccurred())
+			s = &appsv1.StatefulSet{}
+			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
+			setStatefulSetReady(s)
+			err = c.Status().Update(context.TODO(), s)
+			Expect(err).NotTo(HaveOccurred())
+
+			cm = &corev1.ConfigMap{}
+			Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
+			svc = &corev1.Service{}
+			Eventually(func() error { return clientServiceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
+		})
+		It("when renew time of some of the member leases expired", func() {
+			// Deliberately update the first member lease with current time
+			memberLease := &coordinationv1.Lease{}
+			currentTime := metav1.NewMicroTime(time.Now())
+			Eventually(func() error { return fetchMemberLease(c, instance, memberLease, 0) }, timeout, pollingInterval).Should(BeNil())
+			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, memberLease, func() error {
+				memberLease.Spec.RenewTime = &currentTime
+				return nil
+			})
+			Expect(err).To(Not(HaveOccurred()))
+
+			// Deliberately update the second member lease with expired time
+			memberLease = &coordinationv1.Lease{}
+			longExpirationTime := metav1.NewMicroTime(now.Add(-1 * unknownThreshold).Add(-1 * time.Second).Add(-1 * notReadyThreshold))
+			Eventually(func() error { return fetchMemberLease(c, instance, memberLease, 1) }, timeout, pollingInterval).Should(BeNil())
+			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, memberLease, func() error {
+				memberLease.Spec.RenewTime = &longExpirationTime
+				return nil
+			})
+			Expect(err).To(Not(HaveOccurred()))
+
+			// Deliberately update the third member lease with expired time
+			memberLease = &coordinationv1.Lease{}
+			longExpirationTime = metav1.NewMicroTime(now.Add(-1 * unknownThreshold).Add(-1 * time.Second).Add(-1 * notReadyThreshold))
+			Eventually(func() error { return fetchMemberLease(c, instance, memberLease, 2) }, timeout, pollingInterval).Should(BeNil())
+			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, memberLease, func() error {
+				memberLease.Spec.RenewTime = &longExpirationTime
+				return nil
+			})
+			Expect(err).To(Not(HaveOccurred()))
+
+			// Check if statefulset replicas is scaled down to 0
+			s = &appsv1.StatefulSet{}
+			Eventually(func() error { return statefulsetIsScaled(c, instance, s, 0) }, timeout, pollingInterval).Should(BeNil())
+
+			// Check if statefulset replicas is scaled up to 1
+			s = &appsv1.StatefulSet{}
+			Eventually(func() error { return statefulsetIsScaled(c, instance, s, 1) }, timeout, pollingInterval).Should(BeNil())
+			setStatefulSetReady(s)
+			err = c.Status().Update(context.TODO(), s)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Check if statefulset replicas is scaled up to etcd replicas
+			s = &appsv1.StatefulSet{}
+			Eventually(func() error { return statefulsetIsScaled(c, instance, s, instance.Spec.Replicas) }, timeout, pollingInterval).Should(BeNil())
+
+		})
+
+		AfterEach(func() {
+			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
+			Eventually(func() error { return statefulSetRemoved(c, s) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return etcdRemoved(c, instance) }, timeout, pollingInterval).Should(BeNil())
+		})
+	})
+})
+
+func getMultinodeEtcdDefault(name, namespace string) *druidv1alpha1.Etcd {
+	instance := &druidv1alpha1.Etcd{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: druidv1alpha1.EtcdSpec{
+			Annotations: map[string]string{
+				"app":      "etcd-statefulset",
+				"role":     "test",
+				"instance": name,
+			},
+			Labels: map[string]string{
+				"name":     "etcd",
+				"instance": name,
+			},
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"name":     "etcd",
+					"instance": name,
+				},
+			},
+			Replicas: 3,
+			Backup:   druidv1alpha1.BackupSpec{},
+			Etcd:     druidv1alpha1.EtcdConfig{},
+			Common:   druidv1alpha1.SharedConfig{},
+		},
+	}
+	return instance
+}
+
+func fetchMemberLease(c client.Client, instance *druidv1alpha1.Etcd, lease *coordinationv1.Lease, replica int) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+	defer cancel()
+	req := types.NamespacedName{
+		Name:      memberLeaseName(instance.Name, replica),
+		Namespace: instance.Namespace,
+	}
+
+	if err := c.Get(ctx, req, lease); err != nil {
+		return err
+	}
+
+	if !checkEtcdOwnerReference(lease.GetOwnerReferences(), instance) {
+		return fmt.Errorf("ownerReference does not exists for lease")
+	}
+	return nil
+}
+
+func memberLeaseName(etcdName string, replica int) string {
+	return fmt.Sprintf("%s-%d", etcdName, replica)
+}
+
+func statefulsetIsScaled(c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.StatefulSet, replicas int32) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), expire)
+	defer cancel()
+	req := types.NamespacedName{
+		Name:      instance.Name,
+		Namespace: instance.Namespace,
+	}
+
+	if err := c.Get(ctx, req, ss); err != nil {
+		return err
+	}
+
+	stsReplicas := *ss.Spec.Replicas
+	if stsReplicas != replicas {
+		return fmt.Errorf("statefulset replicas are yet %d instead of %d", stsReplicas, replicas)
+	}
+
+	return nil
+}
 
 func validateRole(instance *druidv1alpha1.Etcd, role *rbac.Role) {
 	Expect(*role).To(MatchFields(IgnoreExtras, Fields{
@@ -1970,6 +2153,36 @@ func statefulsetIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.E
 	if !checkEtcdOwnerReference(ss.GetOwnerReferences(), instance) {
 		return fmt.Errorf("ownerReference does not exist")
 	}
+	return nil
+}
+
+func setReniewTimeForMemberLeases(c client.Client, instance *druidv1alpha1.Etcd) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+	defer cancel()
+
+	for i := 0; i < int(instance.Spec.Replicas); i++ {
+		leaseName := memberLeaseName(instance.Name, i)
+
+		req := types.NamespacedName{
+			Name:      leaseName,
+			Namespace: instance.Namespace,
+		}
+
+		ls := &coordinationv1.Lease{}
+		if err := c.Get(ctx, req, ls); err != nil {
+			return err
+		}
+
+		setTime := metav1.NewMicroTime(time.Now())
+		if err := controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, ls, func() error {
+			ls.Spec.RenewTime = &setTime
+			return nil
+		}); err != nil {
+			return err
+		}
+
+	}
+
 	return nil
 }
 

@@ -28,10 +28,10 @@ import (
 	componentconfigmap "github.com/gardener/etcd-druid/pkg/component/etcd/configmap"
 	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 	componentservice "github.com/gardener/etcd-druid/pkg/component/etcd/service"
-	"github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
 	componentsts "github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
+	coordinationv1 "k8s.io/api/coordination/v1"
 
 	extensionspredicate "github.com/gardener/gardener/extensions/pkg/predicate"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
@@ -41,6 +41,7 @@ import (
 	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
+	gardenerretry "github.com/gardener/gardener/pkg/utils/retry"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
@@ -105,31 +106,25 @@ type EtcdReconciler struct {
 	ImageVector                        imagevector.ImageVector
 	logger                             logr.Logger
 	disableEtcdServiceAccountAutomount bool
-}
-
-// NewReconcilerWithImageVector creates a new EtcdReconciler object with an image vector
-func NewReconcilerWithImageVector(mgr manager.Manager, disableEtcdServiceAccountAutomount bool) (*EtcdReconciler, error) {
-	etcdReconciler, err := NewEtcdReconciler(mgr, disableEtcdServiceAccountAutomount)
-	if err != nil {
-		return nil, err
-	}
-	return etcdReconciler.InitializeControllerWithImageVector()
+	//waitTimeForTests allow some waiting time between certain operations. This variable help some unit test cases
+	waitTimeForTests time.Duration
 }
 
 // NewEtcdReconciler creates a new EtcdReconciler object
-func NewEtcdReconciler(mgr manager.Manager, disableEtcdServiceAccountAutomount bool) (*EtcdReconciler, error) {
+func NewEtcdReconciler(mgr manager.Manager, disableEtcdServiceAccountAutomount bool, waitTimeForTests time.Duration) (*EtcdReconciler, error) {
 	return (&EtcdReconciler{
 		Client:                             mgr.GetClient(),
 		Config:                             mgr.GetConfig(),
 		Scheme:                             mgr.GetScheme(),
 		logger:                             log.Log.WithName("etcd-controller"),
 		disableEtcdServiceAccountAutomount: disableEtcdServiceAccountAutomount,
+		waitTimeForTests:                   waitTimeForTests,
 	}).InitializeControllerWithChartApplier()
 }
 
 // NewEtcdReconcilerWithImageVector creates a new EtcdReconciler object
-func NewEtcdReconcilerWithImageVector(mgr manager.Manager, disableEtcdServiceAccountAutomount bool) (*EtcdReconciler, error) {
-	ec, err := NewEtcdReconciler(mgr, disableEtcdServiceAccountAutomount)
+func NewEtcdReconcilerWithImageVector(mgr manager.Manager, disableEtcdServiceAccountAutomount bool, waitTimeForTests time.Duration) (*EtcdReconciler, error) {
+	ec, err := NewEtcdReconciler(mgr, disableEtcdServiceAccountAutomount, waitTimeForTests)
 	if err != nil {
 		return nil, err
 	}
@@ -206,11 +201,15 @@ func (r *EtcdReconciler) SetupWithManager(mgr ctrl.Manager, workers int, ignoreO
 
 func buildPredicate(ignoreOperationAnnotation bool) predicate.Predicate {
 	if ignoreOperationAnnotation {
-		return predicate.GenerationChangedPredicate{}
+		return predicate.Or(
+			predicate.GenerationChangedPredicate{},
+			druidpredicates.HasQuorumLossAnnotation(),
+		)
 	}
 
 	return predicate.Or(
 		druidpredicates.HasOperationAnnotation(),
+		druidpredicates.HasQuorumLossAnnotation(),
 		druidpredicates.LastOperationNotSuccessful(),
 		extensionspredicate.IsDeleting(),
 	)
@@ -238,6 +237,104 @@ func (r *EtcdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	if !etcd.DeletionTimestamp.IsZero() {
 		return r.delete(ctx, etcd)
 	}
+
+	// Check if annotation for quorum loss is present in the ETCD annotaions
+	// if yes, take necessarry actions
+	if val, ok := etcd.Annotations[druidpredicates.QuorumLossAnnotation]; ok {
+		if val == "true" {
+			// scale down the statefulset to 0
+			sts := &appsv1.StatefulSet{}
+			err := r.Get(ctx, req.NamespacedName, sts)
+			if err != nil {
+				return ctrl.Result{
+					RequeueAfter: 10 * time.Second,
+				}, fmt.Errorf("cound not fetch statefulset though the annotaion action/quorum-loss is set in ETCD CR: %v", err)
+			}
+
+			r.logger.Info("Scaling down the statefulset to 0 while tackling quorum loss scenario in ETCD multi node cluster")
+			if _, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.Client, sts, func() error {
+				sts.Spec.Replicas = pointer.Int32(0)
+				return nil
+			}); err != nil {
+				return ctrl.Result{
+					RequeueAfter: 10 * time.Second,
+				}, fmt.Errorf("cound not scale down statefulset to 0 while tackling quorum loss scenario in ETCD multi node cluster: %v", err)
+			}
+			time.Sleep(r.waitTimeForTests)
+
+			r.logger.Info("Deleting PVCs while tackling quorum loss scenario in ETCD multi node cluster")
+			// delete the pvcs
+			if err := r.DeleteAllOf(ctx, &corev1.PersistentVolumeClaim{},
+				client.InNamespace(sts.GetNamespace()),
+				client.MatchingLabels(getMatchingLabels(sts))); client.IgnoreNotFound(err) != nil {
+				return ctrl.Result{
+					RequeueAfter: 10 * time.Second,
+				}, fmt.Errorf("cound not delete pvcs while tackling quorum loss scenario in ETCD multi node cluster : %v", err)
+			}
+
+			r.logger.Info("Update the lease renewal time as nil")
+			leases := &coordinationv1.LeaseList{}
+			if err := r.List(ctx, leases, client.InNamespace(etcd.Namespace), client.MatchingLabels{
+				common.GardenerOwnedBy: etcd.Name, v1beta1constants.GardenerPurpose: componentlease.PurposeMemberLease}); err != nil {
+				r.logger.Error(err, "failed to get leases for etcd member readiness check")
+			}
+
+			for _, lease := range leases.Items {
+				copyLease := lease.DeepCopy()
+				withNilRenewal := copyLease.DeepCopy()
+				copyLease.Spec.RenewTime = nil
+				err := r.Patch(ctx, copyLease, client.MergeFrom(withNilRenewal))
+
+				if err != nil {
+					return ctrl.Result{
+						RequeueAfter: 10 * time.Second,
+					}, fmt.Errorf("could not set all the lease items with nil as renewal time: %v", err)
+				}
+			}
+
+			r.logger.Info("Scaling up the statefulset to 1 while tackling quorum loss scenario in ETCD multi node cluster")
+			// scale up the statefulset to 1
+			if _, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.Client, sts, func() error {
+				sts.Spec.Replicas = pointer.Int32(1)
+				return nil
+			}); err != nil {
+				return ctrl.Result{
+					RequeueAfter: 10 * time.Second,
+				}, fmt.Errorf("cound not scale up statefulset to 1 while tackling quorum loss scenario in ETCD multi node cluster : %v", err)
+			}
+
+			if err := r.waitUntilStatefulSetReady(ctx, r.logger, req.NamespacedName, 1); err != nil {
+				return ctrl.Result{
+					RequeueAfter: 10 * time.Second,
+				}, fmt.Errorf("statefulset with 1 replica is not ready yet while tackling quorum loss scenario in ETCD multi node cluster : %v", err)
+			}
+
+			// scale up the statefulset to ETCD replicas
+			r.logger.Info("Scaling up the statefulset to the number of replicas mentioned in ETCD spec")
+			if _, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.Client, sts, func() error {
+				sts.Spec.Replicas = &etcd.Spec.Replicas
+				return nil
+			}); err != nil {
+				return ctrl.Result{
+					RequeueAfter: 10 * time.Second,
+				}, fmt.Errorf("cound not scale up statefulset to replica number while tackling quorum loss scenario in ETCD multi node cluster : %v", err)
+			}
+
+			// Quorum loss case has been handled by Druid side. The annotation will be removed now.
+			if err = r.removeQuorumLossAnnotation(ctx, r.logger, etcd); err != nil {
+				if apierrors.IsNotFound(err) {
+					return ctrl.Result{}, nil
+				}
+				return ctrl.Result{
+					Requeue: true,
+				}, err
+			}
+			return ctrl.Result{
+				Requeue: false,
+			}, nil
+		}
+	}
+
 	return r.reconcile(ctx, etcd)
 }
 
@@ -676,7 +773,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		return nil, nil, err
 	}
 
-	statefulSetValues := statefulset.GenerateValues(etcd,
+	statefulSetValues := componentsts.GenerateValues(etcd,
 		&serviceValues.ClientPort,
 		&serviceValues.ServerPort,
 		&serviceValues.BackupPort,
@@ -692,8 +789,33 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		deployWaiter = gardenercomponent.OpWaiter(stsDeployer)
 	)
 
+	if _, err := stsDeployer.Get(ctx); apierrors.IsNotFound(err) {
+
+		logger.Info("Statefulsets does not exist, bootstrapping new one. Adding bootstrap annotation to ETCD CR")
+		etcdCopy := etcd.DeepCopy()
+		annotations := make(map[string]string)
+		if etcd.Annotations != nil {
+			for key, value := range etcd.Annotations {
+				annotations[key] = value
+			}
+		}
+		// Set annotaion in ETCD to take corrective measure
+		annotations[utils.BootstrapAnnotation] = "true"
+		etcd.Annotations = annotations
+		logger.Info(fmt.Sprintf("Updating ETCD with the annotation %v", utils.BootstrapAnnotation))
+		if err := r.Patch(ctx, etcd, client.MergeFrom(etcdCopy)); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	if err := deployWaiter.Deploy(ctx); err != nil {
 		return nil, nil, err
+	}
+
+	if err = r.removeBootstrapAnnotation(ctx, r.logger, etcd); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, nil, err
+		}
 	}
 
 	sts, err := stsDeployer.Get(ctx)
@@ -795,6 +917,15 @@ func clusterInBootstrap(etcd *druidv1alpha1.Etcd) bool {
 		(etcd.Spec.Replicas > 1 && etcd.Status.Replicas == 1)
 }
 
+func getMatchingLabels(sts *appsv1.StatefulSet) map[string]string {
+	labels := make(map[string]string)
+
+	labels["name"] = sts.Labels["name"]
+	labels["instance"] = sts.Labels["instance"]
+
+	return labels
+}
+
 func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
 	return controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
 		lastErrStr := fmt.Sprintf("%v", lastError)
@@ -832,12 +963,66 @@ func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alph
 	})
 }
 
+func (r *EtcdReconciler) waitUntilStatefulSetReady(ctx context.Context, logger logr.Logger, ns types.NamespacedName, replicas int32) error {
+	sts := &appsv1.StatefulSet{}
+	err := gardenerretry.UntilTimeout(ctx, DefaultInterval, DefaultTimeout, func(ctx context.Context) (bool, error) {
+		if err := r.Get(ctx, ns, sts); err != nil {
+			if apierrors.IsNotFound(err) {
+				return gardenerretry.MinorError(err)
+			}
+			return gardenerretry.SevereError(err)
+		}
+		if err := checkStatefulSet(sts, replicas); err != nil {
+			return gardenerretry.MinorError(err)
+		}
+		return gardenerretry.Ok()
+	})
+
+	return err
+}
+
+// checkStatefulSet checks whether the given StatefulSet is healthy.
+// A StatefulSet is considered healthy if its controller observed its current revision,
+// it is not in an update (i.e. UpdateRevision is empty) and if its current replicas are equal to
+// desired replicas specified in ETCD specs.
+func checkStatefulSet(statefulSet *appsv1.StatefulSet, replicas int32) error {
+	if statefulSet.Status.ObservedGeneration < statefulSet.Generation {
+		return fmt.Errorf("observed generation outdated (%d/%d)", statefulSet.Status.ObservedGeneration, statefulSet.Generation)
+	}
+
+	if statefulSet.Status.ReadyReplicas < replicas {
+		return fmt.Errorf("not enough ready replicas (%d/%d)", statefulSet.Status.ReadyReplicas, replicas)
+	}
+
+	return nil
+}
+
 func (r *EtcdReconciler) removeOperationAnnotation(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
 	if _, ok := etcd.Annotations[v1beta1constants.GardenerOperation]; ok {
 		logger.Info("Removing operation annotation")
 		withOpAnnotation := etcd.DeepCopy()
 		delete(etcd.Annotations, v1beta1constants.GardenerOperation)
 		return r.Patch(ctx, etcd, client.MergeFrom(withOpAnnotation))
+	}
+	return nil
+}
+
+func (r *EtcdReconciler) removeQuorumLossAnnotation(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
+	if _, ok := etcd.Annotations[druidpredicates.QuorumLossAnnotation]; ok {
+		logger.Info("Removing quorum loss annotation")
+		withQlAnnotation := etcd.DeepCopy()
+		delete(etcd.Annotations, druidpredicates.QuorumLossAnnotation)
+		return r.Patch(ctx, etcd, client.MergeFrom(withQlAnnotation))
+	}
+	return nil
+}
+
+func (r *EtcdReconciler) removeBootstrapAnnotation(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
+	if _, ok := etcd.Annotations[utils.BootstrapAnnotation]; ok {
+		logger.Info("Removing bootstrap annotation")
+		withBsAnnotation := etcd.DeepCopy()
+		delete(etcd.Annotations, utils.BootstrapAnnotation)
+		return r.Patch(ctx, etcd, client.MergeFrom(withBsAnnotation))
 	}
 	return nil
 }

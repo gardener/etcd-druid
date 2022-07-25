@@ -389,17 +389,14 @@ var _ = Describe("ReadyCheck", func() {
 				}
 			})
 
-			It("should only contain members which acquired lease once", func() {
+			It("should not contain any member even if acquired lease once", func() {
 				defer test.WithVar(&TimeNow, func() time.Time {
 					return now
 				})()
 
 				results := check.Check(ctx, etcd)
 
-				Expect(results).To(HaveLen(1))
-				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemberStatusReady))
-				Expect(results[0].ID()).To(Equal(member1ID))
-				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
+				Expect(results).To(HaveLen(0))
 			})
 		})
 	})

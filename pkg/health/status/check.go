@@ -28,6 +28,7 @@ import (
 	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 	"github.com/gardener/etcd-druid/pkg/health/condition"
 	"github.com/gardener/etcd-druid/pkg/health/etcdmember"
+	"github.com/gardener/etcd-druid/pkg/utils"
 )
 
 // ConditionCheckFn is a type alias for a function which returns an implementation of `Check`.
@@ -72,10 +73,15 @@ func (c *checker) Check(ctx context.Context, logger logr.Logger, etcd *druidv1al
 		return err
 	}
 
+	logger.Info("ETCD member checks are done")
+
 	// Execute condition checks after the etcd member checks because we need their result here.
 	if err := c.executeConditionChecks(ctx, etcd); err != nil {
 		return err
 	}
+
+	logger.Info("ETCD condition check is done")
+
 	return nil
 }
 
@@ -120,6 +126,13 @@ func (c *checker) executeConditionChecks(ctx context.Context, etcd *druidv1alpha
 // executeEtcdMemberChecks runs all registered etcd member checks **sequentially**.
 // The result of a check is passed via the `status` sub-resources to the next check.
 func (c *checker) executeEtcdMemberChecks(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
+	// Don't execute member checks while bootstrapping is in progress
+	if val, ok := etcd.Annotations[utils.BootstrapAnnotation]; ok {
+		if val == "true" {
+			return nil
+		}
+	}
+
 	// Run etcd member checks sequentially as most of them act on multiple elements.
 	for _, newCheck := range c.etcdMemberCheckFns {
 		results := newCheck(c.cl, logger, c.config).Check(ctx, *etcd)

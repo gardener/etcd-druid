@@ -48,6 +48,7 @@ import (
 	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 	"github.com/gardener/etcd-druid/pkg/health/status"
 	druidmapper "github.com/gardener/etcd-druid/pkg/mapper"
+	"github.com/gardener/etcd-druid/pkg/predicate"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
 )
@@ -87,7 +88,20 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
+	if !etcd.DeletionTimestamp.IsZero() {
+		return ctrl.Result{}, nil
+	}
+
 	logger := ec.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
+
+	if val, ok := etcd.Annotations[predicate.QuorumLossAnnotation]; ok {
+		if val == "true" {
+			logger.Info("Requeue item after 30 seconds because the annotaion action/quorum-loss is set in ETCD CR which means a corrective measure for quorum loss in multi node scenario is being taken")
+			return ctrl.Result{
+				RequeueAfter: 30 * time.Second,
+			}, nil
+		}
+	}
 
 	if etcd.Status.LastError != nil && *etcd.Status.LastError != "" {
 		logger.Info(fmt.Sprintf("Requeue item because of last error: %v", *etcd.Status.LastError))
@@ -106,6 +120,37 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	if err := statusCheck.Check(ctx, logger, etcd); err != nil {
 		logger.Error(err, "Error executing status checks")
 		return ctrl.Result{}, err
+	}
+
+	conLength := len(etcd.Status.Conditions)
+	if conLength > 0 && etcd.Status.Conditions[conLength-1].Reason == "QuorumLost" && etcd.Spec.Replicas > 1 {
+		logger.Info("Quorum loss detected. Taking measures to fix it.")
+		if !ec.config.EnableAutomaticQuorumLossHandling {
+			logger.Info("As Automatic Quorum Loss Handling is turned off in Druid, quorum loss needs to be handled by operator. Please follow the operator playbook to handle.")
+			// If the flag to automatically handle quorum loss is not turned on, allow some time before requeuing custodian controller
+			return ctrl.Result{
+				RequeueAfter: 2 * time.Minute,
+			}, nil
+		}
+
+		withQlAnnotation := etcd.DeepCopy()
+		annotations := make(map[string]string)
+		if etcd.Annotations != nil {
+			for key, value := range etcd.Annotations {
+				annotations[key] = value
+			}
+		}
+		// Set annotaion in ETCD to take corrective measure
+		annotations[predicate.QuorumLossAnnotation] = "true"
+		etcd.Annotations = annotations
+		logger.Info(fmt.Sprintf("Updating ETCD with the annotation %v", predicate.QuorumLossAnnotation))
+		if err := ec.Patch(ctx, etcd, client.MergeFrom(withQlAnnotation)); err != nil {
+			return ctrl.Result{}, err
+		}
+		// Allow some time to fix the quorum loss by ETCD controller
+		return ctrl.Result{
+			RequeueAfter: 2 * time.Minute,
+		}, nil
 	}
 
 	refMgr := NewEtcdDruidRefManager(ec.Client, ec.Scheme, etcd, selector, etcdGVK, nil)

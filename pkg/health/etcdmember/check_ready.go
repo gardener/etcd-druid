@@ -73,7 +73,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		renew := lease.Spec.RenewTime
 		if renew == nil {
 			r.logger.Info("Member hasn't acquired lease yet, still in bootstrapping phase", "name", lease.Name)
-			continue
+			return []Result{}
 		}
 
 		// Check if member state must be considered as not ready

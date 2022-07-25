@@ -51,6 +51,7 @@ var (
 	mgrStopped *sync.WaitGroup
 
 	activeDeadlineDuration   time.Duration
+	waitDuration             time.Duration
 	backupCompactionSchedule = "15 */24 * * *"
 
 	revertFns []func()
@@ -102,7 +103,9 @@ var _ = BeforeSuite(func(done Done) {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	er, err := NewEtcdReconcilerWithImageVector(mgr, false)
+	waitDuration, err = time.ParseDuration("10s")
+	Expect(err).NotTo(HaveOccurred())
+	er, err := NewEtcdReconcilerWithImageVector(mgr, false, waitDuration)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = er.SetupWithManager(mgr, 5, true)
@@ -114,8 +117,10 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).NotTo(HaveOccurred())
 
 	custodian := NewEtcdCustodian(mgr, controllersconfig.EtcdCustodianController{
+		SyncPeriod:                        10 * time.Second,
+		EnableAutomaticQuorumLossHandling: true,
 		EtcdMember: controllersconfig.EtcdMemberConfig{
-			EtcdMemberNotReadyThreshold: 1 * time.Minute,
+			EtcdMemberNotReadyThreshold: 20 * time.Second,
 		},
 	})
 
@@ -138,7 +143,7 @@ var _ = BeforeSuite(func(done Done) {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	err = lc.SetupWithManager(mgr, 1)
+	err = lc.SetupWithManager(mgr, 5)
 	Expect(err).NotTo(HaveOccurred())
 
 	mgrStopped = startTestManager(mgrCtx, mgr)
