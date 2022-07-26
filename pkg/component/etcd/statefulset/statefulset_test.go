@@ -201,10 +201,9 @@ var _ = Describe("Statefulset", func() {
 				})
 
 				It("should re-create statefulset because serviceName is changed", func() {
-					sts.Generation = 1
+					sts.Generation = 2
 					sts.Spec.ServiceName = "foo"
 					sts.Spec.Replicas = pointer.Int32Ptr(3)
-					sts.Status.Replicas = 1
 					Expect(cl.Create(ctx, sts)).To(Succeed())
 
 					values.Replicas = 3
@@ -654,6 +653,9 @@ func getEtcd(name, namespace string, tlsEnabled bool, replicas int32) *druidv1al
 				AutoCompactionMode:      &autoCompactionMode,
 				AutoCompactionRetention: &autoCompactionRetention,
 			},
+		},
+		Status: druidv1alpha1.EtcdStatus{
+			Replicas: 0,
 		},
 	}
 
