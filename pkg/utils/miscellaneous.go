@@ -50,14 +50,22 @@ const (
 )
 
 const (
-	S3    = "S3"
-	ABS   = "ABS"
-	GCS   = "GCS"
-	OSS   = "OSS"
+	// S3 is a constant for the AWS and S3 compliant storage provider.
+	S3 = "S3"
+	// ABS is a constant for the Azure storage provider.
+	ABS = "ABS"
+	// GCS is a constant for the Google storage provider.
+	GCS = "GCS"
+	// OSS is a constant for the Alicloud storage provider.
+	OSS = "OSS"
+	// Swift is a constant for the OpenStack storage provider.
 	Swift = "Swift"
+	// Local is a constant for the Local storage provider.
 	Local = "Local"
-	ECS   = "ECS"
-	OCS   = "OCS"
+	// ECS is a constant for the EMC storage provider.
+	ECS = "ECS"
+	// OSC is a constant for the OpenShift storage provider.
+	OCS = "OCS"
 )
 
 // ValueExists returns true or false, depending on whether the given string <value>

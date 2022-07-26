@@ -29,7 +29,7 @@ var (
 	defaultBackupPort              int32 = 8080
 	defaultServerPort              int32 = 2380
 	defaultClientPort              int32 = 2379
-	defaultheartbeatDuration             = "10s"
+	defaultHeartbeatDuration             = "10s"
 	defaultGbcPolicy                     = "LimitBased"
 	defaultAutoCompactionRetention       = "30m"
 	defaultEtcdSnapshotTimeout           = "15m"
@@ -121,40 +121,55 @@ func GenerateValues(
 	values.EtcdCommand = getEtcdCommand()
 	values.ReadinessProbeCommand = getReadinessProbeCommand(values)
 	values.LivenessProbCommand = getLivenessProbeCommand(values)
-	values.EtcdBackupCommand = getEtcdBackupCommand(values)
+	values.EtcdBackupCommand = getBackupRestoreCommand(values)
 
 	return values
 }
 
 func getEtcdCommand() []string {
-	command := []string{"" + "/var/etcd/bin/bootstrap.sh"}
-
-	return command
+	return []string{"/var/etcd/bin/bootstrap.sh"}
 }
 
 func getReadinessProbeCommand(val Values) []string {
 	command := []string{"" + "/usr/bin/curl"}
 
 	protocol := "http"
-	if (val.Replicas == 1 && val.BackupTLS != nil) || (val.Replicas != 1 && val.ClientUrlTLS != nil) {
+	if tlsReadinessProvidedByBackupRestore(val) || tlsReadinessProvidedByEtcd(val) {
 		protocol = "https"
 		command = append(command, "--cert")
 		command = append(command, "/var/etcd/ssl/client/client/tls.crt")
 		command = append(command, "--key")
 		command = append(command, "/var/etcd/ssl/client/client/tls.key")
-		if dataKey := val.ClientUrlTLS.TLSCASecretRef.DataKey; dataKey != nil {
-			command = append(command, "--cacert")
-			command = append(command, "/var/etcd/ssl/client/ca/"+*dataKey)
+
+		dataKey := "ca.crt"
+		if val.ClientUrlTLS.TLSCASecretRef.DataKey != nil {
+			dataKey = *val.ClientUrlTLS.TLSCASecretRef.DataKey
 		}
+
+		command = append(command, "--cacert")
+		command = append(command, "/var/etcd/ssl/client/ca/"+dataKey)
 	}
 
+	var readinessEndpoint string
 	if val.Replicas == 1 {
-		command = append(command, fmt.Sprintf("%s://%s-local:%d/healthz", protocol, val.Name, pointer.Int32Deref(val.BackupPort, defaultBackupPort)))
-	} else {
-		command = append(command, fmt.Sprintf("%s://%s-local:%d/health", protocol, val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
+		// For single replica etcds we use the `healthz` endpoint which is provided by the etcd-backup-restore side-car.
+		// This is required because of the owner checks that are considered for readiness.
+		readinessEndpoint = fmt.Sprintf("%s://%s-local:%d/healthz", protocol, val.Name, pointer.Int32Deref(val.BackupPort, defaultBackupPort))
+	} else if val.Replicas > 1 {
+		readinessEndpoint = fmt.Sprintf("%s://%s-local:%d/health", protocol, val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort))
 	}
+
+	command = append(command, readinessEndpoint)
 
 	return command
+}
+
+func tlsReadinessProvidedByEtcd(val Values) bool {
+	return val.Replicas != 1 && val.ClientUrlTLS != nil
+}
+
+func tlsReadinessProvidedByBackupRestore(val Values) bool {
+	return val.Replicas == 1 && val.BackupTLS != nil
 }
 
 func getLivenessProbeCommand(val Values) []string {
@@ -167,20 +182,25 @@ func getLivenessProbeCommand(val Values) []string {
 		command = append(command, "--cert=/var/etcd/ssl/client/client/tls.crt")
 		command = append(command, "--key=/var/etcd/ssl/client/client/tls.key")
 
-		if dataKey := val.ClientUrlTLS.TLSCASecretRef.DataKey; dataKey != nil {
-			command = append(command, "--cacert=/var/etcd/ssl/client/ca/"+*dataKey)
+		dataKey := "ca.crt"
+		if val.ClientUrlTLS.TLSCASecretRef.DataKey != nil {
+			dataKey = *val.ClientUrlTLS.TLSCASecretRef.DataKey
 		}
+
+		command = append(command, "--cacert=/var/etcd/ssl/client/ca/"+dataKey)
 		command = append(command, fmt.Sprintf("--endpoints=https://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
 	} else {
 		command = append(command, fmt.Sprintf("--endpoints=http://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
 	}
+
 	command = append(command, "get")
 	command = append(command, "foo")
 	command = append(command, "--consistency=s")
+
 	return command
 }
 
-func getEtcdBackupCommand(val Values) []string {
+func getBackupRestoreCommand(val Values) []string {
 	command := []string{"" + "etcdbrctl"}
 	command = append(command, "server")
 
@@ -198,16 +218,13 @@ func getEtcdBackupCommand(val Values) []string {
 		command = append(command, "--schedule="+*val.FullSnapshotSchedule)
 	}
 
+	garbageCollectionPolicy := defaultGbcPolicy
 	if val.GarbageCollectionPolicy != nil {
+		garbageCollectionPolicy = string(*val.GarbageCollectionPolicy)
+	}
 
-		gbc := string(*val.GarbageCollectionPolicy)
-		command = append(command, "--garbage-collection-policy="+gbc)
-
-		if gbc == "LimitBased" {
-			command = append(command, "--max-backups=7")
-		}
-	} else {
-		command = append(command, "--garbage-collection-policy="+defaultGbcPolicy)
+	command = append(command, "--garbage-collection-policy="+garbageCollectionPolicy)
+	if garbageCollectionPolicy == "LimitBased" {
 		command = append(command, "--max-backups=7")
 	}
 
@@ -233,30 +250,19 @@ func getEtcdBackupCommand(val Values) []string {
 	if val.ClientUrlTLS != nil {
 		command = append(command, "--cert=/var/etcd/ssl/client/client/tls.crt")
 		command = append(command, "--key=/var/etcd/ssl/client/client/tls.key")
-		if dataKey := val.ClientUrlTLS.TLSCASecretRef.DataKey; dataKey != nil {
-			command = append(command, "--cacert=/var/etcd/ssl/client/ca/"+*dataKey)
-		}
+		command = append(command, "--cacert=/var/etcd/ssl/client/ca/"+pointer.StringPtrDerefOr(val.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt"))
 		command = append(command, "--insecure-transport=false")
 		command = append(command, "--insecure-skip-tls-verify=false")
-
 		command = append(command, fmt.Sprintf("--endpoints=https://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
-
-		command = append(command, "--server-cert=/var/etcd/ssl/client/server/tls.crt")
-		command = append(command, "--server-key=/var/etcd/ssl/client/server/tls.key")
 	} else {
 		command = append(command, "--insecure-transport=true")
 		command = append(command, "--insecure-skip-tls-verify=true")
 		command = append(command, fmt.Sprintf("--endpoints=http://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
 	}
 
-	if val.LeaderElection != nil {
-		if val.LeaderElection.EtcdConnectionTimeout != nil {
-			command = append(command, "--etcd-connection-timeout-leader-election="+val.LeaderElection.EtcdConnectionTimeout.Duration.String())
-		}
-
-		if val.LeaderElection.ReelectionPeriod != nil {
-			command = append(command, "--reelection-period="+val.LeaderElection.ReelectionPeriod.Duration.String())
-		}
+	if val.BackupTLS != nil {
+		command = append(command, "--server-cert=/var/etcd/ssl/client/server/tls.crt")
+		command = append(command, "--server-key=/var/etcd/ssl/client/server/tls.key")
 	}
 
 	command = append(command, "--etcd-connection-timeout="+defaultEtcdConnectionTimeout)
@@ -272,17 +278,17 @@ func getEtcdBackupCommand(val Values) []string {
 
 	command = append(command, "--delta-snapshot-memory-limit="+fmt.Sprint(deltaSnapshotMemoryLimit))
 
+	if val.GarbageCollectionPeriod != nil {
+		command = append(command, "--garbage-collection-period="+val.GarbageCollectionPeriod.Duration.String())
+	}
+
 	if val.SnapshotCompression != nil {
 		if pointer.BoolPtrDerefOr(val.SnapshotCompression.Enabled, false) {
-			command = append(command, "--compress-snapshots="+strconv.FormatBool(pointer.BoolPtrDerefOr(val.SnapshotCompression.Enabled, false)))
+			command = append(command, "--compress-snapshots="+fmt.Sprint(*val.SnapshotCompression.Enabled))
 		}
 		if val.SnapshotCompression.Policy != nil {
 			command = append(command, "--compression-policy="+string(*val.SnapshotCompression.Policy))
 		}
-	}
-
-	if val.GarbageCollectionPeriod != nil {
-		command = append(command, "--garbage-collection-period="+val.GarbageCollectionPeriod.Duration.String())
 	}
 
 	if val.OwnerCheck != nil {
@@ -300,101 +306,122 @@ func getEtcdBackupCommand(val Values) []string {
 		}
 	}
 
+	compactionMode := defaultAutoCompactionMode
 	if val.AutoCompactionMode != nil {
-		command = append(command, "--auto-compaction-mode="+string(*val.AutoCompactionMode))
-	} else {
-		command = append(command, "--auto-compaction-mode="+defaultAutoCompactionMode)
+		compactionMode = string(*val.AutoCompactionMode)
 	}
+	command = append(command, "--auto-compaction-mode="+compactionMode)
 
+	compactionRetention := defaultAutoCompactionRetention
 	if val.AutoCompactionRetention != nil {
-		command = append(command, "--auto-compaction-retention="+string(*val.AutoCompactionRetention))
-	} else {
-		command = append(command, "--auto-compaction-retention="+defaultAutoCompactionRetention)
+		compactionRetention = string(*val.AutoCompactionRetention)
 	}
+	command = append(command, "--auto-compaction-retention="+compactionRetention)
 
+	etcdSnapshotTimeout := defaultEtcdSnapshotTimeout
 	if val.EtcdSnapshotTimeout != nil {
-		command = append(command, "--etcd-snapshot-timeout="+val.EtcdSnapshotTimeout.Duration.String())
-	} else {
-		command = append(command, "--etcd-snapshot-timeout="+defaultEtcdSnapshotTimeout)
+		etcdSnapshotTimeout = val.EtcdSnapshotTimeout.Duration.String()
 	}
+	command = append(command, "--etcd-snapshot-timeout="+etcdSnapshotTimeout)
 
+	etcdDefragTimeout := defaultEtcdDefragTimeout
 	if val.EtcdDefragTimeout != nil {
-		command = append(command, "--etcd-defrag-timeout="+val.EtcdDefragTimeout.Duration.String())
-	} else {
-		command = append(command, "--etcd-defrag-timeout="+defaultEtcdDefragTimeout)
+		etcdDefragTimeout = val.EtcdDefragTimeout.Duration.String()
 	}
+	command = append(command, "--etcd-defrag-timeout="+etcdDefragTimeout)
 
 	command = append(command, "--snapstore-temp-directory=/var/etcd/data/temp")
-	command = append(command, "--enable-member-lease-renewal=true")
 	command = append(command, "--etcd-process-name=etcd")
+	command = append(command, "--enable-member-lease-renewal=true")
 
-	if heartBeatDuration := val.HeartbeatDuration; heartBeatDuration != nil {
-		command = append(command, "--k8s-heartbeat-duration="+heartBeatDuration.Duration.String())
-	} else {
-		command = append(command, "--k8s-heartbeat-duration="+defaultheartbeatDuration)
+	heartbeatDuration := defaultHeartbeatDuration
+	if val.HeartbeatDuration != nil {
+		heartbeatDuration = val.HeartbeatDuration.Duration.String()
+	}
+	command = append(command, "--k8s-heartbeat-duration="+heartbeatDuration)
+
+	if val.LeaderElection != nil {
+		if val.LeaderElection.EtcdConnectionTimeout != nil {
+			command = append(command, "--etcd-connection-timeout-leader-election="+val.LeaderElection.EtcdConnectionTimeout.Duration.String())
+		}
+
+		if val.LeaderElection.ReelectionPeriod != nil {
+			command = append(command, "--reelection-period="+val.LeaderElection.ReelectionPeriod.Duration.String())
+		}
 	}
 
 	return command
 }
 
 func getEtcdEnvVar(val Values) []corev1.EnvVar {
-	protocol := "http"
+	var env []corev1.EnvVar
+	env = append(env, getEnvVarFromValues("ENABLE_TLS", strconv.FormatBool(val.BackupTLS != nil)))
 
+	protocol := "http"
 	if val.BackupTLS != nil {
 		protocol = "https"
 	}
 
 	endpoint := fmt.Sprintf("%s://%s-local:%d", protocol, val.Name, pointer.Int32Deref(val.BackupPort, defaultBackupPort))
-
-	var env []corev1.EnvVar
-	env = append(env, getEnvVarFromValues("ENABLE_TLS", strconv.FormatBool(val.BackupTLS != nil)))
 	env = append(env, getEnvVarFromValues("BACKUP_ENDPOINT", endpoint))
+
+	// This env var has been unused for a long time but is kept to not unnecessarily restart etcds.
+	// Todo(timuthy): Remove this as part of a future release in which an etcd restart is acceptable.
+	env = append(env, getEnvVarFromValues("FAIL_BELOW_REVISION_PARAMETER", ""))
 
 	return env
 }
 
 func getBackupRestoreEnvVar(val Values) []corev1.EnvVar {
-	var env []corev1.EnvVar
+	var (
+		env              []corev1.EnvVar
+		storageContainer string
+		storeValues      = val.BackupStore
+	)
+
+	if val.BackupStore != nil {
+		storageContainer = pointer.StringDeref(val.BackupStore.Container, "")
+	}
+
+	// TODO(timuthy): Move STORAGE_CONTAINER a few lines below so that we can append and exit in one step. This should only be done in a release where a restart of etcd is acceptable.
+	env = append(env, getEnvVarFromValues("STORAGE_CONTAINER", storageContainer))
 	env = append(env, getEnvVarFromFields("POD_NAME", "metadata.name"))
 	env = append(env, getEnvVarFromFields("POD_NAMESPACE", "metadata.namespace"))
 
-	if val.BackupStore == nil {
-		env = append(env, getEnvVarFromValues("STORAGE_CONTAINER", ""))
+	if storeValues == nil {
 		return env
 	}
-
-	storeValues := val.BackupStore
-
-	env = append(env, getEnvVarFromValues("STORAGE_CONTAINER", *storeValues.Container))
 
 	provider, err := utils.StorageProviderFromInfraProvider(val.BackupStore.Provider)
 	if err != nil {
 		return env
 	}
 
+	// TODO(timuthy): move this to a non root path when we switch to a rootless distribution
+	const credentialsMountPath = "/root/etcd-backup"
 	switch provider {
-	case "S3":
-		env = append(env, getEnvVarFromValues("AWS_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
+	case utils.S3:
+		env = append(env, getEnvVarFromValues("AWS_APPLICATION_CREDENTIALS", credentialsMountPath))
 
-	case "ABS":
-		env = append(env, getEnvVarFromValues("AZURE_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
+	case utils.ABS:
+		env = append(env, getEnvVarFromValues("AZURE_APPLICATION_CREDENTIALS", credentialsMountPath))
 
-	case "GCS":
+	case utils.GCS:
 		env = append(env, getEnvVarFromValues("GOOGLE_APPLICATION_CREDENTIALS", "/root/.gcp/serviceaccount.json"))
 
-	case "Swift":
-		env = append(env, getEnvVarFromValues("OPENSTACK_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
+	case utils.Swift:
+		env = append(env, getEnvVarFromValues("OPENSTACK_APPLICATION_CREDENTIALS", credentialsMountPath))
 
-	case "OSS":
-		env = append(env, getEnvVarFromValues("ALICLOUD_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
+	case utils.OSS:
+		env = append(env, getEnvVarFromValues("ALICLOUD_APPLICATION_CREDENTIALS", credentialsMountPath))
 
-	case "ECS":
+	case utils.ECS:
 		env = append(env, getEnvVarFromSecrets("ECS_ENDPOINT", storeValues.SecretRef.Name, "endpoint"))
 		env = append(env, getEnvVarFromSecrets("ECS_ACCESS_KEY_ID", storeValues.SecretRef.Name, "accessKeyID"))
 		env = append(env, getEnvVarFromSecrets("ECS_SECRET_ACCESS_KEY", storeValues.SecretRef.Name, "secretAccessKey"))
 
-	case "OCS":
-		env = append(env, getEnvVarFromValues("OPENSHIFT_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
+	case utils.OCS:
+		env = append(env, getEnvVarFromValues("OPENSHIFT_APPLICATION_CREDENTIALS", credentialsMountPath))
 	}
 
 	return env
@@ -435,15 +462,14 @@ func getEnvVarFromSecrets(name, secretName, secretKey string) corev1.EnvVar {
 func getBackupRestoreVolumeMounts(val Values) []corev1.VolumeMount {
 	vms := []corev1.VolumeMount{
 		{
+			Name:      val.VolumeClaimTemplateName,
+			MountPath: "/var/etcd/data",
+		},
+		{
 			Name:      "etcd-config-file",
 			MountPath: "/var/etcd/config/",
 		},
 	}
-
-	vms = append(vms, corev1.VolumeMount{
-		Name:      val.VolumeClaimTemplateName,
-		MountPath: "/var/etcd/data",
-	})
 
 	vms = append(vms, getSecretVolumeMounts(val)...)
 
@@ -456,19 +482,20 @@ func getBackupRestoreVolumeMounts(val Values) []corev1.VolumeMount {
 		return vms
 	}
 
-	if provider == "Local" && val.BackupStore.Container != nil {
-		vms = append(vms, corev1.VolumeMount{
-			Name:      "host-storage",
-			MountPath: *val.BackupStore.Container,
-		})
-	}
-
-	if provider == "GCS" {
+	switch provider {
+	case "Local":
+		if val.BackupStore.Container != nil {
+			vms = append(vms, corev1.VolumeMount{
+				Name:      "host-storage",
+				MountPath: *val.BackupStore.Container,
+			})
+		}
+	case utils.GCS:
 		vms = append(vms, corev1.VolumeMount{
 			Name:      "etcd-backup",
 			MountPath: "/root/.gcp/",
 		})
-	} else if provider == "S3" || provider == "ABS" || provider == "OSS" || provider == "Swift" || provider == "OCS" {
+	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
 		vms = append(vms, corev1.VolumeMount{
 			Name:      "etcd-backup",
 			MountPath: "/root/etcd-backup/",
@@ -478,7 +505,7 @@ func getBackupRestoreVolumeMounts(val Values) []corev1.VolumeMount {
 	return vms
 }
 
-func getBackupRestoreVolumes(val Values) []corev1.Volume {
+func getVolumes(val Values) []corev1.Volume {
 	vs := []corev1.Volume{
 		{
 			Name: "etcd-config-file",
@@ -555,7 +582,8 @@ func getBackupRestoreVolumes(val Values) []corev1.Volume {
 		return vs
 	}
 
-	if provider == "Local" {
+	switch provider {
+	case "Local":
 		hpt := corev1.HostPathDirectory
 		vs = append(vs, corev1.Volume{
 			Name: "host-storage",
@@ -566,9 +594,7 @@ func getBackupRestoreVolumes(val Values) []corev1.Volume {
 				},
 			},
 		})
-	}
-
-	if provider == utils.GCS || provider == utils.S3 || provider == utils.OSS || provider == utils.ABS || provider == utils.Swift || provider == utils.OCS {
+	case utils.GCS, utils.S3, utils.OSS, utils.ABS, utils.Swift, utils.OCS:
 		vs = append(vs, corev1.Volume{
 			Name: "etcd-backup",
 			VolumeSource: corev1.VolumeSource{
@@ -674,6 +700,7 @@ func getEtcdResources(val Values) corev1.ResourceRequirements {
 	if val.EtcdResources != nil {
 		return *val.EtcdResources
 	}
+
 	return corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceCPU:    resource.MustParse("50m"),

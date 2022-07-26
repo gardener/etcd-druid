@@ -102,16 +102,16 @@ func clusterScaledUpToMultiNode(val Values) bool {
 }
 
 const (
-	// DefaultInterval is the default interval for retry operations.
-	DefaultInterval = 5 * time.Second
-	// DefaultTimeout is the default timeout for retry operations.
-	DefaultTimeout = 1 * time.Minute
+	// defaultInterval is the default interval for retry operations.
+	defaultInterval = 5 * time.Second
+	// defaultTimeout is the default timeout for retry operations.
+	defaultTimeout = 1 * time.Minute
 )
 
 func (c *component) Wait(ctx context.Context) error {
 	sts := c.emptyStatefulset()
 
-	err := gardenerretry.UntilTimeout(ctx, DefaultInterval, DefaultTimeout, func(ctx context.Context) (bool, error) {
+	err := gardenerretry.UntilTimeout(ctx, defaultInterval, defaultTimeout, func(ctx context.Context) (bool, error) {
 		if err := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
 			if apierrors.IsNotFound(err) {
 				return gardenerretry.MinorError(err)
@@ -140,7 +140,7 @@ func (c *component) Wait(ctx context.Context) error {
 }
 
 func (c *component) WaitCleanup(ctx context.Context) error {
-	return gardenerretry.UntilTimeout(ctx, DefaultInterval, DefaultTimeout, func(ctx context.Context) (done bool, err error) {
+	return gardenerretry.UntilTimeout(ctx, defaultInterval, defaultTimeout, func(ctx context.Context) (done bool, err error) {
 		sts := c.emptyStatefulset()
 		err = c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts)
 		switch {
@@ -159,20 +159,6 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 
 	sts.ObjectMeta = getObjectMeta(&c.values)
 	sts.Spec = appsv1.StatefulSetSpec{
-		VolumeClaimTemplates: []v1.PersistentVolumeClaim{
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: c.values.VolumeClaimTemplateName,
-				},
-				Spec: v1.PersistentVolumeClaimSpec{
-					AccessModes: []v1.PersistentVolumeAccessMode{
-						v1.ReadWriteOnce,
-					},
-					StorageClassName: c.values.StorageClass,
-					Resources:        getStorageReq(c.values),
-				},
-			},
-		},
 		PodManagementPolicy: appsv1.ParallelPodManagement,
 		UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
 			Type: appsv1.RollingUpdateStatefulSetStrategyType,
@@ -247,7 +233,21 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 					},
 				},
 				ShareProcessNamespace: pointer.Bool(true),
-				Volumes:               getBackupRestoreVolumes(c.values),
+				Volumes:               getVolumes(c.values),
+			},
+		},
+		VolumeClaimTemplates: []v1.PersistentVolumeClaim{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: c.values.VolumeClaimTemplateName,
+				},
+				Spec: v1.PersistentVolumeClaimSpec{
+					AccessModes: []v1.PersistentVolumeAccessMode{
+						v1.ReadWriteOnce,
+					},
+					StorageClassName: c.values.StorageClass,
+					Resources:        getStorageReq(c.values),
+				},
 			},
 		},
 	}
