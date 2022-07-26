@@ -17,6 +17,7 @@ package statefulset
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -349,5 +351,373 @@ func getObjectMeta(val *Values) metav1.ObjectMeta {
 		Labels:          labels,
 		Annotations:     annotations,
 		OwnerReferences: ownerRefs,
+	}
+}
+
+func getEtcdPorts(val Values) []corev1.ContainerPort {
+	ports := []corev1.ContainerPort{}
+
+	ports = append(ports, corev1.ContainerPort{
+		Name:          "server",
+		Protocol:      "TCP",
+		ContainerPort: pointer.Int32Deref(val.ServerPort, defaultServerPort),
+	})
+
+	ports = append(ports, corev1.ContainerPort{
+		Name:          "client",
+		Protocol:      "TCP",
+		ContainerPort: pointer.Int32Deref(val.ClientPort, defaultClientPort),
+	})
+
+	return ports
+}
+
+func getEtcdResources(val Values) corev1.ResourceRequirements {
+	if val.EtcdResources != nil {
+		return *val.EtcdResources
+	}
+
+	return corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("50m"),
+			corev1.ResourceMemory: resource.MustParse("128Mi"),
+		},
+	}
+}
+
+func getEtcdEnvVar(val Values) []corev1.EnvVar {
+	var env []corev1.EnvVar
+	env = append(env, getEnvVarFromValues("ENABLE_TLS", strconv.FormatBool(val.BackupTLS != nil)))
+
+	protocol := "http"
+	if val.BackupTLS != nil {
+		protocol = "https"
+	}
+
+	endpoint := fmt.Sprintf("%s://%s-local:%d", protocol, val.Name, pointer.Int32Deref(val.BackupPort, defaultBackupPort))
+	env = append(env, getEnvVarFromValues("BACKUP_ENDPOINT", endpoint))
+
+	// This env var has been unused for a long time but is kept to not unnecessarily restart etcds.
+	// Todo(timuthy): Remove this as part of a future release in which an etcd restart is acceptable.
+	env = append(env, getEnvVarFromValues("FAIL_BELOW_REVISION_PARAMETER", ""))
+
+	return env
+}
+
+func getEtcdVolumeMounts(val Values) []corev1.VolumeMount {
+	vms := []corev1.VolumeMount{
+		{
+			Name:      val.VolumeClaimTemplateName,
+			MountPath: "/var/etcd/data/",
+		},
+	}
+
+	vms = append(vms, getSecretVolumeMounts(val)...)
+
+	return vms
+}
+
+func getSecretVolumeMounts(val Values) []corev1.VolumeMount {
+	vms := []corev1.VolumeMount{}
+
+	if val.ClientUrlTLS != nil {
+		vms = append(vms, corev1.VolumeMount{
+			Name:      "client-url-ca-etcd",
+			MountPath: "/var/etcd/ssl/client/ca",
+		}, corev1.VolumeMount{
+			Name:      "client-url-etcd-server-tls",
+			MountPath: "/var/etcd/ssl/client/server",
+		}, corev1.VolumeMount{
+			Name:      "client-url-etcd-client-tls",
+			MountPath: "/var/etcd/ssl/client/client",
+		})
+	}
+
+	if val.PeerUrlTLS != nil {
+		vms = append(vms, corev1.VolumeMount{
+			Name:      "peer-url-ca-etcd",
+			MountPath: "/var/etcd/ssl/peer/ca",
+		}, corev1.VolumeMount{
+			Name:      "peer-url-etcd-server-tls",
+			MountPath: "/var/etcd/ssl/peer/server",
+		})
+	}
+
+	return vms
+}
+
+func getBackupRestoreVolumeMounts(val Values) []corev1.VolumeMount {
+	vms := []corev1.VolumeMount{
+		{
+			Name:      val.VolumeClaimTemplateName,
+			MountPath: "/var/etcd/data",
+		},
+		{
+			Name:      "etcd-config-file",
+			MountPath: "/var/etcd/config/",
+		},
+	}
+
+	vms = append(vms, getSecretVolumeMounts(val)...)
+
+	if val.BackupStore == nil {
+		return vms
+	}
+
+	provider, err := utils.StorageProviderFromInfraProvider(val.BackupStore.Provider)
+	if err != nil {
+		return vms
+	}
+
+	switch provider {
+	case utils.Local:
+		if val.BackupStore.Container != nil {
+			vms = append(vms, corev1.VolumeMount{
+				Name:      "host-storage",
+				MountPath: *val.BackupStore.Container,
+			})
+		}
+	case utils.GCS:
+		vms = append(vms, corev1.VolumeMount{
+			Name:      "etcd-backup",
+			MountPath: "/root/.gcp/",
+		})
+	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
+		vms = append(vms, corev1.VolumeMount{
+			Name:      "etcd-backup",
+			MountPath: "/root/etcd-backup/",
+		})
+	}
+
+	return vms
+}
+
+func getStorageReq(val Values) corev1.ResourceRequirements {
+	if val.StorageCapacity != nil {
+		return corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceStorage: *val.StorageCapacity,
+			},
+		}
+	}
+
+	return corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceStorage: defaultStorageCapacity,
+		},
+	}
+}
+
+func getBackupPorts(val Values) []corev1.ContainerPort {
+	ports := []corev1.ContainerPort{}
+
+	ports = append(ports, corev1.ContainerPort{
+		Name:          "server",
+		Protocol:      "TCP",
+		ContainerPort: pointer.Int32Deref(val.BackupPort, defaultBackupPort),
+	})
+
+	return ports
+}
+
+func getBackupResources(val Values) corev1.ResourceRequirements {
+	if val.BackupResources != nil {
+		return *val.BackupResources
+	}
+	return corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("50m"),
+			corev1.ResourceMemory: resource.MustParse("128Mi"),
+		},
+	}
+}
+
+func getVolumes(val Values) []corev1.Volume {
+	vs := []corev1.Volume{
+		{
+			Name: "etcd-config-file",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: val.ConfigMapName,
+					},
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "etcd.conf.yaml",
+							Path: "etcd.conf.yaml",
+						},
+					},
+					DefaultMode: pointer.Int32(0644),
+				},
+			},
+		},
+	}
+
+	if val.ClientUrlTLS != nil {
+		vs = append(vs, corev1.Volume{
+			Name: "client-url-ca-etcd",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: val.ClientUrlTLS.TLSCASecretRef.Name,
+				},
+			},
+		},
+			corev1.Volume{
+				Name: "client-url-etcd-server-tls",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: val.ClientUrlTLS.ServerTLSSecretRef.Name,
+					},
+				},
+			},
+			corev1.Volume{
+				Name: "client-url-etcd-client-tls",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: val.ClientUrlTLS.ClientTLSSecretRef.Name,
+					},
+				},
+			})
+	}
+
+	if val.PeerUrlTLS != nil {
+		vs = append(vs, corev1.Volume{
+			Name: "peer-url-ca-etcd",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: val.PeerUrlTLS.TLSCASecretRef.Name,
+				},
+			},
+		},
+			corev1.Volume{
+				Name: "peer-url-etcd-server-tls",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: val.PeerUrlTLS.ServerTLSSecretRef.Name,
+					},
+				},
+			})
+	}
+
+	if val.BackupStore == nil {
+		return vs
+	}
+
+	storeValues := val.BackupStore
+	provider, err := utils.StorageProviderFromInfraProvider(storeValues.Provider)
+	if err != nil {
+		return vs
+	}
+
+	switch provider {
+	case "Local":
+		hpt := corev1.HostPathDirectory
+		vs = append(vs, corev1.Volume{
+			Name: "host-storage",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: defaultLocalPrefix + "/" + *storeValues.Container,
+					Type: &hpt,
+				},
+			},
+		})
+	case utils.GCS, utils.S3, utils.OSS, utils.ABS, utils.Swift, utils.OCS:
+		vs = append(vs, corev1.Volume{
+			Name: "etcd-backup",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: storeValues.SecretRef.Name,
+				},
+			},
+		})
+	}
+
+	return vs
+}
+
+func getBackupRestoreEnvVar(val Values) []corev1.EnvVar {
+	var (
+		env              []corev1.EnvVar
+		storageContainer string
+		storeValues      = val.BackupStore
+	)
+
+	if val.BackupStore != nil {
+		storageContainer = pointer.StringDeref(val.BackupStore.Container, "")
+	}
+
+	// TODO(timuthy): Move STORAGE_CONTAINER a few lines below so that we can append and exit in one step. This should only be done in a release where a restart of etcd is acceptable.
+	env = append(env, getEnvVarFromValues("STORAGE_CONTAINER", storageContainer))
+	env = append(env, getEnvVarFromFields("POD_NAME", "metadata.name"))
+	env = append(env, getEnvVarFromFields("POD_NAMESPACE", "metadata.namespace"))
+
+	if storeValues == nil {
+		return env
+	}
+
+	provider, err := utils.StorageProviderFromInfraProvider(val.BackupStore.Provider)
+	if err != nil {
+		return env
+	}
+
+	// TODO(timuthy): move this to a non root path when we switch to a rootless distribution
+	const credentialsMountPath = "/root/etcd-backup"
+	switch provider {
+	case utils.S3:
+		env = append(env, getEnvVarFromValues("AWS_APPLICATION_CREDENTIALS", credentialsMountPath))
+
+	case utils.ABS:
+		env = append(env, getEnvVarFromValues("AZURE_APPLICATION_CREDENTIALS", credentialsMountPath))
+
+	case utils.GCS:
+		env = append(env, getEnvVarFromValues("GOOGLE_APPLICATION_CREDENTIALS", "/root/.gcp/serviceaccount.json"))
+
+	case utils.Swift:
+		env = append(env, getEnvVarFromValues("OPENSTACK_APPLICATION_CREDENTIALS", credentialsMountPath))
+
+	case utils.OSS:
+		env = append(env, getEnvVarFromValues("ALICLOUD_APPLICATION_CREDENTIALS", credentialsMountPath))
+
+	case utils.ECS:
+		env = append(env, getEnvVarFromSecrets("ECS_ENDPOINT", storeValues.SecretRef.Name, "endpoint"))
+		env = append(env, getEnvVarFromSecrets("ECS_ACCESS_KEY_ID", storeValues.SecretRef.Name, "accessKeyID"))
+		env = append(env, getEnvVarFromSecrets("ECS_SECRET_ACCESS_KEY", storeValues.SecretRef.Name, "secretAccessKey"))
+
+	case utils.OCS:
+		env = append(env, getEnvVarFromValues("OPENSHIFT_APPLICATION_CREDENTIALS", credentialsMountPath))
+	}
+
+	return env
+}
+
+func getEnvVarFromValues(name, value string) corev1.EnvVar {
+	return corev1.EnvVar{
+		Name:  name,
+		Value: value,
+	}
+}
+
+func getEnvVarFromFields(name, fieldPath string) corev1.EnvVar {
+	return corev1.EnvVar{
+		Name: name,
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				FieldPath: fieldPath,
+			},
+		},
+	}
+}
+
+func getEnvVarFromSecrets(name, secretName, secretKey string) corev1.EnvVar {
+	return corev1.EnvVar{
+		Name: name,
+		ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: secretName,
+				},
+				Key: secretKey,
+			},
+		},
 	}
 }

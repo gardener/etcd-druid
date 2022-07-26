@@ -133,10 +133,12 @@ var _ = Describe("Statefulset", func() {
 
 		values      Values
 		stsDeployer component.Deployer
+
+		storageProvider *string
 	)
 
 	JustBeforeEach(func() {
-		etcd = getEtcd(name, namespace, true, *replicas)
+		etcd = getEtcd(name, namespace, true, *replicas, storageProvider)
 		values = GenerateValues(
 			etcd,
 			pointer.Int32Ptr(clientPort),
@@ -167,6 +169,10 @@ var _ = Describe("Statefulset", func() {
 		if replicas == nil {
 			replicas = pointer.Int32Ptr(1)
 		}
+	})
+
+	AfterEach(func() {
+		storageProvider = nil
 	})
 
 	Describe("#Deploy", func() {
@@ -215,6 +221,72 @@ var _ = Describe("Statefulset", func() {
 				})
 			})
 		})
+
+		Context("with backup", func() {
+			for _, p := range []string{
+				druidutils.ABS,
+				druidutils.GCS,
+				druidutils.S3,
+				druidutils.Swift,
+				druidutils.OSS,
+				druidutils.OCS,
+			} {
+				provider := p
+				Context(fmt.Sprintf("with provider %s", provider), func() {
+					BeforeEach(func() {
+						storageProvider = &provider
+					})
+
+					It("should configure the correct provider values", func() {
+						Expect(stsDeployer.Deploy(ctx)).To(Succeed())
+						sts := &appsv1.StatefulSet{}
+						Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
+
+						checkBackup(etcd, sts)
+					})
+				})
+			}
+
+			Context("with provider Local", func() {
+				BeforeEach(func() {
+					storageProvider = pointer.StringPtr(druidutils.Local)
+				})
+
+				It("should configure the correct provider values", func() {
+					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
+					sts := &appsv1.StatefulSet{}
+					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
+
+					hpt := corev1.HostPathDirectory
+
+					// check volumes
+					Expect(sts.Spec.Template.Spec.Volumes).To(ContainElements(corev1.Volume{
+						Name: "host-storage",
+						VolumeSource: corev1.VolumeSource{
+							HostPath: &corev1.HostPathVolumeSource{
+								Path: "/etc/gardener/local-backupbuckets/" + container,
+								Type: &hpt,
+							},
+						},
+					}))
+
+					backupRestoreContainer := sts.Spec.Template.Spec.Containers[1]
+					Expect(backupRestoreContainer.Name).To(Equal(backupRestore))
+
+					// Check command
+					Expect(backupRestoreContainer.Command).To(ContainElements(
+						"--storage-provider="+string(*etcd.Spec.Backup.Store.Provider),
+						"--store-prefix="+prefix,
+					))
+
+					// check volume mount
+					Expect(backupRestoreContainer.VolumeMounts).To(ContainElement(corev1.VolumeMount{
+						Name:      "host-storage",
+						MountPath: container,
+					}))
+				})
+			})
+		})
 	})
 
 	Describe("#Destroy", func() {
@@ -236,6 +308,70 @@ var _ = Describe("Statefulset", func() {
 		})
 	})
 })
+
+func checkBackup(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) {
+	// Check secret volume mount
+	Expect(sts.Spec.Template.Spec.Volumes).To(ContainElement(corev1.Volume{
+		Name: "etcd-backup",
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: etcd.Spec.Backup.Store.SecretRef.Name,
+			},
+		},
+	}))
+
+	backupRestoreContainer := sts.Spec.Template.Spec.Containers[1]
+	Expect(backupRestoreContainer.Name).To(Equal(backupRestore))
+
+	mountPath := "/root/etcd-backup/"
+	if *etcd.Spec.Backup.Store.Provider == druidutils.GCS {
+		mountPath = "/root/.gcp/"
+	}
+
+	// Check volume mount
+	Expect(backupRestoreContainer.VolumeMounts).To(ContainElement(corev1.VolumeMount{
+		Name:      "etcd-backup",
+		MountPath: mountPath,
+	}))
+
+	// Check command
+	Expect(backupRestoreContainer.Command).To(ContainElements(
+		"--storage-provider="+string(*etcd.Spec.Backup.Store.Provider),
+		"--store-prefix="+prefix,
+	))
+
+	var (
+		envVarName  string
+		envVarValue = "/root/etcd-backup"
+	)
+
+	switch *etcd.Spec.Backup.Store.Provider {
+	case druidutils.S3:
+		envVarName = "AWS_APPLICATION_CREDENTIALS"
+
+	case druidutils.ABS:
+		envVarName = "AZURE_APPLICATION_CREDENTIALS"
+
+	case druidutils.GCS:
+		envVarName = "GOOGLE_APPLICATION_CREDENTIALS"
+		envVarValue = "/root/.gcp/serviceaccount.json"
+
+	case druidutils.Swift:
+		envVarName = "OPENSTACK_APPLICATION_CREDENTIALS"
+
+	case druidutils.OSS:
+		envVarName = "ALICLOUD_APPLICATION_CREDENTIALS"
+
+	case druidutils.OCS:
+		envVarName = "OPENSHIFT_APPLICATION_CREDENTIALS"
+	}
+
+	// Check env var
+	Expect(backupRestoreContainer.Env).To(ContainElement(corev1.EnvVar{
+		Name:  envVarName,
+		Value: envVarValue,
+	}))
+}
 
 func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 	checkStsOwnerRefs(sts.ObjectMeta.OwnerReferences, values)
@@ -594,7 +730,7 @@ func checkStsOwnerRefs(ors []metav1.OwnerReference, values Values) {
 	})))
 }
 
-func getEtcd(name, namespace string, tlsEnabled bool, replicas int32) *druidv1alpha1.Etcd {
+func getEtcd(name, namespace string, tlsEnabled bool, replicas int32, storageProvider *string) *druidv1alpha1.Etcd {
 	instance := &druidv1alpha1.Etcd{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -618,7 +754,7 @@ func getEtcd(name, namespace string, tlsEnabled bool, replicas int32) *druidv1al
 			Backup: druidv1alpha1.BackupSpec{
 				Image:                    &imageBR,
 				Port:                     pointer.Int32Ptr(backupPort),
-				Store:                    getEtcdWithABS(),
+				Store:                    getEtcdBackup(storageProvider),
 				FullSnapshotSchedule:     &snapshotSchedule,
 				GarbageCollectionPolicy:  &garbageCollectionPolicy,
 				GarbageCollectionPeriod:  &garbageCollectionPeriod,
@@ -699,11 +835,13 @@ func parseQuantity(q string) resource.Quantity {
 	return val
 }
 
-func getEtcdWithABS() *druidv1alpha1.StoreSpec {
+func getEtcdBackup(provider *string) *druidv1alpha1.StoreSpec {
+	storageProvider := pointer.StringDeref(provider, druidutils.ABS)
+
 	return &druidv1alpha1.StoreSpec{
 		Container: &container,
 		Prefix:    prefix,
-		Provider:  (*druidv1alpha1.StorageProvider)(pointer.StringPtr("azure")),
+		Provider:  (*druidv1alpha1.StorageProvider)(&storageProvider),
 		SecretRef: &corev1.SecretReference{
 			Name: "etcd-backup",
 		},
