@@ -105,12 +105,12 @@ var _ = BeforeSuite(func(done Done) {
 	er, err := NewEtcdReconcilerWithImageVector(mgr, false)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = er.SetupWithManager(mgr, 1, true)
+	err = er.SetupWithManager(mgr, 5, true)
 	Expect(err).NotTo(HaveOccurred())
 
 	secret := NewSecret(mgr)
 
-	err = secret.SetupWithManager(mgr, 1)
+	err = secret.SetupWithManager(mgr, 5)
 	Expect(err).NotTo(HaveOccurred())
 
 	custodian := NewEtcdCustodian(mgr, controllersconfig.EtcdCustodianController{
@@ -119,13 +119,13 @@ var _ = BeforeSuite(func(done Done) {
 		},
 	})
 
-	err = custodian.SetupWithManager(mgrCtx, mgr, 1, true)
+	err = custodian.SetupWithManager(mgrCtx, mgr, 5, true)
 	Expect(err).NotTo(HaveOccurred())
 
 	etcdCopyBackupsTaskReconciler, err := NewEtcdCopyBackupsTaskReconcilerWithImageVector(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = etcdCopyBackupsTaskReconciler.SetupWithManager(mgr, 1)
+	err = etcdCopyBackupsTaskReconciler.SetupWithManager(mgr, 5)
 	Expect(err).NotTo(HaveOccurred())
 
 	activeDeadlineDuration, err = time.ParseDuration("2m")
