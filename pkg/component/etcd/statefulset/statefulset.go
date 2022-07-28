@@ -22,6 +22,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+
 	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/retry"
@@ -107,7 +108,7 @@ const (
 	// defaultInterval is the default interval for retry operations.
 	defaultInterval = 5 * time.Second
 	// defaultTimeout is the default timeout for retry operations.
-	defaultTimeout = 1 * time.Minute
+	defaultTimeout = 90 * time.Second
 )
 
 func (c *component) Wait(ctx context.Context) error {
@@ -297,9 +298,11 @@ func (c *component) fetchPVCEventsFor(ctx context.Context, ss *appsv1.StatefulSe
 
 // New creates a new statefulset deployer instance.
 func New(c client.Client, logger logr.Logger, values Values) Interface {
+	objectLogger := logger.WithValues("sts", client.ObjectKey{Name: values.Name, Namespace: values.Namespace})
+
 	return &component{
 		client: c,
-		logger: logger,
+		logger: objectLogger,
 		values: values,
 	}
 }
