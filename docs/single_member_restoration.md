@@ -1,11 +1,11 @@
-## Restoration of a single member in multi-node etcd-backup-restore cluster.
+## Restoration of a single member in multi-node etcd deployed by etcd-druid.
 
 **Note**:
-- Here we are proposing the solution to only single member restoration within a cluster not the quorum loss scenario (when majority of members within a cluster fail).
+- For a cluster with n members, we are proposing the solution to only single member restoration within a etcd cluster not the quorum loss scenario (when majority of members within a cluster fail).
 - In this proposal we are not targetting the recovery of single member which got separated from cluster due to [network partition](https://etcd.io/docs/v3.3/op-guide/failures/#network-partition).
 
 ## Motivation
-If a single etcd member within a multi-node etcd cluster goes down due to PVC corruption(invalid data-dir) then it needs to be brought back. Unlike in the single-node case, a minority member of a multi-node cluster can't be restored from the snapshots present in storage container as you can't restore a part of whole cluster.
+If a single etcd member within a multi-node etcd cluster goes down due to DB corruption/PVC corruption/Invalid data-dir then it needs to be brought back. Unlike in the single-node case, a minority member of a multi-node cluster can't be restored from the snapshots present in storage container as you can't restore from the old snapshots as it contains the metadata information of cluster which leads to **memberID mismatch** that prevents the new member from coming up as new member is getting it's metadata information from db which got restore from old snapshots.
 
 ## Solution
 - Corresponding backup-restore sidecar if detects that its corresponding etcd is down due to [data-dir corruption](https://github.com/gardener/etcd-backup-restore/blob/7d27a47f5793b0949492d225ada5fd8344b6b6a2/pkg/initializer/validator/datavalidator.go#L177) or [Invalid data-dir](https://github.com/gardener/etcd-backup-restore/blob/7d27a47f5793b0949492d225ada5fd8344b6b6a2/pkg/initializer/validator/datavalidator.go#L204)
