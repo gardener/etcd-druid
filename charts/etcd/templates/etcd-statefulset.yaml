@@ -176,6 +176,7 @@ spec:
         - --insecure-transport=false
         - --insecure-skip-tls-verify=false
         - --endpoints=https://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
+        - --service-endpoints=https://{{ .Values.etcd.serviceDomain }}:{{ .Values.etcd.clientPort }}
         # enable TLS on backup-restore server reusing etcd cert bundle
         - --server-cert=/var/etcd/ssl/client/server/tls.crt
         - --server-key=/var/etcd/ssl/client/server/tls.key
@@ -183,6 +184,7 @@ spec:
         - --insecure-transport=true
         - --insecure-skip-tls-verify=true
         - --endpoints=http://{{ .Values.name }}-local:{{ .Values.etcd.clientPort }}
+        - --service-endpoints=http://{{ .Values.etcd.serviceDomain }}:{{ .Values.etcd.clientPort }}
 {{- end }}
         - --etcd-connection-timeout={{ .Values.backup.etcdConnectionTimeout }}
 {{- if .Values.backup.deltaSnapshotPeriod }}

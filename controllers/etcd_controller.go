@@ -935,6 +935,7 @@ func (r *EtcdReconciler) getMapFromEtcd(im imagevector.ImageVector, etcd *druidv
 		"enablePeerTLS":           (etcd.Spec.Etcd.PeerUrlTLS != nil),
 		"pullPolicy":              corev1.PullIfNotPresent,
 		"serverPort":              val.Service.ServerPort,
+		"serviceDomain":           val.Service.ClientServiceName,
 		// "username":                etcd.Spec.Etcd.Username,
 		// "password":                etcd.Spec.Etcd.Password,
 	}
