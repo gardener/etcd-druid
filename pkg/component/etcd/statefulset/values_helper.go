@@ -23,10 +23,12 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-var (
+const (
 	defaultBackupPort              int32 = 8080
 	defaultServerPort              int32 = 2380
 	defaultClientPort              int32 = 2379
+	defaultQuota                   int64 = 8 * 1024 * 1024 * 1024 // 8Gi
+	defaultSnapshotMemoryLimit     int64 = 100 * 1024 * 1024      // 100Mi
 	defaultHeartbeatDuration             = "10s"
 	defaultGbcPolicy                     = "LimitBased"
 	defaultAutoCompactionRetention       = "30m"
@@ -34,9 +36,10 @@ var (
 	defaultEtcdDefragTimeout             = "15m"
 	defaultAutoCompactionMode            = "periodic"
 	defaultEtcdConnectionTimeout         = "5m"
-	defaultStorageCapacity               = resource.MustParse("16Gi")
 	defaultLocalPrefix                   = "/etc/gardener/local-backupbuckets"
 )
+
+var defaultStorageCapacity = resource.MustParse("16Gi")
 
 // GenerateValues generates `statefulset.Values` for the statefulset component with the given parameters.
 func GenerateValues(
@@ -66,8 +69,8 @@ func GenerateValues(
 		Affinity:                  etcd.Spec.SchedulingConstraints.Affinity,
 		TopologySpreadConstraints: etcd.Spec.SchedulingConstraints.TopologySpreadConstraints,
 
-		EtcdResources:   etcd.Spec.Etcd.Resources,
-		BackupResources: etcd.Spec.Backup.Resources,
+		EtcdResourceRequirements:   etcd.Spec.Etcd.Resources,
+		BackupResourceRequirements: etcd.Spec.Backup.Resources,
 
 		VolumeClaimTemplateName: volumeClaimTemplateName,
 
@@ -101,7 +104,7 @@ func GenerateValues(
 		SnapshotCompression: etcd.Spec.Backup.SnapshotCompression,
 		HeartbeatDuration:   etcd.Spec.Etcd.HeartbeatDuration,
 
-		Metrics:           etcd.Spec.Etcd.Metrics,
+		MetricsLevel:      etcd.Spec.Etcd.Metrics,
 		Quota:             etcd.Spec.Etcd.Quota,
 		ClientServiceName: utils.GetClientServiceName(etcd),
 		ClientPort:        clientPort,
@@ -129,7 +132,7 @@ func getEtcdCommand() []string {
 }
 
 func getReadinessProbeCommand(val Values) []string {
-	command := []string{"" + "/usr/bin/curl"}
+	command := []string{"/usr/bin/curl"}
 
 	protocol := "http"
 	if tlsReadinessProvidedByBackupRestore(val) || tlsReadinessProvidedByEtcd(val) {
@@ -234,7 +237,7 @@ func getBackupRestoreCommand(val Values) []string {
 		command = append(command, "--store-prefix="+string(val.BackupStore.Prefix))
 	}
 
-	var quota int64 = 8 * 1024 * 1024 * 1024 // 8Gi
+	var quota = defaultQuota
 	if val.Quota != nil {
 		quota = val.Quota.Value()
 	}
@@ -269,7 +272,7 @@ func getBackupRestoreCommand(val Values) []string {
 		command = append(command, "--delta-snapshot-period="+val.DeltaSnapshotPeriod.Duration.String())
 	}
 
-	var deltaSnapshotMemoryLimit int64 = 100 * 1024 * 1024 // 100Mi
+	var deltaSnapshotMemoryLimit = defaultSnapshotMemoryLimit
 	if val.DeltaSnapshotMemoryLimit != nil {
 		deltaSnapshotMemoryLimit = val.DeltaSnapshotMemoryLimit.Value()
 	}

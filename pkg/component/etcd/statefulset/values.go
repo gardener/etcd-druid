@@ -54,8 +54,8 @@ type Values struct {
 	Affinity                  *corev1.Affinity
 	TopologySpreadConstraints []corev1.TopologySpreadConstraint
 
-	EtcdResources   *corev1.ResourceRequirements
-	BackupResources *corev1.ResourceRequirements
+	EtcdResourceRequirements   *corev1.ResourceRequirements
+	BackupResourceRequirements *corev1.ResourceRequirements
 
 	EtcdCommand           []string
 	ReadinessProbeCommand []string
@@ -95,8 +95,8 @@ type Values struct {
 	SnapshotCompression *druidv1alpha1.CompressionSpec
 	HeartbeatDuration   *metav1.Duration
 
-	// Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics.
-	Metrics *druidv1alpha1.MetricsLevel
+	// MetricsLevel defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics.
+	MetricsLevel *druidv1alpha1.MetricsLevel
 	// Quota defines the etcd DB quota.
 	Quota *resource.Quantity
 

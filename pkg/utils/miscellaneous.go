@@ -68,17 +68,6 @@ const (
 	OCS = "OCS"
 )
 
-// ValueExists returns true or false, depending on whether the given string <value>
-// is part of the given []string list <list>.
-func ValueExists(value string, list []string) bool {
-	for _, v := range list {
-		if v == value {
-			return true
-		}
-	}
-	return false
-}
-
 // MergeMaps takes two maps <a>, <b> and merges them. If <b> defines a value with a key
 // already existing in the <a> map, the <a> value for that key will be overwritten.
 func MergeMaps(a, b map[string]interface{}) map[string]interface{} {

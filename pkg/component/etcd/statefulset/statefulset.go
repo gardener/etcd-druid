@@ -22,6 +22,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/pkg/utils"
 
 	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -36,8 +37,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/gardener/etcd-druid/pkg/utils"
 )
 
 // Interface contains functions for a StatefulSet deployer.
@@ -85,7 +84,7 @@ func (c *component) Deploy(ctx context.Context) error {
 		}
 	}
 
-	return c.syncStatefulset(ctx, sts, sts.Generation == 0)
+	return c.syncStatefulset(ctx, sts)
 }
 
 func (c *component) Destroy(ctx context.Context) error {
@@ -98,7 +97,7 @@ func (c *component) Destroy(ctx context.Context) error {
 }
 
 func clusterScaledUpToMultiNode(val Values) bool {
-	return val.Replicas != 1 &&
+	return val.Replicas > 1 &&
 		// Also consider `0` here because this field was not maintained in earlier releases.
 		(val.StatusReplicas == 0 ||
 			val.StatusReplicas == 1)
@@ -150,15 +149,19 @@ func (c *component) WaitCleanup(ctx context.Context) error {
 		case apierrors.IsNotFound(err):
 			return retry.Ok()
 		case err == nil:
-			return retry.MinorError(err)
+			// StatefulSet is still available, so we should retry.
+			return false, nil
 		default:
 			return retry.SevereError(err)
 		}
 	})
 }
 
-func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet, create bool) error {
-	patch := client.StrategicMergeFrom(sts.DeepCopy())
+func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet) error {
+	var (
+		stsOriginal = sts.DeepCopy()
+		patch       = client.StrategicMergeFrom(stsOriginal)
+	)
 
 	sts.ObjectMeta = getObjectMeta(&c.values)
 	sts.Spec = appsv1.StatefulSetSpec{
@@ -214,7 +217,7 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 						},
 						Ports:        getEtcdPorts(c.values),
 						Resources:    getEtcdResources(c.values),
-						Env:          getEtcdEnvVar(c.values),
+						Env:          getEtcdEnvVars(c.values),
 						VolumeMounts: getEtcdVolumeMounts(c.values),
 					},
 					{
@@ -224,7 +227,7 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 						Command:         c.values.EtcdBackupCommand,
 						Ports:           getBackupPorts(c.values),
 						Resources:       getBackupResources(c.values),
-						Env:             getBackupRestoreEnvVar(c.values),
+						Env:             getBackupRestoreEnvVars(c.values),
 						VolumeMounts:    getBackupRestoreVolumeMounts(c.values),
 						SecurityContext: &v1.SecurityContext{
 							Capabilities: &v1.Capabilities{
@@ -258,11 +261,11 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 		sts.Spec.Template.Spec.PriorityClassName = *c.values.PriorityClassName
 	}
 
-	if create {
-		return c.client.Create(ctx, sts)
+	if stsOriginal.Generation > 0 {
+		return c.client.Patch(ctx, sts, patch)
 	}
 
-	return c.client.Patch(ctx, sts, patch)
+	return c.client.Create(ctx, sts)
 }
 
 func (c *component) deleteStatefulset(ctx context.Context, sts *appsv1.StatefulSet) error {
@@ -326,16 +329,13 @@ func getCommonLabels(val *Values) map[string]string {
 func getObjectMeta(val *Values) metav1.ObjectMeta {
 	labels := utils.MergeStringMaps(getCommonLabels(val), val.Labels)
 
-	annotations := map[string]string{
-		"gardener.cloud/owned-by":   fmt.Sprintf("%s/%s", val.Namespace, val.Name),
-		"gardener.cloud/owner-type": "etcd",
-	}
-
-	if val.Annotations != nil {
-		for key, value := range val.Annotations {
-			annotations[key] = value
-		}
-	}
+	annotations := utils.MergeStringMaps(
+		map[string]string{
+			"gardener.cloud/owned-by":   fmt.Sprintf("%s/%s", val.Namespace, val.Name),
+			"gardener.cloud/owner-type": "etcd",
+		},
+		val.Annotations,
+	)
 
 	ownerRefs := []metav1.OwnerReference{
 		{
@@ -358,39 +358,38 @@ func getObjectMeta(val *Values) metav1.ObjectMeta {
 }
 
 func getEtcdPorts(val Values) []corev1.ContainerPort {
-	ports := []corev1.ContainerPort{}
-
-	ports = append(ports, corev1.ContainerPort{
-		Name:          "server",
-		Protocol:      "TCP",
-		ContainerPort: pointer.Int32Deref(val.ServerPort, defaultServerPort),
-	})
-
-	ports = append(ports, corev1.ContainerPort{
-		Name:          "client",
-		Protocol:      "TCP",
-		ContainerPort: pointer.Int32Deref(val.ClientPort, defaultClientPort),
-	})
-
-	return ports
-}
-
-func getEtcdResources(val Values) corev1.ResourceRequirements {
-	if val.EtcdResources != nil {
-		return *val.EtcdResources
-	}
-
-	return corev1.ResourceRequirements{
-		Requests: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse("50m"),
-			corev1.ResourceMemory: resource.MustParse("128Mi"),
+	return []corev1.ContainerPort{
+		{
+			Name:          "server",
+			Protocol:      "TCP",
+			ContainerPort: pointer.Int32Deref(val.ServerPort, defaultServerPort),
+		},
+		{
+			Name:          "client",
+			Protocol:      "TCP",
+			ContainerPort: pointer.Int32Deref(val.ClientPort, defaultClientPort),
 		},
 	}
 }
 
-func getEtcdEnvVar(val Values) []corev1.EnvVar {
+var defaultResourceRequirements = corev1.ResourceRequirements{
+	Requests: corev1.ResourceList{
+		corev1.ResourceCPU:    resource.MustParse("50m"),
+		corev1.ResourceMemory: resource.MustParse("128Mi"),
+	},
+}
+
+func getEtcdResources(val Values) corev1.ResourceRequirements {
+	if val.EtcdResourceRequirements != nil {
+		return *val.EtcdResourceRequirements
+	}
+
+	return defaultResourceRequirements
+}
+
+func getEtcdEnvVars(val Values) []corev1.EnvVar {
 	var env []corev1.EnvVar
-	env = append(env, getEnvVarFromValues("ENABLE_TLS", strconv.FormatBool(val.BackupTLS != nil)))
+	env = append(env, getEnvVarFromValue("ENABLE_TLS", strconv.FormatBool(val.BackupTLS != nil)))
 
 	protocol := "http"
 	if val.BackupTLS != nil {
@@ -398,11 +397,11 @@ func getEtcdEnvVar(val Values) []corev1.EnvVar {
 	}
 
 	endpoint := fmt.Sprintf("%s://%s-local:%d", protocol, val.Name, pointer.Int32Deref(val.BackupPort, defaultBackupPort))
-	env = append(env, getEnvVarFromValues("BACKUP_ENDPOINT", endpoint))
+	env = append(env, getEnvVarFromValue("BACKUP_ENDPOINT", endpoint))
 
 	// This env var has been unused for a long time but is kept to not unnecessarily restart etcds.
 	// Todo(timuthy): Remove this as part of a future release in which an etcd restart is acceptable.
-	env = append(env, getEnvVarFromValues("FAIL_BELOW_REVISION_PARAMETER", ""))
+	env = append(env, getEnvVarFromValue("FAIL_BELOW_REVISION_PARAMETER", ""))
 
 	return env
 }
@@ -415,15 +414,15 @@ func getEtcdVolumeMounts(val Values) []corev1.VolumeMount {
 		},
 	}
 
-	vms = append(vms, getSecretVolumeMounts(val)...)
+	vms = append(vms, getSecretVolumeMounts(val.ClientUrlTLS, val.PeerUrlTLS)...)
 
 	return vms
 }
 
-func getSecretVolumeMounts(val Values) []corev1.VolumeMount {
-	vms := []corev1.VolumeMount{}
+func getSecretVolumeMounts(clientUrlTLS, peerUrlTLS *druidv1alpha1.TLSConfig) []corev1.VolumeMount {
+	var vms []corev1.VolumeMount
 
-	if val.ClientUrlTLS != nil {
+	if clientUrlTLS != nil {
 		vms = append(vms, corev1.VolumeMount{
 			Name:      "client-url-ca-etcd",
 			MountPath: "/var/etcd/ssl/client/ca",
@@ -436,7 +435,7 @@ func getSecretVolumeMounts(val Values) []corev1.VolumeMount {
 		})
 	}
 
-	if val.PeerUrlTLS != nil {
+	if peerUrlTLS != nil {
 		vms = append(vms, corev1.VolumeMount{
 			Name:      "peer-url-ca-etcd",
 			MountPath: "/var/etcd/ssl/peer/ca",
@@ -461,7 +460,7 @@ func getBackupRestoreVolumeMounts(val Values) []corev1.VolumeMount {
 		},
 	}
 
-	vms = append(vms, getSecretVolumeMounts(val)...)
+	vms = append(vms, getSecretVolumeMounts(val.ClientUrlTLS, val.PeerUrlTLS)...)
 
 	if val.BackupStore == nil {
 		return vms
@@ -496,43 +495,33 @@ func getBackupRestoreVolumeMounts(val Values) []corev1.VolumeMount {
 }
 
 func getStorageReq(val Values) corev1.ResourceRequirements {
+	storageCapacity := defaultStorageCapacity
 	if val.StorageCapacity != nil {
-		return corev1.ResourceRequirements{
-			Requests: corev1.ResourceList{
-				corev1.ResourceStorage: *val.StorageCapacity,
-			},
-		}
+		storageCapacity = *val.StorageCapacity
 	}
 
 	return corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			corev1.ResourceStorage: defaultStorageCapacity,
+			corev1.ResourceStorage: storageCapacity,
 		},
 	}
 }
 
 func getBackupPorts(val Values) []corev1.ContainerPort {
-	ports := []corev1.ContainerPort{}
-
-	ports = append(ports, corev1.ContainerPort{
-		Name:          "server",
-		Protocol:      "TCP",
-		ContainerPort: pointer.Int32Deref(val.BackupPort, defaultBackupPort),
-	})
-
-	return ports
+	return []corev1.ContainerPort{
+		{
+			Name:          "server",
+			Protocol:      "TCP",
+			ContainerPort: pointer.Int32Deref(val.BackupPort, defaultBackupPort),
+		},
+	}
 }
 
 func getBackupResources(val Values) corev1.ResourceRequirements {
-	if val.BackupResources != nil {
-		return *val.BackupResources
+	if val.BackupResourceRequirements != nil {
+		return *val.BackupResourceRequirements
 	}
-	return corev1.ResourceRequirements{
-		Requests: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse("50m"),
-			corev1.ResourceMemory: resource.MustParse("128Mi"),
-		},
-	}
+	return defaultResourceRequirements
 }
 
 func getVolumes(val Values) []corev1.Volume {
@@ -638,7 +627,7 @@ func getVolumes(val Values) []corev1.Volume {
 	return vs
 }
 
-func getBackupRestoreEnvVar(val Values) []corev1.EnvVar {
+func getBackupRestoreEnvVars(val Values) []corev1.EnvVar {
 	var (
 		env              []corev1.EnvVar
 		storageContainer string
@@ -650,9 +639,9 @@ func getBackupRestoreEnvVar(val Values) []corev1.EnvVar {
 	}
 
 	// TODO(timuthy): Move STORAGE_CONTAINER a few lines below so that we can append and exit in one step. This should only be done in a release where a restart of etcd is acceptable.
-	env = append(env, getEnvVarFromValues("STORAGE_CONTAINER", storageContainer))
-	env = append(env, getEnvVarFromFields("POD_NAME", "metadata.name"))
-	env = append(env, getEnvVarFromFields("POD_NAMESPACE", "metadata.namespace"))
+	env = append(env, getEnvVarFromValue("STORAGE_CONTAINER", storageContainer))
+	env = append(env, getEnvVarFromField("POD_NAME", "metadata.name"))
+	env = append(env, getEnvVarFromField("POD_NAMESPACE", "metadata.namespace"))
 
 	if storeValues == nil {
 		return env
@@ -667,19 +656,19 @@ func getBackupRestoreEnvVar(val Values) []corev1.EnvVar {
 	const credentialsMountPath = "/root/etcd-backup"
 	switch provider {
 	case utils.S3:
-		env = append(env, getEnvVarFromValues("AWS_APPLICATION_CREDENTIALS", credentialsMountPath))
+		env = append(env, getEnvVarFromValue("AWS_APPLICATION_CREDENTIALS", credentialsMountPath))
 
 	case utils.ABS:
-		env = append(env, getEnvVarFromValues("AZURE_APPLICATION_CREDENTIALS", credentialsMountPath))
+		env = append(env, getEnvVarFromValue("AZURE_APPLICATION_CREDENTIALS", credentialsMountPath))
 
 	case utils.GCS:
-		env = append(env, getEnvVarFromValues("GOOGLE_APPLICATION_CREDENTIALS", "/root/.gcp/serviceaccount.json"))
+		env = append(env, getEnvVarFromValue("GOOGLE_APPLICATION_CREDENTIALS", "/root/.gcp/serviceaccount.json"))
 
 	case utils.Swift:
-		env = append(env, getEnvVarFromValues("OPENSTACK_APPLICATION_CREDENTIALS", credentialsMountPath))
+		env = append(env, getEnvVarFromValue("OPENSTACK_APPLICATION_CREDENTIALS", credentialsMountPath))
 
 	case utils.OSS:
-		env = append(env, getEnvVarFromValues("ALICLOUD_APPLICATION_CREDENTIALS", credentialsMountPath))
+		env = append(env, getEnvVarFromValue("ALICLOUD_APPLICATION_CREDENTIALS", credentialsMountPath))
 
 	case utils.ECS:
 		env = append(env, getEnvVarFromSecrets("ECS_ENDPOINT", storeValues.SecretRef.Name, "endpoint"))
@@ -687,20 +676,20 @@ func getBackupRestoreEnvVar(val Values) []corev1.EnvVar {
 		env = append(env, getEnvVarFromSecrets("ECS_SECRET_ACCESS_KEY", storeValues.SecretRef.Name, "secretAccessKey"))
 
 	case utils.OCS:
-		env = append(env, getEnvVarFromValues("OPENSHIFT_APPLICATION_CREDENTIALS", credentialsMountPath))
+		env = append(env, getEnvVarFromValue("OPENSHIFT_APPLICATION_CREDENTIALS", credentialsMountPath))
 	}
 
 	return env
 }
 
-func getEnvVarFromValues(name, value string) corev1.EnvVar {
+func getEnvVarFromValue(name, value string) corev1.EnvVar {
 	return corev1.EnvVar{
 		Name:  name,
 		Value: value,
 	}
 }
 
-func getEnvVarFromFields(name, fieldPath string) corev1.EnvVar {
+func getEnvVarFromField(name, fieldPath string) corev1.EnvVar {
 	return corev1.EnvVar{
 		Name: name,
 		ValueFrom: &corev1.EnvVarSource{

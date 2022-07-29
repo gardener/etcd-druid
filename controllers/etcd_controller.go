@@ -367,7 +367,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 		}
 	}
 
-	stsDeployer := componentsts.New(r.Client, logger, componentsts.Values{Name: etcd.Name, Namespace: etcd.Namespace})
+	stsDeployer := gardenercomponent.OpDestroyAndWait(componentsts.New(r.Client, logger, componentsts.Values{Name: etcd.Name, Namespace: etcd.Namespace}))
 	if err := stsDeployer.Destroy(ctx); err != nil {
 		if err = r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
 			return ctrl.Result{
