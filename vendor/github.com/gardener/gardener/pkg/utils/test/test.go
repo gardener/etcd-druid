@@ -20,15 +20,15 @@ import (
 	"os"
 	"reflect"
 
-	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/golang/mock/gomock"
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/component-base/featuregate"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mockclient "github.com/gardener/gardener/pkg/mock/controller-runtime/client"
+	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 )
 
 // WithVar sets the given var to the src value and returns a function to revert to the original state.
@@ -182,7 +182,7 @@ func WithTempFile(dir, pattern string, content []byte, fileName *string) func() 
 }
 
 // EXPECTPatch is a helper function for a GoMock call expecting a patch with the mock client.
-func EXPECTPatch(ctx context.Context, c *mockclient.MockClient, expectedObj, mergeFrom client.Object, patchType types.PatchType, rets ...interface{}) *gomock.Call {
+func EXPECTPatch(ctx interface{}, c *mockclient.MockClient, expectedObj, mergeFrom client.Object, patchType types.PatchType, rets ...interface{}) *gomock.Call {
 	var expectedPatch client.Patch
 
 	switch patchType {
@@ -197,12 +197,20 @@ func EXPECTPatch(ctx context.Context, c *mockclient.MockClient, expectedObj, mer
 
 // EXPECTPatchWithOptimisticLock is a helper function for a GoMock call with the mock client
 // expecting a merge patch with optimistic lock.
-func EXPECTPatchWithOptimisticLock(ctx context.Context, c *mockclient.MockClient, expectedObj, mergeFrom client.Object, rets ...interface{}) *gomock.Call {
-	expectedPatch := client.MergeFromWithOptions(mergeFrom, client.MergeFromWithOptimisticLock{})
+func EXPECTPatchWithOptimisticLock(ctx interface{}, c *mockclient.MockClient, expectedObj, mergeFrom client.Object, patchType types.PatchType, rets ...interface{}) *gomock.Call {
+	var expectedPatch client.Patch
+
+	switch patchType {
+	case types.MergePatchType:
+		expectedPatch = client.MergeFromWithOptions(mergeFrom, client.MergeFromWithOptimisticLock{})
+	case types.StrategicMergePatchType:
+		expectedPatch = client.StrategicMergeFrom(mergeFrom.DeepCopyObject().(client.Object), client.MergeFromWithOptimisticLock{})
+	}
+
 	return expectPatch(ctx, c, expectedObj, expectedPatch, rets...)
 }
 
-func expectPatch(ctx context.Context, c *mockclient.MockClient, expectedObj client.Object, expectedPatch client.Patch, rets ...interface{}) *gomock.Call {
+func expectPatch(ctx interface{}, c *mockclient.MockClient, expectedObj client.Object, expectedPatch client.Patch, rets ...interface{}) *gomock.Call {
 	expectedData, expectedErr := expectedPatch.Data(expectedObj)
 	Expect(expectedErr).To(BeNil())
 
