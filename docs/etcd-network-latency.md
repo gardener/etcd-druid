@@ -3,9 +3,9 @@ This page captures the ETCD cluster latency analysis for below scenarios using [
 
 `sn-etcd-sz` -> single-node ETCD single zone (Only single replica of etcd will be running)
 
-`mn-etcd-sz` -> multi-node ETCD single zone (Multiple replicas of etcd pods will be running across the nodes in a single zone)
+`mn-etcd-sz` -> multi-node ETCD single zone (Multiple replicas of etcd pods will be running across nodes in a single zone)
 
-`mn-etcd-mz` -> multi-node ETCD multi zone (Multiple replicas of etcd pods will be running across the nodes in a multiple zones)
+`mn-etcd-mz` -> multi-node ETCD multi zone (Multiple replicas of etcd pods will be running across nodes in multiple zones)
 
 ## PUT Analysis
 
@@ -13,13 +13,13 @@ This page captures the ETCD cluster latency analysis for below scenarios using [
 
 * `sn-etcd-sz` latency is **~20% less than** `mn-etcd-sz` when benchmark tool with single client.
 * `mn-etcd-sz` latency is less than `mn-etcd-mz` but the difference is `~+/-5%`.
-* Compare to `mn-etcd-sz`, `sn-etcd-sz` latency is higher and gradually growing when more clients and larger value size. 
-* Compare to `mn-etcd-mz`, `mn-etcd-sz` latency is higher and gradually growing when more clients and larger value size. 
-* *Compare to `follower`, `leader` latency is less*, when benchmark tool with single client for all cases.
-* *Compare to `follower`, `leader` latency is high*, when benchmark tool with multiple clients for all cases.
+* Compared to `mn-etcd-sz`, `sn-etcd-sz` latency is higher and gradually grows with more clients and larger value size. 
+* Compared to `mn-etcd-mz`, `mn-etcd-sz` latency is higher and gradually grows with more clients and larger value size. 
+* *Compared to `follower`, `leader` latency is less*, when benchmark tool with single client for all cases.
+* *Compared to `follower`, `leader` latency is high*, when benchmark tool with multiple clients for all cases.
 
 
-Sample commands are:
+Sample commands:
 
 ```bash
 # write to leader
@@ -42,8 +42,8 @@ benchmark put  --conns=1 --clients=1 --precise \
   <summary>In this case benchmark tool tries to put key with random 256 bytes value.</summary>
 
   * Benchmark tool loads key/value to `leader` with single client .
-    * `sn-etcd-sz` latency (~0.815ms) is **~50% less than** `mn-etcd-sz` (~1.74ms ).
-    * `mn-etcd-sz` latency (~1.74ms ) is slightly less than `mn-etcd-mz` (~1.8ms) but the difference is not much (within same ms).
+    * `sn-etcd-sz` latency (~0.815ms) is **~50% lesser than** `mn-etcd-sz` (~1.74ms ).
+    *  * `mn-etcd-sz` latency (~1.74ms ) is slightly lesser than `mn-etcd-mz` (~1.8ms) but the difference is negligible (within same ms).
     * 
       | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
       |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
@@ -52,8 +52,8 @@ benchmark put  --conns=1 --clients=1 --precise \
       |      10000     |     256    |           1           |         1         |       leader       |  554.0155654442634 |            1.8ms            | eu-west-1a | etcd-main-1 | mn-etcd-mz |
 
   * Benchmark tool loads key/value to `follower` with single client.
-    * `mn-etcd-sz` latency(`~2.2ms`) is **20% to 30% less than** `mn-etcd-mz`(`~2.7ms`).
-    * *Compare to `follower`, `leader` latency is less.*
+    * `mn-etcd-sz` latency(`~2.2ms`) is **20% to 30% lesser than** `mn-etcd-mz`(`~2.7ms`).
+    * *Compare to `follower`, `leader` has lower latency.*
     * 
       | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
       |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
@@ -67,7 +67,7 @@ benchmark put  --conns=1 --clients=1 --precise \
 
   * Benchmark tool loads key/value to `leader` with multiple clients.
     * `sn-etcd-sz` latency(`~78.3ms`) is **~10% greater than**  `mn-etcd-sz`(`~71.81ms`).
-    * `mn-etcd-sz` latency(`~71.81ms`) is less than `mn-etcd-mz`(`~72.5ms`) but the difference is not much.
+    * `mn-etcd-sz` latency(`~71.81ms`) is less than `mn-etcd-mz`(`~72.5ms`) but the difference is negligible.
     * 
       | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
       |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
@@ -79,7 +79,7 @@ benchmark put  --conns=1 --clients=1 --precise \
 
   * Benchmark tool loads key/value to `follower` with multiple clients.
     * `mn-etcd-sz` latency(`~69.8ms`) is **~5% greater than**  `mn-etcd-mz`(`~72.6ms`).
-    * *Compare to `leader`, `follower` latency is less*. 
+    * *Compare to `leader`, `follower` has lower latency*.
     * 
       | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
       |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
@@ -98,8 +98,8 @@ benchmark put  --conns=1 --clients=1 --precise \
   <summary>In this case benchmark tool tries to put key with random 1 MB value.</summary>
 
   * Benchmark tool loads key/value to `leader` with single client.
-    * `sn-etcd-sz` latency(`~16.35ms`) is **~20% less than** `mn-etcd-sz`(`~20.64ms`).
-    * `mn-etcd-sz` latency(`~20.64ms`) is less than `mn-etcd-mz`(`~21.08ms`) but the difference is not much..
+    * `sn-etcd-sz` latency(`~16.35ms`) is **~20% lesser than** `mn-etcd-sz`(`~20.64ms`).
+    * `mn-etcd-sz` latency(`~20.64ms`) is less than `mn-etcd-mz`(`~21.08ms`) but the difference is negligible..
     * 
       | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
       |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
@@ -109,7 +109,7 @@ benchmark put  --conns=1 --clients=1 --precise \
 
   * Benchmark tool loads key/value withto `follower` single client.
     * `mn-etcd-sz` latency(`~23.10ms`) is **~10% greater than** `mn-etcd-mz`(`~21.8ms`).
-    * *Compare to `follower`, `leader` latency is less*.
+    * *Compare to `follower`, `leader` has lower latency*.
     * 
       | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
       |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
@@ -126,7 +126,7 @@ benchmark put  --conns=1 --clients=1 --precise \
 
   * Benchmark tool loads key/value to `leader` with multiple clients.
     * `sn-etcd-sz` latency(`~6.0375secs`) is **~30% greater than**  `mn-etcd-sz``~4.000secs`).
-    * `mn-etcd-sz` latency(`~4.000secs`) is less than `mn-etcd-mz`(`~ 4.09secs`) but the difference is not much.
+    * `mn-etcd-sz` latency(`~4.000secs`) is less than `mn-etcd-mz`(`~ 4.09secs`) but the difference is negligible.
     * 
       | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
       |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
@@ -136,7 +136,7 @@ benchmark put  --conns=1 --clients=1 --precise \
 
   * Benchmark tool loads key/value to `follower` with multiple clients.
     * *`mn-etcd-sz` latency(`~4.04secs`) is **~5% greater than** `mn-etcd-mz`(`~ 3.90secs`).*
-    * *Compare to `leader`, `follower` latency is less*. 
+    * *Compare to `leader`, `follower` has lower latency*. 
     * 
       | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
       |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
@@ -196,7 +196,7 @@ benchmark range 0 --target-leader --conns=100 --clients=1000 --precise \
   * Benchmark tool range requests to `leader` with single client.
 
     * `sn-etcd-sz` latency(`~1.24ms`) is **~40% greater than** `mn-etcd-sz`(`~0.67ms`).
-    * `mn-etcd-sz` latency(`~0.67ms`) is  **~20% less than** `mn-etcd-mz`(`~0.85ms`).
+    * `mn-etcd-sz` latency(`~0.67ms`) is  **~20% lesser than** `mn-etcd-mz`(`~0.85ms`).
     *  
     | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
     |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
@@ -213,7 +213,7 @@ benchmark range 0 --target-leader --conns=100 --clients=1000 --precise \
     |        10000       |     256    |           1           |         1         |       true      |      s      |        leader       | 2100.2426362012025 |            0.47ms           | eu-west-1a | etcd-main-1 | mn-etcd-mz |
 
   * Benchmark tool range requests to `follower` with single client .
-    * `mn-etcd-sz` latency(`~1.3ms`) is  **~20% less than** `mn-etcd-mz`(`~1.6ms`).
+     * `mn-etcd-sz` latency(`~1.3ms`) is  **~20% lesser than** `mn-etcd-mz`(`~1.6ms`).
     * *Compare to `follower`, `leader` read request latency is **~50% less** for both `mn-etcd-sz`, `mn-etcd-mz`*
     *  
     | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
@@ -231,7 +231,7 @@ benchmark range 0 --target-leader --conns=100 --clients=1000 --precise \
   
   * Benchmark tool range requests to `leader` with multiple client.
     * `sn-etcd-sz` latency(`~84.66ms`) is **~20% greater than** `mn-etcd-sz`(`~73.95ms`).
-    * `mn-etcd-sz` latency(`~73.95ms`) is  **more or less equal** `mn-etcd-mz`(`~ 73.8ms`).
+    * `mn-etcd-sz` latency(`~73.95ms`) is  **more or less equal to** `mn-etcd-mz`(`~ 73.8ms`).
     * 
     | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
     |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
@@ -239,8 +239,8 @@ benchmark range 0 --target-leader --conns=100 --clients=1000 --precise \
     |       100000       |     256    |          100          |        1000       |       true      |      l      |        leader       |     13446.9598     |           73.95ms           | eu-west-1a | etcd-main-1 | mn-etcd-sz |
     |       100000       |     256    |          100          |        1000       |       true      |      l      |        leader       |  13527.19810605353 |            73.8ms           | eu-west-1a | etcd-main-1 | mn-etcd-mz |
     
-    * Compare to consistency `Linearizable`, `Serializable` is **~20% less** for all cases
-    * `sn-etcd-sz` latency(`~69.37ms`) is  **more or less equal** `mn-etcd-sz`(`~69.89ms`).
+    * Compare to consistency `Linearizable`, `Serializable` is **~20% lesser** for all cases
+    * `sn-etcd-sz` latency(`~69.37ms`) is  **more or less equal to** `mn-etcd-sz`(`~69.89ms`).
     * `mn-etcd-sz` latency(`~69.89ms`) is  **slightly higher than** `mn-etcd-mz`(`~67.63ms`).
     * 
     | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
@@ -250,8 +250,8 @@ benchmark range 0 --target-leader --conns=100 --clients=1000 --precise \
     |       100000       |     256    |          100          |        1000       |       true      |      s      |        leader       | 14715.287354023869 |           67.63ms           | eu-west-1a | etcd-main-1 | mn-etcd-mz |
 
   * Benchmark tool range requests to `follower` with multiple client.
-    * `mn-etcd-sz` latency(`~60.69ms`) is **~20% less than** `mn-etcd-mz`(`~70.76ms`).
-    * Compare to  `leader`, `follower` read request latency is less.    
+    * `mn-etcd-sz` latency(`~60.69ms`) is **~20% lesser than** `mn-etcd-mz`(`~70.76ms`).
+    * Compare to  `leader`, `follower` has lower read request latency.
     * 
     | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
     |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
@@ -270,8 +270,8 @@ benchmark range 0 --target-leader --conns=100 --clients=1000 --precise \
 
 
   * Benchmark tool range requests to `leader` all keys.
-    * `sn-etcd-sz` latency(`~678.77ms`) is **~5% slightly less than** `mn-etcd-sz`(`~697.29ms`).
-    * `mn-etcd-sz` latency(`~697.29ms`) is less than `mn-etcd-mz`(`~701ms`) but the difference is not much.
+    * `sn-etcd-sz` latency(`~678.77ms`) is **~5% slightly lesser than** `mn-etcd-sz`(`~697.29ms`).
+    * `mn-etcd-sz` latency(`~697.29ms`) is less than `mn-etcd-mz`(`~701ms`) but the difference is negligible.
     * 
     | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
     |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
@@ -280,8 +280,8 @@ benchmark range 0 --target-leader --conns=100 --clients=1000 --precise \
     |         20         |     256    |           2           |         5         |      false      |      l      |        leader       |         6.7        |            701ms            | eu-west-1a | etcd-main-1 | mn-etcd-mz |
 
     * * Compare to consistency `Linearizable`, `Serializable` is **~5% slightly higher** for all cases
-    * `sn-etcd-sz` latency(`~687.36ms`) is less than `mn-etcd-sz`(`~692.68ms`) but the difference is not much.
-    * `mn-etcd-sz` latency(`~692.68ms`) is **~5% slightly less than** `mn-etcd-mz`(`~735.7ms`).
+    * `sn-etcd-sz` latency(`~687.36ms`) is less than `mn-etcd-sz`(`~692.68ms`) but the difference is negligible.
+    * `mn-etcd-sz` latency(`~692.68ms`) is **~5% slightly lesser than** `mn-etcd-mz`(`~735.7ms`).
     * 
     | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
     |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
@@ -322,7 +322,7 @@ benchmark range 0 --target-leader --conns=100 --clients=1000 --precise \
   
   * Benchmark tool range requests to `leader` with single client.
 
-    * `sn-etcd-sz` latency(`~5.96ms`) is **~5% less than** `mn-etcd-sz`(`~6.28ms`).
+    * `sn-etcd-sz` latency(`~5.96ms`) is **~5% lesser than** `mn-etcd-sz`(`~6.28ms`).
     * `mn-etcd-sz` latency(`~6.28ms`) is  **~10% higher than** `mn-etcd-mz`(`~5.3ms`).
     *  
     | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
@@ -361,7 +361,7 @@ benchmark range 0 --target-leader --conns=100 --clients=1000 --precise \
 
   * Benchmark tool range requests to `leader` with multiple clients.
 
-    * `sn-etcd-sz` latency(`~1.593secs`) is **~20% less than** `mn-etcd-sz`(`~1.974secs`).
+    * `sn-etcd-sz` latency(`~1.593secs`) is **~20% lesser than** `mn-etcd-sz`(`~1.974secs`).
     * `mn-etcd-sz` latency(`~1.974secs`) is  **~5% greater than** `mn-etcd-mz`(`~1.81secs`).
     * 
     | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
@@ -414,8 +414,8 @@ benchmark range 0 --target-leader --conns=100 --clients=1000 --precise \
 
   * Benchmark tool range requests to `leader` all keys.
 
-    * `sn-etcd-sz` latency(`~8.993secs`) is **~3% slightly less than** `mn-etcd-sz`(`~9.236secs`).
-    * `mn-etcd-sz` latency(`~9.236secs`) is  **~2% slightly less than** `mn-etcd-mz`(`~9.100secs`).
+    * `sn-etcd-sz` latency(`~8.993secs`) is **~3% slightly lower than** `mn-etcd-sz`(`~9.236secs`).
+    * `mn-etcd-sz` latency(`~9.236secs`) is  **~2% slightly lower than** `mn-etcd-mz`(`~9.100secs`).
     * 
     | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
     |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
