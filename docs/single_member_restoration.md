@@ -5,7 +5,7 @@
 - In this proposal we are not targetting the recovery of single member which got separated from cluster due to [network partition](https://etcd.io/docs/v3.3/op-guide/failures/#network-partition).
 
 ## Motivation
-If a single etcd member within a multi-node etcd cluster goes down due to DB corruption/PVC corruption/Invalid data-dir then it needs to be brought back. Unlike in the single-node case, a minority member of a multi-node cluster can't be restored from the snapshots present in storage container as you can't restore from the old snapshots as it contains the metadata information of cluster which leads to **memberID mismatch** that prevents the new member from coming up as new member is getting it's metadata information from db which got restore from old snapshots.
+If a single etcd member within a multi-node etcd cluster goes down due to DB corruption/PVC corruption/Invalid data-dir then it needs to be brought back. Unlike in the single-node case, a minority member of a multi-node cluster can't be restored from the snapshots present in storage container as you can't restore from the old snapshots as it contains the metadata information of cluster which leads to **memberID mismatch** that prevents the new member from coming up as new member is getting its metadata information from db which got restore from old snapshots.
 
 ## Solution
 - If a corresponding backup-restore sidecar detects that its corresponding etcd is down due to [data-dir corruption](https://github.com/gardener/etcd-backup-restore/blob/7d27a47f5793b0949492d225ada5fd8344b6b6a2/pkg/initializer/validator/datavalidator.go#L177) or [Invalid data-dir](https://github.com/gardener/etcd-backup-restore/blob/7d27a47f5793b0949492d225ada5fd8344b6b6a2/pkg/initializer/validator/datavalidator.go#L204)
@@ -17,7 +17,10 @@ If a single etcd member within a multi-node etcd cluster goes down due to DB cor
 
 ### Example: 
 1. If a `3` member etcd cluster has 1 downed member(due to invalid data-dir), the cluster can still make forward progress because the quorum is `2`.
-2. Backup-restore detects this downed member and then removed the downed member from cluster.
-3. The number of members in a cluster becomes `2` and the quorum remains at `2`, so it won't affect the etcd cluster.
-4. Clean the data-dir and add a member as a learner(non-voting member).
-5. As soon as learner gets in sync with leader, promote the learner to a voting member, hence increasing number of members in a cluster back to `3`.
+2. Etcd downed member get restarted and it's corresponding backup-restore sidecar receives an [initialization](https://github.com/gardener/etcd-backup-restore/blob/master/doc/proposals/design.md#workflow) request.
+3. Then, backup-restore sidecar checks for data corruption/invalid data-dir.
+4. Backup-restore sidecar detects that data-dir is invalid and its a multi-node etcd cluster.
+5. Then, backup-restore sidecar removed the downed etcd member from cluster.
+6. The number of members in a cluster becomes `2` and the quorum remains at `2`, so it won't affect the etcd cluster.
+7. Clean the data-dir and add a member as a learner(non-voting member).
+8. As soon as learner gets in sync with leader, promote the learner to a voting member, hence increasing number of members in a cluster back to `3`.
