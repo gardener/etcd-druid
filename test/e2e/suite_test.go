@@ -44,7 +44,7 @@ const (
 	envKubeconfigPath = "KUBECONFIG"
 	etcdNamespace     = "shoot"
 
-	certsBasePath = "test/e2e/resources/certs"
+	certsBasePath = "test/e2e/resources/tls"
 
 	envStorageContainer = "STORAGE_CONTAINER"
 )
