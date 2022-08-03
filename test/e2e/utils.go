@@ -115,22 +115,6 @@ var (
 	}
 	etcdClientPort = int32(2379)
 	etcdServerPort = int32(2380)
-	defaultEtcdTLS = v1alpha1.TLSConfig{
-		ServerTLSSecretRef: corev1.SecretReference{
-			Name:      "etcd-server-cert",
-			Namespace: namespace,
-		},
-		ClientTLSSecretRef: corev1.SecretReference{
-			Name:      "etcd-client-tls",
-			Namespace: namespace,
-		},
-		TLSCASecretRef: v1alpha1.SecretReference{
-			SecretReference: corev1.SecretReference{
-				Name:      "ca-etcd",
-				Namespace: namespace,
-			},
-		},
-	}
 
 	backupPort                 = int32(8080)
 	backupFullSnapshotSchedule = "0 */1 * * *"
@@ -198,7 +182,7 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider Provider
 	stsLabelsCopy[roleLabelKey] = provider.Suffix
 	etcd.Spec.Labels = stsLabelsCopy
 
-	etcdTLS := defaultEtcdTLS.DeepCopy()
+	etcdTLS := defaultTls(provider.Suffix)
 
 	etcd.Spec.Etcd = v1alpha1.EtcdConfig{
 		Metrics:                 (*v1alpha1.MetricsLevel)(&etcdMetrics),
@@ -207,7 +191,7 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider Provider
 		Resources:               &etcdResources,
 		ClientPort:              &etcdClientPort,
 		ServerPort:              &etcdServerPort,
-		ClientUrlTLS:            etcdTLS,
+		ClientUrlTLS:            &etcdTLS,
 	}
 
 	backupStore := defaultBackupStore.DeepCopy()
@@ -215,8 +199,11 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider Provider
 	backupStore.Provider = &provider.Provider
 	backupStore.Prefix = prefix
 
+	backupTLS := defaultTls(provider.Suffix)
+
 	etcd.Spec.Backup = v1alpha1.BackupSpec{
 		Port:                     &backupPort,
+		TLS:                      &backupTLS,
 		FullSnapshotSchedule:     &backupFullSnapshotSchedule,
 		Resources:                &backupResources,
 		GarbageCollectionPolicy:  &backupGarbageCollectionPolicy,
@@ -233,6 +220,25 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider Provider
 	etcd.Spec.StorageCapacity = &storageCapacity
 
 	return etcd
+}
+
+func defaultTls(provider string) v1alpha1.TLSConfig {
+	return v1alpha1.TLSConfig{
+		ServerTLSSecretRef: corev1.SecretReference{
+			Name:      fmt.Sprintf("%s-%s", "etcd-server-cert", provider),
+			Namespace: namespace,
+		},
+		ClientTLSSecretRef: corev1.SecretReference{
+			Name:      fmt.Sprintf("%s-%s", "etcd-client-tls", provider),
+			Namespace: namespace,
+		},
+		TLSCASecretRef: v1alpha1.SecretReference{
+			SecretReference: corev1.SecretReference{
+				Name:      fmt.Sprintf("%s-%s", "ca-etcd", provider),
+				Namespace: namespace,
+			},
+		},
+	}
 }
 
 // EndpointStatus stores result from output of etcdctl endpoint status command
@@ -598,7 +604,7 @@ func populateEtcdWithCount(logger logr.Logger, kubeconfigPath, namespace, etcdNa
 	)
 
 	for i := start; i <= end; {
-		cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-local:%d --cacert /var/etcd/ssl/ca/ca.crt --cert=/var/etcd/ssl/client/tls.crt --key=/var/etcd/ssl/client/tls.key put %s-%d %s-%d", etcdName, etcdClientPort, keyPrefix, i, valuePrefix, i)
+		cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-local:%d --cacert /var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key put %s-%d %s-%d", etcdName, etcdClientPort, keyPrefix, i, valuePrefix, i)
 		stdout, stderr, err = executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
 		if err != nil || stderr != "" || stdout != "OK" {
 			logger.Error(err, fmt.Sprintf("failed to put (%s-%d, %s-%d): stdout: %s; stderr: %s. Retrying", keyPrefix, i, valuePrefix, i, stdout, stderr))
@@ -611,7 +617,7 @@ func populateEtcdWithCount(logger logr.Logger, kubeconfigPath, namespace, etcdNa
 		logger.Info(fmt.Sprintf("put (%s-%d, %s-%d) successful", keyPrefix, i, valuePrefix, i))
 		if i%10 == 0 {
 			logger.Info(fmt.Sprintf("deleting key %s-%d", keyPrefix, i))
-			cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-local:%d --cacert /var/etcd/ssl/ca/ca.crt --cert=/var/etcd/ssl/client/tls.crt --key=/var/etcd/ssl/client/tls.key del %s-%d", etcdName, etcdClientPort, keyPrefix, i)
+			cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-local:%d --cacert /var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key del %s-%d", etcdName, etcdClientPort, keyPrefix, i)
 			stdout, stderr, err = executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
 			if err != nil || stderr != "" || stdout != "1" {
 				logger.Error(err, fmt.Sprintf("failed to delete key %s-%d: stdout: %s; stderr: %s. Retrying", keyPrefix, i, stdout, stderr))
@@ -638,7 +644,7 @@ func getEtcdKey(kubeconfigPath, namespace, etcdName, podName, containerName, key
 		err    error
 	)
 
-	cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-local:%d --cacert /var/etcd/ssl/ca/ca.crt --cert=/var/etcd/ssl/client/tls.crt --key=/var/etcd/ssl/client/tls.key get %s-%d", etcdName, etcdClientPort, keyPrefix, suffix)
+	cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-local:%d --cacert /var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key get %s-%d", etcdName, etcdClientPort, keyPrefix, suffix)
 	stdout, stderr, err = executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stderr != "" {
 		return "", "", fmt.Errorf("failed to get %s-%d: stdout: %s; stderr: %s; err: %v", keyPrefix, suffix, stdout, stderr, err)

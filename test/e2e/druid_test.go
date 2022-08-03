@@ -56,10 +56,6 @@ var _ = Describe("Druid", func() {
 			defer cancelFunc()
 
 			_, err = controllerutil.CreateOrUpdate(ctx, client, etcd, func() error {
-				etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.TLSCASecretRef.Name, provider.Suffix)
-				etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.ServerTLSSecretRef.Name, provider.Suffix)
-				etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.ClientTLSSecretRef.Name, provider.Suffix)
-
 				if providerName == providerLocal {
 					etcd.Spec.Backup.Store = nil
 				} else {
@@ -153,7 +149,6 @@ var _ = Describe("Druid", func() {
 				return nil
 			}, timeout, pollingInterval).Should(BeNil())
 			logger.Info("etcd is ready", "etcdName", etcdName)
-
 		}, entries...)
 
 		entries = getCloudProviderEntries(providers, "should upload snapshot when etcd is populated")
@@ -695,10 +690,6 @@ var _ = Describe("Druid", func() {
 			defer cancelFunc()
 
 			_, err = controllerutil.CreateOrUpdate(ctx, client, etcd, func() error {
-				etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.TLSCASecretRef.Name, provider.Suffix)
-				etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.ServerTLSSecretRef.Name, provider.Suffix)
-				etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name = fmt.Sprintf("%s-%s", defaultEtcdTLS.ClientTLSSecretRef.Name, provider.Suffix)
-
 				if providerName == providerLocal {
 					etcd.Spec.Backup.Store = nil
 				} else {
