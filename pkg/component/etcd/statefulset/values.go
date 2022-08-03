@@ -25,10 +25,11 @@ import (
 
 // Values contains the values necessary for creating ETCD statefulset.
 type Values struct {
-	// Name is the name of the etcd resource.
+	// Name is the name of the StatefulSet.
 	Name string
-	// Namespace is the namespace of etcd resource.
+	// Namespace is the namespace of StatefulSet.
 	Namespace string
+
 	// Name is the UID of the etcd resource.
 	EtcdUID types.UID
 

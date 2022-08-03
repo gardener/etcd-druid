@@ -608,6 +608,7 @@ func (r *EtcdReconciler) reconcileRoleBinding(ctx context.Context, logger logr.L
 
 func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*string, *appsv1.StatefulSet, error) {
 	// Check if Spec.Replicas is odd or even.
+	// TODO(timuthy): The following checks should rather be part of a validation. Also re-enqueuing doesn't make sense in case the values are invalid.
 	if etcd.Spec.Replicas > 1 && etcd.Spec.Replicas&1 == 0 {
 		return nil, nil, fmt.Errorf("Spec.Replicas should not be even number: %d", etcd.Spec.Replicas)
 	}
@@ -1057,33 +1058,6 @@ func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alph
 		etcd.Status.Replicas = pointer.Int32PtrDerefOr(sts.Spec.Replicas, 0)
 		return nil
 	})
-}
-
-func (r *EtcdReconciler) fetchPVCEventsFor(ctx context.Context, ss *appsv1.StatefulSet) (string, error) {
-	pvcs := &corev1.PersistentVolumeClaimList{}
-	if err := r.List(ctx, pvcs, client.InNamespace(ss.GetNamespace())); err != nil {
-		return "", err
-	}
-
-	var (
-		pvcMessages  string
-		volumeClaims = ss.Spec.VolumeClaimTemplates
-	)
-	for _, volumeClaim := range volumeClaims {
-		for _, pvc := range pvcs.Items {
-			if !strings.HasPrefix(pvc.GetName(), fmt.Sprintf("%s-%s", volumeClaim.Name, ss.Name)) || pvc.Status.Phase == corev1.ClaimBound {
-				continue
-			}
-			messages, err := kutil.FetchEventMessages(ctx, r.Client.Scheme(), r.Client, &pvc, corev1.EventTypeWarning, 2)
-			if err != nil {
-				return "", err
-			}
-			if messages != "" {
-				pvcMessages += fmt.Sprintf("Warning for PVC %s:\n%s\n", pvc.Name, messages)
-			}
-		}
-	}
-	return pvcMessages, nil
 }
 
 func (r *EtcdReconciler) removeOperationAnnotation(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
