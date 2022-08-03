@@ -14,6 +14,10 @@
 
 TOOLS_BIN_DIR              := $(TOOLS_DIR)/bin
 GINKGO		               := $(TOOLS_BIN_DIR)/ginkgo
+SKAFFOLD                   := $(TOOLS_BIN_DIR)/skaffold
+
+# default tool versions
+SKAFFOLD_VERSION ?= v1.38.0
 
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
@@ -24,3 +28,8 @@ export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 
 $(GINKGO): go.mod
 	go build -o $(GINKGO) github.com/onsi/ginkgo/ginkgo
+
+# TODO(timuthy):Remove this when vendored to latest gardener/gardener dependency
+$(SKAFFOLD): $(call tool_version_file,$(SKAFFOLD),$(SKAFFOLD_VERSION))
+	curl -Lo $(SKAFFOLD) https://storage.googleapis.com/skaffold/releases/$(SKAFFOLD_VERSION)/skaffold-$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+	chmod +x $(SKAFFOLD)
