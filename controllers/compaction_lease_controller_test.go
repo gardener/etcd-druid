@@ -19,7 +19,6 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
@@ -406,8 +405,8 @@ func validateEtcdForCmpctJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
 								"--data-dir=/var/etcd/data":                     Equal("--data-dir=/var/etcd/data"),
 								"--snapstore-temp-directory=/var/etcd/data/tmp": Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
 								"--enable-snapshot-lease-renewal=true":          Equal("--enable-snapshot-lease-renewal=true"),
-								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", componentlease.GetFullSnapshotLeaseName(instance)):       Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", componentlease.GetFullSnapshotLeaseName(instance))),
-								fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", componentlease.GetDeltaSnapshotLeaseName(instance)):     Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", componentlease.GetDeltaSnapshotLeaseName(instance))),
+								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", utils.GetFullSnapshotLeaseName(instance)):                Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", utils.GetFullSnapshotLeaseName(instance))),
+								fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", utils.GetDeltaSnapshotLeaseName(instance)):              Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", utils.GetDeltaSnapshotLeaseName(instance))),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):                                   Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 								fmt.Sprintf("%s=%s", "--storage-provider", store):                                                           Equal(fmt.Sprintf("%s=%s", "--storage-provider", store)),
 								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container):                            Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
@@ -757,7 +756,7 @@ func fullLeaseIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etc
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	req := types.NamespacedName{
-		Name:      componentlease.GetFullSnapshotLeaseName(instance),
+		Name:      utils.GetFullSnapshotLeaseName(instance),
 		Namespace: instance.Namespace,
 	}
 
@@ -775,7 +774,7 @@ func deltaLeaseIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Et
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	req := types.NamespacedName{
-		Name:      componentlease.GetDeltaSnapshotLeaseName(instance),
+		Name:      utils.GetDeltaSnapshotLeaseName(instance),
 		Namespace: instance.Namespace,
 	}
 

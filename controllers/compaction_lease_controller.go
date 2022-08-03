@@ -40,7 +40,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 	"github.com/gardener/etcd-druid/pkg/common"
-	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
@@ -119,7 +118,7 @@ func (lc *CompactionLeaseController) Reconcile(ctx context.Context, req ctrl.Req
 
 	// Get full and delta snapshot lease to check the HolderIdentity value to take decision on compaction job
 	fullLease := &coordinationv1.Lease{}
-	if err := lc.Get(ctx, kutil.Key(etcd.Namespace, componentlease.GetFullSnapshotLeaseName(etcd)), fullLease); err != nil {
+	if err := lc.Get(ctx, kutil.Key(etcd.Namespace, utils.GetFullSnapshotLeaseName(etcd)), fullLease); err != nil {
 		logger.Info("Couldn't fetch full snap lease because: " + err.Error())
 
 		return ctrl.Result{
@@ -128,7 +127,7 @@ func (lc *CompactionLeaseController) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	deltaLease := &coordinationv1.Lease{}
-	if err := lc.Get(ctx, kutil.Key(etcd.Namespace, componentlease.GetDeltaSnapshotLeaseName(etcd)), deltaLease); err != nil {
+	if err := lc.Get(ctx, kutil.Key(etcd.Namespace, utils.GetDeltaSnapshotLeaseName(etcd)), deltaLease); err != nil {
 		logger.Info("Couldn't fetch delta snap lease because: " + err.Error())
 
 		return ctrl.Result{
@@ -491,8 +490,8 @@ func getCompactJobCommands(etcd *druidv1alpha1.Etcd) []string {
 	command = append(command, "--data-dir=/var/etcd/data")
 	command = append(command, "--snapstore-temp-directory=/var/etcd/data/tmp")
 	command = append(command, "--enable-snapshot-lease-renewal=true")
-	command = append(command, "--full-snapshot-lease-name="+componentlease.GetFullSnapshotLeaseName(etcd))
-	command = append(command, "--delta-snapshot-lease-name="+componentlease.GetDeltaSnapshotLeaseName(etcd))
+	command = append(command, "--full-snapshot-lease-name="+utils.GetFullSnapshotLeaseName(etcd))
+	command = append(command, "--delta-snapshot-lease-name="+utils.GetDeltaSnapshotLeaseName(etcd))
 
 	var quota int64 = DefaultETCDQuota
 	if etcd.Spec.Etcd.Quota != nil {

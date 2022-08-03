@@ -18,11 +18,13 @@ import (
 	"github.com/gardener/etcd-druid/pkg/component/etcd/configmap"
 	"github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 	"github.com/gardener/etcd-druid/pkg/component/etcd/service"
+	"github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
 )
 
 // Values contains all values relevant for deploying etcd components.
 type Values struct {
-	ConfigMap *configmap.Values
-	Service   service.Values
-	Lease     lease.Values
+	ConfigMap   *configmap.Values
+	Service     service.Values
+	Lease       lease.Values
+	StatefulSet statefulset.Values
 }

@@ -210,56 +210,6 @@ func (m *EtcdDruidRefManager) FetchStatefulSet(ctx context.Context, etcd *druidv
 	return statefulSets, err
 }
 
-// ClaimStatefulsets tries to take ownership of a list of Statefulsets.
-//
-// It will reconcile the following:
-//   * Adopt orphans if the selector matches.
-//   * Release owned objects if the selector no longer matches.
-//   * Remove ownerReferences from the statefulsets and use annotations
-//
-// Optional: If one or more filters are specified, a Statefulset will only be claimed if
-// all filters return true.
-//
-// A non-nil error is returned if some form of reconciliation was attempted and
-// failed. Usually, controllers should try again later in case reconciliation
-// is still needed.
-//
-// If the error is nil, either the reconciliation succeeded, or no
-// reconciliation was necessary. The list of statefulsets that you now own is returned.
-func (m *EtcdDruidRefManager) ClaimStatefulsets(ctx context.Context, statefulSetList *appsv1.StatefulSetList, filters ...func(*appsv1.StatefulSet) bool) ([]*appsv1.StatefulSet, error) {
-	var (
-		claimed []*appsv1.StatefulSet
-		errlist []error
-	)
-
-	match := func(obj metav1.Object) bool {
-		ss := obj.(*appsv1.StatefulSet)
-		// Check selector first so filters only run on potentially matching statefulsets.
-		if !m.Selector.Matches(labels.Set(ss.Labels)) {
-			return false
-		}
-		for _, filter := range filters {
-			if !filter(ss) {
-				return false
-			}
-		}
-		return true
-	}
-
-	for k := range statefulSetList.Items {
-		sts := &statefulSetList.Items[k]
-		ok, err := m.claimObject(ctx, sts, match, m.AdoptResource, m.ReleaseResource)
-		if err != nil {
-			errlist = append(errlist, err)
-			continue
-		}
-		if ok {
-			claimed = append(claimed, sts)
-		}
-	}
-	return claimed, utilerrors.NewAggregate(errlist)
-}
-
 func (m *EtcdDruidRefManager) ClaimPodDisruptionBudget(ctx context.Context, pdb *policyv1beta1.PodDisruptionBudget, filters ...func(*policyv1beta1.PodDisruptionBudget) bool) (*policyv1beta1.PodDisruptionBudget, error) {
 	var errlist []error
 
@@ -424,26 +374,4 @@ func RecheckDeletionTimestamp(getObject func() (metav1.Object, error)) func() er
 		}
 		return nil
 	}
-}
-
-// CheckStatefulSet checks whether the given StatefulSet is healthy.
-// A StatefulSet is considered healthy if its controller observed its current revision,
-// it is not in an update (i.e. UpdateRevision is empty) and if its current replicas are equal to
-// desired replicas specified in ETCD specs.
-func CheckStatefulSet(etcd *druidv1alpha1.Etcd, statefulSet *appsv1.StatefulSet) error {
-	if statefulSet.Status.ObservedGeneration < statefulSet.Generation {
-		return fmt.Errorf("observed generation outdated (%d/%d)", statefulSet.Status.ObservedGeneration, statefulSet.Generation)
-	}
-
-	replicas := int32(1)
-
-	if etcd != nil {
-		replicas = etcd.Spec.Replicas
-	}
-
-	if statefulSet.Status.ReadyReplicas < replicas {
-		return fmt.Errorf("not enough ready replicas (%d/%d)", statefulSet.Status.ReadyReplicas, replicas)
-	}
-
-	return nil
 }
