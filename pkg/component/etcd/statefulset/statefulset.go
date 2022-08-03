@@ -72,7 +72,7 @@ func (c *component) Deploy(ctx context.Context) error {
 		sts = c.emptyStatefulset()
 	}
 
-	if sts.Generation > 1 && sts.Spec.ServiceName != c.values.ServiceName {
+	if sts.Generation > 1 && sts.Spec.ServiceName != c.values.PeerServiceName {
 		// Earlier clusters referred to the client service in `sts.Spec.ServiceName` which must be changed
 		// when a multi-node cluster is used, see https://github.com/gardener/etcd-druid/pull/293.
 		if clusterScaledUpToMultiNode(c.values) {
@@ -170,7 +170,7 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 			Type: appsv1.RollingUpdateStatefulSetStrategyType,
 		},
 		Replicas:    pointer.Int32(c.values.Replicas),
-		ServiceName: c.values.ServiceName,
+		ServiceName: c.values.PeerServiceName,
 		Selector: &metav1.LabelSelector{
 			MatchLabels: getCommonLabels(&c.values),
 		},

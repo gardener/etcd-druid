@@ -47,8 +47,6 @@ type Values struct {
 	EtcdImage string
 	// PriorityClassName is the Priority Class name.
 	PriorityClassName *string
-	// ServiceName is the name of the peer service.
-	ServiceName string
 	// ServiceAccountName is the service account name.
 	ServiceAccountName        string
 	Affinity                  *corev1.Affinity

@@ -552,6 +552,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 								fmt.Sprintf("--delta-snapshot-memory-limit=%d", values.DeltaSnapshotMemoryLimit.Value()):              Equal(fmt.Sprintf("--delta-snapshot-memory-limit=%d", values.DeltaSnapshotMemoryLimit.Value())),
 								fmt.Sprintf("--garbage-collection-policy=%s", *values.GarbageCollectionPolicy):                        Equal(fmt.Sprintf("--garbage-collection-policy=%s", *values.GarbageCollectionPolicy)),
 								fmt.Sprintf("--endpoints=https://%s-local:%d", values.Name, clientPort):                               Equal(fmt.Sprintf("--endpoints=https://%s-local:%d", values.Name, clientPort)),
+								fmt.Sprintf("--service-endpoints=https://%s:%d", values.ClientServiceName, clientPort):                Equal(fmt.Sprintf("--service-endpoints=https://%s:%d", values.ClientServiceName, clientPort)),
 								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(values.Quota.Value())):                            Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(values.Quota.Value()))),
 								fmt.Sprintf("%s=%s", "--delta-snapshot-period", values.DeltaSnapshotPeriod.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-period", values.DeltaSnapshotPeriod.Duration.String())),
 								fmt.Sprintf("%s=%s", "--garbage-collection-period", values.GarbageCollectionPeriod.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--garbage-collection-period", values.GarbageCollectionPeriod.Duration.String())),
