@@ -64,7 +64,6 @@ func GenerateValues(
 		EtcdImage:                 etcdImage,
 		BackupImage:               backupImage,
 		PriorityClassName:         etcd.Spec.PriorityClassName,
-		ServiceName:               utils.GetPeerServiceName(etcd),
 		ServiceAccountName:        utils.GetServiceAccountName(etcd),
 		Affinity:                  etcd.Spec.SchedulingConstraints.Affinity,
 		TopologySpreadConstraints: etcd.Spec.SchedulingConstraints.TopologySpreadConstraints,
@@ -255,10 +254,13 @@ func getBackupRestoreCommand(val Values) []string {
 		command = append(command, "--insecure-transport=false")
 		command = append(command, "--insecure-skip-tls-verify=false")
 		command = append(command, fmt.Sprintf("--endpoints=https://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
+		command = append(command, fmt.Sprintf("--service-endpoints=https://%s:%d", val.ClientServiceName, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
 	} else {
 		command = append(command, "--insecure-transport=true")
 		command = append(command, "--insecure-skip-tls-verify=true")
 		command = append(command, fmt.Sprintf("--endpoints=http://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
+		command = append(command, fmt.Sprintf("--service-endpoints=http://%s:%d", val.ClientServiceName, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
+
 	}
 
 	if val.BackupTLS != nil {
