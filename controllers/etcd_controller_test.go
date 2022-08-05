@@ -46,6 +46,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -832,11 +833,6 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 	// Validate TLS. Ensure that enableTLS flag is not triggered in the go-template
 	Expect(instance.Spec.Etcd.PeerUrlTLS).To(BeNil())
 
-	readinessProbeUrl := fmt.Sprintf("http://%s-local:%d/health", instance.Name, clientPort)
-	if int(instance.Spec.Replicas) == 1 {
-		readinessProbeUrl = fmt.Sprintf("http://%s-local:%d/healthz", instance.Name, backupPort)
-	}
-
 	Expect(config).To(MatchKeys(IgnoreExtras, Keys{
 		"name":                        Equal(fmt.Sprintf("etcd-%s", instance.UID[:6])),
 		"data-dir":                    Equal("/var/etcd/data/new.etcd"),
@@ -989,11 +985,10 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 							}),
 							"ReadinessProbe": PointTo(MatchFields(IgnoreExtras, Fields{
 								"Handler": MatchFields(IgnoreExtras, Fields{
-									"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
-										"Command": MatchAllElements(cmdIterator, Elements{
-											"/usr/bin/curl":   Equal("/usr/bin/curl"),
-											readinessProbeUrl: Equal(readinessProbeUrl),
-										}),
+									"HTTPGet": PointTo(MatchFields(IgnoreExtras, Fields{
+										"Path":   Equal("/healthz"),
+										"Port":   Equal(intstr.FromInt(int(backupPort))),
+										"Scheme": Equal(corev1.URISchemeHTTP),
 									})),
 								}),
 								"InitialDelaySeconds": Equal(int32(15)),
@@ -1003,14 +998,9 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 								"Handler": MatchFields(IgnoreExtras, Fields{
 									"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
 										"Command": MatchAllElements(cmdIterator, Elements{
-											"/bin/sh":       Equal("/bin/sh"),
-											"-ec":           Equal("-ec"),
-											"ETCDCTL_API=3": Equal("ETCDCTL_API=3"),
-											"etcdctl":       Equal("etcdctl"),
-											fmt.Sprintf("--endpoints=http://%s-local:%d", instance.Name, clientPort): Equal(fmt.Sprintf("--endpoints=http://%s-local:%d", instance.Name, clientPort)),
-											"get":             Equal("get"),
-											"foo":             Equal("foo"),
-											"--consistency=s": Equal("--consistency=s"),
+											"/bin/sh": Equal("/bin/sh"),
+											"-ec":     Equal("-ec"),
+											fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=http://%s-local:%d get foo --consistency=s", instance.Name, clientPort): Equal(fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=http://%s-local:%d get foo --consistency=s", instance.Name, clientPort)),
 										}),
 									})),
 								}),
@@ -1169,11 +1159,6 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 
 	store, err := utils.StorageProviderFromInfraProvider(instance.Spec.Backup.Store.Provider)
 	Expect(err).NotTo(HaveOccurred())
-
-	readinessProbeUrl := fmt.Sprintf("https://%s-local:%d/health", instance.Name, clientPort)
-	if int(instance.Spec.Replicas) == 1 {
-		readinessProbeUrl = fmt.Sprintf("https://%s-local:%d/healthz", instance.Name, backupPort)
-	}
 
 	Expect(*cm).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
@@ -1371,17 +1356,10 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 							}),
 							"ReadinessProbe": PointTo(MatchFields(IgnoreExtras, Fields{
 								"Handler": MatchFields(IgnoreExtras, Fields{
-									"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
-										"Command": MatchAllElements(cmdIterator, Elements{
-											"/usr/bin/curl":                       Equal("/usr/bin/curl"),
-											"--cert":                              Equal("--cert"),
-											"/var/etcd/ssl/client/client/tls.crt": Equal("/var/etcd/ssl/client/client/tls.crt"),
-											"--key":                               Equal("--key"),
-											"/var/etcd/ssl/client/client/tls.key": Equal("/var/etcd/ssl/client/client/tls.key"),
-											"--cacert":                            Equal("--cacert"),
-											"/var/etcd/ssl/client/ca/ca.crt":      Equal("/var/etcd/ssl/client/ca/ca.crt"),
-											readinessProbeUrl:                     Equal(readinessProbeUrl),
-										}),
+									"HTTPGet": PointTo(MatchFields(IgnoreExtras, Fields{
+										"Path":   Equal("/healthz"),
+										"Port":   Equal(intstr.FromInt(int(backupPort))),
+										"Scheme": Equal(corev1.URISchemeHTTPS),
 									})),
 								}),
 								"InitialDelaySeconds": Equal(int32(15)),
@@ -1391,17 +1369,9 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								"Handler": MatchFields(IgnoreExtras, Fields{
 									"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
 										"Command": MatchAllElements(cmdIterator, Elements{
-											"/bin/sh":       Equal("/bin/sh"),
-											"-ec":           Equal("-ec"),
-											"ETCDCTL_API=3": Equal("ETCDCTL_API=3"),
-											"etcdctl":       Equal("etcdctl"),
-											"--cert=/var/etcd/ssl/client/client/tls.crt":                              Equal("--cert=/var/etcd/ssl/client/client/tls.crt"),
-											"--key=/var/etcd/ssl/client/client/tls.key":                               Equal("--key=/var/etcd/ssl/client/client/tls.key"),
-											"--cacert=/var/etcd/ssl/client/ca/ca.crt":                                 Equal("--cacert=/var/etcd/ssl/client/ca/ca.crt"),
-											fmt.Sprintf("--endpoints=https://%s-local:%d", instance.Name, clientPort): Equal(fmt.Sprintf("--endpoints=https://%s-local:%d", instance.Name, clientPort)),
-											"get":             Equal("get"),
-											"foo":             Equal("foo"),
-											"--consistency=s": Equal("--consistency=s"),
+											"/bin/sh": Equal("/bin/sh"),
+											"-ec":     Equal("-ec"),
+											fmt.Sprintf("ETCDCTL_API=3 etcdctl --cacert=/var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key --endpoints=https://%s-local:%d get foo --consistency=s", instance.Name, clientPort): Equal(fmt.Sprintf("ETCDCTL_API=3 etcdctl --cacert=/var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key --endpoints=https://%s-local:%d get foo --consistency=s", instance.Name, clientPort)),
 										}),
 									})),
 								}),
