@@ -57,7 +57,7 @@ type Values struct {
 
 	EtcdCommand           []string
 	ReadinessProbeCommand []string
-	LivenessProbCommand   []string
+	LivenessProbeCommand  []string
 	EtcdBackupCommand     []string
 
 	EnableClientTLS string

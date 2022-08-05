@@ -128,7 +128,7 @@ func GenerateValues(
 	// Use serializability for liveness probe because we are only interested in the health of this particular member.
 	// Those read requests will especially succeed if quorum is lost. Usually it doesn't make sense to also restart
 	// members which are healthy in general, independent of the quorum situation.
-	values.LivenessProbCommand = getProbeCommand(values, serializable)
+	values.LivenessProbeCommand = getProbeCommand(values, serializable)
 
 	values.EtcdBackupCommand = getBackupRestoreCommand(values)
 

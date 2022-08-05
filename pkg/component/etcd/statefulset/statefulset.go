@@ -204,7 +204,7 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 						LivenessProbe: &corev1.Probe{
 							Handler: corev1.Handler{
 								Exec: &corev1.ExecAction{
-									Command: c.values.LivenessProbCommand,
+									Command: c.values.LivenessProbeCommand,
 								},
 							},
 							InitialDelaySeconds: 15,
