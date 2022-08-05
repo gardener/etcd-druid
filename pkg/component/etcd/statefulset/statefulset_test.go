@@ -32,11 +32,13 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
+	gomegatypes "github.com/onsi/gomega/types"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -376,11 +378,6 @@ func checkBackup(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) {
 func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 	checkStsOwnerRefs(sts.ObjectMeta.OwnerReferences, values)
 
-	readinessProbeUrl := fmt.Sprintf("https://%s-local:%d/health", values.Name, clientPort)
-	if int(values.Replicas) == 1 {
-		readinessProbeUrl = fmt.Sprintf("https://%s-local:%d/healthz", values.Name, backupPort)
-	}
-
 	store, err := druidutils.StorageProviderFromInfraProvider(values.BackupStore.Provider)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(*sts).To(MatchFields(IgnoreExtras, Fields{
@@ -458,20 +455,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
 							"Image":           Equal(values.EtcdImage),
 							"ReadinessProbe": PointTo(MatchFields(IgnoreExtras, Fields{
-								"Handler": MatchFields(IgnoreExtras, Fields{
-									"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
-										"Command": MatchAllElements(cmdIterator, Elements{
-											"/usr/bin/curl":                       Equal("/usr/bin/curl"),
-											"--cert":                              Equal("--cert"),
-											"/var/etcd/ssl/client/client/tls.crt": Equal("/var/etcd/ssl/client/client/tls.crt"),
-											"--key":                               Equal("--key"),
-											"/var/etcd/ssl/client/client/tls.key": Equal("/var/etcd/ssl/client/client/tls.key"),
-											"--cacert":                            Equal("--cacert"),
-											"/var/etcd/ssl/client/ca/ca.crt":      Equal("/var/etcd/ssl/client/ca/ca.crt"),
-											readinessProbeUrl:                     Equal(readinessProbeUrl),
-										}),
-									})),
-								}),
+								"Handler":             getReadinessHandler(values),
 								"InitialDelaySeconds": Equal(int32(15)),
 								"PeriodSeconds":       Equal(int32(5)),
 							})),
@@ -479,17 +463,9 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 								"Handler": MatchFields(IgnoreExtras, Fields{
 									"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
 										"Command": MatchAllElements(cmdIterator, Elements{
-											"/bin/sh":       Equal("/bin/sh"),
-											"-ec":           Equal("-ec"),
-											"ETCDCTL_API=3": Equal("ETCDCTL_API=3"),
-											"etcdctl":       Equal("etcdctl"),
-											"--cert=/var/etcd/ssl/client/client/tls.crt":                            Equal("--cert=/var/etcd/ssl/client/client/tls.crt"),
-											"--key=/var/etcd/ssl/client/client/tls.key":                             Equal("--key=/var/etcd/ssl/client/client/tls.key"),
-											"--cacert=/var/etcd/ssl/client/ca/ca.crt":                               Equal("--cacert=/var/etcd/ssl/client/ca/ca.crt"),
-											fmt.Sprintf("--endpoints=https://%s-local:%d", values.Name, clientPort): Equal(fmt.Sprintf("--endpoints=https://%s-local:%d", values.Name, clientPort)),
-											"get":             Equal("get"),
-											"foo":             Equal("foo"),
-											"--consistency=s": Equal("--consistency=s"),
+											"/bin/sh": Equal("/bin/sh"),
+											"-ec":     Equal("-ec"),
+											fmt.Sprintf("ETCDCTL_API=3 etcdctl --cacert=/var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key --endpoints=https://%s-local:%d get foo --consistency=s", values.Name, clientPort): Equal(fmt.Sprintf("ETCDCTL_API=3 etcdctl --cacert=/var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key --endpoints=https://%s-local:%d get foo --consistency=s", values.Name, clientPort)),
 										}),
 									})),
 								}),
@@ -883,4 +859,33 @@ func accessModeIterator(element interface{}) string {
 
 func cmdIterator(element interface{}) string {
 	return element.(string)
+}
+
+func getReadinessHandler(val Values) gomegatypes.GomegaMatcher {
+	if val.Replicas > 1 {
+		return getReadinessHandlerForMultiNode(val)
+	}
+	return getReadinessHandlerForSingleNode(val)
+}
+
+func getReadinessHandlerForSingleNode(val Values) gomegatypes.GomegaMatcher {
+	return MatchFields(IgnoreExtras, Fields{
+		"HTTPGet": PointTo(MatchFields(IgnoreExtras, Fields{
+			"Path":   Equal("/healthz"),
+			"Port":   Equal(intstr.FromInt(int(backupPort))),
+			"Scheme": Equal(corev1.URISchemeHTTPS),
+		})),
+	})
+}
+
+func getReadinessHandlerForMultiNode(val Values) gomegatypes.GomegaMatcher {
+	return MatchFields(IgnoreExtras, Fields{
+		"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
+			"Command": ConsistOf(
+				"/bin/sh",
+				"-ec",
+				fmt.Sprintf("ETCDCTL_API=3 etcdctl --cacert=/var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key --endpoints=https://%s-local:%d get foo --consistency=l", val.Name, clientPort),
+			),
+		})),
+	})
 }

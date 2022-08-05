@@ -16,6 +16,7 @@ package statefulset
 
 import (
 	"fmt"
+	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/utils"
@@ -119,8 +120,16 @@ func GenerateValues(
 	}
 
 	values.EtcdCommand = getEtcdCommand()
-	values.ReadinessProbeCommand = getReadinessProbeCommand(values)
-	values.LivenessProbCommand = getLivenessProbeCommand(values)
+
+	// Use linearizability for readiness probe so that pod is only considered ready
+	// when it has an active connection to the cluster and the cluster maintains a quorum.
+	values.ReadinessProbeCommand = getProbeCommand(values, linearizable)
+
+	// Use serializability for liveness probe because we are only interested in the health of this particular member.
+	// Those read requests will especially succeed if quorum is lost. Usually it doesn't make sense to also restart
+	// members which are healthy in general, independent of the quorum situation.
+	values.LivenessProbCommand = getProbeCommand(values, serializable)
+
 	values.EtcdBackupCommand = getBackupRestoreCommand(values)
 
 	return values
@@ -130,74 +139,47 @@ func getEtcdCommand() []string {
 	return []string{"/var/etcd/bin/bootstrap.sh"}
 }
 
-func getReadinessProbeCommand(val Values) []string {
-	command := []string{"/usr/bin/curl"}
+type consistencyLevel string
 
-	protocol := "http"
-	if tlsReadinessProvidedByBackupRestore(val) || tlsReadinessProvidedByEtcd(val) {
-		protocol = "https"
-		command = append(command, "--cert")
-		command = append(command, "/var/etcd/ssl/client/client/tls.crt")
-		command = append(command, "--key")
-		command = append(command, "/var/etcd/ssl/client/client/tls.key")
+const (
+	linearizable consistencyLevel = "linearizable"
+	serializable consistencyLevel = "serializable"
+)
 
-		dataKey := "ca.crt"
-		if val.ClientUrlTLS.TLSCASecretRef.DataKey != nil {
-			dataKey = *val.ClientUrlTLS.TLSCASecretRef.DataKey
-		}
+func getProbeCommand(val Values, consistency consistencyLevel) []string {
+	var etcdCtlCommand strings.Builder
 
-		command = append(command, "--cacert")
-		command = append(command, "/var/etcd/ssl/client/ca/"+dataKey)
-	}
-
-	var readinessEndpoint string
-	if val.Replicas == 1 {
-		// For single replica etcds we use the `healthz` endpoint which is provided by the etcd-backup-restore side-car.
-		// This is required because of the owner checks that are considered for readiness.
-		readinessEndpoint = fmt.Sprintf("%s://%s-local:%d/healthz", protocol, val.Name, pointer.Int32Deref(val.BackupPort, defaultBackupPort))
-	} else if val.Replicas > 1 {
-		readinessEndpoint = fmt.Sprintf("%s://%s-local:%d/health", protocol, val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort))
-	}
-
-	command = append(command, readinessEndpoint)
-
-	return command
-}
-
-func tlsReadinessProvidedByEtcd(val Values) bool {
-	return val.Replicas != 1 && val.ClientUrlTLS != nil
-}
-
-func tlsReadinessProvidedByBackupRestore(val Values) bool {
-	return val.Replicas == 1 && val.BackupTLS != nil
-}
-
-func getLivenessProbeCommand(val Values) []string {
-	command := []string{"" + "/bin/sh"}
-	command = append(command, "-ec")
-	command = append(command, "ETCDCTL_API=3")
-	command = append(command, "etcdctl")
+	etcdCtlCommand.WriteString("ETCDCTL_API=3 etcdctl")
 
 	if val.ClientUrlTLS != nil {
-		command = append(command, "--cert=/var/etcd/ssl/client/client/tls.crt")
-		command = append(command, "--key=/var/etcd/ssl/client/client/tls.key")
-
 		dataKey := "ca.crt"
 		if val.ClientUrlTLS.TLSCASecretRef.DataKey != nil {
 			dataKey = *val.ClientUrlTLS.TLSCASecretRef.DataKey
 		}
 
-		command = append(command, "--cacert=/var/etcd/ssl/client/ca/"+dataKey)
-		command = append(command, fmt.Sprintf("--endpoints=https://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
+		etcdCtlCommand.WriteString(" --cacert=/var/etcd/ssl/client/ca/" + dataKey)
+		etcdCtlCommand.WriteString(" --cert=/var/etcd/ssl/client/client/tls.crt")
+		etcdCtlCommand.WriteString(" --key=/var/etcd/ssl/client/client/tls.key")
+		etcdCtlCommand.WriteString(fmt.Sprintf(" --endpoints=https://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
+
 	} else {
-		command = append(command, fmt.Sprintf("--endpoints=http://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
+		etcdCtlCommand.WriteString(fmt.Sprintf(" --endpoints=http://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
 	}
 
-	command = append(command, "get")
-	command = append(command, "foo")
-	command = append(command, "--consistency=s")
+	etcdCtlCommand.WriteString(" get foo")
 
-	return command
+	switch consistency {
+	case linearizable:
+		etcdCtlCommand.WriteString(" --consistency=l")
+	case serializable:
+		etcdCtlCommand.WriteString(" --consistency=s")
+	}
+
+	return []string{
+		"/bin/sh",
+		"-ec",
+		etcdCtlCommand.String(),
+	}
 }
 
 func getBackupRestoreCommand(val Values) []string {
@@ -317,7 +299,7 @@ func getBackupRestoreCommand(val Values) []string {
 
 	compactionRetention := defaultAutoCompactionRetention
 	if val.AutoCompactionRetention != nil {
-		compactionRetention = string(*val.AutoCompactionRetention)
+		compactionRetention = *val.AutoCompactionRetention
 	}
 	command = append(command, "--auto-compaction-retention="+compactionRetention)
 
