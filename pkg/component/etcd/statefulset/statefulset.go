@@ -211,6 +211,15 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 							PeriodSeconds:       5,
 							FailureThreshold:    5,
 						},
+						StartupProbe: &corev1.Probe{
+							Handler: corev1.Handler{
+								Exec: &corev1.ExecAction{
+									Command: c.values.LivenessProbeCommand,
+								},
+							},
+							PeriodSeconds:    5,
+							FailureThreshold: 24,
+						},
 						Ports:        getEtcdPorts(c.values),
 						Resources:    getEtcdResources(c.values),
 						Env:          getEtcdEnvVars(c.values),
