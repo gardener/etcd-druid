@@ -393,22 +393,17 @@ func getEtcdResources(val Values) corev1.ResourceRequirements {
 }
 
 func getEtcdEnvVars(val Values) []corev1.EnvVar {
-	var env []corev1.EnvVar
-	env = append(env, getEnvVarFromValue("ENABLE_TLS", strconv.FormatBool(val.BackupTLS != nil)))
-
 	protocol := "http"
 	if val.BackupTLS != nil {
 		protocol = "https"
 	}
 
 	endpoint := fmt.Sprintf("%s://%s-local:%d", protocol, val.Name, pointer.Int32Deref(val.BackupPort, defaultBackupPort))
-	env = append(env, getEnvVarFromValue("BACKUP_ENDPOINT", endpoint))
 
-	// This env var has been unused for a long time but is kept to not unnecessarily restart etcds.
-	// Todo(timuthy): Remove this as part of a future release in which an etcd restart is acceptable.
-	env = append(env, getEnvVarFromValue("FAIL_BELOW_REVISION_PARAMETER", ""))
-
-	return env
+	return []corev1.EnvVar{
+		getEnvVarFromValue("ENABLE_TLS", strconv.FormatBool(val.BackupTLS != nil)),
+		getEnvVarFromValue("BACKUP_ENDPOINT", endpoint),
+	}
 }
 
 func getEtcdVolumeMounts(val Values) []corev1.VolumeMount {
@@ -643,7 +638,7 @@ func getBackupRestoreEnvVars(val Values) []corev1.EnvVar {
 		storageContainer = pointer.StringDeref(val.BackupStore.Container, "")
 	}
 
-	// TODO(timuthy): Move STORAGE_CONTAINER a few lines below so that we can append and exit in one step. This should only be done in a release where a restart of etcd is acceptable.
+	// TODO(timuthy, shreyas-s-rao): Move STORAGE_CONTAINER a few lines below so that we can append and exit in one step. This should only be done in a release where a restart of etcd is acceptable.
 	env = append(env, getEnvVarFromValue("STORAGE_CONTAINER", storageContainer))
 	env = append(env, getEnvVarFromField("POD_NAME", "metadata.name"))
 	env = append(env, getEnvVarFromField("POD_NAMESPACE", "metadata.namespace"))

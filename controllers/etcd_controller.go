@@ -25,7 +25,6 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
-	componentetcd "github.com/gardener/etcd-druid/pkg/component/etcd"
 	componentconfigmap "github.com/gardener/etcd-druid/pkg/component/etcd/configmap"
 	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 	componentservice "github.com/gardener/etcd-druid/pkg/component/etcd/service"
@@ -608,6 +607,7 @@ func (r *EtcdReconciler) reconcileRoleBinding(ctx context.Context, logger logr.L
 
 func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*string, *appsv1.StatefulSet, error) {
 	// Check if Spec.Replicas is odd or even.
+	// TODO(timuthy): The following checks should rather be part of a validation. Also re-enqueuing doesn't make sense in case the values are invalid.
 	if etcd.Spec.Replicas > 1 && etcd.Spec.Replicas&1 == 0 {
 		return nil, nil, fmt.Errorf("Spec.Replicas should not be even number: %d", etcd.Spec.Replicas)
 	}
@@ -633,27 +633,25 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		etcdBackupImage = *etcd.Spec.Backup.Image
 	}
 
-	val := componentetcd.Values{}
-
-	val.Lease = componentlease.GenerateValues(etcd)
-	leaseDeployer := componentlease.New(r.Client, etcd.Namespace, val.Lease)
+	leaseValues := componentlease.GenerateValues(etcd)
+	leaseDeployer := componentlease.New(r.Client, etcd.Namespace, leaseValues)
 	if err := leaseDeployer.Deploy(ctx); err != nil {
 		return nil, nil, err
 	}
 
-	val.Service = componentservice.GenerateValues(etcd)
-	serviceDeployer := componentservice.New(r.Client, etcd.Namespace, val.Service)
+	serviceValues := componentservice.GenerateValues(etcd)
+	serviceDeployer := componentservice.New(r.Client, etcd.Namespace, serviceValues)
 	if err := serviceDeployer.Deploy(ctx); err != nil {
 		return nil, nil, err
 	}
 
-	val.ConfigMap = componentconfigmap.GenerateValues(etcd)
-	cmDeployer := componentconfigmap.New(r.Client, etcd.Namespace, val.ConfigMap)
+	configMapValues := componentconfigmap.GenerateValues(etcd)
+	cmDeployer := componentconfigmap.New(r.Client, etcd.Namespace, configMapValues)
 	if err := cmDeployer.Deploy(ctx); err != nil {
 		return nil, nil, err
 	}
 
-	values, err := r.getMapFromEtcd(r.ImageVector, etcd, val, r.disableEtcdServiceAccountAutomount)
+	values, err := r.getMapFromEtcd(etcd, r.disableEtcdServiceAccountAutomount)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -678,19 +676,19 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		return nil, nil, err
 	}
 
-	val.StatefulSet = statefulset.GenerateValues(etcd,
-		&val.Service.ClientPort,
-		&val.Service.ServerPort,
-		&val.Service.BackupPort,
+	statefulSetValues := statefulset.GenerateValues(etcd,
+		&serviceValues.ClientPort,
+		&serviceValues.ServerPort,
+		&serviceValues.BackupPort,
 		etcdImage,
 		etcdBackupImage,
 		map[string]string{
-			"checksum/etcd-configmap": val.ConfigMap.ConfigMapChecksum,
+			"checksum/etcd-configmap": configMapValues.ConfigMapChecksum,
 		})
 
 	// Create an OpWaiter because after the depoyment we want to wait until the StatefulSet is ready.
 	var (
-		stsDeployer  = componentsts.New(r.Client, logger, val.StatefulSet)
+		stsDeployer  = componentsts.New(r.Client, logger, statefulSetValues)
 		deployWaiter = gardenercomponent.OpWaiter(stsDeployer)
 	)
 
@@ -700,7 +698,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 
 	sts, err := stsDeployer.Get(ctx)
 
-	return &val.Service.ClientServiceName, sts, err
+	return &serviceValues.ClientServiceName, sts, err
 }
 
 func checkEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
@@ -731,174 +729,7 @@ func checkEtcdAnnotations(annotations map[string]string, etcd metav1.Object) boo
 
 }
 
-func (r *EtcdReconciler) getMapFromEtcd(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd, val componentetcd.Values, disableEtcdServiceAccountAutomount bool) (map[string]interface{}, error) {
-	statefulsetReplicas := int(etcd.Spec.Replicas)
-
-	etcdValues := map[string]interface{}{
-		"clientPort":              val.Service.ClientPort,
-		"defragmentationSchedule": etcd.Spec.Etcd.DefragmentationSchedule,
-		"enableClientTLS":         (etcd.Spec.Etcd.ClientUrlTLS != nil),
-		"enablePeerTLS":           (etcd.Spec.Etcd.PeerUrlTLS != nil),
-		"pullPolicy":              corev1.PullIfNotPresent,
-		"serverPort":              val.Service.ServerPort,
-		"serviceDomain":           val.Service.ClientServiceName,
-		// "username":                etcd.Spec.Etcd.Username,
-		// "password":                etcd.Spec.Etcd.Password,
-	}
-
-	if etcd.Spec.Etcd.Resources != nil {
-		etcdValues["resources"] = etcd.Spec.Etcd.Resources
-	}
-
-	if etcd.Spec.Etcd.Metrics != nil {
-		etcdValues["metrics"] = etcd.Spec.Etcd.Metrics
-	}
-
-	if etcd.Spec.Etcd.EtcdDefragTimeout != nil {
-		etcdValues["etcdDefragTimeout"] = etcd.Spec.Etcd.EtcdDefragTimeout
-	}
-
-	etcdImage, etcdBackupImage, err := getEtcdImages(im, etcd)
-	if err != nil {
-		return map[string]interface{}{}, err
-	}
-
-	if etcd.Spec.Etcd.Image == nil {
-		if etcdImage == "" {
-			return map[string]interface{}{}, fmt.Errorf("either etcd resource or image vector should have %s image", common.Etcd)
-		}
-		etcdValues["image"] = etcdImage
-	} else {
-		etcdValues["image"] = etcd.Spec.Etcd.Image
-	}
-	var quota int64 = 8 * 1024 * 1024 * 1024 // 8Gi
-	if etcd.Spec.Etcd.Quota != nil {
-		quota = etcd.Spec.Etcd.Quota.Value()
-	}
-
-	var deltaSnapshotMemoryLimit int64 = 100 * 1024 * 1024 // 100Mi
-	if etcd.Spec.Backup.DeltaSnapshotMemoryLimit != nil {
-		deltaSnapshotMemoryLimit = etcd.Spec.Backup.DeltaSnapshotMemoryLimit.Value()
-	}
-
-	var enableProfiling = false
-	if etcd.Spec.Backup.EnableProfiling != nil {
-		enableProfiling = *etcd.Spec.Backup.EnableProfiling
-	}
-
-	backupValues := map[string]interface{}{
-		"enableTLS":                (etcd.Spec.Backup.TLS != nil),
-		"pullPolicy":               corev1.PullIfNotPresent,
-		"port":                     val.Service.BackupPort,
-		"etcdQuotaBytes":           quota,
-		"etcdConnectionTimeout":    "5m",
-		"snapstoreTempDir":         "/var/etcd/data/temp",
-		"deltaSnapshotMemoryLimit": deltaSnapshotMemoryLimit,
-		"enableProfiling":          enableProfiling,
-	}
-
-	if etcd.Spec.Backup.Resources != nil {
-		backupValues["resources"] = etcd.Spec.Backup.Resources
-	}
-
-	if etcd.Spec.Backup.FullSnapshotSchedule != nil {
-		backupValues["fullSnapshotSchedule"] = etcd.Spec.Backup.FullSnapshotSchedule
-	}
-
-	if etcd.Spec.Backup.GarbageCollectionPolicy != nil {
-		backupValues["garbageCollectionPolicy"] = etcd.Spec.Backup.GarbageCollectionPolicy
-	}
-
-	if etcd.Spec.Backup.GarbageCollectionPeriod != nil {
-		backupValues["garbageCollectionPeriod"] = etcd.Spec.Backup.GarbageCollectionPeriod
-	}
-
-	if etcd.Spec.Backup.DeltaSnapshotPeriod != nil {
-		backupValues["deltaSnapshotPeriod"] = etcd.Spec.Backup.DeltaSnapshotPeriod
-	}
-
-	if etcd.Spec.Backup.EtcdSnapshotTimeout != nil {
-		backupValues["etcdSnapshotTimeout"] = etcd.Spec.Backup.EtcdSnapshotTimeout
-	}
-
-	if etcd.Spec.Backup.SnapshotCompression != nil {
-		compressionValues := make(map[string]interface{})
-		if pointer.BoolPtrDerefOr(etcd.Spec.Backup.SnapshotCompression.Enabled, false) {
-			compressionValues["enabled"] = etcd.Spec.Backup.SnapshotCompression.Enabled
-		}
-		if etcd.Spec.Backup.SnapshotCompression.Policy != nil {
-			compressionValues["policy"] = etcd.Spec.Backup.SnapshotCompression.Policy
-		}
-		backupValues["compression"] = compressionValues
-	}
-
-	if etcd.Spec.Backup.Image == nil {
-		if etcdBackupImage == "" {
-			return map[string]interface{}{}, fmt.Errorf("either etcd resource or image vector should have %s image", common.BackupRestore)
-		}
-		backupValues["image"] = etcdBackupImage
-	} else {
-		backupValues["image"] = etcd.Spec.Backup.Image
-	}
-
-	if etcd.Spec.Backup.OwnerCheck != nil {
-		ownerCheckValues := map[string]interface{}{
-			"name": etcd.Spec.Backup.OwnerCheck.Name,
-			"id":   etcd.Spec.Backup.OwnerCheck.ID,
-		}
-		if etcd.Spec.Backup.OwnerCheck.Interval != nil {
-			ownerCheckValues["interval"] = etcd.Spec.Backup.OwnerCheck.Interval
-		}
-		if etcd.Spec.Backup.OwnerCheck.Timeout != nil {
-			ownerCheckValues["timeout"] = etcd.Spec.Backup.OwnerCheck.Timeout
-		}
-		if etcd.Spec.Backup.OwnerCheck.DNSCacheTTL != nil {
-			ownerCheckValues["dnsCacheTTL"] = etcd.Spec.Backup.OwnerCheck.DNSCacheTTL
-		}
-		backupValues["ownerCheck"] = ownerCheckValues
-	}
-
-	if etcd.Spec.Backup.LeaderElection != nil {
-		leaderElectionConfig := make(map[string]interface{})
-		if etcd.Spec.Backup.LeaderElection.EtcdConnectionTimeout != nil {
-			leaderElectionConfig["etcdConnectionTimeout"] = etcd.Spec.Backup.LeaderElection.EtcdConnectionTimeout
-		}
-		if etcd.Spec.Backup.LeaderElection.ReelectionPeriod != nil {
-			leaderElectionConfig["reelectionPeriod"] = etcd.Spec.Backup.LeaderElection.ReelectionPeriod
-		}
-		backupValues["leaderElection"] = leaderElectionConfig
-	}
-
-	volumeClaimTemplateName := etcd.Name
-	if etcd.Spec.VolumeClaimTemplate != nil && len(*etcd.Spec.VolumeClaimTemplate) != 0 {
-		volumeClaimTemplateName = *etcd.Spec.VolumeClaimTemplate
-	}
-
-	sharedConfigValues := map[string]interface{}{
-		"autoCompactionMode":      druidv1alpha1.Periodic,
-		"autoCompactionRetention": DefaultAutoCompactionRetention,
-	}
-
-	if etcd.Spec.Common.AutoCompactionMode != nil {
-		sharedConfigValues["autoCompactionMode"] = etcd.Spec.Common.AutoCompactionMode
-	}
-
-	if etcd.Spec.Common.AutoCompactionRetention != nil {
-		sharedConfigValues["autoCompactionRetention"] = etcd.Spec.Common.AutoCompactionRetention
-	}
-
-	schedulingConstraints := map[string]interface{}{
-		"affinity":                  etcd.Spec.SchedulingConstraints.Affinity,
-		"topologySpreadConstraints": etcd.Spec.SchedulingConstraints.TopologySpreadConstraints,
-	}
-
-	annotations := make(map[string]string)
-	if etcd.Spec.Annotations != nil {
-		for key, value := range etcd.Spec.Annotations {
-			annotations[key] = value
-		}
-	}
-
+func (r *EtcdReconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd, disableEtcdServiceAccountAutomount bool) (map[string]interface{}, error) {
 	pdbMinAvailable := 0
 	if etcd.Spec.Replicas > 1 {
 		pdbMinAvailable = int(etcd.Spec.Replicas)
@@ -907,70 +738,12 @@ func (r *EtcdReconciler) getMapFromEtcd(im imagevector.ImageVector, etcd *druidv
 	values := map[string]interface{}{
 		"name":                               etcd.Name,
 		"uid":                                etcd.UID,
-		"selector":                           etcd.Spec.Selector,
 		"labels":                             etcd.Spec.Labels,
-		"annotations":                        annotations,
-		"etcd":                               etcdValues,
-		"backup":                             backupValues,
-		"sharedConfig":                       sharedConfigValues,
-		"schedulingConstraints":              schedulingConstraints,
-		"replicas":                           etcd.Spec.Replicas,
-		"statefulsetReplicas":                statefulsetReplicas,
-		"serviceName":                        val.Service.PeerServiceName,
-		"configMapName":                      val.ConfigMap.ConfigMapName,
-		"jobName":                            utils.GetJobName(etcd),
 		"pdbMinAvailable":                    pdbMinAvailable,
-		"volumeClaimTemplateName":            volumeClaimTemplateName,
 		"serviceAccountName":                 utils.GetServiceAccountName(etcd),
 		"disableEtcdServiceAccountAutomount": disableEtcdServiceAccountAutomount,
 		"roleName":                           fmt.Sprintf("druid.gardener.cloud:etcd:%s", etcd.Name),
 		"roleBindingName":                    fmt.Sprintf("druid.gardener.cloud:etcd:%s", etcd.Name),
-	}
-
-	if etcd.Spec.StorageCapacity != nil {
-		values["storageCapacity"] = etcd.Spec.StorageCapacity
-	}
-
-	if etcd.Spec.StorageClass != nil {
-		values["storageClass"] = etcd.Spec.StorageClass
-	}
-
-	if etcd.Spec.PriorityClassName != nil {
-		values["priorityClassName"] = *etcd.Spec.PriorityClassName
-	}
-
-	if etcd.Spec.Etcd.ClientUrlTLS != nil {
-		values["clientUrlTlsCASecret"] = etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name
-
-		if dataKey := etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey; dataKey != nil {
-			values["clientTlsCASecretKey"] = *dataKey
-		}
-
-		values["clientUrlTlsServerSecret"] = etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name
-		values["clientUrlTlsClientSecret"] = etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name
-	}
-
-	if etcd.Spec.Etcd.PeerUrlTLS != nil {
-		values["peerUrlTlsCASecret"] = etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name
-
-		if dataKey := etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey; dataKey != nil {
-			values["peerTlsCASecretKey"] = *dataKey
-		}
-
-		values["peerUrlTlsServerSecret"] = etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name
-	}
-
-	if heartBeatDuration := etcd.Spec.Etcd.HeartbeatDuration; heartBeatDuration != nil {
-		values["heartbeatDuration"] = heartBeatDuration
-	}
-
-	if etcd.Spec.Backup.Store != nil {
-		if values["store"], err = utils.GetStoreValues(context.Background(), r.Client, etcd.Spec.Backup.Store, etcd.Namespace); err != nil {
-			return nil, err
-		}
-
-		backupValues["fullSnapLeaseName"] = val.Lease.FullSnapshotLeaseName
-		backupValues["deltaSnapLeaseName"] = val.Lease.DeltaSnapshotLeaseName
 	}
 
 	return values, nil
@@ -1057,33 +830,6 @@ func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alph
 		etcd.Status.Replicas = pointer.Int32PtrDerefOr(sts.Spec.Replicas, 0)
 		return nil
 	})
-}
-
-func (r *EtcdReconciler) fetchPVCEventsFor(ctx context.Context, ss *appsv1.StatefulSet) (string, error) {
-	pvcs := &corev1.PersistentVolumeClaimList{}
-	if err := r.List(ctx, pvcs, client.InNamespace(ss.GetNamespace())); err != nil {
-		return "", err
-	}
-
-	var (
-		pvcMessages  string
-		volumeClaims = ss.Spec.VolumeClaimTemplates
-	)
-	for _, volumeClaim := range volumeClaims {
-		for _, pvc := range pvcs.Items {
-			if !strings.HasPrefix(pvc.GetName(), fmt.Sprintf("%s-%s", volumeClaim.Name, ss.Name)) || pvc.Status.Phase == corev1.ClaimBound {
-				continue
-			}
-			messages, err := kutil.FetchEventMessages(ctx, r.Client.Scheme(), r.Client, &pvc, corev1.EventTypeWarning, 2)
-			if err != nil {
-				return "", err
-			}
-			if messages != "" {
-				pvcMessages += fmt.Sprintf("Warning for PVC %s:\n%s\n", pvc.Name, messages)
-			}
-		}
-	}
-	return pvcMessages, nil
 }
 
 func (r *EtcdReconciler) removeOperationAnnotation(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
