@@ -31,10 +31,10 @@ import (
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -174,13 +174,13 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 		Selector: &metav1.LabelSelector{
 			MatchLabels: getCommonLabels(&c.values),
 		},
-		Template: v1.PodTemplateSpec{
+		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: c.values.Annotations,
 				Labels:      sts.GetLabels(),
 			},
-			Spec: v1.PodSpec{
-				HostAliases: []v1.HostAlias{
+			Spec: corev1.PodSpec{
+				HostAliases: []corev1.HostAlias{
 					{
 						IP:        "127.0.0.1",
 						Hostnames: []string{c.values.Name + "-local"},
@@ -189,31 +189,36 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 				ServiceAccountName:        c.values.ServiceAccountName,
 				Affinity:                  c.values.Affinity,
 				TopologySpreadConstraints: c.values.TopologySpreadConstraints,
-				Containers: []v1.Container{
+				Containers: []corev1.Container{
 					{
 						Name:            "etcd",
 						Image:           c.values.EtcdImage,
-						ImagePullPolicy: v1.PullIfNotPresent,
+						ImagePullPolicy: corev1.PullIfNotPresent,
 						Command:         c.values.EtcdCommand,
-						ReadinessProbe: &v1.Probe{
-							Handler: v1.Handler{
-								Exec: &v1.ExecAction{
-									Command: c.values.ReadinessProbeCommand,
+						ReadinessProbe: &corev1.Probe{
+							Handler:             getReadinessHandler(c.values),
+							InitialDelaySeconds: 15,
+							PeriodSeconds:       5,
+							FailureThreshold:    5,
+						},
+						LivenessProbe: &corev1.Probe{
+							Handler: corev1.Handler{
+								Exec: &corev1.ExecAction{
+									Command: c.values.LivenessProbeCommand,
 								},
 							},
 							InitialDelaySeconds: 15,
 							PeriodSeconds:       5,
 							FailureThreshold:    5,
 						},
-						LivenessProbe: &v1.Probe{
-							Handler: v1.Handler{
-								Exec: &v1.ExecAction{
-									Command: c.values.LivenessProbCommand,
+						StartupProbe: &corev1.Probe{
+							Handler: corev1.Handler{
+								Exec: &corev1.ExecAction{
+									Command: c.values.LivenessProbeCommand,
 								},
 							},
-							InitialDelaySeconds: 15,
-							PeriodSeconds:       5,
-							FailureThreshold:    5,
+							PeriodSeconds:    5,
+							FailureThreshold: 24,
 						},
 						Ports:        getEtcdPorts(c.values),
 						Resources:    getEtcdResources(c.values),
@@ -223,15 +228,15 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 					{
 						Name:            "backup-restore",
 						Image:           c.values.BackupImage,
-						ImagePullPolicy: v1.PullIfNotPresent,
+						ImagePullPolicy: corev1.PullIfNotPresent,
 						Command:         c.values.EtcdBackupCommand,
 						Ports:           getBackupPorts(c.values),
 						Resources:       getBackupResources(c.values),
 						Env:             getBackupRestoreEnvVars(c.values),
 						VolumeMounts:    getBackupRestoreVolumeMounts(c.values),
-						SecurityContext: &v1.SecurityContext{
-							Capabilities: &v1.Capabilities{
-								Add: []v1.Capability{
+						SecurityContext: &corev1.SecurityContext{
+							Capabilities: &corev1.Capabilities{
+								Add: []corev1.Capability{
 									"SYS_PTRACE",
 								},
 							},
@@ -242,14 +247,14 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 				Volumes:               getVolumes(c.values),
 			},
 		},
-		VolumeClaimTemplates: []v1.PersistentVolumeClaim{
+		VolumeClaimTemplates: []corev1.PersistentVolumeClaim{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: c.values.VolumeClaimTemplateName,
 				},
-				Spec: v1.PersistentVolumeClaimSpec{
-					AccessModes: []v1.PersistentVolumeAccessMode{
-						v1.ReadWriteOnce,
+				Spec: corev1.PersistentVolumeClaimSpec{
+					AccessModes: []corev1.PersistentVolumeAccessMode{
+						corev1.ReadWriteOnce,
 					},
 					StorageClassName: c.values.StorageClass,
 					Resources:        getStorageReq(c.values),
@@ -710,6 +715,38 @@ func getEnvVarFromSecrets(name, secretName, secretKey string) corev1.EnvVar {
 				},
 				Key: secretKey,
 			},
+		},
+	}
+}
+
+func getReadinessHandler(val Values) corev1.Handler {
+	if val.Replicas > 1 {
+		// TODO(timuthy): Special handling for multi-node etcd can be removed as soon as
+		// etcd-backup-restore supports `/healthz` for etcd followers, see https://github.com/gardener/etcd-backup-restore/pull/491.
+		return getReadinessHandlerForMultiNode(val)
+	}
+	return getReadinessHandlerForSingleNode(val)
+}
+
+func getReadinessHandlerForSingleNode(val Values) corev1.Handler {
+	scheme := corev1.URISchemeHTTPS
+	if val.BackupTLS == nil {
+		scheme = corev1.URISchemeHTTP
+	}
+
+	return corev1.Handler{
+		HTTPGet: &corev1.HTTPGetAction{
+			Path:   "/healthz",
+			Port:   intstr.FromInt(int(pointer.Int32Deref(val.BackupPort, defaultBackupPort))),
+			Scheme: scheme,
+		},
+	}
+}
+
+func getReadinessHandlerForMultiNode(val Values) corev1.Handler {
+	return corev1.Handler{
+		Exec: &corev1.ExecAction{
+			Command: val.ReadinessProbeCommand,
 		},
 	}
 }
