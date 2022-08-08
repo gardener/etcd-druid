@@ -48,7 +48,7 @@ etcd-druid:
           nextversion: 'bump_minor'
           git_tags:
           - ref_template: 'refs/tags/{VERSION}'
-          release_callback: $REPO_DIR/.ci/bump_tag
+          release_callback: .ci/bump_tag
         slack:
           default_channel: 'internal_scp_workspace'
           channel_cfgs:
