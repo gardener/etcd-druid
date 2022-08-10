@@ -165,7 +165,6 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 
 	sts.ObjectMeta = getObjectMeta(&c.values)
 	sts.Spec = appsv1.StatefulSetSpec{
-		PodManagementPolicy: appsv1.ParallelPodManagement,
 		UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
 			Type: appsv1.RollingUpdateStatefulSetStrategyType,
 		},
@@ -261,6 +260,17 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 			},
 		},
 	}
+
+	// TODO(shreyas-s-rao): relook at sts claim/recreation logic, since old shoots were created with
+	// default podManagementPolicy of OrderedReady, and trying to update it to Parallel leads to error,
+	// as updates to PodManagementPolicy in an existing statefulset is forbidden.
+	// This is important for bootstrapping and shoot unhibernation cases.
+	if stsOriginal.Spec.PodManagementPolicy == appsv1.OrderedReadyPodManagement {
+		sts.Spec.PodManagementPolicy = appsv1.OrderedReadyPodManagement
+	} else {
+		sts.Spec.PodManagementPolicy = appsv1.ParallelPodManagement
+	}
+
 	if c.values.StorageClass != nil && *c.values.StorageClass != "" {
 		sts.Spec.VolumeClaimTemplates[0].Spec.StorageClassName = c.values.StorageClass
 	}
