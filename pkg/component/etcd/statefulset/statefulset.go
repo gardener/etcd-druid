@@ -279,6 +279,8 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 	}
 
 	if stsOriginal.Generation > 0 {
+		// TODO(shreyas-s-rao): replace with sts recreation logic, since Spec.ServiceName updation is forbidden
+		sts.Spec.ServiceName = stsOriginal.Spec.ServiceName
 		return c.client.Patch(ctx, sts, patch)
 	}
 
