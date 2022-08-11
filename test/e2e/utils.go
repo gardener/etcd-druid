@@ -182,7 +182,8 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider Provider
 	stsLabelsCopy[roleLabelKey] = provider.Suffix
 	etcd.Spec.Labels = stsLabelsCopy
 
-	etcdTLS := defaultTls(provider.Suffix)
+	// TODO: uncomment me, Once etcd-events is added to certs.
+	// etcdTLS := defaultTls(provider.Suffix)
 
 	etcd.Spec.Etcd = v1alpha1.EtcdConfig{
 		Metrics:                 (*v1alpha1.MetricsLevel)(&etcdMetrics),
@@ -191,7 +192,7 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider Provider
 		Resources:               &etcdResources,
 		ClientPort:              &etcdClientPort,
 		ServerPort:              &etcdServerPort,
-		ClientUrlTLS:            &etcdTLS,
+		// ClientUrlTLS:            &etcdTLS,
 	}
 
 	backupStore := defaultBackupStore.DeepCopy()
@@ -199,11 +200,12 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider Provider
 	backupStore.Provider = &provider.Provider
 	backupStore.Prefix = prefix
 
-	backupTLS := defaultTls(provider.Suffix)
+	// TODO: uncomment me, Once etcd-events is added to certs.
+	// backupTLS := defaultTls(provider.Suffix)
 
 	etcd.Spec.Backup = v1alpha1.BackupSpec{
-		Port:                     &backupPort,
-		TLS:                      &backupTLS,
+		Port: &backupPort,
+		// TLS:                      &backupTLS,
 		FullSnapshotSchedule:     &backupFullSnapshotSchedule,
 		Resources:                &backupResources,
 		GarbageCollectionPolicy:  &backupGarbageCollectionPolicy,
