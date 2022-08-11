@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -32,11 +33,19 @@ import (
 	"github.com/gardener/etcd-druid/api/v1alpha1"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	. "github.com/onsi/gomega"
+	apiappsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
+	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
+	typedbatchv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -151,8 +160,12 @@ var (
 		AutoCompactionRetention: &autoCompactionRetention,
 	}
 
-	replicas        = 1
 	storageCapacity = resource.MustParse("10Gi")
+)
+
+const (
+	replicas              int32 = 1
+	multiNodeEtcdReplicas int32 = 3
 )
 
 func getEmptyEtcd(name, namespace string) *v1alpha1.Etcd {
@@ -218,7 +231,7 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider Provider
 
 	etcd.Spec.Common = sharedConfig
 
-	etcd.Spec.Replicas = int32(replicas)
+	etcd.Spec.Replicas = replicas
 	etcd.Spec.StorageCapacity = &storageCapacity
 
 	return etcd
@@ -241,6 +254,11 @@ func defaultTls(provider string) v1alpha1.TLSConfig {
 			},
 		},
 	}
+}
+func getDefaultMultiNodeEtcd(name, namespace, container, prefix string, provider Provider) *v1alpha1.Etcd {
+	etcd := getDefaultEtcd(name, namespace, container, prefix, provider)
+	etcd.Spec.Replicas = multiNodeEtcdReplicas
+	return etcd
 }
 
 // EndpointStatus stores result from output of etcdctl endpoint status command
@@ -742,4 +760,249 @@ func deleteDir(kubeconfigPath, namespace, podName, containerName string, dirPath
 		return fmt.Errorf("failed to delete directory %s for %s: stdout: %s; stderr: %s; err: %v", dirPath, podName, stdout, stderr, err)
 	}
 	return nil
+}
+
+// newTestHelperJob returns the K8s Job for given commands to be executed inside k8s cluster.
+// This test helper job can be used to validate test cases from inside the k8s cluster by executing the bash scripts.
+func newTestHelperJob(jobName, image string, cmd, args []string, livez *v1.Probe) *batchv1.Job {
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: jobName,
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:           jobName,
+							Image:          image,
+							Command:        cmd,
+							Args:           args,
+							ReadinessProbe: livez,
+						},
+					},
+					RestartPolicy: v1.RestartPolicyNever,
+				},
+			},
+			BackoffLimit: pointer.Int32(0),
+		},
+	}
+}
+
+//getEtcdLeaderPodName returns the leader pod name by using lease
+func getEtcdLeaderPodName(clientset *kubernetes.Clientset, namespace string) (string, error) {
+	ctx, cancelFunc := context.WithTimeout(context.TODO(), timeout)
+	defer cancelFunc()
+	leaseClient := clientset.CoordinationV1().Leases(namespace)
+	leases, err := leaseClient.List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return "", fmt.Errorf("error occurred while getting the lease %v", err)
+	}
+
+	for _, lease := range leases.Items {
+		if lease.Spec.HolderIdentity == nil {
+			return "", fmt.Errorf("error occurred while finding leader, etcd lease %q spec.holderIdentity is nil", lease.Name)
+		}
+		if strings.Contains(*lease.Spec.HolderIdentity, "Leader") {
+			return lease.Name, nil
+		}
+	}
+	return "", fmt.Errorf("leader doesn't exist for namespace %q", namespace)
+}
+
+// getPodLogs returns logs for the given pod
+func getPodLogs(clientset *kubernetes.Clientset, namespace, podName string, opts *corev1.PodLogOptions) (string, error) {
+
+	ctx, cancelFunc := context.WithTimeout(context.TODO(), time.Second*1000)
+	defer cancelFunc()
+	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, opts)
+	podLogs, err := req.Stream(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer podLogs.Close()
+
+	buf := new(bytes.Buffer)
+	_, err = io.Copy(buf, podLogs)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// etcdZeroDownTimeValidatorJob returns k8s job which ensures
+// Etcd cluster zero down time by continuously checking etcd cluster health.
+// This job fails once health check fails and associated pod results in error status.
+func etcdZeroDownTimeValidatorJob(etcdSvc, testName string) *batchv1.Job {
+	return newTestHelperJob(
+		"etcd-zero-down-time-validator-"+testName,
+		"alpine/curl",
+		[]string{"/bin/sh"},
+		[]string{"-ec", "while $(curl \"http://" + etcdSvc + ":2379/health\" -s -f  -o /dev/null ); " +
+			"do echo \"[$(date +'%Y/%m/%d %H:%M:%S%s')]: etcd is healthy\"; touch /tmp/healthy; " +
+			"sleep 1; done;  echo \"[$(date +'%Y/%m/%d %H:%M:%S%s')]: etcd is unhealthy\"; exit 1"},
+		&v1.Probe{
+			Handler: v1.Handler{
+				Exec: &v1.ExecAction{
+					Command: []string{
+						"cat",
+						"/tmp/healthy",
+					},
+				},
+			},
+		},
+	)
+}
+
+// eventuallyWaitUntilEtcdClusterReady is a helper function, uses Gomega Eventually.
+// Returns the function until all the members of Etcd cluster is ready for given timeout and polling interval or
+// raises assertion error.
+func checkEventuallyEtcdClusterReady(client client.Client, namespace, etcdName string, expectedReplicas int32) error {
+	Eventually(func() error {
+		etcd := getEmptyEtcd(etcdName, namespace)
+		err := getEtcdObj(client, etcd)
+		if err != nil {
+			return err
+		}
+
+		if etcd != nil && etcd.Status.Ready != nil {
+			if !*etcd.Status.Ready {
+				return fmt.Errorf("etcd %s not ready", etcdName)
+			}
+		}
+
+		if etcd.Status.ClusterSize == nil {
+			return fmt.Errorf("etcd %s cluster size is empty", etcdName)
+		}
+
+		if *etcd.Status.ClusterSize != expectedReplicas {
+			return fmt.Errorf("etcd %s cluster size: %v is not expected size %v",
+				etcdName, etcd.Status.ClusterSize, multiNodeEtcdReplicas)
+		}
+
+		for _, c := range etcd.Status.Conditions {
+			// skip BackupReady status check if etcd.Spec.Backup.Store is not configured.
+			if etcd.Spec.Backup.Store == nil && c.Type == v1alpha1.ConditionTypeBackupReady {
+				continue
+			}
+			if c.Status != v1alpha1.ConditionTrue {
+				return fmt.Errorf("etcd %q status %q condition %s is not True",
+					etcdName, c.Type, c.Status)
+			}
+		}
+		return nil
+	}, timeout*3, pollingInterval).Should(BeNil())
+	return nil
+}
+
+// checkEventuallyEtcdStsReady is a helper function, uses Gomega Eventually.
+// Returns the function until all the replicas of etcd StatefulSet is ready for given timeout and polling interval or
+// raises assertion error..
+func checkEventuallyEtcdStsReady(etcdName string, expectedReplicas int32, stsClient appsv1.StatefulSetInterface) {
+	Eventually(func() error {
+		etcdSts, err := getEtcdStsObj(stsClient, etcdName)
+		if err != nil {
+			return err
+		}
+
+		if etcdSts.Status.ReadyReplicas != expectedReplicas {
+			return fmt.Errorf("sts %s not ready", etcdName)
+		}
+		return nil
+	}, timeout*3, pollingInterval).Should(BeNil())
+}
+
+// getEtcdStsObj returns etcd statefulset obj for given etcd name.
+func getEtcdStsObj(stsClient appsv1.StatefulSetInterface, etcdName string) (*apiappsv1.StatefulSet, error) {
+	ctx, cancelFunc := context.WithTimeout(context.TODO(), timeout)
+	defer cancelFunc()
+	return stsClient.Get(ctx, etcdName, metav1.GetOptions{})
+}
+
+// getEtcdStsObj returns etcd obj for given etcd name.
+func getEtcdObj(k8sClient client.Client, etcd *v1alpha1.Etcd) error {
+	ctx, cancelFunc := context.WithTimeout(context.TODO(), timeout)
+	defer cancelFunc()
+	return k8sClient.Get(
+		ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace},
+		etcd,
+	)
+}
+
+// checkEventuallyEtcdRollingUpdateDone is a helper function, uses Gomega Eventually.
+// Returns the function until etcd rolling updates is done for given timeout and polling interval or
+// raises assertion error..
+// checkEventuallyEtcdRollingUpdateDone ensures rolling updates of etcd resources(etcd/sts)
+func checkEventuallyEtcdRollingUpdateDone(k8sClient client.Client, stsClient appsv1.StatefulSetInterface, etcdName string,
+	oldStsObservedGeneration, oldEtcdObservedGeneration int64) {
+	Eventually(func() error {
+		etcdSts, err := getEtcdStsObj(stsClient, etcdName)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		if etcdSts.Status.ObservedGeneration <= oldStsObservedGeneration {
+			return fmt.Errorf("waiting for statefulset rolling update to complete %d pods at revision %s",
+				etcdSts.Status.UpdatedReplicas, etcdSts.Status.UpdateRevision)
+		}
+
+		if etcdSts.Status.UpdatedReplicas != *etcdSts.Spec.Replicas {
+			return fmt.Errorf("waiting for statefulset rolling update to complete, UpdatedReplicas is %d, but expected to be %d",
+				etcdSts.Status.UpdatedReplicas, *etcdSts.Spec.Replicas)
+		}
+
+		etcd := getEmptyEtcd(etcdName, namespace)
+		err = getEtcdObj(k8sClient, etcd)
+		if err != nil {
+			return err
+		}
+
+		if *etcd.Status.ObservedGeneration <= oldEtcdObservedGeneration {
+			return fmt.Errorf("waiting for etcd %q rolling update to complete", etcd.Name)
+		}
+		return nil
+	}, timeout*3, pollingInterval).Should(BeNil())
+}
+
+func cleanUpTestHelperJob(jobClient typedbatchv1.JobInterface, jobName string) {
+	ctx, cancelFunc := context.WithTimeout(context.TODO(), timeout)
+	defer cancelFunc()
+	err := jobClient.Delete(ctx, jobName, metav1.DeleteOptions{}) // job is deleted, Once test case is done.
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			Expect(err).ShouldNot(HaveOccurred())
+		}
+	}
+}
+
+// checkEventuallyJobReady checks k8s job associated pod is ready, up and running.
+// checkEventuallyJobReady is a helper function, uses Gomega Eventually .
+func checkEventuallyJobReady(typedClient *kubernetes.Clientset, jobClient typedbatchv1.JobInterface, jobName string) {
+	podClient := typedClient.CoreV1().Pods(namespace)
+	Eventually(func() error {
+		ctx, cancelFunc := context.WithTimeout(context.TODO(), timeout)
+		defer cancelFunc()
+		job, err := jobClient.Get(ctx, jobName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		if job.Status.Active == int32(0) {
+			return fmt.Errorf("job %s is not active", job.Name)
+		}
+		podList, err := podClient.List(ctx, metav1.ListOptions{LabelSelector: fmt.Sprintf("job-name=%s", jobName)})
+		if err != nil {
+			if !apierrors.IsNotFound(err) {
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+		}
+		if len(podList.Items) == 0 {
+			return fmt.Errorf("job %s associated pod is not scheduled", job.Name)
+		}
+		for _, c := range podList.Items[0].Status.Conditions {
+			if c.Status != corev1.ConditionTrue {
+				return fmt.Errorf("pod %s is not active and status type %s is %s ",
+					podList.Items[0].Name, c.Type, c.Status)
+			}
+		}
+		return nil
+	}, time.Minute, pollingInterval).Should(BeNil())
 }
