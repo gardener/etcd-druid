@@ -72,19 +72,20 @@ func (c *component) Deploy(ctx context.Context) error {
 		sts = c.emptyStatefulset()
 	}
 
-	if sts.Generation > 1 && sts.Spec.ServiceName != c.values.PeerServiceName {
-		// Earlier clusters referred to the client service in `sts.Spec.ServiceName` which must be changed
-		// when a multi-node cluster is used, see https://github.com/gardener/etcd-druid/pull/293.
-		if clusterScaledUpToMultiNode(c.values) {
-			deleteAndWait := gardenercomponent.OpDestroyAndWait(c)
-			if err := deleteAndWait.Destroy(ctx); err != nil {
-				return err
-			}
-			sts = c.emptyStatefulset()
+	if sts.Generation > 1 && clusterScaledUpToMultiNode(c.values) && immutableFieldUpdate(sts, c.values) {
+		// Several immutable fields must be reset for the multi-node use-case.
+		deleteAndWait := gardenercomponent.OpDestroyAndWait(c)
+		if err := deleteAndWait.Destroy(ctx); err != nil {
+			return err
 		}
+		sts = c.emptyStatefulset()
 	}
 
 	return c.syncStatefulset(ctx, sts)
+}
+
+func immutableFieldUpdate(sts *appsv1.StatefulSet, val Values) bool {
+	return sts.Spec.ServiceName != val.PeerServiceName || sts.Spec.PodManagementPolicy != appsv1.ParallelPodManagement
 }
 
 func (c *component) Destroy(ctx context.Context) error {
@@ -165,6 +166,7 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 
 	sts.ObjectMeta = getObjectMeta(&c.values)
 	sts.Spec = appsv1.StatefulSetSpec{
+		PodManagementPolicy: appsv1.ParallelPodManagement,
 		UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
 			Type: appsv1.RollingUpdateStatefulSetStrategyType,
 		},
@@ -261,16 +263,6 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 		},
 	}
 
-	// TODO(shreyas-s-rao): relook at sts claim/recreation logic, since old shoots were created with
-	// default podManagementPolicy of OrderedReady, and trying to update it to Parallel leads to error,
-	// as updates to PodManagementPolicy in an existing statefulset is forbidden.
-	// This is important for bootstrapping and shoot unhibernation cases.
-	if stsOriginal.Spec.PodManagementPolicy == appsv1.OrderedReadyPodManagement {
-		sts.Spec.PodManagementPolicy = appsv1.OrderedReadyPodManagement
-	} else {
-		sts.Spec.PodManagementPolicy = appsv1.ParallelPodManagement
-	}
-
 	if c.values.StorageClass != nil && *c.values.StorageClass != "" {
 		sts.Spec.VolumeClaimTemplates[0].Spec.StorageClassName = c.values.StorageClass
 	}
@@ -279,8 +271,10 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 	}
 
 	if stsOriginal.Generation > 0 {
-		// TODO(shreyas-s-rao): replace with sts recreation logic, since Spec.ServiceName updation is forbidden
+		// Keep immutable fields
+		sts.Spec.PodManagementPolicy = stsOriginal.Spec.PodManagementPolicy
 		sts.Spec.ServiceName = stsOriginal.Spec.ServiceName
+
 		return c.client.Patch(ctx, sts, patch)
 	}
 
