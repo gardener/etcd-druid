@@ -56,36 +56,30 @@ function teardown_trap {
   if [[ ${teardown_done:="false"} != "true" ]]; then
     teardown
   fi
-  if [[ ${undeploy_done:="false"} != "true" ]]; then
-    undeploy_druid
-  fi
   return 1
 }
 
 function teardown {
   if containsElement $STEPS "cleanup" && [[ $profile_setup != "" ]]; then
-      echo "-------------------"
-      echo "Tearing down environment"
-      echo "-------------------"
+    echo "-------------------"
+    echo "Tearing down environment"
+    echo "-------------------"
 
-      create_namespace
-      skaffold_run_or_deploy -p ${profile_cleanup} -m druid-e2e -n $TEST_ID --status-check=false
-      delete_namespace
+    create_namespace
+    skaffold_run_or_deploy -p ${profile_cleanup} -m druid-e2e -n $TEST_ID --status-check=false
+    delete_namespace
   fi
+
+  if containsElement $STEPS "undeploy"; then
+    skaffold delete -m etcd-druid
+  fi
+
   teardown_done="true"
 }
 
-function undeploy_druid {
-  if containsElement $STEPS "deploy"; then
-    skaffold delete -m etcd-druid
-  fi
-  undeploy_done="true"
-}
-
 function run_e2e {
-  : ${STEPS:="setup,deploy,test,cleanup"}
+  : ${STEPS:="setup,deploy,test,undeploy,cleanup"}
   : ${teardown_done:="false"}
-  : ${undeploy_done:="false"}
   : ${profile_setup:=""}
 
   trap teardown_trap INT TERM
@@ -236,4 +230,3 @@ for p in ${1//,/ }; do
       ;;
     esac
 done
-undeploy_druid

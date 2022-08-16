@@ -33,12 +33,13 @@ The following providers are supported for e2e tests:
 
 An e2e test execution involves the following steps:
 
-| Step   	    | Description                                                                                                                                                                                                |
-|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `setup`	    | Create a storage bucket which is used for etcd backups (only with cloud providers). 	                                                                                                                      |
-| `deploy`	   | Build Docker image, upload it to registry (if remote cluster - see [Docker build](https://skaffold.dev/docs/pipeline-stages/builders/docker/)), deploy Helm chart (`charts/druid`) to Kubernetes cluster.	 |
-| `test`      | Execute e2e tests as defined in `test/e2e`.	                                                                                                                                                               |
-| `cleanup`   | Delete storage bucket and Druid deployment from test cluster.	                                                                                                                                             |
+| Step   	  | Description                                                                                                                                                                                                |
+|-----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `setup`	  | Create a storage bucket which is used for etcd backups (only with cloud providers). 	                                                                                                                      |
+| `deploy`	 | Build Docker image, upload it to registry (if remote cluster - see [Docker build](https://skaffold.dev/docs/pipeline-stages/builders/docker/)), deploy Helm chart (`charts/druid`) to Kubernetes cluster.	 |
+| `test`    | Execute e2e tests as defined in `test/e2e`.                                                                                                                                                                |
+| `undeploy` | Remove the deployed artifacts from Kubernetes cluster.                                                                                                                                                     |
+| `cleanup` | Delete storage bucket and Druid deployment from test cluster.	                                                                                                                                             |
 
 ### Make target
 
@@ -56,7 +57,7 @@ The following environment variables influence how the flow described above is ex
 - `PROVIDERS`:  Providers used for testing (`all`, `aws`, `azure`, `gcp`, `local` - default: `local`). Multiple entries must be comma separated.
 - `KUBECONFIG`: Kubeconfig pointing to cluster where Etcd-Druid will be deployed (preferably [KinD](https://kind.sigs.k8s.io)).
 - `TEST_ID`:    Some ID which is used to create assets for and during testing.
-- `STEPS`:      Steps executed by `make` target (`setup`, `deploy`, `test`. `cleanup` - default: all steps).
+- `STEPS`:      Steps executed by `make` target (`setup`, `deploy`, `test`, `undeploy`, `cleanup` - default: all steps).
 
 ### AWS Env Variables
 
@@ -74,7 +75,7 @@ make \
   KUBECONFIG="$HOME/.kube/config" \
   PROVIDERS="aws" \
   TEST_ID="some-test-id" \
-  STEPS="setup,deploy,test,cleanup" \
+  STEPS="setup,deploy,test,undeploy,cleanup" \
 test-e2e
 ```
 
@@ -92,7 +93,7 @@ make \
   KUBECONFIG="$HOME/.kube/config" \
   PROVIDERS="azure" \
   TEST_ID="some-test-id" \
-  STEPS="setup,deploy,test,cleanup" \
+  STEPS="setup,deploy,test,undeploy,cleanup" \
 test-e2e
 ```
 
@@ -110,6 +111,6 @@ make \
   KUBECONFIG="$HOME/.kube/config" \
   PROVIDERS="gcp" \
   TEST_ID="some-test-id" \
-  STEPS="setup,deploy,test,cleanup" \
+  STEPS="setup,deploy,test,undeploy,cleanup" \
 test-e2e
 ```
