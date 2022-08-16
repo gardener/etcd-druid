@@ -25,7 +25,6 @@ The following providers are supported for e2e tests:
 - AWS
 - Azure
 - GCP
-- Local
 
 > Valid credentials need to be provided when tests happen with mentioned cloud providers.
 
@@ -54,7 +53,7 @@ make test-e2e
 
 The following environment variables influence how the flow described above is executed:
 
-- `PROVIDERS`:  Providers used for testing (`all`, `aws`, `azure`, `gcp`, `local` - default: `local`). Multiple entries must be comma separated.
+- `PROVIDERS`:  Providers used for testing (`all`, `aws`, `azure`, `gcp`). Multiple entries must be comma separated.
 - `KUBECONFIG`: Kubeconfig pointing to cluster where Etcd-Druid will be deployed (preferably [KinD](https://kind.sigs.k8s.io)).
 - `TEST_ID`:    Some ID which is used to create assets for and during testing.
 - `STEPS`:      Steps executed by `make` target (`setup`, `deploy`, `test`, `undeploy`, `cleanup` - default: all steps).

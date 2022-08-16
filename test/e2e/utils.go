@@ -25,19 +25,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-logr/logr"
+	"github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/pkg/utils"
 
 	"github.com/gardener/etcd-backup-restore/pkg/snapstore"
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
-	"github.com/gardener/etcd-druid/api/v1alpha1"
-
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
@@ -63,11 +63,17 @@ const (
 	etcdCommandMaxRetries = 3
 )
 
-type Provider struct {
-	Provider        v1alpha1.StorageProvider
-	Suffix          string
-	StorageProvider string
-	SecretData      map[string][]byte
+// Storage contains information about the storage provider.
+type Storage struct {
+	Provider   v1alpha1.StorageProvider
+	SecretData map[string][]byte
+}
+
+// TestProvider contains test related information.
+type TestProvider struct {
+	Name    string
+	Suffix  string
+	Storage *Storage
 }
 
 var (
@@ -130,7 +136,7 @@ var (
 	}
 	backupGarbageCollectionPolicy  = v1alpha1.GarbageCollectionPolicy(v1alpha1.GarbageCollectionPolicyExponential)
 	backupGarbageCollectionPeriod  = metav1.Duration{Duration: 5 * time.Minute}
-	backupDeltaSnapshotPeriod      = metav1.Duration{Duration: 10 * time.Second}
+	backupDeltaSnapshotPeriod      = metav1.Duration{Duration: 1 * time.Second}
 	backupDeltaSnapshotMemoryLimit = resource.MustParse("100Mi")
 	gzipCompression                = v1alpha1.GzipCompression
 	backupCompression              = v1alpha1.CompressionSpec{
@@ -159,7 +165,7 @@ func getEmptyEtcd(name, namespace string) *v1alpha1.Etcd {
 	return &v1alpha1.Etcd{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
 }
 
-func getDefaultEtcd(name, namespace, container, prefix string, provider Provider) *v1alpha1.Etcd {
+func getDefaultEtcd(name, namespace, container, prefix string, provider TestProvider) *v1alpha1.Etcd {
 	etcd := getEmptyEtcd(name, namespace)
 
 	etcd.Annotations = annotations
@@ -194,30 +200,35 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider Provider
 		ClientUrlTLS:            &etcdTLS,
 	}
 
-	backupStore := defaultBackupStore.DeepCopy()
-	backupStore.Container = &container
-	backupStore.Provider = &provider.Provider
-	backupStore.Prefix = prefix
-
-	backupTLS := defaultTls(provider.Suffix)
-
-	etcd.Spec.Backup = v1alpha1.BackupSpec{
-		Port:                     &backupPort,
-		TLS:                      &backupTLS,
-		FullSnapshotSchedule:     &backupFullSnapshotSchedule,
-		Resources:                &backupResources,
-		GarbageCollectionPolicy:  &backupGarbageCollectionPolicy,
-		GarbageCollectionPeriod:  &backupGarbageCollectionPeriod,
-		DeltaSnapshotPeriod:      &backupDeltaSnapshotPeriod,
-		DeltaSnapshotMemoryLimit: &backupDeltaSnapshotMemoryLimit,
-		SnapshotCompression:      &backupCompression,
-		Store:                    backupStore,
-	}
-
 	etcd.Spec.Common = sharedConfig
-
 	etcd.Spec.Replicas = int32(replicas)
 	etcd.Spec.StorageCapacity = &storageCapacity
+
+	if provider.Storage != nil {
+		backupStore := defaultBackupStore.DeepCopy()
+		backupStore.Container = &container
+		backupStore.Provider = &provider.Storage.Provider
+		backupStore.Prefix = prefix
+		backupStore.SecretRef = &corev1.SecretReference{
+			Name:      fmt.Sprintf("%s-%s", etcdBackupSecretPrefix, provider.Suffix),
+			Namespace: namespace,
+		}
+
+		backupTLS := defaultTls(provider.Suffix)
+
+		etcd.Spec.Backup = v1alpha1.BackupSpec{
+			Port:                     &backupPort,
+			TLS:                      &backupTLS,
+			FullSnapshotSchedule:     &backupFullSnapshotSchedule,
+			Resources:                &backupResources,
+			GarbageCollectionPolicy:  &backupGarbageCollectionPolicy,
+			GarbageCollectionPeriod:  &backupGarbageCollectionPeriod,
+			DeltaSnapshotPeriod:      &backupDeltaSnapshotPeriod,
+			DeltaSnapshotMemoryLimit: &backupDeltaSnapshotMemoryLimit,
+			SnapshotCompression:      &backupCompression,
+			Store:                    backupStore,
+		}
+	}
 
 	return etcd
 }
@@ -292,29 +303,33 @@ const (
 	providerAzure = "azure"
 	providerGCP   = "gcp"
 	providerLocal = "local"
+	providerNone  = "none"
 )
 
-func getProviders() (map[string]Provider, error) {
-	providerNames := strings.Split(getEnvOrFallback(envProviders, ""), " ")
+func getProviders() ([]TestProvider, error) {
+	providerNames := strings.Split(getEnvOrFallback(envProviders, ""), ",")
 
-	providers := make(map[string]Provider)
+	var providers []TestProvider
 
+	// TODO(timuthy): Add support for provider Local
 	for _, p := range providerNames {
-		var provider Provider
+		var provider TestProvider
 		switch p {
 		case providerAWS:
 			s3AccessKeyID := getEnvOrFallback(envS3AccessKeyID, "")
 			s3SecretAccessKey := getEnvOrFallback(envS3SecretAccessKey, "")
 			s3Region := getEnvOrFallback(envS3Region, "")
 			if s3AccessKeyID != "" && s3SecretAccessKey != "" && s3Region != "" {
-				provider = Provider{
-					Provider:        "aws",
-					Suffix:          "aws",
-					StorageProvider: "S3",
-					SecretData: map[string][]byte{
-						"accessKeyID":     []byte(s3AccessKeyID),
-						"secretAccessKey": []byte(s3SecretAccessKey),
-						"region":          []byte(s3Region),
+				provider = TestProvider{
+					Name:   "aws",
+					Suffix: "aws",
+					Storage: &Storage{
+						Provider: utils.S3,
+						SecretData: map[string][]byte{
+							"accessKeyID":     []byte(s3AccessKeyID),
+							"secretAccessKey": []byte(s3SecretAccessKey),
+							"region":          []byte(s3Region),
+						},
 					},
 				}
 			}
@@ -322,13 +337,15 @@ func getProviders() (map[string]Provider, error) {
 			absStorageAccount := getEnvOrFallback(envABSStorageAccount, "")
 			absStorageKey := getEnvOrFallback(envABSStorageKey, "")
 			if absStorageAccount != "" && absStorageKey != "" {
-				provider = Provider{
-					Provider:        "azure",
-					Suffix:          "az",
-					StorageProvider: "ABS",
-					SecretData: map[string][]byte{
-						"storageAccount": []byte(absStorageAccount),
-						"storageKey":     []byte(absStorageKey),
+				provider = TestProvider{
+					Name:   "az",
+					Suffix: "az",
+					Storage: &Storage{
+						Provider: utils.ABS,
+						SecretData: map[string][]byte{
+							"storageAccount": []byte(absStorageAccount),
+							"storageKey":     []byte(absStorageKey),
+						},
 					},
 				}
 			}
@@ -340,23 +357,19 @@ func getProviders() (map[string]Provider, error) {
 					return nil, err
 				}
 
-				provider = Provider{
-					Provider:        "gcp",
-					Suffix:          "gcp",
-					StorageProvider: "GCS",
-					SecretData: map[string][]byte{
-						"serviceaccount.json": gcsSA,
+				provider = TestProvider{
+					Name:   "gcp",
+					Suffix: "gcp",
+					Storage: &Storage{
+						Provider: utils.GCS,
+						SecretData: map[string][]byte{
+							"serviceaccount.json": gcsSA,
+						},
 					},
 				}
 			}
-		case providerLocal:
-			provider = Provider{
-				Provider:        providerLocal,
-				Suffix:          "events",
-				StorageProvider: "Local",
-			}
 		}
-		providers[p] = provider
+		providers = append(providers, provider)
 	}
 
 	return providers, nil
@@ -384,7 +397,7 @@ func getKubernetesClient(kubeconfigPath string) (client.Client, error) {
 	return client.New(config, client.Options{})
 }
 
-func deploySecret(logger logr.Logger, name, namespace string, labels map[string]string, secretType corev1.SecretType, secretData map[string][]byte, secretsClient typedcorev1.SecretInterface) (*corev1.Secret, error) {
+func deploySecret(ctx context.Context, cl client.Client, logger logr.Logger, name, namespace string, labels map[string]string, secretType corev1.SecretType, secretData map[string][]byte) error {
 	secret := corev1.Secret{}
 	secret.Name = name
 	secret.Namespace = namespace
@@ -393,10 +406,10 @@ func deploySecret(logger logr.Logger, name, namespace string, labels map[string]
 	secret.Data = secretData
 
 	logger.Info("creating secret", "secret", client.ObjectKeyFromObject(&secret))
-	return secretsClient.Create(context.TODO(), &secret, metav1.CreateOptions{})
+	return cl.Create(ctx, &secret)
 }
 
-func buildAndDeployTLSSecrets(logger logr.Logger, certsPath string, providers map[string]Provider, secretsClient typedcorev1.SecretInterface) ([]*corev1.Secret, error) {
+func buildAndDeployTLSSecrets(ctx context.Context, cl client.Client, logger logr.Logger, namespace, certsPath string, providers []TestProvider) error {
 	var (
 		caCertFile          = "ca.crt"
 		caKeyFile           = "ca.key"
@@ -409,35 +422,32 @@ func buildAndDeployTLSSecrets(logger logr.Logger, certsPath string, providers ma
 		tlsClientSecretName = "etcd-client-tls"
 		secretData          map[string][]byte
 	)
-	secrets := make([]*corev1.Secret, 3*len(providers))
 
 	for _, provider := range providers {
 		caCert, err := ioutil.ReadFile(path.Join(certsPath, caCertFile))
 		if err != nil {
-			return nil, err
+			return err
 		}
 		caKey, err := ioutil.ReadFile(path.Join(certsPath, caKeyFile))
 		if err != nil {
-			return nil, err
+			return err
 		}
 		secretData = map[string][]byte{
 			"ca.crt": caCert,
 			"ca.key": caKey,
 		}
 		secretName := fmt.Sprintf("%s-%s", caSecretName, provider.Suffix)
-		caSecret, err := deploySecret(logger, secretName, namespace, labels, corev1.SecretTypeOpaque, secretData, secretsClient)
-		if err != nil {
-			return nil, err
+		if err := deploySecret(ctx, cl, logger, secretName, namespace, labels, corev1.SecretTypeOpaque, secretData); err != nil {
+			return err
 		}
-		secrets = append(secrets, caSecret)
 
 		tlsServerCert, err := ioutil.ReadFile(path.Join(certsPath, tlsServerCertFile))
 		if err != nil {
-			return nil, err
+			return err
 		}
 		tlsServerKey, err := ioutil.ReadFile(path.Join(certsPath, tlsServerKeyFile))
 		if err != nil {
-			return nil, err
+			return err
 		}
 		secretData = map[string][]byte{
 			"ca.crt":  caCert,
@@ -445,19 +455,17 @@ func buildAndDeployTLSSecrets(logger logr.Logger, certsPath string, providers ma
 			"tls.key": tlsServerKey,
 		}
 		secretName = fmt.Sprintf("%s-%s", tlsServerSecretName, provider.Suffix)
-		tlsServerSecret, err := deploySecret(logger, secretName, namespace, labels, corev1.SecretTypeTLS, secretData, secretsClient)
-		if err != nil {
-			return nil, err
+		if err := deploySecret(ctx, cl, logger, secretName, namespace, labels, corev1.SecretTypeTLS, secretData); err != nil {
+			return err
 		}
-		secrets = append(secrets, tlsServerSecret)
 
 		tlsClientCert, err := ioutil.ReadFile(path.Join(certsPath, tlsClientCertFile))
 		if err != nil {
-			return nil, err
+			return err
 		}
 		tlsClientKey, err := ioutil.ReadFile(path.Join(certsPath, tlsClientKeyFile))
 		if err != nil {
-			return nil, err
+			return err
 		}
 		secretData = map[string][]byte{
 			"ca.crt":  caCert,
@@ -465,43 +473,34 @@ func buildAndDeployTLSSecrets(logger logr.Logger, certsPath string, providers ma
 			"tls.key": tlsClientKey,
 		}
 		secretName = fmt.Sprintf("%s-%s", tlsClientSecretName, provider.Suffix)
-		tlsClientSecret, err := deploySecret(logger, secretName, namespace, labels, corev1.SecretTypeTLS, secretData, secretsClient)
-		if err != nil {
-			return nil, err
+		if err := deploySecret(ctx, cl, logger, secretName, namespace, labels, corev1.SecretTypeTLS, secretData); err != nil {
+			return err
 		}
-		secrets = append(secrets, tlsClientSecret)
 	}
 
-	return secrets, nil
+	return nil
 }
 
-func deployBackupSecrets(logger logr.Logger, secretsClient typedcorev1.SecretInterface, providers map[string]Provider, namespace, storageContainer string) ([]*corev1.Secret, error) {
-	secrets := make([]*corev1.Secret, 0)
-	for _, provider := range providers {
-		if provider.SecretData == nil {
-			continue
-		}
-		secretData := provider.SecretData
-		providerSuffix := provider.Suffix
-		secretName := fmt.Sprintf("%s-%s", etcdBackupSecretPrefix, providerSuffix)
+func deployBackupSecret(ctx context.Context, cl client.Client, logger logr.Logger, provider TestProvider, namespace, storageContainer string) error {
 
-		etcdBackupSecret := corev1.Secret{}
-		etcdBackupSecret.Name = secretName
-		etcdBackupSecret.Namespace = namespace
-		etcdBackupSecret.Labels = labels
-		etcdBackupSecret.Type = corev1.SecretTypeOpaque
-		etcdBackupSecret.Data = secretData
-		etcdBackupSecret.Data["bucketName"] = []byte(storageContainer)
-
-		logger.Info("creating secret", "secret", client.ObjectKeyFromObject(&etcdBackupSecret))
-		secret, err := secretsClient.Create(context.TODO(), &etcdBackupSecret, metav1.CreateOptions{})
-		if err != nil {
-			return nil, err
-		}
-		secrets = append(secrets, secret)
+	if provider.Storage == nil || provider.Storage.SecretData == nil {
+		return nil
 	}
+	secretData := provider.Storage.SecretData
+	providerSuffix := provider.Suffix
+	secretName := fmt.Sprintf("%s-%s", etcdBackupSecretPrefix, providerSuffix)
 
-	return secrets, nil
+	etcdBackupSecret := corev1.Secret{}
+	etcdBackupSecret.Name = secretName
+	etcdBackupSecret.Namespace = namespace
+	etcdBackupSecret.Labels = labels
+	etcdBackupSecret.Type = corev1.SecretTypeOpaque
+	etcdBackupSecret.Data = secretData
+	etcdBackupSecret.Data["bucketName"] = []byte(storageContainer)
+
+	logger.Info("creating secret", "secret", client.ObjectKeyFromObject(&etcdBackupSecret))
+
+	return cl.Create(ctx, &etcdBackupSecret)
 }
 
 // getRemoteCommandExecutor builds and returns a remote command Executor from the given command on the specified container
@@ -615,22 +614,8 @@ func populateEtcdWithCount(logger logr.Logger, kubeconfigPath, namespace, etcdNa
 			continue
 		}
 		logger.Info(fmt.Sprintf("put (%s-%d, %s-%d) successful", keyPrefix, i, valuePrefix, i))
-		if i%10 == 0 {
-			logger.Info(fmt.Sprintf("deleting key %s-%d", keyPrefix, i))
-			cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-local:%d --cacert /var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key del %s-%d", etcdName, etcdClientPort, keyPrefix, i)
-			stdout, stderr, err = executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
-			if err != nil || stderr != "" || stdout != "1" {
-				logger.Error(err, fmt.Sprintf("failed to delete key %s-%d: stdout: %s; stderr: %s. Retrying", keyPrefix, i, stdout, stderr))
-				retries++
-				if retries >= etcdCommandMaxRetries {
-					return fmt.Errorf("failed to delete key %s-%d: stdout: %s; stderr: %s; err: %v", keyPrefix, i, stdout, stderr, err)
-				}
-				continue
-			}
-		}
 		retries = 0
 		i++
-		time.Sleep(delay)
 	}
 
 	return nil
@@ -657,7 +642,7 @@ func getEtcdKey(kubeconfigPath, namespace, etcdName, podName, containerName, key
 	return strings.TrimSpace(splits[0]), strings.TrimSpace(splits[1]), nil
 }
 
-func getEtcdKeys(logger logr.Logger, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix string, start, end, skipMultiple int) (map[string]string, error) {
+func getEtcdKeys(logger logr.Logger, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix string, start, end int) (map[string]string, error) {
 	var (
 		key         string
 		val         string
@@ -666,10 +651,6 @@ func getEtcdKeys(logger logr.Logger, kubeconfigPath, namespace, etcdName, podNam
 		err         error
 	)
 	for i := start; i <= end; {
-		if i%skipMultiple == 0 {
-			i++
-			continue
-		}
 		key, val, err = getEtcdKey(kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix, i)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed to get key %s-%d. Retrying", keyPrefix, i))
@@ -740,4 +721,10 @@ func deleteDir(kubeconfigPath, namespace, podName, containerName string, dirPath
 		return fmt.Errorf("failed to delete directory %s for %s: stdout: %s; stderr: %s; err: %v", dirPath, podName, stdout, stderr, err)
 	}
 	return nil
+}
+
+func getEnvAndExpectNoError(key string) string {
+	val, err := getEnvOrError(key)
+	utilruntime.Must(err)
+	return val
 }

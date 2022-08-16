@@ -43,11 +43,12 @@ function create_gcs_bucket() {
     gsutil mb -b on gs://${TEST_ID}
     echo "Successfully created GCS bucket ${TEST_ID} ."
   else
-    if [[ $result != "" ]]; then
-      echo $result
-      exit 1
+    if [[ $result =~ ${TEST_ID} ]] || [[ $result == "" ]]; then
+      echo "GCS bucket already exists, nothing todo."
+      exit 0
     fi
-    echo "GCS bucket already exists, nothing todo."
+    echo $result
+    exit 1
   fi
 }
 

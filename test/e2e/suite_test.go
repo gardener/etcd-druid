@@ -20,21 +20,18 @@ import (
 	"testing"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
 	"github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
 
+	"github.com/gardener/gardener/pkg/utils/test/matchers"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 const (
@@ -46,21 +43,15 @@ const (
 
 	certsBasePath = "test/e2e/resources/tls"
 
-	envStorageContainer = "STORAGE_CONTAINER"
+	envStorageContainer = "TEST_ID"
 )
 
 var (
-	logger                  = zap.New(zap.WriteTo(GinkgoWriter))
-	err                     error
-	typedClient             *kubernetes.Clientset
-	sourcePath              string
-	kubeconfigPath          string
-	storageContainer        string
-	providers               map[string]Provider
-	storageProvider         *v1alpha1.StorageProvider
-	S3AccessKeyID           string
-	S3SecretAccessKey       string
-	S3Region                string
+	logger         = zap.New(zap.WriteTo(GinkgoWriter))
+	typedClient    *kubernetes.Clientset
+	sourcePath     string
+	kubeconfigPath string
+
 	storePrefix             = "etcd-main"
 	etcdConfigMapVolumeName = "etcd-config-file"
 
@@ -74,12 +65,11 @@ func TestIntegration(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	ctx := context.Background()
+
 	providers, err := getProviders()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(len(providers)).To(BeNumerically(">", 0))
-	for name := range providers {
-		logger.Info("Will run tests for provider", "providerName", name)
-	}
 
 	sourcePath = getEnvOrFallback(envSourcePath, ".")
 	kubeconfigPath = getEnvAndExpectNoError(envKubeconfigPath)
@@ -88,88 +78,48 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	logger.V(1).Info("setting up k8s client", "KUBECONFIG", kubeconfigPath)
-	typedClient, err = getKubernetesTypedClient(kubeconfigPath)
-	Expect(err).NotTo(HaveOccurred())
-	namespacesClient := typedClient.CoreV1().Namespaces()
+	cl, err := getKubernetesClient(kubeconfigPath)
+	Expect(err).ShouldNot(HaveOccurred())
 
 	logger.Info("creating namespace", "namespace", etcdNamespace)
-	ns, err := namespacesClient.Create(context.TODO(), &corev1.Namespace{
+	err = cl.Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: etcdNamespace,
 		},
-	}, metav1.CreateOptions{})
+	})
+	if apierrors.IsAlreadyExists(err) {
+		err = nil
+	}
 	Expect(err).NotTo(HaveOccurred())
-
-	Eventually(func() error {
-		_, err := namespacesClient.Get(context.TODO(), ns.Name, metav1.GetOptions{})
-		return err
-	}, timeout, pollingInterval).Should(BeNil())
-	logger.Info("created namespace", "namespace", client.ObjectKeyFromObject(ns))
 
 	// deploy TLS secrets
-	secretsClient := typedClient.CoreV1().Secrets(etcdNamespace)
-
 	certsPath := path.Join(sourcePath, certsBasePath)
-	_, err = buildAndDeployTLSSecrets(logger, certsPath, providers, secretsClient)
-	Expect(err).NotTo(HaveOccurred())
-
-	// initialize object storage providers
-	storageContainer = getEnvAndExpectNoError(envStorageContainer)
-
-	for providerName, provider := range providers {
-		if providerName == providerLocal {
-			continue
-		}
-
-		snapstoreProvider := provider.StorageProvider
-		store, err := getSnapstore(snapstoreProvider, storageContainer, storePrefix)
-		Expect(err).ShouldNot(HaveOccurred())
-
-		// purge any existing backups in bucket
-		err = purgeSnapstore(store)
-		Expect(err).ShouldNot(HaveOccurred())
-	}
-
-	// build and deploy etcd-backup secrets
-	secrets, err := deployBackupSecrets(logger, secretsClient, providers, etcdNamespace, storageContainer)
-	Expect(err).NotTo(HaveOccurred())
-	for _, secret := range secrets {
-		Eventually(func() error {
-			_, err := secretsClient.Get(context.TODO(), secret.Name, metav1.GetOptions{})
-			return err
-		}, timeout, pollingInterval).Should(BeNil())
-		logger.Info("created secret", "secret", client.ObjectKeyFromObject(secret))
-	}
+	Expect(buildAndDeployTLSSecrets(ctx, cl, logger, etcdNamespace, certsPath, providers)).To(Succeed())
 })
 
 var _ = AfterSuite(func() {
+	return
+	ctx := context.Background()
+
 	kubeconfigPath, err := getEnvOrError(envKubeconfigPath)
 	Expect(err).NotTo(HaveOccurred())
 
 	logger.V(1).Info("setting up k8s client using", " KUBECONFIG", kubeconfigPath)
-	typedClient, err = getKubernetesTypedClient(kubeconfigPath)
-	Expect(err).NotTo(HaveOccurred())
-	namespacesClient := typedClient.CoreV1().Namespaces()
+	cl, err := getKubernetesClient(kubeconfigPath)
+	Expect(err).ShouldNot(HaveOccurred())
 
 	namespaceLogger := logger.WithValues("namespace", etcdNamespace)
 
 	namespaceLogger.Info("deleting namespace")
-	namespacesClient = typedClient.CoreV1().Namespaces()
-	err = namespacesClient.Delete(context.TODO(), etcdNamespace, metav1.DeleteOptions{})
-	if apierrors.IsNotFound(err) {
-		namespaceLogger.Info("namespace does not exist")
-	} else {
-		Expect(err).NotTo(HaveOccurred())
-	}
-	Eventually(func() error {
-		_, err = namespacesClient.Get(context.TODO(), etcdNamespace, metav1.GetOptions{})
-		return err
-	}, timeout*2, pollingInterval).Should(matchers.BeNotFoundError())
-	namespaceLogger.Info("deleted namespace")
-})
-
-func getEnvAndExpectNoError(key string) string {
-	val, err := getEnvOrError(key)
+	err = cl.Delete(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: etcdNamespace,
+		},
+	})
+	err = client.IgnoreNotFound(err)
 	Expect(err).NotTo(HaveOccurred())
-	return val
-}
+
+	Eventually(func() error {
+		return cl.Get(ctx, client.ObjectKey{Name: etcdNamespace}, &corev1.Namespace{})
+	}, timeout*2, pollingInterval).Should(matchers.BeNotFoundError())
+})
