@@ -163,7 +163,7 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 		patch       = client.StrategicMergeFrom(stsOriginal)
 	)
 
-	podVolumes, err := getVolumes(ctx, c.client, c.values)
+	podVolumes, err := getVolumes(ctx, c.client, c.logger, c.values)
 	if err != nil {
 		return err
 	}
@@ -483,7 +483,7 @@ func getBackupRestoreVolumeMounts(val Values) []corev1.VolumeMount {
 		if val.BackupStore.Container != nil {
 			vms = append(vms, corev1.VolumeMount{
 				Name:      "host-storage",
-				MountPath: *val.BackupStore.Container,
+				MountPath: pointer.StringPtrDerefOr(val.BackupStore.Container, ""),
 			})
 		}
 	case utils.GCS:
@@ -531,7 +531,7 @@ func getBackupResources(val Values) corev1.ResourceRequirements {
 	return defaultResourceRequirements
 }
 
-func getVolumes(ctx context.Context, cl client.Client, val Values) ([]corev1.Volume, error) {
+func getVolumes(ctx context.Context, cl client.Client, logger logr.Logger, val Values) ([]corev1.Volume, error) {
 	vs := []corev1.Volume{
 		{
 			Name: "etcd-config-file",
@@ -610,7 +610,7 @@ func getVolumes(ctx context.Context, cl client.Client, val Values) ([]corev1.Vol
 
 	switch provider {
 	case "Local":
-		hostPath, err := utils.GetHostMountPathFromSecretRef(ctx, cl, storeValues, val.Namespace)
+		hostPath, err := utils.GetHostMountPathFromSecretRef(ctx, cl, logger, storeValues, val.Namespace)
 		if err != nil {
 			return nil, err
 		}
@@ -620,12 +620,16 @@ func getVolumes(ctx context.Context, cl client.Client, val Values) ([]corev1.Vol
 			Name: "host-storage",
 			VolumeSource: corev1.VolumeSource{
 				HostPath: &corev1.HostPathVolumeSource{
-					Path: hostPath + "/" + *storeValues.Container,
+					Path: hostPath + "/" + pointer.StringPtrDerefOr(storeValues.Container, ""),
 					Type: &hpt,
 				},
 			},
 		})
 	case utils.GCS, utils.S3, utils.OSS, utils.ABS, utils.Swift, utils.OCS:
+		if storeValues.SecretRef == nil {
+			return nil, fmt.Errorf("no secretRef configured for backup store")
+		}
+
 		vs = append(vs, corev1.Volume{
 			Name: "etcd-backup",
 			VolumeSource: corev1.VolumeSource{

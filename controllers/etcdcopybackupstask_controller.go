@@ -290,11 +290,11 @@ func (r *EtcdCopyBackupsTaskReconciler) getChartValues(ctx context.Context, task
 		"ownerUID":  task.UID,
 	}
 
-	sourceStoreValues, err := utils.GetStoreValues(ctx, r.Client, &task.Spec.SourceStore, task.Namespace)
+	sourceStoreValues, err := utils.GetStoreValues(ctx, r.Client, r.logger, &task.Spec.SourceStore, task.Namespace)
 	if err != nil {
 		return nil, err
 	}
-	targetStoreValues, err := utils.GetStoreValues(ctx, r.Client, &task.Spec.TargetStore, task.Namespace)
+	targetStoreValues, err := utils.GetStoreValues(ctx, r.Client, r.logger, &task.Spec.TargetStore, task.Namespace)
 	if err != nil {
 		return nil, err
 	}
