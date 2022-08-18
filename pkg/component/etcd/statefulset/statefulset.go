@@ -163,6 +163,11 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 		patch       = client.StrategicMergeFrom(stsOriginal)
 	)
 
+	podVolumes, err := getVolumes(ctx, c.client, c.values)
+	if err != nil {
+		return err
+	}
+
 	sts.ObjectMeta = getObjectMeta(&c.values)
 	sts.Spec = appsv1.StatefulSetSpec{
 		PodManagementPolicy: appsv1.ParallelPodManagement,
@@ -244,7 +249,7 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 					},
 				},
 				ShareProcessNamespace: pointer.Bool(true),
-				Volumes:               getVolumes(c.values),
+				Volumes:               podVolumes,
 			},
 		},
 		VolumeClaimTemplates: []corev1.PersistentVolumeClaim{
@@ -526,7 +531,7 @@ func getBackupResources(val Values) corev1.ResourceRequirements {
 	return defaultResourceRequirements
 }
 
-func getVolumes(val Values) []corev1.Volume {
+func getVolumes(ctx context.Context, cl client.Client, val Values) ([]corev1.Volume, error) {
 	vs := []corev1.Volume{
 		{
 			Name: "etcd-config-file",
@@ -594,23 +599,28 @@ func getVolumes(val Values) []corev1.Volume {
 	}
 
 	if val.BackupStore == nil {
-		return vs
+		return vs, nil
 	}
 
 	storeValues := val.BackupStore
 	provider, err := utils.StorageProviderFromInfraProvider(storeValues.Provider)
 	if err != nil {
-		return vs
+		return vs, nil
 	}
 
 	switch provider {
 	case "Local":
+		hostPath, err := utils.GetHostMountPathFromSecretRef(ctx, cl, storeValues, val.Namespace)
+		if err != nil {
+			return nil, err
+		}
+
 		hpt := corev1.HostPathDirectory
 		vs = append(vs, corev1.Volume{
 			Name: "host-storage",
 			VolumeSource: corev1.VolumeSource{
 				HostPath: &corev1.HostPathVolumeSource{
-					Path: defaultLocalPrefix + "/" + *storeValues.Container,
+					Path: hostPath + "/" + *storeValues.Container,
 					Type: &hpt,
 				},
 			},
@@ -626,7 +636,7 @@ func getVolumes(val Values) []corev1.Volume {
 		})
 	}
 
-	return vs
+	return vs, nil
 }
 
 func getBackupRestoreEnvVars(val Values) []corev1.EnvVar {

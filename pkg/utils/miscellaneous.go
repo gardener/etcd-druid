@@ -172,7 +172,7 @@ func GetStoreValues(ctx context.Context, client client.Client, store *druidv1alp
 		"storageProvider": storageProvider,
 	}
 	if strings.EqualFold(string(*store.Provider), Local) {
-		mountPath, err := getHostMountPathFromSecretRef(ctx, client, store, namespace)
+		mountPath, err := GetHostMountPathFromSecretRef(ctx, client, store, namespace)
 		if err != nil {
 			return nil, err
 		}
@@ -187,7 +187,8 @@ func GetStoreValues(ctx context.Context, client client.Client, store *druidv1alp
 	return storeValues, nil
 }
 
-func getHostMountPathFromSecretRef(ctx context.Context, client client.Client, store *druidv1alpha1.StoreSpec, namespace string) (string, error) {
+// GetHostMountPathFromSecretRef returns the hostPath configured for the given store.
+func GetHostMountPathFromSecretRef(ctx context.Context, client client.Client, store *druidv1alpha1.StoreSpec, namespace string) (string, error) {
 	secret := &corev1.Secret{}
 	if err := client.Get(ctx, Key(namespace, store.SecretRef.Name), secret); err != nil {
 		return "", err
