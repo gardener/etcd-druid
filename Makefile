@@ -17,13 +17,14 @@ VERSION             := $(shell cat VERSION)
 REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
 REGISTRY            := eu.gcr.io/gardener-project/gardener
 IMAGE_REPOSITORY    := $(REGISTRY)/etcd-druid
-IMAGE_TAG           := $(VERSION)
+IMAGE_BUILD_TAG     := $(VERSION)
 BUILD_DIR           := build
+PROVIDERS           := ""
 
 # TODO(timuthy): Remove this as soon as vendored to new gardener/gardener version.
 GOLANGCI_LINT_VERSION := v1.45.2
 
-IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_TAG}
+IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 
 #########################################
 # Tools                                 #
@@ -68,6 +69,7 @@ deploy: manifests
 .PHONY: manifests
 manifests: $(CONTROLLER_GEN)
 	@go generate ./config/crd/bases
+	@find "$(REPO_ROOT)/config/crd/bases" -name "*.yaml" -exec cp '{}' "$(REPO_ROOT)/charts/druid/charts/crds/templates/" \;
 	@controller-gen rbac:roleName=manager-role paths="./controllers/..."
 
 # Run go fmt against code
@@ -118,6 +120,10 @@ test-cov: $(GINKGO) $(SETUP_ENVTEST)
 .PHONY: test-cov-clean
 test-cov-clean:
 	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/test-cover-clean.sh"
+
+.PHONY: test-e2e
+test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD)
+	@"$(REPO_ROOT)/hack/e2e-test/run-e2e-test.sh" $(PROVIDERS)
 
 .PHONY: update-dependencies
 update-dependencies:

@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namePrefix: gcp-
+
+resources:
+- ../../../base
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+- name: infra-cm
+  envs:
+  - gcp.env
+- name: infra-common
+  files:
+  - ./files/common.sh
+
+secretGenerator:
+- name: infra-secret
+  files:
+  - ./assets/serviceaccount.json
+
+patchesStrategicMerge:
+- job-patch.yaml

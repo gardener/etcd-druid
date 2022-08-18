@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: infra-job
+spec:
+  template:
+    spec:
+      containers:
+      - name: infra
+        env:
+        - name: GCP_SERVICEACCOUNT_JSON_PATH
+          value: /var/lib/infra/data/credentials/serviceaccount.json
+        envFrom:
+        - configMapRef:
+            name: infra-cm
+        volumeMounts:
+        - name: common
+          mountPath: /var/lib/infra/data/common
+        - name: credentials
+          mountPath: /var/lib/infra/data/credentials
+      volumes:
+      - name: common
+        configMap:
+          name: infra-common
+          defaultMode: 0755
+      - name: credentials
+        secret:
+          secretName: infra-secret
+          defaultMode: 0600

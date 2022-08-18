@@ -1,0 +1,24 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    role: infra-job
+  name: infra-job
+spec:
+  template:
+    spec:
+      containers:
+      - name: infra
+        image: eu.gcr.io/gardener-project/gardener/ops-toolbelt-gardenctl:0.13.0
+        command: ["/bin/bash"]
+        args: ["-c", "/var/lib/infra/data/run/run.sh"]
+        volumeMounts:
+        - name: run
+          mountPath: /var/lib/infra/data/run
+      restartPolicy: Never
+      volumes:
+      - name: run
+        configMap:
+          name: run-script
+          defaultMode: 0755
+  backoffLimit: 4

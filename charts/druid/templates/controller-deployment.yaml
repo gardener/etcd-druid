@@ -1,0 +1,36 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      gardener.cloud/role: etcd-druid
+  template:
+    metadata:
+      labels:
+        gardener.cloud/role: etcd-druid
+    spec:
+      serviceAccountName: etcd-druid
+      containers:
+      - name: etcd-druid
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.imagePullPolicy }}
+        command:
+        - /etcd-druid
+        - --enable-leader-election=true
+        - --ignore-operation-annotation={{ .Values.ignoreOperationAnnotation }}
+        - --workers=3
+        resources:
+          limits:
+            cpu: 300m
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        ports:
+        - containerPort: 9569
