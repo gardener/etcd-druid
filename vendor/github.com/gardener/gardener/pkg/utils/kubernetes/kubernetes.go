@@ -26,7 +26,7 @@ import (
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/retry"
 
-	"github.com/sirupsen/logrus"
+	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	certificatesv1 "k8s.io/api/certificates/v1"
 	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
@@ -130,6 +130,14 @@ func ObjectMetaFromKey(key client.ObjectKey) metav1.ObjectMeta {
 	return ObjectMeta(key.Namespace, key.Name)
 }
 
+// ObjectKeyFromSecretRef returns an ObjectKey for the given SecretReference.
+func ObjectKeyFromSecretRef(ref corev1.SecretReference) client.ObjectKey {
+	return client.ObjectKey{
+		Namespace: ref.Namespace,
+		Name:      ref.Name,
+	}
+}
+
 // WaitUntilResourceDeleted deletes the given resource and then waits until it has been deleted. It respects the
 // given interval and timeout.
 func WaitUntilResourceDeleted(ctx context.Context, c client.Client, obj client.Object, interval time.Duration) error {
@@ -182,27 +190,37 @@ func WaitUntilResourceDeletedWithDefaults(ctx context.Context, c client.Client, 
 
 // WaitUntilLoadBalancerIsReady waits until the given external load balancer has
 // been created (i.e., its ingress information has been updated in the service status).
-func WaitUntilLoadBalancerIsReady(ctx context.Context, c client.Client, namespace, name string, timeout time.Duration, logger logrus.FieldLogger) (string, error) {
+func WaitUntilLoadBalancerIsReady(
+	ctx context.Context,
+	log logr.Logger,
+	c client.Client,
+	namespace, name string,
+	timeout time.Duration,
+) (
+	string,
+	error,
+) {
 	var (
 		loadBalancerIngress string
 		service             = &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
 	)
 
+	log = log.WithValues("service", client.ObjectKeyFromObject(service))
+
 	if err := retry.UntilTimeout(ctx, 5*time.Second, timeout, func(ctx context.Context) (done bool, err error) {
 		loadBalancerIngress, err = GetLoadBalancerIngress(ctx, c, service)
 		if err != nil {
-			logger.Infof("Waiting until the %s service is ready...", name)
-			// TODO(AC): This is a quite optimistic check / we should differentiate here
+			log.Info("Waiting until service is ready")
 			return retry.MinorError(fmt.Errorf("%s service is not ready: %v", name, err))
 		}
 		return retry.Ok()
 	}); err != nil {
-		logger.Errorf("error %v occurred while waiting for load balancer to be ready", err)
+		log.Error(err, "Error while waiting for load balancer to be ready")
 
 		// use API reader here, we don't want to cache all events
 		eventsErrorMessage, err2 := FetchEventMessages(ctx, c.Scheme(), c, service, corev1.EventTypeWarning, 2)
 		if err2 != nil {
-			logger.Errorf("error %v occurred while fetching events for load balancer service", err2)
+			log.Error(err2, "Error while fetching events for load balancer service")
 			return "", fmt.Errorf("'%w' occurred but could not fetch events for more information", err)
 		}
 		if eventsErrorMessage != "" {
@@ -634,15 +652,16 @@ func CertificatesV1beta1UsagesToCertificatesV1Usages(usages []certificatesv1beta
 }
 
 // NewKubeconfig returns a new kubeconfig structure.
-func NewKubeconfig(contextName, server string, caCert []byte, authInfo clientcmdv1.AuthInfo) *clientcmdv1.Config {
+func NewKubeconfig(contextName string, cluster clientcmdv1.Cluster, authInfo clientcmdv1.AuthInfo) *clientcmdv1.Config {
+	if !strings.HasPrefix(cluster.Server, "https://") {
+		cluster.Server = "https://" + cluster.Server
+	}
+
 	return &clientcmdv1.Config{
 		CurrentContext: contextName,
 		Clusters: []clientcmdv1.NamedCluster{{
-			Name: contextName,
-			Cluster: clientcmdv1.Cluster{
-				Server:                   `https://` + server,
-				CertificateAuthorityData: caCert,
-			},
+			Name:    contextName,
+			Cluster: cluster,
 		}},
 		AuthInfos: []clientcmdv1.NamedAuthInfo{{
 			Name:     contextName,
@@ -656,4 +675,19 @@ func NewKubeconfig(contextName, server string, caCert []byte, authInfo clientcmd
 			},
 		}},
 	}
+}
+
+// ObjectKeyForCreateWebhooks creates an object key for an object handled by webhooks registered for CREATE verbs.
+func ObjectKeyForCreateWebhooks(obj client.Object) client.ObjectKey {
+	namespace := obj.GetNamespace()
+	if len(namespace) == 0 {
+		namespace = metav1.NamespaceDefault
+	}
+
+	name := obj.GetName()
+	if len(name) == 0 {
+		name = obj.GetGenerateName()
+	}
+
+	return client.ObjectKey{Namespace: namespace, Name: name}
 }

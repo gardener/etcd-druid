@@ -21,11 +21,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gardener/gardener/pkg/logger"
 	utilerrors "github.com/gardener/gardener/pkg/utils/errors"
 
+	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
-	"github.com/sirupsen/logrus"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
@@ -97,8 +97,8 @@ func (n *node) addTargets(taskIDs ...TaskID) {
 // Opts are options for a Flow execution. If they are not set, they
 // are left blank and don't affect the Flow.
 type Opts struct {
-	// Logger is used to log any output during flow execution.
-	Logger logrus.FieldLogger
+	// Log is used to log any output during flow execution.
+	Log logr.Logger
 	// ProgressReporter is used to report the progress during flow execution.
 	ProgressReporter ProgressReporter
 	// ErrorCleaner is used to clean up a previously failed task.
@@ -110,7 +110,7 @@ type Opts struct {
 // Run starts an execution of a Flow.
 // It blocks until the Flow has finished and returns the error, if any.
 func (f *Flow) Run(ctx context.Context, opts Opts) error {
-	return newExecution(f, opts.Logger, opts.ProgressReporter, opts.ErrorCleaner, opts.ErrorContext).run(ctx)
+	return newExecution(f, opts).run(ctx)
 }
 
 type nodeResult struct {
@@ -159,26 +159,26 @@ func InitialStats(flowName string, all TaskIDs) *Stats {
 	}
 }
 
-func newExecution(flow *Flow, log logrus.FieldLogger, progressReporter ProgressReporter, errorCleaner ErrorCleaner, errorContext *utilerrors.ErrorContext) *execution {
+func newExecution(flow *Flow, opts Opts) *execution {
 	all := NewTaskIDs()
 
 	for name := range flow.nodes {
 		all.Insert(name)
 	}
 
-	if log == nil {
-		log = logger.NewNopLogger()
+	log := logf.Log.WithName("flow").WithValues(logKeyFlow, flow.name)
+	if opts.Log.GetSink() != nil {
+		log = opts.Log.WithValues(logKeyFlow, flow.name)
 	}
-	log = log.WithField(logKeyFlow, flow.name)
 
 	return &execution{
 		flow,
 		InitialStats(flow.name, all),
 		nil,
 		log,
-		progressReporter,
-		errorCleaner,
-		errorContext,
+		opts.ProgressReporter,
+		opts.ErrorCleaner,
+		opts.ErrorContext,
 		make(chan *nodeResult),
 		make(map[TaskID]int),
 	}
@@ -190,17 +190,13 @@ type execution struct {
 	stats      *Stats
 	taskErrors []error
 
-	log              logrus.FieldLogger
+	log              logr.Logger
 	progressReporter ProgressReporter
 	errorCleaner     ErrorCleaner
 	errorContext     *utilerrors.ErrorContext
 
 	done          chan *nodeResult
 	triggerCounts map[TaskID]int
-}
-
-func (e *execution) Log() logrus.FieldLogger {
-	return e.log
 }
 
 func (e *execution) runNode(ctx context.Context, id TaskID) {
@@ -210,19 +206,18 @@ func (e *execution) runNode(ctx context.Context, id TaskID) {
 	e.stats.Pending.Delete(id)
 	e.stats.Running.Insert(id)
 	go func() {
-		log := e.log.WithField(logKeyTask, id)
-
 		start := time.Now().UTC()
-		log.Debugf("Started")
+
+		e.log.WithValues(logKeyTask, id).V(1).Info("Started")
 		err := e.flow.nodes[id].fn(ctx)
 		end := time.Now().UTC()
-		log.Debugf("Finished, took %s", end.Sub(start))
+		e.log.WithValues(logKeyTask, id).V(1).Info("Finished", "duration", end.Sub(start))
 
 		if err != nil {
-			log.WithError(err).Error("Error")
+			e.log.WithValues(logKeyTask, id).Error(err, "Error")
 			err = fmt.Errorf("task %q failed: %w", id, err)
 		} else {
-			log.Info("Succeeded")
+			e.log.WithValues(logKeyTask, id).Info("Succeeded")
 		}
 
 		e.done <- &nodeResult{TaskID: id, Error: err}
@@ -343,7 +338,7 @@ func (f *flowCanceled) Error() string {
 		f.name, f.cause, f.taskErrors)
 }
 
-func (f *flowCanceled) Cause() error {
+func (f *flowCanceled) Unwrap() error {
 	return f.cause
 }
 
@@ -351,7 +346,7 @@ func (f *flowFailed) Error() string {
 	return fmt.Sprintf("flow %q encountered task errors: %v", f.name, f.taskErrors)
 }
 
-func (f *flowFailed) Cause() error {
+func (f *flowFailed) Unwrap() error {
 	return &multierror.Error{Errors: f.taskErrors}
 }
 
