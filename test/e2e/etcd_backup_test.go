@@ -61,10 +61,6 @@ var _ = Describe("Etcd Backup", func() {
 
 					etcdName = fmt.Sprintf("etcd-%s", provider.Name)
 
-					if provider.Storage == nil || provider.Storage.Provider == providerLocal {
-						return
-					}
-
 					storageContainer = getEnvAndExpectNoError(envStorageContainer)
 
 					snapstoreProvider := provider.Storage.Provider
@@ -78,7 +74,7 @@ var _ = Describe("Etcd Backup", func() {
 				})
 
 				It("should create, test backup and delete etcd with backup", func() {
-					ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Minute)
+					ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
 					defer cancelFunc()
 
 					etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)

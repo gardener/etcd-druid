@@ -13,10 +13,15 @@ which is deployed as a side-car to the actual `etcd` container.
 ## Prerequisites
 
 The e2e test lifecycle is managed with the help of [skaffold](https://skaffold.dev/). Every involved step like `setup`,
-`deploy` or `cleanup` is executed against a **Kubernetes** cluster which makes it a mandatory prerequisite at the same time.
+`deploy`, `undeploy` or `cleanup` is executed against a **Kubernetes** cluster which makes it a mandatory prerequisite at the same time.
 Only [skaffold](https://skaffold.dev/) itself with involved `docker`, `helm` and `kubectl` executions as well as 
 the e2e-tests are executed locally. Required binaries are automatically downloaded if you use the corresponding `make` target,
 as described in this document.
+
+It's expected that especially the `deploy` step is run against a Kubernetes cluster which doesn't contain an Druid deployment or any left-overs like `druid.gardener.cloud` CRDs.
+The `deploy` step will likely fail in such scenarios.
+
+> Tip: Create a fresh [KinD](https://kind.sigs.k8s.io/) cluster or a similar one with a small footprint before executing the tests. 
 
 ## Providers
 
