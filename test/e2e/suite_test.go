@@ -98,7 +98,6 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	return
 	ctx := context.Background()
 
 	kubeconfigPath, err := getEnvOrError(envKubeconfigPath)
