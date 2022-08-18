@@ -256,11 +256,13 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 					AccessModes: []corev1.PersistentVolumeAccessMode{
 						corev1.ReadWriteOnce,
 					},
-					StorageClassName: c.values.StorageClass,
-					Resources:        getStorageReq(c.values),
+					Resources: getStorageReq(c.values),
 				},
 			},
 		},
+	}
+	if c.values.StorageClass != nil && *c.values.StorageClass != "" {
+		sts.Spec.VolumeClaimTemplates[0].Spec.StorageClassName = c.values.StorageClass
 	}
 	if c.values.PriorityClassName != nil {
 		sts.Spec.Template.Spec.PriorityClassName = *c.values.PriorityClassName
