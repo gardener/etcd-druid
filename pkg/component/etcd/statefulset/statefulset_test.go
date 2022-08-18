@@ -220,6 +220,23 @@ var _ = Describe("Statefulset", func() {
 					sts := &appsv1.StatefulSet{}
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
 					checkStatefulset(sts, values)
+					Expect(sts.Spec.ServiceName).To(Equal(values.PeerServiceName))
+				})
+
+				It("should re-create statefulset because podManagementPolicy is changed", func() {
+					sts.Generation = 2
+					sts.Spec.PodManagementPolicy = appsv1.OrderedReadyPodManagement
+					sts.Spec.ServiceName = values.PeerServiceName
+					sts.Spec.Replicas = pointer.Int32Ptr(3)
+					Expect(cl.Create(ctx, sts)).To(Succeed())
+
+					values.Replicas = 3
+					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
+
+					sts := &appsv1.StatefulSet{}
+					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
+					checkStatefulset(sts, values)
+					Expect(sts.Spec.PodManagementPolicy).To(Equal(appsv1.ParallelPodManagement))
 				})
 			})
 		})
