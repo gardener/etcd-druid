@@ -72,19 +72,20 @@ func (c *component) Deploy(ctx context.Context) error {
 		sts = c.emptyStatefulset()
 	}
 
-	if sts.Generation > 1 && sts.Spec.ServiceName != c.values.PeerServiceName {
-		// Earlier clusters referred to the client service in `sts.Spec.ServiceName` which must be changed
-		// when a multi-node cluster is used, see https://github.com/gardener/etcd-druid/pull/293.
-		if clusterScaledUpToMultiNode(c.values) {
-			deleteAndWait := gardenercomponent.OpDestroyAndWait(c)
-			if err := deleteAndWait.Destroy(ctx); err != nil {
-				return err
-			}
-			sts = c.emptyStatefulset()
+	if sts.Generation > 1 && clusterScaledUpToMultiNode(c.values) && immutableFieldUpdate(sts, c.values) {
+		// Several immutable fields must be reset for the multi-node use-case.
+		deleteAndWait := gardenercomponent.OpDestroyAndWait(c)
+		if err := deleteAndWait.Destroy(ctx); err != nil {
+			return err
 		}
+		sts = c.emptyStatefulset()
 	}
 
 	return c.syncStatefulset(ctx, sts)
+}
+
+func immutableFieldUpdate(sts *appsv1.StatefulSet, val Values) bool {
+	return sts.Spec.ServiceName != val.PeerServiceName || sts.Spec.PodManagementPolicy != appsv1.ParallelPodManagement
 }
 
 func (c *component) Destroy(ctx context.Context) error {
@@ -269,6 +270,9 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 	}
 
 	if stsOriginal.Generation > 0 {
+		// Keep immutable fields
+		sts.Spec.PodManagementPolicy = stsOriginal.Spec.PodManagementPolicy
+		sts.Spec.ServiceName = stsOriginal.Spec.ServiceName
 		return c.client.Patch(ctx, sts, patch)
 	}
 
