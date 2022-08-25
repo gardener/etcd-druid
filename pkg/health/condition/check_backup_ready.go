@@ -36,7 +36,8 @@ const (
 	// BackupFailed is a constant that means that etcd backup has failed
 	BackupFailed string = "BackupFailed"
 	// Unknown is a constant that means that the etcd backup status is currently not known
-	Unknown string = "Unknown"
+	Unknown             string = "Unknown"
+	ConditionNotChecked string = "ConditionNotChecked"
 )
 
 func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
@@ -46,6 +47,30 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 		status:  druidv1alpha1.ConditionUnknown,
 		reason:  Unknown,
 		message: "Cannot determine etcd backup status",
+	}
+
+	// Special case of etcd not being configured to take snapshots
+	// Do not add the BackupReady condition if backup is not configured
+	if etcd.Spec.Backup.Store == nil {
+		return nil
+	}
+
+	// Special case of etcd being scaled down
+	if etcd.Spec.Replicas == 0 {
+		etcdConditions := etcd.Status.Conditions
+		var bckpCond druidv1alpha1.Condition
+
+		for _, condition := range etcdConditions {
+			if condition.Type == druidv1alpha1.ConditionTypeBackupReady {
+				bckpCond = condition
+				break
+			}
+		}
+
+		result.status = bckpCond.Status
+		result.reason = ConditionNotChecked
+		result.message = "Statefulset has been scaled down"
+		return result
 	}
 
 	//Fetch snapshot leases
