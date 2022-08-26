@@ -51,9 +51,13 @@ var _ = Describe("BackupReadyCheck", func() {
 					Namespace: "default",
 				},
 				Spec: druidv1alpha1.EtcdSpec{
+					Replicas: 1,
 					Backup: druidv1alpha1.BackupSpec{
 						DeltaSnapshotPeriod: &v1.Duration{
 							Duration: 2 * time.Minute,
+						},
+						Store: &druidv1alpha1.StoreSpec{
+							Prefix: "test-prefix",
 						},
 					},
 				},
@@ -215,6 +219,68 @@ var _ = Describe("BackupReadyCheck", func() {
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
 				Expect(result.Reason()).To(Equal(BackupFailed))
+			})
+		})
+		Context("With no backup store configured", func() {
+			It("Should return nil condition", func() {
+				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease) error {
+						return &noLeaseError
+					},
+				).AnyTimes()
+
+				etcdObj := etcd
+				etcdObj.Spec.Backup.Store = nil
+				check := BackupReadyCheck(cl)
+				result := check.Check(context.TODO(), etcdObj)
+
+				Expect(result).To(BeNil())
+			})
+		})
+		Context("With etcd replicas set to 0", func() {
+			Context("With no prior BackupReady condition being set", func() {
+				It("Should return unknown status along with ConditionNotChecked reason", func() {
+					cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
+						func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease) error {
+							return &noLeaseError
+						},
+					).AnyTimes()
+
+					etcdObj := etcd
+					etcdObj.Spec.Replicas = 0
+					check := BackupReadyCheck(cl)
+					result := check.Check(context.TODO(), etcdObj)
+
+					Expect(result).ToNot(BeNil())
+					Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
+					Expect(result.Reason()).To(Equal(ConditionNotChecked))
+					Expect(result.Message()).To(Equal("Statefulset has been scaled down"))
+				})
+			})
+			Context("With a prior BackupReady condition being set", func() {
+				It("Should return the same status along with ConditionNotChecked reason", func() {
+					cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
+						func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease) error {
+							return &noLeaseError
+						},
+					).AnyTimes()
+
+					etcdObj := etcd
+					etcdObj.Spec.Replicas = 0
+					etcdObj.Status.Conditions = []druidv1alpha1.Condition{
+						{
+							Type:   druidv1alpha1.ConditionTypeBackupReady,
+							Status: druidv1alpha1.ConditionTrue,
+						},
+					}
+					check := BackupReadyCheck(cl)
+					result := check.Check(context.TODO(), etcdObj)
+
+					Expect(result).ToNot(BeNil())
+					Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
+					Expect(result.Reason()).To(Equal(ConditionNotChecked))
+					Expect(result.Message()).To(Equal("Statefulset has been scaled down"))
+				})
 			})
 		})
 	})

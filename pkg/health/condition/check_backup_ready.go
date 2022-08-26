@@ -67,7 +67,11 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 			}
 		}
 
-		result.status = bckpCond.Status
+		if bckpCond.Status == "" {
+			result.status = druidv1alpha1.ConditionUnknown
+		} else {
+			result.status = bckpCond.Status
+		}
 		result.reason = ConditionNotChecked
 		result.message = "Statefulset has been scaled down"
 		return result
