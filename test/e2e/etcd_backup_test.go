@@ -22,6 +22,7 @@ import (
 	"github.com/gardener/etcd-druid/api/v1alpha1"
 
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
+	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -176,7 +177,6 @@ var _ = Describe("Etcd Backup", func() {
 
 					By("Delete etcd")
 					deleteAndCheckEtcd(ctx, cl, objLogger, etcd)
-
 				})
 			})
 		}
@@ -226,54 +226,29 @@ func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 		defer cancelFunc()
 
-		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), &v1alpha1.Etcd{}); err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil
-			}
-			return err
-		}
-		return fmt.Errorf("etcd is being deleted")
-	}, timeout*3, pollingInterval)
+		return cl.Get(ctx, client.ObjectKeyFromObject(etcd), &v1alpha1.Etcd{})
+	}, timeout*3, pollingInterval).Should(matchers.BeNotFoundError())
 
 	logger.Info("Checking if statefulset is gone")
 	Eventually(func() error {
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 		defer cancelFunc()
-
-		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), &appsv1.StatefulSet{}); err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil
-			}
-			return err
-		}
-		return fmt.Errorf("etcd is being deleted")
-	}, timeout, pollingInterval)
+		return cl.Get(ctx, client.ObjectKeyFromObject(etcd), &appsv1.StatefulSet{})
+	}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 
 	logger.Info("Checking if configmap is gone")
 	Eventually(func() error {
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 		defer cancelFunc()
 
-		if err := cl.Get(ctx, client.ObjectKey{Name: "etcd-bootstrap-" + string(etcd.UID[:6]), Namespace: etcd.Namespace}, &corev1.ConfigMap{}); err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil
-			}
-			return err
-		}
-		return fmt.Errorf("etcd is being deleted")
-	}, timeout, pollingInterval)
+		return cl.Get(ctx, client.ObjectKey{Name: "etcd-bootstrap-" + string(etcd.UID[:6]), Namespace: etcd.Namespace}, &corev1.ConfigMap{})
+	}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 
 	logger.Info("Checking client service is gone")
 	Eventually(func() error {
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 		defer cancelFunc()
 
-		if err := cl.Get(ctx, client.ObjectKey{Name: etcd.Name + "-client", Namespace: etcd.Namespace}, &corev1.Service{}); err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil
-			}
-			return err
-		}
-		return fmt.Errorf("etcd is being deleted")
-	}, timeout, pollingInterval)
+		return cl.Get(ctx, client.ObjectKey{Name: etcd.Name + "-client", Namespace: etcd.Namespace}, &corev1.Service{})
+	}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 }
