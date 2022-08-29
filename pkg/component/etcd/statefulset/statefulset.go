@@ -23,7 +23,6 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/utils"
-
 	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/retry"
@@ -71,17 +70,48 @@ func (c *component) Deploy(ctx context.Context) error {
 		}
 		sts = c.emptyStatefulset()
 	}
+	numberOfRecreateRequired := c.getNumTimesToRecreateSts(sts)
+	if numberOfRecreateRequired > 0 {
+		return c.recreateStsNTimes(ctx, numberOfRecreateRequired)
+	} else {
+		return c.syncStatefulset(ctx, sts)
+	}
+}
 
+func (c *component) getNumTimesToRecreateSts(sts *appsv1.StatefulSet) uint8 {
 	if sts.Generation > 1 && clusterScaledUpToMultiNode(c.values) && immutableFieldUpdate(sts, c.values) {
-		// Several immutable fields must be reset for the multi-node use-case.
-		deleteAndWait := gardenercomponent.OpDestroyAndWait(c)
-		if err := deleteAndWait.Destroy(ctx); err != nil {
+		return 1
+	} else if c.peerUrlTLSEnabled() {
+		c.logger.Info("PeerUrl TLS has been enabled for etcd. To reflect this change etcd StatefulSet has to be re-created 2 times", "namespace", c.values.Namespace, "name", c.values.Name, "etcdUID", c.values.EtcdUID)
+		return 2
+	}
+	return 0
+}
+
+func (c *component) recreateStsNTimes(ctx context.Context, times uint8) error {
+	for i := uint8(0); i < times; i++ {
+		c.logger.Info("recreating sts", "namespace", c.values.Namespace, "name", c.values.Name, "recreation-count", i)
+		err := c.recreate(ctx)
+		if err != nil {
 			return err
 		}
-		sts = c.emptyStatefulset()
 	}
+	return nil
+}
 
+func (c *component) recreate(ctx context.Context) error {
+	deleteAndWait := gardenercomponent.OpDestroyAndWait(c)
+	if err := deleteAndWait.Destroy(ctx); err != nil {
+		return err
+	}
+	sts := c.emptyStatefulset()
 	return c.syncStatefulset(ctx, sts)
+}
+
+func (c *component) peerUrlTLSEnabled() bool {
+	peerUrlEnabled := c.values.PeerUrlTLSAlreadyEnabled
+	c.logger.Info("In peerUrlTLSEnabled method", "namespace", c.values.Namespace, "name", c.values.Name, "peerUrlEnabled", peerUrlEnabled, "PeerUrlTLS", c.values.PeerUrlTLS)
+	return peerUrlEnabled != nil && !*peerUrlEnabled && c.values.PeerUrlTLS != nil
 }
 
 func immutableFieldUpdate(sts *appsv1.StatefulSet, val Values) bool {

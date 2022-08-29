@@ -32,7 +32,6 @@ import (
 	componentsts "github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
-
 	extensionspredicate "github.com/gardener/gardener/extensions/pkg/predicate"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/chartrenderer"
@@ -95,6 +94,13 @@ var (
 	// DefaultTimeout is the default timeout for retry operations.
 	DefaultTimeout = 1 * time.Minute
 )
+
+// reconcileResult captures the result of a reconciliation run.
+type reconcileResult struct {
+	peerUrlTLSEnabled bool
+	svcName           *string
+	sts               *appsv1.StatefulSet
+}
 
 // EtcdReconciler reconciles a Etcd object
 type EtcdReconciler struct {
@@ -248,7 +254,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 	if finalizers := sets.NewString(etcd.Finalizers...); !finalizers.Has(FinalizerName) {
 		logger.Info("Adding finalizer")
 		if err := controllerutils.PatchAddFinalizers(ctx, r.Client, etcd, FinalizerName); err != nil {
-			if err := r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
+			if err := r.updateEtcdErrorStatus(ctx, etcd, reconcileResult{}, err); err != nil {
 				return ctrl.Result{
 					Requeue: true,
 				}, err
@@ -291,9 +297,9 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		logger.Info("The running cron job is: " + cronJob.Name)
 	}
 
-	svcName, sts, err := r.reconcileEtcd(ctx, logger, etcd)
+	result, err := r.reconcileEtcd(ctx, logger, etcd)
 	if err != nil {
-		if err := r.updateEtcdErrorStatus(ctx, etcd, sts, err); err != nil {
+		if err := r.updateEtcdErrorStatus(ctx, etcd, result, err); err != nil {
 			logger.Error(err, "Error during reconciling ETCD")
 			return ctrl.Result{
 				Requeue: true,
@@ -303,7 +309,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 			Requeue: true,
 		}, err
 	}
-	if err := r.updateEtcdStatus(ctx, etcd, *svcName, sts); err != nil {
+	if err := r.updateEtcdStatus(ctx, etcd, result); err != nil {
 		return ctrl.Result{
 			Requeue: true,
 		}, err
@@ -337,7 +343,7 @@ func (r *EtcdReconciler) cleanCronJobs(ctx context.Context, logger logr.Logger, 
 	// Calculate time elapsed since the cron job is scheduled
 	timeElapsed := time.Since(cronJob.Status.LastScheduleTime.Time).Seconds()
 	// Delete the cron job if it's running for more than 3 hours
-	if timeElapsed > time.Duration(3*time.Hour).Seconds() {
+	if timeElapsed > (3 * time.Hour).Seconds() {
 		if err := client.IgnoreNotFound(r.Delete(ctx, cronJob, client.PropagationPolicy(metav1.DeletePropagationForeground))); err != nil {
 			return nil, err
 		}
@@ -368,7 +374,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 
 	stsDeployer := gardenercomponent.OpDestroyAndWait(componentsts.New(r.Client, logger, componentsts.Values{Name: etcd.Name, Namespace: etcd.Namespace}))
 	if err := stsDeployer.Destroy(ctx); err != nil {
-		if err = r.updateEtcdErrorStatus(ctx, etcd, nil, err); err != nil {
+		if err = r.updateEtcdErrorStatus(ctx, etcd, reconcileResult{}, err); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -605,21 +611,21 @@ func (r *EtcdReconciler) reconcileRoleBinding(ctx context.Context, logger logr.L
 	return err
 }
 
-func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*string, *appsv1.StatefulSet, error) {
+func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (reconcileResult, error) {
 	// Check if Spec.Replicas is odd or even.
 	// TODO(timuthy): The following checks should rather be part of a validation. Also re-enqueuing doesn't make sense in case the values are invalid.
 	if etcd.Spec.Replicas > 1 && etcd.Spec.Replicas&1 == 0 {
-		return nil, nil, fmt.Errorf("Spec.Replicas should not be even number: %d", etcd.Spec.Replicas)
+		return reconcileResult{}, fmt.Errorf("Spec.Replicas should not be even number: %d", etcd.Spec.Replicas)
 	}
 
 	etcdImage, etcdBackupImage, err := getEtcdImages(r.ImageVector, etcd)
 	if err != nil {
-		return nil, nil, err
+		return reconcileResult{}, err
 	}
 
 	if etcd.Spec.Etcd.Image == nil {
 		if etcdImage == "" {
-			return nil, nil, fmt.Errorf("either etcd resource or image vector should have %s image while deploying statefulset", common.Etcd)
+			return reconcileResult{}, fmt.Errorf("either etcd resource or image vector should have %s image while deploying statefulset", common.Etcd)
 		}
 	} else {
 		etcdImage = *etcd.Spec.Etcd.Image
@@ -627,7 +633,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 
 	if etcd.Spec.Backup.Image == nil {
 		if etcdBackupImage == "" {
-			return nil, nil, fmt.Errorf("either etcd resource or image vector should have %s image while deploying statefulset", common.BackupRestore)
+			return reconcileResult{}, fmt.Errorf("either etcd resource or image vector should have %s image while deploying statefulset", common.BackupRestore)
 		}
 	} else {
 		etcdBackupImage = *etcd.Spec.Backup.Image
@@ -636,44 +642,53 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 	leaseValues := componentlease.GenerateValues(etcd)
 	leaseDeployer := componentlease.New(r.Client, etcd.Namespace, leaseValues)
 	if err := leaseDeployer.Deploy(ctx); err != nil {
-		return nil, nil, err
+		return reconcileResult{}, err
 	}
 
 	serviceValues := componentservice.GenerateValues(etcd)
 	serviceDeployer := componentservice.New(r.Client, etcd.Namespace, serviceValues)
 	if err := serviceDeployer.Deploy(ctx); err != nil {
-		return nil, nil, err
+		return reconcileResult{}, err
 	}
 
 	configMapValues := componentconfigmap.GenerateValues(etcd)
+
+	// -------------------------- BEGIN: To be removed later --------------------------------------
+	// This is a temporary method call. See method description for more information.
+	err = r.capturePeerUrlTLSEnabledStatus(ctx, etcd, types.NamespacedName{Namespace: etcd.Namespace, Name: configMapValues.ConfigMapName})
+	if err != nil {
+		return reconcileResult{}, err
+	}
+	// -------------------------- END: To be removed later --------------------------------------
+
 	cmDeployer := componentconfigmap.New(r.Client, etcd.Namespace, configMapValues)
 	if err := cmDeployer.Deploy(ctx); err != nil {
-		return nil, nil, err
+		return reconcileResult{}, err
 	}
 
 	values, err := r.getMapFromEtcd(etcd, r.disableEtcdServiceAccountAutomount)
 	if err != nil {
-		return nil, nil, err
+		return reconcileResult{}, err
 	}
 
 	err = r.reconcileServiceAccount(ctx, logger, etcd, values)
 	if err != nil {
-		return nil, nil, err
+		return reconcileResult{}, err
 	}
 
 	err = r.reconcileRole(ctx, logger, etcd, values)
 	if err != nil {
-		return nil, nil, err
+		return reconcileResult{}, err
 	}
 
 	err = r.reconcileRoleBinding(ctx, logger, etcd, values)
 	if err != nil {
-		return nil, nil, err
+		return reconcileResult{}, err
 	}
 
 	err = r.reconcilePodDisruptionBudget(ctx, logger, etcd, values)
 	if err != nil {
-		return nil, nil, err
+		return reconcileResult{}, err
 	}
 
 	statefulSetValues := statefulset.GenerateValues(etcd,
@@ -693,13 +708,95 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 	)
 
 	if err := deployWaiter.Deploy(ctx); err != nil {
-		return nil, nil, err
+		return reconcileResult{}, err
 	}
 
 	sts, err := stsDeployer.Get(ctx)
-
-	return &serviceValues.ClientServiceName, sts, err
+	return reconcileResult{
+		peerUrlTLSEnabled: false,
+		svcName:           &serviceValues.ClientServiceName,
+		sts:               sts,
+	}, nil
 }
+
+// -------------------------- BEGIN: To be removed later --------------------------------------
+
+// capturePeerUrlTLSEnabledStatus captures the state of peer URL TLS enablement in etcd status.
+// It will fetch any existing ConfigMap and will derive the current state of PeerTLS enablement.
+// This method is a temporary arrangement made for https://github.com/gardener/etcd-druid/issues/416.
+// Once etcd status has captures the peer TLS information once then it will be safe to remove this method.
+func (r *EtcdReconciler) capturePeerUrlTLSEnabledStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, configMapNamespacedName types.NamespacedName) error {
+	// Only if the etcd status does not contain PeerUrlTLSEnabled then look it up from the existing ConfigMap and initialize it.
+	// If it is already existing in the etcd status then at the end of the successful reconciliation run it will get updated to the new value
+	if etcd.Status.PeerUrlTLSEnabled == nil {
+		peerUrlTLSEnabled, err := r.getPeerUrlTLSEnabledStatusFromConfigMap(ctx, configMapNamespacedName)
+		if err != nil {
+			return err
+		}
+		r.logger.Info("peerUrlTLSEnabled captured from ConfigMap", "configmap", configMapNamespacedName, "peerUrlTLSEnabled", peerUrlTLSEnabled)
+		if peerUrlTLSEnabled != nil {
+			return controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
+				etcd.Status.PeerUrlTLSEnabled = peerUrlTLSEnabled
+				return nil
+			})
+		}
+	}
+	return nil
+}
+
+func (r *EtcdReconciler) getPeerUrlTLSEnabledStatusFromConfigMap(ctx context.Context, configMapNamespacedName types.NamespacedName) (*bool, error) {
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      configMapNamespacedName.Name,
+			Namespace: configMapNamespacedName.Namespace,
+		},
+	}
+	err := r.Client.Get(ctx, configMapNamespacedName, cm)
+	switch {
+	case apierrors.IsNotFound(err):
+		return nil, nil
+	case err != nil:
+		return nil, err
+	default:
+		{
+			peerUrlTLSEnabled, err := parseAndGetPeerUrlEnabledStatus(configMapNamespacedName, cm.Data)
+			if err != nil {
+				return nil, err
+			}
+			return &peerUrlTLSEnabled, nil
+		}
+	}
+}
+
+// parseAndGetPeerUrlEnabledStatus parses the ConfigMap data and extracts the protocol from the configuration
+// for initial-advertise-peer-urls key and uses that to determine if Peer URL TLS has been enabled.
+func parseAndGetPeerUrlEnabledStatus(configMapNamespaceName types.NamespacedName, data map[string]string) (bool, error) {
+	const (
+		configKey                   = "etcd.conf.yaml"
+		initialAdvertisePeerUrlsKey = "initial-advertise-peer-urls"
+		https                       = "https"
+	)
+	yml, exists := data[configKey]
+	if !exists {
+		return false, fmt.Errorf("unexpected error, ConfigMap: %v does not have %s", configMapNamespaceName, configKey)
+	}
+	config := map[string]interface{}{}
+	err := yaml.Unmarshal([]byte(yml), &config)
+	if err != nil {
+		return false, err
+	}
+	initialAdvPeerUrls, ok := config[initialAdvertisePeerUrlsKey]
+	if !ok {
+		return false, fmt.Errorf("unexpected error, ConfigMap: %v does not contain %s", configMapNamespaceName, initialAdvertisePeerUrlsKey)
+	}
+	tokens := strings.Split(initialAdvPeerUrls.(string), "@")
+	if len(tokens) < 4 {
+		return false, fmt.Errorf("unexpected error, ConfigMap: %v has invalid %s: %v", configMapNamespaceName, initialAdvertisePeerUrlsKey, initialAdvPeerUrls)
+	}
+	return tokens[0] == https, nil
+}
+
+// -------------------------- END: To be removed later --------------------------------------
 
 func checkEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
 	for _, ownerRef := range refs {
@@ -795,39 +892,39 @@ func clusterInBootstrap(etcd *druidv1alpha1.Etcd) bool {
 		(etcd.Spec.Replicas > 1 && etcd.Status.Replicas == 1)
 }
 
-func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, lastError error) error {
+func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, result reconcileResult, lastError error) error {
 	return controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
 		lastErrStr := fmt.Sprintf("%v", lastError)
 		etcd.Status.LastError = &lastErrStr
 		etcd.Status.ObservedGeneration = &etcd.Generation
-		if sts != nil {
+		if result.sts != nil {
 			if clusterInBootstrap(etcd) {
 				// Reset members in bootstrap phase to ensure dependent conditions can be calculated correctly.
 				bootstrapReset(etcd)
 			}
-
-			ready := utils.CheckStatefulSet(etcd.Spec.Replicas, sts) == nil
+			ready := utils.CheckStatefulSet(etcd.Spec.Replicas, result.sts) == nil
 			etcd.Status.Ready = &ready
-			etcd.Status.Replicas = pointer.Int32PtrDerefOr(sts.Spec.Replicas, 0)
+			etcd.Status.Replicas = pointer.Int32PtrDerefOr(result.sts.Spec.Replicas, 0)
 		}
 		return nil
 	})
 }
 
-func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, serviceName string, sts *appsv1.StatefulSet) error {
+func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, result reconcileResult) error {
 	return controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
 		if clusterInBootstrap(etcd) {
 			// Reset members in bootstrap phase to ensure dependent conditions can be calculated correctly.
 			bootstrapReset(etcd)
 		}
-
-		ready := utils.CheckStatefulSet(etcd.Spec.Replicas, sts) == nil
-		etcd.Status.Ready = &ready
-		svcName := serviceName
-		etcd.Status.ServiceName = &svcName
+		if result.sts != nil {
+			ready := utils.CheckStatefulSet(etcd.Spec.Replicas, result.sts) == nil
+			etcd.Status.Ready = &ready
+			etcd.Status.Replicas = pointer.Int32PtrDerefOr(result.sts.Spec.Replicas, 0)
+		}
+		etcd.Status.ServiceName = result.svcName
 		etcd.Status.LastError = nil
 		etcd.Status.ObservedGeneration = &etcd.Generation
-		etcd.Status.Replicas = pointer.Int32PtrDerefOr(sts.Spec.Replicas, 0)
+		etcd.Status.PeerUrlTLSEnabled = &result.peerUrlTLSEnabled
 		return nil
 	})
 }

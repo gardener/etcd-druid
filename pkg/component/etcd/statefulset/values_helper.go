@@ -113,9 +113,10 @@ func GenerateValues(
 
 		OwnerCheck: etcd.Spec.Backup.OwnerCheck,
 
-		AutoCompactionMode:      etcd.Spec.Common.AutoCompactionMode,
-		AutoCompactionRetention: etcd.Spec.Common.AutoCompactionRetention,
-		ConfigMapName:           utils.GetConfigmapName(etcd),
+		AutoCompactionMode:       etcd.Spec.Common.AutoCompactionMode,
+		AutoCompactionRetention:  etcd.Spec.Common.AutoCompactionRetention,
+		ConfigMapName:            utils.GetConfigmapName(etcd),
+		PeerUrlTLSAlreadyEnabled: etcd.Status.PeerUrlTLSEnabled,
 	}
 
 	values.EtcdCommand = getEtcdCommand()

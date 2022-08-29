@@ -123,4 +123,7 @@ type Values struct {
 	AutoCompactionRetention *string
 	// ConfigMapName is the name of the configmap that holds the ETCD config.
 	ConfigMapName string
+	// PeerUrlTLSAlreadyEnabled captures the existing enablement state for PeerUrl TLS. This will be used to compare the updated PeerUrlTLS
+	// to determine if action to update of PeerUrlTLS should be taken
+	PeerUrlTLSAlreadyEnabled *bool
 }
