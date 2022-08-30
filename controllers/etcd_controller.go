@@ -661,7 +661,6 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 	if err != nil {
 		return reconcileResult{}, err
 	}
-	r.logger.Info("After capturePeerUrlTLSEnabledStatus", "etcd status", etcd.Status)
 	// -------------------------- END: To be removed later --------------------------------------
 
 	cmDeployer := componentconfigmap.New(r.Client, etcd.Namespace, configMapValues)
@@ -694,7 +693,6 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		return reconcileResult{}, err
 	}
 
-	r.logger.Info("Before statusfulset.GenerateValues", "etcd status", etcd.Status)
 	statefulSetValues := statefulset.GenerateValues(etcd,
 		&serviceValues.ClientPort,
 		&serviceValues.ServerPort,
@@ -738,18 +736,18 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 func (r *EtcdReconciler) capturePeerUrlTLSEnabledStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, configMapNamespacedName types.NamespacedName) error {
 	// Only if the etcd status does not contain PeerUrlTLSEnabled then look it up from the existing ConfigMap and initialize it.
 	// If it is already existing in the etcd status then at the end of the successful reconciliation run it will get updated to the new value
-	etcdOriginal := etcd.DeepCopy()
 	peerUrlTLSEnabledFromCm, err := r.getPeerUrlTLSEnabledStatusFromConfigMap(ctx, configMapNamespacedName)
 	if err != nil {
 		return err
 	}
-	r.logger.Info("peerUrlTLSEnabledFromCm captured from ConfigMap", "name", etcd.Name, "configmap", configMapNamespacedName, "peerUrlTLSEnabledFromCm", peerUrlTLSEnabledFromCm)
 	// Only if the original etcd status did not have PeerUrlTLSEnabled set it should be set to the current status from ConfigMap.
 	// Any further updates will be done once the changes are applied to StatefulSet after etcd reconciliation is over.
 	if peerUrlTLSEnabledFromCm != nil && peerUrlTLSEnabledFromCm != etcd.Status.PeerUrlTLSEnabled {
-		etcd.Status.PeerUrlTLSEnabled = peerUrlTLSEnabledFromCm
-		r.logger.Info("Patching etcd, setting PeerUrlTLSEnabled", "name", etcd.Name, "peerUrlTLSEnabledFromCm", peerUrlTLSEnabledFromCm)
-		return r.Status().Patch(ctx, etcd, client.MergeFrom(etcdOriginal))
+		return controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
+			etcd.Status.PeerUrlTLSEnabled = peerUrlTLSEnabledFromCm
+			r.logger.Info("Patching etcd, setting PeerUrlTLSEnabled", "name", etcd.Name, "peerUrlTLSEnabledFromCm", peerUrlTLSEnabledFromCm)
+			return nil
+		})
 	}
 	return nil
 }
