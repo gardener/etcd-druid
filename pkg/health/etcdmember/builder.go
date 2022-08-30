@@ -15,6 +15,7 @@
 package etcdmember
 
 import (
+	"sort"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -105,6 +106,10 @@ func (b *defaultBuilder) Build() []druidv1alpha1.EtcdMemberStatus {
 
 		members = append(members, memberStatus)
 	}
+
+	sort.Slice(members, func(i, j int) bool {
+		return members[i].Name < members[j].Name
+	})
 
 	return members
 }

@@ -116,15 +116,8 @@ var _ = Describe("Builder", func() {
 				memberRoleMember = druidv1alpha1.EtcdRoleMember
 			})
 
-			It("should not add any members", func() {
+			It("should not add any members but sort them", func() {
 				builder.WithResults([]Result{
-					&result{
-						MemberID:     pointer.StringPtr("1"),
-						MemberName:   "member1",
-						MemberRole:   &memberRoleLeader,
-						MemberStatus: druidv1alpha1.EtcdMemberStatusUnknown,
-						MemberReason: "unknown reason",
-					},
 					&result{
 						MemberID:     pointer.StringPtr("2"),
 						MemberName:   "member2",
@@ -132,28 +125,34 @@ var _ = Describe("Builder", func() {
 						MemberStatus: druidv1alpha1.EtcdMemberStatusReady,
 						MemberReason: "foo reason",
 					},
+					&result{
+						MemberID:     pointer.StringPtr("1"),
+						MemberName:   "member1",
+						MemberRole:   &memberRoleLeader,
+						MemberStatus: druidv1alpha1.EtcdMemberStatusUnknown,
+						MemberReason: "unknown reason",
+					},
 				})
 
 				conditions := builder.Build()
 
-				Expect(conditions).To(ConsistOf(
-					MatchFields(IgnoreExtras, Fields{
-						"Name":               Equal("member1"),
-						"ID":                 PointTo(Equal("1")),
-						"Role":               PointTo(Equal(druidv1alpha1.EtcdRoleLeader)),
-						"Status":             Equal(druidv1alpha1.EtcdMemberStatusUnknown),
-						"Reason":             Equal("unknown reason"),
-						"LastTransitionTime": Equal(metav1.NewTime(now)),
-					}),
-					MatchFields(IgnoreExtras, Fields{
-						"Name":               Equal("member2"),
-						"ID":                 PointTo(Equal("2")),
-						"Role":               PointTo(Equal(druidv1alpha1.EtcdRoleMember)),
-						"Status":             Equal(druidv1alpha1.EtcdMemberStatusReady),
-						"Reason":             Equal("foo reason"),
-						"LastTransitionTime": Equal(metav1.NewTime(now)),
-					}),
-				))
+				Expect(conditions).To(HaveLen(2))
+				Expect(conditions[0]).To(MatchFields(IgnoreExtras, Fields{
+					"Name":               Equal("member1"),
+					"ID":                 PointTo(Equal("1")),
+					"Role":               PointTo(Equal(druidv1alpha1.EtcdRoleLeader)),
+					"Status":             Equal(druidv1alpha1.EtcdMemberStatusUnknown),
+					"Reason":             Equal("unknown reason"),
+					"LastTransitionTime": Equal(metav1.NewTime(now)),
+				}))
+				Expect(conditions[1]).To(MatchFields(IgnoreExtras, Fields{
+					"Name":               Equal("member2"),
+					"ID":                 PointTo(Equal("2")),
+					"Role":               PointTo(Equal(druidv1alpha1.EtcdRoleMember)),
+					"Status":             Equal(druidv1alpha1.EtcdMemberStatusReady),
+					"Reason":             Equal("foo reason"),
+					"LastTransitionTime": Equal(metav1.NewTime(now)),
+				}))
 			})
 		})
 	})
