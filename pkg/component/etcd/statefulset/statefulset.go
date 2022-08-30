@@ -43,8 +43,8 @@ type Interface interface {
 	gardenercomponent.DeployWaiter
 	// Get gets the etcd StatefulSet.
 	Get(context.Context) (*appsv1.StatefulSet, error)
-	// IsPeerUrlTLSEnabled If the Peer Url TLS was previously disabled & it is determined that it has now been enabled then it will return true, otherwise it will return false
-	IsPeerUrlTLSEnabled() bool
+	// IsPeerUrlTLSChangedToEnabled If the Peer Url TLS was previously disabled & it is determined that it has now been enabled then it will return true, otherwise it will return false
+	IsPeerUrlTLSChangedToEnabled() bool
 }
 
 type component struct {
@@ -83,7 +83,7 @@ func (c *component) Deploy(ctx context.Context) error {
 func (c *component) getNumTimesToRecreateSts(sts *appsv1.StatefulSet) uint8 {
 	if sts.Generation > 1 && clusterScaledUpToMultiNode(c.values) && immutableFieldUpdate(sts, c.values) {
 		return 1
-	} else if c.IsPeerUrlTLSEnabled() {
+	} else if c.IsPeerUrlTLSChangedToEnabled() {
 		c.logger.Info("PeerUrl TLS has been enabled for etcd. To reflect this change etcd StatefulSet has to be re-created 2 times", "namespace", c.values.Namespace, "name", c.values.Name, "etcdUID", c.values.EtcdUID)
 		return 2
 	}
@@ -110,7 +110,7 @@ func (c *component) recreate(ctx context.Context) error {
 	return c.syncStatefulset(ctx, sts)
 }
 
-func (c *component) IsPeerUrlTLSEnabled() bool {
+func (c *component) IsPeerUrlTLSChangedToEnabled() bool {
 	peerUrlEnabled := c.values.PeerUrlTLSAlreadyEnabled
 	return peerUrlEnabled != nil && !*peerUrlEnabled && c.values.PeerUrlTLS != nil
 }

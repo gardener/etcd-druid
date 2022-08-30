@@ -716,7 +716,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 
 	// This needs to be done because component.Deploy cannot return a result today
 	if err == nil {
-		peerUrlTLSEnabled = pointer.BoolPtr(stsDeployer.IsPeerUrlTLSEnabled())
+		peerUrlTLSEnabled = pointer.BoolPtr(stsDeployer.IsPeerUrlTLSChangedToEnabled())
 	}
 
 	sts, err := stsDeployer.Get(ctx)
