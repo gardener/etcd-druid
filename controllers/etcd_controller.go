@@ -97,7 +97,7 @@ var (
 
 // reconcileResult captures the result of a reconciliation run.
 type reconcileResult struct {
-	peerUrlTLSEnabled bool
+	peerUrlTLSEnabled *bool
 	svcName           *string
 	sts               *appsv1.StatefulSet
 }
@@ -201,7 +201,9 @@ func (r *EtcdReconciler) SetupWithManager(mgr ctrl.Manager, workers int, ignoreO
 	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
 		MaxConcurrentReconciles: workers,
 	})
-	builder = builder.WithEventFilter(buildPredicate(ignoreOperationAnnotation)).For(&druidv1alpha1.Etcd{})
+	builder = builder.
+		WithEventFilter(buildPredicate(ignoreOperationAnnotation)).
+		For(&druidv1alpha1.Etcd{})
 	if ignoreOperationAnnotation {
 		builder = builder.Owns(&corev1.Service{}).
 			Owns(&corev1.ConfigMap{}).
@@ -659,6 +661,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 	if err != nil {
 		return reconcileResult{}, err
 	}
+	r.logger.Info("After capturePeerUrlTLSEnabledStatus", "etcd status", etcd.Status)
 	// -------------------------- END: To be removed later --------------------------------------
 
 	cmDeployer := componentconfigmap.New(r.Client, etcd.Namespace, configMapValues)
@@ -691,6 +694,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		return reconcileResult{}, err
 	}
 
+	r.logger.Info("Before statusfulset.GenerateValues", "etcd status", etcd.Status)
 	statefulSetValues := statefulset.GenerateValues(etcd,
 		&serviceValues.ClientPort,
 		&serviceValues.ServerPort,
@@ -701,22 +705,28 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 			"checksum/etcd-configmap": configMapValues.ConfigMapChecksum,
 		})
 
-	// Create an OpWaiter because after the depoyment we want to wait until the StatefulSet is ready.
+	// Create an OpWaiter because after the deployment we want to wait until the StatefulSet is ready.
 	var (
-		stsDeployer  = componentsts.New(r.Client, logger, statefulSetValues)
-		deployWaiter = gardenercomponent.OpWaiter(stsDeployer)
+		stsDeployer       = componentsts.New(r.Client, logger, statefulSetValues)
+		deployWaiter      = gardenercomponent.OpWaiter(stsDeployer)
+		peerUrlTLSEnabled *bool
 	)
 
 	if err := deployWaiter.Deploy(ctx); err != nil {
 		return reconcileResult{}, err
 	}
 
+	// This needs to be done because component.Deploy cannot return a result today
+	if err == nil {
+		peerUrlTLSEnabled = pointer.BoolPtr(stsDeployer.IsPeerUrlTLSEnabled())
+	}
+
 	sts, err := stsDeployer.Get(ctx)
 	return reconcileResult{
-		peerUrlTLSEnabled: false,
+		peerUrlTLSEnabled: peerUrlTLSEnabled,
 		svcName:           &serviceValues.ClientServiceName,
 		sts:               sts,
-	}, nil
+	}, err
 }
 
 // -------------------------- BEGIN: To be removed later --------------------------------------
@@ -728,18 +738,18 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 func (r *EtcdReconciler) capturePeerUrlTLSEnabledStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, configMapNamespacedName types.NamespacedName) error {
 	// Only if the etcd status does not contain PeerUrlTLSEnabled then look it up from the existing ConfigMap and initialize it.
 	// If it is already existing in the etcd status then at the end of the successful reconciliation run it will get updated to the new value
-	if etcd.Status.PeerUrlTLSEnabled == nil {
-		peerUrlTLSEnabled, err := r.getPeerUrlTLSEnabledStatusFromConfigMap(ctx, configMapNamespacedName)
-		if err != nil {
-			return err
-		}
-		r.logger.Info("peerUrlTLSEnabled captured from ConfigMap", "configmap", configMapNamespacedName, "peerUrlTLSEnabled", peerUrlTLSEnabled)
-		if peerUrlTLSEnabled != nil {
-			return controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
-				etcd.Status.PeerUrlTLSEnabled = peerUrlTLSEnabled
-				return nil
-			})
-		}
+	etcdOriginal := etcd.DeepCopy()
+	peerUrlTLSEnabledFromCm, err := r.getPeerUrlTLSEnabledStatusFromConfigMap(ctx, configMapNamespacedName)
+	if err != nil {
+		return err
+	}
+	r.logger.Info("peerUrlTLSEnabledFromCm captured from ConfigMap", "name", etcd.Name, "configmap", configMapNamespacedName, "peerUrlTLSEnabledFromCm", peerUrlTLSEnabledFromCm)
+	// Only if the original etcd status did not have PeerUrlTLSEnabled set it should be set to the current status from ConfigMap.
+	// Any further updates will be done once the changes are applied to StatefulSet after etcd reconciliation is over.
+	if peerUrlTLSEnabledFromCm != nil && peerUrlTLSEnabledFromCm != etcd.Status.PeerUrlTLSEnabled {
+		etcd.Status.PeerUrlTLSEnabled = peerUrlTLSEnabledFromCm
+		r.logger.Info("Patching etcd, setting PeerUrlTLSEnabled", "name", etcd.Name, "peerUrlTLSEnabledFromCm", peerUrlTLSEnabledFromCm)
+		return r.Status().Patch(ctx, etcd, client.MergeFrom(etcdOriginal))
 	}
 	return nil
 }
@@ -924,7 +934,8 @@ func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alph
 		etcd.Status.ServiceName = result.svcName
 		etcd.Status.LastError = nil
 		etcd.Status.ObservedGeneration = &etcd.Generation
-		etcd.Status.PeerUrlTLSEnabled = &result.peerUrlTLSEnabled
+		r.logger.Info("updating PeerUrlTLSEnabled", "result.peerUrlTLSEnabled", result.peerUrlTLSEnabled)
+		etcd.Status.PeerUrlTLSEnabled = result.peerUrlTLSEnabled
 		return nil
 	})
 }

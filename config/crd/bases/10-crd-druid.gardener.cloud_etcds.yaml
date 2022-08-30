@@ -1708,6 +1708,9 @@ spec:
                   etcd cluster.
                 format: int32
                 type: integer
+              peerUrlTLSEnabled:
+                description: PeerUrlTLSEnabled captures the state of the peer url TLS being enabled for the etcd member(s)
+                type: boolean
             type: object
         type: object
     served: true

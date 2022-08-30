@@ -46,8 +46,8 @@ func GenerateValues(
 	etcd *druidv1alpha1.Etcd,
 	clientPort, serverPort, backupPort *int32,
 	etcdImage, backupImage string,
-	checksumAnnotations map[string]string,
-) Values {
+	checksumAnnotations map[string]string) Values {
+
 	volumeClaimTemplateName := etcd.Name
 	if etcd.Spec.VolumeClaimTemplate != nil && len(*etcd.Spec.VolumeClaimTemplate) != 0 {
 		volumeClaimTemplateName = *etcd.Spec.VolumeClaimTemplate
