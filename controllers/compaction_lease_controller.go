@@ -352,12 +352,12 @@ func getCmpctJobVolumeMounts(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.
 		return vms
 	}
 
-	if provider == "GCS" {
+	if provider == utils.GCS {
 		vms = append(vms, v1.VolumeMount{
 			Name:      "etcd-backup",
 			MountPath: "/root/.gcp/",
 		})
-	} else if provider == "S3" || provider == "ABS" || provider == "OSS" || provider == "Swift" || provider == "OCS" {
+	} else if provider == utils.S3 || provider == utils.ABS || provider == utils.OSS || provider == utils.Swift || provider == utils.OCS {
 		vms = append(vms, v1.VolumeMount{
 			Name:      "etcd-backup",
 			MountPath: "/root/etcd-backup/",
@@ -388,7 +388,12 @@ func getCmpctJobVolumes(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.Volum
 		return vs
 	}
 
-	if provider == "GCS" || provider == "S3" || provider == "OSS" || provider == "ABS" || provider == "Swift" || provider == "OCS" {
+	if provider == utils.GCS || provider == utils.S3 || provider == utils.OSS || provider == utils.ABS || provider == utils.Swift || provider == utils.OCS {
+		if storeValues.SecretRef == nil {
+			logger.Info("No secretRef is configured for backup store. Compaction job will fail as no storage could be configured.")
+			return vs
+		}
+
 		vs = append(vs, v1.Volume{
 			Name: "etcd-backup",
 			VolumeSource: v1.VolumeSource{
@@ -419,33 +424,27 @@ func getCmpctJobEnvVar(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.EnvVar
 		return env
 	}
 
-	if provider == "S3" {
+	switch provider {
+	case utils.S3:
 		env = append(env, getEnvVarFromValues("AWS_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
-	}
-
-	if provider == "ABS" {
+	case utils.ABS:
 		env = append(env, getEnvVarFromValues("AZURE_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
-	}
-
-	if provider == "GCS" {
+	case utils.GCS:
 		env = append(env, getEnvVarFromValues("GOOGLE_APPLICATION_CREDENTIALS", "/root/.gcp/serviceaccount.json"))
-	}
-
-	if provider == "Swift" {
+	case utils.Swift:
 		env = append(env, getEnvVarFromValues("OPENSTACK_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
-	}
-
-	if provider == "OSS" {
+	case utils.OSS:
 		env = append(env, getEnvVarFromValues("ALICLOUD_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
-	}
+	case utils.ECS:
+		if storeValues.SecretRef == nil {
+			logger.Info("No secretRef is configured for backup store. Compaction job will fail as no storage could be configured.")
+			return env
+		}
 
-	if provider == "ECS" {
 		env = append(env, getEnvVarFromSecrets("ECS_ENDPOINT", storeValues.SecretRef.Name, "endpoint"))
 		env = append(env, getEnvVarFromSecrets("ECS_ACCESS_KEY_ID", storeValues.SecretRef.Name, "accessKeyID"))
 		env = append(env, getEnvVarFromSecrets("ECS_SECRET_ACCESS_KEY", storeValues.SecretRef.Name, "secretAccessKey"))
-	}
-
-	if provider == "OCS" {
+	case utils.OCS:
 		env = append(env, getEnvVarFromValues("OPENSHIFT_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
 	}
 

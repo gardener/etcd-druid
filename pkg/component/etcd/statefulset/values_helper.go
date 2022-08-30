@@ -37,7 +37,6 @@ const (
 	defaultEtcdDefragTimeout             = "15m"
 	defaultAutoCompactionMode            = "periodic"
 	defaultEtcdConnectionTimeout         = "5m"
-	defaultLocalPrefix                   = "/etc/gardener/local-backupbuckets"
 )
 
 var defaultStorageCapacity = resource.MustParse("16Gi")
