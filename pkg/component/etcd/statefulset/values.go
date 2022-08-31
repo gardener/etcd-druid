@@ -125,5 +125,5 @@ type Values struct {
 	ConfigMapName string
 	// PeerUrlTLSAlreadyEnabled captures the existing enablement state for PeerUrl TLS. This will be used to compare the updated PeerUrlTLS
 	// to determine if action to update of PeerUrlTLS should be taken
-	PeerUrlTLSAlreadyEnabled *bool
+	StatusPeerUrlTLSEnabled *bool
 }
