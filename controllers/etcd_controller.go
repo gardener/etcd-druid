@@ -732,7 +732,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 // capturePeerUrlTLSEnabledStatus captures the state of peer URL TLS enablement in etcd status.
 // It will fetch any existing ConfigMap and will derive the current state of PeerTLS enablement.
 // This method is a temporary arrangement made for https://github.com/gardener/etcd-druid/issues/416.
-// Once etcd status has captures the peer TLS information once then it will be safe to remove this method.
+// Once etcd status has captured the peer TLS information once then it will be safe to remove this method.
 func (r *EtcdReconciler) capturePeerUrlTLSEnabledStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, configMapNamespacedName types.NamespacedName) error {
 	// Only if the etcd status does not contain PeerUrlTLSEnabled then look it up from the existing ConfigMap and initialize it.
 	// If it is already existing in the etcd status then at the end of the successful reconciliation run it will get updated to the new value
