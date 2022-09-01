@@ -17,16 +17,27 @@ package health
 import (
 	"fmt"
 
-	"github.com/gardener/gardener/pkg/utils"
-
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"k8s.io/utils/pointer"
 )
 
 // CheckEtcd checks whether the given Etcd is healthy.
-// A Etcd is considered healthy if its ready field in status is true.
+// An Etcd is considered healthy if its ready field in status is true and the BackupReady condition doesn't report false.
 func CheckEtcd(etcd *druidv1alpha1.Etcd) error {
-	if !utils.IsTrue(etcd.Status.Ready) {
+	if !pointer.BoolDeref(etcd.Status.Ready, false) {
 		return fmt.Errorf("etcd %q is not ready yet", etcd.Name)
 	}
+
+	for _, cond := range etcd.Status.Conditions {
+		if cond.Type != druidv1alpha1.ConditionTypeBackupReady {
+			continue
+		}
+
+		// TODO(timuthy): Check for cond.Status != druidv1alpha1.ConditionTrue as soon as https://github.com/gardener/etcd-druid/issues/413 is resolved.
+		if cond.Status == druidv1alpha1.ConditionFalse {
+			return fmt.Errorf("backup for etcd %q is reported as unready: %s", etcd.Name, cond.Message)
+		}
+	}
+
 	return nil
 }
