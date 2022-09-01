@@ -995,33 +995,6 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 								"PeriodSeconds":       Equal(int32(5)),
 								"FailureThreshold":    Equal(int32(5)),
 							})),
-							"LivenessProbe": PointTo(MatchFields(IgnoreExtras, Fields{
-								"Handler": MatchFields(IgnoreExtras, Fields{
-									"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
-										"Command": MatchAllElements(cmdIterator, Elements{
-											"/bin/sh": Equal("/bin/sh"),
-											"-ec":     Equal("-ec"),
-											fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=http://%s-local:%d get foo --consistency=s", instance.Name, clientPort): Equal(fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=http://%s-local:%d get foo --consistency=s", instance.Name, clientPort)),
-										}),
-									})),
-								}),
-								"InitialDelaySeconds": Equal(int32(15)),
-								"PeriodSeconds":       Equal(int32(5)),
-								"FailureThreshold":    Equal(int32(5)),
-							})),
-							"StartupProbe": PointTo(MatchFields(IgnoreExtras, Fields{
-								"Handler": MatchFields(IgnoreExtras, Fields{
-									"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
-										"Command": MatchAllElements(cmdIterator, Elements{
-											"/bin/sh": Equal("/bin/sh"),
-											"-ec":     Equal("-ec"),
-											fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=http://%s-local:%d get foo --consistency=s", instance.Name, clientPort): Equal(fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=http://%s-local:%d get foo --consistency=s", instance.Name, clientPort)),
-										}),
-									})),
-								}),
-								"PeriodSeconds":    Equal(int32(5)),
-								"FailureThreshold": Equal(int32(24)),
-							})),
 							"VolumeMounts": MatchAllElements(volumeMountIterator, Elements{
 								instance.Name: MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal(instance.Name),
@@ -1380,33 +1353,6 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								"InitialDelaySeconds": Equal(int32(15)),
 								"PeriodSeconds":       Equal(int32(5)),
 								"FailureThreshold":    Equal(int32(5)),
-							})),
-							"LivenessProbe": PointTo(MatchFields(IgnoreExtras, Fields{
-								"Handler": MatchFields(IgnoreExtras, Fields{
-									"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
-										"Command": MatchAllElements(cmdIterator, Elements{
-											"/bin/sh": Equal("/bin/sh"),
-											"-ec":     Equal("-ec"),
-											fmt.Sprintf("ETCDCTL_API=3 etcdctl --cacert=/var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key --endpoints=https://%s-local:%d get foo --consistency=s", instance.Name, clientPort): Equal(fmt.Sprintf("ETCDCTL_API=3 etcdctl --cacert=/var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key --endpoints=https://%s-local:%d get foo --consistency=s", instance.Name, clientPort)),
-										}),
-									})),
-								}),
-								"InitialDelaySeconds": Equal(int32(15)),
-								"PeriodSeconds":       Equal(int32(5)),
-								"FailureThreshold":    Equal(int32(5)),
-							})),
-							"StartupProbe": PointTo(MatchFields(IgnoreExtras, Fields{
-								"Handler": MatchFields(IgnoreExtras, Fields{
-									"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
-										"Command": MatchAllElements(cmdIterator, Elements{
-											"/bin/sh": Equal("/bin/sh"),
-											"-ec":     Equal("-ec"),
-											fmt.Sprintf("ETCDCTL_API=3 etcdctl --cacert=/var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key --endpoints=https://%s-local:%d get foo --consistency=s", instance.Name, clientPort): Equal(fmt.Sprintf("ETCDCTL_API=3 etcdctl --cacert=/var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key --endpoints=https://%s-local:%d get foo --consistency=s", instance.Name, clientPort)),
-										}),
-									})),
-								}),
-								"PeriodSeconds":    Equal(int32(5)),
-								"FailureThreshold": Equal(int32(24)),
 							})),
 							"VolumeMounts": MatchAllElements(volumeMountIterator, Elements{
 								*instance.Spec.VolumeClaimTemplate: MatchFields(IgnoreExtras, Fields{

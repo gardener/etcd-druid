@@ -124,11 +124,6 @@ func GenerateValues(
 	// when it has an active connection to the cluster and the cluster maintains a quorum.
 	values.ReadinessProbeCommand = getProbeCommand(values, linearizable)
 
-	// Use serializability for liveness probe because we are only interested in the health of this particular member.
-	// Those read requests will especially succeed if quorum is lost. Usually it doesn't make sense to also restart
-	// members which are healthy in general, independent of the quorum situation.
-	values.LivenessProbeCommand = getProbeCommand(values, serializable)
-
 	values.EtcdBackupCommand = getBackupRestoreCommand(values)
 
 	return values
