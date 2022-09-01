@@ -22,7 +22,6 @@ import (
 	"github.com/gardener/etcd-druid/api/v1alpha1"
 
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
-	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
@@ -194,7 +193,7 @@ func createAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 
 func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd) {
 	logger.Info("Waiting for etcd to become ready")
-	Eventually(func() error {
+	EventuallyWithOffset(2, func() error {
 		ctx, cancelFunc := context.WithTimeout(context.TODO(), timeout)
 		defer cancelFunc()
 
@@ -212,7 +211,7 @@ func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, e
 		}
 
 		if *etcd.Status.ClusterSize != etcd.Spec.Replicas {
-			return fmt.Errorf("etcd %s cluster size is %v, but its not expected size as %v",
+			return fmt.Errorf("etcd %s cluster size is %v, but it's not expected size as %v",
 				etcd.Name, etcd.Status.ClusterSize, etcd.Spec.Replicas)
 		}
 
@@ -232,37 +231,37 @@ func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, e
 
 	logger.Info("Checking statefulset")
 	sts := &appsv1.StatefulSet{}
-	ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts)).To(Succeed())
-	ExpectWithOffset(1, sts.Status.ReadyReplicas).To(Equal(etcd.Spec.Replicas))
+	ExpectWithOffset(2, cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts)).To(Succeed())
+	ExpectWithOffset(2, sts.Status.ReadyReplicas).To(Equal(etcd.Spec.Replicas))
 
 	logger.Info("Checking configmap")
 	cm := &corev1.ConfigMap{}
-	ExpectWithOffset(1, cl.Get(ctx, client.ObjectKey{Name: "etcd-bootstrap-" + string(etcd.UID[:6]), Namespace: etcd.Namespace}, cm)).To(Succeed())
+	ExpectWithOffset(2, cl.Get(ctx, client.ObjectKey{Name: "etcd-bootstrap-" + string(etcd.UID[:6]), Namespace: etcd.Namespace}, cm)).To(Succeed())
 
 	logger.Info("Checking client service")
 	svc := &corev1.Service{}
-	ExpectWithOffset(1, cl.Get(ctx, client.ObjectKey{Name: etcd.Name + "-client", Namespace: etcd.Namespace}, svc)).To(Succeed())
+	ExpectWithOffset(2, cl.Get(ctx, client.ObjectKey{Name: etcd.Name + "-client", Namespace: etcd.Namespace}, svc)).To(Succeed())
 }
 
 func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd) {
 	ExpectWithOffset(1, cl.Delete(ctx, etcd, client.PropagationPolicy(metav1.DeletePropagationForeground))).To(Succeed())
 
 	logger.Info("Checking if etcd is gone")
-	Eventually(func() error {
+	EventuallyWithOffset(1, func() error {
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 		defer cancelFunc()
 		return cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)
 	}, timeout*3, pollingInterval).Should(matchers.BeNotFoundError())
 
 	logger.Info("Checking if statefulset is gone")
-	Eventually(func() error {
+	EventuallyWithOffset(1, func() error {
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 		defer cancelFunc()
 		return cl.Get(ctx, client.ObjectKeyFromObject(etcd), &appsv1.StatefulSet{})
 	}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 
 	logger.Info("Checking if configmap is gone")
-	Eventually(func() error {
+	EventuallyWithOffset(1, func() error {
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 		defer cancelFunc()
 
@@ -270,7 +269,7 @@ func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 	}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 
 	logger.Info("Checking client service is gone")
-	Eventually(func() error {
+	EventuallyWithOffset(1, func() error {
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 		defer cancelFunc()
 
@@ -284,10 +283,14 @@ func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 
 func purgeEtcdPVCs(ctx context.Context, cl client.Client, etcdName string) {
 	r, _ := k8s_labels.NewRequirement("instance", selection.Equals, []string{etcdName})
-	opts := &client.ListOptions{LabelSelector: k8s_labels.NewSelector().Add(*r)}
-	pvcList := &corev1.PersistentVolumeClaimList{}
-	cl.List(ctx, pvcList, client.InNamespace(namespace), opts)
-	for _, pvc := range pvcList.Items {
-		ExpectWithOffset(1, kutil.DeleteObject(ctx, cl, &pvc)).To(Succeed())
-	}
+	pvc := &corev1.PersistentVolumeClaim{}
+	delOptions := client.DeleteOptions{}
+	delOptions.ApplyOptions([]client.DeleteOption{client.PropagationPolicy(metav1.DeletePropagationForeground)})
+	ExpectWithOffset(1, client.IgnoreNotFound(cl.DeleteAllOf(ctx, pvc, &client.DeleteAllOfOptions{
+		ListOptions: client.ListOptions{
+			Namespace:     namespace,
+			LabelSelector: k8s_labels.NewSelector().Add(*r),
+		},
+		DeleteOptions: delOptions,
+	}))).ShouldNot(HaveOccurred())
 }
