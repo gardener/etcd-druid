@@ -76,7 +76,7 @@ var _ = Describe("Etcd", func() {
 
 			By("Wakeup etcd (Scale up from 0->3)")
 			// scale up etcd replicas to 3 and ensures etcd cluster with 3 replicas is ready.
-			ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = multiNodeEtcdReplicas
 			updateAndCheckEtcd(ctx, cl, logger, etcd)
 
