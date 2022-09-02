@@ -1,6 +1,6 @@
 module github.com/gardener/etcd-druid
 
-go 1.17
+go 1.18
 
 require (
 	github.com/gardener/etcd-backup-restore v0.14.1
