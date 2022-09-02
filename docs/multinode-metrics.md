@@ -29,17 +29,13 @@
 
 #### Backup-restore
 
-|  No. | Metrics Name | Description  | Comments|
-| -- | -- | -- | -- |
+|  No. | Metrics Name | Description |
+| -- | -- | -- | 
 | 1. | etcdbr_cluster_size | to capture the scale-up/scale-down scenarios. |
 | 2. | etcdbr_is_learner | whether or not this member is a learner. 1 if it is, 0 otherwise. |
-| 3. | etcdbr_has_learner | whether or not this cluster has a learner. 1 if it is, 0 otherwise. |
+| 3. | etcdbr_is_learner_count_total | total number times member added as the learner. |
 | 4. | etcdbr_restoration_duration_seconds | total latency distribution required to restore the etcd member. |
 | 5. | etcdbr_add_learner_duration_seconds | total latency distribution of adding the etcd member as a learner to the cluster. |
 | 6. | etcdbr_member_remove_duration_seconds | total latency distribution removing the etcd member from the cluster. |
 | 7. | etcdbr_member_promote_duration_seconds | total latency distribution of promoting the learner to the voting member. |
 | 8. | etcdbr_defragmentation_duration_seconds | total latency distribution of defragmentation of each etcd cluster member. |
-
-
-
-
