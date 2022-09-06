@@ -149,7 +149,7 @@ var _ = Describe("Statefulset", func() {
 			pointer.Int32Ptr(backupPort),
 			imageEtcd,
 			imageBR,
-			checkSumAnnotations)
+			checkSumAnnotations, false)
 		stsDeployer = New(cl, logr.Discard(), values)
 
 		sts = &appsv1.StatefulSet{

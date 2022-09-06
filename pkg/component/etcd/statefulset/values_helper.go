@@ -46,7 +46,8 @@ func GenerateValues(
 	etcd *druidv1alpha1.Etcd,
 	clientPort, serverPort, backupPort *int32,
 	etcdImage, backupImage string,
-	checksumAnnotations map[string]string) Values {
+	checksumAnnotations map[string]string,
+	peerTLSChangedToEnabled bool) Values {
 
 	volumeClaimTemplateName := etcd.Name
 	if etcd.Spec.VolumeClaimTemplate != nil && len(*etcd.Spec.VolumeClaimTemplate) != 0 {
@@ -113,10 +114,10 @@ func GenerateValues(
 
 		OwnerCheck: etcd.Spec.Backup.OwnerCheck,
 
-		AutoCompactionMode:       etcd.Spec.Common.AutoCompactionMode,
-		AutoCompactionRetention:  etcd.Spec.Common.AutoCompactionRetention,
-		ConfigMapName:            utils.GetConfigmapName(etcd),
-		PeerUrlTLSAlreadyEnabled: etcd.Status.PeerUrlTLSEnabled,
+		AutoCompactionMode:      etcd.Spec.Common.AutoCompactionMode,
+		AutoCompactionRetention: etcd.Spec.Common.AutoCompactionRetention,
+		ConfigMapName:           utils.GetConfigmapName(etcd),
+		PeerTLSChangedToEnabled: peerTLSChangedToEnabled,
 	}
 
 	values.EtcdCommand = getEtcdCommand()

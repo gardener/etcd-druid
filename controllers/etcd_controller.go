@@ -97,9 +97,9 @@ var (
 
 // reconcileResult captures the result of a reconciliation run.
 type reconcileResult struct {
-	peerUrlTLSEnabled *bool
-	svcName           *string
-	sts               *appsv1.StatefulSet
+	svcName *string
+	sts     *appsv1.StatefulSet
+	err     error
 }
 
 // EtcdReconciler reconciles a Etcd object
@@ -256,7 +256,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 	if finalizers := sets.NewString(etcd.Finalizers...); !finalizers.Has(FinalizerName) {
 		logger.Info("Adding finalizer")
 		if err := controllerutils.PatchAddFinalizers(ctx, r.Client, etcd, FinalizerName); err != nil {
-			if err := r.updateEtcdErrorStatus(ctx, etcd, reconcileResult{}, err); err != nil {
+			if err := r.updateEtcdErrorStatus(ctx, etcd, reconcileResult{err: err}); err != nil {
 				return ctrl.Result{
 					Requeue: true,
 				}, err
@@ -299,9 +299,9 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		logger.Info("The running cron job is: " + cronJob.Name)
 	}
 
-	result, err := r.reconcileEtcd(ctx, logger, etcd)
+	result := r.reconcileEtcd(ctx, logger, etcd)
 	if err != nil {
-		if err := r.updateEtcdErrorStatus(ctx, etcd, result, err); err != nil {
+		if err := r.updateEtcdErrorStatus(ctx, etcd, result); err != nil {
 			logger.Error(err, "Error during reconciling ETCD")
 			return ctrl.Result{
 				Requeue: true,
@@ -376,7 +376,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 
 	stsDeployer := gardenercomponent.OpDestroyAndWait(componentsts.New(r.Client, logger, componentsts.Values{Name: etcd.Name, Namespace: etcd.Namespace}))
 	if err := stsDeployer.Destroy(ctx); err != nil {
-		if err = r.updateEtcdErrorStatus(ctx, etcd, reconcileResult{}, err); err != nil {
+		if err = r.updateEtcdErrorStatus(ctx, etcd, reconcileResult{err: err}); err != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -386,7 +386,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 		}, err
 	}
 
-	leaseDeployer := componentlease.New(r.Client, etcd.Namespace, componentlease.GenerateValues(etcd))
+	leaseDeployer := componentlease.New(r.Client, logger, etcd.Namespace, componentlease.GenerateValues(etcd))
 	if err := leaseDeployer.Destroy(ctx); err != nil {
 		return ctrl.Result{
 			Requeue: true,
@@ -613,21 +613,21 @@ func (r *EtcdReconciler) reconcileRoleBinding(ctx context.Context, logger logr.L
 	return err
 }
 
-func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (reconcileResult, error) {
+func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) reconcileResult {
 	// Check if Spec.Replicas is odd or even.
 	// TODO(timuthy): The following checks should rather be part of a validation. Also re-enqueuing doesn't make sense in case the values are invalid.
 	if etcd.Spec.Replicas > 1 && etcd.Spec.Replicas&1 == 0 {
-		return reconcileResult{}, fmt.Errorf("Spec.Replicas should not be even number: %d", etcd.Spec.Replicas)
+		return reconcileResult{err: fmt.Errorf("Spec.Replicas should not be even number: %d", etcd.Spec.Replicas)}
 	}
 
 	etcdImage, etcdBackupImage, err := getEtcdImages(r.ImageVector, etcd)
 	if err != nil {
-		return reconcileResult{}, err
+		return reconcileResult{err: err}
 	}
 
 	if etcd.Spec.Etcd.Image == nil {
 		if etcdImage == "" {
-			return reconcileResult{}, fmt.Errorf("either etcd resource or image vector should have %s image while deploying statefulset", common.Etcd)
+			return reconcileResult{err: fmt.Errorf("either etcd resource or image vector should have %s image while deploying statefulset", common.Etcd)}
 		}
 	} else {
 		etcdImage = *etcd.Spec.Etcd.Image
@@ -635,62 +635,58 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 
 	if etcd.Spec.Backup.Image == nil {
 		if etcdBackupImage == "" {
-			return reconcileResult{}, fmt.Errorf("either etcd resource or image vector should have %s image while deploying statefulset", common.BackupRestore)
+			return reconcileResult{err: fmt.Errorf("either etcd resource or image vector should have %s image while deploying statefulset", common.BackupRestore)}
 		}
 	} else {
 		etcdBackupImage = *etcd.Spec.Backup.Image
 	}
 
 	leaseValues := componentlease.GenerateValues(etcd)
-	leaseDeployer := componentlease.New(r.Client, etcd.Namespace, leaseValues)
+	leaseDeployer := componentlease.New(r.Client, logger, etcd.Namespace, leaseValues)
 	if err := leaseDeployer.Deploy(ctx); err != nil {
-		return reconcileResult{}, err
+		return reconcileResult{err: err}
 	}
 
 	serviceValues := componentservice.GenerateValues(etcd)
 	serviceDeployer := componentservice.New(r.Client, etcd.Namespace, serviceValues)
 	if err := serviceDeployer.Deploy(ctx); err != nil {
-		return reconcileResult{}, err
+		return reconcileResult{err: err}
 	}
 
 	configMapValues := componentconfigmap.GenerateValues(etcd)
 
-	// -------------------------- BEGIN: To be removed later --------------------------------------
-	// This is a temporary method call. See method description for more information.
-	err = r.capturePeerUrlTLSEnabledStatus(ctx, etcd, types.NamespacedName{Namespace: etcd.Namespace, Name: configMapValues.ConfigMapName})
-	if err != nil {
-		return reconcileResult{}, err
-	}
-	// -------------------------- END: To be removed later --------------------------------------
-
 	cmDeployer := componentconfigmap.New(r.Client, etcd.Namespace, configMapValues)
 	if err := cmDeployer.Deploy(ctx); err != nil {
-		return reconcileResult{}, err
+		return reconcileResult{err: err}
 	}
 
 	values, err := r.getMapFromEtcd(etcd, r.disableEtcdServiceAccountAutomount)
 	if err != nil {
-		return reconcileResult{}, err
+		return reconcileResult{err: err}
 	}
 
 	err = r.reconcileServiceAccount(ctx, logger, etcd, values)
 	if err != nil {
-		return reconcileResult{}, err
+		return reconcileResult{err: err}
 	}
 
 	err = r.reconcileRole(ctx, logger, etcd, values)
 	if err != nil {
-		return reconcileResult{}, err
+		return reconcileResult{err: err}
 	}
 
 	err = r.reconcileRoleBinding(ctx, logger, etcd, values)
 	if err != nil {
-		return reconcileResult{}, err
+		return reconcileResult{err: err}
 	}
 
 	err = r.reconcilePodDisruptionBudget(ctx, logger, etcd, values)
 	if err != nil {
-		return reconcileResult{}, err
+		return reconcileResult{err: err}
+	}
+	peerTLSEnabled, err := leaseDeployer.GetPeerURLTLSEnabledStatus(ctx)
+	if err != nil {
+		return reconcileResult{err: err}
 	}
 
 	statefulSetValues := statefulset.GenerateValues(etcd,
@@ -701,110 +697,29 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		etcdBackupImage,
 		map[string]string{
 			"checksum/etcd-configmap": configMapValues.ConfigMapChecksum,
-		})
+		},
+		isPeerTLSIsChangedToEnabled(peerTLSEnabled, configMapValues))
 
 	// Create an OpWaiter because after the deployment we want to wait until the StatefulSet is ready.
 	var (
-		stsDeployer       = componentsts.New(r.Client, logger, statefulSetValues)
-		deployWaiter      = gardenercomponent.OpWaiter(stsDeployer)
-		peerUrlTLSEnabled *bool
+		stsDeployer  = componentsts.New(r.Client, logger, statefulSetValues)
+		deployWaiter = gardenercomponent.OpWaiter(stsDeployer)
 	)
 
 	if err := deployWaiter.Deploy(ctx); err != nil {
-		return reconcileResult{}, err
-	}
-
-	// This needs to be done because component.Deploy cannot return a result today
-	if err == nil {
-		peerUrlTLSEnabled = pointer.BoolPtr(stsDeployer.IsPeerUrlTLSChangedToEnabled())
+		return reconcileResult{err: err}
 	}
 
 	sts, err := stsDeployer.Get(ctx)
-	return reconcileResult{
-		peerUrlTLSEnabled: peerUrlTLSEnabled,
-		svcName:           &serviceValues.ClientServiceName,
-		sts:               sts,
-	}, err
+	return reconcileResult{svcName: &serviceValues.ClientServiceName, sts: sts, err: err}
 }
 
-// -------------------------- BEGIN: To be removed later --------------------------------------
-
-// capturePeerUrlTLSEnabledStatus captures the state of peer URL TLS enablement in etcd status.
-// It will fetch any existing ConfigMap and will derive the current state of PeerTLS enablement.
-// This method is a temporary arrangement made for https://github.com/gardener/etcd-druid/issues/416.
-// Once etcd status has captured the peer TLS information once then it will be safe to remove this method.
-func (r *EtcdReconciler) capturePeerUrlTLSEnabledStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, configMapNamespacedName types.NamespacedName) error {
-	// Only if the etcd status does not contain PeerUrlTLSEnabled then look it up from the existing ConfigMap and initialize it.
-	// If it is already existing in the etcd status then at the end of the successful reconciliation run it will get updated to the new value
-	peerUrlTLSEnabledFromCm, err := r.getPeerUrlTLSEnabledStatusFromConfigMap(ctx, configMapNamespacedName)
-	if err != nil {
-		return err
+func isPeerTLSIsChangedToEnabled(peerTLSEnabledStatusFromMembers bool, configMapValues *componentconfigmap.Values) bool {
+	if peerTLSEnabledStatusFromMembers == true {
+		return false
 	}
-	// Only if the original etcd status did not have PeerUrlTLSEnabled set it should be set to the current status from ConfigMap.
-	// Any further updates will be done once the changes are applied to StatefulSet after etcd reconciliation is over.
-	if peerUrlTLSEnabledFromCm != nil && peerUrlTLSEnabledFromCm != etcd.Status.PeerUrlTLSEnabled {
-		return controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
-			etcd.Status.PeerUrlTLSEnabled = peerUrlTLSEnabledFromCm
-			r.logger.Info("Patching etcd, setting PeerUrlTLSEnabled", "name", etcd.Name, "peerUrlTLSEnabledFromCm", peerUrlTLSEnabledFromCm)
-			return nil
-		})
-	}
-	return nil
+	return configMapValues.PeerUrlTLS != nil
 }
-
-func (r *EtcdReconciler) getPeerUrlTLSEnabledStatusFromConfigMap(ctx context.Context, configMapNamespacedName types.NamespacedName) (*bool, error) {
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      configMapNamespacedName.Name,
-			Namespace: configMapNamespacedName.Namespace,
-		},
-	}
-	err := r.Client.Get(ctx, configMapNamespacedName, cm)
-	switch {
-	case apierrors.IsNotFound(err):
-		return nil, nil
-	case err != nil:
-		return nil, err
-	default:
-		{
-			peerUrlTLSEnabled, err := parseAndGetPeerUrlEnabledStatus(configMapNamespacedName, cm.Data)
-			if err != nil {
-				return nil, err
-			}
-			return &peerUrlTLSEnabled, nil
-		}
-	}
-}
-
-// parseAndGetPeerUrlEnabledStatus parses the ConfigMap data and extracts the protocol from the configuration
-// for initial-advertise-peer-urls key and uses that to determine if Peer URL TLS has been enabled.
-func parseAndGetPeerUrlEnabledStatus(configMapNamespaceName types.NamespacedName, data map[string]string) (bool, error) {
-	const (
-		configKey                   = "etcd.conf.yaml"
-		initialAdvertisePeerUrlsKey = "initial-advertise-peer-urls"
-		https                       = "https"
-	)
-	yml, exists := data[configKey]
-	if !exists {
-		return false, fmt.Errorf("unexpected error, ConfigMap: %v does not have %s", configMapNamespaceName, configKey)
-	}
-	config := map[string]interface{}{}
-	err := yaml.Unmarshal([]byte(yml), &config)
-	if err != nil {
-		return false, err
-	}
-	initialAdvPeerUrls, ok := config[initialAdvertisePeerUrlsKey]
-	if !ok {
-		return false, fmt.Errorf("unexpected error, ConfigMap: %v does not contain %s", configMapNamespaceName, initialAdvertisePeerUrlsKey)
-	}
-	tokens := strings.Split(initialAdvPeerUrls.(string), "@")
-	if len(tokens) < 4 {
-		return false, fmt.Errorf("unexpected error, ConfigMap: %v has invalid %s: %v", configMapNamespaceName, initialAdvertisePeerUrlsKey, initialAdvPeerUrls)
-	}
-	return tokens[0] == https, nil
-}
-
-// -------------------------- END: To be removed later --------------------------------------
 
 func checkEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
 	for _, ownerRef := range refs {
@@ -900,9 +815,9 @@ func clusterInBootstrap(etcd *druidv1alpha1.Etcd) bool {
 		(etcd.Spec.Replicas > 1 && etcd.Status.Replicas == 1)
 }
 
-func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, result reconcileResult, lastError error) error {
+func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, result reconcileResult) error {
 	return controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
-		lastErrStr := fmt.Sprintf("%v", lastError)
+		lastErrStr := fmt.Sprintf("%v", result.err)
 		etcd.Status.LastError = &lastErrStr
 		etcd.Status.ObservedGeneration = &etcd.Generation
 		if result.sts != nil {
@@ -932,8 +847,6 @@ func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alph
 		etcd.Status.ServiceName = result.svcName
 		etcd.Status.LastError = nil
 		etcd.Status.ObservedGeneration = &etcd.Generation
-		r.logger.Info("updating PeerUrlTLSEnabled", "result.peerUrlTLSEnabled", result.peerUrlTLSEnabled)
-		etcd.Status.PeerUrlTLSEnabled = result.peerUrlTLSEnabled
 		return nil
 	})
 }

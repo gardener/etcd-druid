@@ -24,6 +24,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
+	"github.com/gardener/gardener/pkg/utils/flow"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/retry"
 	gardenerretry "github.com/gardener/gardener/pkg/utils/retry"
@@ -43,76 +44,142 @@ type Interface interface {
 	gardenercomponent.DeployWaiter
 	// Get gets the etcd StatefulSet.
 	Get(context.Context) (*appsv1.StatefulSet, error)
-	// IsPeerUrlTLSChangedToEnabled If the Peer Url TLS was previously disabled & it is determined that it has now been enabled then it will return true, otherwise it will return false
-	IsPeerUrlTLSChangedToEnabled() bool
 }
 
 type component struct {
 	client client.Client
 	logger logr.Logger
-
 	values Values
 }
 
 func (c *component) Get(ctx context.Context) (*appsv1.StatefulSet, error) {
 	sts := c.emptyStatefulset()
-
 	if err := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
 		return nil, err
 	}
-
 	return sts, nil
 }
 
 func (c *component) Deploy(ctx context.Context) error {
+	deployFlow, err := c.createDeployFlow(ctx)
+	if err != nil {
+		return err
+	}
+	return deployFlow.Run(ctx, flow.Opts{})
+}
+
+func (c *component) createDeployFlow(ctx context.Context) (*flow.Flow, error) {
+	sts, err := c.getExistingSts(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	flowName := fmt.Sprintf("(etcd: %s) Deploy Flow for StatefulSet %s for Namespace: %s", c.values.EtcdUID, c.values.Name, c.values.Namespace)
+	g := flow.NewGraph(flowName)
+	if sts == nil {
+		c.addCreateNewStsTaskStep(g)
+	} else {
+		numRestarts := c.checkAndAddTaskForImmutableFieldUpdate(g, sts)
+		numRestarts += c.checkAndAddTaskForPeerTLSChangedToEnabled(g, numRestarts)
+		c.checkAndAddTaskScaleUpToMultiNode(g, numRestarts)
+		c.addSyncTask(g, sts)
+	}
+	return g.Compile(), nil
+}
+
+func (c *component) addCreateNewStsTaskStep(g *flow.Graph) {
+	sts := c.emptyStatefulset()
+	taskID := g.Add(flow.Task{
+		Name: "create new StatefulSet",
+		Fn: func(ctx context.Context) error {
+			return c.syncStatefulSet(ctx, sts, c.values.Replicas)
+		},
+	})
+	c.logger.Info("Added create StatefulSet task to the deploy flow", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", c.values.EtcdUID, "StatefulSetName", c.values.Name)
+}
+
+func (c *component) checkAndAddTaskForImmutableFieldUpdate(g *flow.Graph, sts *appsv1.StatefulSet) uint8 {
+	if sts.Generation > 1 && immutableFieldUpdate(sts, c.values) {
+		taskID := g.Add(flow.Task{
+			Name: "recreate StatefulSet due to immutable field update",
+			Fn: func(ctx context.Context) error {
+				return c.recreate(ctx, c.values.Replicas)
+			},
+		})
+		c.logger.Info("Added task to recreate StatefulSet to the deploy flow due to immutable field update", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", c.values.EtcdUID, "StatefulSetName", c.values.Name)
+		return 1
+	}
+	return 0
+}
+
+func (c *component) checkAndAddTaskForPeerTLSChangedToEnabled(g *flow.Graph, numRestartsQueued uint8) uint8 {
+	var recreateTaskID flow.TaskID
+	var numRestartsRequired uint8
+	if c.values.PeerTLSChangedToEnabled {
+		numRestartsRequired = 2 - numRestartsQueued
+		for i := uint8(0); i < numRestartsRequired; i++ {
+			recreateTaskID = g.Add(flow.Task{
+				Name: "recreate StatefulSet due to Peer TLS changed to enabled",
+				Fn: func(ctx context.Context) error {
+					return c.recreate(ctx, 1)
+				},
+			})
+			c.logger.Info("Added task to recreate StatefulSet to the deploy flow due to Peer TLS set to enabled", "taskID", recreateTaskID, "namespace", c.values.Namespace, "etcdUID", c.values.EtcdUID, "StatefulSetName", c.values.Name)
+		}
+	}
+	return numRestartsRequired
+}
+
+func (c *component) addSyncTask(g *flow.Graph, sts *appsv1.StatefulSet) {
+	taskID := g.Add(flow.Task{
+		Name: "sync StatefulSet due to change in replicas",
+		Fn: func(ctx context.Context) error {
+			return c.syncStatefulSet(ctx, sts, c.values.Replicas)
+		},
+	})
+	c.logger.Info("Added sync StatefulSet task to the deploy flow due to scale-up of etcd cluster to multi-node", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", c.values.EtcdUID, "StatefulSetName", c.values.Name)
+}
+
+func (c *component) checkAndAddTaskScaleUpToMultiNode(g *flow.Graph, numRestartsQueued uint8) {
+	if clusterScaledUpToMultiNode(c.values) && numRestartsQueued == 0 {
+		taskID := g.Add(flow.Task{
+			Name: "recreate StatefulSet due to Peer TLS changed to enabled",
+			Fn: func(ctx context.Context) error {
+				return c.recreate(ctx, 1)
+			},
+		})
+		c.logger.Info("Added task to recreate StatefulSet to the deploy flow due to Peer TLS set to enabled", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", c.values.EtcdUID, "StatefulSetName", c.values.Name)
+	}
+}
+
+func (c *component) getExistingSts(ctx context.Context) (*appsv1.StatefulSet, error) {
 	sts, err := c.Get(ctx)
 	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
+		if apierrors.IsNotFound(err) {
+			return nil, nil
 		}
-		sts = c.emptyStatefulset()
+		return nil, err
 	}
-	numberOfRecreateRequired := c.getNumTimesToRecreateSts(sts)
-	if numberOfRecreateRequired > 0 {
-		return c.recreateStsNTimes(ctx, numberOfRecreateRequired)
-	} else {
-		return c.syncStatefulset(ctx, sts)
-	}
+	return sts, nil
 }
 
 func (c *component) getNumTimesToRecreateSts(sts *appsv1.StatefulSet) uint8 {
 	if sts.Generation > 1 && clusterScaledUpToMultiNode(c.values) && immutableFieldUpdate(sts, c.values) {
 		return 1
-	} else if c.IsPeerUrlTLSChangedToEnabled() {
+	} else if c.values.PeerTLSChangedToEnabled {
 		c.logger.Info("PeerUrl TLS has been enabled for etcd. To reflect this change etcd StatefulSet has to be re-created 2 times", "namespace", c.values.Namespace, "name", c.values.Name, "etcdUID", c.values.EtcdUID)
 		return 2
 	}
 	return 0
 }
 
-func (c *component) recreateStsNTimes(ctx context.Context, times uint8) error {
-	for i := uint8(0); i < times; i++ {
-		c.logger.Info("recreating sts", "namespace", c.values.Namespace, "name", c.values.Name, "recreation-count", i)
-		err := c.recreate(ctx)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (c *component) recreate(ctx context.Context) error {
+func (c *component) recreate(ctx context.Context, replicas int32) error {
 	deleteAndWait := gardenercomponent.OpDestroyAndWait(c)
 	if err := deleteAndWait.Destroy(ctx); err != nil {
 		return err
 	}
 	sts := c.emptyStatefulset()
-	return c.syncStatefulset(ctx, sts)
-}
-
-func (c *component) IsPeerUrlTLSChangedToEnabled() bool {
-	peerUrlEnabled := c.values.PeerUrlTLSAlreadyEnabled
-	return peerUrlEnabled != nil && !*peerUrlEnabled && c.values.PeerUrlTLS != nil
+	return c.syncStatefulSet(ctx, sts, replicas)
 }
 
 func immutableFieldUpdate(sts *appsv1.StatefulSet, val Values) bool {
@@ -161,7 +228,7 @@ func (c *component) Wait(ctx context.Context) error {
 		messages, err2 := c.fetchPVCEventsFor(ctx, sts)
 		if err2 != nil {
 			c.logger.Error(err2, "Error while fetching events for depending PVC")
-			// don't expose this error since fetching events is a best effort
+			// don't expose this error since fetching events is the best effort
 			// and shouldn't be confused with the actual error
 			return err
 		}
@@ -189,7 +256,7 @@ func (c *component) WaitCleanup(ctx context.Context) error {
 	})
 }
 
-func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet) error {
+func (c *component) syncStatefulSet(ctx context.Context, sts *appsv1.StatefulSet, replicas int32) error {
 	var (
 		stsOriginal = sts.DeepCopy()
 		patch       = client.StrategicMergeFrom(stsOriginal)
@@ -206,7 +273,7 @@ func (c *component) syncStatefulset(ctx context.Context, sts *appsv1.StatefulSet
 		UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
 			Type: appsv1.RollingUpdateStatefulSetStrategyType,
 		},
-		Replicas:    pointer.Int32(c.values.Replicas),
+		Replicas:    &replicas,
 		ServiceName: c.values.PeerServiceName,
 		Selector: &metav1.LabelSelector{
 			MatchLabels: getCommonLabels(&c.values),
