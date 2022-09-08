@@ -760,7 +760,7 @@ func newTestHelperJob(jobName string, podSpec *corev1.PodSpec) *batchv1.Job {
 }
 
 // etcdZeroDownTimeValidatorJob returns k8s job which ensures
-// Etcd cluster zero down time by continuously checking etcd cluster health.
+// Etcd cluster(size>1) zero down time by continuously checking etcd cluster health.
 // This job fails once health check fails and associated pod results in error status.
 func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSConfig) *batchv1.Job {
 	return newTestHelperJob(
