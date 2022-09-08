@@ -3,6 +3,7 @@ module github.com/gardener/etcd-druid
 go 1.18
 
 require (
+	github.com/Masterminds/semver v1.5.0
 	github.com/gardener/etcd-backup-restore v0.14.1
 	github.com/gardener/gardener v1.36.0
 	github.com/ghodss/yaml v1.0.0
@@ -25,7 +26,6 @@ require (
 	github.com/Azure/azure-storage-blob-go v0.8.0 // indirect
 	github.com/BurntSushi/toml v0.3.1 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect

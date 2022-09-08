@@ -27,11 +27,13 @@ import (
 	"github.com/gardener/etcd-druid/pkg/common"
 	componentconfigmap "github.com/gardener/etcd-druid/pkg/component/etcd/configmap"
 	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
+	componentpdb "github.com/gardener/etcd-druid/pkg/component/etcd/poddisruptionbudget"
 	componentservice "github.com/gardener/etcd-druid/pkg/component/etcd/service"
 	"github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
 	componentsts "github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
+
 	extensionspredicate "github.com/gardener/gardener/extensions/pkg/predicate"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/chartrenderer"
@@ -42,17 +44,13 @@ import (
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	eventsv1beta1 "k8s.io/api/events/v1beta1"
-	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	rbac "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/rest"
@@ -156,10 +154,6 @@ func getChartPathForRole() string {
 
 func getChartPathForRoleBinding() string {
 	return filepath.Join("etcd", "templates", "etcd-rolebinding.yaml")
-}
-
-func getChartPathForPodDisruptionBudget() string {
-	return filepath.Join("etcd", "templates", "etcd-poddisruptionbudget.yaml")
 }
 
 func getImageYAMLPath() string {
@@ -286,19 +280,6 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		}, err
 	}
 
-	// Delete any existing cronjob if required.
-	// TODO(abdasgupta) : This is for backward compatibility towards ETCD-Druid 0.6.0. Remove it.
-	cronJob, err := r.cleanCronJobs(ctx, logger, etcd)
-	if err != nil {
-		return ctrl.Result{
-			Requeue: true,
-		}, fmt.Errorf("error while cleaning compaction cron job: %v", err)
-	}
-
-	if cronJob != nil {
-		logger.Info("The running cron job is: " + cronJob.Name)
-	}
-
 	result := r.reconcileEtcd(ctx, logger, etcd)
 	if result.err != nil {
 		if updateEtcdErr := r.updateEtcdErrorStatus(ctx, etcd, result); updateEtcdErr != nil {
@@ -322,57 +303,9 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 	}, nil
 }
 
-func (r *EtcdReconciler) cleanCronJobs(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*batchv1beta1.CronJob, error) {
-	cronJob := &batchv1beta1.CronJob{}
-	err := r.Get(ctx, types.NamespacedName{Name: utils.GetCronJobName(etcd), Namespace: etcd.Namespace}, cronJob)
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return nil, err
-		}
-
-		return nil, nil
-	}
-
-	// Delete cronJob if there is no active job
-	if len(cronJob.Status.Active) == 0 {
-		err = client.IgnoreNotFound(r.Delete(ctx, cronJob, client.PropagationPolicy(metav1.DeletePropagationForeground)))
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	}
-
-	// Calculate time elapsed since the cron job is scheduled
-	timeElapsed := time.Since(cronJob.Status.LastScheduleTime.Time).Seconds()
-	// Delete the cron job if it's running for more than 3 hours
-	if timeElapsed > (3 * time.Hour).Seconds() {
-		if err := client.IgnoreNotFound(r.Delete(ctx, cronJob, client.PropagationPolicy(metav1.DeletePropagationForeground))); err != nil {
-			return nil, err
-		}
-		logger.Info("last cron job was stuck and deleted")
-		return nil, nil
-	}
-	return cronJob, nil
-}
-
 func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	logger := r.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String(), "operation", "delete")
 	logger.Info("Starting operation")
-
-	// TODO(abdasgupta) : This is for backward compatibility towards ETCD-Druid 0.6.0. Remove it.
-	cronJob := &batchv1beta1.CronJob{}
-	if err := client.IgnoreNotFound(r.Get(ctx, types.NamespacedName{Name: utils.GetCronJobName(etcd), Namespace: etcd.Namespace}, cronJob)); err != nil {
-		return ctrl.Result{RequeueAfter: 10 * time.Second}, fmt.Errorf("error while fetching compaction cron job: %v", err)
-	}
-
-	if cronJob.Name == utils.GetCronJobName(etcd) && cronJob.DeletionTimestamp == nil {
-		logger.Info("Deleting cron job", "cronjob", kutil.ObjectName(cronJob))
-		if err := client.IgnoreNotFound(r.Delete(ctx, cronJob, client.PropagationPolicy(metav1.DeletePropagationForeground))); err != nil {
-			return ctrl.Result{
-				Requeue: true,
-			}, fmt.Errorf("error while deleting compaction cron job: %v", err)
-		}
-	}
 
 	stsDeployer := gardenercomponent.OpDestroyAndWait(componentsts.New(r.Client, logger, componentsts.Values{Name: etcd.Name, Namespace: etcd.Namespace}))
 	if err := stsDeployer.Destroy(ctx); err != nil {
@@ -400,6 +333,20 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 		}, err
 	}
 
+	pdbValues := componentpdb.GenerateValues(etcd)
+	k8sversion, err := utils.GetClusterK8sVersion(r.Config)
+	if err != nil {
+		return ctrl.Result{
+			Requeue: true,
+		}, err
+	}
+	pdbDeployer := componentpdb.New(r.Client, etcd.Namespace, &pdbValues, *k8sversion)
+	if err := pdbDeployer.Destroy(ctx); err != nil {
+		return ctrl.Result{
+			Requeue: true,
+		}, err
+	}
+
 	if sets.NewString(etcd.Finalizers...).Has(FinalizerName) {
 		logger.Info("Removing finalizer")
 		if err := controllerutils.PatchRemoveFinalizers(ctx, r.Client, etcd, FinalizerName); client.IgnoreNotFound(err) != nil {
@@ -410,63 +357,6 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 	}
 	logger.Info("Deleted etcd successfully.")
 	return ctrl.Result{}, nil
-}
-
-func (r *EtcdReconciler) reconcilePodDisruptionBudget(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) error {
-	logger.Info("Reconcile PodDisruptionBudget")
-	pdb := &policyv1beta1.PodDisruptionBudget{}
-	err := r.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, pdb)
-
-	if err == nil {
-		// pdb already exists, claim it
-
-		selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
-		if err != nil {
-			logger.Error(err, "Error converting etcd selector to selector")
-			return err
-		}
-
-		logger.Info("Claiming pdb object")
-		_, err = r.claimPodDisruptionBudget(ctx, etcd, selector, pdb)
-		return err
-	}
-
-	if !apierrors.IsNotFound(err) {
-		return err
-	}
-
-	// Required podDisruptionBudget doesn't exist. Create new
-	pdb, err = r.getPodDisruptionBudgetFromEtcd(etcd, values, logger)
-	if err != nil {
-		return err
-	}
-
-	logger.Info("Creating PodDisruptionBudget", "poddisruptionbudget", kutil.Key(pdb.Namespace, pdb.Name).String())
-	if err := r.Create(ctx, pdb); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (r *EtcdReconciler) getPodDisruptionBudgetFromEtcd(etcd *druidv1alpha1.Etcd, values map[string]interface{}, logger logr.Logger) (*policyv1beta1.PodDisruptionBudget, error) {
-	var err error
-	decoded := &policyv1beta1.PodDisruptionBudget{}
-	pdbPath := getChartPathForPodDisruptionBudget()
-	chartPath := getChartPath()
-	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
-	if err != nil {
-		return nil, err
-	}
-	if content, ok := renderedChart.Files()[pdbPath]; ok {
-		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
-		if err = decoder.Decode(&decoded); err != nil {
-			return nil, err
-		}
-		return decoded, nil
-	}
-
-	return nil, fmt.Errorf("missing podDisruptionBudget template file in the charts: %v", pdbPath)
 }
 
 func decodeObject(renderedChart *chartrenderer.RenderedChart, path string, object interface{}) error {
@@ -660,6 +550,16 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		return reconcileResult{err: err}
 	}
 
+	pdbValues := componentpdb.GenerateValues(etcd)
+	k8sversion, err := utils.GetClusterK8sVersion(r.Config)
+	if err != nil {
+		return reconcileResult{err: err}
+	}
+	pdbDeployer := componentpdb.New(r.Client, etcd.Namespace, &pdbValues, *k8sversion)
+	if err := pdbDeployer.Deploy(ctx); err != nil {
+		return reconcileResult{err: err}
+	}
+
 	values, err := r.getMapFromEtcd(etcd, r.disableEtcdServiceAccountAutomount)
 	if err != nil {
 		return reconcileResult{err: err}
@@ -680,10 +580,6 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		return reconcileResult{err: err}
 	}
 
-	err = r.reconcilePodDisruptionBudget(ctx, logger, etcd, values)
-	if err != nil {
-		return reconcileResult{err: err}
-	}
 	peerTLSEnabled, err := leaseDeployer.GetPeerURLTLSEnabledStatus(ctx)
 	if err != nil {
 		return reconcileResult{err: err}
@@ -868,22 +764,4 @@ func (r *EtcdReconciler) updateEtcdStatusAsNotReady(ctx context.Context, etcd *d
 		return nil
 	})
 	return etcd, err
-}
-
-func (r *EtcdReconciler) claimPodDisruptionBudget(ctx context.Context, etcd *druidv1alpha1.Etcd, selector labels.Selector, pdb *policyv1beta1.PodDisruptionBudget) (*policyv1beta1.PodDisruptionBudget, error) {
-	// If any adoptions are attempted, we should first recheck for deletion with
-	// an uncached quorum read sometime after listing Machines (see #42639).
-	canAdoptFunc := RecheckDeletionTimestamp(func() (metav1.Object, error) {
-		foundEtcd := &druidv1alpha1.Etcd{}
-		err := r.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, foundEtcd)
-		if err != nil {
-			return nil, err
-		}
-		if foundEtcd.UID != etcd.UID {
-			return nil, fmt.Errorf("original %v/%v hvpa gone: got uid %v, wanted %v", etcd.Namespace, etcd.Name, foundEtcd.UID, etcd.UID)
-		}
-		return foundEtcd, nil
-	})
-	cm := NewEtcdDruidRefManager(r.Client, r.Scheme, etcd, selector, etcdGVK, canAdoptFunc)
-	return cm.ClaimPodDisruptionBudget(ctx, pdb)
 }
