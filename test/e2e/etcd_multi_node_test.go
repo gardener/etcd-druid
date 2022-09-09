@@ -29,38 +29,38 @@ import (
 )
 
 var _ = Describe("Etcd", func() {
+	var (
+		etcdName         string
+		storageContainer string
+		parentCtx        context.Context
+		provider         TestProvider
+	)
+
+	BeforeEach(func() {
+		parentCtx = context.Background()
+		// take first provider
+		provider = providers[0]
+
+		etcdName = fmt.Sprintf("etcd-%s", provider.Name)
+
+		storageContainer = getEnvAndExpectNoError(envStorageContainer)
+
+		snapstoreProvider := provider.Storage.Provider
+		store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		// purge any existing backups in bucket
+		Expect(purgeSnapstore(store)).To(Succeed())
+		Expect(deployBackupSecret(parentCtx, cl, logger, provider, etcdNamespace, storageContainer))
+
+	})
+
+	AfterEach(func() {
+		// remove etcd objects if any old etcd objects exists.
+		purgeEtcd(parentCtx, cl, providers)
+	})
+
 	Context("when multi-node is configured", func() {
-		var (
-			etcdName         string
-			storageContainer string
-			parentCtx        context.Context
-			provider         TestProvider
-		)
-
-		BeforeEach(func() {
-			parentCtx = context.Background()
-			// take first provider
-			provider = providers[0]
-
-			etcdName = fmt.Sprintf("etcd-%s", provider.Name)
-
-			storageContainer = getEnvAndExpectNoError(envStorageContainer)
-
-			snapstoreProvider := provider.Storage.Provider
-			store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			// purge any existing backups in bucket
-			Expect(purgeSnapstore(store)).To(Succeed())
-			Expect(deployBackupSecret(parentCtx, cl, logger, provider, etcdNamespace, storageContainer))
-
-		})
-
-		AfterEach(func() {
-			// remove etcd objects if any old etcd objects exists.
-			purgeEtcd(parentCtx, cl, providers)
-		})
-
 		It("should perform etcd operations", func() {
 			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
 			defer cancelFunc()
@@ -116,27 +116,6 @@ var _ = Describe("Etcd", func() {
 	})
 
 	Context("when single-node is configured", func() {
-		var (
-			etcdName         string
-			storageContainer string
-			parentCtx        context.Context
-			provider         TestProvider
-		)
-
-		BeforeEach(func() {
-			parentCtx = context.Background()
-			// take first provider
-			provider = providers[0]
-			provider.Storage = nil
-
-			etcdName = fmt.Sprintf("etcd-%s", provider.Name)
-		})
-
-		AfterEach(func() {
-			// remove etcd objects if any old etcd objects exist.
-			purgeEtcd(parentCtx, cl, providers)
-		})
-
 		It("should scale single-node etcd to multi-node etcd cluster", func() {
 			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
 			defer cancelFunc()
