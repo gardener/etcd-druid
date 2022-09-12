@@ -254,7 +254,7 @@ var _ = Describe("BackupReadyCheck", func() {
 					Expect(result).ToNot(BeNil())
 					Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
 					Expect(result.Reason()).To(Equal(ConditionNotChecked))
-					Expect(result.Message()).To(Equal("Statefulset has been scaled down"))
+					Expect(result.Message()).To(Equal("etcd cluster has been scaled down"))
 				})
 			})
 			Context("With a prior BackupReady condition being set", func() {
@@ -279,7 +279,7 @@ var _ = Describe("BackupReadyCheck", func() {
 					Expect(result).ToNot(BeNil())
 					Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
 					Expect(result.Reason()).To(Equal(ConditionNotChecked))
-					Expect(result.Message()).To(Equal("Statefulset has been scaled down"))
+					Expect(result.Message()).To(Equal("etcd cluster has been scaled down"))
 				})
 			})
 		})
