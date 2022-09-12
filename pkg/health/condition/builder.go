@@ -106,12 +106,6 @@ func (b *defaultBuilder) Build() []druidv1alpha1.Condition {
 		condition.Reason = res.Reason()
 
 		conditions = append(conditions, condition)
-		delete(b.old, condType)
-	}
-
-	for _, condition := range b.old {
-		// Add existing conditions as they were. This needs to be changed when SSA is used.
-		conditions = append(conditions, condition)
 	}
 
 	sort.Slice(conditions, func(i, j int) bool {

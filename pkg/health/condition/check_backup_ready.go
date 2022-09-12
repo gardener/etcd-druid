@@ -36,7 +36,8 @@ const (
 	// BackupFailed is a constant that means that etcd backup has failed
 	BackupFailed string = "BackupFailed"
 	// Unknown is a constant that means that the etcd backup status is currently not known
-	Unknown             string = "Unknown"
+	Unknown string = "Unknown"
+	// ConditionNotChecked is a constant that means that the etcd backup status has not been updated or rechecked
 	ConditionNotChecked string = "ConditionNotChecked"
 )
 
@@ -73,7 +74,7 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 			result.status = bckpCond.Status
 		}
 		result.reason = ConditionNotChecked
-		result.message = "Statefulset has been scaled down"
+		result.message = "etcd cluster has been scaled down"
 		return result
 	}
 
