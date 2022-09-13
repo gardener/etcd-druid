@@ -23,6 +23,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+//
+var skipMergeConditions = map[druidv1alpha1.ConditionType]bool{
+	druidv1alpha1.ConditionTypeReady:           true,
+	druidv1alpha1.ConditionTypeAllMembersReady: true,
+	druidv1alpha1.ConditionTypeBackupReady:     true,
+}
+
 // Builder is an interface for building conditions.
 type Builder interface {
 	WithOldConditions(conditions []druidv1alpha1.Condition) Builder
@@ -105,6 +112,17 @@ func (b *defaultBuilder) Build() []druidv1alpha1.Condition {
 		condition.Message = res.Message()
 		condition.Reason = res.Reason()
 
+		conditions = append(conditions, condition)
+		delete(b.old, condType)
+	}
+
+	for _, condition := range b.old {
+		// Do not add conditions that are part of the skipMergeConditions list
+		ok := skipMergeConditions[condition.Type]
+		if ok {
+			continue
+		}
+		// Add existing conditions as they were. This needs to be changed when SSA is used.
 		conditions = append(conditions, condition)
 	}
 
