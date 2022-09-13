@@ -248,6 +248,7 @@ var _ = Describe("BackupReadyCheck", func() {
 
 					etcdObj := etcd
 					etcdObj.Spec.Replicas = 0
+					etcdObj.Status.Conditions = []druidv1alpha1.Condition{}
 					check := BackupReadyCheck(cl)
 					result := check.Check(context.TODO(), etcdObj)
 
