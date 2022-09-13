@@ -35,7 +35,9 @@ import (
 )
 
 const (
-	timeout           = time.Minute * 1
+	singleNodeEtcdTimeout = time.Minute
+	multiNodeEtcdTimeout  = time.Minute * 3
+
 	pollingInterval   = time.Second * 2
 	envSourcePath     = "SOURCE_PATH"
 	envKubeconfigPath = "KUBECONFIG"
@@ -126,5 +128,5 @@ var _ = AfterSuite(func() {
 
 	Eventually(func() error {
 		return cl.Get(ctx, client.ObjectKey{Name: etcdNamespace}, &corev1.Namespace{})
-	}, timeout*2, pollingInterval).Should(matchers.BeNotFoundError())
+	}, time.Minute*2, pollingInterval).Should(matchers.BeNotFoundError())
 })

@@ -242,7 +242,6 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 func getDefaultMultiNodeEtcd(name, namespace, container, prefix string, provider TestProvider) *v1alpha1.Etcd {
 	etcd := getDefaultEtcd(name, namespace, container, prefix, provider)
 	etcd.Spec.Replicas = multiNodeEtcdReplicas
-	etcd.Spec.Backup = v1alpha1.BackupSpec{}
 	return etcd
 }
 

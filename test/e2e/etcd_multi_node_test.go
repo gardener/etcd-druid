@@ -69,49 +69,44 @@ var _ = Describe("Etcd", func() {
 			objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
 
 			By("Create etcd")
-			createAndCheckEtcd(ctx, cl, objLogger, etcd)
+			createAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
 			By("Hibernate etcd (Scale down from 3->0)")
-			hibernateAndCheckEtcd(ctx, cl, objLogger, etcd)
+			hibernateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
 			By("Wakeup etcd (Scale up from 0->3)")
 			// scale up etcd replicas to 3 and ensures etcd cluster with 3 replicas is ready.
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = multiNodeEtcdReplicas
-			updateAndCheckEtcd(ctx, cl, logger, etcd)
+			updateAndCheckEtcd(ctx, cl, logger, etcd, multiNodeEtcdTimeout)
 
 			By("Zero downtime rolling updates")
 			job := startEtcdZeroDownTimeValidatorJob(ctx, cl, etcd, "rolling-update")
-			// this defer ensures to remove the job, if test case breaks before deleting the job.
+			// this defer ensures to remove the job.
 			defer cleanUpTestHelperJob(ctx, cl, job.Name)
 
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			// trigger rolling update by updating etcd quota
 			etcd.Spec.Etcd.Quota.Add(*resource.NewMilliQuantity(int64(10), resource.DecimalSI))
-			updateAndCheckEtcd(ctx, cl, objLogger, etcd)
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 			checkEtcdZeroDownTimeValidatorJob(ctx, cl, client.ObjectKeyFromObject(job), objLogger)
-			cleanUpTestHelperJob(ctx, cl, job.Name) // remove job
 
 			By("Zero downtime maintenance operation: defragmentation")
-			job = startEtcdZeroDownTimeValidatorJob(ctx, cl, etcd, "defragmentation")
-			// this defer ensures to remove the job, if test case breaks before deleting the job.
-			defer cleanUpTestHelperJob(ctx, cl, job.Name)
-
 			objLogger.Info("Configure defragmentation schedule for every 1 minute")
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			*etcd.Spec.Etcd.DefragmentationSchedule = "*/1 * * * *"
-			updateAndCheckEtcd(ctx, cl, objLogger, etcd)
-
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+			// check any downtime due to rolling update.
+			checkEtcdZeroDownTimeValidatorJob(ctx, cl, client.ObjectKeyFromObject(job), objLogger)
 			checkDefragmentationFinished(ctx, cl, etcd, objLogger)
 
 			objLogger.Info("Checking any Etcd downtime")
 			// Checking Etcd cluster is healthy and there is no downtime while defragmentation.
 			// K8s job zeroDownTimeValidator will fail, if there is any downtime in Etcd cluster health.
 			checkEtcdZeroDownTimeValidatorJob(ctx, cl, client.ObjectKeyFromObject(job), objLogger)
-			cleanUpTestHelperJob(ctx, cl, job.Name)
 
 			By("Delete etcd")
-			deleteAndCheckEtcd(ctx, cl, objLogger, etcd)
+			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
 	})
 
@@ -124,12 +119,12 @@ var _ = Describe("Etcd", func() {
 			objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
 
 			By("Create single-node etcd")
-			createAndCheckEtcd(ctx, cl, objLogger, etcd)
+			createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
 
 			By("Scale up of a healthy cluster (from 1->3)")
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = multiNodeEtcdReplicas
-			updateAndCheckEtcd(ctx, cl, objLogger, etcd)
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
 			// TODO: Uncomment me once scale down replicas from 3 to 1 is supported.
 			// By("Scale down of a healthy cluster (from 3 to 1)")
@@ -138,7 +133,7 @@ var _ = Describe("Etcd", func() {
 			// updateAndCheckEtcd(ctx, cl, objLogger, etcd)
 
 			By("Delete single-node etcd")
-			deleteAndCheckEtcd(ctx, cl, objLogger, etcd)
+			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
 	})
 })
@@ -148,15 +143,23 @@ var _ = Describe("Etcd", func() {
 // it raises assertion error.
 //
 // checkEventuallyEtcdRollingUpdateDone ensures rolling updates of etcd resources(etcd/sts) is done.
-func checkEventuallyEtcdRollingUpdateDone(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd,
-	oldStsObservedGeneration, oldEtcdObservedGeneration int64) {
+func checkEventuallyEtcdRollingUpdateDone(ctx context.Context, cl client.Client, etcd *v1alpha1.Etcd,
+	oldStsObservedGeneration, oldEtcdObservedGeneration int64, timeout time.Duration) {
 	EventuallyWithOffset(1, func() error {
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+			return fmt.Errorf("error occurred while getting etcd object: %v ", err)
+		}
+
+		if *etcd.Status.ObservedGeneration <= oldEtcdObservedGeneration {
+			return fmt.Errorf("waiting for etcd %q rolling update to complete", etcd.Name)
+		}
+
 		sts := &appsv1.StatefulSet{}
 		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts); err != nil {
 			return fmt.Errorf("error occurred while getting sts object: %v ", err)
 		}
 
-		if sts.Status.ObservedGeneration <= oldStsObservedGeneration {
+		if sts.Generation <= oldStsObservedGeneration || sts.Generation != sts.Status.ObservedGeneration {
 			return fmt.Errorf("waiting for statefulset rolling update to complete %d pods at revision %s",
 				sts.Status.UpdatedReplicas, sts.Status.UpdateRevision)
 		}
@@ -166,19 +169,12 @@ func checkEventuallyEtcdRollingUpdateDone(ctx context.Context, cl client.Client,
 				sts.Status.UpdatedReplicas, *sts.Spec.Replicas)
 		}
 
-		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
-			return fmt.Errorf("error occurred while getting etcd object: %v ", err)
-		}
-
-		if *etcd.Status.ObservedGeneration <= oldEtcdObservedGeneration {
-			return fmt.Errorf("waiting for etcd %q rolling update to complete", etcd.Name)
-		}
 		return nil
-	}, timeout*3, pollingInterval).Should(BeNil())
+	}, timeout, pollingInterval).Should(BeNil())
 }
 
 // hibernateAndCheckEtcd scales down etcd replicas to zero and ensures
-func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd) {
+func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
 	ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 	etcd.Spec.Replicas = 0
 	etcd.SetAnnotations(
@@ -196,17 +192,17 @@ func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Lo
 			return err
 		}
 
-		if etcd != nil && etcd.Status.Ready != nil {
-			if *etcd.Status.Ready != true {
-				return fmt.Errorf("etcd %s is not ready", etcd.Name)
-			}
+		if etcd.Status.Ready != nil && *etcd.Status.Ready != true {
+			return fmt.Errorf("etcd %s is not ready", etcd.Name)
 		}
 
-		if etcd.Status.ClusterSize == nil {
-			return fmt.Errorf("etcd %s cluster size is empty", etcd.Name)
-		}
 		// TODO: uncomment me once scale down is supported,
 		// currently ClusterSize is not updated while scaling down.
+		//
+		// if etcd.Status.ClusterSize == nil {
+		// 	return fmt.Errorf("etcd %s cluster size is empty", etcd.Name)
+		// }
+		//
 		// if *etcd.Status.ClusterSize != 0 {
 		// 	return fmt.Errorf("etcd %q cluster size is %d, but expected to be 0",
 		// 		etcdName, *etcd.Status.ClusterSize)
@@ -214,6 +210,10 @@ func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Lo
 
 		if etcd.Status.ReadyReplicas != 0 {
 			return fmt.Errorf("etcd readyReplicas is %d, but expected to be 0", etcd.Status.ReadyReplicas)
+		}
+
+		if len(etcd.Status.Conditions) == 0 {
+			return fmt.Errorf("etcd %s status conditions is empty", etcd.Name)
 		}
 
 		for _, c := range etcd.Status.Conditions {
@@ -224,17 +224,19 @@ func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Lo
 		}
 
 		return nil
-	}, timeout*3, pollingInterval).Should(BeNil())
+	}, timeout, pollingInterval).Should(BeNil())
 
 	logger.Info("Checking statefulset")
 	sts := &appsv1.StatefulSet{}
 	ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts)).To(Succeed())
+	ExpectWithOffset(1, sts.Spec.Replicas).ShouldNot(BeNil())
+	ExpectWithOffset(1, *sts.Spec.Replicas).To(BeNumerically("==", 0))
 	ExpectWithOffset(1, sts.Status.ReadyReplicas).To(BeNumerically("==", 0))
 	logger.Info("etcd is hibernated")
 }
 
 // updateAndCheckEtcd updates the given etcd obj in the Kubernetes cluster.
-func updateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd) {
+func updateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
 	sts := &appsv1.StatefulSet{}
 	ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts)).To(Succeed())
 	oldStsObservedGeneration, oldEtcdObservedGeneration := sts.Status.ObservedGeneration, *etcd.Status.ObservedGeneration
@@ -248,9 +250,9 @@ func updateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 
 	// Ensuring update is successful by verifying
 	// ObservedGeneration ID of sts, etcd before and after update done.
-	checkEventuallyEtcdRollingUpdateDone(ctx, cl, logger, etcd,
-		oldStsObservedGeneration, oldEtcdObservedGeneration)
-	checkEtcdReady(ctx, cl, logger, etcd)
+	checkEventuallyEtcdRollingUpdateDone(ctx, cl, etcd,
+		oldStsObservedGeneration, oldEtcdObservedGeneration, timeout)
+	checkEtcdReady(ctx, cl, logger, etcd, timeout)
 }
 
 // cleanUpTestHelperJob ensures to remove the given job in the kubernetes cluster if job exists.
@@ -296,7 +298,7 @@ func checkJobReady(ctx context.Context, cl client.Client, jobName string) {
 
 		}
 		return fmt.Errorf("waiting for pod %v to be ready", podList.Items[0].Name)
-	}, timeout, pollingInterval).Should(BeNil())
+	}, time.Minute, pollingInterval).Should(BeNil())
 }
 
 // etcdZeroDownTimeValidatorJob returns k8s job which ensures
@@ -325,7 +327,7 @@ func getEtcdLeaderPodName(ctx context.Context, cl client.Client, namespace strin
 		if lease.Spec.HolderIdentity == nil {
 			return nil, fmt.Errorf("error occurred while finding leader, etcd lease %q spec.holderIdentity is nil", lease.Name)
 		}
-		if strings.Contains(*lease.Spec.HolderIdentity, "Leader") {
+		if strings.HasSuffix(*lease.Spec.HolderIdentity, ":Leader") {
 			return &types.NamespacedName{Namespace: namespace, Name: lease.Name}, nil
 		}
 	}
@@ -404,10 +406,10 @@ func purgeEtcd(ctx context.Context, cl client.Client, providers []TestProvider) 
 		if err := cl.Get(ctx, client.ObjectKeyFromObject(e), e); err == nil {
 			ExpectWithOffset(1, kutil.DeleteObject(ctx, cl, e)).To(Succeed())
 			EventuallyWithOffset(1, func() error {
-				ctx, cancelFunc := context.WithTimeout(ctx, timeout)
+				ctx, cancelFunc := context.WithTimeout(ctx, time.Minute)
 				defer cancelFunc()
 				return cl.Get(ctx, client.ObjectKeyFromObject(e), e)
-			}, timeout*3, pollingInterval).Should(matchers.BeNotFoundError())
+			}, time.Minute, pollingInterval).Should(matchers.BeNotFoundError())
 			purgeEtcdPVCs(ctx, cl, e.Name)
 		}
 	}
