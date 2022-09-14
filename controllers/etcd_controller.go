@@ -715,7 +715,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 }
 
 func isPeerTLSIsChangedToEnabled(peerTLSEnabledStatusFromMembers bool, configMapValues *componentconfigmap.Values) bool {
-	if peerTLSEnabledStatusFromMembers == true {
+	if peerTLSEnabledStatusFromMembers {
 		return false
 	}
 	return configMapValues.PeerUrlTLS != nil
