@@ -52,14 +52,27 @@ type component struct {
 	values Values
 }
 
-func (c *component) Get(ctx context.Context) (*appsv1.StatefulSet, error) {
-	sts := c.emptyStatefulset()
-	if err := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
-		return nil, err
+// New creates a new statefulset deployer instance.
+func New(c client.Client, logger logr.Logger, values Values) Interface {
+	objectLogger := logger.WithValues("sts", client.ObjectKey{Name: values.Name, Namespace: values.Namespace})
+
+	return &component{
+		client: c,
+		logger: objectLogger,
+		values: values,
 	}
-	return sts, nil
 }
 
+// Destroy deletes the StatefulSet
+func (c *component) Destroy(ctx context.Context) error {
+	sts := c.emptyStatefulset()
+	if err := client.IgnoreNotFound(c.client.Delete(ctx, sts)); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Deploy executes a deploy-flow to ensure that the StatefulSet is synchronized correctly
 func (c *component) Deploy(ctx context.Context) error {
 	deployFlow, err := c.createDeployFlow(ctx)
 	if err != nil {
@@ -68,138 +81,13 @@ func (c *component) Deploy(ctx context.Context) error {
 	return deployFlow.Run(ctx, flow.Opts{})
 }
 
-func (c *component) createDeployFlow(ctx context.Context) (*flow.Flow, error) {
-	sts, err := c.getExistingSts(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	flowName := fmt.Sprintf("(etcd: %s) Deploy Flow for StatefulSet %s for Namespace: %s", c.values.EtcdUID, c.values.Name, c.values.Namespace)
-	g := flow.NewGraph(flowName)
-	if sts == nil {
-		c.addCreateNewStsTaskStep(g)
-	} else {
-		numRestarts := c.checkAndAddTaskForImmutableFieldUpdate(g, sts)
-		numRestarts += c.checkAndAddTaskForPeerTLSChangedToEnabled(g, numRestarts)
-		c.checkAndAddTaskScaleUpToMultiNode(g, numRestarts)
-		c.addSyncTask(g, sts)
-	}
-	return g.Compile(), nil
-}
-
-func (c *component) addCreateNewStsTaskStep(g *flow.Graph) {
+// Get retrieves the existing StatefulSet
+func (c *component) Get(ctx context.Context) (*appsv1.StatefulSet, error) {
 	sts := c.emptyStatefulset()
-	taskID := g.Add(flow.Task{
-		Name: "create new StatefulSet",
-		Fn: func(ctx context.Context) error {
-			return c.syncStatefulSet(ctx, sts, c.values.Replicas)
-		},
-	})
-	c.logger.Info("Added create StatefulSet task to the deploy flow", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", c.values.EtcdUID, "StatefulSetName", c.values.Name)
-}
-
-func (c *component) checkAndAddTaskForImmutableFieldUpdate(g *flow.Graph, sts *appsv1.StatefulSet) uint8 {
-	if sts.Generation > 1 && immutableFieldUpdate(sts, c.values) {
-		taskID := g.Add(flow.Task{
-			Name: "recreate StatefulSet due to immutable field update",
-			Fn: func(ctx context.Context) error {
-				return c.recreate(ctx, c.values.Replicas)
-			},
-		})
-		c.logger.Info("Added task to recreate StatefulSet to the deploy flow due to immutable field update", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", c.values.EtcdUID, "StatefulSetName", c.values.Name)
-		return 1
-	}
-	return 0
-}
-
-func (c *component) checkAndAddTaskForPeerTLSChangedToEnabled(g *flow.Graph, numRestartsQueued uint8) uint8 {
-	var recreateTaskID flow.TaskID
-	var numRestartsRequired uint8
-	if c.values.PeerTLSChangedToEnabled {
-		numRestartsRequired = 2 - numRestartsQueued
-		for i := uint8(0); i < numRestartsRequired; i++ {
-			recreateTaskID = g.Add(flow.Task{
-				Name: "recreate StatefulSet due to Peer TLS changed to enabled",
-				Fn: func(ctx context.Context) error {
-					return c.recreate(ctx, 1)
-				},
-			})
-			c.logger.Info("Added task to recreate StatefulSet to the deploy flow due to Peer TLS set to enabled", "taskID", recreateTaskID, "namespace", c.values.Namespace, "etcdUID", c.values.EtcdUID, "StatefulSetName", c.values.Name)
-		}
-	}
-	return numRestartsRequired
-}
-
-func (c *component) addSyncTask(g *flow.Graph, sts *appsv1.StatefulSet) {
-	taskID := g.Add(flow.Task{
-		Name: "sync StatefulSet due to change in replicas",
-		Fn: func(ctx context.Context) error {
-			return c.syncStatefulSet(ctx, sts, c.values.Replicas)
-		},
-	})
-	c.logger.Info("Added sync StatefulSet task to the deploy flow due to scale-up of etcd cluster to multi-node", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", c.values.EtcdUID, "StatefulSetName", c.values.Name)
-}
-
-func (c *component) checkAndAddTaskScaleUpToMultiNode(g *flow.Graph, numRestartsQueued uint8) {
-	if clusterScaledUpToMultiNode(c.values) && numRestartsQueued == 0 {
-		taskID := g.Add(flow.Task{
-			Name: "recreate StatefulSet due to Peer TLS changed to enabled",
-			Fn: func(ctx context.Context) error {
-				return c.recreate(ctx, 1)
-			},
-		})
-		c.logger.Info("Added task to recreate StatefulSet to the deploy flow due to Peer TLS set to enabled", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", c.values.EtcdUID, "StatefulSetName", c.values.Name)
-	}
-}
-
-func (c *component) getExistingSts(ctx context.Context) (*appsv1.StatefulSet, error) {
-	sts, err := c.Get(ctx)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, nil
-		}
+	if err := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
 		return nil, err
 	}
 	return sts, nil
-}
-
-func (c *component) getNumTimesToRecreateSts(sts *appsv1.StatefulSet) uint8 {
-	if sts.Generation > 1 && clusterScaledUpToMultiNode(c.values) && immutableFieldUpdate(sts, c.values) {
-		return 1
-	} else if c.values.PeerTLSChangedToEnabled {
-		c.logger.Info("PeerUrl TLS has been enabled for etcd. To reflect this change etcd StatefulSet has to be re-created 2 times", "namespace", c.values.Namespace, "name", c.values.Name, "etcdUID", c.values.EtcdUID)
-		return 2
-	}
-	return 0
-}
-
-func (c *component) recreate(ctx context.Context, replicas int32) error {
-	deleteAndWait := gardenercomponent.OpDestroyAndWait(c)
-	if err := deleteAndWait.Destroy(ctx); err != nil {
-		return err
-	}
-	sts := c.emptyStatefulset()
-	return c.syncStatefulSet(ctx, sts, replicas)
-}
-
-func immutableFieldUpdate(sts *appsv1.StatefulSet, val Values) bool {
-	return sts.Spec.ServiceName != val.PeerServiceName || sts.Spec.PodManagementPolicy != appsv1.ParallelPodManagement
-}
-
-func (c *component) Destroy(ctx context.Context) error {
-	sts := c.emptyStatefulset()
-
-	if err := c.deleteStatefulset(ctx, sts); err != nil {
-		return err
-	}
-	return nil
-}
-
-func clusterScaledUpToMultiNode(val Values) bool {
-	return val.Replicas > 1 &&
-		// Also consider `0` here because this field was not maintained in earlier releases.
-		(val.StatusReplicas == 0 ||
-			val.StatusReplicas == 1)
 }
 
 const (
@@ -209,21 +97,10 @@ const (
 	defaultTimeout = 90 * time.Second
 )
 
+// Wait waits for the deployment of the StatefulSet to finish
 func (c *component) Wait(ctx context.Context) error {
 	sts := c.emptyStatefulset()
-
-	err := gardenerretry.UntilTimeout(ctx, defaultInterval, defaultTimeout, func(ctx context.Context) (bool, error) {
-		if err := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
-			if apierrors.IsNotFound(err) {
-				return gardenerretry.MinorError(err)
-			}
-			return gardenerretry.SevereError(err)
-		}
-		if err := utils.CheckStatefulSet(c.values.Replicas, sts); err != nil {
-			return gardenerretry.MinorError(err)
-		}
-		return gardenerretry.Ok()
-	})
+	err := c.waitDeploy(ctx, sts, c.values.Replicas)
 	if err != nil {
 		messages, err2 := c.fetchPVCEventsFor(ctx, sts)
 		if err2 != nil {
@@ -240,6 +117,22 @@ func (c *component) Wait(ctx context.Context) error {
 	return err
 }
 
+func (c *component) waitDeploy(ctx context.Context, sts *appsv1.StatefulSet, replicas int32) error {
+	return gardenerretry.UntilTimeout(ctx, defaultInterval, defaultTimeout, func(ctx context.Context) (bool, error) {
+		if err := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
+			if apierrors.IsNotFound(err) {
+				return gardenerretry.MinorError(err)
+			}
+			return gardenerretry.SevereError(err)
+		}
+		if err := utils.CheckStatefulSet(replicas, sts); err != nil {
+			return gardenerretry.MinorError(err)
+		}
+		return gardenerretry.Ok()
+	})
+}
+
+// WaitCleanup waits for the deletion of the StatefulSet to complete
 func (c *component) WaitCleanup(ctx context.Context) error {
 	return gardenerretry.UntilTimeout(ctx, defaultInterval, defaultTimeout, func(ctx context.Context) (done bool, err error) {
 		sts := c.emptyStatefulset()
@@ -256,7 +149,144 @@ func (c *component) WaitCleanup(ctx context.Context) error {
 	})
 }
 
-func (c *component) syncStatefulSet(ctx context.Context, sts *appsv1.StatefulSet, replicas int32) error {
+func (c *component) createDeployFlow(ctx context.Context) (*flow.Flow, error) {
+	sts, err := c.getExistingSts(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	flowName := fmt.Sprintf("(etcd: %s) Deploy Flow for StatefulSet %s for Namespace: %s", c.values.EtcdUID, c.values.Name, c.values.Namespace)
+	g := flow.NewGraph(flowName)
+
+	var taskID *flow.TaskID
+	if sts != nil {
+		taskID = c.addTasksForPeerUrlTLSChangedToEnabled(g, sts)
+		if taskID == nil {
+			// if sts recreation tasks for peer url tls have already been added then there is no need to additionally add tasks to explicitly handle immutable field updates.
+			taskID = c.addImmutableFieldUpdateTask(g, sts)
+		}
+	}
+	if taskID != nil || sts == nil {
+		sts = c.emptyStatefulset()
+	}
+	c.addCreateOrPatchTask(g, sts, taskID)
+
+	return g.Compile(), nil
+}
+
+// addTasksForPeerUrlTLSChangedToEnabled adds tasks to the deployment flow in case the peer url tls has been changed to `enabled`.
+// To ensure that the tls enablement of peer url is properly reflected in etcd, the etcd StatefulSet should be recreated twice. Assume
+// that the current state of etcd is that peer url is not TLS enabled. First restart pushes a new configuration which contains
+// PeerUrlTLS configuration. etcd-backup-restore will update the member peer url. This will result in the change of the peer url in the etcd db file,
+// but it will not reflect in the already running etcd container. Ideally a restart of an etcd container would have been sufficient but currently k8s
+// does not expose an API to force restart a single container within a pod. Therefore, we delete the sts once again. When it gets created the second time
+// it will now start etcd with the correct peer url which will be TLS enabled.
+func (c *component) addTasksForPeerUrlTLSChangedToEnabled(g *flow.Graph, sts *appsv1.StatefulSet) *flow.TaskID {
+	var existingStsReplicas int32
+	if sts.Spec.Replicas != nil {
+		existingStsReplicas = *sts.Spec.Replicas
+	}
+
+	if c.values.PeerTLSChangedToEnabled {
+		firstDelOpName := "(recreate-sts): delete sts due to peer url tls"
+		delTaskID := g.Add(flow.Task{
+			Name:         firstDelOpName,
+			Fn:           func(ctx context.Context) error { return c.destroyAndWait(ctx, firstDelOpName) },
+			Dependencies: nil,
+		})
+
+		// ensure that the recreation of StatefulSet is done using existing replicas and not the desired replicas as contained in c.values.Replicas
+		createOrPatchOpName := fmt.Sprintf("(recreate-sts): create sts due to peer url tls with replicas: %d", existingStsReplicas)
+		createTaskID := g.Add(flow.Task{
+			Name:         createOrPatchOpName,
+			Fn:           func(ctx context.Context) error { return c.createAndWait(ctx, createOrPatchOpName, existingStsReplicas) },
+			Dependencies: flow.NewTaskIDs(delTaskID),
+		})
+
+		secondDelOpName := "(recreate-sts): second-delete of sts due to peer url tls"
+		secondDeleteTaskID := g.Add(flow.Task{
+			Name:         secondDelOpName,
+			Fn:           func(ctx context.Context) error { return c.destroyAndWait(ctx, secondDelOpName) },
+			Dependencies: flow.NewTaskIDs(createTaskID),
+		})
+
+		c.logger.Info("added tasks to deploy flow due to peer url tls changed to enabled", "namespace", c.values.Namespace, "name", c.values.Name, "etcdUID", c.values.EtcdUID, "replicas", c.values.Replicas)
+		return &secondDeleteTaskID
+	}
+	return nil
+}
+
+func (c *component) addImmutableFieldUpdateTask(g *flow.Graph, sts *appsv1.StatefulSet) *flow.TaskID {
+	if sts.Generation > 1 && immutableFieldUpdate(sts, c.values) {
+		opName := "delete sts due to immutable field update"
+		taskID := g.Add(flow.Task{
+			Name:         opName,
+			Fn:           func(ctx context.Context) error { return c.destroyAndWait(ctx, opName) },
+			Dependencies: nil,
+		})
+		c.logger.Info("added delete StatefulSet task to deploy flow due to immutable field update task", "namespace", c.values.Namespace, "name", c.values.Name, "etcdUID", c.values.EtcdUID)
+		return &taskID
+	}
+	return nil
+}
+
+func (c *component) addCreateOrPatchTask(g *flow.Graph, sts *appsv1.StatefulSet, taskIDDependency *flow.TaskID) {
+	var dependencies flow.TaskIDs
+	if taskIDDependency != nil {
+		dependencies = flow.NewTaskIDs(taskIDDependency)
+	}
+
+	taskID := g.Add(flow.Task{
+		Name: "sync StatefulSet task",
+		Fn: func(ctx context.Context) error {
+			c.logger.Info("createOrPatch sts")
+			return c.createOrPatch(ctx, sts, c.values.Replicas)
+		},
+		Dependencies: dependencies,
+	})
+	c.logger.Info("added createOrPatch StatefulSet task to the deploy flow", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", c.values.EtcdUID, "StatefulSetName", c.values.Name, "replicas", c.values.Replicas)
+}
+
+func (c *component) getExistingSts(ctx context.Context) (*appsv1.StatefulSet, error) {
+	sts, err := c.Get(ctx)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return sts, nil
+}
+
+func (c *component) createAndWait(ctx context.Context, opName string, replicas int32) error {
+	sts := c.emptyStatefulset()
+	c.logger.Info("createOrPatch sts", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID, "replicas", replicas)
+	err := c.createOrPatch(ctx, sts, replicas)
+	if err != nil {
+		return err
+	}
+	c.logger.Info("waiting for createOrPatch sts to finish", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID, "replicas", replicas)
+	return c.waitDeploy(ctx, sts, replicas)
+}
+
+func (c *component) destroyAndWait(ctx context.Context, opName string) error {
+	deleteAndWait := gardenercomponent.OpDestroyAndWait(c)
+	c.logger.Info("deleting sts", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID)
+	if err := deleteAndWait.Destroy(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func immutableFieldUpdate(sts *appsv1.StatefulSet, val Values) bool {
+	return sts.Spec.ServiceName != val.PeerServiceName || sts.Spec.PodManagementPolicy != appsv1.ParallelPodManagement
+}
+
+func clusterScaledUpToMultiNode(val *Values) bool {
+	return val.Replicas > 1 && val.StatusReplicas == 1
+}
+
+func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, replicas int32) error {
 	var (
 		stsOriginal = sts.DeepCopy()
 		patch       = client.StrategicMergeFrom(stsOriginal)
@@ -363,10 +393,6 @@ func (c *component) syncStatefulSet(ctx context.Context, sts *appsv1.StatefulSet
 	return c.client.Create(ctx, sts)
 }
 
-func (c *component) deleteStatefulset(ctx context.Context, sts *appsv1.StatefulSet) error {
-	return client.IgnoreNotFound(c.client.Delete(ctx, sts))
-}
-
 func (c *component) fetchPVCEventsFor(ctx context.Context, ss *appsv1.StatefulSet) (string, error) {
 	pvcs := &corev1.PersistentVolumeClaimList{}
 	if err := c.client.List(ctx, pvcs, client.InNamespace(ss.GetNamespace())); err != nil {
@@ -394,17 +420,6 @@ func (c *component) fetchPVCEventsFor(ctx context.Context, ss *appsv1.StatefulSe
 	return pvcMessages, nil
 }
 
-// New creates a new statefulset deployer instance.
-func New(c client.Client, logger logr.Logger, values Values) Interface {
-	objectLogger := logger.WithValues("sts", client.ObjectKey{Name: values.Name, Namespace: values.Namespace})
-
-	return &component{
-		client: c,
-		logger: objectLogger,
-		values: values,
-	}
-}
-
 func (c *component) emptyStatefulset() *appsv1.StatefulSet {
 	return &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -423,15 +438,7 @@ func getCommonLabels(val *Values) map[string]string {
 
 func getObjectMeta(val *Values) metav1.ObjectMeta {
 	labels := utils.MergeStringMaps(getCommonLabels(val), val.Labels)
-
-	annotations := utils.MergeStringMaps(
-		map[string]string{
-			"gardener.cloud/owned-by":   fmt.Sprintf("%s/%s", val.Namespace, val.Name),
-			"gardener.cloud/owner-type": "etcd",
-		},
-		val.Annotations,
-	)
-
+	annotations := getStsAnnotations(val)
 	ownerRefs := []metav1.OwnerReference{
 		{
 			APIVersion:         druidv1alpha1.GroupVersion.String(),
@@ -450,6 +457,26 @@ func getObjectMeta(val *Values) metav1.ObjectMeta {
 		Annotations:     annotations,
 		OwnerReferences: ownerRefs,
 	}
+}
+
+const (
+	scaleToMultiNodeAnnotationKey = "gardener.cloud/scaled-to-multi-node"
+	ownedByAnnotationKey          = "gardener.cloud/owned-by"
+	ownerTypeAnnotationKey        = "gardener.cloud/owner-type"
+)
+
+func getStsAnnotations(val *Values) map[string]string {
+	annotations := utils.MergeStringMaps(
+		map[string]string{
+			ownedByAnnotationKey:   fmt.Sprintf("%s/%s", val.Namespace, val.Name),
+			ownerTypeAnnotationKey: "etcd",
+		},
+		val.Annotations,
+	)
+	if clusterScaledUpToMultiNode(val) {
+		annotations[scaleToMultiNodeAnnotationKey] = ""
+	}
+	return annotations
 }
 
 func getEtcdPorts(val Values) []corev1.ContainerPort {

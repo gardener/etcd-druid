@@ -689,6 +689,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		return reconcileResult{err: err}
 	}
 
+	peerUrlTLSChangedToEnabled := isPeerTLSIsChangedToEnabled(peerTLSEnabled, configMapValues)
 	statefulSetValues := statefulset.GenerateValues(etcd,
 		&serviceValues.ClientPort,
 		&serviceValues.ServerPort,
@@ -697,8 +698,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		etcdBackupImage,
 		map[string]string{
 			"checksum/etcd-configmap": configMapValues.ConfigMapChecksum,
-		},
-		isPeerTLSIsChangedToEnabled(peerTLSEnabled, configMapValues))
+		}, peerUrlTLSChangedToEnabled)
 
 	// Create an OpWaiter because after the deployment we want to wait until the StatefulSet is ready.
 	var (
