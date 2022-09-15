@@ -300,12 +300,12 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 	}
 
 	result := r.reconcileEtcd(ctx, logger, etcd)
-	if err != nil {
-		if err := r.updateEtcdErrorStatus(ctx, etcd, result); err != nil {
-			logger.Error(err, "Error during reconciling ETCD")
+	if result.err != nil {
+		if updateEtcdErr := r.updateEtcdErrorStatus(ctx, etcd, result); updateEtcdErr != nil {
+			logger.Error(updateEtcdErr, "Error during reconciling ETCD")
 			return ctrl.Result{
 				Requeue: true,
-			}, err
+			}, updateEtcdErr
 		}
 		return ctrl.Result{
 			Requeue: true,
@@ -706,7 +706,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 		deployWaiter = gardenercomponent.OpWaiter(stsDeployer)
 	)
 
-	if err := deployWaiter.Deploy(ctx); err != nil {
+	if err = deployWaiter.Deploy(ctx); err != nil {
 		return reconcileResult{err: err}
 	}
 
