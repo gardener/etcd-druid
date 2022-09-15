@@ -24,10 +24,10 @@ import (
 )
 
 //
-var skipMergeConditions = map[druidv1alpha1.ConditionType]bool{
-	druidv1alpha1.ConditionTypeReady:           true,
-	druidv1alpha1.ConditionTypeAllMembersReady: true,
-	druidv1alpha1.ConditionTypeBackupReady:     true,
+var skipMergeConditions = map[druidv1alpha1.ConditionType]struct{}{
+	druidv1alpha1.ConditionTypeReady:           struct{}{},
+	druidv1alpha1.ConditionTypeAllMembersReady: struct{}{},
+	druidv1alpha1.ConditionTypeBackupReady:     struct{}{},
 }
 
 // Builder is an interface for building conditions.
@@ -118,7 +118,7 @@ func (b *defaultBuilder) Build() []druidv1alpha1.Condition {
 
 	for _, condition := range b.old {
 		// Do not add conditions that are part of the skipMergeConditions list
-		ok := skipMergeConditions[condition.Type]
+		_, ok := skipMergeConditions[condition.Type]
 		if ok {
 			continue
 		}
