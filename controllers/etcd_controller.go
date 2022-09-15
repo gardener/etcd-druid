@@ -309,7 +309,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 		}
 		return ctrl.Result{
 			Requeue: true,
-		}, err
+		}, result.err
 	}
 	if err := r.updateEtcdStatus(ctx, etcd, result); err != nil {
 		return ctrl.Result{
