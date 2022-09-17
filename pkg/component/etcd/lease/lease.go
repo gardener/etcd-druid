@@ -18,6 +18,7 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/go-logr/logr"
 
 	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -26,11 +27,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type Interface interface {
+	gardenercomponent.Deployer
+	// GetPeerURLTLSEnabledStatus checks the Peer URL TLS enabled status by inspecting all the lease objects and returns
+	// a result after applying value captured in the lease object for each member in conjunction.
+	GetPeerURLTLSEnabledStatus(context.Context) (bool, error)
+}
 type component struct {
 	client    client.Client
 	namespace string
-
-	values Values
+	logger    logr.Logger
+	values    Values
 }
 
 func (c *component) Deploy(ctx context.Context) error {
@@ -75,10 +82,23 @@ func (c *component) Destroy(ctx context.Context) error {
 	return nil
 }
 
+func (c *component) GetPeerURLTLSEnabledStatus(ctx context.Context) (bool, error) {
+	tlsEnabledValues, err := c.getTLSEnabledAnnotationValues(ctx, c.values.EtcdName)
+	if err != nil {
+		return false, err
+	}
+	tlsEnabled := true
+	for _, v := range tlsEnabledValues {
+		tlsEnabled = tlsEnabled && v
+	}
+	return tlsEnabled, nil
+}
+
 // New creates a new lease deployer instance.
-func New(c client.Client, namespace string, values Values) gardenercomponent.Deployer {
+func New(c client.Client, logger logr.Logger, namespace string, values Values) Interface {
 	return &component{
 		client:    c,
+		logger:    logger,
 		namespace: namespace,
 		values:    values,
 	}

@@ -55,14 +55,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
-type StatefulSetInitializer int
-
-const (
-	WithoutOwner        StatefulSetInitializer = 0
-	WithOwnerReference  StatefulSetInitializer = 1
-	WithOwnerAnnotation StatefulSetInitializer = 2
-)
-
 const (
 	timeout         = time.Minute * 2
 	pollingInterval = time.Second * 2

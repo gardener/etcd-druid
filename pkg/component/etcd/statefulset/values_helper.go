@@ -47,7 +47,8 @@ func GenerateValues(
 	clientPort, serverPort, backupPort *int32,
 	etcdImage, backupImage string,
 	checksumAnnotations map[string]string,
-) Values {
+	peerTLSChangedToEnabled bool) Values {
+
 	volumeClaimTemplateName := etcd.Name
 	if etcd.Spec.VolumeClaimTemplate != nil && len(*etcd.Spec.VolumeClaimTemplate) != 0 {
 		volumeClaimTemplateName = *etcd.Spec.VolumeClaimTemplate
@@ -116,6 +117,7 @@ func GenerateValues(
 		AutoCompactionMode:      etcd.Spec.Common.AutoCompactionMode,
 		AutoCompactionRetention: etcd.Spec.Common.AutoCompactionRetention,
 		ConfigMapName:           utils.GetConfigmapName(etcd),
+		PeerTLSChangedToEnabled: peerTLSChangedToEnabled,
 	}
 
 	values.EtcdCommand = getEtcdCommand()

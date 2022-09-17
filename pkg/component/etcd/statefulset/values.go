@@ -122,5 +122,6 @@ type Values struct {
 	//AutoCompactionRetention defines the auto-compaction-retention length for etcd as well as for embedded-Etcd of backup-restore sidecar.
 	AutoCompactionRetention *string
 	// ConfigMapName is the name of the configmap that holds the ETCD config.
-	ConfigMapName string
+	ConfigMapName           string
+	PeerTLSChangedToEnabled bool
 }
