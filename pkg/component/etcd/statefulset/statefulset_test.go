@@ -149,7 +149,7 @@ var _ = Describe("Statefulset", func() {
 			pointer.Int32Ptr(backupPort),
 			imageEtcd,
 			imageBR,
-			checkSumAnnotations)
+			checkSumAnnotations, false)
 		stsDeployer = New(cl, logr.Discard(), values)
 
 		sts = &appsv1.StatefulSet{
@@ -188,6 +188,23 @@ var _ = Describe("Statefulset", func() {
 				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
 				checkStatefulset(sts, values)
 			})
+
+			Context("should bootstrap a multi replica statefulset successfully", func() {
+				BeforeEach(func() {
+					replicas = pointer.Int32Ptr(3)
+				})
+
+				It("should create the statefulset successfully", func() {
+					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
+
+					sts := &appsv1.StatefulSet{}
+
+					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
+					checkStatefulset(sts, values)
+					// ensure that annotation gardener.cloud/scaled-to-multi-node is not there
+					Expect(metav1.HasAnnotation(sts.ObjectMeta, "gardener.cloud/scaled-to-multi-node")).To(BeFalse())
+				})
+			})
 		})
 
 		Context("when statefulset exists", func() {
@@ -218,10 +235,10 @@ var _ = Describe("Statefulset", func() {
 					values.Replicas = 3
 					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
 
-					sts := &appsv1.StatefulSet{}
-					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
-					checkStatefulset(sts, values)
-					Expect(sts.Spec.ServiceName).To(Equal(values.PeerServiceName))
+					updatedSts := &appsv1.StatefulSet{}
+					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
+					checkStatefulset(updatedSts, values)
+					Expect(updatedSts.Spec.ServiceName).To(Equal(values.PeerServiceName))
 				})
 
 				It("should re-create statefulset because podManagementPolicy is changed", func() {
@@ -234,10 +251,10 @@ var _ = Describe("Statefulset", func() {
 					values.Replicas = 3
 					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
 
-					sts := &appsv1.StatefulSet{}
-					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
-					checkStatefulset(sts, values)
-					Expect(sts.Spec.PodManagementPolicy).To(Equal(appsv1.ParallelPodManagement))
+					updatedSts := &appsv1.StatefulSet{}
+					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
+					checkStatefulset(updatedSts, values)
+					Expect(updatedSts.Spec.PodManagementPolicy).To(Equal(appsv1.ParallelPodManagement))
 				})
 			})
 		})
@@ -409,7 +426,6 @@ func checkBackup(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) {
 
 func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 	checkStsOwnerRefs(sts.ObjectMeta.OwnerReferences, values)
-
 	store, err := druidutils.StorageProviderFromInfraProvider(values.BackupStore.Provider)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(*sts).To(MatchFields(IgnoreExtras, Fields{

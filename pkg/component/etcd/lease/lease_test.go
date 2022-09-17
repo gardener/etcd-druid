@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-logr/logr"
 	"k8s.io/utils/pointer"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -78,7 +79,7 @@ var _ = Describe("Lease", func() {
 		c = fakeclient.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
 
 		values = GenerateValues(etcd)
-		leaseDeployer = New(c, namespace, values)
+		leaseDeployer = New(c, logr.Discard(), namespace, values)
 	})
 
 	Describe("#Deploy", func() {
@@ -148,12 +149,14 @@ var _ = Describe("Lease", func() {
 
 		Context("when backup is disabled", func() {
 			BeforeEach(func() {
-				leaseDeployer = New(c, namespace, Values{
-					BackupEnabled: false,
-					EtcdName:      name,
-					EtcdUID:       uid,
-					Replicas:      replicas,
-				})
+				leaseDeployer = New(c,
+					logr.Discard(),
+					namespace, Values{
+						BackupEnabled: false,
+						EtcdName:      name,
+						EtcdUID:       uid,
+						Replicas:      replicas,
+					})
 			})
 
 			It("should successfully deploy", func() {

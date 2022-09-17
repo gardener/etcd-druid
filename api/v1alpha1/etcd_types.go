@@ -430,6 +430,9 @@ type EtcdStatus struct {
 	// Members represents the members of the etcd cluster
 	// +optional
 	Members []EtcdMemberStatus `json:"members,omitempty"`
+	// PeerUrlTLSEnabled captures the state of peer url TLS being enabled for the etcd member(s)
+	// +optional
+	PeerUrlTLSEnabled *bool `json:"peerUrlTLSEnabled,omitempty"`
 }
 
 // +genclient
