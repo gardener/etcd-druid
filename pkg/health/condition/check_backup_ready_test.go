@@ -231,12 +231,15 @@ var _ = Describe("BackupReadyCheck", func() {
 					},
 				).AnyTimes()
 
-				etcdObj := etcd
-				etcdObj.Spec.Backup.Store = nil
+				etcd.Spec.Backup.Store = nil
 				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcdObj)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result).To(BeNil())
+				etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
+					Prefix:   "test-prefix",
+					Provider: &storageProvider,
+				}
 			})
 		})
 		Context("With backup store is configured but provider is nil", func() {
@@ -247,12 +250,12 @@ var _ = Describe("BackupReadyCheck", func() {
 					},
 				).AnyTimes()
 
-				etcdObj := etcd
-				etcdObj.Spec.Backup.Store.Provider = nil
+				etcd.Spec.Backup.Store.Provider = nil
 				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcdObj)
+				result := check.Check(context.TODO(), etcd)
 
 				Expect(result).To(BeNil())
+				etcd.Spec.Backup.Store.Provider = &storageProvider
 			})
 		})
 	})

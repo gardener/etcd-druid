@@ -102,6 +102,9 @@ var _ = Describe("Check", func() {
 			}
 
 			etcd := &druidv1alpha1.Etcd{
+				Spec: druidv1alpha1.EtcdSpec{
+					Replicas: 1,
+				},
 				Status: status,
 			}
 
