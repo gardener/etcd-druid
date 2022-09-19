@@ -23,7 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-//
+// skipMergeConditions contain the list of conditions we dont want to add to the list if not recalculated
 var skipMergeConditions = map[druidv1alpha1.ConditionType]struct{}{
 	druidv1alpha1.ConditionTypeReady:           {},
 	druidv1alpha1.ConditionTypeAllMembersReady: {},
@@ -39,10 +39,9 @@ type Builder interface {
 }
 
 type defaultBuilder struct {
-	old      map[druidv1alpha1.ConditionType]druidv1alpha1.Condition
-	results  map[druidv1alpha1.ConditionType]Result
-	nowFunc  func() metav1.Time
-	replicas int32
+	old     map[druidv1alpha1.ConditionType]druidv1alpha1.Condition
+	results map[druidv1alpha1.ConditionType]Result
+	nowFunc func() metav1.Time
 }
 
 // NewBuilder returns a Builder for a specific condition.
