@@ -56,28 +56,6 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 		return nil
 	}
 
-	// Special case of etcd being scaled down
-	if etcd.Spec.Replicas == 0 {
-		etcdConditions := etcd.Status.Conditions
-		var bckpCond druidv1alpha1.Condition
-
-		for _, condition := range etcdConditions {
-			if condition.Type == druidv1alpha1.ConditionTypeBackupReady {
-				bckpCond = condition
-				break
-			}
-		}
-
-		if bckpCond.Status == "" {
-			result.status = druidv1alpha1.ConditionUnknown
-		} else {
-			result.status = bckpCond.Status
-		}
-		result.reason = ConditionNotChecked
-		result.message = "etcd cluster has been scaled down"
-		return result
-	}
-
 	//Fetch snapshot leases
 	var (
 		fullSnapErr, incrSnapErr error

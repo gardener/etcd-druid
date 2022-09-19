@@ -98,7 +98,7 @@ var _ = Describe("Builder", func() {
 					},
 				})
 
-				conditions := builder.Build()
+				conditions := builder.Build(1)
 
 				Expect(conditions).To(ConsistOf(
 					MatchFields(IgnoreExtras, Fields{
@@ -138,7 +138,7 @@ var _ = Describe("Builder", func() {
 					},
 				})
 
-				conditions := builder.Build()
+				conditions := builder.Build(1)
 
 				Expect(conditions).To(ConsistOf(
 					MatchFields(IgnoreExtras, Fields{

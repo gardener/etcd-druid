@@ -25,9 +25,9 @@ import (
 
 //
 var skipMergeConditions = map[druidv1alpha1.ConditionType]struct{}{
-	druidv1alpha1.ConditionTypeReady:           struct{}{},
-	druidv1alpha1.ConditionTypeAllMembersReady: struct{}{},
-	druidv1alpha1.ConditionTypeBackupReady:     struct{}{},
+	druidv1alpha1.ConditionTypeReady:           {},
+	druidv1alpha1.ConditionTypeAllMembersReady: {},
+	druidv1alpha1.ConditionTypeBackupReady:     {},
 }
 
 // Builder is an interface for building conditions.
@@ -35,13 +35,14 @@ type Builder interface {
 	WithOldConditions(conditions []druidv1alpha1.Condition) Builder
 	WithResults(result []Result) Builder
 	WithNowFunc(now func() metav1.Time) Builder
-	Build() []druidv1alpha1.Condition
+	Build(replicas int32) []druidv1alpha1.Condition
 }
 
 type defaultBuilder struct {
-	old     map[druidv1alpha1.ConditionType]druidv1alpha1.Condition
-	results map[druidv1alpha1.ConditionType]Result
-	nowFunc func() metav1.Time
+	old      map[druidv1alpha1.ConditionType]druidv1alpha1.Condition
+	results  map[druidv1alpha1.ConditionType]Result
+	nowFunc  func() metav1.Time
+	replicas int32
 }
 
 // NewBuilder returns a Builder for a specific condition.
@@ -88,10 +89,9 @@ func (b *defaultBuilder) WithNowFunc(now func() metav1.Time) Builder {
 // If OldCondition is provided:
 // - Any changes to status set the `LastTransitionTime`
 // - `LastUpdateTime` is always set.
-func (b *defaultBuilder) Build() []druidv1alpha1.Condition {
+func (b *defaultBuilder) Build(replicas int32) []druidv1alpha1.Condition {
 	var (
-		now = b.nowFunc()
-
+		now        = b.nowFunc()
 		conditions []druidv1alpha1.Condition
 	)
 
@@ -108,9 +108,17 @@ func (b *defaultBuilder) Build() []druidv1alpha1.Condition {
 			condition.LastTransitionTime = now
 		}
 		condition.LastUpdateTime = now
-		condition.Status = res.Status()
-		condition.Message = res.Message()
-		condition.Reason = res.Reason()
+		if replicas == 0 {
+			if condition.Status == "" {
+				condition.Status = druidv1alpha1.ConditionUnknown
+			}
+			condition.Reason = ConditionNotChecked
+			condition.Message = "etcd cluster has been scaled down"
+		} else {
+			condition.Status = res.Status()
+			condition.Message = res.Message()
+			condition.Reason = res.Reason()
+		}
 
 		conditions = append(conditions, condition)
 		delete(b.old, condType)
