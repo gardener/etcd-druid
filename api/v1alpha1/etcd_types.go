@@ -230,6 +230,13 @@ type EtcdConfig struct {
 	// HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s.
 	// +optional
 	HeartbeatDuration *metav1.Duration `json:"heartbeatDuration,omitempty"`
+	// ClientService defines specified annotations that should be added to the client service
+	// +optional
+	ClientService ClientServiceSpec `json:"clientService"`
+}
+
+type ClientServiceSpec struct {
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // SharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.

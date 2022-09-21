@@ -284,6 +284,14 @@ spec:
               etcd:
                 description: EtcdConfig defines parameters associated etcd deployed
                 properties:
+                  clientService:
+                    description: ClientService defines specified annotations that should be added to the client service
+                    properties: 
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        type: object
+                    type: object
                   authSecretRef:
                     description: SecretReference represents a Secret Reference. It
                       has enough information to retrieve secret in any namespace
