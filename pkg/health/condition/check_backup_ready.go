@@ -52,7 +52,7 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 
 	// Special case of etcd not being configured to take snapshots
 	// Do not add the BackupReady condition if backup is not configured
-	if etcd.Spec.Backup.Store == nil || etcd.Spec.Backup.Store.Provider == nil {
+	if etcd.Spec.Backup.Store == nil || etcd.Spec.Backup.Store.Provider == nil || len(*etcd.Spec.Backup.Store.Provider) == 0 {
 		return nil
 	}
 
