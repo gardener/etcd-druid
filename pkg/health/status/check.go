@@ -111,7 +111,7 @@ func (c *checker) executeConditionChecks(ctx context.Context, etcd *druidv1alpha
 		WithNowFunc(func() metav1.Time { return metav1.NewTime(TimeNow()) }).
 		WithOldConditions(etcd.Status.Conditions).
 		WithResults(results).
-		Build()
+		Build(etcd.Spec.Replicas)
 
 	etcd.Status.Conditions = conditions
 	return nil

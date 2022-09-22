@@ -82,7 +82,7 @@ var _ = Describe("Builder", func() {
 				builder.WithOldConditions(oldConditions)
 			})
 
-			It("should correctly merge them", func() {
+			It("should not add old conditions", func() {
 				builder.WithResults([]Result{
 					&result{
 						ConType:    druidv1alpha1.ConditionTypeAllMembersReady,
@@ -98,7 +98,7 @@ var _ = Describe("Builder", func() {
 					},
 				})
 
-				conditions := builder.Build()
+				conditions := builder.Build(1)
 
 				Expect(conditions).To(ConsistOf(
 					MatchFields(IgnoreExtras, Fields{
@@ -116,14 +116,6 @@ var _ = Describe("Builder", func() {
 						"Status":             Equal(druidv1alpha1.ConditionTrue),
 						"Reason":             Equal("new reason"),
 						"Message":            Equal("new message"),
-					}),
-					MatchFields(IgnoreExtras, Fields{
-						"Type":               Equal(druidv1alpha1.ConditionTypeBackupReady),
-						"LastUpdateTime":     Equal(metav1.NewTime(oldConditionTime)),
-						"LastTransitionTime": Equal(metav1.NewTime(oldConditionTime)),
-						"Status":             Equal(druidv1alpha1.ConditionTrue),
-						"Reason":             Equal("foobar reason"),
-						"Message":            Equal("foobar message"),
 					}),
 				))
 			})
@@ -146,7 +138,7 @@ var _ = Describe("Builder", func() {
 					},
 				})
 
-				conditions := builder.Build()
+				conditions := builder.Build(1)
 
 				Expect(conditions).To(ConsistOf(
 					MatchFields(IgnoreExtras, Fields{

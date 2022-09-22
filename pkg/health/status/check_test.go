@@ -102,6 +102,9 @@ var _ = Describe("Check", func() {
 			}
 
 			etcd := &druidv1alpha1.Etcd{
+				Spec: druidv1alpha1.EtcdSpec{
+					Replicas: 1,
+				},
 				Status: status,
 			}
 
@@ -111,6 +114,9 @@ var _ = Describe("Check", func() {
 				},
 				func(client.Client) condition.Checker {
 					return createConditionCheck(druidv1alpha1.ConditionTypeAllMembersReady, druidv1alpha1.ConditionTrue, "bar reason", "bar message")
+				},
+				func(client.Client) condition.Checker {
+					return createConditionCheck(druidv1alpha1.ConditionTypeBackupReady, druidv1alpha1.ConditionUnknown, "foobar reason", "foobar message")
 				},
 			})()
 
@@ -151,7 +157,7 @@ var _ = Describe("Check", func() {
 					"Type":               Equal(druidv1alpha1.ConditionTypeBackupReady),
 					"Status":             Equal(druidv1alpha1.ConditionUnknown),
 					"LastTransitionTime": Equal(metav1.NewTime(timeBefore)),
-					"LastUpdateTime":     Equal(metav1.NewTime(timeBefore)),
+					"LastUpdateTime":     Equal(metav1.NewTime(timeNow)),
 					"Reason":             Equal("foobar reason"),
 					"Message":            Equal("foobar message"),
 				}),

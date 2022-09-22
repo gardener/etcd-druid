@@ -37,10 +37,11 @@ import (
 var _ = Describe("BackupReadyCheck", func() {
 	Describe("#Check", func() {
 		var (
-			mockCtrl       *gomock.Controller
-			cl             *mockclient.MockClient
-			holderIDString = "123455"
-			noLeaseError   = apierrors.StatusError{
+			storageProvider druidv1alpha1.StorageProvider = "testStorageProvider"
+			mockCtrl        *gomock.Controller
+			cl              *mockclient.MockClient
+			holderIDString  = "123455"
+			noLeaseError    = apierrors.StatusError{
 				ErrStatus: v1.Status{
 					Reason: v1.StatusReasonNotFound,
 				},
@@ -51,9 +52,14 @@ var _ = Describe("BackupReadyCheck", func() {
 					Namespace: "default",
 				},
 				Spec: druidv1alpha1.EtcdSpec{
+					Replicas: 1,
 					Backup: druidv1alpha1.BackupSpec{
 						DeltaSnapshotPeriod: &v1.Duration{
 							Duration: 2 * time.Minute,
+						},
+						Store: &druidv1alpha1.StoreSpec{
+							Prefix:   "test-prefix",
+							Provider: &storageProvider,
 						},
 					},
 				},
@@ -215,6 +221,41 @@ var _ = Describe("BackupReadyCheck", func() {
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
 				Expect(result.Reason()).To(Equal(BackupFailed))
+			})
+		})
+		Context("With no backup store configured", func() {
+			It("Should return nil condition", func() {
+				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease) error {
+						return &noLeaseError
+					},
+				).AnyTimes()
+
+				etcd.Spec.Backup.Store = nil
+				check := BackupReadyCheck(cl)
+				result := check.Check(context.TODO(), etcd)
+
+				Expect(result).To(BeNil())
+				etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
+					Prefix:   "test-prefix",
+					Provider: &storageProvider,
+				}
+			})
+		})
+		Context("With backup store is configured but provider is nil", func() {
+			It("Should return nil condition", func() {
+				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease) error {
+						return &noLeaseError
+					},
+				).AnyTimes()
+
+				etcd.Spec.Backup.Store.Provider = nil
+				check := BackupReadyCheck(cl)
+				result := check.Check(context.TODO(), etcd)
+
+				Expect(result).To(BeNil())
+				etcd.Spec.Backup.Store.Provider = &storageProvider
 			})
 		})
 	})
