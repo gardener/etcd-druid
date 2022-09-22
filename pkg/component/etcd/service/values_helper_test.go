@@ -110,6 +110,9 @@ var _ = Describe("#GenerateValues", func() {
 	})
 	Context("when client service annotations are specified", func() {
 		BeforeEach(func() {
+			backupPort = nil
+			clientPort = nil
+			serverPort = nil
 			annotations = map[string]string{
 				"foo1": "bar1",
 				"foo2": "bar2",
@@ -134,6 +137,9 @@ var _ = Describe("#GenerateValues", func() {
 	})
 	Context("when client service annotations are not specified", func() {
 		BeforeEach(func() {
+			backupPort = nil
+			clientPort = nil
+			serverPort = nil
 			annotations = nil
 		})
 
