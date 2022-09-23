@@ -137,7 +137,7 @@ var _ = Describe("Etcd Backup", func() {
 
 					logger.Info("waiting for sts to become unready", "statefulSetName", etcdName)
 					Eventually(func() error {
-						ctx, cancelFunc := context.WithTimeout(context.TODO(), singleNodeEtcdTimeout)
+						ctx, cancelFunc := context.WithTimeout(context.Background(), singleNodeEtcdTimeout)
 						defer cancelFunc()
 
 						sts := &appsv1.StatefulSet{}
@@ -153,7 +153,7 @@ var _ = Describe("Etcd Backup", func() {
 
 					logger.Info("waiting for sts to become ready again", "statefulSetName", etcdName)
 					Eventually(func() error {
-						ctx, cancelFunc := context.WithTimeout(context.TODO(), singleNodeEtcdTimeout)
+						ctx, cancelFunc := context.WithTimeout(context.Background(), singleNodeEtcdTimeout)
 						defer cancelFunc()
 
 						sts := &appsv1.StatefulSet{}
