@@ -55,7 +55,7 @@ var _ = Describe("#GenerateValues", func() {
 				Etcd: druidv1alpha1.EtcdConfig{
 					ClientPort: clientPort,
 					ServerPort: serverPort,
-					ClientService: druidv1alpha1.ClientServiceSpec{
+					ClientService: &druidv1alpha1.ClientServiceSpec{
 						Annotations: annotations,
 					},
 				},
@@ -123,15 +123,15 @@ var _ = Describe("#GenerateValues", func() {
 			values := GenerateValues(etcd)
 
 			Expect(values).To(MatchFields(IgnoreExtras, Fields{
-				"BackupPort":        Equal(int32(8080)),
-				"ClientPort":        Equal(int32(2379)),
-				"ClientServiceName": Equal(fmt.Sprintf("%s-client", etcd.Name)),
-				"EtcdName":          Equal(etcd.Name),
-				"EtcdUID":           Equal(etcd.UID),
-				"Labels":            Equal(etcd.Labels),
-				"PeerServiceName":   Equal(fmt.Sprintf("%s-peer", etcd.Name)),
-				"ServerPort":        Equal(int32(2380)),
-				"ClientAnnotations": Equal(annotations),
+				"BackupPort":               Equal(int32(8080)),
+				"ClientPort":               Equal(int32(2379)),
+				"ClientServiceName":        Equal(fmt.Sprintf("%s-client", etcd.Name)),
+				"EtcdName":                 Equal(etcd.Name),
+				"EtcdUID":                  Equal(etcd.UID),
+				"Labels":                   Equal(etcd.Labels),
+				"PeerServiceName":          Equal(fmt.Sprintf("%s-peer", etcd.Name)),
+				"ServerPort":               Equal(int32(2380)),
+				"ClientServiceAnnotations": Equal(annotations),
 			}))
 		})
 	})
@@ -147,15 +147,15 @@ var _ = Describe("#GenerateValues", func() {
 			values := GenerateValues(etcd)
 
 			Expect(values).To(MatchFields(IgnoreExtras, Fields{
-				"BackupPort":        Equal(int32(8080)),
-				"ClientPort":        Equal(int32(2379)),
-				"ClientServiceName": Equal(fmt.Sprintf("%s-client", etcd.Name)),
-				"EtcdName":          Equal(etcd.Name),
-				"EtcdUID":           Equal(etcd.UID),
-				"Labels":            Equal(etcd.Labels),
-				"PeerServiceName":   Equal(fmt.Sprintf("%s-peer", etcd.Name)),
-				"ServerPort":        Equal(int32(2380)),
-				"ClientAnnotations": Equal(annotations),
+				"BackupPort":               Equal(int32(8080)),
+				"ClientPort":               Equal(int32(2379)),
+				"ClientServiceName":        Equal(fmt.Sprintf("%s-client", etcd.Name)),
+				"EtcdName":                 Equal(etcd.Name),
+				"EtcdUID":                  Equal(etcd.UID),
+				"Labels":                   Equal(etcd.Labels),
+				"PeerServiceName":          Equal(fmt.Sprintf("%s-peer", etcd.Name)),
+				"ServerPort":               Equal(int32(2380)),
+				"ClientServiceAnnotations": Equal(annotations),
 			}))
 		})
 	})

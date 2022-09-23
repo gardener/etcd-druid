@@ -285,7 +285,7 @@ spec:
                 description: EtcdConfig defines parameters associated etcd deployed
                 properties:
                   clientService:
-                    description: ClientService defines specified annotations that should be added to the client service
+                    description: ClientService defines properties that allow the client service to be manipulated from the etcd spec
                     properties: 
                       annotations:
                         additionalProperties:

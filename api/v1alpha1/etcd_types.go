@@ -232,10 +232,12 @@ type EtcdConfig struct {
 	HeartbeatDuration *metav1.Duration `json:"heartbeatDuration,omitempty"`
 	// ClientService defines specified annotations that should be added to the client service
 	// +optional
-	ClientService ClientServiceSpec `json:"clientService"`
+	ClientService *ClientServiceSpec `json:"clientService"`
 }
 
 type ClientServiceSpec struct {
+	// Annotations specify the annotations that should be added to the client service
+	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
