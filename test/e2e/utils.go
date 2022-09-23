@@ -32,7 +32,9 @@ import (
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/go-logr/logr"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -157,8 +159,12 @@ var (
 		AutoCompactionRetention: &autoCompactionRetention,
 	}
 
-	replicas        = 1
 	storageCapacity = resource.MustParse("10Gi")
+)
+
+const (
+	replicas              int32 = 1
+	multiNodeEtcdReplicas int32 = 3
 )
 
 func getEmptyEtcd(name, namespace string) *v1alpha1.Etcd {
@@ -230,6 +236,12 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 		}
 	}
 
+	return etcd
+}
+
+func getDefaultMultiNodeEtcd(name, namespace, container, prefix string, provider TestProvider) *v1alpha1.Etcd {
+	etcd := getDefaultEtcd(name, namespace, container, prefix, provider)
+	etcd.Spec.Replicas = multiNodeEtcdReplicas
 	return etcd
 }
 
@@ -727,4 +739,121 @@ func getEnvAndExpectNoError(key string) string {
 	val, err := getEnvOrError(key)
 	utilruntime.Must(err)
 	return val
+}
+
+// newTestHelperJob returns the K8s Job for given commands to be executed inside k8s cluster.
+// This test helper job can be used to validate test cases from inside the k8s cluster by executing the bash scripts.
+func newTestHelperJob(jobName string, podSpec *corev1.PodSpec) *batchv1.Job {
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      jobName,
+			Namespace: namespace,
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: *podSpec,
+			},
+			BackoffLimit: pointer.Int32(0),
+		},
+	}
+}
+
+// etcdZeroDownTimeValidatorJob returns k8s job which ensures
+// Etcd cluster(size>1) zero down time by continuously checking etcd cluster health.
+// This job fails once health check fails and associated pod results in error status.
+func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSConfig) *batchv1.Job {
+	return newTestHelperJob(
+		"etcd-zero-down-time-validator-"+testName,
+		&corev1.PodSpec{
+			Volumes: []v1.Volume{
+				{
+					Name: "client-url-ca-etcd",
+					VolumeSource: v1.VolumeSource{
+						Secret: &v1.SecretVolumeSource{
+							SecretName:  tls.TLSCASecretRef.Name,
+							DefaultMode: pointer.Int32(420),
+						},
+					},
+				},
+				{
+					Name: "client-url-etcd-server-tls",
+					VolumeSource: v1.VolumeSource{
+						Secret: &v1.SecretVolumeSource{
+							SecretName:  tls.ClientTLSSecretRef.Name,
+							DefaultMode: pointer.Int32(420),
+						},
+					},
+				},
+				{
+					Name: "client-url-etcd-client-tls",
+					VolumeSource: v1.VolumeSource{
+						Secret: &v1.SecretVolumeSource{
+							SecretName:  tls.ServerTLSSecretRef.Name,
+							DefaultMode: pointer.Int32(420),
+						},
+					},
+				},
+			},
+			Containers: []corev1.Container{
+				{
+					Name:    "etcd-zero-down-time-validator-" + testName,
+					Image:   "alpine/curl",
+					Command: []string{"/bin/sh"},
+					//To avoid flakiness, consider downtime when curl fails consecutively back-to-back.
+					Args: []string{"-ec",
+						"echo '" +
+							"failed=0 ; threshold=2 ; " +
+							"while [ $failed -lt $threshold ] ; do  " +
+							"$(curl --cacert /var/etcd/ssl/client/ca/ca.crt --cert /var/etcd/ssl/client/client/tls.crt --key /var/etcd/ssl/client/client/tls.key https://" + etcdSvc + ":2379/health -s -f  -o /dev/null ); " +
+							"if [ $? -gt 0 ] ; then let failed++; echo \"etcd is unhealthy and retrying\"; continue;  fi ; " +
+							"echo \"etcd is healthy\";  touch /tmp/healthy; let failed=0; " +
+							"sleep 1; done;  echo \"etcd is unhealthy\"; exit 1;" +
+							"' > test.sh && sh test.sh",
+					},
+					ReadinessProbe: &v1.Probe{
+						InitialDelaySeconds: int32(5),
+						FailureThreshold:    int32(1),
+						PeriodSeconds:       int32(1),
+						SuccessThreshold:    int32(3),
+						Handler: v1.Handler{
+							Exec: &v1.ExecAction{
+								Command: []string{
+									"cat",
+									"/tmp/healthy",
+								},
+							},
+						},
+					},
+					LivenessProbe: &v1.Probe{
+						InitialDelaySeconds: int32(5),
+						FailureThreshold:    int32(1),
+						PeriodSeconds:       int32(1),
+						Handler: v1.Handler{
+							Exec: &v1.ExecAction{
+								Command: []string{
+									"cat",
+									"/tmp/healthy",
+								},
+							},
+						},
+					},
+					VolumeMounts: []v1.VolumeMount{
+						{
+							MountPath: "/var/etcd/ssl/client/ca",
+							Name:      "client-url-ca-etcd",
+						},
+						{
+							MountPath: "/var/etcd/ssl/client/server",
+							Name:      "client-url-etcd-server-tls",
+						},
+						{
+							MountPath: "/var/etcd/ssl/client/client",
+							Name:      "client-url-etcd-client-tls",
+							ReadOnly:  true,
+						},
+					},
+				},
+			},
+			RestartPolicy: v1.RestartPolicyNever,
+		})
 }

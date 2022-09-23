@@ -35,7 +35,9 @@ import (
 )
 
 const (
-	timeout           = time.Minute * 1
+	singleNodeEtcdTimeout = time.Minute
+	multiNodeEtcdTimeout  = time.Minute * 3
+
 	pollingInterval   = time.Second * 2
 	envSourcePath     = "SOURCE_PATH"
 	envKubeconfigPath = "KUBECONFIG"
@@ -49,14 +51,17 @@ const (
 var (
 	logger         = zap.New(zap.WriteTo(GinkgoWriter))
 	typedClient    *kubernetes.Clientset
+	cl             client.Client
 	sourcePath     string
 	kubeconfigPath string
 
-	storePrefix             = "etcd-main"
-	etcdConfigMapVolumeName = "etcd-config-file"
+	storePrefix = "etcd-main"
 
 	etcdKeyPrefix   = "foo"
 	etcdValuePrefix = "bar"
+
+	providers []TestProvider
+	err       error
 )
 
 func TestIntegration(t *testing.T) {
@@ -67,7 +72,7 @@ func TestIntegration(t *testing.T) {
 var _ = BeforeSuite(func() {
 	ctx := context.Background()
 
-	providers, err := getProviders()
+	providers, err = getProviders()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(len(providers)).To(BeNumerically(">", 0))
 
@@ -78,8 +83,11 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	logger.V(1).Info("setting up k8s client", "KUBECONFIG", kubeconfigPath)
-	cl, err := getKubernetesClient(kubeconfigPath)
+	cl, err = getKubernetesClient(kubeconfigPath)
 	Expect(err).ShouldNot(HaveOccurred())
+
+	typedClient, err = getKubernetesTypedClient(kubeconfigPath)
+	Expect(err).NotTo(HaveOccurred())
 
 	logger.Info("creating namespace", "namespace", etcdNamespace)
 	err = cl.Create(ctx, &corev1.Namespace{
@@ -120,5 +128,5 @@ var _ = AfterSuite(func() {
 
 	Eventually(func() error {
 		return cl.Get(ctx, client.ObjectKey{Name: etcdNamespace}, &corev1.Namespace{})
-	}, timeout*2, pollingInterval).Should(matchers.BeNotFoundError())
+	}, time.Minute*2, pollingInterval).Should(matchers.BeNotFoundError())
 })

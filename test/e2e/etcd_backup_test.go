@@ -22,13 +22,15 @@ import (
 	"github.com/gardener/etcd-druid/api/v1alpha1"
 
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
+	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8s_labels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -81,7 +83,7 @@ var _ = Describe("Etcd Backup", func() {
 					objLogger := logger.WithValues("etcd", client.ObjectKeyFromObject(etcd))
 
 					By("Create etcd")
-					createAndCheckEtcd(ctx, cl, objLogger, etcd)
+					createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
 
 					By("Check initial snapshot is available")
 					var podName = fmt.Sprintf("%s-0", etcdName)
@@ -135,7 +137,7 @@ var _ = Describe("Etcd Backup", func() {
 
 					logger.Info("waiting for sts to become unready", "statefulSetName", etcdName)
 					Eventually(func() error {
-						ctx, cancelFunc := context.WithTimeout(context.TODO(), timeout)
+						ctx, cancelFunc := context.WithTimeout(context.Background(), singleNodeEtcdTimeout)
 						defer cancelFunc()
 
 						sts := &appsv1.StatefulSet{}
@@ -146,12 +148,12 @@ var _ = Describe("Etcd Backup", func() {
 							return fmt.Errorf("sts %s is still in ready state", etcdName)
 						}
 						return nil
-					}, timeout*3, pollingInterval).Should(BeNil())
+					}, singleNodeEtcdTimeout, pollingInterval).Should(BeNil())
 					logger.Info("sts is unready", "statefulSetName", etcdName)
 
 					logger.Info("waiting for sts to become ready again", "statefulSetName", etcdName)
 					Eventually(func() error {
-						ctx, cancelFunc := context.WithTimeout(context.TODO(), timeout)
+						ctx, cancelFunc := context.WithTimeout(context.Background(), singleNodeEtcdTimeout)
 						defer cancelFunc()
 
 						sts := &appsv1.StatefulSet{}
@@ -162,7 +164,7 @@ var _ = Describe("Etcd Backup", func() {
 							return fmt.Errorf("sts %s unready", etcdName)
 						}
 						return nil
-					}, timeout*3, pollingInterval).Should(BeNil())
+					}, singleNodeEtcdTimeout, pollingInterval).Should(BeNil())
 					logger.Info("sts is ready", "statefulSetName", etcdName)
 
 					// verify existence and correctness of keys 1 to 30
@@ -175,7 +177,7 @@ var _ = Describe("Etcd Backup", func() {
 					}
 
 					By("Delete etcd")
-					deleteAndCheckEtcd(ctx, cl, objLogger, etcd)
+					deleteAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
 
 				})
 			})
@@ -183,97 +185,122 @@ var _ = Describe("Etcd Backup", func() {
 	})
 })
 
-func createAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd) {
+func createAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
 	ExpectWithOffset(1, cl.Create(ctx, etcd)).ShouldNot(HaveOccurred())
+	checkEtcdReady(ctx, cl, logger, etcd, timeout)
+}
 
+func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
 	logger.Info("Waiting for etcd to become ready")
-	Eventually(func() error {
-		ctx, cancelFunc := context.WithTimeout(context.TODO(), timeout)
+	EventuallyWithOffset(2, func() error {
+		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 		defer cancelFunc()
 
 		err := cl.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: namespace}, etcd)
-		if err != nil || apierrors.IsNotFound(err) {
+		if err != nil {
 			return err
 		}
 
-		if &etcd.Status == nil || etcd.Status.Ready == nil || *etcd.Status.Ready != true {
-			return fmt.Errorf("etcd %s not ready", etcd.Name)
+		if etcd.Status.Ready == nil || *etcd.Status.Ready != true {
+			return fmt.Errorf("etcd %s is not ready", etcd.Name)
 		}
 
+		if etcd.Status.ClusterSize == nil {
+			return fmt.Errorf("etcd %s cluster size is empty", etcd.Name)
+		}
+
+		if *etcd.Status.ClusterSize != etcd.Spec.Replicas {
+			return fmt.Errorf("etcd %s cluster size is %v, but it's not expected size as %v",
+				etcd.Name, etcd.Status.ClusterSize, etcd.Spec.Replicas)
+		}
+
+		if len(etcd.Status.Conditions) == 0 {
+			return fmt.Errorf("etcd %s status conditions is empty", etcd.Name)
+		}
+
+		for _, c := range etcd.Status.Conditions {
+			// skip BackupReady status check if etcd.Spec.Backup.Store is not configured.
+			if etcd.Spec.Backup.Store == nil && c.Type == v1alpha1.ConditionTypeBackupReady {
+				continue
+			}
+			if c.Status != v1alpha1.ConditionTrue {
+				return fmt.Errorf("etcd %q status %q condition %s is not True",
+					etcd.Name, c.Type, c.Status)
+			}
+		}
 		return nil
 	}, timeout, pollingInterval).Should(BeNil())
 	logger.Info("etcd is ready")
 
 	logger.Info("Checking statefulset")
 	sts := &appsv1.StatefulSet{}
-	ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts)).To(Succeed())
-	ExpectWithOffset(1, sts.Status.ReadyReplicas).To(Equal(etcd.Spec.Replicas))
+	ExpectWithOffset(2, cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts)).To(Succeed())
+	ExpectWithOffset(2, sts.Status.ReadyReplicas).To(Equal(etcd.Spec.Replicas))
 
 	logger.Info("Checking configmap")
 	cm := &corev1.ConfigMap{}
-	ExpectWithOffset(1, cl.Get(ctx, client.ObjectKey{Name: "etcd-bootstrap-" + string(etcd.UID[:6]), Namespace: etcd.Namespace}, cm)).To(Succeed())
+	ExpectWithOffset(2, cl.Get(ctx, client.ObjectKey{Name: "etcd-bootstrap-" + string(etcd.UID[:6]), Namespace: etcd.Namespace}, cm)).To(Succeed())
 
 	logger.Info("Checking client service")
 	svc := &corev1.Service{}
-	ExpectWithOffset(1, cl.Get(ctx, client.ObjectKey{Name: etcd.Name + "-client", Namespace: etcd.Namespace}, svc)).To(Succeed())
+	ExpectWithOffset(2, cl.Get(ctx, client.ObjectKey{Name: etcd.Name + "-client", Namespace: etcd.Namespace}, svc)).To(Succeed())
 }
 
-func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd) {
+func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
 	ExpectWithOffset(1, cl.Delete(ctx, etcd, client.PropagationPolicy(metav1.DeletePropagationForeground))).To(Succeed())
 
 	logger.Info("Checking if etcd is gone")
-	Eventually(func() error {
+	EventuallyWithOffset(1, func() error {
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 		defer cancelFunc()
+		return cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)
+	}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 
-		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), &v1alpha1.Etcd{}); err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil
-			}
-			return err
-		}
-		return fmt.Errorf("etcd is being deleted")
-	}, timeout*3, pollingInterval)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 
 	logger.Info("Checking if statefulset is gone")
-	Eventually(func() error {
-		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
-		defer cancelFunc()
-
-		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), &appsv1.StatefulSet{}); err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil
-			}
-			return err
-		}
-		return fmt.Errorf("etcd is being deleted")
-	}, timeout, pollingInterval)
+	ExpectWithOffset(1,
+		cl.Get(
+			ctx,
+			client.ObjectKeyFromObject(etcd),
+			&appsv1.StatefulSet{},
+		),
+	).Should(matchers.BeNotFoundError())
 
 	logger.Info("Checking if configmap is gone")
-	Eventually(func() error {
-		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
-		defer cancelFunc()
-
-		if err := cl.Get(ctx, client.ObjectKey{Name: "etcd-bootstrap-" + string(etcd.UID[:6]), Namespace: etcd.Namespace}, &corev1.ConfigMap{}); err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil
-			}
-			return err
-		}
-		return fmt.Errorf("etcd is being deleted")
-	}, timeout, pollingInterval)
+	ExpectWithOffset(1,
+		cl.Get(
+			ctx,
+			client.ObjectKey{Name: "etcd-bootstrap-" + string(etcd.UID[:6]), Namespace: etcd.Namespace},
+			&corev1.ConfigMap{},
+		),
+	).Should(matchers.BeNotFoundError())
 
 	logger.Info("Checking client service is gone")
-	Eventually(func() error {
-		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
-		defer cancelFunc()
+	ExpectWithOffset(1,
+		cl.Get(
+			ctx,
+			client.ObjectKey{Name: etcd.Name + "-client", Namespace: etcd.Namespace},
+			&corev1.Service{},
+		),
+	).Should(matchers.BeNotFoundError())
 
-		if err := cl.Get(ctx, client.ObjectKey{Name: etcd.Name + "-client", Namespace: etcd.Namespace}, &corev1.Service{}); err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil
-			}
-			return err
-		}
-		return fmt.Errorf("etcd is being deleted")
-	}, timeout, pollingInterval)
+	// removing ETCD statefulset's PVCs,
+	// because sometimes k8s garbage collection is delayed to remove PVCs before starting next tests.
+	purgeEtcdPVCs(ctx, cl, etcd.Name)
+}
+
+func purgeEtcdPVCs(ctx context.Context, cl client.Client, etcdName string) {
+	r, _ := k8s_labels.NewRequirement("instance", selection.Equals, []string{etcdName})
+	pvc := &corev1.PersistentVolumeClaim{}
+	delOptions := client.DeleteOptions{}
+	delOptions.ApplyOptions([]client.DeleteOption{client.PropagationPolicy(metav1.DeletePropagationForeground)})
+	ExpectWithOffset(1, client.IgnoreNotFound(cl.DeleteAllOf(ctx, pvc, &client.DeleteAllOfOptions{
+		ListOptions: client.ListOptions{
+			Namespace:     namespace,
+			LabelSelector: k8s_labels.NewSelector().Add(*r),
+		},
+		DeleteOptions: delOptions,
+	}))).ShouldNot(HaveOccurred())
 }
