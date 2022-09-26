@@ -55,7 +55,7 @@ var _ = Describe("#GenerateValues", func() {
 				Etcd: druidv1alpha1.EtcdConfig{
 					ClientPort: clientPort,
 					ServerPort: serverPort,
-					ClientService: &druidv1alpha1.ClientServiceSpec{
+					ClientService: &druidv1alpha1.ClientService{
 						Annotations: annotations,
 					},
 				},

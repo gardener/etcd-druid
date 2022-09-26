@@ -32,8 +32,6 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
 	var clientServiceAnnotations map[string]string
 	if etcd.Spec.Etcd.ClientService != nil {
 		clientServiceAnnotations = etcd.Spec.Etcd.ClientService.Annotations
-	} else {
-		clientServiceAnnotations = nil
 	}
 	return Values{
 		BackupPort:               pointer.Int32Deref(etcd.Spec.Backup.Port, defaultBackupPort),

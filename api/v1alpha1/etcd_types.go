@@ -230,12 +230,13 @@ type EtcdConfig struct {
 	// HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s.
 	// +optional
 	HeartbeatDuration *metav1.Duration `json:"heartbeatDuration,omitempty"`
-	// ClientService defines specified annotations that should be added to the client service
+	// ClientService defines the parameters of the client service that a user can specify
 	// +optional
-	ClientService *ClientServiceSpec `json:"clientService"`
+	ClientService *ClientService `json:"clientService,omitempty"`
 }
 
-type ClientServiceSpec struct {
+// ClientService defines the parameters of the client service that a user can specify
+type ClientService struct {
 	// Annotations specify the annotations that should be added to the client service
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
