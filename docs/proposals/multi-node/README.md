@@ -1345,9 +1345,6 @@ Hence, it is better to keep `etcd-druid` altogether agnostic of issues related t
 
 This proposal recommends that `etcd-druid` should deploy [`PodDisruptionBudget`](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-budgets) (`minAvailable` set to `floor(<cluster size>/2) + 1`) for multi-node etcd clusters (if `AllMembersReady` [condition](#conditions) is `true`) to ensure that any planned disruptive operation can try and honour the disruption budget to ensure high availability of the etcd cluster while making potentially disrupting maintenance operations.
 
-In addition, it is recommended to toggle the `minAvailable ` field between `floor(<cluster size>/2) + 1` and `<cluster size>` whenever the `BackupReady` condition toggles between `true` and `false`.
-This is to disable eviction of member pods when backups are not healthy.
-
 Also, it is recommended to toggle the `minAvailable` field between `floor(<cluster size>/2)` and `<number of members with status Ready true>` whenever the `AllMembersReady` condition toggles between `true` and `false`.
 This is to disable eviction of any member pods when not all members are `Ready`.
 
