@@ -193,18 +193,11 @@ func calculatePDBminAvailable(etcd *druidv1alpha1.Etcd) int {
 	}
 
 	allMembersReady := false
-	backupReady := false
 	for _, condition := range etcd.Status.Conditions {
 		if condition.Type == druidv1alpha1.ConditionTypeAllMembersReady &&
 			condition.Status == druidv1alpha1.ConditionTrue {
 			allMembersReady = true
-			continue
-		}
-
-		if condition.Type == druidv1alpha1.ConditionTypeBackupReady &&
-			condition.Status == druidv1alpha1.ConditionTrue {
-			backupReady = true
-			continue
+			break
 		}
 	}
 
@@ -220,10 +213,6 @@ func calculatePDBminAvailable(etcd *druidv1alpha1.Etcd) int {
 			}
 		}
 		values = append(values, readyMembers)
-	}
-
-	if backupReady {
-		values = append(values, clusterSize)
 	}
 
 	// calculate max value

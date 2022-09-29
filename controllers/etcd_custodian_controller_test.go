@@ -70,27 +70,12 @@ var _ = Describe("Custodian Controller", func() {
 
 			etcd.Status.Conditions = []druidv1alpha1.Condition{
 				{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionFalse},
-				{Type: druidv1alpha1.ConditionTypeBackupReady, Status: druidv1alpha1.ConditionFalse},
 			}
 
 			It("should use all ready members if not all members are ready", func() {
 				Expect(calculatePDBminAvailable(etcd)).To(BeEquivalentTo(4))
 			})
 		})
-
-		When("having a multi node cluster", func() {
-			etcd := getEtcdWithStatus(5)
-
-			etcd.Status.Conditions = []druidv1alpha1.Condition{
-				{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionTrue},
-				{Type: druidv1alpha1.ConditionTypeBackupReady, Status: druidv1alpha1.ConditionTrue},
-			}
-
-			It("should use clusterSize if backup is ready", func() {
-				Expect(calculatePDBminAvailable(etcd)).To(BeEquivalentTo(5))
-			})
-		})
-
 	})
 })
 
@@ -112,7 +97,6 @@ func getEtcdStatus(replicas int) druidv1alpha1.EtcdStatus {
 		Members:     members,
 		Conditions: []druidv1alpha1.Condition{
 			{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionTrue},
-			{Type: druidv1alpha1.ConditionTypeBackupReady, Status: druidv1alpha1.ConditionFalse},
 		},
 	}
 }
