@@ -25,6 +25,7 @@ import (
 func (c *component) syncClientService(ctx context.Context, svc *corev1.Service) error {
 	_, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, c.client, svc, func() error {
 		svc.Labels = getLabels(c.values)
+		svc.Annotations = c.values.ClientServiceAnnotations
 		svc.OwnerReferences = getOwnerReferences(c.values)
 		svc.Spec.Type = corev1.ServiceTypeClusterIP
 		svc.Spec.SessionAffinity = corev1.ServiceAffinityNone

@@ -23,6 +23,8 @@ type Values struct {
 	ClientPort int32
 	// ClientServiceName is the name of the service responsible for client traffic.
 	ClientServiceName string
+	// ClientAnnotations are the annotations to be added to the client service
+	ClientServiceAnnotations map[string]string
 	// EtcdName is the name of the etcd resource.
 	EtcdName string
 	// EtcdName is the UID of the etcd resource.

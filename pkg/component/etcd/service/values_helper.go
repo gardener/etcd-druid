@@ -29,14 +29,19 @@ const (
 
 // GenerateValues generates `service.Values` for the service component with the given `etcd` object.
 func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
+	var clientServiceAnnotations map[string]string
+	if etcd.Spec.Etcd.ClientService != nil {
+		clientServiceAnnotations = etcd.Spec.Etcd.ClientService.Annotations
+	}
 	return Values{
-		BackupPort:        pointer.Int32Deref(etcd.Spec.Backup.Port, defaultBackupPort),
-		ClientPort:        pointer.Int32Deref(etcd.Spec.Etcd.ClientPort, defaultClientPort),
-		ClientServiceName: utils.GetClientServiceName(etcd),
-		EtcdName:          etcd.Name,
-		EtcdUID:           etcd.UID,
-		Labels:            etcd.Spec.Labels,
-		PeerServiceName:   utils.GetPeerServiceName(etcd),
-		ServerPort:        pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, defaultServerPort),
+		BackupPort:               pointer.Int32Deref(etcd.Spec.Backup.Port, defaultBackupPort),
+		ClientPort:               pointer.Int32Deref(etcd.Spec.Etcd.ClientPort, defaultClientPort),
+		ClientServiceName:        utils.GetClientServiceName(etcd),
+		ClientServiceAnnotations: clientServiceAnnotations,
+		EtcdName:                 etcd.Name,
+		EtcdUID:                  etcd.UID,
+		Labels:                   etcd.Spec.Labels,
+		PeerServiceName:          utils.GetPeerServiceName(etcd),
+		ServerPort:               pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, defaultServerPort),
 	}
 }
