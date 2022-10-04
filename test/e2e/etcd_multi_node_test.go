@@ -217,9 +217,9 @@ func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Lo
 		}
 
 		for _, c := range etcd.Status.Conditions {
-			if c.Status != v1alpha1.ConditionUnknown {
+			if c.Status != v1alpha1.ConditionTrue {
 				return fmt.Errorf("etcd %s status condition is %q, but expected to be %s ",
-					etcd.Name, c.Status, v1alpha1.ConditionUnknown)
+					etcd.Name, c.Status, v1alpha1.ConditionTrue)
 			}
 		}
 
