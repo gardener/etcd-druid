@@ -86,6 +86,8 @@ const (
 	EtcdReady = true
 	// DefaultAutoCompactionRetention defines the default auto-compaction-retention length for etcd.
 	DefaultAutoCompactionRetention = "30m"
+	// Annotation set by human operator in order to stop reconciliation
+	IgnoreReconciliationAnnotation = "druid.gardener.cloud/ignore-reconciliation"
 )
 
 var (
@@ -240,6 +242,13 @@ func (r *EtcdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	if !etcd.DeletionTimestamp.IsZero() {
 		return r.delete(ctx, etcd)
 	}
+
+	if _, ok := etcd.Annotations[IgnoreReconciliationAnnotation]; ok {
+		return ctrl.Result{
+			Requeue: false,
+		}, nil
+	}
+
 	return r.reconcile(ctx, etcd)
 }
 
