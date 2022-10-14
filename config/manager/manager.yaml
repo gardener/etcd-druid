@@ -1,3 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    control-plane: controller-manager
+  name: garden
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -31,3 +37,4 @@ spec:
               cpu: 100m
               memory: 20Mi
       terminationGracePeriodSeconds: 10
+      serviceAccountName: controller-manager
