@@ -23,7 +23,7 @@ import (
 	mockclient "github.com/gardener/etcd-druid/pkg/mock/controller-runtime/client"
 
 	"github.com/golang/mock/gomock"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 

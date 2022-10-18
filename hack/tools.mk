@@ -27,7 +27,7 @@ export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 #########################################
 
 $(GINKGO): go.mod
-	go build -o $(GINKGO) github.com/onsi/ginkgo/ginkgo
+	go build -o $(GINKGO) github.com/onsi/ginkgo/v2/ginkgo
 
 # TODO(timuthy):Remove this when vendored to latest gardener/gardener dependency
 $(SKAFFOLD): $(call tool_version_file,$(SKAFFOLD),$(SKAFFOLD_VERSION))
