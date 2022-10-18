@@ -19,7 +19,7 @@ import (
 	"time"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	"github.com/gardener/gardener/pkg/utils"
+	"github.com/gardener/gardener/pkg/utils/timewindow"
 	versionutils "github.com/gardener/gardener/pkg/utils/version"
 
 	corev1 "k8s.io/api/core/v1"
@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/pointer"
 )
 
@@ -84,9 +83,12 @@ func defaultSubject(obj *rbacv1.Subject) {
 
 // SetDefaults_MachineType sets default values for MachineType objects.
 func SetDefaults_MachineType(obj *MachineType) {
+	if obj.Architecture == nil {
+		obj.Architecture = pointer.String(v1beta1constants.ArchitectureAMD64)
+	}
+
 	if obj.Usable == nil {
-		trueVar := true
-		obj.Usable = &trueVar
+		obj.Usable = pointer.Bool(true)
 	}
 }
 
@@ -119,28 +121,38 @@ func SetDefaults_Seed(obj *Seed) {
 	if obj.Spec.Settings.VerticalPodAutoscaler == nil {
 		obj.Spec.Settings.VerticalPodAutoscaler = &SeedSettingVerticalPodAutoscaler{Enabled: true}
 	}
+
+	if obj.Spec.Settings.OwnerChecks == nil {
+		obj.Spec.Settings.OwnerChecks = &SeedSettingOwnerChecks{Enabled: true}
+	}
+
+	if obj.Spec.Settings.DependencyWatchdog == nil {
+		obj.Spec.Settings.DependencyWatchdog = &SeedSettingDependencyWatchdog{}
+	}
+}
+
+// SetDefaults_SeedSettingDependencyWatchdog sets defaults for SeedSettingDependencyWatchdog objects.
+func SetDefaults_SeedSettingDependencyWatchdog(obj *SeedSettingDependencyWatchdog) {
+	if obj.Endpoint == nil {
+		obj.Endpoint = &SeedSettingDependencyWatchdogEndpoint{Enabled: true}
+	}
+	if obj.Probe == nil {
+		obj.Probe = &SeedSettingDependencyWatchdogProbe{Enabled: true}
+	}
 }
 
 // SetDefaults_Shoot sets default values for Shoot objects.
 func SetDefaults_Shoot(obj *Shoot) {
-	k8sVersionLessThan116, _ := versionutils.CompareVersions(obj.Spec.Kubernetes.Version, "<", "1.16")
-	k8sVersionGreaterOrEqualThan122, _ := versionutils.CompareVersions(obj.Spec.Kubernetes.Version, ">=", "1.22")
-	// Error is ignored here because we cannot do anything meaningful with it.
-	// k8sVersionLessThan116 and k8sVersionGreaterOrEqualThan122 will default to `false`.
-
-	if obj.Spec.Kubernetes.AllowPrivilegedContainers == nil {
+	// Errors are ignored here because we cannot do anything meaningful with them - variables will default to `false`.
+	k8sLess125, _ := versionutils.CheckVersionMeetsConstraint(obj.Spec.Kubernetes.Version, "< 1.25")
+	if obj.Spec.Kubernetes.AllowPrivilegedContainers == nil && k8sLess125 {
 		obj.Spec.Kubernetes.AllowPrivilegedContainers = pointer.Bool(true)
 	}
-
 	if obj.Spec.Kubernetes.KubeAPIServer == nil {
 		obj.Spec.Kubernetes.KubeAPIServer = &KubeAPIServerConfig{}
 	}
 	if obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication == nil {
-		if k8sVersionLessThan116 {
-			obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication = pointer.Bool(true)
-		} else {
-			obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication = pointer.Bool(false)
-		}
+		obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication = pointer.Bool(false)
 	}
 	if obj.Spec.Kubernetes.KubeAPIServer.Requests == nil {
 		obj.Spec.Kubernetes.KubeAPIServer.Requests = &KubeAPIServerRequests{}
@@ -168,6 +180,14 @@ func SetDefaults_Shoot(obj *Shoot) {
 		obj.Spec.Kubernetes.KubeControllerManager.NodeMonitorGracePeriod = &metav1.Duration{Duration: 2 * time.Minute}
 	}
 
+	if obj.Spec.Kubernetes.KubeScheduler == nil {
+		obj.Spec.Kubernetes.KubeScheduler = &KubeSchedulerConfig{}
+	}
+	if obj.Spec.Kubernetes.KubeScheduler.Profile == nil {
+		defaultProfile := SchedulingProfileBalanced
+		obj.Spec.Kubernetes.KubeScheduler.Profile = &defaultProfile
+	}
+
 	if obj.Spec.Kubernetes.KubeProxy == nil {
 		obj.Spec.Kubernetes.KubeProxy = &KubeProxyConfig{}
 	}
@@ -177,6 +197,10 @@ func SetDefaults_Shoot(obj *Shoot) {
 	}
 	if obj.Spec.Kubernetes.KubeProxy.Enabled == nil {
 		obj.Spec.Kubernetes.KubeProxy.Enabled = pointer.Bool(true)
+	}
+
+	if obj.Spec.Kubernetes.EnableStaticTokenKubeconfig == nil {
+		obj.Spec.Kubernetes.EnableStaticTokenKubeconfig = pointer.Bool(true)
 	}
 
 	if obj.Spec.Addons == nil {
@@ -219,6 +243,9 @@ func SetDefaults_Shoot(obj *Shoot) {
 	if obj.Spec.Kubernetes.Kubelet.ImageGCLowThresholdPercent == nil {
 		obj.Spec.Kubernetes.Kubelet.ImageGCLowThresholdPercent = pointer.Int32(40)
 	}
+	if obj.Spec.Kubernetes.Kubelet.SerializeImagePulls == nil {
+		obj.Spec.Kubernetes.Kubelet.SerializeImagePulls = pointer.Bool(true)
+	}
 
 	var (
 		kubeReservedMemory = resource.MustParse("1Gi")
@@ -249,13 +276,40 @@ func SetDefaults_Shoot(obj *Shoot) {
 		obj.Spec.Kubernetes.KubeAPIServer.EnableAnonymousAuthentication = pointer.Bool(false)
 	}
 
-	if k8sVersionGreaterOrEqualThan122 {
-		for i := range obj.Spec.Provider.Workers {
-			if obj.Spec.Provider.Workers[i].CRI != nil {
-				continue
-			}
-			obj.Spec.Provider.Workers[i].CRI = &CRI{Name: CRINameContainerD}
+	for i, worker := range obj.Spec.Provider.Workers {
+		kubernetesVersion := obj.Spec.Kubernetes.Version
+		if worker.Kubernetes != nil && worker.Kubernetes.Version != nil {
+			kubernetesVersion = *worker.Kubernetes.Version
 		}
+
+		if worker.Machine.Architecture == nil {
+			obj.Spec.Provider.Workers[i].Machine.Architecture = pointer.String(v1beta1constants.ArchitectureAMD64)
+		}
+
+		if k8sVersionGreaterOrEqualThan122, _ := versionutils.CompareVersions(kubernetesVersion, ">=", "1.22"); !k8sVersionGreaterOrEqualThan122 {
+			// Error is ignored here because we cannot do anything meaningful with it.
+			// k8sVersionLessThan116 and k8sVersionGreaterOrEqualThan122 will default to `false`.
+			continue
+		}
+
+		if worker.CRI != nil {
+			continue
+		}
+
+		obj.Spec.Provider.Workers[i].CRI = &CRI{Name: CRINameContainerD}
+	}
+
+	if obj.Spec.SystemComponents == nil {
+		obj.Spec.SystemComponents = &SystemComponents{}
+	}
+	if obj.Spec.SystemComponents.CoreDNS == nil {
+		obj.Spec.SystemComponents.CoreDNS = &CoreDNS{}
+	}
+	if obj.Spec.SystemComponents.CoreDNS.Autoscaling == nil {
+		obj.Spec.SystemComponents.CoreDNS.Autoscaling = &CoreDNSAutoscaling{}
+	}
+	if obj.Spec.SystemComponents.CoreDNS.Autoscaling.Mode != CoreDNSAutoscalingModeHorizontal && obj.Spec.SystemComponents.CoreDNS.Autoscaling.Mode != CoreDNSAutoscalingModeClusterProportional {
+		obj.Spec.SystemComponents.CoreDNS.Autoscaling.Mode = CoreDNSAutoscalingModeHorizontal
 	}
 }
 
@@ -269,7 +323,7 @@ func SetDefaults_Maintenance(obj *Maintenance) {
 	}
 
 	if obj.TimeWindow == nil {
-		mt := utils.RandomMaintenanceTimeWindow()
+		mt := timewindow.RandomMaintenanceTimeWindow()
 		obj.TimeWindow = &MaintenanceTimeWindow{
 			Begin: mt.Begin().Formatted(),
 			End:   mt.End().Formatted(),
@@ -379,6 +433,21 @@ func SetDefaults_ControllerRegistrationDeployment(obj *ControllerRegistrationDep
 	}
 }
 
+// SetDefaults_MachineImageVersion sets default values for MachineImageVersion objects.
+func SetDefaults_MachineImageVersion(obj *MachineImageVersion) {
+	if len(obj.CRI) == 0 {
+		obj.CRI = []CRI{
+			{
+				Name: CRINameDocker,
+			},
+		}
+	}
+
+	if len(obj.Architectures) == 0 {
+		obj.Architectures = []string{v1beta1constants.ArchitectureAMD64}
+	}
+}
+
 // Helper functions
 
 func calculateDefaultNodeCIDRMaskSize(kubelet *KubeletConfig, workers []Worker) *int32 {
@@ -400,16 +469,16 @@ func calculateDefaultNodeCIDRMaskSize(kubelet *KubeletConfig, workers []Worker) 
 }
 
 func addTolerations(tolerations *[]Toleration, additionalTolerations ...Toleration) {
-	existingTolerations := sets.NewString()
+	existingTolerations := map[Toleration]struct{}{}
 	for _, toleration := range *tolerations {
-		existingTolerations.Insert(utils.IDForKeyWithOptionalValue(toleration.Key, toleration.Value))
+		existingTolerations[toleration] = struct{}{}
 	}
 
 	for _, toleration := range additionalTolerations {
-		if existingTolerations.Has(toleration.Key) {
+		if _, ok := existingTolerations[Toleration{Key: toleration.Key}]; ok {
 			continue
 		}
-		if existingTolerations.Has(utils.IDForKeyWithOptionalValue(toleration.Key, toleration.Value)) {
+		if _, ok := existingTolerations[toleration]; ok {
 			continue
 		}
 		*tolerations = append(*tolerations, toleration)

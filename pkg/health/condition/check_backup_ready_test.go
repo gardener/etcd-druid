@@ -91,8 +91,8 @@ var _ = Describe("BackupReadyCheck", func() {
 
 		Context("With no snapshot leases present", func() {
 			It("Should return Unknown rediness", func() {
-				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease) error {
+				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease, _ ...client.GetOption) error {
 						return &noLeaseError
 					},
 				).AnyTimes()
@@ -109,8 +109,8 @@ var _ = Describe("BackupReadyCheck", func() {
 
 		Context("With both snapshot leases present", func() {
 			It("Should set status to BackupSucceeded if both leases are recently renewed", func() {
-				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease) error {
+				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
 						*le = lease
 						return nil
 					},
@@ -126,8 +126,8 @@ var _ = Describe("BackupReadyCheck", func() {
 			})
 
 			It("Should set status to BackupSucceeded if delta snap lease is recently created and empty full snap lease has been created in the last 24h", func() {
-				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-full-snap", Namespace: "default"}, gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease) error {
+				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-full-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
 						*le = lease
 						le.Spec.RenewTime = nil
 						le.Spec.HolderIdentity = nil
@@ -135,8 +135,8 @@ var _ = Describe("BackupReadyCheck", func() {
 						return nil
 					},
 				).AnyTimes()
-				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-delta-snap", Namespace: "default"}, gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease) error {
+				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-delta-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
 						*le = lease
 						return nil
 					},
@@ -152,15 +152,15 @@ var _ = Describe("BackupReadyCheck", func() {
 			})
 
 			It("Should set status to Unknown if empty delta snap lease is present but full snap lease is renewed recently", func() {
-				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-full-snap", Namespace: "default"}, gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease) error {
+				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-full-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
 						*le = lease
 						le.Spec.RenewTime = &v1.MicroTime{Time: lease.Spec.RenewTime.Time.Add(-5 * deltaSnapshotDuration)}
 						return nil
 					},
 				).AnyTimes()
-				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-delta-snap", Namespace: "default"}, gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease) error {
+				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-delta-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
 						*le = lease
 						le.Spec.RenewTime = nil
 						le.Spec.HolderIdentity = nil
@@ -179,8 +179,8 @@ var _ = Describe("BackupReadyCheck", func() {
 			})
 
 			It("Should set status to Unknown if both leases are stale", func() {
-				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease) error {
+				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
 						*le = lease
 						le.Spec.RenewTime = &v1.MicroTime{
 							Time: time.Now().Add(-10 * time.Minute),
@@ -207,8 +207,8 @@ var _ = Describe("BackupReadyCheck", func() {
 			})
 
 			It("Should set status to BackupFailed if both leases are stale and current condition is Unknown", func() {
-				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease) error {
+				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
 						*le = lease
 						le.Spec.RenewTime = &v1.MicroTime{
 							Time: time.Now().Add(-10 * time.Minute),

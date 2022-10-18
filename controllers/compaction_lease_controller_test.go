@@ -33,7 +33,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -112,23 +111,15 @@ var _ = Describe("Lease Controller", func() {
 			// Verify if the job is created when difference between holder identities in delta-snapshot-revision and full-snapshot-revision is greater than 1M
 			fullLease := &coordinationv1.Lease{}
 			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(c, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
-			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, fullLease, func() error {
-				fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
-				renewedTime := time.Now()
-				fullLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
-				return nil
-			})
-			Expect(err).NotTo(HaveOccurred())
+			fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
+			fullLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(c.Update(context.TODO(), fullLease)).To(Succeed())
 
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
-				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
-				renewedTime := time.Now()
-				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
-				return nil
-			})
-			Expect(err).NotTo(HaveOccurred())
+			deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
+			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(c.Update(context.TODO(), deltaLease)).To(Succeed())
 
 			j = &batchv1.Job{}
 			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, timeout, pollingInterval).Should(BeNil())
@@ -190,32 +181,22 @@ var _ = Describe("Lease Controller", func() {
 			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, timeout, pollingInterval).Should(BeNil())
 
 			// Update job status as failed
-			err = controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, c, j, func() error {
-				j.Status.Failed = 1
-				return nil
-			})
-			Expect(err).NotTo(HaveOccurred())
+			j.Status.Failed = 1
+			Expect(c.Status().Update(ctx, j)).To(Succeed())
 
 			// Deliberately update the full lease
 			fullLease := &coordinationv1.Lease{}
 			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(c, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
-			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, fullLease, func() error {
-				fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
-				renewedTime := time.Now()
-				fullLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
-				return nil
-			})
+			fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
+			fullLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(c.Update(context.TODO(), fullLease)).To(Succeed())
 
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
-				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
-				renewedTime := time.Now()
-				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
-				return nil
-			})
-			Expect(err).NotTo(HaveOccurred())
+			deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
+			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(c.Update(context.TODO(), deltaLease)).To(Succeed())
 
 			// Wait until the job gets the "foregroundDeletion" finalizer and remove it
 			Eventually(func() (*batchv1.Job, error) {
@@ -224,7 +205,7 @@ var _ = Describe("Lease Controller", func() {
 				}
 				return j, nil
 			}, timeout, pollingInterval).Should(PointTo(matchFinalizer(metav1.FinalizerDeleteDependents)))
-			Expect(controllerutils.PatchRemoveFinalizers(ctx, c, j, metav1.FinalizerDeleteDependents)).To(Succeed())
+			Expect(controllerutils.RemoveFinalizers(ctx, c, j, metav1.FinalizerDeleteDependents)).To(Succeed())
 
 			// Wait until the job has been deleted
 			Eventually(func() error {
@@ -266,21 +247,15 @@ var _ = Describe("Lease Controller", func() {
 			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, timeout, pollingInterval).Should(BeNil())
 
 			// Update job status as succeeded
-			err = controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, c, j, func() error {
-				j.Status.Succeeded = 1
-				return nil
-			})
-			Expect(err).NotTo(HaveOccurred())
+			j.Status.Succeeded = 1
+			Expect(c.Status().Update(context.TODO(), j)).To(Succeed())
 
 			// Deliberately update the full lease
 			fullLease := &coordinationv1.Lease{}
 			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(c, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
-			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, fullLease, func() error {
-				fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
-				renewedTime := time.Now()
-				fullLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
-				return nil
-			})
+			fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
+			fullLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(c.Update(context.TODO(), fullLease)).To(Succeed())
 
 			Eventually(func() error {
 				if err := c.Get(ctx, client.ObjectKeyFromObject(fullLease), fullLease); err != nil {
@@ -295,13 +270,9 @@ var _ = Describe("Lease Controller", func() {
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
-				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
-				renewedTime := time.Now()
-				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
-				return nil
-			})
-			Expect(err).NotTo(HaveOccurred())
+			deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
+			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(c.Update(context.TODO(), deltaLease)).To(Succeed())
 
 			// Wait until the job gets the "foregroundDeletion" finalizer and remove it
 			Eventually(func() (*batchv1.Job, error) {
@@ -310,7 +281,7 @@ var _ = Describe("Lease Controller", func() {
 				}
 				return j, nil
 			}, timeout, pollingInterval).Should(PointTo(matchFinalizer(metav1.FinalizerDeleteDependents)))
-			Expect(controllerutils.PatchRemoveFinalizers(ctx, c, j, metav1.FinalizerDeleteDependents)).To(Succeed())
+			Expect(controllerutils.RemoveFinalizers(ctx, c, j, metav1.FinalizerDeleteDependents)).To(Succeed())
 
 			// Wait until the job has been deleted
 			Eventually(func() error {
@@ -348,22 +319,15 @@ var _ = Describe("Lease Controller", func() {
 			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, timeout, pollingInterval).Should(BeNil())
 
 			// Update job status as active
-			err = controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, c, j, func() error {
-				j.Status.Active = 1
-				return nil
-			})
-			Expect(err).NotTo(HaveOccurred())
+			j.Status.Active = 1
+			Expect(c.Status().Update(ctx, j)).To(Succeed())
 
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
-				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
-				renewedTime := time.Now()
-				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
-				return nil
-			})
-			Expect(err).NotTo(HaveOccurred())
+			deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
+			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(c.Update(context.TODO(), deltaLease)).To(Succeed())
 
 			// The active job should exist
 			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, timeout, pollingInterval).Should(BeNil())

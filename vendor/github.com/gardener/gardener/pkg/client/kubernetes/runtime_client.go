@@ -15,61 +15,24 @@
 package kubernetes
 
 import (
-	"context"
 	"fmt"
 	"time"
 
 	kcache "github.com/gardener/gardener/pkg/client/kubernetes/cache"
-	"github.com/gardener/gardener/pkg/logger"
 
 	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
-	"sigs.k8s.io/controller-runtime/pkg/cluster"
 )
 
 const (
 	defaultCacheResyncPeriod = 6 * time.Hour
 )
-
-// NewRuntimeClientWithCache creates a new client.client with the given config and options.
-// The client uses a new cache, which will be started immediately using the given context.
-func NewRuntimeClientWithCache(ctx context.Context, config *rest.Config, options client.Options, uncachedObjects ...client.Object) (client.Client, error) {
-	if err := setClientOptionsDefaults(config, &options); err != nil {
-		return nil, err
-	}
-
-	clientCache, err := NewRuntimeCache(config, cache.Options{
-		Scheme: options.Scheme,
-		Mapper: options.Mapper,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("could not create new client cache: %w", err)
-	}
-
-	runtimeClient, err := newRuntimeClientWithCache(config, options, clientCache, uncachedObjects...)
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		if err := clientCache.Start(ctx); err != nil {
-			logger.NewLogger(logger.ErrorLevel, "").Errorf("cache.Start returned error, which should never happen, ignoring.")
-		}
-	}()
-
-	clientCache.WaitForCacheSync(ctx)
-
-	return runtimeClient, nil
-}
-
-func newRuntimeClientWithCache(config *rest.Config, options client.Options, cache cache.Cache, uncachedObjects ...client.Object) (client.Client, error) {
-	return cluster.DefaultNewClient(cache, config, options, uncachedObjects...)
-}
 
 func setClientOptionsDefaults(config *rest.Config, options *client.Options) error {
 	if options.Mapper == nil {
@@ -131,8 +94,7 @@ func NewRuntimeCache(config *rest.Config, options cache.Options) (cache.Cache, e
 
 func setCacheOptionsDefaults(options *cache.Options) error {
 	if options.Resync == nil {
-		resync := defaultCacheResyncPeriod
-		options.Resync = &resync
+		options.Resync = pointer.Duration(defaultCacheResyncPeriod)
 	}
 
 	return nil

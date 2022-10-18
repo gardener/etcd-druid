@@ -491,7 +491,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
 							"Image":           Equal(values.EtcdImage),
 							"ReadinessProbe": PointTo(MatchFields(IgnoreExtras, Fields{
-								"Handler":             getReadinessHandler(values),
+								"ProbeHandler":        getReadinessHandler(values),
 								"InitialDelaySeconds": Equal(int32(15)),
 								"PeriodSeconds":       Equal(int32(5)),
 								"FailureThreshold":    Equal(int32(5)),

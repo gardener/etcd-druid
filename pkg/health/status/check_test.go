@@ -133,8 +133,9 @@ var _ = Describe("Check", func() {
 			defer test.WithVar(&TimeNow, func() time.Time { return timeNow })()
 
 			checker := NewChecker(nil, config)
+			logger := log.Log.WithName("Test")
 
-			Expect(checker.Check(context.Background(), log.NullLogger{}, etcd)).To(Succeed())
+			Expect(checker.Check(context.Background(), logger, etcd)).To(Succeed())
 
 			Expect(etcd.Status.Conditions).To(ConsistOf(
 				MatchFields(IgnoreExtras, Fields{

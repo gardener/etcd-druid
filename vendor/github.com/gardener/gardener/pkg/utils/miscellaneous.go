@@ -120,11 +120,6 @@ func TestEmail(email string) bool {
 	return match
 }
 
-// IsTrue returns true if the passed bool pointer is not nil and true.
-func IsTrue(value *bool) bool {
-	return value != nil && *value
-}
-
 // IDForKeyWithOptionalValue returns an identifier for the given key + optional value.
 func IDForKeyWithOptionalValue(key string, value *string) string {
 	v := ""
@@ -139,11 +134,6 @@ func QuantityPtr(q resource.Quantity) *resource.Quantity {
 	return &q
 }
 
-// DurationPtr returns a time.Duration pointer to its argument.
-func DurationPtr(d time.Duration) *time.Duration {
-	return &d
-}
-
 // Indent indents the given string with the given number of spaces.
 func Indent(str string, spaces int) string {
 	return strings.ReplaceAll(str, "\n", "\n"+strings.Repeat(" ", spaces))
@@ -156,4 +146,13 @@ func ShallowCopyMapStringInterface(values map[string]interface{}) map[string]int
 		copiedValues[k] = v
 	}
 	return copiedValues
+}
+
+// IifString returns onTrue if the condition is true, and onFalse otherwise.
+// It is similar to the ternary operator (?:) and the IIF function (see https://en.wikipedia.org/wiki/IIf) in other languages.
+func IifString(condition bool, onTrue, onFalse string) string {
+	if condition {
+		return onTrue
+	}
+	return onFalse
 }

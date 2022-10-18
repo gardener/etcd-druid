@@ -20,6 +20,7 @@ import (
 
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
+	"github.com/go-logr/logr"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -27,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -37,9 +39,10 @@ import (
 
 var _ = Describe("Druid Mapper", func() {
 	var (
-		ctx  = context.Background()
-		ctrl *gomock.Controller
-		c    *mockclient.MockClient
+		ctx    = context.Background()
+		ctrl   *gomock.Controller
+		c      *mockclient.MockClient
+		logger logr.Logger
 
 		name, namespace, key string
 		statefulset          *appsv1.StatefulSet
@@ -49,6 +52,7 @@ var _ = Describe("Druid Mapper", func() {
 	BeforeEach(func() {
 		ctrl = gomock.NewController(GinkgoT())
 		c = mockclient.NewMockClient(ctrl)
+		logger = log.Log.WithName("Test")
 
 		name = "etcd-test"
 		namespace = "test"
@@ -75,8 +79,8 @@ var _ = Describe("Druid Mapper", func() {
 				},
 			}
 
-			c.EXPECT().Get(ctx, kutil.Key(namespace, name), gomock.AssignableToTypeOf(etcd)).DoAndReturn(
-				func(_ context.Context, _ client.ObjectKey, obj *druidv1alpha1.Etcd) error {
+			c.EXPECT().Get(ctx, kutil.Key(namespace, name), gomock.AssignableToTypeOf(etcd), gomock.Any()).DoAndReturn(
+				func(_ context.Context, _ client.ObjectKey, obj *druidv1alpha1.Etcd, _ ...client.GetOption) error {
 					*obj = *etcd
 					return nil
 				},
@@ -84,7 +88,7 @@ var _ = Describe("Druid Mapper", func() {
 
 			kutil.SetMetaDataAnnotation(statefulset, common.GardenerOwnedBy, key)
 
-			etcds := mapper.Map(statefulset)
+			etcds := mapper.Map(ctx, logger, nil, statefulset)
 
 			Expect(etcds).To(ConsistOf(
 				reconcile.Request{
@@ -101,19 +105,19 @@ var _ = Describe("Druid Mapper", func() {
 
 			kutil.SetMetaDataAnnotation(statefulset, common.GardenerOwnedBy, key)
 
-			etcds := mapper.Map(statefulset)
+			etcds := mapper.Map(ctx, logger, nil, statefulset)
 
 			Expect(etcds).To(BeEmpty())
 		})
 
 		It("should not find related Etcd object because owner annotation is not present", func() {
-			etcds := mapper.Map(statefulset)
+			etcds := mapper.Map(ctx, logger, nil, statefulset)
 
 			Expect(etcds).To(BeEmpty())
 		})
 
 		It("should not find related Etcd object because map is called with wrong object", func() {
-			etcds := mapper.Map(nil)
+			etcds := mapper.Map(ctx, logger, nil, nil)
 
 			Expect(etcds).To(BeEmpty())
 		})

@@ -100,7 +100,7 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 				}
 				return job, nil
 			}, timeout, pollingInterval).Should(PointTo(matchFinalizer(metav1.FinalizerDeleteDependents)))
-			Expect(controllerutils.PatchRemoveFinalizers(ctx, c, job, metav1.FinalizerDeleteDependents)).To(Succeed())
+			Expect(controllerutils.RemoveFinalizers(ctx, c, job, metav1.FinalizerDeleteDependents)).To(Succeed())
 
 			// Wait until the job has been deleted
 			Eventually(func() error {

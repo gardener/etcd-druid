@@ -20,6 +20,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
+	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
@@ -34,7 +35,7 @@ type statefulSetToEtcdMapper struct {
 	cl  client.Client
 }
 
-func (m *statefulSetToEtcdMapper) Map(obj client.Object) []reconcile.Request {
+func (m *statefulSetToEtcdMapper) Map(ctx context.Context, log logr.Logger, reader client.Reader, obj client.Object) []reconcile.Request {
 	sts, ok := obj.(*appsv1.StatefulSet)
 	if !ok {
 		return nil

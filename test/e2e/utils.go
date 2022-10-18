@@ -824,7 +824,7 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 						FailureThreshold:    int32(1),
 						PeriodSeconds:       int32(1),
 						SuccessThreshold:    int32(3),
-						Handler: v1.Handler{
+						ProbeHandler: v1.ProbeHandler{
 							Exec: &v1.ExecAction{
 								Command: []string{
 									"cat",
@@ -837,7 +837,7 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 						InitialDelaySeconds: int32(5),
 						FailureThreshold:    int32(1),
 						PeriodSeconds:       int32(1),
-						Handler: v1.Handler{
+						ProbeHandler: v1.ProbeHandler{
 							Exec: &v1.ExecAction{
 								Command: []string{
 									"cat",

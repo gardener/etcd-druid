@@ -21,6 +21,7 @@ import (
 	"time"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	"github.com/go-logr/logr"
 
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/test"
@@ -54,6 +55,7 @@ var _ = Describe("ReadyCheck", func() {
 			unknownThreshold, notReadyThreshold time.Duration
 			now                                 time.Time
 			check                               Checker
+			logger                              logr.Logger
 
 			member1Name string
 			member1ID   *string
@@ -68,7 +70,8 @@ var _ = Describe("ReadyCheck", func() {
 			unknownThreshold = 300 * time.Second
 			notReadyThreshold = 60 * time.Second
 			now, _ = time.Parse(time.RFC3339, "2021-06-01T00:00:00Z")
-			check = ReadyCheck(cl, log.NullLogger{}, controllersconfig.EtcdCustodianController{
+			logger = log.Log.WithName("Test")
+			check = ReadyCheck(cl, logger, controllersconfig.EtcdCustodianController{
 				EtcdMember: controllersconfig.EtcdMemberConfig{
 					EtcdMemberNotReadyThreshold: notReadyThreshold,
 					EtcdMemberUnknownThreshold:  unknownThreshold,
@@ -126,7 +129,7 @@ var _ = Describe("ReadyCheck", func() {
 				})()
 
 				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod) error {
+					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
 						*pod = corev1.Pod{
 							Status: corev1.PodStatus{
 								Conditions: []corev1.PodCondition{
@@ -155,7 +158,7 @@ var _ = Describe("ReadyCheck", func() {
 				})()
 
 				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod) error {
+					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
 						return errors.New("foo")
 					},
 				)
@@ -174,7 +177,7 @@ var _ = Describe("ReadyCheck", func() {
 				})()
 
 				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod) error {
+					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
 						*pod = corev1.Pod{
 							Status: corev1.PodStatus{
 								Conditions: []corev1.PodCondition{
@@ -203,7 +206,7 @@ var _ = Describe("ReadyCheck", func() {
 				})()
 
 				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod) error {
+					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
 						return apierrors.NewNotFound(corev1.Resource("pods"), member1Name)
 					},
 				)
@@ -266,7 +269,7 @@ var _ = Describe("ReadyCheck", func() {
 				})()
 
 				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod) error {
+					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
 						return errors.New("foo")
 					},
 				)

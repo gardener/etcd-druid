@@ -1,4 +1,3 @@
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -42,12 +41,34 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ""
+  - druid.gardener.cloud
   resources:
-  - persistentvolumeclaims
+  - etcds
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - druid.gardener.cloud
+  resources:
+  - etcds/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - druid.gardener.cloud
+  resources:
+  - secrets
   verbs:
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - ""
