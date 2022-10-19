@@ -1,4 +1,3 @@
 #!/usr/bin/env bash
 
-# TODO @shreyas-s-rao: Revendor gardener/gardener to >v1.13.1 to include fix from https://github.com/gardener/gardener/pull/3233
 "$(dirname $0)"/../vendor/github.com/gardener/gardener/hack/.ci/set_dependency_version

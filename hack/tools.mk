@@ -28,8 +28,3 @@ export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 
 $(GINKGO): go.mod
 	go build -o $(GINKGO) github.com/onsi/ginkgo/v2/ginkgo
-
-# TODO(timuthy):Remove this when vendored to latest gardener/gardener dependency
-$(SKAFFOLD): $(call tool_version_file,$(SKAFFOLD),$(SKAFFOLD_VERSION))
-	curl -Lo $(SKAFFOLD) https://storage.googleapis.com/skaffold/releases/$(SKAFFOLD_VERSION)/skaffold-$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
-	chmod +x $(SKAFFOLD)

@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -436,11 +435,11 @@ func buildAndDeployTLSSecrets(ctx context.Context, cl client.Client, logger logr
 	)
 
 	for _, provider := range providers {
-		caCert, err := ioutil.ReadFile(path.Join(certsPath, caCertFile))
+		caCert, err := os.ReadFile(path.Join(certsPath, caCertFile))
 		if err != nil {
 			return err
 		}
-		caKey, err := ioutil.ReadFile(path.Join(certsPath, caKeyFile))
+		caKey, err := os.ReadFile(path.Join(certsPath, caKeyFile))
 		if err != nil {
 			return err
 		}
@@ -453,11 +452,11 @@ func buildAndDeployTLSSecrets(ctx context.Context, cl client.Client, logger logr
 			return err
 		}
 
-		tlsServerCert, err := ioutil.ReadFile(path.Join(certsPath, tlsServerCertFile))
+		tlsServerCert, err := os.ReadFile(path.Join(certsPath, tlsServerCertFile))
 		if err != nil {
 			return err
 		}
-		tlsServerKey, err := ioutil.ReadFile(path.Join(certsPath, tlsServerKeyFile))
+		tlsServerKey, err := os.ReadFile(path.Join(certsPath, tlsServerKeyFile))
 		if err != nil {
 			return err
 		}
@@ -471,11 +470,11 @@ func buildAndDeployTLSSecrets(ctx context.Context, cl client.Client, logger logr
 			return err
 		}
 
-		tlsClientCert, err := ioutil.ReadFile(path.Join(certsPath, tlsClientCertFile))
+		tlsClientCert, err := os.ReadFile(path.Join(certsPath, tlsClientCertFile))
 		if err != nil {
 			return err
 		}
-		tlsClientKey, err := ioutil.ReadFile(path.Join(certsPath, tlsClientKeyFile))
+		tlsClientKey, err := os.ReadFile(path.Join(certsPath, tlsClientKeyFile))
 		if err != nil {
 			return err
 		}

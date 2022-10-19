@@ -218,7 +218,8 @@ func (r *EtcdCopyBackupsTaskReconciler) doReconcile(ctx context.Context, task *d
 	}
 
 	// Render chart
-	renderedChart, err := r.chartApplier.Render(getEtcdCopyBackupsChartPath(), task.Name, task.Namespace, values)
+	// TODO: .Render is deprecated. Refactor or adapt code to use RenderEmbeddedFS https://github.com/gardener/gardener/pull/6165
+	renderedChart, err := r.chartApplier.Render(getEtcdCopyBackupsChartPath(), task.Name, task.Namespace, values) //nolint:staticcheck
 	if err != nil {
 		return status, fmt.Errorf("could not render chart: %w", err)
 	}
