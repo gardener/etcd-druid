@@ -43,6 +43,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -533,6 +534,39 @@ var _ = Describe("Multinode ETCD", func() {
 			svc = &corev1.Service{}
 			Eventually(func() error { return clientServiceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
 
+			By("should raise an event if annotation to ignore reconciliation is applied on ETCD CR")
+			patch = client.MergeFrom(instance.DeepCopy())
+			annotations := utils.MergeStringMaps(
+				map[string]string{
+					IgnoreReconciliationAnnotation: "true",
+				},
+				instance.Annotations,
+			)
+			instance.Annotations = annotations
+			Expect(c.Patch(ctx, instance, patch)).To(Succeed())
+
+			config := mgr.GetConfig()
+			clientset, _ := kubernetes.NewForConfig(config)
+			Eventually(func() error {
+				events, err := clientset.CoreV1().Events(instance.Namespace).List(ctx, metav1.ListOptions{})
+				if err != nil {
+					fmt.Printf("The error is : %v", err)
+					return err
+				}
+
+				if events == nil || len(events.Items) == 0 {
+					return fmt.Errorf("No events generated for annotation to ignore reconciliation")
+				}
+
+				for _, event := range events.Items {
+					if event.Reason == "ReconciliationIgnored" {
+						return nil
+					}
+				}
+				return nil
+
+			}, timeout, pollingInterval).Should(BeNil())
+
 			By("delete `etcd` instance")
 			Expect(client.IgnoreNotFound(c.Delete(context.TODO(), instance))).To(Succeed())
 			Eventually(func() error {
@@ -546,6 +580,10 @@ var _ = Describe("Multinode ETCD", func() {
 					return c.Get(context.TODO(), client.ObjectKeyFromObject(svc), &corev1.Service{})
 				}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 			}
+		})
+
+		It("", func() {
+
 		})
 	})
 	DescribeTable("configmaps are mounted properly when ETCD replicas are odd number", func(name string, replicas int, getEtcdWithReplicas func(string, string, int) *druidv1alpha1.Etcd) {
