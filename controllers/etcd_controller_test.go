@@ -581,10 +581,6 @@ var _ = Describe("Multinode ETCD", func() {
 				}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 			}
 		})
-
-		It("", func() {
-
-		})
 	})
 	DescribeTable("configmaps are mounted properly when ETCD replicas are odd number", func(name string, replicas int, getEtcdWithReplicas func(string, string, int) *druidv1alpha1.Etcd) {
 		var err error

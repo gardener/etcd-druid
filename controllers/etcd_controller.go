@@ -251,9 +251,10 @@ func (r *EtcdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 			etcd,
 			corev1.EventTypeWarning,
 			"ReconciliationIgnored",
-			"reconciliation of %s/%s is ignored by etcd-druid due to the presence of annotation ‘druid.gardener.cloud/ignore-reconciliation’ on the etcd resource",
+			"reconciliation of %s/%s is ignored by etcd-druid due to the presence of annotation %s on the etcd resource",
 			etcd.Namespace,
 			etcd.Name,
+			IgnoreReconciliationAnnotation,
 		)
 
 		return ctrl.Result{
