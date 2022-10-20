@@ -115,6 +115,10 @@ var _ = Describe("Etcd", func() {
 			deleteMemberDir(ctx, cl, logger, etcd, "etcd-aws-2")
 			checkEtcdReady(ctx, cl, logger, etcd, multiNodeEtcdTimeout)
 
+			objLogger.Info("Corrupt DB file of one member")
+			corruptMemberDBFile(ctx, cl, logger, etcd, "etcd-aws-2")
+			checkEtcdReady(ctx, cl, logger, etcd, multiNodeEtcdTimeout)
+
 			By("Delete etcd")
 			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
@@ -158,6 +162,12 @@ func deletePodAndCheckSts(ctx context.Context, cl client.Client, logger logr.Log
 	pod := &corev1.Pod{}
 	ExpectWithOffset(1, cl.Get(ctx, types.NamespacedName{Name: podName, Namespace: "shoot"}, pod)).To(Succeed())
 	ExpectWithOffset(1, cl.Delete(ctx, pod, client.PropagationPolicy(metav1.DeletePropagationForeground))).To(Succeed())
+	checkUnreadySts(ctx, cl, logger, etcd)
+	checkReadySts(ctx, cl, logger, etcd)
+}
+
+func corruptMemberDBFile(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName string) {
+	Expect(corruptDBFile(kubeconfigPath, namespace, podName, "backup-restore", "/var/etcd/data/new.etcd/member/snap/db")).To(Succeed())
 	checkUnreadySts(ctx, cl, logger, etcd)
 	checkReadySts(ctx, cl, logger, etcd)
 }
