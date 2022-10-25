@@ -35,7 +35,7 @@ type statefulSetToEtcdMapper struct {
 	cl  client.Client
 }
 
-func (m *statefulSetToEtcdMapper) Map(ctx context.Context, log logr.Logger, reader client.Reader, obj client.Object) []reconcile.Request {
+func (m *statefulSetToEtcdMapper) Map(_ context.Context, _ logr.Logger, _ client.Reader, obj client.Object) []reconcile.Request {
 	sts, ok := obj.(*appsv1.StatefulSet)
 	if !ok {
 		return nil

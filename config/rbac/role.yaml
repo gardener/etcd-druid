@@ -12,8 +12,15 @@ rules:
   - serviceaccounts
   - services
   verbs:
-  - create
+  - list
+  - watch
   - delete
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  - endpoints
+  verbs:
   - get
   - list
   - patch
@@ -34,6 +41,9 @@ rules:
   resources:
   - events
   verbs:
+  - get
+  - list
+  - watch
   - create
   - get
   - list
@@ -41,34 +51,12 @@ rules:
   - update
   - watch
 - apiGroups:
-  - druid.gardener.cloud
+  - ""
   resources:
-  - etcds
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - druid.gardener.cloud
-  resources:
-  - etcds/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - druid.gardener.cloud
-  resources:
-  - secrets
+  - persistentvolumeclaims
   verbs:
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - ""
@@ -183,12 +171,8 @@ rules:
   resources:
   - poddisruptionbudgets
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - rbac.authorization.k8s.io
