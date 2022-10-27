@@ -63,12 +63,12 @@ deploy: manifests
 	kustomize build config/default | kubectl apply -f -
 
 # Generate manifests e.g. CRD, RBAC etc.
-# TODO(AleksandarSavchev): config/rbac/role.yaml has had manual changes that were ruiden by the last command of make manifests. make manifests need a fix.
 .PHONY: manifests
 manifests: $(CONTROLLER_GEN)
 	@go generate ./config/crd/bases
 	@find "$(REPO_ROOT)/config/crd/bases" -name "*.yaml" -exec cp '{}' "$(REPO_ROOT)/charts/druid/charts/crds/templates/" \;
-#   @controller-gen rbac:roleName=manager-role paths="./controllers/..."
+# TODO(AleksandarSavchev): config/rbac/role.yaml gets incorrectly overwritten by this make target. Thus the generation of the role is skipped for now until a proper generation and generation check is implemented. 
+#	@controller-gen rbac:roleName=manager-role paths="./controllers/..."
 
 # Run go fmt against code
 .PHONY: fmt

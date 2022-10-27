@@ -790,7 +790,5 @@ func (r *EtcdReconciler) updateEtcdStatusAsNotReady(ctx context.Context, etcd *d
 	etcd.Status.Ready = nil
 	etcd.Status.ReadyReplicas = 0
 
-	err := r.Client.Status().Update(ctx, etcd)
-
-	return etcd, err
+	return etcd, r.Client.Status().Update(ctx, etcd)
 }
