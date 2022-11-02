@@ -739,7 +739,7 @@ func corruptDBFile(kubeconfigPath, namespace, podName, containerName string, dir
 	cmd := fmt.Sprintf("echo destrory > %s", dirPath)
 	stdout, stderr, err := executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stdout != "" {
-		return fmt.Errorf("failed to corrupt file %s for %s: stdout: %s; stderr: %s; err: %v", dirPath, podName, stdout, stderr, err)
+		return fmt.Errorf("failed to corrupt db %s for %s: stdout: %s; stderr: %s; err: %v", dirPath, podName, stdout, stderr, err)
 	}
 	return nil
 }

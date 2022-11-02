@@ -106,18 +106,19 @@ var _ = Describe("Etcd", func() {
 			// K8s job zeroDownTimeValidator will fail, if there is any downtime in Etcd cluster health.
 			checkEtcdZeroDownTimeValidatorJob(ctx, cl, client.ObjectKeyFromObject(job), objLogger)
 
-			By("Single member restoration")
+			By("Member restart with data-dir/pvc intact")
 			objLogger.Info("Delete one member pod")
-			deletePodAndCheckSts(ctx, cl, logger, etcd, "etcd-aws-2")
-			checkEtcdReady(ctx, cl, logger, etcd, multiNodeEtcdTimeout)
+			deletePod(ctx, cl, objLogger, etcd, "etcd-aws-2")
+			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
+			By("Single member restoration")
 			objLogger.Info("Delete member dir of one member pod")
-			deleteMemberDir(ctx, cl, logger, etcd, "etcd-aws-2")
-			checkEtcdReady(ctx, cl, logger, etcd, multiNodeEtcdTimeout)
+			deleteMemberDir(ctx, cl, objLogger, etcd, "etcd-aws-2")
+			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			objLogger.Info("Corrupt DB file of one member")
-			corruptMemberDBFile(ctx, cl, logger, etcd, "etcd-aws-2")
-			checkEtcdReady(ctx, cl, logger, etcd, multiNodeEtcdTimeout)
+			objLogger.Info("Corrupt DB file of one member of cluster")
+			corruptMemberDBFile(ctx, cl, objLogger, etcd, "etcd-aws-2")
+			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
 			By("Delete etcd")
 			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
@@ -153,28 +154,25 @@ var _ = Describe("Etcd", func() {
 })
 
 func deleteMemberDir(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName string) {
-	Expect(deleteDir(kubeconfigPath, namespace, podName, "backup-restore", "/var/etcd/data/new.etcd/member")).To(Succeed())
+	ExpectWithOffset(1, deleteDir(kubeconfigPath, namespace, podName, "backup-restore", "/var/etcd/data/new.etcd/member")).To(Succeed())
 	checkUnreadySts(ctx, cl, logger, etcd)
-	checkReadySts(ctx, cl, logger, etcd)
 }
 
-func deletePodAndCheckSts(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName string) {
+func deletePod(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName string) {
 	pod := &corev1.Pod{}
-	ExpectWithOffset(1, cl.Get(ctx, types.NamespacedName{Name: podName, Namespace: "shoot"}, pod)).To(Succeed())
+	ExpectWithOffset(1, cl.Get(ctx, types.NamespacedName{Name: podName, Namespace: namespace}, pod)).To(Succeed())
 	ExpectWithOffset(1, cl.Delete(ctx, pod, client.PropagationPolicy(metav1.DeletePropagationForeground))).To(Succeed())
 	checkUnreadySts(ctx, cl, logger, etcd)
-	checkReadySts(ctx, cl, logger, etcd)
 }
 
 func corruptMemberDBFile(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName string) {
-	Expect(corruptDBFile(kubeconfigPath, namespace, podName, "backup-restore", "/var/etcd/data/new.etcd/member/snap/db")).To(Succeed())
+	ExpectWithOffset(1, corruptDBFile(kubeconfigPath, namespace, podName, "backup-restore", "/var/etcd/data/new.etcd/member/snap/db")).To(Succeed())
 	checkUnreadySts(ctx, cl, logger, etcd)
-	checkReadySts(ctx, cl, logger, etcd)
 }
 
 func checkUnreadySts(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd) {
-	logger.Info("waiting for sts to become unready", "statefulSetName", "etcd-aws")
-	Eventually(func() error {
+	logger.Info("waiting for sts to become unready")
+	EventuallyWithOffset(2, func() error {
 		sts := &appsv1.StatefulSet{}
 		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts); err != nil {
 			return err
@@ -184,12 +182,12 @@ func checkUnreadySts(ctx context.Context, cl client.Client, logger logr.Logger, 
 		}
 		return nil
 	}, multiNodeEtcdTimeout, pollingInterval).Should(BeNil())
-	logger.Info("sts is unready", "statefulSetName", "etcd-aws")
+	logger.Info("sts is unready")
 }
 
 func checkReadySts(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd) {
 	logger.Info("waiting for sts to become ready again", "statefulSetName", "etcd-aws")
-	Eventually(func() error {
+	EventuallyWithOffset(2, func() error {
 		sts := &appsv1.StatefulSet{}
 		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts); err != nil {
 			return err
