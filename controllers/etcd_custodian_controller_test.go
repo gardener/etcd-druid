@@ -16,6 +16,7 @@ package controllers
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	componentpdb "github.com/gardener/etcd-druid/pkg/component/etcd/poddisruptionbudget"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/utils/pointer"
@@ -31,9 +32,9 @@ var _ = Describe("Custodian Controller", func() {
 
 			It("should be set to 0", func() {
 				etcd.Spec.Replicas = 1
-				Expect(calculatePDBminAvailable(etcd)).To(BeEquivalentTo(0))
+				Expect(componentpdb.CalculatePDBMinAvailable(etcd)).To(BeEquivalentTo(0))
 				etcd.Spec.Replicas = 0
-				Expect(calculatePDBminAvailable(etcd)).To(BeEquivalentTo(0))
+				Expect(componentpdb.CalculatePDBMinAvailable(etcd)).To(BeEquivalentTo(0))
 			})
 		})
 
@@ -41,8 +42,8 @@ var _ = Describe("Custodian Controller", func() {
 			etcd := getEtcdWithStatus(3)
 			etcd.Status.ClusterSize = nil
 
-			It("should be set to -1", func() {
-				Expect(calculatePDBminAvailable(etcd)).To(BeEquivalentTo(-1))
+			It("should be set to quorum size", func() {
+				Expect(componentpdb.CalculatePDBMinAvailable(etcd)).To(BeEquivalentTo(2))
 			})
 		})
 
@@ -53,27 +54,7 @@ var _ = Describe("Custodian Controller", func() {
 			Expect(*etcd.Status.ClusterSize).To(BeEquivalentTo(5))
 
 			It("should calculate the value correctly", func() {
-				Expect(calculatePDBminAvailable(etcd)).To(BeEquivalentTo(3))
-			})
-		})
-
-		When("having a multi node cluster", func() {
-			etcd := getEtcdWithStatus(5)
-
-			etcd.Status.Members = []druidv1alpha1.EtcdMemberStatus{
-				{Status: druidv1alpha1.EtcdMemberStatusReady},
-				{Status: druidv1alpha1.EtcdMemberStatusReady},
-				{Status: druidv1alpha1.EtcdMemberStatusReady},
-				{Status: druidv1alpha1.EtcdMemberStatusReady},
-				{Status: druidv1alpha1.EtcdMemberStatusNotReady},
-			}
-
-			etcd.Status.Conditions = []druidv1alpha1.Condition{
-				{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionFalse},
-			}
-
-			It("should use all ready members if not all members are ready", func() {
-				Expect(calculatePDBminAvailable(etcd)).To(BeEquivalentTo(4))
+				Expect(componentpdb.CalculatePDBMinAvailable(etcd)).To(BeEquivalentTo(3))
 			})
 		})
 	})

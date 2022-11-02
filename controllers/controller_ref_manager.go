@@ -44,7 +44,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -208,36 +207,6 @@ func (m *EtcdDruidRefManager) FetchStatefulSet(ctx context.Context, etcd *druidv
 	}
 
 	return statefulSets, err
-}
-
-func (m *EtcdDruidRefManager) ClaimPodDisruptionBudget(ctx context.Context, pdb *policyv1beta1.PodDisruptionBudget, filters ...func(*policyv1beta1.PodDisruptionBudget) bool) (*policyv1beta1.PodDisruptionBudget, error) {
-	var errlist []error
-
-	match := func(obj metav1.Object) bool {
-		tempPdb := obj.(*policyv1beta1.PodDisruptionBudget)
-		// Check selector first so filters only run on potentially matching poddisruptionbudgets
-		if !m.Selector.Matches(labels.Set(pdb.Labels)) {
-			return false
-		}
-		for _, filter := range filters {
-			if !filter(tempPdb) {
-				return false
-			}
-		}
-		return true
-	}
-
-	ok, err := m.claimObject(ctx, pdb, match, m.AdoptResource, m.ReleaseResource)
-
-	if err != nil {
-		errlist = append(errlist, err)
-	}
-
-	var claimed *policyv1beta1.PodDisruptionBudget
-	if ok {
-		claimed = pdb.DeepCopy()
-	}
-	return claimed, utilerrors.NewAggregate(errlist)
 }
 
 // AdoptResource sends a patch to take control of the Etcd. It returns the error if

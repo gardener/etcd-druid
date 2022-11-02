@@ -50,8 +50,7 @@ var (
 	mgr        manager.Manager
 	mgrStopped *sync.WaitGroup
 
-	activeDeadlineDuration   time.Duration
-	backupCompactionSchedule = "15 */24 * * *"
+	activeDeadlineDuration time.Duration
 
 	revertFns []func()
 

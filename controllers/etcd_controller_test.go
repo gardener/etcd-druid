@@ -27,7 +27,6 @@ import (
 	"github.com/gardener/etcd-druid/pkg/utils"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	"github.com/gardener/gardener/pkg/controllerutils"
 	gardenerUtils "github.com/gardener/gardener/pkg/utils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
@@ -37,9 +36,6 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
-	batchv1beta1 "k8s.io/api/batch/v1beta1"
-	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -47,7 +43,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -470,121 +465,6 @@ var _ = Describe("Druid", func() {
 	)
 })
 
-var _ = Describe("Cron Job", func() {
-	Context("when an existing cron job from older version is already present", func() {
-		var (
-			err      error
-			instance *druidv1alpha1.Etcd
-			c        client.Client
-			cj       *batchv1beta1.CronJob
-		)
-
-		It("should delete the existing cronjob if older than activeDeadlineDuration", func() {
-			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-			defer cancel()
-
-			instance = getEtcd("foo80", "default", true)
-			c = mgr.GetClient()
-			ns := corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: instance.Namespace,
-				},
-			}
-
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
-
-			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-			}
-			err = c.Create(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Create CronJob
-			cj = createCronJob(instance)
-			cj.Status.LastScheduleTime = &metav1.Time{Time: time.Now().Add(-3 * time.Hour)}
-			Expect(c.Create(ctx, cj)).To(Succeed())
-			Eventually(func() error { return cronJobIsCorrectlyReconciled(c, instance, cj) }, timeout, pollingInterval).Should(BeNil())
-
-			// Deliberately update the delta lease
-			deltaLease := &coordinationv1.Lease{}
-			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
-				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
-				renewedTime := time.Now()
-				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
-				return nil
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			// Wait until the cron job gets the "foregroundDeletion" finalizer and remove it
-			Eventually(func() (*batchv1beta1.CronJob, error) {
-				if err := c.Get(ctx, client.ObjectKeyFromObject(cj), cj); err != nil {
-					return nil, err
-				}
-				return cj, nil
-			}, timeout, pollingInterval).Should(PointTo(matchFinalizer(metav1.FinalizerDeleteDependents)))
-			Expect(controllerutils.PatchRemoveFinalizers(ctx, c, cj, metav1.FinalizerDeleteDependents)).To(Succeed())
-
-			// Wait until the cron job has been deleted
-			Eventually(func() error {
-				return c.Get(ctx, client.ObjectKeyFromObject(cj), &batchv1beta1.CronJob{})
-			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
-		})
-
-		It("should let the existing active cronjob run if not older than activeDeadlineDuration", func() {
-			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-			defer cancel()
-
-			instance = getEtcd("foo81", "default", true)
-			c = mgr.GetClient()
-			ns := corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: instance.Namespace,
-				},
-			}
-
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
-
-			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-			}
-			err = c.Create(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Create CronJob
-			cj = createCronJob(instance)
-			Expect(c.Create(ctx, cj)).To(Succeed())
-			Eventually(func() error { return cronJobIsCorrectlyReconciled(c, instance, cj) }, timeout, pollingInterval).Should(BeNil())
-
-			// Deliberately update the delta lease
-			deltaLease := &coordinationv1.Lease{}
-			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			err = controllerutils.TryUpdate(context.TODO(), retry.DefaultBackoff, c, deltaLease, func() error {
-				deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
-				renewedTime := time.Now()
-				deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: renewedTime}
-				return nil
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			Eventually(func() error { return cronJobIsCorrectlyReconciled(c, instance, cj) }, timeout, pollingInterval).Should(BeNil())
-		})
-
-		AfterEach(func() {
-			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
-			Eventually(func() error {
-				return c.Get(context.TODO(), client.ObjectKeyFromObject(instance), &batchv1beta1.CronJob{})
-			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
-		})
-	})
-})
-
 var _ = Describe("Multinode ETCD", func() {
 	//Reconciliation of new etcd resource deployment without any existing statefulsets.
 	Context("when adding etcd resources", func() {
@@ -912,6 +792,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
+				"app":      Equal("etcd-statefulset"),
 			}),
 		}),
 		"Spec": MatchFields(IgnoreExtras, Fields{
@@ -936,6 +817,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 					"Labels": MatchAllKeys(Keys{
 						"name":     Equal("etcd"),
 						"instance": Equal(instance.Name),
+						"app":      Equal("etcd-statefulset"),
 					}),
 				}),
 				"Spec": MatchFields(IgnoreExtras, Fields{
@@ -1265,6 +1147,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
+				"app":      Equal("etcd-statefulset"),
 			}),
 		}),
 
@@ -1290,6 +1173,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 					"Labels": MatchAllKeys(Keys{
 						"name":     Equal("etcd"),
 						"instance": Equal(instance.Name),
+						"app":      Equal("etcd-statefulset"),
 					}),
 				}),
 				//s.Spec.Template.Spec.HostAliases
@@ -2300,54 +2184,6 @@ func setStatefulSetReady(s *appsv1.StatefulSet) {
 	}
 	s.Status.Replicas = replicas
 	s.Status.ReadyReplicas = replicas
-}
-
-func cronJobIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, cj *batchv1beta1.CronJob) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	req := types.NamespacedName{
-		Name:      utils.GetCronJobName(instance),
-		Namespace: instance.Namespace,
-	}
-
-	if err := c.Get(ctx, req, cj); err != nil {
-		return err
-	}
-	return nil
-}
-
-func createCronJob(instance *druidv1alpha1.Etcd) *batchv1beta1.CronJob {
-	cj := batchv1beta1.CronJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      utils.GetCronJobName(instance),
-			Namespace: instance.Namespace,
-			Labels:    instance.Labels,
-		},
-		Spec: batchv1beta1.CronJobSpec{
-			Schedule:          backupCompactionSchedule,
-			ConcurrencyPolicy: "Forbid",
-			JobTemplate: batchv1beta1.JobTemplateSpec{
-				Spec: batchv1.JobSpec{
-					Template: corev1.PodTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Labels: instance.Labels,
-						},
-						Spec: corev1.PodSpec{
-							RestartPolicy: "Never",
-							Containers: []corev1.Container{
-								{
-									Name:    "compact-backup",
-									Image:   "eu.gcr.io/gardener-project/alpine:3.14",
-									Command: []string{"sh", "-c", "tail -f /dev/null"},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	return &cj
 }
 
 var _ = Describe("buildPredicate", func() {
