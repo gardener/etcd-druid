@@ -12,13 +12,11 @@ If permanent quorum loss occurs to a multinode ETCD cluster, the operator needs 
 **ETCD cluster in shoot control plane of gardener deployment:**
 There are two [ETCD clusters](https://github.com/gardener/etcd-druid/tree/master/docs/proposals/multi-node) running in shoot control plane. One is named as `etcd-events` and another is named `etcd-main`. The operator needs to take care of permanent quorum loss to a specific cluster. If permanent quorum loss occurs to `etcd-events` cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs etc related to `etcd-events` cluster and work on those resources only. 
 
-**Note:** Please note that manually restoring etcd can result in data loss. This guide is the last resort to bring an ETCD cluster up and running again.
+:warning: **Note:** Please note that manually restoring etcd can result in data loss. This guide is the last resort to bring an ETCD cluster up and running again.
 
    If etcd-druid and etcd-backup-restore is being used with gardener, then 
 
-   Go to control plane of affected shoot cluster.
-
-   Use `gardenctl` to target the control plane of the affected shoot cluster. You can get the details to target the control plane from the Access tile in the shoot cluster dashboard.
+   Target the control plane of affected shoot cluster via `kubectl`. Alternatively, you can use [gardenctl](https://github.com/gardener/gardenctl-v2) to target the control plane of the affected shoot cluster. You can get the details to target the control plane from the Access tile in the shoot cluster details page on the Gardener dashboard. Ensure that you are targeting the correct namespace.
    
    1. Add the following annotation to the `Etcd` resource `kubectl annotate etcd etcd-main druid.gardener.cloud/ignore-reconciliation="true"`
    2. Note down the configmap name that is attached to the `etcd-main` statefulset. If you describe the statefulset with `kubectl describe sts etcd-main`, look for the lines similar to following lines to identify attached configmap name. It will be needed at later stages:
