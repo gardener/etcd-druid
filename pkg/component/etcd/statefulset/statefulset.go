@@ -282,8 +282,11 @@ func immutableFieldUpdate(sts *appsv1.StatefulSet, val Values) bool {
 	return sts.Spec.ServiceName != val.PeerServiceName || sts.Spec.PodManagementPolicy != appsv1.ParallelPodManagement
 }
 
-func clusterScaledUpToMultiNode(val *Values) bool {
-	return val.Replicas > 1 && val.StatusReplicas == 1
+func clusterScaledUpToMultiNode(val *Values, sts *appsv1.StatefulSet) bool {
+	if sts.Spec.Replicas != nil {
+		return val.Replicas > 1 && *sts.Spec.Replicas == 1
+	}
+	return false
 }
 
 func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, replicas int32) error {
@@ -297,7 +300,7 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 		return err
 	}
 
-	sts.ObjectMeta = getObjectMeta(&c.values)
+	sts.ObjectMeta = getObjectMeta(&c.values, sts)
 	sts.Spec = appsv1.StatefulSetSpec{
 		PodManagementPolicy: appsv1.ParallelPodManagement,
 		UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
@@ -436,9 +439,9 @@ func getCommonLabels(val *Values) map[string]string {
 	}
 }
 
-func getObjectMeta(val *Values) metav1.ObjectMeta {
+func getObjectMeta(val *Values, sts *appsv1.StatefulSet) metav1.ObjectMeta {
 	labels := utils.MergeStringMaps(getCommonLabels(val), val.Labels)
-	annotations := getStsAnnotations(val)
+	annotations := getStsAnnotations(val, sts)
 	ownerRefs := []metav1.OwnerReference{
 		{
 			APIVersion:         druidv1alpha1.GroupVersion.String(),
@@ -465,7 +468,7 @@ const (
 	ownerTypeAnnotationKey        = "gardener.cloud/owner-type"
 )
 
-func getStsAnnotations(val *Values) map[string]string {
+func getStsAnnotations(val *Values, sts *appsv1.StatefulSet) map[string]string {
 	annotations := utils.MergeStringMaps(
 		map[string]string{
 			ownedByAnnotationKey:   fmt.Sprintf("%s/%s", val.Namespace, val.Name),
@@ -473,7 +476,7 @@ func getStsAnnotations(val *Values) map[string]string {
 		},
 		val.Annotations,
 	)
-	if clusterScaledUpToMultiNode(val) {
+	if clusterScaledUpToMultiNode(val, sts) {
 		annotations[scaleToMultiNodeAnnotationKey] = ""
 	}
 	return annotations
