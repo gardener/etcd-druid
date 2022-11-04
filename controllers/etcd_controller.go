@@ -54,6 +54,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -86,6 +87,8 @@ const (
 	EtcdReady = true
 	// DefaultAutoCompactionRetention defines the default auto-compaction-retention length for etcd.
 	DefaultAutoCompactionRetention = "30m"
+	// Annotation set by human operator in order to stop reconciliation
+	IgnoreReconciliationAnnotation = "druid.gardener.cloud/ignore-reconciliation"
 )
 
 var (
@@ -104,6 +107,7 @@ type reconcileResult struct {
 type EtcdReconciler struct {
 	client.Client
 	Scheme                             *runtime.Scheme
+	recorder                           record.EventRecorder
 	chartApplier                       kubernetes.ChartApplier
 	Config                             *rest.Config
 	ImageVector                        imagevector.ImageVector
@@ -126,6 +130,7 @@ func NewEtcdReconciler(mgr manager.Manager, disableEtcdServiceAccountAutomount b
 		Client:                             mgr.GetClient(),
 		Config:                             mgr.GetConfig(),
 		Scheme:                             mgr.GetScheme(),
+		recorder:                           mgr.GetEventRecorderFor("etcd-controller"),
 		logger:                             log.Log.WithName("etcd-controller"),
 		disableEtcdServiceAccountAutomount: disableEtcdServiceAccountAutomount,
 	}).InitializeControllerWithChartApplier()
@@ -240,6 +245,23 @@ func (r *EtcdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	if !etcd.DeletionTimestamp.IsZero() {
 		return r.delete(ctx, etcd)
 	}
+
+	if _, ok := etcd.Annotations[IgnoreReconciliationAnnotation]; ok {
+		r.recorder.Eventf(
+			etcd,
+			corev1.EventTypeWarning,
+			"ReconciliationIgnored",
+			"reconciliation of %s/%s is ignored by etcd-druid due to the presence of annotation %s on the etcd resource",
+			etcd.Namespace,
+			etcd.Name,
+			IgnoreReconciliationAnnotation,
+		)
+
+		return ctrl.Result{
+			Requeue: false,
+		}, nil
+	}
+
 	return r.reconcile(ctx, etcd)
 }
 
