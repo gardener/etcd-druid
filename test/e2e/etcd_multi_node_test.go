@@ -24,6 +24,7 @@ import (
 	k8s_labels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -62,7 +63,7 @@ var _ = Describe("Etcd", func() {
 
 	Context("when multi-node is configured", func() {
 		It("should perform etcd operations", func() {
-			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
+			ctx, cancelFunc := context.WithTimeout(parentCtx, 15*time.Minute)
 			defer cancelFunc()
 
 			etcd := getDefaultMultiNodeEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
@@ -105,6 +106,20 @@ var _ = Describe("Etcd", func() {
 			// K8s job zeroDownTimeValidator will fail, if there is any downtime in Etcd cluster health.
 			checkEtcdZeroDownTimeValidatorJob(ctx, cl, client.ObjectKeyFromObject(job), objLogger)
 
+			By("Member restart with data-dir/pvc intact")
+			objLogger.Info("Delete one member pod")
+			deletePod(ctx, cl, objLogger, etcd, "etcd-aws-2")
+			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+			By("Single member restoration")
+			objLogger.Info("Delete member dir of one member pod")
+			deleteMemberDir(ctx, cl, objLogger, etcd, "etcd-aws-2")
+			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+			objLogger.Info("Corrupt DB file of one member of cluster")
+			corruptMemberDBFile(ctx, cl, objLogger, etcd, "etcd-aws-2")
+			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
 			By("Delete etcd")
 			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
@@ -137,6 +152,53 @@ var _ = Describe("Etcd", func() {
 		})
 	})
 })
+
+func deleteMemberDir(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName string) {
+	ExpectWithOffset(1, deleteDir(kubeconfigPath, namespace, podName, "backup-restore", "/var/etcd/data/new.etcd/member")).To(Succeed())
+	checkUnreadySts(ctx, cl, logger, etcd)
+}
+
+func deletePod(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName string) {
+	pod := &corev1.Pod{}
+	ExpectWithOffset(1, cl.Get(ctx, types.NamespacedName{Name: podName, Namespace: namespace}, pod)).To(Succeed())
+	ExpectWithOffset(1, cl.Delete(ctx, pod, client.PropagationPolicy(metav1.DeletePropagationForeground))).To(Succeed())
+	checkUnreadySts(ctx, cl, logger, etcd)
+}
+
+func corruptMemberDBFile(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName string) {
+	ExpectWithOffset(1, corruptDBFile(kubeconfigPath, namespace, podName, "backup-restore", "/var/etcd/data/new.etcd/member/snap/db")).To(Succeed())
+	checkUnreadySts(ctx, cl, logger, etcd)
+}
+
+func checkUnreadySts(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd) {
+	logger.Info("waiting for sts to become unready")
+	EventuallyWithOffset(2, func() error {
+		sts := &appsv1.StatefulSet{}
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts); err != nil {
+			return err
+		}
+		if sts.Status.ReadyReplicas == *sts.Spec.Replicas {
+			return fmt.Errorf("sts %s is still in ready state", "etcd-aws")
+		}
+		return nil
+	}, multiNodeEtcdTimeout, pollingInterval).Should(BeNil())
+	logger.Info("sts is unready")
+}
+
+func checkReadySts(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd) {
+	logger.Info("waiting for sts to become ready again", "statefulSetName", "etcd-aws")
+	EventuallyWithOffset(2, func() error {
+		sts := &appsv1.StatefulSet{}
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts); err != nil {
+			return err
+		}
+		if sts.Status.ReadyReplicas != *sts.Spec.Replicas {
+			return fmt.Errorf("sts %s unready", "etcd-aws")
+		}
+		return nil
+	}, multiNodeEtcdTimeout, pollingInterval).Should(BeNil())
+	logger.Info("sts is ready", "statefulSetName", "etcd-aws")
+}
 
 // checkEventuallyEtcdRollingUpdateDone is a helper function, uses Gomega Eventually.
 // Returns the function until etcd rolling updates is done for given timeout and polling interval or
@@ -175,13 +237,15 @@ func checkEventuallyEtcdRollingUpdateDone(ctx context.Context, cl client.Client,
 
 // hibernateAndCheckEtcd scales down etcd replicas to zero and ensures
 func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
-	ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
-	etcd.Spec.Replicas = 0
-	etcd.SetAnnotations(
-		map[string]string{
-			v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
-		})
-	ExpectWithOffset(1, cl.Update(ctx, etcd)).ShouldNot(HaveOccurred())
+	ExpectWithOffset(1, retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		ExpectWithOffset(2, cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+		etcd.SetAnnotations(
+			map[string]string{
+				v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+			})
+		etcd.Spec.Replicas = 0
+		return cl.Update(ctx, etcd)
+	})).ToNot(HaveOccurred())
 	logger.Info("Waiting to hibernate")
 
 	logger.Info("Checking etcd")
@@ -242,11 +306,16 @@ func updateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 	oldStsObservedGeneration, oldEtcdObservedGeneration := sts.Status.ObservedGeneration, *etcd.Status.ObservedGeneration
 
 	// update reconcile annotation, druid to reconcile and update the changes.
-	etcd.SetAnnotations(
-		map[string]string{
-			v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
-		})
-	ExpectWithOffset(1, cl.Update(ctx, etcd)).ShouldNot(HaveOccurred())
+	ExpectWithOffset(1, retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		etcdObj := &v1alpha1.Etcd{}
+		ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcdObj)).To(Succeed())
+		etcdObj.SetAnnotations(
+			map[string]string{
+				v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+			})
+		etcdObj.Spec = etcd.Spec
+		return cl.Update(ctx, etcdObj)
+	})).ToNot(HaveOccurred())
 
 	// Ensuring update is successful by verifying
 	// ObservedGeneration ID of sts, etcd before and after update done.

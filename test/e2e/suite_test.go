@@ -36,7 +36,7 @@ import (
 
 const (
 	singleNodeEtcdTimeout = time.Minute
-	multiNodeEtcdTimeout  = time.Minute * 3
+	multiNodeEtcdTimeout  = time.Minute * 5
 
 	pollingInterval   = time.Second * 2
 	envSourcePath     = "SOURCE_PATH"

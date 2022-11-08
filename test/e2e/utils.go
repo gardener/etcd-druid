@@ -735,6 +735,15 @@ func deleteDir(kubeconfigPath, namespace, podName, containerName string, dirPath
 	return nil
 }
 
+func corruptDBFile(kubeconfigPath, namespace, podName, containerName string, dirPath string) error {
+	cmd := fmt.Sprintf("echo destrory > %s", dirPath)
+	stdout, stderr, err := executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
+	if err != nil || stdout != "" {
+		return fmt.Errorf("failed to corrupt db %s for %s: stdout: %s; stderr: %s; err: %v", dirPath, podName, stdout, stderr, err)
+	}
+	return nil
+}
+
 func getEnvAndExpectNoError(key string) string {
 	val, err := getEnvOrError(key)
 	utilruntime.Must(err)
