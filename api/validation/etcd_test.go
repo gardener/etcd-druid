@@ -16,7 +16,6 @@ package validation_test
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/api/validation"
@@ -52,13 +51,6 @@ var _ = Describe("Etcd validation tests", func() {
 					Store: &v1alpha1.StoreSpec{
 						Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
 						Provider: (*v1alpha1.StorageProvider)(pointer.StringPtr(provider)),
-					},
-					OwnerCheck: &v1alpha1.OwnerCheckSpec{
-						Name:        "owner.foo.example.com",
-						ID:          "bar",
-						Interval:    &metav1.Duration{Duration: 30 * time.Second},
-						Timeout:     &metav1.Duration{Duration: 2 * time.Minute},
-						DNSCacheTTL: &metav1.Duration{Duration: 1 * time.Minute},
 					},
 				},
 			},
@@ -102,45 +94,6 @@ var _ = Describe("Etcd validation tests", func() {
 
 			Entry("should allow nil spec.backup.store", nil, BeNil()),
 		)
-
-		DescribeTable("validate spec.backup.ownerCheck",
-			func(ownerCheck *v1alpha1.OwnerCheckSpec, m types.GomegaMatcher) {
-				if ownerCheck != nil {
-					etcd.Spec.Backup.OwnerCheck = ownerCheck
-				}
-				Expect(validation.ValidateEtcd(etcd)).To(m)
-			},
-
-			Entry("should forbid invalid spec.backup.ownerCheck", &v1alpha1.OwnerCheckSpec{
-				Name:        "",
-				ID:          "",
-				Interval:    &metav1.Duration{Duration: -30 * time.Second},
-				Timeout:     &metav1.Duration{Duration: -2 * time.Minute},
-				DNSCacheTTL: &metav1.Duration{Duration: -1 * time.Minute},
-			}, ConsistOf(
-				PointTo(MatchFields(IgnoreExtras, Fields{
-					"Type":  Equal(field.ErrorTypeRequired),
-					"Field": Equal("spec.backup.ownerCheck.name"),
-				})),
-				PointTo(MatchFields(IgnoreExtras, Fields{
-					"Type":  Equal(field.ErrorTypeRequired),
-					"Field": Equal("spec.backup.ownerCheck.id"),
-				})),
-				PointTo(MatchFields(IgnoreExtras, Fields{
-					"Type":  Equal(field.ErrorTypeInvalid),
-					"Field": Equal("spec.backup.ownerCheck.interval"),
-				})),
-				PointTo(MatchFields(IgnoreExtras, Fields{
-					"Type":  Equal(field.ErrorTypeInvalid),
-					"Field": Equal("spec.backup.ownerCheck.timeout"),
-				})),
-				PointTo(MatchFields(IgnoreExtras, Fields{
-					"Type":  Equal(field.ErrorTypeInvalid),
-					"Field": Equal("spec.backup.ownerCheck.dnsCacheTTL"),
-				})),
-			)),
-			Entry("should allow valid spec.backup.ownerCheck", nil, BeNil()),
-		)
 	})
 
 	Describe("#ValidateEtcdUpdate", func() {
@@ -182,10 +135,6 @@ var _ = Describe("Etcd validation tests", func() {
 			newEtcd := etcd.DeepCopy()
 			newEtcd.ResourceVersion = "2"
 			newEtcd.Spec.Replicas = 42
-			newEtcd.Spec.Backup.OwnerCheck = &v1alpha1.OwnerCheckSpec{
-				Name: "owner.foo.example.com",
-				ID:   "baz",
-			}
 			newEtcd.Spec.Backup.Store.Container = pointer.StringPtr("foo")
 			newEtcd.Spec.Backup.Store.Provider = (*v1alpha1.StorageProvider)(pointer.StringPtr("gcp"))
 

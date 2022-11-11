@@ -85,18 +85,6 @@ var (
 	etcdLeaderElectionConnectionTimeout = metav1.Duration{
 		Duration: 5 * time.Second,
 	}
-
-	ownerName          = "owner.foo.example.com"
-	ownerID            = "bar"
-	ownerCheckInterval = metav1.Duration{
-		Duration: 30 * time.Second,
-	}
-	ownerCheckTimeout = metav1.Duration{
-		Duration: 2 * time.Minute,
-	}
-	ownerCheckDNSCacheTTL = metav1.Duration{
-		Duration: 1 * time.Minute,
-	}
 	heartbeatDuration = metav1.Duration{
 		Duration: 10 * time.Second,
 	}
@@ -572,11 +560,6 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 								fmt.Sprintf("%s=%s", "--auto-compaction-retention", *values.AutoCompactionRetention):                  Equal(fmt.Sprintf("%s=%s", "--auto-compaction-retention", *values.AutoCompactionRetention)),
 								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", values.EtcdSnapshotTimeout.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", values.EtcdSnapshotTimeout.Duration.String())),
 								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", values.EtcdDefragTimeout.Duration.String()):             Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", values.EtcdDefragTimeout.Duration.String())),
-								fmt.Sprintf("%s=%s", "--owner-name", values.OwnerCheck.Name):                                          Equal(fmt.Sprintf("%s=%s", "--owner-name", values.OwnerCheck.Name)),
-								fmt.Sprintf("%s=%s", "--owner-id", values.OwnerCheck.ID):                                              Equal(fmt.Sprintf("%s=%s", "--owner-id", values.OwnerCheck.ID)),
-								fmt.Sprintf("%s=%s", "--owner-check-interval", values.OwnerCheck.Interval.Duration.String()):          Equal(fmt.Sprintf("%s=%s", "--owner-check-interval", values.OwnerCheck.Interval.Duration.String())),
-								fmt.Sprintf("%s=%s", "--owner-check-timeout", values.OwnerCheck.Timeout.Duration.String()):            Equal(fmt.Sprintf("%s=%s", "--owner-check-timeout", values.OwnerCheck.Timeout.Duration.String())),
-								fmt.Sprintf("%s=%s", "--owner-check-dns-cache-ttl", values.OwnerCheck.DNSCacheTTL.Duration.String()):  Equal(fmt.Sprintf("%s=%s", "--owner-check-dns-cache-ttl", values.OwnerCheck.DNSCacheTTL.Duration.String())),
 								fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", values.DeltaSnapLeaseName):                        Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", values.DeltaSnapLeaseName)),
 								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", values.FullSnapLeaseName):                          Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", values.FullSnapLeaseName)),
 							}),
@@ -779,13 +762,6 @@ func getEtcd(name, namespace string, tlsEnabled bool, replicas int32, storagePro
 				},
 
 				Resources: &backupRestoreResources,
-				OwnerCheck: &druidv1alpha1.OwnerCheckSpec{
-					Name:        ownerName,
-					ID:          ownerID,
-					Interval:    &ownerCheckInterval,
-					Timeout:     &ownerCheckTimeout,
-					DNSCacheTTL: &ownerCheckDNSCacheTTL,
-				},
 			},
 			Etcd: druidv1alpha1.EtcdConfig{
 				Quota:                   &quota,
