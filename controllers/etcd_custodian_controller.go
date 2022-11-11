@@ -70,7 +70,7 @@ func NewEtcdCustodian(mgr manager.Manager, config controllersconfig.EtcdCustodia
 }
 
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds/status,verbs=get;update;patch;create
 
 // Reconcile reconciles the etcd.
 func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

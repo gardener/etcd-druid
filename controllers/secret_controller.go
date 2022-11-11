@@ -48,7 +48,7 @@ func NewSecret(mgr manager.Manager) *Secret {
 	}
 }
 
-// +kubebuilder:rbac:groups=druid.gardener.cloud,resources=secrets,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update;patch
 
 // Reconcile reconciles the secret.
 func (s *Secret) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

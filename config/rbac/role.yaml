@@ -1,3 +1,4 @@
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -8,16 +9,20 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - pods
+  - configmaps
+  - serviceaccounts
+  - services
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
-  - delete
 - apiGroups:
   - ""
   resources:
-  - secrets
   - endpoints
   verbs:
   - get
@@ -33,108 +38,9 @@ rules:
   - create
   - get
   - list
-  - watch
-  - patch
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - roles
-  - rolebindings
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - ""
-  - apps
-  resources:
-  - services
-  - configmaps
-  - statefulsets
-  verbs:
-  - get
-  - list
   - patch
   - update
   - watch
-  - create
-  - delete
-- apiGroups:
-  - batch
-  resources:
-  - jobs
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - batch
-  resources:
-  - cronjobs
-  verbs:
-  - get
-  - list
-  - watch
-  - delete
-- apiGroups:
-  - druid.gardener.cloud
-  resources:
-  - etcds
-  - etcdcopybackupstasks
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - druid.gardener.cloud
-  resources:
-  - etcds/status
-  - etcds/finalizers
-  - etcdcopybackupstasks/status
-  - etcdcopybackupstasks/finalizers
-  verbs:
-  - get
-  - update
-  - patch
-  - create
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-  - deletecollection
 - apiGroups:
   - ""
   resources:
@@ -144,14 +50,146 @@ rules:
   - list
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - druid.gardener.cloud
+  resources:
+  - etcdcopybackupstasks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - druid.gardener.cloud
+  resources:
+  - etcdcopybackupstasks/finalizers
+  - etcdcopybackupstasks/status
+  verbs:
+  - create
+  - get
+  - patch
+  - update
+- apiGroups:
+  - druid.gardener.cloud
+  resources:
+  - etcds
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - druid.gardener.cloud
+  resources:
+  - etcds/finalizers
+  verbs:
+  - create
+  - get
+  - patch
+  - update
+- apiGroups:
+  - druid.gardener.cloud
+  resources:
+  - etcds/status
+  verbs:
+  - create
+  - get
+  - patch
+  - update
+- apiGroups:
   - policy
   resources:
   - poddisruptionbudgets
   verbs:
+  - create
+  - delete
   - get
   - list
-  - watch
-  - create
-  - update
   - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  verbs:
+  - create
   - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - roles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
