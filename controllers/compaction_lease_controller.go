@@ -88,6 +88,7 @@ func (lc *CompactionLeaseController) InitializeControllerWithImageVector() (*Com
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds,verbs=get;list;watch
 // +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;create;list;watch;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=list;watch;delete;get
 
 // Reconcile reconciles the compaction job.
 func (lc *CompactionLeaseController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
