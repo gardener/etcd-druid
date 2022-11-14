@@ -91,12 +91,12 @@ func getEtcd(name, namespace string) *Etcd {
 	deltaSnapshotPeriod := metav1.Duration{
 		Duration: 300 * time.Second,
 	}
-	imageEtcd := "eu.gcr.io/gardener-project/gardener/etcd:v3.4.13-bootstrap"
-	imageBR := "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.12.0"
+	imageEtcd := "eu.gcr.io/gardener-project/gardener/etcd:v3.4.13-bootstrap-8"
+	imageBR := "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.20.2"
 	snapshotSchedule := "0 */24 * * *"
 	defragSchedule := "0 */24 * * *"
-	container := "shoot--dev--i308301-1--b3caa"
-	storageCapacity := resource.MustParse("80Gi")
+	container := "my-object-storage-container-name"
+	storageCapacity := resource.MustParse("20Gi")
 	deltaSnapShotMemLimit := resource.MustParse("100Mi")
 	quota := resource.MustParse("8Gi")
 	storageClass := "gardener.cloud-fast"
