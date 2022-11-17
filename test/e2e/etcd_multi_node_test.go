@@ -386,7 +386,7 @@ func startEtcdZeroDownTimeValidatorJob(ctx context.Context, cl client.Client,
 	return job
 }
 
-//getEtcdLeaderPodName returns the leader pod name by using lease
+// getEtcdLeaderPodName returns the leader pod name by using lease
 func getEtcdLeaderPodName(ctx context.Context, cl client.Client, namespace string) (*types.NamespacedName, error) {
 	leaseList := &v1.LeaseList{}
 	opts := &client.ListOptions{Namespace: namespace}
