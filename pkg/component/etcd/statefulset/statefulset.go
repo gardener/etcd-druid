@@ -283,10 +283,10 @@ func immutableFieldUpdate(sts *appsv1.StatefulSet, val Values) bool {
 }
 
 func clusterScaledUpToMultiNode(val *Values, sts *appsv1.StatefulSet) bool {
-	if sts.Spec.Replicas != nil {
+	if sts != nil && sts.Spec.Replicas != nil {
 		return val.Replicas > 1 && *sts.Spec.Replicas == 1
 	}
-	return false
+	return val.Replicas > 1 && val.StatusReplicas == 1
 }
 
 func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, replicas int32) error {
