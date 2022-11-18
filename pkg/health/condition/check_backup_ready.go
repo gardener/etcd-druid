@@ -86,7 +86,7 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 	} else if deltaLeaseRenewTime == nil && fullLeaseRenewTime != nil {
 		//Most probable during a startup scenario for new clusters
 		//Special case. Return Unknown condition for some time to allow delta backups to start up
-		if time.Since(fullLeaseRenewTime.Time) < 5*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration {
+		if time.Since(fullLeaseRenewTime.Time) > 5*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration {
 			result.message = "Periodic delta snapshots not started yet"
 			return result
 		}
