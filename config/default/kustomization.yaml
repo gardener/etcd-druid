@@ -1,5 +1,5 @@
 # Adds namespace to all resources.
-namespace: garden
+namespace: etcd-druid-system
 
 # Value of this field is prepended to the
 # names of all resources, e.g. a deployment named
@@ -17,7 +17,7 @@ resources:
   - ../rbac
   - ../manager
 
-patches:
+patchesStrategicMerge:
   - manager_image_patch.yaml
   # Protect the /metrics endpoint by putting it behind auth.
   # Only one of manager_auth_proxy_patch.yaml and
