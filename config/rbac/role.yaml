@@ -1,3 +1,4 @@
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -6,152 +7,69 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - get
-  - list
-  - watch
-  - delete
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  - endpoints
-  verbs:
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - get
-  - list
-  - watch
-  - patch
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - roles
-  - rolebindings
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - ""
-  - apps
-  resources:
-  - services
-  - configmaps
-  - statefulsets
-  verbs:
-  - get
-  - list
-  - patch
-  - update
-  - watch
-  - create
-  - delete
-- apiGroups:
   - batch
   resources:
   - jobs
   verbs:
+  - create
+  - delete
   - get
   - list
-  - watch
-  - create
-  - update
   - patch
-  - delete
-- apiGroups:
-  - batch
-  resources:
-  - cronjobs
-  verbs:
-  - get
-  - list
-  - watch
-  - delete
-- apiGroups:
-  - druid.gardener.cloud
-  resources:
-  - etcds
-  - etcdcopybackupstasks
-  verbs:
-  - get
-  - list
-  - watch
-  - create
   - update
-  - patch
-  - delete
-- apiGroups:
-  - druid.gardener.cloud
-  resources:
-  - etcds/status
-  - etcds/finalizers
-  - etcdcopybackupstasks/status
-  - etcdcopybackupstasks/finalizers
-  verbs:
-  - get
-  - update
-  - patch
-  - create
+  - watch
 - apiGroups:
   - coordination.k8s.io
   resources:
   - leases
   verbs:
-  - get
-  - list
-  - watch
   - create
-  - update
-  - patch
   - delete
   - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
-  - ""
+  - druid.gardener.cloud
   resources:
-  - persistentvolumeclaims
+  - etcds
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - druid.gardener.cloud
+  resources:
+  - etcds/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - druid.gardener.cloud
+  resources:
+  - secrets
   verbs:
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - policy
   resources:
   - poddisruptionbudgets
   verbs:
+  - create
+  - delete
   - get
   - list
-  - watch
-  - create
-  - update
   - patch
-  - delete
+  - update
+  - watch
