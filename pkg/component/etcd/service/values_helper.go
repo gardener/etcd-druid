@@ -33,11 +33,17 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
 	if etcd.Spec.Etcd.ClientService != nil {
 		clientServiceAnnotations = etcd.Spec.Etcd.ClientService.Annotations
 	}
+	var clientServiceLabels map[string]string
+	if etcd.Spec.Etcd.ClientService != nil {
+		clientServiceLabels = etcd.Spec.Etcd.ClientService.Labels
+	}
+
 	return Values{
 		BackupPort:               pointer.Int32Deref(etcd.Spec.Backup.Port, defaultBackupPort),
 		ClientPort:               pointer.Int32Deref(etcd.Spec.Etcd.ClientPort, defaultClientPort),
 		ClientServiceName:        utils.GetClientServiceName(etcd),
 		ClientServiceAnnotations: clientServiceAnnotations,
+		ClientServiceLabels:      clientServiceLabels,
 		EtcdName:                 etcd.Name,
 		EtcdUID:                  etcd.UID,
 		Labels:                   etcd.Spec.Labels,
