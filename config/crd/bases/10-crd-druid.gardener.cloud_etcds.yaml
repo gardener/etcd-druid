@@ -284,14 +284,6 @@ spec:
               etcd:
                 description: EtcdConfig defines parameters associated etcd deployed
                 properties:
-                  clientService:
-                    description: ClientService defines properties that allow the client service to be manipulated from the etcd spec
-                    properties: 
-                      annotations:
-                        additionalProperties:
-                          type: string
-                        type: object
-                    type: object
                   authSecretRef:
                     description: SecretReference represents a Secret Reference. It
                       has enough information to retrieve secret in any namespace
@@ -308,6 +300,17 @@ spec:
                   clientPort:
                     format: int32
                     type: integer
+                  clientService:
+                    description: ClientService defines the parameters of the client
+                      service that a user can specify
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: Annotations specify the annotations that should
+                          be added to the client service
+                        type: object
+                    type: object
                   clientUrlTls:
                     description: ClientUrlTLS contains the ca, server TLS and client
                       TLS secrets for client communication to ETCD cluster
@@ -1696,6 +1699,10 @@ spec:
                   for this resource.
                 format: int64
                 type: integer
+              peerUrlTLSEnabled:
+                description: PeerUrlTLSEnabled captures the state of peer url TLS
+                  being enabled for the etcd member(s)
+                type: boolean
               ready:
                 description: Ready is `true` if all etcd replicas are ready.
                 type: boolean
@@ -1716,9 +1723,6 @@ spec:
                   etcd cluster.
                 format: int32
                 type: integer
-              peerUrlTLSEnabled:
-                description: PeerUrlTLSEnabled captures the state of the peer url TLS being enabled for the etcd member(s)
-                type: boolean
             type: object
         type: object
     served: true

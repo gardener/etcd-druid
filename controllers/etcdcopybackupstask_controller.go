@@ -56,6 +56,9 @@ type EtcdCopyBackupsTaskReconciler struct {
 	logger       logr.Logger
 }
 
+// +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcdcopybackupstasks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcdcopybackupstasks/status;etcdcopybackupstasks/finalizers,verbs=get;update;patch;create
+
 // NewEtcdCopyBackupsTaskReconciler creates a new EtcdCopyBackupsTaskReconciler.
 func NewEtcdCopyBackupsTaskReconciler(mgr manager.Manager) (*EtcdCopyBackupsTaskReconciler, error) {
 	return (&EtcdCopyBackupsTaskReconciler{
