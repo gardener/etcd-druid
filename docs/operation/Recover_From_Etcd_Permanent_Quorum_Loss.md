@@ -69,7 +69,7 @@ There are two [ETCD clusters](https://github.com/gardener/etcd-druid/tree/master
       NAME          READY   STATUS    RESTARTS   AGE
       etcd-main-0   2/2     Running   0          1m
       ```
-   8. Remove the following annotation from the `Etcd` resource `etcd-main`: `kubectl annotate etcd etcd-main druid.gardener.cloud/ignore-reconciliation="true"`
+   8. Remove the following annotation from the `Etcd` resource `etcd-main`: `kubectl annotate etcd etcd-main druid.gardener.cloud/ignore-reconciliation-`
    9. Finally add the following annotation to the `Etcd` resource `etcd-main`: `kubectl annotate etcd etcd-main gardener.cloud/operation="reconcile"`
    10. Verify that the etcd cluster is formed correctly.
 
