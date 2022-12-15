@@ -17,6 +17,7 @@ package service
 import (
 	"context"
 
+	"github.com/gardener/etcd-druid/pkg/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -24,7 +25,7 @@ import (
 
 func (c *component) syncClientService(ctx context.Context, svc *corev1.Service) error {
 	_, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, c.client, svc, func() error {
-		svc.Labels = getLabels(c.values)
+		svc.Labels = utils.MergeStringMaps(getLabels(c.values), c.values.ClientServiceLabels)
 		svc.Annotations = c.values.ClientServiceAnnotations
 		svc.OwnerReferences = getOwnerReferences(c.values)
 		svc.Spec.Type = corev1.ServiceTypeClusterIP

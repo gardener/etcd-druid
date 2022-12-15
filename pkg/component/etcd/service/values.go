@@ -25,6 +25,8 @@ type Values struct {
 	ClientServiceName string
 	// ClientAnnotations are the annotations to be added to the client service
 	ClientServiceAnnotations map[string]string
+	// ClientServiceLabels are the labels to be added to the client service
+	ClientServiceLabels map[string]string
 	// EtcdName is the name of the etcd resource.
 	EtcdName string
 	// EtcdName is the UID of the etcd resource.
