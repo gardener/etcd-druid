@@ -74,5 +74,5 @@ spec:
 
   replicas: 1
 # priorityClassName: foo
-  storageClass: standard
+  storageClass: default
   storageCapacity: 10Gi
