@@ -116,10 +116,6 @@ var _ = Describe("Etcd", func() {
 			deleteMemberDir(ctx, cl, objLogger, etcd, "etcd-aws-2")
 			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			objLogger.Info("Corrupt DB file of one member of cluster")
-			corruptMemberDBFile(ctx, cl, objLogger, etcd, "etcd-aws-2")
-			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
-
 			By("Delete etcd")
 			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
@@ -165,11 +161,6 @@ func deletePod(ctx context.Context, cl client.Client, logger logr.Logger, etcd *
 	checkUnreadySts(ctx, cl, logger, etcd)
 }
 
-func corruptMemberDBFile(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName string) {
-	ExpectWithOffset(1, corruptDBFile(kubeconfigPath, namespace, podName, "backup-restore", "/var/etcd/data/new.etcd/member/snap/db")).To(Succeed())
-	checkUnreadySts(ctx, cl, logger, etcd)
-}
-
 func checkUnreadySts(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd) {
 	logger.Info("waiting for sts to become unready")
 	EventuallyWithOffset(2, func() error {
@@ -183,21 +174,6 @@ func checkUnreadySts(ctx context.Context, cl client.Client, logger logr.Logger, 
 		return nil
 	}, multiNodeEtcdTimeout, pollingInterval).Should(BeNil())
 	logger.Info("sts is unready")
-}
-
-func checkReadySts(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd) {
-	logger.Info("waiting for sts to become ready again", "statefulSetName", "etcd-aws")
-	EventuallyWithOffset(2, func() error {
-		sts := &appsv1.StatefulSet{}
-		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts); err != nil {
-			return err
-		}
-		if sts.Status.ReadyReplicas != *sts.Spec.Replicas {
-			return fmt.Errorf("sts %s unready", "etcd-aws")
-		}
-		return nil
-	}, multiNodeEtcdTimeout, pollingInterval).Should(BeNil())
-	logger.Info("sts is ready", "statefulSetName", "etcd-aws")
 }
 
 // checkEventuallyEtcdRollingUpdateDone is a helper function, uses Gomega Eventually.
