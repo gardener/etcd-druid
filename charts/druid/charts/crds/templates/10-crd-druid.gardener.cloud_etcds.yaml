@@ -20,9 +20,30 @@ spec:
     - jsonPath: .status.ready
       name: Ready
       type: string
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Quorate
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="AllMembersReady")].status
+      name: All Members Ready
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="BackupReady")].status
+      name: Backup Ready
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    - jsonPath: .spec.replicas
+      name: Cluster Size
+      priority: 1
+      type: integer
+    - jsonPath: .status.currentReplicas
+      name: Current Replicas
+      priority: 1
+      type: integer
+    - jsonPath: .status.readyReplicas
+      name: Ready Replicas
+      priority: 1
+      type: integer
     name: v1alpha1
     schema:
       openAPIV3Schema:
