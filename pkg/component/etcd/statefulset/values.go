@@ -116,7 +116,6 @@ type Values struct {
 	// ServerPort is the backup-restore side-car port.
 	BackupPort *int32
 
-	OwnerCheck *druidv1alpha1.OwnerCheckSpec
 	// AutoCompactionMode defines the auto-compaction-mode: 'periodic' or 'revision'.
 	AutoCompactionMode *druidv1alpha1.CompactionMode
 	//AutoCompactionRetention defines the auto-compaction-retention length for etcd as well as for embedded-Etcd of backup-restore sidecar.

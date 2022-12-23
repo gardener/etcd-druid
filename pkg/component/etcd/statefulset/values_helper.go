@@ -112,8 +112,6 @@ func GenerateValues(
 		ServerPort:        serverPort,
 		BackupPort:        backupPort,
 
-		OwnerCheck: etcd.Spec.Backup.OwnerCheck,
-
 		AutoCompactionMode:      etcd.Spec.Common.AutoCompactionMode,
 		AutoCompactionRetention: etcd.Spec.Common.AutoCompactionRetention,
 		ConfigMapName:           utils.GetConfigmapName(etcd),
@@ -269,21 +267,6 @@ func getBackupRestoreCommand(val Values) []string {
 		}
 		if val.SnapshotCompression.Policy != nil {
 			command = append(command, "--compression-policy="+string(*val.SnapshotCompression.Policy))
-		}
-	}
-
-	if val.OwnerCheck != nil {
-		command = append(command, "--owner-name="+val.OwnerCheck.Name)
-		command = append(command, "--owner-id="+val.OwnerCheck.ID)
-
-		if val.OwnerCheck.Interval != nil {
-			command = append(command, "--owner-check-interval="+val.OwnerCheck.Interval.Duration.String())
-		}
-		if val.OwnerCheck.Timeout != nil {
-			command = append(command, "--owner-check-timeout="+val.OwnerCheck.Timeout.Duration.String())
-		}
-		if val.OwnerCheck.DNSCacheTTL != nil {
-			command = append(command, "--owner-check-dns-cache-ttl="+val.OwnerCheck.DNSCacheTTL.Duration.String())
 		}
 	}
 
