@@ -40,7 +40,7 @@ metadata:
 spec:
   annotations:
     app: etcd-statefulset
-    garden.sapcloud.io/role: controlplane
+    gardener.cloud/role: controlplane
     networking.gardener.cloud/to-dns: allowed
     networking.gardener.cloud/to-private-networks: allowed
     networking.gardener.cloud/to-public-networks: allowed
@@ -88,7 +88,7 @@ spec:
     autoCompactionRetention: 30m
   labels:
     app: etcd-statefulset
-    garden.sapcloud.io/role: controlplane
+    gardener.cloud/role: controlplane
     networking.gardener.cloud/to-dns: allowed
     networking.gardener.cloud/to-private-networks: allowed
     networking.gardener.cloud/to-public-networks: allowed
