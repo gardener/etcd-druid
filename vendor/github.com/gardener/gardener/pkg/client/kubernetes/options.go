@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	baseconfig "k8s.io/component-base/config"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -26,12 +27,18 @@ import (
 
 // Config carries options for new ClientSets.
 type Config struct {
-	newRuntimeCache cache.NewCacheFunc
-	clientOptions   client.Options
-	restConfig      *rest.Config
-	cacheResync     *time.Duration
-	disableCache    bool
-	uncachedObjects []client.Object
+	runtimeAPIReader client.Reader
+	runtimeClient    client.Client
+	runtimeCache     cache.Cache
+
+	newRuntimeCache   cache.NewCacheFunc
+	clientOptions     client.Options
+	restConfig        *rest.Config
+	cacheResync       *time.Duration
+	disableCache      bool
+	uncachedObjects   []client.Object
+	allowedUserFields []string
+	clientConfig      clientcmd.ClientConfig
 }
 
 // NewConfig returns a new Config with an empty REST config to allow testing ConfigFuncs without exporting
@@ -49,6 +56,30 @@ type ConfigFunc func(config *Config) error
 func WithRESTConfig(restConfig *rest.Config) ConfigFunc {
 	return func(config *Config) error {
 		config.restConfig = restConfig
+		return nil
+	}
+}
+
+// WithRuntimeAPIReader returns a ConfigFunc that sets the passed runtimeAPIReader on the Config object.
+func WithRuntimeAPIReader(runtimeAPIReader client.Reader) ConfigFunc {
+	return func(config *Config) error {
+		config.runtimeAPIReader = runtimeAPIReader
+		return nil
+	}
+}
+
+// WithRuntimeClient returns a ConfigFunc that sets the passed runtimeClient on the Config object.
+func WithRuntimeClient(runtimeClient client.Client) ConfigFunc {
+	return func(config *Config) error {
+		config.runtimeClient = runtimeClient
+		return nil
+	}
+}
+
+// WithRuntimeCache returns a ConfigFunc that sets the passed runtimeCache on the Config object.
+func WithRuntimeCache(runtimeCache cache.Cache) ConfigFunc {
+	return func(config *Config) error {
+		config.runtimeCache = runtimeCache
 		return nil
 	}
 }
@@ -106,6 +137,22 @@ func WithUncached(objs ...client.Object) ConfigFunc {
 func WithNewCacheFunc(fn cache.NewCacheFunc) ConfigFunc {
 	return func(config *Config) error {
 		config.newRuntimeCache = fn
+		return nil
+	}
+}
+
+// WithAllowedUserFields allows to specify additional kubeconfig.user fields allowed during validation.
+func WithAllowedUserFields(allowedUserFields []string) ConfigFunc {
+	return func(config *Config) error {
+		config.allowedUserFields = allowedUserFields
+		return nil
+	}
+}
+
+// WithClientConfig adds a ClientConfig for validation at a later stage.
+func WithClientConfig(clientConfig clientcmd.ClientConfig) ConfigFunc {
+	return func(config *Config) error {
+		config.clientConfig = clientConfig
 		return nil
 	}
 }

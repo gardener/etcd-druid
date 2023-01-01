@@ -19,6 +19,10 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 )
 
 var backupEntryDelimiter = "--"
@@ -39,8 +43,19 @@ func ExtractShootDetailsFromBackupEntryName(backupEntryName string) (shootTechni
 	tokens := strings.Split(backupEntryName, backupEntryDelimiter)
 	uid := tokens[len(tokens)-1]
 
-	shootTechnicalID = strings.TrimSuffix(backupEntryName, uid)
+	shootTechnicalID = strings.TrimPrefix(backupEntryName, v1beta1constants.BackupSourcePrefix+"-")
+	shootTechnicalID = strings.TrimSuffix(shootTechnicalID, uid)
 	shootTechnicalID = strings.TrimSuffix(shootTechnicalID, backupEntryDelimiter)
 	shootUID = types.UID(uid)
 	return
+}
+
+// GetBackupEntrySeedNames returns the spec.seedName and the status.seedName field in case the provided object is a
+// BackupEntry.
+func GetBackupEntrySeedNames(obj client.Object) (*string, *string) {
+	backupEntry, ok := obj.(*gardencorev1beta1.BackupEntry)
+	if !ok {
+		return nil, nil
+	}
+	return backupEntry.Spec.SeedName, backupEntry.Status.SeedName
 }

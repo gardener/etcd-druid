@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+Copyright (c) SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import "k8s.io/apimachinery/pkg/runtime/generated.proto";
 import "k8s.io/apimachinery/pkg/runtime/schema/generated.proto";
 
 // Package-wide variables from generator "generated".
-option go_package = "v1alpha1";
+option go_package = "github.com/gardener/gardener/pkg/apis/seedmanagement/v1alpha1";
 
 // Gardenlet specifies gardenlet deployment parameters and the GardenletConfiguration used to configure gardenlet.
 message Gardenlet {
@@ -43,11 +43,12 @@ message Gardenlet {
   // Bootstrap is the mechanism that should be used for bootstrapping gardenlet connection to the Garden cluster. One of ServiceAccount, BootstrapToken, None.
   // If set to ServiceAccount or BootstrapToken, a service account or a bootstrap token will be created in the garden cluster and used to compute the bootstrap kubeconfig.
   // If set to None, the gardenClientConnection.kubeconfig field will be used to connect to the Garden cluster. Defaults to BootstrapToken.
+  // This field is immutable.
   // +optional
   optional string bootstrap = 3;
 
   // MergeWithParent specifies whether the GardenletConfiguration of the parent gardenlet
-  // should be merged with the specified GardenletConfiguration. Defaults to true.
+  // should be merged with the specified GardenletConfiguration. Defaults to true. This field is immutable.
   // +optional
   optional bool mergeWithParent = 4;
 }
@@ -55,11 +56,11 @@ message Gardenlet {
 // GardenletDeployment specifies certain gardenlet deployment parameters, such as the number of replicas,
 // the image, etc.
 message GardenletDeployment {
-  // ReplicaCount is the number of gardenlet replicas. Defaults to 1.
+  // ReplicaCount is the number of gardenlet replicas. Defaults to 2.
   // +optional
   optional int32 replicaCount = 1;
 
-  // RevisionHistoryLimit is the number of old gardenlet ReplicaSets to retain to allow rollback. Defaults to 10.
+  // RevisionHistoryLimit is the number of old gardenlet ReplicaSets to retain to allow rollback. Defaults to 2.
   // +optional
   optional int32 revisionHistoryLimit = 2;
 
@@ -173,7 +174,7 @@ message ManagedSeedSetSpec {
   optional int32 replicas = 1;
 
   // Selector is a label query over ManagedSeeds and Shoots that should match the replica count.
-  // It must match the ManagedSeeds and Shoots template's labels.
+  // It must match the ManagedSeeds and Shoots template's labels. This field is immutable.
   optional k8s.io.apimachinery.pkg.apis.meta.v1.LabelSelector selector = 2;
 
   // Template describes the ManagedSeed that will be created if insufficient replicas are detected.
@@ -190,8 +191,8 @@ message ManagedSeedSetSpec {
   // +optional
   optional UpdateStrategy updateStrategy = 5;
 
-  // RevisionHistoryLimit is the maximum number of revisions that will
-  // be maintained in the ManagedSeedSet's revision history. Defaults to 10.
+  // RevisionHistoryLimit is the maximum number of revisions that will be maintained
+  // in the ManagedSeedSet's revision history. Defaults to 10. This field is immutable.
   // +optional
   optional int32 revisionHistoryLimit = 6;
 }
@@ -248,14 +249,9 @@ message ManagedSeedSetStatus {
 // ManagedSeedSpec is the specification of a ManagedSeed.
 message ManagedSeedSpec {
   // Shoot references a Shoot that should be registered as Seed.
+  // This field is immutable.
   // +optional
   optional Shoot shoot = 1;
-
-  // SeedTemplate is a template for a Seed object, that should be used to register a given cluster as a Seed.
-  // Either SeedTemplate or Gardenlet must be specified. When Seed is specified, the ManagedSeed controller will not deploy a gardenlet into the cluster
-  // and an existing gardenlet reconciling the new Seed is required.
-  // +optional
-  optional github.com.gardener.gardener.pkg.apis.core.v1beta1.SeedTemplate seedTemplate = 2;
 
   // Gardenlet specifies that the ManagedSeed controller should deploy a gardenlet into the cluster
   // with the given deployment parameters and GardenletConfiguration.

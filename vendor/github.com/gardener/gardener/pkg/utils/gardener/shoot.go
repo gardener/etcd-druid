@@ -32,24 +32,26 @@ import (
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 	clientcmdv1 "k8s.io/client-go/tools/clientcmd/api/v1"
 	"k8s.io/component-base/version"
+	"k8s.io/utils/clock"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	resourcesv1alpha1 "github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils"
 	"github.com/gardener/gardener/pkg/utils/secrets"
+	"github.com/gardener/gardener/pkg/utils/timewindow"
 )
 
 // RespectShootSyncPeriodOverwrite checks whether to respect the sync period overwrite of a Shoot or not.
-func RespectShootSyncPeriodOverwrite(respectSyncPeriodOverwrite bool, shoot *v1beta1.Shoot) bool {
+func RespectShootSyncPeriodOverwrite(respectSyncPeriodOverwrite bool, shoot *gardencorev1beta1.Shoot) bool {
 	return respectSyncPeriodOverwrite || shoot.Namespace == v1beta1constants.GardenNamespace
 }
 
 // ShouldIgnoreShoot determines whether a Shoot should be ignored or not.
-func ShouldIgnoreShoot(respectSyncPeriodOverwrite bool, shoot *v1beta1.Shoot) bool {
+func ShouldIgnoreShoot(respectSyncPeriodOverwrite bool, shoot *gardencorev1beta1.Shoot) bool {
 	if !RespectShootSyncPeriodOverwrite(respectSyncPeriodOverwrite, shoot) {
 		return false
 	}
@@ -63,44 +65,44 @@ func ShouldIgnoreShoot(respectSyncPeriodOverwrite bool, shoot *v1beta1.Shoot) bo
 	return ignore
 }
 
-// IsShootFailed checks if a Shoot is failed.
-func IsShootFailed(shoot *v1beta1.Shoot) bool {
+// IsShootFailedAndUpToDate checks if a Shoot is failed and the observed generation and gardener version are up-to-date.
+func IsShootFailedAndUpToDate(shoot *gardencorev1beta1.Shoot) bool {
 	lastOperation := shoot.Status.LastOperation
 
-	return lastOperation != nil && lastOperation.State == v1beta1.LastOperationStateFailed &&
+	return lastOperation != nil && lastOperation.State == gardencorev1beta1.LastOperationStateFailed &&
 		shoot.Generation == shoot.Status.ObservedGeneration &&
 		shoot.Status.Gardener.Version == version.Get().GitVersion
 }
 
 // IsNowInEffectiveShootMaintenanceTimeWindow checks if the current time is in the effective
 // maintenance time window of the Shoot.
-func IsNowInEffectiveShootMaintenanceTimeWindow(shoot *v1beta1.Shoot) bool {
-	return EffectiveShootMaintenanceTimeWindow(shoot).Contains(time.Now())
+func IsNowInEffectiveShootMaintenanceTimeWindow(shoot *gardencorev1beta1.Shoot, clock clock.Clock) bool {
+	return EffectiveShootMaintenanceTimeWindow(shoot).Contains(clock.Now())
 }
 
 // LastReconciliationDuringThisTimeWindow returns true if <now> is contained in the given effective maintenance time
 // window of the shoot and if the <lastReconciliation> did not happen longer than the longest possible duration of a
 // maintenance time window.
-func LastReconciliationDuringThisTimeWindow(shoot *v1beta1.Shoot) bool {
+func LastReconciliationDuringThisTimeWindow(shoot *gardencorev1beta1.Shoot, clock clock.Clock) bool {
 	if shoot.Status.LastOperation == nil {
 		return false
 	}
 
 	var (
 		timeWindow         = EffectiveShootMaintenanceTimeWindow(shoot)
-		now                = time.Now()
+		now                = clock.Now()
 		lastReconciliation = shoot.Status.LastOperation.LastUpdateTime.Time
 	)
 
-	return timeWindow.Contains(lastReconciliation) && now.UTC().Sub(lastReconciliation.UTC()) <= v1beta1.MaintenanceTimeWindowDurationMaximum
+	return timeWindow.Contains(lastReconciliation) && now.UTC().Sub(lastReconciliation.UTC()) <= gardencorev1beta1.MaintenanceTimeWindowDurationMaximum
 }
 
 // IsObservedAtLatestGenerationAndSucceeded checks whether the Shoot's generation has changed or if the LastOperation status
 // is Succeeded.
-func IsObservedAtLatestGenerationAndSucceeded(shoot *v1beta1.Shoot) bool {
+func IsObservedAtLatestGenerationAndSucceeded(shoot *gardencorev1beta1.Shoot) bool {
 	lastOperation := shoot.Status.LastOperation
 	return shoot.Generation == shoot.Status.ObservedGeneration &&
-		(lastOperation != nil && lastOperation.State == v1beta1.LastOperationStateSucceeded)
+		(lastOperation != nil && lastOperation.State == gardencorev1beta1.LastOperationStateSucceeded)
 }
 
 // SyncPeriodOfShoot determines the sync period of the given shoot.
@@ -108,7 +110,7 @@ func IsObservedAtLatestGenerationAndSucceeded(shoot *v1beta1.Shoot) bool {
 // If no overwrite is allowed, the defaultMinSyncPeriod is returned.
 // Otherwise, the overwrite is parsed. If an error occurs or it is smaller than the defaultMinSyncPeriod,
 // the defaultMinSyncPeriod is returned. Otherwise, the overwrite is returned.
-func SyncPeriodOfShoot(respectSyncPeriodOverwrite bool, defaultMinSyncPeriod time.Duration, shoot *v1beta1.Shoot) time.Duration {
+func SyncPeriodOfShoot(respectSyncPeriodOverwrite bool, defaultMinSyncPeriod time.Duration, shoot *gardencorev1beta1.Shoot) time.Duration {
 	if !RespectShootSyncPeriodOverwrite(respectSyncPeriodOverwrite, shoot) {
 		return defaultMinSyncPeriod
 	}
@@ -133,20 +135,20 @@ func SyncPeriodOfShoot(respectSyncPeriodOverwrite bool, defaultMinSyncPeriod tim
 // of a maintenance time window to use a best-effort kind of finishing the operation before the end.
 // Generally, we can't make sure that the maintenance operation is done by the end of the time window anyway (considering large
 // clusters with hundreds of nodes, a rolling update will take several hours).
-func EffectiveMaintenanceTimeWindow(timeWindow *utils.MaintenanceTimeWindow) *utils.MaintenanceTimeWindow {
+func EffectiveMaintenanceTimeWindow(timeWindow *timewindow.MaintenanceTimeWindow) *timewindow.MaintenanceTimeWindow {
 	return timeWindow.WithEnd(timeWindow.End().Add(0, -15, 0))
 }
 
 // EffectiveShootMaintenanceTimeWindow returns the effective MaintenanceTimeWindow of the given Shoot.
-func EffectiveShootMaintenanceTimeWindow(shoot *v1beta1.Shoot) *utils.MaintenanceTimeWindow {
+func EffectiveShootMaintenanceTimeWindow(shoot *gardencorev1beta1.Shoot) *timewindow.MaintenanceTimeWindow {
 	maintenance := shoot.Spec.Maintenance
 	if maintenance == nil || maintenance.TimeWindow == nil {
-		return utils.AlwaysTimeWindow
+		return timewindow.AlwaysTimeWindow
 	}
 
-	timeWindow, err := utils.ParseMaintenanceTimeWindow(maintenance.TimeWindow.Begin, maintenance.TimeWindow.End)
+	timeWindow, err := timewindow.ParseMaintenanceTimeWindow(maintenance.TimeWindow.Begin, maintenance.TimeWindow.End)
 	if err != nil {
-		return utils.AlwaysTimeWindow
+		return timewindow.AlwaysTimeWindow
 	}
 
 	return EffectiveMaintenanceTimeWindow(timeWindow)
@@ -166,10 +168,12 @@ func GetShootNameFromOwnerReferences(objectMeta metav1.Object) string {
 const (
 	// ShootProjectSecretSuffixKubeconfig is a constant for a shoot project secret with suffix 'kubeconfig'.
 	ShootProjectSecretSuffixKubeconfig = "kubeconfig"
+	// ShootProjectSecretSuffixCACluster is a constant for a shoot project secret with suffix 'ca-cluster'.
+	ShootProjectSecretSuffixCACluster = "ca-cluster"
 	// ShootProjectSecretSuffixSSHKeypair is a constant for a shoot project secret with suffix 'ssh-keypair'.
 	ShootProjectSecretSuffixSSHKeypair = v1beta1constants.SecretNameSSHKeyPair
 	// ShootProjectSecretSuffixOldSSHKeypair is a constant for a shoot project secret with suffix 'ssh-keypair.old'.
-	ShootProjectSecretSuffixOldSSHKeypair = v1beta1constants.SecretNameOldSSHKeyPair
+	ShootProjectSecretSuffixOldSSHKeypair = v1beta1constants.SecretNameSSHKeyPair + ".old"
 	// ShootProjectSecretSuffixMonitoring is a constant for a shoot project secret with suffix 'monitoring'.
 	ShootProjectSecretSuffixMonitoring = "monitoring"
 )
@@ -178,6 +182,7 @@ const (
 func GetShootProjectSecretSuffixes() []string {
 	return []string{
 		ShootProjectSecretSuffixKubeconfig,
+		ShootProjectSecretSuffixCACluster,
 		ShootProjectSecretSuffixSSHKeypair,
 		ShootProjectSecretSuffixOldSSHKeypair,
 		ShootProjectSecretSuffixMonitoring,
@@ -224,6 +229,8 @@ type ShootAccessSecret struct {
 
 	tokenExpirationDuration string
 	kubeconfig              *clientcmdv1.Config
+	targetSecretName        string
+	targetSecretNamespace   string
 }
 
 // NewShootAccessSecret returns a new ShootAccessSecret object and initializes it with an empty corev1.Secret object
@@ -275,6 +282,13 @@ func (s *ShootAccessSecret) WithKubeconfig(kubeconfigRaw *clientcmdv1.Config) *S
 	return s
 }
 
+// WithTargetSecret sets the kubeconfig field of the ShootAccessSecret.
+func (s *ShootAccessSecret) WithTargetSecret(name, namespace string) *ShootAccessSecret {
+	s.targetSecretName = name
+	s.targetSecretNamespace = namespace
+	return s
+}
+
 // Reconcile creates or patches the given shoot access secret. Based on the struct configuration, it adds the required
 // annotations for the token requestor controller of gardener-resource-manager.
 func (s *ShootAccessSecret) Reconcile(ctx context.Context, c client.Client) error {
@@ -286,6 +300,14 @@ func (s *ShootAccessSecret) Reconcile(ctx context.Context, c client.Client) erro
 
 		if s.tokenExpirationDuration != "" {
 			metav1.SetMetaDataAnnotation(&s.Secret.ObjectMeta, resourcesv1alpha1.ServiceAccountTokenExpirationDuration, s.tokenExpirationDuration)
+		}
+
+		if s.targetSecretName != "" {
+			metav1.SetMetaDataAnnotation(&s.Secret.ObjectMeta, resourcesv1alpha1.TokenRequestorTargetSecretName, s.targetSecretName)
+		}
+
+		if s.targetSecretNamespace != "" {
+			metav1.SetMetaDataAnnotation(&s.Secret.ObjectMeta, resourcesv1alpha1.TokenRequestorTargetSecretNamespace, s.targetSecretNamespace)
 		}
 
 		if s.kubeconfig == nil {
@@ -314,7 +336,11 @@ func (s *ShootAccessSecret) Reconcile(ctx context.Context, c client.Client) erro
 		}
 
 		return nil
-	})
+	},
+		// The token-requestor might concurrently update the kubeconfig secret key to populate the token.
+		// Hence, we need to use optimistic locking here to ensure we don't accidentally overwrite the concurrent update.
+		// ref https://github.com/gardener/gardener/issues/6092#issuecomment-1156244514
+		client.MergeFromWithOptimisticLock{})
 	return err
 }
 
@@ -322,43 +348,43 @@ func (s *ShootAccessSecret) Reconcile(ctx context.Context, c client.Client) erro
 // object. The access secret name must be the name of a secret containing a JWT token which should be used by the
 // kubeconfig. If the object has multiple containers then the default is to inject it into all of them. If it should
 // only be done for a selection of containers then their respective names must be provided.
-func InjectGenericKubeconfig(obj runtime.Object, accessSecretName string, containerNames ...string) error {
+func InjectGenericKubeconfig(obj runtime.Object, genericKubeconfigName, accessSecretName string, containerNames ...string) error {
 	switch o := obj.(type) {
 	case *corev1.Pod:
-		injectGenericKubeconfig(&o.Spec, accessSecretName, containerNames...)
+		injectGenericKubeconfig(&o.Spec, genericKubeconfigName, accessSecretName, containerNames...)
 
 	case *appsv1.Deployment:
-		injectGenericKubeconfig(&o.Spec.Template.Spec, accessSecretName, containerNames...)
+		injectGenericKubeconfig(&o.Spec.Template.Spec, genericKubeconfigName, accessSecretName, containerNames...)
 
 	case *appsv1beta2.Deployment:
-		injectGenericKubeconfig(&o.Spec.Template.Spec, accessSecretName, containerNames...)
+		injectGenericKubeconfig(&o.Spec.Template.Spec, genericKubeconfigName, accessSecretName, containerNames...)
 
 	case *appsv1beta1.Deployment:
-		injectGenericKubeconfig(&o.Spec.Template.Spec, accessSecretName, containerNames...)
+		injectGenericKubeconfig(&o.Spec.Template.Spec, genericKubeconfigName, accessSecretName, containerNames...)
 
 	case *appsv1.StatefulSet:
-		injectGenericKubeconfig(&o.Spec.Template.Spec, accessSecretName, containerNames...)
+		injectGenericKubeconfig(&o.Spec.Template.Spec, genericKubeconfigName, accessSecretName, containerNames...)
 
 	case *appsv1beta2.StatefulSet:
-		injectGenericKubeconfig(&o.Spec.Template.Spec, accessSecretName, containerNames...)
+		injectGenericKubeconfig(&o.Spec.Template.Spec, genericKubeconfigName, accessSecretName, containerNames...)
 
 	case *appsv1beta1.StatefulSet:
-		injectGenericKubeconfig(&o.Spec.Template.Spec, accessSecretName, containerNames...)
+		injectGenericKubeconfig(&o.Spec.Template.Spec, genericKubeconfigName, accessSecretName, containerNames...)
 
 	case *appsv1.DaemonSet:
-		injectGenericKubeconfig(&o.Spec.Template.Spec, accessSecretName, containerNames...)
+		injectGenericKubeconfig(&o.Spec.Template.Spec, genericKubeconfigName, accessSecretName, containerNames...)
 
 	case *appsv1beta2.DaemonSet:
-		injectGenericKubeconfig(&o.Spec.Template.Spec, accessSecretName, containerNames...)
+		injectGenericKubeconfig(&o.Spec.Template.Spec, genericKubeconfigName, accessSecretName, containerNames...)
 
 	case *batchv1.Job:
-		injectGenericKubeconfig(&o.Spec.Template.Spec, accessSecretName, containerNames...)
+		injectGenericKubeconfig(&o.Spec.Template.Spec, genericKubeconfigName, accessSecretName, containerNames...)
 
 	case *batchv1.CronJob:
-		injectGenericKubeconfig(&o.Spec.JobTemplate.Spec.Template.Spec, accessSecretName, containerNames...)
+		injectGenericKubeconfig(&o.Spec.JobTemplate.Spec.Template.Spec, genericKubeconfigName, accessSecretName, containerNames...)
 
 	case *batchv1beta1.CronJob:
-		injectGenericKubeconfig(&o.Spec.JobTemplate.Spec.Template.Spec, accessSecretName, containerNames...)
+		injectGenericKubeconfig(&o.Spec.JobTemplate.Spec.Template.Spec, genericKubeconfigName, accessSecretName, containerNames...)
 
 	default:
 		return fmt.Errorf("unhandled object type %T", obj)
@@ -367,7 +393,7 @@ func InjectGenericKubeconfig(obj runtime.Object, accessSecretName string, contai
 	return nil
 }
 
-func injectGenericKubeconfig(podSpec *corev1.PodSpec, accessSecretName string, containerNames ...string) {
+func injectGenericKubeconfig(podSpec *corev1.PodSpec, genericKubeconfigName, accessSecretName string, containerNames ...string) {
 	var (
 		volume = corev1.Volume{
 			Name: "kubeconfig",
@@ -378,7 +404,7 @@ func injectGenericKubeconfig(podSpec *corev1.PodSpec, accessSecretName string, c
 						{
 							Secret: &corev1.SecretProjection{
 								LocalObjectReference: corev1.LocalObjectReference{
-									Name: v1beta1constants.SecretNameGenericTokenKubeconfig,
+									Name: genericKubeconfigName,
 								},
 								Items: []corev1.KeyToPath{{
 									Key:  secrets.DataKeyKubeconfig,
@@ -417,4 +443,13 @@ func injectGenericKubeconfig(podSpec *corev1.PodSpec, accessSecretName string, c
 			podSpec.Containers[i].VolumeMounts = append(podSpec.Containers[i].VolumeMounts, volumeMount)
 		}
 	}
+}
+
+// GetShootSeedNames returns the spec.seedName and the status.seedName field in case the provided object is a Shoot.
+func GetShootSeedNames(obj client.Object) (*string, *string) {
+	shoot, ok := obj.(*gardencorev1beta1.Shoot)
+	if !ok {
+		return nil, nil
+	}
+	return shoot.Spec.SeedName, shoot.Status.SeedName
 }

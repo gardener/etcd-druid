@@ -15,12 +15,20 @@
 package gardener
 
 import (
+	"context"
 	"crypto/x509"
+	"fmt"
 	"reflect"
 	"strings"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	certificatesv1 "k8s.io/api/certificates/v1"
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	"github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
+	"github.com/gardener/gardener/pkg/utils/version"
 )
 
 const (
@@ -42,26 +50,35 @@ func ComputeSeedName(seedNamespaceName string) string {
 	return seedName
 }
 
-// IsSeedClientCert returns true when the given CSR and usages match the requirements for a client certificate for a
-// seed.
-func IsSeedClientCert(x509cr *x509.CertificateRequest, usages []certificatesv1.KeyUsage) bool {
-	if !reflect.DeepEqual([]string{v1beta1constants.SeedsGroup}, x509cr.Subject.Organization) {
-		return false
-	}
-
-	if (len(x509cr.DNSNames) > 0) || (len(x509cr.EmailAddresses) > 0) || (len(x509cr.IPAddresses) > 0) {
-		return false
-	}
-
-	if !hasExactUsages(usages, []certificatesv1.KeyUsage{
+var (
+	seedClientRequiredOrganization = []string{v1beta1constants.SeedsGroup}
+	seedClientRequiredKeyUsages    = []certificatesv1.KeyUsage{
 		certificatesv1.UsageKeyEncipherment,
 		certificatesv1.UsageDigitalSignature,
 		certificatesv1.UsageClientAuth,
-	}) {
-		return false
+	}
+)
+
+// IsSeedClientCert returns true when the given CSR and usages match the requirements for a client certificate for a
+// seed. If false is returned, a reason will be returned explaining which requirement was not met.
+func IsSeedClientCert(x509cr *x509.CertificateRequest, usages []certificatesv1.KeyUsage) (bool, string) {
+	if !reflect.DeepEqual(seedClientRequiredOrganization, x509cr.Subject.Organization) {
+		return false, fmt.Sprintf("subject's organization is not set to %v", seedClientRequiredOrganization)
 	}
 
-	return strings.HasPrefix(x509cr.Subject.CommonName, v1beta1constants.SeedUserNamePrefix)
+	if (len(x509cr.DNSNames) > 0) || (len(x509cr.EmailAddresses) > 0) || (len(x509cr.IPAddresses) > 0) {
+		return false, "DNSNames, EmailAddresses and IPAddresses fields must be empty"
+	}
+
+	if !hasExactUsages(usages, seedClientRequiredKeyUsages) {
+		return false, fmt.Sprintf("key usages are not set to %v", seedClientRequiredKeyUsages)
+	}
+
+	if !strings.HasPrefix(x509cr.Subject.CommonName, v1beta1constants.SeedUserNamePrefix) {
+		return false, fmt.Sprintf("CommonName does not start with %q", v1beta1constants.SeedUserNamePrefix)
+	}
+
+	return true, ""
 }
 
 func hasExactUsages(usages, requiredUsages []certificatesv1.KeyUsage) bool {
@@ -81,4 +98,52 @@ func hasExactUsages(usages, requiredUsages []certificatesv1.KeyUsage) bool {
 	}
 
 	return true
+}
+
+// ComputeNginxIngressClassForSeed returns the IngressClass for the Nginx Ingress controller.
+func ComputeNginxIngressClassForSeed(seed *gardencorev1beta1.Seed, kubernetesVersion *string) (string, error) {
+	if kubernetesVersion == nil {
+		return "", fmt.Errorf("kubernetes version is missing for seed %q", seed.Name)
+	}
+
+	// We need to use `versionutils.CompareVersions` because this function normalizes the seed version first.
+	// This is especially necessary if the seed cluster is a non Gardener managed cluster and thus might have some
+	// custom version suffix.
+	greaterEqual122, err := version.CompareVersions(*kubernetesVersion, ">=", "1.22")
+	if err != nil {
+		return "", err
+	}
+
+	if managed := helper.SeedWantsManagedIngress(seed); managed {
+		if greaterEqual122 {
+			return v1beta1constants.SeedNginxIngressClass122, nil
+		} else {
+			return v1beta1constants.SeedNginxIngressClass, nil
+		}
+	}
+
+	return v1beta1constants.NginxIngressClass, nil
+}
+
+// GetWildcardCertificate gets the wildcard certificate for the seed's ingress domain.
+// Nil is returned if no wildcard certificate is configured.
+func GetWildcardCertificate(ctx context.Context, c client.Client) (*corev1.Secret, error) {
+	wildcardCerts := &corev1.SecretList{}
+	if err := c.List(
+		ctx,
+		wildcardCerts,
+		client.InNamespace(v1beta1constants.GardenNamespace),
+		client.MatchingLabels{v1beta1constants.GardenRole: v1beta1constants.GardenRoleControlPlaneWildcardCert},
+	); err != nil {
+		return nil, err
+	}
+
+	if len(wildcardCerts.Items) > 1 {
+		return nil, fmt.Errorf("misconfigured seed cluster: not possible to provide more than one secret with annotation %s", v1beta1constants.GardenRoleControlPlaneWildcardCert)
+	}
+
+	if len(wildcardCerts.Items) == 1 {
+		return &wildcardCerts.Items[0], nil
+	}
+	return nil, nil
 }

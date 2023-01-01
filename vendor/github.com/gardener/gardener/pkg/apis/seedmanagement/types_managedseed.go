@@ -58,11 +58,8 @@ type ManagedSeedTemplate struct {
 // ManagedSeedSpec is the specification of a ManagedSeed.
 type ManagedSeedSpec struct {
 	// Shoot references a Shoot that should be registered as Seed.
+	// This field is immutable.
 	Shoot *Shoot
-	// SeedTemplate is a template for a Seed object, that should be used to register a given cluster as a Seed.
-	// Either SeedTemplate or Gardenlet must be specified. When Seed is specified, the ManagedSeed controller will not deploy a gardenlet into the cluster
-	// and an existing gardenlet reconciling the new Seed is required.
-	SeedTemplate *gardencore.SeedTemplate
 	// Gardenlet specifies that the ManagedSeed controller should deploy a gardenlet into the cluster
 	// with the given deployment parameters and GardenletConfiguration.
 	Gardenlet *Gardenlet
@@ -84,18 +81,19 @@ type Gardenlet struct {
 	// Bootstrap is the mechanism that should be used for bootstrapping gardenlet connection to the Garden cluster. One of ServiceAccount, BootstrapToken, None.
 	// If set to ServiceAccount or BootstrapToken, a service account or a bootstrap token will be created in the garden cluster and used to compute the bootstrap kubeconfig.
 	// If set to None, the gardenClientConnection.kubeconfig field will be used to connect to the Garden cluster. Defaults to BootstrapToken.
+	// This field is immutable.
 	Bootstrap *Bootstrap
 	// MergeWithParent specifies whether the GardenletConfiguration of the parent gardenlet
-	// should be merged with the specified GardenletConfiguration. Defaults to true.
+	// should be merged with the specified GardenletConfiguration. Defaults to true. This field is immutable.
 	MergeWithParent *bool
 }
 
 // GardenletDeployment specifies certain gardenlet deployment parameters, such as the number of replicas,
 // the image, etc.
 type GardenletDeployment struct {
-	// ReplicaCount is the number of gardenlet replicas. Defaults to 1.
+	// ReplicaCount is the number of gardenlet replicas. Defaults to 2.
 	ReplicaCount *int32
-	// RevisionHistoryLimit is the number of old gardenlet ReplicaSets to retain to allow rollback. Defaults to 10.
+	// RevisionHistoryLimit is the number of old gardenlet ReplicaSets to retain to allow rollback. Defaults to 2.
 	RevisionHistoryLimit *int32
 	// ServiceAccountName is the name of the ServiceAccount to use to run gardenlet pods.
 	ServiceAccountName *string

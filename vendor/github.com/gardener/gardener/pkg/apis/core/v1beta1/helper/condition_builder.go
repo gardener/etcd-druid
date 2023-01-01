@@ -21,6 +21,7 @@ import (
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/clock"
 )
 
 // ConditionBuilder build a Condition.
@@ -30,7 +31,7 @@ type ConditionBuilder interface {
 	WithReason(reason string) ConditionBuilder
 	WithMessage(message string) ConditionBuilder
 	WithCodes(codes ...gardencorev1beta1.ErrorCode) ConditionBuilder
-	WithNowFunc(now func() metav1.Time) ConditionBuilder
+	WithClock(clock clock.Clock) ConditionBuilder
 	Build() (new gardencorev1beta1.Condition, updated bool)
 }
 
@@ -39,10 +40,10 @@ type defaultConditionBuilder struct {
 	old           gardencorev1beta1.Condition
 	status        gardencorev1beta1.ConditionStatus
 	conditionType gardencorev1beta1.ConditionType
-	reason        string
-	message       string
+	reason        *string
+	message       *string
 	codes         []gardencorev1beta1.ErrorCode
-	nowFunc       func() metav1.Time
+	clock         clock.Clock
 }
 
 // NewConditionBuilder returns a ConditionBuilder for a specific condition.
@@ -53,7 +54,7 @@ func NewConditionBuilder(conditionType gardencorev1beta1.ConditionType) (Conditi
 
 	return &defaultConditionBuilder{
 		conditionType: conditionType,
-		nowFunc:       metav1.Now,
+		clock:         clock.RealClock{},
 	}, nil
 }
 
@@ -74,13 +75,13 @@ func (b *defaultConditionBuilder) WithStatus(status gardencorev1beta1.ConditionS
 
 // WithReason sets the reason of the condition.
 func (b *defaultConditionBuilder) WithReason(reason string) ConditionBuilder {
-	b.reason = reason
+	b.reason = &reason
 	return b
 }
 
 // WithMessage sets the message of the condition.
 func (b *defaultConditionBuilder) WithMessage(message string) ConditionBuilder {
-	b.message = message
+	b.message = &message
 	return b
 }
 
@@ -90,10 +91,10 @@ func (b *defaultConditionBuilder) WithCodes(codes ...gardencorev1beta1.ErrorCode
 	return b
 }
 
-// WithNowFunc sets the function used for getting the current time.
-// Should only be used for tests.
-func (b *defaultConditionBuilder) WithNowFunc(now func() metav1.Time) ConditionBuilder {
-	b.nowFunc = now
+// WithClock sets a `clock.Clock` which is used for getting the current time
+func (b *defaultConditionBuilder) WithClock(clock clock.Clock) ConditionBuilder {
+	b.clock = clock
+
 	return b
 }
 
@@ -104,7 +105,7 @@ func (b *defaultConditionBuilder) WithNowFunc(now func() metav1.Time) ConditionB
 // - The error codes will not be transferred from the old to the new condition
 func (b *defaultConditionBuilder) Build() (new gardencorev1beta1.Condition, updated bool) {
 	var (
-		now       = b.nowFunc()
+		now       = metav1.Time{Time: b.clock.Now()}
 		emptyTime = metav1.Time{}
 	)
 
@@ -122,21 +123,13 @@ func (b *defaultConditionBuilder) Build() (new gardencorev1beta1.Condition, upda
 
 	if b.status != "" {
 		new.Status = b.status
-	} else if b.status == "" && b.old.Status == "" {
+	} else if b.old.Status == "" {
 		new.Status = gardencorev1beta1.ConditionUnknown
 	}
 
-	if b.reason != "" {
-		new.Reason = b.reason
-	} else if b.reason == "" && b.old.Reason == "" {
-		new.Reason = "ConditionInitialized"
-	}
+	new.Reason = b.buildReason()
 
-	if b.message != "" {
-		new.Message = b.message
-	} else if b.message == "" && b.old.Message == "" {
-		new.Message = "The condition has been initialized but its semantic check has not been performed yet."
-	}
+	new.Message = b.buildMessage()
 
 	new.Codes = b.codes
 
@@ -151,4 +144,34 @@ func (b *defaultConditionBuilder) Build() (new gardencorev1beta1.Condition, upda
 	}
 
 	return new, !apiequality.Semantic.DeepEqual(new, b.old)
+}
+
+func (b *defaultConditionBuilder) buildMessage() string {
+	if message := b.message; message != nil {
+		if *message != "" {
+			return *message
+		}
+		// We need to set a condition message in this case because when the condition is updated the next time
+		// without specifying a message we want to retain this message instead of toggling to `b.old.Message == ""`.
+		return "No message given."
+	}
+	if b.old.Message == "" {
+		return "The condition has been initialized but its semantic check has not been performed yet."
+	}
+	return b.old.Message
+}
+
+func (b *defaultConditionBuilder) buildReason() string {
+	if reason := b.reason; reason != nil {
+		if *reason != "" {
+			return *reason
+		}
+		// We need to set a condition reason in this case because when the condition is updated the next time
+		// without specifying a reason we want to retain this reason instead of toggling to `b.old.Reason == ""`.
+		return "Unspecified"
+	}
+	if b.old.Reason == "" {
+		return "ConditionInitialized"
+	}
+	return b.old.Reason
 }

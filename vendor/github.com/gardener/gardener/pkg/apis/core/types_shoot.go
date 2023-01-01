@@ -35,6 +35,7 @@ type Shoot struct {
 	// Standard object metadata.
 	metav1.ObjectMeta
 	// Specification of the Shoot cluster.
+	// If the object's deletion timestamp is set, this field is immutable.
 	Spec ShootSpec
 	// Most recently observed status of the Shoot cluster.
 	Status ShootStatus
@@ -63,7 +64,7 @@ type ShootTemplate struct {
 type ShootSpec struct {
 	// Addons contains information about enabled/disabled addons and their configuration.
 	Addons *Addons
-	// CloudProfileName is a name of a CloudProfile object.
+	// CloudProfileName is a name of a CloudProfile object. This field is immutable.
 	CloudProfileName string
 	// DNS contains information about the DNS settings of the Shoot.
 	DNS *DNS
@@ -84,12 +85,14 @@ type ShootSpec struct {
 	Provider Provider
 	// Purpose is the purpose class for this cluster.
 	Purpose *ShootPurpose
-	// Region is a name of a region.
+	// Region is a name of a region. This field is immutable.
 	Region string
 	// SecretBindingName is the name of the a SecretBinding that has a reference to the provider secret.
 	// The credentials inside the provider secret will be used to create the shoot in the respective account.
+	// This field is immutable.
 	SecretBindingName string
 	// SeedName is the name of the seed cluster that runs the control plane of the Shoot.
+	// This field is immutable when the SeedChange feature gate is disabled.
 	SeedName *string
 	// SeedSelector is an optional selector which must match a seed's labels for the shoot to be scheduled on that seed.
 	SeedSelector *SeedSelector
@@ -98,7 +101,12 @@ type ShootSpec struct {
 	// Tolerations contains the tolerations for taints on seed clusters.
 	Tolerations []Toleration
 	// ExposureClassName is the optional name of an exposure class to apply a control plane endpoint exposure strategy.
+	// This field is immutable.
 	ExposureClassName *string
+	// SystemComponents contains the settings of system components in the control or data plane of the Shoot cluster.
+	SystemComponents *SystemComponents
+	// ControlPlane contains general settings for the control plane of the shoot.
+	ControlPlane *ControlPlane
 }
 
 // GetProviderType gets the type of the provider.
@@ -116,6 +124,9 @@ type ShootStatus struct {
 	Gardener Gardener
 	// IsHibernated indicates whether the Shoot is currently hibernated.
 	IsHibernated bool
+	// LastHibernationTriggerTime indicates the last time when the hibernation controller
+	// managed to change the hibernation settings of the cluster
+	LastHibernationTriggerTime *metav1.Time
 	// LastOperation holds information about the last operation on the Shoot.
 	LastOperation *LastOperation
 	// LastErrors holds information about the last occurred error(s) during an operation.
@@ -130,16 +141,128 @@ type ShootStatus struct {
 	// after a successful create/reconcile operation. It will be used when control planes are moved between Seeds.
 	SeedName *string
 	// TechnicalID is the name that is used for creating the Seed namespace, the infrastructure resources, and
-	// basically everything that is related to this particular Shoot.
+	// basically everything that is related to this particular Shoot. This field is immutable.
 	TechnicalID string
 	// UID is a unique identifier for the Shoot cluster to avoid portability between Kubernetes clusters.
-	// It is used to compute unique hashes.
+	// It is used to compute unique hashes. This field is immutable.
 	UID types.UID
-	// ClusterIdentity is the identity of the Shoot cluster
+	// ClusterIdentity is the identity of the Shoot cluster. This field is immutable.
 	ClusterIdentity *string
 	// List of addresses on which the Kube API server can be reached.
 	AdvertisedAddresses []ShootAdvertisedAddress
+	// MigrationStartTime is the time when a migration to a different seed was initiated.
+	MigrationStartTime *metav1.Time
+	// Credentials contains information about the shoot credentials.
+	Credentials *ShootCredentials
+	// LastMaintenance holds information about the last maintenance operations on the Shoot.
+	LastMaintenance *LastMaintenance
 }
+
+// LastMaintenance holds information about a maintenance operation on the Shoot.
+type LastMaintenance struct {
+	// A human-readable message containing details about the operations performed in the last maintenance.
+	Description string
+	// TriggeredTime is the time when maintenance was triggered.
+	TriggeredTime metav1.Time
+	// Status of the last maintenance operation, one of Processing, Succeeded, Error.
+	State LastOperationState
+	// FailureReason holds the information about the last maintenance operation failure reason.
+	FailureReason *string
+}
+
+// ShootCredentials contains information about the shoot credentials.
+type ShootCredentials struct {
+	// Rotation contains information about the credential rotations.
+	Rotation *ShootCredentialsRotation
+}
+
+// ShootCredentialsRotation contains information about the rotation of credentials.
+type ShootCredentialsRotation struct {
+	// CertificateAuthorities contains information about the certificate authority credential rotation.
+	CertificateAuthorities *CARotation
+	// Kubeconfig contains information about the kubeconfig credential rotation.
+	Kubeconfig *ShootKubeconfigRotation
+	// SSHKeypair contains information about the ssh-keypair credential rotation.
+	SSHKeypair *ShootSSHKeypairRotation
+	// Observability contains information about the observability credential rotation.
+	Observability *ShootObservabilityRotation
+	// ServiceAccountKey contains information about the service account key credential rotation.
+	ServiceAccountKey *ShootServiceAccountKeyRotation
+	// ETCDEncryptionKey contains information about the ETCD encryption key credential rotation.
+	ETCDEncryptionKey *ShootETCDEncryptionKeyRotation
+}
+
+// CARotation contains information about the certificate authority credential rotation.
+type CARotation struct {
+	// Phase describes the phase of the certificate authority credential rotation.
+	Phase CredentialsRotationPhase
+	// LastInitiationTime is the most recent time when the certificate authority credential rotation was initiated.
+	LastInitiationTime *metav1.Time
+	// LastCompletionTime is the most recent time when the certificate authority credential rotation was successfully
+	// completed.
+	LastCompletionTime *metav1.Time
+}
+
+// ShootKubeconfigRotation contains information about the kubeconfig credential rotation.
+type ShootKubeconfigRotation struct {
+	// LastInitiationTime is the most recent time when the kubeconfig credential rotation was initiated.
+	LastInitiationTime *metav1.Time
+	// LastCompletionTime is the most recent time when the kubeconfig credential rotation was successfully completed.
+	LastCompletionTime *metav1.Time
+}
+
+// ShootSSHKeypairRotation contains information about the ssh-keypair credential rotation.
+type ShootSSHKeypairRotation struct {
+	// LastInitiationTime is the most recent time when the certificate authority credential rotation was initiated.
+	LastInitiationTime *metav1.Time
+	// LastCompletionTime is the most recent time when the ssh-keypair credential rotation was successfully completed.
+	LastCompletionTime *metav1.Time
+}
+
+// ShootObservabilityRotation contains information about the observability credential rotation.
+type ShootObservabilityRotation struct {
+	// LastInitiationTime is the most recent time when the observability credential rotation was initiated.
+	LastInitiationTime *metav1.Time
+	// LastCompletionTime is the most recent time when the observability credential rotation was successfully completed.
+	LastCompletionTime *metav1.Time
+}
+
+// ShootServiceAccountKeyRotation contains information about the service account key credential rotation.
+type ShootServiceAccountKeyRotation struct {
+	// Phase describes the phase of the service account key credential rotation.
+	Phase CredentialsRotationPhase
+	// LastInitiationTime is the most recent time when the service account key credential rotation was initiated.
+	LastInitiationTime *metav1.Time
+	// LastCompletionTime is the most recent time when the service account key credential rotation was successfully
+	// completed.
+	LastCompletionTime *metav1.Time
+}
+
+// ShootETCDEncryptionKeyRotation contains information about the ETCD encryption key credential rotation.
+type ShootETCDEncryptionKeyRotation struct {
+	// Phase describes the phase of the ETCD encryption key credential rotation.
+	Phase CredentialsRotationPhase
+	// LastInitiationTime is the most recent time when the ETCD encryption key credential rotation was initiated.
+	LastInitiationTime *metav1.Time
+	// LastCompletionTime is the most recent time when the ETCD encryption key credential rotation was successfully
+	// completed.
+	LastCompletionTime *metav1.Time
+}
+
+// CredentialsRotationPhase is a string alias.
+type CredentialsRotationPhase string
+
+const (
+	// RotationPreparing is a constant for the credentials rotation phase describing that the procedure is being prepared.
+	RotationPreparing CredentialsRotationPhase = "Preparing"
+	// RotationPrepared is a constant for the credentials rotation phase describing that the procedure was prepared.
+	RotationPrepared CredentialsRotationPhase = "Prepared"
+	// RotationCompleting is a constant for the credentials rotation phase describing that the procedure is being
+	// completed.
+	RotationCompleting CredentialsRotationPhase = "Completing"
+	// RotationCompleted is a constant for the credentials rotation phase describing that the procedure was completed.
+	RotationCompleted CredentialsRotationPhase = "Completed"
+)
 
 // ShootAdvertisedAddress contains information for the shoot's Kube API server.
 type ShootAdvertisedAddress struct {
@@ -176,6 +299,7 @@ type KubernetesDashboard struct {
 
 const (
 	// KubernetesDashboardAuthModeBasic uses basic authentication mode for auth.
+	// Deprecated: basic authentication has been removed in Kubernetes v1.19+.
 	KubernetesDashboardAuthModeBasic = "basic"
 	// KubernetesDashboardAuthModeToken uses token-based mode for auth.
 	KubernetesDashboardAuthModeToken = "token"
@@ -195,13 +319,24 @@ type NginxIngress struct {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
+// ControlPlane relevant types                                                             //
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+// ControlPlane holds information about the general settings for the control plane of a shoot.
+type ControlPlane struct {
+	// HighAvailability holds the configuration settings for high availability of the
+	// control plane of a shoot.
+	HighAvailability *HighAvailability
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
 // DNS relevant types                                                                           //
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
 // DNS holds information about the provider, the hosted zone id and the domain.
 type DNS struct {
 	// Domain is the external available domain of the Shoot cluster. This domain will be written into the
-	// kubeconfig that is handed out to end-users. Once set it is immutable.
+	// kubeconfig that is handed out to end-users. This field is immutable.
 	Domain *string
 	// Providers is a list of DNS providers that shall be enabled for this shoot cluster. Only relevant if
 	// not a default domain is used.
@@ -270,7 +405,7 @@ type NamedResourceReference struct {
 // Hibernation contains information whether the Shoot is suspended or not.
 type Hibernation struct {
 	// Enabled specifies whether the Shoot needs to be hibernated or not. If it is true, the Shoot's desired state is to be hibernated.
-	// If it is false or nil, the Shoot's desired state is to be awaken.
+	// If it is false or nil, the Shoot's desired state is to be awakened.
 	Enabled *bool
 	// Schedules determine the hibernation schedules.
 	Schedules []HibernationSchedule
@@ -294,7 +429,8 @@ type HibernationSchedule struct {
 
 // Kubernetes contains the version and configuration variables for the Shoot control plane.
 type Kubernetes struct {
-	// AllowPrivilegedContainers indicates whether privileged containers are allowed in the Shoot (default: true).
+	// AllowPrivilegedContainers indicates whether privileged containers are allowed in the Shoot.
+	// Defaults to true for Kubernetes versions below v1.25. Unusable for Kubernetes versions v1.25 and higher.
 	AllowPrivilegedContainers *bool
 	// ClusterAutoscaler contains the configuration flags for the Kubernetes cluster autoscaler.
 	ClusterAutoscaler *ClusterAutoscaler
@@ -312,6 +448,8 @@ type Kubernetes struct {
 	Version string
 	// VerticalPodAutoscaler contains the configuration flags for the Kubernetes vertical pod autoscaler.
 	VerticalPodAutoscaler *VerticalPodAutoscaler
+	// EnableStaticTokenKubeconfig indicates whether static token kubeconfig secret will be created for shoot (default: true).
+	EnableStaticTokenKubeconfig *bool
 }
 
 // ClusterAutoscaler contains the configuration flags for the Kubernetes cluster autoscaler.
@@ -335,6 +473,8 @@ type ClusterAutoscaler struct {
 	MaxNodeProvisionTime *metav1.Duration
 	// MaxGracefulTerminationSeconds is the number of seconds CA waits for pod termination when trying to scale down a node (default: 600).
 	MaxGracefulTerminationSeconds *int32
+	// IgnoreTaints specifies a list of taint keys to ignore in node templates when considering to scale a node group.
+	IgnoreTaints []string
 }
 
 // ExpanderMode is type used for Expander values
@@ -401,6 +541,8 @@ type KubeAPIServerConfig struct {
 	// AuditConfig contains configuration settings for the audit of the kube-apiserver.
 	AuditConfig *AuditConfig
 	// EnableBasicAuthentication defines whether basic authentication should be enabled for this cluster or not.
+	// Defaults to false.
+	// Deprecated: basic authentication has been removed in Kubernetes v1.19+. This field will be removed in a future version.
 	EnableBasicAuthentication *bool
 	// OIDCConfig contains configuration settings for the OIDC provider.
 	OIDCConfig *OIDCConfig
@@ -411,7 +553,7 @@ type KubeAPIServerConfig struct {
 	ServiceAccountConfig *ServiceAccountConfig
 	// WatchCacheSizes contains configuration of the API server's watch cache sizes.
 	// Configuring these flags might be useful for large-scale Shoot clusters with a lot of parallel update requests
-	// and a lot of watching controllers (e.g. large shooted Seed clusters). When the API server's watch cache's
+	// and a lot of watching controllers (e.g. large ManagedSeed clusters). When the API server's watch cache's
 	// capacity is too small to cope with the amount of update requests and watchers for a particular resource, it
 	// might happen that controller watches are permanently stopped with `too old resource version` errors.
 	// Starting from kubernetes v1.19, the API server's watch cache size is adapted dynamically and setting the watch
@@ -425,6 +567,16 @@ type KubeAPIServerConfig struct {
 	EnableAnonymousAuthentication *bool
 	// EventTTL controls the amount of time to retain events.
 	EventTTL *metav1.Duration
+	// Logging contains configuration settings for the log verbosity and access logging
+	Logging *KubeAPIServerLogging
+}
+
+// KubeAPIServerLogging contains configuration for the logs level and http access logs
+type KubeAPIServerLogging struct {
+	// Verbosity is the kube-apiserver log verbosity level
+	Verbosity *int32
+	// HTTPAccessVerbosity is the kube-apiserver access logs level
+	HTTPAccessVerbosity *int32
 }
 
 // KubeAPIServerRequests contains configuration for request-specific settings for the kube-apiserver.
@@ -440,12 +592,13 @@ type KubeAPIServerRequests struct {
 // ServiceAccountConfig is the kube-apiserver configuration for service accounts.
 type ServiceAccountConfig struct {
 	// Issuer is the identifier of the service account token issuer. The issuer will assert this
-	// identifier in "iss" claim of issued tokens. This value is a string or URI.
-	// Defaults to URI of the API server.
+	// identifier in "iss" claim of issued tokens. This value is used to generate new service account tokens.
+	// This value is a string or URI. Defaults to URI of the API server.
 	Issuer *string
 	// SigningKeySecret is a reference to a secret that contains an optional private key of the
 	// service account token issuer. The issuer will sign issued ID tokens with this private key.
 	// Only useful if service account tokens are also issued by another external system.
+	// Deprecated: This field is deprecated and will be removed in a future version of Gardener. Do not use it.
 	SigningKeySecret *corev1.LocalObjectReference
 	// ExtendTokenExpiration turns on projected service account expiration extension during token generation, which
 	// helps safe transition from legacy token to bound service account token feature. If this flag is enabled,
@@ -455,7 +608,13 @@ type ServiceAccountConfig struct {
 	// MaxTokenExpiration is the maximum validity duration of a token created by the service account token issuer. If an
 	// otherwise valid TokenRequest with a validity duration larger than this value is requested, a token will be issued
 	// with a validity duration of this value.
+	// This field must be within [30d,90d].
 	MaxTokenExpiration *metav1.Duration
+	// AcceptedIssuers is an additional set of issuers that are used to determine which service account tokens are accepted.
+	// These values are not used to generate new service account tokens. Only useful when service account tokens are also
+	// issued by another external system or a change of the current issuer that is used for generating tokens is being performed.
+	// This field is only available for Kubernetes v1.22 or later.
+	AcceptedIssuers []string
 }
 
 // AuditConfig contains settings for audit of the api server
@@ -509,6 +668,8 @@ type OpenIDConnectClientAuthentication struct {
 type AdmissionPlugin struct {
 	// Name is the name of the plugin.
 	Name string
+	// Disabled specifies whether this plugin should be disabled.
+	Disabled *bool
 	// Config is the configuration of the plugin.
 	Config *runtime.RawExtension
 }
@@ -542,7 +703,7 @@ type KubeControllerManagerConfig struct {
 	KubernetesConfig
 	// HorizontalPodAutoscalerConfig contains horizontal pod autoscaler configuration settings for the kube-controller-manager.
 	HorizontalPodAutoscalerConfig *HorizontalPodAutoscalerConfig
-	// NodeCIDRMaskSize defines the mask size for node cidr in cluster (default is 24)
+	// NodeCIDRMaskSize defines the mask size for node cidr in cluster (default is 24). This field is immutable.
 	NodeCIDRMaskSize *int32
 	// PodEvictionTimeout defines the grace period for deleting pods on failed nodes.
 	PodEvictionTimeout *metav1.Duration
@@ -573,7 +734,23 @@ type KubeSchedulerConfig struct {
 	// Note that using this field is considered alpha-/experimental-level and is on your own risk. You should be aware
 	// of all the side-effects and consequences when changing it.
 	KubeMaxPDVols *string
+	// Profile configures the scheduling profile for the cluster.
+	// If not specified, the used profile is "balanced" (provides the default kube-scheduler behavior).
+	Profile *SchedulingProfile
 }
+
+// SchedulingProfile is a string alias used for scheduling profile values.
+type SchedulingProfile string
+
+const (
+	// SchedulingProfileBalanced is a scheduling profile that attempts to spread Pods evenly across Nodes
+	// to obtain a more balanced resource usage. This profile provides the default kube-scheduler behavior.
+	SchedulingProfileBalanced SchedulingProfile = "balanced"
+	// SchedulingProfileBinPacking is a scheduling profile that scores Nodes based on the allocation of resources.
+	// It prioritizes Nodes with most allocated resources. This leads the Node count in the cluster to be minimized and
+	// the Node resource utilization to be increased.
+	SchedulingProfileBinPacking SchedulingProfile = "bin-packing"
+)
 
 // KubeProxyConfig contains configuration settings for the kube-proxy.
 type KubeProxyConfig struct {
@@ -605,6 +782,10 @@ const (
 // KubeletConfig contains configuration settings for the kubelet.
 type KubeletConfig struct {
 	KubernetesConfig
+	// ContainerLogMaxSize defines the maximum size of the container log file before it is rotated. For example: "5Mi" or "256Ki".
+	ContainerLogMaxSize *resource.Quantity
+	// ContainerLogMaxFiles is the maximum number of container log files that can be present for a container.
+	ContainerLogMaxFiles *int32
 	// CPUCFSQuota allows you to disable/enable CPU throttling for Pods.
 	CPUCFSQuota *bool
 	// CPUManagerPolicy allows to set alternative CPU management policies (default: none).
@@ -663,6 +844,28 @@ type KubeletConfig struct {
 	ImageGCHighThresholdPercent *int32
 	// ImageGCLowThresholdPercent describes the percent of the disk to which garbage collection attempts to free.
 	ImageGCLowThresholdPercent *int32
+	// SerializeImagePulls describes whether the images are pulled one at a time.
+	SerializeImagePulls *bool
+	// RegistryPullQPS is the limit of registry pulls per second. The value must not be a negative number.
+	// Setting it to 0 means no limit.
+	RegistryPullQPS *int32
+	// RegistryBurst is the maximum size of bursty pulls, temporarily allows pulls to burst to this number,
+	// while still not exceeding registryPullQPS. The value must not be a negative number.
+	// Only used if registryPullQPS is greater than 0.
+	RegistryBurst *int32
+	// SeccompDefault enables the use of `RuntimeDefault` as the default seccomp profile for all workloads.
+	// This requires the corresponding SeccompDefault feature gate to be enabled as well.
+	// This field is only available for Kubernetes v1.25 or later.
+	SeccompDefault *bool
+	// ProtectKernelDefaults ensures that the kernel tunables are equal to the kubelet defaults.
+	// Defaults to true for Kubernetes v1.26 or later.
+	ProtectKernelDefaults *bool
+	// StreamingConnectionIdleTimeout is the maximum time a streaming connection can be idle before the connection is automatically closed.
+	// This field cannot be set lower than "30s" or greater than "4h".
+	// Default:
+	//  "4h" for Kubernetes < v1.26.
+	//  "5m" for Kubernetes >= v1.26.
+	StreamingConnectionIdleTimeout *metav1.Duration
 }
 
 // KubeletConfigEviction contains kubelet eviction thresholds supporting either a resource.Quantity or a percentage based value.
@@ -725,15 +928,15 @@ type KubeletConfigReserved struct {
 
 // Networking defines networking parameters for the shoot cluster.
 type Networking struct {
-	// Type identifies the type of the networking plugin.
+	// Type identifies the type of the networking plugin. This field is immutable.
 	Type string
 	// ProviderConfig is the configuration passed to network resource.
 	ProviderConfig *runtime.RawExtension
-	// Pods is the CIDR of the pod network.
+	// Pods is the CIDR of the pod network. This field is immutable.
 	Pods *string
-	// Nodes is the CIDR of the entire node network.
+	// Nodes is the CIDR of the entire node network. This field is immutable.
 	Nodes *string
-	// Services is the CIDR of the service network.
+	// Services is the CIDR of the service network. This field is immutable.
 	Services *string
 }
 
@@ -809,7 +1012,7 @@ type Alerting struct {
 // Provider contains provider-specific information that are handed-over to the provider-specific
 // extension controller.
 type Provider struct {
-	// Type is the type of the provider.
+	// Type is the type of the provider. This field is immutable.
 	Type string
 	// ControlPlaneConfig contains the provider-specific control plane config blob. Please look up the concrete
 	// definition in the documentation of your provider extension.
@@ -890,6 +1093,11 @@ type WorkerKubernetes struct {
 	// Kubelet contains configuration settings for all kubelets of this worker pool.
 	// If set, all `spec.kubernetes.kubelet` settings will be overwritten for this worker pool (no merge of settings).
 	Kubelet *KubeletConfig
+	// Version is the semantic Kubernetes version to use for the Kubelet in this Worker Group.
+	// If not specified the kubelet version is derived from the global shoot cluster kubernetes version.
+	// version must be equal or lower than the version of the shoot kubernetes version.
+	// Only one minor version difference to other worker groups and global kubernetes version is allowed.
+	Version *string
 }
 
 // Machine contains information about the machine type and image.
@@ -899,6 +1107,8 @@ type Machine struct {
 	// Image holds information about the machine image to use for all nodes of this pool. It will default to the
 	// latest version of the first image stated in the referenced CloudProfile if no value has been provided.
 	Image *ShootMachineImage
+	// Architecture is the CPU architecture of the machines in this worker pool.
+	Architecture *string
 }
 
 // ShootMachineImage defines the name and the version of the shoot's machine image in any environment. Has to be
@@ -969,6 +1179,65 @@ var (
 	// DefaultWorkerMaxUnavailable is the default value for Worker MaxUnavailable.
 	DefaultWorkerMaxUnavailable = intstr.FromInt(0)
 )
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+// System components relevant types                                                             //
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+// SystemComponents contains the settings of system components in the control or data plane of the Shoot cluster.
+type SystemComponents struct {
+	// CoreDNS contains the settings of the Core DNS components running in the data plane of the Shoot cluster.
+	CoreDNS *CoreDNS
+	// NodeLocalDNS contains the settings of the node local DNS components running in the data plane of the Shoot cluster.
+	NodeLocalDNS *NodeLocalDNS
+}
+
+// CoreDNS contains the settings of the Core DNS components running in the data plane of the Shoot cluster.
+type CoreDNS struct {
+	// Autoscaling contains the settings related to autoscaling of the Core DNS components running in the data plane of the Shoot cluster.
+	Autoscaling *CoreDNSAutoscaling
+	// Rewriting contains the setting related to rewriting of requests, which are obviously incorrect due to the unnecessary application of the search path.
+	Rewriting *CoreDNSRewriting
+}
+
+// CoreDNSAutoscaling contains the settings related to autoscaling of the Core DNS components running in the data plane of the Shoot cluster.
+type CoreDNSAutoscaling struct {
+	// The mode of the autoscaling to be used for the Core DNS components running in the data plane of the Shoot cluster.
+	// Supported values are `horizontal` and `cluster-proportional`.
+	Mode CoreDNSAutoscalingMode
+}
+
+// CoreDNSAutoscalingMode is a type alias for the Core DNS autoscaling mode string.
+type CoreDNSAutoscalingMode string
+
+const (
+	// CoreDNSAutoscalingModeHorizontal is a constant for horizontal Core DNS autoscaling mode.
+	CoreDNSAutoscalingModeHorizontal CoreDNSAutoscalingMode = "horizontal"
+	// CoreDNSAutoscalingModeClusterProportional is a constant for cluster-proportional Core DNS autoscaling mode.
+	CoreDNSAutoscalingModeClusterProportional CoreDNSAutoscalingMode = "cluster-proportional"
+)
+
+// CoreDNSRewriting contains the setting related to rewriting requests, which are obviously incorrect due to the unnecessary application of the search path.
+type CoreDNSRewriting struct {
+	// CommonSuffixes are expected to be the suffix of a fully qualified domain name. Each suffix should contain at least one or two dots ('.') to prevent accidental clashes.
+	CommonSuffixes []string
+}
+
+// NodeLocalDNS contains the settings of the node local DNS components running in the data plane of the Shoot cluster.
+type NodeLocalDNS struct {
+	// Enabled indicates whether node local DNS is enabled or not.
+	Enabled bool
+	// ForceTCPToClusterDNS indicates whether the connection from the node local DNS to the cluster DNS (Core DNS) will be forced to TCP or not.
+	// Default, if unspecified, is to enforce TCP.
+	ForceTCPToClusterDNS *bool
+	// ForceTCPToUpstreamDNS indicates whether the connection from the node local DNS to the upstream DNS (infrastructure DNS) will be forced to TCP or not.
+	// Default, if unspecified, is to enforce TCP.
+	ForceTCPToUpstreamDNS *bool
+	// DisableForwardToUpstreamDNS indicates whether requests from node local DNS to upstream DNS should be disabled.
+	// Default, if unspecified, is to forward requests for external domains to upstream DNS
+	// +optional
+	DisableForwardToUpstreamDNS *bool `json:"disableForwardToUpstreamDNS,omitempty" protobuf:"varint,4,opt,name=disableForwardToUpstreamDNS"`
+}
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 // Other/miscellaneous constants and types                                                      //

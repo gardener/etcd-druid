@@ -18,13 +18,12 @@ import (
 	"context"
 	"strings"
 
-	"github.com/gardener/gardener/pkg/logger"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	runtimecache "sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var _ cache.Cache = &aggregator{}
@@ -68,8 +67,8 @@ func processError(err error) error {
 
 // Get retrieves an obj for the given object key from the Kubernetes Cluster.
 // Every non-API related error is returned as a `CacheError`.
-func (c *aggregator) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-	if err := c.cacheForObject(obj).Get(ctx, key, obj); err != nil {
+func (c *aggregator) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if err := c.cacheForObject(obj).Get(ctx, key, obj, opts...); err != nil {
 		return processError(err)
 	}
 	return nil
@@ -102,13 +101,13 @@ func (c *aggregator) Start(ctx context.Context) error {
 		go func(gvk schema.GroupVersionKind, cache runtimecache.Cache) {
 			err := cache.Start(ctx)
 			if err != nil {
-				logger.Logger.Errorf("cache failed to start for %q: %v", gvk.String(), err)
+				logf.Log.Error(err, "Cache failed to start", "gvk", gvk.String())
 			}
 		}(gvk, cache)
 	}
 	go func() {
 		if err := c.fallbackCache.Start(ctx); err != nil {
-			logger.Logger.Error(err)
+			logf.Log.Error(err, "Fallback cache failed to start")
 		}
 	}()
 	<-ctx.Done()

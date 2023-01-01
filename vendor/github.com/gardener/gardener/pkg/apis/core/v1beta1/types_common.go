@@ -20,12 +20,12 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 type ErrorCode string
 
 const (
-	// ErrorInfraUnauthorized indicates that the last error occurred due to invalid infrastructure credentials.
+	// ErrorInfraUnauthenticated indicates that the last error occurred due to the client request not being completed because it lacks valid authentication credentials for the requested resource.
+	// It is classified as a non-retryable error code.
+	ErrorInfraUnauthenticated ErrorCode = "ERR_INFRA_UNAUTHENTICATED"
+	// ErrorInfraUnauthorized indicates that the last error occurred due to the server understanding the request but refusing to authorize it.
 	// It is classified as a non-retryable error code.
 	ErrorInfraUnauthorized ErrorCode = "ERR_INFRA_UNAUTHORIZED"
-	// ErrorInfraInsufficientPrivileges indicates that the last error occurred due to insufficient infrastructure privileges.
-	// It is classified as a non-retryable error code.
-	ErrorInfraInsufficientPrivileges ErrorCode = "ERR_INFRA_INSUFFICIENT_PRIVILEGES"
 	// ErrorInfraQuotaExceeded indicates that the last error occurred due to infrastructure quota limits.
 	// It is classified as a non-retryable error code.
 	ErrorInfraQuotaExceeded ErrorCode = "ERR_INFRA_QUOTA_EXCEEDED"
@@ -45,6 +45,10 @@ const (
 	ErrorConfigurationProblem ErrorCode = "ERR_CONFIGURATION_PROBLEM"
 	// ErrorRetryableConfigurationProblem indicates that the last error occurred due to a retryable configuration problem.
 	ErrorRetryableConfigurationProblem ErrorCode = "ERR_RETRYABLE_CONFIGURATION_PROBLEM"
+	// ErrorProblematicWebhook indicates that the last error occurred due to a webhook not following the Kubernetes
+	// best practices (https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#best-practices-and-warnings).
+	// It is classified as a non-retryable error code.
+	ErrorProblematicWebhook ErrorCode = "ERR_PROBLEMATIC_WEBHOOK"
 )
 
 // LastError indicates the last occurred error for an operation on a resource.
@@ -107,7 +111,7 @@ type LastOperation struct {
 	Progress int32 `json:"progress" protobuf:"varint,3,opt,name=progress"`
 	// Status of the last operation, one of Aborted, Processing, Succeeded, Error, Failed.
 	State LastOperationState `json:"state" protobuf:"bytes,4,opt,name=state,casttype=LastOperationState"`
-	// Type of the last operation, one of Create, Reconcile, Delete.
+	// Type of the last operation, one of Create, Reconcile, Delete, Migrate, Restore.
 	Type LastOperationType `json:"type" protobuf:"bytes,5,opt,name=type,casttype=LastOperationType"`
 }
 
@@ -149,4 +153,34 @@ const (
 	EventMigrationPrepared = "MigrationPrepared"
 	// EventMigrationPreparationFailed indicates that Migration preparation failed.
 	EventMigrationPreparationFailed = "MigrationPreparationFailed"
+)
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+// High Availability relevant types                                                             //
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+// HighAvailability specifies the configuration settings for high availability for a resource. Typical
+// usages could be to configure HA for shoot control plane or for seed system components.
+type HighAvailability struct {
+	// FailureTolerance holds information about failure tolerance level of a highly available resource.
+	FailureTolerance FailureTolerance `json:"failureTolerance" protobuf:"bytes,1,name=failureTolerance"`
+}
+
+// FailureTolerance describes information about failure tolerance level of a highly available resource.
+type FailureTolerance struct {
+	// Type specifies the type of failure that the highly available resource can tolerate
+	Type FailureToleranceType `json:"type" protobuf:"bytes,1,name=type"`
+}
+
+// FailureToleranceType specifies the type of failure that a highly available
+// shoot control plane that can tolerate.
+type FailureToleranceType string
+
+const (
+	// FailureToleranceTypeNode specifies that a highly available resource can tolerate the
+	// failure of one or more nodes within a single-zone setup and still be available.
+	FailureToleranceTypeNode FailureToleranceType = "node"
+	// FailureToleranceTypeZone specifies that a highly available resource can tolerate the
+	// failure of one or more zones within a multi-zone setup and still be available.
+	FailureToleranceTypeZone FailureToleranceType = "zone"
 )

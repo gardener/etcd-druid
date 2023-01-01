@@ -28,6 +28,7 @@ type ControllerRegistration struct {
 	// Standard object metadata.
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 	// Spec contains the specification of this registration.
+	// If the object's deletion timestamp is set, this field is immutable.
 	Spec ControllerRegistrationSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
 }
 
@@ -62,16 +63,25 @@ type ControllerResource struct {
 	// Type is the resource type, for example "coreos" or "ubuntu".
 	Type string `json:"type" protobuf:"bytes,2,opt,name=type"`
 	// GloballyEnabled determines if this ControllerResource is required by all Shoot clusters.
+	// This field is defaulted to false when kind is "Extension".
 	// +optional
 	GloballyEnabled *bool `json:"globallyEnabled,omitempty" protobuf:"varint,3,opt,name=globallyEnabled"`
 	// ReconcileTimeout defines how long Gardener should wait for the resource reconciliation.
+	// This field is defaulted to 3m0s when kind is "Extension".
 	// +optional
 	ReconcileTimeout *metav1.Duration `json:"reconcileTimeout,omitempty" protobuf:"bytes,4,opt,name=reconcileTimeout"`
 	// Primary determines if the controller backed by this ControllerRegistration is responsible for the extension
 	// resource's lifecycle. This field defaults to true. There must be exactly one primary controller for this kind/type
-	// combination.
+	// combination. This field is immutable.
 	// +optional
 	Primary *bool `json:"primary,omitempty" protobuf:"varint,5,opt,name=primary"`
+	// Lifecycle defines a strategy that determines when different operations on a ControllerResource should be performed.
+	// This field is defaulted in the following way when kind is "Extension".
+	//  Reconcile: "AfterKubeAPIServer"
+	//  Delete: "BeforeKubeAPIServer"
+	//  Migrate: "BeforeKubeAPIServer"
+	// +optional
+	Lifecycle *ControllerResourceLifecycle `json:"lifecycle,omitempty" protobuf:"bytes,6,opt,name=lifecycle"`
 }
 
 // DeploymentRef contains information about `ControllerDeployment` references.
@@ -109,3 +119,26 @@ const (
 	// whether another resource requires it, but only when the respective seed has at least one shoot.
 	ControllerDeploymentPolicyAlwaysExceptNoShoots ControllerDeploymentPolicy = "AlwaysExceptNoShoots"
 )
+
+// ControllerResourceLifecycleStrategy is a string alias.
+type ControllerResourceLifecycleStrategy string
+
+const (
+	// BeforeKubeAPIServer specifies that a resource should be handled before the kube-apiserver.
+	BeforeKubeAPIServer ControllerResourceLifecycleStrategy = "BeforeKubeAPIServer"
+	// AfterKubeAPIServer specifies that a resource should be handled after the kube-apiserver.
+	AfterKubeAPIServer ControllerResourceLifecycleStrategy = "AfterKubeAPIServer"
+)
+
+// ControllerResourceLifecycle defines the lifecycle of a controller resource.
+type ControllerResourceLifecycle struct {
+	// Reconcile defines the strategy during reconciliation.
+	// +optional
+	Reconcile *ControllerResourceLifecycleStrategy `json:"reconcile,omitempty" protobuf:"bytes,1,opt,name=reconcile,casttype=ControllerResourceLifecycleStrategy"`
+	// Delete defines the strategy during deletion.
+	// +optional
+	Delete *ControllerResourceLifecycleStrategy `json:"delete,omitempty" protobuf:"bytes,2,opt,name=delete,casttype=ControllerResourceLifecycleStrategy"`
+	// Migrate defines the strategy during migration.
+	// +optional
+	Migrate *ControllerResourceLifecycleStrategy `json:"migrate,omitempty" protobuf:"bytes,3,opt,name=migrate,casttype=ControllerResourceLifecycleStrategy"`
+}
