@@ -12,15 +12,8 @@ rules:
   - serviceaccounts
   - services
   verbs:
-  - list
-  - watch
+  - create
   - delete
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  - endpoints
-  verbs:
   - get
   - list
   - patch
@@ -41,9 +34,6 @@ rules:
   resources:
   - events
   verbs:
-  - get
-  - list
-  - watch
   - create
   - get
   - list
@@ -171,8 +161,12 @@ rules:
   resources:
   - poddisruptionbudgets
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - rbac.authorization.k8s.io
