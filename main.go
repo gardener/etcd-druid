@@ -17,9 +17,11 @@ package main
 
 import (
 	"flag"
-	"go.uber.org/zap/zapcore"
+	"fmt"
 	"os"
 	"time"
+
+	"go.uber.org/zap/zapcore"
 
 	"github.com/gardener/etcd-druid/controllers"
 	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
@@ -34,60 +36,143 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
+const (
+	// General flags
+	flagMetricsAddr                           = "metrics-addr"
+	flagEnableLeaderElection                  = "enable-leader-election"
+	flagLeaderElectionID                      = "leader-election-id"
+	flagLeaderElectionResourceLock            = "leader-election-resource-lock"
+	flagIgnoreOperationAnnotation             = "ignore-operation-annotation"
+	flagDisableEtcdServiceAccountAutomount    = "disable-etcd-serviceaccount-automount"
+	flagDisableLeaseCache                     = "disable-lease-cache"
+	defaultMetricsAddr                        = ":8080"
+	defaultEnableLeaderElection               = false
+	defaultLeaderElectionID                   = "druid-leader-election"
+	defaultLeaderElectionResourceLock         = resourcelock.LeasesResourceLock
+	defaultIgnoreOperationAnnotation          = true
+	defaultDisableEtcdServiceAccountAutomount = false
+	defaultDisableLeaseCache                  = false
+
+	// Etcd controller flags
+	flagEtcdWorkers    = "workers"
+	defaultEtcdWorkers = 3
+
+	// Custodian controller flags
+	flagCustodianWorkers               = "custodian-workers"
+	flagCustodianSyncPeriod            = "custodian-sync-period"
+	flagEtcdMemberNotReadyThreshold    = "etcd-member-notready-threshold"
+	flagEtcdMemberUnknownThreshold     = "etcd-member-unknown-threshold"
+	defaultCustodianWorkers            = 3
+	defaultCustodianSyncPeriod         = 30 * time.Second
+	defaultEtcdMemberNotReadyThreshold = 5 * time.Minute
+	defaultEtcdMemberUnknownThreshold  = 1 * time.Minute
+
+	// Compaction lease controller flags
+	flagEnableBackupCompaction    = "enable-backup-compaction"
+	flagCompactionWorkers         = "compaction-workers"
+	flagEventsThreshold           = "etcd-events-threshold"
+	flagActiveDeadlineDuration    = "active-deadline-duration"
+	defaultEnableBackupCompaction = false
+	defaultCompactionWorkers      = 3
+	defaultEventsThreshold        = 1000000
+	defaultActiveDeadlineDuration = 3 * time.Hour
+
+	// Secrets controller flags
+	flagSecretWorkers    = "secret-workers"
+	defaultSecretWorkers = 10
+
+	// Etcd copy backups task controller flags
+	flagEtcdCopyBackupsTaskWorkers    = "etcd-copy-backups-task-workers"
+	defaultEtcdCopyBackupsTaskWorkers = 3
+)
+
 var setupLog = ctrl.Log.WithName("setup")
 
 func main() {
 	var (
 		metricsAddr                        string
 		enableLeaderElection               bool
-		enableBackupCompaction             bool
 		leaderElectionID                   string
 		leaderElectionResourceLock         string
-		etcdWorkers                        int
-		custodianWorkers                   int
-		secretWorkers                      int
-		etcdCopyBackupsTaskWorkers         int
-		custodianSyncPeriod                time.Duration
-		disableLeaseCache                  bool
-		compactionWorkers                  int
-		eventsThreshold                    int64
-		activeDeadlineDuration             time.Duration
 		ignoreOperationAnnotation          bool
 		disableEtcdServiceAccountAutomount bool
+		disableLeaseCache                  bool
 
+		etcdWorkers int
+
+		custodianWorkers            int
+		custodianSyncPeriod         time.Duration
 		etcdMemberNotReadyThreshold time.Duration
 		etcdMemberUnknownThreshold  time.Duration
 
-		defaultLeaderElectionResourceLock = resourcelock.LeasesResourceLock
-		defaultLeaderElectionID           = "druid-leader-election"
+		enableBackupCompaction bool
+		compactionWorkers      int
+		eventsThreshold        int64
+		activeDeadlineDuration time.Duration
+
+		secretWorkers int
+
+		etcdCopyBackupsTaskWorkers int
 	)
 
-	flag.IntVar(&etcdWorkers, "workers", 3, "Number of worker threads of the etcd controller.")
-	flag.IntVar(&custodianWorkers, "custodian-workers", 3, "Number of worker threads of the custodian controller.")
-	flag.IntVar(&secretWorkers, "secret-workers", 10, "Number of worker threads of the secret controller.")
-	flag.IntVar(&etcdCopyBackupsTaskWorkers, "etcd-copy-backups-task-workers", 3, "Number of worker threads of the EtcdCopyBackupsTask controller.")
-	flag.DurationVar(&custodianSyncPeriod, "custodian-sync-period", 30*time.Second, "Sync period of the custodian controller.")
-	flag.BoolVar(&enableBackupCompaction, "enable-backup-compaction", false,
-		"Enable automatic compaction of etcd backups.")
-	flag.IntVar(&compactionWorkers, "compaction-workers", 3, "Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. Setting this flag to 0 disabled the controller.")
-	flag.Int64Var(&eventsThreshold, "etcd-events-threshold", 1000000, "Total number of etcd events that can be allowed before a backup compaction job is triggered.")
-	flag.DurationVar(&activeDeadlineDuration, "active-deadline-duration", 3*time.Hour, "Duration after which a running backup compaction job will be killed (Ex: \"300ms\", \"20s\", \"-1.5h\" or \"2h45m\").")
-	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
-		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&leaderElectionID, "leader-election-id", defaultLeaderElectionID, "Name of the resource that leader election will use for holding the leader lock. "+
-		"Defaults to 'druid-leader-election'.")
-	flag.StringVar(&leaderElectionResourceLock, "leader-election-resource-lock", defaultLeaderElectionResourceLock, "Which resource type to use for leader election. "+
-		"Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'.")
-	flag.BoolVar(&disableLeaseCache, "disable-lease-cache", false, "Disable cache for lease.coordination.k8s.io resources.")
-	flag.BoolVar(&ignoreOperationAnnotation, "ignore-operation-annotation", true, "Ignore the operation annotation or not.")
-	flag.DurationVar(&etcdMemberNotReadyThreshold, "etcd-member-notready-threshold", 5*time.Minute, "Threshold after which an etcd member is considered not ready if the status was unknown before.")
-	flag.BoolVar(&disableEtcdServiceAccountAutomount, "disable-etcd-serviceaccount-automount", false, "If true then .automountServiceAccountToken will be set to false for the ServiceAccount created for etcd statefulsets.")
-	flag.DurationVar(&etcdMemberUnknownThreshold, "etcd-member-unknown-threshold", 1*time.Minute, "Threshold after which an etcd member is considered unknown.")
+	// General flags
+	flag.StringVar(&metricsAddr, flagMetricsAddr, defaultMetricsAddr, "The address the metric endpoint binds to.")
+	flag.BoolVar(&enableLeaderElection, flagEnableLeaderElection, defaultEnableLeaderElection, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&leaderElectionID, flagLeaderElectionID, defaultLeaderElectionID, fmt.Sprintf("Name of the resource that leader election will use for holding the leader lock. Defaults to '%s'.", defaultLeaderElectionID))
+	flag.StringVar(&leaderElectionResourceLock, flagLeaderElectionResourceLock, defaultLeaderElectionResourceLock, "Which resource type to use for leader election. Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'.")
+	flag.BoolVar(&ignoreOperationAnnotation, flagIgnoreOperationAnnotation, defaultIgnoreOperationAnnotation, "Ignore the operation annotation or not.")
+	flag.BoolVar(&disableEtcdServiceAccountAutomount, flagDisableEtcdServiceAccountAutomount, defaultDisableEtcdServiceAccountAutomount, "If true then .automountServiceAccountToken will be set to false for the ServiceAccount created for etcd statefulsets.")
+	flag.BoolVar(&disableLeaseCache, flagDisableLeaseCache, defaultDisableLeaseCache, "Disable cache for lease.coordination.k8s.io resources.")
+
+	// Etcd controller flags
+	flag.IntVar(&etcdWorkers, flagEtcdWorkers, defaultEtcdWorkers, "Number of worker threads of the etcd controller.")
+
+	// Custodian controller flags
+	flag.IntVar(&custodianWorkers, flagCustodianWorkers, defaultCustodianWorkers, "Number of worker threads of the custodian controller.")
+	flag.DurationVar(&custodianSyncPeriod, flagCustodianSyncPeriod, defaultCustodianSyncPeriod, "Sync period of the custodian controller.")
+	flag.DurationVar(&etcdMemberNotReadyThreshold, flagEtcdMemberNotReadyThreshold, defaultEtcdMemberNotReadyThreshold, "Threshold after which an etcd member is considered not ready if the status was unknown before.")
+	flag.DurationVar(&etcdMemberUnknownThreshold, flagEtcdMemberUnknownThreshold, defaultEtcdMemberUnknownThreshold, "Threshold after which an etcd member is considered unknown.")
+
+	// Compaction lease controller flags
+	flag.BoolVar(&enableBackupCompaction, flagEnableBackupCompaction, defaultEnableBackupCompaction, "Enable automatic compaction of etcd backups.")
+	flag.IntVar(&compactionWorkers, flagCompactionWorkers, defaultCompactionWorkers, "Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. Setting this flag to 0 disables the controller.")
+	flag.Int64Var(&eventsThreshold, flagEventsThreshold, defaultEventsThreshold, "Total number of etcd events that can be allowed before a backup compaction job is triggered.")
+	flag.DurationVar(&activeDeadlineDuration, flagActiveDeadlineDuration, defaultActiveDeadlineDuration, "Duration after which a running backup compaction job will be killed (Ex: \"300ms\", \"20s\", \"-1.5h\" or \"2h45m\").")
+
+	// Secrets controller flags
+	flag.IntVar(&secretWorkers, flagSecretWorkers, defaultSecretWorkers, "Number of worker threads of the secret controller.")
+
+	// Etcd copy backups task controller flags
+	flag.IntVar(&etcdCopyBackupsTaskWorkers, flagEtcdCopyBackupsTaskWorkers, defaultEtcdCopyBackupsTaskWorkers, "Number of worker threads of the EtcdCopyBackupsTask controller.")
 
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(buildDefaultLoggerOpts()...))
+
+	setupLog.Info("Running with",
+		flagMetricsAddr, metricsAddr,
+		flagEnableLeaderElection, enableLeaderElection,
+		flagLeaderElectionID, leaderElectionID,
+		flagLeaderElectionResourceLock, leaderElectionResourceLock,
+		flagIgnoreOperationAnnotation, ignoreOperationAnnotation,
+		flagDisableEtcdServiceAccountAutomount, disableEtcdServiceAccountAutomount,
+		flagDisableLeaseCache, disableLeaseCache,
+
+		flagEtcdWorkers, etcdWorkers,
+		flagCustodianWorkers, custodianWorkers,
+		flagCustodianSyncPeriod, custodianSyncPeriod,
+		flagEtcdMemberNotReadyThreshold, etcdMemberNotReadyThreshold,
+		flagEtcdMemberUnknownThreshold, etcdMemberUnknownThreshold,
+
+		flagEnableBackupCompaction, enableBackupCompaction,
+		flagCompactionWorkers, compactionWorkers,
+		flagEventsThreshold, eventsThreshold,
+		flagActiveDeadlineDuration, activeDeadlineDuration,
+
+		flagSecretWorkers, secretWorkers,
+
+		flagEtcdCopyBackupsTaskWorkers, etcdCopyBackupsTaskWorkers,
+	)
 
 	ctx := ctrl.SetupSignalHandler()
 
