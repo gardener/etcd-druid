@@ -310,6 +310,12 @@ spec:
                         description: Annotations specify the annotations that should
                           be added to the client service
                         type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: Labels specify the labels that should be added
+                          to the client service
+                        type: object
                     type: object
                   clientUrlTls:
                     description: ClientUrlTLS contains the ca, server TLS and client
