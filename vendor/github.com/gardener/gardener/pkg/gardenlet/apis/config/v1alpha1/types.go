@@ -20,9 +20,9 @@ import (
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
-	"k8s.io/klog"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -52,17 +52,11 @@ type GardenletConfiguration struct {
 	// +optional
 	LeaderElection *componentbaseconfigv1alpha1.LeaderElectionConfiguration `json:"leaderElection,omitempty"`
 	// LogLevel is the level/severity for the logs. Must be one of [info,debug,error].
-	// +optional
-	LogLevel *string `json:"logLevel,omitempty"`
+	LogLevel string `json:"logLevel"`
 	// LogFormat is the output format for the logs. Must be one of [text,json].
-	// +optional
-	LogFormat *string `json:"logFormat,omitempty"`
-	// KubernetesLogLevel is the log level used for Kubernetes' k8s.io/klog functions.
-	// +optional
-	KubernetesLogLevel *klog.Level `json:"kubernetesLogLevel,omitempty"`
+	LogFormat string `json:"logFormat"`
 	// Server defines the configuration of the HTTP server.
-	// +optional
-	Server *ServerConfiguration `json:"server,omitempty"`
+	Server ServerConfiguration `json:"server"`
 	// Debugging holds configuration for Debugging related features.
 	// +optional
 	Debugging *componentbaseconfigv1alpha1.DebuggingConfiguration `json:"debugging,omitempty"`
@@ -83,6 +77,10 @@ type GardenletConfiguration struct {
 	// by the Gardenlet in the seed clusters.
 	// +optional
 	SNI *SNI `json:"sni,omitempty"`
+	// ETCDConfig contains an optional configuration for the
+	// backup compaction feature in etcdbr
+	// +optional
+	ETCDConfig *ETCDConfig `json:"etcdConfig,omitempty"`
 	// ExposureClassHandlers is a list of optional of exposure class handlers.
 	// +optional
 	ExposureClassHandlers []ExposureClassHandler `json:"exposureClassHandlers,omitempty"`
@@ -96,11 +94,11 @@ type GardenletConfiguration struct {
 type GardenClientConnection struct {
 	componentbaseconfigv1alpha1.ClientConnectionConfiguration `json:",inline"`
 	// GardenClusterAddress is the external address that the gardenlets can use to remotely connect to the Garden
-	// cluster. It is needed in case the gardenlet deploys itself into shooted seeds.
+	// cluster. It is needed in case the gardenlet deploys itself into ManagedSeeds.
 	// +optional
 	GardenClusterAddress *string `json:"gardenClusterAddress,omitempty"`
 	// GardenClusterCACert is the external address that the gardenlets can use to remotely connect to the Garden
-	// cluster. It is needed in case the gardenlet deploys itself into shooted seeds.
+	// cluster. It is needed in case the gardenlet deploys itself into ManagedSeeds.
 	// +optional
 	GardenClusterCACert []byte `json:"gardenClusterCACert,omitempty"`
 	// BootstrapKubeconfig is a reference to a secret that contains a data key 'kubeconfig' whose value
@@ -113,6 +111,32 @@ type GardenClientConnection struct {
 	// will be considered.
 	// +optional
 	KubeconfigSecret *corev1.SecretReference `json:"kubeconfigSecret,omitempty"`
+	// KubeconfigValidity allows configuring certain settings related to the validity and rotation of kubeconfig
+	// secrets.
+	// +optional
+	KubeconfigValidity *KubeconfigValidity `json:"kubeconfigValidity,omitempty"`
+}
+
+// KubeconfigValidity allows configuring certain settings related to the validity and rotation of kubeconfig secrets.
+type KubeconfigValidity struct {
+	// Validity specifies the validity time for the client certificate issued by gardenlet. It will be set as
+	// .spec.expirationSeconds in the created CertificateSigningRequest resource.
+	// This value is not defaulted, meaning that the value configured via `--cluster-signing-duration` on
+	// kube-controller-manager is used.
+	// Note that using this value will only have effect for garden clusters >= Kubernetes 1.22.
+	// Note that changing this value will only have effect after the next rotation of the gardenlet's kubeconfig secret.
+	// +optional
+	Validity *metav1.Duration `json:"validity,omitempty"`
+	// AutoRotationJitterPercentageMin is the minimum percentage when it comes to compute a random jitter value for the
+	// automatic rotation deadline of expiring certificates. Defaults to 70. This means that gardenlet will renew its
+	// client certificate when 70% of its lifetime is reached the earliest.
+	// +optional
+	AutoRotationJitterPercentageMin *int32 `json:"autoRotationJitterPercentageMin,omitempty"`
+	// AutoRotationJitterPercentageMax is the maximum percentage when it comes to compute a random jitter value for the
+	// automatic rotation deadline of expiring certificates. Defaults to 90. This means that gardenlet will renew its
+	// client certificate when 90% of its lifetime is reached at the latest.
+	// +optional
+	AutoRotationJitterPercentageMax *int32 `json:"autoRotationJitterPercentageMax,omitempty"`
 }
 
 // SeedClientConnection specifies the client connection settings
@@ -135,6 +159,9 @@ type GardenletControllerConfiguration struct {
 	// BackupEntry defines the configuration of the BackupEntry controller.
 	// +optional
 	BackupEntry *BackupEntryControllerConfiguration `json:"backupEntry,omitempty"`
+	// BackupEntryMigration defines the configuration of the BackupEntryMigration controller.
+	// +optional
+	BackupEntryMigration *BackupEntryMigrationControllerConfiguration `json:"backupEntryMigration,omitempty"`
 	// Bastion defines the configuration of the Bastion controller.
 	// +optional
 	Bastion *BastionControllerConfiguration `json:"bastion,omitempty"`
@@ -156,15 +183,24 @@ type GardenletControllerConfiguration struct {
 	// ShootCare defines the configuration of the ShootCare controller.
 	// +optional
 	ShootCare *ShootCareControllerConfiguration `json:"shootCare,omitempty"`
+	// SeedCare defines the configuration of the SeedCare controller.
+	// +optional
+	SeedCare *SeedCareControllerConfiguration `json:"seedCare,omitempty"`
+	// ShootMigration defines the configuration of the ShootMigration controller.
+	// +optional
+	ShootMigration *ShootMigrationControllerConfiguration `json:"shootMigration,omitempty"`
 	// ShootStateSync defines the configuration of the ShootState controller
 	// +optional
 	ShootStateSync *ShootStateSyncControllerConfiguration `json:"shootStateSync,omitempty"`
 	// SeedAPIServerNetworkPolicy defines the configuration of the SeedAPIServerNetworkPolicy controller
 	// +optional
 	SeedAPIServerNetworkPolicy *SeedAPIServerNetworkPolicyControllerConfiguration `json:"seedAPIServerNetworkPolicy,omitempty"`
-	// ManagedSeedControllerConfiguration the configuration of the ManagedSeed controller.
+	// ManagedSeedControllerConfiguration defines the configuration of the ManagedSeed controller.
 	// +optional
 	ManagedSeed *ManagedSeedControllerConfiguration `json:"managedSeed,omitempty"`
+	// ShootSecretControllerConfiguration defines the configuration of the ShootSecret controller.
+	// +optional
+	ShootSecret *ShootSecretControllerConfiguration `json:"shootSecret,omitempty"`
 }
 
 // BackupBucketControllerConfiguration defines the configuration of the BackupBucket
@@ -189,6 +225,25 @@ type BackupEntryControllerConfiguration struct {
 	// BackupEntries corresponding to Shoots with different purposes will be deleted immediately.
 	// +optional
 	DeletionGracePeriodShootPurposes []gardencorev1beta1.ShootPurpose `json:"deletionGracePeriodShootPurposes,omitempty"`
+}
+
+// BackupEntryMigrationControllerConfiguration defines the configuration of the BackupEntryMigration
+// controller.
+type BackupEntryMigrationControllerConfiguration struct {
+	// ConcurrentSyncs is the number of workers used for the controller to work on
+	// events.
+	// +optional
+	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
+	// SyncPeriod is the duration how often the existing resources are reconciled.
+	// It is only relevant for backup entries that are currently being migrated.
+	// +optional
+	SyncPeriod *metav1.Duration `json:"syncPeriod,omitempty"`
+	// GracePeriod is the period to wait before forcing the restoration after the migration has started.
+	// +optional
+	GracePeriod *metav1.Duration `json:"gracePeriod,omitempty"`
+	// LastOperationStaleDuration is the duration to consider the last operation stale after it was last updated.
+	// +optional
+	LastOperationStaleDuration *metav1.Duration `json:"lastOperationStaleDuration,omitempty"`
 }
 
 // BastionControllerConfiguration defines the configuration of the Bastion
@@ -239,6 +294,15 @@ type SeedControllerConfiguration struct {
 	// SyncPeriod is the duration how often the existing resources are reconciled.
 	// +optional
 	SyncPeriod *metav1.Duration `json:"syncPeriod,omitempty"`
+	// LeaseResyncSeconds defines how often (in seconds) the seed lease is renewed.
+	// Defaults to 2
+	// +optional
+	LeaseResyncSeconds *int32 `json:"leaseResyncSeconds,omitempty"`
+	// LeaseResyncMissThreshold is the amount of missed lease resyncs before the health status
+	// is changed to false.
+	// Defaults to 10
+	// +optional
+	LeaseResyncMissThreshold *int32 `json:"leaseResyncMissThreshold,omitempty"`
 }
 
 // ShootControllerConfiguration defines the configuration of the Shoot
@@ -293,6 +357,49 @@ type ShootCareControllerConfiguration struct {
 	// ConditionThresholds defines the condition threshold per condition type.
 	// +optional
 	ConditionThresholds []ConditionThreshold `json:"conditionThresholds,omitempty"`
+	// WebhookRemediatorEnabled specifies whether the remediator for webhooks not following the Kubernetes best
+	// practices (https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#best-practices-and-warnings)
+	// is enabled.
+	// +optional
+	WebhookRemediatorEnabled *bool `json:"webhookRemediatorEnabled,omitempty"`
+}
+
+// SeedCareControllerConfiguration defines the configuration of the SeedCare
+// controller.
+type SeedCareControllerConfiguration struct {
+	// SyncPeriod is the duration how often the existing resources are reconciled (how
+	// often the health check of Seed clusters is performed
+	// +optional
+	SyncPeriod *metav1.Duration `json:"syncPeriod,omitempty"`
+	// ConditionThresholds defines the condition threshold per condition type.
+	// +optional
+	ConditionThresholds []ConditionThreshold `json:"conditionThresholds,omitempty"`
+}
+
+// ShootMigrationControllerConfiguration defines the configuration of the ShootMigration
+// controller.
+type ShootMigrationControllerConfiguration struct {
+	// ConcurrentSyncs is the number of workers used for the controller to work on
+	// events.
+	// +optional
+	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
+	// SyncPeriod is the duration how often the existing resources are reconciled.
+	// +optional
+	SyncPeriod *metav1.Duration `json:"syncPeriod,omitempty"`
+	// GracePeriod is the period to wait before forcing the restoration after the migration has started.
+	// It is only relevant for shoots that are currently being migrated.
+	// +optional
+	GracePeriod *metav1.Duration `json:"gracePeriod,omitempty"`
+	// LastOperationStaleDuration is the duration to consider the last operation stale after it was last updated.
+	// +optional
+	LastOperationStaleDuration *metav1.Duration `json:"lastOperationStaleDuration,omitempty"`
+}
+
+// ShootSecretControllerConfiguration defines the configuration of the ShootSecret controller.
+type ShootSecretControllerConfiguration struct {
+	// ConcurrentSyncs is the number of workers used for the controller to work on events.
+	// +optional
+	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 }
 
 // StaleExtensionHealthChecks defines the configuration of the check for stale extension health checks.
@@ -351,6 +458,10 @@ type ManagedSeedControllerConfiguration struct {
 	// duration between 0 and the configured value. It is defaulted to 5m.
 	// +optional
 	SyncJitterPeriod *metav1.Duration `json:"syncJitterPeriod,omitempty"`
+	// JitterUpdates enables enqueuing managed seeds with a random duration(jitter) in case of an update to the spec.
+	// The applied jitterPeriod is taken from SyncJitterPeriod.
+	// +optional
+	JitterUpdates *bool `json:"jitterUpdates,omitempty"`
 }
 
 // ResourcesConfiguration defines the total capacity for seed resources and the amount reserved for use by Gardener.
@@ -383,6 +494,16 @@ type FluentBit struct {
 	// If it is nil, fluent-bit uses default output configuration.
 	// +optional
 	OutputSection *string `json:"output,omitempty" yaml:"output,omitempty"`
+	// NetworkPolicy defines settings for the fluent-bit NetworkPolicy.
+	// +optional
+	NetworkPolicy *FluentBitNetworkPolicy `json:"networkPolicy,omitempty" yaml:"networkPolicy,omitempty"`
+}
+
+// FluentBitNetworkPolicy defines settings for the fluent-bit NetworkPolicy.
+type FluentBitNetworkPolicy struct {
+	// AdditionalEgressIPBlocks contains IP CIDRs for the egress network policy.
+	// +optional
+	AdditionalEgressIPBlocks []string `json:"additionalEgressIPBlocks,omitempty" yaml:"additionalEgressIPBlocks,omitempty"`
 }
 
 // Loki contains configuration for the Loki.
@@ -399,8 +520,10 @@ type Loki struct {
 
 // GardenLoki contains configuration for the Loki in garden namespace.
 type GardenLoki struct {
-	// Priority is the priority value for the Loki
-	Priority *int `json:"priority,omitempty" yaml:"priority,omitempty"`
+	// Storage is the disk storage capacity of the central Loki.
+	// Defaults to 100Gi.
+	// +optional
+	Storage *resource.Quantity `json:"storage,omitempty" yaml:"storage,omitempty"`
 }
 
 // ShootNodeLogging contains configuration for the shoot node logging.
@@ -410,8 +533,18 @@ type ShootNodeLogging struct {
 	ShootPurposes []gardencorev1beta1.ShootPurpose `json:"shootPurposes,omitempty" yaml:"shootPurposes,omitempty"`
 }
 
+// ShootEventLogging contains configurations for the shoot event logger.
+type ShootEventLogging struct {
+	// Enabled is used to enable or disable shoot event logger.
+	// +optional
+	Enabled *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}
+
 // Logging contains configuration for the logging stack.
 type Logging struct {
+	// Enabled is used to enable or disable logging stack for clusters.
+	// +optional
+	Enabled *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
 	// FluentBit contains configurations for the fluent-bit
 	// +optional
 	FluentBit *FluentBit `json:"fluentBit,omitempty" yaml:"fluentBit,omitempty"`
@@ -421,12 +554,19 @@ type Logging struct {
 	// ShootNodeLogging contains configurations for the shoot node logging
 	// +optional
 	ShootNodeLogging *ShootNodeLogging `json:"shootNodeLogging,omitempty" yaml:"shootNodeLogging,omitempty"`
+	// ShootEventLogging contains configurations for the shoot event logger.
+	// +optional
+	ShootEventLogging *ShootEventLogging `json:"shootEventLogging,omitempty" yaml:"shootEventLogging,omitempty"`
 }
 
 // ServerConfiguration contains details for the HTTP(S) servers.
 type ServerConfiguration struct {
-	// HTTPS is the configuration for the HTTPS server.
-	HTTPS HTTPSServer `json:"https"`
+	// HealthProbes is the configuration for serving the healthz and readyz endpoints.
+	// +optional
+	HealthProbes *Server `json:"healthProbes,omitempty"`
+	// Metrics is the configuration for serving the metrics endpoint.
+	// +optional
+	Metrics *Server `json:"metrics,omitempty"`
 }
 
 // Server contains information for HTTP(S) server configuration.
@@ -435,24 +575,6 @@ type Server struct {
 	BindAddress string `json:"bindAddress"`
 	// Port is the port on which to serve unsecured, unauthenticated access.
 	Port int `json:"port"`
-}
-
-// HTTPSServer is the configuration for the HTTPSServer server.
-type HTTPSServer struct {
-	// Server is the configuration for the bind address and the port.
-	Server `json:",inline"`
-	// TLSServer contains information about the TLS configuration for a HTTPS server. If empty then a proper server
-	// certificate will be self-generated during startup.
-	// +optional
-	TLS *TLSServer `json:"tls,omitempty"`
-}
-
-// TLSServer contains information about the TLS configuration for a HTTPS server.
-type TLSServer struct {
-	// ServerCertPath is the path to the server certificate file.
-	ServerCertPath string `json:"serverCertPath"`
-	// ServerKeyPath is the path to the private key file.
-	ServerKeyPath string `json:"serverKeyPath"`
 }
 
 // SNI contains an optional configuration for the APIServerSNI feature used
@@ -484,6 +606,68 @@ type SNIIngress struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }
 
+// ETCDConfig contains ETCD related configs
+type ETCDConfig struct {
+	// ETCDController contains config specific to ETCD controller
+	// +optional
+	ETCDController *ETCDController `json:"etcdController,omitempty"`
+	// CustodianController contains config specific to custodian controller
+	// +optional
+	CustodianController *CustodianController `json:"custodianController,omitempty"`
+	// BackupCompactionController contains config specific to backup compaction controller
+	// +optional
+	BackupCompactionController *BackupCompactionController `json:"backupCompactionController,omitempty"`
+	// BackupLeaderElection contains configuration for the leader election for the etcd backup-restore sidecar.
+	// +optional
+	BackupLeaderElection *ETCDBackupLeaderElection `json:"backupLeaderElection,omitempty"`
+}
+
+// ETCDController contains config specific to ETCD controller
+type ETCDController struct {
+	// Workers specify number of worker threads in ETCD controller
+	// Defaults to 50
+	// +optional
+	Workers *int64 `json:"workers,omitempty"`
+}
+
+// CustodianController contains config specific to custodian controller
+type CustodianController struct {
+	// Workers specify number of worker threads in custodian controller
+	// Defaults to 10
+	// +optional
+	Workers *int64 `json:"workers,omitempty"`
+}
+
+// BackupCompactionController contains config specific to backup compaction controller
+type BackupCompactionController struct {
+	// Workers specify number of worker threads in backup compaction controller
+	// Defaults to 3
+	// +optional
+	Workers *int64 `json:"workers,omitempty"`
+	// EnableBackupCompaction enables automatic compaction of etcd backups
+	// Defaults to false
+	// +optional
+	EnableBackupCompaction *bool `json:"enableBackupCompaction,omitempty"`
+	// EventsThreshold defines total number of etcd events that can be allowed before a backup compaction job is triggered
+	// Defaults to 1 Million events
+	// +optional
+	EventsThreshold *int64 `json:"eventsThreshold,omitempty"`
+	// ActiveDeadlineDuration defines duration after which a running backup compaction job will be killed
+	// Defaults to 3 hours
+	// +optional
+	ActiveDeadlineDuration *metav1.Duration `json:"activeDeadlineDuration,omitempty"`
+}
+
+// ETCDBackupLeaderElection contains configuration for the leader election for the etcd backup-restore sidecar.
+type ETCDBackupLeaderElection struct {
+	// ReelectionPeriod defines the Period after which leadership status of corresponding etcd is checked.
+	// +optional
+	ReelectionPeriod *metav1.Duration `json:"reelectionPeriod,omitempty"`
+	// EtcdConnectionTimeout defines the timeout duration for etcd client connection during leader election.
+	// +optional
+	EtcdConnectionTimeout *metav1.Duration `json:"etcdConnectionTimeout,omitempty"`
+}
+
 // ExposureClassHandler contains configuration for an exposure class handler.
 type ExposureClassHandler struct {
 	// Name is the name of the exposure class handler.
@@ -513,6 +697,10 @@ type MonitoringConfig struct {
 
 // ShootMonitoringConfig contains settings for the shoot monitoring stack.
 type ShootMonitoringConfig struct {
+	// Enabled is used to enable or disable the shoot monitoring stack.
+	// Defaults to true.
+	// +optional
+	Enabled *bool `json:"enabled,omitempty"`
 	// RemoteWrite is optional and contains remote write setting.
 	// +optional
 	RemoteWrite *RemoteWriteMonitoringConfig `json:"remoteWrite,omitempty"`
@@ -556,24 +744,24 @@ const (
 	// DefaultDiscoveryTTL is the default ttl for the cached discovery client.
 	DefaultDiscoveryTTL = 10 * time.Second
 
-	// DefaultLogLevel is the default log level.
-	DefaultLogLevel = "info"
-
-	// DefaultKubernetesLogLevel is the default Kubernetes log level.
-	DefaultKubernetesLogLevel klog.Level = 0
-
 	// DefaultControllerConcurrentSyncs is a default value for concurrent syncs for controllers.
 	DefaultControllerConcurrentSyncs = 20
 
-	// DefaultSNIIngresNamespace is the default sni ingress namespace.
-	DefaultSNIIngresNamespace = "istio-ingress"
+	// LogLevelDebug is the debug log level, i.e. the most verbose.
+	LogLevelDebug = "debug"
+	// LogLevelInfo is the default log level.
+	LogLevelInfo = "info"
+	// LogLevelError is a log level where only errors are logged.
+	LogLevelError = "error"
 
-	// DefaultSNIIngresServiceName is the default sni ingress service name.
-	DefaultSNIIngresServiceName = "istio-ingressgateway"
-
-	// DefaultIngressGatewayAppLabelValue is the ingress gateway value for the app label.
-	DefaultIngressGatewayAppLabelValue = "istio-ingressgateway"
+	// LogFormatJSON is the output type that produces a JSON object per log line.
+	LogFormatJSON = "json"
+	// LogFormatText outputs the log as human-readable text.
+	LogFormatText = "text"
 )
 
 // DefaultControllerSyncPeriod is a default value for sync period for controllers.
 var DefaultControllerSyncPeriod = metav1.Duration{Duration: time.Minute}
+
+// DefaultCentralLokiStorage is a default value for garden/loki's storage.
+var DefaultCentralLokiStorage = resource.MustParse("100Gi")

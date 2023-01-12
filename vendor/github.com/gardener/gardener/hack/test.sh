@@ -20,4 +20,17 @@ set -o pipefail
 
 echo "> Test"
 
-GO111MODULE=on go test -race -timeout=2m -mod=vendor $@ | grep -v 'no test files'
+test_flags=
+# If running in prow, we want to generate a machine-readable output file under the location specified via $ARTIFACTS.
+# This will add a JUnit view above the build log that shows an overview over successful and failed test cases.
+if [ -n "${CI:-}" -a -n "${ARTIFACTS:-}" ] ; then
+  if which report-collector &>/dev/null; then
+    mkdir -p "$ARTIFACTS"
+    trap "report-collector \"$ARTIFACTS/junit.xml\"" EXIT
+    test_flags="--ginkgo.junit-report=junit.xml"
+  else
+    echo "report-collector not found in PATH, not generating machine-readable test report"
+  fi
+fi
+
+GO111MODULE=on go test -race -timeout=2m -mod=vendor $@ $test_flags | grep -v 'no test files'

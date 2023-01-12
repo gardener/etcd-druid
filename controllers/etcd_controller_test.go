@@ -31,8 +31,7 @@ import (
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/ghodss/yaml"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	appsv1 "k8s.io/api/apps/v1"
@@ -52,7 +51,7 @@ import (
 )
 
 const (
-	timeout         = time.Minute * 2
+	timeout         = time.Minute * 5
 	pollingInterval = time.Second * 2
 	etcdConfig      = "etcd.conf.yaml"
 	backupRestore   = "backup-restore"
@@ -881,7 +880,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 								}),
 							}),
 							"ReadinessProbe": PointTo(MatchFields(IgnoreExtras, Fields{
-								"Handler": MatchFields(IgnoreExtras, Fields{
+								"ProbeHandler": MatchFields(IgnoreExtras, Fields{
 									"HTTPGet": PointTo(MatchFields(IgnoreExtras, Fields{
 										"Path":   Equal("/healthz"),
 										"Port":   Equal(intstr.FromInt(int(backupPort))),
@@ -1242,7 +1241,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								}),
 							}),
 							"ReadinessProbe": PointTo(MatchFields(IgnoreExtras, Fields{
-								"Handler": MatchFields(IgnoreExtras, Fields{
+								"ProbeHandler": MatchFields(IgnoreExtras, Fields{
 									"HTTPGet": PointTo(MatchFields(IgnoreExtras, Fields{
 										"Path":   Equal("/healthz"),
 										"Port":   Equal(intstr.FromInt(int(backupPort))),

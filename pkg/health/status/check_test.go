@@ -25,7 +25,7 @@ import (
 	"github.com/gardener/etcd-druid/pkg/health/condition"
 	"github.com/gardener/etcd-druid/pkg/health/etcdmember"
 	"github.com/gardener/gardener/pkg/utils/test"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -133,8 +133,9 @@ var _ = Describe("Check", func() {
 			defer test.WithVar(&TimeNow, func() time.Time { return timeNow })()
 
 			checker := NewChecker(nil, config)
+			logger := log.Log.WithName("Test")
 
-			Expect(checker.Check(context.Background(), log.NullLogger{}, etcd)).To(Succeed())
+			Expect(checker.Check(context.Background(), logger, etcd)).To(Succeed())
 
 			Expect(etcd.Status.Conditions).To(ConsistOf(
 				MatchFields(IgnoreExtras, Fields{
