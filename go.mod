@@ -31,7 +31,7 @@ require (
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/ahmetb/gen-crd-api-reference-docs v0.2.0 // indirect
 	github.com/aliyun/aliyun-oss-go-sdk v2.1.8+incompatible // indirect
-	github.com/aws/aws-sdk-go v1.32.6 // indirect
+	github.com/aws/aws-sdk-go v1.33.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bronze1man/yaml2json v0.0.0-20211227013850-8972abeaea25 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
