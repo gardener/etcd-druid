@@ -16,27 +16,25 @@ package controllerutils
 
 import (
 	"context"
-	"reflect"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // patchFn returns a client.Patch with the given client.Object as the base object.
-type patchFn func(client.Object) client.Patch
+type patchFn func(client.Object, ...client.MergeFromOption) client.Patch
 
-func mergeFrom(obj client.Object) client.Patch {
-	return client.MergeFrom(obj)
+func mergeFrom(obj client.Object, opts ...client.MergeFromOption) client.Patch {
+	return client.MergeFromWithOptions(obj, opts...)
 }
 
-func mergeFromWithOptimisticLock(obj client.Object) client.Patch {
-	return client.MergeFromWithOptions(obj, client.MergeFromWithOptimisticLock{})
+func mergeFromWithOptimisticLock(obj client.Object, opts ...client.MergeFromOption) client.Patch {
+	return client.MergeFromWithOptions(obj, append(opts, client.MergeFromWithOptimisticLock{})...)
 }
 
-func strategicMergeFrom(obj client.Object) client.Patch {
-	return client.StrategicMergeFrom(obj)
+func strategicMergeFrom(obj client.Object, opts ...client.MergeFromOption) client.Patch {
+	return client.StrategicMergeFrom(obj, opts...)
 }
 
 // GetAndCreateOrMergePatch is similar to controllerutil.CreateOrPatch, but does not care about the object's status section.
@@ -46,8 +44,8 @@ func strategicMergeFrom(obj client.Object) client.Patch {
 // The MutateFn is called regardless of creating or updating an object.
 //
 // It returns the executed operation and an error.
-func GetAndCreateOrMergePatch(ctx context.Context, c client.Client, obj client.Object, f controllerutil.MutateFn) (controllerutil.OperationResult, error) {
-	return getAndCreateOrPatch(ctx, c, obj, mergeFrom, f)
+func GetAndCreateOrMergePatch(ctx context.Context, c client.Client, obj client.Object, f controllerutil.MutateFn, opts ...client.MergeFromOption) (controllerutil.OperationResult, error) {
+	return getAndCreateOrPatch(ctx, c, obj, mergeFrom, f, opts...)
 }
 
 // GetAndCreateOrStrategicMergePatch is similar to controllerutil.CreateOrPatch, but does not care about the object's status section.
@@ -57,11 +55,11 @@ func GetAndCreateOrMergePatch(ctx context.Context, c client.Client, obj client.O
 // The MutateFn is called regardless of creating or updating an object.
 //
 // It returns the executed operation and an error.
-func GetAndCreateOrStrategicMergePatch(ctx context.Context, c client.Client, obj client.Object, f controllerutil.MutateFn) (controllerutil.OperationResult, error) {
-	return getAndCreateOrPatch(ctx, c, obj, strategicMergeFrom, f)
+func GetAndCreateOrStrategicMergePatch(ctx context.Context, c client.Client, obj client.Object, f controllerutil.MutateFn, opts ...client.MergeFromOption) (controllerutil.OperationResult, error) {
+	return getAndCreateOrPatch(ctx, c, obj, strategicMergeFrom, f, opts...)
 }
 
-func getAndCreateOrPatch(ctx context.Context, c client.Client, obj client.Object, patchFunc patchFn, f controllerutil.MutateFn) (controllerutil.OperationResult, error) {
+func getAndCreateOrPatch(ctx context.Context, c client.Client, obj client.Object, patchFunc patchFn, f controllerutil.MutateFn, opts ...client.MergeFromOption) (controllerutil.OperationResult, error) {
 	key := client.ObjectKeyFromObject(obj)
 	if err := c.Get(ctx, key, obj); err != nil {
 		if !apierrors.IsNotFound(err) {
@@ -76,7 +74,7 @@ func getAndCreateOrPatch(ctx context.Context, c client.Client, obj client.Object
 		return controllerutil.OperationResultCreated, nil
 	}
 
-	patch := patchFunc(obj.DeepCopyObject().(client.Object))
+	patch := patchFunc(obj.DeepCopyObject().(client.Object), opts...)
 	if err := f(); err != nil {
 		return controllerutil.OperationResultNone, err
 	}
@@ -92,8 +90,8 @@ func getAndCreateOrPatch(ctx context.Context, c client.Client, obj client.Object
 // The MutateFn is called regardless of creating or patching an object.
 //
 // It returns the executed operation and an error.
-func CreateOrGetAndMergePatch(ctx context.Context, c client.Client, obj client.Object, f controllerutil.MutateFn) (controllerutil.OperationResult, error) {
-	return createOrGetAndPatch(ctx, c, obj, mergeFrom, f)
+func CreateOrGetAndMergePatch(ctx context.Context, c client.Client, obj client.Object, f controllerutil.MutateFn, opts ...client.MergeFromOption) (controllerutil.OperationResult, error) {
+	return createOrGetAndPatch(ctx, c, obj, mergeFrom, f, opts...)
 }
 
 // CreateOrGetAndStrategicMergePatch creates or gets and patches (using a strategic merge patch) the given object in the Kubernetes cluster.
@@ -101,11 +99,11 @@ func CreateOrGetAndMergePatch(ctx context.Context, c client.Client, obj client.O
 // The MutateFn is called regardless of creating or patching an object.
 //
 // It returns the executed operation and an error.
-func CreateOrGetAndStrategicMergePatch(ctx context.Context, c client.Client, obj client.Object, f controllerutil.MutateFn) (controllerutil.OperationResult, error) {
-	return createOrGetAndPatch(ctx, c, obj, strategicMergeFrom, f)
+func CreateOrGetAndStrategicMergePatch(ctx context.Context, c client.Client, obj client.Object, f controllerutil.MutateFn, opts ...client.MergeFromOption) (controllerutil.OperationResult, error) {
+	return createOrGetAndPatch(ctx, c, obj, strategicMergeFrom, f, opts...)
 }
 
-func createOrGetAndPatch(ctx context.Context, c client.Client, obj client.Object, patchFunc patchFn, f controllerutil.MutateFn) (controllerutil.OperationResult, error) {
+func createOrGetAndPatch(ctx context.Context, c client.Client, obj client.Object, patchFunc patchFn, f controllerutil.MutateFn, opts ...client.MergeFromOption) (controllerutil.OperationResult, error) {
 	if err := f(); err != nil {
 		return controllerutil.OperationResultNone, err
 	}
@@ -119,7 +117,7 @@ func createOrGetAndPatch(ctx context.Context, c client.Client, obj client.Object
 			return controllerutil.OperationResultNone, err2
 		}
 
-		patch := patchFunc(obj.DeepCopyObject().(client.Object))
+		patch := patchFunc(obj.DeepCopyObject().(client.Object), opts...)
 		if err2 := f(); err2 != nil {
 			return controllerutil.OperationResultNone, err2
 		}
@@ -132,50 +130,4 @@ func createOrGetAndPatch(ctx context.Context, c client.Client, obj client.Object
 	}
 
 	return controllerutil.OperationResultCreated, nil
-}
-
-// TryPatch tries to apply the given transformation function onto the given object, and to patch it afterwards with optimistic locking.
-// It retries the patch with an exponential backoff.
-// Deprecated: This function is deprecated and will be removed in a future version. Please don't consider using it.
-// See https://github.com/gardener/gardener/blob/master/docs/development/kubernetes-clients.md#dont-retry-on-conflict
-// for more information.
-func TryPatch(ctx context.Context, backoff wait.Backoff, c client.Client, obj client.Object, transform func() error) error {
-	return tryPatch(ctx, backoff, c, obj, c.Patch, transform)
-}
-
-// TryPatchStatus tries to apply the given transformation function onto the given object, and to patch its
-// status afterwards with optimistic locking. It retries the status patch with an exponential backoff.
-// Deprecated: This function is deprecated and will be removed in a future version. Please don't consider using it.
-// See https://github.com/gardener/gardener/blob/master/docs/development/kubernetes-clients.md#dont-retry-on-conflict
-// for more information.
-func TryPatchStatus(ctx context.Context, backoff wait.Backoff, c client.Client, obj client.Object, transform func() error) error {
-	return tryPatch(ctx, backoff, c, obj, c.Status().Patch, transform)
-}
-
-func tryPatch(ctx context.Context, backoff wait.Backoff, c client.Client, obj client.Object, patchFunc func(context.Context, client.Object, client.Patch, ...client.PatchOption) error, transform func() error) error {
-	resetCopy := obj.DeepCopyObject()
-	return exponentialBackoff(ctx, backoff, func() (bool, error) {
-		if err := c.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
-			return false, err
-		}
-		beforeTransform := obj.DeepCopyObject().(client.Object)
-		if err := transform(); err != nil {
-			return false, err
-		}
-
-		if reflect.DeepEqual(obj, beforeTransform) {
-			return true, nil
-		}
-
-		patch := client.MergeFromWithOptions(beforeTransform, client.MergeFromWithOptimisticLock{})
-
-		if err := patchFunc(ctx, obj, patch); err != nil {
-			if apierrors.IsConflict(err) {
-				reflect.ValueOf(obj).Elem().Set(reflect.ValueOf(resetCopy).Elem())
-				return false, nil
-			}
-			return false, err
-		}
-		return true, nil
-	})
 }

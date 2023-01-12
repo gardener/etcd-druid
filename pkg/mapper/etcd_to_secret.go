@@ -15,7 +15,10 @@
 package mapper
 
 import (
+	"context"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/go-logr/logr"
 
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	"k8s.io/apimachinery/pkg/types"
@@ -25,7 +28,7 @@ import (
 
 type etcdToSecretMapper struct{}
 
-func (m *etcdToSecretMapper) Map(obj client.Object) []reconcile.Request {
+func (m *etcdToSecretMapper) Map(ctx context.Context, log logr.Logger, reader client.Reader, obj client.Object) []reconcile.Request {
 	etcd, ok := obj.(*druidv1alpha1.Etcd)
 	if !ok {
 		return nil

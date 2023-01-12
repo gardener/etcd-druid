@@ -30,7 +30,7 @@ func (w *withSuppressed) Error() string {
 	return fmt.Sprintf("%s, suppressed: %s", w.cause.Error(), w.suppressed.Error())
 }
 
-func (w *withSuppressed) Cause() error {
+func (w *withSuppressed) Unwrap() error {
 	return w.cause
 }
 
@@ -38,7 +38,7 @@ func (w *withSuppressed) Format(s fmt.State, verb rune) {
 	switch verb {
 	case 'v':
 		if s.Flag('+') {
-			_, _ = fmt.Fprintf(s, "%+v\nsuppressed: %+v", w.Cause(), w.suppressed)
+			_, _ = fmt.Fprintf(s, "%+v\nsuppressed: %+v", w.Unwrap(), w.suppressed)
 			return
 		}
 		fallthrough
@@ -54,9 +54,10 @@ func (w *withSuppressed) Suppressed() error {
 // Suppressed retrieves the suppressed error of the given error, if any.
 // An error has a suppressed error if it implements the following interface:
 //
-//     type suppressor interface {
-//            Suppressed() error
-//     }
+//	type suppressor interface {
+//	       Suppressed() error
+//	}
+//
 // If the error does not implement the interface, nil is returned.
 func Suppressed(err error) error {
 	type suppressor interface {
@@ -82,7 +83,7 @@ func WithSuppressed(err, suppressed error) error {
 	}
 }
 
-// reconciliationError implements ErrorIDer and Causer
+// reconciliationError implements ErrorIDer
 type reconciliationError struct {
 	error
 	errorID string
@@ -98,8 +99,7 @@ func (t *reconciliationError) ErrorID() string {
 	return t.errorID
 }
 
-// Cause implements the causer interface and returns the underlying error
-func (t *reconciliationError) Cause() error {
+func (t *reconciliationError) Unwrap() error {
 	return t.error
 }
 
@@ -199,7 +199,7 @@ func defaultFailureHandler(errorID string, err error) error {
 	return WithID(errorID, err)
 }
 
-//ToExecute takes an errorID and a function and creates a TaskFunc from them.
+// ToExecute takes an errorID and a function and creates a TaskFunc from them.
 func ToExecute(errorID string, task func() error) TaskFunc {
 	return taskFunc(func(errorContext *ErrorContext) (string, error) {
 		errorContext.AddErrorID(errorID)

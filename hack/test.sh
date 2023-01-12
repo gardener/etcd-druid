@@ -48,7 +48,7 @@ fi
 export KUBEBUILDER_CONTROLPLANE_START_TIMEOUT=2m
 export GOMEGA_DEFAULT_EVENTUALLY_TIMEOUT=5s
 export GOMEGA_DEFAULT_EVENTUALLY_POLLING_INTERVAL=200ms
-GINKGO_COMMON_FLAGS="-r -timeout=1h0m0s --randomizeAllSpecs --randomizeSuites --failOnPending --progress"
+GINKGO_COMMON_FLAGS="-r -timeout=1h0m0s --randomize-all --randomize-suites --fail-on-pending --progress"
 
 if ${TEST_COV:-false}; then
   output_dir=test/output

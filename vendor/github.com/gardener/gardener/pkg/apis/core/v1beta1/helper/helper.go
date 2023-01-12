@@ -27,11 +27,7 @@ import (
 	"github.com/Masterminds/semver"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/json"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -81,6 +77,7 @@ func UpdatedCondition(condition gardencorev1beta1.Condition, status gardencorev1
 	utilruntime.Must(err)
 	newCondition, _ := builder.
 		WithOldCondition(condition).
+		WithNowFunc(Now).
 		WithStatus(status).
 		WithReason(reason).
 		WithMessage(message).
@@ -124,6 +121,23 @@ func MergeConditions(oldConditions []gardencorev1beta1.Condition, newConditions 
 	return out
 }
 
+// RemoveConditions removes the conditions with the given types from the given conditions slice.
+func RemoveConditions(conditions []gardencorev1beta1.Condition, conditionTypes ...gardencorev1beta1.ConditionType) []gardencorev1beta1.Condition {
+	conditionTypesMap := make(map[gardencorev1beta1.ConditionType]struct{}, len(conditionTypes))
+	for _, conditionType := range conditionTypes {
+		conditionTypesMap[conditionType] = struct{}{}
+	}
+
+	var newConditions []gardencorev1beta1.Condition
+	for _, condition := range conditions {
+		if _, ok := conditionTypesMap[condition.Type]; !ok {
+			newConditions = append(newConditions, condition)
+		}
+	}
+
+	return newConditions
+}
+
 // ConditionsNeedUpdate returns true if the <existingConditions> must be updated based on <newConditions>.
 func ConditionsNeedUpdate(existingConditions, newConditions []gardencorev1beta1.Condition) bool {
 	return existingConditions == nil || !apiequality.Semantic.DeepEqual(newConditions, existingConditions)
@@ -144,8 +158,9 @@ func IsResourceSupported(resources []gardencorev1beta1.ControllerResource, resou
 // installed.
 func IsControllerInstallationSuccessful(controllerInstallation gardencorev1beta1.ControllerInstallation) bool {
 	var (
-		installed bool
-		healthy   bool
+		installed      bool
+		healthy        bool
+		notProgressing bool
 	)
 
 	for _, condition := range controllerInstallation.Status.Conditions {
@@ -155,9 +170,12 @@ func IsControllerInstallationSuccessful(controllerInstallation gardencorev1beta1
 		if condition.Type == gardencorev1beta1.ControllerInstallationHealthy && condition.Status == gardencorev1beta1.ConditionTrue {
 			healthy = true
 		}
+		if condition.Type == gardencorev1beta1.ControllerInstallationProgressing && condition.Status == gardencorev1beta1.ConditionFalse {
+			notProgressing = true
+		}
 	}
 
-	return installed && healthy
+	return installed && healthy && notProgressing
 }
 
 // IsControllerInstallationRequired returns true if a ControllerInstallation has been marked as "required".
@@ -239,43 +257,16 @@ func TaintsAreTolerated(taints []gardencorev1beta1.SeedTaint, tolerations []gard
 	return true
 }
 
-// ShootedSeed contains the configuration of a shooted seed.
-type ShootedSeed struct {
-	DisableDNS                      *bool
-	DisableCapacityReservation      *bool
-	Protected                       *bool
-	Visible                         *bool
-	LoadBalancerServicesAnnotations map[string]string
-	MinimumVolumeSize               *string
-	APIServer                       *ShootedSeedAPIServer
-	BlockCIDRs                      []string
-	ShootDefaults                   *gardencorev1beta1.ShootNetworks
-	Backup                          *gardencorev1beta1.SeedBackup
-	SeedProviderConfig              *runtime.RawExtension
-	IngressController               *gardencorev1beta1.IngressController
-	NoGardenlet                     bool
-	UseServiceAccountBootstrapping  bool
-	WithSecretRef                   bool
-	FeatureGates                    map[string]bool
-	Resources                       *ShootedSeedResources
-}
-
-// ShootedSeedAPIServer contains the configuration of a shooted seed API server.
-type ShootedSeedAPIServer struct {
+// ManagedSeedAPIServer contains the configuration of a ManagedSeed API server.
+type ManagedSeedAPIServer struct {
 	Replicas   *int32
-	Autoscaler *ShootedSeedAPIServerAutoscaler
+	Autoscaler *ManagedSeedAPIServerAutoscaler
 }
 
-// ShootedSeedAPIServerAutoscaler contains the configuration of a shooted seed API server autoscaler.
-type ShootedSeedAPIServerAutoscaler struct {
+// ManagedSeedAPIServerAutoscaler contains the configuration of a ManagedSeed API server autoscaler.
+type ManagedSeedAPIServerAutoscaler struct {
 	MinReplicas *int32
 	MaxReplicas int32
-}
-
-// ShootedSeedResources contains the resources capacity and reserved values of a shooted seed.
-type ShootedSeedResources struct {
-	Capacity corev1.ResourceList
-	Reserved corev1.ResourceList
 }
 
 func parseInt32(s string) (int32, error) {
@@ -284,94 +275,6 @@ func parseInt32(s string) (int32, error) {
 		return 0, err
 	}
 	return int32(i64), nil
-}
-
-func parseShootedSeed(annotation string) (*ShootedSeed, error) {
-	flags, settings := getFlagsAndSettings(annotation)
-
-	if _, ok := flags["true"]; !ok {
-		return nil, nil
-	}
-
-	shootedSeed := ShootedSeed{
-		LoadBalancerServicesAnnotations: parseShootedSeedLoadBalancerServicesAnnotations(settings),
-		FeatureGates:                    parseShootedSeedFeatureGates(settings),
-	}
-
-	apiServer, err := parseShootedSeedAPIServer(settings)
-	if err != nil {
-		return nil, err
-	}
-	shootedSeed.APIServer = apiServer
-
-	blockCIDRs, err := parseShootedSeedBlockCIDRs(settings)
-	if err != nil {
-		return nil, err
-	}
-	shootedSeed.BlockCIDRs = blockCIDRs
-
-	shootDefaults, err := parseShootedSeedShootDefaults(settings)
-	if err != nil {
-		return nil, err
-	}
-	shootedSeed.ShootDefaults = shootDefaults
-
-	backup, err := parseShootedSeedBackup(settings)
-	if err != nil {
-		return nil, err
-	}
-	shootedSeed.Backup = backup
-
-	seedProviderConfig, err := parseProviderConfig("providerConfig.", settings)
-	if err != nil {
-		return nil, err
-	}
-	shootedSeed.SeedProviderConfig = seedProviderConfig
-
-	resources, err := parseShootedSeedResources(settings)
-	if err != nil {
-		return nil, err
-	}
-	shootedSeed.Resources = resources
-
-	ingressController, err := parseIngressController(settings)
-	if err != nil {
-		return nil, err
-	}
-	shootedSeed.IngressController = ingressController
-
-	if size, ok := settings["minimumVolumeSize"]; ok {
-		shootedSeed.MinimumVolumeSize = &size
-	}
-	if _, ok := flags["disable-dns"]; ok {
-		shootedSeed.DisableDNS = pointer.Bool(true)
-	}
-	if _, ok := flags["disable-capacity-reservation"]; ok {
-		shootedSeed.DisableCapacityReservation = pointer.Bool(true)
-	}
-	if _, ok := flags["no-gardenlet"]; ok {
-		shootedSeed.NoGardenlet = true
-	}
-	if _, ok := flags["use-serviceaccount-bootstrapping"]; ok {
-		shootedSeed.UseServiceAccountBootstrapping = true
-	}
-	if _, ok := flags["with-secret-ref"]; ok {
-		shootedSeed.WithSecretRef = true
-	}
-	if _, ok := flags["protected"]; ok {
-		shootedSeed.Protected = pointer.Bool(true)
-	}
-	if _, ok := flags["unprotected"]; ok {
-		shootedSeed.Protected = pointer.Bool(false)
-	}
-	if _, ok := flags["visible"]; ok {
-		shootedSeed.Visible = pointer.Bool(true)
-	}
-	if _, ok := flags["invisible"]; ok {
-		shootedSeed.Visible = pointer.Bool(false)
-	}
-
-	return &shootedSeed, nil
 }
 
 func getFlagsAndSettings(annotation string) (map[string]struct{}, map[string]string) {
@@ -392,165 +295,8 @@ func getFlagsAndSettings(annotation string) (map[string]struct{}, map[string]str
 	return flags, settings
 }
 
-func parseShootedSeedBlockCIDRs(settings map[string]string) ([]string, error) {
-	cidrs, ok := settings["blockCIDRs"]
-	if !ok {
-		return nil, nil
-	}
-
-	return strings.Split(cidrs, ";"), nil
-}
-
-func parseShootedSeedShootDefaults(settings map[string]string) (*gardencorev1beta1.ShootNetworks, error) {
-	var (
-		podCIDR, ok1     = settings["shootDefaults.pods"]
-		serviceCIDR, ok2 = settings["shootDefaults.services"]
-	)
-
-	if !ok1 && !ok2 {
-		return nil, nil
-	}
-
-	shootNetworks := &gardencorev1beta1.ShootNetworks{}
-
-	if ok1 {
-		shootNetworks.Pods = &podCIDR
-	}
-
-	if ok2 {
-		shootNetworks.Services = &serviceCIDR
-	}
-
-	return shootNetworks, nil
-}
-
-func parseIngressController(settings map[string]string) (*gardencorev1beta1.IngressController, error) {
-	ingressController := &gardencorev1beta1.IngressController{}
-
-	kind, ok := settings["ingress.controller.kind"]
-	if !ok {
-		return nil, nil
-	}
-	ingressController.Kind = kind
-
-	parsedProviderConfig, err := parseProviderConfig("ingress.controller.providerConfig.", settings)
-	if err != nil {
-		return nil, fmt.Errorf("parsing Ingress providerConfig failed: %s", err.Error())
-	}
-	ingressController.ProviderConfig = parsedProviderConfig
-
-	return ingressController, nil
-}
-
-func parseShootedSeedBackup(settings map[string]string) (*gardencorev1beta1.SeedBackup, error) {
-	var (
-		provider, ok1           = settings["backup.provider"]
-		region, ok2             = settings["backup.region"]
-		secretRefName, ok3      = settings["backup.secretRef.name"]
-		secretRefNamespace, ok4 = settings["backup.secretRef.namespace"]
-	)
-
-	if ok1 && provider == "none" {
-		return nil, nil
-	}
-
-	backup := &gardencorev1beta1.SeedBackup{}
-
-	if ok1 {
-		backup.Provider = provider
-	}
-	if ok2 {
-		backup.Region = &region
-	}
-	if ok3 {
-		backup.SecretRef.Name = secretRefName
-	}
-	if ok4 {
-		backup.SecretRef.Namespace = secretRefNamespace
-	}
-
-	return backup, nil
-}
-
-func parseShootedSeedFeatureGates(settings map[string]string) map[string]bool {
-	featureGates := make(map[string]bool)
-
-	for k, v := range settings {
-		if strings.HasPrefix(k, "featureGates.") {
-			val, _ := strconv.ParseBool(v)
-			featureGates[strings.Split(k, ".")[1]] = val
-		}
-	}
-
-	if len(featureGates) == 0 {
-		return nil
-	}
-
-	return featureGates
-}
-
-func parseProviderConfig(prefix string, settings map[string]string) (*runtime.RawExtension, error) {
-	// reconstruct providerConfig structure
-	providerConfig := map[string]interface{}{}
-
-	var err error
-	for k, v := range settings {
-		if strings.HasPrefix(k, prefix) {
-			var value interface{}
-			if strings.HasPrefix(v, `"`) && strings.HasSuffix(v, `"`) {
-				value, err = strconv.Unquote(v)
-				if err != nil {
-					return nil, err
-				}
-			} else if b, err := strconv.ParseBool(v); err == nil {
-				value = b
-			} else if f, err := strconv.ParseFloat(v, 64); err == nil {
-				value = f
-			} else {
-				value = v
-			}
-
-			path := strings.TrimPrefix(k, prefix)
-			if err := unstructured.SetNestedField(providerConfig, value, strings.Split(path, ".")...); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	if len(providerConfig) == 0 {
-		return nil, nil
-	}
-
-	jsonStr, err := json.Marshal(providerConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	return &runtime.RawExtension{
-		Raw: jsonStr,
-	}, nil
-}
-
-func parseShootedSeedLoadBalancerServicesAnnotations(settings map[string]string) map[string]string {
-	const optionPrefix = "loadBalancerServices.annotations."
-
-	annotations := make(map[string]string)
-	for k, v := range settings {
-		if strings.HasPrefix(k, optionPrefix) {
-			annotationKey := strings.TrimPrefix(k, optionPrefix)
-			annotations[annotationKey] = v
-		}
-	}
-
-	if len(annotations) == 0 {
-		return nil
-	}
-
-	return annotations
-}
-
-func parseShootedSeedAPIServer(settings map[string]string) (*ShootedSeedAPIServer, error) {
-	apiServerAutoscaler, err := parseShootedSeedAPIServerAutoscaler(settings)
+func parseManagedSeedAPIServer(settings map[string]string) (*ManagedSeedAPIServer, error) {
+	apiServerAutoscaler, err := parseManagedSeedAPIServerAutoscaler(settings)
 	if err != nil {
 		return nil, err
 	}
@@ -560,7 +306,7 @@ func parseShootedSeedAPIServer(settings map[string]string) (*ShootedSeedAPIServe
 		return nil, nil
 	}
 
-	var apiServer ShootedSeedAPIServer
+	var apiServer ManagedSeedAPIServer
 
 	apiServer.Autoscaler = apiServerAutoscaler
 
@@ -576,17 +322,17 @@ func parseShootedSeedAPIServer(settings map[string]string) (*ShootedSeedAPIServe
 	return &apiServer, nil
 }
 
-func parseShootedSeedAPIServerAutoscaler(settings map[string]string) (*ShootedSeedAPIServerAutoscaler, error) {
+func parseManagedSeedAPIServerAutoscaler(settings map[string]string) (*ManagedSeedAPIServerAutoscaler, error) {
 	minReplicasString, ok1 := settings["apiServer.autoscaler.minReplicas"]
 	maxReplicasString, ok2 := settings["apiServer.autoscaler.maxReplicas"]
 	if !ok1 && !ok2 {
 		return nil, nil
 	}
 	if !ok2 {
-		return nil, fmt.Errorf("apiSrvMaxReplicas has to be specified for shooted seed API server autoscaler")
+		return nil, fmt.Errorf("apiSrvMaxReplicas has to be specified for ManagedSeed API server autoscaler")
 	}
 
-	var apiServerAutoscaler ShootedSeedAPIServerAutoscaler
+	var apiServerAutoscaler ManagedSeedAPIServerAutoscaler
 
 	if ok1 {
 		minReplicas, err := parseInt32(minReplicasString)
@@ -605,69 +351,20 @@ func parseShootedSeedAPIServerAutoscaler(settings map[string]string) (*ShootedSe
 	return &apiServerAutoscaler, nil
 }
 
-func parseShootedSeedResources(settings map[string]string) (*ShootedSeedResources, error) {
-	var capacity, reserved corev1.ResourceList
-
-	for k, v := range settings {
-		var resourceName corev1.ResourceName
-		var quantity resource.Quantity
-		var err error
-		if strings.HasPrefix(k, "resources.capacity.") || strings.HasPrefix(k, "resources.reserved.") {
-			resourceName = corev1.ResourceName(strings.Split(k, ".")[2])
-			quantity, err = resource.ParseQuantity(v)
-			if err != nil {
-				return nil, err
-			}
-			if strings.HasPrefix(k, "resources.capacity.") {
-				if capacity == nil {
-					capacity = make(corev1.ResourceList)
-				}
-				capacity[resourceName] = quantity
-			} else {
-				if reserved == nil {
-					reserved = make(corev1.ResourceList)
-				}
-				reserved[resourceName] = quantity
-			}
-		}
-	}
-
-	if len(capacity) == 0 && len(reserved) == 0 {
-		return nil, nil
-	}
-	return &ShootedSeedResources{
-		Capacity: capacity,
-		Reserved: reserved,
-	}, nil
-}
-
-func validateShootedSeed(shootedSeed *ShootedSeed, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-
-	if shootedSeed.APIServer != nil {
-		allErrs = append(allErrs, validateShootedSeedAPIServer(shootedSeed.APIServer, fldPath.Child("apiServer"))...)
-	}
-	if shootedSeed.Resources != nil {
-		allErrs = append(allErrs, validateShootedSeedResources(shootedSeed.Resources, fldPath.Child("resources"))...)
-	}
-
-	return allErrs
-}
-
-func validateShootedSeedAPIServer(apiServer *ShootedSeedAPIServer, fldPath *field.Path) field.ErrorList {
+func validateManagedSeedAPIServer(apiServer *ManagedSeedAPIServer, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if apiServer.Replicas != nil && *apiServer.Replicas < 1 {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("replicas"), *apiServer.Replicas, "must be greater than 0"))
 	}
 	if apiServer.Autoscaler != nil {
-		allErrs = append(allErrs, validateShootedSeedAPIServerAutoscaler(apiServer.Autoscaler, fldPath.Child("autoscaler"))...)
+		allErrs = append(allErrs, validateManagedSeedAPIServerAutoscaler(apiServer.Autoscaler, fldPath.Child("autoscaler"))...)
 	}
 
 	return allErrs
 }
 
-func validateShootedSeedAPIServerAutoscaler(autoscaler *ShootedSeedAPIServerAutoscaler, fldPath *field.Path) field.ErrorList {
+func validateManagedSeedAPIServerAutoscaler(autoscaler *ManagedSeedAPIServerAutoscaler, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if autoscaler.MinReplicas != nil && *autoscaler.MinReplicas < 1 {
@@ -683,45 +380,17 @@ func validateShootedSeedAPIServerAutoscaler(autoscaler *ShootedSeedAPIServerAuto
 	return allErrs
 }
 
-func validateShootedSeedResources(resources *ShootedSeedResources, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-
-	for resourceName, quantity := range resources.Capacity {
-		if reservedQuantity, ok := resources.Reserved[resourceName]; ok && reservedQuantity.Value() > quantity.Value() {
-			allErrs = append(allErrs, field.Invalid(fldPath.Child("reserved", string(resourceName)), resources.Reserved[resourceName], "must be lower or equal to capacity"))
-		}
-	}
-	for resourceName := range resources.Reserved {
-		if _, ok := resources.Capacity[resourceName]; !ok {
-			allErrs = append(allErrs, field.Invalid(fldPath.Child("reserved", string(resourceName)), resources.Reserved[resourceName], "reserved without capacity"))
-		}
-	}
-
-	return allErrs
-}
-
-func setDefaults_ShootedSeed(shootedSeed *ShootedSeed) {
-	if shootedSeed.APIServer == nil {
-		shootedSeed.APIServer = &ShootedSeedAPIServer{}
-	}
-	setDefaults_ShootedSeedAPIServer(shootedSeed.APIServer)
-	if shootedSeed.Resources == nil {
-		shootedSeed.Resources = &ShootedSeedResources{}
-	}
-	setDefaults_ShootedSeedResources(shootedSeed.Resources)
-}
-
-func setDefaults_ShootedSeedAPIServer(apiServer *ShootedSeedAPIServer) {
+func setDefaults_ManagedSeedAPIServer(apiServer *ManagedSeedAPIServer) {
 	if apiServer.Replicas == nil {
 		three := int32(3)
 		apiServer.Replicas = &three
 	}
 	if apiServer.Autoscaler == nil {
-		apiServer.Autoscaler = &ShootedSeedAPIServerAutoscaler{
+		apiServer.Autoscaler = &ManagedSeedAPIServerAutoscaler{
 			MaxReplicas: 3,
 		}
 	}
-	setDefaults_ShootedSeedAPIServerAutoscaler(apiServer.Autoscaler)
+	setDefaults_ManagedSeedAPIServerAutoscaler(apiServer.Autoscaler)
 }
 
 func minInt32(a int32, b int32) int32 {
@@ -731,53 +400,15 @@ func minInt32(a int32, b int32) int32 {
 	return b
 }
 
-func setDefaults_ShootedSeedAPIServerAutoscaler(autoscaler *ShootedSeedAPIServerAutoscaler) {
+func setDefaults_ManagedSeedAPIServerAutoscaler(autoscaler *ManagedSeedAPIServerAutoscaler) {
 	if autoscaler.MinReplicas == nil {
 		minReplicas := minInt32(3, autoscaler.MaxReplicas)
 		autoscaler.MinReplicas = &minReplicas
 	}
 }
 
-func setDefaults_ShootedSeedResources(resources *ShootedSeedResources) {
-	if _, ok := resources.Capacity[gardencorev1beta1.ResourceShoots]; !ok {
-		if resources.Capacity == nil {
-			resources.Capacity = make(corev1.ResourceList)
-		}
-		resources.Capacity[gardencorev1beta1.ResourceShoots] = resource.MustParse("250")
-	}
-}
-
-// ReadShootedSeed determines whether the Shoot has been marked to be registered automatically as a Seed cluster.
-func ReadShootedSeed(shoot *gardencorev1beta1.Shoot) (*ShootedSeed, error) {
-	if shoot.Namespace != v1beta1constants.GardenNamespace || shoot.Annotations == nil {
-		return nil, nil
-	}
-
-	val, ok := shoot.Annotations[v1beta1constants.AnnotationShootUseAsSeed]
-	if !ok {
-		return nil, nil
-	}
-
-	shootedSeed, err := parseShootedSeed(val)
-	if err != nil {
-		return nil, err
-	}
-
-	if shootedSeed == nil {
-		return nil, nil
-	}
-
-	setDefaults_ShootedSeed(shootedSeed)
-
-	if errs := validateShootedSeed(shootedSeed, nil); len(errs) > 0 {
-		return nil, errs.ToAggregate()
-	}
-
-	return shootedSeed, nil
-}
-
 // ReadManagedSeedAPIServer reads the managed seed API server settings from the corresponding annotation.
-func ReadManagedSeedAPIServer(shoot *gardencorev1beta1.Shoot) (*ShootedSeedAPIServer, error) {
+func ReadManagedSeedAPIServer(shoot *gardencorev1beta1.Shoot) (*ManagedSeedAPIServer, error) {
 	if shoot.Namespace != v1beta1constants.GardenNamespace || shoot.Annotations == nil {
 		return nil, nil
 	}
@@ -788,7 +419,7 @@ func ReadManagedSeedAPIServer(shoot *gardencorev1beta1.Shoot) (*ShootedSeedAPISe
 	}
 
 	_, settings := getFlagsAndSettings(val)
-	apiServer, err := parseShootedSeedAPIServer(settings)
+	apiServer, err := parseManagedSeedAPIServer(settings)
 	if err != nil {
 		return nil, err
 	}
@@ -796,9 +427,9 @@ func ReadManagedSeedAPIServer(shoot *gardencorev1beta1.Shoot) (*ShootedSeedAPISe
 		return nil, nil
 	}
 
-	setDefaults_ShootedSeedAPIServer(apiServer)
+	setDefaults_ManagedSeedAPIServer(apiServer)
 
-	if errs := validateShootedSeedAPIServer(apiServer, nil); len(errs) > 0 {
+	if errs := validateManagedSeedAPIServer(apiServer, nil); len(errs) > 0 {
 		return nil, errs.ToAggregate()
 	}
 
@@ -859,21 +490,65 @@ func ShootUsesUnmanagedDNS(shoot *gardencorev1beta1.Shoot) bool {
 	return shoot.Spec.DNS != nil && len(shoot.Spec.DNS.Providers) > 0 && shoot.Spec.DNS.Providers[0].Type != nil && *shoot.Spec.DNS.Providers[0].Type == "unmanaged"
 }
 
+// ShootSchedulingProfile returns the scheduling profile of the given Shoot.
+func ShootSchedulingProfile(shoot *gardencorev1beta1.Shoot) *gardencorev1beta1.SchedulingProfile {
+	if shoot.Spec.Kubernetes.KubeScheduler != nil {
+		return shoot.Spec.Kubernetes.KubeScheduler.Profile
+	}
+	return nil
+}
+
 // SeedSettingVerticalPodAutoscalerEnabled returns true if the 'verticalPodAutoscaler' setting is enabled.
 func SeedSettingVerticalPodAutoscalerEnabled(settings *gardencorev1beta1.SeedSettings) bool {
 	return settings == nil || settings.VerticalPodAutoscaler == nil || settings.VerticalPodAutoscaler.Enabled
 }
 
+// SeedSettingOwnerChecksEnabled returns true if the 'ownerChecks' setting is enabled.
+func SeedSettingOwnerChecksEnabled(settings *gardencorev1beta1.SeedSettings) bool {
+	return settings == nil || settings.OwnerChecks == nil || settings.OwnerChecks.Enabled
+}
+
+// SeedSettingDependencyWatchdogEndpointEnabled returns true if the depedency-watchdog-endpoint is enabled.
+func SeedSettingDependencyWatchdogEndpointEnabled(settings *gardencorev1beta1.SeedSettings) bool {
+	return settings == nil || settings.DependencyWatchdog == nil || settings.DependencyWatchdog.Endpoint == nil || settings.DependencyWatchdog.Endpoint.Enabled
+}
+
+// SeedSettingDependencyWatchdogProbeEnabled returns true if the depedency-watchdog-probe is enabled.
+func SeedSettingDependencyWatchdogProbeEnabled(settings *gardencorev1beta1.SeedSettings) bool {
+	return settings == nil || settings.DependencyWatchdog == nil || settings.DependencyWatchdog.Probe == nil || settings.DependencyWatchdog.Probe.Enabled
+}
+
+// SeedUsesNginxIngressController returns true if the seed's specification requires an nginx ingress controller to be deployed.
+func SeedUsesNginxIngressController(seed *gardencorev1beta1.Seed) bool {
+	return seed.Spec.DNS.Provider != nil && seed.Spec.Ingress != nil && seed.Spec.Ingress.Controller.Kind == v1beta1constants.IngressKindNginx
+}
+
 // DetermineMachineImageForName finds the cloud specific machine images in the <cloudProfile> for the given <name> and
 // region. In case it does not find the machine image with the <name>, it returns false. Otherwise, true and the
 // cloud-specific machine image will be returned.
-func DetermineMachineImageForName(cloudProfile *gardencorev1beta1.CloudProfile, name string) (bool, gardencorev1beta1.MachineImage, error) {
+func DetermineMachineImageForName(cloudProfile *gardencorev1beta1.CloudProfile, name string) (bool, gardencorev1beta1.MachineImage) {
 	for _, image := range cloudProfile.Spec.MachineImages {
 		if strings.EqualFold(image.Name, name) {
-			return true, image, nil
+			return true, image
 		}
 	}
-	return false, gardencorev1beta1.MachineImage{}, nil
+	return false, gardencorev1beta1.MachineImage{}
+}
+
+// FindMachineImageVersion finds the machine image version in the <cloudProfile> for the given <name> and <version>.
+// In case no machine image version can be found with the given <name> or <version>, false is being returned.
+func FindMachineImageVersion(cloudProfile *gardencorev1beta1.CloudProfile, name, version string) (bool, gardencorev1beta1.MachineImageVersion) {
+	for _, image := range cloudProfile.Spec.MachineImages {
+		if image.Name == name {
+			for _, imageVersion := range image.Versions {
+				if imageVersion.Version == version {
+					return true, imageVersion
+				}
+			}
+		}
+	}
+
+	return false, gardencorev1beta1.MachineImageVersion{}
 }
 
 // ShootMachineImageVersionExists checks if the shoot machine image (name, version) exists in the machine image constraint and returns true if yes and the index in the versions slice
@@ -925,20 +600,19 @@ func GetLatestQualifyingShootMachineImage(image gardencorev1beta1.MachineImage, 
 	return true, &gardencorev1beta1.ShootMachineImage{Name: image.Name, Version: &latestImageVersion.Version}, nil
 }
 
+// FindMachineTypeByName tries to find the machine type details with the given name. If it cannot be found it returns nil.
+func FindMachineTypeByName(machines []gardencorev1beta1.MachineType, name string) *gardencorev1beta1.MachineType {
+	for _, m := range machines {
+		if m.Name == name {
+			return &m
+		}
+	}
+	return nil
+}
+
 // SystemComponentsAllowed checks if the given worker allows system components to be scheduled onto it
 func SystemComponentsAllowed(worker *gardencorev1beta1.Worker) bool {
 	return worker.SystemComponents == nil || worker.SystemComponents.Allow
-}
-
-// UpdateMachineImages updates the machine images in place.
-func UpdateMachineImages(workers []gardencorev1beta1.Worker, machineImages []*gardencorev1beta1.ShootMachineImage) {
-	for _, machineImage := range machineImages {
-		for idx, worker := range workers {
-			if worker.Machine.Image != nil && machineImage.Name == worker.Machine.Image.Name {
-				workers[idx].Machine.Image = machineImage
-			}
-		}
-	}
 }
 
 // KubernetesVersionExistsInCloudProfile checks if the given Kubernetes version exists in the CloudProfile
@@ -1259,6 +933,11 @@ func NginxIngressEnabled(addons *gardencorev1beta1.Addons) bool {
 	return addons != nil && addons.NginxIngress != nil && addons.NginxIngress.Enabled
 }
 
+// KubeProxyEnabled returns true if the kube-proxy is enabled in the Shoot manifest.
+func KubeProxyEnabled(config *gardencorev1beta1.KubeProxyConfig) bool {
+	return config != nil && config.Enabled != nil && *config.Enabled
+}
+
 // BackupBucketIsErroneous returns `true` if the given BackupBucket has a last error.
 // It also returns the error description if available.
 func BackupBucketIsErroneous(bb *gardencorev1beta1.BackupBucket) (bool, string) {
@@ -1288,31 +967,6 @@ func SeedBackupSecretRefEqual(oldBackup, newBackup *gardencorev1beta1.SeedBackup
 	}
 
 	return apiequality.Semantic.DeepEqual(oldSecretRef, newSecretRef)
-}
-
-// ShootAuditPolicyConfigMapRefEqual returns true if the name of the ConfigMap reference for the audit policy
-// configuration is the same.
-func ShootAuditPolicyConfigMapRefEqual(oldAPIServerConfig, newAPIServerConfig *gardencorev1beta1.KubeAPIServerConfig) bool {
-	var (
-		oldConfigMapRefName string
-		newConfigMapRefName string
-	)
-
-	if oldAPIServerConfig != nil &&
-		oldAPIServerConfig.AuditConfig != nil &&
-		oldAPIServerConfig.AuditConfig.AuditPolicy != nil &&
-		oldAPIServerConfig.AuditConfig.AuditPolicy.ConfigMapRef != nil {
-		oldConfigMapRefName = oldAPIServerConfig.AuditConfig.AuditPolicy.ConfigMapRef.Name
-	}
-
-	if newAPIServerConfig != nil &&
-		newAPIServerConfig.AuditConfig != nil &&
-		newAPIServerConfig.AuditConfig.AuditPolicy != nil &&
-		newAPIServerConfig.AuditConfig.AuditPolicy.ConfigMapRef != nil {
-		newConfigMapRefName = newAPIServerConfig.AuditConfig.AuditPolicy.ConfigMapRef.Name
-	}
-
-	return oldConfigMapRefName == newConfigMapRefName
 }
 
 // ShootDNSProviderSecretNamesEqual returns true when all the secretNames in the `.spec.dns.providers[]` list are the
@@ -1365,6 +1019,24 @@ func ShootSecretResourceReferencesEqual(oldResources, newResources []gardencorev
 	return oldNames.Equal(newNames)
 }
 
+// GetShootAuditPolicyConfigMapName returns the Shoot's ConfigMap reference name for the audit policy.
+func GetShootAuditPolicyConfigMapName(apiServerConfig *gardencorev1beta1.KubeAPIServerConfig) string {
+	if ref := GetShootAuditPolicyConfigMapRef(apiServerConfig); ref != nil {
+		return ref.Name
+	}
+	return ""
+}
+
+// GetShootAuditPolicyConfigMapRef returns the Shoot's ConfigMap reference for the audit policy.
+func GetShootAuditPolicyConfigMapRef(apiServerConfig *gardencorev1beta1.KubeAPIServerConfig) *corev1.ObjectReference {
+	if apiServerConfig != nil &&
+		apiServerConfig.AuditConfig != nil &&
+		apiServerConfig.AuditConfig.AuditPolicy != nil {
+		return apiServerConfig.AuditConfig.AuditPolicy.ConfigMapRef
+	}
+	return nil
+}
+
 // ShootWantsAnonymousAuthentication returns true if anonymous authentication is set explicitly to 'true' and false otherwise.
 func ShootWantsAnonymousAuthentication(kubeAPIServerConfig *gardencorev1beta1.KubeAPIServerConfig) bool {
 	if kubeAPIServerConfig == nil {
@@ -1396,4 +1068,337 @@ func CalculateSeedUsage(shootList []gardencorev1beta1.Shoot) map[string]int {
 	}
 
 	return m
+}
+
+// CalculateEffectiveKubernetesVersion if a shoot has kubernetes version specified by worker group, return this,
+// otherwise the shoot kubernetes version
+func CalculateEffectiveKubernetesVersion(controlPlaneVersion *semver.Version, workerKubernetes *gardencorev1beta1.WorkerKubernetes) (*semver.Version, error) {
+	if workerKubernetes != nil && workerKubernetes.Version != nil {
+		return semver.NewVersion(*workerKubernetes.Version)
+	}
+	return controlPlaneVersion, nil
+}
+
+// GetSecretBindingTypes returns the SecretBinding provider types.
+func GetSecretBindingTypes(secretBinding *gardencorev1beta1.SecretBinding) []string {
+	return strings.Split(secretBinding.Provider.Type, ",")
+}
+
+// SecretBindingHasType checks if the given SecretBinding has the given provider type.
+func SecretBindingHasType(secretBinding *gardencorev1beta1.SecretBinding, providerType string) bool {
+	if secretBinding.Provider == nil {
+		return false
+	}
+
+	types := GetSecretBindingTypes(secretBinding)
+	if len(types) == 0 {
+		return false
+	}
+
+	return sets.NewString(types...).Has(providerType)
+}
+
+// AddTypeToSecretBinding adds the given provider type to the SecretBinding.
+func AddTypeToSecretBinding(secretBinding *gardencorev1beta1.SecretBinding, providerType string) {
+	if secretBinding.Provider == nil {
+		secretBinding.Provider = &gardencorev1beta1.SecretBindingProvider{
+			Type: providerType,
+		}
+		return
+	}
+
+	types := GetSecretBindingTypes(secretBinding)
+	if !sets.NewString(types...).Has(providerType) {
+		types = append(types, providerType)
+	}
+	secretBinding.Provider.Type = strings.Join(types, ",")
+}
+
+// IsCoreDNSAutoscalingModeUsed indicates whether the specified autoscaling mode of CoreDNS is enabled or not.
+func IsCoreDNSAutoscalingModeUsed(systemComponents *gardencorev1beta1.SystemComponents, autoscalingMode gardencorev1beta1.CoreDNSAutoscalingMode) bool {
+	isDefaultMode := autoscalingMode == gardencorev1beta1.CoreDNSAutoscalingModeHorizontal
+	if systemComponents == nil {
+		return isDefaultMode
+	}
+
+	if systemComponents.CoreDNS == nil {
+		return isDefaultMode
+	}
+
+	if systemComponents.CoreDNS.Autoscaling == nil {
+		return isDefaultMode
+	}
+
+	return systemComponents.CoreDNS.Autoscaling.Mode == autoscalingMode
+}
+
+// IsCoreDNSRewritingEnabled indicates whether automatic query rewriting in CoreDNS is enabled or not.
+func IsCoreDNSRewritingEnabled(featureGate bool, annotations map[string]string) bool {
+	_, disabled := annotations[v1beta1constants.AnnotationCoreDNSRewritingDisabled]
+	return featureGate && !disabled
+}
+
+// IsNodeLocalDNSEnabled indicates whether the node local DNS cache is enabled or not.
+// It can be enabled via the annotation (legacy) or via the shoot specification.
+func IsNodeLocalDNSEnabled(systemComponents *gardencorev1beta1.SystemComponents, annotations map[string]string) bool {
+	fromSpec := false
+	if systemComponents != nil && systemComponents.NodeLocalDNS != nil {
+		fromSpec = systemComponents.NodeLocalDNS.Enabled
+	}
+	fromAnnotation := false
+	if annotationValue, err := strconv.ParseBool(annotations[v1beta1constants.AnnotationNodeLocalDNS]); err == nil {
+		fromAnnotation = annotationValue
+	}
+	return fromSpec || fromAnnotation
+}
+
+// IsTCPEnforcedForNodeLocalDNSToClusterDNS indicates whether TCP is enforced for connections from the node local DNS cache to the cluster DNS (Core DNS) or not.
+// It can be disabled via the annotation (legacy) or via the shoot specification.
+func IsTCPEnforcedForNodeLocalDNSToClusterDNS(systemComponents *gardencorev1beta1.SystemComponents, annotations map[string]string) bool {
+	fromSpec := true
+	if systemComponents != nil && systemComponents.NodeLocalDNS != nil && systemComponents.NodeLocalDNS.ForceTCPToClusterDNS != nil {
+		fromSpec = *systemComponents.NodeLocalDNS.ForceTCPToClusterDNS
+	}
+	fromAnnotation := true
+	if annotationValue, err := strconv.ParseBool(annotations[v1beta1constants.AnnotationNodeLocalDNSForceTcpToClusterDns]); err == nil {
+		fromAnnotation = annotationValue
+	}
+	return fromSpec && fromAnnotation
+}
+
+// IsTCPEnforcedForNodeLocalDNSToUpstreamDNS indicates whether TCP is enforced for connections from the node local DNS cache to the upstream DNS (infrastructure DNS) or not.
+// It can be disabled via the annotation (legacy) or via the shoot specification.
+func IsTCPEnforcedForNodeLocalDNSToUpstreamDNS(systemComponents *gardencorev1beta1.SystemComponents, annotations map[string]string) bool {
+	fromSpec := true
+	if systemComponents != nil && systemComponents.NodeLocalDNS != nil && systemComponents.NodeLocalDNS.ForceTCPToUpstreamDNS != nil {
+		fromSpec = *systemComponents.NodeLocalDNS.DeepCopy().ForceTCPToUpstreamDNS
+	}
+	fromAnnotation := true
+	if annotationValue, err := strconv.ParseBool(annotations[v1beta1constants.AnnotationNodeLocalDNSForceTcpToUpstreamDns]); err == nil {
+		fromAnnotation = annotationValue
+	}
+	return fromSpec && fromAnnotation
+}
+
+// GetShootCARotationPhase returns the specified shoot CA rotation phase or an empty string
+func GetShootCARotationPhase(credentials *gardencorev1beta1.ShootCredentials) gardencorev1beta1.ShootCredentialsRotationPhase {
+	if credentials != nil && credentials.Rotation != nil && credentials.Rotation.CertificateAuthorities != nil {
+		return credentials.Rotation.CertificateAuthorities.Phase
+	}
+	return ""
+}
+
+// MutateShootCARotation mutates the .status.credentials.rotation.certificateAuthorities field based on the provided
+// mutation function. If the field is nil then it is initialized.
+func MutateShootCARotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ShootCARotation)) {
+	if shoot.Status.Credentials == nil {
+		shoot.Status.Credentials = &gardencorev1beta1.ShootCredentials{}
+	}
+	if shoot.Status.Credentials.Rotation == nil {
+		shoot.Status.Credentials.Rotation = &gardencorev1beta1.ShootCredentialsRotation{}
+	}
+	if shoot.Status.Credentials.Rotation.CertificateAuthorities == nil {
+		shoot.Status.Credentials.Rotation.CertificateAuthorities = &gardencorev1beta1.ShootCARotation{}
+	}
+
+	f(shoot.Status.Credentials.Rotation.CertificateAuthorities)
+}
+
+// MutateShootKubeconfigRotation mutates the .status.credentials.rotation.kubeconfig field based on the provided
+// mutation function. If the field is nil then it is initialized.
+func MutateShootKubeconfigRotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ShootKubeconfigRotation)) {
+	if shoot.Status.Credentials == nil {
+		shoot.Status.Credentials = &gardencorev1beta1.ShootCredentials{}
+	}
+	if shoot.Status.Credentials.Rotation == nil {
+		shoot.Status.Credentials.Rotation = &gardencorev1beta1.ShootCredentialsRotation{}
+	}
+	if shoot.Status.Credentials.Rotation.Kubeconfig == nil {
+		shoot.Status.Credentials.Rotation.Kubeconfig = &gardencorev1beta1.ShootKubeconfigRotation{}
+	}
+
+	f(shoot.Status.Credentials.Rotation.Kubeconfig)
+}
+
+// IsShootKubeconfigRotationInitiationTimeAfterLastCompletionTime returns true when the lastInitiationTime in the
+// .status.credentials.rotation.kubeconfig field is newer than the lastCompletionTime. This is also true if the
+// lastCompletionTime is unset.
+func IsShootKubeconfigRotationInitiationTimeAfterLastCompletionTime(credentials *gardencorev1beta1.ShootCredentials) bool {
+	if credentials == nil ||
+		credentials.Rotation == nil ||
+		credentials.Rotation.Kubeconfig == nil ||
+		credentials.Rotation.Kubeconfig.LastInitiationTime == nil {
+		return false
+	}
+
+	return credentials.Rotation.Kubeconfig.LastCompletionTime == nil ||
+		credentials.Rotation.Kubeconfig.LastCompletionTime.Before(credentials.Rotation.Kubeconfig.LastInitiationTime)
+}
+
+// MutateShootSSHKeypairRotation mutates the .status.credentials.rotation.sshKeypair field based on the provided
+// mutation function. If the field is nil then it is initialized.
+func MutateShootSSHKeypairRotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ShootSSHKeypairRotation)) {
+	if shoot.Status.Credentials == nil {
+		shoot.Status.Credentials = &gardencorev1beta1.ShootCredentials{}
+	}
+	if shoot.Status.Credentials.Rotation == nil {
+		shoot.Status.Credentials.Rotation = &gardencorev1beta1.ShootCredentialsRotation{}
+	}
+	if shoot.Status.Credentials.Rotation.SSHKeypair == nil {
+		shoot.Status.Credentials.Rotation.SSHKeypair = &gardencorev1beta1.ShootSSHKeypairRotation{}
+	}
+
+	f(shoot.Status.Credentials.Rotation.SSHKeypair)
+}
+
+// IsShootSSHKeypairRotationInitiationTimeAfterLastCompletionTime returns true when the lastInitiationTime in the
+// .status.credentials.rotation.sshKeypair field is newer than the lastCompletionTime. This is also true if the
+// lastCompletionTime is unset.
+func IsShootSSHKeypairRotationInitiationTimeAfterLastCompletionTime(credentials *gardencorev1beta1.ShootCredentials) bool {
+	if credentials == nil ||
+		credentials.Rotation == nil ||
+		credentials.Rotation.SSHKeypair == nil ||
+		credentials.Rotation.SSHKeypair.LastInitiationTime == nil {
+		return false
+	}
+
+	return credentials.Rotation.SSHKeypair.LastCompletionTime == nil ||
+		credentials.Rotation.SSHKeypair.LastCompletionTime.Before(credentials.Rotation.SSHKeypair.LastInitiationTime)
+}
+
+// MutateObservabilityRotation mutates the .status.credentials.rotation.observability field based on the provided
+// mutation function. If the field is nil then it is initialized.
+func MutateObservabilityRotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ShootObservabilityRotation)) {
+	if shoot.Status.Credentials == nil {
+		shoot.Status.Credentials = &gardencorev1beta1.ShootCredentials{}
+	}
+	if shoot.Status.Credentials.Rotation == nil {
+		shoot.Status.Credentials.Rotation = &gardencorev1beta1.ShootCredentialsRotation{}
+	}
+	if shoot.Status.Credentials.Rotation.Observability == nil {
+		shoot.Status.Credentials.Rotation.Observability = &gardencorev1beta1.ShootObservabilityRotation{}
+	}
+
+	f(shoot.Status.Credentials.Rotation.Observability)
+}
+
+// IsShootObservabilityRotationInitiationTimeAfterLastCompletionTime returns true when the lastInitiationTime in the
+// .status.credentials.rotation.observability field is newer than the lastCompletionTime. This is also true if the
+// lastCompletionTime is unset.
+func IsShootObservabilityRotationInitiationTimeAfterLastCompletionTime(credentials *gardencorev1beta1.ShootCredentials) bool {
+	if credentials == nil ||
+		credentials.Rotation == nil ||
+		credentials.Rotation.Observability == nil ||
+		credentials.Rotation.Observability.LastInitiationTime == nil {
+		return false
+	}
+
+	return credentials.Rotation.Observability.LastCompletionTime == nil ||
+		credentials.Rotation.Observability.LastCompletionTime.Before(credentials.Rotation.Observability.LastInitiationTime)
+}
+
+// GetShootServiceAccountKeyRotationPhase returns the specified shoot service account key rotation phase or an empty
+// string.
+func GetShootServiceAccountKeyRotationPhase(credentials *gardencorev1beta1.ShootCredentials) gardencorev1beta1.ShootCredentialsRotationPhase {
+	if credentials != nil && credentials.Rotation != nil && credentials.Rotation.ServiceAccountKey != nil {
+		return credentials.Rotation.ServiceAccountKey.Phase
+	}
+	return ""
+}
+
+// MutateShootServiceAccountKeyRotation mutates the .status.credentials.rotation.serviceAccountKey field based on the
+// provided mutation function. If the field is nil then it is initialized.
+func MutateShootServiceAccountKeyRotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ShootServiceAccountKeyRotation)) {
+	if shoot.Status.Credentials == nil {
+		shoot.Status.Credentials = &gardencorev1beta1.ShootCredentials{}
+	}
+	if shoot.Status.Credentials.Rotation == nil {
+		shoot.Status.Credentials.Rotation = &gardencorev1beta1.ShootCredentialsRotation{}
+	}
+	if shoot.Status.Credentials.Rotation.ServiceAccountKey == nil {
+		shoot.Status.Credentials.Rotation.ServiceAccountKey = &gardencorev1beta1.ShootServiceAccountKeyRotation{}
+	}
+
+	f(shoot.Status.Credentials.Rotation.ServiceAccountKey)
+}
+
+// GetShootETCDEncryptionKeyRotationPhase returns the specified shoot ETCD encryption key rotation phase or an empty
+// string.
+func GetShootETCDEncryptionKeyRotationPhase(credentials *gardencorev1beta1.ShootCredentials) gardencorev1beta1.ShootCredentialsRotationPhase {
+	if credentials != nil && credentials.Rotation != nil && credentials.Rotation.ETCDEncryptionKey != nil {
+		return credentials.Rotation.ETCDEncryptionKey.Phase
+	}
+	return ""
+}
+
+// MutateShootETCDEncryptionKeyRotation mutates the .status.credentials.rotation.etcdEncryptionKey field based on the
+// provided mutation function. If the field is nil then it is initialized.
+func MutateShootETCDEncryptionKeyRotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ShootETCDEncryptionKeyRotation)) {
+	if shoot.Status.Credentials == nil {
+		shoot.Status.Credentials = &gardencorev1beta1.ShootCredentials{}
+	}
+	if shoot.Status.Credentials.Rotation == nil {
+		shoot.Status.Credentials.Rotation = &gardencorev1beta1.ShootCredentialsRotation{}
+	}
+	if shoot.Status.Credentials.Rotation.ETCDEncryptionKey == nil {
+		shoot.Status.Credentials.Rotation.ETCDEncryptionKey = &gardencorev1beta1.ShootETCDEncryptionKeyRotation{}
+	}
+
+	f(shoot.Status.Credentials.Rotation.ETCDEncryptionKey)
+}
+
+// IsPSPDisabled returns true if the PodSecurityPolicy plugin is explicitly disabled in the ShootSpec or the cluster version is >= 1.25.
+func IsPSPDisabled(shoot *gardencorev1beta1.Shoot) bool {
+	if versionutils.ConstraintK8sGreaterEqual125.Check(semver.MustParse(shoot.Spec.Kubernetes.Version)) {
+		return true
+	}
+
+	if shoot.Spec.Kubernetes.KubeAPIServer != nil {
+		for _, plugin := range shoot.Spec.Kubernetes.KubeAPIServer.AdmissionPlugins {
+			if plugin.Name == "PodSecurityPolicy" && pointer.BoolDeref(plugin.Disabled, false) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// IsFailureToleranceTypeZone returns true if failureToleranceType is zone else returns false.
+func IsFailureToleranceTypeZone(failureToleranceType *gardencorev1beta1.FailureToleranceType) bool {
+	return failureToleranceType != nil && *failureToleranceType == gardencorev1beta1.FailureToleranceTypeZone
+}
+
+// IsFailureToleranceTypeNode returns true if failureToleranceType is node else returns false.
+func IsFailureToleranceTypeNode(failureToleranceType *gardencorev1beta1.FailureToleranceType) bool {
+	return failureToleranceType != nil && *failureToleranceType == gardencorev1beta1.FailureToleranceTypeNode
+}
+
+// IsHAControlPlaneConfigured returns true if HA configuration for the shoot control plane has been set either
+// via an alpha-annotation or ControlPlane Spec.
+func IsHAControlPlaneConfigured(shoot *gardencorev1beta1.Shoot) bool {
+	return metav1.HasAnnotation(shoot.ObjectMeta, v1beta1constants.ShootAlphaControlPlaneHighAvailability) || shoot.Spec.ControlPlane != nil && shoot.Spec.ControlPlane.HighAvailability != nil
+}
+
+// IsMultiZonalShootControlPlane checks if the shoot should have a multi-zonal control plane.
+func IsMultiZonalShootControlPlane(shoot *gardencorev1beta1.Shoot) bool {
+	hasZonalAnnotation := shoot.ObjectMeta.Annotations[v1beta1constants.ShootAlphaControlPlaneHighAvailability] == v1beta1constants.ShootAlphaControlPlaneHighAvailabilityMultiZone
+	hasZoneFailureToleranceTypeSetInSpec := shoot.Spec.ControlPlane != nil && shoot.Spec.ControlPlane.HighAvailability != nil && shoot.Spec.ControlPlane.HighAvailability.FailureTolerance.Type == gardencorev1beta1.FailureToleranceTypeZone
+	return hasZonalAnnotation || hasZoneFailureToleranceTypeSetInSpec
+}
+
+// GetFailureToleranceType determines the FailureToleranceType by looking at both the alpha HA annotations and shoot spec ControlPlane.
+func GetFailureToleranceType(shoot *gardencorev1beta1.Shoot) *gardencorev1beta1.FailureToleranceType {
+	if haAnnot, ok := shoot.Annotations[v1beta1constants.ShootAlphaControlPlaneHighAvailability]; ok {
+		var failureToleranceType gardencorev1beta1.FailureToleranceType
+		if haAnnot == v1beta1constants.ShootAlphaControlPlaneHighAvailabilityMultiZone {
+			failureToleranceType = gardencorev1beta1.FailureToleranceTypeZone
+		} else {
+			failureToleranceType = gardencorev1beta1.FailureToleranceTypeNode
+		}
+		return &failureToleranceType
+	}
+	if shoot.Spec.ControlPlane != nil && shoot.Spec.ControlPlane.HighAvailability != nil {
+		return &shoot.Spec.ControlPlane.HighAvailability.FailureTolerance.Type
+	}
+	return nil
 }

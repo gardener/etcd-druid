@@ -30,6 +30,7 @@ type ControllerInstallation struct {
 	// Standard object metadata.
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 	// Spec contains the specification of this installation.
+	// If the object's deletion timestamp is set, this field is immutable.
 	Spec ControllerInstallationSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
 	// Status contains the status of this installation.
 	Status ControllerInstallationStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
@@ -50,8 +51,9 @@ type ControllerInstallationList struct {
 // ControllerInstallationSpec is the specification of a ControllerInstallation.
 type ControllerInstallationSpec struct {
 	// RegistrationRef is used to reference a ControllerRegistration resource.
+	// The name field of the RegistrationRef is immutable.
 	RegistrationRef corev1.ObjectReference `json:"registrationRef" protobuf:"bytes,1,opt,name=registrationRef"`
-	// SeedRef is used to reference a Seed resource.
+	// SeedRef is used to reference a Seed resource. The name field of the SeedRef is immutable.
 	SeedRef corev1.ObjectReference `json:"seedRef" protobuf:"bytes,2,opt,name=seedRef"`
 	// DeploymentRef is used to reference a ControllerDeployment resource.
 	// +optional
@@ -75,6 +77,8 @@ const (
 	ControllerInstallationHealthy ConditionType = "Healthy"
 	// ControllerInstallationInstalled is a condition type for indicating whether the controller has been installed.
 	ControllerInstallationInstalled ConditionType = "Installed"
+	// ControllerInstallationProgressing is a condition type for indicating whether the controller is progressing.
+	ControllerInstallationProgressing ConditionType = "Progressing"
 	// ControllerInstallationValid is a condition type for indicating whether the installation request is valid.
 	ControllerInstallationValid ConditionType = "Valid"
 	// ControllerInstallationRequired is a condition type for indicating that the respective extension controller is

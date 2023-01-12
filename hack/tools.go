@@ -22,6 +22,6 @@ import (
 	_ "github.com/gardener/gardener/.github"
 	_ "github.com/gardener/gardener/hack"
 	_ "github.com/gardener/gardener/hack/.ci"
-	_ "github.com/onsi/ginkgo/ginkgo"
+	_ "github.com/onsi/ginkgo/v2/ginkgo"
 	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
 )
