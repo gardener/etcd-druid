@@ -38,13 +38,38 @@ import (
 
 const (
 	// General flags
-	flagMetricsAddr                           = "metrics-addr"
-	flagEnableLeaderElection                  = "enable-leader-election"
-	flagLeaderElectionID                      = "leader-election-id"
-	flagLeaderElectionResourceLock            = "leader-election-resource-lock"
-	flagIgnoreOperationAnnotation             = "ignore-operation-annotation"
-	flagDisableEtcdServiceAccountAutomount    = "disable-etcd-serviceaccount-automount"
-	flagDisableLeaseCache                     = "disable-lease-cache"
+	flagMetricsAddr                        = "metrics-addr"
+	flagEnableLeaderElection               = "enable-leader-election"
+	flagLeaderElectionID                   = "leader-election-id"
+	flagLeaderElectionResourceLock         = "leader-election-resource-lock"
+	flagIgnoreOperationAnnotation          = "ignore-operation-annotation"
+	flagDisableEtcdServiceAccountAutomount = "disable-etcd-serviceaccount-automount"
+	flagDisableLeaseCache                  = "disable-lease-cache"
+
+	// Etcd controller flags
+	flagEtcdWorkers = "workers"
+
+	// Custodian controller flags
+	flagCustodianWorkers            = "custodian-workers"
+	flagCustodianSyncPeriod         = "custodian-sync-period"
+	flagEtcdMemberNotReadyThreshold = "etcd-member-notready-threshold"
+	flagEtcdMemberUnknownThreshold  = "etcd-member-unknown-threshold"
+
+	// Compaction lease controller flags
+	flagEnableBackupCompaction = "enable-backup-compaction"
+	flagCompactionWorkers      = "compaction-workers"
+	flagEventsThreshold        = "etcd-events-threshold"
+	flagActiveDeadlineDuration = "active-deadline-duration"
+
+	// Secrets controller flags
+	flagSecretWorkers = "secret-workers"
+
+	// Etcd copy backups task controller flags
+	flagEtcdCopyBackupsTaskWorkers = "etcd-copy-backups-task-workers"
+)
+
+const (
+	// General flag defaults
 	defaultMetricsAddr                        = ":8080"
 	defaultEnableLeaderElection               = false
 	defaultLeaderElectionID                   = "druid-leader-election"
@@ -53,36 +78,25 @@ const (
 	defaultDisableEtcdServiceAccountAutomount = false
 	defaultDisableLeaseCache                  = false
 
-	// Etcd controller flags
-	flagEtcdWorkers    = "workers"
+	// Etcd controller flag defaults
 	defaultEtcdWorkers = 3
 
-	// Custodian controller flags
-	flagCustodianWorkers               = "custodian-workers"
-	flagCustodianSyncPeriod            = "custodian-sync-period"
-	flagEtcdMemberNotReadyThreshold    = "etcd-member-notready-threshold"
-	flagEtcdMemberUnknownThreshold     = "etcd-member-unknown-threshold"
+	// Custodian controller flag defaults
 	defaultCustodianWorkers            = 3
 	defaultCustodianSyncPeriod         = 30 * time.Second
 	defaultEtcdMemberNotReadyThreshold = 5 * time.Minute
 	defaultEtcdMemberUnknownThreshold  = 1 * time.Minute
 
-	// Compaction lease controller flags
-	flagEnableBackupCompaction    = "enable-backup-compaction"
-	flagCompactionWorkers         = "compaction-workers"
-	flagEventsThreshold           = "etcd-events-threshold"
-	flagActiveDeadlineDuration    = "active-deadline-duration"
+	// Compaction lease controller flag defaults
 	defaultEnableBackupCompaction = false
 	defaultCompactionWorkers      = 3
 	defaultEventsThreshold        = 1000000
 	defaultActiveDeadlineDuration = 3 * time.Hour
 
-	// Secrets controller flags
-	flagSecretWorkers    = "secret-workers"
+	// Secrets controller flag defaults
 	defaultSecretWorkers = 10
 
-	// Etcd copy backups task controller flags
-	flagEtcdCopyBackupsTaskWorkers    = "etcd-copy-backups-task-workers"
+	// Etcd copy backups task controller flag defaults
 	defaultEtcdCopyBackupsTaskWorkers = 3
 )
 
