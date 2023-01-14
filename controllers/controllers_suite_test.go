@@ -22,7 +22,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
+	config "github.com/gardener/etcd-druid/pkg/config"
 
 	"github.com/gardener/gardener/pkg/utils/test"
 	. "github.com/onsi/ginkgo/v2"
@@ -112,8 +112,8 @@ var _ = BeforeSuite(func() {
 	err = secret.SetupWithManager(mgr, 5)
 	Expect(err).NotTo(HaveOccurred())
 
-	custodian := NewEtcdCustodian(mgr, controllersconfig.EtcdCustodianController{
-		EtcdMember: controllersconfig.EtcdMemberConfig{
+	custodian := NewEtcdCustodian(mgr, config.CustodianControllerConfig{
+		EtcdMember: config.EtcdMemberConfig{
 			EtcdMemberNotReadyThreshold: 1 * time.Minute,
 		},
 	})
@@ -130,8 +130,8 @@ var _ = BeforeSuite(func() {
 	activeDeadlineDuration, err = time.ParseDuration("2m")
 	Expect(err).NotTo(HaveOccurred())
 
-	lc, err := NewCompactionLeaseControllerWithImageVector(mgr, controllersconfig.CompactionLeaseConfig{
-		CompactionEnabled:      true,
+	lc, err := NewCompactionLeaseControllerWithImageVector(mgr, config.CompactionLeaseControllerConfig{
+		EnableBackupCompaction: true,
 		EventsThreshold:        1000000,
 		ActiveDeadlineDuration: activeDeadlineDuration,
 	})

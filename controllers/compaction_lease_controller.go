@@ -38,8 +38,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 	"github.com/gardener/etcd-druid/pkg/common"
+	config "github.com/gardener/etcd-druid/pkg/config"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
@@ -56,11 +56,11 @@ type CompactionLeaseController struct {
 	client.Client
 	logger      logr.Logger
 	ImageVector imagevector.ImageVector
-	config      controllersconfig.CompactionLeaseConfig
+	config      config.CompactionLeaseControllerConfig
 }
 
 // NewCompactionLeaseController creates a new CompactionLeaseController object
-func NewCompactionLeaseController(mgr manager.Manager, config controllersconfig.CompactionLeaseConfig) *CompactionLeaseController {
+func NewCompactionLeaseController(mgr manager.Manager, config config.CompactionLeaseControllerConfig) *CompactionLeaseController {
 	return &CompactionLeaseController{
 		Client: mgr.GetClient(),
 		logger: log.Log.WithName("compaction-lease-controller"),
@@ -69,7 +69,7 @@ func NewCompactionLeaseController(mgr manager.Manager, config controllersconfig.
 }
 
 // NewCompactionLeaseControllerWithImageVector creates a new CompactionLeaseController object
-func NewCompactionLeaseControllerWithImageVector(mgr manager.Manager, config controllersconfig.CompactionLeaseConfig) (*CompactionLeaseController, error) {
+func NewCompactionLeaseControllerWithImageVector(mgr manager.Manager, config config.CompactionLeaseControllerConfig) (*CompactionLeaseController, error) {
 	lc := NewCompactionLeaseController(mgr, config)
 	return lc.InitializeControllerWithImageVector()
 }
@@ -182,7 +182,7 @@ func (lc *CompactionLeaseController) reconcileJob(ctx context.Context, logger lo
 			}, fmt.Errorf("error while fetching compaction job: %v", err)
 		}
 
-		if lc.config.CompactionEnabled {
+		if lc.config.EnableBackupCompaction {
 			// Required job doesn't exist. Create new
 			job, err = lc.createCompactJob(ctx, logger, etcd)
 			logger.Info("Job Creation")

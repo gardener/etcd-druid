@@ -16,12 +16,21 @@ package config
 
 import "time"
 
-// EtcdCustodianController contains configuration for the etcd custodian controller.
-type EtcdCustodianController struct {
-	// EtcdMember holds configuration related to etcd members.
-	EtcdMember EtcdMemberConfig
+const (
+	defaultCustodianWorkers            = 3
+	defaultCustodianSyncPeriod         = 30 * time.Second
+	defaultEtcdMemberNotReadyThreshold = 5 * time.Minute
+	defaultEtcdMemberUnknownThreshold  = 1 * time.Minute
+)
+
+// CustodianControllerConfig contains configuration for the etcd custodian controller.
+type CustodianControllerConfig struct {
+	// Workers denotes the number of worker threads for the custodian controller.
+	Workers int
 	// SyncPeriod is the duration after which re-enqueuing happens.
 	SyncPeriod time.Duration
+	// EtcdMember holds configuration related to etcd members.
+	EtcdMember EtcdMemberConfig
 }
 
 // EtcdMemberConfig holds configuration related to etcd members.
@@ -30,4 +39,16 @@ type EtcdMemberConfig struct {
 	EtcdMemberNotReadyThreshold time.Duration
 	// EtcdMemberUnknownThreshold is the duration after which an etcd member's state is considered `Unknown`.
 	EtcdMemberUnknownThreshold time.Duration
+}
+
+// NewCustodianControllerConfig returns custodian controller configuration with default values set.
+func NewCustodianControllerConfig() CustodianControllerConfig {
+	return CustodianControllerConfig{
+		Workers:    defaultCustodianWorkers,
+		SyncPeriod: defaultCustodianSyncPeriod,
+		EtcdMember: EtcdMemberConfig{
+			EtcdMemberNotReadyThreshold: defaultEtcdMemberNotReadyThreshold,
+			EtcdMemberUnknownThreshold:  defaultEtcdMemberUnknownThreshold,
+		},
+	}
 }

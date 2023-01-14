@@ -31,14 +31,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 	"github.com/gardener/etcd-druid/pkg/common"
+	config "github.com/gardener/etcd-druid/pkg/config"
 )
 
 type readyCheck struct {
 	logger logr.Logger
 
-	memberConfig controllersconfig.EtcdMemberConfig
+	memberConfig config.EtcdMemberConfig
 	cl           client.Client
 }
 
@@ -149,7 +149,7 @@ func (r *readyCheck) checkContainersAreReady(ctx context.Context, namespace stri
 }
 
 // ReadyCheck returns a check for the "Ready" condition.
-func ReadyCheck(cl client.Client, logger logr.Logger, config controllersconfig.EtcdCustodianController) Checker {
+func ReadyCheck(cl client.Client, logger logr.Logger, config config.CustodianControllerConfig) Checker {
 	return &readyCheck{
 		logger: logger,
 
