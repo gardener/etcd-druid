@@ -381,7 +381,7 @@ func getEtcdLeaderPodName(ctx context.Context, cl client.Client, namespace strin
 
 // getPodLogs returns logs for the given pod
 func getPodLogs(ctx context.Context, PodKey *types.NamespacedName, opts *corev1.PodLogOptions) (string, error) {
-	typedClient, err := getKubernetesTypedClient(kubeconfigPath)
+	typedClient, err := getKubernetesTypedClient()
 	if err != nil {
 		return "", err
 	}

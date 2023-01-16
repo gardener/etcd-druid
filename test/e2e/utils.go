@@ -40,11 +40,11 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 const (
@@ -387,26 +387,27 @@ func getProviders() ([]TestProvider, error) {
 	return providers, nil
 }
 
-func getKubeconfig(kubeconfigPath string) (*rest.Config, error) {
-	return clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-}
-
-func getKubernetesTypedClient(kubeconfigPath string) (*kubernetes.Clientset, error) {
-	config, err := getKubeconfig(kubeconfigPath)
+func getKubernetesTypedClient() (*kubernetes.Clientset, error) {
+	restConfig, err := config.GetConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	return kubernetes.NewForConfig(config)
+	return kubernetes.NewForConfig(restConfig)
 }
 
-func getKubernetesClient(kubeconfigPath string) (client.Client, error) {
-	config, err := getKubeconfig(kubeconfigPath)
+// GetKubernetesClientOrError creates and returns a kubernetes clientset or an error if creation fails
+func GetKubernetesClientOrError() (client.Client, error) {
+	var cl client.Client
+	restConfig, err := config.GetConfig()
 	if err != nil {
 		return nil, err
 	}
-
-	return client.New(config, client.Options{})
+	cl, err = client.New(restConfig, client.Options{})
+	if err != nil {
+		return nil, err
+	}
+	return cl, nil
 }
 
 func deploySecret(ctx context.Context, cl client.Client, logger logr.Logger, name, namespace string, labels map[string]string, secretType corev1.SecretType, secretData map[string][]byte) error {

@@ -38,10 +38,9 @@ const (
 	singleNodeEtcdTimeout = time.Minute
 	multiNodeEtcdTimeout  = time.Minute * 5
 
-	pollingInterval   = time.Second * 2
-	envSourcePath     = "SOURCE_PATH"
-	envKubeconfigPath = "KUBECONFIG"
-	etcdNamespace     = "shoot"
+	pollingInterval = time.Second * 2
+	envSourcePath   = "SOURCE_PATH"
+	etcdNamespace   = "shoot"
 
 	certsBasePath = "test/e2e/resources/tls"
 
@@ -77,16 +76,14 @@ var _ = BeforeSuite(func() {
 	Expect(len(providers)).To(BeNumerically(">", 0))
 
 	sourcePath = getEnvOrFallback(envSourcePath, ".")
-	kubeconfigPath = getEnvAndExpectNoError(envKubeconfigPath)
 
 	err = v1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	logger.V(1).Info("setting up k8s client", "KUBECONFIG", kubeconfigPath)
-	cl, err = getKubernetesClient(kubeconfigPath)
+	cl, err = GetKubernetesClientOrError()
 	Expect(err).ShouldNot(HaveOccurred())
 
-	typedClient, err = getKubernetesTypedClient(kubeconfigPath)
+	typedClient, err = getKubernetesTypedClient()
 	Expect(err).NotTo(HaveOccurred())
 
 	logger.Info("creating namespace", "namespace", etcdNamespace)
@@ -108,11 +105,7 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	ctx := context.Background()
 
-	kubeconfigPath, err := getEnvOrError(envKubeconfigPath)
-	Expect(err).NotTo(HaveOccurred())
-
-	logger.V(1).Info("setting up k8s client using", " KUBECONFIG", kubeconfigPath)
-	cl, err := getKubernetesClient(kubeconfigPath)
+	cl, err := GetKubernetesClientOrError()
 	Expect(err).ShouldNot(HaveOccurred())
 
 	namespaceLogger := logger.WithValues("namespace", etcdNamespace)
