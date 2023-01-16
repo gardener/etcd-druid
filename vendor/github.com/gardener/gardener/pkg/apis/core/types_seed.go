@@ -68,8 +68,8 @@ type SeedSpec struct {
 	Networks SeedNetworks
 	// Provider defines the provider type and region for this Seed cluster.
 	Provider SeedProvider
-	// SecretRef is a reference to a Secret object containing the Kubeconfig and the cloud provider credentials for
-	// the account the Seed cluster has been deployed to.
+	// SecretRef is a reference to a Secret object containing the Kubeconfig of the Kubernetes
+	// cluster to be registered as Seed.
 	SecretRef *corev1.SecretReference
 	// Settings contains certain settings for this seed cluster.
 	Settings *SeedSettings
@@ -77,7 +77,7 @@ type SeedSpec struct {
 	Taints []SeedTaint
 	// Volume contains settings for persistentvolumes created in the seed cluster.
 	Volume *SeedVolume
-	// Ingress configures Ingress specific settings of the Seed cluster.
+	// Ingress configures Ingress specific settings of the Seed cluster. This field is immutable.
 	Ingress *Ingress
 }
 
@@ -97,7 +97,7 @@ type SeedStatus struct {
 	// ObservedGeneration is the most recent generation observed for this Seed. It corresponds to the
 	// Seed's generation, which is updated on mutation by the API Server.
 	ObservedGeneration int64
-	// ClusterIdentity is the identity of Seed cluster
+	// ClusterIdentity is the identity of the Seed cluster. This field is immutable.
 	ClusterIdentity *string
 	// Capacity represents the total resources of a seed.
 	Capacity corev1.ResourceList
@@ -110,11 +110,11 @@ type SeedStatus struct {
 
 // SeedBackup contains the object store configuration for backups for shoot (currently only etcd).
 type SeedBackup struct {
-	// Provider is a provider name.
+	// Provider is a provider name. This field is immutable.
 	Provider string
 	// ProviderConfig is the configuration passed to BackupBucket resource.
 	ProviderConfig *runtime.RawExtension
-	// Region is a region name.
+	// Region is a region name. This field is immutable.
 	Region *string
 	// SecretRef is a reference to a Secret object containing the cloud provider credentials for
 	// the object store where backups should be stored. It should have enough privileges to manipulate
@@ -125,7 +125,7 @@ type SeedBackup struct {
 // SeedDNS contains the external domain and configuration for the DNS provider
 type SeedDNS struct {
 	// IngressDomain is the domain of the Seed cluster pointing to the ingress controller endpoint. It will be used
-	// to construct ingress URLs for system applications running in Shoot clusters. Once set this field is immutable.
+	// to construct ingress URLs for system applications running in Shoot clusters. This field is immutable.
 	// This will be removed in the next API version and replaced by spec.ingress.domain.
 	IngressDomain *string
 	// Provider configures a DNSProvider
@@ -163,11 +163,11 @@ type IngressController struct {
 
 // SeedNetworks contains CIDRs for the pod, service and node networks of a Kubernetes cluster.
 type SeedNetworks struct {
-	// Nodes is the CIDR of the node network.
+	// Nodes is the CIDR of the node network. This field is immutable.
 	Nodes *string
-	// Pods is the CIDR of the pod network.
+	// Pods is the CIDR of the pod network. This field is immutable.
 	Pods string
-	// Services is the CIDR of the service network.
+	// Services is the CIDR of the service network. This field is immutable.
 	Services string
 	// ShootDefaults contains the default networks CIDRs for shoots.
 	ShootDefaults *ShootNetworks
@@ -201,11 +201,16 @@ type SeedSettings struct {
 	// Scheduling controls settings for scheduling decisions for the seed.
 	Scheduling *SeedSettingScheduling
 	// ShootDNS controls the shoot DNS settings for the seed.
+	// Deprecated: This field is deprecated and will be removed in a future version of Gardener. Do not use it.
 	ShootDNS *SeedSettingShootDNS
 	// LoadBalancerServices controls certain settings for services of type load balancer that are created in the seed.
 	LoadBalancerServices *SeedSettingLoadBalancerServices
 	// VerticalPodAutoscaler controls certain settings for the vertical pod autoscaler components deployed in the seed.
 	VerticalPodAutoscaler *SeedSettingVerticalPodAutoscaler
+	// SeedSettingOwnerChecks controls certain owner checks settings for shoots scheduled on this seed.
+	OwnerChecks *SeedSettingOwnerChecks
+	// DependencyWatchdog controls certain settings for the dependency-watchdog components deployed in the seed.
+	DependencyWatchdog *SeedSettingDependencyWatchdog
 }
 
 // SeedSettingExcessCapacityReservation controls the excess capacity reservation for shoot control planes in the
@@ -243,6 +248,37 @@ type SeedSettingVerticalPodAutoscaler struct {
 	// Enabled controls whether the VPA components shall be deployed into the garden namespace in the seed cluster. It
 	// is enabled by default because Gardener heavily relies on a VPA being deployed. You should only disable this if
 	// your seed cluster already has another, manually/custom managed VPA deployment.
+	Enabled bool
+}
+
+// SeedSettingOwnerChecks controls certain owner checks settings for shoots scheduled on this seed.
+type SeedSettingOwnerChecks struct {
+	// Enabled controls whether owner checks are enabled for shoots scheduled on this seed. It
+	// is enabled by default because it is a prerequisite for control plane migration.
+	Enabled bool
+}
+
+// SeedSettingDependencyWatchdog controls the dependency-watchdog settings for the seed.
+type SeedSettingDependencyWatchdog struct {
+	// Endpoint controls the endpoint settings for the dependency-watchdog for the seed.
+	Endpoint *SeedSettingDependencyWatchdogEndpoint
+	// Probe controls the probe settings for the dependency-watchdog for the seed.
+	Probe *SeedSettingDependencyWatchdogProbe
+}
+
+// SeedSettingDependencyWatchdogEndpoint controls the endpoint settings for the dependency-watchdog for the seed.
+type SeedSettingDependencyWatchdogEndpoint struct {
+	// Enabled controls whether the endpoint controller of the dependency-watchdog should be enabled. This controller
+	// helps to alleviate the delay where control plane components remain unavailable by finding the respective pods in
+	// CrashLoopBackoff status and restarting them once their dependants become ready and available again.
+	Enabled bool
+}
+
+// SeedSettingDependencyWatchdogProbe controls the probe settings for the dependency-watchdog for the seed.
+type SeedSettingDependencyWatchdogProbe struct {
+	// Enabled controls whether the probe controller of the dependency-watchdog should be enabled. This controller
+	// scales down the kube-controller-manager of shoot clusters in case their respective kube-apiserver is not
+	// reachable via its external ingress in order to avoid melt-down situations.
 	Enabled bool
 }
 
@@ -286,6 +322,8 @@ const (
 	SeedExtensionsReady ConditionType = "ExtensionsReady"
 	// SeedGardenletReady is a constant for a condition type indicating that the Gardenlet is ready.
 	SeedGardenletReady ConditionType = "GardenletReady"
+	// SeedSystemComponentsHealthy is a constant for a condition type indicating the system components health.
+	SeedSystemComponentsHealthy ConditionType = "SeedSystemComponentsHealthy"
 )
 
 // Resource constants for Gardener object types

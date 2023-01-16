@@ -427,6 +427,9 @@ option go_package = "istio.io/api/networking/v1beta1";
 // +genclient
 // +k8s:deepcopy-gen=true
 // -->
+// <!-- istio code generation tags
+// +istio.io/sync-from:networking/v1alpha3/sidecar.proto
+// -->
 message Sidecar {
   // Criteria used to select the specific set of pods/VMs on which this
   // `Sidecar` configuration should be applied. If omitted, the `Sidecar`
@@ -488,6 +491,12 @@ message IstioIngressListener {
 
   reserved "localhost_client_tls";
   reserved 5, 6;
+
+  // Set of TLS related options that will enable TLS termination on the
+  // sidecar for requests originating from outside the mesh.
+  // Currently supports only SIMPLE and MUTUAL TLS modes.
+  // $hide_from_docs
+  ServerTLSSettings tls = 7;
 }
 
 // `IstioEgressListener` specifies the properties of an outbound traffic
@@ -552,7 +561,7 @@ message IstioEgressListener {
 }
 
 // `WorkloadSelector` specifies the criteria used to determine if the
-// `Gateway`, `Sidecar`, `EnvoyFilter`, or `ServiceEntry`
+// `Gateway`, `Sidecar`, `EnvoyFilter`, `ServiceEntry`, or `DestinationRule`
 // configuration can be applied to a proxy. The matching criteria
 // includes the metadata associated with a proxy, workload instance
 // info such as labels attached to the pod/VM, or any other info that
@@ -607,7 +616,7 @@ message OutboundTrafficPolicy {
   // Envoy's dynamic forward proxy can handle only HTTP and TLS
   // connections.
   // $hide_from_docs
-  istio.networking.v1beta1.Destination egress_proxy = 2;
+  Destination egress_proxy = 2;
 }
 
 

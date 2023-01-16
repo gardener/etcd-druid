@@ -21,8 +21,6 @@ IMAGE_BUILD_TAG     := $(VERSION)
 BUILD_DIR           := build
 PROVIDERS           := ""
 
-GOLANGCI_LINT_VERSION := v1.50.1
-
 IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 
 #########################################

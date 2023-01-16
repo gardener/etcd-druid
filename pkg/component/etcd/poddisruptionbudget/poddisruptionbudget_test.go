@@ -20,7 +20,7 @@ import (
 	"github.com/Masterminds/semver"
 	. "github.com/gardener/etcd-druid/pkg/component/etcd/poddisruptionbudget"
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"

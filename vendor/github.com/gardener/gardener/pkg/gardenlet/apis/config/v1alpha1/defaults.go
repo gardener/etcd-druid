@@ -18,14 +18,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gardener/gardener/pkg/logger"
-
-	v1alpha1constants "github.com/gardener/gardener/pkg/apis/core/v1alpha1/constants"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
 	"k8s.io/utils/pointer"
 )
@@ -51,70 +47,35 @@ func SetDefaults_GardenletConfiguration(obj *GardenletConfiguration) {
 	if obj.Controllers == nil {
 		obj.Controllers = &GardenletControllerConfiguration{}
 	}
-	if obj.Controllers.BackupBucket == nil {
-		obj.Controllers.BackupBucket = &BackupBucketControllerConfiguration{}
-	}
-	if obj.Controllers.BackupEntry == nil {
-		obj.Controllers.BackupEntry = &BackupEntryControllerConfiguration{}
-	}
-	if obj.Controllers.Bastion == nil {
-		obj.Controllers.Bastion = &BastionControllerConfiguration{}
-	}
-	if obj.Controllers.ControllerInstallation == nil {
-		obj.Controllers.ControllerInstallation = &ControllerInstallationControllerConfiguration{}
-	}
-	if obj.Controllers.ControllerInstallationCare == nil {
-		obj.Controllers.ControllerInstallationCare = &ControllerInstallationCareControllerConfiguration{}
-	}
-	if obj.Controllers.ControllerInstallationRequired == nil {
-		obj.Controllers.ControllerInstallationRequired = &ControllerInstallationRequiredControllerConfiguration{}
-	}
-	if obj.Controllers.Seed == nil {
-		obj.Controllers.Seed = &SeedControllerConfiguration{}
-	}
-	if obj.Controllers.Shoot == nil {
-		obj.Controllers.Shoot = &ShootControllerConfiguration{}
-	}
-	if obj.Controllers.ShootCare == nil {
-		obj.Controllers.ShootCare = &ShootCareControllerConfiguration{}
-	}
-	if obj.Controllers.ShootStateSync == nil {
-		obj.Controllers.ShootStateSync = &ShootStateSyncControllerConfiguration{}
-	}
-	if obj.Controllers.SeedAPIServerNetworkPolicy == nil {
-		obj.Controllers.SeedAPIServerNetworkPolicy = &SeedAPIServerNetworkPolicyControllerConfiguration{}
-	}
-	if obj.Controllers.ManagedSeed == nil {
-		obj.Controllers.ManagedSeed = &ManagedSeedControllerConfiguration{}
-	}
 
 	if obj.LeaderElection == nil {
 		obj.LeaderElection = &componentbaseconfigv1alpha1.LeaderElectionConfiguration{}
 	}
 
-	if obj.LogLevel == nil {
-		v := DefaultLogLevel
-		obj.LogLevel = &v
+	if obj.LogLevel == "" {
+		obj.LogLevel = LogLevelInfo
 	}
 
-	if obj.LogFormat == nil {
-		v := logger.FormatJSON
-		obj.LogFormat = &v
+	if obj.LogFormat == "" {
+		obj.LogFormat = LogFormatJSON
 	}
 
-	if obj.KubernetesLogLevel == nil {
-		v := DefaultKubernetesLogLevel
-		obj.KubernetesLogLevel = &v
+	if obj.Server.HealthProbes == nil {
+		obj.Server.HealthProbes = &Server{}
+	}
+	if obj.Server.HealthProbes.Port == 0 {
+		obj.Server.HealthProbes.Port = 2728
 	}
 
-	if obj.Server == nil {
-		obj.Server = &ServerConfiguration{}
+	if obj.Server.Metrics == nil {
+		obj.Server.Metrics = &Server{}
 	}
-	if len(obj.Server.HTTPS.BindAddress) == 0 {
-		obj.Server.HTTPS.BindAddress = "0.0.0.0"
+	if obj.Server.Metrics.Port == 0 {
+		obj.Server.Metrics.Port = 2729
 	}
-	if obj.Server.HTTPS.Port == 0 {
-		obj.Server.HTTPS.Port = 2720
+
+	if obj.Logging == nil {
+		obj.Logging = &Logging{}
 	}
 
 	// TODO: consider enabling profiling by default (like in k8s components)
@@ -123,7 +84,15 @@ func SetDefaults_GardenletConfiguration(obj *GardenletConfiguration) {
 		obj.SNI = &SNI{}
 	}
 
-	var defaultSVCName = DefaultSNIIngresServiceName
+	if obj.Monitoring == nil {
+		obj.Monitoring = &MonitoringConfig{}
+	}
+
+	if obj.ETCDConfig == nil {
+		obj.ETCDConfig = &ETCDConfig{}
+	}
+
+	var defaultSVCName = v1beta1constants.DefaultSNIIngressServiceName
 	for i, handler := range obj.ExposureClassHandlers {
 		if obj.ExposureClassHandlers[i].SNI == nil {
 			obj.ExposureClassHandlers[i].SNI = &SNI{Ingress: &SNIIngress{}}
@@ -140,10 +109,79 @@ func SetDefaults_GardenletConfiguration(obj *GardenletConfiguration) {
 		}
 		if len(obj.ExposureClassHandlers[i].SNI.Ingress.Labels) == 0 {
 			obj.ExposureClassHandlers[i].SNI.Ingress.Labels = map[string]string{
-				v1beta1constants.LabelApp:    DefaultIngressGatewayAppLabelValue,
-				v1alpha1constants.GardenRole: v1alpha1constants.GardenRoleExposureClassHandler,
+				v1beta1constants.LabelApp:   v1beta1constants.DefaultIngressGatewayAppLabelValue,
+				v1beta1constants.GardenRole: v1beta1constants.GardenRoleExposureClassHandler,
 			}
 		}
+	}
+}
+
+// SetDefaults_GardenClientConnection sets defaults for the controller objects.
+func SetDefaults_GardenClientConnection(obj *GardenClientConnection) {
+	if obj.KubeconfigValidity == nil {
+		obj.KubeconfigValidity = &KubeconfigValidity{}
+	}
+}
+
+// SetDefaults_KubeconfigValidity sets defaults for the controller objects.
+func SetDefaults_KubeconfigValidity(obj *KubeconfigValidity) {
+	if obj.AutoRotationJitterPercentageMin == nil {
+		obj.AutoRotationJitterPercentageMin = pointer.Int32(70)
+	}
+	if obj.AutoRotationJitterPercentageMax == nil {
+		obj.AutoRotationJitterPercentageMax = pointer.Int32(90)
+	}
+}
+
+// SetDefaults_GardenletControllerConfiguration sets defaults for the controller objects.
+func SetDefaults_GardenletControllerConfiguration(obj *GardenletControllerConfiguration) {
+	if obj.BackupBucket == nil {
+		obj.BackupBucket = &BackupBucketControllerConfiguration{}
+	}
+	if obj.BackupEntry == nil {
+		obj.BackupEntry = &BackupEntryControllerConfiguration{}
+	}
+	if obj.BackupEntryMigration == nil {
+		obj.BackupEntryMigration = &BackupEntryMigrationControllerConfiguration{}
+	}
+	if obj.Bastion == nil {
+		obj.Bastion = &BastionControllerConfiguration{}
+	}
+	if obj.ControllerInstallation == nil {
+		obj.ControllerInstallation = &ControllerInstallationControllerConfiguration{}
+	}
+	if obj.ControllerInstallationCare == nil {
+		obj.ControllerInstallationCare = &ControllerInstallationCareControllerConfiguration{}
+	}
+	if obj.ControllerInstallationRequired == nil {
+		obj.ControllerInstallationRequired = &ControllerInstallationRequiredControllerConfiguration{}
+	}
+	if obj.Seed == nil {
+		obj.Seed = &SeedControllerConfiguration{}
+	}
+	if obj.Shoot == nil {
+		obj.Shoot = &ShootControllerConfiguration{}
+	}
+	if obj.ShootCare == nil {
+		obj.ShootCare = &ShootCareControllerConfiguration{}
+	}
+	if obj.SeedCare == nil {
+		obj.SeedCare = &SeedCareControllerConfiguration{}
+	}
+	if obj.ShootMigration == nil {
+		obj.ShootMigration = &ShootMigrationControllerConfiguration{}
+	}
+	if obj.ShootSecret == nil {
+		obj.ShootSecret = &ShootSecretControllerConfiguration{}
+	}
+	if obj.ShootStateSync == nil {
+		obj.ShootStateSync = &ShootStateSyncControllerConfiguration{}
+	}
+	if obj.SeedAPIServerNetworkPolicy == nil {
+		obj.SeedAPIServerNetworkPolicy = &SeedAPIServerNetworkPolicyControllerConfiguration{}
+	}
+	if obj.ManagedSeed == nil {
+		obj.ManagedSeed = &ManagedSeedControllerConfiguration{}
 	}
 }
 
@@ -160,7 +198,9 @@ func SetDefaults_ClientConnectionConfiguration(obj *componentbaseconfigv1alpha1.
 // SetDefaults_LeaderElectionConfiguration sets defaults for the leader election of the gardenlet.
 func SetDefaults_LeaderElectionConfiguration(obj *componentbaseconfigv1alpha1.LeaderElectionConfiguration) {
 	if obj.ResourceLock == "" {
-		obj.ResourceLock = resourcelock.LeasesResourceLock
+		// Don't use a constant from the client-go resourcelock package here (resourcelock is not an API package, pulls
+		// in some other dependencies and is thereby not suitable to be used in this API package).
+		obj.ResourceLock = "leases"
 	}
 
 	componentbaseconfigv1alpha1.RecommendedDefaultLeaderElectionConfiguration(obj)
@@ -191,6 +231,44 @@ func SetDefaults_BackupEntryControllerConfiguration(obj *BackupEntryControllerCo
 	if obj.DeletionGracePeriodHours == nil || *obj.DeletionGracePeriodHours < 0 {
 		v := DefaultBackupEntryDeletionGracePeriodHours
 		obj.DeletionGracePeriodHours = &v
+	}
+}
+
+// SetDefaults_MonitoringConfig sets the defaults for the monitoring stack.
+func SetDefaults_MonitoringConfig(obj *MonitoringConfig) {
+	if obj.Shoot == nil {
+		obj.Shoot = &ShootMonitoringConfig{}
+	}
+}
+
+// SetDefaults_ShootMonitoringConfig sets the defaults for the shoot monitoring.
+func SetDefaults_ShootMonitoringConfig(obj *ShootMonitoringConfig) {
+	if obj.Enabled == nil {
+		v := true
+		obj.Enabled = &v
+	}
+}
+
+// SetDefaults_BackupEntryMigrationControllerConfiguration sets defaults for the backup entry migration controller.
+func SetDefaults_BackupEntryMigrationControllerConfiguration(obj *BackupEntryMigrationControllerConfiguration) {
+	if obj.ConcurrentSyncs == nil {
+		v := 5
+		obj.ConcurrentSyncs = &v
+	}
+
+	if obj.SyncPeriod == nil {
+		v := metav1.Duration{Duration: time.Minute}
+		obj.SyncPeriod = &v
+	}
+
+	if obj.GracePeriod == nil {
+		v := metav1.Duration{Duration: 10 * time.Minute}
+		obj.GracePeriod = &v
+	}
+
+	if obj.LastOperationStaleDuration == nil {
+		v := metav1.Duration{Duration: 2 * time.Minute}
+		obj.LastOperationStaleDuration = &v
 	}
 }
 
@@ -244,6 +322,14 @@ func SetDefaults_SeedControllerConfiguration(obj *SeedControllerConfiguration) {
 		v := DefaultControllerSyncPeriod
 		obj.SyncPeriod = &v
 	}
+
+	if obj.LeaseResyncSeconds == nil {
+		obj.LeaseResyncSeconds = pointer.Int32(2)
+	}
+
+	if obj.LeaseResyncMissThreshold == nil {
+		obj.LeaseResyncMissThreshold = pointer.Int32(10)
+	}
 }
 
 // SetDefaults_ShootControllerConfiguration sets defaults for the shoot controller.
@@ -296,11 +382,49 @@ func SetDefaults_ShootCareControllerConfiguration(obj *ShootCareControllerConfig
 	}
 }
 
+// SetDefaults_SeedCareControllerConfiguration sets defaults for the seed care controller.
+func SetDefaults_SeedCareControllerConfiguration(obj *SeedCareControllerConfiguration) {
+	if obj.SyncPeriod == nil {
+		v := metav1.Duration{Duration: 30 * time.Second}
+		obj.SyncPeriod = &v
+	}
+}
+
+// SetDefaults_ShootMigrationControllerConfiguration sets defaults for the shoot migration controller.
+func SetDefaults_ShootMigrationControllerConfiguration(obj *ShootMigrationControllerConfiguration) {
+	if obj.ConcurrentSyncs == nil {
+		v := 5
+		obj.ConcurrentSyncs = &v
+	}
+
+	if obj.SyncPeriod == nil {
+		v := metav1.Duration{Duration: time.Minute}
+		obj.SyncPeriod = &v
+	}
+
+	if obj.GracePeriod == nil {
+		v := metav1.Duration{Duration: 2 * time.Hour}
+		obj.GracePeriod = &v
+	}
+
+	if obj.LastOperationStaleDuration == nil {
+		v := metav1.Duration{Duration: 10 * time.Minute}
+		obj.LastOperationStaleDuration = &v
+	}
+}
+
 // SetDefaults_StaleExtensionHealthChecks sets defaults for the stale extension health checks.
 func SetDefaults_StaleExtensionHealthChecks(obj *StaleExtensionHealthChecks) {
 	if obj.Threshold == nil {
 		v := metav1.Duration{Duration: 5 * time.Minute}
 		obj.Threshold = &v
+	}
+}
+
+// SetDefaults_ShootSecretControllerConfiguration sets defaults for the shoot secret controller.
+func SetDefaults_ShootSecretControllerConfiguration(obj *ShootSecretControllerConfiguration) {
+	if obj.ConcurrentSyncs == nil {
+		obj.ConcurrentSyncs = pointer.Int(5)
 	}
 }
 
@@ -349,6 +473,10 @@ func SetDefaults_ManagedSeedControllerConfiguration(obj *ManagedSeedControllerCo
 		v := metav1.Duration{Duration: 5 * time.Minute}
 		obj.SyncJitterPeriod = &v
 	}
+
+	if obj.JitterUpdates == nil {
+		obj.JitterUpdates = pointer.Bool(false)
+	}
 }
 
 // SetDefaults_SNI sets defaults for SNI.
@@ -361,8 +489,8 @@ func SetDefaults_SNI(obj *SNI) {
 // SetDefaults_SNIIngress sets defaults for SNI ingressgateway.
 func SetDefaults_SNIIngress(obj *SNIIngress) {
 	var (
-		defaultNS      = DefaultSNIIngresNamespace
-		defaultSVCName = DefaultSNIIngresServiceName
+		defaultNS      = v1beta1constants.DefaultSNIIngressNamespace
+		defaultSVCName = v1beta1constants.DefaultSNIIngressServiceName
 	)
 
 	if obj.Namespace == nil {
@@ -375,8 +503,61 @@ func SetDefaults_SNIIngress(obj *SNIIngress) {
 
 	if obj.Labels == nil {
 		obj.Labels = map[string]string{
-			v1beta1constants.LabelApp: DefaultIngressGatewayAppLabelValue,
+			v1beta1constants.LabelApp: v1beta1constants.DefaultIngressGatewayAppLabelValue,
 			"istio":                   "ingressgateway",
 		}
+	}
+}
+
+// SetDefaults_Logging sets defaults for the Logging stack.
+func SetDefaults_Logging(obj *Logging) {
+	if obj.Enabled == nil {
+		obj.Enabled = pointer.Bool(false)
+	}
+	if obj.Loki == nil {
+		obj.Loki = &Loki{}
+	}
+	if obj.Loki.Enabled == nil {
+		obj.Loki.Enabled = obj.Enabled
+	}
+	if obj.Loki.Garden == nil {
+		obj.Loki.Garden = &GardenLoki{}
+	}
+	if obj.Loki.Garden.Storage == nil {
+		obj.Loki.Garden.Storage = &DefaultCentralLokiStorage
+	}
+	if obj.ShootEventLogging == nil {
+		obj.ShootEventLogging = &ShootEventLogging{}
+	}
+	if obj.ShootEventLogging.Enabled == nil {
+		obj.ShootEventLogging.Enabled = obj.Enabled
+	}
+}
+
+// SetDefaults_ETCDConfig sets defaults for the ETCD.
+func SetDefaults_ETCDConfig(obj *ETCDConfig) {
+	if obj.ETCDController == nil {
+		obj.ETCDController = &ETCDController{}
+	}
+	if obj.ETCDController.Workers == nil {
+		obj.ETCDController.Workers = pointer.Int64(50)
+	}
+	if obj.CustodianController == nil {
+		obj.CustodianController = &CustodianController{}
+	}
+	if obj.CustodianController.Workers == nil {
+		obj.CustodianController.Workers = pointer.Int64(10)
+	}
+	if obj.BackupCompactionController == nil {
+		obj.BackupCompactionController = &BackupCompactionController{}
+	}
+	if obj.BackupCompactionController.Workers == nil {
+		obj.BackupCompactionController.Workers = pointer.Int64(3)
+	}
+	if obj.BackupCompactionController.EnableBackupCompaction == nil {
+		obj.BackupCompactionController.EnableBackupCompaction = pointer.Bool(false)
+	}
+	if obj.BackupCompactionController.EventsThreshold == nil {
+		obj.BackupCompactionController.EventsThreshold = pointer.Int64(1000000)
 	}
 }

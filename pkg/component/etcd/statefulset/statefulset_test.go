@@ -30,7 +30,7 @@ import (
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	gomegatypes "github.com/onsi/gomega/types"
@@ -503,7 +503,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
 							"Image":           Equal(values.EtcdImage),
 							"ReadinessProbe": PointTo(MatchFields(IgnoreExtras, Fields{
-								"Handler":             getReadinessHandler(values),
+								"ProbeHandler":        getReadinessHandler(values),
 								"InitialDelaySeconds": Equal(int32(15)),
 								"PeriodSeconds":       Equal(int32(5)),
 								"FailureThreshold":    Equal(int32(5)),

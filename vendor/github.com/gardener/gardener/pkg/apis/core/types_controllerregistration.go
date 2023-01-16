@@ -28,6 +28,7 @@ type ControllerRegistration struct {
 	// Standard object metadata.
 	metav1.ObjectMeta
 	// Spec contains the specification of this registration.
+	// If the object's deletion timestamp is set, this field is immutable.
 	Spec ControllerRegistrationSpec
 }
 
@@ -44,14 +45,14 @@ type ControllerRegistrationList struct {
 
 // ControllerRegistrationSpec is the specification of a ControllerRegistration.
 type ControllerRegistrationSpec struct {
-	// Resources is a list of combinations of kinds (DNSProvider, Infrastructure, Generic, ...) and their actual types
+	// Resources is a list of combinations of kinds (Infrastructure, Generic, ...) and their actual types
 	// (aws-route53, gcp, auditlog, ...).
 	Resources []ControllerResource
 	// Deployment contains information for how this controller is deployed.
 	Deployment *ControllerRegistrationDeployment
 }
 
-// ControllerResource is a combination of a kind (DNSProvider, Infrastructure, Generic, ...) and the actual type for this
+// ControllerResource is a combination of a kind (Infrastructure, Generic, ...) and the actual type for this
 // kind (aws-route53, gcp, auditlog, ...).
 type ControllerResource struct {
 	// Kind is the resource kind.
@@ -64,7 +65,7 @@ type ControllerResource struct {
 	ReconcileTimeout *metav1.Duration
 	// Primary determines if the controller backed by this ControllerRegistration is responsible for the extension
 	// resource's lifecycle. This field defaults to true. There must be exactly one primary controller for this kind/type
-	// combination.
+	// combination. This field is immutable.
 	Primary *bool
 }
 
