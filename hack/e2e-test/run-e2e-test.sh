@@ -81,6 +81,14 @@ function undeploy {
       delete_namespace
     fi
     undeploy_done="true"
+
+
+  if [[ ${CLUSTER} == "local" ]]; then
+    echo "-------------------"
+    echo "Deleting local kind cluster"
+    echo "-------------------"
+    cleanup_local
+  fi
 }
 
 function setup_e2e {
@@ -143,6 +151,18 @@ function setup_aws_e2e {
   setup_e2e
 }
 
+function setup_local {
+  kind create cluster \
+  --name ${TEST_ID}
+}
+
+function cleanup_local {
+  kind delete cluster \
+  --name ${TEST_ID}
+
+rm -f  "$KUBECONFIG"
+}
+
 function usage_azure {
     cat <<EOM
 Usage:
@@ -188,10 +208,28 @@ function setup_gcp_e2e {
   setup_e2e
 }
 
+function get_test_id() {
+  git_commit=`git show -s --format="%H"`
+  export TEST_ID=${TEST_ID_PREFIX}-${git_commit:0:8}
+  echo "Test id: ${TEST_ID}"
+}
+
+: ${TEST_ID_PREFIX:="druid-e2e"}
 : ${INFRA_PROVIDERS:=""}
 : ${STEPS:="setup,deploy,test,undeploy,cleanup"}
 : ${cleanup_done:="false"}
 : ${undeploy_done:="false"}
+
+get_test_id
+
+CLUSTER=${2}
+if [[ ${CLUSTER} == "local" ]]; then
+  echo "-------------------"
+  echo "Setting up local kind cluster"
+  echo "-------------------"
+  setup_local
+  export KUBECONFIG=~/.kube/config
+fi
 
 create_namespace
 

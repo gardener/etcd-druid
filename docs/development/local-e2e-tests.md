@@ -19,7 +19,7 @@ the e2e-tests are executed locally. Required binaries are automatically download
 as described in this document.
 
 It's expected that especially the `deploy` step is run against a Kubernetes cluster which doesn't contain an Druid deployment or any left-overs like `druid.gardener.cloud` CRDs.
-The `deploy` step will likely fail in such scenarios.
+Otherwise, `deploy` step will likely fail in such scenarios.
 
 > Tip: Create a fresh [KinD](https://kind.sigs.k8s.io/) cluster or a similar one with a small footprint before executing the tests. 
 
@@ -61,8 +61,10 @@ The following environment variables influence how the flow described above is ex
 - `PROVIDERS`:  Providers used for testing (`all`, `aws`, `azure`, `gcp`). Multiple entries must be comma separated. 
     > **Note**: Some tests will use very first entry from env `PROVIDERS` for e2e testing (ex: multi-node tests). So for multi-node tests to use specific provider, specify that provider as first entry in env `PROVIDERS`.
 - `KUBECONFIG`: Kubeconfig pointing to cluster where Etcd-Druid will be deployed (preferably [KinD](https://kind.sigs.k8s.io)).
-- `TEST_ID`:    Some ID which is used to create assets for and during testing.
+- `TEST_ID`:    Some ID which is used to create assets for and during testing. If not set, last git commit hash will be used to form a default `TEST_ID`
 - `STEPS`:      Steps executed by `make` target (`setup`, `deploy`, `test`, `undeploy`, `cleanup` - default: all steps).
+- `CLUSTER`:    If this environment variable is set with the value `local`, a KinD cluster is created and Etcd-Druid is deployed in the local KinD cluster. To deploy Etcd-Druid in a remote cluster, set this variable with the value `remote` and set `KUBECONFIG` variable as well. If not set, `CLUSTER` variable will be set with `local` by default.
+    > **Note**: No need to set KUBECONFIG environment variable if `CLUSTER` is set to `local`
 
 ### AWS Env Variables
 
@@ -72,12 +74,27 @@ The following environment variables influence how the flow described above is ex
 
 Example:
 
+While using a remote cluster:
 ```
 make \
   AWS_ACCESS_KEY_ID="abc" \
   AWS_SECRET_ACCESS_KEY="xyz" \
   AWS_REGION="eu-central-1" \
   KUBECONFIG="$HOME/.kube/config" \
+  CLUSTER="remote" \
+  PROVIDERS="aws" \
+  TEST_ID="some-test-id" \
+  STEPS="setup,deploy,test,undeploy,cleanup" \
+test-e2e
+```
+
+While using a local KIND cluster:
+```
+make \
+  AWS_ACCESS_KEY_ID="abc" \
+  AWS_SECRET_ACCESS_KEY="xyz" \
+  AWS_REGION="eu-central-1" \
+  CLUSTER="local" \
   PROVIDERS="aws" \
   TEST_ID="some-test-id" \
   STEPS="setup,deploy,test,undeploy,cleanup" \
@@ -91,11 +108,25 @@ test-e2e
 
 Example:
 
+While using a remote cluster:
 ```
 make \
   STORAGE_ACCOUNT="abc" \
   STORAGE_KEY="eHl6Cg==" \
   KUBECONFIG="$HOME/.kube/config" \
+  CLUSTER="remote" \
+  PROVIDERS="azure" \
+  TEST_ID="some-test-id" \
+  STEPS="setup,deploy,test,undeploy,cleanup" \
+test-e2e
+```
+
+While using a local cluster:
+```
+make \
+  STORAGE_ACCOUNT="abc" \
+  STORAGE_KEY="eHl6Cg==" \
+  CLUSTER="local" \
   PROVIDERS="azure" \
   TEST_ID="some-test-id" \
   STEPS="setup,deploy,test,undeploy,cleanup" \
@@ -109,11 +140,25 @@ test-e2e
 
 Example:
 
+While using a remote cluster:
 ```
 make \
   GCP_SERVICEACCOUNT_JSON_PATH="/var/lib/secrets/serviceaccount.json" \
   GCP_PROJECT_ID="xyz-project" \
   KUBECONFIG="$HOME/.kube/config" \
+  CLUSTER="remote" \
+  PROVIDERS="gcp" \
+  TEST_ID="some-test-id" \
+  STEPS="setup,deploy,test,undeploy,cleanup" \
+test-e2e
+```
+
+While using a local cluster:
+```
+make \
+  GCP_SERVICEACCOUNT_JSON_PATH="/var/lib/secrets/serviceaccount.json" \
+  GCP_PROJECT_ID="xyz-project" \
+  CLUSTER="local" \
   PROVIDERS="gcp" \
   TEST_ID="some-test-id" \
   STEPS="setup,deploy,test,undeploy,cleanup" \

@@ -20,6 +20,7 @@ IMAGE_REPOSITORY    := $(REGISTRY)/etcd-druid
 IMAGE_BUILD_TAG     := $(VERSION)
 BUILD_DIR           := build
 PROVIDERS           := ""
+CLUSTER             := local
 
 GOLANGCI_LINT_VERSION := v1.50.1
 
@@ -122,7 +123,7 @@ test-cov-clean:
 
 .PHONY: test-e2e
 test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD)
-	@"$(REPO_ROOT)/hack/e2e-test/run-e2e-test.sh" $(PROVIDERS)
+	@"$(REPO_ROOT)/hack/e2e-test/run-e2e-test.sh" $(PROVIDERS) $(CLUSTER)
 
 .PHONY: update-dependencies
 update-dependencies:
