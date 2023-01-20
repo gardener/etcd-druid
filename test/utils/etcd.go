@@ -67,16 +67,10 @@ type EtcdBuilder struct {
 	etcd *druidv1alpha1.Etcd
 }
 
-func NewEtcdBuilder() *EtcdBuilder {
-	return &EtcdBuilder{}
-}
-
-func (eb *EtcdBuilder) WithDefaults(name, namespace string) *EtcdBuilder {
-	if eb == nil {
-		return nil
-	}
-	eb.etcd = getDefaultEtcd(name, namespace)
-	return eb
+func EtcdBuilderWithDefaults(name, namespace string) *EtcdBuilder {
+	builder := EtcdBuilder{}
+	builder.etcd = getDefaultEtcd(name, namespace)
+	return &builder
 }
 
 func (eb *EtcdBuilder) WithReplicas(replicas int32) *EtcdBuilder {
@@ -131,7 +125,7 @@ func (eb *EtcdBuilder) WithProviderS3() *EtcdBuilder {
 	}
 	eb.etcd.Spec.Backup.Store = getBackupStore(
 		eb.etcd.Name,
-		druidv1alpha1.StorageProvider("aws"),
+		"aws",
 	)
 	return eb
 }
@@ -142,7 +136,7 @@ func (eb *EtcdBuilder) WithProviderABS() *EtcdBuilder {
 	}
 	eb.etcd.Spec.Backup.Store = getBackupStore(
 		eb.etcd.Name,
-		druidv1alpha1.StorageProvider("azure"),
+		"azure",
 	)
 	return eb
 }
@@ -153,7 +147,7 @@ func (eb *EtcdBuilder) WithProviderGCS() *EtcdBuilder {
 	}
 	eb.etcd.Spec.Backup.Store = getBackupStore(
 		eb.etcd.Name,
-		druidv1alpha1.StorageProvider("gcp"),
+		"gcp",
 	)
 	return eb
 }
@@ -164,7 +158,7 @@ func (eb *EtcdBuilder) WithProviderSwift() *EtcdBuilder {
 	}
 	eb.etcd.Spec.Backup.Store = getBackupStore(
 		eb.etcd.Name,
-		druidv1alpha1.StorageProvider("openstack"),
+		"openstack",
 	)
 	return eb
 }
@@ -175,7 +169,7 @@ func (eb *EtcdBuilder) WithProviderOSS() *EtcdBuilder {
 	}
 	eb.etcd.Spec.Backup.Store = getBackupStore(
 		eb.etcd.Name,
-		druidv1alpha1.StorageProvider("alicloud"),
+		"alicloud",
 	)
 	return eb
 }

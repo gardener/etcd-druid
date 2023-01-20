@@ -13,3 +13,62 @@
 // limitations under the License.
 
 package etcdcopybackupstask
+
+import (
+	"github.com/gardener/etcd-druid/controllers/utils"
+	"github.com/gardener/gardener/pkg/chartrenderer"
+	"github.com/gardener/gardener/pkg/client/kubernetes"
+	"github.com/gardener/gardener/pkg/utils/imagevector"
+	"github.com/go-logr/logr"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+)
+
+// Reconciler reconciles EtcdCopyBackupsTask object.
+type Reconciler struct {
+	client.Client
+	imageVector  imagevector.ImageVector
+	chartApplier kubernetes.ChartApplier
+	logger       logr.Logger
+}
+
+// +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcdcopybackupstasks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcdcopybackupstasks/status;etcdcopybackupstasks/finalizers,verbs=get;update;patch;create
+
+// NewReconciler creates a new EtcdCopyBackupsTaskReconciler.
+func NewReconciler(mgr manager.Manager, withImageVector bool) (*Reconciler, error) {
+	var (
+		chartApplier kubernetes.ChartApplier
+		imageVector  imagevector.ImageVector
+		err          error
+	)
+
+	if chartApplier, err = createChartApplier(mgr.GetConfig()); err != nil {
+		return nil, err
+	}
+	if withImageVector {
+		if imageVector, err = utils.CreateDefaultImageVector(); err != nil {
+			return nil, err
+		}
+	}
+	return &Reconciler{
+		Client:       mgr.GetClient(),
+		chartApplier: chartApplier,
+		imageVector:  imageVector,
+		logger:       log.Log.WithName("etcd-copy-backups-task-controller"),
+	}, nil
+}
+
+func createChartApplier(config *rest.Config) (kubernetes.ChartApplier, error) {
+	renderer, err := chartrenderer.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	applier, err := kubernetes.NewApplierForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return kubernetes.NewChartApplier(renderer, applier), nil
+}

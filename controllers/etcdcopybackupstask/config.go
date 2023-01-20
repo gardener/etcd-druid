@@ -21,9 +21,6 @@ import (
 const (
 	workersFlagName = "etcd-copy-backups-task-workers"
 	defaultWorkers  = 3
-
-	// TODO: modify as required
-	finalizerName = "druid.gardener.cloud/etcd-druid"
 )
 
 // Config defines the configuration for the EtcdCopyBackupsTaskController.

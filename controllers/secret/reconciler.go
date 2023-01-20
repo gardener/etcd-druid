@@ -30,16 +30,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// SecretReconciler reconciles secrets referenced in Etcd objects
-type SecretReconciler struct {
+// Reconciler reconciles secrets referenced in Etcd objects
+type Reconciler struct {
 	client.Client
 	Config *Config
 	logger logr.Logger
 }
 
-// NewSecretReconciler creates a new reconciler.
-func NewSecretReconciler(client client.Client, config *Config) *SecretReconciler {
-	return &SecretReconciler{
+// NewReconciler creates a new reconciler.
+func NewReconciler(client client.Client, config *Config) *Reconciler {
+	return &Reconciler{
 		Client: client,
 		Config: config,
 		logger: log.Log.WithName("secret-controller"),
@@ -49,7 +49,7 @@ func NewSecretReconciler(client client.Client, config *Config) *SecretReconciler
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update;patch
 
 // Reconcile reconciles the secret.
-func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	secret := &corev1.Secret{}
 	if err := r.Get(ctx, req.NamespacedName, secret); err != nil {
 		if errors.IsNotFound(err) {
@@ -100,20 +100,18 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{}, r.removeFinalizer(ctx, logger, secret)
 }
 
-func (r *SecretReconciler) addFinalizer(ctx context.Context, logger logr.Logger, secret *corev1.Secret) error {
+func (r *Reconciler) addFinalizer(ctx context.Context, logger logr.Logger, secret *corev1.Secret) error {
 	if finalizers := sets.NewString(secret.Finalizers...); finalizers.Has(common.FinalizerName) {
 		return nil
 	}
-
 	logger.Info("Adding finalizer")
 	return client.IgnoreNotFound(controllerutils.AddFinalizers(ctx, r.Client, secret, common.FinalizerName))
 }
 
-func (r *SecretReconciler) removeFinalizer(ctx context.Context, logger logr.Logger, secret *corev1.Secret) error {
+func (r *Reconciler) removeFinalizer(ctx context.Context, logger logr.Logger, secret *corev1.Secret) error {
 	if finalizers := sets.NewString(secret.Finalizers...); !finalizers.Has(common.FinalizerName) {
 		return nil
 	}
-
 	logger.Info("Removing finalizer")
 	return client.IgnoreNotFound(controllerutils.RemoveFinalizers(ctx, r.Client, secret, common.FinalizerName))
 }

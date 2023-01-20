@@ -22,8 +22,6 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/gardener/etcd-druid/controllers"
-	config "github.com/gardener/etcd-druid/pkg/config"
-	"github.com/gardener/etcd-druid/pkg/flags"
 	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -35,23 +33,23 @@ import (
 var logger = ctrl.Log.WithName("druid")
 
 func main() {
-	var (
-		controllerManagerConfig             = config.NewControllerManagerConfig()
-		etcdControllerConfig                = config.NewEtcdControllerConfig()
-		custodianControllerConfig           = config.NewCustodianControllerConfig()
-		compactionLeaseControllerConfig     = config.NewCompactionLeaseControllerConfig()
-		secretControllerConfig              = config.NewSecretControllerConfig()
-		etcdCopyBackupsTaskControllerConfig = config.NewEtcdCopyBackupsTaskControllerConfig()
-	)
-
-	flags.AddAllFlags(
-		&controllerManagerConfig,
-		&etcdControllerConfig,
-		&custodianControllerConfig,
-		&compactionLeaseControllerConfig,
-		&secretControllerConfig,
-		&etcdCopyBackupsTaskControllerConfig,
-	)
+	//var (
+	//	controllerManagerConfig             = config.NewControllerManagerConfig()
+	//	etcdControllerConfig                = config.NewEtcdControllerConfig()
+	//	custodianControllerConfig           = config.NewCustodianControllerConfig()
+	//	compactionLeaseControllerConfig     = config.NewCompactionLeaseControllerConfig()
+	//	secretControllerConfig              = config.NewSecretControllerConfig()
+	//	etcdCopyBackupsTaskControllerConfig = config.NewEtcdCopyBackupsTaskControllerConfig()
+	//)
+	//
+	//flags.AddAllFlags(
+	//	&controllerManagerConfig,
+	//	&etcdControllerConfig,
+	//	&custodianControllerConfig,
+	//	&compactionLeaseControllerConfig,
+	//	&secretControllerConfig,
+	//	&etcdCopyBackupsTaskControllerConfig,
+	//)
 
 	ctx := ctrl.SetupSignalHandler()
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
@@ -68,51 +66,51 @@ func main() {
 		os.Exit(1)
 	}
 
-	etcd, err := controllers.NewEtcdReconcilerWithImageVector(mgr, controllerManagerConfig.DisableEtcdServiceAccountAutomount)
-	if err != nil {
-		logger.Error(err, "Unable to initialize etcd controller with image vector")
-		os.Exit(1)
-	}
-
-	if err := etcd.SetupWithManager(mgr, etcdControllerConfig.Workers, controllerManagerConfig.IgnoreOperationAnnotation); err != nil {
-		logger.Error(err, "Unable to create controller", "Controller", "Etcd")
-		os.Exit(1)
-	}
-
-	custodian := controllers.NewEtcdCustodian(mgr, custodianControllerConfig)
-
-	if err := custodian.SetupWithManager(ctx, mgr, custodianControllerConfig.Workers, controllerManagerConfig.IgnoreOperationAnnotation); err != nil {
-		logger.Error(err, "Unable to create controller", "Controller", "Etcd Custodian")
-		os.Exit(1)
-	}
-
-	lc, err := controllers.NewCompactionLeaseControllerWithImageVector(mgr, compactionLeaseControllerConfig)
-	if err != nil {
-		logger.Error(err, "Unable to initialize lease controller")
-		os.Exit(1)
-	}
-
-	if err := lc.SetupWithManager(mgr, compactionLeaseControllerConfig.Workers); err != nil {
-		logger.Error(err, "Unable to create controller", "Controller", "Lease")
-		os.Exit(1)
-	}
-
-	secret := controllers.NewSecret(mgr)
-
-	if err := secret.SetupWithManager(mgr, secretControllerConfig.Workers); err != nil {
-		logger.Error(err, "Unable to create controller", "Controller", "Secret")
-		os.Exit(1)
-	}
-
-	etcdCopyBackupsTask, err := controllers.NewEtcdCopyBackupsTaskReconcilerWithImageVector(mgr)
-	if err != nil {
-		logger.Error(err, "Unable to initialize controller with image vector")
-		os.Exit(1)
-	}
-
-	if err := etcdCopyBackupsTask.SetupWithManager(mgr, etcdControllerConfig.Workers); err != nil {
-		logger.Error(err, "Unable to create controller", "Controller", "EtcdCopyBackupsTask")
-	}
+	//etcd, err := controllers.NewEtcdReconcilerWithImageVector(mgr, controllerManagerConfig.DisableEtcdServiceAccountAutomount)
+	//if err != nil {
+	//	logger.Error(err, "Unable to initialize etcd controller with image vector")
+	//	os.Exit(1)
+	//}
+	//
+	//if err := etcd.SetupWithManager(mgr, etcdControllerConfig.Workers, controllerManagerConfig.IgnoreOperationAnnotation); err != nil {
+	//	logger.Error(err, "Unable to create controller", "Controller", "Etcd")
+	//	os.Exit(1)
+	//}
+	//
+	//custodian := controllers.NewEtcdCustodian(mgr, custodianControllerConfig)
+	//
+	//if err := custodian.SetupWithManager(ctx, mgr, custodianControllerConfig.Workers, controllerManagerConfig.IgnoreOperationAnnotation); err != nil {
+	//	logger.Error(err, "Unable to create controller", "Controller", "Etcd Custodian")
+	//	os.Exit(1)
+	//}
+	//
+	//lc, err := controllers.NewCompactionLeaseControllerWithImageVector(mgr, compactionLeaseControllerConfig)
+	//if err != nil {
+	//	logger.Error(err, "Unable to initialize lease controller")
+	//	os.Exit(1)
+	//}
+	//
+	//if err := lc.SetupWithManager(mgr, compactionLeaseControllerConfig.Workers); err != nil {
+	//	logger.Error(err, "Unable to create controller", "Controller", "Lease")
+	//	os.Exit(1)
+	//}
+	//
+	//secret := controllers.NewSecret(mgr)
+	//
+	//if err := secret.SetupWithManager(mgr, secretControllerConfig.Workers); err != nil {
+	//	logger.Error(err, "Unable to create controller", "Controller", "Secret")
+	//	os.Exit(1)
+	//}
+	//
+	//etcdCopyBackupsTask, err := controllers.NewEtcdCopyBackupsTaskReconcilerWithImageVector(mgr)
+	//if err != nil {
+	//	logger.Error(err, "Unable to initialize controller with image vector")
+	//	os.Exit(1)
+	//}
+	//
+	//if err := etcdCopyBackupsTask.SetupWithManager(mgr, etcdControllerConfig.Workers); err != nil {
+	//	logger.Error(err, "Unable to create controller", "Controller", "EtcdCopyBackupsTask")
+	//}
 
 	// +kubebuilder:scaffold:builder
 

@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// CreateAndAddToManager creates a controller manager and adds all the controllers to the controller-manager using the passed in ManagerConfig.
 func CreateAndAddToManager(config *ManagerConfig) (ctrl.Manager, error) {
 	var (
 		err error
@@ -35,11 +36,7 @@ func CreateAndAddToManager(config *ManagerConfig) (ctrl.Manager, error) {
 	if mgr, err = createManager(config); err != nil {
 		return nil, err
 	}
-
-	if err = secret.NewSecretReconciler(
-		mgr.GetClient(),
-		config.SecretControllerConfig,
-	).AddToManager(mgr); err != nil {
+	if err = addControllersToManager(mgr, config); err != nil {
 		return nil, err
 	}
 
@@ -47,7 +44,6 @@ func CreateAndAddToManager(config *ManagerConfig) (ctrl.Manager, error) {
 }
 
 func createManager(config *ManagerConfig) (ctrl.Manager, error) {
-
 	// TODO: this can be removed once we have an improved informer, see https://github.com/gardener/etcd-druid/issues/215
 	// list of objects which should not be cached.
 	uncachedObjects := []client.Object{
@@ -68,4 +64,17 @@ func createManager(config *ManagerConfig) (ctrl.Manager, error) {
 		LeaderElectionID:           config.LeaderElectionID,
 		LeaderElectionResourceLock: config.LeaderElectionResourceLock,
 	})
+}
+
+func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
+	var err error
+
+	if err = secret.NewReconciler(
+		mgr.GetClient(),
+		config.SecretControllerConfig,
+	).AddToManager(mgr); err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-func (r *SecretReconciler) AddToManager(mgr ctrl.Manager) error {
+func (r *Reconciler) AddToManager(mgr ctrl.Manager) error {
 	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
 		MaxConcurrentReconciles: r.Config.Workers,
 	})
