@@ -25,4 +25,6 @@ const (
 	GardenerOwnedBy = "gardener.cloud/owned-by"
 	// GardenerOwnerType is a constant for an annotation on a resource that describes the type of owner resource.
 	GardenerOwnerType = "gardener.cloud/owner-type"
+	// FinalizerName is the name of the etcd finalizer.
+	FinalizerName = "druid.gardener.cloud/etcd-druid"
 )

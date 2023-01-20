@@ -76,8 +76,8 @@ var (
 )
 
 const (
-	// FinalizerName is the name of the Plant finalizer.
-	//FinalizerName = "druid.gardener.cloud/etcd-druid"
+	// FinalizerName is the name of the etcd finalizer.
+	FinalizerName = "druid.gardener.cloud/etcd-druid"
 	// DefaultImageVector is a constant for the path to the default image vector file.
 	DefaultImageVector = "images.yaml"
 	// DefaultInterval is the default interval for retry operations.

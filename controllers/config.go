@@ -1,9 +1,23 @@
+// Copyright (c) 2023 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package controllers
 
 import (
 	"flag"
 
-	"github.com/gardener/etcd-druid/controllers/secretcontroller"
+	"github.com/gardener/etcd-druid/controllers/secret"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 )
 
@@ -40,7 +54,7 @@ type ManagerConfig struct {
 	DisableLeaseCache bool
 	// IgnoreOperationAnnotation specifies whether to ignore or honour the operation annotation on resources to be reconciled.
 	IgnoreOperationAnnotation bool
-	SecretControllerConfig    *secretcontroller.Config
+	SecretControllerConfig    *secret.Config
 }
 
 func InitFromFlags(fs *flag.FlagSet, config *ManagerConfig) {
@@ -56,5 +70,6 @@ func InitFromFlags(fs *flag.FlagSet, config *ManagerConfig) {
 		"Disable cache for lease.coordination.k8s.io resources.")
 	flag.BoolVar(&config.IgnoreOperationAnnotation, ignoreOperationAnnotationFlagName, defaultIgnoreOperationAnnotation,
 		"Specifies whether to ignore or honour the operation annotation on resources to be reconciled.")
-	secretcontroller.InitFromFlags(fs, config.SecretControllerConfig)
+
+	secret.InitFromFlags(fs, config.SecretControllerConfig)
 }
