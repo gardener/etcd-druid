@@ -16,15 +16,14 @@ package controllers
 
 import (
 	"context"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	config "github.com/gardener/etcd-druid/pkg/config"
+	"github.com/gardener/etcd-druid/controllers/secret"
+	"github.com/gardener/etcd-druid/test/utils"
 
-	"github.com/gardener/gardener/pkg/utils/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -51,7 +50,7 @@ var (
 
 	activeDeadlineDuration time.Duration
 
-	revertFns []func()
+	revertFunc func()
 
 	testLog = ctrl.Log.WithName("test")
 )
@@ -66,102 +65,81 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	mgrCtx, mgrCancel = context.WithCancel(context.Background())
 	var err error
-	//logf.SetLogger(zap.LoggerTo(GinkgoWriter, true))
-	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
-	By("bootstrapping test environment")
-	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("..", "config", "crd", "bases")},
-	}
 
-	testLog.Info("Starting tests")
-	cfg, err = testEnv.Start()
+	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+
+	testLog.Info("Setting up test environment")
+	testEnv, err = utils.SetupTestEnvironment()
 	Expect(err).ToNot(HaveOccurred())
-	Expect(cfg).ToNot(BeNil())
 
 	err = druidv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
-
 	// +kubebuilder:scaffold:scheme
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	k8sClient, err := client.New(testEnv.Config, client.Options{Scheme: scheme.Scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
-	revertFns = []func(){
-		test.WithVar(&DefaultTimeout, 20*time.Second),
-		WithWd(".."),
-	}
+	revertFunc = utils.SwitchDirectory("../..")
 
-	Expect(cfg).ToNot(BeNil())
-	mgr, err = manager.New(cfg, manager.Options{
-		MetricsBindAddress:    "0",
-		ClientDisableCacheFor: UncachedObjectList,
-	})
+	mgr, err := utils.GetManager(testEnv.Config)
 	Expect(err).NotTo(HaveOccurred())
 
-	er, err := NewEtcdReconcilerWithImageVector(mgr, false)
+	err = addReconcilersToManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = er.SetupWithManager(mgr, 5, true)
-	Expect(err).NotTo(HaveOccurred())
-
-	secret := NewSecret(mgr)
-
-	err = secret.SetupWithManager(mgr, 5)
-	Expect(err).NotTo(HaveOccurred())
-
-	custodian := NewEtcdCustodian(mgr, config.CustodianControllerConfig{
-		EtcdMember: config.EtcdMemberConfig{
-			EtcdMemberNotReadyThreshold: 1 * time.Minute,
-		},
-	})
-
-	err = custodian.SetupWithManager(mgrCtx, mgr, 5, true)
-	Expect(err).NotTo(HaveOccurred())
-
-	etcdCopyBackupsTaskReconciler, err := NewEtcdCopyBackupsTaskReconcilerWithImageVector(mgr)
-	Expect(err).NotTo(HaveOccurred())
-
-	err = etcdCopyBackupsTaskReconciler.SetupWithManager(mgr, 5)
-	Expect(err).NotTo(HaveOccurred())
-
-	activeDeadlineDuration, err = time.ParseDuration("2m")
-	Expect(err).NotTo(HaveOccurred())
-
-	lc, err := NewCompactionLeaseControllerWithImageVector(mgr, config.CompactionLeaseControllerConfig{
-		EnableBackupCompaction: true,
-		EventsThreshold:        1000000,
-		ActiveDeadlineDuration: activeDeadlineDuration,
-	})
-	Expect(err).NotTo(HaveOccurred())
-
-	err = lc.SetupWithManager(mgr, 1)
-	Expect(err).NotTo(HaveOccurred())
-
-	mgrStopped = startTestManager(mgrCtx, mgr)
-
+	mgrCtx, mgrCancel = context.WithCancel(context.Background())
+	mgrStopped = utils.StartManager(mgrCtx, mgr)
 })
 
 var _ = AfterSuite(func() {
-	mgrCancel()
-	mgrStopped.Wait()
-	Expect(testEnv.Stop()).To(Succeed())
-	for _, f := range revertFns {
-		f()
-	}
+	utils.StopManager(mgrCancel, mgrStopped, testEnv, revertFunc)
 })
 
-func startTestManager(ctx context.Context, mgr manager.Manager) *sync.WaitGroup {
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		Expect(mgr.Start(ctx)).NotTo(HaveOccurred())
-		wg.Done()
-	}()
-	syncCtx, syncCancel := context.WithTimeout(ctx, 1*time.Minute)
-	defer syncCancel()
-	mgr.GetCache().WaitForCacheSync(syncCtx)
-	return wg
+func addReconcilersToManager(mgr manager.Manager) error {
+	// er, err := NewEtcdReconcilerWithImageVector(mgr, false)
+	// if err != nil {
+	// 	return err
+	// }
+	// if err = er.SetupWithManager(mgr, 5, true); err != nil {
+	// 	return err
+	// }
+
+	// custodian := NewEtcdCustodian(mgr, config.CustodianControllerConfig{
+	// 	EtcdMember: config.EtcdMemberConfig{
+	// 		EtcdMemberNotReadyThreshold: 1 * time.Minute,
+	// 	},
+	// })
+	// if err = custodian.SetupWithManager(mgrCtx, mgr, 5, true); err != nil {
+	// 	return err
+	// }
+
+	// activeDeadlineDuration, err = time.ParseDuration("2m")
+	// Expect(err).NotTo(HaveOccurred())
+
+	// lc, err := NewCompactionLeaseControllerWithImageVector(mgr, config.CompactionLeaseControllerConfig{
+	// 	EnableBackupCompaction: true,
+	// 	EventsThreshold:        1000000,
+	// 	ActiveDeadlineDuration: activeDeadlineDuration,
+	// })
+	// if err != nil {
+	// 	return err
+	// }
+	// if err = lc.SetupWithManager(mgr, 1); err != nil {
+	// 	return err
+	// }
+
+	// etcdCopyBackupsTaskReconciler, err := NewEtcdCopyBackupsTaskReconcilerWithImageVector(mgr)
+	// if err != nil {
+	// 	return err
+	// }
+	// if err = etcdCopyBackupsTaskReconciler.SetupWithManager(mgr, 5); err != nil {
+	// 	return err
+	// }
+
+	secretReconciler := secret.NewReconciler(mgr.GetClient(), &secret.Config{
+		Workers: 5,
+	})
+	return secretReconciler.AddToManager(mgr)
 }

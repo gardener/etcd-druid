@@ -12,24 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdcopybackupstask
+package utils
 
 import (
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"context"
 
-	batchv1 "k8s.io/api/batch/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (r *Reconciler) AddToManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&druidv1alpha1.EtcdCopyBackupsTask{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
-		Owns(&batchv1.Job{}).
-		WithOptions(controller.Options{
-			MaxConcurrentReconciles: r.Config.Workers,
-		}).
-		Complete(r)
+func CreateSecrets(ctx context.Context, c client.Client, namespace string, secrets ...string) []error {
+	var errors []error
+	for _, name := range secrets {
+		secret := corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+			},
+			Data: map[string][]byte{
+				"test": []byte("test"),
+			},
+		}
+		err := c.Create(ctx, &secret)
+		if apierrors.IsAlreadyExists(err) {
+			continue
+		}
+		if err != nil {
+			errors = append(errors, err)
+		}
+	}
+	return errors
 }

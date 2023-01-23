@@ -16,8 +16,10 @@ package secret
 
 import (
 	"context"
+	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/test/utils"
 
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
@@ -28,12 +30,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
+var (
+	timeout         = 1 * time.Minute
+	pollingInterval = 2 * time.Second
+)
+
 var _ = Describe("SecretController", func() {
 	var (
 		ctx = context.TODO()
 
 		namespace *corev1.Namespace
 		etcd      *druidv1alpha1.Etcd
+		err       error
 	)
 
 	BeforeEach(func() {
@@ -42,13 +50,17 @@ var _ = Describe("SecretController", func() {
 				Name: "secret-controller-tests",
 			},
 		}
-		etcd = getEtcdWithTLS("etcd", namespace.Name)
+		etcd, err = utils.EtcdBuilderWithDefaults("etcd", namespace.Name).WithTLS().Build()
+		Expect(err).To(Not(HaveOccurred()))
 
 		_, err := controllerutil.CreateOrUpdate(ctx, k8sClient, namespace, func() error { return nil })
 		Expect(err).To(Not(HaveOccurred()))
 	})
 
 	It("should reconcile the finalizers for the referenced secrets", func() {
+		ctx, cancelCtx := context.WithTimeout(ctx, testEnv.Config.Timeout)
+		defer cancelCtx()
+
 		getFinalizersForSecret := func(name string) func(g Gomega) []string {
 			return func(g Gomega) []string {
 				secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace.Name}}
@@ -58,8 +70,16 @@ var _ = Describe("SecretController", func() {
 		}
 
 		By("creating new etcd with secret references")
-		secretNames := []string{"client-url-ca-etcd", "client-url-etcd-client-tls", "client-url-etcd-server-tls", "peer-url-ca-etcd", "peer-url-etcd-server-tls", "etcd-backup"}
-		Expect(createSecrets(k8sClient, namespace.Name, secretNames...)).To(BeEmpty())
+		secretNames := []string{
+			"client-url-ca-etcd",
+			"client-url-etcd-client-tls",
+			"client-url-etcd-server-tls",
+			"peer-url-ca-etcd",
+			"peer-url-etcd-server-tls",
+			"etcd-backup",
+		}
+		errs := utils.CreateSecrets(ctx, k8sClient, namespace.Name, secretNames...)
+		Expect(errs).To(BeEmpty())
 
 		Expect(k8sClient.Create(ctx, etcd)).To(Succeed())
 
@@ -69,8 +89,16 @@ var _ = Describe("SecretController", func() {
 		}
 
 		By("updating existing etcd with new secret references")
-		newSecretNames := []string{"client-url-ca-etcd2", "client-url-etcd-client-tls2", "client-url-etcd-server-tls2", "peer-url-ca-etcd2", "peer-url-etcd-server-tls2", "etcd-backup2"}
-		Expect(createSecrets(k8sClient, namespace.Name, newSecretNames...)).To(BeEmpty())
+		newSecretNames := []string{
+			"client-url-ca-etcd2",
+			"client-url-etcd-client-tls2",
+			"client-url-etcd-server-tls2",
+			"peer-url-ca-etcd2",
+			"peer-url-etcd-server-tls2",
+			"etcd-backup2",
+		}
+		errs = utils.CreateSecrets(ctx, k8sClient, namespace.Name, newSecretNames...)
+		Expect(errs).To(BeEmpty())
 
 		patch := client.MergeFrom(etcd.DeepCopy())
 		etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name += "2"
