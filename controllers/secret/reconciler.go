@@ -65,39 +65,35 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	needsFinalizer := false
+	if r.isFinalizerNeeded(secret.Name, etcdList) {
+		return ctrl.Result{}, r.addFinalizer(ctx, logger, secret)
+	}
+	return ctrl.Result{}, r.removeFinalizer(ctx, logger, secret)
+}
 
+func (r *Reconciler) isFinalizerNeeded(secretName string, etcdList *druidv1alpha1.EtcdList) bool {
 	for _, etcd := range etcdList.Items {
 		if etcd.Spec.Etcd.ClientUrlTLS != nil &&
-			(etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name == secret.Name ||
-				etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name == secret.Name ||
-				etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name == secret.Name) {
-
-			needsFinalizer = true
-			break
+			(etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name == secretName ||
+				etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name == secretName ||
+				etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name == secretName) {
+			return true
 		}
 
 		if etcd.Spec.Etcd.PeerUrlTLS != nil &&
-			(etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name == secret.Name ||
-				etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name == secret.Name) { // Currently, no client certificate for peer url is used in ETCD cluster
-
-			needsFinalizer = true
-			break
+			(etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name == secretName ||
+				etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name == secretName) { // Currently, no client certificate for peer url is used in ETCD cluster
+			return true
 		}
 
 		if etcd.Spec.Backup.Store != nil &&
 			etcd.Spec.Backup.Store.SecretRef != nil &&
-			etcd.Spec.Backup.Store.SecretRef.Name == secret.Name {
-
-			needsFinalizer = true
-			break
+			etcd.Spec.Backup.Store.SecretRef.Name == secretName {
+			return true
 		}
 	}
 
-	if needsFinalizer {
-		return ctrl.Result{}, r.addFinalizer(ctx, logger, secret)
-	}
-	return ctrl.Result{}, r.removeFinalizer(ctx, logger, secret)
+	return false
 }
 
 func (r *Reconciler) addFinalizer(ctx context.Context, logger logr.Logger, secret *corev1.Secret) error {
