@@ -52,7 +52,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcdcopybackupstasks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcdcopybackupstasks/status;etcdcopybackupstasks/finalizers,verbs=get;update;patch;create
 
-// NewReconciler creates a new EtcdCopyBackupsTaskReconciler.
+// NewReconciler creates a new reconciler for EtcdCopyBackupsTask.
 func NewReconciler(mgr manager.Manager, config *Config, withImageVector bool) (*Reconciler, error) {
 	var (
 		chartRenderer chartrenderer.Interface
