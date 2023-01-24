@@ -538,7 +538,6 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 								"--insecure-transport=false":                        Equal("--insecure-transport=false"),
 								"--insecure-skip-tls-verify=false":                  Equal("--insecure-skip-tls-verify=false"),
 								"--snapstore-temp-directory=/var/etcd/data/temp":    Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
-								"--etcd-process-name=etcd":                          Equal("--etcd-process-name=etcd"),
 								fmt.Sprintf("%s=%s", "--etcd-connection-timeout-leader-election", etcdLeaderElectionConnectionTimeout.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--etcd-connection-timeout-leader-election", values.LeaderElection.EtcdConnectionTimeout.Duration.String())),
 								"--etcd-connection-timeout=5m":                                                                        Equal("--etcd-connection-timeout=5m"),
 								"--enable-snapshot-lease-renewal=true":                                                                Equal("--enable-snapshot-lease-renewal=true"),
