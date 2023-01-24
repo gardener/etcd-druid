@@ -17,6 +17,7 @@ package controllers
 import (
 	"flag"
 
+	"github.com/gardener/etcd-druid/controllers/compactionleasecontroller"
 	"github.com/gardener/etcd-druid/controllers/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/controllers/secret"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -54,9 +55,10 @@ type ManagerConfig struct {
 	// DisableLeaseCache specifies whether to disable cache for lease.coordination.k8s.io resources
 	DisableLeaseCache bool
 	// IgnoreOperationAnnotation specifies whether to ignore or honour the operation annotation on resources to be reconciled.
-	IgnoreOperationAnnotation bool
-	SecretControllerConfig    *secret.Config
-	EtcdCopyBackupsTaskConfig *etcdcopybackupstask.Config
+	IgnoreOperationAnnotation           bool
+	SecretControllerConfig              *secret.Config
+	EtcdCopyBackupsTaskControllerConfig *etcdcopybackupstask.Config
+	CompactionLeaseControllerConfig     *compactionleasecontroller.Config
 }
 
 func InitFromFlags(fs *flag.FlagSet, config *ManagerConfig) {
@@ -74,5 +76,7 @@ func InitFromFlags(fs *flag.FlagSet, config *ManagerConfig) {
 		"Specifies whether to ignore or honour the operation annotation on resources to be reconciled.")
 
 	secret.InitFromFlags(fs, config.SecretControllerConfig)
-	etcdcopybackupstask.InitFromFlags(fs, config.EtcdCopyBackupsTaskConfig)
+	etcdcopybackupstask.InitFromFlags(fs, config.EtcdCopyBackupsTaskControllerConfig)
+	compactionleasecontroller.InitFromFlags(fs, config.CompactionLeaseControllerConfig)
+
 }

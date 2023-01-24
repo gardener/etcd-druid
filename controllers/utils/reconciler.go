@@ -22,7 +22,7 @@ func getDefaultImageYAMLPath() string {
 	return filepath.Join(common.ChartPath, DefaultImageVector)
 }
 
-func CreateDefaultImageVector() (imagevector.ImageVector, error) {
+func CreateImageVector() (imagevector.ImageVector, error) {
 	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(getDefaultImageYAMLPath())
 	if err != nil {
 		return nil, err

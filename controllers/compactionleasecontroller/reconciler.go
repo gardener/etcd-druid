@@ -20,15 +20,13 @@ type Reconciler struct {
 }
 
 // NewReconciler creates a new reconciler for compaction lease.
-func NewReconciler(mgr manager.Manager, config *Config, withImageVector bool) (*Reconciler, error) {
+func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 	var (
 		imageVector imagevector.ImageVector
 		err         error
 	)
-	if withImageVector {
-		if imageVector, err = utils.CreateDefaultImageVector(); err != nil {
-			return nil, err
-		}
+	if imageVector, err = utils.CreateImageVector(); err != nil {
+		return nil, err
 	}
 	return &Reconciler{
 		Client:      mgr.GetClient(),
