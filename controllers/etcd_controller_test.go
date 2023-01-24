@@ -908,7 +908,6 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 								"--insecure-skip-tls-verify=true":                Equal("--insecure-skip-tls-verify=true"),
 								"--etcd-connection-timeout=5m":                   Equal("--etcd-connection-timeout=5m"),
 								"--snapstore-temp-directory=/var/etcd/data/temp": Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
-								"--etcd-process-name=etcd":                       Equal("--etcd-process-name=etcd"),
 								"--enable-member-lease-renewal=true":             Equal("--enable-member-lease-renewal=true"),
 								"--k8s-heartbeat-duration=10s":                   Equal("--k8s-heartbeat-duration=10s"),
 
@@ -1293,7 +1292,6 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								"--insecure-transport=false":                                                                                        Equal("--insecure-transport=false"),
 								"--insecure-skip-tls-verify=false":                                                                                  Equal("--insecure-skip-tls-verify=false"),
 								"--snapstore-temp-directory=/var/etcd/data/temp":                                                                    Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
-								"--etcd-process-name=etcd":                                                                                          Equal("--etcd-process-name=etcd"),
 								"--etcd-connection-timeout=5m":                                                                                      Equal("--etcd-connection-timeout=5m"),
 								"--enable-snapshot-lease-renewal=true":                                                                              Equal("--enable-snapshot-lease-renewal=true"),
 								"--enable-member-lease-renewal=true":                                                                                Equal("--enable-member-lease-renewal=true"),

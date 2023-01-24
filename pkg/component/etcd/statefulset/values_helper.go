@@ -295,7 +295,6 @@ func getBackupRestoreCommand(val Values) []string {
 	command = append(command, "--etcd-defrag-timeout="+etcdDefragTimeout)
 
 	command = append(command, "--snapstore-temp-directory=/var/etcd/data/temp")
-	command = append(command, "--etcd-process-name=etcd")
 	command = append(command, "--enable-member-lease-renewal=true")
 
 	heartbeatDuration := defaultHeartbeatDuration
