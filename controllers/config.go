@@ -17,7 +17,7 @@ package controllers
 import (
 	"flag"
 
-	"github.com/gardener/etcd-druid/controllers/compactionleasecontroller"
+	"github.com/gardener/etcd-druid/controllers/compactionlease"
 	"github.com/gardener/etcd-druid/controllers/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/controllers/secret"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -58,7 +58,7 @@ type ManagerConfig struct {
 	IgnoreOperationAnnotation           bool
 	SecretControllerConfig              *secret.Config
 	EtcdCopyBackupsTaskControllerConfig *etcdcopybackupstask.Config
-	CompactionLeaseControllerConfig     *compactionleasecontroller.Config
+	CompactionLeaseControllerConfig     *compactionlease.Config
 }
 
 func InitFromFlags(fs *flag.FlagSet, config *ManagerConfig) {
@@ -77,6 +77,6 @@ func InitFromFlags(fs *flag.FlagSet, config *ManagerConfig) {
 
 	secret.InitFromFlags(fs, config.SecretControllerConfig)
 	etcdcopybackupstask.InitFromFlags(fs, config.EtcdCopyBackupsTaskControllerConfig)
-	compactionleasecontroller.InitFromFlags(fs, config.CompactionLeaseControllerConfig)
+	compactionlease.InitFromFlags(fs, config.CompactionLeaseControllerConfig)
 
 }

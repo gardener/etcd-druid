@@ -1,4 +1,4 @@
-package compactionleasecontroller
+package compactionlease
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package compactionleasecontroller
+package compactionlease
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
