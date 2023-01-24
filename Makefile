@@ -133,3 +133,7 @@ test-e2e: set-permissions $(KUBECTL) $(HELM) $(SKAFFOLD)
 update-dependencies:
 	@env GO111MODULE=on go get -u
 	@make revendor
+
+.PHONY: add-license-headers
+add-license-headers: $(GO_ADD_LICENSE)
+	@./hack/addlicenseheaders.sh
