@@ -1,4 +1,4 @@
-package compactionlease
+package compaction
 
 import (
 	"context"

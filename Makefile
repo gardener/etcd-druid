@@ -136,4 +136,4 @@ update-dependencies:
 
 .PHONY: add-license-headers
 add-license-headers: $(GO_ADD_LICENSE)
-	@./hack/addlicenseheaders.sh
+	@./hack/addlicenseheaders.sh ${YEAR}
