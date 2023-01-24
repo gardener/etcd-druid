@@ -16,16 +16,13 @@ package etcdcopybackupstask
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"path/filepath"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/gardener/pkg/chartrenderer"
 
 	"github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/common"
-	druidutils "github.com/gardener/etcd-druid/pkg/utils"
-	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -46,10 +43,10 @@ const workerSuffix = "-worker"
 // Reconciler reconciles EtcdCopyBackupsTask object.
 type Reconciler struct {
 	client.Client
-	Config       *Config
-	imageVector  imagevector.ImageVector
-	chartApplier kubernetes.ChartApplier
-	logger       logr.Logger
+	Config        *Config
+	imageVector   imagevector.ImageVector
+	chartRenderer chartrenderer.Interface
+	logger        logr.Logger
 }
 
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcdcopybackupstasks,verbs=get;list;watch;create;update;patch;delete
@@ -58,12 +55,12 @@ type Reconciler struct {
 // NewReconciler creates a new EtcdCopyBackupsTaskReconciler.
 func NewReconciler(mgr manager.Manager, config *Config, withImageVector bool) (*Reconciler, error) {
 	var (
-		chartApplier kubernetes.ChartApplier
-		imageVector  imagevector.ImageVector
-		err          error
+		chartRenderer chartrenderer.Interface
+		imageVector   imagevector.ImageVector
+		err           error
 	)
 
-	if chartApplier, err = utils.CreateChartApplier(mgr.GetConfig()); err != nil {
+	if chartRenderer, err = chartrenderer.NewForConfig(mgr.GetConfig()); err != nil {
 		return nil, err
 	}
 	if withImageVector {
@@ -72,11 +69,11 @@ func NewReconciler(mgr manager.Manager, config *Config, withImageVector bool) (*
 		}
 	}
 	return &Reconciler{
-		Client:       mgr.GetClient(),
-		Config:       config,
-		chartApplier: chartApplier,
-		imageVector:  imageVector,
-		logger:       log.Log.WithName("etcd-copy-backups-task-controller"),
+		Client:        mgr.GetClient(),
+		Config:        config,
+		chartRenderer: chartRenderer,
+		imageVector:   imageVector,
+		logger:        log.Log.WithName("etcd-copy-backups-task-controller"),
 	}, nil
 }
 
@@ -111,18 +108,50 @@ func (r *Reconciler) reconcile(ctx context.Context, task *druidv1alpha1.EtcdCopy
 	defer func() {
 		// Update status, on failure return the update error unless there is another error
 		if updateErr := r.updateStatus(ctx, task, status); updateErr != nil && err == nil {
-			err = fmt.Errorf("could not update status: %w", updateErr)
+			err = fmt.Errorf("could not update status for task {name: %s, namespace: %s} : %w", task.Name, task.Namespace, updateErr)
 		}
 	}()
 
 	// Reconcile creation or update
-	logger.V(1).Info("Reconciling creation or update")
+	logger.V(1).Info("Reconciling creation or update for etcd-copy-backups-task", "name", task.Name, "namespace", task.Namespace)
 	if status, err = r.doReconcile(ctx, task, logger); err != nil {
 		return ctrl.Result{}, fmt.Errorf("could not reconcile creation or update: %w", err)
 	}
-	logger.V(1).Info("Creation or update reconciled")
+	logger.V(1).Info("Creation or update reconciled for etcd-copy-backups-task", "name", task.Name, "namespace", task.Namespace)
 
 	return ctrl.Result{}, nil
+}
+
+func (r *Reconciler) doReconcile(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask, logger logr.Logger) (status *druidv1alpha1.EtcdCopyBackupsTaskStatus, err error) {
+	status = task.Status.DeepCopy()
+
+	var job *batchv1.Job
+	defer func() {
+		setStatusDetails(status, task.Generation, job, err)
+	}()
+
+	// Get job from cluster
+	job, err = r.getJob(ctx, task)
+	if err != nil {
+		return status, err
+	}
+	if job != nil {
+		return status, nil
+	}
+
+	//Decode job object from chart
+	job, err = r.decodeJobFromChart(ctx, task)
+	if err != nil {
+		return status, err
+	}
+
+	// Create job
+	logger.Info("Creating job", "job", kutil.ObjectName(job))
+	if err := r.Create(ctx, job); err != nil {
+		return status, fmt.Errorf("could not create job %s: %w", kutil.ObjectName(job), err)
+	}
+
+	return status, nil
 }
 
 func (r *Reconciler) delete(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask) (result ctrl.Result, err error) {
@@ -162,51 +191,6 @@ func (r *Reconciler) delete(ctx context.Context, task *druidv1alpha1.EtcdCopyBac
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func (r *Reconciler) doReconcile(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask, logger logr.Logger) (status *druidv1alpha1.EtcdCopyBackupsTaskStatus, err error) {
-	status = task.Status.DeepCopy()
-
-	var job *batchv1.Job
-	defer func() {
-		setStatusDetails(status, task.Generation, job, err)
-	}()
-
-	// Get job from cluster
-	job, err = r.getJob(ctx, task)
-	if err != nil {
-		return status, err
-	}
-	if job != nil {
-		return status, nil
-	}
-
-	// Get chart values
-	values, err := r.getChartValues(ctx, task)
-	if err != nil {
-		return status, fmt.Errorf("could not get chart values: %w", err)
-	}
-
-	// Render chart
-	// TODO(AleksandarSavchev): .Render is deprecated. Refactor or adapt code to use RenderEmbeddedFS https://github.com/gardener/gardener/pull/6165
-	renderedChart, err := r.chartApplier.Render(getEtcdCopyBackupsChartPath(), task.Name, task.Namespace, values) //nolint:staticcheck
-	if err != nil {
-		return status, fmt.Errorf("could not render chart: %w", err)
-	}
-
-	// Decode job object from chart
-	job = &batchv1.Job{}
-	if err := utils.DecodeObject(renderedChart, getJobPath(), &job); err != nil {
-		return status, fmt.Errorf("could not decode job object from chart: %w", err)
-	}
-
-	// Create job
-	logger.Info("Creating job", "job", kutil.ObjectName(job))
-	if err := r.Create(ctx, job); err != nil {
-		return status, fmt.Errorf("could not create job %s: %w", kutil.ObjectName(job), err)
-	}
-
-	return status, nil
 }
 
 func (r *Reconciler) doDelete(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask, logger logr.Logger) (status *druidv1alpha1.EtcdCopyBackupsTaskStatus, removeFinalizer bool, err error) {
@@ -257,51 +241,6 @@ func (r *Reconciler) updateStatus(ctx context.Context, task *druidv1alpha1.EtcdC
 	return r.Client.Status().Patch(ctx, task, patch)
 }
 
-func (r *Reconciler) getChartValues(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask) (map[string]interface{}, error) {
-	values := map[string]interface{}{
-		"name":      getCopyBackupsJobName(task),
-		"ownerName": task.Name,
-		"ownerUID":  task.UID,
-	}
-
-	sourceStoreValues, err := druidutils.GetStoreValues(ctx, r.Client, r.logger, &task.Spec.SourceStore, task.Namespace)
-	if err != nil {
-		return nil, err
-	}
-	targetStoreValues, err := druidutils.GetStoreValues(ctx, r.Client, r.logger, &task.Spec.TargetStore, task.Namespace)
-	if err != nil {
-		return nil, err
-	}
-	values["sourceStore"] = sourceStoreValues
-	values["targetStore"] = targetStoreValues
-
-	if task.Spec.MaxBackupAge != nil {
-		values["maxBackupAge"] = *task.Spec.MaxBackupAge
-	}
-	if task.Spec.MaxBackups != nil {
-		values["maxBackups"] = *task.Spec.MaxBackups
-	}
-
-	if task.Spec.WaitForFinalSnapshot != nil {
-		values["waitForFinalSnapshot"] = task.Spec.WaitForFinalSnapshot.Enabled
-		if task.Spec.WaitForFinalSnapshot.Timeout != nil {
-			values["waitForFinalSnapshotTimeout"] = task.Spec.WaitForFinalSnapshot.Timeout
-		}
-	}
-
-	images, err := imagevector.FindImages(r.imageVector, []string{common.BackupRestore})
-	if err != nil {
-		return nil, err
-	}
-	val, ok := images[common.BackupRestore]
-	if !ok {
-		return nil, errors.New("etcdbrctl image not found")
-	}
-	values["image"] = val.String()
-
-	return values, nil
-}
-
 func setStatusDetails(status *druidv1alpha1.EtcdCopyBackupsTaskStatus, generation int64, job *batchv1.Job, err error) {
 	status.ObservedGeneration = &generation
 	if job != nil {
@@ -310,7 +249,7 @@ func setStatusDetails(status *druidv1alpha1.EtcdCopyBackupsTaskStatus, generatio
 		status.Conditions = nil
 	}
 	if err != nil {
-		status.LastError = pointer.StringPtr(err.Error())
+		status.LastError = pointer.String(err.Error())
 	} else {
 		status.LastError = nil
 	}
@@ -345,12 +284,4 @@ func getConditionType(jobConditionType batchv1.JobConditionType) druidv1alpha1.C
 
 func getCopyBackupsJobName(task *druidv1alpha1.EtcdCopyBackupsTask) string {
 	return task.Name + workerSuffix
-}
-
-func getEtcdCopyBackupsChartPath() string {
-	return filepath.Join("charts", "etcd-copy-backups")
-}
-
-func getJobPath() string {
-	return filepath.Join("etcd-copy-backups", "templates", "etcd-copy-backups-job.yaml")
 }

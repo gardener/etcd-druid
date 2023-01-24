@@ -17,11 +17,11 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
@@ -112,63 +112,21 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 		},
 		Entry("should create the job, update the task status, and delete the job if the job completed",
-			getEtcdCopyBackupsTask("Local", true), getJobStatus(batchv1.JobComplete, "", "")),
+			testutils.CreateEtcdCopyBackupsTask("Local", true), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job failed",
-			getEtcdCopyBackupsTask("Local", false), getJobStatus(batchv1.JobFailed, "test reason", "test message")),
+			testutils.CreateEtcdCopyBackupsTask("Local", false), getJobStatus(batchv1.JobFailed, "test reason", "test message")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for aws",
-			getEtcdCopyBackupsTask("aws", false), getJobStatus(batchv1.JobComplete, "", "")),
+			testutils.CreateEtcdCopyBackupsTask("aws", false), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for azure",
-			getEtcdCopyBackupsTask("azure", false), getJobStatus(batchv1.JobComplete, "", "")),
+			testutils.CreateEtcdCopyBackupsTask("azure", false), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for gcp",
-			getEtcdCopyBackupsTask("gcp", false), getJobStatus(batchv1.JobComplete, "", "")),
+			testutils.CreateEtcdCopyBackupsTask("gcp", false), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for openstack",
-			getEtcdCopyBackupsTask("openstack", false), getJobStatus(batchv1.JobComplete, "", "")),
+			testutils.CreateEtcdCopyBackupsTask("openstack", false), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for alicloud",
-			getEtcdCopyBackupsTask("alicloud", false), getJobStatus(batchv1.JobComplete, "", "")),
+			testutils.CreateEtcdCopyBackupsTask("alicloud", false), getJobStatus(batchv1.JobComplete, "", "")),
 	)
 })
-
-func getEtcdCopyBackupsTask(provider druidv1alpha1.StorageProvider, withOptionalFields bool) *druidv1alpha1.EtcdCopyBackupsTask {
-	var (
-		maxBackupAge, maxBackups *uint32
-		waitForFinalSnapshot     *druidv1alpha1.WaitForFinalSnapshotSpec
-	)
-	if withOptionalFields {
-		maxBackupAge = uint32Ptr(7)
-		maxBackups = uint32Ptr(42)
-		waitForFinalSnapshot = &druidv1alpha1.WaitForFinalSnapshotSpec{
-			Enabled: true,
-			Timeout: &metav1.Duration{Duration: 10 * time.Minute},
-		}
-	}
-	return &druidv1alpha1.EtcdCopyBackupsTask{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "foo",
-			Namespace: "default",
-		},
-		Spec: druidv1alpha1.EtcdCopyBackupsTaskSpec{
-			SourceStore: druidv1alpha1.StoreSpec{
-				Container: pointer.StringPtr("source-container"),
-				Prefix:    "/tmp",
-				Provider:  &provider,
-				SecretRef: &corev1.SecretReference{
-					Name: "source-etcd-backup",
-				},
-			},
-			TargetStore: druidv1alpha1.StoreSpec{
-				Container: pointer.StringPtr("target-container"),
-				Prefix:    "/tmp",
-				Provider:  &provider,
-				SecretRef: &corev1.SecretReference{
-					Name: "target-etcd-backup",
-				},
-			},
-			MaxBackupAge:         maxBackupAge,
-			MaxBackups:           maxBackups,
-			WaitForFinalSnapshot: waitForFinalSnapshot,
-		},
-	}
-}
 
 func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask) gomegatypes.GomegaMatcher {
 	sourceProvider, err := utils.StorageProviderFromInfraProvider(task.Spec.SourceStore.Provider)
@@ -474,5 +432,3 @@ func conditionIdentifier(element interface{}) string {
 func stringIdentifier(element interface{}) string {
 	return element.(string)
 }
-
-func uint32Ptr(v uint32) *uint32 { return &v }

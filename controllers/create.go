@@ -15,6 +15,7 @@
 package controllers
 
 import (
+	"github.com/gardener/etcd-druid/controllers/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/controllers/secret"
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -69,10 +70,20 @@ func createManager(config *ManagerConfig) (ctrl.Manager, error) {
 func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
 	var err error
 
+	// Add secret reconciler to the manager
 	if err = secret.NewReconciler(
 		mgr.GetClient(),
 		config.SecretControllerConfig,
 	).AddToManager(mgr); err != nil {
+		return err
+	}
+
+	// Add etcd-copy-backup-task reconciler to the manager
+	etcdCopyBackupsTaskReconciler, err := etcdcopybackupstask.NewReconciler(mgr, config.EtcdCopyBackupsTaskConfig, true)
+	if err != nil {
+		return err
+	}
+	if err = etcdCopyBackupsTaskReconciler.AddToManager(mgr); err != nil {
 		return err
 	}
 

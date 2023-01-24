@@ -17,6 +17,7 @@ package controllers
 import (
 	"flag"
 
+	"github.com/gardener/etcd-druid/controllers/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/controllers/secret"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 )
@@ -55,6 +56,7 @@ type ManagerConfig struct {
 	// IgnoreOperationAnnotation specifies whether to ignore or honour the operation annotation on resources to be reconciled.
 	IgnoreOperationAnnotation bool
 	SecretControllerConfig    *secret.Config
+	EtcdCopyBackupsTaskConfig *etcdcopybackupstask.Config
 }
 
 func InitFromFlags(fs *flag.FlagSet, config *ManagerConfig) {
@@ -72,4 +74,5 @@ func InitFromFlags(fs *flag.FlagSet, config *ManagerConfig) {
 		"Specifies whether to ignore or honour the operation annotation on resources to be reconciled.")
 
 	secret.InitFromFlags(fs, config.SecretControllerConfig)
+	etcdcopybackupstask.InitFromFlags(fs, config.EtcdCopyBackupsTaskConfig)
 }
