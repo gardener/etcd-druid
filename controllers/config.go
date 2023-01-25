@@ -17,7 +17,8 @@ package controllers
 import (
 	"flag"
 
-	"github.com/gardener/etcd-druid/controllers/compactionlease"
+	"github.com/gardener/etcd-druid/controllers/compaction"
+	"github.com/gardener/etcd-druid/controllers/etcd"
 	"github.com/gardener/etcd-druid/controllers/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/controllers/secret"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -52,13 +53,18 @@ type ManagerConfig struct {
 	// MetricsAddr is the address the metric endpoint binds to.
 	MetricsAddr string
 	LeaderElectionConfig
-	// DisableLeaseCache specifies whether to disable cache for lease.coordination.k8s.io resources
+	// DisableLeaseCache specifies whether to disable cache for lease.coordination.k8s.io resources.
 	DisableLeaseCache bool
 	// IgnoreOperationAnnotation specifies whether to ignore or honour the operation annotation on resources to be reconciled.
-	IgnoreOperationAnnotation           bool
-	SecretControllerConfig              *secret.Config
+	IgnoreOperationAnnotation bool
+	// SecretControllerConfig is the configuration required for secret controller.
+	SecretControllerConfig *secret.Config
+	// EtcdCopyBackupsTaskControllerConfig is the configuration required for etcd-copy-backup-tasks controller.
 	EtcdCopyBackupsTaskControllerConfig *etcdcopybackupstask.Config
-	CompactionLeaseControllerConfig     *compactionlease.Config
+	// CompactionControllerConfig is the configuration required for compaction controller.
+	CompactionControllerConfig *compaction.Config
+	// EtcdControllerConfig is the configuration required for etcd controller.
+	EtcdControllerConfig *etcd.Config
 }
 
 func InitFromFlags(fs *flag.FlagSet, config *ManagerConfig) {
@@ -77,6 +83,6 @@ func InitFromFlags(fs *flag.FlagSet, config *ManagerConfig) {
 
 	secret.InitFromFlags(fs, config.SecretControllerConfig)
 	etcdcopybackupstask.InitFromFlags(fs, config.EtcdCopyBackupsTaskControllerConfig)
-	compactionlease.InitFromFlags(fs, config.CompactionLeaseControllerConfig)
-
+	compaction.InitFromFlags(fs, config.CompactionControllerConfig)
+	etcd.InitFromFlags(fs, config.EtcdControllerConfig)
 }

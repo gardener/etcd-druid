@@ -89,7 +89,7 @@ func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
 	}
 
 	// Add compaction-lease reconciler to the manager
-	compactionLeaseReconciler, err := compactionlease.NewReconciler(mgr, config.CompactionLeaseControllerConfig)
+	compactionLeaseReconciler, err := compactionlease.NewReconciler(mgr, config.CompactionControllerConfig)
 	if err != nil {
 		return err
 	}

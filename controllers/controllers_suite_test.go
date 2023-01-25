@@ -118,7 +118,7 @@ func addReconcilersToManager(mgr manager.Manager) error {
 	// activeDeadlineDuration, err = time.ParseDuration("2m")
 	// Expect(err).NotTo(HaveOccurred())
 
-	// lc, err := NewCompactionLeaseControllerWithImageVector(mgr, config.CompactionLeaseControllerConfig{
+	// lc, err := NewCompactionLeaseControllerWithImageVector(mgr, config.CompactionControllerConfig{
 	// 	EnableBackupCompaction: true,
 	// 	EventsThreshold:        1000000,
 	// 	ActiveDeadlineDuration: activeDeadlineDuration,
