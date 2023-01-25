@@ -15,7 +15,8 @@
 package controllers
 
 import (
-	"github.com/gardener/etcd-druid/controllers/compactionlease"
+	"github.com/gardener/etcd-druid/controllers/compaction"
+	"github.com/gardener/etcd-druid/controllers/etcd"
 	"github.com/gardener/etcd-druid/controllers/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/controllers/secret"
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
@@ -89,11 +90,20 @@ func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
 	}
 
 	// Add compaction-lease reconciler to the manager
-	compactionLeaseReconciler, err := compactionlease.NewReconciler(mgr, config.CompactionControllerConfig)
+	compactionLeaseReconciler, err := compaction.NewReconciler(mgr, config.CompactionControllerConfig)
 	if err != nil {
 		return err
 	}
 	if err = compactionLeaseReconciler.AddToManager(mgr); err != nil {
+		return err
+	}
+
+	// Add etcd reconciler to the manager
+	etcdReconciler, err := etcd.NewReconciler(mgr, config.EtcdControllerConfig)
+	if err != nil {
+		return err
+	}
+	if err = etcdReconciler.AddToManager(mgr, config.IgnoreOperationAnnotation); err != nil {
 		return err
 	}
 
