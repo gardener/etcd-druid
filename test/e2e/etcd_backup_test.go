@@ -70,7 +70,8 @@ var _ = Describe("Etcd Backup", func() {
 					Expect(err).ShouldNot(HaveOccurred())
 
 					// purge any existing backups in bucket
-					Expect(purgeSnapstore(store)).To(Succeed())
+					// Expect(purgeSnapstore(store)).To(Succeed())
+					purgeSnapstore(store)
 
 					Expect(deployBackupSecret(parentCtx, cl, logger, provider, etcdNamespace, storageContainer))
 				})

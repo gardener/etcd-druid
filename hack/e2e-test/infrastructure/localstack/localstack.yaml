@@ -1,0 +1,251 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: localstack
+  name: localstack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: localstack
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: localstack
+    spec:
+      containers:
+        - env:
+            - name: DATA_DIR
+              value: /tmp
+            - name: DEBUG
+              value: "1"
+            - name: SERVICES
+              value: s3
+          image: localstack/localstack
+          name: localstack-service
+          ports:
+            - containerPort: 4566
+            - containerPort: 4510
+            - containerPort: 4511
+            - containerPort: 4512
+            - containerPort: 4513
+            - containerPort: 4514
+            - containerPort: 4515
+            - containerPort: 4516
+            - containerPort: 4517
+            - containerPort: 4518
+            - containerPort: 4519
+            - containerPort: 4520
+            - containerPort: 4521
+            - containerPort: 4522
+            - containerPort: 4523
+            - containerPort: 4524
+            - containerPort: 4525
+            - containerPort: 4526
+            - containerPort: 4527
+            - containerPort: 4528
+            - containerPort: 4529
+            - containerPort: 4530
+            - containerPort: 4531
+            - containerPort: 4532
+            - containerPort: 4533
+            - containerPort: 4534
+            - containerPort: 4535
+            - containerPort: 4536
+            - containerPort: 4537
+            - containerPort: 4538
+            - containerPort: 4539
+            - containerPort: 4540
+            - containerPort: 4541
+            - containerPort: 4542
+            - containerPort: 4543
+            - containerPort: 4544
+            - containerPort: 4545
+            - containerPort: 4546
+            - containerPort: 4547
+            - containerPort: 4548
+            - containerPort: 4549
+            - containerPort: 4550
+            - containerPort: 4551
+            - containerPort: 4552
+            - containerPort: 4553
+            - containerPort: 4554
+            - containerPort: 4555
+            - containerPort: 4556
+            - containerPort: 4557
+            - containerPort: 4558
+            - containerPort: 4559
+            - containerPort: 8080
+      restartPolicy: Always
+
+status: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: localstack
+  name: localstack
+spec:
+  ports:
+    - name: "4566"
+      port: 4566
+      targetPort: 4566
+    - name: "4510"
+      port: 4510
+      targetPort: 4510
+    - name: "4511"
+      port: 4511
+      targetPort: 4511
+    - name: "4512"
+      port: 4512
+      targetPort: 4512
+    - name: "4513"
+      port: 4513
+      targetPort: 4513
+    - name: "4514"
+      port: 4514
+      targetPort: 4514
+    - name: "4515"
+      port: 4515
+      targetPort: 4515
+    - name: "4516"
+      port: 4516
+      targetPort: 4516
+    - name: "4517"
+      port: 4517
+      targetPort: 4517
+    - name: "4518"
+      port: 4518
+      targetPort: 4518
+    - name: "4519"
+      port: 4519
+      targetPort: 4519
+    - name: "4520"
+      port: 4520
+      targetPort: 4520
+    - name: "4521"
+      port: 4521
+      targetPort: 4521
+    - name: "4522"
+      port: 4522
+      targetPort: 4522
+    - name: "4523"
+      port: 4523
+      targetPort: 4523
+    - name: "4524"
+      port: 4524
+      targetPort: 4524
+    - name: "4525"
+      port: 4525
+      targetPort: 4525
+    - name: "4526"
+      port: 4526
+      targetPort: 4526
+    - name: "4527"
+      port: 4527
+      targetPort: 4527
+    - name: "4528"
+      port: 4528
+      targetPort: 4528
+    - name: "4529"
+      port: 4529
+      targetPort: 4529
+    - name: "4530"
+      port: 4530
+      targetPort: 4530
+    - name: "4531"
+      port: 4531
+      targetPort: 4531
+    - name: "4532"
+      port: 4532
+      targetPort: 4532
+    - name: "4533"
+      port: 4533
+      targetPort: 4533
+    - name: "4534"
+      port: 4534
+      targetPort: 4534
+    - name: "4535"
+      port: 4535
+      targetPort: 4535
+    - name: "4536"
+      port: 4536
+      targetPort: 4536
+    - name: "4537"
+      port: 4537
+      targetPort: 4537
+    - name: "4538"
+      port: 4538
+      targetPort: 4538
+    - name: "4539"
+      port: 4539
+      targetPort: 4539
+    - name: "4540"
+      port: 4540
+      targetPort: 4540
+    - name: "4541"
+      port: 4541
+      targetPort: 4541
+    - name: "4542"
+      port: 4542
+      targetPort: 4542
+    - name: "4543"
+      port: 4543
+      targetPort: 4543
+    - name: "4544"
+      port: 4544
+      targetPort: 4544
+    - name: "4545"
+      port: 4545
+      targetPort: 4545
+    - name: "4546"
+      port: 4546
+      targetPort: 4546
+    - name: "4547"
+      port: 4547
+      targetPort: 4547
+    - name: "4548"
+      port: 4548
+      targetPort: 4548
+    - name: "4549"
+      port: 4549
+      targetPort: 4549
+    - name: "4550"
+      port: 4550
+      targetPort: 4550
+    - name: "4551"
+      port: 4551
+      targetPort: 4551
+    - name: "4552"
+      port: 4552
+      targetPort: 4552
+    - name: "4553"
+      port: 4553
+      targetPort: 4553
+    - name: "4554"
+      port: 4554
+      targetPort: 4554
+    - name: "4555"
+      port: 4555
+      targetPort: 4555
+    - name: "4556"
+      port: 4556
+      targetPort: 4556
+    - name: "4557"
+      port: 4557
+      targetPort: 4557
+    - name: "4558"
+      port: 4558
+      targetPort: 4558
+    - name: "4559"
+      port: 4559
+      targetPort: 4559
+    - name: "8055"
+      port: 8055
+      targetPort: 8080
+  selector:
+    app: localstack
