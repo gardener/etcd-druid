@@ -138,7 +138,7 @@ func addReconcilersToManager(mgr manager.Manager) error {
 	// 	return err
 	// }
 
-	secretReconciler := secret.NewReconciler(mgr.GetClient(), &secret.Config{
+	secretReconciler := secret.NewReconciler(mgr, &secret.Config{
 		Workers: 5,
 	})
 	return secretReconciler.AddToManager(mgr)

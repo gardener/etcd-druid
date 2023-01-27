@@ -72,15 +72,25 @@ func createManager(config *ManagerConfig) (ctrl.Manager, error) {
 func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
 	var err error
 
-	// Add secret reconciler to the manager
-	if err = secret.NewReconciler(
-		mgr.GetClient(),
-		config.SecretControllerConfig,
-	).AddToManager(mgr); err != nil {
+	// Add etcd reconciler to the manager
+	etcdReconciler, err := etcd.NewReconciler(mgr, config.EtcdControllerConfig)
+	if err != nil {
+		return err
+	}
+	if err = etcdReconciler.AddToManager(mgr, config.IgnoreOperationAnnotation); err != nil {
 		return err
 	}
 
-	// Add etcd-copy-backup-task reconciler to the manager
+	// Add compaction reconciler to the manager
+	compactionReconciler, err := compaction.NewReconciler(mgr, config.CompactionControllerConfig)
+	if err != nil {
+		return err
+	}
+	if err = compactionReconciler.AddToManager(mgr); err != nil {
+		return err
+	}
+
+	// Add etcd-copy-backups-task reconciler to the manager
 	etcdCopyBackupsTaskReconciler, err := etcdcopybackupstask.NewReconciler(mgr, config.EtcdCopyBackupsTaskControllerConfig)
 	if err != nil {
 		return err
@@ -89,21 +99,11 @@ func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
 		return err
 	}
 
-	// Add compaction-lease reconciler to the manager
-	compactionLeaseReconciler, err := compaction.NewReconciler(mgr, config.CompactionControllerConfig)
-	if err != nil {
-		return err
-	}
-	if err = compactionLeaseReconciler.AddToManager(mgr); err != nil {
-		return err
-	}
-
-	// Add etcd reconciler to the manager
-	etcdReconciler, err := etcd.NewReconciler(mgr, config.EtcdControllerConfig)
-	if err != nil {
-		return err
-	}
-	if err = etcdReconciler.AddToManager(mgr, config.IgnoreOperationAnnotation); err != nil {
+	// Add secret reconciler to the manager
+	if err = secret.NewReconciler(
+		mgr,
+		config.SecretControllerConfig,
+	).AddToManager(mgr); err != nil {
 		return err
 	}
 

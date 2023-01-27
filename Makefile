@@ -129,6 +129,11 @@ test-cov-clean: set-permissions
 test-e2e: set-permissions $(KUBECTL) $(HELM) $(SKAFFOLD)
 	@"$(REPO_ROOT)/hack/e2e-test/run-e2e-test.sh" $(PROVIDERS)
 
+# Run tests
+.PHONY: test-integration
+test-integration: $(GINKGO) $(SETUP_ENVTEST) fmt check manifests
+	@"$(REPO_ROOT)/hack/test.sh" ./test/integration/...
+
 .PHONY: update-dependencies
 update-dependencies:
 	@env GO111MODULE=on go get -u

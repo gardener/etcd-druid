@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package secret
+package etcdcopybackupstask
 
 import (
 	"testing"
@@ -21,11 +21,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestSecretController(t *testing.T) {
+func TestEtcdCopyBackupsTaskController(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	RunSpecs(
 		t,
-		"Secret Controller Suite",
+		"EtcdCopyBackupsTask Controller Suite",
 	)
 }

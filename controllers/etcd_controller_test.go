@@ -25,6 +25,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	gardenerUtils "github.com/gardener/gardener/pkg/utils"
@@ -99,58 +100,6 @@ var (
 		Duration: 10 * time.Minute,
 	}
 )
-
-func ownerRefIterator(element interface{}) string {
-	return (element.(metav1.OwnerReference)).Name
-}
-
-func servicePortIterator(element interface{}) string {
-	return (element.(corev1.ServicePort)).Name
-}
-
-func volumeMountIterator(element interface{}) string {
-	return (element.(corev1.VolumeMount)).Name
-}
-
-func volumeIterator(element interface{}) string {
-	return (element.(corev1.Volume)).Name
-}
-
-func keyIterator(element interface{}) string {
-	return (element.(corev1.KeyToPath)).Key
-}
-
-func envIterator(element interface{}) string {
-	return (element.(corev1.EnvVar)).Name
-}
-
-func containerIterator(element interface{}) string {
-	return (element.(corev1.Container)).Name
-}
-
-func hostAliasIterator(element interface{}) string {
-	return (element.(corev1.HostAlias)).IP
-}
-
-func pvcIterator(element interface{}) string {
-	return (element.(corev1.PersistentVolumeClaim)).Name
-}
-
-func accessModeIterator(element interface{}) string {
-	return string(element.(corev1.PersistentVolumeAccessMode))
-}
-
-func cmdIterator(element interface{}) string {
-	return element.(string)
-}
-
-func ruleIterator(element interface{}) string {
-	return element.(rbac.PolicyRule).APIGroups[0]
-}
-
-func stringArrayIterator(element interface{}) string {
-	return element.(string)
-}
 
 var _ = Describe("Druid", func() {
 	//Reconciliation of new etcd resource deployment without any existing statefulsets.
@@ -630,7 +579,7 @@ func validateRole(instance *druidv1alpha1.Etcd, role *rbac.Role) {
 				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
 			}),
-			"OwnerReferences": MatchElements(ownerRefIterator, IgnoreExtras, Elements{
+			"OwnerReferences": MatchElements(testutils.OwnerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
 					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),
 					"Kind":               Equal("Etcd"),
@@ -641,15 +590,15 @@ func validateRole(instance *druidv1alpha1.Etcd, role *rbac.Role) {
 				}),
 			}),
 		}),
-		"Rules": MatchAllElements(ruleIterator, Elements{
+		"Rules": MatchAllElements(testutils.RuleIterator, Elements{
 			"coordination.k8s.io": MatchFields(IgnoreExtras, Fields{
-				"APIGroups": MatchAllElements(stringArrayIterator, Elements{
+				"APIGroups": MatchAllElements(testutils.StringArrayIterator, Elements{
 					"coordination.k8s.io": Equal("coordination.k8s.io"),
 				}),
-				"Resources": MatchAllElements(stringArrayIterator, Elements{
+				"Resources": MatchAllElements(testutils.StringArrayIterator, Elements{
 					"leases": Equal("leases"),
 				}),
-				"Verbs": MatchAllElements(stringArrayIterator, Elements{
+				"Verbs": MatchAllElements(testutils.StringArrayIterator, Elements{
 					"list":   Equal("list"),
 					"get":    Equal("get"),
 					"update": Equal("update"),
@@ -658,13 +607,13 @@ func validateRole(instance *druidv1alpha1.Etcd, role *rbac.Role) {
 				}),
 			}),
 			"apps": MatchFields(IgnoreExtras, Fields{
-				"APIGroups": MatchAllElements(stringArrayIterator, Elements{
+				"APIGroups": MatchAllElements(testutils.StringArrayIterator, Elements{
 					"apps": Equal("apps"),
 				}),
-				"Resources": MatchAllElements(stringArrayIterator, Elements{
+				"Resources": MatchAllElements(testutils.StringArrayIterator, Elements{
 					"statefulsets": Equal("statefulsets"),
 				}),
-				"Verbs": MatchAllElements(stringArrayIterator, Elements{
+				"Verbs": MatchAllElements(testutils.StringArrayIterator, Elements{
 					"list":   Equal("list"),
 					"get":    Equal("get"),
 					"update": Equal("update"),
@@ -673,13 +622,13 @@ func validateRole(instance *druidv1alpha1.Etcd, role *rbac.Role) {
 				}),
 			}),
 			"": MatchFields(IgnoreExtras, Fields{
-				"APIGroups": MatchAllElements(stringArrayIterator, Elements{
+				"APIGroups": MatchAllElements(testutils.StringArrayIterator, Elements{
 					"": Equal(""),
 				}),
-				"Resources": MatchAllElements(stringArrayIterator, Elements{
+				"Resources": MatchAllElements(testutils.StringArrayIterator, Elements{
 					"pods": Equal("pods"),
 				}),
-				"Verbs": MatchAllElements(stringArrayIterator, Elements{
+				"Verbs": MatchAllElements(testutils.StringArrayIterator, Elements{
 					"list":  Equal("list"),
 					"get":   Equal("get"),
 					"watch": Equal("watch"),
@@ -752,7 +701,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
 			}),
-			"OwnerReferences": MatchElements(ownerRefIterator, IgnoreExtras, Elements{
+			"OwnerReferences": MatchElements(testutils.OwnerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
 					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),
 					"Kind":               Equal("Etcd"),
@@ -770,7 +719,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 				"instance": Equal(instance.Name),
 				"name":     Equal("etcd"),
 			}),
-			"Ports": MatchElements(servicePortIterator, IgnoreExtras, Elements{
+			"Ports": MatchElements(testutils.ServicePortIterator, IgnoreExtras, Elements{
 				"client": MatchFields(IgnoreExtras, Fields{
 					"Name":     Equal("client"),
 					"Protocol": Equal(corev1.ProtocolTCP),
@@ -843,16 +792,16 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 					}),
 				}),
 				"Spec": MatchFields(IgnoreExtras, Fields{
-					"HostAliases": MatchAllElements(hostAliasIterator, Elements{
+					"HostAliases": MatchAllElements(testutils.HostAliasIterator, Elements{
 						"127.0.0.1": MatchFields(IgnoreExtras, Fields{
 							"IP": Equal("127.0.0.1"),
-							"Hostnames": MatchAllElements(cmdIterator, Elements{
+							"Hostnames": MatchAllElements(testutils.CmdIterator, Elements{
 								fmt.Sprintf("%s-local", instance.Name): Equal(fmt.Sprintf("%s-local", instance.Name)),
 							}),
 						}),
 					}),
 					"PriorityClassName": Equal(""),
-					"Containers": MatchAllElements(containerIterator, Elements{
+					"Containers": MatchAllElements(testutils.ContainerIterator, Elements{
 						common.Etcd: MatchFields(IgnoreExtras, Fields{
 							"Ports": ConsistOf([]corev1.ContainerPort{
 								{
@@ -868,7 +817,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 									ContainerPort: clientPort,
 								},
 							}),
-							"Command": MatchAllElements(cmdIterator, Elements{
+							"Command": MatchAllElements(testutils.CmdIterator, Elements{
 								"/var/etcd/bin/bootstrap.sh": Equal("/var/etcd/bin/bootstrap.sh"),
 							}),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
@@ -891,7 +840,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 								"PeriodSeconds":       Equal(int32(5)),
 								"FailureThreshold":    Equal(int32(5)),
 							})),
-							"VolumeMounts": MatchAllElements(volumeMountIterator, Elements{
+							"VolumeMounts": MatchAllElements(testutils.VolumeMountIterator, Elements{
 								instance.Name: MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal(instance.Name),
 									"MountPath": Equal("/var/etcd/data/"),
@@ -900,7 +849,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 						}),
 
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Command": MatchAllElements(cmdIterator, Elements{
+							"Command": MatchAllElements(testutils.CmdIterator, Elements{
 								"etcdbrctl":                                      Equal("etcdbrctl"),
 								"server":                                         Equal("server"),
 								"--data-dir=/var/etcd/data/new.etcd":             Equal("--data-dir=/var/etcd/data/new.etcd"),
@@ -932,7 +881,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 							}),
 							"Image":           Equal(fmt.Sprintf("%s:%s", images[common.BackupRestore].Repository, *images[common.BackupRestore].Tag)),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
-							"VolumeMounts": MatchAllElements(volumeMountIterator, Elements{
+							"VolumeMounts": MatchAllElements(testutils.VolumeMountIterator, Elements{
 								instance.Name: MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal(instance.Name),
 									"MountPath": Equal("/var/etcd/data"),
@@ -942,7 +891,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 									"MountPath": Equal("/var/etcd/config/"),
 								}),
 							}),
-							"Env": MatchAllElements(envIterator, Elements{
+							"Env": MatchAllElements(testutils.EnvIterator, Elements{
 								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("STORAGE_CONTAINER"),
 									"Value": Equal(""),
@@ -974,7 +923,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 						}),
 					}),
 					"ShareProcessNamespace": Equal(pointer.BoolPtr(true)),
-					"Volumes": MatchAllElements(volumeIterator, Elements{
+					"Volumes": MatchAllElements(testutils.VolumeIterator, Elements{
 						"etcd-config-file": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("etcd-config-file"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
@@ -983,7 +932,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 										"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
 									}),
 									"DefaultMode": PointTo(Equal(int32(0644))),
-									"Items": MatchAllElements(keyIterator, Elements{
+									"Items": MatchAllElements(testutils.KeyIterator, Elements{
 										"etcd.conf.yaml": MatchFields(IgnoreExtras, Fields{
 											"Key":  Equal("etcd.conf.yaml"),
 											"Path": Equal("etcd.conf.yaml"),
@@ -995,13 +944,13 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 					}),
 				}),
 			}),
-			"VolumeClaimTemplates": MatchAllElements(pvcIterator, Elements{
+			"VolumeClaimTemplates": MatchAllElements(testutils.PVCIterator, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
 					"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 						"Name": Equal(instance.Name),
 					}),
 					"Spec": MatchFields(IgnoreExtras, Fields{
-						"AccessModes": MatchAllElements(accessModeIterator, Elements{
+						"AccessModes": MatchAllElements(testutils.AccessModeIterator, Elements{
 							"ReadWriteOnce": Equal(corev1.ReadWriteOnce),
 						}),
 						"Resources": MatchFields(IgnoreExtras, Fields{
@@ -1051,7 +1000,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
 			}),
-			"OwnerReferences": MatchElements(ownerRefIterator, IgnoreExtras, Elements{
+			"OwnerReferences": MatchElements(testutils.OwnerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
 					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),
 					"Kind":               Equal("Etcd"),
@@ -1106,7 +1055,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
 			}),
-			"OwnerReferences": MatchElements(ownerRefIterator, IgnoreExtras, Elements{
+			"OwnerReferences": MatchElements(testutils.OwnerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
 					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),
 					"Kind":               Equal("Etcd"),
@@ -1124,7 +1073,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 				"instance": Equal(instance.Name),
 				"name":     Equal("etcd"),
 			}),
-			"Ports": MatchElements(servicePortIterator, IgnoreExtras, Elements{
+			"Ports": MatchElements(testutils.ServicePortIterator, IgnoreExtras, Elements{
 				"client": MatchFields(IgnoreExtras, Fields{
 					"Name":     Equal("client"),
 					"Protocol": Equal(corev1.ProtocolTCP),
@@ -1199,16 +1148,16 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 				}),
 				//s.Spec.Template.Spec.HostAliases
 				"Spec": MatchFields(IgnoreExtras, Fields{
-					"HostAliases": MatchAllElements(hostAliasIterator, Elements{
+					"HostAliases": MatchAllElements(testutils.HostAliasIterator, Elements{
 						"127.0.0.1": MatchFields(IgnoreExtras, Fields{
 							"IP": Equal("127.0.0.1"),
-							"Hostnames": MatchAllElements(cmdIterator, Elements{
+							"Hostnames": MatchAllElements(testutils.CmdIterator, Elements{
 								fmt.Sprintf("%s-local", instance.Name): Equal(fmt.Sprintf("%s-local", instance.Name)),
 							}),
 						}),
 					}),
 					"PriorityClassName": Equal(*instance.Spec.PriorityClassName),
-					"Containers": MatchAllElements(containerIterator, Elements{
+					"Containers": MatchAllElements(testutils.ContainerIterator, Elements{
 						common.Etcd: MatchFields(IgnoreExtras, Fields{
 							"Ports": ConsistOf([]corev1.ContainerPort{
 								{
@@ -1224,7 +1173,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 									ContainerPort: *instance.Spec.Etcd.ClientPort,
 								},
 							}),
-							"Command": MatchAllElements(cmdIterator, Elements{
+							"Command": MatchAllElements(testutils.CmdIterator, Elements{
 								"/var/etcd/bin/bootstrap.sh": Equal("/var/etcd/bin/bootstrap.sh"),
 							}),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
@@ -1251,7 +1200,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								"PeriodSeconds":       Equal(int32(5)),
 								"FailureThreshold":    Equal(int32(5)),
 							})),
-							"VolumeMounts": MatchAllElements(volumeMountIterator, Elements{
+							"VolumeMounts": MatchAllElements(testutils.VolumeMountIterator, Elements{
 								*instance.Spec.VolumeClaimTemplate: MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal(*instance.Spec.VolumeClaimTemplate),
 									"MountPath": Equal("/var/etcd/data/"),
@@ -1280,7 +1229,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 						}),
 
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Command": MatchAllElements(cmdIterator, Elements{
+							"Command": MatchAllElements(testutils.CmdIterator, Elements{
 								"etcdbrctl": Equal("etcdbrctl"),
 								"server":    Equal("server"),
 								"--cert=/var/etcd/ssl/client/client/tls.crt":                                                                        Equal("--cert=/var/etcd/ssl/client/client/tls.crt"),
@@ -1325,7 +1274,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 							}),
 							"Image":           Equal(*instance.Spec.Backup.Image),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
-							"VolumeMounts": MatchElements(volumeMountIterator, IgnoreExtras, Elements{
+							"VolumeMounts": MatchElements(testutils.VolumeMountIterator, IgnoreExtras, Elements{
 								*instance.Spec.VolumeClaimTemplate: MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal(*instance.Spec.VolumeClaimTemplate),
 									"MountPath": Equal("/var/etcd/data"),
@@ -1339,7 +1288,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 									"MountPath": Equal(*instance.Spec.Backup.Store.Container),
 								}),
 							}),
-							"Env": MatchElements(envIterator, IgnoreExtras, Elements{
+							"Env": MatchElements(testutils.EnvIterator, IgnoreExtras, Elements{
 								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("STORAGE_CONTAINER"),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
@@ -1371,7 +1320,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 						}),
 					}),
 					"ShareProcessNamespace": Equal(pointer.BoolPtr(true)),
-					"Volumes": MatchAllElements(volumeIterator, Elements{
+					"Volumes": MatchAllElements(testutils.VolumeIterator, Elements{
 						"host-storage": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("host-storage"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
@@ -1389,7 +1338,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 										"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
 									}),
 									"DefaultMode": PointTo(Equal(int32(0644))),
-									"Items": MatchAllElements(keyIterator, Elements{
+									"Items": MatchAllElements(testutils.KeyIterator, Elements{
 										"etcd.conf.yaml": MatchFields(IgnoreExtras, Fields{
 											"Key":  Equal("etcd.conf.yaml"),
 											"Path": Equal("etcd.conf.yaml"),
@@ -1441,14 +1390,14 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 					}),
 				}),
 			}),
-			"VolumeClaimTemplates": MatchAllElements(pvcIterator, Elements{
+			"VolumeClaimTemplates": MatchAllElements(testutils.PVCIterator, Elements{
 				*instance.Spec.VolumeClaimTemplate: MatchFields(IgnoreExtras, Fields{
 					"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 						"Name": Equal(*instance.Spec.VolumeClaimTemplate),
 					}),
 					"Spec": MatchFields(IgnoreExtras, Fields{
 						"StorageClassName": PointTo(Equal(*instance.Spec.StorageClass)),
-						"AccessModes": MatchAllElements(accessModeIterator, Elements{
+						"AccessModes": MatchAllElements(testutils.AccessModeIterator, Elements{
 							"ReadWriteOnce": Equal(corev1.ReadWriteOnce),
 						}),
 						"Resources": MatchFields(IgnoreExtras, Fields{
@@ -1470,19 +1419,19 @@ func validateStoreGCP(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *c
 			"Template": MatchFields(IgnoreExtras, Fields{
 				//s.Spec.Template.Spec.HostAliases
 				"Spec": MatchFields(IgnoreExtras, Fields{
-					"Containers": MatchElements(containerIterator, IgnoreExtras, Elements{
+					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(cmdIterator, IgnoreExtras, Elements{
+							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=GCS": Equal("--storage-provider=GCS"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix): Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 							}),
-							"VolumeMounts": MatchElements(volumeMountIterator, IgnoreExtras, Elements{
+							"VolumeMounts": MatchElements(testutils.VolumeMountIterator, IgnoreExtras, Elements{
 								"etcd-backup": MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal("etcd-backup"),
 									"MountPath": Equal("/root/.gcp/"),
 								}),
 							}),
-							"Env": MatchAllElements(envIterator, Elements{
+							"Env": MatchAllElements(testutils.EnvIterator, Elements{
 								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("STORAGE_CONTAINER"),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
@@ -1510,7 +1459,7 @@ func validateStoreGCP(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *c
 							}),
 						}),
 					}),
-					"Volumes": MatchElements(volumeIterator, IgnoreExtras, Elements{
+					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
 						"etcd-backup": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
@@ -1533,13 +1482,13 @@ func validateStoreAzure(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm 
 			"Template": MatchFields(IgnoreExtras, Fields{
 				//s.Spec.Template.Spec.HostAliases
 				"Spec": MatchFields(IgnoreExtras, Fields{
-					"Containers": MatchElements(containerIterator, IgnoreExtras, Elements{
+					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(cmdIterator, IgnoreExtras, Elements{
+							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=ABS": Equal("--storage-provider=ABS"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix): Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 							}),
-							"Env": MatchAllElements(envIterator, Elements{
+							"Env": MatchAllElements(testutils.EnvIterator, Elements{
 								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("STORAGE_CONTAINER"),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
@@ -1567,7 +1516,7 @@ func validateStoreAzure(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm 
 							}),
 						}),
 					}),
-					"Volumes": MatchElements(volumeIterator, IgnoreExtras, Elements{
+					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
 						"etcd-backup": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
@@ -1589,13 +1538,13 @@ func validateStoreOpenstack(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet,
 			"Template": MatchFields(IgnoreExtras, Fields{
 				//s.Spec.Template.Spec.HostAliases
 				"Spec": MatchFields(IgnoreExtras, Fields{
-					"Containers": MatchElements(containerIterator, IgnoreExtras, Elements{
+					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(cmdIterator, IgnoreExtras, Elements{
+							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=Swift": Equal("--storage-provider=Swift"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix): Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 							}),
-							"Env": MatchAllElements(envIterator, Elements{
+							"Env": MatchAllElements(testutils.EnvIterator, Elements{
 								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("STORAGE_CONTAINER"),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
@@ -1623,7 +1572,7 @@ func validateStoreOpenstack(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet,
 							}),
 						}),
 					}),
-					"Volumes": MatchElements(volumeIterator, IgnoreExtras, Elements{
+					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
 						"etcd-backup": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
@@ -1645,15 +1594,15 @@ func validateStoreAlicloud(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, 
 			"Template": MatchFields(IgnoreExtras, Fields{
 				//s.Spec.Template.Spec.HostAliases
 				"Spec": MatchFields(IgnoreExtras, Fields{
-					"Containers": MatchElements(containerIterator, IgnoreExtras, Elements{
+					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(cmdIterator, IgnoreExtras, Elements{
+							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=OSS": Equal("--storage-provider=OSS"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix): Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 							}),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
-							"Env": MatchAllElements(envIterator, Elements{
+							"Env": MatchAllElements(testutils.EnvIterator, Elements{
 								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("STORAGE_CONTAINER"),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
@@ -1681,7 +1630,7 @@ func validateStoreAlicloud(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, 
 							}),
 						}),
 					}),
-					"Volumes": MatchElements(volumeIterator, IgnoreExtras, Elements{
+					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
 						"etcd-backup": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
@@ -1703,15 +1652,15 @@ func validateStoreAWS(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *c
 			"Template": MatchFields(IgnoreExtras, Fields{
 				//s.Spec.Template.Spec.HostAliases
 				"Spec": MatchFields(IgnoreExtras, Fields{
-					"Containers": MatchElements(containerIterator, IgnoreExtras, Elements{
+					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(cmdIterator, IgnoreExtras, Elements{
+							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=S3": Equal("--storage-provider=S3"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix): Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 							}),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
-							"Env": MatchAllElements(envIterator, Elements{
+							"Env": MatchAllElements(testutils.EnvIterator, Elements{
 								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("STORAGE_CONTAINER"),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
@@ -1739,7 +1688,7 @@ func validateStoreAWS(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *c
 							}),
 						}),
 					}),
-					"Volumes": MatchElements(volumeIterator, IgnoreExtras, Elements{
+					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
 						"etcd-backup": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{

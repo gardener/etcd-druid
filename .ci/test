@@ -28,7 +28,12 @@ source "${SOURCE_PATH}/.ci/common.sh"
 
 ###############################################################################
 
-if [ -z "$COVER" ] || [ "$COVER" = false ] ; then
+
+GINKGO_COMMON_FLAGS="-r -timeout=1h0m0s --randomize-all --randomize-suites --fail-on-pending --progress"
+if [ "$INTEGRATION" = true ] ; then
+  echo "[INFO] Running integration tests."
+  make test-integration
+elif [ -z $COVER ] || [ "$COVER" = false ] ; then
   echo "[INFO] Test coverage is disabled."
   make test
 else

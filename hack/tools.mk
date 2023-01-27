@@ -32,4 +32,4 @@ $(GINKGO): go.mod
 	go build -o $(GINKGO) github.com/onsi/ginkgo/v2/ginkgo
 
 $(GO_ADD_LICENSE):
-    GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/google/addlicense@$(GO_ADD_LICENSE_VERSION)
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/google/addlicense@$(GO_ADD_LICENSE_VERSION)

@@ -1,4 +1,4 @@
-// Copyright (c) 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright (c) 2023 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controllers
+package etcdcopybackupstask
 
 import (
 	"context"
 	"fmt"
+	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidcontrollerutils "github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -38,39 +40,38 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-var _ = Describe("EtcdCopyBackupsTask Controller", func() {
-	var (
-		c   client.Client
-		ctx context.Context
-	)
+var (
+	timeout         = 1 * time.Minute
+	pollingInterval = 2 * time.Second
+)
 
-	BeforeEach(func() {
-		c = mgr.GetClient()
+var _ = Describe("EtcdCopyBackupsTaskController", func() {
+	var (
 		ctx = context.TODO()
-	})
+	)
 
 	DescribeTable("when creating and deleting etcdcopybackupstask",
 		func(task *druidv1alpha1.EtcdCopyBackupsTask, jobStatus *batchv1.JobStatus) {
 			// Create namespace
-			_, err := controllerutil.CreateOrUpdate(ctx, c, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: task.Namespace}}, func() error { return nil })
+			_, err := controllerutil.CreateOrUpdate(ctx, k8sClient, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: task.Namespace}}, func() error { return nil })
 			Expect(err).To(Not(HaveOccurred()))
 
 			// Create secrets
-			errors := createSecrets(c, task.Namespace, task.Spec.SourceStore.SecretRef.Name, task.Spec.TargetStore.SecretRef.Name)
+			errors := testutils.CreateSecrets(ctx, k8sClient, task.Namespace, task.Spec.SourceStore.SecretRef.Name, task.Spec.TargetStore.SecretRef.Name)
 			Expect(len(errors)).Should(BeZero())
 
 			// Create task
-			Expect(c.Create(ctx, task)).To(Succeed())
+			Expect(k8sClient.Create(ctx, task)).To(Succeed())
 
 			// Wait until the job has been created
 			job := &batchv1.Job{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      task.Name + workerSuffix,
+					Name:      task.Name + "-worker",
 					Namespace: task.Namespace,
 				},
 			}
 			Eventually(func() (*batchv1.Job, error) {
-				if err := c.Get(ctx, client.ObjectKeyFromObject(job), job); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(job), job); err != nil {
 					return nil, err
 				}
 				return job, nil
@@ -78,37 +79,37 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 
 			// Update job status
 			job.Status = *jobStatus
-			err = c.Status().Update(ctx, job)
+			err = k8sClient.Status().Update(ctx, job)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Wait until the task status has been updated
 			Eventually(func() (*druidv1alpha1.EtcdCopyBackupsTask, error) {
-				if err := c.Get(ctx, client.ObjectKeyFromObject(task), task); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(task), task); err != nil {
 					return nil, err
 				}
 				return task, nil
 			}, timeout, pollingInterval).Should(PointTo(matchTaskStatus(&job.Status)))
 
 			// Delete task
-			Expect(c.Delete(ctx, task)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, task)).To(Succeed())
 
 			// Wait until the job gets the "foregroundDeletion" finalizer and remove it
 			Eventually(func() (*batchv1.Job, error) {
-				if err := c.Get(ctx, client.ObjectKeyFromObject(job), job); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(job), job); err != nil {
 					return nil, err
 				}
 				return job, nil
-			}, timeout, pollingInterval).Should(PointTo(matchFinalizer(metav1.FinalizerDeleteDependents)))
-			Expect(controllerutils.RemoveFinalizers(ctx, c, job, metav1.FinalizerDeleteDependents)).To(Succeed())
+			}, timeout, pollingInterval).Should(PointTo(testutils.MatchFinalizer(metav1.FinalizerDeleteDependents)))
+			Expect(controllerutils.RemoveFinalizers(ctx, k8sClient, job, metav1.FinalizerDeleteDependents)).To(Succeed())
 
 			// Wait until the job has been deleted
 			Eventually(func() error {
-				return c.Get(ctx, client.ObjectKeyFromObject(job), &batchv1.Job{})
+				return k8sClient.Get(ctx, client.ObjectKeyFromObject(job), &batchv1.Job{})
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 
 			// Wait until the task has been deleted
 			Eventually(func() error {
-				return c.Get(ctx, client.ObjectKeyFromObject(task), &druidv1alpha1.EtcdCopyBackupsTask{})
+				return k8sClient.Get(ctx, client.ObjectKeyFromObject(task), &druidv1alpha1.EtcdCopyBackupsTask{})
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 		},
 		Entry("should create the job, update the task status, and delete the job if the job completed",
@@ -134,20 +135,21 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask) gomegatypes.GomegaMatcher
 	targetProvider, err := utils.StorageProviderFromInfraProvider(task.Spec.TargetStore.Provider)
 	Expect(err).NotTo(HaveOccurred())
 
-	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(getImageYAMLPath())
+	imageVector, err := druidcontrollerutils.CreateImageVector()
 	Expect(err).NotTo(HaveOccurred())
-	images, err := imagevector.FindImages(imageVector, imageNames)
+	images, err := imagevector.FindImages(imageVector, []string{common.BackupRestore})
 	Expect(err).NotTo(HaveOccurred())
+	backupRestoreImage := images[common.BackupRestore]
 
 	matcher := MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(task.Name + workerSuffix),
+			"Name":      Equal(task.Name + "-worker"),
 			"Namespace": Equal(task.Namespace),
 			"Annotations": MatchKeys(IgnoreExtras, Keys{
 				"gardener.cloud/owned-by":   Equal(fmt.Sprintf("%s/%s", task.Namespace, task.Name)),
 				"gardener.cloud/owner-type": Equal("etcdcopybackupstask"),
 			}),
-			"OwnerReferences": MatchAllElements(ownerRefIterator, Elements{
+			"OwnerReferences": MatchAllElements(testutils.OwnerRefIterator, Elements{
 				task.Name: MatchAllFields(Fields{
 					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),
 					"Kind":               Equal("EtcdCopyBackupsTask"),
@@ -168,13 +170,13 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask) gomegatypes.GomegaMatcher
 				}),
 				"Spec": MatchFields(IgnoreExtras, Fields{
 					"RestartPolicy": Equal(corev1.RestartPolicyOnFailure),
-					"Containers": MatchAllElements(containerIterator, Elements{
+					"Containers": MatchAllElements(testutils.ContainerIterator, Elements{
 						"copy-backups": MatchFields(IgnoreExtras, Fields{
 							"Name":            Equal("copy-backups"),
-							"Image":           Equal(fmt.Sprintf("%s:%s", images[common.BackupRestore].Repository, *images[common.BackupRestore].Tag)),
+							"Image":           Equal(fmt.Sprintf("%s:%s", backupRestoreImage.Repository, *backupRestoreImage.Tag)),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
-							"Command":         MatchAllElements(cmdIterator, getCmdElements(task, sourceProvider, targetProvider)),
-							"Env":             MatchElements(envIterator, IgnoreExtras, getEnvElements(task)),
+							"Command":         MatchAllElements(testutils.CmdIterator, getCmdElements(task, sourceProvider, targetProvider)),
+							"Env":             MatchElements(testutils.EnvIterator, IgnoreExtras, getEnvElements(task)),
 						}),
 					}),
 				}),
@@ -246,11 +248,11 @@ func matchJobWithProviders(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvid
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
 				"Spec": MatchFields(IgnoreExtras, Fields{
-					"Containers": MatchAllElements(containerIterator, Elements{
+					"Containers": MatchAllElements(testutils.ContainerIterator, Elements{
 						"copy-backups": MatchFields(IgnoreExtras, Fields{
 							"Env": And(
-								MatchElements(envIterator, IgnoreExtras, getProviderEnvElements(targetProvider, "", "", &task.Spec.TargetStore)),
-								MatchElements(envIterator, IgnoreExtras, getProviderEnvElements(sourceProvider, "SOURCE_", "source-", &task.Spec.SourceStore)),
+								MatchElements(testutils.EnvIterator, IgnoreExtras, getProviderEnvElements(targetProvider, "", "", &task.Spec.TargetStore)),
+								MatchElements(testutils.EnvIterator, IgnoreExtras, getProviderEnvElements(sourceProvider, "SOURCE_", "source-", &task.Spec.SourceStore)),
 							),
 						}),
 					}),
@@ -263,17 +265,17 @@ func matchJobWithProviders(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvid
 			"Spec": MatchFields(IgnoreExtras, Fields{
 				"Template": MatchFields(IgnoreExtras, Fields{
 					"Spec": MatchFields(IgnoreExtras, Fields{
-						"Containers": MatchAllElements(containerIterator, Elements{
+						"Containers": MatchAllElements(testutils.ContainerIterator, Elements{
 							"copy-backups": MatchFields(IgnoreExtras, Fields{
 								"VolumeMounts": And(
-									MatchElements(volumeMountIterator, IgnoreExtras, getVolumeMountsElements(targetProvider, "")),
-									MatchElements(volumeMountIterator, IgnoreExtras, getVolumeMountsElements(sourceProvider, "source-")),
+									MatchElements(testutils.VolumeMountIterator, IgnoreExtras, getVolumeMountsElements(targetProvider, "")),
+									MatchElements(testutils.VolumeMountIterator, IgnoreExtras, getVolumeMountsElements(sourceProvider, "source-")),
 								),
 							}),
 						}),
 						"Volumes": And(
-							MatchElements(volumeIterator, IgnoreExtras, getVolumesElements(targetProvider, "", &task.Spec.TargetStore)),
-							MatchElements(volumeIterator, IgnoreExtras, getVolumesElements(sourceProvider, "source-", &task.Spec.SourceStore)),
+							MatchElements(testutils.VolumeIterator, IgnoreExtras, getVolumesElements(targetProvider, "", &task.Spec.TargetStore)),
+							MatchElements(testutils.VolumeIterator, IgnoreExtras, getVolumesElements(sourceProvider, "source-", &task.Spec.SourceStore)),
 						),
 					}),
 				}),
@@ -411,24 +413,10 @@ func matchTaskStatus(jobStatus *batchv1.JobStatus) gomegatypes.GomegaMatcher {
 	})
 }
 
-func matchFinalizer(finalizer string) gomegatypes.GomegaMatcher {
-	return MatchFields(IgnoreExtras, Fields{
-		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Finalizers": MatchAllElements(stringIdentifier, Elements{
-				finalizer: Equal(finalizer),
-			}),
-		}),
-	})
-}
-
 func addEqual(elements Elements, s string) {
 	elements[s] = Equal(s)
 }
 
 func conditionIdentifier(element interface{}) string {
 	return string((element.(druidv1alpha1.Condition)).Type)
-}
-
-func stringIdentifier(element interface{}) string {
-	return element.(string)
 }

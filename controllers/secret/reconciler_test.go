@@ -16,119 +16,197 @@ package secret
 
 import (
 	"context"
-	"time"
+	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/test/utils"
+	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
+	"github.com/gardener/etcd-druid/pkg/common"
+	"github.com/go-logr/logr"
+
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-)
-
-var (
-	timeout         = 1 * time.Minute
-	pollingInterval = 2 * time.Second
 )
 
 var _ = Describe("SecretController", func() {
 	var (
-		ctx = context.TODO()
-
-		namespace *corev1.Namespace
-		etcd      *druidv1alpha1.Etcd
-		err       error
+		secretName    = "test-secret"
+		testNamespace = "test-namespace"
 	)
 
-	BeforeEach(func() {
-		namespace = &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "secret-controller-tests",
-			},
-		}
-		etcd, err = utils.EtcdBuilderWithDefaults("etcd", namespace.Name).WithTLS().Build()
-		Expect(err).To(Not(HaveOccurred()))
+	Describe("isFinalizerNeeded", func() {
+		var (
+			etcdList druidv1alpha1.EtcdList
+		)
 
-		_, err := controllerutil.CreateOrUpdate(ctx, k8sClient, namespace, func() error { return nil })
-		Expect(err).To(Not(HaveOccurred()))
+		BeforeEach(func() {
+			etcdList = druidv1alpha1.EtcdList{}
+			for i := 0; i < 3; i++ {
+				etcdList.Items = append(etcdList.Items, druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      fmt.Sprintf("etcd-%d", i),
+						Namespace: testNamespace,
+					},
+				})
+			}
+		})
+
+		It("should return false if secret is not referred to by any Etcd object", func() {
+			Expect(isFinalizerNeeded(secretName, &etcdList)).To(BeFalse())
+		})
+
+		It("should return true if secret is referred to in an Etcd object's Spec.Etcd.ClientUrlTLS section", func() {
+			etcdList.Items[0].Spec.Etcd.ClientUrlTLS = &druidv1alpha1.TLSConfig{
+				ServerTLSSecretRef: v1.SecretReference{
+					Name:      secretName,
+					Namespace: testNamespace,
+				},
+			}
+			Expect(isFinalizerNeeded(secretName, &etcdList)).To(BeTrue())
+		})
+
+		It("should return true if secret is referred to in an Etcd object's Spec.Etcd.PeerUrlTLS section", func() {
+			etcdList.Items[1].Spec.Etcd.PeerUrlTLS = &druidv1alpha1.TLSConfig{
+				ServerTLSSecretRef: v1.SecretReference{
+					Name:      secretName,
+					Namespace: testNamespace,
+				},
+			}
+			Expect(isFinalizerNeeded(secretName, &etcdList)).To(BeTrue())
+		})
+
+		It("should return true if secret is referred to in an Etcd object's Spec.Backup.Store section", func() {
+			etcdList.Items[2].Spec.Backup.Store = &druidv1alpha1.StoreSpec{
+				SecretRef: &v1.SecretReference{
+					Name:      secretName,
+					Namespace: testNamespace,
+				},
+			}
+			Expect(isFinalizerNeeded(secretName, &etcdList)).To(BeTrue())
+		})
 	})
 
-	It("should reconcile the finalizers for the referenced secrets", func() {
-		ctx, cancelCtx := context.WithTimeout(ctx, testEnv.Config.Timeout)
-		defer cancelCtx()
+	Describe("addFinalizer", func() {
+		var (
+			secret     *corev1.Secret
+			ctx        context.Context
+			logger     = logr.Discard()
+			fakeClient = fakeclient.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
+		)
 
-		getFinalizersForSecret := func(name string) func(g Gomega) []string {
-			return func(g Gomega) []string {
-				secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace.Name}}
-				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(secret), secret)).To(Succeed())
-				return secret.Finalizers
+		BeforeEach(func() {
+			ctx = context.Background()
+			secret = &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      secretName,
+					Namespace: testNamespace,
+				},
 			}
-		}
 
-		By("creating new etcd with secret references")
-		secretNames := []string{
-			"client-url-ca-etcd",
-			"client-url-etcd-client-tls",
-			"client-url-etcd-server-tls",
-			"peer-url-ca-etcd",
-			"peer-url-etcd-server-tls",
-			"etcd-backup",
-		}
-		errs := utils.CreateSecrets(ctx, k8sClient, namespace.Name, secretNames...)
-		Expect(errs).To(BeEmpty())
+			By("Create Secret")
+			Expect(fakeClient.Create(ctx, secret)).To(Succeed())
 
-		Expect(k8sClient.Create(ctx, etcd)).To(Succeed())
+			By("Ensure Secret is created")
+			Eventually(func() error {
+				return fakeClient.Get(ctx, client.ObjectKeyFromObject(secret), secret)
+			}).Should(Succeed())
+		})
 
-		By("verifying secret references got finalizer")
-		for _, name := range secretNames {
-			Eventually(getFinalizersForSecret(name)).Should(ConsistOf("druid.gardener.cloud/etcd-druid"), "for secret "+name)
-		}
+		AfterEach(func() {
+			ctx = context.Background()
 
-		By("updating existing etcd with new secret references")
-		newSecretNames := []string{
-			"client-url-ca-etcd2",
-			"client-url-etcd-client-tls2",
-			"client-url-etcd-server-tls2",
-			"peer-url-ca-etcd2",
-			"peer-url-etcd-server-tls2",
-			"etcd-backup2",
-		}
-		errs = utils.CreateSecrets(ctx, k8sClient, namespace.Name, newSecretNames...)
-		Expect(errs).To(BeEmpty())
+			By("Remove any existing finalizers on Secret")
+			patch := client.MergeFrom(secret.DeepCopy())
+			secret.Finalizers = []string{}
+			Expect(fakeClient.Patch(ctx, secret, patch)).To(Succeed())
 
-		patch := client.MergeFrom(etcd.DeepCopy())
-		etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name += "2"
-		etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name += "2"
-		etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name += "2"
-		etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name += "2"
-		etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name += "2"
-		etcd.Spec.Backup.Store.SecretRef.Name += "2"
-		Expect(k8sClient.Patch(ctx, etcd, patch)).To(Succeed())
+			By("Delete Secret")
+			Expect(fakeClient.Delete(ctx, secret)).To(Succeed())
 
-		By("verifying new secret references got finalizer")
-		for _, name := range newSecretNames {
-			Eventually(getFinalizersForSecret(name)).Should(ConsistOf("druid.gardener.cloud/etcd-druid"), "for secret "+name)
-		}
+			By("Ensure Secret is deleted")
+			Eventually(func() error {
+				return fakeClient.Get(ctx, client.ObjectKeyFromObject(secret), secret)
+			}).Should(BeNotFoundError())
+		})
 
-		By("verifying old secret references have no finalizer anymore")
-		for _, name := range secretNames {
-			Eventually(getFinalizersForSecret(name)).Should(BeEmpty(), "for secret "+name)
-		}
+		It("should return nil if secret already has finalizer", func() {
+			patch := client.MergeFrom(secret.DeepCopy())
+			secret.Finalizers = []string{common.FinalizerName}
+			Expect(fakeClient.Patch(ctx, secret, patch)).To(Succeed())
+			Expect(addFinalizer(ctx, logger, fakeClient, secret)).To(BeNil())
+		})
 
-		By("deleting etcd")
-		Expect(k8sClient.Delete(ctx, etcd)).To(Succeed())
+		It("should add finalizer on secret if finalizer does not exist", func() {
+			Expect(addFinalizer(ctx, logger, fakeClient, secret)).To(Succeed())
+			finalizers := sets.NewString(secret.Finalizers...)
+			Expect(finalizers.Has(common.FinalizerName)).To(BeTrue())
+		})
+	})
 
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKeyFromObject(etcd), &druidv1alpha1.Etcd{})
-		}, timeout, pollingInterval).Should(BeNotFoundError())
+	Describe("removeFinalizer", func() {
+		var (
+			secret     *corev1.Secret
+			ctx        context.Context
+			logger     = logr.Discard()
+			fakeClient = fakeclient.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
+		)
 
-		By("verifying secret references have no finalizer anymore")
-		for _, name := range newSecretNames {
-			Eventually(getFinalizersForSecret(name)).Should(BeEmpty(), "for secret "+name)
-		}
+		BeforeEach(func() {
+			ctx = context.Background()
+			secret = &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      secretName,
+					Namespace: testNamespace,
+					Finalizers: []string{
+						common.FinalizerName,
+					},
+				},
+			}
+
+			By("Create Secret")
+			Expect(fakeClient.Create(ctx, secret)).To(Succeed())
+
+			By("Ensure Secret is created")
+			Eventually(func() error {
+				return fakeClient.Get(ctx, client.ObjectKeyFromObject(secret), secret)
+			}).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			ctx = context.Background()
+
+			By("Remove any existing finalizers on Secret")
+			patch := client.MergeFrom(secret.DeepCopy())
+			secret.Finalizers = []string{}
+			Expect(fakeClient.Patch(ctx, secret, patch)).To(Succeed())
+
+			By("Delete Secret")
+			Expect(fakeClient.Delete(ctx, secret)).To(Succeed())
+
+			By("Ensure Secret is deleted")
+			Eventually(func() error {
+				return fakeClient.Get(ctx, client.ObjectKeyFromObject(secret), secret)
+			}).Should(BeNotFoundError())
+		})
+
+		It("should return nil if secret does not have finalizer", func() {
+			patch := client.MergeFrom(secret.DeepCopy())
+			secret.Finalizers = []string{}
+			Expect(fakeClient.Patch(ctx, secret, patch)).To(Succeed())
+			Expect(removeFinalizer(ctx, logger, fakeClient, secret)).To(BeNil())
+		})
+
+		It("should remove finalizer from secret if finalizer exists", func() {
+			Expect(removeFinalizer(ctx, logger, fakeClient, secret)).To(Succeed())
+			finalizers := sets.NewString(secret.Finalizers...)
+			Expect(finalizers.Has(common.FinalizerName)).To(BeFalse())
+		})
 	})
 })
