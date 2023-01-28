@@ -47,7 +47,7 @@ var (
 
 var _ = Describe("EtcdCopyBackupsTaskController", func() {
 	var (
-		ctx = context.TODO()
+		ctx = context.Background()
 	)
 
 	DescribeTable("when creating and deleting etcdcopybackupstask",

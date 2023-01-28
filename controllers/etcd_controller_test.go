@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -38,7 +37,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -113,7 +111,10 @@ var _ = Describe("Druid", func() {
 		)
 
 		BeforeEach(func() {
-			instance = getEtcd("foo1", "default", false)
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+
+			instance = testutils.EtcdBuilderWithDefaults("foo1", "default").Build()
 			c = mgr.GetClient()
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -124,7 +125,7 @@ var _ = Describe("Druid", func() {
 			Expect(err).To(Not(HaveOccurred()))
 
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-			errors := createSecrets(c, instance.Namespace, storeSecret)
+			errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
 			Expect(len(errors)).Should(BeZero())
 			Expect(c.Create(context.TODO(), instance)).To(Succeed())
 
@@ -148,9 +149,12 @@ var _ = Describe("Druid", func() {
 
 		})
 		It("should create and adopt statefulset", func() {
-			setStatefulSetReady(sts)
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+
+			testutils.SetStatefulSetReady(sts)
 			err = c.Status().Update(context.TODO(), sts)
-			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 			Expect(err).NotTo(HaveOccurred())
 			Eventually(func() (*int32, error) {
 				if err := c.Get(context.TODO(), client.ObjectKeyFromObject(instance), instance); err != nil {
@@ -233,10 +237,10 @@ var _ = Describe("Druid", func() {
 			)
 
 			BeforeEach(func() {
-				ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+				ctx, cancel := context.WithTimeout(context.Background(), timeout)
 				defer cancel()
 
-				instance = getEtcd("foo19", "default", false)
+				instance = testutils.EtcdBuilderWithDefaults("foo19", "default").Build()
 				c = mgr.GetClient()
 
 				ns := corev1.Namespace{
@@ -248,7 +252,7 @@ var _ = Describe("Druid", func() {
 				Expect(err).To(Not(HaveOccurred()))
 
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
+				errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 				Expect(c.Create(ctx, instance)).To(Succeed())
 
@@ -276,7 +280,7 @@ var _ = Describe("Druid", func() {
 					return nil
 				}, timeout, pollingInterval).Should(Succeed())
 
-				Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+				Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 
 				// Check if ETCD has ready replicas more than zero
 				Eventually(func() error {
@@ -291,7 +295,7 @@ var _ = Describe("Druid", func() {
 				}, timeout, pollingInterval).Should(BeNil())
 			})
 			It("mark statefulset status not ready when no readyreplicas in statefulset", func() {
-				ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+				ctx, cancel := context.WithTimeout(context.Background(), timeout)
 				defer cancel()
 
 				err := c.Get(ctx, client.ObjectKeyFromObject(instance), sts)
@@ -342,18 +346,21 @@ var _ = Describe("Druid", func() {
 	})
 
 	DescribeTable("when etcd resource is created",
-		func(name string, generateEtcd func(string, string) *druidv1alpha1.Etcd, validate func(*druidv1alpha1.Etcd, *appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *corev1.Service)) {
-			var err error
-			var instance *druidv1alpha1.Etcd
-			var c client.Client
-			var s *appsv1.StatefulSet
-			var cm *corev1.ConfigMap
-			var clSvc, prSvc *corev1.Service
-			var sa *corev1.ServiceAccount
-			var role *rbac.Role
-			var rb *rbac.RoleBinding
+		func(instance *druidv1alpha1.Etcd, validate func(*druidv1alpha1.Etcd, *appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *corev1.Service)) {
+			var (
+				err          error
+				c            client.Client
+				s            *appsv1.StatefulSet
+				cm           *corev1.ConfigMap
+				clSvc, prSvc *corev1.Service
+				sa           *corev1.ServiceAccount
+				role         *rbac.Role
+				rb           *rbac.RoleBinding
+			)
 
-			instance = generateEtcd(name, "default")
+			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+			defer cancel()
+
 			c = mgr.GetClient()
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -366,40 +373,40 @@ var _ = Describe("Druid", func() {
 
 			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
+				errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 			}
 			err = c.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
 			s = &appsv1.StatefulSet{}
-			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, c, instance, s) }, timeout, pollingInterval).Should(BeNil())
 			cm = &corev1.ConfigMap{}
-			Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(c, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
 			clSvc = &corev1.Service{}
-			Eventually(func() error { return clientServiceIsCorrectlyReconciled(c, instance, clSvc) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.ClientServiceIsCorrectlyReconciled(c, timeout, instance, clSvc) }, timeout, pollingInterval).Should(BeNil())
 			prSvc = &corev1.Service{}
-			Eventually(func() error { return peerServiceIsCorrectlyReconciled(c, instance, prSvc) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.PeerServiceIsCorrectlyReconciled(c, timeout, instance, prSvc) }, timeout, pollingInterval).Should(BeNil())
 			sa = &corev1.ServiceAccount{}
-			Eventually(func() error { return serviceAccountIsCorrectlyReconciled(c, instance, sa) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.ServiceAccountIsCorrectlyReconciled(c, timeout, instance, sa) }, timeout, pollingInterval).Should(BeNil())
 			role = &rbac.Role{}
-			Eventually(func() error { return roleIsCorrectlyReconciled(c, instance, role) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.RoleIsCorrectlyReconciled(c, timeout, instance, role) }, timeout, pollingInterval).Should(BeNil())
 			rb = &rbac.RoleBinding{}
-			Eventually(func() error { return roleBindingIsCorrectlyReconciled(c, instance, rb) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.RoleBindingIsCorrectlyReconciled(c, timeout, instance, rb) }, timeout, pollingInterval).Should(BeNil())
 
 			validate(instance, s, cm, clSvc, prSvc)
 			validateRole(instance, role)
 
-			setStatefulSetReady(s)
+			testutils.SetStatefulSetReady(s)
 			err = c.Status().Update(context.TODO(), s)
 			Expect(err).NotTo(HaveOccurred())
 		},
-		Entry("if fields are not set in etcd.Spec, the statefulset should reflect the spec changes", "foo28", getEtcdWithDefault, validateEtcdWithDefaults),
-		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", "foo29", getEtcdWithTLS, validateEtcd),
-		Entry("if the store is GCS, the statefulset should reflect the spec changes", "foo30", getEtcdWithGCS, validateStoreGCP),
-		Entry("if the store is S3, the statefulset should reflect the spec changes", "foo31", getEtcdWithS3, validateStoreAWS),
-		Entry("if the store is ABS, the statefulset should reflect the spec changes", "foo32", getEtcdWithABS, validateStoreAzure),
-		Entry("if the store is Swift, the statefulset should reflect the spec changes", "foo33", getEtcdWithSwift, validateStoreOpenstack),
-		Entry("if the store is OSS, the statefulset should reflect the spec changes", "foo34", getEtcdWithOSS, validateStoreAlicloud),
+		Entry("if fields are not set in etcd.Spec, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo28", "default").Build(), validateEtcdWithDefaults),
+		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo29", "default").WithTLS().Build(), validateEtcd),
+		Entry("if the store is GCS, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo30", "default").WithTLS().WithProviderGCS().Build(), validateStoreGCP),
+		Entry("if the store is S3, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo31", "default").WithTLS().WithProviderS3().Build(), validateStoreAWS),
+		Entry("if the store is ABS, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo32", "default").WithTLS().WithProviderABS().Build(), validateStoreAzure),
+		Entry("if the store is Swift, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo33", "default").WithTLS().WithProviderSwift().Build(), validateStoreOpenstack),
+		Entry("if the store is OSS, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo34", "default").WithTLS().WithProviderOSS().Build(), validateStoreAlicloud),
 	)
 })
 
@@ -412,12 +419,15 @@ var _ = Describe("Multinode ETCD", func() {
 			sts      *appsv1.StatefulSet
 			svc      *corev1.Service
 			c        client.Client
-
-			ctx = context.TODO()
+			ctx      context.Context
+			cancel   context.CancelFunc
 		)
 
 		BeforeEach(func() {
-			instance = getEtcd("foo82", "default", false)
+			ctx, cancel = context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+
+			instance = testutils.EtcdBuilderWithDefaults("foo82", "default").Build()
 			c = mgr.GetClient()
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -428,7 +438,7 @@ var _ = Describe("Multinode ETCD", func() {
 			Expect(err).To(Not(HaveOccurred()))
 
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-			errors := createSecrets(c, instance.Namespace, storeSecret)
+			errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
 			Expect(len(errors)).Should(BeZero())
 		})
 		It("should create the statefulset based on the replicas in ETCD CR", func() {
@@ -464,12 +474,12 @@ var _ = Describe("Multinode ETCD", func() {
 			Expect(c.Patch(ctx, instance, patch)).To(Succeed())
 
 			By("statefulsets are created when ETCD replicas are odd number")
-			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 			Expect(int(*sts.Spec.Replicas)).To(Equal(3))
 
 			By("client Service has been created by controller")
 			svc = &corev1.Service{}
-			Eventually(func() error { return clientServiceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.ClientServiceIsCorrectlyReconciled(c, timeout, instance, svc) }, timeout, pollingInterval).Should(BeNil())
 
 			By("should raise an event if annotation to ignore reconciliation is applied on ETCD CR")
 			patch = client.MergeFrom(instance.DeepCopy())
@@ -519,15 +529,18 @@ var _ = Describe("Multinode ETCD", func() {
 			}
 		})
 	})
-	DescribeTable("configmaps are mounted properly when ETCD replicas are odd number", func(name string, replicas int, getEtcdWithReplicas func(string, string, int) *druidv1alpha1.Etcd) {
-		var err error
-		var instance *druidv1alpha1.Etcd
-		var c client.Client
-		var sts *appsv1.StatefulSet
-		var cm *corev1.ConfigMap
-		var svc *corev1.Service
+	DescribeTable("configmaps are mounted properly when ETCD replicas are odd number", func(instance *druidv1alpha1.Etcd) {
+		var (
+			err error
+			c   client.Client
+			sts *appsv1.StatefulSet
+			cm  *corev1.ConfigMap
+			svc *corev1.Service
+		)
 
-		instance = getEtcdWithReplicas(name, "default", replicas)
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
 		c = mgr.GetClient()
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -540,17 +553,17 @@ var _ = Describe("Multinode ETCD", func() {
 
 		if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-			errors := createSecrets(c, instance.Namespace, storeSecret)
+			errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
 			Expect(len(errors)).Should(BeZero())
 		}
 		err = c.Create(context.TODO(), instance)
 		Expect(err).NotTo(HaveOccurred())
 		sts = &appsv1.StatefulSet{}
-		Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+		Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 		cm = &corev1.ConfigMap{}
-		Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
+		Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(c, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
 		svc = &corev1.Service{}
-		Eventually(func() error { return clientServiceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
+		Eventually(func() error { return testutils.ClientServiceIsCorrectlyReconciled(c, timeout, instance, svc) }, timeout, pollingInterval).Should(BeNil())
 
 		// Validate statefulset
 		Expect(*sts.Spec.Replicas).To(Equal(int32(instance.Spec.Replicas)))
@@ -565,8 +578,8 @@ var _ = Describe("Multinode ETCD", func() {
 			Expect(strings.Contains(cm.Data["etcd.conf.yaml"], matcher)).To(BeTrue())
 		}
 	},
-		Entry("verify configmap mount path and etcd.conf.yaml when replica is 1 ", "foo83", 1, getEtcdWithReplicas),
-		Entry("verify configmap mount path and etcd.conf.yaml when replica is 3 ", "foo84", 3, getEtcdWithReplicas),
+		Entry("verify configmap mount path and etcd.conf.yaml when replica is 1 ", testutils.EtcdBuilderWithDefaults("foo83", "default").WithReplicas(1).Build()),
+		Entry("verify configmap mount path and etcd.conf.yaml when replica is 3 ", testutils.EtcdBuilderWithDefaults("foo84", "default").WithReplicas(3).Build()),
 	)
 })
 
@@ -1702,445 +1715,6 @@ func validateStoreAWS(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *c
 			}),
 		}),
 	}))
-}
-
-func etcdRemoved(c client.Client, etcd *druidv1alpha1.Etcd) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	e := &druidv1alpha1.Etcd{}
-	req := types.NamespacedName{
-		Name:      etcd.Name,
-		Namespace: etcd.Namespace,
-	}
-	if err := c.Get(ctx, req, e); err != nil {
-		if apierrors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers
-			return nil
-		}
-		return err
-	}
-	return fmt.Errorf("etcd not deleted")
-}
-
-func statefulSetRemoved(c client.Client, ss *appsv1.StatefulSet) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	sts := &appsv1.StatefulSet{}
-	req := types.NamespacedName{
-		Name:      ss.Name,
-		Namespace: ss.Namespace,
-	}
-	if err := c.Get(ctx, req, sts); err != nil {
-		if apierrors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers
-			return nil
-		}
-		return err
-	}
-	return fmt.Errorf("statefulset not removed")
-}
-
-func statefulsetIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.StatefulSet) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	req := types.NamespacedName{
-		Name:      instance.Name,
-		Namespace: instance.Namespace,
-	}
-
-	if err := c.Get(ctx, req, ss); err != nil {
-		return err
-	}
-	if !checkEtcdOwnerReference(ss.GetOwnerReferences(), instance) {
-		return fmt.Errorf("ownerReference does not exist")
-	}
-	return nil
-}
-
-func configMapIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, cm *corev1.ConfigMap) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	req := types.NamespacedName{
-		Name:      fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6])),
-		Namespace: instance.Namespace,
-	}
-
-	if err := c.Get(ctx, req, cm); err != nil {
-		return err
-	}
-
-	if !checkEtcdOwnerReference(cm.GetOwnerReferences(), instance) {
-		return fmt.Errorf("ownerReference does not exists")
-	}
-	return nil
-}
-
-func clientServiceIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, svc *corev1.Service) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	req := types.NamespacedName{
-		Name:      utils.GetClientServiceName(instance),
-		Namespace: instance.Namespace,
-	}
-
-	if err := c.Get(ctx, req, svc); err != nil {
-		return err
-	}
-
-	if !checkEtcdOwnerReference(svc.GetOwnerReferences(), instance) {
-		return fmt.Errorf("ownerReference does not exists")
-	}
-	return nil
-}
-
-func peerServiceIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, svc *corev1.Service) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	req := types.NamespacedName{
-		Name:      utils.GetPeerServiceName(instance),
-		Namespace: instance.Namespace,
-	}
-
-	if err := c.Get(ctx, req, svc); err != nil {
-		return err
-	}
-
-	if !checkEtcdOwnerReference(svc.GetOwnerReferences(), instance) {
-		return fmt.Errorf("ownerReference does not exists")
-	}
-	return nil
-}
-
-func serviceAccountIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, sa *corev1.ServiceAccount) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	req := types.NamespacedName{
-		Name:      instance.Name,
-		Namespace: instance.Namespace,
-	}
-
-	if err := c.Get(ctx, req, sa); err != nil {
-		return err
-	}
-	return nil
-}
-
-func roleIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, role *rbac.Role) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	req := types.NamespacedName{
-		Name:      fmt.Sprintf("druid.gardener.cloud:etcd:%s", instance.Name),
-		Namespace: instance.Namespace,
-	}
-
-	if err := c.Get(ctx, req, role); err != nil {
-		return err
-	}
-	return nil
-}
-
-func roleBindingIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, rb *rbac.RoleBinding) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	req := types.NamespacedName{
-		Name:      fmt.Sprintf("druid.gardener.cloud:etcd:%s", instance.Name),
-		Namespace: instance.Namespace,
-	}
-
-	if err := c.Get(ctx, req, rb); err != nil {
-		return err
-	}
-	return nil
-}
-
-func getEtcdWithGCS(name, namespace string) *druidv1alpha1.Etcd {
-	provider := druidv1alpha1.StorageProvider("gcp")
-	etcd := getEtcdWithTLS(name, namespace)
-	etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
-		Container: &container,
-		Prefix:    name,
-		Provider:  &provider,
-		SecretRef: &corev1.SecretReference{
-			Name: "etcd-backup",
-		},
-	}
-	return etcd
-}
-
-func getEtcdWithABS(name, namespace string) *druidv1alpha1.Etcd {
-	provider := druidv1alpha1.StorageProvider("azure")
-	etcd := getEtcdWithTLS(name, namespace)
-	etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
-		Container: &container,
-		Prefix:    name,
-		Provider:  &provider,
-		SecretRef: &corev1.SecretReference{
-			Name: "etcd-backup",
-		},
-	}
-	return etcd
-}
-
-func getEtcdWithS3(name, namespace string) *druidv1alpha1.Etcd {
-	provider := druidv1alpha1.StorageProvider("aws")
-	etcd := getEtcdWithTLS(name, namespace)
-	etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
-		Container: &container,
-		Prefix:    name,
-		Provider:  &provider,
-		SecretRef: &corev1.SecretReference{
-			Name: "etcd-backup",
-		},
-	}
-	return etcd
-}
-
-func getEtcdWithSwift(name, namespace string) *druidv1alpha1.Etcd {
-	provider := druidv1alpha1.StorageProvider("openstack")
-	etcd := getEtcdWithTLS(name, namespace)
-	etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
-		Container: &container,
-		Prefix:    name,
-		Provider:  &provider,
-		SecretRef: &corev1.SecretReference{
-			Name: "etcd-backup",
-		},
-	}
-	return etcd
-}
-
-func getEtcdWithOSS(name, namespace string) *druidv1alpha1.Etcd {
-	container := fmt.Sprintf("%s-container", name)
-	provider := druidv1alpha1.StorageProvider("alicloud")
-	etcd := getEtcdWithTLS(name, namespace)
-	etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
-		Container: &container,
-		Prefix:    name,
-		Provider:  &provider,
-		SecretRef: &corev1.SecretReference{
-			Name: "etcd-backup",
-		},
-	}
-	return etcd
-}
-
-func getEtcdWithTLS(name, namespace string) *druidv1alpha1.Etcd {
-	return getEtcd(name, namespace, true)
-}
-
-func getEtcdWithDefault(name, namespace string) *druidv1alpha1.Etcd {
-	instance := &druidv1alpha1.Etcd{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: druidv1alpha1.EtcdSpec{
-			Annotations: map[string]string{
-				"app":      "etcd-statefulset",
-				"role":     "test",
-				"instance": name,
-			},
-			Labels: map[string]string{
-				"name":     "etcd",
-				"instance": name,
-			},
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"name":     "etcd",
-					"instance": name,
-				},
-			},
-			Replicas: 1,
-			Backup:   druidv1alpha1.BackupSpec{},
-			Etcd:     druidv1alpha1.EtcdConfig{},
-			Common:   druidv1alpha1.SharedConfig{},
-		},
-	}
-	return instance
-}
-
-func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
-
-	instance := &druidv1alpha1.Etcd{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			UID:       types.UID(uid),
-		},
-		Spec: druidv1alpha1.EtcdSpec{
-			Annotations: map[string]string{
-				"app":      "etcd-statefulset",
-				"role":     "test",
-				"instance": name,
-			},
-			Labels: map[string]string{
-				"name":     "etcd",
-				"instance": name,
-			},
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"name":     "etcd",
-					"instance": name,
-				},
-			},
-			Replicas:            1,
-			StorageCapacity:     &storageCapacity,
-			StorageClass:        &storageClass,
-			PriorityClassName:   &priorityClassName,
-			VolumeClaimTemplate: &volumeClaimTemplateName,
-			Backup: druidv1alpha1.BackupSpec{
-				Image:                    &imageBR,
-				Port:                     &backupPort,
-				FullSnapshotSchedule:     &snapshotSchedule,
-				GarbageCollectionPolicy:  &garbageCollectionPolicy,
-				GarbageCollectionPeriod:  &garbageCollectionPeriod,
-				DeltaSnapshotPeriod:      &deltaSnapshotPeriod,
-				DeltaSnapshotMemoryLimit: &deltaSnapShotMemLimit,
-				EtcdSnapshotTimeout:      &etcdSnapshotTimeout,
-
-				Resources: &corev1.ResourceRequirements{
-					Limits: corev1.ResourceList{
-						"cpu":    parseQuantity("500m"),
-						"memory": parseQuantity("2Gi"),
-					},
-					Requests: corev1.ResourceList{
-						"cpu":    parseQuantity("23m"),
-						"memory": parseQuantity("128Mi"),
-					},
-				},
-				Store: &druidv1alpha1.StoreSpec{
-					SecretRef: &corev1.SecretReference{
-						Name: "etcd-backup",
-					},
-					Container: &container,
-					Provider:  &provider,
-					Prefix:    prefix,
-				},
-			},
-			Etcd: druidv1alpha1.EtcdConfig{
-				Quota:                   &quota,
-				Metrics:                 &metricsBasic,
-				Image:                   &imageEtcd,
-				DefragmentationSchedule: &defragSchedule,
-				EtcdDefragTimeout:       &etcdDefragTimeout,
-				Resources: &corev1.ResourceRequirements{
-					Limits: corev1.ResourceList{
-						"cpu":    parseQuantity("2500m"),
-						"memory": parseQuantity("4Gi"),
-					},
-					Requests: corev1.ResourceList{
-						"cpu":    parseQuantity("500m"),
-						"memory": parseQuantity("1000Mi"),
-					},
-				},
-				ClientPort: &clientPort,
-				ServerPort: &serverPort,
-			},
-			Common: druidv1alpha1.SharedConfig{
-				AutoCompactionMode:      &autoCompactionMode,
-				AutoCompactionRetention: &autoCompactionRetention,
-			},
-		},
-	}
-
-	if tlsEnabled {
-		clientTlsConfig := &druidv1alpha1.TLSConfig{
-			TLSCASecretRef: druidv1alpha1.SecretReference{
-				SecretReference: corev1.SecretReference{
-					Name: "client-url-ca-etcd",
-				},
-				DataKey: pointer.String("ca.crt"),
-			},
-			ClientTLSSecretRef: corev1.SecretReference{
-				Name: "client-url-etcd-client-tls",
-			},
-			ServerTLSSecretRef: corev1.SecretReference{
-				Name: "client-url-etcd-server-tls",
-			},
-		}
-
-		peerTlsConfig := &druidv1alpha1.TLSConfig{
-			TLSCASecretRef: druidv1alpha1.SecretReference{
-				SecretReference: corev1.SecretReference{
-					Name: "peer-url-ca-etcd",
-				},
-				DataKey: pointer.String("ca.crt"),
-			},
-			ServerTLSSecretRef: corev1.SecretReference{
-				Name: "peer-url-etcd-server-tls",
-			},
-		}
-
-		instance.Spec.Etcd.ClientUrlTLS = clientTlsConfig
-		instance.Spec.Etcd.PeerUrlTLS = peerTlsConfig
-		instance.Spec.Backup.TLS = clientTlsConfig
-	}
-	return instance
-}
-
-func getEtcdWithReplicas(name, namespace string, replicas int) *druidv1alpha1.Etcd {
-	instance := getEtcdWithDefault(name, namespace)
-	instance.Spec.Replicas = int32(replicas)
-	return instance
-}
-
-func parseQuantity(q string) resource.Quantity {
-	val, _ := resource.ParseQuantity(q)
-	return val
-}
-
-func createSecrets(c client.Client, namespace string, secrets ...string) []error {
-	var errors []error
-	for _, name := range secrets {
-		secret := corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
-			},
-			Data: map[string][]byte{
-				"test": []byte("test"),
-			},
-		}
-		err := c.Create(context.TODO(), &secret)
-		if apierrors.IsAlreadyExists(err) {
-			continue
-		}
-		if err != nil {
-			errors = append(errors, err)
-		}
-	}
-	return errors
-}
-
-// WithWd sets the working directory and returns a function to revert to the previous one.
-func WithWd(path string) func() {
-	oldPath, err := os.Getwd()
-	if err != nil {
-		Expect(err).NotTo(HaveOccurred())
-	}
-
-	if err := os.Chdir(path); err != nil {
-		Expect(err).NotTo(HaveOccurred())
-	}
-
-	return func() {
-		if err := os.Chdir(oldPath); err != nil {
-			Expect(err).NotTo(HaveOccurred())
-		}
-	}
-}
-
-func setStatefulSetReady(s *appsv1.StatefulSet) {
-	s.Status.ObservedGeneration = s.Generation
-
-	replicas := int32(1)
-	if s.Spec.Replicas != nil {
-		replicas = *s.Spec.Replicas
-	}
-	s.Status.Replicas = replicas
-	s.Status.ReadyReplicas = replicas
 }
 
 var _ = Describe("buildPredicate", func() {

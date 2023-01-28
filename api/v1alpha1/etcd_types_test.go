@@ -20,6 +20,8 @@ import (
 	"context"
 	"time"
 
+	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -62,15 +64,15 @@ var _ = Describe("Etcd", func() {
 			created = getEtcd("foo", "default")
 
 			By("creating an API obj")
-			Expect(k8sClient.Create(context.TODO(), created)).To(Succeed())
+			Expect(k8sClient.Create(context.Background(), created)).To(Succeed())
 
 			fetched = &Etcd{}
-			Expect(k8sClient.Get(context.TODO(), key, fetched)).To(Succeed())
+			Expect(k8sClient.Get(context.Background(), key, fetched)).To(Succeed())
 			Expect(fetched).To(Equal(created))
 
 			By("deleting the created object")
-			Expect(k8sClient.Delete(context.TODO(), created)).To(Succeed())
-			Expect(k8sClient.Get(context.TODO(), key, created)).ToNot(Succeed())
+			Expect(k8sClient.Delete(context.Background(), created)).To(Succeed())
+			Expect(k8sClient.Get(context.Background(), key, created)).ToNot(Succeed())
 		})
 
 	})
@@ -166,12 +168,12 @@ func getEtcd(name, namespace string) *Etcd {
 
 				Resources: &corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
-						"cpu":    parseQuantity("500m"),
-						"memory": parseQuantity("2Gi"),
+						"cpu":    testutils.ParseQuantity("500m"),
+						"memory": testutils.ParseQuantity("2Gi"),
 					},
 					Requests: corev1.ResourceList{
-						"cpu":    parseQuantity("23m"),
-						"memory": parseQuantity("128Mi"),
+						"cpu":    testutils.ParseQuantity("23m"),
+						"memory": testutils.ParseQuantity("128Mi"),
 					},
 				},
 				Store: &StoreSpec{
@@ -190,12 +192,12 @@ func getEtcd(name, namespace string) *Etcd {
 				DefragmentationSchedule: &defragSchedule,
 				Resources: &corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
-						"cpu":    parseQuantity("2500m"),
-						"memory": parseQuantity("4Gi"),
+						"cpu":    testutils.ParseQuantity("2500m"),
+						"memory": testutils.ParseQuantity("4Gi"),
 					},
 					Requests: corev1.ResourceList{
-						"cpu":    parseQuantity("500m"),
-						"memory": parseQuantity("1000Mi"),
+						"cpu":    testutils.ParseQuantity("500m"),
+						"memory": testutils.ParseQuantity("1000Mi"),
 					},
 				},
 				ClientPort:   &clientPort,
@@ -206,9 +208,4 @@ func getEtcd(name, namespace string) *Etcd {
 		},
 	}
 	return instance
-}
-
-func parseQuantity(q string) resource.Quantity {
-	val, _ := resource.ParseQuantity(q)
-	return val
 }

@@ -37,7 +37,7 @@ var (
 
 var _ = Describe("SecretController", func() {
 	var (
-		ctx = context.TODO()
+		ctx = context.Background()
 
 		namespace *corev1.Namespace
 		etcd      *druidv1alpha1.Etcd
@@ -50,10 +50,9 @@ var _ = Describe("SecretController", func() {
 				Name: "secret-controller-tests",
 			},
 		}
-		etcd, err = utils.EtcdBuilderWithDefaults("etcd", namespace.Name).WithTLS().Build()
-		Expect(err).To(Not(HaveOccurred()))
+		etcd = utils.EtcdBuilderWithDefaults("etcd", namespace.Name).WithTLS().Build()
 
-		_, err := controllerutil.CreateOrUpdate(ctx, k8sClient, namespace, func() error { return nil })
+		_, err = controllerutil.CreateOrUpdate(ctx, k8sClient, namespace, func() error { return nil })
 		Expect(err).To(Not(HaveOccurred()))
 	})
 

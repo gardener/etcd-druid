@@ -18,6 +18,7 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	gomegatypes "github.com/onsi/gomega/types"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func MatchFinalizer(finalizer string) gomegatypes.GomegaMatcher {
@@ -32,4 +33,9 @@ func MatchFinalizer(finalizer string) gomegatypes.GomegaMatcher {
 
 func stringIdentifier(element interface{}) string {
 	return element.(string)
+}
+
+func ParseQuantity(q string) resource.Quantity {
+	val, _ := resource.ParseQuantity(q)
+	return val
 }

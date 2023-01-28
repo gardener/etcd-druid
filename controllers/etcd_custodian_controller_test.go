@@ -15,17 +15,17 @@
 package controllers
 
 import (
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	componentpdb "github.com/gardener/etcd-druid/pkg/component/etcd/poddisruptionbudget"
+	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/utils/pointer"
 )
 
 var _ = Describe("Custodian Controller", func() {
 	Context("minAvailable of PodDisruptionBudget", func() {
 		When("having a single node cluster", func() {
-			etcd := getEtcdWithStatus(1)
+			etcd := testutils.EtcdBuilderWithDefaults("test", "default").WithReadyStatus().Build()
 
 			Expect(len(etcd.Status.Members)).To(BeEquivalentTo(1))
 			Expect(*etcd.Status.ClusterSize).To(BeEquivalentTo(1))
@@ -39,7 +39,7 @@ var _ = Describe("Custodian Controller", func() {
 		})
 
 		When("clusterSize is nil", func() {
-			etcd := getEtcdWithStatus(3)
+			etcd := testutils.EtcdBuilderWithDefaults("test", "default").WithReplicas(3).WithReadyStatus().Build()
 			etcd.Status.ClusterSize = nil
 
 			It("should be set to quorum size", func() {
@@ -48,7 +48,7 @@ var _ = Describe("Custodian Controller", func() {
 		})
 
 		When("having a multi node cluster", func() {
-			etcd := getEtcdWithStatus(5)
+			etcd := testutils.EtcdBuilderWithDefaults("test", "default").WithReplicas(5).WithReadyStatus().Build()
 
 			Expect(len(etcd.Status.Members)).To(BeEquivalentTo(5))
 			Expect(*etcd.Status.ClusterSize).To(BeEquivalentTo(5))
@@ -59,25 +59,3 @@ var _ = Describe("Custodian Controller", func() {
 		})
 	})
 })
-
-func getEtcdWithStatus(replicas int) *druidv1alpha1.Etcd {
-	etcd := getEtcd("test", "test", false)
-	etcd.Spec.Replicas = int32(replicas)
-	etcd.Status = getEtcdStatus(replicas)
-	return etcd
-}
-
-func getEtcdStatus(replicas int) druidv1alpha1.EtcdStatus {
-	members := make([]druidv1alpha1.EtcdMemberStatus, 0)
-	for i := 0; i < replicas; i++ {
-		members = append(members, druidv1alpha1.EtcdMemberStatus{Status: druidv1alpha1.EtcdMemberStatusReady})
-	}
-
-	return druidv1alpha1.EtcdStatus{
-		ClusterSize: pointer.Int32Ptr(int32(replicas)),
-		Members:     members,
-		Conditions: []druidv1alpha1.Condition{
-			{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionTrue},
-		},
-	}
-}

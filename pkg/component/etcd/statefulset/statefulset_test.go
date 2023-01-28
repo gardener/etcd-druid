@@ -25,6 +25,7 @@ import (
 	. "github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	druidutils "github.com/gardener/etcd-druid/pkg/utils"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/gardener/gardener/pkg/operation/botanist/component"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -90,22 +91,22 @@ var (
 	}
 	backupRestoreResources = corev1.ResourceRequirements{
 		Limits: corev1.ResourceList{
-			"cpu":    parseQuantity("500m"),
-			"memory": parseQuantity("2Gi"),
+			"cpu":    testutils.ParseQuantity("500m"),
+			"memory": testutils.ParseQuantity("2Gi"),
 		},
 		Requests: corev1.ResourceList{
-			"cpu":    parseQuantity("23m"),
-			"memory": parseQuantity("128Mi"),
+			"cpu":    testutils.ParseQuantity("23m"),
+			"memory": testutils.ParseQuantity("128Mi"),
 		},
 	}
 	etcdResources = corev1.ResourceRequirements{
 		Limits: corev1.ResourceList{
-			"cpu":    parseQuantity("2500m"),
-			"memory": parseQuantity("4Gi"),
+			"cpu":    testutils.ParseQuantity("2500m"),
+			"memory": testutils.ParseQuantity("4Gi"),
 		},
 		Requests: corev1.ResourceList{
-			"cpu":    parseQuantity("500m"),
-			"memory": parseQuantity("1000Mi"),
+			"cpu":    testutils.ParseQuantity("500m"),
+			"memory": testutils.ParseQuantity("1000Mi"),
 		},
 	}
 )
@@ -816,11 +817,6 @@ func getEtcd(name, namespace string, tlsEnabled bool, replicas int32, storagePro
 		instance.Spec.Backup.TLS = clientTlsConfig
 	}
 	return instance
-}
-
-func parseQuantity(q string) resource.Quantity {
-	val, _ := resource.ParseQuantity(q)
-	return val
 }
 
 const etcdBackupSecretName = "etcd-backup"

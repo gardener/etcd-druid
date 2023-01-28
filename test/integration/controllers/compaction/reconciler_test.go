@@ -39,105 +39,113 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
+var (
+	timeout         = time.Minute * 2
+	pollingInterval = time.Second * 2
+)
+
 var _ = Describe("Lease Controller", func() {
 	Context("when fields are not set in etcd.Spec", func() {
 		var (
 			err      error
 			instance *druidv1alpha1.Etcd
-			c        client.Client
 			s        *appsv1.StatefulSet
 			cm       *corev1.ConfigMap
 			svc      *corev1.Service
 		)
 		BeforeEach(func() {
-			instance = getEtcdWithDefault("foo333", "default")
-			c = mgr.GetClient()
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+
+			instance = testutils.EtcdBuilderWithDefaults("foo333", "default").Build()
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: instance.Namespace,
 				},
 			}
 
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
 			Expect(err).To(Not(HaveOccurred()))
 
-			err = c.Create(context.TODO(), instance)
+			err = k8sClient.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
 			s = &appsv1.StatefulSet{}
-			Eventually(func() error { return statefulsetIsCorrectlyReconciled(c, instance, s) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, k8sClient, instance, s) }, timeout, pollingInterval).Should(BeNil())
 			cm = &corev1.ConfigMap{}
-			Eventually(func() error { return configMapIsCorrectlyReconciled(c, instance, cm) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(k8sClient, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
 			svc = &corev1.Service{}
-			Eventually(func() error { return clientServiceIsCorrectlyReconciled(c, instance, svc) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.ClientServiceIsCorrectlyReconciled(k8sClient, timeout, instance, svc) }, timeout, pollingInterval).Should(BeNil())
 		})
 
 		AfterEach(func() {
-			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
-			Eventually(func() error { return statefulSetRemoved(c, s) }, timeout, pollingInterval).Should(BeNil())
-			Eventually(func() error { return etcdRemoved(c, instance) }, timeout, pollingInterval).Should(BeNil())
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+
+			Expect(k8sClient.Delete(context.TODO(), instance)).To(Succeed())
+			Eventually(func() error { return testutils.StatefulSetRemoved(ctx, k8sClient, s) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.IsEtcdRemoved(k8sClient, timeout, instance) }, timeout, pollingInterval).Should(BeNil())
 		})
 	})
 
 	// When an ETCD resource is created, check if the associated compaction job is created with validateETCDCmpctJob
 	DescribeTable("when etcd resource is created",
-		func(name string,
-			generateEtcd func(string, string) *druidv1alpha1.Etcd,
+		func(instance *druidv1alpha1.Etcd,
 			validateETCDCmpctJob func(*druidv1alpha1.Etcd, *batchv1.Job)) {
 			var (
-				err      error
-				instance *druidv1alpha1.Etcd
-				c        client.Client
-				j        *batchv1.Job
+				err       error
+				k8sClient client.Client
+				j         *batchv1.Job
 			)
 
-			instance = generateEtcd(name, "default")
-			c = mgr.GetClient()
+			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+			defer cancel()
+
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: instance.Namespace,
 				},
 			}
 
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
 			Expect(err).To(Not(HaveOccurred()))
 
 			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
+				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 			}
-			err = c.Create(context.TODO(), instance)
+			err = k8sClient.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify if the job is created when difference between holder identities in delta-snapshot-revision and full-snapshot-revision is greater than 1M
 			fullLease := &coordinationv1.Lease{}
-			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(c, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(k8sClient, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
 			fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
 			fullLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(c.Update(context.TODO(), fullLease)).To(Succeed())
+			Expect(k8sClient.Update(context.TODO(), fullLease)).To(Succeed())
 
 			deltaLease := &coordinationv1.Lease{}
-			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(k8sClient, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
 			deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
 			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(c.Update(context.TODO(), deltaLease)).To(Succeed())
+			Expect(k8sClient.Update(context.TODO(), deltaLease)).To(Succeed())
 
 			j = &batchv1.Job{}
-			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
 
 			validateETCDCmpctJob(instance, j)
 
-			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
+			Expect(k8sClient.Delete(context.TODO(), instance)).To(Succeed())
 			Eventually(func() error {
-				return c.Get(context.TODO(), client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
+				return k8sClient.Get(context.TODO(), client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 		},
-		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", "foo71", getEtcdWithTLS, validateEtcdForCmpctJob),
-		Entry("if the store is GCS, the statefulset and compaction job should reflect the spec changes", "foo72", getEtcdWithGCS, validateStoreGCPForCmpctJob),
-		Entry("if the store is S3, the statefulset and compaction job should reflect the spec changes", "foo73", getEtcdWithS3, validateStoreAWSForCmpctJob),
-		Entry("if the store is ABS, the statefulset and compaction job should reflect the spec changes", "foo74", getEtcdWithABS, validateStoreAzureForCmpctJob),
-		Entry("if the store is Swift, the statefulset and compaction job should reflect the spec changes", "foo75", getEtcdWithSwift, validateStoreOpenstackForCmpctJob),
-		Entry("if the store is OSS, the statefulset and compaction job should reflect the spec changes", "foo76", getEtcdWithOSS, validateStoreAlicloudForCmpctJob),
+		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo71", "default").WithTLS().Build(), validateEtcdForCmpctJob),
+		Entry("if the store is GCS, the statefulset and compaction job should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo72", "default").WithTLS().WithProviderGCS().Build(), validateStoreGCPForCmpctJob),
+		Entry("if the store is S3, the statefulset and compaction job should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo73", "default").WithTLS().WithProviderS3().Build(), validateStoreAWSForCmpctJob),
+		Entry("if the store is ABS, the statefulset and compaction job should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo74", "default").WithTLS().WithProviderABS().Build(), validateStoreAzureForCmpctJob),
+		Entry("if the store is Swift, the statefulset and compaction job should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo75", "default").WithTLS().WithProviderSwift().Build(), validateStoreOpenstackForCmpctJob),
+		Entry("if the store is OSS, the statefulset and compaction job should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo76", "default").WithTLS().WithProviderOSS().Build(), validateStoreAlicloudForCmpctJob),
 	)
 
 	Context("when an existing job is already present", func() {
@@ -156,8 +164,7 @@ var _ = Describe("Lease Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = getEtcd("foo77", "default", false)
-			c = mgr.GetClient()
+			instance = testutils.EtcdBuilderWithDefaults("foo77", "default").Build()
 			ns = corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: instance.Namespace,
@@ -169,7 +176,7 @@ var _ = Describe("Lease Controller", func() {
 
 			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
+				errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 			}
 			err = c.Create(context.TODO(), instance)
@@ -222,8 +229,7 @@ var _ = Describe("Lease Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = getEtcd("foo78", "default", false)
-			c = mgr.GetClient()
+			instance = testutils.EtcdBuilderWithDefaults("foo78", "default").Build()
 			ns = corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: instance.Namespace,
@@ -235,7 +241,7 @@ var _ = Describe("Lease Controller", func() {
 
 			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
+				errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 			}
 			err = c.Create(context.TODO(), instance)
@@ -291,11 +297,10 @@ var _ = Describe("Lease Controller", func() {
 		})
 
 		It("should let the existing job run if the job is active", func() {
-			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 
-			instance = getEtcd("foo79", "default", false)
-			c = mgr.GetClient()
+			instance = testutils.EtcdBuilderWithDefaults("foo79", "default").Build()
 			ns = corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: instance.Namespace,
@@ -307,7 +312,7 @@ var _ = Describe("Lease Controller", func() {
 
 			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := createSecrets(c, instance.Namespace, storeSecret)
+				errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 			}
 			err = c.Create(context.TODO(), instance)
@@ -336,7 +341,7 @@ var _ = Describe("Lease Controller", func() {
 
 		AfterEach(func() {
 			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
-			Eventually(func() error { return etcdRemoved(c, instance) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.IsEtcdRemoved(c, timeout, instance) }, timeout, pollingInterval).Should(BeNil())
 		})
 	})
 })
@@ -730,7 +735,7 @@ func fullLeaseIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etc
 		return err
 	}
 
-	if !checkEtcdOwnerReference(lease.GetOwnerReferences(), instance) {
+	if !testutils.CheckEtcdOwnerReference(lease.GetOwnerReferences(), instance) {
 		return fmt.Errorf("ownerReference does not exists for lease")
 	}
 	return nil
@@ -748,7 +753,7 @@ func deltaLeaseIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Et
 		return err
 	}
 
-	if !checkEtcdOwnerReference(lease.GetOwnerReferences(), instance) {
+	if !testutils.CheckEtcdOwnerReference(lease.GetOwnerReferences(), instance) {
 		return fmt.Errorf("ownerReference does not exists for lease")
 	}
 	return nil

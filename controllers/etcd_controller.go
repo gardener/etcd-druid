@@ -648,15 +648,6 @@ func isPeerTLSIsChangedToEnabled(peerTLSEnabledStatusFromMembers bool, configMap
 	return configMapValues.PeerUrlTLS != nil
 }
 
-func checkEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
-	for _, ownerRef := range refs {
-		if ownerRef.UID == etcd.UID {
-			return true
-		}
-	}
-	return false
-}
-
 func checkEtcdAnnotations(annotations map[string]string, etcd metav1.Object) bool {
 	var (
 		ownedBy, ownerType string

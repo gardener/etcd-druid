@@ -18,6 +18,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -37,8 +38,7 @@ var _ = Describe("Image retrieval tests", func() {
 	)
 
 	It("etcd spec defines etcd and backup-restore images", func() {
-		etcd, err = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
-		Expect(err).To(BeNil())
+		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
 		imageVector = createImageVector(true, true)
 		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector)
 		Expect(err).To(BeNil())
@@ -49,7 +49,7 @@ var _ = Describe("Image retrieval tests", func() {
 	})
 
 	It("etcd spec has no image defined and image vector has both images set", func() {
-		etcd, err = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
+		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
 		Expect(err).To(BeNil())
 		etcd.Spec.Etcd.Image = nil
 		etcd.Spec.Backup.Image = nil
@@ -67,7 +67,7 @@ var _ = Describe("Image retrieval tests", func() {
 	})
 
 	It("etcd spec only has backup-restore image and image-vector has only etcd image", func() {
-		etcd, err = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
+		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
 		Expect(err).To(BeNil())
 		etcd.Spec.Etcd.Image = nil
 		imageVector = createImageVector(true, false)
@@ -82,7 +82,7 @@ var _ = Describe("Image retrieval tests", func() {
 	})
 
 	It("both spec and image vector do not have backup-restore image", func() {
-		etcd, err = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
+		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
 		Expect(err).To(BeNil())
 		etcd.Spec.Backup.Image = nil
 		imageVector = createImageVector(true, false)

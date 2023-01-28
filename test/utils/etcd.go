@@ -15,12 +15,15 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -119,6 +122,31 @@ func (eb *EtcdBuilder) WithTLS() *EtcdBuilder {
 	return eb
 }
 
+func (eb *EtcdBuilder) WithReadyStatus() *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+
+	members := make([]druidv1alpha1.EtcdMemberStatus, 0)
+	for i := 0; i < int(eb.etcd.Spec.Replicas); i++ {
+		members = append(members, druidv1alpha1.EtcdMemberStatus{Status: druidv1alpha1.EtcdMemberStatusReady})
+	}
+	eb.etcd.Status = druidv1alpha1.EtcdStatus{
+		ClusterSize:     pointer.Int32Ptr(eb.etcd.Spec.Replicas),
+		ReadyReplicas:   eb.etcd.Spec.Replicas,
+		Replicas:        eb.etcd.Spec.Replicas,
+		CurrentReplicas: eb.etcd.Spec.Replicas,
+		UpdatedReplicas: eb.etcd.Spec.Replicas,
+		Ready:           pointer.BoolPtr(true),
+		Members:         members,
+		Conditions: []druidv1alpha1.Condition{
+			{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionTrue},
+		},
+	}
+
+	return eb
+}
+
 func (eb *EtcdBuilder) WithProviderS3() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -174,14 +202,8 @@ func (eb *EtcdBuilder) WithProviderOSS() *EtcdBuilder {
 	return eb
 }
 
-func (eb *EtcdBuilder) Build() (*druidv1alpha1.Etcd, error) {
-	if eb == nil {
-		return nil, fmt.Errorf("EtcdBuilder is nil")
-	}
-	if eb.etcd == nil {
-		return nil, fmt.Errorf("EtcdBuilder etcd is nil")
-	}
-	return eb.etcd, nil
+func (eb *EtcdBuilder) Build() *druidv1alpha1.Etcd {
+	return eb.etcd
 }
 
 func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
@@ -224,12 +246,12 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 
 				Resources: &corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
-						"cpu":    parseQuantity("500m"),
-						"memory": parseQuantity("2Gi"),
+						"cpu":    ParseQuantity("500m"),
+						"memory": ParseQuantity("2Gi"),
 					},
 					Requests: corev1.ResourceList{
-						"cpu":    parseQuantity("23m"),
-						"memory": parseQuantity("128Mi"),
+						"cpu":    ParseQuantity("23m"),
+						"memory": ParseQuantity("128Mi"),
 					},
 				},
 				Store: &druidv1alpha1.StoreSpec{
@@ -249,12 +271,12 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 				EtcdDefragTimeout:       &etcdDefragTimeout,
 				Resources: &corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
-						"cpu":    parseQuantity("2500m"),
-						"memory": parseQuantity("4Gi"),
+						"cpu":    ParseQuantity("2500m"),
+						"memory": ParseQuantity("4Gi"),
 					},
 					Requests: corev1.ResourceList{
-						"cpu":    parseQuantity("500m"),
-						"memory": parseQuantity("1000Mi"),
+						"cpu":    ParseQuantity("500m"),
+						"memory": ParseQuantity("1000Mi"),
 					},
 				},
 				ClientPort: &clientPort,
@@ -268,11 +290,6 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 	}
 }
 
-func parseQuantity(q string) resource.Quantity {
-	val, _ := resource.ParseQuantity(q)
-	return val
-}
-
 func getBackupStore(name string, provider druidv1alpha1.StorageProvider) *druidv1alpha1.StoreSpec {
 	return &druidv1alpha1.StoreSpec{
 		Container: &container,
@@ -282,4 +299,32 @@ func getBackupStore(name string, provider druidv1alpha1.StorageProvider) *druidv
 			Name: "etcd-backup",
 		},
 	}
+}
+
+func CheckEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
+	for _, ownerRef := range refs {
+		if ownerRef.UID == etcd.UID {
+			return true
+		}
+	}
+	return false
+}
+
+func IsEtcdRemoved(c client.Client, timeout time.Duration, etcd *druidv1alpha1.Etcd) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	e := &druidv1alpha1.Etcd{}
+	req := types.NamespacedName{
+		Name:      etcd.Name,
+		Namespace: etcd.Namespace,
+	}
+	if err := c.Get(ctx, req, e); err != nil {
+		if apierrors.IsNotFound(err) {
+			// Object not found, return.  Created objects are automatically garbage collected.
+			// For additional cleanup logic use finalizers
+			return nil
+		}
+		return err
+	}
+	return fmt.Errorf("etcd not deleted")
 }
