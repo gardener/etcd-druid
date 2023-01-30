@@ -55,8 +55,6 @@ import (
 )
 
 const (
-	controllerName = "etcd-controller"
-
 	// IgnoreReconciliationAnnotation is an annotation set by an operator in order to stop reconciliation.
 	IgnoreReconciliationAnnotation = "druid.gardener.cloud/ignore-reconciliation"
 )

@@ -25,11 +25,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
+const controllerName = "etcd-controller"
+
 func (r *Reconciler) AddToManager(mgr ctrl.Manager, ignoreOperationAnnotation bool) error {
 	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
 		MaxConcurrentReconciles: r.Config.Workers,
 	})
 	builder = builder.
+		Named(controllerName).
 		WithEventFilter(buildPredicate(ignoreOperationAnnotation)).
 		For(&druidv1alpha1.Etcd{})
 	if ignoreOperationAnnotation {

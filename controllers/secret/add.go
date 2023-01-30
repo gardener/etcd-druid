@@ -24,12 +24,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
+const controllerName = "secret-controller"
+
 func (r *Reconciler) AddToManager(mgr ctrl.Manager) error {
 	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
 		MaxConcurrentReconciles: r.Config.Workers,
 	})
 
 	c, err := builder.
+		Named(controllerName).
 		For(&corev1.Secret{}).
 		Build(r)
 	if err != nil {

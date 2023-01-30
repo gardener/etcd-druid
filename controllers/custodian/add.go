@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-const custodianControllerName = "custodian-controller"
+const controllerName = "custodian-controller"
 
 func (r *Reconciler) AddToManager(ctx context.Context, mgr ctrl.Manager, ignoreOperationAnnotation bool) error {
 	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
@@ -24,6 +24,7 @@ func (r *Reconciler) AddToManager(ctx context.Context, mgr ctrl.Manager, ignoreO
 	})
 
 	c, err := builder.
+		Named(controllerName).
 		For(
 			&druidv1alpha1.Etcd{},
 			ctrlbuilder.WithPredicates(druidpredicates.EtcdReconciliationFinished(ignoreOperationAnnotation))).

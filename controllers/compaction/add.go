@@ -24,10 +24,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-const compactionControllerName = "compaction-controller"
+const controllerName = "compaction-controller"
 
 func (r *Reconciler) AddToManager(mgr ctrl.Manager) error {
-	c, err := controller.New(compactionControllerName, mgr, controller.Options{
+	c, err := controller.New(controllerName, mgr, controller.Options{
 		Reconciler:              r,
 		MaxConcurrentReconciles: r.config.Workers,
 	})

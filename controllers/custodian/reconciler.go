@@ -38,7 +38,7 @@ func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 		Scheme:     mgr.GetScheme(),
 		Config:     config,
 		restConfig: mgr.GetConfig(),
-		logger:     log.Log.WithName(custodianControllerName),
+		logger:     log.Log.WithName(controllerName),
 	}, nil
 }
 

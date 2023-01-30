@@ -24,8 +24,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
+const controllerName = "etcdcopybackupstask-controller"
+
 func (r *Reconciler) AddToManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
+		Named(controllerName).
 		For(&druidv1alpha1.EtcdCopyBackupsTask{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Owns(&batchv1.Job{}).
 		WithOptions(controller.Options{
