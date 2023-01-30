@@ -15,9 +15,14 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+
 	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // CheckStatefulSet checks whether the given StatefulSet is healthy.
@@ -34,4 +39,22 @@ func CheckStatefulSet(etcdReplicas int32, statefulSet *appsv1.StatefulSet) error
 	}
 
 	return nil
+}
+
+// FetchStatefulSet fetches statefulset based on ETCD resource
+func FetchStatefulSets(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSetList, error) {
+	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
+	if err != nil {
+		return nil, err
+	}
+
+	// list all statefulsets to include the statefulsets that don't match the etcd`s selector
+	// anymore but has the stale controller ref.
+	statefulSets := &appsv1.StatefulSetList{}
+	err = cl.List(ctx, statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
+	if err != nil {
+		return nil, err
+	}
+
+	return statefulSets, err
 }

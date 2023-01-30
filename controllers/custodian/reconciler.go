@@ -6,7 +6,6 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	druidutils "github.com/gardener/etcd-druid/pkg/utils"
 
 	"github.com/gardener/etcd-druid/pkg/health/status"
 	"github.com/gardener/etcd-druid/pkg/utils"
@@ -14,7 +13,6 @@ import (
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
@@ -70,21 +68,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}, nil
 	}
 
-	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
-	if err != nil {
-		logger.Error(err, "Error converting etcd selector to selector")
-		return ctrl.Result{}, err
-	}
-
-	statusCheck := status.NewChecker(r.Client, r.Config)
+	statusCheck := status.NewChecker(r.Client, r.Config.EtcdMember.NotReadyThreshold, r.Config.EtcdMember.UnknownThreshold)
 	if err := statusCheck.Check(ctx, logger, etcd); err != nil {
 		logger.Error(err, "Error executing status checks")
 		return ctrl.Result{}, err
 	}
 
-	refMgr := NewEtcdDruidRefManager(r.Client, r.Scheme, etcd, selector, druidutils.EtcdGVK, nil)
-
-	stsList, err := refMgr.FetchStatefulSet(ctx, etcd)
+	stsList, err := utils.FetchStatefulSets(ctx, r.Client, etcd)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

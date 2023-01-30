@@ -29,10 +29,10 @@ type Config struct {
 
 // EtcdMemberConfig holds configuration related to etcd members.
 type EtcdMemberConfig struct {
-	// EtcdMemberNotReadyThreshold is the duration after which an etcd member's state is considered `NotReady`.
-	EtcdMemberNotReadyThreshold time.Duration
-	// EtcdMemberUnknownThreshold is the duration after which an etcd member's state is considered `Unknown`.
-	EtcdMemberUnknownThreshold time.Duration
+	// NotReadyThreshold is the duration after which an etcd member's state is considered `NotReady`.
+	NotReadyThreshold time.Duration
+	// UnknownThreshold is the duration after which an etcd member's state is considered `Unknown`.
+	UnknownThreshold time.Duration
 }
 
 func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
@@ -40,8 +40,8 @@ func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 		"Number of worker threads for the custodian controller.")
 	fs.DurationVar(&cfg.SyncPeriod, custodianSyncPeriodFlagName, cfg.SyncPeriod,
 		"Sync period of the custodian controller.")
-	fs.DurationVar(&cfg.EtcdMember.EtcdMemberNotReadyThreshold, etcdMemberNotReadyThresholdFlagName, cfg.EtcdMember.EtcdMemberNotReadyThreshold,
+	fs.DurationVar(&cfg.EtcdMember.NotReadyThreshold, etcdMemberNotReadyThresholdFlagName, cfg.EtcdMember.NotReadyThreshold,
 		"Threshold after which an etcd member is considered not ready if the status was unknown before.")
-	fs.DurationVar(&cfg.EtcdMember.EtcdMemberUnknownThreshold, etcdMemberUnknownThresholdFlagName, cfg.EtcdMember.EtcdMemberUnknownThreshold,
+	fs.DurationVar(&cfg.EtcdMember.UnknownThreshold, etcdMemberUnknownThresholdFlagName, cfg.EtcdMember.UnknownThreshold,
 		"Threshold after which an etcd member is considered unknown.")
 }

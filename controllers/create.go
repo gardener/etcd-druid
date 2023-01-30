@@ -16,6 +16,7 @@ package controllers
 
 import (
 	"context"
+	"time"
 
 	"github.com/gardener/etcd-druid/controllers/compaction"
 	"github.com/gardener/etcd-druid/controllers/custodian"
@@ -30,6 +31,10 @@ import (
 	eventsv1beta1 "k8s.io/api/events/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+var (
+	defaultTimeout = time.Minute
 )
 
 // CreateAndAddToManager creates a controller manager and adds all the controllers to the controller-manager using the passed in ManagerConfig.
@@ -89,7 +94,7 @@ func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	if err = custodianReconciler.AddToManager(ctx, mgr, config.IgnoreOperationAnnotation); err != nil {
 		return err

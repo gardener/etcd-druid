@@ -84,9 +84,18 @@ func InitFromFlags(fs *flag.FlagSet, config *ManagerConfig) {
 	flag.BoolVar(&config.IgnoreOperationAnnotation, ignoreOperationAnnotationFlagName, defaultIgnoreOperationAnnotation,
 		"Specifies whether to ignore or honour the operation annotation on resources to be reconciled.")
 
+	config.EtcdControllerConfig = &etcd.Config{}
 	etcd.InitFromFlags(fs, config.EtcdControllerConfig)
+
+	config.CustodianControllerConfig = &custodian.Config{}
 	custodian.InitFromFlags(fs, config.CustodianControllerConfig)
+
+	config.CompactionControllerConfig = &compaction.Config{}
 	compaction.InitFromFlags(fs, config.CompactionControllerConfig)
+
+	config.EtcdCopyBackupsTaskControllerConfig = &etcdcopybackupstask.Config{}
 	etcdcopybackupstask.InitFromFlags(fs, config.EtcdCopyBackupsTaskControllerConfig)
+
+	config.SecretControllerConfig = &secret.Config{}
 	secret.InitFromFlags(fs, config.SecretControllerConfig)
 }

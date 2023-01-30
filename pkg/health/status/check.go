@@ -25,7 +25,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/controllers/custodian"
 	"github.com/gardener/etcd-druid/pkg/health/condition"
 	"github.com/gardener/etcd-druid/pkg/health/etcdmember"
 )
@@ -34,7 +33,7 @@ import (
 type ConditionCheckFn func(client.Client) condition.Checker
 
 // EtcdMemberCheckFn is a type alias for a function which returns an implementation of `Check`.
-type EtcdMemberCheckFn func(client.Client, logr.Logger, custodian.Config) etcdmember.Checker
+type EtcdMemberCheckFn func(client.Client, logr.Logger, time.Duration, time.Duration) etcdmember.Checker
 
 // TimeNow is the function used to get the current time.
 var TimeNow = time.Now
@@ -56,17 +55,18 @@ var (
 	}
 )
 
-type checker struct {
-	cl                  client.Client
-	config              custodian.Config
-	conditionCheckFns   []ConditionCheckFn
-	conditionBuilderFn  func() condition.Builder
-	etcdMemberCheckFns  []EtcdMemberCheckFn
-	etcdMemberBuilderFn func() etcdmember.Builder
+type Checker struct {
+	cl                          client.Client
+	etcdMemberNotReadyThreshold time.Duration
+	etcdMemberUnknownThreshold  time.Duration
+	conditionCheckFns           []ConditionCheckFn
+	conditionBuilderFn          func() condition.Builder
+	etcdMemberCheckFns          []EtcdMemberCheckFn
+	etcdMemberBuilderFn         func() etcdmember.Builder
 }
 
 // Check executes the status checks and mutates the passed status object with the corresponding results.
-func (c *checker) Check(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
+func (c *Checker) Check(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
 	// First execute the etcd member checks for the status.
 	if err := c.executeEtcdMemberChecks(ctx, logger, etcd); err != nil {
 		return err
@@ -80,7 +80,7 @@ func (c *checker) Check(ctx context.Context, logger logr.Logger, etcd *druidv1al
 }
 
 // executeConditionChecks runs all registered condition checks **in parallel**.
-func (c *checker) executeConditionChecks(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+func (c *Checker) executeConditionChecks(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
 	var (
 		resultCh = make(chan condition.Result)
 
@@ -119,10 +119,10 @@ func (c *checker) executeConditionChecks(ctx context.Context, etcd *druidv1alpha
 
 // executeEtcdMemberChecks runs all registered etcd member checks **sequentially**.
 // The result of a check is passed via the `status` sub-resources to the next check.
-func (c *checker) executeEtcdMemberChecks(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
+func (c *Checker) executeEtcdMemberChecks(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
 	// Run etcd member checks sequentially as most of them act on multiple elements.
 	for _, newCheck := range c.etcdMemberCheckFns {
-		results := newCheck(c.cl, logger, c.config).Check(ctx, *etcd)
+		results := newCheck(c.cl, logger, c.etcdMemberNotReadyThreshold, c.etcdMemberUnknownThreshold).Check(ctx, *etcd)
 
 		// Build and assign the results after each check, so that the next check
 		// can act on the latest results.
@@ -138,13 +138,14 @@ func (c *checker) executeEtcdMemberChecks(ctx context.Context, logger logr.Logge
 }
 
 // NewChecker creates a new instance for checking the etcd status.
-func NewChecker(cl client.Client, config custodian.Config) *checker {
-	return &checker{
-		cl:                  cl,
-		config:              config,
-		conditionCheckFns:   ConditionChecks,
-		conditionBuilderFn:  NewDefaultConditionBuilder,
-		etcdMemberCheckFns:  EtcdMemberChecks,
-		etcdMemberBuilderFn: NewDefaultEtcdMemberBuilder,
+func NewChecker(cl client.Client, etcdMemberNotReadyThreshold, etcdMemberUnknownThreshold time.Duration) *Checker {
+	return &Checker{
+		cl:                          cl,
+		etcdMemberNotReadyThreshold: etcdMemberNotReadyThreshold,
+		etcdMemberUnknownThreshold:  etcdMemberUnknownThreshold,
+		conditionCheckFns:           ConditionChecks,
+		conditionBuilderFn:          NewDefaultConditionBuilder,
+		etcdMemberCheckFns:          EtcdMemberChecks,
+		etcdMemberBuilderFn:         NewDefaultEtcdMemberBuilder,
 	}
 }

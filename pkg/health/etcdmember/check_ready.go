@@ -19,7 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gardener/etcd-druid/controllers/custodian"
 	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
@@ -36,10 +35,10 @@ import (
 )
 
 type readyCheck struct {
-	logger logr.Logger
-
-	memberConfig custodian.EtcdMemberConfig
-	cl           client.Client
+	logger                      logr.Logger
+	cl                          client.Client
+	etcdMemberNotReadyThreshold time.Duration
+	etcdMemberUnknownThreshold  time.Duration
 }
 
 // TimeNow is the function used by this check to get the current time.
@@ -77,7 +76,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		}
 
 		// Check if member state must be considered as not ready
-		if renew.Add(r.memberConfig.EtcdMemberUnknownThreshold).Add(r.memberConfig.EtcdMemberNotReadyThreshold).Before(checkTime) {
+		if renew.Add(r.etcdMemberUnknownThreshold).Add(r.etcdMemberNotReadyThreshold).Before(checkTime) {
 			res.status = druidv1alpha1.EtcdMemberStatusNotReady
 			res.reason = "UnknownGracePeriodExceeded"
 			results = append(results, res)
@@ -85,7 +84,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		}
 
 		// Check if member state must be considered as unknown
-		if renew.Add(r.memberConfig.EtcdMemberUnknownThreshold).Before(checkTime) {
+		if renew.Add(r.etcdMemberUnknownThreshold).Before(checkTime) {
 			// If pod is not running or cannot be found then we deduce that the status is NotReady.
 			ready, err := r.checkContainersAreReady(ctx, lease.Namespace, lease.Name)
 			if (err == nil && !ready) || apierrors.IsNotFound(err) {
@@ -149,11 +148,11 @@ func (r *readyCheck) checkContainersAreReady(ctx context.Context, namespace stri
 }
 
 // ReadyCheck returns a check for the "Ready" condition.
-func ReadyCheck(cl client.Client, logger logr.Logger, config custodian.Config) Checker {
+func ReadyCheck(cl client.Client, logger logr.Logger, etcdMemberNotReadyThreshold, etcdMemberUnknownThreshold time.Duration) Checker {
 	return &readyCheck{
-		logger: logger,
-
-		cl:           cl,
-		memberConfig: config.EtcdMember,
+		logger:                      logger,
+		cl:                          cl,
+		etcdMemberNotReadyThreshold: etcdMemberNotReadyThreshold,
+		etcdMemberUnknownThreshold:  etcdMemberUnknownThreshold,
 	}
 }
