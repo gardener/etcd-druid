@@ -15,7 +15,10 @@
 package controllers
 
 import (
+	"context"
+
 	"github.com/gardener/etcd-druid/controllers/compaction"
+	"github.com/gardener/etcd-druid/controllers/custodian"
 	"github.com/gardener/etcd-druid/controllers/etcd"
 	"github.com/gardener/etcd-druid/controllers/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/controllers/secret"
@@ -78,6 +81,17 @@ func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
 		return err
 	}
 	if err = etcdReconciler.AddToManager(mgr, config.IgnoreOperationAnnotation); err != nil {
+		return err
+	}
+
+	// Add custodian reconciler to the manager
+	custodianReconciler, err := custodian.NewReconciler(mgr, config.CustodianControllerConfig)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
+	defer cancel()
+	if err = custodianReconciler.AddToManager(ctx, mgr, config.IgnoreOperationAnnotation); err != nil {
 		return err
 	}
 

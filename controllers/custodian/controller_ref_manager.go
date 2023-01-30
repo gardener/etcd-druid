@@ -1,19 +1,4 @@
-// Copyright (c) 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-// Package controllers is used to provide the core functionalities of hvpa-controller
-package controllers
+package custodian
 
 import (
 	"context"
@@ -31,6 +16,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
+	druidutils "github.com/gardener/etcd-druid/pkg/utils"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -132,7 +118,7 @@ func (m *BaseControllerRefManager) claimObject(ctx context.Context, obj client.O
 	// OwnerReference is not set here. Adopt the resource by adding
 	// annotations if the annotations are not present. Resource other
 	// than sts will have ownerReference set as well.
-	if !checkEtcdAnnotations(obj.GetAnnotations(), m.Controller) {
+	if !druidutils.CheckEtcdAnnotations(obj.GetAnnotations(), m.Controller) {
 		// Selector matches. Try to adopt.
 		if err := adopt(ctx, obj); err != nil {
 			// If the object no longer exists, ignore the error.
@@ -224,7 +210,7 @@ func (m *EtcdDruidRefManager) AdoptResource(ctx context.Context, obj client.Obje
 		}
 
 		annotations[common.GardenerOwnedBy] = objectKey
-		annotations[common.GardenerOwnerType] = strings.ToLower(etcdGVK.Kind)
+		annotations[common.GardenerOwnerType] = strings.ToLower(druidutils.EtcdGVK.Kind)
 		clone.SetAnnotations(annotations)
 	case *batchv1.Job:
 		clone = obj.(*batchv1.Job).DeepCopy()

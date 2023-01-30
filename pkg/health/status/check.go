@@ -25,7 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	config "github.com/gardener/etcd-druid/pkg/config"
+	"github.com/gardener/etcd-druid/controllers/custodian"
 	"github.com/gardener/etcd-druid/pkg/health/condition"
 	"github.com/gardener/etcd-druid/pkg/health/etcdmember"
 )
@@ -34,7 +34,7 @@ import (
 type ConditionCheckFn func(client.Client) condition.Checker
 
 // EtcdMemberCheckFn is a type alias for a function which returns an implementation of `Check`.
-type EtcdMemberCheckFn func(client.Client, logr.Logger, config.CustodianControllerConfig) etcdmember.Checker
+type EtcdMemberCheckFn func(client.Client, logr.Logger, custodian.Config) etcdmember.Checker
 
 // TimeNow is the function used to get the current time.
 var TimeNow = time.Now
@@ -58,7 +58,7 @@ var (
 
 type checker struct {
 	cl                  client.Client
-	config              config.CustodianControllerConfig
+	config              custodian.Config
 	conditionCheckFns   []ConditionCheckFn
 	conditionBuilderFn  func() condition.Builder
 	etcdMemberCheckFns  []EtcdMemberCheckFn
@@ -138,7 +138,7 @@ func (c *checker) executeEtcdMemberChecks(ctx context.Context, logger logr.Logge
 }
 
 // NewChecker creates a new instance for checking the etcd status.
-func NewChecker(cl client.Client, config config.CustodianControllerConfig) *checker {
+func NewChecker(cl client.Client, config custodian.Config) *checker {
 	return &checker{
 		cl:                  cl,
 		config:              config,

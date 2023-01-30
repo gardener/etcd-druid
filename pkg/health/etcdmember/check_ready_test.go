@@ -38,9 +38,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/controllers/custodian"
 	"github.com/gardener/etcd-druid/pkg/common"
 	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
-	config "github.com/gardener/etcd-druid/pkg/config"
 	. "github.com/gardener/etcd-druid/pkg/health/etcdmember"
 	mockclient "github.com/gardener/etcd-druid/pkg/mock/controller-runtime/client"
 )
@@ -71,8 +71,8 @@ var _ = Describe("ReadyCheck", func() {
 			notReadyThreshold = 60 * time.Second
 			now, _ = time.Parse(time.RFC3339, "2021-06-01T00:00:00Z")
 			logger = log.Log.WithName("Test")
-			check = ReadyCheck(cl, logger, config.CustodianControllerConfig{
-				EtcdMember: config.EtcdMemberConfig{
+			check = ReadyCheck(cl, logger, custodian.Config{
+				EtcdMember: custodian.EtcdMemberConfig{
 					EtcdMemberNotReadyThreshold: notReadyThreshold,
 					EtcdMemberUnknownThreshold:  unknownThreshold,
 				},

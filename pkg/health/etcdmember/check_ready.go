@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gardener/etcd-druid/controllers/custodian"
 	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
@@ -32,13 +33,12 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
-	config "github.com/gardener/etcd-druid/pkg/config"
 )
 
 type readyCheck struct {
 	logger logr.Logger
 
-	memberConfig config.EtcdMemberConfig
+	memberConfig custodian.EtcdMemberConfig
 	cl           client.Client
 }
 
@@ -149,7 +149,7 @@ func (r *readyCheck) checkContainersAreReady(ctx context.Context, namespace stri
 }
 
 // ReadyCheck returns a check for the "Ready" condition.
-func ReadyCheck(cl client.Client, logger logr.Logger, config config.CustodianControllerConfig) Checker {
+func ReadyCheck(cl client.Client, logger logr.Logger, config custodian.Config) Checker {
 	return &readyCheck{
 		logger: logger,
 

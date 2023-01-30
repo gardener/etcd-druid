@@ -20,7 +20,8 @@ import (
 
 const (
 	workersFlagName = "etcd-copy-backups-task-workers"
-	defaultWorkers  = 3
+
+	defaultWorkers = 3
 )
 
 // Config defines the configuration for the EtcdCopyBackupsTaskController.

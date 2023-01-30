@@ -20,7 +20,8 @@ import (
 
 const (
 	workersFlagName = "secret-workers"
-	defaultWorkers  = 10
+
+	defaultWorkers = 10
 )
 
 // Config defines the configuration for the SecretController.

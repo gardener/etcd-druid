@@ -18,6 +18,7 @@ import (
 	"flag"
 
 	"github.com/gardener/etcd-druid/controllers/compaction"
+	"github.com/gardener/etcd-druid/controllers/custodian"
 	"github.com/gardener/etcd-druid/controllers/etcd"
 	"github.com/gardener/etcd-druid/controllers/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/controllers/secret"
@@ -57,14 +58,16 @@ type ManagerConfig struct {
 	DisableLeaseCache bool
 	// IgnoreOperationAnnotation specifies whether to ignore or honour the operation annotation on resources to be reconciled.
 	IgnoreOperationAnnotation bool
-	// SecretControllerConfig is the configuration required for secret controller.
-	SecretControllerConfig *secret.Config
-	// EtcdCopyBackupsTaskControllerConfig is the configuration required for etcd-copy-backup-tasks controller.
-	EtcdCopyBackupsTaskControllerConfig *etcdcopybackupstask.Config
-	// CompactionControllerConfig is the configuration required for compaction controller.
-	CompactionControllerConfig *compaction.Config
 	// EtcdControllerConfig is the configuration required for etcd controller.
 	EtcdControllerConfig *etcd.Config
+	// CustodianControllerConfig is the configuration required for custodian controller.
+	CustodianControllerConfig *custodian.Config
+	// CompactionControllerConfig is the configuration required for compaction controller.
+	CompactionControllerConfig *compaction.Config
+	// EtcdCopyBackupsTaskControllerConfig is the configuration required for etcd-copy-backup-tasks controller.
+	EtcdCopyBackupsTaskControllerConfig *etcdcopybackupstask.Config
+	// SecretControllerConfig is the configuration required for secret controller.
+	SecretControllerConfig *secret.Config
 }
 
 func InitFromFlags(fs *flag.FlagSet, config *ManagerConfig) {
@@ -81,8 +84,9 @@ func InitFromFlags(fs *flag.FlagSet, config *ManagerConfig) {
 	flag.BoolVar(&config.IgnoreOperationAnnotation, ignoreOperationAnnotationFlagName, defaultIgnoreOperationAnnotation,
 		"Specifies whether to ignore or honour the operation annotation on resources to be reconciled.")
 
-	secret.InitFromFlags(fs, config.SecretControllerConfig)
-	etcdcopybackupstask.InitFromFlags(fs, config.EtcdCopyBackupsTaskControllerConfig)
-	compaction.InitFromFlags(fs, config.CompactionControllerConfig)
 	etcd.InitFromFlags(fs, config.EtcdControllerConfig)
+	custodian.InitFromFlags(fs, config.CustodianControllerConfig)
+	compaction.InitFromFlags(fs, config.CompactionControllerConfig)
+	etcdcopybackupstask.InitFromFlags(fs, config.EtcdCopyBackupsTaskControllerConfig)
+	secret.InitFromFlags(fs, config.SecretControllerConfig)
 }

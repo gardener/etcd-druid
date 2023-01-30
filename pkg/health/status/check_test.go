@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 
+	"github.com/gardener/etcd-druid/controllers/custodian"
 	"github.com/gardener/etcd-druid/pkg/health/condition"
 	"github.com/gardener/etcd-druid/pkg/health/etcdmember"
 	"github.com/gardener/gardener/pkg/utils/test"
@@ -33,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	config "github.com/gardener/etcd-druid/pkg/config"
 	. "github.com/gardener/etcd-druid/pkg/health/status"
 )
 
@@ -43,8 +43,8 @@ var _ = Describe("Check", func() {
 			memberRoleLeader := druidv1alpha1.EtcdRoleLeader
 			memberRoleMember := druidv1alpha1.EtcdRoleMember
 
-			custodianConfig := config.CustodianControllerConfig{
-				EtcdMember: config.EtcdMemberConfig{},
+			custodianConfig := custodian.Config{
+				EtcdMember: custodian.EtcdMemberConfig{},
 			}
 			timeBefore, _ := time.Parse(time.RFC3339, "2021-06-01T00:00:00Z")
 			timeNow := timeBefore.Add(1 * time.Hour)
@@ -121,7 +121,7 @@ var _ = Describe("Check", func() {
 			})()
 
 			defer test.WithVar(&EtcdMemberChecks, []EtcdMemberCheckFn{
-				func(_ client.Client, _ logr.Logger, _ config.CustodianControllerConfig) etcdmember.Checker {
+				func(_ client.Client, _ logr.Logger, _ custodian.Config) etcdmember.Checker {
 					return createEtcdMemberCheck(
 						etcdMemberResult{pointer.StringPtr("1"), "member1", &memberRoleLeader, druidv1alpha1.EtcdMemberStatusUnknown, "Unknown"},
 						etcdMemberResult{pointer.StringPtr("2"), "member2", &memberRoleMember, druidv1alpha1.EtcdMemberStatusNotReady, "bar reason"},

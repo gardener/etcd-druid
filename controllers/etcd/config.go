@@ -17,8 +17,11 @@ package etcd
 import "flag"
 
 const (
-	defaultWorkers                             = 3
-	defaultDisabledEtcdServiceAccountAutomount = false
+	etcdWorkersFlagName                        = "workers"
+	disableEtcdServiceAccountAutomountFlagName = "disable-etcd-serviceaccount-automount"
+
+	defaultWorkers                            = 3
+	defaultDisableEtcdServiceAccountAutomount = false
 )
 
 // Config defines the configuration for the etcd controller.
@@ -30,8 +33,8 @@ type Config struct {
 }
 
 func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
-	fs.IntVar(&cfg.Workers, "workers", defaultWorkers,
+	fs.IntVar(&cfg.Workers, etcdWorkersFlagName, defaultWorkers,
 		"Number of worker threads of the etcd controller.")
-	fs.BoolVar(&cfg.DisableEtcdServiceAccountAutomount, "disable-etcd-serviceaccount-automount", defaultDisabledEtcdServiceAccountAutomount,
+	fs.BoolVar(&cfg.DisableEtcdServiceAccountAutomount, disableEtcdServiceAccountAutomountFlagName, defaultDisableEtcdServiceAccountAutomount,
 		"If true then .automountServiceAccountToken will be set to false for the ServiceAccount created for etcd statefulsets.")
 }

@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
-	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
@@ -31,6 +30,7 @@ import (
 	componentservice "github.com/gardener/etcd-druid/pkg/component/etcd/service"
 	componentsts "github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
 	"github.com/gardener/etcd-druid/pkg/utils"
+
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/chartrenderer"
 	"github.com/gardener/gardener/pkg/controllerutils"
@@ -42,7 +42,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -63,7 +62,6 @@ const (
 )
 
 var (
-	etcdGVK                 = druidv1alpha1.GroupVersion.WithKind("Etcd")
 	serviceAccountChartPath = filepath.Join("etcd", "templates", "etcd-serviceaccount.yaml")
 	chartPath               = filepath.Join("charts", "etcd")
 	roleChartPath           = filepath.Join("etcd", "templates", "etcd-role.yaml")
@@ -598,25 +596,3 @@ func (r *Reconciler) updateEtcdStatusAsNotReady(ctx context.Context, etcd *druid
 
 	return etcd, r.Client.Status().Update(ctx, etcd)
 }
-
-// TODO: Check why these methods are defined here.
-// -------------------------------------------------------------------------------------------------------------
-func checkEtcdAnnotations(annotations map[string]string, etcd metav1.Object) bool {
-	var (
-		ownedBy, ownerType string
-		ok                 bool
-	)
-	if annotations == nil {
-		return false
-	}
-	if ownedBy, ok = annotations[common.GardenerOwnedBy]; !ok {
-		return ok
-	}
-	if ownerType, ok = annotations[common.GardenerOwnerType]; !ok {
-		return ok
-	}
-	return ownedBy == fmt.Sprintf("%s/%s", etcd.GetNamespace(), etcd.GetName()) &&
-		ownerType == strings.ToLower(etcdGVK.Kind)
-}
-
-//-------------------------------------------------------------------------------------------------------------

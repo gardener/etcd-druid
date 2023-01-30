@@ -1,79 +1,57 @@
-// Copyright (c) 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-package controllers
+package custodian
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	"github.com/gardener/gardener/pkg/controllerutils/mapper"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidutils "github.com/gardener/etcd-druid/pkg/utils"
+
+	"github.com/gardener/etcd-druid/pkg/health/status"
+	"github.com/gardener/etcd-druid/pkg/utils"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
-	coordinationv1 "k8s.io/api/coordination/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
-
-	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/source"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	config "github.com/gardener/etcd-druid/pkg/config"
-	"github.com/gardener/etcd-druid/pkg/health/status"
-	druidmapper "github.com/gardener/etcd-druid/pkg/mapper"
-	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
-	"github.com/gardener/etcd-druid/pkg/utils"
 )
 
-// EtcdCustodian reconciles status of Etcd object
-type EtcdCustodian struct {
+// Reconciler reconciles status of Etcd object
+type Reconciler struct {
 	client.Client
 	Scheme     *runtime.Scheme
+	Config     *Config
 	logger     logr.Logger
-	config     config.CustodianControllerConfig
 	restConfig *rest.Config
 }
 
-// NewEtcdCustodian creates a new EtcdCustodian object
-func NewEtcdCustodian(mgr manager.Manager, config config.CustodianControllerConfig) *EtcdCustodian {
-	return &EtcdCustodian{
+// NewReconciler creates a new reconciler for Custodian.
+func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
+	return &Reconciler{
 		Client:     mgr.GetClient(),
 		Scheme:     mgr.GetScheme(),
-		logger:     log.Log.WithName("custodian-controller"),
-		config:     config,
+		Config:     config,
 		restConfig: mgr.GetConfig(),
-	}
+		logger:     log.Log.WithName(custodianControllerName),
+	}, nil
 }
 
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds/status,verbs=get;update;patch;create
 
 // Reconcile reconciles the etcd.
-func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	ec.logger.Info("Custodian controller reconciliation started")
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	r.logger.Info("Custodian controller reconciliation started")
 	etcd := &druidv1alpha1.Etcd{}
-	if err := ec.Get(ctx, req.NamespacedName, etcd); err != nil {
+	if err := r.Get(ctx, req.NamespacedName, etcd); err != nil {
 		if errors.IsNotFound(err) {
 			// Object not found, return. Created objects are automatically garbage collected.
 			// For additional cleanup logic use finalizers.
@@ -83,7 +61,7 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	logger := ec.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
+	logger := r.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
 
 	if etcd.Status.LastError != nil && *etcd.Status.LastError != "" {
 		logger.Info(fmt.Sprintf("Requeue item because of last error: %v", *etcd.Status.LastError))
@@ -98,13 +76,13 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	statusCheck := status.NewChecker(ec.Client, ec.config)
+	statusCheck := status.NewChecker(r.Client, r.Config)
 	if err := statusCheck.Check(ctx, logger, etcd); err != nil {
 		logger.Error(err, "Error executing status checks")
 		return ctrl.Result{}, err
 	}
 
-	refMgr := NewEtcdDruidRefManager(ec.Client, ec.Scheme, etcd, selector, etcdGVK, nil)
+	refMgr := NewEtcdDruidRefManager(r.Client, r.Scheme, etcd, selector, druidutils.EtcdGVK, nil)
 
 	stsList, err := refMgr.FetchStatefulSet(ctx, etcd)
 	if err != nil {
@@ -114,7 +92,7 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	// Requeue if we found more than one or no StatefulSet.
 	// The Etcd controller needs to decide what to do in such situations.
 	if len(stsList.Items) != 1 {
-		if err := ec.updateEtcdStatus(ctx, logger, etcd, nil); err != nil {
+		if err := r.updateEtcdStatus(ctx, logger, etcd, nil); err != nil {
 			logger.Error(err, "Error while updating ETCD status when no statefulset found")
 		}
 		return ctrl.Result{
@@ -122,14 +100,14 @@ func (ec *EtcdCustodian) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		}, nil
 	}
 
-	if err := ec.updateEtcdStatus(ctx, logger, etcd, &stsList.Items[0]); err != nil {
+	if err := r.updateEtcdStatus(ctx, logger, etcd, &stsList.Items[0]); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{RequeueAfter: ec.config.SyncPeriod}, nil
+	return ctrl.Result{RequeueAfter: r.Config.SyncPeriod}, nil
 }
 
-func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {
+func (r *Reconciler) updateEtcdStatus(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {
 	logger.Info("Updating etcd status with statefulset information")
 
 	// Bootstrap is a special case which is handled by the etcd controller.
@@ -160,7 +138,7 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logge
 		etcd.Status.Ready = pointer.BoolPtr(false)
 	}
 
-	return ec.Client.Status().Update(ctx, etcd)
+	return r.Client.Status().Update(ctx, etcd)
 }
 
 func inBootstrap(etcd *druidv1alpha1.Etcd) bool {
@@ -169,27 +147,4 @@ func inBootstrap(etcd *druidv1alpha1.Etcd) bool {
 	}
 	return len(etcd.Status.Members) == 0 ||
 		(len(etcd.Status.Members) < int(etcd.Spec.Replicas) && etcd.Spec.Replicas == *etcd.Status.ClusterSize)
-}
-
-// SetupWithManager sets up manager with a new controller and ec as the reconcile.Reconciler
-func (ec *EtcdCustodian) SetupWithManager(ctx context.Context, mgr ctrl.Manager, workers int, ignoreOperationAnnotation bool) error {
-	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
-		MaxConcurrentReconciles: workers,
-	})
-
-	c, err := builder.
-		For(
-			&druidv1alpha1.Etcd{},
-			ctrlbuilder.WithPredicates(druidpredicates.EtcdReconciliationFinished(ignoreOperationAnnotation))).
-		Owns(&coordinationv1.Lease{}).
-		Build(ec)
-	if err != nil {
-		return err
-	}
-
-	return c.Watch(
-		&source.Kind{Type: &appsv1.StatefulSet{}},
-		mapper.EnqueueRequestsFrom(druidmapper.StatefulSetToEtcd(ctx, mgr.GetClient()), mapper.UpdateWithNew, c.GetLogger()),
-		druidpredicates.StatefulSetStatusChange(),
-	)
 }
