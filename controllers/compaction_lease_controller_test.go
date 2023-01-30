@@ -110,13 +110,13 @@ var _ = Describe("Lease Controller", func() {
 			// Verify if the job is created when difference between holder identities in delta-snapshot-revision and full-snapshot-revision is greater than 1M
 			fullLease := &coordinationv1.Lease{}
 			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(c, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
-			fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
+			fullLease.Spec.HolderIdentity = pointer.String("0")
 			fullLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(c.Update(context.TODO(), fullLease)).To(Succeed())
 
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
+			deltaLease.Spec.HolderIdentity = pointer.String("1000000")
 			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(c.Update(context.TODO(), deltaLease)).To(Succeed())
 
@@ -186,14 +186,14 @@ var _ = Describe("Lease Controller", func() {
 			// Deliberately update the full lease
 			fullLease := &coordinationv1.Lease{}
 			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(c, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
-			fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
+			fullLease.Spec.HolderIdentity = pointer.String("0")
 			fullLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(c.Update(context.TODO(), fullLease)).To(Succeed())
 
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
+			deltaLease.Spec.HolderIdentity = pointer.String("1000000")
 			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(c.Update(context.TODO(), deltaLease)).To(Succeed())
 
@@ -252,7 +252,7 @@ var _ = Describe("Lease Controller", func() {
 			// Deliberately update the full lease
 			fullLease := &coordinationv1.Lease{}
 			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(c, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
-			fullLease.Spec.HolderIdentity = pointer.StringPtr("0")
+			fullLease.Spec.HolderIdentity = pointer.String("0")
 			fullLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(c.Update(context.TODO(), fullLease)).To(Succeed())
 
@@ -269,7 +269,7 @@ var _ = Describe("Lease Controller", func() {
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
+			deltaLease.Spec.HolderIdentity = pointer.String("1000000")
 			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(c.Update(context.TODO(), deltaLease)).To(Succeed())
 
@@ -324,7 +324,7 @@ var _ = Describe("Lease Controller", func() {
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
 			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			deltaLease.Spec.HolderIdentity = pointer.StringPtr("1000000")
+			deltaLease.Spec.HolderIdentity = pointer.String("1000000")
 			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(c.Update(context.TODO(), deltaLease)).To(Succeed())
 
@@ -694,8 +694,8 @@ func createJob(instance *druidv1alpha1.Etcd) *batchv1.Job {
 			Labels:    instance.Labels,
 		},
 		Spec: batchv1.JobSpec{
-			BackoffLimit: pointer.Int32Ptr(0),
-			Completions:  pointer.Int32Ptr(1),
+			BackoffLimit: pointer.Int32(0),
+			Completions:  pointer.Int32(1),
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: instance.Labels,

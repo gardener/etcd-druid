@@ -134,12 +134,12 @@ var _ = Describe("Druid Predicate", func() {
 			BeforeEach(func() {
 				obj = &coordinationv1.Lease{
 					Spec: coordinationv1.LeaseSpec{
-						HolderIdentity: pointer.StringPtr("0"),
+						HolderIdentity: pointer.String("0"),
 					},
 				}
 				oldObj = &coordinationv1.Lease{
 					Spec: coordinationv1.LeaseSpec{
-						HolderIdentity: pointer.StringPtr("0"),
+						HolderIdentity: pointer.String("0"),
 					},
 				}
 			})
@@ -156,12 +156,12 @@ var _ = Describe("Druid Predicate", func() {
 			BeforeEach(func() {
 				obj = &coordinationv1.Lease{
 					Spec: coordinationv1.LeaseSpec{
-						HolderIdentity: pointer.StringPtr("5"),
+						HolderIdentity: pointer.String("5"),
 					},
 				}
 				oldObj = &coordinationv1.Lease{
 					Spec: coordinationv1.LeaseSpec{
-						HolderIdentity: pointer.StringPtr("0"),
+						HolderIdentity: pointer.String("0"),
 					},
 				}
 			})
@@ -203,7 +203,7 @@ var _ = Describe("Druid Predicate", func() {
 			BeforeEach(func() {
 				obj = &druidv1alpha1.Etcd{
 					Status: druidv1alpha1.EtcdStatus{
-						LastError: pointer.StringPtr("foo error"),
+						LastError: pointer.String("foo error"),
 					},
 				}
 			})
@@ -314,7 +314,7 @@ var _ = Describe("Druid Predicate", func() {
 						Annotations: make(map[string]string),
 					},
 					Status: druidv1alpha1.EtcdStatus{
-						LastError: pointer.StringPtr("error"),
+						LastError: pointer.String("error"),
 					},
 				}
 			})
@@ -336,7 +336,7 @@ var _ = Describe("Druid Predicate", func() {
 						},
 					},
 					Status: druidv1alpha1.EtcdStatus{
-						LastError: pointer.StringPtr("error"),
+						LastError: pointer.String("error"),
 					},
 				}
 			})
@@ -381,7 +381,7 @@ var _ = Describe("Druid Predicate", func() {
 						Annotations: make(map[string]string),
 					},
 					Status: druidv1alpha1.EtcdStatus{
-						Ready: pointer.BoolPtr(false),
+						Ready: pointer.Bool(false),
 					},
 				}
 			})
@@ -427,7 +427,7 @@ var _ = Describe("Druid Predicate", func() {
 						},
 					},
 					Status: druidv1alpha1.EtcdStatus{
-						Ready: pointer.BoolPtr(false),
+						Ready: pointer.Bool(false),
 					},
 				}
 			})
@@ -449,7 +449,7 @@ var _ = Describe("Druid Predicate", func() {
 				}
 				obj = &druidv1alpha1.Etcd{
 					Status: druidv1alpha1.EtcdStatus{
-						Ready: pointer.BoolPtr(true),
+						Ready: pointer.Bool(true),
 					},
 				}
 			})

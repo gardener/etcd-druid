@@ -122,8 +122,8 @@ func getOwnerReferences(val Values) []metav1.OwnerReference {
 			Kind:               "Etcd",
 			Name:               val.EtcdName,
 			UID:                val.EtcdUID,
-			Controller:         pointer.BoolPtr(true),
-			BlockOwnerDeletion: pointer.BoolPtr(true),
+			Controller:         pointer.Bool(true),
+			BlockOwnerDeletion: pointer.Bool(true),
 		},
 	}
 }

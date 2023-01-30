@@ -340,7 +340,7 @@ func setStatusDetails(status *druidv1alpha1.EtcdCopyBackupsTaskStatus, generatio
 		status.Conditions = nil
 	}
 	if err != nil {
-		status.LastError = pointer.StringPtr(err.Error())
+		status.LastError = pointer.String(err.Error())
 	} else {
 		status.LastError = nil
 	}

@@ -67,9 +67,9 @@ var _ = Describe("#GenerateValues", func() {
 
 	Context("when ports are specified", func() {
 		BeforeEach(func() {
-			backupPort = pointer.Int32Ptr(1111)
-			clientPort = pointer.Int32Ptr(2222)
-			serverPort = pointer.Int32Ptr(3333)
+			backupPort = pointer.Int32(1111)
+			clientPort = pointer.Int32(2222)
+			serverPort = pointer.Int32(3333)
 		})
 
 		It("should generate values correctly", func() {

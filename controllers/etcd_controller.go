@@ -734,7 +734,7 @@ func getEtcdImages(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (string
 
 func bootstrapReset(etcd *druidv1alpha1.Etcd) {
 	etcd.Status.Members = nil
-	etcd.Status.ClusterSize = pointer.Int32Ptr(etcd.Spec.Replicas)
+	etcd.Status.ClusterSize = pointer.Int32(etcd.Spec.Replicas)
 }
 
 func clusterInBootstrap(etcd *druidv1alpha1.Etcd) bool {
@@ -753,7 +753,7 @@ func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv
 		}
 		ready := utils.CheckStatefulSet(etcd.Spec.Replicas, result.sts) == nil
 		etcd.Status.Ready = &ready
-		etcd.Status.Replicas = pointer.Int32PtrDerefOr(result.sts.Spec.Replicas, 0)
+		etcd.Status.Replicas = pointer.Int32Deref(result.sts.Spec.Replicas, 0)
 	}
 
 	return r.Client.Status().Update(ctx, etcd)
@@ -767,7 +767,7 @@ func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alph
 	if result.sts != nil {
 		ready := utils.CheckStatefulSet(etcd.Spec.Replicas, result.sts) == nil
 		etcd.Status.Ready = &ready
-		etcd.Status.Replicas = pointer.Int32PtrDerefOr(result.sts.Spec.Replicas, 0)
+		etcd.Status.Replicas = pointer.Int32Deref(result.sts.Spec.Replicas, 0)
 	}
 	etcd.Status.ServiceName = result.svcName
 	etcd.Status.LastError = nil

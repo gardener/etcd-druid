@@ -141,7 +141,7 @@ var (
 	backupDeltaSnapshotMemoryLimit = resource.MustParse("100Mi")
 	gzipCompression                = v1alpha1.GzipCompression
 	backupCompression              = v1alpha1.CompressionSpec{
-		Enabled: pointer.BoolPtr(true),
+		Enabled: pointer.Bool(true),
 		Policy:  &gzipCompression,
 	}
 	defaultBackupStore = v1alpha1.StoreSpec{

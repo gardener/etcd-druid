@@ -208,7 +208,7 @@ var _ = Describe("Druid", func() {
 					return nil, err
 				}
 				return instance.Status.ClusterSize, nil
-			}, timeout, pollingInterval).Should(Equal(pointer.Int32Ptr(instance.Spec.Replicas)))
+			}, timeout, pollingInterval).Should(Equal(pointer.Int32(instance.Spec.Replicas)))
 		})
 		It("should create and adopt statefulset and printing events", func() {
 			// Check StatefulSet requirements
@@ -973,7 +973,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 							})),
 						}),
 					}),
-					"ShareProcessNamespace": Equal(pointer.BoolPtr(true)),
+					"ShareProcessNamespace": Equal(pointer.Bool(true)),
 					"Volumes": MatchAllElements(volumeIterator, Elements{
 						"etcd-config-file": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("etcd-config-file"),
@@ -1370,7 +1370,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 							})),
 						}),
 					}),
-					"ShareProcessNamespace": Equal(pointer.BoolPtr(true)),
+					"ShareProcessNamespace": Equal(pointer.Bool(true)),
 					"Volumes": MatchAllElements(volumeIterator, Elements{
 						"host-storage": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("host-storage"),
@@ -2257,7 +2257,7 @@ var _ = Describe("buildPredicate", func() {
 		DescribeTable(
 			"with last error",
 			func(evalFn func(p predicate.Predicate, obj client.Object) bool, expect bool) {
-				etcd.Status.LastError = pointer.StringPtr("error")
+				etcd.Status.LastError = pointer.String("error")
 				Expect(evalFn(buildPredicate(false), etcd)).To(Equal(expect))
 			},
 			Entry("Create should match", evalCreate, true),

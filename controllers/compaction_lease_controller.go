@@ -275,8 +275,8 @@ func (lc *CompactionLeaseController) createCompactJob(ctx context.Context, logge
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         "druid.gardener.cloud/v1alpha1",
-					BlockOwnerDeletion: pointer.BoolPtr(true),
-					Controller:         pointer.BoolPtr(true),
+					BlockOwnerDeletion: pointer.Bool(true),
+					Controller:         pointer.Bool(true),
 					Kind:               "Etcd",
 					Name:               etcd.Name,
 					UID:                etcd.UID,
@@ -285,16 +285,16 @@ func (lc *CompactionLeaseController) createCompactJob(ctx context.Context, logge
 		},
 
 		Spec: batchv1.JobSpec{
-			ActiveDeadlineSeconds: pointer.Int64Ptr(int64(activeDeadlineSeconds)),
-			Completions:           pointer.Int32Ptr(1),
-			BackoffLimit:          pointer.Int32Ptr(0),
+			ActiveDeadlineSeconds: pointer.Int64(int64(activeDeadlineSeconds)),
+			Completions:           pointer.Int32(1),
+			BackoffLimit:          pointer.Int32(0),
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: etcd.Spec.Annotations,
 					Labels:      getLabels(etcd),
 				},
 				Spec: v1.PodSpec{
-					ActiveDeadlineSeconds: pointer.Int64Ptr(int64(activeDeadlineSeconds)),
+					ActiveDeadlineSeconds: pointer.Int64(int64(activeDeadlineSeconds)),
 					ServiceAccountName:    utils.GetServiceAccountName(etcd),
 					RestartPolicy:         v1.RestartPolicyNever,
 					Containers: []v1.Container{{

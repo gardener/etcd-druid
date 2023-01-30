@@ -148,7 +148,7 @@ func getEtcdCopyBackupsTask(provider druidv1alpha1.StorageProvider, withOptional
 		},
 		Spec: druidv1alpha1.EtcdCopyBackupsTaskSpec{
 			SourceStore: druidv1alpha1.StoreSpec{
-				Container: pointer.StringPtr("source-container"),
+				Container: pointer.String("source-container"),
 				Prefix:    "/tmp",
 				Provider:  &provider,
 				SecretRef: &corev1.SecretReference{
@@ -156,7 +156,7 @@ func getEtcdCopyBackupsTask(provider druidv1alpha1.StorageProvider, withOptional
 				},
 			},
 			TargetStore: druidv1alpha1.StoreSpec{
-				Container: pointer.StringPtr("target-container"),
+				Container: pointer.String("target-container"),
 				Prefix:    "/tmp",
 				Provider:  &provider,
 				SecretRef: &corev1.SecretReference{
@@ -448,7 +448,7 @@ func matchTaskStatus(jobStatus *batchv1.JobStatus) gomegatypes.GomegaMatcher {
 	return MatchFields(IgnoreExtras, Fields{
 		"Status": MatchFields(IgnoreExtras, Fields{
 			"Conditions":         MatchAllElements(conditionIdentifier, conditionElements),
-			"ObservedGeneration": Equal(pointer.Int64Ptr(1)),
+			"ObservedGeneration": Equal(pointer.Int64(1)),
 		}),
 	})
 }

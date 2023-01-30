@@ -134,7 +134,7 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logge
 
 	// Bootstrap is a special case which is handled by the etcd controller.
 	if !inBootstrap(etcd) && len(etcd.Status.Members) != 0 {
-		etcd.Status.ClusterSize = pointer.Int32Ptr(int32(len(etcd.Status.Members)))
+		etcd.Status.ClusterSize = pointer.Int32(int32(len(etcd.Status.Members)))
 	}
 
 	if sts != nil {
@@ -157,7 +157,7 @@ func (ec *EtcdCustodian) updateEtcdStatus(ctx context.Context, logger logr.Logge
 		etcd.Status.ReadyReplicas = 0
 		etcd.Status.UpdatedReplicas = 0
 
-		etcd.Status.Ready = pointer.BoolPtr(false)
+		etcd.Status.Ready = pointer.Bool(false)
 	}
 
 	return ec.Client.Status().Update(ctx, etcd)

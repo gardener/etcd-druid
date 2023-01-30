@@ -132,9 +132,9 @@ var _ = Describe("Statefulset", func() {
 		etcd = getEtcd(name, namespace, true, *replicas, storageProvider)
 		values = GenerateValues(
 			etcd,
-			pointer.Int32Ptr(clientPort),
-			pointer.Int32Ptr(serverPort),
-			pointer.Int32Ptr(backupPort),
+			pointer.Int32(clientPort),
+			pointer.Int32(serverPort),
+			pointer.Int32(backupPort),
 			imageEtcd,
 			imageBR,
 			checkSumAnnotations, false)
@@ -158,7 +158,7 @@ var _ = Describe("Statefulset", func() {
 		quota = resource.MustParse("8Gi")
 
 		if replicas == nil {
-			replicas = pointer.Int32Ptr(1)
+			replicas = pointer.Int32(1)
 		}
 	})
 
@@ -179,7 +179,7 @@ var _ = Describe("Statefulset", func() {
 
 			Context("should bootstrap a multi replica statefulset successfully", func() {
 				BeforeEach(func() {
-					replicas = pointer.Int32Ptr(3)
+					replicas = pointer.Int32(3)
 				})
 
 				It("should create the statefulset successfully", func() {
@@ -217,7 +217,7 @@ var _ = Describe("Statefulset", func() {
 				It("should re-create statefulset because serviceName is changed", func() {
 					sts.Generation = 2
 					sts.Spec.ServiceName = "foo"
-					sts.Spec.Replicas = pointer.Int32Ptr(3)
+					sts.Spec.Replicas = pointer.Int32(3)
 					Expect(cl.Create(ctx, sts)).To(Succeed())
 
 					values.Replicas = 3
@@ -233,7 +233,7 @@ var _ = Describe("Statefulset", func() {
 					sts.Generation = 2
 					sts.Spec.PodManagementPolicy = appsv1.OrderedReadyPodManagement
 					sts.Spec.ServiceName = values.PeerServiceName
-					sts.Spec.Replicas = pointer.Int32Ptr(3)
+					sts.Spec.Replicas = pointer.Int32(3)
 					Expect(cl.Create(ctx, sts)).To(Succeed())
 
 					values.Replicas = 3
@@ -279,7 +279,7 @@ var _ = Describe("Statefulset", func() {
 				)
 
 				BeforeEach(func() {
-					storageProvider = pointer.StringPtr(druidutils.Local)
+					storageProvider = pointer.String(druidutils.Local)
 				})
 
 				JustBeforeEach(func() {
@@ -622,7 +622,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 							})),
 						}),
 					}),
-					"ShareProcessNamespace": Equal(pointer.BoolPtr(true)),
+					"ShareProcessNamespace": Equal(pointer.Bool(true)),
 					"Volumes": MatchAllElements(volumeIterator, Elements{
 						"etcd-config-file": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("etcd-config-file"),
@@ -720,8 +720,8 @@ func checkStsOwnerRefs(ors []metav1.OwnerReference, values Values) {
 		Kind:               "Etcd",
 		Name:               values.Name,
 		UID:                values.EtcdUID,
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: pointer.Bool(true),
 	})))
 }
 
@@ -748,7 +748,7 @@ func getEtcd(name, namespace string, tlsEnabled bool, replicas int32, storagePro
 			VolumeClaimTemplate: &volumeClaimTemplateName,
 			Backup: druidv1alpha1.BackupSpec{
 				Image:                    &imageBR,
-				Port:                     pointer.Int32Ptr(backupPort),
+				Port:                     pointer.Int32(backupPort),
 				Store:                    getEtcdBackup(storageProvider),
 				FullSnapshotSchedule:     &snapshotSchedule,
 				GarbageCollectionPolicy:  &garbageCollectionPolicy,
@@ -770,8 +770,8 @@ func getEtcd(name, namespace string, tlsEnabled bool, replicas int32, storagePro
 				EtcdDefragTimeout:       &etcdDefragTimeout,
 				HeartbeatDuration:       &heartbeatDuration,
 				Resources:               &etcdResources,
-				ClientPort:              pointer.Int32Ptr(clientPort),
-				ServerPort:              pointer.Int32Ptr(serverPort),
+				ClientPort:              pointer.Int32(clientPort),
+				ServerPort:              pointer.Int32(serverPort),
 			},
 			Common: druidv1alpha1.SharedConfig{
 				AutoCompactionMode:      &autoCompactionMode,
