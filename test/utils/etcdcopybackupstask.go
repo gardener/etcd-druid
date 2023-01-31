@@ -77,25 +77,29 @@ func CreateEtcdCopyBackupsJob(taskName, namespace string) *batchv1.Job {
 			Namespace:   namespace,
 			Labels:      nil,
 			Annotations: createJobAnnotations(taskName, namespace),
-			OwnerReferences: []metav1.OwnerReference{metav1.OwnerReference{
-				APIVersion:         "druid.gardener.cloud/v1alpha1",
-				Kind:               "EtcdCopyBackupsTask",
-				Name:               taskName,
-				UID:                "",
-				Controller:         pointer.Bool(true),
-				BlockOwnerDeletion: pointer.Bool(true),
-			}},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "druid.gardener.cloud/v1alpha1",
+					Kind:               "EtcdCopyBackupsTask",
+					Name:               taskName,
+					UID:                "",
+					Controller:         pointer.Bool(true),
+					BlockOwnerDeletion: pointer.Bool(true),
+				},
+			},
 		},
 		Spec: batchv1.JobSpec{
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
 					Volumes: nil,
-					Containers: []corev1.Container{corev1.Container{
-						Name:            "copy-backups",
-						Image:           "eu.gcr.io/gardener-project/gardener/etcdbrctl",
-						ImagePullPolicy: corev1.PullIfNotPresent,
-						Command:         []string{"etcdbrctl", "copy"}, // since this is only used for testing the command here is not complete.
-					}},
+					Containers: []corev1.Container{
+						{
+							Name:            "copy-backups",
+							Image:           "eu.gcr.io/gardener-project/gardener/etcdbrctl",
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Command:         []string{"etcdbrctl", "copy"}, // since this is only used for testing the command here is not complete.
+						},
+					},
 					RestartPolicy: "OnFailure",
 				},
 			},

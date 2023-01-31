@@ -1,18 +1,4 @@
-// Copyright (c) 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-package controllers
+package etcd
 
 import (
 	"context"
@@ -22,6 +8,8 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/controllers/etcd"
+	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -107,7 +95,6 @@ var _ = Describe("Druid", func() {
 			instance *druidv1alpha1.Etcd
 			sts      *appsv1.StatefulSet
 			svc      *corev1.Service
-			c        client.Client
 		)
 
 		BeforeEach(func() {
@@ -115,24 +102,23 @@ var _ = Describe("Druid", func() {
 			defer cancel()
 
 			instance = testutils.EtcdBuilderWithDefaults("foo1", "default").Build()
-			c = mgr.GetClient()
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: instance.Namespace,
 				},
 			}
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
 			Expect(err).To(Not(HaveOccurred()))
 
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-			errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
+			errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 			Expect(len(errors)).Should(BeZero())
-			Expect(c.Create(context.TODO(), instance)).To(Succeed())
+			Expect(k8sClient.Create(context.TODO(), instance)).To(Succeed())
 
 			sts = &appsv1.StatefulSet{}
 			// Wait until StatefulSet has been created by controller
 			Eventually(func() error {
-				return c.Get(context.TODO(), types.NamespacedName{
+				return k8sClient.Get(context.TODO(), types.NamespacedName{
 					Name:      instance.Name,
 					Namespace: instance.Namespace,
 				}, sts)
@@ -141,7 +127,7 @@ var _ = Describe("Druid", func() {
 			svc = &corev1.Service{}
 			// Wait until Service has been created by controller
 			Eventually(func() error {
-				return c.Get(context.TODO(), types.NamespacedName{
+				return k8sClient.Get(context.TODO(), types.NamespacedName{
 					Name:      instance.GetClientServiceName(),
 					Namespace: instance.Namespace,
 				}, svc)
@@ -153,11 +139,11 @@ var _ = Describe("Druid", func() {
 			defer cancel()
 
 			testutils.SetStatefulSetReady(sts)
-			err = c.Status().Update(context.TODO(), sts)
-			Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+			err = k8sClient.Status().Update(context.TODO(), sts)
+			Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 			Expect(err).NotTo(HaveOccurred())
 			Eventually(func() (*int32, error) {
-				if err := c.Get(context.TODO(), client.ObjectKeyFromObject(instance), instance); err != nil {
+				if err := k8sClient.Get(context.TODO(), client.ObjectKeyFromObject(instance), instance); err != nil {
 					return nil, err
 				}
 				return instance.Status.ClusterSize, nil
@@ -183,11 +169,11 @@ var _ = Describe("Druid", func() {
 					},
 				},
 			}
-			Expect(c.Create(context.TODO(), pvc)).To(Succeed())
+			Expect(k8sClient.Create(context.TODO(), pvc)).To(Succeed())
 
 			// Create PVC warning Event
 			pvcMessage := "Failed to provision volume"
-			Expect(c.Create(context.TODO(), &corev1.Event{
+			Expect(k8sClient.Create(context.TODO(), &corev1.Event{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "pvc-event-1",
 					Namespace: pvc.Namespace,
@@ -204,7 +190,7 @@ var _ = Describe("Druid", func() {
 
 			// Eventually, warning message should be reflected in `etcd` object status.
 			Eventually(func() string {
-				if err := c.Get(context.TODO(), client.ObjectKeyFromObject(instance), instance); err != nil {
+				if err := k8sClient.Get(context.TODO(), client.ObjectKeyFromObject(instance), instance); err != nil {
 					return ""
 				}
 				if instance.Status.LastError == nil {
@@ -215,14 +201,14 @@ var _ = Describe("Druid", func() {
 		})
 		AfterEach(func() {
 			// Delete `etcd` instance
-			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
+			Expect(k8sClient.Delete(context.TODO(), instance)).To(Succeed())
 			Eventually(func() error {
-				return c.Get(context.TODO(), client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
+				return k8sClient.Get(context.TODO(), client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 			// Delete service manually because garbage collection is not available in `envtest`
-			Expect(c.Delete(context.TODO(), svc)).To(Succeed())
+			Expect(k8sClient.Delete(context.TODO(), svc)).To(Succeed())
 			Eventually(func() error {
-				return c.Get(context.TODO(), client.ObjectKeyFromObject(svc), &corev1.Service{})
+				return k8sClient.Get(context.TODO(), client.ObjectKeyFromObject(svc), &corev1.Service{})
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 
 		})
@@ -233,7 +219,6 @@ var _ = Describe("Druid", func() {
 			var (
 				instance *druidv1alpha1.Etcd
 				sts      *appsv1.StatefulSet
-				c        client.Client
 			)
 
 			BeforeEach(func() {
@@ -241,25 +226,24 @@ var _ = Describe("Druid", func() {
 				defer cancel()
 
 				instance = testutils.EtcdBuilderWithDefaults("foo19", "default").Build()
-				c = mgr.GetClient()
 
 				ns := corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: instance.Namespace,
 					},
 				}
-				_, err := controllerutil.CreateOrUpdate(ctx, c, &ns, func() error { return nil })
+				_, err := controllerutil.CreateOrUpdate(ctx, k8sClient, &ns, func() error { return nil })
 				Expect(err).To(Not(HaveOccurred()))
 
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
+				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
-				Expect(c.Create(ctx, instance)).To(Succeed())
+				Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 
 				sts = &appsv1.StatefulSet{}
 				// Wait until StatefulSet has been created by controller
 				Eventually(func() error {
-					return c.Get(ctx, types.NamespacedName{
+					return k8sClient.Get(ctx, types.NamespacedName{
 						Name:      instance.Name,
 						Namespace: instance.Namespace,
 					}, sts)
@@ -268,10 +252,10 @@ var _ = Describe("Druid", func() {
 				sts.Status.Replicas = 1
 				sts.Status.ReadyReplicas = 1
 				sts.Status.ObservedGeneration = 2
-				Expect(c.Status().Update(ctx, sts)).To(Succeed())
+				Expect(k8sClient.Status().Update(ctx, sts)).To(Succeed())
 
 				Eventually(func() error {
-					if err := c.Get(ctx, client.ObjectKeyFromObject(instance), sts); err != nil {
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), sts); err != nil {
 						return err
 					}
 					if sts.Status.ReadyReplicas != 1 {
@@ -280,11 +264,11 @@ var _ = Describe("Druid", func() {
 					return nil
 				}, timeout, pollingInterval).Should(Succeed())
 
-				Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+				Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 
 				// Check if ETCD has ready replicas more than zero
 				Eventually(func() error {
-					if err := c.Get(ctx, client.ObjectKeyFromObject(instance), instance); err != nil {
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), instance); err != nil {
 						return err
 					}
 
@@ -298,15 +282,15 @@ var _ = Describe("Druid", func() {
 				ctx, cancel := context.WithTimeout(context.Background(), timeout)
 				defer cancel()
 
-				err := c.Get(ctx, client.ObjectKeyFromObject(instance), sts)
+				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), sts)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Forcefully change readyreplicas in statefulset as zero which may cause due to facts like crashloopbackoff
 				sts.Status.ReadyReplicas = 0
-				Expect(c.Status().Update(ctx, sts)).To(Succeed())
+				Expect(k8sClient.Status().Update(ctx, sts)).To(Succeed())
 
 				Eventually(func() error {
-					err := c.Get(ctx, client.ObjectKeyFromObject(instance), sts)
+					err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), sts)
 					if err != nil {
 						return err
 					}
@@ -315,7 +299,7 @@ var _ = Describe("Druid", func() {
 						return fmt.Errorf("No readyreplicas of statefulset should exist at this point")
 					}
 
-					err = c.Get(ctx, client.ObjectKeyFromObject(instance), instance)
+					err = k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), instance)
 					if err != nil {
 						return err
 					}
@@ -332,14 +316,14 @@ var _ = Describe("Druid", func() {
 				defer cancel()
 
 				// Delete `etcd` instance
-				Expect(c.Delete(ctx, instance)).To(Succeed())
+				Expect(k8sClient.Delete(ctx, instance)).To(Succeed())
 				Eventually(func() error {
-					err := c.Get(ctx, client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
+					err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
 					if err != nil {
 						return err
 					}
 
-					return c.Get(ctx, client.ObjectKeyFromObject(instance), sts)
+					return k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), sts)
 				}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 			})
 		})
@@ -349,7 +333,6 @@ var _ = Describe("Druid", func() {
 		func(instance *druidv1alpha1.Etcd, validate func(*druidv1alpha1.Etcd, *appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *corev1.Service)) {
 			var (
 				err          error
-				c            client.Client
 				s            *appsv1.StatefulSet
 				cm           *corev1.ConfigMap
 				clSvc, prSvc *corev1.Service
@@ -361,43 +344,42 @@ var _ = Describe("Druid", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			c = mgr.GetClient()
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: instance.Namespace,
 				},
 			}
 
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
 			Expect(err).To(Not(HaveOccurred()))
 
 			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
+				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 			}
-			err = c.Create(context.TODO(), instance)
+			err = k8sClient.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
 			s = &appsv1.StatefulSet{}
-			Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, c, instance, s) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, k8sClient, instance, s) }, timeout, pollingInterval).Should(BeNil())
 			cm = &corev1.ConfigMap{}
-			Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(c, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(k8sClient, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
 			clSvc = &corev1.Service{}
-			Eventually(func() error { return testutils.ClientServiceIsCorrectlyReconciled(c, timeout, instance, clSvc) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.ClientServiceIsCorrectlyReconciled(k8sClient, timeout, instance, clSvc) }, timeout, pollingInterval).Should(BeNil())
 			prSvc = &corev1.Service{}
-			Eventually(func() error { return testutils.PeerServiceIsCorrectlyReconciled(c, timeout, instance, prSvc) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.PeerServiceIsCorrectlyReconciled(k8sClient, timeout, instance, prSvc) }, timeout, pollingInterval).Should(BeNil())
 			sa = &corev1.ServiceAccount{}
-			Eventually(func() error { return testutils.ServiceAccountIsCorrectlyReconciled(c, timeout, instance, sa) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.ServiceAccountIsCorrectlyReconciled(k8sClient, timeout, instance, sa) }, timeout, pollingInterval).Should(BeNil())
 			role = &rbac.Role{}
-			Eventually(func() error { return testutils.RoleIsCorrectlyReconciled(c, timeout, instance, role) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.RoleIsCorrectlyReconciled(k8sClient, timeout, instance, role) }, timeout, pollingInterval).Should(BeNil())
 			rb = &rbac.RoleBinding{}
-			Eventually(func() error { return testutils.RoleBindingIsCorrectlyReconciled(c, timeout, instance, rb) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.RoleBindingIsCorrectlyReconciled(k8sClient, timeout, instance, rb) }, timeout, pollingInterval).Should(BeNil())
 
 			validate(instance, s, cm, clSvc, prSvc)
 			validateRole(instance, role)
 
 			testutils.SetStatefulSetReady(s)
-			err = c.Status().Update(context.TODO(), s)
+			err = k8sClient.Status().Update(context.TODO(), s)
 			Expect(err).NotTo(HaveOccurred())
 		},
 		Entry("if fields are not set in etcd.Spec, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo28", "default").Build(), validateEtcdWithDefaults),
@@ -418,7 +400,6 @@ var _ = Describe("Multinode ETCD", func() {
 			instance *druidv1alpha1.Etcd
 			sts      *appsv1.StatefulSet
 			svc      *corev1.Service
-			c        client.Client
 			ctx      context.Context
 			cancel   context.CancelFunc
 		)
@@ -428,17 +409,16 @@ var _ = Describe("Multinode ETCD", func() {
 			defer cancel()
 
 			instance = testutils.EtcdBuilderWithDefaults("foo82", "default").Build()
-			c = mgr.GetClient()
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: instance.Namespace,
 				},
 			}
-			_, err = controllerutil.CreateOrUpdate(ctx, c, &ns, func() error { return nil })
+			_, err = controllerutil.CreateOrUpdate(ctx, k8sClient, &ns, func() error { return nil })
 			Expect(err).To(Not(HaveOccurred()))
 
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-			errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
+			errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 			Expect(len(errors)).Should(BeZero())
 		})
 		It("should create the statefulset based on the replicas in ETCD CR", func() {
@@ -447,14 +427,14 @@ var _ = Describe("Multinode ETCD", func() {
 			sts = &appsv1.StatefulSet{}
 			sts.Name = instance.Name
 			sts.Namespace = instance.Namespace
-			Expect(client.IgnoreNotFound(c.Delete(ctx, sts))).To(Succeed())
+			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, sts))).To(Succeed())
 
 			By("update replicas in ETCD resource with 0")
 			instance.Spec.Replicas = 4
-			Expect(c.Create(ctx, instance)).To(Succeed())
+			Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 
 			Eventually(func() error {
-				return c.Get(ctx, types.NamespacedName{
+				return k8sClient.Get(ctx, types.NamespacedName{
 					Name:      instance.Name,
 					Namespace: instance.Namespace,
 				}, instance)
@@ -462,7 +442,7 @@ var _ = Describe("Multinode ETCD", func() {
 
 			By("no StatefulSet has been created by controller as even number of replicas are not allowed")
 			Eventually(func() error {
-				return c.Get(ctx, types.NamespacedName{
+				return k8sClient.Get(ctx, types.NamespacedName{
 					Name:      instance.Name,
 					Namespace: instance.Namespace,
 				}, sts)
@@ -471,29 +451,28 @@ var _ = Describe("Multinode ETCD", func() {
 			By("update replicas in ETCD resource with 3")
 			patch := client.MergeFrom(instance.DeepCopy())
 			instance.Spec.Replicas = 3
-			Expect(c.Patch(ctx, instance, patch)).To(Succeed())
+			Expect(k8sClient.Patch(ctx, instance, patch)).To(Succeed())
 
 			By("statefulsets are created when ETCD replicas are odd number")
-			Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 			Expect(int(*sts.Spec.Replicas)).To(Equal(3))
 
 			By("client Service has been created by controller")
 			svc = &corev1.Service{}
-			Eventually(func() error { return testutils.ClientServiceIsCorrectlyReconciled(c, timeout, instance, svc) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.ClientServiceIsCorrectlyReconciled(k8sClient, timeout, instance, svc) }, timeout, pollingInterval).Should(BeNil())
 
 			By("should raise an event if annotation to ignore reconciliation is applied on ETCD CR")
 			patch = client.MergeFrom(instance.DeepCopy())
 			annotations := utils.MergeStringMaps(
 				map[string]string{
-					IgnoreReconciliationAnnotation: "true",
+					etcd.IgnoreReconciliationAnnotation: "true",
 				},
 				instance.Annotations,
 			)
 			instance.Annotations = annotations
-			Expect(c.Patch(ctx, instance, patch)).To(Succeed())
+			Expect(k8sClient.Patch(ctx, instance, patch)).To(Succeed())
 
-			config := mgr.GetConfig()
-			clientset, _ := kubernetes.NewForConfig(config)
+			clientset, _ := kubernetes.NewForConfig(restConfig)
 			Eventually(func() error {
 				events, err := clientset.CoreV1().Events(instance.Namespace).List(ctx, metav1.ListOptions{})
 				if err != nil {
@@ -515,16 +494,16 @@ var _ = Describe("Multinode ETCD", func() {
 			}, timeout, pollingInterval).Should(BeNil())
 
 			By("delete `etcd` instance")
-			Expect(client.IgnoreNotFound(c.Delete(context.TODO(), instance))).To(Succeed())
+			Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), instance))).To(Succeed())
 			Eventually(func() error {
-				return c.Get(context.TODO(), client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
+				return k8sClient.Get(context.TODO(), client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 
 			By("delete service manually because garbage collection is not available in `envtest`")
 			if svc != nil {
-				Expect(c.Delete(context.TODO(), svc)).To(Succeed())
+				Expect(k8sClient.Delete(context.TODO(), svc)).To(Succeed())
 				Eventually(func() error {
-					return c.Get(context.TODO(), client.ObjectKeyFromObject(svc), &corev1.Service{})
+					return k8sClient.Get(context.TODO(), client.ObjectKeyFromObject(svc), &corev1.Service{})
 				}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 			}
 		})
@@ -532,7 +511,6 @@ var _ = Describe("Multinode ETCD", func() {
 	DescribeTable("configmaps are mounted properly when ETCD replicas are odd number", func(instance *druidv1alpha1.Etcd) {
 		var (
 			err error
-			c   client.Client
 			sts *appsv1.StatefulSet
 			cm  *corev1.ConfigMap
 			svc *corev1.Service
@@ -541,29 +519,28 @@ var _ = Describe("Multinode ETCD", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
-		c = mgr.GetClient()
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: instance.Namespace,
 			},
 		}
 
-		_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+		_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
 		Expect(err).To(Not(HaveOccurred()))
 
 		if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-			errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
+			errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 			Expect(len(errors)).Should(BeZero())
 		}
-		err = c.Create(context.TODO(), instance)
+		err = k8sClient.Create(context.TODO(), instance)
 		Expect(err).NotTo(HaveOccurred())
 		sts = &appsv1.StatefulSet{}
-		Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, c, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+		Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 		cm = &corev1.ConfigMap{}
-		Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(c, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
+		Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(k8sClient, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
 		svc = &corev1.Service{}
-		Eventually(func() error { return testutils.ClientServiceIsCorrectlyReconciled(c, timeout, instance, svc) }, timeout, pollingInterval).Should(BeNil())
+		Eventually(func() error { return testutils.ClientServiceIsCorrectlyReconciled(k8sClient, timeout, instance, svc) }, timeout, pollingInterval).Should(BeNil())
 
 		// Validate statefulset
 		Expect(*sts.Spec.Replicas).To(Equal(int32(instance.Spec.Replicas)))
@@ -674,7 +651,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 	Expect(instance.Spec.Etcd.ClientPort).To(BeNil())
 
 	Expect(instance.Spec.Etcd.Image).To(BeNil())
-	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(getImageYAMLPath())
+	imageVector, err := ctrlutils.CreateImageVector()
 	Expect(err).NotTo(HaveOccurred())
 	images, err := imagevector.FindImages(imageVector, imageNames)
 	Expect(err).NotTo(HaveOccurred())
@@ -703,7 +680,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 		"initial-cluster-token":       Equal("etcd-cluster"),
 		"initial-cluster-state":       Equal("new"),
 		"auto-compaction-mode":        Equal(string(druidv1alpha1.Periodic)),
-		"auto-compaction-retention":   Equal(DefaultAutoCompactionRetention),
+		"auto-compaction-retention":   Equal("30m"),
 	}))
 
 	Expect(*clSvc).To(MatchFields(IgnoreExtras, Fields{
@@ -880,7 +857,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(quota.Value())):                            Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(quota.Value()))),
 								fmt.Sprintf("--max-backups=%d", maxBackups):                                                    Equal(fmt.Sprintf("--max-backups=%d", maxBackups)),
 								fmt.Sprintf("--auto-compaction-mode=%s", druidv1alpha1.Periodic):                               Equal(fmt.Sprintf("--auto-compaction-mode=%s", druidv1alpha1.Periodic)),
-								fmt.Sprintf("--auto-compaction-retention=%s", DefaultAutoCompactionRetention):                  Equal(fmt.Sprintf("--auto-compaction-retention=%s", DefaultAutoCompactionRetention)),
+								fmt.Sprintf("--auto-compaction-retention=%s", "30m"):                                           Equal(fmt.Sprintf("--auto-compaction-retention=%s", "30m")),
 								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", "15m"):                                         Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", "15m")),
 								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", "15m"):                                           Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", "15m")),
 							}),
@@ -1719,7 +1696,7 @@ func validateStoreAWS(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *c
 
 var _ = Describe("buildPredicate", func() {
 	var (
-		etcd                              *druidv1alpha1.Etcd
+		instance                          *druidv1alpha1.Etcd
 		evalCreate                        = func(p predicate.Predicate, obj client.Object) bool { return p.Create(event.CreateEvent{Object: obj}) }
 		evalDelete                        = func(p predicate.Predicate, obj client.Object) bool { return p.Delete(event.DeleteEvent{Object: obj}) }
 		evalGeneric                       = func(p predicate.Predicate, obj client.Object) bool { return p.Generic(event.GenericEvent{Object: obj}) }
@@ -1734,7 +1711,7 @@ var _ = Describe("buildPredicate", func() {
 	)
 
 	BeforeEach(func() {
-		etcd = &druidv1alpha1.Etcd{
+		instance = &druidv1alpha1.Etcd{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{},
 			},
@@ -1744,7 +1721,7 @@ var _ = Describe("buildPredicate", func() {
 	DescribeTable(
 		"with ignoreOperationAnnotation true",
 		func(evalFn func(p predicate.Predicate, obj client.Object) bool, expect bool) {
-			Expect(evalFn(buildPredicate(true), etcd)).To(Equal(expect))
+			Expect(evalFn(etcd.BuildPredicate(true), instance)).To(Equal(expect))
 		},
 		Entry("Create should match", evalCreate, true),
 		Entry("Delete should match", evalDelete, true),
@@ -1757,7 +1734,7 @@ var _ = Describe("buildPredicate", func() {
 		DescribeTable(
 			"without operation annotation or last error or deletion timestamp",
 			func(evalFn func(p predicate.Predicate, obj client.Object) bool, expect bool) {
-				Expect(evalFn(buildPredicate(false), etcd)).To(Equal(expect))
+				Expect(evalFn(etcd.BuildPredicate(false), instance)).To(Equal(expect))
 			},
 			Entry("Create should not match", evalCreate, false),
 			Entry("Delete should match", evalDelete, true),
@@ -1768,8 +1745,8 @@ var _ = Describe("buildPredicate", func() {
 		DescribeTable(
 			"with operation annotation",
 			func(evalFn func(p predicate.Predicate, obj client.Object) bool, expect bool) {
-				etcd.Annotations[v1beta1constants.GardenerOperation] = v1beta1constants.GardenerOperationReconcile
-				Expect(evalFn(buildPredicate(false), etcd)).To(Equal(expect))
+				instance.Annotations[v1beta1constants.GardenerOperation] = v1beta1constants.GardenerOperationReconcile
+				Expect(evalFn(etcd.BuildPredicate(false), instance)).To(Equal(expect))
 			},
 			Entry("Create should match", evalCreate, true),
 			Entry("Delete should match", evalDelete, true),
@@ -1780,8 +1757,8 @@ var _ = Describe("buildPredicate", func() {
 		DescribeTable(
 			"with last error",
 			func(evalFn func(p predicate.Predicate, obj client.Object) bool, expect bool) {
-				etcd.Status.LastError = pointer.StringPtr("error")
-				Expect(evalFn(buildPredicate(false), etcd)).To(Equal(expect))
+				instance.Status.LastError = pointer.StringPtr("error")
+				Expect(evalFn(etcd.BuildPredicate(false), instance)).To(Equal(expect))
 			},
 			Entry("Create should match", evalCreate, true),
 			Entry("Delete should match", evalDelete, true),
@@ -1793,8 +1770,8 @@ var _ = Describe("buildPredicate", func() {
 			"with deletion timestamp",
 			func(evalFn func(p predicate.Predicate, obj client.Object) bool, expect bool) {
 				now := metav1.Time{Time: time.Now()}
-				etcd.DeletionTimestamp = &now
-				Expect(evalFn(buildPredicate(false), etcd)).To(Equal(expect))
+				instance.DeletionTimestamp = &now
+				Expect(evalFn(etcd.BuildPredicate(false), instance)).To(Equal(expect))
 			},
 			Entry("Create should match", evalCreate, true),
 			Entry("Delete should match", evalDelete, true),

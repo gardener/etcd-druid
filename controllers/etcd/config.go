@@ -28,7 +28,7 @@ const (
 type Config struct {
 	// Workers is the number of workers concurrently processing reconciliation requests.
 	Workers int
-	// DisableEtcdServiceAccountAutomount controls the auto-mounting of service account token for etcd stateful sets for etcd stateful sets for etcd stateful sets.
+	// DisableEtcdServiceAccountAutomount controls the auto-mounting of service account token for etcd statefulsets.
 	DisableEtcdServiceAccountAutomount bool
 }
 

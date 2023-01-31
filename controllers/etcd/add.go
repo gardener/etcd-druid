@@ -33,7 +33,7 @@ func (r *Reconciler) AddToManager(mgr ctrl.Manager, ignoreOperationAnnotation bo
 	})
 	builder = builder.
 		Named(controllerName).
-		WithEventFilter(buildPredicate(ignoreOperationAnnotation)).
+		WithEventFilter(BuildPredicate(ignoreOperationAnnotation)).
 		For(&druidv1alpha1.Etcd{})
 	if ignoreOperationAnnotation {
 		builder = builder.Owns(&corev1.Service{}).
@@ -43,7 +43,7 @@ func (r *Reconciler) AddToManager(mgr ctrl.Manager, ignoreOperationAnnotation bo
 	return builder.Complete(r)
 }
 
-func buildPredicate(ignoreOperationAnnotation bool) predicate.Predicate {
+func BuildPredicate(ignoreOperationAnnotation bool) predicate.Predicate {
 	if ignoreOperationAnnotation {
 		return predicate.GenerationChangedPredicate{}
 	}

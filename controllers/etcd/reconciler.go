@@ -22,14 +22,14 @@ import (
 	"reflect"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
+	"github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/common"
 	componentconfigmap "github.com/gardener/etcd-druid/pkg/component/etcd/configmap"
 	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 	componentpdb "github.com/gardener/etcd-druid/pkg/component/etcd/poddisruptionbudget"
 	componentservice "github.com/gardener/etcd-druid/pkg/component/etcd/service"
 	componentsts "github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
-	"github.com/gardener/etcd-druid/pkg/utils"
+	druidutils "github.com/gardener/etcd-druid/pkg/utils"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/chartrenderer"
@@ -88,7 +88,7 @@ func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 	if chartRenderer, err = chartrenderer.NewForConfig(mgr.GetConfig()); err != nil {
 		return nil, err
 	}
-	if imageVector, err = ctrlutils.CreateImageVector(); err != nil {
+	if imageVector, err = utils.CreateImageVector(); err != nil {
 		return nil, err
 	}
 	return &Reconciler{
@@ -250,7 +250,7 @@ func (r *Reconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl
 	}
 
 	pdbValues := componentpdb.GenerateValues(etcd)
-	k8sversion, err := utils.GetClusterK8sVersion(r.RestConfig)
+	k8sversion, err := druidutils.GetClusterK8sVersion(r.RestConfig)
 	if err != nil {
 		return ctrl.Result{
 			Requeue: true,
@@ -415,7 +415,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		return reconcileResult{err: fmt.Errorf("Spec.Replicas should not be even number: %d", etcd.Spec.Replicas)}
 	}
 
-	etcdImage, etcdBackupImage, err := utils.GetEtcdImages(etcd, r.ImageVector)
+	etcdImage, etcdBackupImage, err := druidutils.GetEtcdImages(etcd, r.ImageVector)
 	if err != nil {
 		return reconcileResult{err: err}
 	}
@@ -440,7 +440,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 	}
 
 	pdbValues := componentpdb.GenerateValues(etcd)
-	k8sversion, err := utils.GetClusterK8sVersion(r.RestConfig)
+	k8sversion, err := druidutils.GetClusterK8sVersion(r.RestConfig)
 	if err != nil {
 		return reconcileResult{err: err}
 	}
@@ -545,7 +545,7 @@ func (r *Reconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alp
 			// Reset members in bootstrap phase to ensure dependent conditions can be calculated correctly.
 			bootstrapReset(etcd)
 		}
-		ready := utils.CheckStatefulSet(etcd.Spec.Replicas, result.sts) == nil
+		ready := druidutils.CheckStatefulSet(etcd.Spec.Replicas, result.sts) == nil
 		etcd.Status.Ready = &ready
 		etcd.Status.Replicas = pointer.Int32Deref(result.sts.Spec.Replicas, 0)
 	}
@@ -559,7 +559,7 @@ func (r *Reconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.E
 		bootstrapReset(etcd)
 	}
 	if result.sts != nil {
-		ready := utils.CheckStatefulSet(etcd.Spec.Replicas, result.sts) == nil
+		ready := druidutils.CheckStatefulSet(etcd.Spec.Replicas, result.sts) == nil
 		etcd.Status.Ready = &ready
 		etcd.Status.Replicas = pointer.Int32Deref(result.sts.Spec.Replicas, 0)
 	}
