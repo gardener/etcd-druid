@@ -15,16 +15,18 @@
 package utils
 
 import (
+	"fmt"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 )
 
 // CreateEtcdCopyBackupsTask creates an instance of EtcdCopyBackupsTask for the given provider and optional fields boolean.
-func CreateEtcdCopyBackupsTask(provider druidv1alpha1.StorageProvider, withOptionalFields bool) *druidv1alpha1.EtcdCopyBackupsTask {
+func CreateEtcdCopyBackupsTask(name, namespace string, provider druidv1alpha1.StorageProvider, withOptionalFields bool) *druidv1alpha1.EtcdCopyBackupsTask {
 	var (
 		maxBackupAge, maxBackups *uint32
 		waitForFinalSnapshot     *druidv1alpha1.WaitForFinalSnapshotSpec
@@ -39,12 +41,12 @@ func CreateEtcdCopyBackupsTask(provider druidv1alpha1.StorageProvider, withOptio
 	}
 	return &druidv1alpha1.EtcdCopyBackupsTask{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "foo",
-			Namespace: "default",
+			Name:      name,
+			Namespace: namespace,
 		},
 		Spec: druidv1alpha1.EtcdCopyBackupsTaskSpec{
 			SourceStore: druidv1alpha1.StoreSpec{
-				Container: pointer.StringPtr("source-container"),
+				Container: pointer.String("source-container"),
 				Prefix:    "/tmp",
 				Provider:  &provider,
 				SecretRef: &corev1.SecretReference{
@@ -52,7 +54,7 @@ func CreateEtcdCopyBackupsTask(provider druidv1alpha1.StorageProvider, withOptio
 				},
 			},
 			TargetStore: druidv1alpha1.StoreSpec{
-				Container: pointer.StringPtr("target-container"),
+				Container: pointer.String("target-container"),
 				Prefix:    "/tmp",
 				Provider:  &provider,
 				SecretRef: &corev1.SecretReference{
@@ -66,3 +68,44 @@ func CreateEtcdCopyBackupsTask(provider druidv1alpha1.StorageProvider, withOptio
 	}
 }
 func uint32Ptr(v uint32) *uint32 { return &v }
+
+// CreateEtcdCopyBackupsJob creates an instance of a Job owned by a EtcdCopyBackupsTask with the given name.
+func CreateEtcdCopyBackupsJob(taskName, namespace string) *batchv1.Job {
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        taskName + "-worker",
+			Namespace:   namespace,
+			Labels:      nil,
+			Annotations: createJobAnnotations(taskName, namespace),
+			OwnerReferences: []metav1.OwnerReference{metav1.OwnerReference{
+				APIVersion:         "druid.gardener.cloud/v1alpha1",
+				Kind:               "EtcdCopyBackupsTask",
+				Name:               taskName,
+				UID:                "",
+				Controller:         pointer.Bool(true),
+				BlockOwnerDeletion: pointer.Bool(true),
+			}},
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Volumes: nil,
+					Containers: []corev1.Container{corev1.Container{
+						Name:            "copy-backups",
+						Image:           "eu.gcr.io/gardener-project/gardener/etcdbrctl",
+						ImagePullPolicy: corev1.PullIfNotPresent,
+						Command:         []string{"etcdbrctl", "copy"}, // since this is only used for testing the command here is not complete.
+					}},
+					RestartPolicy: "OnFailure",
+				},
+			},
+		},
+	}
+}
+
+func createJobAnnotations(taskName, namespace string) map[string]string {
+	annotations := make(map[string]string, 2)
+	annotations["gardener.cloud/owned-by"] = fmt.Sprintf("%s/%s", namespace, taskName)
+	annotations["gardener.cloud/owner-type"] = "etcdcopybackupstask"
+	return annotations
+}

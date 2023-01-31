@@ -21,13 +21,13 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	"github.com/gardener/etcd-druid/pkg/common"
+	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/go-logr/logr"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -114,9 +114,7 @@ var _ = Describe("SecretController", func() {
 			})
 
 			It("should return nil if secret already has finalizer", func() {
-				patch := client.MergeFrom(secret.DeepCopy())
-				secret.Finalizers = []string{common.FinalizerName}
-				Expect(fakeClient.Patch(ctx, secret, patch)).To(Succeed())
+				Expect(controllerutils.AddFinalizers(ctx, fakeClient, secret, common.FinalizerName)).To(Succeed())
 				Expect(addFinalizer(ctx, logger, fakeClient, secret)).To(BeNil())
 			})
 
@@ -153,9 +151,7 @@ var _ = Describe("SecretController", func() {
 			})
 
 			It("should return nil if secret does not have finalizer", func() {
-				patch := client.MergeFrom(secret.DeepCopy())
-				secret.Finalizers = []string{}
-				Expect(fakeClient.Patch(ctx, secret, patch)).To(Succeed())
+				Expect(controllerutils.RemoveAllFinalizers(ctx, fakeClient, secret)).Should(Succeed())
 				Expect(removeFinalizer(ctx, logger, fakeClient, secret)).To(BeNil())
 			})
 
@@ -200,15 +196,12 @@ func ensureSecretCreation(ctx context.Context, name, namespace string, fakeClien
 func ensureSecretRemoval(ctx context.Context, name, namespace string, fakeClient client.WithWatch) {
 	secret := &corev1.Secret{}
 	if err := fakeClient.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, secret); err != nil {
-		if apierrors.IsNotFound(err) {
-			return
-		}
+		Expect(apierrors.IsNotFound(err)).To(BeTrue())
+		return
 	}
 
 	By("Remove any existing finalizers on Secret")
-	patch := client.MergeFrom(secret.DeepCopy())
-	secret.Finalizers = []string{}
-	Expect(fakeClient.Patch(ctx, secret, patch)).To(Succeed())
+	Expect(controllerutils.RemoveAllFinalizers(ctx, fakeClient, secret)).To(Succeed())
 
 	By("Delete Secret")
 	Expect(fakeClient.Delete(ctx, secret)).To(Succeed())

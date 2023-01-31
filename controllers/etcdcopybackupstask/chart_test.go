@@ -33,6 +33,10 @@ var _ = Describe("EtcdCopyBackupsTaskController Chart", func() {
 		reconciler *Reconciler
 		task       *druidv1alpha1.EtcdCopyBackupsTask
 	)
+	const (
+		testTaskName  = "test-task"
+		testNamespace = "test-ns"
+	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
@@ -43,7 +47,7 @@ var _ = Describe("EtcdCopyBackupsTaskController Chart", func() {
 		reconciler = &Reconciler{
 			imageVector: imageVector,
 		}
-		task = testutils.CreateEtcdCopyBackupsTask(druidv1alpha1.StorageProvider("aws"), true)
+		task = testutils.CreateEtcdCopyBackupsTask(testTaskName, testNamespace, "aws", true)
 	})
 
 	Describe("getChartValues", func() {
