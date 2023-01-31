@@ -275,14 +275,6 @@ func (r *Reconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl
 	return ctrl.Result{}, nil
 }
 
-func decodeObject(renderedChart *chartrenderer.RenderedChart, path string, object interface{}) error {
-	if content, ok := renderedChart.Files()[path]; ok {
-		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
-		return decoder.Decode(&object)
-	}
-	return fmt.Errorf("missing file %s in the rendered chart", path)
-}
-
 func (r *Reconciler) reconcileServiceAccount(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) error {
 	logger.Info("Reconciling serviceaccount")
 	var err error
@@ -536,7 +528,7 @@ func isPeerTLSIsChangedToEnabled(peerTLSEnabledStatusFromMembers bool, configMap
 
 func bootstrapReset(etcd *druidv1alpha1.Etcd) {
 	etcd.Status.Members = nil
-	etcd.Status.ClusterSize = pointer.Int32Ptr(etcd.Spec.Replicas)
+	etcd.Status.ClusterSize = pointer.Int32(etcd.Spec.Replicas)
 }
 
 func clusterInBootstrap(etcd *druidv1alpha1.Etcd) bool {
@@ -569,7 +561,7 @@ func (r *Reconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.E
 	if result.sts != nil {
 		ready := utils.CheckStatefulSet(etcd.Spec.Replicas, result.sts) == nil
 		etcd.Status.Ready = &ready
-		etcd.Status.Replicas = pointer.Int32PtrDerefOr(result.sts.Spec.Replicas, 0)
+		etcd.Status.Replicas = pointer.Int32Deref(result.sts.Spec.Replicas, 0)
 	}
 	etcd.Status.ServiceName = result.svcName
 	etcd.Status.LastError = nil

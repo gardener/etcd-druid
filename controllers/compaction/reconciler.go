@@ -277,11 +277,11 @@ func (r *Reconciler) createCompactJob(ctx context.Context, logger logr.Logger, e
 						Name:            "compact-backup",
 						Image:           *etcdBackupImage,
 						ImagePullPolicy: v1.PullIfNotPresent,
-						Command:         getCompactJobCommands(etcd),
-						VolumeMounts:    getCmpctJobVolumeMounts(etcd, logger),
-						Env:             getCmpctJobEnvVar(etcd, logger),
+						Command:         getCompactionJobCommands(etcd),
+						VolumeMounts:    getCompactionJobVolumeMounts(etcd, logger),
+						Env:             getCompactionJobEnvVar(etcd, logger),
 					}},
-					Volumes: getCmpctJobVolumes(etcd, logger),
+					Volumes: getCompactionJobVolumes(etcd, logger),
 				},
 			},
 		},
@@ -311,7 +311,7 @@ func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 		"networking.gardener.cloud/to-public-networks":  "allowed",
 	}
 }
-func getCmpctJobVolumeMounts(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.VolumeMount {
+func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.VolumeMount {
 	vms := []v1.VolumeMount{
 		{
 			Name:      "etcd-workspace-dir",
@@ -344,7 +344,7 @@ func getCmpctJobVolumeMounts(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.
 	return vms
 }
 
-func getCmpctJobVolumes(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.Volume {
+func getCompactionJobVolumes(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.Volume {
 	vs := []v1.Volume{
 		{
 			Name: "etcd-workspace-dir",
@@ -384,7 +384,7 @@ func getCmpctJobVolumes(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.Volum
 	return vs
 }
 
-func getCmpctJobEnvVar(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.EnvVar {
+func getCompactionJobEnvVar(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.EnvVar {
 	var env []v1.EnvVar
 	if etcd.Spec.Backup.Store == nil {
 		return env
@@ -460,7 +460,7 @@ func getEnvVarFromSecrets(name, secretName, secretKey string) v1.EnvVar {
 	}
 }
 
-func getCompactJobCommands(etcd *druidv1alpha1.Etcd) []string {
+func getCompactionJobCommands(etcd *druidv1alpha1.Etcd) []string {
 	command := []string{"" + "etcdbrctl"}
 	command = append(command, "compact")
 	command = append(command, "--data-dir=/var/etcd/data")
