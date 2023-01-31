@@ -142,7 +142,7 @@ var _ = Describe("Druid", func() {
 			// Wait until Service has been created by controller
 			Eventually(func() error {
 				return c.Get(context.TODO(), types.NamespacedName{
-					Name:      utils.GetClientServiceName(instance),
+					Name:      instance.GetClientServiceName(),
 					Namespace: instance.Namespace,
 				}, svc)
 			}, timeout, pollingInterval).Should(BeNil())
@@ -708,7 +708,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 
 	Expect(*clSvc).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(utils.GetClientServiceName(instance)),
+			"Name":      Equal(instance.GetClientServiceName()),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
@@ -783,7 +783,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 			"UpdateStrategy": MatchFields(IgnoreExtras, Fields{
 				"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 			}),
-			"ServiceName": Equal(utils.GetPeerServiceName(instance)),
+			"ServiceName": Equal(instance.GetPeerServiceName()),
 			"Replicas":    PointTo(Equal(int32(instance.Spec.Replicas))),
 			"Selector": PointTo(MatchFields(IgnoreExtras, Fields{
 				"MatchLabels": MatchAllKeys(Keys{
@@ -873,16 +873,16 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 								"--enable-member-lease-renewal=true":             Equal("--enable-member-lease-renewal=true"),
 								"--k8s-heartbeat-duration=10s":                   Equal("--k8s-heartbeat-duration=10s"),
 
-								fmt.Sprintf("--delta-snapshot-memory-limit=%d", deltaSnapShotMemLimit.Value()):                    Equal(fmt.Sprintf("--delta-snapshot-memory-limit=%d", deltaSnapShotMemLimit.Value())),
-								fmt.Sprintf("--garbage-collection-policy=%s", druidv1alpha1.GarbageCollectionPolicyLimitBased):    Equal(fmt.Sprintf("--garbage-collection-policy=%s", druidv1alpha1.GarbageCollectionPolicyLimitBased)),
-								fmt.Sprintf("--endpoints=http://%s-local:%d", instance.Name, clientPort):                          Equal(fmt.Sprintf("--endpoints=http://%s-local:%d", instance.Name, clientPort)),
-								fmt.Sprintf("--service-endpoints=http://%s:%d", utils.GetClientServiceName(instance), clientPort): Equal(fmt.Sprintf("--service-endpoints=http://%s:%d", utils.GetClientServiceName(instance), clientPort)),
-								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(quota.Value())):                               Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(quota.Value()))),
-								fmt.Sprintf("--max-backups=%d", maxBackups):                                                       Equal(fmt.Sprintf("--max-backups=%d", maxBackups)),
-								fmt.Sprintf("--auto-compaction-mode=%s", druidv1alpha1.Periodic):                                  Equal(fmt.Sprintf("--auto-compaction-mode=%s", druidv1alpha1.Periodic)),
-								fmt.Sprintf("--auto-compaction-retention=%s", DefaultAutoCompactionRetention):                     Equal(fmt.Sprintf("--auto-compaction-retention=%s", DefaultAutoCompactionRetention)),
-								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", "15m"):                                            Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", "15m")),
-								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", "15m"):                                              Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", "15m")),
+								fmt.Sprintf("--delta-snapshot-memory-limit=%d", deltaSnapShotMemLimit.Value()):                 Equal(fmt.Sprintf("--delta-snapshot-memory-limit=%d", deltaSnapShotMemLimit.Value())),
+								fmt.Sprintf("--garbage-collection-policy=%s", druidv1alpha1.GarbageCollectionPolicyLimitBased): Equal(fmt.Sprintf("--garbage-collection-policy=%s", druidv1alpha1.GarbageCollectionPolicyLimitBased)),
+								fmt.Sprintf("--endpoints=http://%s-local:%d", instance.Name, clientPort):                       Equal(fmt.Sprintf("--endpoints=http://%s-local:%d", instance.Name, clientPort)),
+								fmt.Sprintf("--service-endpoints=http://%s:%d", instance.GetClientServiceName(), clientPort):   Equal(fmt.Sprintf("--service-endpoints=http://%s:%d", instance.GetClientServiceName(), clientPort)),
+								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(quota.Value())):                            Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(quota.Value()))),
+								fmt.Sprintf("--max-backups=%d", maxBackups):                                                    Equal(fmt.Sprintf("--max-backups=%d", maxBackups)),
+								fmt.Sprintf("--auto-compaction-mode=%s", druidv1alpha1.Periodic):                               Equal(fmt.Sprintf("--auto-compaction-mode=%s", druidv1alpha1.Periodic)),
+								fmt.Sprintf("--auto-compaction-retention=%s", DefaultAutoCompactionRetention):                  Equal(fmt.Sprintf("--auto-compaction-retention=%s", DefaultAutoCompactionRetention)),
+								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", "15m"):                                         Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", "15m")),
+								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", "15m"):                                           Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", "15m")),
 							}),
 							"Ports": ConsistOf([]corev1.ContainerPort{
 								{
@@ -1062,7 +1062,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 
 	Expect(*clSvc).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(utils.GetClientServiceName(instance)),
+			"Name":      Equal(instance.GetClientServiceName()),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
@@ -1138,7 +1138,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"UpdateStrategy": MatchFields(IgnoreExtras, Fields{
 				"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 			}),
-			"ServiceName": Equal(utils.GetPeerServiceName(instance)),
+			"ServiceName": Equal(instance.GetPeerServiceName()),
 			"Replicas":    PointTo(Equal(int32(instance.Spec.Replicas))),
 			"Selector": PointTo(MatchFields(IgnoreExtras, Fields{
 				"MatchLabels": MatchAllKeys(Keys{
@@ -1266,7 +1266,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								fmt.Sprintf("--delta-snapshot-memory-limit=%d", instance.Spec.Backup.DeltaSnapshotMemoryLimit.Value()):              Equal(fmt.Sprintf("--delta-snapshot-memory-limit=%d", instance.Spec.Backup.DeltaSnapshotMemoryLimit.Value())),
 								fmt.Sprintf("--garbage-collection-policy=%s", *instance.Spec.Backup.GarbageCollectionPolicy):                        Equal(fmt.Sprintf("--garbage-collection-policy=%s", *instance.Spec.Backup.GarbageCollectionPolicy)),
 								fmt.Sprintf("--endpoints=https://%s-local:%d", instance.Name, clientPort):                                           Equal(fmt.Sprintf("--endpoints=https://%s-local:%d", instance.Name, clientPort)),
-								fmt.Sprintf("--service-endpoints=https://%s:%d", utils.GetClientServiceName(instance), clientPort):                  Equal(fmt.Sprintf("--service-endpoints=https://%s:%d", utils.GetClientServiceName(instance), clientPort)),
+								fmt.Sprintf("--service-endpoints=https://%s:%d", instance.GetClientServiceName(), clientPort):                       Equal(fmt.Sprintf("--service-endpoints=https://%s:%d", instance.GetClientServiceName(), clientPort)),
 								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(instance.Spec.Etcd.Quota.Value())):                              Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(instance.Spec.Etcd.Quota.Value()))),
 								fmt.Sprintf("%s=%s", "--delta-snapshot-period", instance.Spec.Backup.DeltaSnapshotPeriod.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-period", instance.Spec.Backup.DeltaSnapshotPeriod.Duration.String())),
 								fmt.Sprintf("%s=%s", "--garbage-collection-period", instance.Spec.Backup.GarbageCollectionPeriod.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--garbage-collection-period", instance.Spec.Backup.GarbageCollectionPeriod.Duration.String())),
@@ -1274,8 +1274,8 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								fmt.Sprintf("%s=%s", "--auto-compaction-retention", *instance.Spec.Common.AutoCompactionRetention):                  Equal(fmt.Sprintf("%s=%s", "--auto-compaction-retention", autoCompactionRetention)),
 								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String())),
 								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String()):               Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String())),
-								fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", utils.GetDeltaSnapshotLeaseName(instance)):                      Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", utils.GetDeltaSnapshotLeaseName(instance))),
-								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", utils.GetFullSnapshotLeaseName(instance)):                        Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", utils.GetFullSnapshotLeaseName(instance))),
+								fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", instance.GetDeltaSnapshotLeaseName()):                           Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", instance.GetDeltaSnapshotLeaseName())),
+								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", instance.GetFullSnapshotLeaseName()):                             Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", instance.GetFullSnapshotLeaseName())),
 							}),
 							"Ports": ConsistOf([]corev1.ContainerPort{
 								{

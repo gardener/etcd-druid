@@ -113,19 +113,19 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 		},
 		Entry("should create the job, update the task status, and delete the job if the job completed",
-			testutils.CreateEtcdCopyBackupsTask("Local", true), getJobStatus(batchv1.JobComplete, "", "")),
+			testutils.CreateEtcdCopyBackupsTask("foo01", "default", "Local", true), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job failed",
-			testutils.CreateEtcdCopyBackupsTask("Local", false), getJobStatus(batchv1.JobFailed, "test reason", "test message")),
+			testutils.CreateEtcdCopyBackupsTask("foo02", "default", "Local", false), getJobStatus(batchv1.JobFailed, "test reason", "test message")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for aws",
-			testutils.CreateEtcdCopyBackupsTask("aws", false), getJobStatus(batchv1.JobComplete, "", "")),
+			testutils.CreateEtcdCopyBackupsTask("foo03", "default", "aws", false), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for azure",
-			testutils.CreateEtcdCopyBackupsTask("azure", false), getJobStatus(batchv1.JobComplete, "", "")),
+			testutils.CreateEtcdCopyBackupsTask("foo04", "default", "azure", false), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for gcp",
-			testutils.CreateEtcdCopyBackupsTask("gcp", false), getJobStatus(batchv1.JobComplete, "", "")),
+			testutils.CreateEtcdCopyBackupsTask("foo05", "default", "gcp", false), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for openstack",
-			testutils.CreateEtcdCopyBackupsTask("openstack", false), getJobStatus(batchv1.JobComplete, "", "")),
+			testutils.CreateEtcdCopyBackupsTask("foo06", "default", "openstack", false), getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for alicloud",
-			testutils.CreateEtcdCopyBackupsTask("alicloud", false), getJobStatus(batchv1.JobComplete, "", "")),
+			testutils.CreateEtcdCopyBackupsTask("foo07", "default", "alicloud", false), getJobStatus(batchv1.JobComplete, "", "")),
 	)
 })
 

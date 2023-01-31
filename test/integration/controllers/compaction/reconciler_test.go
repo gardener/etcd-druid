@@ -352,7 +352,7 @@ func validateEtcdForCmpctJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
 
 	Expect(*j).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(utils.GetJobName(instance)),
+			"Name":      Equal(instance.GetCompactionJobName()),
 			"Namespace": Equal(instance.Namespace),
 			"OwnerReferences": MatchElements(testutils.OwnerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
@@ -373,11 +373,11 @@ func validateEtcdForCmpctJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
 					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						"compact-backup": MatchFields(IgnoreExtras, Fields{
 							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
-								"--data-dir=/var/etcd/data":                     Equal("--data-dir=/var/etcd/data"),
-								"--snapstore-temp-directory=/var/etcd/data/tmp": Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
-								"--enable-snapshot-lease-renewal=true":          Equal("--enable-snapshot-lease-renewal=true"),
-								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", utils.GetFullSnapshotLeaseName(instance)):                Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", utils.GetFullSnapshotLeaseName(instance))),
-								fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", utils.GetDeltaSnapshotLeaseName(instance)):              Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", utils.GetDeltaSnapshotLeaseName(instance))),
+								"--data-dir=/var/etcd/data":                                                                                 Equal("--data-dir=/var/etcd/data"),
+								"--snapstore-temp-directory=/var/etcd/data/tmp":                                                             Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
+								"--enable-snapshot-lease-renewal=true":                                                                      Equal("--enable-snapshot-lease-renewal=true"),
+								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", instance.GetFullSnapshotLeaseName()):                     Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", instance.GetFullSnapshotLeaseName())),
+								fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", instance.GetDeltaSnapshotLeaseName()):                   Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", instance.GetDeltaSnapshotLeaseName())),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):                                   Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 								fmt.Sprintf("%s=%s", "--storage-provider", store):                                                           Equal(fmt.Sprintf("%s=%s", "--storage-provider", store)),
 								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container):                            Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
@@ -678,7 +678,7 @@ func jobIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, job
 	defer cancel()
 
 	req := types.NamespacedName{
-		Name:      utils.GetJobName(instance),
+		Name:      instance.GetCompactionJobName(),
 		Namespace: instance.Namespace,
 	}
 
@@ -696,7 +696,7 @@ func jobIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, job
 func createJob(instance *druidv1alpha1.Etcd) *batchv1.Job {
 	j := batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      utils.GetJobName(instance),
+			Name:      instance.GetCompactionJobName(),
 			Namespace: instance.Namespace,
 			Labels:    instance.Labels,
 		},
@@ -727,7 +727,7 @@ func fullLeaseIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etc
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	req := types.NamespacedName{
-		Name:      utils.GetFullSnapshotLeaseName(instance),
+		Name:      instance.GetFullSnapshotLeaseName(),
 		Namespace: instance.Namespace,
 	}
 
@@ -745,7 +745,7 @@ func deltaLeaseIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Et
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 	req := types.NamespacedName{
-		Name:      utils.GetDeltaSnapshotLeaseName(instance),
+		Name:      instance.GetDeltaSnapshotLeaseName(),
 		Namespace: instance.Namespace,
 	}
 
