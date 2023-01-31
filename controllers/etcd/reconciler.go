@@ -510,7 +510,7 @@ func (r *Reconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd, disableEtcdService
 		"uid":                                etcd.UID,
 		"labels":                             etcd.Spec.Labels,
 		"pdbMinAvailable":                    pdbMinAvailable,
-		"serviceAccountName":                 utils.GetServiceAccountName(etcd),
+		"serviceAccountName":                 etcd.GetServiceAccountName(),
 		"disableEtcdServiceAccountAutomount": disableEtcdServiceAccountAutomount,
 		"roleName":                           fmt.Sprintf("druid.gardener.cloud:etcd:%s", etcd.Name),
 		"roleBindingName":                    fmt.Sprintf("druid.gardener.cloud:etcd:%s", etcd.Name),
@@ -547,7 +547,7 @@ func (r *Reconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alp
 		}
 		ready := utils.CheckStatefulSet(etcd.Spec.Replicas, result.sts) == nil
 		etcd.Status.Ready = &ready
-		etcd.Status.Replicas = pointer.Int32PtrDerefOr(result.sts.Spec.Replicas, 0)
+		etcd.Status.Replicas = pointer.Int32Deref(result.sts.Spec.Replicas, 0)
 	}
 
 	return r.Client.Status().Update(ctx, etcd)

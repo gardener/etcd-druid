@@ -16,46 +16,9 @@ package utils
 
 import (
 	"fmt"
-	"time"
 
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-const (
-	crashLoopBackOff = "CrashLoopBackOff"
-)
-
-// MergeMaps takes two maps <a>, <b> and merges them. If <b> defines a value with a key
-// already existing in the <a> map, the <a> value for that key will be overwritten.
-func MergeMaps(a, b map[string]interface{}) map[string]interface{} {
-	var values = map[string]interface{}{}
-
-	for i, v := range b {
-		existing, ok := a[i]
-		values[i] = v
-
-		switch elem := v.(type) {
-		case map[string]interface{}:
-			if ok {
-				if extMap, ok := existing.(map[string]interface{}); ok {
-					values[i] = MergeMaps(extMap, elem)
-				}
-			}
-		default:
-			values[i] = v
-		}
-	}
-
-	for i, v := range a {
-		if _, ok := values[i]; !ok {
-			values[i] = v
-		}
-	}
-
-	return values
-}
 
 // MergeStringMaps merges the content of the newMaps with the oldMap. If a key already exists then
 // it gets overwritten by the last value with the same key.
@@ -82,20 +45,6 @@ func MergeStringMaps(oldMap map[string]string, newMaps ...map[string]string) map
 	return out
 }
 
-// TimeElapsed takes a <timestamp> and a <duration> checks whether the elapsed time until now is less than the <duration>.
-// If yes, it returns true, otherwise it returns false.
-func TimeElapsed(timestamp *metav1.Time, duration time.Duration) bool {
-	if timestamp == nil {
-		return true
-	}
-
-	var (
-		end = metav1.NewTime(timestamp.Time.Add(duration))
-		now = metav1.Now()
-	)
-	return !now.Before(&end)
-}
-
 func nameAndNamespace(namespaceOrName string, nameOpt ...string) (namespace, name string) {
 	if len(nameOpt) > 1 {
 		panic(fmt.Sprintf("more than name/namespace for key specified: %s/%v", namespaceOrName, nameOpt))
@@ -119,23 +68,6 @@ func nameAndNamespace(namespaceOrName string, nameOpt ...string) (namespace, nam
 func Key(namespaceOrName string, nameOpt ...string) client.ObjectKey {
 	namespace, name := nameAndNamespace(namespaceOrName, nameOpt...)
 	return client.ObjectKey{Namespace: namespace, Name: name}
-}
-
-// IsPodInCrashloopBackoff checks if the pod is in CrashloopBackoff from its status fields.
-func IsPodInCrashloopBackoff(status v1.PodStatus) bool {
-	for _, containerStatus := range status.ContainerStatuses {
-		if isContainerInCrashLoopBackOff(containerStatus.State) {
-			return true
-		}
-	}
-	return false
-}
-
-func isContainerInCrashLoopBackOff(containerState v1.ContainerState) bool {
-	if containerState.Waiting != nil {
-		return containerState.Waiting.Reason == crashLoopBackOff
-	}
-	return false
 }
 
 // Max returns the larger of x or y.

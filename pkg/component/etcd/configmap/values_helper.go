@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/utils"
 	"k8s.io/utils/pointer"
 )
 
@@ -36,13 +35,13 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) *Values {
 		InitialCluster:          initialCluster,
 		ClientUrlTLS:            etcd.Spec.Etcd.ClientUrlTLS,
 		PeerUrlTLS:              etcd.Spec.Etcd.PeerUrlTLS,
-		ClientServiceName:       utils.GetClientServiceName(etcd),
+		ClientServiceName:       etcd.GetClientServiceName(),
 		ClientPort:              etcd.Spec.Etcd.ClientPort,
-		PeerServiceName:         utils.GetPeerServiceName(etcd),
+		PeerServiceName:         etcd.GetPeerServiceName(),
 		ServerPort:              etcd.Spec.Etcd.ServerPort,
 		AutoCompactionMode:      etcd.Spec.Common.AutoCompactionMode,
 		AutoCompactionRetention: etcd.Spec.Common.AutoCompactionRetention,
-		ConfigMapName:           utils.GetConfigmapName(etcd),
+		ConfigMapName:           etcd.GetConfigmapName(),
 		Labels:                  etcd.Spec.Labels,
 	}
 	return values
@@ -57,8 +56,8 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd) string {
 	statefulsetReplicas := int(etcd.Spec.Replicas)
 
 	// Form the service name and pod name for mutinode cluster with the help of ETCD name
-	podName := utils.GetOrdinalPodName(etcd, 0)
-	domaiName := fmt.Sprintf("%s.%s.%s", utils.GetPeerServiceName(etcd), etcd.Namespace, "svc")
+	podName := etcd.GetOrdinalPodName(0)
+	domaiName := fmt.Sprintf("%s.%s.%s", etcd.GetPeerServiceName(), etcd.Namespace, "svc")
 	serverPort := strconv.Itoa(int(pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, defaultServerPort)))
 
 	initialCluster := fmt.Sprintf("%s=%s://%s.%s:%s", podName, protocol, podName, domaiName, serverPort)
@@ -66,7 +65,7 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd) string {
 		// form initial cluster
 		initialCluster = ""
 		for i := 0; i < statefulsetReplicas; i++ {
-			podName = utils.GetOrdinalPodName(etcd, i)
+			podName = etcd.GetOrdinalPodName(i)
 			initialCluster = initialCluster + fmt.Sprintf("%s=%s://%s.%s:%s,", podName, protocol, podName, domaiName, serverPort)
 		}
 	}

@@ -15,11 +15,14 @@
 package v1alpha1
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// TODO Remove unused constants
 const (
 	// GarbageCollectionPolicyExponential defines the exponential policy for garbage collecting old backups
 	GarbageCollectionPolicyExponential = "Exponential"
@@ -49,6 +52,42 @@ const (
 	Revision CompactionMode = "revision"
 )
 
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.labelSelector
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.ready`
+// +kubebuilder:printcolumn:name="Quorate",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
+// +kubebuilder:printcolumn:name="All Members Ready",type=string,JSONPath=`.status.conditions[?(@.type=="AllMembersReady")].status`
+// +kubebuilder:printcolumn:name="Backup Ready",type=string,JSONPath=`.status.conditions[?(@.type=="BackupReady")].status`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+// +kubebuilder:printcolumn:name="Cluster Size",type=integer,JSONPath=`.spec.replicas`,priority=1
+// +kubebuilder:printcolumn:name="Current Replicas",type=integer,JSONPath=`.status.currentReplicas`,priority=1
+// +kubebuilder:printcolumn:name="Ready Replicas",type=integer,JSONPath=`.status.readyReplicas`,priority=1
+
+// Etcd is the Schema for the etcds API
+type Etcd struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   EtcdSpec   `json:"spec,omitempty"`
+	Status EtcdStatus `json:"status,omitempty"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// +kubebuilder:object:root=true
+
+// EtcdList contains a list of Etcd
+type EtcdList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Etcd `json:"items"`
+}
+
 // MetricsLevel defines the level 'basic' or 'extensive'.
 // +kubebuilder:validation:Enum=basic;extensive
 type MetricsLevel string
@@ -56,9 +95,6 @@ type MetricsLevel string
 // GarbageCollectionPolicy defines the type of policy for snapshot garbage collection.
 // +kubebuilder:validation:Enum=Exponential;LimitBased
 type GarbageCollectionPolicy string
-
-// StorageProvider defines the type of object store provider for storing backups.
-type StorageProvider string
 
 // CompressionPolicy defines the type of policy for compression of snapshots.
 // +kubebuilder:validation:Enum=gzip;lzw;zlib
@@ -68,22 +104,6 @@ type CompressionPolicy string
 // 'periodic' for duration based retention and 'revision' for revision number based retention.
 // +kubebuilder:validation:Enum=periodic;revision
 type CompactionMode string
-
-// StoreSpec defines parameters related to ObjectStore persisting backups
-type StoreSpec struct {
-	// Container is the name of the container the backup is stored at.
-	// +optional
-	Container *string `json:"container,omitempty"`
-	// Prefix is the prefix used for the store.
-	// +required
-	Prefix string `json:"prefix"`
-	// Provider is the name of the backup provider.
-	// +optional
-	Provider *StorageProvider `json:"provider,omitempty"`
-	// SecretRef is the reference to the secret which used to connect to the backup store.
-	// +optional
-	SecretRef *corev1.SecretReference `json:"secretRef,omitempty"`
-}
 
 // TLSConfig hold the TLS configuration details.
 type TLSConfig struct {
@@ -295,21 +315,6 @@ type CrossVersionObjectReference struct {
 	APIVersion string `json:"apiVersion,omitempty"`
 }
 
-// ConditionStatus is the status of a condition.
-type ConditionStatus string
-
-const (
-	// ConditionTrue means a resource is in the condition.
-	ConditionTrue ConditionStatus = "True"
-	// ConditionFalse means a resource is not in the condition.
-	ConditionFalse ConditionStatus = "False"
-	// ConditionUnknown means Gardener can't decide if a resource is in the condition or not.
-	ConditionUnknown ConditionStatus = "Unknown"
-)
-
-// ConditionType is the type of a condition.
-type ConditionType string
-
 const (
 	// ConditionTypeReady is a constant for a condition type indicating that the etcd cluster is ready.
 	ConditionTypeReady ConditionType = "Ready"
@@ -318,22 +323,6 @@ const (
 	// ConditionTypeBackupReady is a constant for a condition type indicating that the etcd backup is ready.
 	ConditionTypeBackupReady ConditionType = "BackupReady"
 )
-
-// Condition holds the information about the state of a resource.
-type Condition struct {
-	// Type of the Etcd condition.
-	Type ConditionType `json:"type"`
-	// Status of the condition, one of True, False, Unknown.
-	Status ConditionStatus `json:"status"`
-	// Last time the condition transitioned from one status to another.
-	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
-	// Last time the condition was updated.
-	LastUpdateTime metav1.Time `json:"lastUpdateTime"`
-	// The reason for the condition's last transition.
-	Reason string `json:"reason"`
-	// A human readable message indicating details about the transition.
-	Message string `json:"message"`
-}
 
 // EtcdMemberConditionStatus is the status of an etcd cluster member.
 type EtcdMemberConditionStatus string
@@ -421,116 +410,42 @@ type EtcdStatus struct {
 	PeerUrlTLSEnabled *bool `json:"peerUrlTLSEnabled,omitempty"`
 }
 
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
-// +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.labelSelector
-// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.ready`
-// +kubebuilder:printcolumn:name="Quorate",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
-// +kubebuilder:printcolumn:name="All Members Ready",type=string,JSONPath=`.status.conditions[?(@.type=="AllMembersReady")].status`
-// +kubebuilder:printcolumn:name="Backup Ready",type=string,JSONPath=`.status.conditions[?(@.type=="BackupReady")].status`
-// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-// +kubebuilder:printcolumn:name="Cluster Size",type=integer,JSONPath=`.spec.replicas`,priority=1
-// +kubebuilder:printcolumn:name="Current Replicas",type=integer,JSONPath=`.status.currentReplicas`,priority=1
-// +kubebuilder:printcolumn:name="Ready Replicas",type=integer,JSONPath=`.status.readyReplicas`,priority=1
-
-// Etcd is the Schema for the etcds API
-type Etcd struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   EtcdSpec   `json:"spec,omitempty"`
-	Status EtcdStatus `json:"status,omitempty"`
+// GetPeerServiceName returns the peer service name for the Etcd cluster reachable by members within the Etcd cluster.
+func (e *Etcd) GetPeerServiceName() string {
+	return fmt.Sprintf("%s-peer", e.Name)
 }
 
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// +kubebuilder:object:root=true
-
-// EtcdList contains a list of Etcd
-type EtcdList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Etcd `json:"items"`
+// GetClientServiceName returns the client service name for the Etcd cluster reachable by external clients.
+func (e *Etcd) GetClientServiceName() string {
+	return fmt.Sprintf("%s-client", e.Name)
 }
 
-// EtcdCopyBackupsTaskSpec defines the parameters for the copy backups task.
-type EtcdCopyBackupsTaskSpec struct {
-	// SourceStore defines the specification of the source object store provider for storing backups.
-	SourceStore StoreSpec `json:"sourceStore"`
-	// TargetStore defines the specification of the target object store provider for storing backups.
-	TargetStore StoreSpec `json:"targetStore"`
-	// MaxBackupAge is the maximum age in days that a backup must have in order to be copied.
-	// By default all backups will be copied.
-	// +optional
-	MaxBackupAge *uint32 `json:"maxBackupAge,omitempty"`
-	// MaxBackups is the maximum number of backups that will be copied starting with the most recent ones.
-	// +optional
-	MaxBackups *uint32 `json:"maxBackups,omitempty"`
-	// WaitForFinalSnapshot defines the parameters for waiting for a final full snapshot before copying backups.
-	// +optional
-	WaitForFinalSnapshot *WaitForFinalSnapshotSpec `json:"waitForFinalSnapshot,omitempty"`
+// GetServiceAccountName returns the service account name for the Etcd.
+func (e *Etcd) GetServiceAccountName() string {
+	return e.Name
 }
 
-// WaitForFinalSnapshotSpec defines the parameters for waiting for a final full snapshot before copying backups.
-type WaitForFinalSnapshotSpec struct {
-	// Enabled specifies whether to wait for a final full snapshot before copying backups.
-	Enabled bool `json:"enabled"`
-	// Timeout is the timeout for waiting for a final full snapshot. When this timeout expires, the copying of backups
-	// will be performed anyway. No timeout or 0 means wait forever.
-	// +optional
-	Timeout *metav1.Duration `json:"timeout,omitempty"`
+// GetConfigmapName returns the name of the configmap for the Etcd.
+func (e *Etcd) GetConfigmapName() string {
+	return fmt.Sprintf("etcd-bootstrap-%s", string(e.UID[:6]))
 }
 
-// EtcdCopyBackupsTaskStatus defines the observed state of the copy backups task.
-type EtcdCopyBackupsTaskStatus struct {
-	// Conditions represents the latest available observations of an object's current state.
-	// +patchMergeKey=type
-	// +patchStrategy=merge
-	// +optional
-	Conditions []Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
-	// ObservedGeneration is the most recent generation observed for this resource.
-	// +optional
-	ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
-	// LastError represents the last occurred error.
-	// +optional
-	LastError *string `json:"lastError,omitempty"`
+// GetCompactionJobName returns the compaction job name for the Etcd.
+func (e *Etcd) GetCompactionJobName() string {
+	return fmt.Sprintf("%s-compact-job", string(e.UID[:6]))
 }
 
-const (
-	// EtcdCopyBackupsTaskSucceeded is a condition type indicating that a EtcdCopyBackupsTask has succeeded.
-	EtcdCopyBackupsTaskSucceeded ConditionType = "Succeeded"
-	// EtcdCopyBackupsTaskFailed is a condition type indicating that a EtcdCopyBackupsTask has failed.
-	EtcdCopyBackupsTaskFailed ConditionType = "Failed"
-)
-
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-
-// EtcdCopyBackupsTask is a task for copying etcd backups from a source to a target store.
-type EtcdCopyBackupsTask struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   EtcdCopyBackupsTaskSpec   `json:"spec,omitempty"`
-	Status EtcdCopyBackupsTaskStatus `json:"status,omitempty"`
+// GetOrdinalPodName returns the Etcd pod name based on the ordinal.
+func (e *Etcd) GetOrdinalPodName(ordinal int) string {
+	return fmt.Sprintf("%s-%d", e.Name, ordinal)
 }
 
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// GetDeltaSnapshotLeaseName returns the name of the delta snapshot lease for the Etcd.
+func (e *Etcd) GetDeltaSnapshotLeaseName() string {
+	return fmt.Sprintf("%s-delta-snap", e.Name)
+}
 
-// +kubebuilder:object:root=true
-
-// EtcdCopyBackupsTaskList contains a list of EtcdCopyBackupsTask objects.
-type EtcdCopyBackupsTaskList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []EtcdCopyBackupsTask `json:"items"`
+// GetFullSnapshotLeaseName returns the name of the full snapshot lease for the Etcd.
+func (e *Etcd) GetFullSnapshotLeaseName() string {
+	return fmt.Sprintf("%s-full-snap", e.Name)
 }

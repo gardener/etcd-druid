@@ -61,32 +61,6 @@ const (
 	OCS = "OCS"
 )
 
-// GetStoreValues converts the values in the StoreSpec to a map, or returns an error if the storage provider is unsupported.
-func GetStoreValues(ctx context.Context, client client.Client, logger logr.Logger, store *druidv1alpha1.StoreSpec, namespace string) (map[string]interface{}, error) {
-	storageProvider, err := StorageProviderFromInfraProvider(store.Provider)
-	if err != nil {
-		return nil, err
-	}
-	storeValues := map[string]interface{}{
-		"storePrefix":     store.Prefix,
-		"storageProvider": storageProvider,
-	}
-	if strings.EqualFold(string(*store.Provider), Local) {
-		mountPath, err := GetHostMountPathFromSecretRef(ctx, client, logger, store, namespace)
-		if err != nil {
-			return nil, err
-		}
-		storeValues["storageMountPath"] = mountPath
-	}
-	if store.Container != nil {
-		storeValues["storageContainer"] = store.Container
-	}
-	if store.SecretRef != nil {
-		storeValues["storeSecret"] = store.SecretRef.Name
-	}
-	return storeValues, nil
-}
-
 // GetHostMountPathFromSecretRef returns the hostPath configured for the given store.
 func GetHostMountPathFromSecretRef(ctx context.Context, client client.Client, logger logr.Logger, store *druidv1alpha1.StoreSpec, namespace string) (string, error) {
 	if store.SecretRef == nil {

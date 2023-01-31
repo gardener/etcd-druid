@@ -41,7 +41,7 @@ func CheckStatefulSet(etcdReplicas int32, statefulSet *appsv1.StatefulSet) error
 	return nil
 }
 
-// FetchStatefulSet fetches statefulset based on ETCD resource
+// FetchStatefulSets fetches statefulset based on ETCD resource
 func FetchStatefulSets(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSetList, error) {
 	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 	if err != nil {

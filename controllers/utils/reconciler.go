@@ -21,10 +21,8 @@ import (
 
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/gardener/pkg/chartrenderer"
-	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/rest"
 )
 
 const (
@@ -42,18 +40,6 @@ func CreateImageVector() (imagevector.ImageVector, error) {
 		return nil, err
 	}
 	return imageVector, nil
-}
-
-func CreateChartApplier(config *rest.Config) (kubernetes.ChartApplier, error) {
-	renderer, err := chartrenderer.NewForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-	applier, err := kubernetes.NewApplierForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-	return kubernetes.NewChartApplier(renderer, applier), nil
 }
 
 func DecodeObject(renderedChart *chartrenderer.RenderedChart, path string, object interface{}) error {

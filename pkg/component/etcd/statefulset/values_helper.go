@@ -65,7 +65,7 @@ func GenerateValues(
 		EtcdImage:                 etcdImage,
 		BackupImage:               backupImage,
 		PriorityClassName:         etcd.Spec.PriorityClassName,
-		ServiceAccountName:        utils.GetServiceAccountName(etcd),
+		ServiceAccountName:        etcd.GetServiceAccountName(),
 		Affinity:                  etcd.Spec.SchedulingConstraints.Affinity,
 		TopologySpreadConstraints: etcd.Spec.SchedulingConstraints.TopologySpreadConstraints,
 
@@ -74,8 +74,8 @@ func GenerateValues(
 
 		VolumeClaimTemplateName: volumeClaimTemplateName,
 
-		FullSnapLeaseName:  utils.GetFullSnapshotLeaseName(etcd),
-		DeltaSnapLeaseName: utils.GetDeltaSnapshotLeaseName(etcd),
+		FullSnapLeaseName:  etcd.GetFullSnapshotLeaseName(),
+		DeltaSnapLeaseName: etcd.GetDeltaSnapshotLeaseName(),
 
 		StorageCapacity: etcd.Spec.StorageCapacity,
 		StorageClass:    etcd.Spec.StorageClass,
@@ -106,15 +106,15 @@ func GenerateValues(
 
 		MetricsLevel:      etcd.Spec.Etcd.Metrics,
 		Quota:             etcd.Spec.Etcd.Quota,
-		ClientServiceName: utils.GetClientServiceName(etcd),
+		ClientServiceName: etcd.GetClientServiceName(),
 		ClientPort:        clientPort,
-		PeerServiceName:   utils.GetPeerServiceName(etcd),
+		PeerServiceName:   etcd.GetPeerServiceName(),
 		ServerPort:        serverPort,
 		BackupPort:        backupPort,
 
 		AutoCompactionMode:      etcd.Spec.Common.AutoCompactionMode,
 		AutoCompactionRetention: etcd.Spec.Common.AutoCompactionRetention,
-		ConfigMapName:           utils.GetConfigmapName(etcd),
+		ConfigMapName:           etcd.GetConfigmapName(),
 		PeerTLSChangedToEnabled: peerTLSChangedToEnabled,
 	}
 
@@ -226,7 +226,7 @@ func getBackupRestoreCommand(val Values) []string {
 	if val.ClientUrlTLS != nil {
 		command = append(command, "--cert=/var/etcd/ssl/client/client/tls.crt")
 		command = append(command, "--key=/var/etcd/ssl/client/client/tls.key")
-		command = append(command, "--cacert=/var/etcd/ssl/client/ca/"+pointer.StringPtrDerefOr(val.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt"))
+		command = append(command, "--cacert=/var/etcd/ssl/client/ca/"+pointer.StringDeref(val.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt"))
 		command = append(command, "--insecure-transport=false")
 		command = append(command, "--insecure-skip-tls-verify=false")
 		command = append(command, fmt.Sprintf("--endpoints=https://%s-local:%d", val.Name, pointer.Int32Deref(val.ClientPort, defaultClientPort)))
@@ -262,7 +262,7 @@ func getBackupRestoreCommand(val Values) []string {
 	}
 
 	if val.SnapshotCompression != nil {
-		if pointer.BoolPtrDerefOr(val.SnapshotCompression.Enabled, false) {
+		if pointer.BoolDeref(val.SnapshotCompression.Enabled, false) {
 			command = append(command, "--compress-snapshots="+fmt.Sprint(*val.SnapshotCompression.Enabled))
 		}
 		if val.SnapshotCompression.Policy != nil {

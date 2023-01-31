@@ -448,8 +448,8 @@ func getObjectMeta(val *Values, sts *appsv1.StatefulSet) metav1.ObjectMeta {
 			Kind:               "Etcd",
 			Name:               val.Name,
 			UID:                val.EtcdUID,
-			Controller:         pointer.BoolPtr(true),
-			BlockOwnerDeletion: pointer.BoolPtr(true),
+			Controller:         pointer.Bool(true),
+			BlockOwnerDeletion: pointer.Bool(true),
 		},
 	}
 
@@ -596,7 +596,7 @@ func getBackupRestoreVolumeMounts(val Values) []corev1.VolumeMount {
 		if val.BackupStore.Container != nil {
 			vms = append(vms, corev1.VolumeMount{
 				Name:      "host-storage",
-				MountPath: pointer.StringPtrDerefOr(val.BackupStore.Container, ""),
+				MountPath: pointer.StringDeref(val.BackupStore.Container, ""),
 			})
 		}
 	case utils.GCS:
@@ -733,7 +733,7 @@ func getVolumes(ctx context.Context, cl client.Client, logger logr.Logger, val V
 			Name: "host-storage",
 			VolumeSource: corev1.VolumeSource{
 				HostPath: &corev1.HostPathVolumeSource{
-					Path: hostPath + "/" + pointer.StringPtrDerefOr(storeValues.Container, ""),
+					Path: hostPath + "/" + pointer.StringDeref(storeValues.Container, ""),
 					Type: &hpt,
 				},
 			},

@@ -103,7 +103,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Get full and delta snapshot lease to check the HolderIdentity value to take decision on compaction job
 	fullLease := &coordinationv1.Lease{}
 
-	if err := r.Get(ctx, kutil.Key(etcd.Namespace, utils.GetFullSnapshotLeaseName(etcd)), fullLease); err != nil {
+	if err := r.Get(ctx, kutil.Key(etcd.Namespace, etcd.GetFullSnapshotLeaseName()), fullLease); err != nil {
 		logger.Info("Couldn't fetch full snap lease because: " + err.Error())
 
 		return ctrl.Result{
@@ -112,7 +112,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	deltaLease := &coordinationv1.Lease{}
-	if err := r.Get(ctx, kutil.Key(etcd.Namespace, utils.GetDeltaSnapshotLeaseName(etcd)), deltaLease); err != nil {
+	if err := r.Get(ctx, kutil.Key(etcd.Namespace, etcd.GetDeltaSnapshotLeaseName()), deltaLease); err != nil {
 		logger.Info("Couldn't fetch delta snap lease because: " + err.Error())
 
 		return ctrl.Result{
@@ -157,7 +157,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 	// First check if a job is already running
 	job := &batchv1.Job{}
-	err := r.Get(ctx, types.NamespacedName{Name: utils.GetJobName(etcd), Namespace: etcd.Namespace}, job)
+	err := r.Get(ctx, types.NamespacedName{Name: etcd.GetCompactionJobName(), Namespace: etcd.Namespace}, job)
 
 	if err != nil {
 		if !errors.IsNotFound(err) {
@@ -168,7 +168,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 		if r.config.EnableBackupCompaction {
 			// Required job doesn't exist. Create new
-			job, err = r.createCompactJob(ctx, logger, etcd)
+			job, err = r.createCompactionJob(ctx, logger, etcd)
 			logger.Info("Job Creation")
 			if err != nil {
 				return ctrl.Result{
@@ -212,7 +212,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	job := &batchv1.Job{}
-	err := r.Get(ctx, types.NamespacedName{Name: utils.GetJobName(etcd), Namespace: etcd.Namespace}, job)
+	err := r.Get(ctx, types.NamespacedName{Name: etcd.GetCompactionJobName(), Namespace: etcd.Namespace}, job)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, fmt.Errorf("error while fetching compaction job: %v", err)
@@ -235,7 +235,7 @@ func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druid
 	}, nil
 }
 
-func (r *Reconciler) createCompactJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*batchv1.Job, error) {
+func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*batchv1.Job, error) {
 	activeDeadlineSeconds := r.config.ActiveDeadlineDuration.Seconds()
 
 	_, etcdBackupImage, err := utils.GetEtcdImages(etcd, r.ImageVector)
@@ -245,14 +245,14 @@ func (r *Reconciler) createCompactJob(ctx context.Context, logger logr.Logger, e
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      utils.GetJobName(etcd),
+			Name:      etcd.GetCompactionJobName(),
 			Namespace: etcd.Namespace,
 			Labels:    getLabels(etcd),
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         "druid.gardener.cloud/v1alpha1",
-					BlockOwnerDeletion: pointer.BoolPtr(true),
-					Controller:         pointer.BoolPtr(true),
+					BlockOwnerDeletion: pointer.Bool(true),
+					Controller:         pointer.Bool(true),
 					Kind:               "Etcd",
 					Name:               etcd.Name,
 					UID:                etcd.UID,
@@ -261,17 +261,17 @@ func (r *Reconciler) createCompactJob(ctx context.Context, logger logr.Logger, e
 		},
 
 		Spec: batchv1.JobSpec{
-			ActiveDeadlineSeconds: pointer.Int64Ptr(int64(activeDeadlineSeconds)),
-			Completions:           pointer.Int32Ptr(1),
-			BackoffLimit:          pointer.Int32Ptr(0),
+			ActiveDeadlineSeconds: pointer.Int64(int64(activeDeadlineSeconds)),
+			Completions:           pointer.Int32(1),
+			BackoffLimit:          pointer.Int32(0),
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: etcd.Spec.Annotations,
 					Labels:      getLabels(etcd),
 				},
 				Spec: v1.PodSpec{
-					ActiveDeadlineSeconds: pointer.Int64Ptr(int64(activeDeadlineSeconds)),
-					ServiceAccountName:    utils.GetServiceAccountName(etcd),
+					ActiveDeadlineSeconds: pointer.Int64(int64(activeDeadlineSeconds)),
+					ServiceAccountName:    etcd.GetServiceAccountName(),
 					RestartPolicy:         v1.RestartPolicyNever,
 					Containers: []v1.Container{{
 						Name:            "compact-backup",
@@ -466,8 +466,8 @@ func getCompactionJobCommands(etcd *druidv1alpha1.Etcd) []string {
 	command = append(command, "--data-dir=/var/etcd/data")
 	command = append(command, "--snapstore-temp-directory=/var/etcd/data/tmp")
 	command = append(command, "--enable-snapshot-lease-renewal=true")
-	command = append(command, "--full-snapshot-lease-name="+utils.GetFullSnapshotLeaseName(etcd))
-	command = append(command, "--delta-snapshot-lease-name="+utils.GetDeltaSnapshotLeaseName(etcd))
+	command = append(command, "--full-snapshot-lease-name="+etcd.GetFullSnapshotLeaseName())
+	command = append(command, "--delta-snapshot-lease-name="+etcd.GetDeltaSnapshotLeaseName())
 
 	var quota int64 = DefaultETCDQuota
 	if etcd.Spec.Etcd.Quota != nil {
