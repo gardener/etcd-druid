@@ -50,12 +50,12 @@ type EtcdMemberConfig struct {
 }
 
 func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
-	fs.IntVar(&cfg.Workers, custodianWorkersFlagName, cfg.Workers,
+	fs.IntVar(&cfg.Workers, custodianWorkersFlagName, defaultCustodianWorkers,
 		"Number of worker threads for the custodian controller.")
-	fs.DurationVar(&cfg.SyncPeriod, custodianSyncPeriodFlagName, cfg.SyncPeriod,
+	fs.DurationVar(&cfg.SyncPeriod, custodianSyncPeriodFlagName, defaultCustodianSyncPeriod,
 		"Sync period of the custodian controller.")
-	fs.DurationVar(&cfg.EtcdMember.NotReadyThreshold, etcdMemberNotReadyThresholdFlagName, cfg.EtcdMember.NotReadyThreshold,
+	fs.DurationVar(&cfg.EtcdMember.NotReadyThreshold, etcdMemberNotReadyThresholdFlagName, defaultEtcdMemberNotReadyThreshold,
 		"Threshold after which an etcd member is considered not ready if the status was unknown before.")
-	fs.DurationVar(&cfg.EtcdMember.UnknownThreshold, etcdMemberUnknownThresholdFlagName, cfg.EtcdMember.UnknownThreshold,
+	fs.DurationVar(&cfg.EtcdMember.UnknownThreshold, etcdMemberUnknownThresholdFlagName, defaultEtcdMemberUnknownThreshold,
 		"Threshold after which an etcd member is considered unknown.")
 }
