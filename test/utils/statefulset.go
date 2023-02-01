@@ -19,14 +19,17 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func StatefulsetIsCorrectlyReconciled(ctx context.Context, c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.StatefulSet) error {
+func StatefulSetIsCorrectlyReconciled(ctx context.Context, c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.StatefulSet) error {
 	req := types.NamespacedName{
 		Name:      instance.Name,
 		Namespace: instance.Namespace,
@@ -41,7 +44,8 @@ func StatefulsetIsCorrectlyReconciled(ctx context.Context, c client.Client, inst
 	return nil
 }
 
-func StatefulSetRemoved(ctx context.Context, c client.Client, ss *appsv1.StatefulSet) error {
+// IsStatefulSetRemoved checks if a given StatefulSet has been removed.
+func IsStatefulSetRemoved(ctx context.Context, c client.Client, ss *appsv1.StatefulSet) (bool, error) {
 	sts := &appsv1.StatefulSet{}
 	req := types.NamespacedName{
 		Name:      ss.Name,
@@ -51,13 +55,15 @@ func StatefulSetRemoved(ctx context.Context, c client.Client, ss *appsv1.Statefu
 		if apierrors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
 			// For additional cleanup logic use finalizers
-			return nil
+			return true, nil
 		}
-		return err
+		return false, err
 	}
-	return fmt.Errorf("statefulset not removed")
+	return false, nil
 }
 
+// SetStatefulSetReady updates the status sub-resource of the passed in StatefulSet with ObservedGeneration, Replicas and ReadyReplicas
+// ensuring that the StatefulSet ready check will succeed.
 func SetStatefulSetReady(s *appsv1.StatefulSet) {
 	s.Status.ObservedGeneration = s.Generation
 
@@ -67,4 +73,61 @@ func SetStatefulSetReady(s *appsv1.StatefulSet) {
 	}
 	s.Status.Replicas = replicas
 	s.Status.ReadyReplicas = replicas
+}
+
+// CreateStatefulSet creates a statefulset with its owner reference set to etcd.
+func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32) *appsv1.StatefulSet {
+	return &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels: map[string]string{
+				"name":                "etcd",
+				"instance":            name,
+				"gardener.cloud/role": "controleplane",
+				"app":                 "etcd-statefulset",
+			},
+			Annotations: nil,
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion:         "druid.gardener.cloud/v1alpha1",
+				Kind:               "Etcd",
+				Name:               name,
+				UID:                etcdUID,
+				Controller:         pointer.Bool(true),
+				BlockOwnerDeletion: pointer.Bool(true),
+			}},
+			Finalizers:    nil,
+			ManagedFields: nil,
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas: pointer.Int32(replicas),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"instance": name,
+					"name":     "etcd",
+				},
+			},
+			Template: corev1.PodTemplateSpec{},
+			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: name,
+					},
+					Spec: corev1.PersistentVolumeClaimSpec{
+						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+						Selector:    nil,
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("25Gi")},
+						},
+						StorageClassName: pointer.String("gardener.cloud-fast"),
+					},
+				},
+			},
+			ServiceName:         fmt.Sprintf("%s-peer", name),
+			PodManagementPolicy: appsv1.ParallelPodManagement,
+			UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
+				Type: appsv1.RollingUpdateStatefulSetStrategyType,
+			},
+		},
+	}
 }

@@ -154,14 +154,14 @@ var _ = Describe("Druid", func() {
 
 			testutils.SetStatefulSetReady(sts)
 			err = k8sClient.Status().Update(context.TODO(), sts)
-			Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.StatefulSetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 			Expect(err).NotTo(HaveOccurred())
 			Eventually(func() (*int32, error) {
 				if err := k8sClient.Get(context.TODO(), client.ObjectKeyFromObject(instance), instance); err != nil {
 					return nil, err
 				}
 				return instance.Status.ClusterSize, nil
-			}, timeout, pollingInterval).Should(Equal(pointer.Int32Ptr(instance.Spec.Replicas)))
+			}, timeout, pollingInterval).Should(Equal(pointer.Int32(instance.Spec.Replicas)))
 		})
 		It("should create and adopt statefulset and printing events", func() {
 			// Check StatefulSet requirements
@@ -278,7 +278,7 @@ var _ = Describe("Druid", func() {
 					return nil
 				}, timeout, pollingInterval).Should(Succeed())
 
-				Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+				Eventually(func() error { return testutils.StatefulSetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 
 				// Check if ETCD has ready replicas more than zero
 				Eventually(func() error {
@@ -375,7 +375,7 @@ var _ = Describe("Druid", func() {
 			err = k8sClient.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
 			s = &appsv1.StatefulSet{}
-			Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, k8sClient, instance, s) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.StatefulSetIsCorrectlyReconciled(ctx, k8sClient, instance, s) }, timeout, pollingInterval).Should(BeNil())
 			cm = &corev1.ConfigMap{}
 			Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(k8sClient, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
 			clSvc = &corev1.Service{}
@@ -468,7 +468,7 @@ var _ = Describe("Multinode ETCD", func() {
 			Expect(k8sClient.Patch(ctx, instance, patch)).To(Succeed())
 
 			By("statefulsets are created when ETCD replicas are odd number")
-			Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.StatefulSetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 			Expect(int(*sts.Spec.Replicas)).To(Equal(3))
 
 			By("client Service has been created by controller")
@@ -550,7 +550,7 @@ var _ = Describe("Multinode ETCD", func() {
 		err = k8sClient.Create(context.TODO(), instance)
 		Expect(err).NotTo(HaveOccurred())
 		sts = &appsv1.StatefulSet{}
-		Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+		Eventually(func() error { return testutils.StatefulSetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 		cm = &corev1.ConfigMap{}
 		Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(k8sClient, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
 		svc = &corev1.Service{}

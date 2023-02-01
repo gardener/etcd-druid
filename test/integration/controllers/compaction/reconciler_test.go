@@ -70,7 +70,7 @@ var _ = Describe("Lease Controller", func() {
 			err = k8sClient.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
 			s = &appsv1.StatefulSet{}
-			Eventually(func() error { return testutils.StatefulsetIsCorrectlyReconciled(ctx, k8sClient, instance, s) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return testutils.StatefulSetIsCorrectlyReconciled(ctx, k8sClient, instance, s) }, timeout, pollingInterval).Should(BeNil())
 			cm = &corev1.ConfigMap{}
 			Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(k8sClient, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
 			svc = &corev1.Service{}
@@ -82,7 +82,9 @@ var _ = Describe("Lease Controller", func() {
 			defer cancel()
 
 			Expect(k8sClient.Delete(context.TODO(), instance)).To(Succeed())
-			Eventually(func() error { return testutils.StatefulSetRemoved(ctx, k8sClient, s) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() (bool, error) {
+				return testutils.IsStatefulSetRemoved(ctx, k8sClient, s)
+			}, timeout, pollingInterval).Should(Equal(true))
 			Eventually(func() error { return testutils.IsEtcdRemoved(k8sClient, timeout, instance) }, timeout, pollingInterval).Should(BeNil())
 		})
 	})

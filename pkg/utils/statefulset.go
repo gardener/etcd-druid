@@ -19,42 +19,42 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// CheckStatefulSet checks whether the given StatefulSet is healthy.
+// IsStatefulSetReady checks whether the given StatefulSet is ready and up-to-date.
 // A StatefulSet is considered healthy if its controller observed its current revision,
 // it is not in an update (i.e. UpdateRevision is empty) and if its current replicas are equal to
 // desired replicas specified in ETCD specs.
-func CheckStatefulSet(etcdReplicas int32, statefulSet *appsv1.StatefulSet) error {
+// It returns ready status (bool) and in case it is not ready then the second return value holds the reason.
+func IsStatefulSetReady(etcdReplicas int32, statefulSet *appsv1.StatefulSet) (bool, string) {
 	if statefulSet.Status.ObservedGeneration < statefulSet.Generation {
-		return fmt.Errorf("observed generation outdated (%d/%d)", statefulSet.Status.ObservedGeneration, statefulSet.Generation)
+		return false, fmt.Sprintf("observed generation outdated (%d/%d)", statefulSet.Status.ObservedGeneration, statefulSet.Generation)
 	}
-
 	if statefulSet.Status.ReadyReplicas < etcdReplicas {
-		return fmt.Errorf("not enough ready replicas (%d/%d)", statefulSet.Status.ReadyReplicas, etcdReplicas)
+		return false, fmt.Sprintf("not enough ready replicas (%d/%d)", statefulSet.Status.ReadyReplicas, etcdReplicas)
 	}
-
-	return nil
+	return true, ""
 }
 
-// FetchStatefulSets fetches statefulset based on ETCD resource
-func FetchStatefulSets(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSetList, error) {
+// GetStatefulSet fetches StatefulSet created for the etcd.
+func GetStatefulSet(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSet, error) {
 	selector, err := metav1.LabelSelectorAsSelector(etcd.Spec.Selector)
 	if err != nil {
 		return nil, err
 	}
-
-	// list all statefulsets to include the statefulsets that don't match the etcd`s selector
-	// anymore but has the stale controller ref.
 	statefulSets := &appsv1.StatefulSetList{}
-	err = cl.List(ctx, statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector})
-	if err != nil {
+	if err = cl.List(ctx, statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
 		return nil, err
 	}
 
-	return statefulSets, err
+	for _, sts := range statefulSets.Items {
+		if metav1.IsControlledBy(&sts, etcd) {
+			return &sts, nil
+		}
+	}
+
+	return nil, err
 }

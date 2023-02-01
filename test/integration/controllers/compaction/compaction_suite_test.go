@@ -22,6 +22,7 @@ import (
 
 	"github.com/gardener/etcd-druid/controllers/compaction"
 	"github.com/gardener/etcd-druid/test/utils"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -34,6 +35,7 @@ import (
 
 var (
 	testEnv    *envtest.Environment
+	mgr        manager.Manager
 	mgrCtx     context.Context
 	mgrCancel  context.CancelFunc
 	mgrStopped *sync.WaitGroup

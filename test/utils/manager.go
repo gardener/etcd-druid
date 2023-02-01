@@ -32,7 +32,6 @@ import (
 )
 
 var (
-	defaultTimeout    = 20 * time.Second
 	crdDirectoryPaths = []string{
 		filepath.Join("..", "..", "config", "crd", "bases"),
 	}

@@ -125,8 +125,9 @@ func (c *component) waitDeploy(ctx context.Context, sts *appsv1.StatefulSet, rep
 			}
 			return gardenerretry.SevereError(err)
 		}
-		if err := utils.CheckStatefulSet(replicas, sts); err != nil {
-			return gardenerretry.MinorError(err)
+		ready, reason := utils.IsStatefulSetReady(replicas, sts)
+		if !ready {
+			return gardenerretry.MinorError(fmt.Errorf(reason))
 		}
 		return gardenerretry.Ok()
 	})

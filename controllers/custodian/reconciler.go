@@ -88,23 +88,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	stsList, err := utils.FetchStatefulSets(ctx, r.Client, etcd)
+	sts, err := utils.GetStatefulSet(ctx, r.Client, etcd)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	// Requeue if we found more than one or no StatefulSet.
-	// The Etcd controller needs to decide what to do in such situations.
-	if len(stsList.Items) != 1 {
+	if sts == nil {
 		if err := r.updateEtcdStatus(ctx, logger, etcd, nil); err != nil {
-			logger.Error(err, "Error while updating ETCD status when no statefulset found")
+			logger.Error(err, "Error while updating ETCD status when no StatefulSet found")
 		}
 		return ctrl.Result{
 			RequeueAfter: 5 * time.Second,
 		}, nil
+
 	}
 
-	if err := r.updateEtcdStatus(ctx, logger, etcd, &stsList.Items[0]); err != nil {
+	if err := r.updateEtcdStatus(ctx, logger, etcd, sts); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -116,7 +115,7 @@ func (r *Reconciler) updateEtcdStatus(ctx context.Context, logger logr.Logger, e
 
 	// Bootstrap is a special case which is handled by the etcd controller.
 	if !inBootstrap(etcd) && len(etcd.Status.Members) != 0 {
-		etcd.Status.ClusterSize = pointer.Int32Ptr(int32(len(etcd.Status.Members)))
+		etcd.Status.ClusterSize = pointer.Int32(int32(len(etcd.Status.Members)))
 	}
 
 	if sts != nil {
@@ -126,7 +125,7 @@ func (r *Reconciler) updateEtcdStatus(ctx context.Context, logger logr.Logger, e
 			Name:       sts.Name,
 		}
 
-		ready := utils.CheckStatefulSet(etcd.Spec.Replicas, sts) == nil
+		ready, _ := utils.IsStatefulSetReady(etcd.Spec.Replicas, sts)
 
 		// To be changed once we have multiple replicas.
 		etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
@@ -139,7 +138,7 @@ func (r *Reconciler) updateEtcdStatus(ctx context.Context, logger logr.Logger, e
 		etcd.Status.ReadyReplicas = 0
 		etcd.Status.UpdatedReplicas = 0
 
-		etcd.Status.Ready = pointer.BoolPtr(false)
+		etcd.Status.Ready = pointer.Bool(false)
 	}
 
 	return r.Client.Status().Update(ctx, etcd)
