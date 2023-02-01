@@ -18,12 +18,12 @@ import (
 	"fmt"
 	"time"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
 	"k8s.io/utils/pointer"
+
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 )
 
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
@@ -313,11 +313,6 @@ func SetDefaults_ControllerInstallationRequiredControllerConfiguration(obj *Cont
 
 // SetDefaults_SeedControllerConfiguration sets defaults for the seed controller.
 func SetDefaults_SeedControllerConfiguration(obj *SeedControllerConfiguration) {
-	if obj.ConcurrentSyncs == nil {
-		v := DefaultControllerConcurrentSyncs
-		obj.ConcurrentSyncs = &v
-	}
-
 	if obj.SyncPeriod == nil {
 		v := DefaultControllerSyncPeriod
 		obj.SyncPeriod = &v
@@ -329,6 +324,14 @@ func SetDefaults_SeedControllerConfiguration(obj *SeedControllerConfiguration) {
 
 	if obj.LeaseResyncMissThreshold == nil {
 		obj.LeaseResyncMissThreshold = pointer.Int32(10)
+	}
+}
+
+// SetDefaults_SeedCareControllerConfiguration sets defaults for the seed care controller.
+func SetDefaults_SeedCareControllerConfiguration(obj *SeedCareControllerConfiguration) {
+	if obj.SyncPeriod == nil {
+		v := metav1.Duration{Duration: 30 * time.Second}
+		obj.SyncPeriod = &v
 	}
 }
 
@@ -382,14 +385,6 @@ func SetDefaults_ShootCareControllerConfiguration(obj *ShootCareControllerConfig
 	}
 }
 
-// SetDefaults_SeedCareControllerConfiguration sets defaults for the seed care controller.
-func SetDefaults_SeedCareControllerConfiguration(obj *SeedCareControllerConfiguration) {
-	if obj.SyncPeriod == nil {
-		v := metav1.Duration{Duration: 30 * time.Second}
-		obj.SyncPeriod = &v
-	}
-}
-
 // SetDefaults_ShootMigrationControllerConfiguration sets defaults for the shoot migration controller.
 func SetDefaults_ShootMigrationControllerConfiguration(obj *ShootMigrationControllerConfiguration) {
 	if obj.ConcurrentSyncs == nil {
@@ -435,11 +430,6 @@ func SetDefaults_ShootStateSyncControllerConfiguration(obj *ShootStateSyncContro
 		// For one seed that is already 1 * 10 extension resources = 10 workers.
 		v := 1
 		obj.ConcurrentSyncs = &v
-	}
-
-	if obj.SyncPeriod == nil {
-		v := metav1.Duration{Duration: time.Minute}
-		obj.SyncPeriod = &v
 	}
 }
 

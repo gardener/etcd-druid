@@ -174,6 +174,10 @@ type SeedNetworks struct {
 	// BlockCIDRs is a list of network addresses that should be blocked for shoot control plane components running
 	// in the seed cluster.
 	BlockCIDRs []string
+	// IPFamilies specifies the IP protocol versions to use for seed networking. This field is immutable.
+	// See https://github.com/gardener/gardener/blob/master/docs/usage/ipv6.md.
+	// Defaults to ["IPv4"].
+	IPFamilies []IPFamily
 }
 
 // ShootNetworks contains the default networks CIDRs for shoots.
@@ -184,7 +188,7 @@ type ShootNetworks struct {
 	Services *string
 }
 
-// SeedProvider defines the provider type and region for this Seed cluster.
+// SeedProvider defines the provider-specific information of this Seed cluster.
 type SeedProvider struct {
 	// Type is the name of the provider.
 	Type string
@@ -192,6 +196,8 @@ type SeedProvider struct {
 	ProviderConfig *runtime.RawExtension
 	// Region is a name of a region.
 	Region string
+	// Zones is the list of availability zones the seed cluster is deployed to.
+	Zones []string
 }
 
 // SeedSettings contains certain settings for this seed cluster.
@@ -202,6 +208,7 @@ type SeedSettings struct {
 	Scheduling *SeedSettingScheduling
 	// ShootDNS controls the shoot DNS settings for the seed.
 	// Deprecated: This field is deprecated and will be removed in a future version of Gardener. Do not use it.
+	// TODO(acumino) : Remove this field in gardener@v1.64
 	ShootDNS *SeedSettingShootDNS
 	// LoadBalancerServices controls certain settings for services of type load balancer that are created in the seed.
 	LoadBalancerServices *SeedSettingLoadBalancerServices
@@ -240,6 +247,26 @@ type SeedSettingScheduling struct {
 type SeedSettingLoadBalancerServices struct {
 	// Annotations is a map of annotations that will be injected/merged into every load balancer service object.
 	Annotations map[string]string
+	// ExternalTrafficPolicy describes how nodes distribute service traffic they
+	// receive on one of the service's "externally-facing" addresses.
+	// Defaults to "Cluster".
+	ExternalTrafficPolicy *corev1.ServiceExternalTrafficPolicyType
+	// Zones controls settings, which are specific to the single-zone load balancers in a multi-zonal setup.
+	// Can be empty for single-zone seeds. Each specified zone has to relate to one of the zones in seed.spec.provider.zones.
+	Zones []SeedSettingLoadBalancerServicesZones
+}
+
+// SeedSettingLoadBalancerServicesZones controls settings, which are specific to the single-zone load balancers in a
+// multi-zonal setup.
+type SeedSettingLoadBalancerServicesZones struct {
+	// Name is the name of the zone as specified in seed.spec.provider.zones.
+	Name string
+	// Annotations is a map of annotations that will be injected/merged into the zone-specific load balancer service object.
+	Annotations map[string]string
+	// ExternalTrafficPolicy describes how nodes distribute service traffic they
+	// receive on one of the service's "externally-facing" addresses.
+	// Defaults to "Cluster".
+	ExternalTrafficPolicy *corev1.ServiceExternalTrafficPolicyType
 }
 
 // SeedSettingVerticalPodAutoscaler controls certain settings for the vertical pod autoscaler components deployed in the

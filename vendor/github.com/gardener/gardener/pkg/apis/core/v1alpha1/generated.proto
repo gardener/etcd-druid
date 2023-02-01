@@ -233,6 +233,31 @@ message BackupEntryStatus {
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Time migrationStartTime = 5;
 }
 
+// CARotation contains information about the certificate authority credential rotation.
+message CARotation {
+  // Phase describes the phase of the certificate authority credential rotation.
+  optional string phase = 1;
+
+  // LastCompletionTime is the most recent time when the certificate authority credential rotation was successfully
+  // completed.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastCompletionTime = 2;
+
+  // LastInitiationTime is the most recent time when the certificate authority credential rotation was initiated.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastInitiationTime = 3;
+
+  // LastInitiationFinishedTime is the recent time when the certificate authority credential rotation initiation was
+  // completed.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastInitiationFinishedTime = 4;
+
+  // LastCompletionTriggeredTime is the recent time when the certificate authority credential rotation completion was
+  // triggered.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastCompletionTriggeredTime = 5;
+}
+
 // CRI contains information about the Container Runtimes.
 message CRI {
   // The name of the CRI library. Supported values are `docker` and `containerd`.
@@ -529,10 +554,12 @@ message ControllerResource {
   optional string type = 2;
 
   // GloballyEnabled determines if this ControllerResource is required by all Shoot clusters.
+  // This field is defaulted to false when kind is "Extension".
   // +optional
   optional bool globallyEnabled = 3;
 
   // ReconcileTimeout defines how long Gardener should wait for the resource reconciliation.
+  // This field is defaulted to 3m0s when kind is "Extension".
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Duration reconcileTimeout = 4;
 
@@ -541,6 +568,29 @@ message ControllerResource {
   // combination. This field is immutable.
   // +optional
   optional bool primary = 5;
+
+  // Lifecycle defines a strategy that determines when different operations on a ControllerResource should be performed.
+  // This field is defaulted in the following way when kind is "Extension".
+  //  Reconcile: "AfterKubeAPIServer"
+  //  Delete: "BeforeKubeAPIServer"
+  //  Migrate: "BeforeKubeAPIServer"
+  // +optional
+  optional ControllerResourceLifecycle lifecycle = 6;
+}
+
+// ControllerResourceLifecycle defines the lifecycle of a controller resource.
+message ControllerResourceLifecycle {
+  // Reconcile defines the strategy during reconciliation.
+  // +optional
+  optional string reconcile = 1;
+
+  // Delete defines the strategy during deletion.
+  // +optional
+  optional string delete = 2;
+
+  // Migrate defines the strategy during migration.
+  // +optional
+  optional string migrate = 3;
 }
 
 // CoreDNS contains the settings of the Core DNS components running in the data plane of the Shoot cluster.
@@ -870,6 +920,8 @@ message KubeAPIServerConfig {
 
   // EnableBasicAuthentication defines whether basic authentication should be enabled for this cluster or not.
   // +optional
+  // Defaults to false.
+  // Deprecated: basic authentication has been removed in Kubernetes v1.19+. This field will be removed in a future version.
   optional bool enableBasicAuthentication = 5;
 
   // OIDCConfig contains configuration settings for the OIDC provider.
@@ -909,6 +961,36 @@ message KubeAPIServerConfig {
   // Defaults to 1h.
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Duration eventTTL = 12;
+
+  // Logging contains configuration for the log level and HTTP access logs.
+  // +optional
+  optional KubeAPIServerLogging logging = 13;
+
+  // DefaultNotReadyTolerationSeconds indicates the tolerationSeconds of the toleration for notReady:NoExecute
+  // that is added by default to every pod that does not already have such a toleration (flag `--default-not-ready-toleration-seconds`).
+  // The field has effect only when the `DefaultTolerationSeconds` admission plugin is enabled.
+  // Defaults to 300.
+  // +optional
+  optional int64 defaultNotReadyTolerationSeconds = 14;
+
+  // DefaultUnreachableTolerationSeconds indicates the tolerationSeconds of the toleration for unreachable:NoExecute
+  // that is added by default to every pod that does not already have such a toleration (flag `--default-unreachable-toleration-seconds`).
+  // The field has effect only when the `DefaultTolerationSeconds` admission plugin is enabled.
+  // Defaults to 300.
+  // +optional
+  optional int64 defaultUnreachableTolerationSeconds = 15;
+}
+
+// KubeAPIServerLogging contains configuration for the logs level and http access logs
+message KubeAPIServerLogging {
+  // Verbosity is the kube-apiserver log verbosity level
+  // Defaults to 2.
+  // +optional
+  optional int32 verbosity = 1;
+
+  // HTTPAccessVerbosity is the kube-apiserver access logs level
+  // +optional
+  optional int32 httpAccessVerbosity = 2;
 }
 
 // KubeAPIServerRequests contains configuration for request-specific settings for the kube-apiserver.
@@ -937,6 +1019,13 @@ message KubeControllerManagerConfig {
   optional int32 nodeCIDRMaskSize = 3;
 
   // PodEvictionTimeout defines the grace period for deleting pods on failed nodes. Defaults to 2m.
+  //
+  // Deprecated: The corresponding kube-controller-manager flag `--pod-eviction-timeout` is deprecated
+  // in favor of the kube-apiserver flags `--default-not-ready-toleration-seconds` and `--default-unreachable-toleration-seconds`.
+  // The `--pod-eviction-timeout` flag does not have effect when the taint besed eviction is enabled. The taint
+  // based eviction is beta (enabled by default) since Kubernetes 1.13 and GA since Kubernetes 1.18. Hence,
+  // instead of setting this field, set the `spec.kubernetes.kubeAPIServer.defaultNotReadyTolerationSeconds` and
+  // `spec.kubernetes.kubeAPIServer.defaultUnreachableTolerationSeconds`.
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Duration podEvictionTimeout = 4;
 
@@ -1091,6 +1180,34 @@ message KubeletConfig {
   // Default: 10
   // +optional
   optional int32 registryBurst = 20;
+
+  // SeccompDefault enables the use of `RuntimeDefault` as the default seccomp profile for all workloads.
+  // This requires the corresponding SeccompDefault feature gate to be enabled as well.
+  // This field is only available for Kubernetes v1.25 or later.
+  // +optional
+  optional bool seccompDefault = 21;
+
+  // ContainerLogMaxSize defines the maximum size of the container log file before it is rotated. For example: "5Mi" or "256Ki".
+  // Default: 100Mi
+  // +optional
+  optional k8s.io.apimachinery.pkg.api.resource.Quantity containerLogMaxSize = 22;
+
+  // ContainerLogMaxFiles is the maximum number of container log files that can be present for a container.
+  // +optional
+  optional int32 containerLogMaxFiles = 23;
+
+  // ProtectKernelDefaults ensures that the kernel tunables are equal to the kubelet defaults.
+  // Defaults to true for Kubernetes v1.26 or later.
+  // +optional
+  optional bool protectKernelDefaults = 24;
+
+  // StreamingConnectionIdleTimeout is the maximum time a streaming connection can be idle before the connection is automatically closed.
+  // This field cannot be set lower than "30s" or greater than "4h".
+  // Default:
+  //  "4h" for Kubernetes < v1.26.
+  //  "5m" for Kubernetes >= v1.26.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Duration streamingConnectionIdleTimeout = 25;
 }
 
 // KubeletConfigEviction contains kubelet eviction thresholds supporting either a resource.Quantity or a percentage based value.
@@ -1219,8 +1336,9 @@ message Kubernetes {
   // +optional
   optional VerticalPodAutoscaler verticalPodAutoscaler = 9;
 
-  // EnableStaticTokenKubeconfig indicates whether static token kubeconfig secret should be present in garden cluster
-  // (default: true).
+  // EnableStaticTokenKubeconfig indicates whether static token kubeconfig secret will be created for the Shoot cluster.
+  // Defaults to true for Shoots with Kubernetes versions < 1.26. Defaults to false for Shoots with Kubernetes versions >= 1.26.
+  // Starting Kubernetes 1.27 the field will be locked to false.
   // +optional
   optional bool enableStaticTokenKubeconfig = 10;
 }
@@ -1268,6 +1386,22 @@ message LastError {
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastUpdateTime = 4;
 }
 
+// LastMaintenance holds information about a maintenance operation on the Shoot.
+message LastMaintenance {
+  // A human-readable message containing details about the operations performed in the last maintenance.
+  optional string description = 1;
+
+  // TriggeredTime is the time when maintenance was triggered.
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time triggeredTime = 2;
+
+  // Status of the last maintenance operation, one of Processing, Succeeded, Error.
+  optional string state = 3;
+
+  // FailureReason holds the information about the last maintenance operation failure reason.
+  // +optional
+  optional string failureReason = 4;
+}
+
 // LastOperation indicates the type and the state of the last operation, along with a description
 // message and a progress indicator.
 message LastOperation {
@@ -1283,7 +1417,7 @@ message LastOperation {
   // Status of the last operation, one of Aborted, Processing, Succeeded, Error, Failed.
   optional string state = 4;
 
-  // Type of the last operation, one of Create, Reconcile, Delete.
+  // Type of the last operation, one of Create, Reconcile, Delete, Migrate, Restore.
   optional string type = 5;
 }
 
@@ -1347,6 +1481,14 @@ message MachineImageVersion {
   // Architectures is the list of CPU architectures of the machine image in this version.
   // +optional
   repeated string architectures = 3;
+
+  // KubeletVersionConstraint is a constraint describing the supported kubelet versions by the machine image in this version.
+  // If the field is not specified, it is assumed that the machine image in this version supports all kubelet versions.
+  // Examples:
+  // - '>= 1.26' - supports only kubelet versions greater than or equal to 1.26
+  // - '< 1.26' - supports only kubelet versions less than 1.26
+  // +optional
+  optional string kubeletVersionConstraint = 4;
 }
 
 // MachineType contains certain properties of a machine type.
@@ -1468,6 +1610,12 @@ message Networking {
   // Services is the CIDR of the service network. This field is immutable.
   // +optional
   optional string services = 5;
+
+  // IPFamilies specifies the IP protocol versions to use for shoot networking. This field is immutable.
+  // See https://github.com/gardener/gardener/blob/master/docs/usage/ipv6.md.
+  // Defaults to ["IPv4"].
+  // +optional
+  repeated string ipFamilies = 6;
 }
 
 // NginxIngress describes configuration values for the nginx-ingress addon.
@@ -1503,6 +1651,11 @@ message NodeLocalDNS {
   // Default, if unspecified, is to enforce TCP.
   // +optional
   optional bool forceTCPToUpstreamDNS = 3;
+
+  // DisableForwardToUpstreamDNS indicates whether requests from node local DNS to upstream DNS should be disabled.
+  // Default, if unspecified, is to forward requests for external domains to upstream DNS
+  // +optional
+  optional bool disableForwardToUpstreamDNS = 4;
 }
 
 // OIDCConfig contains configuration settings for the OIDC provider.
@@ -1702,6 +1855,10 @@ message Provider {
   // +patchMergeKey=name
   // +patchStrategy=merge
   repeated Worker workers = 4;
+
+  // WorkersSettings contains settings for all workers.
+  // +optional
+  optional WorkersSettings workersSettings = 5;
 }
 
 // Quota represents a quota on resources consumed by shoot clusters either per project or per provider secret.
@@ -1777,6 +1934,13 @@ message ResourceWatchCacheSize {
 
   // CacheSize specifies the watch cache size that should be configured for the specified resource.
   optional int32 size = 3;
+}
+
+// SSHAccess contains settings regarding ssh access to the worker nodes.
+message SSHAccess {
+  // Enabled indicates whether the SSH access to the worker nodes is ensured to be enabled or disabled in systemd.
+  // Defaults to true.
+  optional bool enabled = 1;
 }
 
 // SecretBinding represents a binding to a secret in the same or another namespace.
@@ -1905,9 +2069,15 @@ message SeedNetworks {
   // ShootDefaults contains the default networks CIDRs for shoots.
   // +optional
   optional ShootNetworks shootDefaults = 4;
+
+  // IPFamilies specifies the IP protocol versions to use for seed networking. This field is immutable.
+  // See https://github.com/gardener/gardener/blob/master/docs/usage/ipv6.md.
+  // Defaults to ["IPv4"].
+  // +optional
+  repeated string ipFamilies = 5;
 }
 
-// SeedProvider defines the provider type and region for this Seed cluster.
+// SeedProvider defines the provider-specific information of this Seed cluster.
 message SeedProvider {
   // Type is the name of the provider.
   optional string type = 1;
@@ -1918,6 +2088,10 @@ message SeedProvider {
 
   // Region is a name of a region.
   optional string region = 3;
+
+  // Zones is the list of availability zones the seed cluster is deployed to.
+  // +optional
+  repeated string zones = 4;
 }
 
 // SeedSelector contains constraints for selecting seed to be usable for shoots using a profile
@@ -1970,6 +2144,34 @@ message SeedSettingLoadBalancerServices {
   // Annotations is a map of annotations that will be injected/merged into every load balancer service object.
   // +optional
   map<string, string> annotations = 1;
+
+  // ExternalTrafficPolicy describes how nodes distribute service traffic they
+  // receive on one of the service's "externally-facing" addresses.
+  // Defaults to "Cluster".
+  // +optional
+  optional string externalTrafficPolicy = 2;
+
+  // Zones controls settings, which are specific to the single-zone load balancers in a multi-zonal setup.
+  // Can be empty for single-zone seeds. Each specified zone has to relate to one of the zones in seed.spec.provider.zones.
+  // +optional
+  repeated SeedSettingLoadBalancerServicesZones zones = 3;
+}
+
+// SeedSettingLoadBalancerServicesZones controls settings, which are specific to the single-zone load balancers in a
+// multi-zonal setup.
+message SeedSettingLoadBalancerServicesZones {
+  // Name is the name of the zone as specified in seed.spec.provider.zones.
+  optional string name = 1;
+
+  // Annotations is a map of annotations that will be injected/merged into the zone-specific load balancer service object.
+  // +optional
+  map<string, string> annotations = 2;
+
+  // ExternalTrafficPolicy describes how nodes distribute service traffic they
+  // receive on one of the service's "externally-facing" addresses.
+  // Defaults to "Cluster".
+  // +optional
+  optional string externalTrafficPolicy = 3;
 }
 
 // SeedSettingOwnerChecks controls certain owner checks settings for shoots scheduled on this seed.
@@ -2150,13 +2352,6 @@ message ServiceAccountConfig {
   // +optional
   optional string issuer = 1;
 
-  // SigningKeySecret is a reference to a secret that contains an optional private key of the
-  // service account token issuer. The issuer will sign issued ID tokens with this private key.
-  // Only useful if service account tokens are also issued by another external system.
-  // Deprecated: This field is deprecated and will be removed in a future version of Gardener. Do not use it.
-  // +optional
-  optional k8s.io.api.core.v1.LocalObjectReference signingKeySecretName = 2;
-
   // ExtendTokenExpiration turns on projected service account expiration extension during token generation, which
   // helps safe transition from legacy token to bound service account token feature. If this flag is enabled,
   // admission injected tokens would be extended up to 1 year to prevent unexpected failure during transition,
@@ -2204,21 +2399,6 @@ message ShootAdvertisedAddress {
   optional string url = 2;
 }
 
-// ShootCARotation contains information about the certificate authority credential rotation.
-message ShootCARotation {
-  // Phase describes the phase of the certificate authority credential rotation.
-  optional string phase = 1;
-
-  // LastInitiationTime is the most recent time when the certificate authority credential rotation was initiated.
-  // +optional
-  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastInitiationTime = 3;
-
-  // LastCompletionTime is the most recent time when the certificate authority credential rotation was successfully
-  // completed.
-  // +optional
-  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastCompletionTime = 2;
-}
-
 // ShootCredentials contains information about the shoot credentials.
 message ShootCredentials {
   // Rotation contains information about the credential rotations.
@@ -2230,7 +2410,7 @@ message ShootCredentials {
 message ShootCredentialsRotation {
   // CertificateAuthorities contains information about the certificate authority credential rotation.
   // +optional
-  optional ShootCARotation certificateAuthorities = 1;
+  optional CARotation certificateAuthorities = 1;
 
   // Kubeconfig contains information about the kubeconfig credential rotation.
   // +optional
@@ -2258,14 +2438,24 @@ message ShootETCDEncryptionKeyRotation {
   // Phase describes the phase of the ETCD encryption key credential rotation.
   optional string phase = 1;
 
-  // LastInitiationTime is the most recent time when the ETCD encryption key credential rotation was initiated.
-  // +optional
-  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastInitiationTime = 3;
-
   // LastCompletionTime is the most recent time when the ETCD encryption key credential rotation was successfully
   // completed.
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastCompletionTime = 2;
+
+  // LastInitiationTime is the most recent time when the ETCD encryption key credential rotation was initiated.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastInitiationTime = 3;
+
+  // LastInitiationFinishedTime is the recent time when the certificate authority credential rotation initiation was
+  // completed.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastInitiationFinishedTime = 4;
+
+  // LastCompletionTriggeredTime is the recent time when the certificate authority credential rotation completion was
+  // triggered.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastCompletionTriggeredTime = 5;
 }
 
 // ShootKubeconfigRotation contains information about the kubeconfig credential rotation.
@@ -2343,14 +2533,24 @@ message ShootServiceAccountKeyRotation {
   // Phase describes the phase of the service account key credential rotation.
   optional string phase = 1;
 
-  // LastInitiationTime is the most recent time when the service account key credential rotation was initiated.
-  // +optional
-  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastInitiationTime = 3;
-
   // LastCompletionTime is the most recent time when the service account key credential rotation was successfully
   // completed.
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastCompletionTime = 2;
+
+  // LastInitiationTime is the most recent time when the service account key credential rotation was initiated.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastInitiationTime = 3;
+
+  // LastInitiationFinishedTime is the recent time when the certificate authority credential rotation initiation was
+  // completed.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastInitiationFinishedTime = 4;
+
+  // LastCompletionTriggeredTime is the recent time when the certificate authority credential rotation completion was
+  // triggered.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastCompletionTriggeredTime = 5;
 }
 
 // ShootSpec is the specification of a Shoot.
@@ -2552,6 +2752,10 @@ message ShootStatus {
   // managed to change the hibernation settings of the cluster
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastHibernationTriggerTime = 17;
+
+  // LastMaintenance holds information about the last maintenance operations on the Shoot.
+  // +optional
+  optional LastMaintenance lastMaintenance = 18;
 }
 
 // SystemComponents contains the settings of system components in the control or data plane of the Shoot cluster.
@@ -2759,5 +2963,12 @@ message WorkerKubernetes {
 message WorkerSystemComponents {
   // Allow determines whether the pool should be allowed to host system components or not (defaults to true)
   optional bool allow = 1;
+}
+
+// WorkersSettings contains settings for all workers.
+message WorkersSettings {
+  // SSHAccess contains settings regarding ssh access to the worker nodes.
+  // +optional
+  optional SSHAccess sshAccess = 1;
 }
 

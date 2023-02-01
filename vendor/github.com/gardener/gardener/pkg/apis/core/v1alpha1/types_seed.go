@@ -181,6 +181,11 @@ type SeedNetworks struct {
 	// ShootDefaults contains the default networks CIDRs for shoots.
 	// +optional
 	ShootDefaults *ShootNetworks `json:"shootDefaults,omitempty" protobuf:"bytes,4,opt,name=shootDefaults"`
+	// IPFamilies specifies the IP protocol versions to use for seed networking. This field is immutable.
+	// See https://github.com/gardener/gardener/blob/master/docs/usage/ipv6.md.
+	// Defaults to ["IPv4"].
+	// +optional
+	IPFamilies []IPFamily `json:"ipFamilies,omitempty" protobuf:"bytes,5,rep,name=ipFamilies,casttype=IPFamily"`
 }
 
 // ShootNetworks contains the default networks CIDRs for shoots.
@@ -193,7 +198,7 @@ type ShootNetworks struct {
 	Services *string `json:"services,omitempty" protobuf:"bytes,2,opt,name=services"`
 }
 
-// SeedProvider defines the provider type and region for this Seed cluster.
+// SeedProvider defines the provider-specific information of this Seed cluster.
 type SeedProvider struct {
 	// Type is the name of the provider.
 	Type string `json:"type" protobuf:"bytes,1,opt,name=type"`
@@ -202,6 +207,9 @@ type SeedProvider struct {
 	ProviderConfig *runtime.RawExtension `json:"providerConfig,omitempty" protobuf:"bytes,2,opt,name=providerConfig"`
 	// Region is a name of a region.
 	Region string `json:"region" protobuf:"bytes,3,opt,name=region"`
+	// Zones is the list of availability zones the seed cluster is deployed to.
+	// +optional
+	Zones []string `json:"zones,omitempty" protobuf:"bytes,4,rep,name=zones"`
 }
 
 // SeedSettings contains certain settings for this seed cluster.
@@ -257,6 +265,30 @@ type SeedSettingLoadBalancerServices struct {
 	// Annotations is a map of annotations that will be injected/merged into every load balancer service object.
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty" protobuf:"bytes,1,rep,name=annotations"`
+	// ExternalTrafficPolicy describes how nodes distribute service traffic they
+	// receive on one of the service's "externally-facing" addresses.
+	// Defaults to "Cluster".
+	// +optional
+	ExternalTrafficPolicy *corev1.ServiceExternalTrafficPolicyType `json:"externalTrafficPolicy,omitempty" protobuf:"bytes,2,opt,name=externalTrafficPolicy"`
+	// Zones controls settings, which are specific to the single-zone load balancers in a multi-zonal setup.
+	// Can be empty for single-zone seeds. Each specified zone has to relate to one of the zones in seed.spec.provider.zones.
+	// +optional
+	Zones []SeedSettingLoadBalancerServicesZones `json:"zones,omitempty" protobuf:"bytes,3,rep,name=zones"`
+}
+
+// SeedSettingLoadBalancerServicesZones controls settings, which are specific to the single-zone load balancers in a
+// multi-zonal setup.
+type SeedSettingLoadBalancerServicesZones struct {
+	// Name is the name of the zone as specified in seed.spec.provider.zones.
+	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
+	// Annotations is a map of annotations that will be injected/merged into the zone-specific load balancer service object.
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty" protobuf:"bytes,2,rep,name=annotations"`
+	// ExternalTrafficPolicy describes how nodes distribute service traffic they
+	// receive on one of the service's "externally-facing" addresses.
+	// Defaults to "Cluster".
+	// +optional
+	ExternalTrafficPolicy *corev1.ServiceExternalTrafficPolicyType `json:"externalTrafficPolicy,omitempty" protobuf:"bytes,3,opt,name=externalTrafficPolicy"`
 }
 
 // SeedSettingVerticalPodAutoscaler controls certain settings for the vertical pod autoscaler components deployed in the
