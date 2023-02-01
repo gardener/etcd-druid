@@ -114,7 +114,8 @@ docker-push:
 
 # Run tests
 .PHONY: test
-test: set-permissions $(GINKGO) $(SETUP_ENVTEST) fmt check manifests
+
+test: set-permissions $(GINKGO) fmt check manifests
 	@"$(REPO_ROOT)/hack/test.sh" ./api/... ./controllers/... ./pkg/...
 
 .PHONY: test-cov
@@ -129,9 +130,8 @@ test-cov-clean: set-permissions
 test-e2e: set-permissions $(KUBECTL) $(HELM) $(SKAFFOLD)
 	@"$(REPO_ROOT)/hack/e2e-test/run-e2e-test.sh" $(PROVIDERS)
 
-# Run tests
 .PHONY: test-integration
-test-integration: $(GINKGO) $(SETUP_ENVTEST) fmt check manifests
+test-integration: set-permissions $(GINKGO) $(SETUP_ENVTEST) fmt check manifests
 	@"$(REPO_ROOT)/hack/test.sh" ./test/integration/...
 
 .PHONY: update-dependencies

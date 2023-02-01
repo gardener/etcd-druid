@@ -408,7 +408,7 @@ func matchTaskStatus(jobStatus *batchv1.JobStatus) gomegatypes.GomegaMatcher {
 	return MatchFields(IgnoreExtras, Fields{
 		"Status": MatchFields(IgnoreExtras, Fields{
 			"Conditions":         MatchAllElements(conditionIdentifier, conditionElements),
-			"ObservedGeneration": Equal(pointer.Int64Ptr(1)),
+			"ObservedGeneration": Equal(pointer.Int64(1)),
 		}),
 	})
 }

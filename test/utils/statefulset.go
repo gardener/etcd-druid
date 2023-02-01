@@ -82,10 +82,9 @@ func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32
 			Name:      name,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"name":                "etcd",
-				"instance":            name,
-				"gardener.cloud/role": "controleplane",
-				"app":                 "etcd-statefulset",
+				"app":      "etcd-statefulset",
+				"instance": name,
+				"name":     "etcd",
 			},
 			Annotations: nil,
 			OwnerReferences: []metav1.OwnerReference{{
@@ -103,11 +102,20 @@ func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32
 			Replicas: pointer.Int32(replicas),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
+					"app":      "etcd-statefulset",
 					"instance": name,
 					"name":     "etcd",
 				},
 			},
-			Template: corev1.PodTemplateSpec{},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app":      "etcd-statefulset",
+						"instance": name,
+						"name":     "etcd",
+					},
+				},
+			},
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{
 				{
 					ObjectMeta: metav1.ObjectMeta{

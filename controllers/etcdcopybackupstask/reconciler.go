@@ -137,7 +137,7 @@ func (r *Reconciler) doReconcile(ctx context.Context, task *druidv1alpha1.EtcdCo
 		return status, nil
 	}
 
-	//Decode job object from chart
+	// Decode job object from chart
 	job, err = r.decodeJobFromChart(ctx, task)
 	if err != nil {
 		return status, err

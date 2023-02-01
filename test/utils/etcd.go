@@ -76,6 +76,12 @@ func EtcdBuilderWithDefaults(name, namespace string) *EtcdBuilder {
 	return &builder
 }
 
+func EtcdBuilderWithoutDefaults(name, namespace string) *EtcdBuilder {
+	builder := EtcdBuilder{}
+	builder.etcd = getEtcdWithoutDefaults(name, namespace)
+	return &builder
+}
+
 func (eb *EtcdBuilder) WithReplicas(replicas int32) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -132,12 +138,12 @@ func (eb *EtcdBuilder) WithReadyStatus() *EtcdBuilder {
 		members = append(members, druidv1alpha1.EtcdMemberStatus{Status: druidv1alpha1.EtcdMemberStatusReady})
 	}
 	eb.etcd.Status = druidv1alpha1.EtcdStatus{
-		ClusterSize:     pointer.Int32Ptr(eb.etcd.Spec.Replicas),
+		ClusterSize:     pointer.Int32(eb.etcd.Spec.Replicas),
 		ReadyReplicas:   eb.etcd.Spec.Replicas,
 		Replicas:        eb.etcd.Spec.Replicas,
 		CurrentReplicas: eb.etcd.Spec.Replicas,
 		UpdatedReplicas: eb.etcd.Spec.Replicas,
-		Ready:           pointer.BoolPtr(true),
+		Ready:           pointer.Bool(true),
 		Members:         members,
 		Conditions: []druidv1alpha1.Condition{
 			{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionTrue},
@@ -206,6 +212,38 @@ func (eb *EtcdBuilder) Build() *druidv1alpha1.Etcd {
 	return eb.etcd
 }
 
+func getEtcdWithoutDefaults(name, namespace string) *druidv1alpha1.Etcd {
+	return &druidv1alpha1.Etcd{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: druidv1alpha1.EtcdSpec{
+			Annotations: map[string]string{
+				"app":      "etcd-statefulset",
+				"instance": name,
+				"name":     "etcd",
+			},
+			Labels: map[string]string{
+				"app":      "etcd-statefulset",
+				"instance": name,
+				"name":     "etcd",
+			},
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app":      "etcd-statefulset",
+					"instance": name,
+					"name":     "etcd",
+				},
+			},
+			Replicas: 1,
+			Backup:   druidv1alpha1.BackupSpec{},
+			Etcd:     druidv1alpha1.EtcdConfig{},
+			Common:   druidv1alpha1.SharedConfig{},
+		},
+	}
+}
+
 func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 	return &druidv1alpha1.Etcd{
 		ObjectMeta: metav1.ObjectMeta{
@@ -216,17 +254,19 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 		Spec: druidv1alpha1.EtcdSpec{
 			Annotations: map[string]string{
 				"app":      "etcd-statefulset",
-				"role":     "test",
 				"instance": name,
+				"name":     "etcd",
 			},
 			Labels: map[string]string{
-				"name":     "etcd",
+				"app":      "etcd-statefulset",
 				"instance": name,
+				"name":     "etcd",
 			},
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"name":     "etcd",
+					"app":      "etcd-statefulset",
 					"instance": name,
+					"name":     "etcd",
 				},
 			},
 			Replicas:            1,

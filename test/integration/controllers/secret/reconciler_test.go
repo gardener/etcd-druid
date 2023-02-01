@@ -37,7 +37,7 @@ var (
 
 var _ = Describe("SecretController", func() {
 	var (
-		ctx = context.Background()
+		ctx = context.TODO()
 
 		namespace *corev1.Namespace
 		etcd      *druidv1alpha1.Etcd
@@ -53,13 +53,10 @@ var _ = Describe("SecretController", func() {
 		etcd = utils.EtcdBuilderWithDefaults("etcd", namespace.Name).WithTLS().Build()
 
 		_, err = controllerutil.CreateOrUpdate(ctx, k8sClient, namespace, func() error { return nil })
-		Expect(err).To(Not(HaveOccurred()))
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("should reconcile the finalizers for the referenced secrets", func() {
-		ctx, cancelCtx := context.WithTimeout(ctx, testEnv.Config.Timeout)
-		defer cancelCtx()
-
 		getFinalizersForSecret := func(name string) func(g Gomega) []string {
 			return func(g Gomega) []string {
 				secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace.Name}}

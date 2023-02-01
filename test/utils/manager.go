@@ -32,14 +32,18 @@ import (
 )
 
 var (
-	crdDirectoryPaths = []string{
-		filepath.Join("..", "..", "config", "crd", "bases"),
-	}
+	crdDirectoryPath = filepath.Join("config", "crd", "bases")
 )
 
-func SetupTestEnvironment() (*envtest.Environment, error) {
+// SetupTestEnvironment sets up the test environment for the manager, setting the CRD path relative
+// to the caller directory level, denoted by callerDirLevel
+func SetupTestEnvironment(callerDirLevel int) (*envtest.Environment, error) {
+	pathPrefix := ""
+	for i := 0; i < callerDirLevel; i++ {
+		pathPrefix = filepath.Join(pathPrefix, "..")
+	}
 	testEnv := &envtest.Environment{
-		CRDDirectoryPaths: crdDirectoryPaths,
+		CRDDirectoryPaths: []string{filepath.Join(pathPrefix, crdDirectoryPath)},
 	}
 
 	if _, err := testEnv.Start(); err != nil {

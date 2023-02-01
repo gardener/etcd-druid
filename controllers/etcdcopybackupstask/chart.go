@@ -32,7 +32,7 @@ import (
 
 var (
 	etcdCopyBackupChartPath    = filepath.Join("charts", "etcd-copy-backups")
-	etcdCopyBackupJobChartPath = filepath.Join("charts", "etcd-copy-backups", "templates", "etcd-copy-backups-job.yaml")
+	etcdCopyBackupJobChartPath = filepath.Join("etcd-copy-backups", "templates", "etcd-copy-backups-job.yaml")
 )
 
 func (r *Reconciler) decodeJobFromChart(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask) (*batchv1.Job, error) {

@@ -27,11 +27,8 @@ etcd-druid:
         image: 'golang:1.20.1'
       test:
         image: 'golang:1.20.1'
-      test-integration:
+      test_integration:
         image: 'golang:1.20.1'
-        execute:
-        - 'INTEGRATION=true'
-        - 'test'
       build:
         image: 'golang:1.20.1'
         output_dir: 'binary'

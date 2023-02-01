@@ -19,6 +19,7 @@ import (
 	"sync"
 	"testing"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/controllers/secret"
 	"github.com/gardener/etcd-druid/test/utils"
 
@@ -56,14 +57,18 @@ var _ = BeforeSuite(func() {
 	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	testLog.Info("Setting up test environment")
-	testEnv, err = utils.SetupTestEnvironment()
+	testEnv, err = utils.SetupTestEnvironment(4)
 	Expect(err).ToNot(HaveOccurred())
 
-	k8sClient, err := client.New(testEnv.Config, client.Options{Scheme: scheme.Scheme})
+	err = druidv1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+	// +kubebuilder:scaffold:scheme
+
+	k8sClient, err = client.New(testEnv.Config, client.Options{Scheme: scheme.Scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
-	revertFunc = utils.SwitchDirectory("../..")
+	revertFunc = utils.SwitchDirectory("../../../..")
 
 	mgr, err := utils.GetManager(testEnv.Config)
 	Expect(err).NotTo(HaveOccurred())

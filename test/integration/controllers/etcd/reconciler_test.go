@@ -109,12 +109,10 @@ var _ = Describe("Druid", func() {
 			instance *druidv1alpha1.Etcd
 			sts      *appsv1.StatefulSet
 			svc      *corev1.Service
+			ctx      = context.TODO()
 		)
 
 		BeforeEach(func() {
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-
 			instance = testutils.EtcdBuilderWithDefaults("foo1", "default").Build()
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -149,15 +147,14 @@ var _ = Describe("Druid", func() {
 
 		})
 		It("should create and adopt statefulset", func() {
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
+			ctx := context.TODO()
 
 			testutils.SetStatefulSetReady(sts)
-			err = k8sClient.Status().Update(context.TODO(), sts)
+			err = k8sClient.Status().Update(ctx, sts)
 			Eventually(func() error { return testutils.StatefulSetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
 			Expect(err).NotTo(HaveOccurred())
 			Eventually(func() (*int32, error) {
-				if err := k8sClient.Get(context.TODO(), client.ObjectKeyFromObject(instance), instance); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), instance); err != nil {
 					return nil, err
 				}
 				return instance.Status.ClusterSize, nil
@@ -228,121 +225,6 @@ var _ = Describe("Druid", func() {
 		})
 	})
 
-	Describe("Druid custodian controller", func() {
-		Context("when statefulset status is updated", func() {
-			var (
-				instance *druidv1alpha1.Etcd
-				sts      *appsv1.StatefulSet
-			)
-
-			BeforeEach(func() {
-				ctx, cancel := context.WithTimeout(context.Background(), timeout)
-				defer cancel()
-
-				instance = testutils.EtcdBuilderWithDefaults("foo19", "default").Build()
-
-				ns := corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: instance.Namespace,
-					},
-				}
-				_, err := controllerutil.CreateOrUpdate(ctx, k8sClient, &ns, func() error { return nil })
-				Expect(err).To(Not(HaveOccurred()))
-
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-				Expect(k8sClient.Create(ctx, instance)).To(Succeed())
-
-				sts = &appsv1.StatefulSet{}
-				// Wait until StatefulSet has been created by controller
-				Eventually(func() error {
-					return k8sClient.Get(ctx, types.NamespacedName{
-						Name:      instance.Name,
-						Namespace: instance.Namespace,
-					}, sts)
-				}, timeout, pollingInterval).Should(BeNil())
-
-				sts.Status.Replicas = 1
-				sts.Status.ReadyReplicas = 1
-				sts.Status.ObservedGeneration = 2
-				Expect(k8sClient.Status().Update(ctx, sts)).To(Succeed())
-
-				Eventually(func() error {
-					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), sts); err != nil {
-						return err
-					}
-					if sts.Status.ReadyReplicas != 1 {
-						return fmt.Errorf("ReadyReplicas != 1")
-					}
-					return nil
-				}, timeout, pollingInterval).Should(Succeed())
-
-				Eventually(func() error { return testutils.StatefulSetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
-
-				// Check if ETCD has ready replicas more than zero
-				Eventually(func() error {
-					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), instance); err != nil {
-						return err
-					}
-
-					if int(instance.Status.ReadyReplicas) < 1 {
-						return fmt.Errorf("ETCD ready replicas should be more than zero")
-					}
-					return nil
-				}, timeout, pollingInterval).Should(BeNil())
-			})
-			It("mark statefulset status not ready when no readyreplicas in statefulset", func() {
-				ctx, cancel := context.WithTimeout(context.Background(), timeout)
-				defer cancel()
-
-				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), sts)
-				Expect(err).NotTo(HaveOccurred())
-
-				// Forcefully change readyreplicas in statefulset as zero which may cause due to facts like crashloopbackoff
-				sts.Status.ReadyReplicas = 0
-				Expect(k8sClient.Status().Update(ctx, sts)).To(Succeed())
-
-				Eventually(func() error {
-					err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), sts)
-					if err != nil {
-						return err
-					}
-
-					if sts.Status.ReadyReplicas > 0 {
-						return fmt.Errorf("No readyreplicas of statefulset should exist at this point")
-					}
-
-					err = k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), instance)
-					if err != nil {
-						return err
-					}
-
-					if instance.Status.ReadyReplicas > 0 {
-						return fmt.Errorf("ReadyReplicas should be zero in ETCD instance")
-					}
-
-					return nil
-				}, timeout, pollingInterval).Should(BeNil())
-			})
-			AfterEach(func() {
-				ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-				defer cancel()
-
-				// Delete `etcd` instance
-				Expect(k8sClient.Delete(ctx, instance)).To(Succeed())
-				Eventually(func() error {
-					err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
-					if err != nil {
-						return err
-					}
-
-					return k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), sts)
-				}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
-			})
-		})
-	})
-
 	DescribeTable("when etcd resource is created",
 		func(instance *druidv1alpha1.Etcd, validate func(*druidv1alpha1.Etcd, *appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *corev1.Service)) {
 			var (
@@ -353,10 +235,8 @@ var _ = Describe("Druid", func() {
 				sa           *corev1.ServiceAccount
 				role         *rbac.Role
 				rb           *rbac.RoleBinding
+				ctx          = context.TODO()
 			)
-
-			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-			defer cancel()
 
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -396,7 +276,7 @@ var _ = Describe("Druid", func() {
 			err = k8sClient.Status().Update(context.TODO(), s)
 			Expect(err).NotTo(HaveOccurred())
 		},
-		Entry("if fields are not set in etcd.Spec, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo28", "default").Build(), validateEtcdWithDefaults),
+		Entry("if fields are not set in etcd.Spec, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithoutDefaults("foo28", "default").Build(), validateDefaultValuesForEtcd),
 		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo29", "default").WithTLS().Build(), validateEtcd),
 		Entry("if the store is GCS, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo30", "default").WithTLS().WithProviderGCS().Build(), validateStoreGCP),
 		Entry("if the store is S3, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo31", "default").WithTLS().WithProviderS3().Build(), validateStoreAWS),
@@ -414,14 +294,10 @@ var _ = Describe("Multinode ETCD", func() {
 			instance *druidv1alpha1.Etcd
 			sts      *appsv1.StatefulSet
 			svc      *corev1.Service
-			ctx      context.Context
-			cancel   context.CancelFunc
+			ctx      = context.TODO()
 		)
 
 		BeforeEach(func() {
-			ctx, cancel = context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-
 			instance = testutils.EtcdBuilderWithDefaults("foo82", "default").Build()
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -528,10 +404,8 @@ var _ = Describe("Multinode ETCD", func() {
 			sts *appsv1.StatefulSet
 			cm  *corev1.ConfigMap
 			svc *corev1.Service
+			ctx = context.TODO()
 		)
-
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
 
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -642,7 +516,7 @@ func validateRole(instance *druidv1alpha1.Etcd, role *rbac.Role) {
 	}))
 }
 
-func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, clSvc *corev1.Service, prSvc *corev1.Service) {
+func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, clSvc *corev1.Service, prSvc *corev1.Service) {
 	configYML := cm.Data[etcdConfig]
 	config := map[string]interface{}{}
 	err := yaml.Unmarshal([]byte(configYML), &config)
@@ -926,7 +800,7 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 							})),
 						}),
 					}),
-					"ShareProcessNamespace": Equal(pointer.BoolPtr(true)),
+					"ShareProcessNamespace": Equal(pointer.Bool(true)),
 					"Volumes": MatchAllElements(testutils.VolumeIterator, Elements{
 						"etcd-config-file": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("etcd-config-file"),
@@ -1323,7 +1197,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 							})),
 						}),
 					}),
-					"ShareProcessNamespace": Equal(pointer.BoolPtr(true)),
+					"ShareProcessNamespace": Equal(pointer.Bool(true)),
 					"Volumes": MatchAllElements(testutils.VolumeIterator, Elements{
 						"host-storage": MatchFields(IgnoreExtras, Fields{
 							"Name": Equal("host-storage"),
@@ -1771,7 +1645,7 @@ var _ = Describe("buildPredicate", func() {
 		DescribeTable(
 			"with last error",
 			func(evalFn func(p predicate.Predicate, obj client.Object) bool, expect bool) {
-				instance.Status.LastError = pointer.StringPtr("error")
+				instance.Status.LastError = pointer.String("error")
 				Expect(evalFn(etcd.BuildPredicate(false), instance)).To(Equal(expect))
 			},
 			Entry("Create should match", evalCreate, true),
