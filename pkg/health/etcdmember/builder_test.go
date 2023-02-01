@@ -54,21 +54,21 @@ var _ = Describe("Builder", func() {
 				oldMembers = map[string]druidv1alpha1.EtcdMemberStatus{
 					"1": {
 						Name:               "member1",
-						ID:                 pointer.StringPtr("1"),
+						ID:                 pointer.String("1"),
 						Status:             druidv1alpha1.EtcdMemberStatusReady,
 						Reason:             "foo reason",
 						LastTransitionTime: metav1.NewTime(now.Add(-12 * time.Hour)),
 					},
 					"2": {
 						Name:               "member2",
-						ID:                 pointer.StringPtr("2"),
+						ID:                 pointer.String("2"),
 						Status:             druidv1alpha1.EtcdMemberStatusReady,
 						Reason:             "bar reason",
 						LastTransitionTime: metav1.NewTime(now.Add(-6 * time.Hour)),
 					},
 					"3": {
 						Name:               "member3",
-						ID:                 pointer.StringPtr("3"),
+						ID:                 pointer.String("3"),
 						Status:             druidv1alpha1.EtcdMemberStatusReady,
 						Reason:             "foobar reason",
 						LastTransitionTime: metav1.NewTime(now.Add(-18 * time.Hour)),
@@ -85,7 +85,7 @@ var _ = Describe("Builder", func() {
 			It("should correctly set the LastTransitionTime", func() {
 				builder.WithResults([]Result{
 					&result{
-						MemberID:     pointer.StringPtr("3"),
+						MemberID:     pointer.String("3"),
 						MemberName:   "member3",
 						MemberStatus: druidv1alpha1.EtcdMemberStatusUnknown,
 						MemberReason: "unknown reason",
@@ -119,14 +119,14 @@ var _ = Describe("Builder", func() {
 			It("should not add any members but sort them", func() {
 				builder.WithResults([]Result{
 					&result{
-						MemberID:     pointer.StringPtr("2"),
+						MemberID:     pointer.String("2"),
 						MemberName:   "member2",
 						MemberRole:   &memberRoleMember,
 						MemberStatus: druidv1alpha1.EtcdMemberStatusReady,
 						MemberReason: "foo reason",
 					},
 					&result{
-						MemberID:     pointer.StringPtr("1"),
+						MemberID:     pointer.String("1"),
 						MemberName:   "member1",
 						MemberRole:   &memberRoleLeader,
 						MemberStatus: druidv1alpha1.EtcdMemberStatusUnknown,

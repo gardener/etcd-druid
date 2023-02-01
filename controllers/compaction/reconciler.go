@@ -121,7 +121,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Revisions have not been set yet by etcd-back-restore container.
-	// Skip further processing as we cannot carulate a revision delta.
+	// Skip further processing as we cannot calculate a revision delta.
 	if fullLease.Spec.HolderIdentity == nil || deltaLease.Spec.HolderIdentity == nil {
 		return ctrl.Result{}, nil
 	}
