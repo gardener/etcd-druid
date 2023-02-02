@@ -69,12 +69,12 @@ var (
 // Reconciler reconciles Etcd resources.
 type Reconciler struct {
 	client.Client
-	Scheme        *runtime.Scheme
-	Config        *Config
+	scheme        *runtime.Scheme
+	config        *Config
 	recorder      record.EventRecorder
 	chartRenderer chartrenderer.Interface
-	RestConfig    *rest.Config
-	ImageVector   imagevector.ImageVector
+	restConfig    *rest.Config
+	imageVector   imagevector.ImageVector
 	logger        logr.Logger
 }
 
@@ -93,12 +93,12 @@ func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 	}
 	return &Reconciler{
 		Client:        mgr.GetClient(),
-		Scheme:        mgr.GetScheme(),
-		Config:        config,
+		scheme:        mgr.GetScheme(),
+		config:        config,
 		recorder:      mgr.GetEventRecorderFor(controllerName),
 		chartRenderer: chartRenderer,
-		RestConfig:    mgr.GetConfig(),
-		ImageVector:   imageVector,
+		restConfig:    mgr.GetConfig(),
+		imageVector:   imageVector,
 		logger:        log.Log.WithName(controllerName),
 	}, nil
 }
@@ -250,7 +250,7 @@ func (r *Reconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl
 	}
 
 	pdbValues := componentpdb.GenerateValues(etcd)
-	k8sversion, err := druidutils.GetClusterK8sVersion(r.RestConfig)
+	k8sversion, err := druidutils.GetClusterK8sVersion(r.restConfig)
 	if err != nil {
 		return ctrl.Result{
 			Requeue: true,
@@ -415,7 +415,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		return reconcileResult{err: fmt.Errorf("Spec.Replicas should not be even number: %d", etcd.Spec.Replicas)}
 	}
 
-	etcdImage, etcdBackupImage, err := druidutils.GetEtcdImages(etcd, r.ImageVector)
+	etcdImage, etcdBackupImage, err := druidutils.GetEtcdImages(etcd, r.imageVector)
 	if err != nil {
 		return reconcileResult{err: err}
 	}
@@ -440,7 +440,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 	}
 
 	pdbValues := componentpdb.GenerateValues(etcd)
-	k8sversion, err := druidutils.GetClusterK8sVersion(r.RestConfig)
+	k8sversion, err := druidutils.GetClusterK8sVersion(r.restConfig)
 	if err != nil {
 		return reconcileResult{err: err}
 	}
@@ -449,7 +449,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		return reconcileResult{err: err}
 	}
 
-	values, err := r.getMapFromEtcd(etcd, r.Config.DisableEtcdServiceAccountAutomount)
+	values, err := r.getMapFromEtcd(etcd, r.config.DisableEtcdServiceAccountAutomount)
 	if err != nil {
 		return reconcileResult{err: err}
 	}

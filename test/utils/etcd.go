@@ -223,6 +223,7 @@ func getEtcdWithoutDefaults(name, namespace string) *druidv1alpha1.Etcd {
 				"app":      "etcd-statefulset",
 				"instance": name,
 				"name":     "etcd",
+				"role":     "test",
 			},
 			Labels: map[string]string{
 				"app":      "etcd-statefulset",
@@ -256,6 +257,7 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 				"app":      "etcd-statefulset",
 				"instance": name,
 				"name":     "etcd",
+				"role":     "test",
 			},
 			Labels: map[string]string{
 				"app":      "etcd-statefulset",

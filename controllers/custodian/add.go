@@ -34,7 +34,7 @@ const controllerName = "custodian-controller"
 
 func (r *Reconciler) AddToManager(ctx context.Context, mgr ctrl.Manager, ignoreOperationAnnotation bool) error {
 	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
-		MaxConcurrentReconciles: r.Config.Workers,
+		MaxConcurrentReconciles: r.config.Workers,
 	})
 
 	c, err := builder.

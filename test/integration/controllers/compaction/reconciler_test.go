@@ -70,7 +70,7 @@ var _ = Describe("Lease Controller", func() {
 			err = k8sClient.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
 			s = &appsv1.StatefulSet{}
-			Eventually(func() error { return testutils.StatefulSetIsCorrectlyReconciled(ctx, k8sClient, instance, s) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() (bool, error) { return testutils.IsStatefulSetCorrectlyReconciled(ctx, k8sClient, instance, s) }, timeout, pollingInterval).Should(BeTrue())
 			cm = &corev1.ConfigMap{}
 			Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(k8sClient, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
 			svc = &corev1.Service{}

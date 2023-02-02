@@ -27,12 +27,11 @@ import (
 const controllerName = "compaction-controller"
 
 func (r *Reconciler) AddToManager(mgr ctrl.Manager) error {
-	builder := ctrl.NewControllerManagedBy(mgr).
-		WithOptions(controller.Options{
-			MaxConcurrentReconciles: r.config.Workers,
-		})
+	c, err := controller.New(controllerName, mgr, controller.Options{
+		Reconciler:              r,
+		MaxConcurrentReconciles: r.config.Workers,
+	})
 
-	c, err := builder.Named(controllerName).Build(r)
 	if err != nil {
 		return err
 	}

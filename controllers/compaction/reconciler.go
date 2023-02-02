@@ -47,7 +47,7 @@ const (
 type Reconciler struct {
 	client.Client
 	config      *Config
-	ImageVector imagevector.ImageVector
+	imageVector imagevector.ImageVector
 	logger      logr.Logger
 }
 
@@ -63,7 +63,7 @@ func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 	return &Reconciler{
 		Client:      mgr.GetClient(),
 		config:      config,
-		ImageVector: imageVector,
+		imageVector: imageVector,
 		logger:      log.Log.WithName("compaction-lease-controller"),
 	}, nil
 }
@@ -238,7 +238,7 @@ func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druid
 func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*batchv1.Job, error) {
 	activeDeadlineSeconds := r.config.ActiveDeadlineDuration.Seconds()
 
-	_, etcdBackupImage, err := utils.GetEtcdImages(etcd, r.ImageVector)
+	_, etcdBackupImage, err := utils.GetEtcdImages(etcd, r.imageVector)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch etcd backup image: %v", err)
 	}

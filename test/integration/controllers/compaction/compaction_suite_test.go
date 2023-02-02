@@ -57,6 +57,7 @@ func TestCompactionController(t *testing.T) {
 var _ = BeforeSuite(func() {
 	var err error
 
+	revertFunc = utils.SwitchDirectory("../../../..")
 	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	testLog.Info("Setting up test environment")
@@ -70,8 +71,6 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(testEnv.Config, client.Options{Scheme: scheme.Scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
-
-	revertFunc = utils.SwitchDirectory("../../../..")
 
 	mgr, err := utils.GetManager(testEnv.Config)
 	Expect(err).NotTo(HaveOccurred())

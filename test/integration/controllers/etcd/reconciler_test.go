@@ -151,7 +151,7 @@ var _ = Describe("Druid", func() {
 
 			testutils.SetStatefulSetReady(sts)
 			err = k8sClient.Status().Update(ctx, sts)
-			Eventually(func() error { return testutils.StatefulSetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() (bool, error) { return testutils.IsStatefulSetCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeTrue())
 			Expect(err).NotTo(HaveOccurred())
 			Eventually(func() (*int32, error) {
 				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), instance); err != nil {
@@ -255,7 +255,7 @@ var _ = Describe("Druid", func() {
 			err = k8sClient.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
 			s = &appsv1.StatefulSet{}
-			Eventually(func() error { return testutils.StatefulSetIsCorrectlyReconciled(ctx, k8sClient, instance, s) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() (bool, error) { return testutils.IsStatefulSetCorrectlyReconciled(ctx, k8sClient, instance, s) }, timeout, pollingInterval).Should(BeTrue())
 			cm = &corev1.ConfigMap{}
 			Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(k8sClient, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
 			clSvc = &corev1.Service{}
@@ -344,7 +344,7 @@ var _ = Describe("Multinode ETCD", func() {
 			Expect(k8sClient.Patch(ctx, instance, patch)).To(Succeed())
 
 			By("statefulsets are created when ETCD replicas are odd number")
-			Eventually(func() error { return testutils.StatefulSetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() (bool, error) { return testutils.IsStatefulSetCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeTrue())
 			Expect(int(*sts.Spec.Replicas)).To(Equal(3))
 
 			By("client Service has been created by controller")
@@ -424,7 +424,7 @@ var _ = Describe("Multinode ETCD", func() {
 		err = k8sClient.Create(context.TODO(), instance)
 		Expect(err).NotTo(HaveOccurred())
 		sts = &appsv1.StatefulSet{}
-		Eventually(func() error { return testutils.StatefulSetIsCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeNil())
+		Eventually(func() (bool, error) { return testutils.IsStatefulSetCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeTrue())
 		cm = &corev1.ConfigMap{}
 		Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(k8sClient, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
 		svc = &corev1.Service{}
@@ -576,6 +576,7 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 			"Name":      Equal(instance.GetClientServiceName()),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
+				"app":      Equal("etcd-statefulset"),
 				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
 			}),
@@ -637,6 +638,7 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 				"role":                      Equal("test"),
 				"instance":                  Equal(instance.Name),
 				"checksum/etcd-configmap":   Equal(configMapChecksum),
+				"name":                      Equal("etcd"),
 			}),
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
@@ -875,6 +877,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"Name":      Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
+				"app":      Equal("etcd-statefulset"),
 				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
 			}),
@@ -930,6 +933,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"Name":      Equal(instance.GetClientServiceName()),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
+				"app":      Equal("etcd-statefulset"),
 				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
 			}),
@@ -991,6 +995,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 				"role":                      Equal("test"),
 				"instance":                  Equal(instance.Name),
 				"checksum/etcd-configmap":   Equal(configMapChecksum),
+				"name":                      Equal("etcd"),
 			}),
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),

@@ -29,19 +29,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func StatefulSetIsCorrectlyReconciled(ctx context.Context, c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.StatefulSet) error {
-	req := types.NamespacedName{
-		Name:      instance.Name,
-		Namespace: instance.Namespace,
+func IsStatefulSetCorrectlyReconciled(ctx context.Context, c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.StatefulSet) (bool, error) {
+	if err := c.Get(ctx, client.ObjectKeyFromObject(instance), ss); err != nil {
+		return false, err
 	}
-
-	if err := c.Get(ctx, req, ss); err != nil {
-		return err
+	if metav1.IsControlledBy(ss, instance) {
+		return true, nil
 	}
-	if !CheckEtcdOwnerReference(ss.GetOwnerReferences(), instance) {
-		return fmt.Errorf("ownerReference does not exist")
-	}
-	return nil
+	return false, nil
 }
 
 // IsStatefulSetRemoved checks if a given StatefulSet has been removed.

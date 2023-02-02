@@ -80,9 +80,15 @@ func StartManager(ctx context.Context, mgr manager.Manager) *sync.WaitGroup {
 }
 
 func StopManager(mgrCancel context.CancelFunc, mgrStopped *sync.WaitGroup, testEnv *envtest.Environment, revertFunc func()) {
-	mgrCancel()
-	mgrStopped.Wait()
-	Expect(testEnv.Stop()).To(Succeed())
+	if mgrCancel != nil {
+		mgrCancel()
+	}
+	if mgrStopped != nil {
+		mgrStopped.Wait()
+	}
+	if testEnv != nil {
+		Expect(testEnv.Stop()).To(Succeed())
+	}
 	revertFunc()
 }
 

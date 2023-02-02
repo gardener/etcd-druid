@@ -39,8 +39,8 @@ import (
 // Reconciler reconciles status of Etcd object
 type Reconciler struct {
 	client.Client
-	Scheme     *runtime.Scheme
-	Config     *Config
+	scheme     *runtime.Scheme
+	config     *Config
 	logger     logr.Logger
 	restConfig *rest.Config
 }
@@ -49,8 +49,8 @@ type Reconciler struct {
 func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 	return &Reconciler{
 		Client:     mgr.GetClient(),
-		Scheme:     mgr.GetScheme(),
-		Config:     config,
+		scheme:     mgr.GetScheme(),
+		config:     config,
 		restConfig: mgr.GetConfig(),
 		logger:     log.Log.WithName(controllerName),
 	}, nil
@@ -82,7 +82,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}, nil
 	}
 
-	statusCheck := status.NewChecker(r.Client, r.Config.EtcdMember.NotReadyThreshold, r.Config.EtcdMember.UnknownThreshold)
+	statusCheck := status.NewChecker(r.Client, r.config.EtcdMember.NotReadyThreshold, r.config.EtcdMember.UnknownThreshold)
 	if err := statusCheck.Check(ctx, logger, etcd); err != nil {
 		logger.Error(err, "Error executing status checks")
 		return ctrl.Result{}, err
@@ -107,7 +107,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{RequeueAfter: r.Config.SyncPeriod}, nil
+	return ctrl.Result{RequeueAfter: r.config.SyncPeriod}, nil
 }
 
 func (r *Reconciler) updateEtcdStatus(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {

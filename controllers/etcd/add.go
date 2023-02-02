@@ -29,7 +29,7 @@ const controllerName = "etcd-controller"
 
 func (r *Reconciler) AddToManager(mgr ctrl.Manager, ignoreOperationAnnotation bool) error {
 	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
-		MaxConcurrentReconciles: r.Config.Workers,
+		MaxConcurrentReconciles: r.config.Workers,
 	})
 	builder = builder.
 		Named(controllerName).
