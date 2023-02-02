@@ -94,9 +94,8 @@ var _ = Describe("Lease Controller", func() {
 		func(instance *druidv1alpha1.Etcd,
 			validateETCDCmpctJob func(*druidv1alpha1.Etcd, *batchv1.Job)) {
 			var (
-				err       error
-				k8sClient client.Client
-				j         *batchv1.Job
+				err error
+				j   *batchv1.Job
 			)
 
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
@@ -142,7 +141,7 @@ var _ = Describe("Lease Controller", func() {
 				return k8sClient.Get(context.TODO(), client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 		},
-		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo71", "default").WithTLS().Build(), validateEtcdForCmpctJob),
+		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo71", "default").WithTLS().Build(), validateEtcdForCompactionJob),
 		Entry("if the store is GCS, the statefulset and compaction job should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo72", "default").WithTLS().WithProviderGCS().Build(), validateStoreGCPForCmpctJob),
 		Entry("if the store is S3, the statefulset and compaction job should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo73", "default").WithTLS().WithProviderS3().Build(), validateStoreAWSForCmpctJob),
 		Entry("if the store is ABS, the statefulset and compaction job should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo74", "default").WithTLS().WithProviderABS().Build(), validateStoreAzureForCmpctJob),
@@ -154,13 +153,8 @@ var _ = Describe("Lease Controller", func() {
 		var (
 			err      error
 			instance *druidv1alpha1.Etcd
-			c        client.Client
 			ns       corev1.Namespace
 		)
-
-		BeforeEach(func() {
-
-		})
 
 		It("should create a new job if the existing job is failed", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
@@ -173,58 +167,58 @@ var _ = Describe("Lease Controller", func() {
 				},
 			}
 
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
 			Expect(err).To(Not(HaveOccurred()))
 
 			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
+				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 			}
-			err = c.Create(context.TODO(), instance)
+			err = k8sClient.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Create Job
 			j := createJob(instance)
-			Expect(c.Create(ctx, j)).To(Succeed())
+			Expect(k8sClient.Create(ctx, j)).To(Succeed())
 
-			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
 
 			// Update job status as failed
 			j.Status.Failed = 1
-			Expect(c.Status().Update(ctx, j)).To(Succeed())
+			Expect(k8sClient.Status().Update(ctx, j)).To(Succeed())
 
 			// Deliberately update the full lease
 			fullLease := &coordinationv1.Lease{}
-			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(c, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(k8sClient, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
 			fullLease.Spec.HolderIdentity = pointer.String("0")
 			fullLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(c.Update(context.TODO(), fullLease)).To(Succeed())
+			Expect(k8sClient.Update(context.TODO(), fullLease)).To(Succeed())
 
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
-			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(k8sClient, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
 			deltaLease.Spec.HolderIdentity = pointer.String("1000000")
 			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(c.Update(context.TODO(), deltaLease)).To(Succeed())
+			Expect(k8sClient.Update(context.TODO(), deltaLease)).To(Succeed())
 
 			// Wait until the job gets the "foregroundDeletion" finalizer and remove it
 			Eventually(func() (*batchv1.Job, error) {
-				if err := c.Get(ctx, client.ObjectKeyFromObject(j), j); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(j), j); err != nil {
 					return nil, err
 				}
 				return j, nil
 			}, timeout, pollingInterval).Should(PointTo(testutils.MatchFinalizer(metav1.FinalizerDeleteDependents)))
-			Expect(controllerutils.RemoveFinalizers(ctx, c, j, metav1.FinalizerDeleteDependents)).To(Succeed())
+			Expect(controllerutils.RemoveFinalizers(ctx, k8sClient, j, metav1.FinalizerDeleteDependents)).To(Succeed())
 
 			// Wait until the job has been deleted
 			Eventually(func() error {
-				return c.Get(ctx, client.ObjectKeyFromObject(j), &batchv1.Job{})
+				return k8sClient.Get(ctx, client.ObjectKeyFromObject(j), &batchv1.Job{})
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 
 			//Instead of failed one a new job should be created
 			j = &batchv1.Job{}
-			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
 		})
 
 		It("should delete the existing job if the job is succeeded", func() {
@@ -238,36 +232,36 @@ var _ = Describe("Lease Controller", func() {
 				},
 			}
 
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
 			Expect(err).To(Not(HaveOccurred()))
 
 			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
+				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 			}
-			err = c.Create(context.TODO(), instance)
+			err = k8sClient.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Create Job
 			j := createJob(instance)
-			Expect(c.Create(ctx, j)).To(Succeed())
+			Expect(k8sClient.Create(ctx, j)).To(Succeed())
 
-			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
 
 			// Update job status as succeeded
 			j.Status.Succeeded = 1
-			Expect(c.Status().Update(context.TODO(), j)).To(Succeed())
+			Expect(k8sClient.Status().Update(context.TODO(), j)).To(Succeed())
 
 			// Deliberately update the full lease
 			fullLease := &coordinationv1.Lease{}
-			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(c, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(k8sClient, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
 			fullLease.Spec.HolderIdentity = pointer.String("0")
 			fullLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(c.Update(context.TODO(), fullLease)).To(Succeed())
+			Expect(k8sClient.Update(context.TODO(), fullLease)).To(Succeed())
 
 			Eventually(func() error {
-				if err := c.Get(ctx, client.ObjectKeyFromObject(fullLease), fullLease); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(fullLease), fullLease); err != nil {
 					return err
 				}
 				if fullLease.Spec.HolderIdentity != nil {
@@ -278,23 +272,23 @@ var _ = Describe("Lease Controller", func() {
 
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
-			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(k8sClient, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
 			deltaLease.Spec.HolderIdentity = pointer.String("1000000")
 			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(c.Update(context.TODO(), deltaLease)).To(Succeed())
+			Expect(k8sClient.Update(context.TODO(), deltaLease)).To(Succeed())
 
 			// Wait until the job gets the "foregroundDeletion" finalizer and remove it
 			Eventually(func() (*batchv1.Job, error) {
-				if err := c.Get(ctx, client.ObjectKeyFromObject(j), j); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(j), j); err != nil {
 					return nil, err
 				}
 				return j, nil
 			}, timeout, pollingInterval).Should(PointTo(testutils.MatchFinalizer(metav1.FinalizerDeleteDependents)))
-			Expect(controllerutils.RemoveFinalizers(ctx, c, j, metav1.FinalizerDeleteDependents)).To(Succeed())
+			Expect(controllerutils.RemoveFinalizers(ctx, k8sClient, j, metav1.FinalizerDeleteDependents)).To(Succeed())
 
 			// Wait until the job has been deleted
 			Eventually(func() error {
-				return c.Get(ctx, client.ObjectKeyFromObject(j), &batchv1.Job{})
+				return k8sClient.Get(ctx, client.ObjectKeyFromObject(j), &batchv1.Job{})
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 		})
 
@@ -309,46 +303,46 @@ var _ = Describe("Lease Controller", func() {
 				},
 			}
 
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), c, &ns, func() error { return nil })
+			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
 			Expect(err).To(Not(HaveOccurred()))
 
 			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := testutils.CreateSecrets(ctx, c, instance.Namespace, storeSecret)
+				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 			}
-			err = c.Create(context.TODO(), instance)
+			err = k8sClient.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Create Job
 			j := createJob(instance)
-			Expect(c.Create(ctx, j)).To(Succeed())
+			Expect(k8sClient.Create(ctx, j)).To(Succeed())
 
-			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
 
 			// Update job status as active
 			j.Status.Active = 1
-			Expect(c.Status().Update(ctx, j)).To(Succeed())
+			Expect(k8sClient.Status().Update(ctx, j)).To(Succeed())
 
 			// Deliberately update the delta lease
 			deltaLease := &coordinationv1.Lease{}
-			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(c, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(k8sClient, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
 			deltaLease.Spec.HolderIdentity = pointer.String("1000000")
 			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(c.Update(context.TODO(), deltaLease)).To(Succeed())
+			Expect(k8sClient.Update(context.TODO(), deltaLease)).To(Succeed())
 
 			// The active job should exist
-			Eventually(func() error { return jobIsCorrectlyReconciled(c, instance, j) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
 		})
 
 		AfterEach(func() {
-			Expect(c.Delete(context.TODO(), instance)).To(Succeed())
-			Eventually(func() error { return testutils.IsEtcdRemoved(c, timeout, instance) }, timeout, pollingInterval).Should(BeNil())
+			Expect(k8sClient.Delete(context.TODO(), instance)).To(Succeed())
+			Eventually(func() error { return testutils.IsEtcdRemoved(k8sClient, timeout, instance) }, timeout, pollingInterval).Should(BeNil())
 		})
 	})
 })
 
-func validateEtcdForCmpctJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
+func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
 	store, err := utils.StorageProviderFromInfraProvider(instance.Spec.Backup.Store.Provider)
 	Expect(err).NotTo(HaveOccurred())
 
