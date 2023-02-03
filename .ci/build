@@ -20,19 +20,16 @@ source .ci/common.sh
 # For the build step concourse will additionally set the following environment variable:
 # BINARY_PATH - path to an existing (empty) directory to place build results into.
 if [[ -z "${BINARY_PATH}" ]]; then
-  export BINARY_PATH="${SOURCE_PATH}/bin"
+  BINARY_PATH="${SOURCE_PATH}/bin"
 else
-  export BINARY_PATH="$(readlink -f "${BINARY_PATH}")/bin"
+  BINARY_PATH="$(readlink -f "${BINARY_PATH}")/bin"
 fi
+export BINARY_PATH
 
 ###############################################################################
-
-VERSION_FILE="$(readlink  -f "${SOURCE_PATH}/VERSION")"
-VERSION="$(cat "${VERSION_FILE}")"
-GIT_SHA=$(git rev-parse --short HEAD || echo "GitNotFound")
 
 CGO_ENABLED=0 GO111MODULE=on go build \
   -mod vendor \
   -v \
-  -o ${BINARY_PATH}/etcd-druid \
+  -o "${BINARY_PATH}"/etcd-druid \
   main.go

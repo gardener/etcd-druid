@@ -18,8 +18,7 @@ source .ci/common.sh
 
 ###############################################################################
 
-GINKGO_COMMON_FLAGS="-r -timeout=1h0m0s --randomize-all --randomize-suites --fail-on-pending --progress"
-if [ -z $COVER ] || [ "$COVER" = false ] ; then
+if [ -z "$COVER" ] || [ "$COVER" = false ] ; then
   echo "[INFO] Test coverage is disabled."
   make test
 else

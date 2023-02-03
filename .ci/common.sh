@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -e
+
 # For all steps, concourse will set the following environment variables:
 # SOURCE_PATH - path to component repository root directory.
 if [[ -z "${SOURCE_PATH}" ]]; then
-  export SOURCE_PATH="$(readlink -f "$(dirname ${0})/..")"
+  SOURCE_PATH="$(readlink -f "$(dirname "${0}")/..")"
 else
-  export SOURCE_PATH="$(readlink -f "${SOURCE_PATH}")"
+  SOURCE_PATH="$(readlink -f "${SOURCE_PATH}")"
 fi
+export SOURCE_PATH
 
 VCS="github.com"
 ORGANIZATION="gardener"
@@ -41,7 +44,6 @@ if [[ "${SOURCE_PATH}" != *"src/${REPOSITORY}" ]]; then
   export GOBIN="${SOURCE_PATH}/tmp/bin"
   export PATH="${GOBIN}:${PATH}"
 fi
-
 
 # Turn colors in this script off by setting the NO_COLOR variable in your
 # environment to any value:
