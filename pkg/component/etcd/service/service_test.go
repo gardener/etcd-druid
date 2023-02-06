@@ -20,6 +20,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	. "github.com/gardener/etcd-druid/pkg/component/etcd/service"
+	"github.com/gardener/etcd-druid/pkg/utils"
 
 	"github.com/gardener/gardener/pkg/operation/botanist/component"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -45,7 +46,7 @@ var _ = Describe("Service", func() {
 		namespace                          string
 		name                               string
 		uid                                types.UID
-		labels                             map[string]string
+		selectors                          map[string]string
 		services                           []*corev1.Service
 
 		values          Values
@@ -61,8 +62,9 @@ var _ = Describe("Service", func() {
 		clientPort = 2222
 		serverPort = 3333
 
-		labels = map[string]string{
+		selectors = map[string]string{
 			"foo": "bar",
+			"baz": "qux",
 		}
 
 		etcd = &druidv1alpha1.Etcd{
@@ -72,7 +74,7 @@ var _ = Describe("Service", func() {
 				UID:       uid,
 			},
 			Spec: druidv1alpha1.EtcdSpec{
-				Selector: metav1.SetAsLabelSelector(labels),
+				Selector: metav1.SetAsLabelSelector(selectors),
 				Backup: druidv1alpha1.BackupSpec{
 					Port: pointer.Int32Ptr(backupPort),
 				},
@@ -172,11 +174,12 @@ func checkServiceMetadata(meta *metav1.ObjectMeta, values Values) {
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	})))
-	Expect(meta.Labels).To(Equal(serviceLabels(values)))
+	Expect(meta.Labels).To(Equal(utils.MergeStringMaps(serviceLabels(values), serviceSelectors(values))))
 }
 
 func checkClientService(svc *corev1.Service, values Values) {
 	checkServiceMetadata(&svc.ObjectMeta, values)
+	Expect(svc.Spec.Selector).To(Equal(serviceSelectors(values)))
 	Expect(svc.Spec.Type).To(Equal(corev1.ServiceType("ClusterIP")))
 	Expect(svc.Spec.Ports).To(ConsistOf(
 		Equal(corev1.ServicePort{
@@ -213,6 +216,14 @@ func checkPeerService(svc *corev1.Service, values Values) {
 			TargetPort: intstr.FromInt(int(values.ServerPort)),
 		}),
 	))
+}
+
+func serviceSelectors(val Values) map[string]string {
+	selectors := map[string]string{
+		"instance": val.EtcdName,
+	}
+
+	return selectors
 }
 
 func serviceLabels(val Values) map[string]string {

@@ -749,8 +749,8 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 			"Name":      Equal(utils.GetClientServiceName(instance)),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
-				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
+				"name":     Equal("etcd"),
 			}),
 			"OwnerReferences": MatchElements(ownerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
@@ -768,7 +768,6 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 			"SessionAffinity": Equal(corev1.ServiceAffinityNone),
 			"Selector": MatchKeys(IgnoreExtras, Keys{
 				"instance": Equal(instance.Name),
-				"name":     Equal("etcd"),
 			}),
 			"Ports": MatchElements(servicePortIterator, IgnoreExtras, Elements{
 				"client": MatchFields(IgnoreExtras, Fields{
@@ -812,8 +811,8 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 				"checksum/etcd-configmap":   Equal(configMapChecksum),
 			}),
 			"Labels": MatchAllKeys(Keys{
-				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
+				"name":     Equal("etcd"),
 				"app":      Equal("etcd-statefulset"),
 			}),
 		}),
@@ -825,7 +824,6 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 			"Replicas":    PointTo(Equal(int32(instance.Spec.Replicas))),
 			"Selector": PointTo(MatchFields(IgnoreExtras, Fields{
 				"MatchLabels": MatchAllKeys(Keys{
-					"name":     Equal("etcd"),
 					"instance": Equal(instance.Name),
 				}),
 			})),
@@ -837,8 +835,8 @@ func validateEtcdWithDefaults(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSe
 						"instance": Equal(instance.Name),
 					}),
 					"Labels": MatchAllKeys(Keys{
-						"name":     Equal("etcd"),
 						"instance": Equal(instance.Name),
+						"name":     Equal("etcd"),
 						"app":      Equal("etcd-statefulset"),
 					}),
 				}),
@@ -1048,8 +1046,8 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"Name":      Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
-				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
+				"name":     Equal("etcd"),
 			}),
 			"OwnerReferences": MatchElements(ownerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
@@ -1103,8 +1101,8 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"Name":      Equal(utils.GetClientServiceName(instance)),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
-				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
+				"name":     Equal("etcd"),
 			}),
 			"OwnerReferences": MatchElements(ownerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
@@ -1122,7 +1120,6 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"SessionAffinity": Equal(corev1.ServiceAffinityNone),
 			"Selector": MatchKeys(IgnoreExtras, Keys{
 				"instance": Equal(instance.Name),
-				"name":     Equal("etcd"),
 			}),
 			"Ports": MatchElements(servicePortIterator, IgnoreExtras, Elements{
 				"client": MatchFields(IgnoreExtras, Fields{
@@ -1166,9 +1163,9 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 				"checksum/etcd-configmap":   Equal(configMapChecksum),
 			}),
 			"Labels": MatchAllKeys(Keys{
-				"name":     Equal("etcd"),
-				"instance": Equal(instance.Name),
 				"app":      Equal("etcd-statefulset"),
+				"instance": Equal(instance.Name),
+				"name":     Equal("etcd"),
 			}),
 		}),
 
@@ -1180,7 +1177,6 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"Replicas":    PointTo(Equal(int32(instance.Spec.Replicas))),
 			"Selector": PointTo(MatchFields(IgnoreExtras, Fields{
 				"MatchLabels": MatchAllKeys(Keys{
-					"name":     Equal("etcd"),
 					"instance": Equal(instance.Name),
 				}),
 			})),
@@ -1999,7 +1995,6 @@ func getEtcdWithDefault(name, namespace string) *druidv1alpha1.Etcd {
 			},
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"name":     "etcd",
 					"instance": name,
 				},
 			},
@@ -2032,7 +2027,6 @@ func getEtcd(name, namespace string, tlsEnabled bool) *druidv1alpha1.Etcd {
 			},
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"name":     "etcd",
 					"instance": name,
 				},
 			},

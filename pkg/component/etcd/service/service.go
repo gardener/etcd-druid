@@ -98,6 +98,14 @@ func getOwnerReferences(val Values) []metav1.OwnerReference {
 	}
 }
 
+func getSelectors(val Values) map[string]string {
+	selectors := map[string]string{
+		"instance": val.EtcdName,
+	}
+
+	return selectors
+}
+
 func getLabels(val Values) map[string]string {
 	labels := map[string]string{
 		"instance": val.EtcdName,

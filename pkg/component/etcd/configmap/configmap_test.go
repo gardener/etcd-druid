@@ -95,7 +95,6 @@ var _ = Describe("Configmap", func() {
 			},
 			Spec: druidv1alpha1.EtcdSpec{
 				Labels:   labels,
-				Selector: metav1.SetAsLabelSelector(labels),
 				Replicas: 3,
 				Etcd: druidv1alpha1.EtcdConfig{
 					Quota:   &quota,
@@ -250,14 +249,14 @@ func checkConfigmapMetadata(meta *metav1.ObjectMeta, values *Values) {
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	})))
-	Expect(meta.Labels).To(Equal(configmapLabels(values)))
+	Expect(meta.Labels).To(Equal(configmapLabels()))
 }
 
-func configmapLabels(val *Values) map[string]string {
+func configmapLabels() map[string]string {
 	labels := map[string]string{
-		"name":     "etcd",
-		"instance": val.EtcdName,
 		"app":      "etcd-statefulset",
+		"instance": "configmap",
+		"name":     "etcd",
 		"role":     "main",
 	}
 

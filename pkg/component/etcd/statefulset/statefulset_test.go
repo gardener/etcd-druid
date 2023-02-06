@@ -429,9 +429,8 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 				"instance":                  Equal(values.Name),
 			}),
 			"Labels": MatchAllKeys(Keys{
-				"name":     Equal("etcd"),
 				"instance": Equal(values.Name),
-				"foo":      Equal("bar"),
+				"tar":      Equal("bam"),
 			}),
 		}),
 
@@ -442,7 +441,6 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 			"Replicas": PointTo(Equal(values.Replicas)),
 			"Selector": PointTo(MatchFields(IgnoreExtras, Fields{
 				"MatchLabels": MatchAllKeys(Keys{
-					"name":     Equal("etcd"),
 					"instance": Equal(values.Name),
 				}),
 			})),
@@ -454,9 +452,8 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 						"instance": Equal(values.Name),
 					}),
 					"Labels": MatchAllKeys(Keys{
-						"name":     Equal("etcd"),
 						"instance": Equal(values.Name),
-						"foo":      Equal("bar"),
+						"tar":      Equal("bam"),
 					}),
 				}),
 				//s.Spec.Template.Spec.HostAliases
@@ -726,6 +723,11 @@ func checkStsOwnerRefs(ors []metav1.OwnerReference, values Values) {
 }
 
 func getEtcd(name, namespace string, tlsEnabled bool, replicas int32, storageProvider *string) *druidv1alpha1.Etcd {
+	selectors := map[string]string{
+		"foo": "bar",
+		"baz": "qax",
+	}
+
 	instance := &druidv1alpha1.Etcd{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -738,9 +740,8 @@ func getEtcd(name, namespace string, tlsEnabled bool, replicas int32, storagePro
 				"role":     "test",
 				"instance": name,
 			},
-			Labels: map[string]string{
-				"foo": "bar",
-			},
+			Labels:              map[string]string{"tar": "bam"},
+			Selector:            metav1.SetAsLabelSelector(selectors),
 			Replicas:            replicas,
 			StorageCapacity:     &storageCapacity,
 			StorageClass:        &storageClass,
