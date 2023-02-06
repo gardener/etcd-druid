@@ -20,7 +20,6 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	druidcontrollerutils "github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -37,7 +36,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 var (
@@ -48,20 +46,26 @@ var (
 var _ = Describe("EtcdCopyBackupsTaskController", func() {
 	var (
 		ctx = context.Background()
+		//namespace string
 	)
 
+	BeforeEach(func() {
+		//namespace = testNamespace
+	})
+
 	DescribeTable("when creating and deleting etcdcopybackupstask",
-		func(task *druidv1alpha1.EtcdCopyBackupsTask, jobStatus *batchv1.JobStatus) {
-			// Create namespace
-			_, err := controllerutil.CreateOrUpdate(ctx, k8sClient, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: task.Namespace}}, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
+		func(taskName string, provider druidv1alpha1.StorageProvider, withOptionalFields bool, jobStatus *batchv1.JobStatus) {
+			task := testutils.CreateEtcdCopyBackupsTask("foo01", testNamespace.Name, "Local", true)
 
 			// Create secrets
 			errors := testutils.CreateSecrets(ctx, k8sClient, task.Namespace, task.Spec.SourceStore.SecretRef.Name, task.Spec.TargetStore.SecretRef.Name)
-			Expect(len(errors)).Should(BeZero())
+			Expect(errors).Should(BeNil())
 
 			// Create task
 			Expect(k8sClient.Create(ctx, task)).To(Succeed())
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKeyFromObject(task), task)
+			}).Should(Not(HaveOccurred()))
 
 			// Wait until the job has been created
 			job := &batchv1.Job{
@@ -79,7 +83,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 			// Update job status
 			job.Status = *jobStatus
-			err = k8sClient.Status().Update(ctx, job)
+			err := k8sClient.Status().Update(ctx, job)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Wait until the task status has been updated
@@ -107,25 +111,25 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				return k8sClient.Get(ctx, client.ObjectKeyFromObject(job), &batchv1.Job{})
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 
-			// Wait until the task has been deleted
+			// Wait until the task has been deletedrvnovinro
 			Eventually(func() error {
 				return k8sClient.Get(ctx, client.ObjectKeyFromObject(task), &druidv1alpha1.EtcdCopyBackupsTask{})
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 		},
 		Entry("should create the job, update the task status, and delete the job if the job completed",
-			testutils.CreateEtcdCopyBackupsTask("foo01", "default", "Local", true), getJobStatus(batchv1.JobComplete, "", "")),
+			"foo01", druidv1alpha1.StorageProvider("Local"), true, getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job failed",
-			testutils.CreateEtcdCopyBackupsTask("foo02", "default", "Local", false), getJobStatus(batchv1.JobFailed, "test reason", "test message")),
+			"foo02", druidv1alpha1.StorageProvider("Local"), false, getJobStatus(batchv1.JobFailed, "test reason", "test message")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for aws",
-			testutils.CreateEtcdCopyBackupsTask("foo03", "default", "aws", false), getJobStatus(batchv1.JobComplete, "", "")),
+			"foo03", druidv1alpha1.StorageProvider("aws"), false, getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for azure",
-			testutils.CreateEtcdCopyBackupsTask("foo04", "default", "azure", false), getJobStatus(batchv1.JobComplete, "", "")),
+			"foo04", druidv1alpha1.StorageProvider("azure"), false, getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for gcp",
-			testutils.CreateEtcdCopyBackupsTask("foo05", "default", "gcp", false), getJobStatus(batchv1.JobComplete, "", "")),
+			"foo05", druidv1alpha1.StorageProvider("gcp"), false, getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for openstack",
-			testutils.CreateEtcdCopyBackupsTask("foo06", "default", "openstack", false), getJobStatus(batchv1.JobComplete, "", "")),
+			"foo06", druidv1alpha1.StorageProvider("openstack"), false, getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for alicloud",
-			testutils.CreateEtcdCopyBackupsTask("foo07", "default", "alicloud", false), getJobStatus(batchv1.JobComplete, "", "")),
+			"foo07", druidv1alpha1.StorageProvider("alicloud"), false, getJobStatus(batchv1.JobComplete, "", "")),
 	)
 })
 
@@ -135,8 +139,6 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask) gomegatypes.GomegaMatcher
 	targetProvider, err := utils.StorageProviderFromInfraProvider(task.Spec.TargetStore.Provider)
 	Expect(err).NotTo(HaveOccurred())
 
-	imageVector, err := druidcontrollerutils.CreateImageVector()
-	Expect(err).NotTo(HaveOccurred())
 	images, err := imagevector.FindImages(imageVector, []string{common.BackupRestore})
 	Expect(err).NotTo(HaveOccurred())
 	backupRestoreImage := images[common.BackupRestore]

@@ -15,7 +15,6 @@
 package etcd
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"path/filepath"
@@ -32,7 +31,6 @@ import (
 	druidutils "github.com/gardener/etcd-druid/pkg/utils"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	"github.com/gardener/gardener/pkg/chartrenderer"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
@@ -44,7 +42,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
@@ -60,8 +57,8 @@ const (
 )
 
 var (
+	defaultChartPath        = filepath.Join("charts", "etcd")
 	serviceAccountChartPath = filepath.Join("etcd", "templates", "etcd-serviceaccount.yaml")
-	chartPath               = filepath.Join("charts", "etcd")
 	roleChartPath           = filepath.Join("etcd", "templates", "etcd-role.yaml")
 	roleBindingChartPath    = filepath.Join("etcd", "templates", "etcd-rolebinding.yaml")
 )
@@ -72,7 +69,8 @@ type Reconciler struct {
 	scheme        *runtime.Scheme
 	config        *Config
 	recorder      record.EventRecorder
-	chartRenderer chartrenderer.Interface
+	chartBasePath string
+	chart         *chart
 	restConfig    *rest.Config
 	imageVector   imagevector.ImageVector
 	logger        logr.Logger
@@ -80,15 +78,18 @@ type Reconciler struct {
 
 // NewReconciler creates a new reconciler for Etcd.
 func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
-	var (
-		chartRenderer chartrenderer.Interface
-		imageVector   imagevector.ImageVector
-		err           error
-	)
-	if chartRenderer, err = chartrenderer.NewForConfig(mgr.GetConfig()); err != nil {
+	imageVector, err := utils.CreateImageVector()
+	if err != nil {
 		return nil, err
 	}
-	if imageVector, err = utils.CreateImageVector(); err != nil {
+	return NewReconcilerWithImageVector(mgr, config, imageVector, defaultChartPath)
+}
+
+// NewReconcilerWithImageVector creates a new reconciler for Etcd with an ImageVector.
+// This constructor will mostly be used by tests.
+func NewReconcilerWithImageVector(mgr manager.Manager, config *Config, imageVector imagevector.ImageVector, chartBasePath string) (*Reconciler, error) {
+	chart, err := newChart(chartBasePath, mgr.GetConfig())
+	if err != nil {
 		return nil, err
 	}
 	return &Reconciler{
@@ -96,7 +97,8 @@ func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 		scheme:        mgr.GetScheme(),
 		config:        config,
 		recorder:      mgr.GetEventRecorderFor(controllerName),
-		chartRenderer: chartRenderer,
+		chartBasePath: chartBasePath,
+		chart:         chart,
 		restConfig:    mgr.GetConfig(),
 		imageVector:   imageVector,
 		logger:        log.Log.WithName(controllerName),
@@ -278,17 +280,10 @@ func (r *Reconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl
 func (r *Reconciler) reconcileServiceAccount(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) error {
 	logger.Info("Reconciling serviceaccount")
 	var err error
-	decoded := &corev1.ServiceAccount{}
-	// TODO(AleksandarSavchev): .Render is deprecated. Refactor or adapt code to use RenderEmbeddedFS https://github.com/gardener/gardener/pull/6165
-	renderedChart, err := r.chartRenderer.Render(chartPath, etcd.Name, etcd.Namespace, values) //nolint:staticcheck
+
+	decoded, err := r.chart.decodeServiceAccount(etcd.Name, etcd.Namespace, serviceAccountChartPath, values)
 	if err != nil {
 		return err
-	}
-	if content, ok := renderedChart.Files()[serviceAccountChartPath]; ok {
-		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
-		if err = decoder.Decode(&decoded); err != nil {
-			return err
-		}
 	}
 
 	saObj := &corev1.ServiceAccount{}
@@ -330,17 +325,10 @@ func (r *Reconciler) reconcileServiceAccount(ctx context.Context, logger logr.Lo
 func (r *Reconciler) reconcileRole(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) error {
 	logger.Info("Reconciling role")
 	var err error
-	decoded := &rbac.Role{}
-	// TODO(AleksandarSavchev): .Render is deprecated. Refactor or adapt code to use RenderEmbeddedFS https://github.com/gardener/gardener/pull/6165
-	renderedChart, err := r.chartRenderer.Render(chartPath, etcd.Name, etcd.Namespace, values) //nolint:staticcheck
+
+	decoded, err := r.chart.decodeRole(etcd.Name, etcd.Namespace, roleChartPath, values)
 	if err != nil {
 		return err
-	}
-	if content, ok := renderedChart.Files()[roleChartPath]; ok {
-		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
-		if err = decoder.Decode(&decoded); err != nil {
-			return err
-		}
 	}
 
 	roleObj := &rbac.Role{}
@@ -370,17 +358,10 @@ func (r *Reconciler) reconcileRole(ctx context.Context, logger logr.Logger, etcd
 func (r *Reconciler) reconcileRoleBinding(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) error {
 	logger.Info("Reconciling rolebinding")
 	var err error
-	decoded := &rbac.RoleBinding{}
-	// TODO(AleksandarSavchev): .Render is deprecated. Refactor or adapt code to use RenderEmbeddedFS https://github.com/gardener/gardener/pull/6165
-	renderedChart, err := r.chartRenderer.Render(chartPath, etcd.Name, etcd.Namespace, values) //nolint:staticcheck
+
+	decoded, err := r.chart.decodeRoleBinding(etcd.Name, etcd.Namespace, roleBindingChartPath, values)
 	if err != nil {
 		return err
-	}
-	if content, ok := renderedChart.Files()[roleBindingChartPath]; ok {
-		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
-		if err = decoder.Decode(&decoded); err != nil {
-			return err
-		}
 	}
 
 	roleBindingObj := &rbac.RoleBinding{}

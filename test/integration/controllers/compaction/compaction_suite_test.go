@@ -15,34 +15,21 @@
 package compaction
 
 import (
-	"context"
-	"sync"
+	"path/filepath"
 	"testing"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/controllers/compaction"
-	"github.com/gardener/etcd-druid/test/utils"
-
+	"github.com/gardener/etcd-druid/controllers/utils"
+	"github.com/gardener/etcd-druid/test/integration/setup"
+	"github.com/gardener/gardener/pkg/utils/imagevector"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/client-go/kubernetes/scheme"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 var (
-	testEnv    *envtest.Environment
-	mgr        manager.Manager
-	mgrCtx     context.Context
-	mgrCancel  context.CancelFunc
-	mgrStopped *sync.WaitGroup
-	k8sClient  client.Client
-	revertFunc func()
-	testLog    = ctrl.Log.WithName("test")
+	intTestEnv *setup.IntegrationTestEnv
 )
 
 func TestCompactionController(t *testing.T) {
@@ -55,43 +42,32 @@ func TestCompactionController(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	var err error
+	crdPaths := getCrdPaths()
+	imageVector := createImageVector()
 
-	revertFunc = utils.SwitchDirectory("../../../..")
-	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
-
-	testLog.Info("Setting up test environment")
-	testEnv, err = utils.SetupTestEnvironment(4)
-	Expect(err).ToNot(HaveOccurred())
-
-	err = druidv1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-	// +kubebuilder:scaffold:scheme
-
-	k8sClient, err = client.New(testEnv.Config, client.Options{Scheme: scheme.Scheme})
-	Expect(err).ToNot(HaveOccurred())
-	Expect(k8sClient).ToNot(BeNil())
-
-	mgr, err := utils.GetManager(testEnv.Config)
-	Expect(err).NotTo(HaveOccurred())
-
-	activeDeadlineDuration, err := time.ParseDuration("2m")
-	Expect(err).NotTo(HaveOccurred())
-	reconciler, err := compaction.NewReconciler(mgr, &compaction.Config{
-		EnableBackupCompaction: true,
-		Workers:                5,
-		EventsThreshold:        100,
-		ActiveDeadlineDuration: activeDeadlineDuration,
-	})
-	Expect(err).NotTo(HaveOccurred())
-
-	err = reconciler.AddToManager(mgr)
-	Expect(err).NotTo(HaveOccurred())
-
-	mgrCtx, mgrCancel = context.WithCancel(context.Background())
-	mgrStopped = utils.StartManager(mgrCtx, mgr)
+	intTestEnv = setup.NewIntegrationTestEnv("compaction-int-tests", crdPaths)
+	intTestEnv.RegisterReconcilers(func(mgr manager.Manager) {
+		reconciler := compaction.NewReconcilerWithImageVector(mgr, &compaction.Config{
+			EnableBackupCompaction: true,
+			Workers:                5,
+			EventsThreshold:        100,
+			ActiveDeadlineDuration: 2 * time.Minute,
+		}, imageVector)
+		Expect(reconciler.AddToManager(mgr)).To(Succeed())
+	}).StartManager(1 * time.Minute)
 })
 
 var _ = AfterSuite(func() {
-	utils.StopManager(mgrCancel, mgrStopped, testEnv, revertFunc)
+	intTestEnv.Close()
 })
+
+func getCrdPaths() []string {
+	return []string{filepath.Join("..", "..", "..", "..", "config", "crd", "bases")}
+}
+
+func createImageVector() imagevector.ImageVector {
+	chartsPath := filepath.Join("..", "..", "..", "..", utils.GetDefaultImageYAMLPath())
+	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(chartsPath)
+	Expect(err).To(BeNil())
+	return imageVector
+}

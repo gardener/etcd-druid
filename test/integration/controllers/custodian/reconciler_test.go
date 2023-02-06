@@ -24,16 +24,12 @@ import (
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 const (
@@ -45,30 +41,21 @@ var _ = Describe("Custodian Controller", func() {
 	Describe("Updating Etcd status", func() {
 		Context("when statefulset status is updated", func() {
 			var (
-				instance  *druidv1alpha1.Etcd
-				sts       *appsv1.StatefulSet
-				ctx       = context.TODO()
-				name      = "foo11"
-				namespace = "default"
+				instance *druidv1alpha1.Etcd
+				sts      *appsv1.StatefulSet
+				ctx      = context.TODO()
+				name     = "foo11"
 			)
 
 			BeforeEach(func() {
-				instance = testutils.EtcdBuilderWithDefaults(name, namespace).Build()
-
-				ns := corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: instance.Namespace,
-					},
-				}
-				_, err := controllerutil.CreateOrUpdate(ctx, k8sClient, &ns, func() error { return nil })
-				Expect(err).ToNot(HaveOccurred())
+				instance = testutils.EtcdBuilderWithDefaults(name, testNamespace.Name).Build()
 
 				Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 				// wait for Etcd creation to succeed
 				Eventually(func() error {
 					return k8sClient.Get(ctx, types.NamespacedName{
 						Name:      name,
-						Namespace: namespace,
+						Namespace: testNamespace.Name,
 					}, instance)
 				}, timeout, pollingInterval).Should(BeNil())
 
@@ -87,13 +74,13 @@ var _ = Describe("Custodian Controller", func() {
 				}, timeout, pollingInterval).Should(Succeed())
 
 				// create sts manually, since there is no running etcd controller to create sts upon Etcd creation
-				sts = testutils.CreateStatefulSet(name, namespace, instance.UID, instance.Spec.Replicas)
+				sts = testutils.CreateStatefulSet(name, testNamespace.Name, instance.UID, instance.Spec.Replicas)
 				Expect(k8sClient.Create(ctx, sts)).To(Succeed())
 				// wait for sts creation to succeed
 				Eventually(func() error {
 					return k8sClient.Get(ctx, types.NamespacedName{
 						Name:      name,
-						Namespace: namespace,
+						Namespace: testNamespace.Name,
 					}, sts)
 				}, timeout, pollingInterval).Should(BeNil())
 			})

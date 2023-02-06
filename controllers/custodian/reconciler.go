@@ -46,14 +46,14 @@ type Reconciler struct {
 }
 
 // NewReconciler creates a new reconciler for Custodian.
-func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
+func NewReconciler(mgr manager.Manager, config *Config) *Reconciler {
 	return &Reconciler{
 		Client:     mgr.GetClient(),
 		scheme:     mgr.GetScheme(),
 		config:     config,
 		restConfig: mgr.GetConfig(),
 		logger:     log.Log.WithName(controllerName),
-	}, nil
+	}
 }
 
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds,verbs=get;list;watch;create;update;patch;delete

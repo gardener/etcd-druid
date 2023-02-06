@@ -27,15 +27,17 @@ import (
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
-
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	gardenerUtils "github.com/gardener/gardener/pkg/utils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
+
 	"github.com/ghodss/yaml"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
@@ -46,7 +48,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
@@ -60,44 +61,18 @@ const (
 )
 
 var (
-	deltaSnapshotPeriod = metav1.Duration{
-		Duration: 300 * time.Second,
-	}
-	garbageCollectionPeriod = metav1.Duration{
-		Duration: 43200 * time.Second,
-	}
 	clientPort              int32 = 2379
 	serverPort              int32 = 2380
 	backupPort              int32 = 8080
-	imageEtcd                     = "eu.gcr.io/gardener-project/gardener/etcd:v3.4.13-bootstrap"
-	imageBR                       = "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.12.0"
-	snapshotSchedule              = "0 */24 * * *"
-	defragSchedule                = "0 */24 * * *"
-	container                     = "default.bkp"
-	storageCapacity               = resource.MustParse("5Gi")
 	defaultStorageCapacity        = resource.MustParse("16Gi")
-	storageClass                  = "gardener.fast"
-	priorityClassName             = "class_priority"
 	deltaSnapShotMemLimit         = resource.MustParse("100Mi")
 	autoCompactionMode            = druidv1alpha1.Periodic
 	autoCompactionRetention       = "2m"
 	quota                         = resource.MustParse("8Gi")
-	provider                      = druidv1alpha1.StorageProvider("Local")
-	prefix                        = "/tmp"
-	uid                           = "a9b8c7d6e5f4"
-	volumeClaimTemplateName       = "etcd-main"
-	garbageCollectionPolicy       = druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
-	metricsBasic                  = druidv1alpha1.Basic
 	maxBackups                    = 7
 	imageNames                    = []string{
 		common.Etcd,
 		common.BackupRestore,
-	}
-	etcdSnapshotTimeout = metav1.Duration{
-		Duration: 10 * time.Minute,
-	}
-	etcdDefragTimeout = metav1.Duration{
-		Duration: 10 * time.Minute,
 	}
 )
 
@@ -113,14 +88,7 @@ var _ = Describe("Druid", func() {
 		)
 
 		BeforeEach(func() {
-			instance = testutils.EtcdBuilderWithDefaults("foo1", "default").Build()
-			ns := corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: instance.Namespace,
-				},
-			}
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
+			instance = testutils.EtcdBuilderWithDefaults("foo1", testNamespace.Name).Build()
 
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
 			errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
@@ -226,7 +194,7 @@ var _ = Describe("Druid", func() {
 	})
 
 	DescribeTable("when etcd resource is created",
-		func(instance *druidv1alpha1.Etcd, validate func(*druidv1alpha1.Etcd, *appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *corev1.Service)) {
+		func(etcdName string, validate func(*druidv1alpha1.Etcd, *appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *corev1.Service)) {
 			var (
 				err          error
 				s            *appsv1.StatefulSet
@@ -236,16 +204,9 @@ var _ = Describe("Druid", func() {
 				role         *rbac.Role
 				rb           *rbac.RoleBinding
 				ctx          = context.TODO()
+				instance     *druidv1alpha1.Etcd
 			)
-
-			ns := corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: instance.Namespace,
-				},
-			}
-
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
+			instance = testutils.EtcdBuilderWithoutDefaults(etcdName, testNamespace.Name).Build()
 
 			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
@@ -276,13 +237,13 @@ var _ = Describe("Druid", func() {
 			err = k8sClient.Status().Update(context.TODO(), s)
 			Expect(err).NotTo(HaveOccurred())
 		},
-		Entry("if fields are not set in etcd.Spec, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithoutDefaults("foo28", "default").Build(), validateDefaultValuesForEtcd),
-		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo29", "default").WithTLS().Build(), validateEtcd),
-		Entry("if the store is GCS, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo30", "default").WithTLS().WithProviderGCS().Build(), validateStoreGCP),
-		Entry("if the store is S3, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo31", "default").WithTLS().WithProviderS3().Build(), validateStoreAWS),
-		Entry("if the store is ABS, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo32", "default").WithTLS().WithProviderABS().Build(), validateStoreAzure),
-		Entry("if the store is Swift, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo33", "default").WithTLS().WithProviderSwift().Build(), validateStoreOpenstack),
-		Entry("if the store is OSS, the statefulset should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo34", "default").WithTLS().WithProviderOSS().Build(), validateStoreAlicloud),
+		Entry("if fields are not set in etcd.Spec, the statefulset should reflect the spec changes", "foo28", validateDefaultValuesForEtcd),
+		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", "foo29", validateEtcd),
+		Entry("if the store is GCS, the statefulset should reflect the spec changes", "foo30", validateStoreGCP),
+		Entry("if the store is S3, the statefulset should reflect the spec changes", "foo31", validateStoreAWS),
+		Entry("if the store is ABS, the statefulset should reflect the spec changes", "foo32", validateStoreAzure),
+		Entry("if the store is Swift, the statefulset should reflect the spec changes", "foo33", validateStoreOpenstack),
+		Entry("if the store is OSS, the statefulset should reflect the spec changes", "foo34", validateStoreAlicloud),
 	)
 })
 
@@ -290,7 +251,6 @@ var _ = Describe("Multinode ETCD", func() {
 	//Reconciliation of new etcd resource deployment without any existing statefulsets.
 	Context("when adding etcd resources", func() {
 		var (
-			err      error
 			instance *druidv1alpha1.Etcd
 			sts      *appsv1.StatefulSet
 			svc      *corev1.Service
@@ -298,15 +258,7 @@ var _ = Describe("Multinode ETCD", func() {
 		)
 
 		BeforeEach(func() {
-			instance = testutils.EtcdBuilderWithDefaults("foo82", "default").Build()
-			ns := corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: instance.Namespace,
-				},
-			}
-			_, err = controllerutil.CreateOrUpdate(ctx, k8sClient, &ns, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
-
+			instance = testutils.EtcdBuilderWithDefaults("foo82", testNamespace.Name).Build()
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
 			errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 			Expect(len(errors)).Should(BeZero())
@@ -398,23 +350,16 @@ var _ = Describe("Multinode ETCD", func() {
 			}
 		})
 	})
-	DescribeTable("configmaps are mounted properly when ETCD replicas are odd number", func(instance *druidv1alpha1.Etcd) {
+	DescribeTable("configmaps are mounted properly when ETCD replicas are odd number", func(etcdName string, replicas int) {
 		var (
-			err error
-			sts *appsv1.StatefulSet
-			cm  *corev1.ConfigMap
-			svc *corev1.Service
-			ctx = context.TODO()
+			err      error
+			sts      *appsv1.StatefulSet
+			cm       *corev1.ConfigMap
+			svc      *corev1.Service
+			ctx      = context.TODO()
+			instance *druidv1alpha1.Etcd
 		)
-
-		ns := corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: instance.Namespace,
-			},
-		}
-
-		_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
-		Expect(err).To(Not(HaveOccurred()))
+		instance = testutils.EtcdBuilderWithDefaults(etcdName, testNamespace.Name).WithReplicas(int32(replicas)).Build()
 
 		if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
@@ -443,8 +388,8 @@ var _ = Describe("Multinode ETCD", func() {
 			Expect(strings.Contains(cm.Data["etcd.conf.yaml"], matcher)).To(BeTrue())
 		}
 	},
-		Entry("verify configmap mount path and etcd.conf.yaml when replica is 1 ", testutils.EtcdBuilderWithDefaults("foo83", "default").WithReplicas(1).Build()),
-		Entry("verify configmap mount path and etcd.conf.yaml when replica is 3 ", testutils.EtcdBuilderWithDefaults("foo84", "default").WithReplicas(3).Build()),
+		Entry("verify configmap mount path and etcd.conf.yaml when replica is 1 ", "foo83", 1),
+		Entry("verify configmap mount path and etcd.conf.yaml when replica is 3 ", "foo84", 3),
 	)
 })
 

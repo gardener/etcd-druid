@@ -22,12 +22,14 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
-
 	"github.com/gardener/gardener/pkg/controllerutils"
+
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
+
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -45,6 +47,15 @@ var (
 )
 
 var _ = Describe("Lease Controller", func() {
+
+	var (
+		k8sClient client.Client
+	)
+
+	BeforeEach(func() {
+		k8sClient = intTestEnv.K8sClient
+	})
+
 	Context("when fields are not set in etcd.Spec", func() {
 		var (
 			err      error
@@ -56,7 +67,6 @@ var _ = Describe("Lease Controller", func() {
 		BeforeEach(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
-
 			instance = testutils.EtcdBuilderWithDefaults("foo333", "default").Build()
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -67,8 +77,7 @@ var _ = Describe("Lease Controller", func() {
 			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
 			Expect(err).To(Not(HaveOccurred()))
 
-			err = k8sClient.Create(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Create(context.TODO(), instance)).To(Succeed())
 			s = &appsv1.StatefulSet{}
 			Eventually(func() (bool, error) { return testutils.IsStatefulSetCorrectlyReconciled(ctx, k8sClient, instance, s) }, timeout, pollingInterval).Should(BeTrue())
 			cm = &corev1.ConfigMap{}
@@ -107,17 +116,21 @@ var _ = Describe("Lease Controller", func() {
 				},
 			}
 
+			By("create namespace")
 			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
 			Expect(err).To(Not(HaveOccurred()))
 
 			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
+				By("create backup store secrets")
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
 				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 			}
-			err = k8sClient.Create(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
 
+			By("create etcd instance")
+			Expect(k8sClient.Create(context.TODO(), instance)).To(Succeed())
+
+			By("check if full snapshot lease is reconciled")
 			// Verify if the job is created when difference between holder identities in delta-snapshot-revision and full-snapshot-revision is greater than 1M
 			fullLease := &coordinationv1.Lease{}
 			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(k8sClient, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
@@ -175,8 +188,7 @@ var _ = Describe("Lease Controller", func() {
 				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 			}
-			err = k8sClient.Create(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Create(context.TODO(), instance)).To(Succeed())
 
 			// Create Job
 			j := createJob(instance)
@@ -240,8 +252,7 @@ var _ = Describe("Lease Controller", func() {
 				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 			}
-			err = k8sClient.Create(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Create(context.TODO(), instance)).To(Succeed())
 
 			// Create Job
 			j := createJob(instance)
@@ -311,8 +322,7 @@ var _ = Describe("Lease Controller", func() {
 				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 			}
-			err = k8sClient.Create(context.TODO(), instance)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Create(context.TODO(), instance)).To(Succeed())
 
 			// Create Job
 			j := createJob(instance)

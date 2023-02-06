@@ -30,12 +30,12 @@ const (
 	DefaultImageVector = "images.yaml"
 )
 
-func getDefaultImageYAMLPath() string {
+func GetDefaultImageYAMLPath() string {
 	return filepath.Join(common.ChartPath, DefaultImageVector)
 }
 
 func CreateImageVector() (imagevector.ImageVector, error) {
-	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(getDefaultImageYAMLPath())
+	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(GetDefaultImageYAMLPath())
 	if err != nil {
 		return nil, err
 	}

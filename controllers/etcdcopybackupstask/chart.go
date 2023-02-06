@@ -31,8 +31,8 @@ import (
 )
 
 var (
-	etcdCopyBackupChartPath    = filepath.Join("charts", "etcd-copy-backups")
-	etcdCopyBackupJobChartPath = filepath.Join("etcd-copy-backups", "templates", "etcd-copy-backups-job.yaml")
+	defaultEtcdCopyBackupChartPath = filepath.Join("charts", "etcd-copy-backups")
+	jobChartPath                   = filepath.Join("etcd-copy-backups", "templates", "etcd-copy-backups-job.yaml")
 )
 
 func (r *Reconciler) decodeJobFromChart(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask) (*batchv1.Job, error) {
@@ -44,14 +44,14 @@ func (r *Reconciler) decodeJobFromChart(ctx context.Context, task *druidv1alpha1
 
 	// Render chart
 	// TODO(AleksandarSavchev): .Render is deprecated. Refactor or adapt code to use RenderEmbeddedFS https://github.com/gardener/gardener/pull/6165
-	renderedChart, err := r.chartRenderer.Render(etcdCopyBackupChartPath, task.Name, task.Namespace, values) //nolint:staticcheck
+	renderedChart, err := r.chartRenderer.Render(r.chartBasePath, task.Name, task.Namespace, values) //nolint:staticcheck
 	if err != nil {
 		return nil, fmt.Errorf("could not render chart: %w", err)
 	}
 
 	// Decode job object from chart
 	job := &batchv1.Job{}
-	if err := utils.DecodeObject(renderedChart, etcdCopyBackupJobChartPath, &job); err != nil {
+	if err := utils.DecodeObject(renderedChart, jobChartPath, &job); err != nil {
 		return nil, fmt.Errorf("could not decode job object from chart: %w", err)
 	}
 	return job, nil

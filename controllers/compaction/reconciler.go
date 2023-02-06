@@ -51,21 +51,24 @@ type Reconciler struct {
 	logger      logr.Logger
 }
 
-// NewReconciler creates a new reconciler for Compaction.
+// NewReconciler creates a new reconciler for Compaction
 func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
-	var (
-		imageVector imagevector.ImageVector
-		err         error
-	)
-	if imageVector, err = ctrlutils.CreateImageVector(); err != nil {
+	imageVector, err := ctrlutils.CreateImageVector()
+	if err != nil {
 		return nil, err
 	}
+	return NewReconcilerWithImageVector(mgr, config, imageVector), nil
+}
+
+// NewReconcilerWithImageVector creates a new reconciler for Compaction with an ImageVector.
+// This constructor will mostly be used by tests.
+func NewReconcilerWithImageVector(mgr manager.Manager, config *Config, imageVector imagevector.ImageVector) *Reconciler {
 	return &Reconciler{
 		Client:      mgr.GetClient(),
 		config:      config,
 		imageVector: imageVector,
 		logger:      log.Log.WithName("compaction-lease-controller"),
-	}, nil
+	}
 }
 
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds,verbs=get;list;watch

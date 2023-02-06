@@ -50,7 +50,8 @@ func CreateEtcdCopyBackupsTask(name, namespace string, provider druidv1alpha1.St
 				Prefix:    "/tmp",
 				Provider:  &provider,
 				SecretRef: &corev1.SecretReference{
-					Name: "source-etcd-backup",
+					Name:      "source-etcd-backup",
+					Namespace: namespace,
 				},
 			},
 			TargetStore: druidv1alpha1.StoreSpec{
@@ -58,7 +59,8 @@ func CreateEtcdCopyBackupsTask(name, namespace string, provider druidv1alpha1.St
 				Prefix:    "/tmp",
 				Provider:  &provider,
 				SecretRef: &corev1.SecretReference{
-					Name: "target-etcd-backup",
+					Name:      "target-etcd-backup",
+					Namespace: namespace,
 				},
 			},
 			MaxBackupAge:         maxBackupAge,

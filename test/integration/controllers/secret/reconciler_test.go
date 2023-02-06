@@ -27,7 +27,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 var (
@@ -37,29 +36,18 @@ var (
 
 var _ = Describe("SecretController", func() {
 	var (
-		ctx = context.TODO()
-
-		namespace *corev1.Namespace
-		etcd      *druidv1alpha1.Etcd
-		err       error
+		ctx  = context.TODO()
+		etcd *druidv1alpha1.Etcd
 	)
 
 	BeforeEach(func() {
-		namespace = &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "secret-controller-tests",
-			},
-		}
-		etcd = utils.EtcdBuilderWithDefaults("etcd", namespace.Name).WithTLS().Build()
-
-		_, err = controllerutil.CreateOrUpdate(ctx, k8sClient, namespace, func() error { return nil })
-		Expect(err).ToNot(HaveOccurred())
+		etcd = utils.EtcdBuilderWithDefaults("etcd", testNamespace.Name).WithTLS().Build()
 	})
 
 	It("should reconcile the finalizers for the referenced secrets", func() {
 		getFinalizersForSecret := func(name string) func(g Gomega) []string {
 			return func(g Gomega) []string {
-				secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace.Name}}
+				secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: testNamespace.Name}}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(secret), secret)).To(Succeed())
 				return secret.Finalizers
 			}
@@ -74,7 +62,7 @@ var _ = Describe("SecretController", func() {
 			"peer-url-etcd-server-tls",
 			"etcd-backup",
 		}
-		errs := utils.CreateSecrets(ctx, k8sClient, namespace.Name, secretNames...)
+		errs := utils.CreateSecrets(ctx, k8sClient, testNamespace.Name, secretNames...)
 		Expect(errs).To(BeEmpty())
 
 		Expect(k8sClient.Create(ctx, etcd)).To(Succeed())
@@ -93,7 +81,7 @@ var _ = Describe("SecretController", func() {
 			"peer-url-etcd-server-tls2",
 			"etcd-backup2",
 		}
-		errs = utils.CreateSecrets(ctx, k8sClient, namespace.Name, newSecretNames...)
+		errs = utils.CreateSecrets(ctx, k8sClient, testNamespace.Name, newSecretNames...)
 		Expect(errs).To(BeEmpty())
 
 		patch := client.MergeFrom(etcd.DeepCopy())

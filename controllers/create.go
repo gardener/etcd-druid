@@ -90,7 +90,7 @@ func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
 	}
 
 	// Add custodian reconciler to the manager
-	custodianReconciler, err := custodian.NewReconciler(mgr, config.CustodianControllerConfig)
+	custodianReconciler := custodian.NewReconciler(mgr, config.CustodianControllerConfig)
 	if err != nil {
 		return err
 	}

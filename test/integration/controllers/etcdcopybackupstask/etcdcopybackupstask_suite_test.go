@@ -15,31 +15,31 @@
 package etcdcopybackupstask
 
 import (
-	"context"
-	"sync"
 	"testing"
+	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/controllers/etcdcopybackupstask"
-	"github.com/gardener/etcd-druid/test/utils"
-
+	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
+	"github.com/gardener/etcd-druid/test/integration/setup"
+	"github.com/gardener/gardener/pkg/utils/imagevector"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/client-go/kubernetes/scheme"
+	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 var (
-	testEnv    *envtest.Environment
-	mgrCtx     context.Context
-	mgrCancel  context.CancelFunc
-	mgrStopped *sync.WaitGroup
-	k8sClient  client.Client
-	revertFunc func()
-	testLog    = ctrl.Log.WithName("test")
+	k8sClient     client.Client
+	intTestEnv    *setup.IntegrationTestEnv
+	imageVector   imagevector.ImageVector
+	testNamespace *corev1.Namespace
+)
+
+const (
+	testNamespacePrefix = "etcdcopybackupstask-"
 )
 
 func TestSecretController(t *testing.T) {
@@ -52,39 +52,18 @@ func TestSecretController(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	var err error
-
 	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
-
-	testLog.Info("Setting up test environment")
-	testEnv, err = utils.SetupTestEnvironment(4)
-	Expect(err).ToNot(HaveOccurred())
-
-	err = druidv1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-	// +kubebuilder:scaffold:scheme
-
-	k8sClient, err = client.New(testEnv.Config, client.Options{Scheme: scheme.Scheme})
-	Expect(err).ToNot(HaveOccurred())
-	Expect(k8sClient).ToNot(BeNil())
-
-	revertFunc = utils.SwitchDirectory("../../../..")
-
-	mgr, err := utils.GetManager(testEnv.Config)
-	Expect(err).NotTo(HaveOccurred())
-
-	reconciler, err := etcdcopybackupstask.NewReconciler(mgr, &etcdcopybackupstask.Config{
-		Workers: 5,
-	})
-	Expect(err).NotTo(HaveOccurred())
-
-	err = reconciler.AddToManager(mgr)
-	Expect(err).NotTo(HaveOccurred())
-
-	mgrCtx, mgrCancel = context.WithCancel(context.Background())
-	mgrStopped = utils.StartManager(mgrCtx, mgr)
-})
-
-var _ = AfterSuite(func() {
-	utils.StopManager(mgrCancel, mgrStopped, testEnv, revertFunc)
+	crdPaths := []string{assets.GetEtcdCopyBackupsTaskCrdPath()}
+	imageVector = assets.CreateImageVector()
+	intTestEnv = setup.NewIntegrationTestEnv(testNamespacePrefix, "etcdcopybackupstask-int-tests", crdPaths)
+	intTestEnv.RegisterReconcilers(func(mgr manager.Manager) {
+		chartPath := assets.GetEtcdCopyBackupsBaseChartPath()
+		reconciler, err := etcdcopybackupstask.NewReconcilerWithImageVector(mgr, &etcdcopybackupstask.Config{
+			Workers: 5,
+		}, imageVector, chartPath)
+		Expect(err).To(BeNil())
+		Expect(reconciler.AddToManager(mgr)).To(Succeed())
+	}).StartManager(1 * time.Minute)
+	k8sClient = intTestEnv.K8sClient
+	testNamespace = intTestEnv.TestNs
 })

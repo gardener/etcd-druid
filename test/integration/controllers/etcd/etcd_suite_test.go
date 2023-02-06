@@ -15,33 +15,29 @@
 package etcd
 
 import (
-	"context"
-	"sync"
 	"testing"
+	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/controllers/etcd"
-	"github.com/gardener/etcd-druid/test/utils"
-
+	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
+	"github.com/gardener/etcd-druid/test/integration/setup"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/client-go/kubernetes/scheme"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 var (
-	testEnv    *envtest.Environment
-	mgrCtx     context.Context
-	mgrCancel  context.CancelFunc
-	mgrStopped *sync.WaitGroup
-	k8sClient  client.Client
-	restConfig *rest.Config
-	revertFunc func()
-	testLog    = ctrl.Log.WithName("test")
+	intTestEnv    *setup.IntegrationTestEnv
+	k8sClient     client.Client
+	restConfig    *rest.Config
+	testNamespace *corev1.Namespace
+)
+
+const (
+	testNamespacePrefix = "etcd-"
 )
 
 func TestEtcdController(t *testing.T) {
@@ -54,41 +50,20 @@ func TestEtcdController(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	var err error
+	crdPaths := []string{assets.GetEtcdCrdPath()}
+	imageVector := assets.CreateImageVector()
 
-	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
-
-	testLog.Info("Setting up test environment")
-	testEnv, err = utils.SetupTestEnvironment(4)
-	Expect(err).ToNot(HaveOccurred())
-
-	err = druidv1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-	// +kubebuilder:scaffold:scheme
-
-	k8sClient, err = client.New(testEnv.Config, client.Options{Scheme: scheme.Scheme})
-	Expect(err).ToNot(HaveOccurred())
-	Expect(k8sClient).ToNot(BeNil())
-
-	revertFunc = utils.SwitchDirectory("../../../..")
-
-	mgr, err := utils.GetManager(testEnv.Config)
-	Expect(err).NotTo(HaveOccurred())
-	restConfig = mgr.GetConfig()
-
-	reconciler, err := etcd.NewReconciler(mgr, &etcd.Config{
-		Workers:                            5,
-		DisableEtcdServiceAccountAutomount: false,
-	})
-	Expect(err).NotTo(HaveOccurred())
-
-	err = reconciler.AddToManager(mgr, true)
-	Expect(err).NotTo(HaveOccurred())
-
-	mgrCtx, mgrCancel = context.WithCancel(context.Background())
-	mgrStopped = utils.StartManager(mgrCtx, mgr)
-})
-
-var _ = AfterSuite(func() {
-	utils.StopManager(mgrCancel, mgrStopped, testEnv, revertFunc)
+	intTestEnv = setup.NewIntegrationTestEnv(testNamespacePrefix, "compaction-int-tests", crdPaths)
+	intTestEnv.RegisterReconcilers(func(mgr manager.Manager) {
+		reconciler, err := etcd.NewReconcilerWithImageVector(mgr, &etcd.Config{
+			Workers:                            5,
+			DisableEtcdServiceAccountAutomount: false,
+		}, imageVector,
+			assets.GetEtcdCopyBackupsBaseChartPath())
+		Expect(err).To(BeNil())
+		Expect(reconciler.AddToManager(mgr, true)).To(Succeed())
+	}).StartManager(1 * time.Minute)
+	k8sClient = intTestEnv.K8sClient
+	restConfig = intTestEnv.RestConfig
+	testNamespace = intTestEnv.TestNs
 })

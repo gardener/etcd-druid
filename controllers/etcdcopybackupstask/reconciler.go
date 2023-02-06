@@ -19,10 +19,9 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/gardener/pkg/chartrenderer"
-
 	"github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/common"
+	"github.com/gardener/gardener/pkg/chartrenderer"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -45,6 +44,7 @@ type Reconciler struct {
 	client.Client
 	Config        *Config
 	imageVector   imagevector.ImageVector
+	chartBasePath string
 	chartRenderer chartrenderer.Interface
 	logger        logr.Logger
 }
@@ -54,23 +54,26 @@ type Reconciler struct {
 
 // NewReconciler creates a new reconciler for EtcdCopyBackupsTask.
 func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
-	var (
-		chartRenderer chartrenderer.Interface
-		imageVector   imagevector.ImageVector
-		err           error
-	)
-
-	if chartRenderer, err = chartrenderer.NewForConfig(mgr.GetConfig()); err != nil {
+	imageVector, err := utils.CreateImageVector()
+	if err != nil {
 		return nil, err
 	}
-	if imageVector, err = utils.CreateImageVector(); err != nil {
+	return NewReconcilerWithImageVector(mgr, config, imageVector, defaultEtcdCopyBackupChartPath)
+}
+
+// NewReconcilerWithImageVector creates a new reconciler for EtcdCopyBackupsTask with an ImageVector.
+// This constructor will mostly be used by tests.
+func NewReconcilerWithImageVector(mgr manager.Manager, config *Config, imageVector imagevector.ImageVector, chartBasePath string) (*Reconciler, error) {
+	chartRenderer, err := chartrenderer.NewForConfig(mgr.GetConfig())
+	if err != nil {
 		return nil, err
 	}
 	return &Reconciler{
 		Client:        mgr.GetClient(),
 		Config:        config,
-		chartRenderer: chartRenderer,
 		imageVector:   imageVector,
+		chartBasePath: chartBasePath,
+		chartRenderer: chartRenderer,
 		logger:        log.Log.WithName("etcd-copy-backups-task-controller"),
 	}, nil
 }
