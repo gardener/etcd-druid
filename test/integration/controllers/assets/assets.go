@@ -21,6 +21,10 @@ func GetEtcdCopyBackupsBaseChartPath() string {
 	return filepath.Join("..", "..", "..", "..", "charts", "etcd-copy-backups")
 }
 
+func GetEtcdChartPath() string {
+	return filepath.Join("..", "..", "..", "..", "charts", "etcd")
+}
+
 func CreateImageVector() imagevector.ImageVector {
 	imageVectorPath := filepath.Join("..", "..", "..", "..", common.ChartPath, "images.yaml")
 	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(imageVectorPath)

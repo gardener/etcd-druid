@@ -23,16 +23,20 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/controllers/etcd"
-	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
+	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	gardenerUtils "github.com/gardener/gardener/pkg/utils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
-
 	"github.com/ghodss/yaml"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -42,14 +46,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 const (
@@ -194,39 +193,68 @@ var _ = Describe("Druid", func() {
 	})
 
 	DescribeTable("when etcd resource is created",
-		func(etcdName string, validate func(*druidv1alpha1.Etcd, *appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *corev1.Service)) {
+		func(etcdName string, withTLS bool, provider druidv1alpha1.StorageProvider, etcdWithDefaults bool, validate func(*druidv1alpha1.Etcd, *appsv1.StatefulSet, *corev1.ConfigMap, *corev1.Service, *corev1.Service)) {
 			var (
-				err          error
-				s            *appsv1.StatefulSet
-				cm           *corev1.ConfigMap
-				clSvc, prSvc *corev1.Service
-				sa           *corev1.ServiceAccount
-				role         *rbac.Role
-				rb           *rbac.RoleBinding
-				ctx          = context.TODO()
-				instance     *druidv1alpha1.Etcd
+				err             error
+				s               *appsv1.StatefulSet
+				cm              *corev1.ConfigMap
+				clSvc, prSvc    *corev1.Service
+				sa              *corev1.ServiceAccount
+				role            *rbac.Role
+				rb              *rbac.RoleBinding
+				ctx             = context.TODO()
+				instance        *druidv1alpha1.Etcd
+				instanceBuilder *testutils.EtcdBuilder
 			)
-			instance = testutils.EtcdBuilderWithoutDefaults(etcdName, testNamespace.Name).Build()
+			if etcdWithDefaults {
+				instanceBuilder = testutils.EtcdBuilderWithDefaults(etcdName, testNamespace.Name)
+			} else {
+				instanceBuilder = testutils.EtcdBuilderWithoutDefaults(etcdName, testNamespace.Name)
+			}
+			if withTLS {
+				instanceBuilder.WithTLS()
+			}
+			instance = instanceBuilder.WithStorageProvider(provider).Build()
 
 			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
+				By("create backup-store secrets")
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
 				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 				Expect(len(errors)).Should(BeZero())
 			}
+
+			By("create etcd instance and check if it has been created")
 			err = k8sClient.Create(context.TODO(), instance)
 			Expect(err).NotTo(HaveOccurred())
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), instance)
+			}).Should(Not(HaveOccurred()))
+
+			By("check if statefulset has reconciled")
 			s = &appsv1.StatefulSet{}
 			Eventually(func() (bool, error) { return testutils.IsStatefulSetCorrectlyReconciled(ctx, k8sClient, instance, s) }, timeout, pollingInterval).Should(BeTrue())
+
+			By("check if configmap has reconciled")
 			cm = &corev1.ConfigMap{}
 			Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(k8sClient, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
+
+			By("check if client service has reconciled")
 			clSvc = &corev1.Service{}
 			Eventually(func() error { return testutils.ClientServiceIsCorrectlyReconciled(k8sClient, timeout, instance, clSvc) }, timeout, pollingInterval).Should(BeNil())
+
+			By("check if peer service has reconciled")
 			prSvc = &corev1.Service{}
 			Eventually(func() error { return testutils.PeerServiceIsCorrectlyReconciled(k8sClient, timeout, instance, prSvc) }, timeout, pollingInterval).Should(BeNil())
+
+			By("check if service account has reconciled")
 			sa = &corev1.ServiceAccount{}
 			Eventually(func() error { return testutils.ServiceAccountIsCorrectlyReconciled(k8sClient, timeout, instance, sa) }, timeout, pollingInterval).Should(BeNil())
+
+			By("check if role has reconciled")
 			role = &rbac.Role{}
 			Eventually(func() error { return testutils.RoleIsCorrectlyReconciled(k8sClient, timeout, instance, role) }, timeout, pollingInterval).Should(BeNil())
+
+			By("check if rolebinding has reconciled")
 			rb = &rbac.RoleBinding{}
 			Eventually(func() error { return testutils.RoleBindingIsCorrectlyReconciled(k8sClient, timeout, instance, rb) }, timeout, pollingInterval).Should(BeNil())
 
@@ -237,13 +265,13 @@ var _ = Describe("Druid", func() {
 			err = k8sClient.Status().Update(context.TODO(), s)
 			Expect(err).NotTo(HaveOccurred())
 		},
-		Entry("if fields are not set in etcd.Spec, the statefulset should reflect the spec changes", "foo28", validateDefaultValuesForEtcd),
-		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", "foo29", validateEtcd),
-		Entry("if the store is GCS, the statefulset should reflect the spec changes", "foo30", validateStoreGCP),
-		Entry("if the store is S3, the statefulset should reflect the spec changes", "foo31", validateStoreAWS),
-		Entry("if the store is ABS, the statefulset should reflect the spec changes", "foo32", validateStoreAzure),
-		Entry("if the store is Swift, the statefulset should reflect the spec changes", "foo33", validateStoreOpenstack),
-		Entry("if the store is OSS, the statefulset should reflect the spec changes", "foo34", validateStoreAlicloud),
+		Entry("if fields are not set in etcd.Spec, the statefulset should reflect the spec changes", "foo28", false, druidv1alpha1.StorageProvider("Local"), false, validateDefaultValuesForEtcd),
+		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", "foo29", true, druidv1alpha1.StorageProvider("Local"), true, validateEtcd),
+		Entry("if the store is GCS, the statefulset should reflect the spec changes", "foo30", true, druidv1alpha1.StorageProvider("gcp"), true, validateStoreGCP),
+		Entry("if the store is S3, the statefulset should reflect the spec changes", "foo31", true, druidv1alpha1.StorageProvider("aws"), true, validateStoreAWS),
+		Entry("if the store is ABS, the statefulset should reflect the spec changes", "foo32", true, druidv1alpha1.StorageProvider("azure"), true, validateStoreAzure),
+		Entry("if the store is Swift, the statefulset should reflect the spec changes", "foo33", true, druidv1alpha1.StorageProvider("openstack"), true, validateStoreOpenstack),
+		Entry("if the store is OSS, the statefulset should reflect the spec changes", "foo34", true, druidv1alpha1.StorageProvider("alicloud"), true, validateStoreAlicloud),
 	)
 })
 
@@ -376,15 +404,15 @@ var _ = Describe("Multinode ETCD", func() {
 		Eventually(func() error { return testutils.ClientServiceIsCorrectlyReconciled(k8sClient, timeout, instance, svc) }, timeout, pollingInterval).Should(BeNil())
 
 		// Validate statefulset
-		Expect(*sts.Spec.Replicas).To(Equal(int32(instance.Spec.Replicas)))
+		Expect(*sts.Spec.Replicas).To(Equal(instance.Spec.Replicas))
 
 		if instance.Spec.Replicas == 1 {
-			matcher := "initial-cluster: foo83-0=http://foo83-0.foo83-peer.default.svc:2380"
+			matcher := fmt.Sprintf("initial-cluster: foo83-0=http://foo83-0.foo83-peer.%s.svc:2380", testNamespace.Name)
 			Expect(strings.Contains(cm.Data["etcd.conf.yaml"], matcher)).To(BeTrue())
 		}
 
 		if instance.Spec.Replicas > 1 {
-			matcher := "initial-cluster: foo84-0=http://foo84-0.foo84-peer.default.svc:2380,foo84-1=http://foo84-1.foo84-peer.default.svc:2380,foo84-2=http://foo84-2.foo84-peer.default.svc:2380"
+			matcher := fmt.Sprintf("initial-cluster: foo84-0=http://foo84-0.foo84-peer.%s.svc:2380,foo84-1=http://foo84-1.foo84-peer.%s.svc:2380,foo84-2=http://foo84-2.foo84-peer.%s.svc:2380", testNamespace.Name, testNamespace.Name, testNamespace.Name)
 			Expect(strings.Contains(cm.Data["etcd.conf.yaml"], matcher)).To(BeTrue())
 		}
 	},
@@ -484,7 +512,7 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 	Expect(instance.Spec.Etcd.ClientPort).To(BeNil())
 
 	Expect(instance.Spec.Etcd.Image).To(BeNil())
-	imageVector, err := ctrlutils.CreateImageVector()
+	imageVector := assets.CreateImageVector()
 	Expect(err).NotTo(HaveOccurred())
 	images, err := imagevector.FindImages(imageVector, imageNames)
 	Expect(err).NotTo(HaveOccurred())

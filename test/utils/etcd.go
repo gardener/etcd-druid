@@ -153,6 +153,25 @@ func (eb *EtcdBuilder) WithReadyStatus() *EtcdBuilder {
 	return eb
 }
 
+func (eb *EtcdBuilder) WithStorageProvider(provider druidv1alpha1.StorageProvider) *EtcdBuilder {
+	// TODO: there is no default case right now which is not very right, returning an error in a default case makes it difficult to chain
+	// This should be improved later
+	switch provider {
+	case "aws":
+		return eb.WithProviderS3()
+	case "azure":
+		return eb.WithProviderABS()
+	case "alicloud":
+		return eb.WithProviderOSS()
+	case "gcp":
+		return eb.WithProviderGCS()
+	case "openstack":
+		return eb.WithProviderSwift()
+	default:
+		return eb
+	}
+}
+
 func (eb *EtcdBuilder) WithProviderS3() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil

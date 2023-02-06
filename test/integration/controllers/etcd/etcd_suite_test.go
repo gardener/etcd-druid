@@ -59,7 +59,7 @@ var _ = BeforeSuite(func() {
 			Workers:                            5,
 			DisableEtcdServiceAccountAutomount: false,
 		}, imageVector,
-			assets.GetEtcdCopyBackupsBaseChartPath())
+			assets.GetEtcdChartPath())
 		Expect(err).To(BeNil())
 		Expect(reconciler.AddToManager(mgr, true)).To(Succeed())
 	}).StartManager(1 * time.Minute)
