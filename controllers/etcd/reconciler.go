@@ -57,10 +57,7 @@ const (
 )
 
 var (
-	defaultChartPath        = filepath.Join("charts", "etcd")
-	serviceAccountChartPath = filepath.Join("etcd", "templates", "etcd-serviceaccount.yaml")
-	roleChartPath           = filepath.Join("etcd", "templates", "etcd-role.yaml")
-	roleBindingChartPath    = filepath.Join("etcd", "templates", "etcd-rolebinding.yaml")
+	defaultChartPath = filepath.Join("charts", "etcd")
 )
 
 // Reconciler reconciles Etcd resources.
@@ -281,7 +278,7 @@ func (r *Reconciler) reconcileServiceAccount(ctx context.Context, logger logr.Lo
 	logger.Info("Reconciling serviceaccount")
 	var err error
 
-	decoded, err := r.chart.decodeServiceAccount(etcd.Name, etcd.Namespace, serviceAccountChartPath, values)
+	decoded, err := r.chart.decodeServiceAccount(etcd.Name, etcd.Namespace, values)
 	if err != nil {
 		return err
 	}
@@ -326,7 +323,7 @@ func (r *Reconciler) reconcileRole(ctx context.Context, logger logr.Logger, etcd
 	logger.Info("Reconciling role")
 	var err error
 
-	decoded, err := r.chart.decodeRole(etcd.Name, etcd.Namespace, roleChartPath, values)
+	decoded, err := r.chart.decodeRole(etcd.Name, etcd.Namespace, values)
 	if err != nil {
 		return err
 	}
@@ -359,7 +356,7 @@ func (r *Reconciler) reconcileRoleBinding(ctx context.Context, logger logr.Logge
 	logger.Info("Reconciling rolebinding")
 	var err error
 
-	decoded, err := r.chart.decodeRoleBinding(etcd.Name, etcd.Namespace, roleBindingChartPath, values)
+	decoded, err := r.chart.decodeRoleBinding(etcd.Name, etcd.Namespace, values)
 	if err != nil {
 		return err
 	}

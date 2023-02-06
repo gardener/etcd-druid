@@ -2,12 +2,19 @@ package etcd
 
 import (
 	"bytes"
+	"path/filepath"
 
 	"github.com/gardener/gardener/pkg/chartrenderer"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/rest"
+)
+
+var (
+	serviceAccountChartPath = filepath.Join("etcd", "templates", "etcd-serviceaccount.yaml")
+	roleChartPath           = filepath.Join("etcd", "templates", "etcd-role.yaml")
+	roleBindingChartPath    = filepath.Join("etcd", "templates", "etcd-rolebinding.yaml")
 )
 
 type chart struct {
@@ -26,16 +33,16 @@ func newChart(basePath string, restConfig *rest.Config) (*chart, error) {
 	}, nil
 }
 
-func (c *chart) decodeServiceAccount(etcdName, etcdNs, typeChartPath string, values map[string]interface{}) (*corev1.ServiceAccount, error) {
-	return decodeObjectFromChart[corev1.ServiceAccount](c, etcdName, etcdNs, typeChartPath, values)
+func (c *chart) decodeServiceAccount(etcdName, etcdNs string, values map[string]interface{}) (*corev1.ServiceAccount, error) {
+	return decodeObjectFromChart[corev1.ServiceAccount](c, etcdName, etcdNs, serviceAccountChartPath, values)
 }
 
-func (c *chart) decodeRole(etcdName, etcdNs, typeChartPath string, values map[string]interface{}) (*rbac.Role, error) {
-	return decodeObjectFromChart[rbac.Role](c, etcdName, etcdNs, typeChartPath, values)
+func (c *chart) decodeRole(etcdName, etcdNs string, values map[string]interface{}) (*rbac.Role, error) {
+	return decodeObjectFromChart[rbac.Role](c, etcdName, etcdNs, roleChartPath, values)
 }
 
-func (c *chart) decodeRoleBinding(etcdName, etcdNs, typeChartPath string, values map[string]interface{}) (*rbac.RoleBinding, error) {
-	return decodeObjectFromChart[rbac.RoleBinding](c, etcdName, etcdNs, typeChartPath, values)
+func (c *chart) decodeRoleBinding(etcdName, etcdNs string, values map[string]interface{}) (*rbac.RoleBinding, error) {
+	return decodeObjectFromChart[rbac.RoleBinding](c, etcdName, etcdNs, roleBindingChartPath, values)
 }
 
 func decodeObjectFromChart[T any](c *chart, etcdName, etcdNs, typeChartPath string, values map[string]interface{}) (*T, error) {
