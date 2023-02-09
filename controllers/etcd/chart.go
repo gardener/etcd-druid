@@ -2,6 +2,7 @@ package etcd
 
 import (
 	"bytes"
+	"fmt"
 	"path/filepath"
 
 	"github.com/gardener/gardener/pkg/chartrenderer"
@@ -57,6 +58,8 @@ func decodeObjectFromChart[T any](c *chart, etcdName, etcdNs, typeChartPath stri
 		if err := decoder.Decode(&obj); err != nil {
 			return nil, err
 		}
+	} else {
+		return nil, fmt.Errorf("requested object does not exist in the given chart template")
 	}
 	return obj, nil
 }
