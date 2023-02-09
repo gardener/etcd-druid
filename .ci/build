@@ -13,9 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -e
+set -eo pipefail
 
-source .ci/common.sh
+# For all steps, concourse will set the following environment variables:
+# SOURCE_PATH - path to component repository root directory.
+if [[ -z "${SOURCE_PATH}" ]]; then
+  SOURCE_PATH="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")/..")"
+else
+  SOURCE_PATH="$(readlink -f "${SOURCE_PATH}")"
+fi
+export SOURCE_PATH
 
 # For the build step concourse will additionally set the following environment variable:
 # BINARY_PATH - path to an existing (empty) directory to place build results into.
@@ -25,6 +32,8 @@ else
   BINARY_PATH="$(readlink -f "${BINARY_PATH}")/bin"
 fi
 export BINARY_PATH
+
+source "${SOURCE_PATH}/.ci/common.sh"
 
 ###############################################################################
 

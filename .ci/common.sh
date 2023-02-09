@@ -12,16 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -e
-
-# For all steps, concourse will set the following environment variables:
-# SOURCE_PATH - path to component repository root directory.
-if [[ -z "${SOURCE_PATH}" ]]; then
-  SOURCE_PATH="$(readlink -f "$(dirname "${0}")/..")"
-else
-  SOURCE_PATH="$(readlink -f "${SOURCE_PATH}")"
-fi
-export SOURCE_PATH
+set -eo pipefail
 
 VCS="github.com"
 ORGANIZATION="gardener"
@@ -31,6 +22,11 @@ REPOSITORY=${VCS}/${ORGANIZATION}/${PROJECT}
 # The `go <cmd>` commands requires to see the target repository to be part of a
 # Go workspace. Thus, if we are not yet in a Go workspace, let's create one
 # temporarily by using symbolic links.
+if [[ -z "$SOURCE_PATH" ]]; then
+    echo "Environment variable SOURCE_PATH must be provided"
+    exit 1
+fi
+
 if [[ "${SOURCE_PATH}" != *"src/${REPOSITORY}" ]]; then
   SOURCE_SYMLINK_PATH="${SOURCE_PATH}/tmp/src/${REPOSITORY}"
   if [[ -d "${SOURCE_PATH}/tmp" ]]; then
