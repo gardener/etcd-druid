@@ -19,6 +19,7 @@ import (
 	. "github.com/onsi/gomega/gstruct"
 	gomegatypes "github.com/onsi/gomega/types"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"os"
 )
 
 func MatchFinalizer(finalizer string) gomegatypes.GomegaMatcher {
@@ -38,4 +39,22 @@ func stringIdentifier(element interface{}) string {
 func ParseQuantity(q string) resource.Quantity {
 	val, _ := resource.ParseQuantity(q)
 	return val
+}
+
+// SwitchDirectory sets the working directory and returns a function to revert to the previous one.
+func SwitchDirectory(path string) func() {
+	oldPath, err := os.Getwd()
+	if err != nil {
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	if err := os.Chdir(path); err != nil {
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	return func() {
+		if err := os.Chdir(oldPath); err != nil {
+			Expect(err).NotTo(HaveOccurred())
+		}
+	}
 }

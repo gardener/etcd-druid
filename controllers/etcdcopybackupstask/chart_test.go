@@ -57,11 +57,7 @@ var _ = Describe("EtcdCopyBackupsTaskController Chart", func() {
 		)
 
 		BeforeEach(func() {
-			revertFunc := testutils.SwitchDirectory("../..")
-			defer revertFunc()
-			imageVector, err := utils.CreateImageVector()
-			Expect(err).ToNot(HaveOccurred())
-			images, err := imagevector.FindImages(imageVector, []string{common.BackupRestore})
+			images, err := imagevector.FindImages(reconciler.imageVector, []string{common.BackupRestore})
 			Expect(err).ToNot(HaveOccurred())
 			val, ok := images[common.BackupRestore]
 			Expect(ok).To(BeTrue())
