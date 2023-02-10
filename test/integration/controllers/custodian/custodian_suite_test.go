@@ -63,7 +63,7 @@ var _ = BeforeSuite(func() {
 			},
 		})
 		Expect(reconciler.AddToManager(ctx, mgr, true)).To(Succeed())
-	}).StartManager(1 * time.Minute)
+	}).StartManager()
 	k8sClient = intTestEnv.K8sClient
 	testNamespace = intTestEnv.TestNs
 })

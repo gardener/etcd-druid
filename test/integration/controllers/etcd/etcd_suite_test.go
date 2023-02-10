@@ -16,7 +16,6 @@ package etcd
 
 import (
 	"testing"
-	"time"
 
 	"github.com/gardener/etcd-druid/controllers/etcd"
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
@@ -62,7 +61,7 @@ var _ = BeforeSuite(func() {
 			assets.GetEtcdChartPath())
 		Expect(err).To(BeNil())
 		Expect(reconciler.AddToManager(mgr, true)).To(Succeed())
-	}).StartManager(1 * time.Minute)
+	}).StartManager()
 	k8sClient = intTestEnv.K8sClient
 	restConfig = intTestEnv.RestConfig
 	testNamespace = intTestEnv.TestNs

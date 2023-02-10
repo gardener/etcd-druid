@@ -16,7 +16,6 @@ package etcdcopybackupstask
 
 import (
 	"testing"
-	"time"
 
 	"github.com/gardener/etcd-druid/controllers/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
@@ -63,7 +62,7 @@ var _ = BeforeSuite(func() {
 		}, imageVector, chartPath)
 		Expect(err).To(BeNil())
 		Expect(reconciler.AddToManager(mgr)).To(Succeed())
-	}).StartManager(1 * time.Minute)
+	}).StartManager()
 	k8sClient = intTestEnv.K8sClient
 	testNamespace = intTestEnv.TestNs
 })

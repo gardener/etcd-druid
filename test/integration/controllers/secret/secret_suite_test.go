@@ -16,7 +16,6 @@ package secret
 
 import (
 	"testing"
-	"time"
 
 	"github.com/gardener/etcd-druid/controllers/secret"
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
@@ -57,7 +56,7 @@ var _ = BeforeSuite(func() {
 			Workers: 5,
 		})
 		Expect(reconciler.AddToManager(mgr)).To(Succeed())
-	}).StartManager(1 * time.Minute)
+	}).StartManager()
 	k8sClient = intTestEnv.K8sClient
 	testNamespace = intTestEnv.TestNs
 })

@@ -2,7 +2,6 @@ package setup
 
 import (
 	"context"
-	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/go-logr/logr"
@@ -34,17 +33,15 @@ type IntegrationTestEnv struct {
 
 type AddToManager func(mgr manager.Manager)
 
-//func NewDefaultIntegrationTestEnv(loggerName string) *IntegrationTestEnv {
-//	return NewIntegrationTestEnv(loggerName, nil)
-//}
-
+// NewIntegrationTestEnv creates a new integration test environment. It will do the following:
+// 1. It will set the scheme
+// 2. It will create a kubebuilder envtest environment which in turn will provide rest.Config, k8s client.
+// 3. Creates a test namespace that will be used by all the tests.
+// 4. Creates a controller manager
+// Sets up deferred cleanup of all the above resources which will be cleaned up when the test suit completes.
 func NewIntegrationTestEnv(namespacePrefix string, loggerName string, crdDirectoryPaths []string) *IntegrationTestEnv {
 	testEnv := &IntegrationTestEnv{ctx: context.Background()}
-
 	testEnv.Logger = ctrl.Log.WithName(loggerName)
-	//mgrCtx, mgrCancelFn := context.WithCancel(context.Background())
-	//testEnv.mgrCtx = mgrCtx
-	//testEnv.mgrCancelFn = mgrCancelFn
 
 	druidScheme := prepareScheme()
 	testEnv.createTestEnvironment(druidScheme, crdDirectoryPaths)
@@ -54,13 +51,15 @@ func NewIntegrationTestEnv(namespacePrefix string, loggerName string, crdDirecto
 	return testEnv
 }
 
+// RegisterReconcilers allows consumers to register one or more reconcilers to the controller manager passed via the callback function AddToManager.
 func (e *IntegrationTestEnv) RegisterReconcilers(addToMgrFn AddToManager) *IntegrationTestEnv {
 	By("Register reconciler")
 	addToMgrFn(e.mgr)
 	return e
 }
 
-func (e *IntegrationTestEnv) StartManager(timeout time.Duration) *IntegrationTestEnv {
+// StartManager starts controller manager.
+func (e *IntegrationTestEnv) StartManager() *IntegrationTestEnv {
 	By("Start manager")
 	mgrCtx, mgrCancelFn := context.WithCancel(e.ctx)
 	go func() {
@@ -71,25 +70,8 @@ func (e *IntegrationTestEnv) StartManager(timeout time.Duration) *IntegrationTes
 		By("Stop manager")
 		mgrCancelFn()
 	})
-	//syncCtx, syncCancelFn := context.WithTimeout(e.mgrCtx, timeout)
-	//defer syncCancelFn()
-	//e.mgr.GetCache().WaitForCacheSync(syncCtx)
 	return e
 }
-
-//func (e *IntegrationTestEnv) Close() {
-//	if e.mgrCancelFn != nil {
-//		e.mgrCancelFn()
-//	}
-//	if e.mgrStopWg != nil {
-//		e.mgrStopWg.Wait()
-//	}
-//	if e.testEnv != nil {
-//		if err := e.testEnv.Stop(); err != nil {
-//			e.Logger.Error(err, "failed to cleanly stop env-test")
-//		}
-//	}
-//}
 
 func (e *IntegrationTestEnv) createTestEnvironment(scheme *k8sruntime.Scheme, crdDirectoryPaths []string) {
 	By("Create test environment")
