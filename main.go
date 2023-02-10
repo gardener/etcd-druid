@@ -17,6 +17,7 @@ package main
 
 import (
 	"flag"
+	"go.uber.org/zap/zapcore"
 	"os"
 	"time"
 
@@ -86,7 +87,10 @@ func main() {
 
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	ctrl.SetLogger(zap.New(func(options *zap.Options) {
+		options.Development = false
+		options.TimeEncoder = zapcore.ISO8601TimeEncoder
+	}))
 
 	ctx := ctrl.SetupSignalHandler()
 
