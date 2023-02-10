@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// CreateSecrets creates all the given secrets
 func CreateSecrets(ctx context.Context, c client.Client, namespace string, secrets ...string) []error {
 	var errors []error
 	for _, name := range secrets {

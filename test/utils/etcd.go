@@ -371,15 +371,16 @@ func CheckEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.E
 	return false
 }
 
-func IsEtcdRemoved(c client.Client, timeout time.Duration, etcd *druidv1alpha1.Etcd) error {
+// IsEtcdRemoved checks if the given etcd object is removed
+func IsEtcdRemoved(c client.Client, name, namespace string, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	e := &druidv1alpha1.Etcd{}
+	etcd := &druidv1alpha1.Etcd{}
 	req := types.NamespacedName{
-		Name:      etcd.Name,
-		Namespace: etcd.Namespace,
+		Name:      name,
+		Namespace: namespace,
 	}
-	if err := c.Get(ctx, req, e); err != nil {
+	if err := c.Get(ctx, req, etcd); err != nil {
 		if apierrors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
 			// For additional cleanup logic use finalizers

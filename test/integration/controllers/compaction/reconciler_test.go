@@ -17,20 +17,17 @@ package compaction
 import (
 	"context"
 	"fmt"
+	"github.com/gardener/gardener/pkg/controllerutils"
+	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
-	"github.com/gardener/gardener/pkg/controllerutils"
-
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 
-	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -38,7 +35,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 var (
@@ -48,150 +44,81 @@ var (
 
 var _ = Describe("Lease Controller", func() {
 
-	var (
-		k8sClient client.Client
-	)
-
-	BeforeEach(func() {
-		k8sClient = intTestEnv.K8sClient
-	})
-
-	Context("when fields are not set in etcd.Spec", func() {
-		var (
-			err      error
-			instance *druidv1alpha1.Etcd
-			s        *appsv1.StatefulSet
-			cm       *corev1.ConfigMap
-			svc      *corev1.Service
-		)
-		BeforeEach(func() {
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-			instance = testutils.EtcdBuilderWithDefaults("foo333", "default").Build()
-			ns := corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: instance.Namespace,
-				},
-			}
-
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
-
-			Expect(k8sClient.Create(context.TODO(), instance)).To(Succeed())
-			s = &appsv1.StatefulSet{}
-			Eventually(func() (bool, error) { return testutils.IsStatefulSetCorrectlyReconciled(ctx, k8sClient, instance, s) }, timeout, pollingInterval).Should(BeTrue())
-			cm = &corev1.ConfigMap{}
-			Eventually(func() error { return testutils.ConfigMapIsCorrectlyReconciled(k8sClient, timeout, instance, cm) }, timeout, pollingInterval).Should(BeNil())
-			svc = &corev1.Service{}
-			Eventually(func() error { return testutils.ClientServiceIsCorrectlyReconciled(k8sClient, timeout, instance, svc) }, timeout, pollingInterval).Should(BeNil())
-		})
-
-		AfterEach(func() {
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-
-			Expect(k8sClient.Delete(context.TODO(), instance)).To(Succeed())
-			Eventually(func() (bool, error) {
-				return testutils.IsStatefulSetRemoved(ctx, k8sClient, s)
-			}, timeout, pollingInterval).Should(Equal(true))
-			Eventually(func() error { return testutils.IsEtcdRemoved(k8sClient, timeout, instance) }, timeout, pollingInterval).Should(BeNil())
-		})
-	})
-
-	// When an ETCD resource is created, check if the associated compaction job is created with validateETCDCmpctJob
+	// When an ETCD resource is created, check if the associated compaction job is created with validateETCDCompactionJob
 	DescribeTable("when etcd resource is created",
-		func(instance *druidv1alpha1.Etcd,
-			validateETCDCmpctJob func(*druidv1alpha1.Etcd, *batchv1.Job)) {
+		func(name string,
+			provider druidv1alpha1.StorageProvider,
+			validateETCDCompactionJob func(*druidv1alpha1.Etcd, *batchv1.Job)) {
 			var (
-				err error
-				j   *batchv1.Job
+				instance       *druidv1alpha1.Etcd
+				fullSnapLease  *coordinationv1.Lease
+				deltaSnapLease *coordinationv1.Lease
+				j              *batchv1.Job
 			)
 
-			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-			defer cancel()
+			instance = testutils.EtcdBuilderWithDefaults(name, namespace).WithTLS().WithStorageProvider(provider).Build()
+			createEtcdAndWait(k8sClient, instance)
 
-			ns := corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: instance.Namespace,
-				},
-			}
+			// manually create full and delta snapshot leases since etcd controller is not running
+			fullSnapLease, deltaSnapLease = createEtcdSnapshotLeasesAndWait(k8sClient, instance)
 
-			By("create namespace")
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
+			// manually update full lease spec since there is no running instance of etcd-backup-restore
+			By("update full snapshot lease")
+			fullSnapLease.Spec.HolderIdentity = pointer.String("0")
+			fullSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(k8sClient.Update(context.TODO(), fullSnapLease)).To(Succeed())
 
-			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
-				By("create backup store secrets")
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-			}
+			// manually update delta lease spec since there is no running instance of etcd-backup-restore
+			By("update delta snapshot lease")
+			deltaSnapLease.Spec.HolderIdentity = pointer.String("101")
+			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
 
-			By("create etcd instance")
-			Expect(k8sClient.Create(context.TODO(), instance)).To(Succeed())
-
-			By("check if full snapshot lease is reconciled")
-			// Verify if the job is created when difference between holder identities in delta-snapshot-revision and full-snapshot-revision is greater than 1M
-			fullLease := &coordinationv1.Lease{}
-			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(k8sClient, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
-			fullLease.Spec.HolderIdentity = pointer.String("0")
-			fullLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(k8sClient.Update(context.TODO(), fullLease)).To(Succeed())
-
-			deltaLease := &coordinationv1.Lease{}
-			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(k8sClient, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			deltaLease.Spec.HolderIdentity = pointer.String("1000000")
-			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(k8sClient.Update(context.TODO(), deltaLease)).To(Succeed())
-
+			// Verify if the job is created when difference between holder identities in delta-snapshot-revision and full-snapshot-revision is greater than 100
 			j = &batchv1.Job{}
-			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
-
-			validateETCDCmpctJob(instance, j)
-
-			Expect(k8sClient.Delete(context.TODO(), instance)).To(Succeed())
 			Eventually(func() error {
-				return k8sClient.Get(context.TODO(), client.ObjectKeyFromObject(instance), &druidv1alpha1.Etcd{})
-			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
+				return jobIsCorrectlyReconciled(k8sClient, instance, j)
+			}, timeout, pollingInterval).Should(BeNil())
+
+			validateETCDCompactionJob(instance, j)
+
+			deleteEtcdAndWait(k8sClient, instance)
+
+			deleteEtcdSnapshotLeasesAndWait(k8sClient, instance)
 		},
-		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo71", "default").WithTLS().Build(), validateEtcdForCompactionJob),
-		Entry("if the store is GCS, the statefulset and compaction job should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo72", "default").WithTLS().WithProviderGCS().Build(), validateStoreGCPForCmpctJob),
-		Entry("if the store is S3, the statefulset and compaction job should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo73", "default").WithTLS().WithProviderS3().Build(), validateStoreAWSForCmpctJob),
-		Entry("if the store is ABS, the statefulset and compaction job should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo74", "default").WithTLS().WithProviderABS().Build(), validateStoreAzureForCmpctJob),
-		Entry("if the store is Swift, the statefulset and compaction job should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo75", "default").WithTLS().WithProviderSwift().Build(), validateStoreOpenstackForCmpctJob),
-		Entry("if the store is OSS, the statefulset and compaction job should reflect the spec changes", testutils.EtcdBuilderWithDefaults("foo76", "default").WithTLS().WithProviderOSS().Build(), validateStoreAlicloudForCmpctJob),
+		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", "foo71", druidv1alpha1.StorageProvider("Local"), validateEtcdForCompactionJob),
+		Entry("if the store is S3, the statefulset and compaction job should reflect the spec changes", "foo72", druidv1alpha1.StorageProvider("aws"), validateStoreAWSForCompactionJob),
+		Entry("if the store is ABS, the statefulset and compaction job should reflect the spec changes", "foo73", druidv1alpha1.StorageProvider("azure"), validateStoreAzureForCompactionJob),
+		Entry("if the store is GCS, the statefulset and compaction job should reflect the spec changes", "foo74", druidv1alpha1.StorageProvider("gcp"), validateStoreGCPForCompactionJob),
+		Entry("if the store is Swift, the statefulset and compaction job should reflect the spec changes", "foo75", druidv1alpha1.StorageProvider("openstack"), validateStoreOpenstackForCompactionJob),
+		Entry("if the store is OSS, the statefulset and compaction job should reflect the spec changes", "foo76", druidv1alpha1.StorageProvider("alicloud"), validateStoreAlicloudForCompactionJob),
 	)
 
 	Context("when an existing job is already present", func() {
 		var (
-			err      error
-			instance *druidv1alpha1.Etcd
-			ns       corev1.Namespace
+			instance       *druidv1alpha1.Etcd
+			fullSnapLease  *coordinationv1.Lease
+			deltaSnapLease *coordinationv1.Lease
+			j              *batchv1.Job
 		)
+
+		AfterEach(func() {
+			Expect(k8sClient.Delete(context.TODO(), instance)).To(Succeed())
+			Eventually(func() error { return testutils.IsEtcdRemoved(k8sClient, instance.Name, instance.Namespace, timeout) }, timeout, pollingInterval).Should(BeNil())
+		})
 
 		It("should create a new job if the existing job is failed", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testutils.EtcdBuilderWithDefaults("foo77", "default").Build()
-			ns = corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: instance.Namespace,
-				},
-			}
+			instance = testutils.EtcdBuilderWithDefaults("foo77", namespace).Build()
+			createEtcdAndWait(k8sClient, instance)
 
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
+			// manually create full and delta snapshot leases since etcd controller is not running
+			fullSnapLease, deltaSnapLease = createEtcdSnapshotLeasesAndWait(k8sClient, instance)
 
-			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-			}
-			Expect(k8sClient.Create(context.TODO(), instance)).To(Succeed())
-
-			// Create Job
-			j := createJob(instance)
+			// manually create compaction job
+			j = createCompactionJob(instance)
 			Expect(k8sClient.Create(ctx, j)).To(Succeed())
 
 			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
@@ -201,18 +128,14 @@ var _ = Describe("Lease Controller", func() {
 			Expect(k8sClient.Status().Update(ctx, j)).To(Succeed())
 
 			// Deliberately update the full lease
-			fullLease := &coordinationv1.Lease{}
-			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(k8sClient, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
-			fullLease.Spec.HolderIdentity = pointer.String("0")
-			fullLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(k8sClient.Update(context.TODO(), fullLease)).To(Succeed())
+			fullSnapLease.Spec.HolderIdentity = pointer.String("0")
+			fullSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(k8sClient.Update(context.TODO(), fullSnapLease)).To(Succeed())
 
 			// Deliberately update the delta lease
-			deltaLease := &coordinationv1.Lease{}
-			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(k8sClient, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			deltaLease.Spec.HolderIdentity = pointer.String("1000000")
-			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(k8sClient.Update(context.TODO(), deltaLease)).To(Succeed())
+			deltaSnapLease.Spec.HolderIdentity = pointer.String("101")
+			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
 
 			// Wait until the job gets the "foregroundDeletion" finalizer and remove it
 			Eventually(func() (*batchv1.Job, error) {
@@ -228,7 +151,7 @@ var _ = Describe("Lease Controller", func() {
 				return k8sClient.Get(ctx, client.ObjectKeyFromObject(j), &batchv1.Job{})
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 
-			//Instead of failed one a new job should be created
+			// A new job should be created
 			j = &batchv1.Job{}
 			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
 		})
@@ -238,24 +161,13 @@ var _ = Describe("Lease Controller", func() {
 			defer cancel()
 
 			instance = testutils.EtcdBuilderWithDefaults("foo78", "default").Build()
-			ns = corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: instance.Namespace,
-				},
-			}
+			createEtcdAndWait(k8sClient, instance)
 
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
+			// manually create full and delta snapshot leases since etcd controller is not running
+			fullSnapLease, deltaSnapLease = createEtcdSnapshotLeasesAndWait(k8sClient, instance)
 
-			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-			}
-			Expect(k8sClient.Create(context.TODO(), instance)).To(Succeed())
-
-			// Create Job
-			j := createJob(instance)
+			// create compaction job
+			j := createCompactionJob(instance)
 			Expect(k8sClient.Create(ctx, j)).To(Succeed())
 
 			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
@@ -265,28 +177,14 @@ var _ = Describe("Lease Controller", func() {
 			Expect(k8sClient.Status().Update(context.TODO(), j)).To(Succeed())
 
 			// Deliberately update the full lease
-			fullLease := &coordinationv1.Lease{}
-			Eventually(func() error { return fullLeaseIsCorrectlyReconciled(k8sClient, instance, fullLease) }, timeout, pollingInterval).Should(BeNil())
-			fullLease.Spec.HolderIdentity = pointer.String("0")
-			fullLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(k8sClient.Update(context.TODO(), fullLease)).To(Succeed())
-
-			Eventually(func() error {
-				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(fullLease), fullLease); err != nil {
-					return err
-				}
-				if fullLease.Spec.HolderIdentity != nil {
-					return nil
-				}
-				return fmt.Errorf("no HolderIdentity")
-			}, 10*time.Second, pollingInterval)
+			fullSnapLease.Spec.HolderIdentity = pointer.String("0")
+			fullSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(k8sClient.Update(context.TODO(), fullSnapLease)).To(Succeed())
 
 			// Deliberately update the delta lease
-			deltaLease := &coordinationv1.Lease{}
-			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(k8sClient, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			deltaLease.Spec.HolderIdentity = pointer.String("1000000")
-			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(k8sClient.Update(context.TODO(), deltaLease)).To(Succeed())
+			deltaSnapLease.Spec.HolderIdentity = pointer.String("101")
+			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
 
 			// Wait until the job gets the "foregroundDeletion" finalizer and remove it
 			Eventually(func() (*batchv1.Job, error) {
@@ -304,28 +202,17 @@ var _ = Describe("Lease Controller", func() {
 		})
 
 		It("should let the existing job run if the job is active", func() {
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
 			instance = testutils.EtcdBuilderWithDefaults("foo79", "default").Build()
-			ns = corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: instance.Namespace,
-				},
-			}
+			createEtcdAndWait(k8sClient, instance)
 
-			_, err = controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
-			Expect(err).To(Not(HaveOccurred()))
+			// manually create full and delta snapshot leases since etcd controller is not running
+			fullSnapLease, deltaSnapLease = createEtcdSnapshotLeasesAndWait(k8sClient, instance)
 
-			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
-				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
-			}
-			Expect(k8sClient.Create(context.TODO(), instance)).To(Succeed())
-
-			// Create Job
-			j := createJob(instance)
+			// create compaction job
+			j := createCompactionJob(instance)
 			Expect(k8sClient.Create(ctx, j)).To(Succeed())
 
 			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
@@ -335,21 +222,24 @@ var _ = Describe("Lease Controller", func() {
 			Expect(k8sClient.Status().Update(ctx, j)).To(Succeed())
 
 			// Deliberately update the delta lease
-			deltaLease := &coordinationv1.Lease{}
-			Eventually(func() error { return deltaLeaseIsCorrectlyReconciled(k8sClient, instance, deltaLease) }, timeout, pollingInterval).Should(BeNil())
-			deltaLease.Spec.HolderIdentity = pointer.String("1000000")
-			deltaLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(k8sClient.Update(context.TODO(), deltaLease)).To(Succeed())
+			deltaSnapLease.Spec.HolderIdentity = pointer.String("100")
+			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
 
 			// The active job should exist
-			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
+			Eventually(func() error {
+				if err := jobIsCorrectlyReconciled(k8sClient, instance, j); err != nil {
+					return err
+				}
+				if j.Status.Active != 1 {
+					return fmt.Errorf("compaction job is not currently active")
+				}
+				return nil
+			}, timeout, pollingInterval).Should(BeNil())
 		})
 
-		AfterEach(func() {
-			Expect(k8sClient.Delete(context.TODO(), instance)).To(Succeed())
-			Eventually(func() error { return testutils.IsEtcdRemoved(k8sClient, timeout, instance) }, timeout, pollingInterval).Should(BeNil())
-		})
 	})
+
 })
 
 func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
@@ -387,7 +277,7 @@ func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) 
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):                                   Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 								fmt.Sprintf("%s=%s", "--storage-provider", store):                                                           Equal(fmt.Sprintf("%s=%s", "--storage-provider", store)),
 								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container):                            Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
-								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(instance.Spec.Etcd.Quota.Value())):                      Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(instance.Spec.Etcd.Quota.Value()))),
+								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", instance.Spec.Etcd.Quota.Value()):                             Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", instance.Spec.Etcd.Quota.Value())),
 								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String())),
 								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String()):       Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String())),
 							}),
@@ -432,7 +322,7 @@ func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) 
 	}))
 }
 
-func validateStoreGCPForCmpctJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
+func validateStoreGCPForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
 	Expect(*j).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -486,7 +376,7 @@ func validateStoreGCPForCmpctJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
 	}))
 }
 
-func validateStoreAWSForCmpctJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
+func validateStoreAWSForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
 	Expect(*j).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -534,7 +424,7 @@ func validateStoreAWSForCmpctJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
 	}))
 }
 
-func validateStoreAzureForCmpctJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
+func validateStoreAzureForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
 	Expect(*j).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -582,7 +472,7 @@ func validateStoreAzureForCmpctJob(instance *druidv1alpha1.Etcd, j *batchv1.Job)
 	}))
 }
 
-func validateStoreOpenstackForCmpctJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
+func validateStoreOpenstackForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
 	Expect(*j).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -630,7 +520,7 @@ func validateStoreOpenstackForCmpctJob(instance *druidv1alpha1.Etcd, j *batchv1.
 	}))
 }
 
-func validateStoreAlicloudForCmpctJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
+func validateStoreAlicloudForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
 	Expect(*j).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -693,13 +583,13 @@ func jobIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, job
 	}
 
 	if job.Status.Failed > 0 {
-		return fmt.Errorf("Job is running but it's failed")
+		return fmt.Errorf("job is running but it is in failed state")
 	}
 
 	return nil
 }
 
-func createJob(instance *druidv1alpha1.Etcd) *batchv1.Job {
+func createCompactionJob(instance *druidv1alpha1.Etcd) *batchv1.Job {
 	j := batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      instance.GetCompactionJobName(),
@@ -729,15 +619,11 @@ func createJob(instance *druidv1alpha1.Etcd) *batchv1.Job {
 	return &j
 }
 
-func fullLeaseIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, lease *coordinationv1.Lease) error {
+func etcdSnapshotLeaseIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, lease *coordinationv1.Lease) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
-	req := types.NamespacedName{
-		Name:      instance.GetFullSnapshotLeaseName(),
-		Namespace: instance.Namespace,
-	}
 
-	if err := c.Get(ctx, req, lease); err != nil {
+	if err := c.Get(ctx, client.ObjectKeyFromObject(lease), lease); err != nil {
 		return err
 	}
 
@@ -747,20 +633,70 @@ func fullLeaseIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etc
 	return nil
 }
 
-func deltaLeaseIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, lease *coordinationv1.Lease) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-	defer cancel()
-	req := types.NamespacedName{
-		Name:      instance.GetDeltaSnapshotLeaseName(),
-		Namespace: instance.Namespace,
-	}
+func createEtcdAndWait(c client.Client, etcd *druidv1alpha1.Etcd) {
+	By("create etcd instance")
+	Expect(c.Create(context.TODO(), etcd)).To(Succeed())
 
-	if err := c.Get(ctx, req, lease); err != nil {
-		return err
-	}
+	// wait for etcd to be created
+	Eventually(func() error {
+		return c.Get(context.TODO(), client.ObjectKeyFromObject(etcd), etcd)
+	}, timeout, pollingInterval).Should(BeNil())
+}
 
-	if !testutils.CheckEtcdOwnerReference(lease.GetOwnerReferences(), instance) {
-		return fmt.Errorf("ownerReference does not exists for lease")
+func deleteEtcdAndWait(c client.Client, etcd *druidv1alpha1.Etcd) {
+	By("delete etcd instance")
+	Expect(c.Delete(context.TODO(), etcd)).To(Succeed())
+
+	// wait for etcd to be deleted
+	Eventually(func() error {
+		return testutils.IsEtcdRemoved(c, etcd.Name, etcd.Namespace, timeout)
+	}, timeout, pollingInterval).Should(BeNil())
+}
+
+func createEtcdSnapshotLeasesAndWait(c client.Client, etcd *druidv1alpha1.Etcd) (*coordinationv1.Lease, *coordinationv1.Lease) {
+	By("create full snapshot lease")
+	fullSnapLease := testutils.CreateLease(etcd.GetFullSnapshotLeaseName(), etcd.Namespace, etcd.Name, etcd.UID)
+	Expect(c.Create(context.TODO(), fullSnapLease)).To(Succeed())
+
+	By("create delta snapshot lease")
+	deltaSnapLease := testutils.CreateLease(etcd.GetDeltaSnapshotLeaseName(), etcd.Namespace, etcd.Name, etcd.UID)
+	Expect(c.Create(context.TODO(), deltaSnapLease)).To(Succeed())
+
+	// wait for full snapshot lease to be created
+	Eventually(func() error { return etcdSnapshotLeaseIsCorrectlyReconciled(c, etcd, fullSnapLease) }, timeout, pollingInterval).Should(BeNil())
+
+	// wait for delta snapshot lease to be created
+	Eventually(func() error { return etcdSnapshotLeaseIsCorrectlyReconciled(c, etcd, deltaSnapLease) }, timeout, pollingInterval).Should(BeNil())
+
+	return fullSnapLease, deltaSnapLease
+}
+
+func deleteEtcdSnapshotLeasesAndWait(c client.Client, etcd *druidv1alpha1.Etcd) {
+	By("delete full snapshot lease")
+	fullSnapLease := &coordinationv1.Lease{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      etcd.GetFullSnapshotLeaseName(),
+			Namespace: etcd.Namespace,
+		},
 	}
-	return nil
+	Expect(c.Delete(context.TODO(), fullSnapLease)).To(Succeed())
+
+	By("delete delta snapshot lease")
+	deltaSnapLease := &coordinationv1.Lease{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      etcd.GetDeltaSnapshotLeaseName(),
+			Namespace: etcd.Namespace,
+		},
+	}
+	Expect(c.Delete(context.TODO(), deltaSnapLease)).To(Succeed())
+
+	// wait for full snapshot lease to be created
+	Eventually(func() error {
+		return testutils.IsLeaseRemoved(c, fullSnapLease.Name, fullSnapLease.Namespace, timeout)
+	}, timeout, pollingInterval).Should(BeNil())
+
+	// wait for delta snapshot lease to be created
+	Eventually(func() error {
+		return testutils.IsLeaseRemoved(c, deltaSnapLease.Name, deltaSnapLease.Namespace, timeout)
+	}, timeout, pollingInterval).Should(BeNil())
 }

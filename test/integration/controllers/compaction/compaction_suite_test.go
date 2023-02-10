@@ -15,21 +15,30 @@
 package compaction
 
 import (
-	"path/filepath"
+	"context"
+	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"testing"
 	"time"
 
 	"github.com/gardener/etcd-druid/controllers/compaction"
-	"github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/test/integration/setup"
-	"github.com/gardener/gardener/pkg/utils/imagevector"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 var (
 	intTestEnv *setup.IntegrationTestEnv
+	k8sClient  client.Client
+	namespace  string
+)
+
+const (
+	testNamespacePrefix = "compaction-"
 )
 
 func TestCompactionController(t *testing.T) {
@@ -42,10 +51,10 @@ func TestCompactionController(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	crdPaths := getCrdPaths()
-	imageVector := createImageVector()
+	crdPaths := []string{assets.GetEtcdCrdPath()}
+	imageVector := assets.CreateImageVector()
 
-	intTestEnv = setup.NewIntegrationTestEnv("compaction-int-tests", crdPaths)
+	intTestEnv = setup.NewIntegrationTestEnv(testNamespacePrefix, "compaction-int-tests", crdPaths)
 	intTestEnv.RegisterReconcilers(func(mgr manager.Manager) {
 		reconciler := compaction.NewReconcilerWithImageVector(mgr, &compaction.Config{
 			EnableBackupCompaction: true,
@@ -54,20 +63,16 @@ var _ = BeforeSuite(func() {
 			ActiveDeadlineDuration: 2 * time.Minute,
 		}, imageVector)
 		Expect(reconciler.AddToManager(mgr)).To(Succeed())
-	}).StartManager(1 * time.Minute)
+	}).StartManager()
+	k8sClient = intTestEnv.K8sClient
+	namespace = intTestEnv.TestNs.Name
+
+	By("create test namespace")
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: namespace,
+		},
+	}
+	_, err := controllerutil.CreateOrUpdate(context.TODO(), k8sClient, &ns, func() error { return nil })
+	Expect(err).To(Not(HaveOccurred()))
 })
-
-var _ = AfterSuite(func() {
-	intTestEnv.Close()
-})
-
-func getCrdPaths() []string {
-	return []string{filepath.Join("..", "..", "..", "..", "config", "crd", "bases")}
-}
-
-func createImageVector() imagevector.ImageVector {
-	chartsPath := filepath.Join("..", "..", "..", "..", utils.GetDefaultImageYAMLPath())
-	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(chartsPath)
-	Expect(err).To(BeNil())
-	return imageVector
-}
