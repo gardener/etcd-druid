@@ -114,8 +114,7 @@ docker-push:
 
 # Run tests
 .PHONY: test
-
-test: set-permissions $(GINKGO) fmt check manifests
+test: set-permissions $(GINKGO) $(SETUP_ENVTEST) fmt check manifests
 	@"$(REPO_ROOT)/hack/test.sh" ./api/... ./controllers/... ./pkg/...
 
 .PHONY: test-cov
