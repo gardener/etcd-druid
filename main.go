@@ -87,10 +87,7 @@ func main() {
 
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(func(options *zap.Options) {
-		options.Development = false
-		options.TimeEncoder = zapcore.ISO8601TimeEncoder
-	}))
+	ctrl.SetLogger(zap.New(buildDefaultLoggerOpts()...))
 
 	ctx := ctrl.SetupSignalHandler()
 
@@ -177,4 +174,14 @@ func main() {
 		setupLog.Error(err, "Problem running manager")
 		os.Exit(1)
 	}
+}
+
+func buildDefaultLoggerOpts() []zap.Opts {
+	var opts []zap.Opts
+	opts = append(opts, zap.UseDevMode(false))
+	opts = append(opts, zap.JSONEncoder(func(encoderConfig *zapcore.EncoderConfig) {
+		encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+		encoderConfig.EncodeDuration = zapcore.StringDurationEncoder
+	}))
+	return opts
 }
