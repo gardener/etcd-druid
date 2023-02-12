@@ -112,7 +112,7 @@ test: $(GINKGO) $(SETUP_ENVTEST) fmt check manifests
 
 .PHONY: test-cov
 test-cov: $(GINKGO) $(SETUP_ENVTEST)
-	@TEST_COV="true" "$(REPO_ROOT)/hack/test.sh"
+	@TEST_COV="true" "$(REPO_ROOT)/hack/test.sh" --skip-package=./test/e2e
 
 .PHONY: test-cov-clean
 test-cov-clean:
