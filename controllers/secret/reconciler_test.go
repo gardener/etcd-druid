@@ -126,6 +126,19 @@ var _ = Describe("SecretController", func() {
 		})
 
 		Context("test #addFinalizer when secret does not exist", func() {
+			BeforeEach(func() {
+				ctx = context.Background()
+				secret = &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "non-existent",
+						Namespace: testNamespace,
+						// resource version is required as OptimisticLock is used for the merge patch
+						// operation used by controllerutils.AddFinalizers()
+						ResourceVersion: "42",
+					},
+				}
+			})
+
 			It("should not return an error if the secret is not found", func() {
 				Expect(addFinalizer(ctx, logger, fakeClient, secret)).To(BeNil())
 			})
@@ -163,6 +176,16 @@ var _ = Describe("SecretController", func() {
 		})
 
 		Context("test remove finalizer on a non-existing secret", func() {
+			BeforeEach(func() {
+				ctx = context.Background()
+				secret = &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "non-existent",
+						Namespace: testNamespace,
+					},
+				}
+			})
+
 			It("should not return an error if the secret is not found", func() {
 				Expect(removeFinalizer(ctx, logger, fakeClient, secret)).To(BeNil())
 			})
