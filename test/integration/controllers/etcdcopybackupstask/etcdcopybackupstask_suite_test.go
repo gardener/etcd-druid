@@ -41,7 +41,7 @@ const (
 	testNamespacePrefix = "etcdcopybackupstask-"
 )
 
-func TestSecretController(t *testing.T) {
+func TestEtcdCopyBackupsTaskController(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	RunSpecs(
