@@ -68,7 +68,7 @@ var _ = Describe("Custodian Controller", func() {
 						return err
 					}
 					if *instance.Status.Ready != true {
-						return fmt.Errorf("Etcd not ready yet")
+						return fmt.Errorf("etcd not ready yet")
 					}
 					return nil
 				}, timeout, pollingInterval).Should(Succeed())
@@ -97,7 +97,7 @@ var _ = Describe("Custodian Controller", func() {
 						return err
 					}
 					if sts.Status.ReadyReplicas != 1 {
-						return fmt.Errorf("Statefulset ReadyReplicas should be equal to 1")
+						return fmt.Errorf("statefulset ReadyReplicas should be equal to 1")
 					}
 					return nil
 				}, timeout, pollingInterval).Should(Succeed())
@@ -109,13 +109,13 @@ var _ = Describe("Custodian Controller", func() {
 					}
 
 					if int(instance.Status.ReadyReplicas) != 1 {
-						return fmt.Errorf("Etcd ready replicas should be equal to 1")
+						return fmt.Errorf("etcd ready replicas should be equal to 1")
 					}
 					return nil
 				}, timeout, pollingInterval).Should(BeNil())
 			})
 
-			It("should mark statefulset status not ready when no readyreplicas in statefulset", func() {
+			It("should mark statefulset status not ready when no ready replicas in statefulset", func() {
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), sts)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -131,7 +131,7 @@ var _ = Describe("Custodian Controller", func() {
 					}
 
 					if sts.Status.ReadyReplicas > 0 {
-						return fmt.Errorf("No readyreplicas of statefulset should exist at this point")
+						return fmt.Errorf("no readyreplicas of statefulset should exist at this point")
 					}
 
 					return nil

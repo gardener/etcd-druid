@@ -42,7 +42,7 @@ var (
 	pollingInterval = time.Second * 2
 )
 
-var _ = Describe("Lease Controller", func() {
+var _ = Describe("Compaction Controller", func() {
 
 	// When an ETCD resource is created, check if the associated compaction job is created with validateETCDCompactionJob
 	DescribeTable("when etcd resource is created",

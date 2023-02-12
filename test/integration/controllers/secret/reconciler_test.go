@@ -34,7 +34,7 @@ var (
 	pollingInterval = 2 * time.Second
 )
 
-var _ = Describe("SecretController", func() {
+var _ = Describe("Secret Controller", func() {
 	var (
 		ctx  = context.TODO()
 		etcd *druidv1alpha1.Etcd

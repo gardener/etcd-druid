@@ -43,7 +43,7 @@ var (
 	pollingInterval = 2 * time.Second
 )
 
-var _ = Describe("EtcdCopyBackupsTaskController", func() {
+var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 	var (
 		ctx = context.Background()
 		//namespace string
@@ -111,7 +111,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				return k8sClient.Get(ctx, client.ObjectKeyFromObject(job), &batchv1.Job{})
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 
-			// Wait until the task has been deletedrvnovinro
+			// Wait until the task has been deleted
 			Eventually(func() error {
 				return k8sClient.Get(ctx, client.ObjectKeyFromObject(task), &druidv1alpha1.EtcdCopyBackupsTask{})
 			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
@@ -253,8 +253,8 @@ func matchJobWithProviders(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvid
 					"Containers": MatchAllElements(testutils.ContainerIterator, Elements{
 						"copy-backups": MatchFields(IgnoreExtras, Fields{
 							"Env": And(
-								MatchElements(testutils.EnvIterator, IgnoreExtras, getProviderEnvElements(targetProvider, "", "", &task.Spec.TargetStore)),
-								MatchElements(testutils.EnvIterator, IgnoreExtras, getProviderEnvElements(sourceProvider, "SOURCE_", "source-", &task.Spec.SourceStore)),
+								MatchElements(testutils.EnvIterator, IgnoreExtras, getProviderEnvElements(targetProvider, "", "")),
+								MatchElements(testutils.EnvIterator, IgnoreExtras, getProviderEnvElements(sourceProvider, "SOURCE_", "source-")),
 							),
 						}),
 					}),
@@ -276,8 +276,8 @@ func matchJobWithProviders(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvid
 							}),
 						}),
 						"Volumes": And(
-							MatchElements(testutils.VolumeIterator, IgnoreExtras, getVolumesElements(targetProvider, "", &task.Spec.TargetStore)),
-							MatchElements(testutils.VolumeIterator, IgnoreExtras, getVolumesElements(sourceProvider, "source-", &task.Spec.SourceStore)),
+							MatchElements(testutils.VolumeIterator, IgnoreExtras, getVolumesElements("", &task.Spec.TargetStore)),
+							MatchElements(testutils.VolumeIterator, IgnoreExtras, getVolumesElements("source-", &task.Spec.SourceStore)),
 						),
 					}),
 				}),
@@ -288,7 +288,7 @@ func matchJobWithProviders(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvid
 	return matcher
 }
 
-func getProviderEnvElements(storeProvider, prefix, volumePrefix string, store *druidv1alpha1.StoreSpec) Elements {
+func getProviderEnvElements(storeProvider, prefix, volumePrefix string) Elements {
 	switch storeProvider {
 	case "S3":
 		return Elements{
@@ -356,7 +356,7 @@ func getVolumeMountsElements(storeProvider, volumePrefix string) Elements {
 	}
 }
 
-func getVolumesElements(storeProvider, volumePrefix string, store *druidv1alpha1.StoreSpec) Elements {
+func getVolumesElements(volumePrefix string, store *druidv1alpha1.StoreSpec) Elements {
 
 	return Elements{
 		volumePrefix + "etcd-backup": MatchAllFields(Fields{

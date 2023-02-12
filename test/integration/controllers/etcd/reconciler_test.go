@@ -75,7 +75,7 @@ var (
 	}
 )
 
-var _ = Describe("Druid", func() {
+var _ = Describe("Etcd Controller", func() {
 	//Reconciliation of new etcd resource deployment without any existing statefulsets.
 	Context("when adding etcd resources", func() {
 		var (
@@ -351,7 +351,7 @@ var _ = Describe("Multinode ETCD", func() {
 				}
 
 				if events == nil || len(events.Items) == 0 {
-					return fmt.Errorf("No events generated for annotation to ignore reconciliation")
+					return fmt.Errorf("no events generated for annotation to ignore reconciliation")
 				}
 
 				for _, event := range events.Items {
@@ -624,7 +624,7 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 				"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 			}),
 			"ServiceName": Equal(instance.GetPeerServiceName()),
-			"Replicas":    PointTo(Equal(int32(instance.Spec.Replicas))),
+			"Replicas":    PointTo(Equal(instance.Spec.Replicas)),
 			"Selector": PointTo(MatchFields(IgnoreExtras, Fields{
 				"MatchLabels": MatchAllKeys(Keys{
 					"name":     Equal("etcd"),
@@ -717,7 +717,7 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 								fmt.Sprintf("--garbage-collection-policy=%s", druidv1alpha1.GarbageCollectionPolicyLimitBased): Equal(fmt.Sprintf("--garbage-collection-policy=%s", druidv1alpha1.GarbageCollectionPolicyLimitBased)),
 								fmt.Sprintf("--endpoints=http://%s-local:%d", instance.Name, clientPort):                       Equal(fmt.Sprintf("--endpoints=http://%s-local:%d", instance.Name, clientPort)),
 								fmt.Sprintf("--service-endpoints=http://%s:%d", instance.GetClientServiceName(), clientPort):   Equal(fmt.Sprintf("--service-endpoints=http://%s:%d", instance.GetClientServiceName(), clientPort)),
-								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(quota.Value())):                            Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(quota.Value()))),
+								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", quota.Value()):                                   Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", quota.Value())),
 								fmt.Sprintf("--max-backups=%d", maxBackups):                                                    Equal(fmt.Sprintf("--max-backups=%d", maxBackups)),
 								fmt.Sprintf("--auto-compaction-mode=%s", druidv1alpha1.Periodic):                               Equal(fmt.Sprintf("--auto-compaction-mode=%s", druidv1alpha1.Periodic)),
 								fmt.Sprintf("--auto-compaction-retention=%s", "30m"):                                           Equal(fmt.Sprintf("--auto-compaction-retention=%s", "30m")),
@@ -982,7 +982,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 				"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 			}),
 			"ServiceName": Equal(instance.GetPeerServiceName()),
-			"Replicas":    PointTo(Equal(int32(instance.Spec.Replicas))),
+			"Replicas":    PointTo(Equal(instance.Spec.Replicas)),
 			"Selector": PointTo(MatchFields(IgnoreExtras, Fields{
 				"MatchLabels": MatchAllKeys(Keys{
 					"name":     Equal("etcd"),
@@ -1110,7 +1110,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								fmt.Sprintf("--garbage-collection-policy=%s", *instance.Spec.Backup.GarbageCollectionPolicy):                        Equal(fmt.Sprintf("--garbage-collection-policy=%s", *instance.Spec.Backup.GarbageCollectionPolicy)),
 								fmt.Sprintf("--endpoints=https://%s-local:%d", instance.Name, clientPort):                                           Equal(fmt.Sprintf("--endpoints=https://%s-local:%d", instance.Name, clientPort)),
 								fmt.Sprintf("--service-endpoints=https://%s:%d", instance.GetClientServiceName(), clientPort):                       Equal(fmt.Sprintf("--service-endpoints=https://%s:%d", instance.GetClientServiceName(), clientPort)),
-								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(instance.Spec.Etcd.Quota.Value())):                              Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(instance.Spec.Etcd.Quota.Value()))),
+								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", instance.Spec.Etcd.Quota.Value()):                                     Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", instance.Spec.Etcd.Quota.Value())),
 								fmt.Sprintf("%s=%s", "--delta-snapshot-period", instance.Spec.Backup.DeltaSnapshotPeriod.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-period", instance.Spec.Backup.DeltaSnapshotPeriod.Duration.String())),
 								fmt.Sprintf("%s=%s", "--garbage-collection-period", instance.Spec.Backup.GarbageCollectionPeriod.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--garbage-collection-period", instance.Spec.Backup.GarbageCollectionPeriod.Duration.String())),
 								fmt.Sprintf("%s=%s", "--auto-compaction-mode", *instance.Spec.Common.AutoCompactionMode):                            Equal(fmt.Sprintf("%s=%s", "--auto-compaction-mode", autoCompactionMode)),
@@ -1268,7 +1268,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 	}))
 }
 
-func validateStoreGCP(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, clSvc *corev1.Service, prSvc *corev1.Service) {
+func validateStoreGCP(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *corev1.ConfigMap, _ *corev1.Service, _ *corev1.Service) {
 
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
@@ -1332,7 +1332,7 @@ func validateStoreGCP(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *c
 
 }
 
-func validateStoreAzure(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, clSvc *corev1.Service, prSvc *corev1.Service) {
+func validateStoreAzure(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *corev1.ConfigMap, _ *corev1.Service, _ *corev1.Service) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -1388,7 +1388,7 @@ func validateStoreAzure(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm 
 	}))
 }
 
-func validateStoreOpenstack(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, clSvc *corev1.Service, prSvc *corev1.Service) {
+func validateStoreOpenstack(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *corev1.ConfigMap, _ *corev1.Service, _ *corev1.Service) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -1444,7 +1444,7 @@ func validateStoreOpenstack(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet,
 	}))
 }
 
-func validateStoreAlicloud(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, clSvc *corev1.Service, prSvc *corev1.Service) {
+func validateStoreAlicloud(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *corev1.ConfigMap, _ *corev1.Service, _ *corev1.Service) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{
@@ -1502,7 +1502,7 @@ func validateStoreAlicloud(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, 
 	}))
 }
 
-func validateStoreAWS(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev1.ConfigMap, clSvc *corev1.Service, prSvc *corev1.Service) {
+func validateStoreAWS(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *corev1.ConfigMap, _ *corev1.Service, _ *corev1.Service) {
 	Expect(*s).To(MatchFields(IgnoreExtras, Fields{
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Template": MatchFields(IgnoreExtras, Fields{

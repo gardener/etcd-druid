@@ -46,7 +46,7 @@ func TestSecretController(t *testing.T) {
 
 	RunSpecs(
 		t,
-		"Secret Controller Suite",
+		"EtcdCopyBackupsTask Controller Suite",
 	)
 }
 
