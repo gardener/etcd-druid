@@ -44,12 +44,12 @@ type Config struct {
 }
 
 func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
-	flag.BoolVar(&cfg.EnableBackupCompaction, enableBackupCompactionFlagName, defaultEnableBackupCompaction,
+	fs.BoolVar(&cfg.EnableBackupCompaction, enableBackupCompactionFlagName, defaultEnableBackupCompaction,
 		"Enable automatic compaction of etcd backups.")
-	flag.IntVar(&cfg.Workers, compactionWorkersFlagName, defaultCompactionWorkers,
+	fs.IntVar(&cfg.Workers, compactionWorkersFlagName, defaultCompactionWorkers,
 		"Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. Setting this flag to 0 disabled the controller.")
-	flag.Int64Var(&cfg.EventsThreshold, eventsThresholdFlagName, defaultEventsThreshold,
+	fs.Int64Var(&cfg.EventsThreshold, eventsThresholdFlagName, defaultEventsThreshold,
 		"Total number of etcd events that can be allowed before a backup compaction job is triggered.")
-	flag.DurationVar(&cfg.ActiveDeadlineDuration, activeDeadlineDurationFlagName, defaultActiveDeadlineDuration,
+	fs.DurationVar(&cfg.ActiveDeadlineDuration, activeDeadlineDurationFlagName, defaultActiveDeadlineDuration,
 		"Duration after which a running backup compaction job will be killed (Ex: \"300ms\", \"20s\", \"-1.5h\" or \"2h45m\").\").")
 }

@@ -46,12 +46,7 @@ var (
 var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 	var (
 		ctx = context.Background()
-		//namespace string
 	)
-
-	BeforeEach(func() {
-		//namespace = testNamespace
-	})
 
 	DescribeTable("when creating and deleting etcdcopybackupstask",
 		func(taskName string, provider druidv1alpha1.StorageProvider, withOptionalFields bool, jobStatus *batchv1.JobStatus) {

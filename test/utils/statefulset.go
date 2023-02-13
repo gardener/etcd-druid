@@ -21,7 +21,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,24 +34,6 @@ func IsStatefulSetCorrectlyReconciled(ctx context.Context, c client.Client, inst
 	}
 	if metav1.IsControlledBy(ss, instance) {
 		return true, nil
-	}
-	return false, nil
-}
-
-// IsStatefulSetRemoved checks if a given StatefulSet has been removed.
-func IsStatefulSetRemoved(ctx context.Context, c client.Client, ss *appsv1.StatefulSet) (bool, error) {
-	sts := &appsv1.StatefulSet{}
-	req := types.NamespacedName{
-		Name:      ss.Name,
-		Namespace: ss.Namespace,
-	}
-	if err := c.Get(ctx, req, sts); err != nil {
-		if apierrors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers
-			return true, nil
-		}
-		return false, err
 	}
 	return false, nil
 }
