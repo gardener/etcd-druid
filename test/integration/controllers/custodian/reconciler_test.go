@@ -48,14 +48,14 @@ var _ = Describe("Custodian Controller", func() {
 			)
 
 			BeforeEach(func() {
-				instance = testutils.EtcdBuilderWithDefaults(name, testNamespace.Name).Build()
+				instance = testutils.EtcdBuilderWithDefaults(name, namespace).Build()
 
 				Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 				// wait for Etcd creation to succeed
 				Eventually(func() error {
 					return k8sClient.Get(ctx, types.NamespacedName{
 						Name:      name,
-						Namespace: testNamespace.Name,
+						Namespace: namespace,
 					}, instance)
 				}, timeout, pollingInterval).Should(BeNil())
 
@@ -74,13 +74,13 @@ var _ = Describe("Custodian Controller", func() {
 				}, timeout, pollingInterval).Should(Succeed())
 
 				// create sts manually, since there is no running etcd controller to create sts upon Etcd creation
-				sts = testutils.CreateStatefulSet(name, testNamespace.Name, instance.UID, instance.Spec.Replicas)
+				sts = testutils.CreateStatefulSet(name, namespace, instance.UID, instance.Spec.Replicas)
 				Expect(k8sClient.Create(ctx, sts)).To(Succeed())
 				// wait for sts creation to succeed
 				Eventually(func() error {
 					return k8sClient.Get(ctx, types.NamespacedName{
 						Name:      name,
-						Namespace: testNamespace.Name,
+						Namespace: namespace,
 					}, sts)
 				}, timeout, pollingInterval).Should(BeNil())
 			})

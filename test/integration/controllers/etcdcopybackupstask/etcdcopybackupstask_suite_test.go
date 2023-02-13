@@ -23,7 +23,6 @@ import (
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -31,10 +30,10 @@ import (
 )
 
 var (
-	k8sClient     client.Client
-	intTestEnv    *setup.IntegrationTestEnv
-	imageVector   imagevector.ImageVector
-	testNamespace *corev1.Namespace
+	k8sClient   client.Client
+	intTestEnv  *setup.IntegrationTestEnv
+	imageVector imagevector.ImageVector
+	namespace   string
 )
 
 const (
@@ -64,5 +63,5 @@ var _ = BeforeSuite(func() {
 		Expect(reconciler.AddToManager(mgr)).To(Succeed())
 	}).StartManager()
 	k8sClient = intTestEnv.K8sClient
-	testNamespace = intTestEnv.TestNs
+	namespace = intTestEnv.TestNs.Name
 })

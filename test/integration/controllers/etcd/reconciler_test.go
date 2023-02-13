@@ -87,7 +87,7 @@ var _ = Describe("Etcd Controller", func() {
 		)
 
 		BeforeEach(func() {
-			instance = testutils.EtcdBuilderWithDefaults("foo1", testNamespace.Name).Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo1", namespace).Build()
 
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
 			errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
@@ -207,9 +207,9 @@ var _ = Describe("Etcd Controller", func() {
 				instanceBuilder *testutils.EtcdBuilder
 			)
 			if etcdWithDefaults {
-				instanceBuilder = testutils.EtcdBuilderWithDefaults(etcdName, testNamespace.Name)
+				instanceBuilder = testutils.EtcdBuilderWithDefaults(etcdName, namespace)
 			} else {
-				instanceBuilder = testutils.EtcdBuilderWithoutDefaults(etcdName, testNamespace.Name)
+				instanceBuilder = testutils.EtcdBuilderWithoutDefaults(etcdName, namespace)
 			}
 			if withTLS {
 				instanceBuilder.WithTLS()
@@ -286,7 +286,7 @@ var _ = Describe("Multinode ETCD", func() {
 		)
 
 		BeforeEach(func() {
-			instance = testutils.EtcdBuilderWithDefaults("foo82", testNamespace.Name).Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo82", namespace).Build()
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
 			errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 			Expect(len(errors)).Should(BeZero())
@@ -387,7 +387,7 @@ var _ = Describe("Multinode ETCD", func() {
 			ctx      = context.TODO()
 			instance *druidv1alpha1.Etcd
 		)
-		instance = testutils.EtcdBuilderWithDefaults(etcdName, testNamespace.Name).WithReplicas(int32(replicas)).Build()
+		instance = testutils.EtcdBuilderWithDefaults(etcdName, namespace).WithReplicas(int32(replicas)).Build()
 
 		if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
@@ -407,12 +407,12 @@ var _ = Describe("Multinode ETCD", func() {
 		Expect(*sts.Spec.Replicas).To(Equal(instance.Spec.Replicas))
 
 		if instance.Spec.Replicas == 1 {
-			matcher := fmt.Sprintf("initial-cluster: foo83-0=http://foo83-0.foo83-peer.%s.svc:2380", testNamespace.Name)
+			matcher := fmt.Sprintf("initial-cluster: foo83-0=http://foo83-0.foo83-peer.%s.svc:2380", namespace)
 			Expect(strings.Contains(cm.Data["etcd.conf.yaml"], matcher)).To(BeTrue())
 		}
 
 		if instance.Spec.Replicas > 1 {
-			matcher := fmt.Sprintf("initial-cluster: foo84-0=http://foo84-0.foo84-peer.%s.svc:2380,foo84-1=http://foo84-1.foo84-peer.%s.svc:2380,foo84-2=http://foo84-2.foo84-peer.%s.svc:2380", testNamespace.Name, testNamespace.Name, testNamespace.Name)
+			matcher := fmt.Sprintf("initial-cluster: foo84-0=http://foo84-0.foo84-peer.%s.svc:2380,foo84-1=http://foo84-1.foo84-peer.%s.svc:2380,foo84-2=http://foo84-2.foo84-peer.%s.svc:2380", namespace, namespace, namespace)
 			Expect(strings.Contains(cm.Data["etcd.conf.yaml"], matcher)).To(BeTrue())
 		}
 	},

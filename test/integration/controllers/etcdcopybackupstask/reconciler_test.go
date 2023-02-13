@@ -50,7 +50,7 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 
 	DescribeTable("when creating and deleting etcdcopybackupstask",
 		func(taskName string, provider druidv1alpha1.StorageProvider, withOptionalFields bool, jobStatus *batchv1.JobStatus) {
-			task := testutils.CreateEtcdCopyBackupsTask("foo01", testNamespace.Name, "Local", true)
+			task := testutils.CreateEtcdCopyBackupsTask("foo01", namespace, "Local", true)
 
 			// Create secrets
 			errors := testutils.CreateSecrets(ctx, k8sClient, task.Namespace, task.Spec.SourceStore.SecretRef.Name, task.Spec.TargetStore.SecretRef.Name)

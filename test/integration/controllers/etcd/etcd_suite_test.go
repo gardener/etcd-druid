@@ -22,17 +22,16 @@ import (
 	"github.com/gardener/etcd-druid/test/integration/setup"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 var (
-	intTestEnv    *setup.IntegrationTestEnv
-	k8sClient     client.Client
-	restConfig    *rest.Config
-	testNamespace *corev1.Namespace
+	intTestEnv *setup.IntegrationTestEnv
+	k8sClient  client.Client
+	restConfig *rest.Config
+	namespace  string
 )
 
 const (
@@ -64,5 +63,5 @@ var _ = BeforeSuite(func() {
 	}).StartManager()
 	k8sClient = intTestEnv.K8sClient
 	restConfig = intTestEnv.RestConfig
-	testNamespace = intTestEnv.TestNs
+	namespace = intTestEnv.TestNs.Name
 })

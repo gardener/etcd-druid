@@ -20,8 +20,6 @@ import (
 	"github.com/gardener/etcd-druid/controllers/secret"
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
 	"github.com/gardener/etcd-druid/test/integration/setup"
-	corev1 "k8s.io/api/core/v1"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -30,9 +28,9 @@ import (
 )
 
 var (
-	intTestEnv    *setup.IntegrationTestEnv
-	k8sClient     client.Client
-	testNamespace *corev1.Namespace
+	intTestEnv *setup.IntegrationTestEnv
+	k8sClient  client.Client
+	namespace  string
 )
 
 const (
@@ -58,5 +56,5 @@ var _ = BeforeSuite(func() {
 		Expect(reconciler.AddToManager(mgr)).To(Succeed())
 	}).StartManager()
 	k8sClient = intTestEnv.K8sClient
-	testNamespace = intTestEnv.TestNs
+	namespace = intTestEnv.TestNs.Name
 })
