@@ -55,7 +55,7 @@ const (
 	// In the future, we could add other intermediate conditions, e.g. ConditionDegraded.
 	ConditionProgressing ConditionStatus = "Progressing"
 	// ConditionCheckError is a constant for a reason in condition.
-	ConditionCheckError = "ConditionCheckError"
+	ConditionCheckError ConditionStatus = "ConditionCheckError"
 )
 
 // Condition holds the information about the state of a resource.
