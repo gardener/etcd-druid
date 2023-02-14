@@ -497,7 +497,7 @@ func (r *Reconciler) getMapFromEtcd(etcd *druidv1alpha1.Etcd, disableEtcdService
 	return values, nil
 }
 
-func isPeerTLSIsChangedToEnabled(peerTLSEnabledStatusFromMembers bool, configMapValues *componentconfigmap.Values) bool {
+func isPeerTLSChangedToEnabled(peerTLSEnabledStatusFromMembers bool, configMapValues *componentconfigmap.Values) bool {
 	if peerTLSEnabledStatusFromMembers {
 		return false
 	}

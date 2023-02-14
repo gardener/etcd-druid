@@ -47,7 +47,7 @@ func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 	fs.BoolVar(&cfg.EnableBackupCompaction, enableBackupCompactionFlagName, defaultEnableBackupCompaction,
 		"Enable automatic compaction of etcd backups.")
 	fs.IntVar(&cfg.Workers, compactionWorkersFlagName, defaultCompactionWorkers,
-		"Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. Setting this flag to 0 disabled the controller.")
+		"Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. Setting this flag to 0 disables the controller.")
 	fs.Int64Var(&cfg.EventsThreshold, eventsThresholdFlagName, defaultEventsThreshold,
 		"Total number of etcd events that can be allowed before a backup compaction job is triggered.")
 	fs.DurationVar(&cfg.ActiveDeadlineDuration, activeDeadlineDurationFlagName, defaultActiveDeadlineDuration,
