@@ -16,6 +16,7 @@ package controllers
 
 import (
 	"flag"
+	"fmt"
 
 	"github.com/gardener/etcd-druid/controllers/compaction"
 	"github.com/gardener/etcd-druid/controllers/custodian"
@@ -41,6 +42,7 @@ const (
 	defaultDisableLeaseCache          = false
 )
 
+// LeaderElectionConfig defines the configuration for the leader election for the controller manager.
 type LeaderElectionConfig struct {
 	// EnableLeaderElection specifies whether to enable leader election for controller manager.
 	EnableLeaderElection bool
@@ -50,6 +52,7 @@ type LeaderElectionConfig struct {
 	LeaderElectionResourceLock string
 }
 
+// ManagerConfig defines the configuration for the controller manager.
 type ManagerConfig struct {
 	// MetricsAddr is the address the metric endpoint binds to.
 	MetricsAddr string
@@ -70,32 +73,78 @@ type ManagerConfig struct {
 	SecretControllerConfig *secret.Config
 }
 
-func InitFromFlags(fs *flag.FlagSet, config *ManagerConfig) {
-	flag.StringVar(&config.MetricsAddr, metricsAddrFlagName, defaultMetricsAddr, ""+
+// InitFromFlags initializes the controller manager config from the provided CLI flag set.
+func InitFromFlags(fs *flag.FlagSet, cfg *ManagerConfig) {
+	flag.StringVar(&cfg.MetricsAddr, metricsAddrFlagName, defaultMetricsAddr, ""+
 		"The address the metric endpoint binds to.")
-	flag.BoolVar(&config.EnableLeaderElection, enableLeaderElectionFlagName, defaultEnableLeaderElection,
+	flag.BoolVar(&cfg.EnableLeaderElection, enableLeaderElectionFlagName, defaultEnableLeaderElection,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&config.LeaderElectionID, leaderElectionIDFlagName, defaultLeaderElectionID,
+	flag.StringVar(&cfg.LeaderElectionID, leaderElectionIDFlagName, defaultLeaderElectionID,
 		"Name of the resource that leader election will use for holding the leader lock")
-	flag.StringVar(&config.LeaderElectionResourceLock, leaderElectionResourceLockFlagName, defaultLeaderElectionResourceLock,
+	flag.StringVar(&cfg.LeaderElectionResourceLock, leaderElectionResourceLockFlagName, defaultLeaderElectionResourceLock,
 		"Specifies which resource type to use for leader election. Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'.")
-	flag.BoolVar(&config.DisableLeaseCache, disableLeaseCacheFlagName, defaultDisableLeaseCache,
+	flag.BoolVar(&cfg.DisableLeaseCache, disableLeaseCacheFlagName, defaultDisableLeaseCache,
 		"Disable cache for lease.coordination.k8s.io resources.")
-	flag.BoolVar(&config.IgnoreOperationAnnotation, ignoreOperationAnnotationFlagName, defaultIgnoreOperationAnnotation,
+	flag.BoolVar(&cfg.IgnoreOperationAnnotation, ignoreOperationAnnotationFlagName, defaultIgnoreOperationAnnotation,
 		"Specifies whether to ignore or honour the operation annotation on resources to be reconciled.")
 
-	config.EtcdControllerConfig = &etcd.Config{}
-	etcd.InitFromFlags(fs, config.EtcdControllerConfig)
+	cfg.EtcdControllerConfig = &etcd.Config{}
+	etcd.InitFromFlags(fs, cfg.EtcdControllerConfig)
 
-	config.CustodianControllerConfig = &custodian.Config{}
-	custodian.InitFromFlags(fs, config.CustodianControllerConfig)
+	cfg.CustodianControllerConfig = &custodian.Config{}
+	custodian.InitFromFlags(fs, cfg.CustodianControllerConfig)
 
-	config.CompactionControllerConfig = &compaction.Config{}
-	compaction.InitFromFlags(fs, config.CompactionControllerConfig)
+	cfg.CompactionControllerConfig = &compaction.Config{}
+	compaction.InitFromFlags(fs, cfg.CompactionControllerConfig)
 
-	config.EtcdCopyBackupsTaskControllerConfig = &etcdcopybackupstask.Config{}
-	etcdcopybackupstask.InitFromFlags(fs, config.EtcdCopyBackupsTaskControllerConfig)
+	cfg.EtcdCopyBackupsTaskControllerConfig = &etcdcopybackupstask.Config{}
+	etcdcopybackupstask.InitFromFlags(fs, cfg.EtcdCopyBackupsTaskControllerConfig)
 
-	config.SecretControllerConfig = &secret.Config{}
-	secret.InitFromFlags(fs, config.SecretControllerConfig)
+	cfg.SecretControllerConfig = &secret.Config{}
+	secret.InitFromFlags(fs, cfg.SecretControllerConfig)
+}
+
+// Validate validates the controller manager config.
+func (cfg *ManagerConfig) Validate() error {
+	leaderElectionResourceLockValuesAllowed := []string{
+		"endpoints",
+		"configmaps",
+		"leases",
+		"endpointsleases",
+		"configmapsleases",
+	}
+	if !contains(leaderElectionResourceLockValuesAllowed, cfg.LeaderElectionResourceLock) {
+		return fmt.Errorf("invalid value provided for LeaderElectionResourceLock: %s", cfg.LeaderElectionResourceLock)
+	}
+
+	if err := cfg.EtcdControllerConfig.Validate(); err != nil {
+		return err
+	}
+
+	if err := cfg.CustodianControllerConfig.Validate(); err != nil {
+		return err
+	}
+
+	if err := cfg.CompactionControllerConfig.Validate(); err != nil {
+		return err
+	}
+
+	if err := cfg.EtcdCopyBackupsTaskControllerConfig.Validate(); err != nil {
+		return err
+	}
+
+	if err := cfg.SecretControllerConfig.Validate(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func contains(arr []string, s string) bool {
+	for _, v := range arr {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }

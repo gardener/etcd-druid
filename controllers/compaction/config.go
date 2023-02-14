@@ -16,12 +16,13 @@ package compaction
 
 import (
 	"flag"
+	"fmt"
 	"time"
 )
 
 const (
 	enableBackupCompactionFlagName = "enable-backup-compaction"
-	compactionWorkersFlagName      = "compaction-workers"
+	workersFlagName                = "compaction-workers"
 	eventsThresholdFlagName        = "etcd-events-threshold"
 	activeDeadlineDurationFlagName = "active-deadline-duration"
 
@@ -31,7 +32,7 @@ const (
 	defaultActiveDeadlineDuration = 3 * time.Hour
 )
 
-// Config contains configuration for the compaction controller.
+// Config contains configuration for the Compaction Controller.
 type Config struct {
 	// EnableBackupCompaction specifies whether backup compaction should be enabled.
 	EnableBackupCompaction bool
@@ -43,13 +44,31 @@ type Config struct {
 	ActiveDeadlineDuration time.Duration
 }
 
+// InitFromFlags initializes the compaction controller config from the provided CLI flag set.
 func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 	fs.BoolVar(&cfg.EnableBackupCompaction, enableBackupCompactionFlagName, defaultEnableBackupCompaction,
 		"Enable automatic compaction of etcd backups.")
-	fs.IntVar(&cfg.Workers, compactionWorkersFlagName, defaultCompactionWorkers,
+	fs.IntVar(&cfg.Workers, workersFlagName, defaultCompactionWorkers,
 		"Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. Setting this flag to 0 disables the controller.")
 	fs.Int64Var(&cfg.EventsThreshold, eventsThresholdFlagName, defaultEventsThreshold,
 		"Total number of etcd events that can be allowed before a backup compaction job is triggered.")
 	fs.DurationVar(&cfg.ActiveDeadlineDuration, activeDeadlineDurationFlagName, defaultActiveDeadlineDuration,
-		"Duration after which a running backup compaction job will be killed (Ex: \"300ms\", \"20s\", \"-1.5h\" or \"2h45m\").\").")
+		"Duration after which a running backup compaction job will be killed (Ex: \"300ms\", \"20s\" or \"2h45m\").\").")
+}
+
+// Validate validates the config.
+func (cfg *Config) Validate() error {
+	if cfg.Workers < 0 {
+		return fmt.Errorf("value provided for '%s': %d must not be lesser than zero", workersFlagName, cfg.Workers)
+	}
+
+	if cfg.EventsThreshold <= 0 {
+		return fmt.Errorf("value provided for '%s': %d must be greater than zero", eventsThresholdFlagName, cfg.EventsThreshold)
+	}
+
+	if cfg.ActiveDeadlineDuration.Seconds() <= 0 {
+		return fmt.Errorf("value provided for '%s': %v must be greater than zero", activeDeadlineDurationFlagName, cfg.ActiveDeadlineDuration)
+	}
+
+	return nil
 }

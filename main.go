@@ -42,6 +42,11 @@ func main() {
 	flag.Parse()
 	printFlags(logger)
 
+	if err := mgrConfig.Validate(); err != nil {
+		logger.Error(err, "validation of manager config failed")
+		os.Exit(1)
+	}
+
 	mgr, err := controllers.CreateAndAddToManager(&mgrConfig)
 	if err != nil {
 		logger.Error(err, "failed to create druid controller manager")

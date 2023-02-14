@@ -16,6 +16,7 @@ package secret
 
 import (
 	"flag"
+	"fmt"
 )
 
 const (
@@ -24,13 +25,23 @@ const (
 	defaultWorkers = 10
 )
 
-// Config defines the configuration for the SecretController.
+// Config defines the configuration for the Secret Controller.
 type Config struct {
 	// Workers is the number of workers concurrently processing reconciliation requests.
 	Workers int
 }
 
+// InitFromFlags initializes the config from the provided CLI flag set.
 func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 	fs.IntVar(&cfg.Workers, workersFlagName, defaultWorkers,
 		"Number of worker threads for the secrets controller.")
+}
+
+// Validate validates the config.
+func (cfg *Config) Validate() error {
+	if cfg.Workers < 1 {
+		return fmt.Errorf("value provided for '%s': %d must be greater than zero", workersFlagName, cfg.Workers)
+	}
+
+	return nil
 }

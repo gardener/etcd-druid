@@ -16,12 +16,13 @@ package custodian
 
 import (
 	"flag"
+	"fmt"
 	"time"
 )
 
 const (
-	custodianWorkersFlagName            = "custodian-workers"
-	custodianSyncPeriodFlagName         = "custodian-sync-period"
+	workersFlagName                     = "custodian-workers"
+	syncPeriodFlagName                  = "custodian-sync-period"
 	etcdMemberNotReadyThresholdFlagName = "etcd-member-notready-threshold"
 	etcdMemberUnknownThresholdFlagName  = "etcd-member-unknown-threshold"
 
@@ -31,7 +32,7 @@ const (
 	defaultEtcdMemberUnknownThreshold  = 1 * time.Minute
 )
 
-// Config contains configuration for the etcd custodian controller.
+// Config contains configuration for the Custodian Controller.
 type Config struct {
 	// Workers denotes the number of worker threads for the custodian controller.
 	Workers int
@@ -49,13 +50,35 @@ type EtcdMemberConfig struct {
 	UnknownThreshold time.Duration
 }
 
+// InitFromFlags initializes the config from the provided CLI flag set.
 func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
-	fs.IntVar(&cfg.Workers, custodianWorkersFlagName, defaultCustodianWorkers,
+	fs.IntVar(&cfg.Workers, workersFlagName, defaultCustodianWorkers,
 		"Number of worker threads for the custodian controller.")
-	fs.DurationVar(&cfg.SyncPeriod, custodianSyncPeriodFlagName, defaultCustodianSyncPeriod,
+	fs.DurationVar(&cfg.SyncPeriod, syncPeriodFlagName, defaultCustodianSyncPeriod,
 		"Sync period of the custodian controller.")
 	fs.DurationVar(&cfg.EtcdMember.NotReadyThreshold, etcdMemberNotReadyThresholdFlagName, defaultEtcdMemberNotReadyThreshold,
 		"Threshold after which an etcd member is considered not ready if the status was unknown before.")
 	fs.DurationVar(&cfg.EtcdMember.UnknownThreshold, etcdMemberUnknownThresholdFlagName, defaultEtcdMemberUnknownThreshold,
 		"Threshold after which an etcd member is considered unknown.")
+}
+
+// Validate validates the config.
+func (cfg *Config) Validate() error {
+	if cfg.Workers < 1 {
+		return fmt.Errorf("value provided for '%s': %d must be greater than zero", workersFlagName, cfg.Workers)
+	}
+
+	if cfg.SyncPeriod.Seconds() <= 0 {
+		return fmt.Errorf("value provided for '%s': %v must be greater than zero", syncPeriodFlagName, cfg.SyncPeriod)
+	}
+
+	if cfg.EtcdMember.NotReadyThreshold.Seconds() <= 0 {
+		return fmt.Errorf("value provided for '%s': %v must be greater than zero", etcdMemberNotReadyThresholdFlagName, cfg.EtcdMember.NotReadyThreshold)
+	}
+
+	if cfg.EtcdMember.UnknownThreshold.Seconds() <= 0 {
+		return fmt.Errorf("value provided for '%s': %v must be greater than zero", etcdMemberUnknownThresholdFlagName, cfg.EtcdMember.UnknownThreshold)
+	}
+
+	return nil
 }

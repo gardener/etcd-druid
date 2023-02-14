@@ -16,6 +16,7 @@ package etcdcopybackupstask
 
 import (
 	"flag"
+	"fmt"
 )
 
 const (
@@ -24,13 +25,23 @@ const (
 	defaultWorkers = 3
 )
 
-// Config defines the configuration for the EtcdCopyBackupsTaskController.
+// Config defines the configuration for the EtcdCopyBackupsTask Controller.
 type Config struct {
 	// Workers is the number of workers concurrently processing reconciliation requests.
 	Workers int
 }
 
+// InitFromFlags initializes the config from the provided CLI flag set.
 func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 	fs.IntVar(&cfg.Workers, workersFlagName, defaultWorkers,
 		"Number of worker threads for the etcdcopybackupstask controller.")
+}
+
+// Validate validates the config.
+func (cfg *Config) Validate() error {
+	if cfg.Workers < 0 {
+		return fmt.Errorf("value provided for '%s': %d must not be lesser than zero", workersFlagName, cfg.Workers)
+	}
+
+	return nil
 }

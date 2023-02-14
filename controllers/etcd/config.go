@@ -14,17 +14,20 @@
 
 package etcd
 
-import "flag"
+import (
+	"flag"
+	"fmt"
+)
 
 const (
-	etcdWorkersFlagName                        = "workers"
+	workersFlagName                            = "workers"
 	disableEtcdServiceAccountAutomountFlagName = "disable-etcd-serviceaccount-automount"
 
 	defaultWorkers                            = 3
 	defaultDisableEtcdServiceAccountAutomount = false
 )
 
-// Config defines the configuration for the etcd controller.
+// Config defines the configuration for the Etcd Controller.
 type Config struct {
 	// Workers is the number of workers concurrently processing reconciliation requests.
 	Workers int
@@ -32,9 +35,19 @@ type Config struct {
 	DisableEtcdServiceAccountAutomount bool
 }
 
+// InitFromFlags initializes the config from the provided CLI flag set.
 func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
-	fs.IntVar(&cfg.Workers, etcdWorkersFlagName, defaultWorkers,
+	fs.IntVar(&cfg.Workers, workersFlagName, defaultWorkers,
 		"Number of worker threads of the etcd controller.")
 	fs.BoolVar(&cfg.DisableEtcdServiceAccountAutomount, disableEtcdServiceAccountAutomountFlagName, defaultDisableEtcdServiceAccountAutomount,
 		"If true then .automountServiceAccountToken will be set to false for the ServiceAccount created for etcd statefulsets.")
+}
+
+// Validate validates the config.
+func (cfg *Config) Validate() error {
+	if cfg.Workers < 1 {
+		return fmt.Errorf("value provided for '%s': %d must be greater than zero", workersFlagName, cfg.Workers)
+	}
+
+	return nil
 }
