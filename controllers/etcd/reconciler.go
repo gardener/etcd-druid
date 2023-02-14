@@ -452,7 +452,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		return reconcileResult{err: err}
 	}
 
-	peerUrlTLSChangedToEnabled := isPeerTLSIsChangedToEnabled(peerTLSEnabled, configMapValues)
+	peerUrlTLSChangedToEnabled := isPeerTLSChangedToEnabled(peerTLSEnabled, configMapValues)
 	statefulSetValues := componentsts.GenerateValues(etcd,
 		&serviceValues.ClientPort,
 		&serviceValues.ServerPort,
