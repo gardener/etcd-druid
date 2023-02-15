@@ -16,8 +16,9 @@ package custodian
 
 import (
 	"flag"
-	"fmt"
 	"time"
+
+	"github.com/gardener/etcd-druid/controllers/utils"
 )
 
 const (
@@ -64,21 +65,17 @@ func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 
 // Validate validates the config.
 func (cfg *Config) Validate() error {
-	if cfg.Workers < 1 {
-		return fmt.Errorf("value provided for '%s': %d must be greater than zero", workersFlagName, cfg.Workers)
+	if err := utils.MustBeGreaterThan(workersFlagName, 0, cfg.Workers); err != nil {
+		return err
 	}
-
-	if cfg.SyncPeriod.Seconds() <= 0 {
-		return fmt.Errorf("value provided for '%s': %v must be greater than zero", syncPeriodFlagName, cfg.SyncPeriod)
+	if err := utils.MustBeGreaterThan(syncPeriodFlagName, 0, cfg.SyncPeriod); err != nil {
+		return err
 	}
-
-	if cfg.EtcdMember.NotReadyThreshold.Seconds() <= 0 {
-		return fmt.Errorf("value provided for '%s': %v must be greater than zero", etcdMemberNotReadyThresholdFlagName, cfg.EtcdMember.NotReadyThreshold)
+	if err := utils.MustBeGreaterThan(etcdMemberNotReadyThresholdFlagName, 0, cfg.EtcdMember.NotReadyThreshold); err != nil {
+		return err
 	}
-
-	if cfg.EtcdMember.UnknownThreshold.Seconds() <= 0 {
-		return fmt.Errorf("value provided for '%s': %v must be greater than zero", etcdMemberUnknownThresholdFlagName, cfg.EtcdMember.UnknownThreshold)
+	if err := utils.MustBeGreaterThan(etcdMemberUnknownThresholdFlagName, 0, cfg.EtcdMember.UnknownThreshold); err != nil {
+		return err
 	}
-
 	return nil
 }

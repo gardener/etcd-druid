@@ -16,13 +16,13 @@ package controllers
 
 import (
 	"flag"
-	"fmt"
 
 	"github.com/gardener/etcd-druid/controllers/compaction"
 	"github.com/gardener/etcd-druid/controllers/custodian"
 	"github.com/gardener/etcd-druid/controllers/etcd"
 	"github.com/gardener/etcd-druid/controllers/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/controllers/secret"
+	"github.com/gardener/etcd-druid/controllers/utils"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 )
 
@@ -106,17 +106,9 @@ func InitFromFlags(fs *flag.FlagSet, cfg *ManagerConfig) {
 
 // Validate validates the controller manager config.
 func (cfg *ManagerConfig) Validate() error {
-	leaderElectionResourceLockValuesAllowed := []string{
-		"endpoints",
-		"configmaps",
-		"leases",
-		"endpointsleases",
-		"configmapsleases",
+	if err := utils.ShouldBeOneOfAllowedValues("LeaderElectionResourceLock", getAllowedLeaderElectionResourceLocks(), cfg.LeaderElectionResourceLock); err != nil {
+		return err
 	}
-	if !contains(leaderElectionResourceLockValuesAllowed, cfg.LeaderElectionResourceLock) {
-		return fmt.Errorf("invalid value provided for LeaderElectionResourceLock: %s", cfg.LeaderElectionResourceLock)
-	}
-
 	if err := cfg.EtcdControllerConfig.Validate(); err != nil {
 		return err
 	}
@@ -140,11 +132,15 @@ func (cfg *ManagerConfig) Validate() error {
 	return nil
 }
 
-func contains(arr []string, s string) bool {
-	for _, v := range arr {
-		if v == s {
-			return true
-		}
+// getAllowedLeaderElectionResourceLocks gives the resource names that can be used for leader election.
+// NOTE: This should be changed as lease is the default choice now for leader election. There is no need
+// to provide other options. Should be handled as part of a different Issue/PR.
+func getAllowedLeaderElectionResourceLocks() []string {
+	return []string{
+		"endpoints",
+		"configmaps",
+		"leases",
+		"endpointsleases",
+		"configmapsleases",
 	}
-	return false
 }

@@ -12,6 +12,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.6.1
 	github.com/onsi/gomega v1.24.2
 	go.uber.org/zap v1.24.0
+	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
 	k8s.io/api v0.26.1
 	k8s.io/apimachinery v0.26.1
 	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible

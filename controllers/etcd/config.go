@@ -16,7 +16,8 @@ package etcd
 
 import (
 	"flag"
-	"fmt"
+
+	"github.com/gardener/etcd-druid/controllers/utils"
 )
 
 const (
@@ -45,9 +46,8 @@ func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 
 // Validate validates the config.
 func (cfg *Config) Validate() error {
-	if cfg.Workers < 1 {
-		return fmt.Errorf("value provided for '%s': %d must be greater than zero", workersFlagName, cfg.Workers)
+	if err := utils.MustBeGreaterThan(workersFlagName, 0, cfg.Workers); err != nil {
+		return err
 	}
-
 	return nil
 }

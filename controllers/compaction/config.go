@@ -16,8 +16,9 @@ package compaction
 
 import (
 	"flag"
-	"fmt"
 	"time"
+
+	"github.com/gardener/etcd-druid/controllers/utils"
 )
 
 const (
@@ -58,17 +59,14 @@ func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 
 // Validate validates the config.
 func (cfg *Config) Validate() error {
-	if cfg.Workers < 0 {
-		return fmt.Errorf("value provided for '%s': %d must not be lesser than zero", workersFlagName, cfg.Workers)
+	if err := utils.MustBeGreaterThan(workersFlagName, 0, cfg.Workers); err != nil {
+		return err
 	}
-
-	if cfg.EventsThreshold <= 0 {
-		return fmt.Errorf("value provided for '%s': %d must be greater than zero", eventsThresholdFlagName, cfg.EventsThreshold)
+	if err := utils.MustBeGreaterThan(eventsThresholdFlagName, 0, cfg.EventsThreshold); err != nil {
+		return err
 	}
-
-	if cfg.ActiveDeadlineDuration.Seconds() <= 0 {
-		return fmt.Errorf("value provided for '%s': %v must be greater than zero", activeDeadlineDurationFlagName, cfg.ActiveDeadlineDuration)
+	if err := utils.MustBeGreaterThan(activeDeadlineDurationFlagName, 0, cfg.ActiveDeadlineDuration.Seconds()); err != nil {
+		return err
 	}
-
 	return nil
 }
