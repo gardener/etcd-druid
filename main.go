@@ -34,7 +34,8 @@ var logger = ctrl.Log.WithName("druid")
 
 func main() {
 	ctx := ctrl.SetupSignalHandler()
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+
+	ctrl.SetLogger(zap.New(buildDefaultLoggerOpts()...))
 
 	mgrConfig := controllers.ManagerConfig{}
 	controllers.InitFromFlags(flag.CommandLine, &mgrConfig)
@@ -62,6 +63,15 @@ func main() {
 	}
 }
 
+func printFlags(logger logr.Logger) {
+	var flagsToPrint string
+	flag.VisitAll(func(f *flag.Flag) {
+		flagsToPrint += fmt.Sprintf("%s: %s, ", f.Name, f.Value)
+	})
+
+	logger.Info(fmt.Sprintf("Running with flags: %s", flagsToPrint[:len(flagsToPrint)-2]))
+}
+
 func buildDefaultLoggerOpts() []zap.Opts {
 	var opts []zap.Opts
 	opts = append(opts, zap.UseDevMode(false))
@@ -70,13 +80,4 @@ func buildDefaultLoggerOpts() []zap.Opts {
 		encoderConfig.EncodeDuration = zapcore.StringDurationEncoder
 	}))
 	return opts
-}
-
-func printFlags(logger logr.Logger) {
-	var flagsToPrint string
-	flag.VisitAll(func(f *flag.Flag) {
-		flagsToPrint += fmt.Sprintf("%s: %s, ", f.Name, f.Value)
-	})
-
-	logger.Info(fmt.Sprintf("Running with flags: %s", flagsToPrint[:len(flagsToPrint)-2]))
 }
