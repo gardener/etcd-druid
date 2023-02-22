@@ -20,6 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 )
 
 // TODO Remove unused constants
@@ -448,4 +449,24 @@ func (e *Etcd) GetDeltaSnapshotLeaseName() string {
 // GetFullSnapshotLeaseName returns the name of the full snapshot lease for the Etcd.
 func (e *Etcd) GetFullSnapshotLeaseName() string {
 	return fmt.Sprintf("%s-full-snap", e.Name)
+}
+
+// GetDefaultLabels returns the default labels for etcd.
+func (e *Etcd) GetDefaultLabels() map[string]string {
+	return map[string]string{
+		"name":     "etcd",
+		"instance": e.Name,
+	}
+}
+
+// GetAsOwnerReference returns an OwnerReference object that represents the current Etcd instance.
+func (e *Etcd) GetAsOwnerReference() metav1.OwnerReference {
+	return metav1.OwnerReference{
+		APIVersion:         GroupVersion.String(),
+		Kind:               "Etcd",
+		Name:               e.Name,
+		UID:                e.UID,
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: pointer.Bool(true),
+	}
 }
