@@ -309,12 +309,12 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 		Replicas:    &replicas,
 		ServiceName: c.values.PeerServiceName,
 		Selector: &metav1.LabelSelector{
-			MatchLabels: getSelectors(&c.values),
+			MatchLabels: getCommonLabels(&c.values),
 		},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: c.values.Annotations,
-				Labels:      utils.MergeStringMaps(getSelectors(&c.values), sts.GetLabels()),
+				Labels:      sts.GetLabels(),
 			},
 			Spec: corev1.PodSpec{
 				HostAliases: []corev1.HostAlias{
@@ -434,20 +434,13 @@ func (c *component) emptyStatefulset() *appsv1.StatefulSet {
 
 func getCommonLabels(val *Values) map[string]string {
 	return map[string]string{
+		"name":     "etcd",
 		"instance": val.Name,
 	}
-}
-
-func getSelectors(val *Values) map[string]string {
-	selectors := map[string]string{
-		"instance": val.Name,
-	}
-
-	return selectors
 }
 
 func getObjectMeta(val *Values, sts *appsv1.StatefulSet) metav1.ObjectMeta {
-	labels := utils.MergeStringMaps(getCommonLabels(val), val.Labels, getSelectors(val))
+	labels := utils.MergeStringMaps(getCommonLabels(val), val.Labels)
 	annotations := getStsAnnotations(val, sts)
 	ownerRefs := []metav1.OwnerReference{
 		{

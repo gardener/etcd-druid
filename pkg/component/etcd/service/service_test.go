@@ -221,15 +221,14 @@ func checkPeerService(svc *corev1.Service, values Values) {
 func serviceSelectors(val Values) map[string]string {
 	selectors := map[string]string{
 		"instance": val.EtcdName,
+		"name":     "etcd",
 	}
 
 	return selectors
 }
 
 func serviceLabels(val Values) map[string]string {
-	labels := map[string]string{
-		"instance": val.EtcdName,
-	}
+	labels := map[string]string{}
 
 	for k, v := range val.Labels {
 		labels[k] = v

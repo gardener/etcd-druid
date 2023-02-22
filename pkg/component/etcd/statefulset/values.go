@@ -42,8 +42,6 @@ type Values struct {
 	Annotations map[string]string
 	// Labels is the labels provided in ETCD spec.
 	Labels map[string]string
-	// Selectors are the pod selectors
-	Selectors map[string]string
 	// BackupImage is the backup restore image.
 	BackupImage string
 	// EtcdImage is the etcd custom image.
