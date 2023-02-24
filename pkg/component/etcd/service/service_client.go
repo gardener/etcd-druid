@@ -25,12 +25,12 @@ import (
 
 func (c *component) syncClientService(ctx context.Context, svc *corev1.Service) error {
 	_, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, c.client, svc, func() error {
-		svc.Labels = utils.MergeStringMaps(getLabels(c.values), c.values.ClientServiceLabels)
+		svc.Labels = utils.MergeStringMaps(getLabels(c.values), c.values.ClientServiceLabels, getSelectors(c.values))
 		svc.Annotations = c.values.ClientServiceAnnotations
 		svc.OwnerReferences = getOwnerReferences(c.values)
 		svc.Spec.Type = corev1.ServiceTypeClusterIP
 		svc.Spec.SessionAffinity = corev1.ServiceAffinityNone
-		svc.Spec.Selector = getLabels(c.values)
+		svc.Spec.Selector = getSelectors(c.values)
 		svc.Spec.Ports = []corev1.ServicePort{
 			{
 				Name:       "client",
