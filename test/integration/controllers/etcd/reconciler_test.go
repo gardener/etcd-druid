@@ -424,7 +424,7 @@ var _ = Describe("Multinode ETCD", func() {
 func validateRole(instance *druidv1alpha1.Etcd, role *rbac.Role) {
 	Expect(*role).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(fmt.Sprintf("druid.gardener.cloud:etcd:%s", instance.Name)),
+			"Name":      Equal(instance.GetRoleName()),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchKeys(IgnoreExtras, Keys{
 				"name":     Equal("etcd"),

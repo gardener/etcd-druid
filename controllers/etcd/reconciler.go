@@ -26,6 +26,7 @@ import (
 	componentconfigmap "github.com/gardener/etcd-druid/pkg/component/etcd/configmap"
 	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 	componentpdb "github.com/gardener/etcd-druid/pkg/component/etcd/poddisruptionbudget"
+	componentrole "github.com/gardener/etcd-druid/pkg/component/etcd/role"
 	componentservice "github.com/gardener/etcd-druid/pkg/component/etcd/service"
 	componentserviceaccount "github.com/gardener/etcd-druid/pkg/component/etcd/serviceaccount"
 	componentsts "github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
@@ -271,6 +272,14 @@ func (r *Reconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl
 		}, err
 	}
 
+	roleValues := componentrole.GenerateValues(etcd)
+	roleDeployer := componentrole.New(r.Client, roleValues)
+	if err := roleDeployer.Destroy(ctx); err != nil {
+		return ctrl.Result{
+			Requeue: true,
+		}, err
+	}
+
 	if sets.NewString(etcd.Finalizers...).Has(common.FinalizerName) {
 		logger.Info("Removing finalizer")
 		if err := controllerutils.RemoveFinalizers(ctx, r.Client, etcd, common.FinalizerName); client.IgnoreNotFound(err) != nil {
@@ -281,39 +290,6 @@ func (r *Reconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl
 	}
 	logger.Info("Deleted etcd successfully.")
 	return ctrl.Result{}, nil
-}
-
-func (r *Reconciler) reconcileRole(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) error {
-	logger.Info("Reconciling role")
-	var err error
-
-	decoded, err := r.chart.decodeRole(etcd.Name, etcd.Namespace, values)
-	if err != nil {
-		return err
-	}
-
-	roleObj := &rbac.Role{}
-	key := client.ObjectKeyFromObject(decoded)
-	if err := r.Get(ctx, key, roleObj); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
-		if err := r.Create(ctx, decoded); err != nil {
-			return err
-		}
-		logger.Info("Creating role", "role", kutil.Key(decoded.Namespace, decoded.Name).String())
-		return nil
-	}
-
-	if !reflect.DeepEqual(decoded.Rules, roleObj.Rules) {
-		roleObjCopy := roleObj.DeepCopy()
-		roleObjCopy.Rules = decoded.Rules
-		if err := r.Patch(ctx, roleObjCopy, client.MergeFrom(roleObj)); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (r *Reconciler) reconcileRoleBinding(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) error {
@@ -403,7 +379,8 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		return reconcileResult{err: err}
 	}
 
-	err = r.reconcileRole(ctx, logger, etcd, roleValues)
+	roleDeployer := componentrole.New(r.Client, componentrole.GenerateValues(etcd))
+	err = roleDeployer.Deploy(ctx)
 	if err != nil {
 		return reconcileResult{err: err}
 	}
