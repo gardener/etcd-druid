@@ -17,97 +17,83 @@ package rolebinding_test
 import (
 	"context"
 
+	"github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	"github.com/gardener/etcd-druid/pkg/component/etcd/rolebinding"
 
-	"github.com/gardener/gardener/pkg/operation/botanist/component"
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
-var _ = Describe("RoleBinding Component", func() {
+var _ = Describe("RoleBinding Component", Ordered, func() {
 	var (
-		ctx                  context.Context
-		c                    client.Client
-		value                *rolebinding.Values
-		roleBindingComponent component.Deployer
+		ctx                  = context.TODO()
+		c                    = fake.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
+		values               = getTestRoleBindingValues()
+		roleBindingComponent = rolebinding.New(c, values)
 	)
 
-	BeforeEach(func() {
-		ctx = context.TODO()
-		c = fake.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
-		value = getTestValue()
-		roleBindingComponent = rolebinding.New(c, value)
-	})
-
-	Describe("#Deploy", func() {
-		AfterEach(func() {
-			Expect(roleBindingComponent.Destroy(ctx)).NotTo(HaveOccurred())
-		})
-
-		It("should create and update the RoleBinding with the expected values", func() {
+	Context("#Deploy", func() {
+		It("should create the RoleBinding with the expected values", func() {
 			By("creating a RoleBinding")
 			err := roleBindingComponent.Deploy(ctx)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying that the RoleBinding is created on the K8s cluster as expected")
 			created := &rbacv1.RoleBinding{}
-			err = c.Get(ctx, getRoleBindingKeyFromValue(value), created)
+			err = c.Get(ctx, getRoleBindingKeyFromValue(values), created)
 			Expect(err).NotTo(HaveOccurred())
-			verifyRoleBindingValues(created, value)
-
+			verifyRoleBindingValues(created, values)
+		})
+		It("should update the RoleBinding with the expected values", func() {
 			By("updating the RoleBinding")
-			err = roleBindingComponent.Deploy(ctx)
+			values.Labels["new"] = "label"
+			err := roleBindingComponent.Deploy(ctx)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying that the RoleBinding is updated on the K8s cluster as expected")
 			updated := &rbacv1.RoleBinding{}
-			err = c.Get(ctx, getRoleBindingKeyFromValue(value), updated)
+			err = c.Get(ctx, getRoleBindingKeyFromValue(values), updated)
 			Expect(err).NotTo(HaveOccurred())
-			verifyRoleBindingValues(updated, value)
-
-			By("returning nil when there is nothing to update the RoleBinding")
-			err = roleBindingComponent.Deploy(ctx)
+			verifyRoleBindingValues(updated, values)
+		})
+		It("should not return an error when there is nothing to update the RoleBinding", func() {
+			err := roleBindingComponent.Deploy(ctx)
 			Expect(err).NotTo(HaveOccurred())
-			updated = &rbacv1.RoleBinding{}
-			err = c.Get(ctx, getRoleBindingKeyFromValue(value), updated)
+			updated := &rbacv1.RoleBinding{}
+			err = c.Get(ctx, getRoleBindingKeyFromValue(values), updated)
 			Expect(err).NotTo(HaveOccurred())
-			verifyRoleBindingValues(updated, value)
-
-			By("returning an error when the update fails")
-			value.Name = ""
-			err = roleBindingComponent.Deploy(ctx)
+			verifyRoleBindingValues(updated, values)
+		})
+		It("should return an error when the update fails", func() {
+			values.Name = ""
+			err := roleBindingComponent.Deploy(ctx)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Required value: name is required"))
 		})
 	})
 
-	Describe("#Destroy", func() {
-		BeforeEach(func() {
-			Expect(roleBindingComponent.Deploy(ctx)).NotTo(HaveOccurred())
-		})
-
+	Context("#Destroy", func() {
 		It("should delete the RoleBinding", func() {
-			roleBinding := &rbacv1.RoleBinding{}
-			By("checking that the RoleBinding exists before deleting it")
-			Expect(c.Get(ctx, getRoleBindingKeyFromValue(value), roleBinding)).NotTo(HaveOccurred())
-
 			By("deleting the RoleBinding")
 			err := roleBindingComponent.Destroy(ctx)
 			Expect(err).NotTo(HaveOccurred())
 
+			roleBinding := &rbacv1.RoleBinding{}
 			By("verifying that the RoleBinding is deleted from the K8s cluster as expected")
-			Expect(c.Get(ctx, getRoleBindingKeyFromValue(value), roleBinding)).To(BeNotFoundError())
-
-			By("returning nil when there is nothing to delete")
-			err = roleBindingComponent.Destroy(ctx)
-			Expect(err).To(BeNil())
+			Expect(c.Get(ctx, getRoleBindingKeyFromValue(values), roleBinding)).To(BeNotFoundError())
+		})
+		It("should not return an error when there is nothing to delete", func() {
+			err := roleBindingComponent.Destroy(ctx)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 })
@@ -117,6 +103,7 @@ func verifyRoleBindingValues(expected *rbacv1.RoleBinding, values *rolebinding.V
 	Expect(expected.Labels).To(Equal(values.Labels))
 	Expect(expected.Namespace).To(Equal(values.Namespace))
 	Expect(expected.Namespace).To(Equal(values.Namespace))
+	Expect(expected.OwnerReferences).To(Equal(values.OwnerReferences))
 	Expect(expected.Subjects).To(Equal([]rbacv1.Subject{
 		{
 			Kind:      "ServiceAccount",
@@ -130,16 +117,28 @@ func verifyRoleBindingValues(expected *rbacv1.RoleBinding, values *rolebinding.V
 		Name:     values.RoleName,
 	}))
 }
-func getRoleBindingKeyFromValue(value *rolebinding.Values) types.NamespacedName {
-	return client.ObjectKey{Name: value.Name, Namespace: value.Namespace}
+func getRoleBindingKeyFromValue(values *rolebinding.Values) types.NamespacedName {
+	return client.ObjectKey{Name: values.Name, Namespace: values.Namespace}
 }
 
-func getTestValue() *rolebinding.Values {
+func getTestRoleBindingValues() *rolebinding.Values {
 	return &rolebinding.Values{
 		Name:      "test-rolebinding",
 		Namespace: "test-namespace",
 		Labels: map[string]string{
 			"foo": "bar",
+		},
+		RoleName:           "test-role",
+		ServiceAccountName: "test-serviceaccount",
+		OwnerReferences: []metav1.OwnerReference{
+			{
+				APIVersion:         v1alpha1.GroupVersion.String(),
+				Kind:               "etcd",
+				Name:               "test-etcd",
+				UID:                "123-456-789",
+				Controller:         pointer.Bool(true),
+				BlockOwnerDeletion: pointer.Bool(true),
+			},
 		},
 	}
 }

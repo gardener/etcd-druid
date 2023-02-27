@@ -16,17 +16,19 @@ package rolebinding
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/utils"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // GenerateValues generates `serviceaccount.Values` for the serviceaccount component with the given `etcd` object.
 func GenerateValues(etcd *druidv1alpha1.Etcd) *Values {
 	return &Values{
-		Name:               utils.GetRoleBindingName(etcd),
-		Namespace:          etcd.Namespace,
-		Labels:             etcd.Spec.Labels,
-		OwnerReferences:    utils.GenerateEtcdOwnerReference(etcd),
-		RoleName:           utils.GetRoleName(etcd),
-		ServiceAccountName: utils.GetServiceAccountName(etcd),
+		Name:      etcd.GetRoleBindingName(),
+		Namespace: etcd.Namespace,
+		Labels:    etcd.GetDefaultLabels(),
+		OwnerReferences: []metav1.OwnerReference{
+			etcd.GetAsOwnerReference(),
+		},
+		RoleName:           etcd.GetRoleName(),
+		ServiceAccountName: etcd.GetServiceAccountName(),
 	}
 }

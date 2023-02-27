@@ -16,6 +16,7 @@ package rolebinding
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+// Values defines the fields used to create a RoleBinding for Etcd.
 type Values struct {
 	// Name is the name of the RoleBinding.
 	Name string

@@ -30,7 +30,7 @@ type component struct {
 	values *Values
 }
 
-func (c *component) Deploy(ctx context.Context) error {
+func (c component) Deploy(ctx context.Context) error {
 	roleBinding := c.emptyRoleBinding()
 	_, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, c.client, roleBinding, func() error {
 		roleBinding.Name = c.values.Name
@@ -54,12 +54,8 @@ func (c *component) Deploy(ctx context.Context) error {
 	return err
 }
 
-func (c *component) Destroy(ctx context.Context) error {
-	roleBinding := c.emptyRoleBinding()
-	if err := client.IgnoreNotFound(c.client.Delete(ctx, roleBinding)); err != nil {
-		return err
-	}
-	return nil
+func (c component) Destroy(ctx context.Context) error {
+	return client.IgnoreNotFound(c.client.Delete(ctx, c.emptyRoleBinding()))
 }
 
 func (c *component) emptyRoleBinding() *rbacv1.RoleBinding {

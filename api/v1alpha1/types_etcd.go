@@ -475,3 +475,8 @@ func (e *Etcd) GetAsOwnerReference() metav1.OwnerReference {
 func (e *Etcd) GetRoleName() string {
 	return fmt.Sprintf("druid.gardener.cloud:etcd:%s", e.Name)
 }
+
+// GetRoleBindingName returns the rolebinding name for the Etcd
+func (e *Etcd) GetRoleBindingName() string {
+	return fmt.Sprintf("druid.gardener.cloud:etcd:%s", e.Name)
+}

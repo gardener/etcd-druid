@@ -17,17 +17,15 @@ package rolebinding_test
 import (
 	"github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/component/etcd/rolebinding"
-	"github.com/gardener/etcd-druid/pkg/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var _ = Describe("RoleBindig", func() {
+var _ = Describe("RoleBinding", func() {
 	var (
 		etcd = &v1alpha1.Etcd{
-			ObjectMeta: v1.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:      "etcd-name",
 				Namespace: "etcd-namespace",
 				UID:       "etcd-uid",
@@ -40,20 +38,16 @@ var _ = Describe("RoleBindig", func() {
 			},
 		}
 		expected = &rolebinding.Values{
-			Name:               utils.GetRoleBindingName(etcd),
-			Namespace:          etcd.Namespace,
-			Labels:             etcd.Spec.Labels,
-			RoleName:           utils.GetRoleName(etcd),
-			ServiceAccountName: utils.GetServiceAccountName(etcd),
-			OwnerReferences: []v1.OwnerReference{
-				{
-					APIVersion:         v1alpha1.GroupVersion.String(),
-					Kind:               etcd.Kind,
-					Name:               etcd.Name,
-					UID:                etcd.UID,
-					Controller:         pointer.BoolPtr(true),
-					BlockOwnerDeletion: pointer.BoolPtr(true),
-				},
+			Name:      etcd.GetRoleBindingName(),
+			Namespace: etcd.Namespace,
+			Labels: map[string]string{
+				"name":     "etcd",
+				"instance": etcd.Name,
+			},
+			RoleName:           etcd.GetRoleName(),
+			ServiceAccountName: etcd.GetServiceAccountName(),
+			OwnerReferences: []metav1.OwnerReference{
+				etcd.GetAsOwnerReference(),
 			},
 		}
 	)
