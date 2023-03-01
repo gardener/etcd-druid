@@ -49,7 +49,7 @@ revendor: set-permissions
 all: druid
 
 # Build manager binary
-.PHONY: druid
+.PHONY: druid 
 druid: fmt check
 	@env GO111MODULE=on go build -o bin/druid main.go
 
@@ -65,7 +65,7 @@ install: manifests
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 .PHONY: deploy
-deploy: manifests
+deploy: manifests $(KUSTOMIZE)
 	kubectl apply -f config/crd/bases
 	kustomize build config/default | kubectl apply -f -
 
