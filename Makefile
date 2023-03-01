@@ -49,7 +49,7 @@ revendor: set-permissions
 all: druid
 
 # Build manager binary
-.PHONY: druid 
+.PHONY: druid
 druid: fmt check
 	@env GO111MODULE=on go build -o bin/druid main.go
 
