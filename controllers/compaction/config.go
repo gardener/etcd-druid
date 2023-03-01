@@ -59,7 +59,7 @@ func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 
 // Validate validates the config.
 func (cfg *Config) Validate() error {
-	if err := utils.MustBeGreaterThan(workersFlagName, 0, cfg.Workers); err != nil {
+	if err := utils.MustBeGreaterThanOrEqualTo(workersFlagName, 0, cfg.Workers); err != nil {
 		return err
 	}
 	if err := utils.MustBeGreaterThan(eventsThresholdFlagName, 0, cfg.EventsThreshold); err != nil {

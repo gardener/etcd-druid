@@ -40,4 +40,14 @@ var _ = Describe("Validator Tests", func() {
 		Entry("value is equal to the lower bound", "threshold", 10, 10, true),
 	)
 
+	DescribeTable("#MustBeGreaterThanOrEqualTo",
+		func(key string, lowerBound int, value int, expectError bool) {
+			err := MustBeGreaterThanOrEqualTo(key, lowerBound, value)
+			Expect(err != nil).To(Equal(expectError))
+		},
+		Entry("value is not greater than the lower bound", "workers", 0, -1, true),
+		Entry("value is greater than the lower bound", "durationSeconds", 10, 20, false),
+		Entry("value is equal to the lower bound", "threshold", 10, 10, false),
+	)
+
 })

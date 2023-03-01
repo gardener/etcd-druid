@@ -133,7 +133,7 @@ func (cfg *ManagerConfig) Validate() error {
 }
 
 // getAllowedLeaderElectionResourceLocks gives the resource names that can be used for leader election.
-// NOTE: This should be changed as lease is the default choice now for leader election. There is no need
+// TODO: This should be changed as lease is the default choice now for leader election. There is no need
 // to provide other options. Should be handled as part of a different Issue/PR.
 func getAllowedLeaderElectionResourceLocks() []string {
 	return []string{
