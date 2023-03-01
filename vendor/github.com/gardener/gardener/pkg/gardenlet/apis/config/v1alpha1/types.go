@@ -17,12 +17,12 @@ package v1alpha1
 import (
 	"time"
 
-	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
+
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -177,24 +177,24 @@ type GardenletControllerConfiguration struct {
 	// Seed defines the configuration of the Seed controller.
 	// +optional
 	Seed *SeedControllerConfiguration `json:"seed,omitempty"`
+	// SeedCare defines the configuration of the SeedCare controller.
+	// +optional
+	SeedCare *SeedCareControllerConfiguration `json:"seedCare,omitempty"`
 	// Shoot defines the configuration of the Shoot controller.
 	// +optional
 	Shoot *ShootControllerConfiguration `json:"shoot,omitempty"`
 	// ShootCare defines the configuration of the ShootCare controller.
 	// +optional
 	ShootCare *ShootCareControllerConfiguration `json:"shootCare,omitempty"`
-	// SeedCare defines the configuration of the SeedCare controller.
-	// +optional
-	SeedCare *SeedCareControllerConfiguration `json:"seedCare,omitempty"`
 	// ShootMigration defines the configuration of the ShootMigration controller.
 	// +optional
 	ShootMigration *ShootMigrationControllerConfiguration `json:"shootMigration,omitempty"`
 	// ShootStateSync defines the configuration of the ShootState controller
 	// +optional
 	ShootStateSync *ShootStateSyncControllerConfiguration `json:"shootStateSync,omitempty"`
-	// SeedAPIServerNetworkPolicy defines the configuration of the SeedAPIServerNetworkPolicy controller
+	// NetworkPolicy defines the configuration of the NetworkPolicy controller
 	// +optional
-	SeedAPIServerNetworkPolicy *SeedAPIServerNetworkPolicyControllerConfiguration `json:"seedAPIServerNetworkPolicy,omitempty"`
+	NetworkPolicy *NetworkPolicyControllerConfiguration `json:"networkPolicy,omitempty"`
 	// ManagedSeedControllerConfiguration defines the configuration of the ManagedSeed controller.
 	// +optional
 	ManagedSeed *ManagedSeedControllerConfiguration `json:"managedSeed,omitempty"`
@@ -287,10 +287,6 @@ type ControllerInstallationRequiredControllerConfiguration struct {
 
 // SeedControllerConfiguration defines the configuration of the Seed controller.
 type SeedControllerConfiguration struct {
-	// ConcurrentSyncs is the number of workers used for the controller to work on
-	// events.
-	// +optional
-	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 	// SyncPeriod is the duration how often the existing resources are reconciled.
 	// +optional
 	SyncPeriod *metav1.Duration `json:"syncPeriod,omitempty"`
@@ -354,6 +350,11 @@ type ShootCareControllerConfiguration struct {
 	// StaleExtensionHealthChecks defines the configuration of the check for stale extension health checks.
 	// +optional
 	StaleExtensionHealthChecks *StaleExtensionHealthChecks `json:"staleExtensionHealthChecks,omitempty"`
+	// ManagedResourceProgressingThreshold is the allowed duration a ManagedResource can be with condition
+	// Progressing=True before being considered as "stuck" from the shoot-care controller.
+	// If the field is not specified, the check for ManagedResource "stuck" in progressing state is not performed.
+	// +optional
+	ManagedResourceProgressingThreshold *metav1.Duration `json:"managedResourceProgressingThreshold,omitempty"`
 	// ConditionThresholds defines the condition threshold per condition type.
 	// +optional
 	ConditionThresholds []ConditionThreshold `json:"conditionThresholds,omitempty"`
@@ -428,14 +429,11 @@ type ShootStateSyncControllerConfiguration struct {
 	// events.
 	// +optional
 	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
-	// SyncPeriod is the duration how often the existing extension resources are synced to the ShootState resource
-	// +optional
-	SyncPeriod *metav1.Duration `json:"syncPeriod,omitempty"`
 }
 
-// SeedAPIServerNetworkPolicyControllerConfiguration defines the configuration of the SeedAPIServerNetworkPolicy
+// NetworkPolicyControllerConfiguration defines the configuration of the NetworkPolicy
 // controller.
-type SeedAPIServerNetworkPolicyControllerConfiguration struct {
+type NetworkPolicyControllerConfiguration struct {
 	// ConcurrentSyncs is the number of workers used for the controller to work on events.
 	// +optional
 	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`

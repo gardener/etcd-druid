@@ -24,6 +24,7 @@ type EtcdCustodianController struct {
 	SyncPeriod time.Duration
 }
 
+// EtcdMemberConfig holds configuration related to etcd members.
 type EtcdMemberConfig struct {
 	// EtcdMemberNotReadyThreshold is the duration after which an etcd member's state is considered `NotReady`.
 	EtcdMemberNotReadyThreshold time.Duration

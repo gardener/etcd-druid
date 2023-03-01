@@ -15,10 +15,10 @@
 package v1alpha1
 
 import (
-	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 )
 
 const (
@@ -56,6 +56,9 @@ const (
 	// ManagedBy is a constant for a label on an object managed by a ManagedResource.
 	// It is set by the ManagedResource controller depending on its configuration. By default it is set to "gardener".
 	ManagedBy = "resources.gardener.cloud/managed-by"
+
+	// GardenerManager is a constant for the default value of the 'ManagedBy' label.
+	GardenerManager = "gardener"
 
 	// StaticTokenSkip is a constant for a label on a ServiceAccount which indicates that this ServiceAccount should not
 	// be considered by this controller.
@@ -105,13 +108,69 @@ const (
 	// seconds for the automatic mount of a projected ServiceAccount token.
 	ProjectedTokenExpirationSeconds = "projected-token-mount.resources.gardener.cloud/expiration-seconds"
 
+	// HighAvailabilityConfigConsider is a constant for a label on a Namespace which indicates that the workload
+	// resources in this namespace should be considered by the HA config webhook.
+	HighAvailabilityConfigConsider = "high-availability-config.resources.gardener.cloud/consider"
+	// HighAvailabilityConfigSkip is a constant for a label on a resource which indicates that this resource should not
+	// be considered by the HA config webhook.
+	HighAvailabilityConfigSkip = "high-availability-config.resources.gardener.cloud/skip"
+	// HighAvailabilityConfigFailureToleranceType is a constant for a label on a Namespace which describes the HA
+	// failure tolerance type.
+	HighAvailabilityConfigFailureToleranceType = "high-availability-config.resources.gardener.cloud/failure-tolerance-type"
+	// HighAvailabilityConfigZones is a constant for an annotation on a Namespace which describes the availability
+	// zones are used.
+	HighAvailabilityConfigZones = "high-availability-config.resources.gardener.cloud/zones"
+	// HighAvailabilityConfigZonePinning is a constant for an annotation on a Namespace which enables pinning of
+	// workload to the specified zones.
+	HighAvailabilityConfigZonePinning = "high-availability-config.resources.gardener.cloud/zone-pinning"
+	// HighAvailabilityConfigType is a constant for a label on a resource which describes which component type it is.
+	HighAvailabilityConfigType = "high-availability-config.resources.gardener.cloud/type"
+	// HighAvailabilityConfigTypeController is a constant for a label value on a resource describing it's a controller.
+	HighAvailabilityConfigTypeController = "controller"
+	// HighAvailabilityConfigTypeServer is a constant for a label value on a resource describing it's a (webhook)
+	// server.
+	HighAvailabilityConfigTypeServer = "server"
+	// HighAvailabilityConfigReplicas is a constant for an annotation on a resource which overwrites the desired replica
+	// count.
+	HighAvailabilityConfigReplicas = "high-availability-config.resources.gardener.cloud/replicas"
+
 	// SeccompProfileSkip is a constant for a label on a Pod which indicates that this Pod should not be considered for
 	// defaulting of its seccomp profile.
 	SeccompProfileSkip = "seccompprofile.resources.gardener.cloud/skip"
 
+	// SystemComponentsConfigSkip is a constant for a label on a Pod which indicates that this Pod should not be considered for
+	// adding default node selector and tolerations.
+	SystemComponentsConfigSkip = "system-components-config.resources.gardener.cloud/skip"
+
 	// PodTopologySpreadConstraintsSkip is a constant for a label on a Pod which indicates that this Pod should not be considered for
 	// adding the pod-template-hash selector to the topology spread constraint.
 	PodTopologySpreadConstraintsSkip = "topology-spread-constraints.resources.gardener.cloud/skip"
+
+	// NetworkingNamespaceSelectors is a constant for an annotation on a Service which contains a list of namespace
+	// selectors. By default, NetworkPolicy resources are only created in the Service's namespace. If any selector is
+	// present, NetworkPolicy resources are also created in all namespaces matching any of the provided selectors.
+	NetworkingNamespaceSelectors = "networking.resources.gardener.cloud/namespace-selectors"
+	// NetworkingPodLabelSelectorNamespaceAlias is a constant for an annotation on a Service which describes the label
+	// that can be used to define an alias for the namespace name in the default pod label selector. This is helpful for
+	// scenarios where the target service can exist n-times in multiple namespaces and a component needs to talk to all
+	// of them but doesn't know the namespace names upfront.
+	NetworkingPodLabelSelectorNamespaceAlias = "networking.resources.gardener.cloud/pod-label-selector-namespace-alias"
+	// NetworkingFromWorldToPorts is a constant for an annotation on a Service which contains a list of ports to which
+	// ingress traffic from everywhere shall be allowed.
+	NetworkingFromWorldToPorts = "networking.resources.gardener.cloud/from-world-to-ports"
+	// NetworkingFromPolicyPodLabelSelector is a constant for an annotation on a Service which contains the label
+	// selector which should be used for pods initiating the communication with this Service. Note that the ports must
+	// be container ports, not service ports.
+	NetworkingFromPolicyPodLabelSelector = "networking.resources.gardener.cloud/from-policy-pod-label-selector"
+	// NetworkingFromPolicyAllowedPorts is a constant for an annotation on a Service which contains a list of ports to
+	// which ingress traffic shall be allowed. Note that the ports must be container ports, not service ports.
+	NetworkingFromPolicyAllowedPorts = "networking.resources.gardener.cloud/from-policy-allowed-ports"
+	// NetworkingServiceName is a constant for a label on a NetworkPolicy which contains the name of the Service is has
+	// been created for.
+	NetworkingServiceName = "networking.resources.gardener.cloud/service-name"
+	// NetworkingServiceNamespace is a constant for a label on a NetworkPolicy which contains the namespace of the
+	// Service is has been created for.
+	NetworkingServiceNamespace = "networking.resources.gardener.cloud/service-namespace"
 )
 
 // +kubebuilder:resource:shortName="mr"

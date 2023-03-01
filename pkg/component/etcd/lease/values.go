@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+// Values contains the values necessary for creating ETCD leases.
 type Values struct {
 	// BackupEnabled specifies if the backup functionality for the etcd cluster is enabled.
 	BackupEnabled bool

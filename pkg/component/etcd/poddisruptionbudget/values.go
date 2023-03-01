@@ -24,6 +24,7 @@ const (
 	appKey                 = "app"
 )
 
+// Values contains the values necessary for creating PodDisruptionBudget.
 type Values struct {
 	// EtcdName is the name of the etcd resource.
 	EtcdName string

@@ -25,6 +25,7 @@ type Checker interface {
 	Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result
 }
 
+// Result encapsulates a condition result
 type Result interface {
 	ConditionType() druidv1alpha1.ConditionType
 	Status() druidv1alpha1.ConditionStatus

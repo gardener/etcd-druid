@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// Interface provides a facade for operations on leases.
 type Interface interface {
 	gardenercomponent.Deployer
 	// GetPeerURLTLSEnabledStatus checks the Peer URL TLS enabled status by inspecting all the lease objects and returns

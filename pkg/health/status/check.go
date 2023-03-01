@@ -44,7 +44,7 @@ var (
 	NewDefaultConditionBuilder = condition.NewBuilder
 	// NewDefaultEtcdMemberBuilder is the default etcd member builder.
 	NewDefaultEtcdMemberBuilder = etcdmember.NewBuilder
-	// Checks are the registered condition checks.
+	// ConditionChecks Checks are the registered condition checks.
 	ConditionChecks = []ConditionCheckFn{
 		condition.AllMembersCheck,
 		condition.ReadyCheck,
