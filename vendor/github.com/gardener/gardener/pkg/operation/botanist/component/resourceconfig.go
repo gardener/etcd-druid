@@ -17,10 +17,11 @@ package component
 import (
 	"context"
 
-	"github.com/gardener/gardener/pkg/controllerutils"
-	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
-	"github.com/gardener/gardener/pkg/utils/managedresources"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/gardener/gardener/pkg/controllerutils"
+	kubernetesutils "github.com/gardener/gardener/pkg/utils/kubernetes"
+	"github.com/gardener/gardener/pkg/utils/managedresources"
 )
 
 // Class is a type alias for describing the class of a resource.
@@ -140,7 +141,7 @@ func DeployResourceConfigs(
 		}
 	}
 
-	return managedresources.CreateForShoot(ctx, c, namespace, managedResourceName, false, registry.SerializedObjects())
+	return managedresources.CreateForShoot(ctx, c, namespace, managedResourceName, managedresources.LabelValueGardener, false, registry.SerializedObjects())
 }
 
 // DestroyResourceConfigs destroys the provided ResourceConfigs <allResources> based on the ClusterType.
@@ -163,5 +164,5 @@ func DestroyResourceConfigs(
 		return err
 	}
 
-	return kutil.DeleteObjects(ctx, c, AllRuntimeObjects(resourceConfigs...)...)
+	return kubernetesutils.DeleteObjects(ctx, c, AllRuntimeObjects(resourceConfigs...)...)
 }

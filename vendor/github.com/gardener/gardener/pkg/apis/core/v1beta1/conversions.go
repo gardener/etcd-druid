@@ -18,10 +18,10 @@ package v1beta1
 import (
 	"fmt"
 
-	"github.com/gardener/gardener/pkg/apis/core"
-
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/gardener/gardener/pkg/apis/core"
 )
 
 func addConversionFuncs(scheme *runtime.Scheme) error {
@@ -43,7 +43,7 @@ func addConversionFuncs(scheme *runtime.Scheme) error {
 		SchemeGroupVersion.WithKind("BackupEntry"),
 		func(label, value string) (string, string, error) {
 			switch label {
-			case "metadata.name", "metadata.namespace", core.BackupEntrySeedName:
+			case "metadata.name", "metadata.namespace", core.BackupEntrySeedName, core.BackupEntryBucketName:
 				return label, value, nil
 			default:
 				return "", "", fmt.Errorf("field label not supported: %s", label)

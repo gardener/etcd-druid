@@ -17,10 +17,10 @@ package health
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/equality"
+
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
-
-	"k8s.io/apimachinery/pkg/api/equality"
 )
 
 var (
@@ -49,7 +49,8 @@ func CheckSeedForMigration(seed *gardencorev1beta1.Seed, identity *gardencorev1b
 	return checkSeed(seed)
 }
 
-// checkSeed checks if the seed.Status.ObservedGeneration ObservedGeneration is not outdated and if its extensions have been successfully bootstrapped.
+// checkSeed checks if the .status.observedGeneration field is not outdated and if the Seed's extensions have been
+// successfully bootstrapped.
 func checkSeed(seed *gardencorev1beta1.Seed) error {
 	if seed.Status.ObservedGeneration < seed.Generation {
 		return fmt.Errorf("observed generation outdated (%d/%d)", seed.Status.ObservedGeneration, seed.Generation)

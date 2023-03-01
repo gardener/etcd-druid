@@ -20,11 +20,11 @@ import (
 	"strings"
 	"time"
 
-	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
-	utilerrors "github.com/gardener/gardener/pkg/utils/errors"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	errorsutils "github.com/gardener/gardener/pkg/utils/errors"
 )
 
 // ErrorWithCodes contains the error and Gardener error codes.
@@ -95,7 +95,7 @@ func DeprecatedDetermineErrorCodes(err error) []gardencorev1beta1.ErrorCode {
 	var (
 		coder   Coder
 		message = err.Error()
-		codes   = sets.NewString()
+		codes   = sets.New[string]()
 
 		knownCodes = map[gardencorev1beta1.ErrorCode]func(string) bool{
 			gardencorev1beta1.ErrorInfraUnauthenticated:          unauthenticatedRegexp.MatchString,
@@ -128,7 +128,7 @@ func DeprecatedDetermineErrorCodes(err error) []gardencorev1beta1.ErrorCode {
 
 	// compute error code list based on code string set
 	var out []gardencorev1beta1.ErrorCode
-	for _, c := range codes.List() {
+	for _, c := range sets.List(codes) {
 		out = append(out, gardencorev1beta1.ErrorCode(c))
 	}
 	return out
@@ -140,10 +140,10 @@ type Coder interface {
 	Codes() []gardencorev1beta1.ErrorCode
 }
 
-// ExtractErrorCodes extracts all error codes from the given error by using utilerrors.Errors
+// ExtractErrorCodes extracts all error codes from the given error by using errorsutils.Errors
 func ExtractErrorCodes(err error) []gardencorev1beta1.ErrorCode {
 	var codes []gardencorev1beta1.ErrorCode
-	for _, err := range utilerrors.Errors(err) {
+	for _, err := range errorsutils.Errors(err) {
 		var coder Coder
 		if errors.As(err, &coder) {
 			codes = append(codes, coder.Codes()...)
@@ -159,7 +159,7 @@ type MultiErrorWithCodes struct {
 	errors      []error
 	errorFormat func(errs []error) string
 
-	errorCodeStr sets.String
+	errorCodeStr sets.Set[string]
 	codes        []gardencorev1beta1.ErrorCode
 }
 
@@ -167,7 +167,7 @@ type MultiErrorWithCodes struct {
 func NewMultiErrorWithCodes(errorFormat func(errs []error) string) *MultiErrorWithCodes {
 	return &MultiErrorWithCodes{
 		errorFormat:  errorFormat,
-		errorCodeStr: sets.NewString(),
+		errorCodeStr: sets.New[string](),
 	}
 }
 
@@ -227,10 +227,10 @@ type WrappedLastErrors struct {
 func DeprecatedNewWrappedLastErrors(description string, err error) *WrappedLastErrors {
 	var lastErrors []gardencorev1beta1.LastError
 
-	for _, partError := range utilerrors.Errors(err) {
+	for _, partError := range errorsutils.Errors(err) {
 		lastErrors = append(lastErrors, *LastErrorWithTaskID(
 			partError.Error(),
-			utilerrors.GetID(partError),
+			errorsutils.GetID(partError),
 			DeprecatedDetermineErrorCodes(partError)...))
 	}
 
@@ -244,10 +244,10 @@ func DeprecatedNewWrappedLastErrors(description string, err error) *WrappedLastE
 func NewWrappedLastErrors(description string, err error) *WrappedLastErrors {
 	var lastErrors []gardencorev1beta1.LastError
 
-	for _, partError := range utilerrors.Errors(err) {
+	for _, partError := range errorsutils.Errors(err) {
 		lastErrors = append(lastErrors, *LastErrorWithTaskID(
 			partError.Error(),
-			utilerrors.GetID(partError),
+			errorsutils.GetID(partError),
 			ExtractErrorCodes(partError)...))
 	}
 
