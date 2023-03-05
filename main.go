@@ -48,7 +48,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	mgr, err := controllers.CreateAndAddToManager(&mgrConfig)
+	mgr, err := controllers.CreateManagerWithControllers(&mgrConfig)
 	if err != nil {
 		logger.Error(err, "failed to create druid controller manager")
 		os.Exit(1)

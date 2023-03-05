@@ -26,7 +26,7 @@ import (
 
 const controllerName = "etcdcopybackupstask-controller"
 
-func (r *Reconciler) AddToManager(mgr ctrl.Manager) error {
+func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(controllerName).
 		For(&druidv1alpha1.EtcdCopyBackupsTask{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).

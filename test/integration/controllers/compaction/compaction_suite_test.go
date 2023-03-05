@@ -58,7 +58,7 @@ var _ = BeforeSuite(func() {
 			EventsThreshold:        100,
 			ActiveDeadlineDuration: 2 * time.Minute,
 		}, imageVector)
-		Expect(reconciler.AddToManager(mgr)).To(Succeed())
+		Expect(reconciler.RegisterWithManager(mgr)).To(Succeed())
 	}).StartManager()
 	k8sClient = intTestEnv.K8sClient
 	namespace = intTestEnv.TestNs.Name

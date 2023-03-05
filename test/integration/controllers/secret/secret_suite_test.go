@@ -53,7 +53,7 @@ var _ = BeforeSuite(func() {
 		reconciler := secret.NewReconciler(mgr, &secret.Config{
 			Workers: 5,
 		})
-		Expect(reconciler.AddToManager(mgr)).To(Succeed())
+		Expect(reconciler.RegisterWithManager(mgr)).To(Succeed())
 	}).StartManager()
 	k8sClient = intTestEnv.K8sClient
 	namespace = intTestEnv.TestNs.Name

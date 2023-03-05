@@ -26,7 +26,7 @@ import (
 
 const controllerName = "compaction-controller"
 
-func (r *Reconciler) AddToManager(mgr ctrl.Manager) error {
+func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 	c, err := controller.New(controllerName, mgr, controller.Options{
 		Reconciler:              r,
 		MaxConcurrentReconciles: r.config.Workers,

@@ -27,7 +27,7 @@ import (
 
 const controllerName = "etcd-controller"
 
-func (r *Reconciler) AddToManager(mgr ctrl.Manager, ignoreOperationAnnotation bool) error {
+func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager, ignoreOperationAnnotation bool) error {
 	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
 		MaxConcurrentReconciles: r.config.Workers,
 	})

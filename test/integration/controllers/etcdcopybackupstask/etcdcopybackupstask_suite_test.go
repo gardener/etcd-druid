@@ -60,7 +60,7 @@ var _ = BeforeSuite(func() {
 			Workers: 5,
 		}, imageVector, chartPath)
 		Expect(err).To(BeNil())
-		Expect(reconciler.AddToManager(mgr)).To(Succeed())
+		Expect(reconciler.RegisterWithManager(mgr)).To(Succeed())
 	}).StartManager()
 	k8sClient = intTestEnv.K8sClient
 	namespace = intTestEnv.TestNs.Name

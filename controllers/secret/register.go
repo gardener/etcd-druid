@@ -26,7 +26,7 @@ import (
 
 const controllerName = "secret-controller"
 
-func (r *Reconciler) AddToManager(mgr ctrl.Manager) error {
+func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
 		MaxConcurrentReconciles: r.Config.Workers,
 	})

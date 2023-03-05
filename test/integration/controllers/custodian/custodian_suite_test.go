@@ -61,7 +61,7 @@ var _ = BeforeSuite(func() {
 				UnknownThreshold:  2 * time.Minute,
 			},
 		})
-		Expect(reconciler.AddToManager(ctx, mgr, true)).To(Succeed())
+		Expect(reconciler.RegisterWithManager(ctx, mgr, true)).To(Succeed())
 	}).StartManager()
 	k8sClient = intTestEnv.K8sClient
 	namespace = intTestEnv.TestNs.Name

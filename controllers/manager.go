@@ -38,8 +38,8 @@ var (
 	defaultTimeout = time.Minute
 )
 
-// CreateAndAddToManager creates a controller manager and adds all the controllers to the controller-manager using the passed in ManagerConfig.
-func CreateAndAddToManager(config *ManagerConfig) (ctrl.Manager, error) {
+// CreateManagerWithControllers creates a controller manager and adds all the controllers to the controller-manager using the passed in ManagerConfig.
+func CreateManagerWithControllers(config *ManagerConfig) (ctrl.Manager, error) {
 	var (
 		err error
 		mgr ctrl.Manager
@@ -48,7 +48,7 @@ func CreateAndAddToManager(config *ManagerConfig) (ctrl.Manager, error) {
 	if mgr, err = createManager(config); err != nil {
 		return nil, err
 	}
-	if err = addControllersToManager(mgr, config); err != nil {
+	if err = registerControllersWithManager(mgr, config); err != nil {
 		return nil, err
 	}
 
@@ -78,7 +78,7 @@ func createManager(config *ManagerConfig) (ctrl.Manager, error) {
 	})
 }
 
-func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
+func registerControllersWithManager(mgr ctrl.Manager, config *ManagerConfig) error {
 	var err error
 
 	// Add etcd reconciler to the manager
@@ -86,7 +86,7 @@ func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
 	if err != nil {
 		return err
 	}
-	if err = etcdReconciler.AddToManager(mgr, config.IgnoreOperationAnnotation); err != nil {
+	if err = etcdReconciler.RegisterWithManager(mgr, config.IgnoreOperationAnnotation); err != nil {
 		return err
 	}
 
@@ -97,7 +97,7 @@ func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
-	if err = custodianReconciler.AddToManager(ctx, mgr, config.IgnoreOperationAnnotation); err != nil {
+	if err = custodianReconciler.RegisterWithManager(ctx, mgr, config.IgnoreOperationAnnotation); err != nil {
 		return err
 	}
 
@@ -106,7 +106,7 @@ func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
 	if err != nil {
 		return err
 	}
-	if err = compactionReconciler.AddToManager(mgr); err != nil {
+	if err = compactionReconciler.RegisterWithManager(mgr); err != nil {
 		return err
 	}
 
@@ -115,7 +115,7 @@ func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
 	if err != nil {
 		return err
 	}
-	if err = etcdCopyBackupsTaskReconciler.AddToManager(mgr); err != nil {
+	if err = etcdCopyBackupsTaskReconciler.RegisterWithManager(mgr); err != nil {
 		return err
 	}
 
@@ -123,7 +123,7 @@ func addControllersToManager(mgr ctrl.Manager, config *ManagerConfig) error {
 	if err = secret.NewReconciler(
 		mgr,
 		config.SecretControllerConfig,
-	).AddToManager(mgr); err != nil {
+	).RegisterWithManager(mgr); err != nil {
 		return err
 	}
 

@@ -59,7 +59,7 @@ var _ = BeforeSuite(func() {
 		}, imageVector,
 			assets.GetEtcdChartPath())
 		Expect(err).To(BeNil())
-		Expect(reconciler.AddToManager(mgr, true)).To(Succeed())
+		Expect(reconciler.RegisterWithManager(mgr, true)).To(Succeed())
 	}).StartManager()
 	k8sClient = intTestEnv.K8sClient
 	restConfig = intTestEnv.RestConfig
