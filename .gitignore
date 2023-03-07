@@ -35,3 +35,5 @@ hack/e2e-test/infrastructure/overlays/gcp/common/assets
 .cache_ggshield
 .gitguardian.yaml
 
+hack/e2e-test/infrastructure/kind/kubeconfig
+

@@ -16,7 +16,6 @@
 set -o errexit
 set -o nounset
 set -o pipefail
-set -x
 
 kubectl apply -f ./hack/e2e-test/infrastructure/localstack/localstack.yaml
 
@@ -56,10 +55,3 @@ kubectl delete pods -n kube-system -l k8s-app=kube-dns
 kubectl delete pods -n kube-system -l k8s-app=kube-dns
 kubectl wait --for=condition=ready pod -n kube-system -l k8s-app=kube-dns --timeout=120s
 kubectl wait --for=condition=ready pod -l app=localstack --timeout=240s
-
-if ! grep -q -x "127.0.0.1 localstack.default" /etc/hosts; then
-   # Hostname for Localstack 'localstack.default' is missing in /etc/hosts.
-   # To access localstack and run e2e tests, you have to extend your /etc/hosts file.
-   echo "Adding Locastack host 'localstack.default' in /etc/hosts"
-   printf "\n127.0.0.1 localstack.default\n" >>/etc/hosts
-fi

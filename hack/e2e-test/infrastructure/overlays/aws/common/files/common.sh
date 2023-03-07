@@ -1,4 +1,5 @@
-#
+#!/usr/bin/env bash
+# 
 # Copyright (c) 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-set -x 
 
 ENDPOINT_URL=""
 if [[ -n "${LOCALSTACK_HOST}" ]]; then
@@ -32,7 +32,6 @@ function setup_aws() {
   curl -Lo "awscliv2.zip" "https://awscli.amazonaws.com/awscli-exe-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/').zip"
   unzip awscliv2.zip > /dev/null
   ./aws/install -i /usr/local/aws-cli -b /usr/local/bin
-
   echo "Successfully installed awscli."
 }
 
@@ -44,7 +43,6 @@ aws_access_key_id = ${AWS_ACCESS_KEY_ID}
 aws_secret_access_key = ${AWS_SECRET_ACCESS_KEY}" > ${HOME}/.aws/credentials
   echo "[default]
 region = ${AWS_REGION}" > ${HOME}/.aws/config
-  echo "LOCALSTACK_HOST:::::::: ${LOCALSTACK_HOST}"
 }
 
 function create_s3_bucket() {
