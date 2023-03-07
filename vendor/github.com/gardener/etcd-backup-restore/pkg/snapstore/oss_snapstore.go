@@ -15,9 +15,9 @@
 package snapstore
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"path"
@@ -44,16 +44,16 @@ type OSSBucket interface {
 
 const (
 	// Total number of chunks to be uploaded must be one less than maximum limit allowed.
-	ossNoOfChunk    int64 = 9999
-	ossEndPoint           = "ALICLOUD_ENDPOINT"
-	accessKeyID           = "ALICLOUD_ACCESS_KEY_ID"
-	accessKeySecret       = "ALICLOUD_ACCESS_KEY_SECRET"
+	ossNoOfChunk          int64 = 9999
+	aliCredentialFile           = "ALICLOUD_APPLICATION_CREDENTIALS"
+	aliCredentialJSONFile       = "ALICLOUD_APPLICATION_CREDENTIALS_JSON"
 )
 
 type authOptions struct {
-	endpoint  string
-	accessID  string
-	accessKey string
+	Endpoint   string `json:"storageEndpoint"`
+	AccessID   string `json:"accessKeyID"`
+	AccessKey  string `json:"accessKeySecret"`
+	BucketName string `json:"bucketName"`
 }
 
 // OSSSnapStore is snapstore with Alicloud OSS object store as backend
@@ -62,20 +62,21 @@ type OSSSnapStore struct {
 	bucket                  OSSBucket
 	multiPart               sync.Mutex
 	maxParallelChunkUploads uint
+	minChunkSize            int64
 	tempDir                 string
 }
 
 // NewOSSSnapStore create new OSSSnapStore from shared configuration with specified bucket
 func NewOSSSnapStore(config *brtypes.SnapstoreConfig) (*OSSSnapStore, error) {
-	ao, err := authOptionsFromEnv(getEnvPrefixString(config.IsSource))
+	ao, err := getAuthOptions(getEnvPrefixString(config.IsSource))
 	if err != nil {
 		return nil, err
 	}
-	return newOSSFromAuthOpt(config.Container, config.Prefix, config.TempDir, config.MaxParallelChunkUploads, ao)
+	return newOSSFromAuthOpt(config.Container, config.Prefix, config.TempDir, config.MaxParallelChunkUploads, config.MinChunkSize, *ao)
 }
 
-func newOSSFromAuthOpt(bucket, prefix, tempDir string, maxParallelChunkUploads uint, ao authOptions) (*OSSSnapStore, error) {
-	client, err := oss.New(ao.endpoint, ao.accessID, ao.accessKey)
+func newOSSFromAuthOpt(bucket, prefix, tempDir string, maxParallelChunkUploads uint, minChunkSize int64, ao authOptions) (*OSSSnapStore, error) {
+	client, err := oss.New(ao.Endpoint, ao.AccessID, ao.AccessKey)
 	if err != nil {
 		return nil, err
 	}
@@ -85,15 +86,16 @@ func newOSSFromAuthOpt(bucket, prefix, tempDir string, maxParallelChunkUploads u
 		return nil, err
 	}
 
-	return NewOSSFromBucket(prefix, tempDir, maxParallelChunkUploads, bucketOSS), nil
+	return NewOSSFromBucket(prefix, tempDir, maxParallelChunkUploads, minChunkSize, bucketOSS), nil
 }
 
 // NewOSSFromBucket will create the new OSS snapstore object from OSS bucket
-func NewOSSFromBucket(prefix, tempDir string, maxParallelChunkUploads uint, bucket OSSBucket) *OSSSnapStore {
+func NewOSSFromBucket(prefix, tempDir string, maxParallelChunkUploads uint, minChunkSize int64, bucket OSSBucket) *OSSSnapStore {
 	return &OSSSnapStore{
 		prefix:                  prefix,
 		bucket:                  bucket,
 		maxParallelChunkUploads: maxParallelChunkUploads,
+		minChunkSize:            minChunkSize,
 		tempDir:                 tempDir,
 	}
 }
@@ -109,7 +111,7 @@ func (s *OSSSnapStore) Fetch(snap brtypes.Snapshot) (io.ReadCloser, error) {
 
 // Save will write the snapshot to store
 func (s *OSSSnapStore) Save(snap brtypes.Snapshot, rc io.ReadCloser) error {
-	tmpfile, err := ioutil.TempFile(s.tempDir, tmpBackupFilePrefix)
+	tmpfile, err := os.CreateTemp(s.tempDir, tmpBackupFilePrefix)
 	if err != nil {
 		rc.Close()
 		return fmt.Errorf("failed to create snapshot tempfile: %v", err)
@@ -130,7 +132,7 @@ func (s *OSSSnapStore) Save(snap brtypes.Snapshot, rc io.ReadCloser) error {
 	}
 
 	var (
-		chunkSize  = int64(math.Max(float64(minChunkSize), float64(size/ossNoOfChunk)))
+		chunkSize  = int64(math.Max(float64(s.minChunkSize), float64(size/ossNoOfChunk)))
 		noOfChunks = size / chunkSize
 	)
 	if size%chunkSize != 0 {
@@ -263,25 +265,114 @@ func (s *OSSSnapStore) Delete(snap brtypes.Snapshot) error {
 	return s.bucket.DeleteObject(path.Join(snap.Prefix, snap.SnapDir, snap.SnapName))
 }
 
-func authOptionsFromEnv(prefix string) (authOptions, error) {
-	endpoint, err := GetEnvVarOrError(prefix + ossEndPoint)
-	if err != nil {
-		return authOptions{}, err
-	}
-	accessID, err := GetEnvVarOrError(prefix + accessKeyID)
-	if err != nil {
-		return authOptions{}, err
-	}
-	accessKey, err := GetEnvVarOrError(prefix + accessKeySecret)
-	if err != nil {
-		return authOptions{}, err
+func getAuthOptions(prefix string) (*authOptions, error) {
+
+	if filename, isSet := os.LookupEnv(prefix + aliCredentialJSONFile); isSet {
+		ao, err := readALICredentialsJSON(filename)
+		if err != nil {
+			return nil, fmt.Errorf("error getting credentials using %v file", filename)
+		}
+		return ao, nil
 	}
 
-	ao := authOptions{
-		endpoint:  endpoint,
-		accessID:  accessID,
-		accessKey: accessKey,
+	if dir, isSet := os.LookupEnv(prefix + aliCredentialFile); isSet {
+		ao, err := readALICredentialFiles(dir)
+		if err != nil {
+			return nil, fmt.Errorf("error getting credentials from %v directory", dir)
+		}
+		return ao, nil
 	}
 
-	return ao, nil
+	return nil, fmt.Errorf("unable to get credentials")
+}
+
+func readALICredentialsJSON(filename string) (*authOptions, error) {
+	jsonData, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	return aliCredentialsFromJSON(jsonData)
+}
+
+// aliCredentialsFromJSON obtains AliCloud OSS credentials from a JSON value.
+func aliCredentialsFromJSON(jsonData []byte) (*authOptions, error) {
+	aliConfig := &authOptions{}
+	if err := json.Unmarshal(jsonData, aliConfig); err != nil {
+		return nil, err
+	}
+
+	return aliConfig, nil
+}
+
+func readALICredentialFiles(dirname string) (*authOptions, error) {
+	aliConfig := &authOptions{}
+
+	files, err := os.ReadDir(dirname)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, file := range files {
+		if file.Name() == "storageEndpoint" {
+			data, err := os.ReadFile(dirname + "/storageEndpoint")
+			if err != nil {
+				return nil, err
+			}
+			aliConfig.Endpoint = string(data)
+		} else if file.Name() == "accessKeySecret" {
+			data, err := os.ReadFile(dirname + "/accessKeySecret")
+			if err != nil {
+				return nil, err
+			}
+			aliConfig.AccessKey = string(data)
+		} else if file.Name() == "accessKeyID" {
+			data, err := os.ReadFile(dirname + "/accessKeyID")
+			if err != nil {
+				return nil, err
+			}
+			aliConfig.AccessID = string(data)
+		}
+	}
+
+	if err := isOSSConfigEmpty(aliConfig); err != nil {
+		return nil, err
+	}
+	return aliConfig, nil
+}
+
+// OSSSnapStoreHash calculates and returns the hash of aliCloud OSS snapstore secret.
+func OSSSnapStoreHash(config *brtypes.SnapstoreConfig) (string, error) {
+	if _, isSet := os.LookupEnv(aliCredentialFile); isSet {
+		if dir := os.Getenv(aliCredentialFile); dir != "" {
+			aliConfig, err := readALICredentialFiles(dir)
+			if err != nil {
+				return "", fmt.Errorf("error getting credentials from %v directory", dir)
+			}
+			return getOSSHash(aliConfig), nil
+		}
+	}
+
+	if _, isSet := os.LookupEnv(aliCredentialJSONFile); isSet {
+		if filename := os.Getenv(aliCredentialJSONFile); filename != "" {
+			aliConfig, err := readALICredentialsJSON(filename)
+			if err != nil {
+				return "", fmt.Errorf("error getting credentials using %v file", filename)
+			}
+			return getOSSHash(aliConfig), nil
+		}
+	}
+	return "", nil
+}
+
+func getOSSHash(config *authOptions) string {
+	data := fmt.Sprintf("%s%s%s", config.AccessID, config.AccessKey, config.Endpoint)
+	return getHash(data)
+}
+
+func isOSSConfigEmpty(config *authOptions) error {
+	if len(config.AccessID) != 0 && len(config.AccessKey) != 0 && len(config.Endpoint) != 0 {
+		return nil
+	}
+	return fmt.Errorf("aliCloud OSS credentials: accessKeyID, accessKeySecret or storageEndpoint is missing")
 }

@@ -20,6 +20,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/gardener/etcd-backup-restore/pkg/etcdutil/client"
 	flag "github.com/spf13/pflag"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/pkg/types"
@@ -38,15 +39,21 @@ const (
 	defaultAutoCompactionRetention  = "30m"
 )
 
+// NewClientFactoryFunc allows to define how to create a client.Factory
+type NewClientFactoryFunc func(cfg EtcdConnectionConfig, opts ...client.Option) client.Factory
+
 // RestoreOptions hold all snapshot restore related fields
 // Note: Please ensure DeepCopy and DeepCopyInto are properly implemented.
 type RestoreOptions struct {
 	Config      *RestorationConfig
 	ClusterURLs types.URLsMap
-	PeerURLs    types.URLs
+	// OriginalClusterSize indicates the actual cluster size from the ETCD config
+	OriginalClusterSize int
+	PeerURLs            types.URLs
 	// Base full snapshot + delta snapshots to restore from
-	BaseSnapshot  *Snapshot
-	DeltaSnapList SnapList
+	BaseSnapshot     *Snapshot
+	DeltaSnapList    SnapList
+	NewClientFactory NewClientFactoryFunc
 }
 
 // RestorationConfig holds the restoration configuration.
@@ -207,6 +214,9 @@ func (in *RestoreOptions) DeepCopyInto(out *RestoreOptions) {
 	if in.DeltaSnapList != nil {
 		out.DeltaSnapList = DeepCopySnapList(in.DeltaSnapList)
 	}
+	if in.NewClientFactory != nil {
+		out.NewClientFactory = DeepCopyNewClientFactory(in.NewClientFactory)
+	}
 }
 
 // DeepCopyURLs returns a deeply copy
@@ -239,6 +249,13 @@ func DeepCopySnapList(in SnapList) SnapList {
 			out[i] = &cpv
 		}
 	}
+	return out
+}
+
+// DeepCopyNewClientFactory returns a deep copy
+func DeepCopyNewClientFactory(in NewClientFactoryFunc) NewClientFactoryFunc {
+	var out NewClientFactoryFunc
+	out = in
 	return out
 }
 
