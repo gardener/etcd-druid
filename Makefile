@@ -34,9 +34,10 @@ include $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/tools.mk
 
 .PHONY: set-permissions
 set-permissions:
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/"*
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/"*
-	@chmod +x "$(REPO_ROOT)/hack/"*.sh
+	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/clean.sh"
+	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh"
+	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check-generate.sh"
+	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/generate-crds.sh"
 
 .PHONY: revendor
 revendor: set-permissions
