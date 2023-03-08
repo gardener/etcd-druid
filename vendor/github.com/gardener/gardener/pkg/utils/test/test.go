@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/onsi/ginkgo/v2"
@@ -199,6 +200,20 @@ func EXPECTPatch(ctx interface{}, c *mockclient.MockClient, expectedObj, mergeFr
 	return expectPatch(ctx, c, expectedObj, expectedPatch, rets...)
 }
 
+// EXPECTStatusPatch is a helper function for a GoMock call expecting a status patch with the mock client.
+func EXPECTStatusPatch(ctx interface{}, c *mockclient.MockStatusWriter, expectedObj, mergeFrom client.Object, patchType types.PatchType, rets ...interface{}) *gomock.Call {
+	var expectedPatch client.Patch
+
+	switch patchType {
+	case types.MergePatchType:
+		expectedPatch = client.MergeFrom(mergeFrom)
+	case types.StrategicMergePatchType:
+		expectedPatch = client.StrategicMergeFrom(mergeFrom.DeepCopyObject().(client.Object))
+	}
+
+	return expectStatusPatch(ctx, c, expectedObj, expectedPatch, rets...)
+}
+
 // EXPECTPatchWithOptimisticLock is a helper function for a GoMock call with the mock client
 // expecting a merge patch with optimistic lock.
 func EXPECTPatchWithOptimisticLock(ctx interface{}, c *mockclient.MockClient, expectedObj, mergeFrom client.Object, patchType types.PatchType, rets ...interface{}) *gomock.Call {
@@ -241,4 +256,43 @@ func expectPatch(ctx interface{}, c *mockclient.MockClient, expectedObj client.O
 			return nil
 		}).
 		Return(rets...)
+}
+
+func expectStatusPatch(ctx interface{}, c *mockclient.MockStatusWriter, expectedObj client.Object, expectedPatch client.Patch, rets ...interface{}) *gomock.Call {
+	expectedData, expectedErr := expectedPatch.Data(expectedObj)
+	Expect(expectedErr).To(BeNil())
+
+	if rets == nil {
+		rets = []interface{}{nil}
+	}
+
+	// match object key here, but verify contents only inside DoAndReturn.
+	// This is to tell gomock, for which object we expect the given patch, but to enable rich yaml diff between
+	// actual and expected via `DeepEqual`.
+	return c.
+		EXPECT().
+		Patch(ctx, HasObjectKeyOf(expectedObj), gomock.Any()).
+		DoAndReturn(func(_ context.Context, obj client.Object, patch client.Patch, _ ...client.PatchOption) error {
+			// if one of these Expects fails and Patch is called in some goroutine (e.g. via flow.Parallel)
+			// the failures will not be shown, as the ginkgo panic is not recovered, so the test is hard to fix
+			defer ginkgo.GinkgoRecover()
+
+			Expect(obj).To(DeepEqual(expectedObj))
+			data, err := patch.Data(obj)
+			Expect(err).To(BeNil())
+			Expect(patch.Type()).To(Equal(expectedPatch.Type()))
+			Expect(string(data)).To(Equal(string(expectedData)))
+			return nil
+		}).
+		Return(rets...)
+}
+
+// CEventually is like gomega.Eventually but with a context.Context. When it has a deadline then the gomega.Eventually
+// call with be configured with a the respective timeout.
+func CEventually(ctx context.Context, actual interface{}) AsyncAssertion {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return Eventually(actual)
+	}
+	return Eventually(actual).WithTimeout(time.Until(deadline))
 }

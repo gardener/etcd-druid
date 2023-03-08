@@ -17,7 +17,7 @@ package component
 import (
 	"context"
 
-	"github.com/gardener/gardener/pkg/apis/core/v1alpha1"
+	"github.com/gardener/gardener/pkg/apis/core/v1beta1"
 )
 
 // Deployer is used to control the life-cycle of a component.
@@ -38,7 +38,7 @@ type Waiter interface {
 
 // Migrator is used to control the control-plane migration operations of a component.
 type Migrator interface {
-	Restore(ctx context.Context, shootState *v1alpha1.ShootState) error
+	Restore(ctx context.Context, shootState *v1beta1.ShootState) error
 	Migrate(ctx context.Context) error
 }
 
@@ -53,6 +53,18 @@ type MonitoringComponent interface {
 	ScrapeConfigs() ([]string, error)
 	// AlertingRules returns the alerting rules configs for AlertManager (mapping file name to rule config).
 	AlertingRules() (map[string]string, error)
+}
+
+// IstioConfigInterface contains functions for retrieving data from the istio configuration.
+type IstioConfigInterface interface {
+	// ServiceName is the currently used name of the istio ingress service, which is responsible for the shoot cluster.
+	ServiceName() string
+	// Namespace is the currently used namespace of the istio ingress gateway, which is responsible for the shoot cluster.
+	Namespace() string
+	// LoadBalancerAnnotations contain the annotation to be used for the istio ingress service load balancer.
+	LoadBalancerAnnotations() map[string]string
+	// Labels contain the labels to be used for the istio ingress gateway entities.
+	Labels() map[string]string
 }
 
 type (

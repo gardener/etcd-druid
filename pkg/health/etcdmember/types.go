@@ -20,11 +20,12 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 )
 
-// Checker is an interface to check the members of a etcd cluster.
+// Checker is an interface to check the members of an etcd cluster.
 type Checker interface {
 	Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Result
 }
 
+// Result is an interface to capture the result of checks on etcd members.
 type Result interface {
 	ID() *string
 	Name() string

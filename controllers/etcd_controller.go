@@ -86,7 +86,7 @@ const (
 	EtcdReady = true
 	// DefaultAutoCompactionRetention defines the default auto-compaction-retention length for etcd.
 	DefaultAutoCompactionRetention = "30m"
-	// Annotation set by human operator in order to stop reconciliation
+	// IgnoreReconciliationAnnotation Annotation set by human operator in order to stop reconciliation
 	IgnoreReconciliationAnnotation = "druid.gardener.cloud/ignore-reconciliation"
 )
 
@@ -630,7 +630,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 	// Create an OpWaiter because after the deployment we want to wait until the StatefulSet is ready.
 	var (
 		stsDeployer  = componentsts.New(r.Client, logger, statefulSetValues)
-		deployWaiter = gardenercomponent.OpWaiter(stsDeployer)
+		deployWaiter = gardenercomponent.OpWait(stsDeployer)
 	)
 
 	if err = deployWaiter.Deploy(ctx); err != nil {

@@ -21,8 +21,6 @@ import (
 	"io"
 	"strings"
 
-	utilerrors "github.com/gardener/gardener/pkg/utils/errors"
-
 	"github.com/hashicorp/go-multierror"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,6 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	errorsutils "github.com/gardener/gardener/pkg/utils/errors"
 )
 
 // defaultApplier applies objects by retrieving their current state and then either creating / updating them
@@ -309,7 +309,7 @@ func (a *defaultApplier) mergeObjects(newObj, oldObj *unstructured.Unstructured,
 // already exists at the API server, it will update it. It returns an error as soon as the first error occurs.
 func (a *defaultApplier) ApplyManifest(ctx context.Context, r UnstructuredReader, options MergeFuncs) error {
 	allErrs := &multierror.Error{
-		ErrorFormat: utilerrors.NewErrorFormatFuncWithPrefix("failed to apply manifests"),
+		ErrorFormat: errorsutils.NewErrorFormatFuncWithPrefix("failed to apply manifests"),
 	}
 
 	for {
@@ -339,7 +339,7 @@ func (a *defaultApplier) ApplyManifest(ctx context.Context, r UnstructuredReader
 // It returns an error as soon as the first error occurs.
 func (a *defaultApplier) DeleteManifest(ctx context.Context, r UnstructuredReader, opts ...DeleteManifestOption) error {
 	allErrs := &multierror.Error{
-		ErrorFormat: utilerrors.NewErrorFormatFuncWithPrefix("failed to delete manifests"),
+		ErrorFormat: errorsutils.NewErrorFormatFuncWithPrefix("failed to delete manifests"),
 	}
 
 	deleteOps := &DeleteManifestOptions{}

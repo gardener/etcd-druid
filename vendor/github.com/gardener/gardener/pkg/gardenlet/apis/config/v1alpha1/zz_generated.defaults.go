@@ -74,6 +74,9 @@ func SetObjectDefaults_GardenletConfiguration(in *GardenletConfiguration) {
 		if in.Controllers.Seed != nil {
 			SetDefaults_SeedControllerConfiguration(in.Controllers.Seed)
 		}
+		if in.Controllers.SeedCare != nil {
+			SetDefaults_SeedCareControllerConfiguration(in.Controllers.SeedCare)
+		}
 		if in.Controllers.Shoot != nil {
 			SetDefaults_ShootControllerConfiguration(in.Controllers.Shoot)
 		}
@@ -83,17 +86,14 @@ func SetObjectDefaults_GardenletConfiguration(in *GardenletConfiguration) {
 				SetDefaults_StaleExtensionHealthChecks(in.Controllers.ShootCare.StaleExtensionHealthChecks)
 			}
 		}
-		if in.Controllers.SeedCare != nil {
-			SetDefaults_SeedCareControllerConfiguration(in.Controllers.SeedCare)
-		}
 		if in.Controllers.ShootMigration != nil {
 			SetDefaults_ShootMigrationControllerConfiguration(in.Controllers.ShootMigration)
 		}
 		if in.Controllers.ShootStateSync != nil {
 			SetDefaults_ShootStateSyncControllerConfiguration(in.Controllers.ShootStateSync)
 		}
-		if in.Controllers.SeedAPIServerNetworkPolicy != nil {
-			SetDefaults_SeedAPIServerNetworkPolicyControllerConfiguration(in.Controllers.SeedAPIServerNetworkPolicy)
+		if in.Controllers.NetworkPolicy != nil {
+			SetDefaults_NetworkPolicyControllerConfiguration(in.Controllers.NetworkPolicy)
 		}
 		if in.Controllers.ManagedSeed != nil {
 			SetDefaults_ManagedSeedControllerConfiguration(in.Controllers.ManagedSeed)

@@ -19,6 +19,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	hvpav1alpha1 "github.com/gardener/hvpa-controller/api/v1alpha1"
+	machinev1alpha1 "github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
 	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	istionetworkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	istionetworkingv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
@@ -39,12 +40,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	gardenercoreinstall "github.com/gardener/gardener/pkg/apis/core/install"
+	gardencoreinstall "github.com/gardener/gardener/pkg/apis/core/install"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
-	gardenoperationsinstall "github.com/gardener/gardener/pkg/apis/operations/install"
+	operationsinstall "github.com/gardener/gardener/pkg/apis/operations/install"
+	operatorv1alpha1 "github.com/gardener/gardener/pkg/apis/operator/v1alpha1"
 	resourcesv1alpha1 "github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
-	gardenseedmanagementinstall "github.com/gardener/gardener/pkg/apis/seedmanagement/install"
-	gardensettingsinstall "github.com/gardener/gardener/pkg/apis/settings/install"
+	seedmanagementinstall "github.com/gardener/gardener/pkg/apis/seedmanagement/install"
+	settingsinstall "github.com/gardener/gardener/pkg/apis/settings/install"
 	"github.com/gardener/gardener/pkg/chartrenderer"
 )
 
@@ -90,31 +92,31 @@ func DefaultCreateOptions() metav1.CreateOptions { return metav1.CreateOptions{}
 // DefaultUpdateOptions are the default options for UPDATE requests.
 func DefaultUpdateOptions() metav1.UpdateOptions { return metav1.UpdateOptions{} }
 
-func init() {
-	gardenSchemeBuilder := runtime.NewSchemeBuilder(
+var (
+	gardenSchemeBuilder = runtime.NewSchemeBuilder(
 		kubernetesscheme.AddToScheme,
-		gardenercoreinstall.AddToScheme,
-		gardenseedmanagementinstall.AddToScheme,
-		gardensettingsinstall.AddToScheme,
-		gardenoperationsinstall.AddToScheme,
+		gardencoreinstall.AddToScheme,
+		seedmanagementinstall.AddToScheme,
+		settingsinstall.AddToScheme,
+		operationsinstall.AddToScheme,
 		apiregistrationscheme.AddToScheme,
 	)
-	utilruntime.Must(gardenSchemeBuilder.AddToScheme(GardenScheme))
 
-	seedSchemeBuilder := runtime.NewSchemeBuilder(
+	seedSchemeBuilder = runtime.NewSchemeBuilder(
 		kubernetesscheme.AddToScheme,
 		extensionsv1alpha1.AddToScheme,
 		resourcesv1alpha1.AddToScheme,
+		operatorv1alpha1.AddToScheme,
 		vpaautoscalingv1.AddToScheme,
 		hvpav1alpha1.AddToScheme,
 		druidv1alpha1.AddToScheme,
+		machinev1alpha1.AddToScheme,
 		apiextensionsscheme.AddToScheme,
 		istionetworkingv1beta1.AddToScheme,
 		istionetworkingv1alpha3.AddToScheme,
 	)
-	utilruntime.Must(seedSchemeBuilder.AddToScheme(SeedScheme))
 
-	shootSchemeBuilder := runtime.NewSchemeBuilder(
+	shootSchemeBuilder = runtime.NewSchemeBuilder(
 		kubernetesscheme.AddToScheme,
 		apiextensionsscheme.AddToScheme,
 		apiregistrationscheme.AddToScheme,
@@ -122,7 +124,21 @@ func init() {
 		metricsv1beta1.AddToScheme,
 		volumesnapshotv1beta1.AddToScheme,
 	)
-	utilruntime.Must(shootSchemeBuilder.AddToScheme(ShootScheme))
+)
+
+var (
+	// AddGardenSchemeToScheme adds all object kinds used in the Garden cluster into the given scheme.
+	AddGardenSchemeToScheme = gardenSchemeBuilder.AddToScheme
+	// AddSeedSchemeToScheme adds all object kinds used in the Seed cluster into the given scheme.
+	AddSeedSchemeToScheme = seedSchemeBuilder.AddToScheme
+	// AddShootSchemeToScheme adds all object kinds used in the Shoot cluster into the given scheme.
+	AddShootSchemeToScheme = shootSchemeBuilder.AddToScheme
+)
+
+func init() {
+	utilruntime.Must(AddGardenSchemeToScheme(GardenScheme))
+	utilruntime.Must(AddSeedSchemeToScheme(SeedScheme))
+	utilruntime.Must(AddShootSchemeToScheme(ShootScheme))
 }
 
 // MergeFunc determines how oldOj is merged into new oldObj.

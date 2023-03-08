@@ -19,7 +19,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
-	. "github.com/gardener/gardener/pkg/utils/test/matchers"
+	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -96,7 +96,7 @@ var _ = Describe("SecretController", func() {
 
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKeyFromObject(etcd), &druidv1alpha1.Etcd{})
-		}, timeout, pollingInterval).Should(BeNotFoundError())
+		}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
 
 		By("verifying secret references have no finalizer anymore")
 		for _, name := range newSecretNames {
