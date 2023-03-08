@@ -44,6 +44,7 @@ revendor: set-permissions
 	@env GO111MODULE=on go mod tidy
 	@env GO111MODULE=on go mod vendor
 	@"$(REPO_ROOT)/hack/update-github-templates.sh"
+	@make set-permissions
 
 all: druid
 
