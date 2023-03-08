@@ -34,15 +34,17 @@ include $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/tools.mk
 
 .PHONY: set-permissions
 set-permissions:
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/"*
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/"*
-	@chmod +x "$(REPO_ROOT)/hack/"*.sh
+	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/clean.sh"
+	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh"
+	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check-generate.sh"
+	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/generate-crds.sh"
 
 .PHONY: revendor
 revendor: set-permissions
 	@env GO111MODULE=on go mod tidy
 	@env GO111MODULE=on go mod vendor
 	@"$(REPO_ROOT)/hack/update-github-templates.sh"
+	@make set-permissions
 
 all: druid
 
@@ -79,8 +81,8 @@ manifests: $(CONTROLLER_GEN)
 fmt:
 	@env GO111MODULE=on go fmt ./...
 
-.PHONY: set-permissions clean
-clean:
+.PHONY: clean
+clean: set-permissions
 	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/clean.sh" ./api/... ./controllers/... ./pkg/...
 
 # Check packages
@@ -88,8 +90,8 @@ clean:
 check: $(GOLANGCI_LINT) $(GOIMPORTS) set-permissions
 	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
 
-.PHONY: set-permissions check-generate
-check-generate:
+.PHONY: check-generate
+check-generate: set-permissions
 	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check-generate.sh" "$(REPO_ROOT)"
 
 # Generate code
