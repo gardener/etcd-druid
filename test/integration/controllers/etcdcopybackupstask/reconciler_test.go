@@ -50,7 +50,7 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 
 	DescribeTable("when creating and deleting etcdcopybackupstask",
 		func(taskName string, provider druidv1alpha1.StorageProvider, withOptionalFields bool, jobStatus *batchv1.JobStatus) {
-			task := testutils.CreateEtcdCopyBackupsTask("foo01", namespace, "Local", true)
+			task := testutils.CreateEtcdCopyBackupsTask(taskName, namespace, "Local", true)
 
 			// Create secrets
 			errors := testutils.CreateSecrets(ctx, k8sClient, task.Namespace, task.Spec.SourceStore.SecretRef.Name, task.Spec.TargetStore.SecretRef.Name)
@@ -125,6 +125,9 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 			"foo06", druidv1alpha1.StorageProvider("openstack"), false, getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for alicloud",
 			"foo07", druidv1alpha1.StorageProvider("alicloud"), false, getJobStatus(batchv1.JobComplete, "", "")),
+		// ref https://github.com/gardener/etcd-druid/issues/532
+		Entry("should correctly handle ownerReferences for numeric names with leading 0",
+			"01234", druidv1alpha1.StorageProvider("Local"), true, getJobStatus(batchv1.JobComplete, "", "")),
 	)
 })
 
