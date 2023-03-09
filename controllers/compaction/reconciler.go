@@ -44,6 +44,7 @@ const (
 	DefaultETCDQuota = 8 * 1024 * 1024 * 1024 // 8Gi
 )
 
+// Reconciler reconciles compaction jobs for Etcd resources.
 type Reconciler struct {
 	client.Client
 	config      *Config

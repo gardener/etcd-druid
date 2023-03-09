@@ -55,6 +55,7 @@ var (
 	}
 )
 
+// Checker checks Etcd status conditions and the status of the Etcd members.
 type Checker struct {
 	cl                          client.Client
 	etcdMemberNotReadyThreshold time.Duration

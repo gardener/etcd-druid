@@ -27,6 +27,7 @@ import (
 
 const controllerName = "etcd-controller"
 
+// RegisterWithManager registers the Etcd Controller with the given controller manager.
 func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager, ignoreOperationAnnotation bool) error {
 	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
 		MaxConcurrentReconciles: r.config.Workers,
@@ -43,6 +44,7 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager, ignoreOperationAnnota
 	return builder.Complete(r)
 }
 
+// BuildPredicate builds the predicates used by Etcd controller.
 func BuildPredicate(ignoreOperationAnnotation bool) predicate.Predicate {
 	if ignoreOperationAnnotation {
 		return predicate.GenerationChangedPredicate{}

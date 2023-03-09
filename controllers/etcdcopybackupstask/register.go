@@ -26,6 +26,7 @@ import (
 
 const controllerName = "etcdcopybackupstask-controller"
 
+// RegisterWithManager registers the EtcdCopyBackupsTask Controller with the given controller manager.
 func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(controllerName).

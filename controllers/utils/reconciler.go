@@ -30,10 +30,12 @@ const (
 	DefaultImageVector = "images.yaml"
 )
 
+// GetDefaultImageYAMLPath returns the path to the default images.yaml file.
 func GetDefaultImageYAMLPath() string {
 	return filepath.Join(common.ChartPath, DefaultImageVector)
 }
 
+// CreateImageVector creates an image vector from the default images.yaml file.
 func CreateImageVector() (imagevector.ImageVector, error) {
 	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(GetDefaultImageYAMLPath())
 	if err != nil {
@@ -42,6 +44,7 @@ func CreateImageVector() (imagevector.ImageVector, error) {
 	return imageVector, nil
 }
 
+// DecodeObject decodes and returns the specified object from the provided rendered chart.
 func DecodeObject(renderedChart *chartrenderer.RenderedChart, path string, object interface{}) error {
 	if content, ok := renderedChart.Files()[path]; ok {
 		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)

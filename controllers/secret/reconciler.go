@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-// Reconciler reconciles secrets referenced in Etcd objects
+// Reconciler reconciles secrets referenced in Etcd objects.
 type Reconciler struct {
 	client.Client
 	Config *Config

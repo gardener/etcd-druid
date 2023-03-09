@@ -26,6 +26,7 @@ import (
 
 const controllerName = "compaction-controller"
 
+// RegisterWithManager registers the Compaction Controller with the given controller manager.
 func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 	c, err := controller.New(controllerName, mgr, controller.Options{
 		Reconciler:              r,

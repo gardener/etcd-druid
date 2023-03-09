@@ -466,7 +466,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 	// Create an OpWaiter because after the deployment we want to wait until the StatefulSet is ready.
 	var (
 		stsDeployer  = componentsts.New(r.Client, logger, statefulSetValues)
-		deployWaiter = gardenercomponent.OpWaiter(stsDeployer)
+		deployWaiter = gardenercomponent.OpWait(stsDeployer)
 	)
 
 	if err = deployWaiter.Deploy(ctx); err != nil {

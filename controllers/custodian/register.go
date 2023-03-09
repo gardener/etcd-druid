@@ -32,6 +32,7 @@ import (
 
 const controllerName = "custodian-controller"
 
+// RegisterWithManager registers the Custodian Controller with the given controller manager.
 func (r *Reconciler) RegisterWithManager(ctx context.Context, mgr ctrl.Manager, ignoreOperationAnnotation bool) error {
 	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
 		MaxConcurrentReconciles: r.config.Workers,
