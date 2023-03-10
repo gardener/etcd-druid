@@ -13,13 +13,14 @@
 # limitations under the License.
 
 TOOLS_BIN_DIR              := $(TOOLS_DIR)/bin
-GINKGO		               := $(TOOLS_BIN_DIR)/ginkgo
 SKAFFOLD                   := $(TOOLS_BIN_DIR)/skaffold
 GO_ADD_LICENSE             := $(TOOLS_BIN_DIR)/addlicense
+KUSTOMIZE                  := $(TOOLS_BIN_DIR)/kustomize
 
 # default tool versions
 SKAFFOLD_VERSION ?= v1.38.0
 GO_ADD_LICENSE_VERSION ?= latest
+KUSTOMIZE_VERSION ?= v5.0.0
 
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
@@ -28,8 +29,8 @@ export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 # Tools                                 #
 #########################################
 
-$(GINKGO): go.mod
-	go build -o $(GINKGO) github.com/onsi/ginkgo/v2/ginkgo
-
 $(GO_ADD_LICENSE):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/google/addlicense@$(GO_ADD_LICENSE_VERSION)
+
+$(KUSTOMIZE):
+	@test -s $(TOOLS_BIN_DIR)/kustomize || GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}

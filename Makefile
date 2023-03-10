@@ -65,7 +65,7 @@ install: manifests
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 .PHONY: deploy
-deploy: manifests
+deploy: manifests $(KUSTOMIZE)
 	kubectl apply -f config/crd/bases
 	kustomize build config/default | kubectl apply -f -
 
