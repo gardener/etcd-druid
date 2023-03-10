@@ -470,19 +470,6 @@ func ShootWantsAlertManager(shoot *gardencorev1beta1.Shoot) bool {
 	return !ShootIgnoresAlerts(shoot) && shoot.Spec.Monitoring != nil && shoot.Spec.Monitoring.Alerting != nil && len(shoot.Spec.Monitoring.Alerting.EmailReceivers) > 0
 }
 
-// ShootWantsBasicAuthentication returns true if basic authentication is not configured or
-// if it is set explicitly to 'true'.
-func ShootWantsBasicAuthentication(shoot *gardencorev1beta1.Shoot) bool {
-	kubeAPIServerConfig := shoot.Spec.Kubernetes.KubeAPIServer
-	if kubeAPIServerConfig == nil {
-		return true
-	}
-	if kubeAPIServerConfig.EnableBasicAuthentication == nil {
-		return true
-	}
-	return *kubeAPIServerConfig.EnableBasicAuthentication
-}
-
 // ShootUsesUnmanagedDNS returns true if the shoot's DNS section is marked as 'unmanaged'.
 func ShootUsesUnmanagedDNS(shoot *gardencorev1beta1.Shoot) bool {
 	return shoot.Spec.DNS != nil && len(shoot.Spec.DNS.Providers) > 0 && shoot.Spec.DNS.Providers[0].Type != nil && *shoot.Spec.DNS.Providers[0].Type == "unmanaged"
@@ -519,6 +506,11 @@ func SeedSettingDependencyWatchdogEndpointEnabled(settings *gardencorev1beta1.Se
 // SeedSettingDependencyWatchdogProbeEnabled returns true if the depedency-watchdog-probe is enabled.
 func SeedSettingDependencyWatchdogProbeEnabled(settings *gardencorev1beta1.SeedSettings) bool {
 	return settings == nil || settings.DependencyWatchdog == nil || settings.DependencyWatchdog.Probe == nil || settings.DependencyWatchdog.Probe.Enabled
+}
+
+// SeedSettingTopologyAwareRoutingEnabled returns true if the topology-aware routing is enabled.
+func SeedSettingTopologyAwareRoutingEnabled(settings *gardencorev1beta1.SeedSettings) bool {
+	return settings != nil && settings.TopologyAwareRouting != nil && settings.TopologyAwareRouting.Enabled
 }
 
 // SeedUsesNginxIngressController returns true if the seed's specification requires an nginx ingress controller to be deployed.
@@ -1307,7 +1299,7 @@ func GetShootServiceAccountKeyRotationPhase(credentials *gardencorev1beta1.Shoot
 
 // MutateShootServiceAccountKeyRotation mutates the .status.credentials.rotation.serviceAccountKey field based on the
 // provided mutation function. If the field is nil then it is initialized.
-func MutateShootServiceAccountKeyRotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ShootServiceAccountKeyRotation)) {
+func MutateShootServiceAccountKeyRotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ServiceAccountKeyRotation)) {
 	if f == nil {
 		return
 	}
@@ -1319,7 +1311,7 @@ func MutateShootServiceAccountKeyRotation(shoot *gardencorev1beta1.Shoot, f func
 		shoot.Status.Credentials.Rotation = &gardencorev1beta1.ShootCredentialsRotation{}
 	}
 	if shoot.Status.Credentials.Rotation.ServiceAccountKey == nil {
-		shoot.Status.Credentials.Rotation.ServiceAccountKey = &gardencorev1beta1.ShootServiceAccountKeyRotation{}
+		shoot.Status.Credentials.Rotation.ServiceAccountKey = &gardencorev1beta1.ServiceAccountKeyRotation{}
 	}
 
 	f(shoot.Status.Credentials.Rotation.ServiceAccountKey)
@@ -1336,7 +1328,7 @@ func GetShootETCDEncryptionKeyRotationPhase(credentials *gardencorev1beta1.Shoot
 
 // MutateShootETCDEncryptionKeyRotation mutates the .status.credentials.rotation.etcdEncryptionKey field based on the
 // provided mutation function. If the field is nil then it is initialized.
-func MutateShootETCDEncryptionKeyRotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ShootETCDEncryptionKeyRotation)) {
+func MutateShootETCDEncryptionKeyRotation(shoot *gardencorev1beta1.Shoot, f func(*gardencorev1beta1.ETCDEncryptionKeyRotation)) {
 	if f == nil {
 		return
 	}
@@ -1348,7 +1340,7 @@ func MutateShootETCDEncryptionKeyRotation(shoot *gardencorev1beta1.Shoot, f func
 		shoot.Status.Credentials.Rotation = &gardencorev1beta1.ShootCredentialsRotation{}
 	}
 	if shoot.Status.Credentials.Rotation.ETCDEncryptionKey == nil {
-		shoot.Status.Credentials.Rotation.ETCDEncryptionKey = &gardencorev1beta1.ShootETCDEncryptionKeyRotation{}
+		shoot.Status.Credentials.Rotation.ETCDEncryptionKey = &gardencorev1beta1.ETCDEncryptionKeyRotation{}
 	}
 
 	f(shoot.Status.Credentials.Rotation.ETCDEncryptionKey)
@@ -1406,4 +1398,10 @@ func GetFailureToleranceType(shoot *gardencorev1beta1.Shoot) *gardencorev1beta1.
 // SeedWantsManagedIngress returns true in case the seed cluster wants its ingress controller to be managed by Gardener.
 func SeedWantsManagedIngress(seed *gardencorev1beta1.Seed) bool {
 	return seed.Spec.DNS.Provider != nil && seed.Spec.Ingress != nil && seed.Spec.Ingress.Controller.Kind == v1beta1constants.IngressKindNginx
+}
+
+// IsTopologyAwareRoutingForShootControlPlaneEnabled returns whether the topology aware routing is enabled for the given Shoot control plane.
+// Topology-aware routing is enabled when the corresponding Seed setting is enabled and the Shoot has a multi-zonal control plane.
+func IsTopologyAwareRoutingForShootControlPlaneEnabled(seed *gardencorev1beta1.Seed, shoot *gardencorev1beta1.Shoot) bool {
+	return SeedSettingTopologyAwareRoutingEnabled(seed.Spec.Settings) && IsMultiZonalShootControlPlane(shoot)
 }

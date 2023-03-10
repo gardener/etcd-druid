@@ -142,7 +142,7 @@ type SeedBackup struct {
 type SeedDNS struct {
 	// IngressDomain is the domain of the Seed cluster pointing to the ingress controller endpoint. It will be used
 	// to construct ingress URLs for system applications running in Shoot clusters. This field is immutable.
-	// This will be removed in the next API version and replaced by spec.ingress.domain.
+	// Deprecated: This field is deprecated and will be removed in a future version of Gardener. Use spec.ingress.domain instead.
 	// +optional
 	IngressDomain *string `json:"ingressDomain,omitempty" protobuf:"bytes,1,opt,name=ingressDomain"`
 	// Provider configures a DNSProvider
@@ -157,9 +157,11 @@ type SeedDNSProvider struct {
 	// SecretRef is a reference to a Secret object containing cloud provider credentials used for registering external domains.
 	SecretRef corev1.SecretReference `json:"secretRef" protobuf:"bytes,2,opt,name=secretRef"`
 	// Domains contains information about which domains shall be included/excluded for this provider.
+	// Deprecated: This field is deprecated and will be removed in a future version of Gardener.
 	// +optional
 	Domains *DNSIncludeExclude `json:"domains,omitempty" protobuf:"bytes,3,opt,name=domains"`
 	// Zones contains information about which hosted zones shall be included/excluded for this provider.
+	// Deprecated: This field is deprecated and will be removed in a future version of Gardener.
 	// +optional
 	Zones *DNSIncludeExclude `json:"zones,omitempty" protobuf:"bytes,4,opt,name=zones"`
 }
@@ -253,6 +255,10 @@ type SeedSettings struct {
 	// DependencyWatchdog controls certain settings for the dependency-watchdog components deployed in the seed.
 	// +optional
 	DependencyWatchdog *SeedSettingDependencyWatchdog `json:"dependencyWatchdog,omitempty" protobuf:"bytes,7,opt,name=dependencyWatchdog"`
+	// TopologyAwareRouting controls certain settings for topology-aware traffic routing in the seed.
+	// See https://github.com/gardener/gardener/blob/master/docs/usage/topology_aware_routing.md.
+	// +optional
+	TopologyAwareRouting *SeedSettingTopologyAwareRouting `json:"topologyAwareRouting,omitempty" protobuf:"bytes,8,opt,name=topologyAwareRouting"`
 }
 
 // SeedSettingExcessCapacityReservation controls the excess capacity reservation for shoot control planes in the seed.
@@ -339,6 +345,14 @@ type SeedSettingDependencyWatchdogProbe struct {
 	// Enabled controls whether the probe controller of the dependency-watchdog should be enabled. This controller
 	// scales down the kube-controller-manager of shoot clusters in case their respective kube-apiserver is not
 	// reachable via its external ingress in order to avoid melt-down situations.
+	Enabled bool `json:"enabled" protobuf:"bytes,1,opt,name=enabled"`
+}
+
+// SeedSettingTopologyAwareRouting controls certain settings for topology-aware traffic routing in the seed.
+// See https://github.com/gardener/gardener/blob/master/docs/usage/topology_aware_routing.md.
+type SeedSettingTopologyAwareRouting struct {
+	// Enabled controls whether certain Services deployed in the seed cluster should be topology-aware.
+	// These Services are etcd-main-client, etcd-events-client, kube-apiserver, gardener-resource-manager and vpa-webhook.
 	Enabled bool `json:"enabled" protobuf:"bytes,1,opt,name=enabled"`
 }
 

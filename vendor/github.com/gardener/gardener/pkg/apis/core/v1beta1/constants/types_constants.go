@@ -472,9 +472,16 @@ const (
 	// which should be scraped by Prometheus.
 	// See https://github.com/gardener/gardener/blob/master/docs/concepts/resource-manager.md#overwriting-the-pod-selector-label.
 	LabelNetworkPolicyScrapeTargets = "all-scrape-targets"
+	// LabelNetworkPolicySeedScrapeTargets is a constant for pod selector label which can be used on Services for
+	// seed system components or extensions which should be scraped by Prometheus.
+	// See https://github.com/gardener/gardener/blob/master/docs/concepts/resource-manager.md#overwriting-the-pod-selector-label.
+	LabelNetworkPolicySeedScrapeTargets = "all-seed-scrape-targets"
 	// LabelNetworkPolicyShootNamespaceAlias is a constant for the alias for shoot namespaces used in NetworkPolicy
 	// labels.
 	LabelNetworkPolicyShootNamespaceAlias = "all-shoots"
+	// LabelNetworkPolicyIstioIngressNamespaceAlias is a constant for the alias for shoot namespaces used in
+	// NetworkPolicy labels.
+	LabelNetworkPolicyIstioIngressNamespaceAlias = "all-istio-ingresses"
 
 	// LabelApp is a constant for a label key.
 	LabelApp = "app"
@@ -562,8 +569,6 @@ const (
 	// Note that changing this value only applies to new nodes. Existing nodes which already computed their individual
 	// delays will not recompute it.
 	AnnotationShootCloudConfigExecutionMaxDelaySeconds = "shoot.gardener.cloud/cloud-config-execution-max-delay-seconds"
-	// AnnotationShootForceRestore is a key for an annotation on a Shoot or BackupEntry resource to trigger a forceful restoration to a different seed.
-	AnnotationShootForceRestore = "shoot.gardener.cloud/force-restore"
 	// AnnotationNodeLocalDNS enables a per node dns cache on the shoot cluster.
 	AnnotationNodeLocalDNS = "alpha.featuregates.shoot.gardener.cloud/node-local-dns"
 	// AnnotationNodeLocalDNSForceTcpToClusterDns enforces upgrade to tcp connections for communication between node local and cluster dns.

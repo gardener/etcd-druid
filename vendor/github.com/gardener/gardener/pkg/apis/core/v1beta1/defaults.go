@@ -71,6 +71,10 @@ func SetDefaults_Seed(obj *Seed) {
 	if obj.Spec.Settings.DependencyWatchdog == nil {
 		obj.Spec.Settings.DependencyWatchdog = &SeedSettingDependencyWatchdog{}
 	}
+
+	if obj.Spec.Settings.TopologyAwareRouting == nil {
+		obj.Spec.Settings.TopologyAwareRouting = &SeedSettingTopologyAwareRouting{Enabled: false}
+	}
 }
 
 // SetDefaults_SeedNetworks sets default values for SeedNetworks objects.
@@ -99,9 +103,6 @@ func SetDefaults_Shoot(obj *Shoot) {
 	}
 	if obj.Spec.Kubernetes.KubeAPIServer == nil {
 		obj.Spec.Kubernetes.KubeAPIServer = &KubeAPIServerConfig{}
-	}
-	if obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication == nil {
-		obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication = pointer.Bool(false)
 	}
 	if obj.Spec.Kubernetes.KubeAPIServer.Requests == nil {
 		obj.Spec.Kubernetes.KubeAPIServer.Requests = &KubeAPIServerRequests{}
@@ -176,12 +177,7 @@ func SetDefaults_Shoot(obj *Shoot) {
 		obj.Spec.Addons.KubernetesDashboard = &KubernetesDashboard{}
 	}
 	if obj.Spec.Addons.KubernetesDashboard.AuthenticationMode == nil {
-		var defaultAuthMode string
-		if *obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication {
-			defaultAuthMode = KubernetesDashboardAuthModeBasic
-		} else {
-			defaultAuthMode = KubernetesDashboardAuthModeToken
-		}
+		defaultAuthMode := KubernetesDashboardAuthModeToken
 		obj.Spec.Addons.KubernetesDashboard.AuthenticationMode = &defaultAuthMode
 	}
 
