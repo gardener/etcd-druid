@@ -186,8 +186,8 @@ github.com/gardener/gardener/pkg/utils/test
 github.com/gardener/gardener/pkg/utils/test/matchers
 github.com/gardener/gardener/pkg/utils/timewindow
 github.com/gardener/gardener/pkg/utils/version
-# github.com/gardener/hvpa-controller v0.3.1
-## explicit; go 1.12
+# github.com/gardener/hvpa-controller/api v0.5.0
+## explicit; go 1.15
 github.com/gardener/hvpa-controller/api/v1alpha1
 # github.com/gardener/machine-controller-manager v0.45.0
 ## explicit; go 1.17
@@ -886,7 +886,6 @@ k8s.io/apimachinery/third_party/forked/golang/reflect
 # k8s.io/autoscaler v0.0.0-20190805135949-100e91ba756e
 ## explicit
 k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1
-k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2
 # k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible => k8s.io/client-go v0.26.1
 ## explicit; go 1.19
 k8s.io/client-go/applyconfigurations/admissionregistration/v1
