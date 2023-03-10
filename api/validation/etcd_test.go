@@ -49,7 +49,7 @@ var _ = Describe("Etcd validation tests", func() {
 				Backup: v1alpha1.BackupSpec{
 					Store: &v1alpha1.StoreSpec{
 						Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
-						Provider: (*v1alpha1.StorageProvider)(pointer.StringPtr(provider)),
+						Provider: (*v1alpha1.StorageProvider)(pointer.String(provider)),
 					},
 				},
 			},
@@ -77,7 +77,7 @@ var _ = Describe("Etcd validation tests", func() {
 
 			Entry("should forbid invalid spec.backup.store", &v1alpha1.StoreSpec{
 				Prefix:   "invalid",
-				Provider: (*v1alpha1.StorageProvider)(pointer.StringPtr("invalid")),
+				Provider: (*v1alpha1.StorageProvider)(pointer.String("invalid")),
 			}, ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
 				"Type":  Equal(field.ErrorTypeInvalid),
 				"Field": Equal("spec.backup.store.prefix"),
@@ -88,7 +88,7 @@ var _ = Describe("Etcd validation tests", func() {
 
 			Entry("should allow valid spec.backup.store", &v1alpha1.StoreSpec{
 				Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
-				Provider: (*v1alpha1.StorageProvider)(pointer.StringPtr(provider)),
+				Provider: (*v1alpha1.StorageProvider)(pointer.String(provider)),
 			}, BeNil()),
 
 			Entry("should allow nil spec.backup.store", nil, BeNil()),
@@ -103,7 +103,7 @@ var _ = Describe("Etcd validation tests", func() {
 
 			newEtcd := etcd.DeepCopy()
 			newEtcd.ResourceVersion = "2"
-			newEtcd.Spec.Backup.Port = pointer.Int32Ptr(42)
+			newEtcd.Spec.Backup.Port = pointer.Int32(42)
 
 			errList := validation.ValidateEtcdUpdate(newEtcd, etcd)
 
@@ -134,8 +134,8 @@ var _ = Describe("Etcd validation tests", func() {
 			newEtcd := etcd.DeepCopy()
 			newEtcd.ResourceVersion = "2"
 			newEtcd.Spec.Replicas = 42
-			newEtcd.Spec.Backup.Store.Container = pointer.StringPtr("foo")
-			newEtcd.Spec.Backup.Store.Provider = (*v1alpha1.StorageProvider)(pointer.StringPtr("gcp"))
+			newEtcd.Spec.Backup.Store.Container = pointer.String("foo")
+			newEtcd.Spec.Backup.Store.Provider = (*v1alpha1.StorageProvider)(pointer.String("gcp"))
 
 			errList := validation.ValidateEtcdUpdate(newEtcd, etcd)
 

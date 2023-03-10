@@ -18,7 +18,6 @@ import (
 	"k8s.io/utils/pointer"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/utils"
 )
 
 const (
@@ -41,13 +40,13 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
 	return Values{
 		BackupPort:               pointer.Int32Deref(etcd.Spec.Backup.Port, defaultBackupPort),
 		ClientPort:               pointer.Int32Deref(etcd.Spec.Etcd.ClientPort, defaultClientPort),
-		ClientServiceName:        utils.GetClientServiceName(etcd),
+		ClientServiceName:        etcd.GetClientServiceName(),
 		ClientServiceAnnotations: clientServiceAnnotations,
 		ClientServiceLabels:      clientServiceLabels,
 		EtcdName:                 etcd.Name,
 		EtcdUID:                  etcd.UID,
 		Labels:                   etcd.Spec.Labels,
-		PeerServiceName:          utils.GetPeerServiceName(etcd),
+		PeerServiceName:          etcd.GetPeerServiceName(),
 		ServerPort:               pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, defaultServerPort),
 	}
 }

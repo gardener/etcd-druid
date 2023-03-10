@@ -16,7 +16,6 @@ package lease
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/utils"
 )
 
 // GenerateValues generates `lease.Values` for the lease component with the given parameters.
@@ -25,8 +24,8 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
 		BackupEnabled:          etcd.Spec.Backup.Store != nil,
 		EtcdName:               etcd.Name,
 		EtcdUID:                etcd.UID,
-		DeltaSnapshotLeaseName: utils.GetDeltaSnapshotLeaseName(etcd),
-		FullSnapshotLeaseName:  utils.GetFullSnapshotLeaseName(etcd),
+		DeltaSnapshotLeaseName: etcd.GetDeltaSnapshotLeaseName(),
+		FullSnapshotLeaseName:  etcd.GetFullSnapshotLeaseName(),
 		Replicas:               etcd.Spec.Replicas,
 	}
 }

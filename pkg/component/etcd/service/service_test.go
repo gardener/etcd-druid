@@ -76,11 +76,11 @@ var _ = Describe("Service", func() {
 			Spec: druidv1alpha1.EtcdSpec{
 				Selector: metav1.SetAsLabelSelector(selectors),
 				Backup: druidv1alpha1.BackupSpec{
-					Port: pointer.Int32Ptr(backupPort),
+					Port: pointer.Int32(backupPort),
 				},
 				Etcd: druidv1alpha1.EtcdConfig{
-					ClientPort: pointer.Int32Ptr(clientPort),
-					ServerPort: pointer.Int32Ptr(serverPort),
+					ClientPort: pointer.Int32(clientPort),
+					ServerPort: pointer.Int32(serverPort),
 				},
 			},
 		}
@@ -171,8 +171,8 @@ func checkServiceMetadata(meta *metav1.ObjectMeta, values Values) {
 		Kind:               "Etcd",
 		Name:               values.EtcdName,
 		UID:                values.EtcdUID,
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: pointer.Bool(true),
 	})))
 	Expect(meta.Labels).To(Equal(utils.MergeStringMaps(serviceLabels(values), serviceSelectors(values))))
 }

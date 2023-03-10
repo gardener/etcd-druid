@@ -169,7 +169,7 @@ func EtcdReconciliationFinished(ignoreOperationAnnotation bool) predicate.Predic
 		}
 
 		readinessChanged := !reflect.DeepEqual(etcdNew.Status.Ready, etcdOld.Status.Ready)
-		ready := pointer.BoolPtrDerefOr(etcdNew.Status.Ready, false)
+		ready := pointer.BoolDeref(etcdNew.Status.Ready, false)
 
 		return readinessChanged && ready
 	}

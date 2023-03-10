@@ -129,7 +129,15 @@ test-cov-clean: set-permissions
 test-e2e: set-permissions $(KUBECTL) $(HELM) $(SKAFFOLD)
 	@"$(REPO_ROOT)/hack/e2e-test/run-e2e-test.sh" $(PROVIDERS)
 
+.PHONY: test-integration
+test-integration: set-permissions $(GINKGO) $(SETUP_ENVTEST) fmt check manifests
+	@"$(REPO_ROOT)/hack/test.sh" ./test/integration/...
+
 .PHONY: update-dependencies
 update-dependencies:
 	@env GO111MODULE=on go get -u
 	@make revendor
+
+.PHONY: add-license-headers
+add-license-headers: $(GO_ADD_LICENSE)
+	@./hack/addlicenseheaders.sh ${YEAR}

@@ -15,9 +15,11 @@
 TOOLS_BIN_DIR              := $(TOOLS_DIR)/bin
 GINKGO		               := $(TOOLS_BIN_DIR)/ginkgo
 SKAFFOLD                   := $(TOOLS_BIN_DIR)/skaffold
+GO_ADD_LICENSE             := $(TOOLS_BIN_DIR)/addlicense
 
 # default tool versions
 SKAFFOLD_VERSION ?= v1.38.0
+GO_ADD_LICENSE_VERSION ?= latest
 
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
@@ -28,3 +30,6 @@ export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 
 $(GINKGO): go.mod
 	go build -o $(GINKGO) github.com/onsi/ginkgo/v2/ginkgo
+
+$(GO_ADD_LICENSE):
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/google/addlicense@$(GO_ADD_LICENSE_VERSION)

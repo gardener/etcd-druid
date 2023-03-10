@@ -247,8 +247,8 @@ func checkConfigmapMetadata(meta *metav1.ObjectMeta, values *Values) {
 		Kind:               "Etcd",
 		Name:               values.EtcdName,
 		UID:                values.EtcdUID,
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: pointer.Bool(true),
 	})))
 	Expect(meta.Labels).To(Equal(configmapLabels(values)))
 }

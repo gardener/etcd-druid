@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 	. "github.com/gardener/etcd-druid/pkg/health/status"
 )
 
@@ -43,9 +42,6 @@ var _ = Describe("Check", func() {
 			memberRoleLeader := druidv1alpha1.EtcdRoleLeader
 			memberRoleMember := druidv1alpha1.EtcdRoleMember
 
-			config := controllersconfig.EtcdCustodianController{
-				EtcdMember: controllersconfig.EtcdMemberConfig{},
-			}
 			timeBefore, _ := time.Parse(time.RFC3339, "2021-06-01T00:00:00Z")
 			timeNow := timeBefore.Add(1 * time.Hour)
 
@@ -78,21 +74,21 @@ var _ = Describe("Check", func() {
 				},
 				Members: []druidv1alpha1.EtcdMemberStatus{
 					{
-						ID:                 pointer.StringPtr("1"),
+						ID:                 pointer.String("1"),
 						Name:               "member1",
 						Status:             druidv1alpha1.EtcdMemberStatusReady,
 						LastTransitionTime: metav1.NewTime(timeBefore),
 						Reason:             "foo reason",
 					},
 					{
-						ID:                 pointer.StringPtr("2"),
+						ID:                 pointer.String("2"),
 						Name:               "member2",
 						Status:             druidv1alpha1.EtcdMemberStatusNotReady,
 						LastTransitionTime: metav1.NewTime(timeBefore),
 						Reason:             "bar reason",
 					},
 					{
-						ID:                 pointer.StringPtr("3"),
+						ID:                 pointer.String("3"),
 						Name:               "member3",
 						Status:             druidv1alpha1.EtcdMemberStatusReady,
 						LastTransitionTime: metav1.NewTime(timeBefore),
@@ -121,18 +117,18 @@ var _ = Describe("Check", func() {
 			})()
 
 			defer test.WithVar(&EtcdMemberChecks, []EtcdMemberCheckFn{
-				func(_ client.Client, _ logr.Logger, _ controllersconfig.EtcdCustodianController) etcdmember.Checker {
+				func(_ client.Client, _ logr.Logger, _, _ time.Duration) etcdmember.Checker {
 					return createEtcdMemberCheck(
-						etcdMemberResult{pointer.StringPtr("1"), "member1", &memberRoleLeader, druidv1alpha1.EtcdMemberStatusUnknown, "Unknown"},
-						etcdMemberResult{pointer.StringPtr("2"), "member2", &memberRoleMember, druidv1alpha1.EtcdMemberStatusNotReady, "bar reason"},
-						etcdMemberResult{pointer.StringPtr("3"), "member3", &memberRoleMember, druidv1alpha1.EtcdMemberStatusReady, "foobar reason"},
+						etcdMemberResult{pointer.String("1"), "member1", &memberRoleLeader, druidv1alpha1.EtcdMemberStatusUnknown, "Unknown"},
+						etcdMemberResult{pointer.String("2"), "member2", &memberRoleMember, druidv1alpha1.EtcdMemberStatusNotReady, "bar reason"},
+						etcdMemberResult{pointer.String("3"), "member3", &memberRoleMember, druidv1alpha1.EtcdMemberStatusReady, "foobar reason"},
 					)
 				},
 			})()
 
 			defer test.WithVar(&TimeNow, func() time.Time { return timeNow })()
 
-			checker := NewChecker(nil, config)
+			checker := NewChecker(nil, 5*time.Minute, time.Minute)
 			logger := log.Log.WithName("Test")
 
 			Expect(checker.Check(context.Background(), logger, etcd)).To(Succeed())

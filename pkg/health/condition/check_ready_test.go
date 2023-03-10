@@ -45,7 +45,7 @@ var _ = Describe("ReadyCheck", func() {
 			It("should return that the cluster has a quorum (all members ready)", func() {
 				etcd := druidv1alpha1.Etcd{
 					Status: druidv1alpha1.EtcdStatus{
-						ClusterSize: pointer.Int32Ptr(3),
+						ClusterSize: pointer.Int32(3),
 						Members: []druidv1alpha1.EtcdMemberStatus{
 							readyMember,
 							readyMember,
@@ -64,7 +64,7 @@ var _ = Describe("ReadyCheck", func() {
 			It("should return that the cluster has a quorum (members are partly unknown)", func() {
 				etcd := druidv1alpha1.Etcd{
 					Status: druidv1alpha1.EtcdStatus{
-						ClusterSize: pointer.Int32Ptr(3),
+						ClusterSize: pointer.Int32(3),
 						Members: []druidv1alpha1.EtcdMemberStatus{
 							readyMember,
 							unknownMember,
@@ -83,7 +83,7 @@ var _ = Describe("ReadyCheck", func() {
 			It("should return that the cluster has a quorum (one member not ready)", func() {
 				etcd := druidv1alpha1.Etcd{
 					Status: druidv1alpha1.EtcdStatus{
-						ClusterSize: pointer.Int32Ptr(3),
+						ClusterSize: pointer.Int32(3),
 						Members: []druidv1alpha1.EtcdMemberStatus{
 							readyMember,
 							notReadyMember,
@@ -102,7 +102,7 @@ var _ = Describe("ReadyCheck", func() {
 			It("should return that the cluster has lost its quorum", func() {
 				etcd := druidv1alpha1.Etcd{
 					Status: druidv1alpha1.EtcdStatus{
-						ClusterSize: pointer.Int32Ptr(3),
+						ClusterSize: pointer.Int32(3),
 						Members: []druidv1alpha1.EtcdMemberStatus{
 							readyMember,
 							notReadyMember,
