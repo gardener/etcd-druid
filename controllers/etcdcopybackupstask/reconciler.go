@@ -17,16 +17,19 @@ package etcdcopybackupstask
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/common"
-	"github.com/gardener/gardener/pkg/chartrenderer"
+	druidutils "github.com/gardener/etcd-druid/pkg/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
@@ -42,11 +45,9 @@ const workerSuffix = "-worker"
 // Reconciler reconciles EtcdCopyBackupsTask object.
 type Reconciler struct {
 	client.Client
-	Config        *Config
-	imageVector   imagevector.ImageVector
-	chartBasePath string
-	chartRenderer chartrenderer.Interface
-	logger        logr.Logger
+	Config      *Config
+	imageVector imagevector.ImageVector
+	logger      logr.Logger
 }
 
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcdcopybackupstasks,verbs=get;list;watch;create;update;patch;delete
@@ -58,24 +59,18 @@ func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewReconcilerWithImageVector(mgr, config, imageVector, defaultEtcdCopyBackupChartPath)
+	return NewReconcilerWithImageVector(mgr, config, imageVector), nil
 }
 
 // NewReconcilerWithImageVector creates a new reconciler for EtcdCopyBackupsTask with an ImageVector.
 // This constructor will mostly be used by tests.
-func NewReconcilerWithImageVector(mgr manager.Manager, config *Config, imageVector imagevector.ImageVector, chartBasePath string) (*Reconciler, error) {
-	chartRenderer, err := chartrenderer.NewForConfig(mgr.GetConfig())
-	if err != nil {
-		return nil, err
-	}
+func NewReconcilerWithImageVector(mgr manager.Manager, config *Config, imageVector imagevector.ImageVector) *Reconciler {
 	return &Reconciler{
-		Client:        mgr.GetClient(),
-		Config:        config,
-		imageVector:   imageVector,
-		chartBasePath: chartBasePath,
-		chartRenderer: chartRenderer,
-		logger:        log.Log.WithName("etcd-copy-backups-task-controller"),
-	}, nil
+		Client:      mgr.GetClient(),
+		Config:      config,
+		imageVector: imageVector,
+		logger:      log.Log.WithName("etcd-copy-backups-task-controller"),
+	}
 }
 
 // Reconcile reconciles the EtcdCopyBackupsTask.
@@ -140,8 +135,8 @@ func (r *Reconciler) doReconcile(ctx context.Context, task *druidv1alpha1.EtcdCo
 		return status, nil
 	}
 
-	// Decode job object from chart
-	job, err = r.decodeJobFromChart(ctx, task)
+	// create a job object from task
+	job, err = r.createJobObject(task)
 	if err != nil {
 		return status, err
 	}
@@ -285,4 +280,223 @@ func getConditionType(jobConditionType batchv1.JobConditionType) druidv1alpha1.C
 
 func getCopyBackupsJobName(task *druidv1alpha1.EtcdCopyBackupsTask) string {
 	return task.Name + workerSuffix
+}
+
+func (r *Reconciler) createJobObject(task *druidv1alpha1.EtcdCopyBackupsTask) (*batchv1.Job, error) {
+	images, err := imagevector.FindImages(r.imageVector, []string{common.BackupRestore})
+	if err != nil {
+		return nil, err
+	}
+	val, ok := images[common.BackupRestore]
+	if !ok {
+		return nil, fmt.Errorf("%s image not found", common.BackupRestore)
+	}
+	image := val.String()
+
+	targetStore := task.Spec.TargetStore
+	targetProvider, err := druidutils.StorageProviderFromInfraProvider(targetStore.Provider)
+	if err != nil {
+		return nil, err
+	}
+
+	sourceStore := task.Spec.SourceStore
+	sourceProvider, err := druidutils.StorageProviderFromInfraProvider(sourceStore.Provider)
+	if err != nil {
+		return nil, err
+	}
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      getCopyBackupsJobName(task),
+			Namespace: task.Namespace,
+			Annotations: map[string]string{
+				"gardener.cloud/owned-by":   task.Namespace + "/" + task.Name,
+				"gardener.cloud/owner-type": "etcdcopybackupstask",
+			},
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"networking.gardener.cloud/to-dns":             "allowed",
+						"networking.gardener.cloud/to-public-networks": "allowed",
+					},
+				},
+				Spec: corev1.PodSpec{
+					RestartPolicy: "OnFailure",
+					Containers: []corev1.Container{
+						{
+							Name:            "copy-backups",
+							Image:           image,
+							ImagePullPolicy: corev1.PullPolicy(corev1.PullIfNotPresent),
+							Command: []string{
+								"etcdbrctl",
+								"copy",
+								"--snapstore-temp-directory=/var/etcd/data/tmp",
+							},
+							Env:          append(getProviderEnvs(&sourceStore, sourceProvider, "SOURCE_", "source-"), getProviderEnvs(&targetStore, targetProvider, "", "")...),
+							VolumeMounts: append(getVolumeMounts(&sourceStore, sourceProvider, "source-"), getVolumeMounts(&targetStore, targetProvider, "target-")...),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := setEtcdBackupJobCommands(task, &job.Spec.Template.Spec.Containers[0].Command); err != nil {
+		return nil, fmt.Errorf("could not set container commands for job %v: %w", kutil.ObjectName(job), err)
+	}
+
+	volumes, err := getVolumes(&sourceStore, sourceProvider, "source-")
+	if err != nil {
+		return nil, err
+	}
+	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, volumes...)
+
+	volumes, err = getVolumes(&targetStore, targetProvider, "target-")
+	if err != nil {
+		return nil, err
+	}
+	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, volumes...)
+
+	if err := controllerutil.SetControllerReference(task, job, r.Scheme()); err != nil {
+		return nil, fmt.Errorf("could not set owner reference for job %v: %w", kutil.ObjectName(job), err)
+	}
+
+	return job, nil
+}
+
+func getVolumes(store *druidv1alpha1.StoreSpec, provider, prefix string) (volumes []corev1.Volume, err error) {
+	switch provider {
+	case druidutils.Local:
+		volumes = append(volumes, corev1.Volume{
+			Name: prefix + "host-storage",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &v1.HostPathVolumeSource{Path: *store.Container},
+			},
+		})
+	case druidutils.GCS:
+	case druidutils.S3:
+	case druidutils.ABS:
+	case druidutils.Swift:
+	case druidutils.OCS:
+	case druidutils.OSS:
+		if store.SecretRef == nil {
+			err = fmt.Errorf("no secretRef is configured for backup %sstore", prefix)
+			return
+		}
+		volumes = append(volumes, corev1.Volume{
+			Name: prefix + "etcd-backup",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: store.SecretRef.Name,
+				},
+			},
+		})
+
+	}
+	return
+}
+
+func getVolumeMounts(store *druidv1alpha1.StoreSpec, provider, volumeMountPrefix string) (volumeMounts []v1.VolumeMount) {
+	switch provider {
+	case druidutils.Local:
+		volumeMounts = append(volumeMounts, v1.VolumeMount{
+			Name:      volumeMountPrefix + "host-storage",
+			MountPath: *store.Container,
+		})
+	case druidutils.GCS:
+		volumeMounts = append(volumeMounts, v1.VolumeMount{
+			Name:      "etcd-backup",
+			MountPath: "/root/." + volumeMountPrefix + "gcp/",
+		})
+	case druidutils.S3:
+	case druidutils.ABS:
+	case druidutils.Swift:
+	case druidutils.OCS:
+	case druidutils.OSS:
+		volumeMounts = append(volumeMounts, v1.VolumeMount{
+			Name:      "etcd-backup",
+			MountPath: "/root/" + volumeMountPrefix + "etcd-backup/",
+		})
+
+	}
+	return
+}
+
+func getEnvVarFromValues(name, value string) corev1.EnvVar {
+	return corev1.EnvVar{
+		Name:  name,
+		Value: value,
+	}
+}
+
+func getProviderEnvs(store *druidv1alpha1.StoreSpec, storeProvider, prefix, volumePrefix string) []v1.EnvVar {
+	env := []v1.EnvVar{getEnvVarFromValues(prefix+"STORAGE_CONTAINER", *store.Container)}
+	switch storeProvider {
+	case druidutils.S3:
+		env = append(env, getEnvVarFromValues(prefix+"AWS_APPLICATION_CREDENTIALS", "/root/"+volumePrefix+"etcd-backup"))
+	case druidutils.ABS:
+		env = append(env, getEnvVarFromValues(prefix+"AZURE_APPLICATION_CREDENTIALS", "/root/"+volumePrefix+"etcd-backup"))
+	case druidutils.GCS:
+		env = append(env, getEnvVarFromValues(prefix+"GOOGLE_APPLICATION_CREDENTIALS", "/root/."+volumePrefix+"gcp/serviceaccount.json"))
+	case druidutils.Swift:
+		env = append(env, getEnvVarFromValues(prefix+"OPENSTACK_APPLICATION_CREDENTIALS", "/root/"+volumePrefix+"etcd-backup"))
+	case druidutils.OCS:
+		env = append(env, getEnvVarFromValues(prefix+"OPENSHIFT_APPLICATION_CREDENTIALS", "/root/"+volumePrefix+"etcd-backup"))
+	case druidutils.OSS:
+		env = append(env, getEnvVarFromValues(prefix+"ALICLOUD_APPLICATION_CREDENTIALS", "/root/"+volumePrefix+"etcd-backup"))
+	}
+	return env
+}
+
+func setEtcdBackupJobCommands(task *druidv1alpha1.EtcdCopyBackupsTask, command *[]string) error {
+	provider, err := druidutils.StorageProviderFromInfraProvider(task.Spec.TargetStore.Provider)
+	if err != nil {
+		return err
+	}
+
+	if len(provider) > 0 {
+		*command = append(*command, "--storage-provider="+provider)
+	}
+
+	if len(task.Spec.TargetStore.Prefix) > 0 {
+		*command = append(*command, "--store-prefix="+task.Spec.TargetStore.Prefix)
+	}
+
+	if task.Spec.TargetStore.Container != nil && len(*task.Spec.TargetStore.Container) > 0 {
+		*command = append(*command, "--store-container="+*task.Spec.TargetStore.Container)
+	}
+
+	provider, err = druidutils.StorageProviderFromInfraProvider(task.Spec.SourceStore.Provider)
+	if err != nil {
+		return err
+	}
+
+	if len(provider) > 0 {
+		*command = append(*command, "--source-storage-provider="+provider)
+	}
+
+	if len(task.Spec.SourceStore.Prefix) > 0 {
+		*command = append(*command, "--source-store-prefix="+task.Spec.SourceStore.Prefix)
+	}
+
+	if task.Spec.SourceStore.Container != nil && len(*task.Spec.SourceStore.Container) > 0 {
+		*command = append(*command, "--source-store-container="+*task.Spec.SourceStore.Container)
+	}
+
+	if task.Spec.MaxBackupAge != nil && *task.Spec.MaxBackupAge != 0 {
+		*command = append(*command, "--max-backup-age="+strconv.Itoa(int(*task.Spec.MaxBackupAge)))
+	}
+
+	if task.Spec.MaxBackups != nil && *task.Spec.MaxBackups != 0 {
+		*command = append(*command, "--max-backups-to-copy="+strconv.Itoa(int(*task.Spec.MaxBackups)))
+	}
+
+	if task.Spec.WaitForFinalSnapshot != nil {
+		*command = append(*command, "--wait-for-final-snapshot="+strconv.FormatBool(task.Spec.WaitForFinalSnapshot.Enabled))
+		if task.Spec.WaitForFinalSnapshot.Timeout != nil {
+			*command = append(*command, "--wait-for-final-snapshot-timeout="+task.Spec.WaitForFinalSnapshot.Timeout.Duration.String())
+		}
+	}
+	return nil
 }

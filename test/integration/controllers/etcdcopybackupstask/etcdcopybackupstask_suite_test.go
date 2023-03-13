@@ -55,11 +55,9 @@ var _ = BeforeSuite(func() {
 	imageVector = assets.CreateImageVector()
 	intTestEnv = setup.NewIntegrationTestEnv(testNamespacePrefix, "etcdcopybackupstask-int-tests", crdPaths)
 	intTestEnv.RegisterReconcilers(func(mgr manager.Manager) {
-		chartPath := assets.GetEtcdCopyBackupsBaseChartPath()
-		reconciler, err := etcdcopybackupstask.NewReconcilerWithImageVector(mgr, &etcdcopybackupstask.Config{
+		reconciler := etcdcopybackupstask.NewReconcilerWithImageVector(mgr, &etcdcopybackupstask.Config{
 			Workers: 5,
-		}, imageVector, chartPath)
-		Expect(err).To(BeNil())
+		}, imageVector)
 		Expect(reconciler.RegisterWithManager(mgr)).To(Succeed())
 	}).StartManager()
 	k8sClient = intTestEnv.K8sClient
