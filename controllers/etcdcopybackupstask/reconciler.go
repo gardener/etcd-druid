@@ -361,8 +361,16 @@ func (r *Reconciler) createJobObject(task *druidv1alpha1.EtcdCopyBackupsTask) (*
 	if err := controllerutil.SetControllerReference(task, job, r.Scheme()); err != nil {
 		return nil, fmt.Errorf("could not set owner reference for job %v: %w", kutil.ObjectName(job), err)
 	}
-
 	return job, nil
+}
+
+func getVolumeNamePrefix(prefix string) string {
+	switch prefix {
+	case "source-":
+		return prefix
+	default:
+		return ""
+	}
 }
 
 func getVolumes(store *druidv1alpha1.StoreSpec, provider, prefix string) (volumes []corev1.Volume, err error) {
@@ -374,18 +382,13 @@ func getVolumes(store *druidv1alpha1.StoreSpec, provider, prefix string) (volume
 				HostPath: &v1.HostPathVolumeSource{Path: *store.Container},
 			},
 		})
-	case druidutils.GCS:
-	case druidutils.S3:
-	case druidutils.ABS:
-	case druidutils.Swift:
-	case druidutils.OCS:
-	case druidutils.OSS:
+	case druidutils.GCS, druidutils.S3, druidutils.ABS, druidutils.Swift, druidutils.OCS, druidutils.OSS:
 		if store.SecretRef == nil {
 			err = fmt.Errorf("no secretRef is configured for backup %sstore", prefix)
 			return
 		}
 		volumes = append(volumes, corev1.Volume{
-			Name: prefix + "etcd-backup",
+			Name: getVolumeNamePrefix(prefix) + "etcd-backup",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: store.SecretRef.Name,
@@ -406,17 +409,13 @@ func getVolumeMounts(store *druidv1alpha1.StoreSpec, provider, volumeMountPrefix
 		})
 	case druidutils.GCS:
 		volumeMounts = append(volumeMounts, v1.VolumeMount{
-			Name:      "etcd-backup",
-			MountPath: "/root/." + volumeMountPrefix + "gcp/",
+			Name:      getVolumeNamePrefix(volumeMountPrefix) + "etcd-backup",
+			MountPath: "/root/." + getVolumeNamePrefix(volumeMountPrefix) + "gcp/",
 		})
-	case druidutils.S3:
-	case druidutils.ABS:
-	case druidutils.Swift:
-	case druidutils.OCS:
-	case druidutils.OSS:
+	case druidutils.S3, druidutils.ABS, druidutils.Swift, druidutils.OCS, druidutils.OSS:
 		volumeMounts = append(volumeMounts, v1.VolumeMount{
-			Name:      "etcd-backup",
-			MountPath: "/root/" + volumeMountPrefix + "etcd-backup/",
+			Name:      getVolumeNamePrefix(volumeMountPrefix) + "etcd-backup",
+			MountPath: "/root/" + getVolumeNamePrefix(volumeMountPrefix) + "etcd-backup/",
 		})
 
 	}
