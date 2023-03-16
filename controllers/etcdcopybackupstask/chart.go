@@ -20,14 +20,17 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gardener/gardener/pkg/utils/imagevector"
+	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
+	"github.com/go-logr/logr"
+	batchv1 "k8s.io/api/batch/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/common"
 	druidutils "github.com/gardener/etcd-druid/pkg/utils"
-	"github.com/gardener/gardener/pkg/utils/imagevector"
-	"github.com/go-logr/logr"
-	batchv1 "k8s.io/api/batch/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -54,6 +57,12 @@ func (r *Reconciler) decodeJobFromChart(ctx context.Context, task *druidv1alpha1
 	if err := utils.DecodeObject(renderedChart, jobChartPath, &job); err != nil {
 		return nil, fmt.Errorf("could not decode job object from chart: %w", err)
 	}
+
+	// set ownerReference on Job
+	if err := controllerutil.SetControllerReference(task, job, r.Scheme()); err != nil {
+		return nil, fmt.Errorf("could not set ownerReference on job %s: %w", kutil.ObjectName(job), err)
+	}
+
 	return job, nil
 }
 

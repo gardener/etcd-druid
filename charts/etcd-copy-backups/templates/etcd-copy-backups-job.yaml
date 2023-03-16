@@ -13,13 +13,6 @@ metadata:
 {{- if .Values.labels }}
 {{ toYaml .Values.labels | indent 4 }}
 {{- end }}
-  ownerReferences:
-  - apiVersion: druid.gardener.cloud/v1alpha1
-    kind: EtcdCopyBackupsTask
-    name: {{ .Values.ownerName }}
-    uid: {{ .Values.ownerUID }}
-    controller: true
-    blockOwnerDeletion: true
 spec:
   template:
     metadata:

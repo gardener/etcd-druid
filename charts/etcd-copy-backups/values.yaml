@@ -1,6 +1,4 @@
 name: test-worker
-ownerName: test
-ownerUID: test-uid
 
 annotations: {}
 labels: {}
