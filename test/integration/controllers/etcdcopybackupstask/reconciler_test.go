@@ -126,7 +126,7 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 		Entry("should create the job, update the task status, and delete the job if the job completed, for alicloud",
 			"foo07", druidv1alpha1.StorageProvider("alicloud"), false, getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should correctly handle ownerReferences for numeric names with leading 0",
-			"08foo", druidv1alpha1.StorageProvider("Local"), true, getJobStatus(batchv1.JobComplete, "", "")),
+			"01234", druidv1alpha1.StorageProvider("Local"), true, getJobStatus(batchv1.JobComplete, "", "")),
 	)
 })
 
