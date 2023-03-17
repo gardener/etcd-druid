@@ -28,12 +28,12 @@ const controllerName = "secret-controller"
 
 // RegisterWithManager registers the Secret Controller with the given controller manager.
 func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
-	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
-		MaxConcurrentReconciles: r.Config.Workers,
-	})
-
-	c, err := builder.
+	c, err := ctrl.
+		NewControllerManagedBy(mgr).
 		Named(controllerName).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: r.Config.Workers,
+		}).
 		For(&corev1.Secret{}).
 		Build(r)
 	if err != nil {

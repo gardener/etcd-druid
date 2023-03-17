@@ -29,18 +29,21 @@ const controllerName = "etcd-controller"
 
 // RegisterWithManager registers the Etcd Controller with the given controller manager.
 func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager, ignoreOperationAnnotation bool) error {
-	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
-		MaxConcurrentReconciles: r.config.Workers,
-	})
-	builder = builder.
+	builder := ctrl.
+		NewControllerManagedBy(mgr).
 		Named(controllerName).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: r.config.Workers,
+		}).
 		WithEventFilter(BuildPredicate(ignoreOperationAnnotation)).
 		For(&druidv1alpha1.Etcd{})
+
 	if ignoreOperationAnnotation {
 		builder = builder.Owns(&corev1.Service{}).
 			Owns(&corev1.ConfigMap{}).
 			Owns(&appsv1.StatefulSet{})
 	}
+
 	return builder.Complete(r)
 }
 
