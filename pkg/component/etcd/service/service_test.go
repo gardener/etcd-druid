@@ -91,13 +91,13 @@ var _ = Describe("Service", func() {
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      values.ClientServiceName,
-					Namespace: values.EtcdName,
+					Namespace: namespace,
 				},
 			},
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      values.PeerServiceName,
-					Namespace: values.EtcdName,
+					Namespace: namespace,
 				},
 			},
 		}
@@ -165,21 +165,10 @@ var _ = Describe("Service", func() {
 	})
 })
 
-func checkServiceMetadata(meta *metav1.ObjectMeta, values Values) {
-	Expect(meta.OwnerReferences).To(ConsistOf(Equal(metav1.OwnerReference{
-		APIVersion:         druidv1alpha1.GroupVersion.String(),
-		Kind:               "Etcd",
-		Name:               values.EtcdName,
-		UID:                values.EtcdUID,
-		Controller:         pointer.Bool(true),
-		BlockOwnerDeletion: pointer.Bool(true),
-	})))
-	Expect(meta.Labels).To(Equal(utils.MergeStringMaps(serviceLabels(values), serviceSelectors(values))))
-}
-
 func checkClientService(svc *corev1.Service, values Values) {
-	checkServiceMetadata(&svc.ObjectMeta, values)
-	Expect(svc.Spec.Selector).To(Equal(serviceSelectors(values)))
+	Expect(svc.OwnerReferences).To(Equal(values.OwnerReferences))
+	Expect(svc.Labels).To(Equal(utils.MergeStringMaps(values.Labels, values.ClientServiceLabels)))
+	Expect(svc.Spec.Selector).To(Equal(values.SelectorLabels))
 	Expect(svc.Spec.Type).To(Equal(corev1.ServiceType("ClusterIP")))
 	Expect(svc.Spec.Ports).To(ConsistOf(
 		Equal(corev1.ServicePort{
@@ -204,10 +193,12 @@ func checkClientService(svc *corev1.Service, values Values) {
 }
 
 func checkPeerService(svc *corev1.Service, values Values) {
-	checkServiceMetadata(&svc.ObjectMeta, values)
+	Expect(svc.OwnerReferences).To(Equal(values.OwnerReferences))
+	Expect(svc.Labels).To(Equal(values.Labels))
 	Expect(svc.Spec.PublishNotReadyAddresses).To(BeTrue())
 	Expect(svc.Spec.Type).To(Equal(corev1.ServiceType("ClusterIP")))
 	Expect(svc.Spec.ClusterIP).To(Equal(("None")))
+	Expect(svc.Spec.Selector).To(Equal(values.SelectorLabels))
 	Expect(svc.Spec.Ports).To(ConsistOf(
 		Equal(corev1.ServicePort{
 			Name:       "peer",
@@ -216,23 +207,4 @@ func checkPeerService(svc *corev1.Service, values Values) {
 			TargetPort: intstr.FromInt(int(values.ServerPort)),
 		}),
 	))
-}
-
-func serviceSelectors(val Values) map[string]string {
-	selectors := map[string]string{
-		"instance": val.EtcdName,
-		"name":     "etcd",
-	}
-
-	return selectors
-}
-
-func serviceLabels(val Values) map[string]string {
-	labels := map[string]string{}
-
-	for k, v := range val.Labels {
-		labels[k] = v
-	}
-
-	return labels
 }

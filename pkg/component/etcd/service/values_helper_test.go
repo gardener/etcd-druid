@@ -35,6 +35,10 @@ var _ = Describe("#GenerateValues", func() {
 		clientServiceAnnotations           map[string]string
 		clientServiceLabels                map[string]string
 		backupPort, clientPort, serverPort *int32
+		expectedLabels                     = map[string]string{
+			"instance": "etcd",
+			"name":     "etcd",
+		}
 	)
 
 	JustBeforeEach(func() {
@@ -80,9 +84,7 @@ var _ = Describe("#GenerateValues", func() {
 				"BackupPort":        Equal(*etcd.Spec.Backup.Port),
 				"ClientPort":        Equal(*etcd.Spec.Etcd.ClientPort),
 				"ClientServiceName": Equal(fmt.Sprintf("%s-client", etcd.Name)),
-				"EtcdName":          Equal(etcd.Name),
-				"EtcdUID":           Equal(etcd.UID),
-				"Labels":            Equal(etcd.Spec.Labels),
+				"Labels":            Equal(expectedLabels),
 				"PeerServiceName":   Equal(fmt.Sprintf("%s-peer", etcd.Name)),
 				"ServerPort":        Equal(*etcd.Spec.Etcd.ServerPort),
 			}))
@@ -103,11 +105,11 @@ var _ = Describe("#GenerateValues", func() {
 				"BackupPort":        Equal(int32(8080)),
 				"ClientPort":        Equal(int32(2379)),
 				"ClientServiceName": Equal(fmt.Sprintf("%s-client", etcd.Name)),
-				"EtcdName":          Equal(etcd.Name),
-				"EtcdUID":           Equal(etcd.UID),
-				"Labels":            Equal(etcd.Spec.Labels),
+				"Labels":            Equal(expectedLabels),
 				"PeerServiceName":   Equal(fmt.Sprintf("%s-peer", etcd.Name)),
 				"ServerPort":        Equal(int32(2380)),
+				"SelectorLabels":    Equal(expectedLabels),
+				"OwnerReferences":   Equal([]metav1.OwnerReference{etcd.GetEtcdAsOwnerReference()}),
 			}))
 		})
 	})
@@ -129,12 +131,12 @@ var _ = Describe("#GenerateValues", func() {
 				"BackupPort":               Equal(int32(8080)),
 				"ClientPort":               Equal(int32(2379)),
 				"ClientServiceName":        Equal(fmt.Sprintf("%s-client", etcd.Name)),
-				"EtcdName":                 Equal(etcd.Name),
-				"EtcdUID":                  Equal(etcd.UID),
-				"Labels":                   Equal(etcd.Spec.Labels),
+				"Labels":                   Equal(expectedLabels),
 				"PeerServiceName":          Equal(fmt.Sprintf("%s-peer", etcd.Name)),
 				"ServerPort":               Equal(int32(2380)),
 				"ClientServiceAnnotations": Equal(clientServiceAnnotations),
+				"SelectorLabels":           Equal(expectedLabels),
+				"OwnerReferences":          Equal([]metav1.OwnerReference{etcd.GetEtcdAsOwnerReference()}),
 			}))
 		})
 	})
@@ -153,12 +155,12 @@ var _ = Describe("#GenerateValues", func() {
 				"BackupPort":               Equal(int32(8080)),
 				"ClientPort":               Equal(int32(2379)),
 				"ClientServiceName":        Equal(fmt.Sprintf("%s-client", etcd.Name)),
-				"EtcdName":                 Equal(etcd.Name),
-				"EtcdUID":                  Equal(etcd.UID),
-				"Labels":                   Equal(etcd.Spec.Labels),
+				"Labels":                   Equal(expectedLabels),
 				"PeerServiceName":          Equal(fmt.Sprintf("%s-peer", etcd.Name)),
 				"ServerPort":               Equal(int32(2380)),
 				"ClientServiceAnnotations": Equal(clientServiceAnnotations),
+				"SelectorLabels":           Equal(expectedLabels),
+				"OwnerReferences":          Equal([]metav1.OwnerReference{etcd.GetEtcdAsOwnerReference()}),
 			}))
 		})
 	})
@@ -180,12 +182,12 @@ var _ = Describe("#GenerateValues", func() {
 				"BackupPort":          Equal(int32(8080)),
 				"ClientPort":          Equal(int32(2379)),
 				"ClientServiceName":   Equal(fmt.Sprintf("%s-client", etcd.Name)),
-				"EtcdName":            Equal(etcd.Name),
-				"EtcdUID":             Equal(etcd.UID),
-				"Labels":              Equal(etcd.Spec.Labels),
+				"Labels":              Equal(expectedLabels),
 				"PeerServiceName":     Equal(fmt.Sprintf("%s-peer", etcd.Name)),
 				"ServerPort":          Equal(int32(2380)),
 				"ClientServiceLabels": Equal(clientServiceLabels),
+				"SelectorLabels":      Equal(expectedLabels),
+				"OwnerReferences":     Equal([]metav1.OwnerReference{etcd.GetEtcdAsOwnerReference()}),
 			}))
 		})
 	})
@@ -204,12 +206,12 @@ var _ = Describe("#GenerateValues", func() {
 				"BackupPort":          Equal(int32(8080)),
 				"ClientPort":          Equal(int32(2379)),
 				"ClientServiceName":   Equal(fmt.Sprintf("%s-client", etcd.Name)),
-				"EtcdName":            Equal(etcd.Name),
-				"EtcdUID":             Equal(etcd.UID),
-				"Labels":              Equal(etcd.Spec.Labels),
+				"Labels":              Equal(expectedLabels),
 				"PeerServiceName":     Equal(fmt.Sprintf("%s-peer", etcd.Name)),
 				"ServerPort":          Equal(int32(2380)),
 				"ClientServiceLabels": Equal(clientServiceLabels),
+				"SelectorLabels":      Equal(expectedLabels),
+				"OwnerReferences":     Equal([]metav1.OwnerReference{etcd.GetEtcdAsOwnerReference()}),
 			}))
 		})
 	})
