@@ -18,6 +18,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -28,10 +29,8 @@ const (
 
 // Values contains the values to create a configmap
 type Values struct {
-	// EtcdName is the name of the etcd resource.
-	EtcdName string
-	// EtcdNameSpace is the namespace of etcd resource
-	EtcdNameSpace string
+	// Name is the name of the configmap that holds the ETCD config
+	Name string
 	// EtcdName is the UID of the etcd resource.
 	EtcdUID types.UID
 	// Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics.
@@ -56,10 +55,10 @@ type Values struct {
 	AutoCompactionMode *druidv1alpha1.CompactionMode
 	//AutoCompactionRetention defines the auto-compaction-retention length for etcd as well as for embedded-Etcd of backup-restore sidecar.
 	AutoCompactionRetention *string
-	// ConfigMapName is the name of the configmap that holds the ETCD config
-	ConfigMapName string
 	// ConfigMapChecksum is the checksum of deployed configmap
 	ConfigMapChecksum string
-	// Labels is the labels from the etcd object spec
+	// Labels is the labels of deployed configmap
 	Labels map[string]string
+	// OwnerReferences are the OwnerReferences of the Configmap.
+	OwnerReferences []metav1.OwnerReference
 }

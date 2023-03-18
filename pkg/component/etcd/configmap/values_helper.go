@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 )
 
@@ -27,8 +28,7 @@ import (
 func GenerateValues(etcd *druidv1alpha1.Etcd) *Values {
 	initialCluster := prepareInitialCluster(etcd)
 	values := &Values{
-		EtcdName:                etcd.Name,
-		EtcdNameSpace:           etcd.Namespace,
+		Name:                    etcd.GetConfigmapName(),
 		EtcdUID:                 etcd.UID,
 		Metrics:                 etcd.Spec.Etcd.Metrics,
 		Quota:                   etcd.Spec.Etcd.Quota,
@@ -41,8 +41,8 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) *Values {
 		ServerPort:              etcd.Spec.Etcd.ServerPort,
 		AutoCompactionMode:      etcd.Spec.Common.AutoCompactionMode,
 		AutoCompactionRetention: etcd.Spec.Common.AutoCompactionRetention,
-		ConfigMapName:           etcd.GetConfigmapName(),
-		Labels:                  etcd.Spec.Labels,
+		OwnerReferences:         []metav1.OwnerReference{etcd.GetEtcdAsOwnerReference()},
+		Labels:                  etcd.GetDefaultLabels(),
 	}
 	return values
 }
