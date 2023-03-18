@@ -18,7 +18,6 @@ import (
 	"context"
 
 	"github.com/Masterminds/semver"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/utils"
 
 	"github.com/gardener/gardener/pkg/controllerutils"
@@ -27,7 +26,6 @@ import (
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -45,20 +43,6 @@ func New(c client.Client, namespace string, values *Values, k8sVersion semver.Ve
 		namespace:  namespace,
 		values:     values,
 		k8sVersion: &k8sVersion,
-	}
-}
-
-// getOwnerReferences returns owner references for the PDB object
-func getOwnerReferences(val *Values) []metav1.OwnerReference {
-	return []metav1.OwnerReference{
-		{
-			APIVersion:         druidv1alpha1.GroupVersion.String(),
-			Kind:               "Etcd",
-			Name:               val.EtcdName,
-			UID:                val.EtcdUID,
-			Controller:         pointer.Bool(true),
-			BlockOwnerDeletion: pointer.Bool(true),
-		},
 	}
 }
 
@@ -88,7 +72,7 @@ func (c *component) emptyPodDisruptionBudget(name string, k8sversion *semver.Ver
 
 // Deploy creates a PDB or synchronizes the PDB spec based on the etcd spec
 func (c *component) Deploy(ctx context.Context) error {
-	pdb, err := c.emptyPodDisruptionBudget(c.values.EtcdName, c.k8sVersion)
+	pdb, err := c.emptyPodDisruptionBudget(c.values.Name, c.k8sVersion)
 	if err != nil {
 		return err
 	}
@@ -105,9 +89,8 @@ func (c *component) syncPodDisruptionBudget(ctx context.Context, pdb client.Obje
 	switch pdb := pdb.(type) {
 	case *policyv1.PodDisruptionBudget:
 		_, err := controllerutils.GetAndCreateOrMergePatch(ctx, c.client, pdb, func() error {
-			pdb.Annotations = c.values.Annotations
 			pdb.Labels = c.values.Labels
-			pdb.OwnerReferences = getOwnerReferences(c.values)
+			pdb.OwnerReferences = c.values.OwnerReferences
 			pdb.Spec.MinAvailable = &intstr.IntOrString{
 				IntVal: c.values.MinAvailable,
 				Type:   intstr.Int,
@@ -122,7 +105,7 @@ func (c *component) syncPodDisruptionBudget(ctx context.Context, pdb client.Obje
 		_, err := controllerutils.GetAndCreateOrMergePatch(ctx, c.client, pdb, func() error {
 			pdb.Annotations = c.values.Annotations
 			pdb.Labels = c.values.Labels
-			pdb.OwnerReferences = getOwnerReferences(c.values)
+			pdb.OwnerReferences = c.values.OwnerReferences
 			pdb.Spec.MinAvailable = &intstr.IntOrString{
 				IntVal: c.values.MinAvailable,
 				Type:   intstr.Int,
@@ -139,7 +122,7 @@ func (c *component) syncPodDisruptionBudget(ctx context.Context, pdb client.Obje
 
 // Destroy deletes a PDB. Ignores if PDB does not exist
 func (c *component) Destroy(ctx context.Context) error {
-	pdb, err := c.emptyPodDisruptionBudget(c.values.EtcdName, c.k8sVersion)
+	pdb, err := c.emptyPodDisruptionBudget(c.values.Name, c.k8sVersion)
 	if err != nil {
 		return err
 	}

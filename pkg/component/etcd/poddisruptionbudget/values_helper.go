@@ -23,27 +23,15 @@ import (
 
 // GenerateValues generates `poddisruptionbudget.Values` for the lease component with the given parameters.
 func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
-	labels := etcd.Spec.Labels
-	labels[instanceKey] = etcd.Name
-	labels[nameKey] = "etcd"
-	labels[appKey] = "etcd-statefulset"
-
-	selectorLabels := map[string]string{
-		instanceKey: etcd.Name,
-		nameKey:     "etcd",
-	}
-
 	annotations := map[string]string{
 		common.GardenerOwnedBy:   fmt.Sprintf("%s/%s", etcd.Namespace, etcd.Name),
 		common.GardenerOwnerType: "etcd",
 	}
 
 	return Values{
-		EtcdName:       etcd.Name,
-		EtcdNameSpace:  etcd.Namespace,
-		EtcdUID:        etcd.UID,
-		Labels:         labels,
-		SelectorLabels: selectorLabels,
+		Name:           etcd.Name,
+		Labels:         etcd.GetDefaultLabels(),
+		SelectorLabels: etcd.GetDefaultLabels(),
 		Annotations:    annotations,
 		MinAvailable:   int32(CalculatePDBMinAvailable(etcd)),
 	}
