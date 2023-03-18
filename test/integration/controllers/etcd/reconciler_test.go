@@ -549,7 +549,6 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 			"Name":      Equal(instance.GetClientServiceName()),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
-				"app":      Equal("etcd-statefulset"),
 				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
 			}),
@@ -616,7 +615,6 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
-				"app":      Equal("etcd-statefulset"),
 			}),
 		}),
 		"Spec": MatchFields(IgnoreExtras, Fields{
@@ -641,7 +639,6 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 					"Labels": MatchAllKeys(Keys{
 						"name":     Equal("etcd"),
 						"instance": Equal(instance.Name),
-						"app":      Equal("etcd-statefulset"),
 					}),
 				}),
 				"Spec": MatchFields(IgnoreExtras, Fields{
@@ -851,7 +848,6 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"Name":      Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
-				"app":      Equal("etcd-statefulset"),
 				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
 			}),
@@ -907,7 +903,6 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"Name":      Equal(instance.GetClientServiceName()),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
-				"app":      Equal("etcd-statefulset"),
 				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
 			}),
@@ -974,7 +969,6 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
 				"instance": Equal(instance.Name),
-				"app":      Equal("etcd-statefulset"),
 			}),
 		}),
 
@@ -1000,7 +994,6 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 					"Labels": MatchAllKeys(Keys{
 						"name":     Equal("etcd"),
 						"instance": Equal(instance.Name),
-						"app":      Equal("etcd-statefulset"),
 					}),
 				}),
 				//s.Spec.Template.Spec.HostAliases

@@ -41,7 +41,7 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) *Values {
 		ServerPort:              etcd.Spec.Etcd.ServerPort,
 		AutoCompactionMode:      etcd.Spec.Common.AutoCompactionMode,
 		AutoCompactionRetention: etcd.Spec.Common.AutoCompactionRetention,
-		OwnerReferences:         []metav1.OwnerReference{etcd.GetEtcdAsOwnerReference()},
+		OwnerReferences:         []metav1.OwnerReference{etcd.GetAsOwnerReference()},
 		Labels:                  etcd.GetDefaultLabels(),
 	}
 	return values

@@ -109,7 +109,7 @@ var _ = Describe("#GenerateValues", func() {
 				"PeerServiceName":   Equal(fmt.Sprintf("%s-peer", etcd.Name)),
 				"ServerPort":        Equal(int32(2380)),
 				"SelectorLabels":    Equal(expectedLabels),
-				"OwnerReferences":   Equal([]metav1.OwnerReference{etcd.GetEtcdAsOwnerReference()}),
+				"OwnerReferences":   Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}),
 			}))
 		})
 	})
@@ -136,7 +136,7 @@ var _ = Describe("#GenerateValues", func() {
 				"ServerPort":               Equal(int32(2380)),
 				"ClientServiceAnnotations": Equal(clientServiceAnnotations),
 				"SelectorLabels":           Equal(expectedLabels),
-				"OwnerReferences":          Equal([]metav1.OwnerReference{etcd.GetEtcdAsOwnerReference()}),
+				"OwnerReferences":          Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}),
 			}))
 		})
 	})
@@ -160,7 +160,7 @@ var _ = Describe("#GenerateValues", func() {
 				"ServerPort":               Equal(int32(2380)),
 				"ClientServiceAnnotations": Equal(clientServiceAnnotations),
 				"SelectorLabels":           Equal(expectedLabels),
-				"OwnerReferences":          Equal([]metav1.OwnerReference{etcd.GetEtcdAsOwnerReference()}),
+				"OwnerReferences":          Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}),
 			}))
 		})
 	})
@@ -187,7 +187,7 @@ var _ = Describe("#GenerateValues", func() {
 				"ServerPort":          Equal(int32(2380)),
 				"ClientServiceLabels": Equal(clientServiceLabels),
 				"SelectorLabels":      Equal(expectedLabels),
-				"OwnerReferences":     Equal([]metav1.OwnerReference{etcd.GetEtcdAsOwnerReference()}),
+				"OwnerReferences":     Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}),
 			}))
 		})
 	})
@@ -211,7 +211,7 @@ var _ = Describe("#GenerateValues", func() {
 				"ServerPort":          Equal(int32(2380)),
 				"ClientServiceLabels": Equal(clientServiceLabels),
 				"SelectorLabels":      Equal(expectedLabels),
-				"OwnerReferences":     Equal([]metav1.OwnerReference{etcd.GetEtcdAsOwnerReference()}),
+				"OwnerReferences":     Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}),
 			}))
 		})
 	})

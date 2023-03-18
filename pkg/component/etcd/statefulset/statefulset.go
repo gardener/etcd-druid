@@ -205,7 +205,7 @@ func (c *component) createDeployFlow(ctx context.Context) (*flow.Flow, error) {
 		return nil, err
 	}
 
-	flowName := fmt.Sprintf("(etcd: %s) Deploy Flow for StatefulSet %s for Namespace: %s", c.values.EtcdUID, c.values.Name, c.values.Namespace)
+	flowName := fmt.Sprintf("(etcd: %s) Deploy Flow for StatefulSet %s for Namespace: %s", c.values.OwnerReferences[0].UID, c.values.Name, c.values.Namespace)
 	g := flow.NewGraph(flowName)
 
 	var taskID *flow.TaskID
@@ -283,7 +283,7 @@ func (c *component) addImmutableFieldUpdateTask(g *flow.Graph, sts *appsv1.State
 			Fn:           func(ctx context.Context) error { return c.destroyAndWait(ctx, opName) },
 			Dependencies: nil,
 		})
-		c.logger.Info("added delete StatefulSet task to deploy flow due to immutable field update task", "namespace", c.values.Namespace, "name", c.values.Name, "etcdUID", c.values.EtcdUID)
+		c.logger.Info("added delete StatefulSet task to deploy flow due to immutable field update task", "namespace", c.values.Namespace, "name", c.values.Name, "etcdUID", c.values.OwnerReferences[0].UID)
 		return &taskID
 	}
 	return nil
@@ -318,7 +318,7 @@ func (c *component) addCreateOrPatchTask(g *flow.Graph, originalSts *appsv1.Stat
 		},
 		Dependencies: dependencies,
 	})
-	c.logger.Info("added createOrPatch StatefulSet task to the deploy flow", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", c.values.EtcdUID, "StatefulSetName", c.values.Name, "replicas", c.values.Replicas)
+	c.logger.Info("added createOrPatch StatefulSet task to the deploy flow", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", c.values.OwnerReferences[0].UID, "StatefulSetName", c.values.Name, "replicas", c.values.Replicas)
 }
 
 func (c *component) getExistingSts(ctx context.Context) (*appsv1.StatefulSet, error) {
@@ -376,7 +376,7 @@ func (c *component) doCreateOrUpdate(ctx context.Context, opName string, sts *ap
 
 func (c *component) destroyAndWait(ctx context.Context, opName string) error {
 	deleteAndWait := gardenercomponent.OpDestroyAndWait(c)
-	c.logger.Info("deleting sts", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID)
+	c.logger.Info("deleting sts", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.OwnerReferences[0].UID)
 	if err := deleteAndWait.Destroy(ctx); err != nil {
 		return err
 	}
@@ -413,7 +413,7 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 			Replicas:    &replicas,
 			ServiceName: c.values.PeerServiceName,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: getCommonLabels(&c.values),
+				MatchLabels: c.values.Labels,
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
@@ -542,38 +542,18 @@ func (c *component) emptyStatefulset() *appsv1.StatefulSet {
 	}
 }
 
-func getCommonLabels(val *Values) map[string]string {
-	return map[string]string{
-		"name":     "etcd",
-		"instance": val.Name,
-	}
-}
-
 func getObjectMeta(val *Values, sts *appsv1.StatefulSet, preserveAnnotations bool) metav1.ObjectMeta {
-	var annotations map[string]string
-	labels := utils.MergeStringMaps(getCommonLabels(val), val.Labels)
-	if preserveAnnotations {
-		annotations = sts.Annotations
-	} else {
+	annotations := sts.Annotations
+	if !preserveAnnotations {
 		annotations = getStsAnnotations(val, sts)
-	}
-	ownerRefs := []metav1.OwnerReference{
-		{
-			APIVersion:         druidv1alpha1.GroupVersion.String(),
-			Kind:               "Etcd",
-			Name:               val.Name,
-			UID:                val.EtcdUID,
-			Controller:         pointer.Bool(true),
-			BlockOwnerDeletion: pointer.Bool(true),
-		},
 	}
 
 	return metav1.ObjectMeta{
 		Name:            val.Name,
 		Namespace:       val.Namespace,
-		Labels:          labels,
+		Labels:          val.Labels,
 		Annotations:     annotations,
-		OwnerReferences: ownerRefs,
+		OwnerReferences: val.OwnerReferences,
 	}
 }
 

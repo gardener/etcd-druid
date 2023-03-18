@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,6 +38,11 @@ type component struct {
 
 	values *Values
 }
+
+const (
+	clientServerType = "client"
+	peerServerType   = "peer"
+)
 
 // New creates a new configmap deployer instance.
 func New(c client.Client, namespace string, values *Values) gardenercomponent.Deployer {
@@ -57,7 +63,7 @@ func (c *component) Deploy(ctx context.Context) error {
 	return nil
 }
 
-func generateTLSConfig(name, namespace, svcName, port string, tlsConfig *druidv1alpha1.TLSConfig) (etcdConfigYaml string) {
+func generateTLSConfig(serverType, namespace, svcName, port string, tlsConfig *druidv1alpha1.TLSConfig) (etcdConfigYaml string) {
 	var protocol = "http"
 	if tlsConfig != nil {
 		protocol = "https"
@@ -65,62 +71,35 @@ func generateTLSConfig(name, namespace, svcName, port string, tlsConfig *druidv1
 		if dataKey := tlsConfig.TLSCASecretRef.DataKey; dataKey != nil {
 			tlsCASecretKey = *dataKey
 		}
+		etcdConfigYaml = `
+    ` + serverType + `-transport-security:
+        # Path to the ` + serverType + ` server TLS cert file.
+        cert-file: /var/etcd/ssl/` + serverType + `/server/tls.crt
 
-		switch name {
-		case "client":
-			etcdConfigYaml = `
-    client-transport-security:
-        # Path to the client server TLS cert file.
-        cert-file: /var/etcd/ssl/client/server/tls.crt
+        # Path to the ` + serverType + ` server TLS key file.
+        key-file: /var/etcd/ssl/` + serverType + `/server/tls.key
 
-        # Path to the client server TLS key file.
-        key-file: /var/etcd/ssl/client/server/tls.key
-
-        # Enable client cert authentication.
+        # Enable ` + serverType + ` cert authentication.
         client-cert-auth: true
 
-        # Path to the client server TLS trusted CA cert file.
-        trusted-ca-file: /var/etcd/ssl/client/ca/` + tlsCASecretKey + `
+        # Path to the ` + serverType + ` server TLS trusted CA cert file.
+        trusted-ca-file: /var/etcd/ssl/` + serverType + `/ca/` + tlsCASecretKey + `
 
-        # Client TLS using generated certificates
+        # ` + strings.Title(serverType) + ` TLS using generated certificates
         auto-tls: false`
-		case "peer":
-			etcdConfigYaml = etcdConfigYaml + `
-    peer-transport-security:
-        # Path to the peer server TLS cert file.
-        cert-file: /var/etcd/ssl/peer/server/tls.crt
 
-        # Path to the peer server TLS key file.
-        key-file: /var/etcd/ssl/peer/server/tls.key
-
-        # Enable peer cert authentication.
-        client-cert-auth: true
-
-        # Path to the peer server TLS trusted CA cert file.
-        trusted-ca-file: /var/etcd/ssl/peer/ca/` + tlsCASecretKey + `
-
-        # Peer TLS using generated certificates
-        auto-tls: false`
-		}
 	}
-	switch name {
-	case "client":
-		etcdConfigYaml += `
-    # List of comma separated URLs to listen on for client traffic.
-    listen-client-urls: ` + protocol + `://0.0.0.0:` + port + `
-
-    # List of this member's client URLs to advertise to the public.
-    # The URLs needed to be a comma-separated list.
-    advertise-client-urls: ` + protocol + `@` + svcName + `@` + namespace + `@` + port
-	case "peer":
-		etcdConfigYaml += `
-    # List of comma separated URLs to listen on for peer traffic.
-    listen-peer-urls: ` + protocol + `://0.0.0.0:` + port + `
-
-    # List of this member's peer URLs to advertise to the public.
-    # The URLs needed to be a comma-separated list.
-    initial-advertise-peer-urls: ` + protocol + `@` + svcName + `@` + namespace + `@` + port
+	advertiseURL := `advertise-` + serverType
+	if serverType == peerServerType {
+		advertiseURL = "initial-" + advertiseURL
 	}
+	etcdConfigYaml += `
+    # List of comma separated URLs to listen on for ` + serverType + ` traffic.
+    listen-` + serverType + `-urls: ` + protocol + `://0.0.0.0:` + port + `
+
+    # List of this member's ` + serverType + ` URLs to advertise to the public.
+    # The URLs needed to be a comma-separated list.
+    ` + advertiseURL + `-urls: ` + protocol + `@` + svcName + `@` + namespace + `@` + port
 	return
 }
 
@@ -162,8 +141,8 @@ func (c *component) getEtcdConfigYaml() (etcdConfigYaml string) {
     # Raise alarms when backend size exceeds the given quota. 0 means use the
     # default quota.
     quota-backend-bytes: ` + fmt.Sprint(quota) +
-		generateTLSConfig("client", c.namespace, c.values.PeerServiceName, clientPort, c.values.ClientUrlTLS) +
-		generateTLSConfig("peer", c.namespace, c.values.PeerServiceName, serverPort, c.values.PeerUrlTLS) + `
+		generateTLSConfig(clientServerType, c.namespace, c.values.PeerServiceName, clientPort, c.values.ClientUrlTLS) +
+		generateTLSConfig(peerServerType, c.namespace, c.values.PeerServiceName, serverPort, c.values.PeerUrlTLS) + `
 
     # Initial cluster token for the etcd cluster during bootstrap.
     initial-cluster-token: etcd-cluster
