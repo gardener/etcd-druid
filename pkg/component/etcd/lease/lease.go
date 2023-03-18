@@ -17,13 +17,11 @@ package lease
 import (
 	"context"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/go-logr/logr"
 
 	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -91,25 +89,11 @@ func New(c client.Client, logger logr.Logger, namespace string, values Values) I
 }
 
 func (c *component) emptyLease(name string) *coordinationv1.Lease {
-	labels := map[string]string{"name": "etcd", "instance": c.values.EtcdName}
 	return &coordinationv1.Lease{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: c.namespace,
-			Labels:    labels,
-		},
-	}
-}
-
-func getOwnerReferences(val Values) []metav1.OwnerReference {
-	return []metav1.OwnerReference{
-		{
-			APIVersion:         druidv1alpha1.GroupVersion.String(),
-			Kind:               "Etcd",
-			Name:               val.EtcdName,
-			UID:                val.EtcdUID,
-			Controller:         pointer.Bool(true),
-			BlockOwnerDeletion: pointer.Bool(true),
+			Labels:    c.values.Labels,
 		},
 	}
 }

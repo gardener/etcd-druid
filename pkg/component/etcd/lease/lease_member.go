@@ -55,7 +55,7 @@ func (c *component) syncMemberLeases(ctx context.Context) error {
 				for k, v := range labels {
 					lease.Labels[k] = v
 				}
-				lease.OwnerReferences = getOwnerReferences(c.values)
+				lease.OwnerReferences = c.values.OwnerReferences
 				return nil
 			})
 			return err
