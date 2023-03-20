@@ -29,7 +29,7 @@ import (
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
@@ -327,7 +327,7 @@ func (r *Reconciler) createJobObject(task *druidv1alpha1.EtcdCopyBackupsTask) (*
 						{
 							Name:            "copy-backups",
 							Image:           image,
-							ImagePullPolicy: corev1.PullPolicy(corev1.PullIfNotPresent),
+							ImagePullPolicy: corev1.PullIfNotPresent,
 							Command: []string{
 								"etcdbrctl",
 								"copy",
@@ -376,10 +376,14 @@ func getVolumeNamePrefix(prefix string) string {
 func getVolumes(store *druidv1alpha1.StoreSpec, provider, prefix string) (volumes []corev1.Volume, err error) {
 	switch provider {
 	case druidutils.Local:
+	        hostPathDirectory := corev1.HostPathDirectory
 		volumes = append(volumes, corev1.Volume{
 			Name: prefix + "host-storage",
 			VolumeSource: corev1.VolumeSource{
-				HostPath: &v1.HostPathVolumeSource{Path: *store.Container},
+				HostPath: &v1.HostPathVolumeSource{
+				        Path: *store.Container,
+				        Type: &hostPathDirectory,
+				},
 			},
 		})
 	case druidutils.GCS, druidutils.S3, druidutils.ABS, druidutils.Swift, druidutils.OCS, druidutils.OSS:
@@ -400,24 +404,23 @@ func getVolumes(store *druidv1alpha1.StoreSpec, provider, prefix string) (volume
 	return
 }
 
-func getVolumeMounts(store *druidv1alpha1.StoreSpec, provider, volumeMountPrefix string) (volumeMounts []v1.VolumeMount) {
+func getVolumeMounts(store *druidv1alpha1.StoreSpec, provider, volumeMountPrefix string) (volumeMounts []corev1.VolumeMount) {
 	switch provider {
 	case druidutils.Local:
-		volumeMounts = append(volumeMounts, v1.VolumeMount{
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      volumeMountPrefix + "host-storage",
 			MountPath: *store.Container,
 		})
 	case druidutils.GCS:
-		volumeMounts = append(volumeMounts, v1.VolumeMount{
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      getVolumeNamePrefix(volumeMountPrefix) + "etcd-backup",
 			MountPath: "/root/." + getVolumeNamePrefix(volumeMountPrefix) + "gcp/",
 		})
 	case druidutils.S3, druidutils.ABS, druidutils.Swift, druidutils.OCS, druidutils.OSS:
-		volumeMounts = append(volumeMounts, v1.VolumeMount{
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      getVolumeNamePrefix(volumeMountPrefix) + "etcd-backup",
 			MountPath: "/root/" + getVolumeNamePrefix(volumeMountPrefix) + "etcd-backup/",
 		})
-
 	}
 	return
 }
@@ -429,8 +432,8 @@ func getEnvVarFromValues(name, value string) corev1.EnvVar {
 	}
 }
 
-func getProviderEnvs(store *druidv1alpha1.StoreSpec, storeProvider, prefix, volumePrefix string) []v1.EnvVar {
-	env := []v1.EnvVar{getEnvVarFromValues(prefix+"STORAGE_CONTAINER", *store.Container)}
+func getProviderEnvs(store *druidv1alpha1.StoreSpec, storeProvider, prefix, volumePrefix string) []corev1.EnvVar {
+	env := []corev1.EnvVar{getEnvVarFromValues(prefix+"STORAGE_CONTAINER", *store.Container)}
 	switch storeProvider {
 	case druidutils.S3:
 		env = append(env, getEnvVarFromValues(prefix+"AWS_APPLICATION_CREDENTIALS", "/root/"+volumePrefix+"etcd-backup"))
