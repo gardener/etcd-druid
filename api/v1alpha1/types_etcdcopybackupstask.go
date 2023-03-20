@@ -98,6 +98,7 @@ type EtcdCopyBackupsTaskStatus struct {
 	LastError *string `json:"lastError,omitempty"`
 }
 
+// GetCopyBackupsJobName returns the name of the CopyBackups Job.
 func (e *EtcdCopyBackupsTask) GetCopyBackupsJobName() string {
 	return fmt.Sprintf("%s-worker", e.Name)
 }
