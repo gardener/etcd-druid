@@ -17,11 +17,9 @@ package poddisruptionbudget
 import "k8s.io/apimachinery/pkg/types"
 
 const (
-	ownedByAnnotationKey   = "gardener.cloud/owned-by"
-	ownerTypeAnnotationKey = "gardener.cloud/owner-type"
-	instanceKey            = "instance"
-	nameKey                = "name"
-	appKey                 = "app"
+	instanceKey = "instance"
+	nameKey     = "name"
+	appKey      = "app"
 )
 
 // Values contains the values necessary for creating PodDisruptionBudget.

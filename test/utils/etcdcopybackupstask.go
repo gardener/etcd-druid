@@ -19,6 +19,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/pkg/common"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -111,7 +112,7 @@ func CreateEtcdCopyBackupsJob(taskName, namespace string) *batchv1.Job {
 
 func createJobAnnotations(taskName, namespace string) map[string]string {
 	annotations := make(map[string]string, 2)
-	annotations["gardener.cloud/owned-by"] = fmt.Sprintf("%s/%s", namespace, taskName)
-	annotations["gardener.cloud/owner-type"] = "etcdcopybackupstask"
+	annotations[common.GardenerOwnedBy] = fmt.Sprintf("%s/%s", namespace, taskName)
+	annotations[common.GardenerOwnerType] = "etcdcopybackupstask"
 	return annotations
 }

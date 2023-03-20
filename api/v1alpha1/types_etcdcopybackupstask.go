@@ -14,7 +14,11 @@
 
 package v1alpha1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	"fmt"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -92,4 +96,8 @@ type EtcdCopyBackupsTaskStatus struct {
 	// LastError represents the last occurred error.
 	// +optional
 	LastError *string `json:"lastError,omitempty"`
+}
+
+func (e *EtcdCopyBackupsTask) GetCopyBackupsJobName() string {
+	return fmt.Sprintf("%s-worker", e.Name)
 }

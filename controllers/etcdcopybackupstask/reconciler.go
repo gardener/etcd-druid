@@ -23,6 +23,7 @@ import (
 	"github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/common"
 	druidutils "github.com/gardener/etcd-druid/pkg/utils"
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -39,8 +40,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
-
-const workerSuffix = "-worker"
 
 // Reconciler reconciles EtcdCopyBackupsTask object.
 type Reconciler struct {
@@ -219,7 +218,7 @@ func (r *Reconciler) doDelete(ctx context.Context, task *druidv1alpha1.EtcdCopyB
 
 func (r *Reconciler) getJob(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask) (*batchv1.Job, error) {
 	job := &batchv1.Job{}
-	if err := r.Get(ctx, kutil.Key(task.Namespace, getCopyBackupsJobName(task)), job); err != nil {
+	if err := r.Get(ctx, kutil.Key(task.Namespace, task.GetCopyBackupsJobName()), job); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
 		}
@@ -278,20 +277,11 @@ func getConditionType(jobConditionType batchv1.JobConditionType) druidv1alpha1.C
 	return ""
 }
 
-func getCopyBackupsJobName(task *druidv1alpha1.EtcdCopyBackupsTask) string {
-	return task.Name + workerSuffix
-}
-
 func (r *Reconciler) createJobObject(task *druidv1alpha1.EtcdCopyBackupsTask) (*batchv1.Job, error) {
-	images, err := imagevector.FindImages(r.imageVector, []string{common.BackupRestore})
+	etcdBackupImage, err := druidutils.GetBackupRestoreImage(r.imageVector)
 	if err != nil {
 		return nil, err
 	}
-	val, ok := images[common.BackupRestore]
-	if !ok {
-		return nil, fmt.Errorf("%s image not found", common.BackupRestore)
-	}
-	image := val.String()
 
 	targetStore := task.Spec.TargetStore
 	targetProvider, err := druidutils.StorageProviderFromInfraProvider(targetStore.Provider)
@@ -306,27 +296,27 @@ func (r *Reconciler) createJobObject(task *druidv1alpha1.EtcdCopyBackupsTask) (*
 	}
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      getCopyBackupsJobName(task),
+			Name:      task.GetCopyBackupsJobName(),
 			Namespace: task.Namespace,
 			Annotations: map[string]string{
-				"gardener.cloud/owned-by":   task.Namespace + "/" + task.Name,
-				"gardener.cloud/owner-type": "etcdcopybackupstask",
+				common.GardenerOwnedBy:   kutil.Key(task.Namespace, task.GetCopyBackupsJobName()).String(),
+				common.GardenerOwnerType: task.Kind,
 			},
 		},
 		Spec: batchv1.JobSpec{
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"networking.gardener.cloud/to-dns":             "allowed",
-						"networking.gardener.cloud/to-public-networks": "allowed",
+						v1beta1constants.LabelNetworkPolicyToDNS:            v1beta1constants.LabelNetworkPolicyAllowed,
+						v1beta1constants.LabelNetworkPolicyToPublicNetworks: v1beta1constants.LabelNetworkPolicyAllowed,
 					},
 				},
 				Spec: corev1.PodSpec{
-					RestartPolicy: "OnFailure",
+					RestartPolicy: corev1.RestartPolicyOnFailure,
 					Containers: []corev1.Container{
 						{
 							Name:            "copy-backups",
-							Image:           image,
+							Image:           etcdBackupImage,
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							Command: []string{
 								"etcdbrctl",
@@ -376,13 +366,13 @@ func getVolumeNamePrefix(prefix string) string {
 func getVolumes(store *druidv1alpha1.StoreSpec, provider, prefix string) (volumes []corev1.Volume, err error) {
 	switch provider {
 	case druidutils.Local:
-	        hostPathDirectory := corev1.HostPathDirectory
+		hostPathDirectory := corev1.HostPathDirectory
 		volumes = append(volumes, corev1.Volume{
 			Name: prefix + "host-storage",
 			VolumeSource: corev1.VolumeSource{
-				HostPath: &v1.HostPathVolumeSource{
-				        Path: *store.Container,
-				        Type: &hostPathDirectory,
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: *store.Container,
+					Type: &hostPathDirectory,
 				},
 			},
 		})

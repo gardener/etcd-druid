@@ -56,3 +56,12 @@ func chooseImage(key string, specImage *string, iv imagevector.ImageVector) (*st
 	}
 	return pointer.String(ivImage[key].String()), nil
 }
+
+// GetBackupRestoreImage returns the image for `backup-restore` from the given image vector.
+func GetBackupRestoreImage(iv imagevector.ImageVector) (string, error) {
+	ivImage, err := imagevector.FindImages(iv, []string{common.BackupRestore})
+	if err != nil {
+		return "", err
+	}
+	return ivImage[common.BackupRestore].String(), nil
+}
