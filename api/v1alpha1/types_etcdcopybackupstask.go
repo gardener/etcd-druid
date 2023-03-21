@@ -99,6 +99,6 @@ type EtcdCopyBackupsTaskStatus struct {
 }
 
 // GetCopyBackupsJobName returns the name of the CopyBackups Job.
-func (e *EtcdCopyBackupsTask) GetCopyBackupsJobName() string {
+func (e *EtcdCopyBackupsTask) GetJobName() string {
 	return fmt.Sprintf("%s-worker", e.Name)
 }
