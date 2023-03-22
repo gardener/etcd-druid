@@ -18,7 +18,6 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/common"
 )
 
 // GenerateValues generates `poddisruptionbudget.Values` for the lease component with the given parameters.
@@ -34,8 +33,8 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
 	}
 
 	annotations := map[string]string{
-		common.GardenerOwnedBy:   fmt.Sprintf("%s/%s", etcd.Namespace, etcd.Name),
-		common.GardenerOwnerType: "etcd",
+		ownedByAnnotationKey:   fmt.Sprintf("%s/%s", etcd.Namespace, etcd.Name),
+		ownerTypeAnnotationKey: "etcd",
 	}
 
 	return Values{

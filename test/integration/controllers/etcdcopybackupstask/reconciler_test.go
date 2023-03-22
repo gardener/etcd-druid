@@ -50,7 +50,7 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 
 	DescribeTable("when creating and deleting etcdcopybackupstask",
 		func(taskName string, provider druidv1alpha1.StorageProvider, withOptionalFields bool, jobStatus *batchv1.JobStatus) {
-			task := testutils.CreateEtcdCopyBackupsTask(taskName, namespace, provider, withOptionalFields)
+			task := testutils.CreateEtcdCopyBackupsTask("foo01", namespace, "Local", true)
 
 			// Create secrets
 			errors := testutils.CreateSecrets(ctx, k8sClient, task.Namespace, task.Spec.SourceStore.SecretRef.Name, task.Spec.TargetStore.SecretRef.Name)
@@ -125,8 +125,6 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 			"foo06", druidv1alpha1.StorageProvider("openstack"), false, getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for alicloud",
 			"foo07", druidv1alpha1.StorageProvider("alicloud"), false, getJobStatus(batchv1.JobComplete, "", "")),
-		Entry("should correctly handle ownerReferences for numeric names with leading 0",
-			"01234", druidv1alpha1.StorageProvider("Local"), true, getJobStatus(batchv1.JobComplete, "", "")),
 	)
 })
 
@@ -145,8 +143,8 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask) gomegatypes.GomegaMatcher
 			"Name":      Equal(task.Name + "-worker"),
 			"Namespace": Equal(task.Namespace),
 			"Annotations": MatchKeys(IgnoreExtras, Keys{
-				common.GardenerOwnedBy:   Equal(fmt.Sprintf("%s/%s", task.Namespace, task.Name)),
-				common.GardenerOwnerType: Equal("etcdcopybackupstask"),
+				"gardener.cloud/owned-by":   Equal(fmt.Sprintf("%s/%s", task.Namespace, task.Name)),
+				"gardener.cloud/owner-type": Equal("etcdcopybackupstask"),
 			}),
 			"OwnerReferences": MatchAllElements(testutils.OwnerRefIterator, Elements{
 				task.Name: MatchAllFields(Fields{

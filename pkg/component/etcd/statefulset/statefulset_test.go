@@ -422,12 +422,12 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 			"Name":      Equal(values.Name),
 			"Namespace": Equal(values.Namespace),
 			"Annotations": MatchAllKeys(Keys{
-				"checksum/etcd-configmap": Equal("abc123"),
-				common.GardenerOwnedBy:    Equal(fmt.Sprintf("%s/%s", values.Namespace, values.Name)),
-				common.GardenerOwnerType:  Equal("etcd"),
-				"app":                     Equal("etcd-statefulset"),
-				"role":                    Equal("test"),
-				"instance":                Equal(values.Name),
+				"checksum/etcd-configmap":   Equal("abc123"),
+				"gardener.cloud/owned-by":   Equal(fmt.Sprintf("%s/%s", values.Namespace, values.Name)),
+				"gardener.cloud/owner-type": Equal("etcd"),
+				"app":                       Equal("etcd-statefulset"),
+				"role":                      Equal("test"),
+				"instance":                  Equal(values.Name),
 			}),
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
