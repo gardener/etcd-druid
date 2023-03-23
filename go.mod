@@ -46,7 +46,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/gardener/hvpa-controller v0.3.1 // indirect
+	github.com/gardener/hvpa-controller/api v0.5.0 // indirect
 	github.com/gardener/machine-controller-manager v0.45.0 // indirect
 	github.com/go-logr/zapr v1.2.3 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
