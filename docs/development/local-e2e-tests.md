@@ -119,3 +119,28 @@ make \
   STEPS="setup,deploy,test,undeploy,cleanup" \
 test-e2e
 ```
+
+## e2e test with localstack
+
+Above mentioned e2e tests need actual storage from cloud provider to be setup. But there is a tool named localstack that enables to run e2e test with mock AWS storage. We can also provision KIND cluster for e2e tests. So, together with localstack and KIND cluster, we don't need to depend on any actual cloud provider infrastructure to be setup to run e2e tests.
+
+### How are the KIND cluster and localstack set up
+
+KIND or Kubernetes-In-Docker is a kubernetes cluster that is set up inside a docker container. This cluster is with limited capability as it does not have much compute power. But this cluster can easily be setup inside a container and can be tear down easily just by removing a container. That's why KIND cluster is very easy to use for e2e tests. `Makefile` command helps to spin up a KIND cluster and use the cluster to run e2e tests.
+
+There is a docker image for localstack. The image is deployed as pod inside the KIND cluster through `hack/e2e-test/infrastructure/localstack/localstack.yaml`. `Makefile` takes care of deploying the yaml file in a KIND cluster.
+
+The developer needs to run `make ci-e2e-kind` command. This command in turn runs `hack/ci-e2e-kind.sh` which spin up the KIND cluster and deploy localstack in it and then run the e2e tests using localstack as mock AWS storage provider. e2e tests are actually run on host machine but deploy the druid controller inside KIND cluster. Druid controller spawns multinode ETCD clusters inside KIND cluster. e2e tests verify whether the druid controller performs its jobs correctly or not. Mock localstack storage is cleaned up after every e2e tests. That's why the e2e tests need to access the localstack pod running inside KIND cluster. The network traffic between host machine and localstack pod is resolved via mapping localstack pod port to host port while setting up the KIND cluster via `hack/e2e-test/infrastructure/kind/cluster.yaml`
+
+### How to execute e2e tests with localstack and KIND cluster
+
+The developer just needs to install KIND following https://kind.sigs.k8s.io/docs/user/quick-start/ and start docker daemon. Additionaly, KIND cluster can be enabled via docker desktop.
+
+Check if KIND is working on your machine by running the following command:
+`kind create cluster --name kind-2`
+
+If successful, delete the cluster by:
+`kind delete cluster --name kind-2`
+
+Run the following `make` command to perform e2e tests that will automatically take care of spinning up KIND clsuter and deploying localstack pod:
+`make ci-e2e-kind`
