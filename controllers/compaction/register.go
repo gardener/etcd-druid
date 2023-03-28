@@ -19,6 +19,7 @@ import (
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -28,19 +29,18 @@ const controllerName = "compaction-controller"
 
 // RegisterWithManager registers the Compaction Controller with the given controller manager.
 func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
-	c, err := controller.New(controllerName, mgr, controller.Options{
-		Reconciler:              r,
-		MaxConcurrentReconciles: r.config.Workers,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	return c.Watch(
-		&source.Kind{Type: &coordinationv1.Lease{}},
-		&handler.EnqueueRequestForOwner{OwnerType: &druidv1alpha1.Etcd{}, IsController: true},
-		druidpredicates.LeaseHolderIdentityChange(),
-		druidpredicates.IsSnapshotLease(),
-	)
+	return ctrl.
+		NewControllerManagedBy(mgr).
+		Named(controllerName).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: r.config.Workers,
+		}).
+		Watches(
+			&source.Kind{Type: &coordinationv1.Lease{}},
+			&handler.EnqueueRequestForOwner{OwnerType: &druidv1alpha1.Etcd{}, IsController: true},
+			ctrlbuilder.WithPredicates(
+				druidpredicates.LeaseHolderIdentityChange(),
+				druidpredicates.IsSnapshotLease(),
+			)).
+		Complete(r)
 }

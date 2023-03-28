@@ -19,7 +19,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
+	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
@@ -30,10 +30,13 @@ const controllerName = "etcdcopybackupstask-controller"
 func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(controllerName).
-		For(&druidv1alpha1.EtcdCopyBackupsTask{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
-		Owns(&batchv1.Job{}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: r.Config.Workers,
 		}).
+		For(
+			&druidv1alpha1.EtcdCopyBackupsTask{},
+			ctrlbuilder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
+		Owns(&batchv1.Job{}).
 		Complete(r)
 }

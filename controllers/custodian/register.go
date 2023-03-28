@@ -34,15 +34,16 @@ const controllerName = "custodian-controller"
 
 // RegisterWithManager registers the Custodian Controller with the given controller manager.
 func (r *Reconciler) RegisterWithManager(ctx context.Context, mgr ctrl.Manager, ignoreOperationAnnotation bool) error {
-	builder := ctrl.NewControllerManagedBy(mgr).WithOptions(controller.Options{
-		MaxConcurrentReconciles: r.config.Workers,
-	})
-
-	c, err := builder.
+	c, err := ctrl.
+		NewControllerManagedBy(mgr).
 		Named(controllerName).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: r.config.Workers,
+		}).
 		For(
 			&druidv1alpha1.Etcd{},
-			ctrlbuilder.WithPredicates(druidpredicates.EtcdReconciliationFinished(ignoreOperationAnnotation))).
+			ctrlbuilder.WithPredicates(druidpredicates.EtcdReconciliationFinished(ignoreOperationAnnotation)),
+		).
 		Owns(&coordinationv1.Lease{}).
 		Build(r)
 	if err != nil {
