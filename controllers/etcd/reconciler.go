@@ -27,6 +27,7 @@ import (
 	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
 	componentpdb "github.com/gardener/etcd-druid/pkg/component/etcd/poddisruptionbudget"
 	componentservice "github.com/gardener/etcd-druid/pkg/component/etcd/service"
+	componentserviceaccount "github.com/gardener/etcd-druid/pkg/component/etcd/serviceaccount"
 	componentsts "github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
 	druidutils "github.com/gardener/etcd-druid/pkg/utils"
 
@@ -262,6 +263,14 @@ func (r *Reconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl
 		}, err
 	}
 
+	saValues := componentserviceaccount.GenerateValues(etcd, r.config.DisableEtcdServiceAccountAutomount)
+	saDeployer := componentserviceaccount.New(r.Client, saValues)
+	if err := saDeployer.Destroy(ctx); err != nil {
+		return ctrl.Result{
+			Requeue: true,
+		}, err
+	}
+
 	if sets.NewString(etcd.Finalizers...).Has(common.FinalizerName) {
 		logger.Info("Removing finalizer")
 		if err := controllerutils.RemoveFinalizers(ctx, r.Client, etcd, common.FinalizerName); client.IgnoreNotFound(err) != nil {
@@ -272,51 +281,6 @@ func (r *Reconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl
 	}
 	logger.Info("Deleted etcd successfully.")
 	return ctrl.Result{}, nil
-}
-
-func (r *Reconciler) reconcileServiceAccount(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) error {
-	logger.Info("Reconciling serviceaccount")
-	var err error
-
-	decoded, err := r.chart.decodeServiceAccount(etcd.Name, etcd.Namespace, values)
-	if err != nil {
-		return err
-	}
-
-	saObj := &corev1.ServiceAccount{}
-	key := client.ObjectKeyFromObject(decoded)
-	if err := r.Get(ctx, key, saObj); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
-		if err := r.Create(ctx, decoded); err != nil {
-			return err
-		}
-		logger.Info("Creating serviceaccount", "serviceaccount", kutil.Key(decoded.Namespace, decoded.Name).String())
-		return nil
-	}
-
-	var (
-		mustPatch bool
-		saObjCopy = saObj.DeepCopy()
-	)
-
-	if !reflect.DeepEqual(decoded.Labels, saObj.Labels) {
-		saObjCopy.Labels = decoded.Labels
-		mustPatch = true
-	}
-
-	if !reflect.DeepEqual(decoded.AutomountServiceAccountToken, saObj.AutomountServiceAccountToken) {
-		saObjCopy.AutomountServiceAccountToken = decoded.AutomountServiceAccountToken
-		mustPatch = true
-	}
-
-	if !mustPatch {
-		return nil
-	}
-
-	logger.Info("Update serviceaccount")
-	return r.Patch(ctx, saObjCopy, client.MergeFrom(saObj))
 }
 
 func (r *Reconciler) reconcileRole(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, values map[string]interface{}) error {
@@ -427,22 +391,24 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		return reconcileResult{err: err}
 	}
 
-	values, err := r.getMapFromEtcd(etcd, r.config.DisableEtcdServiceAccountAutomount)
+	saValues := componentserviceaccount.GenerateValues(etcd, r.config.DisableEtcdServiceAccountAutomount)
+	saDeployer := componentserviceaccount.New(r.Client, saValues)
+	err = saDeployer.Deploy(ctx)
 	if err != nil {
 		return reconcileResult{err: err}
 	}
 
-	err = r.reconcileServiceAccount(ctx, logger, etcd, values)
+	roleValues, err := r.getMapFromEtcd(etcd, r.config.DisableEtcdServiceAccountAutomount)
 	if err != nil {
 		return reconcileResult{err: err}
 	}
 
-	err = r.reconcileRole(ctx, logger, etcd, values)
+	err = r.reconcileRole(ctx, logger, etcd, roleValues)
 	if err != nil {
 		return reconcileResult{err: err}
 	}
 
-	err = r.reconcileRoleBinding(ctx, logger, etcd, values)
+	err = r.reconcileRoleBinding(ctx, logger, etcd, roleValues)
 	if err != nil {
 		return reconcileResult{err: err}
 	}
