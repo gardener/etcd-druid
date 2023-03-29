@@ -301,17 +301,8 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 		return nil, err
 	}
 
-	// Create the initial command for the copy-backups job.
-	command := []string{
-		"etcdbrctl",
-		"copy",
-		"--snapstore-temp-directory=/var/etcd/data/tmp",
-	}
-
 	// Formulate the job's command.
-	command = append(command, createJobCommandFromStore(&targetStore, targetProvider, "")...)
-	command = append(command, createJobCommandFromStore(&sourceStore, sourceProvider, sourcePrefix)...)
-	command = append(command, createJobCommandFromTask(task)...)
+	command := createJobCommand(task, sourceProvider, targetProvider)
 
 	// Formulate the job environment variables.
 	env := append(createEnvVarsFromStore(&sourceStore, sourceProvider, "SOURCE_", sourcePrefix), createEnvVarsFromStore(&targetStore, targetProvider, "", "")...)
@@ -373,6 +364,34 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 		return nil, fmt.Errorf("could not set owner reference for job %v: %w", kutil.ObjectName(job), err)
 	}
 	return job, nil
+}
+
+func createJobCommand(task *druidv1alpha1.EtcdCopyBackupsTask, sourceObjStoreProvider string, targetObjStoreProvider string) []string {
+	// Create the initial command for the copy-backups job.
+	command := []string{
+		"etcdbrctl",
+		"copy",
+		"--snapstore-temp-directory=/var/etcd/data/tmp",
+	}
+
+	// Formulate the job's command.
+	command = append(command, createJobCommandFromStore(&task.Spec.TargetStore, targetObjStoreProvider, "")...)
+	command = append(command, createJobCommandFromStore(&task.Spec.SourceStore, sourceObjStoreProvider, sourcePrefix)...)
+	if task.Spec.MaxBackupAge != nil {
+		command = append(command, "--max-backup-age="+strconv.Itoa(int(*task.Spec.MaxBackupAge)))
+	}
+
+	if task.Spec.MaxBackups != nil {
+		command = append(command, "--max-backups-to-copy="+strconv.Itoa(int(*task.Spec.MaxBackups)))
+	}
+
+	if task.Spec.WaitForFinalSnapshot != nil {
+		command = append(command, "--wait-for-final-snapshot="+strconv.FormatBool(task.Spec.WaitForFinalSnapshot.Enabled))
+		if task.Spec.WaitForFinalSnapshot.Timeout != nil {
+			command = append(command, "--wait-for-final-snapshot-timeout="+task.Spec.WaitForFinalSnapshot.Timeout.Duration.String())
+		}
+	}
+	return command
 }
 
 // getVolumeNamePrefix returns the appropriate volume name prefix based on the provided prefix.
@@ -457,21 +476,21 @@ func mapToEnvVar(name, value string) corev1.EnvVar {
 // storeProvider, prefix, and volumePrefix. The prefix is used to differentiate between source and target environment variables.
 // This function creates the necessary environment variables for various storage providers and configurations. The generated
 // environment variables include storage container information and provider-specific credentials.
-func createEnvVarsFromStore(store *druidv1alpha1.StoreSpec, storeProvider, prefix, volumePrefix string) (envVars []corev1.EnvVar) {
-	envVars = append(envVars, mapToEnvVar(prefix+common.STORAGE_CONTAINER, *store.Container))
+func createEnvVarsFromStore(store *druidv1alpha1.StoreSpec, storeProvider, envKeyPrefix, volumePrefix string) (envVars []corev1.EnvVar) {
+	envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.STORAGE_CONTAINER, *store.Container))
 	switch storeProvider {
 	case druidutils.S3:
-		envVars = append(envVars, mapToEnvVar(prefix+common.AWS_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
+		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.AWS_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
 	case druidutils.ABS:
-		envVars = append(envVars, mapToEnvVar(prefix+common.AZURE_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
+		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.AZURE_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
 	case druidutils.GCS:
-		envVars = append(envVars, mapToEnvVar(prefix+common.GOOGLE_APPLICATION_CREDENTIALS, "/root/."+volumePrefix+"gcp/serviceaccount.json"))
+		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.GOOGLE_APPLICATION_CREDENTIALS, "/root/."+volumePrefix+"gcp/serviceaccount.json"))
 	case druidutils.Swift:
-		envVars = append(envVars, mapToEnvVar(prefix+common.OPENSTACK_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
+		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.OPENSTACK_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
 	case druidutils.OCS:
-		envVars = append(envVars, mapToEnvVar(prefix+common.OPENSHIFT_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
+		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.OPENSHIFT_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
 	case druidutils.OSS:
-		envVars = append(envVars, mapToEnvVar(prefix+common.ALICLOUD_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
+		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.ALICLOUD_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
 	}
 	return envVars
 }
@@ -496,26 +515,6 @@ func createJobCommandFromStore(store *druidv1alpha1.StoreSpec, provider, prefix 
 
 	if store.Container != nil && len(*store.Container) > 0 {
 		command = append(command, commandPrefix+"store-container="+*store.Container)
-	}
-	return
-}
-
-// createJobCommandFromTask generates a slice of command-line arguments for a EtcdCopyBackups job based on the provided EtcdCopyBackupsTask configuration.
-// It uses the task's specification to create appropriate flags for the command.
-func createJobCommandFromTask(task *druidv1alpha1.EtcdCopyBackupsTask) (command []string) {
-	if task.Spec.MaxBackupAge != nil {
-		command = append(command, "--max-backup-age="+strconv.Itoa(int(*task.Spec.MaxBackupAge)))
-	}
-
-	if task.Spec.MaxBackups != nil {
-		command = append(command, "--max-backups-to-copy="+strconv.Itoa(int(*task.Spec.MaxBackups)))
-	}
-
-	if task.Spec.WaitForFinalSnapshot != nil {
-		command = append(command, "--wait-for-final-snapshot="+strconv.FormatBool(task.Spec.WaitForFinalSnapshot.Enabled))
-		if task.Spec.WaitForFinalSnapshot.Timeout != nil {
-			command = append(command, "--wait-for-final-snapshot-timeout="+task.Spec.WaitForFinalSnapshot.Timeout.Duration.String())
-		}
 	}
 	return
 }

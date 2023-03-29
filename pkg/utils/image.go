@@ -26,11 +26,11 @@ import (
 // it be picked up from the image vector if it's set there.
 // A return value of nil for either of the images indicates that the image is not set.
 func GetEtcdImages(etcd *druidv1alpha1.Etcd, iv imagevector.ImageVector) (*string, *string, error) {
-	etcdImage, err := getEtcdImage(etcd.Spec.Etcd.Image, iv)
+	etcdImage, err := chooseImage(common.Etcd, etcd.Spec.Etcd.Image, iv)
 	if err != nil {
 		return nil, nil, err
 	}
-	etcdBackupRestoreImage, err := getEtcdBackupRestoreImage(etcd.Spec.Backup.Image, iv)
+	etcdBackupRestoreImage, err := chooseImage(common.BackupRestore, etcd.Spec.Backup.Image, iv)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -49,16 +49,6 @@ func chooseImage(key string, specImage *string, iv imagevector.ImageVector) (*st
 		return nil, err
 	}
 	return pointer.String(ivImage[key].String()), nil
-}
-
-// getEtcdImage returns the image for etcd from the given image vector.
-func getEtcdImage(image *string, iv imagevector.ImageVector) (*string, error) {
-	return chooseImage(common.Etcd, image, iv)
-}
-
-// getEtcdBackupRestoreImage returns the image for backup-restore from the given image vector.
-func getEtcdBackupRestoreImage(image *string, iv imagevector.ImageVector) (*string, error) {
-	return chooseImage(common.BackupRestore, image, iv)
 }
 
 // GetEtcdBackupRestoreImage returns the image for backup-restore from the given image vector.
