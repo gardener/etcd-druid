@@ -50,7 +50,7 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 
 	DescribeTable("when creating and deleting etcdcopybackupstask",
 		func(taskName string, provider druidv1alpha1.StorageProvider, withOptionalFields bool, jobStatus *batchv1.JobStatus) {
-			task := testutils.CreateEtcdCopyBackupsTask(taskName, namespace, provider, true)
+			task := testutils.CreateEtcdCopyBackupsTask(taskName, namespace, provider, withOptionalFields)
 
 			// Create secrets
 			errors := testutils.CreateSecrets(ctx, k8sClient, task.Namespace, task.Spec.SourceStore.SecretRef.Name, task.Spec.TargetStore.SecretRef.Name)
@@ -74,7 +74,7 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 					return nil, err
 				}
 				return job, nil
-			}, timeout, pollingInterval).Should(PointTo(MatchJob(task, imageVector)))
+			}, timeout, pollingInterval).Should(PointTo(matchJob(task, imageVector)))
 
 			// Update job status
 			job.Status = *jobStatus
@@ -131,7 +131,7 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 	)
 })
 
-func MatchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.ImageVector) gomegatypes.GomegaMatcher {
+func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.ImageVector) gomegatypes.GomegaMatcher {
 	sourceProvider, err := utils.StorageProviderFromInfraProvider(task.Spec.SourceStore.Provider)
 	Expect(err).NotTo(HaveOccurred())
 	targetProvider, err := utils.StorageProviderFromInfraProvider(task.Spec.TargetStore.Provider)

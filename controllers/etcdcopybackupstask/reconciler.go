@@ -311,13 +311,13 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 	volumeMounts := append(createVolumeMountsFromStore(&sourceStore, sourceProvider, sourcePrefix), createVolumeMountsFromStore(&targetStore, targetProvider, targetPrefix)...)
 
 	// Formulate the job's volumes from the source store.
-	sourceVolumes, err := r.createVolumesFromstore(ctx, &sourceStore, task.Namespace, sourceProvider, sourcePrefix)
+	sourceVolumes, err := r.createVolumesFromStore(ctx, &sourceStore, task.Namespace, sourceProvider, sourcePrefix)
 	if err != nil {
 		return nil, err
 	}
 
 	// Formulate the job's volumes from the target store.
-	targetVolumes, err := r.createVolumesFromstore(ctx, &targetStore, task.Namespace, targetProvider, targetPrefix)
+	targetVolumes, err := r.createVolumesFromStore(ctx, &targetStore, task.Namespace, targetProvider, targetPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -403,7 +403,7 @@ func getVolumeNamePrefix(prefix string) string {
 	return ""
 }
 
-// createVolumesFromstore generates a slice of VolumeMounts for an EtcdCopyBackups job based on the given StoreSpec and
+// createVolumesFromStore generates a slice of VolumeMounts for an EtcdCopyBackups job based on the given StoreSpec and
 // provider. The prefix is used to differentiate between source and target volume.
 // This function creates the necessary Volume configurations for various storage providers.
 func (r *Reconciler) createVolumesFromStore(ctx context.Context, store *druidv1alpha1.StoreSpec, namespace, provider, prefix string) (volumes []corev1.Volume, err error) {
@@ -441,7 +441,7 @@ func (r *Reconciler) createVolumesFromStore(ctx context.Context, store *druidv1a
 	return
 }
 
-// createVolumesFromstore generates a slice of volumes for an EtcdCopyBackups job based on the given StoreSpec, namespace,
+// createVolumesFromStore generates a slice of volumes for an EtcdCopyBackups job based on the given StoreSpec, namespace,
 // provider, and prefix. The prefix is used to differentiate between source and target volumes.
 // This function creates the necessary Volume configurations for various storage providers and returns any errors encountered.
 func createVolumeMountsFromStore(store *druidv1alpha1.StoreSpec, provider, volumeMountPrefix string) (volumeMounts []corev1.VolumeMount) {
@@ -501,13 +501,11 @@ func createEnvVarsFromStore(store *druidv1alpha1.StoreSpec, storeProvider, envKe
 // various storage providers and configurations. The generated arguments include storage provider,
 // store prefix, and store container information.
 func createJobCommandFromStore(store *druidv1alpha1.StoreSpec, provider, prefix string) (command []string) {
-	if store == nil {
+	if store == nil || len(provider) == 0 {
 		return
 	}
 	commandPrefix := "--" + prefix
-	if len(provider) > 0 {
-		command = append(command, commandPrefix+"storage-provider="+provider)
-	}
+	command = append(command, commandPrefix+"storage-provider="+provider)
 
 	if len(store.Prefix) > 0 {
 		command = append(command, commandPrefix+"store-prefix="+store.Prefix)

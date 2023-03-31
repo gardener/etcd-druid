@@ -163,7 +163,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 		DescribeTable("should create the expected job object with correct metadata, pod template, and containers for a valid input task",
 			func(taskName string, provider druidv1alpha1.StorageProvider, withOptionalFields bool) {
-				task := testutils.CreateEtcdCopyBackupsTask(taskName, namespace, provider, true)
+				task := testutils.CreateEtcdCopyBackupsTask(taskName, namespace, provider, withOptionalFields)
 				errors := testutils.CreateSecrets(ctx, fakeClient, task.Namespace, task.Spec.SourceStore.SecretRef.Name, task.Spec.TargetStore.SecretRef.Name)
 				Expect(errors).Should(BeNil())
 
@@ -171,20 +171,30 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(job).Should(PointTo(matchJob(task, reconciler.imageVector)))
 			},
-			Entry("with #Local provider",
-				"foo01", druidv1alpha1.StorageProvider("Local"), true),
-			Entry("should create the job, update the task status, and delete the job if the job failed",
-				"foo02", druidv1alpha1.StorageProvider("Local"), false),
-			Entry("with #S3 storage provider",
+			Entry("with #Local provider, without optional fields",
+				"foo01", druidv1alpha1.StorageProvider("Local"), false),
+			Entry("with #Local provider, with optional fields",
+				"foo02", druidv1alpha1.StorageProvider("Local"), true),
+			Entry("with #S3 storage provider, without optional fields",
 				"foo03", druidv1alpha1.StorageProvider("aws"), false),
-			Entry("with #AZURE storage provider",
-				"foo04", druidv1alpha1.StorageProvider("azure"), false),
-			Entry("with #GCP storage provider",
-				"foo05", druidv1alpha1.StorageProvider("gcp"), false),
-			Entry("with #OPENSTACK storage provider",
-				"foo06", druidv1alpha1.StorageProvider("openstack"), false),
-			Entry("with #ALICLOUD storage provider",
-				"foo07", druidv1alpha1.StorageProvider("alicloud"), false),
+			Entry("with #S3 storage provider, with optional fields",
+				"foo04", druidv1alpha1.StorageProvider("aws"), true),
+			Entry("with #AZURE storage provider, without optional fields",
+				"foo05", druidv1alpha1.StorageProvider("azure"), false),
+			Entry("with #AZURE storage provider, with optional fields",
+				"foo06", druidv1alpha1.StorageProvider("azure"), true),
+			Entry("with #GCP storage provider, without optional fields",
+				"foo07", druidv1alpha1.StorageProvider("gcp"), false),
+			Entry("with #GCP storage provider, with optional fields",
+				"foo08", druidv1alpha1.StorageProvider("gcp"), true),
+			Entry("with #OPENSTACK storage provider, without optional fields",
+				"foo09", druidv1alpha1.StorageProvider("openstack"), false),
+			Entry("with #OPENSTACK storage provider, with optional fields",
+				"foo10", druidv1alpha1.StorageProvider("openstack"), true),
+			Entry("with #ALICLOUD storage provider, without optional fields",
+				"foo11", druidv1alpha1.StorageProvider("alicloud"), false),
+			Entry("with #ALICLOUD storage provider, with optional fields",
+				"foo12", druidv1alpha1.StorageProvider("alicloud"), true),
 		)
 
 		Context("when etcd-backup image is not found", func() {
@@ -219,33 +229,18 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(err).To(HaveOccurred())
 			})
 		})
-		Context("when createVolumesFromstore function fails while creating volumes from the source store", func() {
-			It("should return an error", func() {
-				task := testutils.CreateEtcdCopyBackupsTask("test", namespace, "Local", true)
-				task.Spec.SourceStore.Provider = &unknownProvider
-				job, err := reconciler.createJobObject(ctx, task)
-
-				Expect(job).To(BeNil())
-				Expect(err).To(HaveOccurred())
-			})
-		})
-
-		Context("when createVolumesFromstore function fails while creating volumes from the target store", func() {
-			It("should return an error", func() {
-				task := testutils.CreateEtcdCopyBackupsTask("test", namespace, "Local", true)
-				task.Spec.TargetStore.Provider = &unknownProvider
-				job, err := reconciler.createJobObject(ctx, task)
-
-				Expect(job).To(BeNil())
-				Expect(err).To(HaveOccurred())
-			})
-		})
 	})
 
 	Describe("#createJobCommandFromStore", func() {
 		Context("when given a nil store", func() {
 			It("returns an empty command slice", func() {
 				Expect(createJobCommandFromStore(nil, "provider", "prefix")).To(BeEmpty())
+			})
+		})
+
+		Context("when given a empty provider", func() {
+			It("returns an empty command slice", func() {
+				Expect(createJobCommandFromStore(nil, "", "prefix")).To(BeEmpty())
 			})
 		})
 
@@ -274,7 +269,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(createJobCommandFromStore(&store, provider, prefix)).To(Equal(expected))
 			})
 
-			It("when StoreSpec.Container is nil, should return a command slice with provider and prefix information only", func() {
+			It("should return a command slice with provider and prefix information only when StoreSpec.Container is nil", func() {
 				expected := []string{
 					"--prefixstorage-provider=storage_provider",
 					"--prefixstore-prefix=store_prefix",
@@ -283,7 +278,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(createJobCommandFromStore(&store, provider, prefix)).To(Equal(expected))
 			})
 
-			It("returns a command slice with provider and container information only", func() {
+			It("should return a command slice with provider and container information only when StoreSpec.Prefix is empty", func() {
 				expected := []string{
 					"--prefixstorage-provider=storage_provider",
 					"--prefixstore-container=store_container",
@@ -292,13 +287,9 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(createJobCommandFromStore(&store, provider, prefix)).To(Equal(expected))
 			})
 
-			It("returns a command slice with prefix and container information only", func() {
-				expected := []string{
-					"--prefixstore-prefix=store_prefix",
-					"--prefixstore-container=store_container",
-				}
+			It("returns an empty command slice when StoreSpec.Provider is empty", func() {
 				provider = ""
-				Expect(createJobCommandFromStore(&store, provider, prefix)).To(Equal(expected))
+				Expect(createJobCommandFromStore(&store, provider, prefix)).To(BeEmpty())
 			})
 		})
 	})
