@@ -406,7 +406,7 @@ func getVolumeNamePrefix(prefix string) string {
 // createVolumesFromstore generates a slice of VolumeMounts for an EtcdCopyBackups job based on the given StoreSpec and
 // provider. The prefix is used to differentiate between source and target volume.
 // This function creates the necessary Volume configurations for various storage providers.
-func (r *Reconciler) createVolumesFromstore(ctx context.Context, store *druidv1alpha1.StoreSpec, namespace, provider, prefix string) (volumes []corev1.Volume, err error) {
+func (r *Reconciler) createVolumesFromStore(ctx context.Context, store *druidv1alpha1.StoreSpec, namespace, provider, prefix string) (volumes []corev1.Volume, err error) {
 	switch provider {
 	case druidutils.Local:
 		hostPathDirectory := corev1.HostPathDirectory

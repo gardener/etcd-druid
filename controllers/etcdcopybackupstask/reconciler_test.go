@@ -274,7 +274,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(createJobCommandFromStore(&store, provider, prefix)).To(Equal(expected))
 			})
 
-			It("returns a command slice with provider and prefix information only", func() {
+			It("when StoreSpec.Container is nil, should return a command slice with provider and prefix information only", func() {
 				expected := []string{
 					"--prefixstorage-provider=storage_provider",
 					"--prefixstore-prefix=store_prefix",
@@ -496,7 +496,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 		})
 	})
 
-	Describe("#createVolumesFromstore", func() {
+	Describe("#createVolumesFromStore", func() {
 		Context("with provider #Local", func() {
 			var (
 				fakeClient    = fakeclient.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
@@ -536,7 +536,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(fakeClient.Create(ctx, secret)).To(Succeed())
 
 				store.SecretRef = &corev1.SecretReference{Name: secret.Name}
-				volumes, err := reconciler.createVolumesFromstore(ctx, store, namespace, string(providerLocal), "source-")
+				volumes, err := reconciler.createVolumesFromStore(ctx, store, namespace, string(providerLocal), "source-")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(volumes).To(HaveLen(1))
 				Expect(volumes[0].Name).To(Equal("source-host-storage"))
@@ -551,7 +551,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(fakeClient.Create(ctx, secret)).To(Succeed())
 
 				store.SecretRef = &corev1.SecretReference{Name: secret.Name}
-				volumes, err := reconciler.createVolumesFromstore(ctx, store, namespace, string(providerLocal), "source-")
+				volumes, err := reconciler.createVolumesFromStore(ctx, store, namespace, string(providerLocal), "source-")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(volumes).To(HaveLen(1))
 				Expect(volumes[0].Name).To(Equal("source-host-storage"))
@@ -566,7 +566,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(fakeClient.Create(ctx, secret)).To(Succeed())
 
 				store.SecretRef = &corev1.SecretReference{Name: secret.Name}
-				volumes, err := reconciler.createVolumesFromstore(ctx, store, namespace, string(providerLocal), "source-")
+				volumes, err := reconciler.createVolumesFromStore(ctx, store, namespace, string(providerLocal), "source-")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(volumes).To(HaveLen(1))
 				Expect(volumes[0].Name).To(Equal("source-host-storage"))
@@ -627,7 +627,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 					It("should create the correct volumes", func() {
 						// Call the function being tested with a valid secret reference
 						store.SecretRef = &corev1.SecretReference{Name: secret.Name}
-						volumes, err := reconciler.createVolumesFromstore(ctx, store, namespace, string(storageProvider), "source-")
+						volumes, err := reconciler.createVolumesFromStore(ctx, store, namespace, string(storageProvider), "source-")
 						Expect(err).NotTo(HaveOccurred())
 						Expect(volumes).To(HaveLen(1))
 						Expect(volumes[0].Name).To(Equal("source-etcd-backup"))
@@ -643,7 +643,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 					It("should return an error when secret reference is invalid", func() {
 						// Call the function being tested with an invalid secret reference
-						volumes, err := reconciler.createVolumesFromstore(ctx, store, namespace, string(storageProvider), "source-")
+						volumes, err := reconciler.createVolumesFromStore(ctx, store, namespace, string(storageProvider), "source-")
 
 						// Assert that an error is returned and no volumes are created
 						Expect(err.Error()).To(Equal("no secretRef is configured for backup source-store"))
