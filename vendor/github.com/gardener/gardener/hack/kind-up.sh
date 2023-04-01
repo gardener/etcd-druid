@@ -1,4 +1,18 @@
 #!/usr/bin/env bash
+# Copyright 2023 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 set -o errexit
 set -o nounset
@@ -110,3 +124,24 @@ kubectl apply -k "$(dirname "$0")/../example/gardener-local/metrics-server"   --
 kubectl get nodes -l node-role.kubernetes.io/control-plane -o name |\
   cut -d/ -f2 |\
   xargs -I {} kubectl taint node {} node-role.kubernetes.io/master:NoSchedule- node-role.kubernetes.io/control-plane:NoSchedule- || true
+
+# Allow multiple shoot worker nodes with calico as shoot CNI: As we run overlay in overlay ip-in-ip needs to be allowed in the workload.
+# Unfortunately, the felix configuration is created on the fly by calico. Hence, we need to poll until kubectl wait for new resources
+# (https://github.com/kubernetes/kubernetes/issues/83242) is fixed. (2 minutes should be enough for the felix configuration to be created.)
+echo "Waiting for FelixConfiguration to be created..."
+felix_config_found=0
+max_retries=120
+for ((i = 0; i < max_retries; i++)); do
+  if kubectl get felixconfiguration default > /dev/null 2>&1; then
+    if kubectl patch felixconfiguration default --type merge --patch '{"spec":{"allowIPIPPacketsFromWorkloads":true}}' > /dev/null 2>&1; then
+      echo "FelixConfiguration 'default' successfully updated."
+      felix_config_found=1
+      break
+    fi
+  fi
+  sleep 1s
+done
+if [ $felix_config_found -eq 0 ]; then
+  echo "Error: FelixConfiguration 'default' not found or patch failed after $max_retries attempts."
+  exit 1
+fi

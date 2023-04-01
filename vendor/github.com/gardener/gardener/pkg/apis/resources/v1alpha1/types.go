@@ -1,4 +1,4 @@
-// Copyright (c) 2019 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2019 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -145,6 +145,12 @@ const (
 	// PodTopologySpreadConstraintsSkip is a constant for a label on a Pod which indicates that this Pod should not be considered for
 	// adding the pod-template-hash selector to the topology spread constraint.
 	PodTopologySpreadConstraintsSkip = "topology-spread-constraints.resources.gardener.cloud/skip"
+
+	// EndpointSliceHintsConsider is a constant for a label on an Service which indicates that the EndpointSlices of the
+	// Service should be considered by the EndpointSlice hints webhook. This label is added to the Service object, Kubernetes
+	// maintains the Service label as EndpointSlice label. Finally, the EndpointSlice hints webhook mutates EndpointSlice resources
+	// containing this label.
+	EndpointSliceHintsConsider = "endpoint-slice-hints.resources.gardener.cloud/consider"
 
 	// NetworkingNamespaceSelectors is a constant for an annotation on a Service which contains a list of namespace
 	// selectors. By default, NetworkPolicy resources are only created in the Service's namespace. If any selector is

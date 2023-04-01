@@ -1,4 +1,4 @@
-// Copyright (c) 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,6 +71,10 @@ func SetDefaults_Seed(obj *Seed) {
 	if obj.Spec.Settings.DependencyWatchdog == nil {
 		obj.Spec.Settings.DependencyWatchdog = &SeedSettingDependencyWatchdog{}
 	}
+
+	if obj.Spec.Settings.TopologyAwareRouting == nil {
+		obj.Spec.Settings.TopologyAwareRouting = &SeedSettingTopologyAwareRouting{Enabled: false}
+	}
 }
 
 // SetDefaults_SeedNetworks sets default values for SeedNetworks objects.
@@ -82,12 +86,6 @@ func SetDefaults_SeedNetworks(obj *SeedNetworks) {
 
 // SetDefaults_SeedSettingDependencyWatchdog sets defaults for SeedSettingDependencyWatchdog objects.
 func SetDefaults_SeedSettingDependencyWatchdog(obj *SeedSettingDependencyWatchdog) {
-	if obj.Endpoint == nil {
-		obj.Endpoint = &SeedSettingDependencyWatchdogEndpoint{Enabled: true}
-	}
-	if obj.Probe == nil {
-		obj.Probe = &SeedSettingDependencyWatchdogProbe{Enabled: true}
-	}
 }
 
 // SetDefaults_Shoot sets default values for Shoot objects.
@@ -99,9 +97,6 @@ func SetDefaults_Shoot(obj *Shoot) {
 	}
 	if obj.Spec.Kubernetes.KubeAPIServer == nil {
 		obj.Spec.Kubernetes.KubeAPIServer = &KubeAPIServerConfig{}
-	}
-	if obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication == nil {
-		obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication = pointer.Bool(false)
 	}
 	if obj.Spec.Kubernetes.KubeAPIServer.Requests == nil {
 		obj.Spec.Kubernetes.KubeAPIServer.Requests = &KubeAPIServerRequests{}
@@ -176,12 +171,7 @@ func SetDefaults_Shoot(obj *Shoot) {
 		obj.Spec.Addons.KubernetesDashboard = &KubernetesDashboard{}
 	}
 	if obj.Spec.Addons.KubernetesDashboard.AuthenticationMode == nil {
-		var defaultAuthMode string
-		if *obj.Spec.Kubernetes.KubeAPIServer.EnableBasicAuthentication {
-			defaultAuthMode = KubernetesDashboardAuthModeBasic
-		} else {
-			defaultAuthMode = KubernetesDashboardAuthModeToken
-		}
+		defaultAuthMode := KubernetesDashboardAuthModeToken
 		obj.Spec.Addons.KubernetesDashboard.AuthenticationMode = &defaultAuthMode
 	}
 

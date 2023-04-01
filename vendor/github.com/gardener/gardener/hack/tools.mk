@@ -37,6 +37,7 @@ GOIMPORTS                  := $(TOOLS_BIN_DIR)/goimports
 GOIMPORTSREVISER           := $(TOOLS_BIN_DIR)/goimports-reviser
 GOLANGCI_LINT              := $(TOOLS_BIN_DIR)/golangci-lint
 GOMEGACHECK                := $(TOOLS_BIN_DIR)/gomegacheck.so # plugin binary
+GO_ADD_LICENSE             := $(TOOLS_BIN_DIR)/addlicense
 GO_APIDIFF                 := $(TOOLS_BIN_DIR)/go-apidiff
 GO_VULN_CHECK              := $(TOOLS_BIN_DIR)/govulncheck
 GO_TO_PROTOBUF             := $(TOOLS_BIN_DIR)/go-to-protobuf
@@ -59,14 +60,14 @@ YQ                         := $(TOOLS_BIN_DIR)/yq
 DOCFORGE_VERSION ?= v0.33.0
 GOLANGCI_LINT_VERSION ?= v1.51.2
 GO_APIDIFF_VERSION ?= v0.5.0
-# TODO(vpnachev): Update goimports-reviser to v3.4.0 when there is a release including https://github.com/incu6us/goimports-reviser/pull/95.
-GOIMPORTSREVISER_VERSION ?= 32c80678d5d73a50b6966f06b346de58b1d018f1
+GO_ADD_LICENSE_VERSION ?= v1.1.1
+GOIMPORTSREVISER_VERSION ?= v3.3.1
 GO_VULN_CHECK_VERSION ?= latest
-HELM_VERSION ?= v3.6.3
+HELM_VERSION ?= v3.11.2
 KIND_VERSION ?= v0.14.0
-KUBECTL_VERSION ?= v1.24.3
-SKAFFOLD_VERSION ?= v1.39.1
-YQ_VERSION ?= v4.30.4
+KUBECTL_VERSION ?= v1.24.11
+SKAFFOLD_VERSION ?= v2.2.0
+YQ_VERSION ?= v4.31.2
 
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
@@ -130,6 +131,9 @@ else
 $(GOMEGACHECK): go.mod
 	CGO_ENABLED=1 go build -o $(GOMEGACHECK) -buildmode=plugin github.com/gardener/gardener/hack/tools/gomegacheck/plugin
 endif
+
+$(GO_ADD_LICENSE):
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/google/addlicense@$(GO_ADD_LICENSE_VERSION)
 
 $(GO_APIDIFF): $(call tool_version_file,$(GO_APIDIFF),$(GO_APIDIFF_VERSION))
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/joelanford/go-apidiff@$(GO_APIDIFF_VERSION)
