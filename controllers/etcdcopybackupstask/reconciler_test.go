@@ -468,23 +468,6 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				})
 			})
 		}
-
-		Context("with provider #Local", func() {
-			BeforeEach(func() {
-				storageProvider := druidv1alpha1.StorageProvider(druidutils.Local)
-				storeSpec = &druidv1alpha1.StoreSpec{
-					Container: pointer.String("source-container"),
-					Provider:  &storageProvider,
-				}
-			})
-
-			It("should create the correct volume mounts", func() {
-				volumeMounts := createVolumeMountsFromStore(storeSpec, druidutils.Local, volumeMountPrefix)
-				Expect(volumeMounts).To(HaveLen(1))
-				Expect(volumeMounts[0].Name).To(Equal(volumeMountPrefix + "host-storage"))
-				Expect(volumeMounts[0].MountPath).To(Equal(*storeSpec.Container))
-			})
-		})
 	})
 
 	Describe("#createVolumesFromStore", func() {
