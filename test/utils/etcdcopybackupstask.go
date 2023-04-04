@@ -40,6 +40,10 @@ func CreateEtcdCopyBackupsTask(name, namespace string, provider druidv1alpha1.St
 		}
 	}
 	return &druidv1alpha1.EtcdCopyBackupsTask{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "druid.gardener.cloud/v1alpha1",
+			Kind:       "EtcdCopyBackupsTask",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,

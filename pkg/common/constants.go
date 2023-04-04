@@ -15,11 +15,11 @@
 package common
 
 const (
-	// Etcd is the key for the etcd image in image vector
+	// Etcd is the key for the etcd image in the image vector.
 	Etcd = "etcd"
-	// BackupRestore is the key for the etcd-backup-restore image in image vector
+	// BackupRestore is the key for the etcd-backup-restore image in the image vector.
 	BackupRestore = "etcd-backup-restore"
-	// ChartPath is the directory that contains the default image vector file
+	// ChartPath is the directory containing the default image vector file.
 	ChartPath = "charts"
 	// GardenerOwnedBy is a constant for an annotation on a resource that describes the owner resource.
 	GardenerOwnedBy = "gardener.cloud/owned-by"
@@ -27,4 +27,18 @@ const (
 	GardenerOwnerType = "gardener.cloud/owner-type"
 	// FinalizerName is the name of the etcd finalizer.
 	FinalizerName = "druid.gardener.cloud/etcd-druid"
+	// STORAGE_CONTAINER is the environment variable key for the storage container.
+	STORAGE_CONTAINER = "STORAGE_CONTAINER"
+	// AWS_APPLICATION_CREDENTIALS is the environment variable key for AWS application credentials.
+	AWS_APPLICATION_CREDENTIALS = "AWS_APPLICATION_CREDENTIALS"
+	// AZURE_APPLICATION_CREDENTIALS is the environment variable key for Azure application credentials.
+	AZURE_APPLICATION_CREDENTIALS = "AZURE_APPLICATION_CREDENTIALS"
+	// GOOGLE_APPLICATION_CREDENTIALS is the environment variable key for Google application credentials.
+	GOOGLE_APPLICATION_CREDENTIALS = "GOOGLE_APPLICATION_CREDENTIALS"
+	// OPENSTACK_APPLICATION_CREDENTIALS is the environment variable key for OpenStack application credentials.
+	OPENSTACK_APPLICATION_CREDENTIALS = "OPENSTACK_APPLICATION_CREDENTIALS"
+	// OPENSHIFT_APPLICATION_CREDENTIALS is the environment variable key for OpenShift application credentials.
+	OPENSHIFT_APPLICATION_CREDENTIALS = "OPENSHIFT_APPLICATION_CREDENTIALS"
+	// ALICLOUD_APPLICATION_CREDENTIALS is the environment variable key for Alicloud application credentials.
+	ALICLOUD_APPLICATION_CREDENTIALS = "ALICLOUD_APPLICATION_CREDENTIALS"
 )

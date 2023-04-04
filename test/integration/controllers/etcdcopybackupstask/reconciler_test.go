@@ -50,7 +50,7 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 
 	DescribeTable("when creating and deleting etcdcopybackupstask",
 		func(taskName string, provider druidv1alpha1.StorageProvider, withOptionalFields bool, jobStatus *batchv1.JobStatus) {
-			task := testutils.CreateEtcdCopyBackupsTask("foo01", namespace, "Local", true)
+			task := testutils.CreateEtcdCopyBackupsTask(taskName, namespace, provider, withOptionalFields)
 
 			// Create secrets
 			errors := testutils.CreateSecrets(ctx, k8sClient, task.Namespace, task.Spec.SourceStore.SecretRef.Name, task.Spec.TargetStore.SecretRef.Name)
@@ -74,7 +74,7 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 					return nil, err
 				}
 				return job, nil
-			}, timeout, pollingInterval).Should(PointTo(matchJob(task)))
+			}, timeout, pollingInterval).Should(PointTo(matchJob(task, imageVector)))
 
 			// Update job status
 			job.Status = *jobStatus
@@ -125,10 +125,13 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 			"foo06", druidv1alpha1.StorageProvider("openstack"), false, getJobStatus(batchv1.JobComplete, "", "")),
 		Entry("should create the job, update the task status, and delete the job if the job completed, for alicloud",
 			"foo07", druidv1alpha1.StorageProvider("alicloud"), false, getJobStatus(batchv1.JobComplete, "", "")),
+		// ref https://github.com/gardener/etcd-druid/issues/532
+		Entry("should correctly handle ownerReferences for numeric names with leading 0",
+			"01234", druidv1alpha1.StorageProvider("Local"), true, getJobStatus(batchv1.JobComplete, "", "")),
 	)
 })
 
-func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask) gomegatypes.GomegaMatcher {
+func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.ImageVector) gomegatypes.GomegaMatcher {
 	sourceProvider, err := utils.StorageProviderFromInfraProvider(task.Spec.SourceStore.Provider)
 	Expect(err).NotTo(HaveOccurred())
 	targetProvider, err := utils.StorageProviderFromInfraProvider(task.Spec.TargetStore.Provider)

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	"github.com/gardener/gardener/pkg/utils/flow"
@@ -465,15 +466,13 @@ func getObjectMeta(val *Values, sts *appsv1.StatefulSet) metav1.ObjectMeta {
 
 const (
 	scaleToMultiNodeAnnotationKey = "gardener.cloud/scaled-to-multi-node"
-	ownedByAnnotationKey          = "gardener.cloud/owned-by"
-	ownerTypeAnnotationKey        = "gardener.cloud/owner-type"
 )
 
 func getStsAnnotations(val *Values, sts *appsv1.StatefulSet) map[string]string {
 	annotations := utils.MergeStringMaps(
 		map[string]string{
-			ownedByAnnotationKey:   fmt.Sprintf("%s/%s", val.Namespace, val.Name),
-			ownerTypeAnnotationKey: "etcd",
+			common.GardenerOwnedBy:   fmt.Sprintf("%s/%s", val.Namespace, val.Name),
+			common.GardenerOwnerType: "etcd",
 		},
 		val.Annotations,
 	)
