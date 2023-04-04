@@ -22,10 +22,12 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
+	druidmetrics "github.com/gardener/etcd-druid/pkg/metrics"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	v1 "k8s.io/api/core/v1"
@@ -146,10 +148,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}, err
 	}
 
+	druidmetrics.TotalNumberOfEvents.With(prometheus.Labels{}).Set(0)
 	diff := delta - full
 
 	// Reconcile job only when number of accumulated revisions over the last full snapshot is more than the configured threshold value via 'events-threshold' flag
 	if diff >= r.config.EventsThreshold {
+		druidmetrics.TotalNumberOfEvents.With(prometheus.Labels{}).Set(float64(diff))
 		return r.reconcileJob(ctx, logger, etcd)
 	}
 
@@ -179,6 +183,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 					RequeueAfter: 10 * time.Second,
 				}, fmt.Errorf("error during compaction job creation: %v", err)
 			}
+			druidmetrics.CompactionJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue}).Set(0)
 		}
 	}
 
@@ -201,6 +206,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 				RequeueAfter: 10 * time.Second,
 			}, fmt.Errorf("error while deleting failed compaction job: %v", err)
 		}
+		druidmetrics.CompactionJobCounterTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse}).Inc()
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,
 		}, nil
@@ -208,6 +214,10 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 	// Delete job and return if the job succeeded
 	if job.Status.Succeeded > 0 {
+		druidmetrics.CompactionJobCounterTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue}).Inc()
+		if job.Status.CompletionTime != nil {
+			druidmetrics.CompactionJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue}).Set(float64(job.Status.CompletionTime.UnixNano()))
+		}
 		return r.delete(ctx, logger, etcd)
 	}
 
