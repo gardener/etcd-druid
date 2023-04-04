@@ -151,7 +151,7 @@ add-license-headers: $(GO_ADD_LICENSE)
 	@./hack/addlicenseheaders.sh ${YEAR}
 	
 .PHONY: kind-up
-kind-up: kind-down
+kind-up:
 	kind create cluster --name etcd-druid-e2e --config hack/e2e-test/infrastructure/kind/cluster.yaml 
 
 .PHONY: kind-down
