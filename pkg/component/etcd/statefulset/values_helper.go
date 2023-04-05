@@ -205,6 +205,7 @@ func getBackupRestoreCommand(val Values) []string {
 	}
 
 	command = append(command, "--data-dir=/var/etcd/data/new.etcd")
+	command = append(command, "--restoration-temp-snapshots-dir=/var/etcd/restoration.temp")
 
 	if val.BackupStore != nil {
 		store, _ := utils.StorageProviderFromInfraProvider(val.BackupStore.Provider)

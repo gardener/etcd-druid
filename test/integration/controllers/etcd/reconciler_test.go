@@ -703,15 +703,16 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 
 						backupRestore: MatchFields(IgnoreExtras, Fields{
 							"Command": MatchAllElements(testutils.CmdIterator, Elements{
-								"etcdbrctl":                                      Equal("etcdbrctl"),
-								"server":                                         Equal("server"),
-								"--data-dir=/var/etcd/data/new.etcd":             Equal("--data-dir=/var/etcd/data/new.etcd"),
-								"--insecure-transport=true":                      Equal("--insecure-transport=true"),
-								"--insecure-skip-tls-verify=true":                Equal("--insecure-skip-tls-verify=true"),
-								"--etcd-connection-timeout=5m":                   Equal("--etcd-connection-timeout=5m"),
-								"--snapstore-temp-directory=/var/etcd/data/temp": Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
-								"--enable-member-lease-renewal=true":             Equal("--enable-member-lease-renewal=true"),
-								"--k8s-heartbeat-duration=10s":                   Equal("--k8s-heartbeat-duration=10s"),
+								"etcdbrctl":                          Equal("etcdbrctl"),
+								"server":                             Equal("server"),
+								"--data-dir=/var/etcd/data/new.etcd": Equal("--data-dir=/var/etcd/data/new.etcd"),
+								"--restoration-temp-snapshots-dir=/var/etcd/restoration.temp": Equal("--restoration-temp-snapshots-dir=/var/etcd/restoration.temp"),
+								"--insecure-transport=true":                                   Equal("--insecure-transport=true"),
+								"--insecure-skip-tls-verify=true":                             Equal("--insecure-skip-tls-verify=true"),
+								"--etcd-connection-timeout=5m":                                Equal("--etcd-connection-timeout=5m"),
+								"--snapstore-temp-directory=/var/etcd/data/temp":              Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
+								"--enable-member-lease-renewal=true":                          Equal("--enable-member-lease-renewal=true"),
+								"--k8s-heartbeat-duration=10s":                                Equal("--k8s-heartbeat-duration=10s"),
 
 								fmt.Sprintf("--delta-snapshot-memory-limit=%d", deltaSnapShotMemLimit.Value()):                 Equal(fmt.Sprintf("--delta-snapshot-memory-limit=%d", deltaSnapShotMemLimit.Value())),
 								fmt.Sprintf("--garbage-collection-policy=%s", druidv1alpha1.GarbageCollectionPolicyLimitBased): Equal(fmt.Sprintf("--garbage-collection-policy=%s", druidv1alpha1.GarbageCollectionPolicyLimitBased)),
@@ -1094,6 +1095,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								"--server-cert=/var/etcd/ssl/client/server/tls.crt":                                                                 Equal("--server-cert=/var/etcd/ssl/client/server/tls.crt"),
 								"--server-key=/var/etcd/ssl/client/server/tls.key":                                                                  Equal("--server-key=/var/etcd/ssl/client/server/tls.key"),
 								"--data-dir=/var/etcd/data/new.etcd":                                                                                Equal("--data-dir=/var/etcd/data/new.etcd"),
+								"--restoration-temp-snapshots-dir=/var/etcd/restoration.temp":                                                       Equal("--restoration-temp-snapshots-dir=/var/etcd/restoration.temp"),
 								"--insecure-transport=false":                                                                                        Equal("--insecure-transport=false"),
 								"--insecure-skip-tls-verify=false":                                                                                  Equal("--insecure-skip-tls-verify=false"),
 								"--snapstore-temp-directory=/var/etcd/data/temp":                                                                    Equal("--snapstore-temp-directory=/var/etcd/data/temp"),

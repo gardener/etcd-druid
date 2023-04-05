@@ -269,7 +269,8 @@ func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) 
 					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						"compact-backup": MatchFields(IgnoreExtras, Fields{
 							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
-								"--data-dir=/var/etcd/data":                                                                                 Equal("--data-dir=/var/etcd/data"),
+								"--data-dir=/var/etcd/data/compaction.etcd":                                                                 Equal("--data-dir=/var/etcd/data/compaction.etcd"),
+								"--restoration-temp-snapshots-dir=/var/etcd/compaction.restoration.temp":                                    Equal("--restoration-temp-snapshots-dir=/var/etcd/compaction.restoration.temp"),
 								"--snapstore-temp-directory=/var/etcd/data/tmp":                                                             Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
 								"--enable-snapshot-lease-renewal=true":                                                                      Equal("--enable-snapshot-lease-renewal=true"),
 								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", instance.GetFullSnapshotLeaseName()):                     Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", instance.GetFullSnapshotLeaseName())),
