@@ -38,6 +38,9 @@ set-permissions:
 	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh"
 	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check-generate.sh"
 	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/generate-crds.sh"
+	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/set_dependency_version"
+	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/component_descriptor"
+	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/prepare_release"
 
 .PHONY: revendor
 revendor: set-permissions
