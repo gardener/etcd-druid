@@ -1,5 +1,7 @@
 images:
 - name: etcd-backup-restore
+  resourceId:
+    name: 'etcdbrctl'
   sourceRepository: github.com/gardener/etcd-backup-restore
   repository: eu.gcr.io/gardener-project/gardener/etcdbrctl
   tag: "v0.23.0"
