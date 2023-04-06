@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+# Copyright 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,62 +20,71 @@ set -o pipefail
 
 tmpDir=$(mktemp -d)
 function cleanup_output {
-    rm -rf "$tmpDir"
+  rm -rf "$tmpDir"
 }
 trap cleanup_output EXIT
 
 retval=0
 temp=0
 
-BASE_SHA=${PULL_BASE_SHA:-} # PULL_BASE_SHA env variable is set by default in prow presubmit jobs
-
-if [ ! -z ${BASE_SHA} ]; then
-    echo "invoking: go-apidiff ${PULL_BASE_SHA} --print-compatible --repo-path=."
-    echo "$(go-apidiff ${PULL_BASE_SHA} --print-compatible --repo-path=.)" > ${tmpDir}/output.txt
-else
-    echo "invoking: go-apidiff master --print-compatible --repo-path=."
-    echo "$(go-apidiff master --print-compatible --repo-path=.)" > ${tmpDir}/output.txt
-fi
+# PULL_BASE_SHA env variable is set by default in prow presubmit jobs
+echo "invoking: go-apidiff ${PULL_BASE_SHA:-master} --print-compatible --repo-path=."
+go-apidiff ${PULL_BASE_SHA:-master} --print-compatible --repo-path=. >${tmpDir}/output.txt || true
 
 exported_pkg=(
-"gardener/gardener/extensions/"
-"gardener/gardener/pkg/api/"
-"gardener/gardener/pkg/apis/"
-"gardener/gardener/pkg/chartrenderer/"
-"gardener/gardener/pkg/client/"
-"gardener/gardener/pkg/controllerutils/"
-"gardener/gardener/pkg/extensions/"
-"gardener/gardener/pkg/gardenlet/apis/config/"
-"gardener/gardener/pkg/logger/"
-"gardener/gardener/pkg/mock/controller-runtime/client/"
-"gardener/gardener/pkg/operation/botanist/component/extensions/operatingsystemconfig/"
-"gardener/gardener/pkg/resourcemanager/controller/garbagecollector/references/"
-"gardener/gardener/pkg/scheduler/"
-"gardener/gardener/pkg/utils/"
-"gardener/gardener/test/framework/"
+  "gardener/gardener/extensions/"
+  "gardener/gardener/pkg/api/"
+  "gardener/gardener/pkg/apis/"
+  "gardener/gardener/pkg/chartrenderer/"
+  "gardener/gardener/pkg/client/"
+  "gardener/gardener/pkg/controllerutils/"
+  "gardener/gardener/pkg/extensions/"
+  "gardener/gardener/pkg/gardenlet/apis/config/"
+  "gardener/gardener/pkg/logger/"
+  "gardener/gardener/pkg/mock/controller-runtime/client/"
+  "gardener/gardener/pkg/operation/botanist/component/extensions/operatingsystemconfig/"
+  "gardener/gardener/pkg/resourcemanager/controller/garbagecollector/references/"
+  "gardener/gardener/pkg/scheduler/"
+  "gardener/gardener/pkg/utils/"
+  "gardener/gardener/test/framework/"
 )
 
 # check the changes only for the package that is in the exported_pkg list
 while IFS= read -r line; do
-    if [[ $line =~ ^"github.com/gardener/gardener" ]]; then
-        temp=0
-        for x in ${exported_pkg[*]}; do
-            if [[ $line =~ $x ]]; then
-                retval=1
-                temp=1
-                echo "$line" >>  ${tmpDir}/result.txt
-            fi
-        done
-    else
-        if [[ $temp -eq 1 ]]; then
-            echo "$line" >>  ${tmpDir}/result.txt
-        fi
+  if [[ $line =~ ^"github.com/gardener/gardener" ]]; then
+    temp=0
+    for x in ${exported_pkg[*]}; do
+      if [[ $line =~ $x ]]; then
+        retval=1
+        temp=1
+        echo "$line" >>${tmpDir}/result.txt
+      fi
+    done
+  else
+    if [[ $temp -eq 1 ]]; then
+      echo "$line" >>${tmpDir}/result.txt
     fi
-done < "${tmpDir}/output.txt"
+  fi
+done <"${tmpDir}/output.txt"
 
 if [[ $retval -eq 1 ]]; then
-    echo >&2 "FAIL: contains compatible/incompatible changes:"
-    cat ${tmpDir}/result.txt
+  echo >&2 "FAIL: contains compatible/incompatible changes:"
+  cat ${tmpDir}/result.txt
+
+  cat <<EOF
+
+The apidiff check failed – don't worry!
+This check is optional and hence not required to pass before merging a PR.
+
+The apidiff check makes changes to the go packages' API surface visible.
+For example, other repositories rely on a stable API of the extensions library located in gardener/gardener/extensions.
+When introducing incompatible changes in the extensions library, those dependants need to adapt to these changes when upgrading their go dependencies.
+To make this process easier for your fellow developers, try to keep incompatible changes limited.
+For all other cases, please check all incompatible changes listed above and add a friendly release note about them to your PR.
+Even better: you could explain how to adapt to the breaking changes in your PR's description or add a short doc.
+
+If your PR only contains compatible API changes, no action is required. You're good to go!
+EOF
 fi
 
 exit $retval

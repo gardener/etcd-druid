@@ -1,4 +1,18 @@
 #!/usr/bin/env bash
+# Copyright 2023 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 set -o errexit
 set -o nounset
@@ -64,6 +78,16 @@ if [[ "$1" != "operator" ]]; then
         fi
       done
     done
+  fi
+# If we are running the gardener-operator tests then we have to make the virtual garden domains accessible.
+else
+  if [ -n "${CI:-}" -a -n "${ARTIFACTS:-}" ]; then
+    printf "\n127.0.0.1 api.virtual-garden.local.gardener.cloud\n" >>/etc/hosts
+  else
+    if ! grep -q -x "127.0.0.1 api.virtual-garden.local.gardener.cloud" /etc/hosts; then
+      printf "Hostname for virtual garden cluster is missing in /etc/hosts. To access the virtual garden cluster and run e2e tests, you have to extend your /etc/hosts file.\nPlease refer to https://github.com/gardener/gardener/blob/master/docs/deployment/getting_started_locally.md#accessing-the-shoot-cluster\n\n"
+      exit 1
+    fi
   fi
 fi
 

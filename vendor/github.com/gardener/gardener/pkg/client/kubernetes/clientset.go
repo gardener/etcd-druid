@@ -1,4 +1,4 @@
-// Copyright (c) 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/gardener/gardener/pkg/chartrenderer"
+	"github.com/gardener/gardener/pkg/utils/validation/kubernetesversion"
 )
 
 // clientSet is a struct containing the configuration for the respective Kubernetes
@@ -118,7 +119,7 @@ func (c *clientSet) DiscoverVersion() (*version.Info, error) {
 		return nil, err
 	}
 
-	if err := checkIfSupportedKubernetesVersion(serverVersion.GitVersion); err != nil {
+	if err := kubernetesversion.CheckIfSupported(serverVersion.GitVersion); err != nil {
 		return nil, err
 	}
 
