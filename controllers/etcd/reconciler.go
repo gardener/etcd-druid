@@ -374,18 +374,18 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		return reconcileResult{err: err}
 	}
 
-	roleValues, err := r.getMapFromEtcd(etcd, r.config.DisableEtcdServiceAccountAutomount)
-	if err != nil {
-		return reconcileResult{err: err}
-	}
-
-	roleDeployer := componentrole.New(r.Client, componentrole.GenerateValues(etcd))
+	roleValues := componentrole.GenerateValues(etcd)
+	roleDeployer := componentrole.New(r.Client, roleValues)
 	err = roleDeployer.Deploy(ctx)
 	if err != nil {
 		return reconcileResult{err: err}
 	}
 
-	err = r.reconcileRoleBinding(ctx, logger, etcd, roleValues)
+	roleBindingValues, err := r.getMapFromEtcd(etcd, r.config.DisableEtcdServiceAccountAutomount)
+	if err != nil {
+		return reconcileResult{err: err}
+	}
+	err = r.reconcileRoleBinding(ctx, logger, etcd, roleBindingValues)
 	if err != nil {
 		return reconcileResult{err: err}
 	}

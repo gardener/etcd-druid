@@ -19,6 +19,7 @@ import (
 	"github.com/gardener/etcd-druid/pkg/component/etcd/role"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -50,6 +51,23 @@ var _ = Describe("Role", func() {
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				etcd.GetAsOwnerReference(),
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					APIGroups: []string{"coordination.k8s.io"},
+					Resources: []string{"leases"},
+					Verbs:     []string{"get", "list", "patch", "update", "watch"},
+				},
+				{
+					APIGroups: []string{"apps"},
+					Resources: []string{"statefulsets"},
+					Verbs:     []string{"get", "list", "patch", "update", "watch"},
+				},
+				{
+					APIGroups: []string{""},
+					Resources: []string{"pods"},
+					Verbs:     []string{"get", "list", "watch"},
+				},
 			},
 		}
 	)

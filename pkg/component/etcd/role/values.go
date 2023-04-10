@@ -14,7 +14,10 @@
 
 package role
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 // Values defines the fields used to create a Role for Etcd.
 type Values struct {
@@ -22,6 +25,8 @@ type Values struct {
 	Name string
 	// Namespace is the namespace of the Role.
 	Namespace string
+	// Rules holds all the PolicyRules for this Role
+	Rules []rbacv1.PolicyRule
 	// OwnerReferences are the OwnerReferences of the Role.
 	OwnerReferences []metav1.OwnerReference
 	// Labels are the labels of the Role.

@@ -37,7 +37,7 @@ func (c component) Deploy(ctx context.Context) error {
 		role.Namespace = c.values.Namespace
 		role.Labels = c.values.Labels
 		role.OwnerReferences = c.values.OwnerReferences
-		role.Rules = getRules()
+		role.Rules = c.values.Rules
 		return nil
 	})
 	return err
@@ -52,26 +52,6 @@ func (c component) emptyRole() *rbacv1.Role {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      c.values.Name,
 			Namespace: c.values.Namespace,
-		},
-	}
-}
-
-func getRules() []rbacv1.PolicyRule {
-	return []rbacv1.PolicyRule{
-		{
-			APIGroups: []string{"coordination.k8s.io"},
-			Resources: []string{"leases"},
-			Verbs:     []string{"list", "get", "update", "patch", "watch"},
-		},
-		{
-			APIGroups: []string{"apps"},
-			Resources: []string{"statefulsets"},
-			Verbs:     []string{"get", "list", "patch", "update", "watch"},
-		},
-		{
-			APIGroups: []string{""},
-			Resources: []string{"pods"},
-			Verbs:     []string{"get", "list", "watch"},
 		},
 	}
 }

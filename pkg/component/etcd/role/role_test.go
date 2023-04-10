@@ -21,6 +21,7 @@ import (
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	"github.com/gardener/etcd-druid/pkg/component/etcd/role"
 
+	"github.com/gardener/gardener/pkg/operation/botanist/component"
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -35,11 +36,18 @@ import (
 
 var _ = Describe("Role Component", Ordered, func() {
 	var (
-		ctx           = context.TODO()
-		c             = fake.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
-		values        = getTestRoleValues()
-		roleComponent = role.New(c, values)
+		ctx           context.Context
+		c             client.Client
+		values        *role.Values
+		roleComponent component.Deployer
 	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		c = fake.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
+		values = getTestRoleValues()
+		roleComponent = role.New(c, values)
+	})
 
 	Describe("#Deploy", func() {
 		It("should create the Role with the expected values", func() {
@@ -107,7 +115,7 @@ func verifyRoleValues(expected *rbacv1.Role, values *role.Values) {
 		{
 			APIGroups: []string{"coordination.k8s.io"},
 			Resources: []string{"leases"},
-			Verbs:     []string{"list", "get", "update", "patch", "watch"},
+			Verbs:     []string{"get", "list", "patch", "update", "watch"},
 		},
 		{
 			APIGroups: []string{"apps"},
@@ -131,6 +139,23 @@ func getTestRoleValues() *role.Values {
 		Namespace: "test-namespace",
 		Labels: map[string]string{
 			"foo": "bar",
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{"coordination.k8s.io"},
+				Resources: []string{"leases"},
+				Verbs:     []string{"get", "list", "patch", "update", "watch"},
+			},
+			{
+				APIGroups: []string{"apps"},
+				Resources: []string{"statefulsets"},
+				Verbs:     []string{"get", "list", "patch", "update", "watch"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
 		},
 		OwnerReferences: []metav1.OwnerReference{
 			{
