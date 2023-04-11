@@ -25,11 +25,13 @@ import (
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 
+	testutils "github.com/gardener/etcd-druid/test/utils"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -111,22 +113,50 @@ func verifyRoleValues(expected *rbacv1.Role, values *role.Values) {
 	Expect(expected.Labels).To(Equal(values.Labels))
 	Expect(expected.Namespace).To(Equal(values.Namespace))
 	Expect(expected.OwnerReferences).To(Equal(values.OwnerReferences))
-	Expect(expected.Rules).To(Equal([]rbacv1.PolicyRule{
-		{
-			APIGroups: []string{"coordination.k8s.io"},
-			Resources: []string{"leases"},
-			Verbs:     []string{"get", "list", "patch", "update", "watch"},
-		},
-		{
-			APIGroups: []string{"apps"},
-			Resources: []string{"statefulsets"},
-			Verbs:     []string{"get", "list", "patch", "update", "watch"},
-		},
-		{
-			APIGroups: []string{""},
-			Resources: []string{"pods"},
-			Verbs:     []string{"get", "list", "watch"},
-		},
+	Expect(expected.Rules).To(MatchAllElements(testutils.RuleIterator, Elements{
+		"coordination.k8s.io": MatchFields(IgnoreExtras, Fields{
+			"APIGroups": MatchAllElements(testutils.StringArrayIterator, Elements{
+				"coordination.k8s.io": Equal("coordination.k8s.io"),
+			}),
+			"Resources": MatchAllElements(testutils.StringArrayIterator, Elements{
+				"leases": Equal("leases"),
+			}),
+			"Verbs": MatchAllElements(testutils.StringArrayIterator, Elements{
+				"list":   Equal("list"),
+				"get":    Equal("get"),
+				"update": Equal("update"),
+				"patch":  Equal("patch"),
+				"watch":  Equal("watch"),
+			}),
+		}),
+		"apps": MatchFields(IgnoreExtras, Fields{
+			"APIGroups": MatchAllElements(testutils.StringArrayIterator, Elements{
+				"apps": Equal("apps"),
+			}),
+			"Resources": MatchAllElements(testutils.StringArrayIterator, Elements{
+				"statefulsets": Equal("statefulsets"),
+			}),
+			"Verbs": MatchAllElements(testutils.StringArrayIterator, Elements{
+				"list":   Equal("list"),
+				"get":    Equal("get"),
+				"update": Equal("update"),
+				"patch":  Equal("patch"),
+				"watch":  Equal("watch"),
+			}),
+		}),
+		"": MatchFields(IgnoreExtras, Fields{
+			"APIGroups": MatchAllElements(testutils.StringArrayIterator, Elements{
+				"": Equal(""),
+			}),
+			"Resources": MatchAllElements(testutils.StringArrayIterator, Elements{
+				"pods": Equal("pods"),
+			}),
+			"Verbs": MatchAllElements(testutils.StringArrayIterator, Elements{
+				"list":  Equal("list"),
+				"get":   Equal("get"),
+				"watch": Equal("watch"),
+			}),
+		}),
 	}))
 }
 func getRoleKeyFromValue(values *role.Values) types.NamespacedName {
