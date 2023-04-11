@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 
 	. "github.com/gardener/etcd-druid/api/v1alpha1"
 )
@@ -42,17 +43,9 @@ var _ = Describe("Etcd", func() {
 	)
 
 	BeforeEach(func() {
-		// Add any setup steps that needs to be executed before each test
+		created = getEtcd("foo", "default")
 	})
 
-	AfterEach(func() {
-		// Add any teardown steps that needs to be executed after each test
-	})
-
-	// Add Tests for OpenAPI validation (or additional CRD features) specified in
-	// your API definition.
-	// Avoid adding tests for vanilla CRUD operations because they would
-	// test Kubernetes API server, which isn't the goal here.
 	Context("Create API", func() {
 
 		It("should create an object successfully", func() {
@@ -61,7 +54,6 @@ var _ = Describe("Etcd", func() {
 				Name:      "foo",
 				Namespace: "default",
 			}
-			created = getEtcd("foo", "default")
 
 			By("creating an API obj")
 			Expect(k8sClient.Create(context.Background(), created)).To(Succeed())
@@ -77,6 +69,85 @@ var _ = Describe("Etcd", func() {
 
 	})
 
+	Context("GetPeerServiceName", func() {
+		It("should return the correct peer service name", func() {
+			Expect(created.GetPeerServiceName()).To(Equal("foo-peer"))
+		})
+	})
+
+	Context("GetClientServiceName", func() {
+		It("should return the correct client service name", func() {
+			Expect(created.GetClientServiceName()).To(Equal("foo-client"))
+		})
+	})
+
+	Context("GetServiceAccountName", func() {
+		It("should return the correct service account name", func() {
+			Expect(created.GetServiceAccountName()).To(Equal("foo"))
+		})
+	})
+
+	Context("GetConfigmapName", func() {
+		It("should return the correct configmap name", func() {
+			Expect(created.GetConfigmapName()).To(Equal("etcd-bootstrap-123456"))
+		})
+	})
+
+	Context("GetCompactionJobName", func() {
+		It("should return the correct compaction job name", func() {
+			Expect(created.GetCompactionJobName()).To(Equal("123456-compact-job"))
+		})
+	})
+
+	Context("GetOrdinalPodName", func() {
+		It("should return the correct ordinal pod name", func() {
+			Expect(created.GetOrdinalPodName(0)).To(Equal("foo-0"))
+		})
+	})
+
+	Context("GetDeltaSnapshotLeaseName", func() {
+		It("should return the correct delta snapshot lease name", func() {
+			Expect(created.GetDeltaSnapshotLeaseName()).To(Equal("foo-delta-snap"))
+		})
+	})
+
+	Context("GetFullSnapshotLeaseName", func() {
+		It("should return the correct full snapshot lease name", func() {
+			Expect(created.GetFullSnapshotLeaseName()).To(Equal("foo-full-snap"))
+		})
+	})
+
+	Context("GetDefaultLabels", func() {
+		It("should return the default labels for etcd", func() {
+			expected := map[string]string{
+				"name":     "etcd",
+				"instance": "foo",
+			}
+			Expect(created.GetDefaultLabels()).To(Equal(expected))
+		})
+	})
+
+	Context("GetAsOwnerReference", func() {
+		It("should return an OwnerReference object that represents the current Etcd instance", func() {
+
+			expected := metav1.OwnerReference{
+				APIVersion:         GroupVersion.String(),
+				Kind:               "Etcd",
+				Name:               "foo",
+				UID:                "123456",
+				Controller:         pointer.Bool(true),
+				BlockOwnerDeletion: pointer.Bool(true),
+			}
+			Expect(created.GetAsOwnerReference()).To(Equal(expected))
+		})
+	})
+
+	Context("GetRoleName", func() {
+		It("should return the role name for the Etcd", func() {
+			expected := "druid.gardener.cloud:etcd:foo"
+			Expect(created.GetRoleName()).To(Equal(expected))
+		})
+	})
 })
 
 func getEtcd(name, namespace string) *Etcd {
@@ -135,6 +206,7 @@ func getEtcd(name, namespace string) *Etcd {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
+			UID:       "123456",
 		},
 		Spec: EtcdSpec{
 			Annotations: map[string]string{
