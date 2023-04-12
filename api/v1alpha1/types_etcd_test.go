@@ -148,6 +148,13 @@ var _ = Describe("Etcd", func() {
 			Expect(created.GetRoleName()).To(Equal(expected))
 		})
 	})
+
+	Context("GetRoleBindingName", func() {
+		It("should return the rolebinding name for the Etcd", func() {
+			expected := "druid.gardener.cloud:etcd:foo"
+			Expect(created.GetRoleName()).To(Equal(expected))
+		})
+	})
 })
 
 func getEtcd(name, namespace string) *Etcd {

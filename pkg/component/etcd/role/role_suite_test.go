@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestService(t *testing.T) {
+func TestRole(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Role Component Suite")
 }

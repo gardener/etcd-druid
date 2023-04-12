@@ -21,6 +21,7 @@ import (
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	"github.com/gardener/etcd-druid/pkg/component/etcd/rolebinding"
 
+	"github.com/gardener/gardener/pkg/operation/botanist/component"
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -33,26 +34,39 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
-var _ = Describe("RoleBinding Component", Ordered, func() {
+var _ = Describe("RoleBinding Component", func() {
 	var (
-		ctx                  = context.TODO()
-		c                    = fake.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
-		values               = getTestRoleBindingValues()
-		roleBindingComponent = rolebinding.New(c, values)
+		ctx                  context.Context
+		c                    client.Client
+		values               *rolebinding.Values
+		roleBindingComponent component.Deployer
 	)
 
 	Context("#Deploy", func() {
-		It("should create the RoleBinding with the expected values", func() {
-			By("creating a RoleBinding")
+
+		BeforeEach(func() {
+			ctx = context.Background()
+			c = fake.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
+			values = getTestRoleBindingValues()
+			roleBindingComponent = rolebinding.New(c, values)
+
 			err := roleBindingComponent.Deploy(ctx)
 			Expect(err).NotTo(HaveOccurred())
+		})
 
+		AfterEach(func() {
+			err := roleBindingComponent.Destroy(ctx)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should create the RoleBinding with the expected values", func() {
 			By("verifying that the RoleBinding is created on the K8s cluster as expected")
 			created := &rbacv1.RoleBinding{}
-			err = c.Get(ctx, getRoleBindingKeyFromValue(values), created)
+			err := c.Get(ctx, getRoleBindingKeyFromValue(values), created)
 			Expect(err).NotTo(HaveOccurred())
 			verifyRoleBindingValues(created, values)
 		})
+
 		It("should update the RoleBinding with the expected values", func() {
 			By("updating the RoleBinding")
 			values.Labels["new"] = "label"
@@ -65,6 +79,7 @@ var _ = Describe("RoleBinding Component", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 			verifyRoleBindingValues(updated, values)
 		})
+
 		It("should not return an error when there is nothing to update the RoleBinding", func() {
 			err := roleBindingComponent.Deploy(ctx)
 			Expect(err).NotTo(HaveOccurred())
@@ -73,6 +88,7 @@ var _ = Describe("RoleBinding Component", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 			verifyRoleBindingValues(updated, values)
 		})
+
 		It("should return an error when the update fails", func() {
 			values.Name = ""
 			err := roleBindingComponent.Deploy(ctx)
@@ -82,6 +98,17 @@ var _ = Describe("RoleBinding Component", Ordered, func() {
 	})
 
 	Context("#Destroy", func() {
+
+		BeforeEach(func() {
+			ctx = context.Background()
+			c = fake.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
+			values = getTestRoleBindingValues()
+
+			roleBindingComponent = rolebinding.New(c, values)
+			err := roleBindingComponent.Deploy(ctx)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
 		It("should delete the RoleBinding", func() {
 			By("deleting the RoleBinding")
 			err := roleBindingComponent.Destroy(ctx)
@@ -91,8 +118,14 @@ var _ = Describe("RoleBinding Component", Ordered, func() {
 			By("verifying that the RoleBinding is deleted from the K8s cluster as expected")
 			Expect(c.Get(ctx, getRoleBindingKeyFromValue(values), roleBinding)).To(BeNotFoundError())
 		})
+
 		It("should not return an error when there is nothing to delete", func() {
+			By("deleting the RoleBinding")
 			err := roleBindingComponent.Destroy(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying that attempting to delete the RoleBinding again returns no error")
+			err = roleBindingComponent.Destroy(ctx)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
