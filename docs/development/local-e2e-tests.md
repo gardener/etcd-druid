@@ -122,7 +122,7 @@ test-e2e
 
 ## e2e test with localstack
 
-Above mentioned e2e tests need actual storage from cloud provider to be setup. But there is a tool named localstack that enables to run e2e test with mock AWS storage. We can also provision KIND cluster for e2e tests. So, together with localstack and KIND cluster, we don't need to depend on any actual cloud provider infrastructure to be setup to run e2e tests.
+Above mentioned e2e tests need actual storage from cloud provider to be setup. But there is a tool named [localstack](https://docs.localstack.cloud/user-guide/aws/s3/) that enables to run e2e test with mock AWS storage. We can also provision KIND cluster for e2e tests. So, together with localstack and KIND cluster, we don't need to depend on any actual cloud provider infrastructure to be setup to run e2e tests.
 
 ### How are the KIND cluster and localstack set up
 
