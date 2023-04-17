@@ -20,6 +20,8 @@ IMAGE_REPOSITORY    := $(REGISTRY)/etcd-druid
 IMAGE_BUILD_TAG     := $(VERSION)
 BUILD_DIR           := build
 PROVIDERS           := ""
+BUCKET_NAME         := "e2e-test"
+KUBECONFIG_PATH     :=$(REPO_ROOT)/hack/e2e-test/infrastructure/kind/kubeconfig
 
 IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 
@@ -48,6 +50,9 @@ revendor: set-permissions
 	@env GO111MODULE=on go mod vendor
 	@"$(REPO_ROOT)/hack/update-github-templates.sh"
 	@make set-permissions
+
+
+kind-up kind-down ci-e2e-kind deploy-localstack test-e2e: export KUBECONFIG = $(KUBECONFIG_PATH)
 
 all: druid
 
@@ -144,3 +149,19 @@ update-dependencies:
 .PHONY: add-license-headers
 add-license-headers: $(GO_ADD_LICENSE)
 	@./hack/addlicenseheaders.sh ${YEAR}
+	
+.PHONY: kind-up
+kind-up:
+	kind create cluster --name etcd-druid-e2e --config hack/e2e-test/infrastructure/kind/cluster.yaml 
+
+.PHONY: kind-down
+kind-down:
+	kind delete cluster --name etcd-druid-e2e
+
+.PHONY: deploy-localstack
+deploy-localstack: $(KUBECTL)
+	BUCKET_NAME=$(BUCKET_NAME) ./hack/deploy-localstack.sh
+
+.PHONY: ci-e2e-kind
+ci-e2e-kind:
+	BUCKET_NAME=$(BUCKET_NAME) ./hack/ci-e2e-kind.sh

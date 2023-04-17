@@ -20,6 +20,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/gardener/etcd-backup-restore/pkg/etcdutil/client"
 	flag "github.com/spf13/pflag"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/pkg/types"
@@ -38,15 +39,21 @@ const (
 	defaultAutoCompactionRetention  = "30m"
 )
 
+// NewClientFactoryFunc allows to define how to create a client.Factory
+type NewClientFactoryFunc func(cfg EtcdConnectionConfig, opts ...client.Option) client.Factory
+
 // RestoreOptions hold all snapshot restore related fields
 // Note: Please ensure DeepCopy and DeepCopyInto are properly implemented.
 type RestoreOptions struct {
 	Config      *RestorationConfig
 	ClusterURLs types.URLsMap
-	PeerURLs    types.URLs
+	// OriginalClusterSize indicates the actual cluster size from the ETCD config
+	OriginalClusterSize int
+	PeerURLs            types.URLs
 	// Base full snapshot + delta snapshots to restore from
-	BaseSnapshot  *Snapshot
-	DeltaSnapList SnapList
+	BaseSnapshot     *Snapshot
+	DeltaSnapList    SnapList
+	NewClientFactory NewClientFactoryFunc
 }
 
 // RestorationConfig holds the restoration configuration.
@@ -54,7 +61,8 @@ type RestoreOptions struct {
 type RestorationConfig struct {
 	InitialCluster           string   `json:"initialCluster"`
 	InitialClusterToken      string   `json:"initialClusterToken,omitempty"`
-	RestoreDataDir           string   `json:"restoreDataDir,omitempty"`
+	DataDir                  string   `json:"dataDir,omitempty"`
+	TempSnapshotsDir         string   `json:"tempDir,omitempty"`
 	InitialAdvertisePeerURLs []string `json:"initialAdvertisePeerURLs"`
 	Name                     string   `json:"name"`
 	SkipHashCheck            bool     `json:"skipHashCheck,omitempty"`
@@ -72,7 +80,8 @@ func NewRestorationConfig() *RestorationConfig {
 	return &RestorationConfig{
 		InitialCluster:           initialClusterFromName(defaultName),
 		InitialClusterToken:      defaultInitialClusterToken,
-		RestoreDataDir:           fmt.Sprintf("%s.etcd", defaultName),
+		DataDir:                  fmt.Sprintf("%s.etcd", defaultName),
+		TempSnapshotsDir:         fmt.Sprintf("%s.restoration.tmp", defaultName),
 		InitialAdvertisePeerURLs: []string{defaultInitialAdvertisePeerURLs},
 		Name:                     defaultName,
 		SkipHashCheck:            false,
@@ -90,7 +99,8 @@ func NewRestorationConfig() *RestorationConfig {
 func (c *RestorationConfig) AddFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.InitialCluster, "initial-cluster", c.InitialCluster, "initial cluster configuration for restore bootstrap")
 	fs.StringVar(&c.InitialClusterToken, "initial-cluster-token", c.InitialClusterToken, "initial cluster token for the etcd cluster during restore bootstrap")
-	fs.StringVarP(&c.RestoreDataDir, "data-dir", "d", c.RestoreDataDir, "path to the data directory")
+	fs.StringVarP(&c.DataDir, "data-dir", "d", c.DataDir, "path to the data directory")
+	fs.StringVar(&c.TempSnapshotsDir, "restoration-temp-snapshots-dir", c.TempSnapshotsDir, "path to the temporary directory to store snapshot files during restoration")
 	fs.StringArrayVar(&c.InitialAdvertisePeerURLs, "initial-advertise-peer-urls", c.InitialAdvertisePeerURLs, "list of this member's peer URLs to advertise to the rest of the cluster")
 	fs.StringVar(&c.Name, "name", c.Name, "human-readable name for this member")
 	fs.BoolVar(&c.SkipHashCheck, "skip-hash-check", c.SkipHashCheck, "ignore snapshot integrity hash value (required if copied from data directory)")
@@ -118,12 +128,13 @@ func (c *RestorationConfig) Validate() error {
 		return fmt.Errorf("max fetchers should be greater than zero")
 	}
 	if c.EmbeddedEtcdQuotaBytes <= 0 {
-		return fmt.Errorf("Etcd Quota size for etcd must be greater than 0")
+		return fmt.Errorf("etcd quota size for etcd must be greater than 0")
 	}
 	if c.AutoCompactionMode != "periodic" && c.AutoCompactionMode != "revision" {
 		return fmt.Errorf("UnSupported auto-compaction-mode")
 	}
-	c.RestoreDataDir = path.Clean(c.RestoreDataDir)
+	c.DataDir = path.Clean(c.DataDir)
+	c.TempSnapshotsDir = path.Clean(c.TempSnapshotsDir)
 	return nil
 }
 
@@ -180,8 +191,8 @@ type FetcherInfo struct {
 
 // ApplierInfo stores the info about applier
 type ApplierInfo struct {
-	EventsFilePath string
-	SnapIndex      int
+	SnapFilePath string
+	SnapIndex    int
 }
 
 // DeepCopyInto copies the structure deeply from in to out.
@@ -206,6 +217,9 @@ func (in *RestoreOptions) DeepCopyInto(out *RestoreOptions) {
 	}
 	if in.DeltaSnapList != nil {
 		out.DeltaSnapList = DeepCopySnapList(in.DeltaSnapList)
+	}
+	if in.NewClientFactory != nil {
+		out.NewClientFactory = DeepCopyNewClientFactory(in.NewClientFactory)
 	}
 }
 
@@ -239,6 +253,13 @@ func DeepCopySnapList(in SnapList) SnapList {
 			out[i] = &cpv
 		}
 	}
+	return out
+}
+
+// DeepCopyNewClientFactory returns a deep copy
+func DeepCopyNewClientFactory(in NewClientFactoryFunc) NewClientFactoryFunc {
+	var out NewClientFactoryFunc
+	out = in
 	return out
 }
 

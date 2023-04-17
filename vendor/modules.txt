@@ -124,8 +124,9 @@ github.com/fatih/color
 # github.com/fsnotify/fsnotify v1.6.0
 ## explicit; go 1.16
 github.com/fsnotify/fsnotify
-# github.com/gardener/etcd-backup-restore v0.14.1
-## explicit; go 1.14
+# github.com/gardener/etcd-backup-restore v0.23.0
+## explicit; go 1.19
+github.com/gardener/etcd-backup-restore/pkg/etcdutil/client
 github.com/gardener/etcd-backup-restore/pkg/snapstore
 github.com/gardener/etcd-backup-restore/pkg/snapstore/gcs
 github.com/gardener/etcd-backup-restore/pkg/types

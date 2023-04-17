@@ -343,6 +343,11 @@ func getProviders() ([]TestProvider, error) {
 						},
 					},
 				}
+				localStackHost := getEnvOrFallback("LOCALSTACK_HOST", "")
+				if localStackHost != "" {
+					provider.Storage.SecretData["endpoint"] = []byte("http://" + localStackHost)
+					provider.Storage.SecretData["s3ForcePathStyle"] = []byte("true")
+				}
 			}
 		case providerAzure:
 			absStorageAccount := getEnvOrFallback(envABSStorageAccount, "")
