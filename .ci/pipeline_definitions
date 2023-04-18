@@ -24,13 +24,13 @@ etcd-druid:
                 build: ~
     steps:
       check:
-        image: 'golang:1.20.1'
+        image: 'golang:1.20.3'
       test:
-        image: 'golang:1.20.1'
+        image: 'golang:1.20.3'
       test_integration:
-        image: 'golang:1.20.1'
+        image: 'golang:1.20.3'
       build:
-        image: 'golang:1.20.1'
+        image: 'golang:1.20.3'
         output_dir: 'binary'
 
   jobs:
