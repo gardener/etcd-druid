@@ -49,7 +49,8 @@ function create_s3_bucket() {
   result=$(aws ${ENDPOINT_URL} s3api get-bucket-location --bucket ${TEST_ID} 2>&1 || true)
   if [[ $result == *NoSuchBucket* ]]; then
     echo "Creating S3 bucket ${TEST_ID} in region ${AWS_REGION}"
-    aws ${ENDPOINT_URL} s3api create-bucket --bucket ${TEST_ID} --region ${AWS_REGION} --create-bucket-configuration LocationConstraint=${AWS_REGION}
+    aws ${ENDPOINT_URL} s3api create-bucket --bucket ${TEST_ID} --region ${AWS_REGION} --create-bucket-configuration LocationConstraint=${AWS_REGION} --acl private
+    aws ${ENDPOINT_URL} s3api put-public-access-block --bucket ${TEST_ID} --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
   else
     echo $result
     if [[ $result != *${AWS_REGION}* ]]; then
