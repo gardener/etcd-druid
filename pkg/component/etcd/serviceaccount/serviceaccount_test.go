@@ -36,14 +36,17 @@ import (
 var _ = Describe("ServiceAccount Component", Ordered, func() {
 	var (
 		saComponent gardenercomponent.Deployer
-		ctx         = context.TODO()
-		c           = fake.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
+		ctx         context.Context
+		c           client.Client
 		values      *Values
 	)
 
 	Context("#Deploy", func() {
 
 		BeforeEach(func() {
+			ctx = context.Background()
+			c = fake.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
+
 			values = &Values{
 				Name:      "test-service-account",
 				Namespace: "test-namespace",
@@ -110,6 +113,9 @@ var _ = Describe("ServiceAccount Component", Ordered, func() {
 
 	Context("#Destroy", func() {
 		BeforeEach(func() {
+			ctx = context.Background()
+			c = fake.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
+
 			values = &Values{
 				Name:      "test-service-account",
 				Namespace: "test-namespace",
