@@ -332,7 +332,7 @@ func checkV1PDB(pdb *policyv1.PodDisruptionBudget, values *Values, expectedNames
 func checkPDBMetadata(meta *metav1.ObjectMeta, values *Values, expectedNamespace string) {
 	Expect(meta.Name).To(Equal(values.Name))
 	Expect(meta.Namespace).To(Equal(expectedNamespace))
-	Expect(meta.OwnerReferences).To(Equal(values.OwnerReferences))
+	Expect(meta.OwnerReferences).To(Equal([]metav1.OwnerReference{*values.OwnerReference}))
 	Expect(meta.Labels).To(Equal(pdbLabels(values)))
 }
 

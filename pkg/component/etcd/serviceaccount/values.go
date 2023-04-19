@@ -22,8 +22,8 @@ type Values struct {
 	Name string
 	// Namespace is the namespace of the ServiceAccount.
 	Namespace string
-	// OwnerReferences are the OwnerReferences of the ServiceAccount.
-	OwnerReferences []metav1.OwnerReference
+	// OwnerReference are the OwnerReference of the ServiceAccount.
+	OwnerReference *metav1.OwnerReference
 	// Labels are the labels to apply to the ServiceAccount.
 	Labels map[string]string
 	// DisableAutomount defines the AutomountServiceAccountToken of the ServiceAccount.

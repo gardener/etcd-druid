@@ -29,8 +29,8 @@ type Values struct {
 	// Namespace is the namespace of StatefulSet.
 	Namespace string
 
-	// OwnerReferences are the OwnerReferences of the StatefulSet.
-	OwnerReferences []metav1.OwnerReference
+	// OwnerReference are the OwnerReference of the StatefulSet.
+	OwnerReference *metav1.OwnerReference
 
 	// Replicas is the number of ETCD instance that the ETCD cluster will have.
 	Replicas int32

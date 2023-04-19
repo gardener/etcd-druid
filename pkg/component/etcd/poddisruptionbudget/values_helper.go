@@ -34,6 +34,7 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
 		SelectorLabels: etcd.GetDefaultLabels(),
 		Annotations:    annotations,
 		MinAvailable:   int32(CalculatePDBMinAvailable(etcd)),
+		OwnerReference: etcd.GetAsOwnerReference(),
 	}
 }
 

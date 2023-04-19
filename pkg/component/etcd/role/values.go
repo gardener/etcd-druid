@@ -27,8 +27,8 @@ type Values struct {
 	Namespace string
 	// Rules holds all the PolicyRules for this Role
 	Rules []rbacv1.PolicyRule
-	// OwnerReferences are the OwnerReferences of the Role.
-	OwnerReferences []metav1.OwnerReference
+	// OwnerReference are the OwnerReference of the Role.
+	OwnerReference *metav1.OwnerReference
 	// Labels are the labels of the Role.
 	Labels map[string]string
 }

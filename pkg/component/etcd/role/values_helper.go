@@ -17,18 +17,15 @@ package role
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // GenerateValues generates `role.Values` for the role component with the given `etcd` object.
 func GenerateValues(etcd *druidv1alpha1.Etcd) *Values {
 	return &Values{
-		Name:      etcd.GetRoleName(),
-		Namespace: etcd.Namespace,
-		Labels:    etcd.GetDefaultLabels(),
-		OwnerReferences: []metav1.OwnerReference{
-			etcd.GetAsOwnerReference(),
-		},
+		Name:           etcd.GetRoleName(),
+		Namespace:      etcd.Namespace,
+		Labels:         etcd.GetDefaultLabels(),
+		OwnerReference: etcd.GetAsOwnerReference(),
 		Rules: []rbacv1.PolicyRule{
 			{
 				APIGroups: []string{"coordination.k8s.io"},

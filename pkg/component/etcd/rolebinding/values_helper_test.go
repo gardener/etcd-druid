@@ -46,9 +46,7 @@ var _ = Describe("RoleBinding", func() {
 			},
 			RoleName:           etcd.GetRoleName(),
 			ServiceAccountName: etcd.GetServiceAccountName(),
-			OwnerReferences: []metav1.OwnerReference{
-				etcd.GetAsOwnerReference(),
-			},
+			OwnerReference:     etcd.GetAsOwnerReference(),
 		}
 	)
 

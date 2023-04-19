@@ -166,7 +166,7 @@ var _ = Describe("Service", func() {
 })
 
 func checkClientService(svc *corev1.Service, values Values) {
-	Expect(svc.OwnerReferences).To(Equal(values.OwnerReferences))
+	Expect(svc.OwnerReferences).To(Equal([]metav1.OwnerReference{*values.OwnerReference}))
 	Expect(svc.Labels).To(Equal(utils.MergeStringMaps(values.Labels, values.ClientServiceLabels)))
 	Expect(svc.Spec.Selector).To(Equal(values.SelectorLabels))
 	Expect(svc.Spec.Type).To(Equal(corev1.ServiceType("ClusterIP")))
@@ -193,7 +193,7 @@ func checkClientService(svc *corev1.Service, values Values) {
 }
 
 func checkPeerService(svc *corev1.Service, values Values) {
-	Expect(svc.OwnerReferences).To(Equal(values.OwnerReferences))
+	Expect(svc.OwnerReferences).To(Equal([]metav1.OwnerReference{*values.OwnerReference}))
 	Expect(svc.Labels).To(Equal(values.Labels))
 	Expect(svc.Spec.PublishNotReadyAddresses).To(BeTrue())
 	Expect(svc.Spec.Type).To(Equal(corev1.ServiceType("ClusterIP")))

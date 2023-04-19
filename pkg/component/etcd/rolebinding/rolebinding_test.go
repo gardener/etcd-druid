@@ -136,7 +136,7 @@ func verifyRoleBindingValues(expected *rbacv1.RoleBinding, values *rolebinding.V
 	Expect(expected.Labels).To(Equal(values.Labels))
 	Expect(expected.Namespace).To(Equal(values.Namespace))
 	Expect(expected.Namespace).To(Equal(values.Namespace))
-	Expect(expected.OwnerReferences).To(Equal(values.OwnerReferences))
+	Expect(expected.OwnerReferences).To(Equal([]metav1.OwnerReference{*values.OwnerReference}))
 	Expect(expected.Subjects).To(Equal([]rbacv1.Subject{
 		{
 			Kind:      "ServiceAccount",
@@ -163,15 +163,13 @@ func getTestRoleBindingValues() *rolebinding.Values {
 		},
 		RoleName:           "test-role",
 		ServiceAccountName: "test-serviceaccount",
-		OwnerReferences: []metav1.OwnerReference{
-			{
-				APIVersion:         v1alpha1.GroupVersion.String(),
-				Kind:               "etcd",
-				Name:               "test-etcd",
-				UID:                "123-456-789",
-				Controller:         pointer.Bool(true),
-				BlockOwnerDeletion: pointer.Bool(true),
-			},
+		OwnerReference: &metav1.OwnerReference{
+			APIVersion:         v1alpha1.GroupVersion.String(),
+			Kind:               "etcd",
+			Name:               "test-etcd",
+			UID:                "123-456-789",
+			Controller:         pointer.Bool(true),
+			BlockOwnerDeletion: pointer.Bool(true),
 		},
 	}
 }

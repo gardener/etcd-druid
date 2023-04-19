@@ -16,7 +16,6 @@ package lease
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // GenerateValues generates `lease.Values` for the lease component
@@ -27,6 +26,6 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
 		DeltaSnapshotLeaseName: etcd.GetDeltaSnapshotLeaseName(),
 		FullSnapshotLeaseName:  etcd.GetFullSnapshotLeaseName(),
 		Replicas:               etcd.Spec.Replicas,
-		OwnerReferences:        []metav1.OwnerReference{etcd.GetAsOwnerReference()},
+		OwnerReference:         etcd.GetAsOwnerReference(),
 	}
 }

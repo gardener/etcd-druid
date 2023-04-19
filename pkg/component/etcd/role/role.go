@@ -36,7 +36,7 @@ func (c component) Deploy(ctx context.Context) error {
 		role.Name = c.values.Name
 		role.Namespace = c.values.Namespace
 		role.Labels = c.values.Labels
-		role.OwnerReferences = c.values.OwnerReferences
+		role.OwnerReferences = []metav1.OwnerReference{*c.values.OwnerReference}
 		role.Rules = c.values.Rules
 		return nil
 	})

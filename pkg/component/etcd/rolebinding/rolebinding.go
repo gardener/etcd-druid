@@ -36,7 +36,7 @@ func (c component) Deploy(ctx context.Context) error {
 		roleBinding.Name = c.values.Name
 		roleBinding.Namespace = c.values.Namespace
 		roleBinding.Labels = c.values.Labels
-		roleBinding.OwnerReferences = c.values.OwnerReferences
+		roleBinding.OwnerReferences = []metav1.OwnerReference{*c.values.OwnerReference}
 		roleBinding.RoleRef = rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "Role",

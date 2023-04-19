@@ -19,13 +19,14 @@ import (
 
 	"github.com/gardener/gardener/pkg/controllerutils"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func (c *component) syncPeerService(ctx context.Context, svc *corev1.Service) error {
 	_, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, c.client, svc, func() error {
 		svc.Labels = c.values.Labels
-		svc.OwnerReferences = c.values.OwnerReferences
+		svc.OwnerReferences = []metav1.OwnerReference{*c.values.OwnerReference}
 		svc.Spec.Type = corev1.ServiceTypeClusterIP
 		svc.Spec.ClusterIP = corev1.ClusterIPNone
 		svc.Spec.SessionAffinity = corev1.ServiceAffinityNone

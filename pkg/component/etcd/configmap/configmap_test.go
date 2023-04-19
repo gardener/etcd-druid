@@ -194,7 +194,7 @@ var _ = Describe("Configmap", func() {
 func checkConfigmap(cm *corev1.ConfigMap, values *Values, namespace string) {
 
 	Expect(cm.Name).To(Equal(values.Name))
-	Expect(cm.OwnerReferences).To(Equal(values.OwnerReferences))
+	Expect(cm.OwnerReferences).To(Equal([]metav1.OwnerReference{*values.OwnerReference}))
 	Expect(cm.Labels).To(Equal(values.Labels))
 	configYML := cm.Data[etcdConfig]
 	config := map[string]interface{}{}

@@ -20,6 +20,7 @@ import (
 	"github.com/gardener/gardener/pkg/controllerutils"
 
 	coordinationv1 "k8s.io/api/coordination/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -32,7 +33,7 @@ func (c *component) syncSnapshotLease(ctx context.Context, lease *coordinationv1
 		return c.deleteSnapshotLease(ctx, lease)
 	}
 	_, err := controllerutils.GetAndCreateOrMergePatch(ctx, c.client, lease, func() error {
-		lease.OwnerReferences = c.values.OwnerReferences
+		lease.OwnerReferences = []metav1.OwnerReference{*c.values.OwnerReference}
 		return nil
 	})
 	return err

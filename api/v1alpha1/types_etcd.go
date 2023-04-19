@@ -460,8 +460,8 @@ func (e *Etcd) GetDefaultLabels() map[string]string {
 }
 
 // GetAsOwnerReference returns an OwnerReference object that represents the current Etcd instance.
-func (e *Etcd) GetAsOwnerReference() metav1.OwnerReference {
-	return metav1.OwnerReference{
+func (e *Etcd) GetAsOwnerReference() *metav1.OwnerReference {
+	return &metav1.OwnerReference{
 		APIVersion:         GroupVersion.String(),
 		Kind:               "Etcd",
 		Name:               e.Name,

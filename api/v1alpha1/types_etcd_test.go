@@ -129,7 +129,6 @@ var _ = Describe("Etcd", func() {
 
 	Context("GetAsOwnerReference", func() {
 		It("should return an OwnerReference object that represents the current Etcd instance", func() {
-
 			expected := metav1.OwnerReference{
 				APIVersion:         GroupVersion.String(),
 				Kind:               "Etcd",
@@ -138,7 +137,9 @@ var _ = Describe("Etcd", func() {
 				Controller:         pointer.Bool(true),
 				BlockOwnerDeletion: pointer.Bool(true),
 			}
-			Expect(created.GetAsOwnerReference()).To(Equal(expected))
+			actual := created.GetAsOwnerReference()
+			Expect(actual).NotTo(BeNil())
+			Expect(*created.GetAsOwnerReference()).To(Equal(expected))
 		})
 	})
 

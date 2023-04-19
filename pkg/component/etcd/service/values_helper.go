@@ -15,7 +15,6 @@
 package service
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -48,6 +47,6 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
 		Labels:                   etcd.GetDefaultLabels(),
 		PeerServiceName:          etcd.GetPeerServiceName(),
 		ServerPort:               pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, defaultServerPort),
-		OwnerReferences:          []metav1.OwnerReference{etcd.GetAsOwnerReference()},
+		OwnerReference:           etcd.GetAsOwnerReference(),
 	}
 }

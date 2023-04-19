@@ -112,7 +112,7 @@ func verifyRoleValues(expected *rbacv1.Role, values *role.Values) {
 	Expect(expected.Name).To(Equal(values.Name))
 	Expect(expected.Labels).To(Equal(values.Labels))
 	Expect(expected.Namespace).To(Equal(values.Namespace))
-	Expect(expected.OwnerReferences).To(Equal(values.OwnerReferences))
+	Expect(expected.OwnerReferences).To(Equal([]metav1.OwnerReference{*values.OwnerReference}))
 	Expect(expected.Rules).To(MatchAllElements(testutils.RuleIterator, Elements{
 		"coordination.k8s.io": MatchFields(IgnoreExtras, Fields{
 			"APIGroups": MatchAllElements(testutils.StringArrayIterator, Elements{
@@ -187,15 +187,13 @@ func getTestRoleValues() *role.Values {
 				Verbs:     []string{"get", "list", "watch"},
 			},
 		},
-		OwnerReferences: []metav1.OwnerReference{
-			{
-				APIVersion:         v1alpha1.GroupVersion.String(),
-				Kind:               "etcd",
-				Name:               "test-etcd",
-				UID:                "123-456-789",
-				Controller:         pointer.Bool(true),
-				BlockOwnerDeletion: pointer.Bool(true),
-			},
+		OwnerReference: &metav1.OwnerReference{
+			APIVersion:         v1alpha1.GroupVersion.String(),
+			Kind:               "etcd",
+			Name:               "test-etcd",
+			UID:                "123-456-789",
+			Controller:         pointer.Bool(true),
+			BlockOwnerDeletion: pointer.Bool(true),
 		},
 	}
 }

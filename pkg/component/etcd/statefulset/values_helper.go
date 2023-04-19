@@ -21,7 +21,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 )
 
@@ -58,7 +57,7 @@ func GenerateValues(
 	values := Values{
 		Name:                      etcd.Name,
 		Namespace:                 etcd.Namespace,
-		OwnerReferences:           []metav1.OwnerReference{etcd.GetAsOwnerReference()},
+		OwnerReference:            etcd.GetAsOwnerReference(),
 		Replicas:                  etcd.Spec.Replicas,
 		StatusReplicas:            etcd.Status.Replicas,
 		Annotations:               utils.MergeStringMaps(checksumAnnotations, etcd.Spec.Annotations),

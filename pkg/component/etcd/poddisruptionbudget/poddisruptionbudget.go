@@ -90,7 +90,7 @@ func (c *component) syncPodDisruptionBudget(ctx context.Context, pdb client.Obje
 	case *policyv1.PodDisruptionBudget:
 		_, err := controllerutils.GetAndCreateOrMergePatch(ctx, c.client, pdb, func() error {
 			pdb.Labels = c.values.Labels
-			pdb.OwnerReferences = c.values.OwnerReferences
+			pdb.OwnerReferences = []metav1.OwnerReference{*c.values.OwnerReference}
 			pdb.Spec.MinAvailable = &intstr.IntOrString{
 				IntVal: c.values.MinAvailable,
 				Type:   intstr.Int,
@@ -105,7 +105,7 @@ func (c *component) syncPodDisruptionBudget(ctx context.Context, pdb client.Obje
 		_, err := controllerutils.GetAndCreateOrMergePatch(ctx, c.client, pdb, func() error {
 			pdb.Annotations = c.values.Annotations
 			pdb.Labels = c.values.Labels
-			pdb.OwnerReferences = c.values.OwnerReferences
+			pdb.OwnerReferences = []metav1.OwnerReference{*c.values.OwnerReference}
 			pdb.Spec.MinAvailable = &intstr.IntOrString{
 				IntVal: c.values.MinAvailable,
 				Type:   intstr.Int,
