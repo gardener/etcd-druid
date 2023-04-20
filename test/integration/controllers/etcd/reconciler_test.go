@@ -432,7 +432,7 @@ func validateRole(instance *druidv1alpha1.Etcd, role *rbac.Role) {
 			}),
 			"OwnerReferences": MatchElements(testutils.OwnerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
-					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),
+					"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
 					"Kind":               Equal("Etcd"),
 					"Name":               Equal(instance.Name),
 					"UID":                Equal(instance.UID),
@@ -554,7 +554,7 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 			}),
 			"OwnerReferences": MatchElements(testutils.OwnerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
-					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),
+					"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
 					"Kind":               Equal("Etcd"),
 					"Name":               Equal(instance.Name),
 					"UID":                Equal(instance.UID),
@@ -853,7 +853,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			}),
 			"OwnerReferences": MatchElements(testutils.OwnerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
-					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),
+					"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
 					"Kind":               Equal("Etcd"),
 					"Name":               Equal(instance.Name),
 					"UID":                Equal(instance.UID),
@@ -908,7 +908,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			}),
 			"OwnerReferences": MatchElements(testutils.OwnerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
-					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),
+					"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
 					"Kind":               Equal("Etcd"),
 					"Name":               Equal(instance.Name),
 					"UID":                Equal(instance.UID),

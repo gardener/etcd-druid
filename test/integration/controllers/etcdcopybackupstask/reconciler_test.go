@@ -151,7 +151,7 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 			}),
 			"OwnerReferences": MatchAllElements(testutils.OwnerRefIterator, Elements{
 				task.Name: MatchAllFields(Fields{
-					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),
+					"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
 					"Kind":               Equal("EtcdCopyBackupsTask"),
 					"Name":               Equal(task.Name),
 					"UID":                Equal(task.UID),

@@ -42,7 +42,7 @@ func CreateEtcdCopyBackupsTask(name, namespace string, provider druidv1alpha1.St
 	}
 	return &druidv1alpha1.EtcdCopyBackupsTask{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "druid.gardener.cloud/v1alpha1",
+			APIVersion: druidv1alpha1.GroupVersion.String(),
 			Kind:       "EtcdCopyBackupsTask",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -86,7 +86,7 @@ func CreateEtcdCopyBackupsJob(taskName, namespace string) *batchv1.Job {
 			Annotations: createJobAnnotations(taskName, namespace),
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion:         "druid.gardener.cloud/v1alpha1",
+					APIVersion:         druidv1alpha1.GroupVersion.String(),
 					Kind:               "EtcdCopyBackupsTask",
 					Name:               taskName,
 					UID:                "",
