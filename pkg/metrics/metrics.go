@@ -1,4 +1,4 @@
-// Copyright 2019 The etcd Authors
+// Copyright 2023 SAP SE or an SAP affiliate company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,11 +14,7 @@
 
 package metrics
 
-import (
-	"sort"
-
-	"github.com/prometheus/client_golang/prometheus"
-)
+import "sort"
 
 const (
 	// LabelSucceeded is a metric label indicating whether associated metric
@@ -28,15 +24,6 @@ const (
 	ValueSucceededTrue = "true"
 	// ValueSucceededFalse is value False for metric label failed.
 	ValueSucceededFalse = "false"
-	// CompactionJobSubmitted is value for metric of total number of compaction jobs initiated by compaction controller.
-	CompactionJobSubmitted = "compaction_jobs"
-	// ValueRestoreSingleNode is value for metric of single node restoration.
-	ValueRestoreSingleNode = "single_node"
-	// LabelError is a metric error to indicate error occured.
-	LabelError = "error"
-
-	namespaceEtcdDruid  = "etcd_druid"
-	subsystemCompaction = "compaction"
 )
 
 var (
@@ -47,39 +34,6 @@ var (
 			ValueSucceededTrue,
 		},
 	}
-
-	// CompactionJobCounterTotal is metric to count the total number of compaction jobs initiated by compaction controller.
-	CompactionJobCounterTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: namespaceEtcdDruid,
-			Subsystem: subsystemCompaction,
-			Name:      "compaction_job_total",
-			Help:      "Total number of compaction jobs initiated.",
-		},
-		[]string{LabelSucceeded},
-	)
-
-	// CompactionJobDurationSeconds is metric to expose duration to complete last compaction job.
-	CompactionJobDurationSeconds = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: namespaceEtcdDruid,
-			Subsystem: subsystemCompaction,
-			Name:      "compaction_job_duration_seconds",
-			Help:      "Total time taken in seconds to complete last compaction job.",
-		},
-		[]string{LabelSucceeded},
-	)
-
-	// TotalNumberOfEvents is metric to expose the total number of events compacted by last compaction job.
-	TotalNumberOfEvents = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: namespaceEtcdDruid,
-			Subsystem: subsystemCompaction,
-			Name:      "total_number_of_events",
-			Help:      "Total number of events compacted by last compaction job.",
-		},
-		[]string{},
-	)
 )
 
 // GenerateLabelCombinations generates combinations of label values for metrics
