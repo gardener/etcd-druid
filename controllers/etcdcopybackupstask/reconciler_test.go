@@ -536,7 +536,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(*hostPathVolumeSource.Type).To(Equal(corev1.HostPathDirectory))
 			})
 
-			It("should create the correct volumes when store.SecretRef is not refered", func() {
+			It("should create the correct volumes when store.SecretRef is not referred", func() {
 				Expect(fakeClient.Create(ctx, secret)).To(Succeed())
 
 				store.SecretRef = &corev1.SecretReference{Name: secret.Name}

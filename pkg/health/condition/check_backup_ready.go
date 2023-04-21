@@ -31,7 +31,7 @@ type backupReadyCheck struct {
 }
 
 const (
-	// BackupSucceeded is a constant that means that etcd backup has been sucessfully taken
+	// BackupSucceeded is a constant that means that etcd backup has been successfully taken
 	BackupSucceeded string = "BackupSucceeded"
 	// BackupFailed is a constant that means that etcd backup has failed
 	BackupFailed string = "BackupFailed"
