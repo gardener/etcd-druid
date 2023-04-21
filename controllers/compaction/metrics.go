@@ -20,28 +20,68 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
+const (
+	namespaceEtcdDruid  = "etcddruid"
+	subsystemCompaction = "compaction"
+)
+
+var (
+	// CompactionJobCounterTotal is the metric used to count the total number of compaction jobs initiated by compaction controller.
+	CompactionJobCounterTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespaceEtcdDruid,
+			Subsystem: subsystemCompaction,
+			Name:      "jobs_total",
+			Help:      "Total number of compaction jobs initiated by compaction controller.",
+		},
+		[]string{druidmetrics.LabelSucceeded},
+	)
+
+	// CompactionJobDurationSeconds is the metric used to expose the time taken to finish running a compaction job.
+	CompactionJobDurationSeconds = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespaceEtcdDruid,
+			Subsystem: subsystemCompaction,
+			Name:      "job_duration_seconds",
+			Help:      "Total time taken in seconds to finish running a compaction job.",
+		},
+		[]string{druidmetrics.LabelSucceeded},
+	)
+
+	// NumDeltaEvents is the metric used to expose the total number of etcd events to be compacted by a compaction job.
+	NumDeltaEvents = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespaceEtcdDruid,
+			Subsystem: subsystemCompaction,
+			Name:      "num_delta_events",
+			Help:      "Total number of etcd events to be compacted by a compaction job.",
+		},
+		[]string{},
+	)
+)
+
 func init() {
-	// CompactionJobCountTotal
-	CompactionJobCountTotalValues := map[string][]string{
+	// compactionJobCountTotal
+	compactionJobCountTotalValues := map[string][]string{
 		druidmetrics.LabelSucceeded: druidmetrics.DruidLabels[druidmetrics.LabelSucceeded],
 	}
-	CompactionJobCounterCombinations := druidmetrics.GenerateLabelCombinations(CompactionJobCountTotalValues)
-	for _, combination := range CompactionJobCounterCombinations {
-		druidmetrics.CompactionJobCounterTotal.With(prometheus.Labels(combination))
+	compactionJobCounterCombinations := druidmetrics.GenerateLabelCombinations(compactionJobCountTotalValues)
+	for _, combination := range compactionJobCounterCombinations {
+		CompactionJobCounterTotal.With(prometheus.Labels(combination))
 	}
 
-	// CompactionJobDurationSeconds
-	CompactionJobDurationSecondsValues := map[string][]string{
+	// compactionJobDurationSeconds
+	compactionJobDurationSecondsValues := map[string][]string{
 		druidmetrics.LabelSucceeded: druidmetrics.DruidLabels[druidmetrics.LabelSucceeded],
 	}
-	CompactionJobDurationSecondsCombinations := druidmetrics.GenerateLabelCombinations(CompactionJobDurationSecondsValues)
-	for _, combination := range CompactionJobDurationSecondsCombinations {
-		druidmetrics.CompactionJobDurationSeconds.With(prometheus.Labels(combination))
+	compactionJobDurationSecondsCombinations := druidmetrics.GenerateLabelCombinations(compactionJobDurationSecondsValues)
+	for _, combination := range compactionJobDurationSecondsCombinations {
+		CompactionJobDurationSeconds.With(prometheus.Labels(combination))
 	}
 
 	// Metrics have to be registered to be exposed:
-	metrics.Registry.MustRegister(druidmetrics.CompactionJobCounterTotal)
-	metrics.Registry.MustRegister(druidmetrics.CompactionJobDurationSeconds)
+	metrics.Registry.MustRegister(CompactionJobCounterTotal)
+	metrics.Registry.MustRegister(CompactionJobDurationSeconds)
 
-	metrics.Registry.MustRegister(druidmetrics.TotalNumberOfEvents)
+	metrics.Registry.MustRegister(NumDeltaEvents)
 }
