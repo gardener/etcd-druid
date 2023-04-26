@@ -30,7 +30,7 @@ type Values struct {
 	Namespace string
 
 	// OwnerReference are the OwnerReference of the StatefulSet.
-	OwnerReference *metav1.OwnerReference
+	OwnerReference metav1.OwnerReference
 
 	// Replicas is the number of ETCD instance that the ETCD cluster will have.
 	Replicas int32

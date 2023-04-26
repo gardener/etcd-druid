@@ -165,7 +165,7 @@ func (c *component) syncConfigmap(ctx context.Context, cm *corev1.ConfigMap) err
 		cm.Name = c.values.Name
 		cm.Namespace = c.namespace
 		cm.Labels = c.values.Labels
-		cm.OwnerReferences = []metav1.OwnerReference{*c.values.OwnerReference}
+		cm.OwnerReferences = []metav1.OwnerReference{c.values.OwnerReference}
 		cm.Data = map[string]string{"etcd.conf.yaml": c.getEtcdConfigYaml()}
 		return nil
 	})

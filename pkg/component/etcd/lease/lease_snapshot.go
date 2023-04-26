@@ -33,7 +33,7 @@ func (c *component) syncSnapshotLease(ctx context.Context, lease *coordinationv1
 		return c.deleteSnapshotLease(ctx, lease)
 	}
 	_, err := controllerutils.GetAndCreateOrMergePatch(ctx, c.client, lease, func() error {
-		lease.OwnerReferences = []metav1.OwnerReference{*c.values.OwnerReference}
+		lease.OwnerReferences = []metav1.OwnerReference{c.values.OwnerReference}
 		return nil
 	})
 	return err

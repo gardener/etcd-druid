@@ -28,7 +28,7 @@ type Values struct {
 	// It is assumed that the ServiceAccount exists in the namespace where the etcd custom resource is created.
 	ServiceAccountName string
 	// OwnerReference are the OwnerReference of the RoleBinding.
-	OwnerReference *metav1.OwnerReference
+	OwnerReference metav1.OwnerReference
 	// Labels are the labels of the RoleBinding.
 	Labels map[string]string
 }

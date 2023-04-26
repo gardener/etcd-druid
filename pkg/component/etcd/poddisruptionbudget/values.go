@@ -37,5 +37,5 @@ type Values struct {
 	// MinAvailable defined the minimum number of pods to be available at any point of time
 	MinAvailable int32
 	// OwnerReference are the OwnerReference of the PodDisruptionBudget.
-	OwnerReference *metav1.OwnerReference
+	OwnerReference metav1.OwnerReference
 }

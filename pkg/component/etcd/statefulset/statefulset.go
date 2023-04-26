@@ -553,7 +553,7 @@ func getObjectMeta(val *Values, sts *appsv1.StatefulSet, preserveAnnotations boo
 		Namespace:       val.Namespace,
 		Labels:          val.Labels,
 		Annotations:     annotations,
-		OwnerReferences: []metav1.OwnerReference{*val.OwnerReference},
+		OwnerReferences: []metav1.OwnerReference{val.OwnerReference},
 	}
 }
 

@@ -54,7 +54,7 @@ var _ = Describe("ServiceAccount Component", Ordered, func() {
 					"foo": "bar",
 				},
 				DisableAutomount: true,
-				OwnerReference: &metav1.OwnerReference{
+				OwnerReference: metav1.OwnerReference{
 					APIVersion:         druidv1alpha1.GroupVersion.String(),
 					Kind:               "Etcd",
 					Name:               "test-etcd",
@@ -123,7 +123,7 @@ var _ = Describe("ServiceAccount Component", Ordered, func() {
 					"foo": "bar",
 				},
 				DisableAutomount: true,
-				OwnerReference: &metav1.OwnerReference{
+				OwnerReference: metav1.OwnerReference{
 					APIVersion:         druidv1alpha1.GroupVersion.String(),
 					Kind:               "Etcd",
 					Name:               "test-etcd",
@@ -167,6 +167,6 @@ func verifyServicAccountValues(expected *corev1.ServiceAccount, values *Values) 
 	Expect(expected.Name).To(Equal(values.Name))
 	Expect(expected.Labels).Should(Equal(values.Labels))
 	Expect(expected.Namespace).To(Equal(values.Namespace))
-	Expect(expected.OwnerReferences).To(Equal([]metav1.OwnerReference{*values.OwnerReference}))
+	Expect(expected.OwnerReferences).To(Equal([]metav1.OwnerReference{values.OwnerReference}))
 	Expect(expected.AutomountServiceAccountToken).To(Equal(pointer.Bool(!values.DisableAutomount)))
 }

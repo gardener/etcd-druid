@@ -137,9 +137,7 @@ var _ = Describe("Etcd", func() {
 				Controller:         pointer.Bool(true),
 				BlockOwnerDeletion: pointer.Bool(true),
 			}
-			actual := created.GetAsOwnerReference()
-			Expect(actual).NotTo(BeNil())
-			Expect(*created.GetAsOwnerReference()).To(Equal(expected))
+			Expect(created.GetAsOwnerReference()).To(Equal(expected))
 		})
 	})
 

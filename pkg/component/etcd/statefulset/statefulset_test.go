@@ -714,7 +714,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 }
 
 func checkStsOwnerRefs(ors []metav1.OwnerReference, values Values) {
-	Expect(ors).To(Equal([]metav1.OwnerReference{*values.OwnerReference}))
+	Expect(ors).To(Equal([]metav1.OwnerReference{values.OwnerReference}))
 }
 
 func getEtcd(name, namespace string, tlsEnabled bool, replicas int32, storageProvider *string) *druidv1alpha1.Etcd {

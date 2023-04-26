@@ -28,7 +28,7 @@ func (c *component) syncClientService(ctx context.Context, svc *corev1.Service) 
 	_, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, c.client, svc, func() error {
 		svc.Labels = utils.MergeStringMaps(c.values.Labels, c.values.ClientServiceLabels)
 		svc.Annotations = c.values.ClientServiceAnnotations
-		svc.OwnerReferences = []metav1.OwnerReference{*c.values.OwnerReference}
+		svc.OwnerReferences = []metav1.OwnerReference{c.values.OwnerReference}
 		svc.Spec.Type = corev1.ServiceTypeClusterIP
 		svc.Spec.SessionAffinity = corev1.ServiceAffinityNone
 		svc.Spec.Selector = c.values.SelectorLabels

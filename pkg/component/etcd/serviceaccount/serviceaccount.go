@@ -37,7 +37,7 @@ func (c component) Deploy(ctx context.Context) error {
 		serviceAccount.Name = c.values.Name
 		serviceAccount.Namespace = c.values.Namespace
 		serviceAccount.Labels = c.values.Labels
-		serviceAccount.OwnerReferences = []metav1.OwnerReference{*c.values.OwnerReference}
+		serviceAccount.OwnerReferences = []metav1.OwnerReference{c.values.OwnerReference}
 		serviceAccount.AutomountServiceAccountToken = pointer.Bool(!c.values.DisableAutomount)
 		return nil
 	})
