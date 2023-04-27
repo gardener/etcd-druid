@@ -152,7 +152,7 @@ var _ = Describe("Configmap", func() {
 				cm := &corev1.ConfigMap{}
 
 				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), cm)).To(Succeed())
-				checkConfigmap(cm, values, namespace)
+				checkConfigMap(cm, values, namespace)
 
 			})
 		})
@@ -166,7 +166,7 @@ var _ = Describe("Configmap", func() {
 				cm := &corev1.ConfigMap{}
 
 				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), cm)).To(Succeed())
-				checkConfigmap(cm, values, namespace)
+				checkConfigMap(cm, values, namespace)
 			})
 		})
 	})
@@ -191,8 +191,7 @@ var _ = Describe("Configmap", func() {
 	})
 })
 
-func checkConfigmap(cm *corev1.ConfigMap, values *Values, namespace string) {
-
+func checkConfigMap(cm *corev1.ConfigMap, values *Values, namespace string) {
 	Expect(cm.Name).To(Equal(values.Name))
 	Expect(cm.OwnerReferences).To(HaveLen(1))
 	Expect(cm.OwnerReferences[0]).To(Equal(values.OwnerReference))
