@@ -316,24 +316,21 @@ var _ = Describe("PodDisruptionBudget", func() {
 })
 
 func checkV1beta1PDB(pdb *policyv1beta1.PodDisruptionBudget, values *Values, expectedNamespace string) {
-	checkPDBMetadata(&pdb.ObjectMeta, values, expectedNamespace)
-
+	Expect(pdb.Name).To(Equal(values.Name))
+	Expect(pdb.Namespace).To(Equal(expectedNamespace))
+	Expect(pdb.OwnerReferences).To(Equal([]metav1.OwnerReference{values.OwnerReference}))
+	Expect(pdb.Labels).To(Equal(pdbLabels(values)))
 	Expect(pdb.Spec.MinAvailable.IntVal).To(BeNumerically("==", values.MinAvailable))
 	Expect(pdb.Spec.Selector).To(Equal(pdbSelectorLabels(values)))
 }
 
 func checkV1PDB(pdb *policyv1.PodDisruptionBudget, values *Values, expectedNamespace string) {
-	checkPDBMetadata(&pdb.ObjectMeta, values, expectedNamespace)
-
+	Expect(pdb.Name).To(Equal(values.Name))
+	Expect(pdb.Namespace).To(Equal(expectedNamespace))
+	Expect(pdb.OwnerReferences).To(Equal([]metav1.OwnerReference{values.OwnerReference}))
+	Expect(pdb.Labels).To(Equal(pdbLabels(values)))
 	Expect(pdb.Spec.MinAvailable.IntVal).To(BeNumerically("==", values.MinAvailable))
 	Expect(pdb.Spec.Selector).To(Equal(pdbSelectorLabels(values)))
-}
-
-func checkPDBMetadata(meta *metav1.ObjectMeta, values *Values, expectedNamespace string) {
-	Expect(meta.Name).To(Equal(values.Name))
-	Expect(meta.Namespace).To(Equal(expectedNamespace))
-	Expect(meta.OwnerReferences).To(Equal([]metav1.OwnerReference{values.OwnerReference}))
-	Expect(meta.Labels).To(Equal(pdbLabels(values)))
 }
 
 func pdbLabels(val *Values) map[string]string {
