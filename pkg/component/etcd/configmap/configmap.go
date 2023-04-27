@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,7 +28,6 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/gardener/pkg/controllerutils"
-	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	"github.com/gardener/gardener/pkg/utils"
 )
 
@@ -36,47 +36,6 @@ type component struct {
 	namespace string
 
 	values *Values
-}
-
-type tlsTarget string
-
-const (
-	clientTLS tlsTarget = "client"
-	peerTLS   tlsTarget = "peer"
-)
-
-// TODO: The etcdConfig struct fields have been borrowed from a later version of etcd: https://github.com/etcd-io/etcd/blob/main/server/embed/config.go#L148-L453
-// We are currently using v0.5.0-alpha, which doesn't include this struct. Borrowing it allows us to maintain compatibility
-// and follow the same conventions, making it easier to adopt future updates to the etcd codebase.
-type etcdConfig struct {
-	Name                    string         `yaml:"name" json:"name"`
-	DataDir                 string         `yaml:"data-dir" json:"data-dir"`
-	Metrics                 string         `yaml:"metrics" json:"metrics"`
-	SnapshotCount           int            `yaml:"snapshot-count" json:"snapshot-count"`
-	EnableV2                bool           `yaml:"enable-v2" json:"enable-v2"`
-	QuotaBackendBytes       int64          `yaml:"quota-backend-bytes" json:"quota-backend-bytes"`
-	InitialClusterToken     string         `yaml:"initial-cluster-token" json:"initial-cluster-token"`
-	InitialClusterState     string         `yaml:"initial-cluster-state" json:"initial-cluster-state"`
-	InitialCluster          string         `yaml:"initial-cluster" json:"initial-cluster"`
-	AutoCompactionMode      string         `yaml:"auto-compaction-mode" json:"auto-compaction-mode"`
-	AutoCompactionRetention string         `yaml:"auto-compaction-retention" json:"auto-compaction-retention"`
-	ListenPeerUrls          string         `yaml:"listen-peer-urls" json:"listen-peer-urls"`
-	ListenClientUrls        string         `yaml:"listen-client-urls" json:"listen-client-urls"`
-	AdvertisePeerUrls       string         `yaml:"initial-advertise-peer-urls" json:"initial-advertise-peer-urls"`
-	AdvertiseClientUrls     string         `yaml:"advertise-client-urls" json:"advertise-client-urls"`
-	ClientSecurityJSON      securityConfig `yaml:"client-transport-security,omitempty" json:"client-transport-security,omitempty"`
-	PeerSecurityJSON        securityConfig `yaml:"peer-transport-security,omitempty" json:"peer-transport-security,omitempty"`
-}
-
-// TODO: The securityConfig struct has been borrowed from a later version of etcd: https://github.com/etcd-io/etcd/blob/main/server/embed/config.go#L455-L462
-// We are currently using v0.5.0-alpha, which doesn't include this struct. Borrowing it allows us to maintain compatibility
-// and follow the same conventions, making it easier to adopt future updates to the etcd codebase.
-type securityConfig struct {
-	CertFile       string `yaml:"cert-file,omitempty" json:"cert-file,omitempty"`
-	KeyFile        string `yaml:"key-file,omitempty" json:"key-file,omitempty"`
-	ClientCertAuth bool   `yaml:"client-cert-auth,omitempty" json:"client-cert-auth,omitempty"`
-	TrustedCAFile  string `yaml:"trusted-ca-file,omitempty" json:"trusted-ca-file,omitempty"`
-	AutoTLS        bool   `yaml:"auto-tls" json:"auto-tls"`
 }
 
 // New creates a new configmap deployer instance.
@@ -90,36 +49,36 @@ func New(c client.Client, namespace string, values *Values) gardenercomponent.De
 
 func (c *component) Deploy(ctx context.Context) error {
 	cm := c.emptyConfigmap()
-
 	if err := c.syncConfigmap(ctx, cm); err != nil {
 		return err
 	}
-
 	return nil
 }
 
-func getSchemeAndSecurityConfig(tlsConfig *druidv1alpha1.TLSConfig, serverType tlsTarget) (string, *securityConfig) {
-	if tlsConfig != nil {
-		tlsCASecretKey := "ca.crt"
-		if dataKey := tlsConfig.TLSCASecretRef.DataKey; dataKey != nil {
-			tlsCASecretKey = *dataKey
-		}
-		return "https", &securityConfig{
-			CertFile:       fmt.Sprintf("/var/etcd/ssl/%s/server/tls.crt", serverType),
-			KeyFile:        fmt.Sprintf("/var/etcd/ssl/%s/server/tls.key", serverType),
-			ClientCertAuth: true,
-			TrustedCAFile:  fmt.Sprintf("/var/etcd/ssl/%s/ca/%s", serverType, tlsCASecretKey),
-			AutoTLS:        false,
-		}
+func (c *component) Destroy(ctx context.Context) error {
+	configMap := c.emptyConfigmap()
+	if err := c.deleteConfigmap(ctx, configMap); err != nil {
+		return err
 	}
-	return "http", nil
+	return nil
 }
+
+type etcdTLSTarget string
+
+const (
+	clientTLS                  etcdTLSTarget = "client"
+	peerTLS                    etcdTLSTarget = "peer"
+	defaultQuota                             = int64(8 * 1024 * 1024 * 1024) // 8Gi
+	defaultSnapshotCount                     = 75000                         // for more information refer to https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
+	defaultInitialClusterState               = "new"
+	defaultInitialClusterToken               = "etcd-cluster"
+)
 
 func (c *component) syncConfigmap(ctx context.Context, cm *corev1.ConfigMap) error {
 	peerScheme, peerSecurity := getSchemeAndSecurityConfig(c.values.PeerUrlTLS, peerTLS)
 	clientScheme, clientSecurity := getSchemeAndSecurityConfig(c.values.ClientUrlTLS, clientTLS)
 
-	quota := int64(8 * 1024 * 1024 * 1024) // 8Gi
+	quota := defaultQuota
 	if c.values.Quota != nil {
 		quota = c.values.Quota.Value()
 	}
@@ -133,11 +92,11 @@ func (c *component) syncConfigmap(ctx context.Context, cm *corev1.ConfigMap) err
 		Name:                    fmt.Sprintf("etcd-%s", c.values.EtcdUID[:6]),
 		DataDir:                 "/var/etcd/data/new.etcd",
 		Metrics:                 string(druidv1alpha1.Basic),
-		SnapshotCount:           75000,
+		SnapshotCount:           defaultSnapshotCount,
 		EnableV2:                false,
 		QuotaBackendBytes:       quota,
-		InitialClusterToken:     "etcd-cluster",
-		InitialClusterState:     "new",
+		InitialClusterToken:     defaultInitialClusterToken,
+		InitialClusterState:     defaultInitialClusterState,
 		InitialCluster:          c.values.InitialCluster,
 		AutoCompactionMode:      autoCompactionMode,
 		AutoCompactionRetention: pointer.StringDeref(c.values.AutoCompactionRetention, "30m"),
@@ -149,11 +108,11 @@ func (c *component) syncConfigmap(ctx context.Context, cm *corev1.ConfigMap) err
 	}
 
 	if clientSecurity != nil {
-		etcdConfig.ClientSecurityJSON = *clientSecurity
+		etcdConfig.ClientSecurity = *clientSecurity
 	}
 
 	if peerSecurity != nil {
-		etcdConfig.PeerSecurityJSON = *peerSecurity
+		etcdConfig.PeerSecurity = *peerSecurity
 	}
 
 	etcdConfigYaml, err := yaml.Marshal(etcdConfig)
@@ -182,15 +141,6 @@ func (c *component) syncConfigmap(ctx context.Context, cm *corev1.ConfigMap) err
 	return nil
 }
 
-func (c *component) Destroy(ctx context.Context) error {
-	configMap := c.emptyConfigmap()
-
-	if err := c.deleteConfigmap(ctx, configMap); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (c *component) deleteConfigmap(ctx context.Context, cm *corev1.ConfigMap) error {
 	return client.IgnoreNotFound(c.client.Delete(ctx, cm))
 }
@@ -202,4 +152,49 @@ func (c *component) emptyConfigmap() *corev1.ConfigMap {
 			Namespace: c.namespace,
 		},
 	}
+}
+
+type etcdConfig struct {
+	Name                    string         `yaml:"name" json:"name"`
+	DataDir                 string         `yaml:"data-dir" json:"data-dir"`
+	Metrics                 string         `yaml:"metrics" json:"metrics"`
+	SnapshotCount           int            `yaml:"snapshot-count" json:"snapshot-count"`
+	EnableV2                bool           `yaml:"enable-v2" json:"enable-v2"`
+	QuotaBackendBytes       int64          `yaml:"quota-backend-bytes" json:"quota-backend-bytes"`
+	InitialClusterToken     string         `yaml:"initial-cluster-token" json:"initial-cluster-token"`
+	InitialClusterState     string         `yaml:"initial-cluster-state" json:"initial-cluster-state"`
+	InitialCluster          string         `yaml:"initial-cluster" json:"initial-cluster"`
+	AutoCompactionMode      string         `yaml:"auto-compaction-mode" json:"auto-compaction-mode"`
+	AutoCompactionRetention string         `yaml:"auto-compaction-retention" json:"auto-compaction-retention"`
+	ListenPeerUrls          string         `yaml:"listen-peer-urls" json:"listen-peer-urls"`
+	ListenClientUrls        string         `yaml:"listen-client-urls" json:"listen-client-urls"`
+	AdvertisePeerUrls       string         `yaml:"initial-advertise-peer-urls" json:"initial-advertise-peer-urls"`
+	AdvertiseClientUrls     string         `yaml:"advertise-client-urls" json:"advertise-client-urls"`
+	ClientSecurity          securityConfig `yaml:"client-transport-security,omitempty" json:"client-transport-security,omitempty"`
+	PeerSecurity            securityConfig `yaml:"peer-transport-security,omitempty" json:"peer-transport-security,omitempty"`
+}
+
+type securityConfig struct {
+	CertFile       string `yaml:"cert-file,omitempty" json:"cert-file,omitempty"`
+	KeyFile        string `yaml:"key-file,omitempty" json:"key-file,omitempty"`
+	ClientCertAuth bool   `yaml:"client-cert-auth,omitempty" json:"client-cert-auth,omitempty"`
+	TrustedCAFile  string `yaml:"trusted-ca-file,omitempty" json:"trusted-ca-file,omitempty"`
+	AutoTLS        bool   `yaml:"auto-tls" json:"auto-tls"`
+}
+
+func getSchemeAndSecurityConfig(tlsConfig *druidv1alpha1.TLSConfig, tlsTarget etcdTLSTarget) (string, *securityConfig) {
+	if tlsConfig != nil {
+		tlsCASecretKey := "ca.crt"
+		if dataKey := tlsConfig.TLSCASecretRef.DataKey; dataKey != nil {
+			tlsCASecretKey = *dataKey
+		}
+		return "https", &securityConfig{
+			CertFile:       fmt.Sprintf("/var/etcd/ssl/%s/server/tls.crt", tlsTarget),
+			KeyFile:        fmt.Sprintf("/var/etcd/ssl/%s/server/tls.key", tlsTarget),
+			ClientCertAuth: true,
+			TrustedCAFile:  fmt.Sprintf("/var/etcd/ssl/%s/ca/%s", tlsTarget, tlsCASecretKey),
+			AutoTLS:        false,
+		}
+	}
+	return "http", nil
 }
