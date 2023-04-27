@@ -47,15 +47,15 @@ func New(c client.Client, namespace string, values *Values, k8sVersion semver.Ve
 }
 
 // emptyPodDisruptionBudget returns an empty PDB object with only the name and namespace as part of the object meta
-func (c *component) emptyPodDisruptionBudget(name string, k8sversion *semver.Version) (client.Object, error) {
-	k8sVersionGreaterEqual121, err := utils.CompareVersions(k8sversion.String(), ">=", "1.21")
+func (c *component) emptyPodDisruptionBudget() (client.Object, error) {
+	k8sVersionGreaterEqual121, err := utils.CompareVersions(c.k8sVersion.String(), ">=", "1.21")
 	if err != nil {
 		return nil, err
 	}
 	if k8sVersionGreaterEqual121 {
 		return &policyv1.PodDisruptionBudget{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
+				Name:      c.values.Name,
 				Namespace: c.namespace,
 			},
 		}, nil
@@ -63,7 +63,7 @@ func (c *component) emptyPodDisruptionBudget(name string, k8sversion *semver.Ver
 		//TODO (@aaronfern): remove v1beta1 PDB when k8s clusters less then 1.21 are not supported
 		return &policyv1beta1.PodDisruptionBudget{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
+				Name:      c.values.Name,
 				Namespace: c.namespace,
 			},
 		}, nil
@@ -72,7 +72,7 @@ func (c *component) emptyPodDisruptionBudget(name string, k8sversion *semver.Ver
 
 // Deploy creates a PDB or synchronizes the PDB spec based on the etcd spec
 func (c *component) Deploy(ctx context.Context) error {
-	pdb, err := c.emptyPodDisruptionBudget(c.values.Name, c.k8sVersion)
+	pdb, err := c.emptyPodDisruptionBudget()
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func (c *component) syncPodDisruptionBudget(ctx context.Context, pdb client.Obje
 
 // Destroy deletes a PDB. Ignores if PDB does not exist
 func (c *component) Destroy(ctx context.Context) error {
-	pdb, err := c.emptyPodDisruptionBudget(c.values.Name, c.k8sVersion)
+	pdb, err := c.emptyPodDisruptionBudget()
 	if err != nil {
 		return err
 	}
