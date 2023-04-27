@@ -36,8 +36,8 @@ func (c *component) syncPeerService(ctx context.Context, svc *corev1.Service) er
 			{
 				Name:       "peer",
 				Protocol:   corev1.ProtocolTCP,
-				Port:       c.values.ServerPort,
-				TargetPort: intstr.FromInt(int(c.values.ServerPort)),
+				Port:       c.values.PeerPort,
+				TargetPort: intstr.FromInt(int(c.values.PeerPort)),
 			},
 		}
 

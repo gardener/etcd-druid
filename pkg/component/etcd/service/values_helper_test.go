@@ -31,11 +31,11 @@ var _ = Describe("#GenerateValues", func() {
 	var (
 		etcd *druidv1alpha1.Etcd
 
-		labels                             map[string]string
-		clientServiceAnnotations           map[string]string
-		clientServiceLabels                map[string]string
-		backupPort, clientPort, serverPort *int32
-		expectedLabels                     = map[string]string{
+		labels                           map[string]string
+		clientServiceAnnotations         map[string]string
+		clientServiceLabels              map[string]string
+		backupPort, clientPort, peerPort *int32
+		expectedLabels                   = map[string]string{
 			"instance": "etcd",
 			"name":     "etcd",
 		}
@@ -60,7 +60,7 @@ var _ = Describe("#GenerateValues", func() {
 				},
 				Etcd: druidv1alpha1.EtcdConfig{
 					ClientPort: clientPort,
-					ServerPort: serverPort,
+					ServerPort: peerPort,
 					ClientService: &druidv1alpha1.ClientService{
 						Annotations: clientServiceAnnotations,
 						Labels:      clientServiceLabels,
@@ -74,7 +74,7 @@ var _ = Describe("#GenerateValues", func() {
 		BeforeEach(func() {
 			backupPort = pointer.Int32(1111)
 			clientPort = pointer.Int32(2222)
-			serverPort = pointer.Int32(3333)
+			peerPort = pointer.Int32(3333)
 		})
 
 		It("should generate values correctly", func() {
@@ -86,7 +86,7 @@ var _ = Describe("#GenerateValues", func() {
 				"ClientServiceName": Equal(fmt.Sprintf("%s-client", etcd.Name)),
 				"Labels":            Equal(expectedLabels),
 				"PeerServiceName":   Equal(fmt.Sprintf("%s-peer", etcd.Name)),
-				"ServerPort":        Equal(*etcd.Spec.Etcd.ServerPort),
+				"PeerPort":          Equal(*etcd.Spec.Etcd.ServerPort),
 			}))
 		})
 	})
@@ -95,7 +95,7 @@ var _ = Describe("#GenerateValues", func() {
 		BeforeEach(func() {
 			backupPort = nil
 			clientPort = nil
-			serverPort = nil
+			peerPort = nil
 		})
 
 		It("should generate values correctly", func() {
@@ -107,7 +107,7 @@ var _ = Describe("#GenerateValues", func() {
 				"ClientServiceName": Equal(fmt.Sprintf("%s-client", etcd.Name)),
 				"Labels":            Equal(expectedLabels),
 				"PeerServiceName":   Equal(fmt.Sprintf("%s-peer", etcd.Name)),
-				"ServerPort":        Equal(int32(2380)),
+				"PeerPort":          Equal(int32(2380)),
 				"SelectorLabels":    Equal(expectedLabels),
 				"OwnerReference":    Equal(etcd.GetAsOwnerReference()),
 			}))
@@ -117,7 +117,7 @@ var _ = Describe("#GenerateValues", func() {
 		BeforeEach(func() {
 			backupPort = nil
 			clientPort = nil
-			serverPort = nil
+			peerPort = nil
 			clientServiceAnnotations = map[string]string{
 				"foo1": "bar1",
 				"foo2": "bar2",
@@ -133,7 +133,7 @@ var _ = Describe("#GenerateValues", func() {
 				"ClientServiceName":        Equal(fmt.Sprintf("%s-client", etcd.Name)),
 				"Labels":                   Equal(expectedLabels),
 				"PeerServiceName":          Equal(fmt.Sprintf("%s-peer", etcd.Name)),
-				"ServerPort":               Equal(int32(2380)),
+				"PeerPort":                 Equal(int32(2380)),
 				"ClientServiceAnnotations": Equal(clientServiceAnnotations),
 				"SelectorLabels":           Equal(expectedLabels),
 				"OwnerReference":           Equal(etcd.GetAsOwnerReference()),
@@ -144,7 +144,7 @@ var _ = Describe("#GenerateValues", func() {
 		BeforeEach(func() {
 			backupPort = nil
 			clientPort = nil
-			serverPort = nil
+			peerPort = nil
 			clientServiceAnnotations = nil
 		})
 
@@ -157,7 +157,7 @@ var _ = Describe("#GenerateValues", func() {
 				"ClientServiceName":        Equal(fmt.Sprintf("%s-client", etcd.Name)),
 				"Labels":                   Equal(expectedLabels),
 				"PeerServiceName":          Equal(fmt.Sprintf("%s-peer", etcd.Name)),
-				"ServerPort":               Equal(int32(2380)),
+				"PeerPort":                 Equal(int32(2380)),
 				"ClientServiceAnnotations": Equal(clientServiceAnnotations),
 				"SelectorLabels":           Equal(expectedLabels),
 				"OwnerReference":           Equal(etcd.GetAsOwnerReference()),
@@ -168,7 +168,7 @@ var _ = Describe("#GenerateValues", func() {
 		BeforeEach(func() {
 			backupPort = nil
 			clientPort = nil
-			serverPort = nil
+			peerPort = nil
 			clientServiceLabels = map[string]string{
 				"foo1": "bar1",
 				"foo2": "bar2",
@@ -184,7 +184,7 @@ var _ = Describe("#GenerateValues", func() {
 				"ClientServiceName":   Equal(fmt.Sprintf("%s-client", etcd.Name)),
 				"Labels":              Equal(expectedLabels),
 				"PeerServiceName":     Equal(fmt.Sprintf("%s-peer", etcd.Name)),
-				"ServerPort":          Equal(int32(2380)),
+				"PeerPort":            Equal(int32(2380)),
 				"ClientServiceLabels": Equal(clientServiceLabels),
 				"SelectorLabels":      Equal(expectedLabels),
 				"OwnerReference":      Equal(etcd.GetAsOwnerReference()),
@@ -195,7 +195,7 @@ var _ = Describe("#GenerateValues", func() {
 		BeforeEach(func() {
 			backupPort = nil
 			clientPort = nil
-			serverPort = nil
+			peerPort = nil
 			clientServiceLabels = nil
 		})
 
@@ -208,7 +208,7 @@ var _ = Describe("#GenerateValues", func() {
 				"ClientServiceName":   Equal(fmt.Sprintf("%s-client", etcd.Name)),
 				"Labels":              Equal(expectedLabels),
 				"PeerServiceName":     Equal(fmt.Sprintf("%s-peer", etcd.Name)),
-				"ServerPort":          Equal(int32(2380)),
+				"PeerPort":            Equal(int32(2380)),
 				"ClientServiceLabels": Equal(clientServiceLabels),
 				"SelectorLabels":      Equal(expectedLabels),
 				"OwnerReference":      Equal(etcd.GetAsOwnerReference()),

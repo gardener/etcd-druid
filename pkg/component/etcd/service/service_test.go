@@ -180,8 +180,8 @@ func checkClientService(svc *corev1.Service, values Values) {
 		Equal(corev1.ServicePort{
 			Name:       "server",
 			Protocol:   corev1.ProtocolTCP,
-			Port:       values.ServerPort,
-			TargetPort: intstr.FromInt(int(values.ServerPort)),
+			Port:       values.PeerPort,
+			TargetPort: intstr.FromInt(int(values.PeerPort)),
 		}),
 		Equal(corev1.ServicePort{
 			Name:       "backuprestore",
@@ -203,8 +203,8 @@ func checkPeerService(svc *corev1.Service, values Values) {
 		Equal(corev1.ServicePort{
 			Name:       "peer",
 			Protocol:   corev1.ProtocolTCP,
-			Port:       values.ServerPort,
-			TargetPort: intstr.FromInt(int(values.ServerPort)),
+			Port:       values.PeerPort,
+			TargetPort: intstr.FromInt(int(values.PeerPort)),
 		}),
 	))
 }

@@ -34,8 +34,8 @@ type Values struct {
 	Labels map[string]string
 	// PeerServiceName is the name of the service responsible for peer traffic.
 	PeerServiceName string
-	// ServerPort is the port used for etcd peer communication.
-	ServerPort int32
+	// PeerPort is the port used for etcd peer communication.
+	PeerPort int32
 	// OwnerReference are the OwnerReference of the ETCD services.
 	OwnerReference metav1.OwnerReference
 	// SelectorLabels are the labels to be used in the Service.spec selector

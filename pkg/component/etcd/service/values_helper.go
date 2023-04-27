@@ -46,7 +46,7 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
 		SelectorLabels:           etcd.GetDefaultLabels(),
 		Labels:                   etcd.GetDefaultLabels(),
 		PeerServiceName:          etcd.GetPeerServiceName(),
-		ServerPort:               pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, defaultServerPort),
+		PeerPort:                 pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, defaultServerPort),
 		OwnerReference:           etcd.GetAsOwnerReference(),
 	}
 }
