@@ -205,7 +205,7 @@ func (c *component) createDeployFlow(ctx context.Context) (*flow.Flow, error) {
 		return nil, err
 	}
 
-	flowName := fmt.Sprintf("(etcd: %s) Deploy Flow for StatefulSet %s for Namespace: %s", c.values.OwnerReference.UID, c.values.Name, c.values.Namespace)
+	flowName := fmt.Sprintf("(etcd: %s) Deploy Flow for StatefulSet %s for Namespace: %s", getOwnerReferenceNameWithUID(c.values.OwnerReference), c.values.Name, c.values.Namespace)
 	g := flow.NewGraph(flowName)
 
 	var taskID *flow.TaskID
@@ -283,7 +283,7 @@ func (c *component) addImmutableFieldUpdateTask(g *flow.Graph, sts *appsv1.State
 			Fn:           func(ctx context.Context) error { return c.destroyAndWait(ctx, opName) },
 			Dependencies: nil,
 		})
-		c.logger.Info("added delete StatefulSet task to deploy flow due to immutable field update task", "namespace", c.values.Namespace, "name", c.values.Name, "etcdUID", c.values.OwnerReference.UID)
+		c.logger.Info("added delete StatefulSet task to deploy flow due to immutable field update task", "namespace", c.values.Namespace, "name", c.values.Name, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference))
 		return &taskID
 	}
 	return nil
@@ -318,7 +318,7 @@ func (c *component) addCreateOrPatchTask(g *flow.Graph, originalSts *appsv1.Stat
 		},
 		Dependencies: dependencies,
 	})
-	c.logger.Info("added createOrPatch StatefulSet task to the deploy flow", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", c.values.OwnerReference.UID, "StatefulSetName", c.values.Name, "replicas", c.values.Replicas)
+	c.logger.Info("added createOrPatch StatefulSet task to the deploy flow", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference), "StatefulSetName", c.values.Name, "replicas", c.values.Replicas)
 }
 
 func (c *component) getExistingSts(ctx context.Context) (*appsv1.StatefulSet, error) {
@@ -376,7 +376,7 @@ func (c *component) doCreateOrUpdate(ctx context.Context, opName string, sts *ap
 
 func (c *component) destroyAndWait(ctx context.Context, opName string) error {
 	deleteAndWait := gardenercomponent.OpDestroyAndWait(c)
-	c.logger.Info("deleting sts", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.OwnerReference.UID)
+	c.logger.Info("deleting sts", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference))
 	if err := deleteAndWait.Destroy(ctx); err != nil {
 		return err
 	}
@@ -967,4 +967,8 @@ func getReadinessHandlerForMultiNode(val Values) corev1.ProbeHandler {
 			Command: val.ReadinessProbeCommand,
 		},
 	}
+}
+
+func getOwnerReferenceNameWithUID(ref metav1.OwnerReference) string {
+	return fmt.Sprintf("%s:%s", ref.Name, ref.UID)
 }
