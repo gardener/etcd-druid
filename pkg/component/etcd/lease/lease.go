@@ -89,11 +89,15 @@ func New(c client.Client, logger logr.Logger, namespace string, values Values) I
 }
 
 func (c *component) emptyLease(name string) *coordinationv1.Lease {
+	copyLabels := make(map[string]string, len(c.values.Labels))
+	for k, v := range c.values.Labels {
+		copyLabels[k] = v
+	}
 	return &coordinationv1.Lease{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: c.namespace,
-			Labels:    c.values.Labels,
+			Labels:    copyLabels,
 		},
 	}
 }
