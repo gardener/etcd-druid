@@ -26,6 +26,7 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
 		DeltaSnapshotLeaseName: etcd.GetDeltaSnapshotLeaseName(),
 		FullSnapshotLeaseName:  etcd.GetFullSnapshotLeaseName(),
 		Replicas:               etcd.Spec.Replicas,
+		Labels:                 etcd.GetDefaultLabels(),
 		OwnerReference:         etcd.GetAsOwnerReference(),
 	}
 }
