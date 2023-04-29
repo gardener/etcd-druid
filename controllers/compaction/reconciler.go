@@ -149,7 +149,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	diff := delta - full
-	NumDeltaEvents.With(prometheus.Labels{}).Set(float64(diff))
+	metricNumDeltaEvents.With(prometheus.Labels{}).Set(float64(diff))
 
 	// Reconcile job only when number of accumulated revisions over the last full snapshot is more than the configured threshold value via 'events-threshold' flag
 	if diff >= r.config.EventsThreshold {
@@ -182,6 +182,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 					RequeueAfter: 10 * time.Second,
 				}, fmt.Errorf("error during compaction job creation: %v", err)
 			}
+			metricJobsCurrent.With(prometheus.Labels{druidmetrics.ShootNamespace: etcd.Namespace}).Set(1)
 		}
 	}
 
@@ -198,8 +199,9 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 	// Delete job and requeue if the job failed
 	if job.Status.Failed > 0 {
+		metricJobsCurrent.With(prometheus.Labels{druidmetrics.ShootNamespace: etcd.Namespace}).Set(0)
 		if job.Status.StartTime != nil {
-			CompactionJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse}).Set(float64(time.Since(job.Status.StartTime.Time).Seconds()))
+			metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse}).Set(time.Since(job.Status.StartTime.Time).Seconds())
 		}
 		err = r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground))
 		if err != nil {
@@ -207,7 +209,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 				RequeueAfter: 10 * time.Second,
 			}, fmt.Errorf("error while deleting failed compaction job: %v", err)
 		}
-		CompactionJobCounterTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse}).Inc()
+		metricJobsTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse}).Inc()
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,
 		}, nil
@@ -215,9 +217,10 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 	// Delete job and return if the job succeeded
 	if job.Status.Succeeded > 0 {
-		CompactionJobCounterTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue}).Inc()
+		metricJobsTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue}).Inc()
+		metricJobsCurrent.With(prometheus.Labels{druidmetrics.ShootNamespace: etcd.Namespace}).Set(0)
 		if job.Status.CompletionTime != nil {
-			CompactionJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue}).Set(float64(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds()))
+			metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue}).Set(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds())
 		}
 		return r.delete(ctx, logger, etcd)
 	}

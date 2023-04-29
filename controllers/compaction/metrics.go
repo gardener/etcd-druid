@@ -26,8 +26,8 @@ const (
 )
 
 var (
-	// CompactionJobCounterTotal is the metric used to count the total number of compaction jobs initiated by compaction controller.
-	CompactionJobCounterTotal = prometheus.NewCounterVec(
+	// metricJobsTotal is the metric used to count the total number of compaction jobs initiated by compaction controller.
+	metricJobsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespaceEtcdDruid,
 			Subsystem: subsystemCompaction,
@@ -37,8 +37,19 @@ var (
 		[]string{druidmetrics.LabelSucceeded},
 	)
 
-	// CompactionJobDurationSeconds is the metric used to expose the time taken to finish running a compaction job.
-	CompactionJobDurationSeconds = prometheus.NewGaugeVec(
+	// metricJobsCurrent is the metric used to expose currently running comapction job. This metric is important to get a sense of total number of compaction job running in a seed cluster..
+	metricJobsCurrent = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespaceEtcdDruid,
+			Subsystem: subsystemCompaction,
+			Name:      "jobs_current",
+			Help:      "Number of currently running comapction job.",
+		},
+		[]string{druidmetrics.ShootNamespace},
+	)
+
+	// metricJobDurationSeconds is the metric used to expose the time taken to finish running a compaction job.
+	metricJobDurationSeconds = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespaceEtcdDruid,
 			Subsystem: subsystemCompaction,
@@ -48,8 +59,8 @@ var (
 		[]string{druidmetrics.LabelSucceeded},
 	)
 
-	// NumDeltaEvents is the metric used to expose the total number of etcd events to be compacted by a compaction job.
-	NumDeltaEvents = prometheus.NewGaugeVec(
+	// metricNumDeltaEvents is the metric used to expose the total number of etcd events to be compacted by a compaction job.
+	metricNumDeltaEvents = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespaceEtcdDruid,
 			Subsystem: subsystemCompaction,
@@ -61,27 +72,29 @@ var (
 )
 
 func init() {
-	// compactionJobCountTotal
-	compactionJobCountTotalValues := map[string][]string{
+	// metricJobsTotalValues
+	metricJobsTotalValues := map[string][]string{
 		druidmetrics.LabelSucceeded: druidmetrics.DruidLabels[druidmetrics.LabelSucceeded],
 	}
-	compactionJobCounterCombinations := druidmetrics.GenerateLabelCombinations(compactionJobCountTotalValues)
-	for _, combination := range compactionJobCounterCombinations {
-		CompactionJobCounterTotal.With(prometheus.Labels(combination))
+	metricJobsTotalCombinations := druidmetrics.GenerateLabelCombinations(metricJobsTotalValues)
+	for _, combination := range metricJobsTotalCombinations {
+		metricJobsTotal.With(prometheus.Labels(combination))
 	}
 
-	// compactionJobDurationSeconds
-	compactionJobDurationSecondsValues := map[string][]string{
+	// metricJobDurationSecondsValues
+	metricJobDurationSecondsValues := map[string][]string{
 		druidmetrics.LabelSucceeded: druidmetrics.DruidLabels[druidmetrics.LabelSucceeded],
 	}
-	compactionJobDurationSecondsCombinations := druidmetrics.GenerateLabelCombinations(compactionJobDurationSecondsValues)
+	compactionJobDurationSecondsCombinations := druidmetrics.GenerateLabelCombinations(metricJobDurationSecondsValues)
 	for _, combination := range compactionJobDurationSecondsCombinations {
-		CompactionJobDurationSeconds.With(prometheus.Labels(combination))
+		metricJobDurationSeconds.With(prometheus.Labels(combination))
 	}
 
 	// Metrics have to be registered to be exposed:
-	metrics.Registry.MustRegister(CompactionJobCounterTotal)
-	metrics.Registry.MustRegister(CompactionJobDurationSeconds)
+	metrics.Registry.MustRegister(metricJobsTotal)
+	metrics.Registry.MustRegister(metricJobDurationSeconds)
 
-	metrics.Registry.MustRegister(NumDeltaEvents)
+	metrics.Registry.MustRegister(metricJobsCurrent)
+
+	metrics.Registry.MustRegister(metricNumDeltaEvents)
 }
