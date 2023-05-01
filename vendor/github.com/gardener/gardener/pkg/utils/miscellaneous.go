@@ -1,4 +1,4 @@
-// Copyright (c) 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -139,6 +139,20 @@ func QuantityPtr(q resource.Quantity) *resource.Quantity {
 // ProtocolPtr returns a corev1.Protocol pointer to its argument.
 func ProtocolPtr(protocol corev1.Protocol) *corev1.Protocol {
 	return &protocol
+}
+
+// TimePtr returns a time.Time pointer to its argument.
+func TimePtr(t time.Time) *time.Time {
+	return &t
+}
+
+// TimePtrDeref dereferences the time.Time ptr and returns it if not nil, or else
+// returns def.
+func TimePtrDeref(ptr *time.Time, def time.Time) time.Time {
+	if ptr != nil {
+		return *ptr
+	}
+	return def
 }
 
 // IntStrPtrFromInt returns an intstr.IntOrString pointer to its argument.

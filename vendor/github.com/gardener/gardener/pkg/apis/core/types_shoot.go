@@ -1,4 +1,4 @@
-// Copyright (c) 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -187,9 +187,9 @@ type ShootCredentialsRotation struct {
 	// Observability contains information about the observability credential rotation.
 	Observability *ShootObservabilityRotation
 	// ServiceAccountKey contains information about the service account key credential rotation.
-	ServiceAccountKey *ShootServiceAccountKeyRotation
+	ServiceAccountKey *ServiceAccountKeyRotation
 	// ETCDEncryptionKey contains information about the ETCD encryption key credential rotation.
-	ETCDEncryptionKey *ShootETCDEncryptionKeyRotation
+	ETCDEncryptionKey *ETCDEncryptionKeyRotation
 }
 
 // CARotation contains information about the certificate authority credential rotation.
@@ -233,8 +233,8 @@ type ShootObservabilityRotation struct {
 	LastCompletionTime *metav1.Time
 }
 
-// ShootServiceAccountKeyRotation contains information about the service account key credential rotation.
-type ShootServiceAccountKeyRotation struct {
+// ServiceAccountKeyRotation contains information about the service account key credential rotation.
+type ServiceAccountKeyRotation struct {
 	// Phase describes the phase of the service account key credential rotation.
 	Phase CredentialsRotationPhase
 	// LastInitiationTime is the most recent time when the service account key credential rotation was initiated.
@@ -250,8 +250,8 @@ type ShootServiceAccountKeyRotation struct {
 	LastCompletionTriggeredTime *metav1.Time
 }
 
-// ShootETCDEncryptionKeyRotation contains information about the ETCD encryption key credential rotation.
-type ShootETCDEncryptionKeyRotation struct {
+// ETCDEncryptionKeyRotation contains information about the ETCD encryption key credential rotation.
+type ETCDEncryptionKeyRotation struct {
 	// Phase describes the phase of the ETCD encryption key credential rotation.
 	Phase CredentialsRotationPhase
 	// LastInitiationTime is the most recent time when the ETCD encryption key credential rotation was initiated.
@@ -312,9 +312,6 @@ type KubernetesDashboard struct {
 }
 
 const (
-	// KubernetesDashboardAuthModeBasic uses basic authentication mode for auth.
-	// Deprecated: basic authentication has been removed in Kubernetes v1.19+.
-	KubernetesDashboardAuthModeBasic = "basic"
 	// KubernetesDashboardAuthModeToken uses token-based mode for auth.
 	KubernetesDashboardAuthModeToken = "token"
 )
@@ -413,7 +410,7 @@ type HibernationSchedule struct {
 	Start *string
 	// End is a Cron spec at which time a Shoot will be woken up.
 	End *string
-	// Location is the time location in which both start and and shall be evaluated.
+	// Location is the time location in which both start and shall be evaluated.
 	Location *string
 }
 
@@ -533,8 +530,8 @@ type KubeAPIServerConfig struct {
 	// AuditConfig contains configuration settings for the audit of the kube-apiserver.
 	AuditConfig *AuditConfig
 	// EnableBasicAuthentication defines whether basic authentication should be enabled for this cluster or not.
-	// Defaults to false.
-	// Deprecated: basic authentication has been removed in Kubernetes v1.19+. This field will be removed in a future version.
+	//
+	// Deprecated: basic authentication has been removed in Kubernetes v1.19+. The field is no-op and will be removed in a future version.
 	EnableBasicAuthentication *bool
 	// OIDCConfig contains configuration settings for the OIDC provider.
 	OIDCConfig *OIDCConfig
@@ -667,6 +664,8 @@ type AdmissionPlugin struct {
 	Disabled *bool
 	// Config is the configuration of the plugin.
 	Config *runtime.RawExtension
+	// KubeconfigSecretName specifies the name of a secret containing the kubeconfig for this admission plugin.
+	KubeconfigSecretName *string
 }
 
 // WatchCacheSizes contains configuration of the API server's watch cache sizes.

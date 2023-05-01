@@ -1,4 +1,4 @@
-// Copyright (c) 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ func ReadTestResources(scheme *runtime.Scheme, namespaceName, path string) ([]cl
 	}
 
 	// file extensions that may contain Webhooks
-	resourceExtensions := sets.New[string](".json", ".yaml", ".yml")
+	resourceExtensions := sets.New(".json", ".yaml", ".yml")
 
 	var objects []client.Object
 	for _, file := range files {
