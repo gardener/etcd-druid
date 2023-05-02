@@ -155,31 +155,31 @@ func (c *component) emptyConfigmap() *corev1.ConfigMap {
 }
 
 type etcdConfig struct {
-	Name                    string         `yaml:"name" json:"name"`
-	DataDir                 string         `yaml:"data-dir" json:"data-dir"`
-	Metrics                 string         `yaml:"metrics" json:"metrics"`
-	SnapshotCount           int            `yaml:"snapshot-count" json:"snapshot-count"`
-	EnableV2                bool           `yaml:"enable-v2" json:"enable-v2"`
-	QuotaBackendBytes       int64          `yaml:"quota-backend-bytes" json:"quota-backend-bytes"`
-	InitialClusterToken     string         `yaml:"initial-cluster-token" json:"initial-cluster-token"`
-	InitialClusterState     string         `yaml:"initial-cluster-state" json:"initial-cluster-state"`
-	InitialCluster          string         `yaml:"initial-cluster" json:"initial-cluster"`
-	AutoCompactionMode      string         `yaml:"auto-compaction-mode" json:"auto-compaction-mode"`
-	AutoCompactionRetention string         `yaml:"auto-compaction-retention" json:"auto-compaction-retention"`
-	ListenPeerUrls          string         `yaml:"listen-peer-urls" json:"listen-peer-urls"`
-	ListenClientUrls        string         `yaml:"listen-client-urls" json:"listen-client-urls"`
-	AdvertisePeerUrls       string         `yaml:"initial-advertise-peer-urls" json:"initial-advertise-peer-urls"`
-	AdvertiseClientUrls     string         `yaml:"advertise-client-urls" json:"advertise-client-urls"`
-	ClientSecurity          securityConfig `yaml:"client-transport-security,omitempty" json:"client-transport-security,omitempty"`
-	PeerSecurity            securityConfig `yaml:"peer-transport-security,omitempty" json:"peer-transport-security,omitempty"`
+	Name                    string         `yaml:"name"`
+	DataDir                 string         `yaml:"data-dir"`
+	Metrics                 string         `yaml:"metrics"`
+	SnapshotCount           int            `yaml:"snapshot-count"`
+	EnableV2                bool           `yaml:"enable-v2"`
+	QuotaBackendBytes       int64          `yaml:"quota-backend-bytes"`
+	InitialClusterToken     string         `yaml:"initial-cluster-token"`
+	InitialClusterState     string         `yaml:"initial-cluster-state"`
+	InitialCluster          string         `yaml:"initial-cluster"`
+	AutoCompactionMode      string         `yaml:"auto-compaction-mode"`
+	AutoCompactionRetention string         `yaml:"auto-compaction-retention"`
+	ListenPeerUrls          string         `yaml:"listen-peer-urls"`
+	ListenClientUrls        string         `yaml:"listen-client-urls"`
+	AdvertisePeerUrls       string         `yaml:"initial-advertise-peer-urls"`
+	AdvertiseClientUrls     string         `yaml:"advertise-client-urls"`
+	ClientSecurity          securityConfig `yaml:"client-transport-security,omitempty"`
+	PeerSecurity            securityConfig `yaml:"peer-transport-security,omitempty"`
 }
 
 type securityConfig struct {
-	CertFile       string `yaml:"cert-file,omitempty" json:"cert-file,omitempty"`
-	KeyFile        string `yaml:"key-file,omitempty" json:"key-file,omitempty"`
-	ClientCertAuth bool   `yaml:"client-cert-auth,omitempty" json:"client-cert-auth,omitempty"`
-	TrustedCAFile  string `yaml:"trusted-ca-file,omitempty" json:"trusted-ca-file,omitempty"`
-	AutoTLS        bool   `yaml:"auto-tls" json:"auto-tls"`
+	CertFile       string `yaml:"cert-file,omitempty"`
+	KeyFile        string `yaml:"key-file,omitempty"`
+	ClientCertAuth bool   `yaml:"client-cert-auth,omitempty"`
+	TrustedCAFile  string `yaml:"trusted-ca-file,omitempty"`
+	AutoTLS        bool   `yaml:"auto-tls"`
 }
 
 func getSchemeAndSecurityConfig(tlsConfig *druidv1alpha1.TLSConfig, tlsTarget etcdTLSTarget) (string, *securityConfig) {
