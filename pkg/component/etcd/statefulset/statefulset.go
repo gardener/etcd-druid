@@ -476,6 +476,16 @@ func getStsAnnotations(val *Values, sts *appsv1.StatefulSet) map[string]string {
 		},
 		val.Annotations,
 	)
+
+	// If `scaleToMultiNodeAnnotationKey` annotation is already present in etcd statefulset
+	// then it is better to check scale-up was successful or not before removing `scaleToMultiNodeAnnotationKey` annotation.
+	if metav1.HasAnnotation(sts.ObjectMeta, scaleToMultiNodeAnnotationKey) {
+		if (sts.Spec.Replicas != nil && sts.Status.UpdatedReplicas < *sts.Spec.Replicas) || sts.Status.Replicas > sts.Status.UpdatedReplicas {
+			annotations[scaleToMultiNodeAnnotationKey] = ""
+			return annotations
+		}
+	}
+
 	if clusterScaledUpToMultiNode(val, sts) {
 		annotations[scaleToMultiNodeAnnotationKey] = ""
 	}
