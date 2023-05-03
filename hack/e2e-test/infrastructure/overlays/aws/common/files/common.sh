@@ -17,7 +17,6 @@
 ENDPOINT_URL=""
 if [[ -n "${LOCALSTACK_HOST}" ]]; then
   ENDPOINT_URL=" --endpoint-url=http://${LOCALSTACK_HOST}"
-
 fi
 
 function setup_aws() {
@@ -49,7 +48,13 @@ function create_s3_bucket() {
   result=$(aws ${ENDPOINT_URL} s3api get-bucket-location --bucket ${TEST_ID} 2>&1 || true)
   if [[ $result == *NoSuchBucket* ]]; then
     echo "Creating S3 bucket ${TEST_ID} in region ${AWS_REGION}"
-    aws ${ENDPOINT_URL} s3api create-bucket --bucket ${TEST_ID} --region ${AWS_REGION} --create-bucket-configuration LocationConstraint=${AWS_REGION}
+    aws ${ENDPOINT_URL} s3api create-bucket --bucket ${TEST_ID} --region ${AWS_REGION} --create-bucket-configuration LocationConstraint=${AWS_REGION} --acl private
+    # Block public access to the S3 bucket
+    aws ${ENDPOINT_URL} s3api put-public-access-block --bucket ${TEST_ID} --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+    # Deny non-HTTPS requests to the S3 bucket, except for localstack which is exposed on an HTTP endpoint
+    if [[ -z "${LOCALSTACK_HOST}" ]]; then
+      aws ${ENDPOINT_URL} s3api put-bucket-policy --bucket ${TEST_ID} --policy "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Deny\",\"Principal\":\"*\",\"Action\":\"s3:*\",\"Resource\":[\"arn:aws:s3:::${TEST_ID}\",\"arn:aws:s3:::${TEST_ID}/*\"],\"Condition\":{\"Bool\":{\"aws:SecureTransport\":\"false\"},\"NumericLessThan\":{\"s3:TlsVersion\":\"1.2\"}}}]}"
+    fi
   else
     echo $result
     if [[ $result != *${AWS_REGION}* ]]; then
