@@ -135,29 +135,76 @@ var _ = Describe("Etcd", func() {
 		})
 	})
 
-	Context("when single-node is configured", func() {
-		It("should scale single-node etcd to multi-node etcd cluster", func() {
+	Context("when a single-node is configured", func() {
+		It("should scale a single-node etcd to a multi-node etcd cluster", func() {
 			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
 			defer cancelFunc()
 
 			etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
 			objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
 
-			By("Create single-node etcd")
+			By("Creating a single-node etcd")
 			createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
 
-			By("Scale up of a healthy cluster (from 1->3)")
+			By("Scaling up a healthy cluster (from 1 to 3)")
+			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+			etcd.Spec.Replicas = 3
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+			By("Deleting the single-node etcd")
+			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+		})
+
+		It("should scale down a single-node etcd and then scale up to a multi-node etcd cluster", func() {
+			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
+			defer cancelFunc()
+
+			etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
+			objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
+
+			By("Creating a single-node etcd")
+			createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
+
+			By("Scaling down a healthy cluster (from 1 to 0)")
+			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+			etcd.Spec.Replicas = 0
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+			By("Scaling up cluster (from 0 to 1)")
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = multiNodeEtcdReplicas
 			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			// TODO: Uncomment me once scale down replicas from 3 to 1 is supported.
-			// By("Scale down of a healthy cluster (from 3 to 1)")
-			// Expect( cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
-			// etcd.Spec.Replicas = replicas
-			// updateAndCheckEtcd(ctx, cl, objLogger, etcd)
+			By("Scaling up a healthy cluster (from 1 to 3)")
+			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+			etcd.Spec.Replicas = 3
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			By("Delete single-node etcd")
+			By("Deleting the single-node etcd")
+			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+		})
+
+		It("should scale down a single-node etcd and scale up to a multi-node etcd cluster without intermediate scaling", func() {
+			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
+			defer cancelFunc()
+
+			etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
+			objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
+
+			By("Creating a single-node etcd")
+			createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
+
+			By("Scaling down a healthy cluster (from 1 to 0)")
+			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+			etcd.Spec.Replicas = 0
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+			By("Scaling up cluster (from 0 to 3)")
+			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+			etcd.Spec.Replicas = multiNodeEtcdReplicas
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+			By("Deleting the single-node etcd")
 			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
 	})
