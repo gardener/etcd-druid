@@ -400,12 +400,10 @@ func isPeerTLSChangedToEnabled(peerTLSEnabledStatusFromMembers bool, configMapVa
 
 func bootstrapReset(etcd *druidv1alpha1.Etcd) {
 	etcd.Status.Members = nil
-	etcd.Status.ClusterSize = pointer.Int32(etcd.Spec.Replicas)
 }
 
 func clusterInBootstrap(etcd *druidv1alpha1.Etcd) bool {
-	return etcd.Status.Replicas == 0 ||
-		(etcd.Spec.Replicas > 1 && etcd.Status.Replicas == 1)
+	return etcd.Spec.Replicas >= 1 && etcd.Status.Replicas == 0
 }
 
 func (r *Reconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, result reconcileResult) error {

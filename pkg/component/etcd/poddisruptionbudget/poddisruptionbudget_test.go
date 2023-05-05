@@ -157,12 +157,9 @@ var _ = Describe("PodDisruptionBudget", func() {
 					checkV1beta1PDB(pdb, &values, namespace)
 				})
 			})
-			Context("when etcd replicas are 5 and clusterSize in etcd status is 5", func() {
+			Context("when etcd replicas are 5", func() {
 				It("should create the PDB successfully", func() {
 					etcd.Spec.Replicas = 5
-					etcd.Status = druidv1alpha1.EtcdStatus{
-						ClusterSize: pointer.Int32(4),
-					}
 					values = GenerateValues(etcd)
 					pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_20_0)
 					Expect(pdbDeployer.Deploy(ctx)).To(Succeed())
@@ -175,16 +172,15 @@ var _ = Describe("PodDisruptionBudget", func() {
 		})
 
 		Context("when pdb already exists", func() {
-			It("should update the pdb successfully", func() {
+			It("should update the pdb successfully when etcd replicas change", func() {
+				// existing PDB with min = 0
 				values = GenerateValues(etcd)
 				Expect(cl.Create(ctx, defaultPDB)).To(Succeed())
 				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), pdb)).To(Succeed())
 				Expect(pdb.Spec.MinAvailable.IntVal).To(BeNumerically("==", 0))
 
+				// Post updating the etcd replicas
 				etcd.Spec.Replicas = 5
-				etcd.Status = druidv1alpha1.EtcdStatus{
-					ClusterSize: pointer.Int32(4),
-				}
 				values = GenerateValues(etcd)
 				pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_20_0)
 				Expect(pdbDeployer.Deploy(ctx)).To(Succeed())
@@ -206,7 +202,7 @@ var _ = Describe("PodDisruptionBudget", func() {
 			values = GenerateValues(etcd)
 		})
 		Context("when PDB does not exist", func() {
-			It("should destroy successfully", func() {
+			It("should destroy successfully ignoring the not-found error", func() {
 				pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_20_0)
 				Expect(pdbDeployer.Destroy(ctx)).To(Succeed())
 				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), pdb)).To(BeNotFoundError())
@@ -233,9 +229,6 @@ var _ = Describe("PodDisruptionBudget", func() {
 				Expect(pdb.APIVersion).To(Equal("policy/v1beta1"))
 
 				etcd.Spec.Replicas = 5
-				etcd.Status = druidv1alpha1.EtcdStatus{
-					ClusterSize: pointer.Int32(4),
-				}
 				values = GenerateValues(etcd)
 				pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_25_0)
 				Expect(pdbDeployer.Deploy(ctx)).To(Succeed())
@@ -248,7 +241,6 @@ var _ = Describe("PodDisruptionBudget", func() {
 
 				Expect(cl.Delete(ctx, pdb1)).To(Succeed())
 				Expect(cl.Delete(ctx, pdb)).To(Succeed())
-
 			})
 		})
 	})

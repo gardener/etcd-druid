@@ -17,12 +17,10 @@ package condition_test
 import (
 	"context"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"k8s.io/utils/pointer"
-
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	. "github.com/gardener/etcd-druid/pkg/health/condition"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("ReadyCheck", func() {
@@ -45,7 +43,6 @@ var _ = Describe("ReadyCheck", func() {
 			It("should return that the cluster has a quorum (all members ready)", func() {
 				etcd := druidv1alpha1.Etcd{
 					Status: druidv1alpha1.EtcdStatus{
-						ClusterSize: pointer.Int32(3),
 						Members: []druidv1alpha1.EtcdMemberStatus{
 							readyMember,
 							readyMember,
@@ -64,7 +61,6 @@ var _ = Describe("ReadyCheck", func() {
 			It("should return that the cluster has a quorum (members are partly unknown)", func() {
 				etcd := druidv1alpha1.Etcd{
 					Status: druidv1alpha1.EtcdStatus{
-						ClusterSize: pointer.Int32(3),
 						Members: []druidv1alpha1.EtcdMemberStatus{
 							readyMember,
 							unknownMember,
@@ -83,7 +79,6 @@ var _ = Describe("ReadyCheck", func() {
 			It("should return that the cluster has a quorum (one member not ready)", func() {
 				etcd := druidv1alpha1.Etcd{
 					Status: druidv1alpha1.EtcdStatus{
-						ClusterSize: pointer.Int32(3),
 						Members: []druidv1alpha1.EtcdMemberStatus{
 							readyMember,
 							notReadyMember,
@@ -102,7 +97,6 @@ var _ = Describe("ReadyCheck", func() {
 			It("should return that the cluster has lost its quorum", func() {
 				etcd := druidv1alpha1.Etcd{
 					Status: druidv1alpha1.EtcdStatus{
-						ClusterSize: pointer.Int32(3),
 						Members: []druidv1alpha1.EtcdMemberStatus{
 							readyMember,
 							notReadyMember,
@@ -133,7 +127,7 @@ var _ = Describe("ReadyCheck", func() {
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
-				Expect(result.Reason()).To(Equal("ClusterSizeUnknown"))
+				Expect(result.Reason()).To(Equal("NoMembersInStatus"))
 			})
 		})
 	})

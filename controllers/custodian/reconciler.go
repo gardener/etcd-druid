@@ -113,11 +113,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func (r *Reconciler) updateEtcdStatus(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {
 	logger.Info("Updating etcd status with statefulset information")
 
-	// Bootstrap is a special case which is handled by the etcd controller.
-	if !inBootstrap(etcd) && len(etcd.Status.Members) != 0 {
-		etcd.Status.ClusterSize = pointer.Int32(int32(len(etcd.Status.Members)))
-	}
-
 	if sts != nil {
 		etcd.Status.Etcd = &druidv1alpha1.CrossVersionObjectReference{
 			APIVersion: sts.APIVersion,
@@ -142,12 +137,4 @@ func (r *Reconciler) updateEtcdStatus(ctx context.Context, logger logr.Logger, e
 	}
 
 	return r.Client.Status().Update(ctx, etcd)
-}
-
-func inBootstrap(etcd *druidv1alpha1.Etcd) bool {
-	if etcd.Status.ClusterSize == nil {
-		return true
-	}
-	return len(etcd.Status.Members) == 0 ||
-		(len(etcd.Status.Members) < int(etcd.Spec.Replicas) && etcd.Spec.Replicas == *etcd.Status.ClusterSize)
 }

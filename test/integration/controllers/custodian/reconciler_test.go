@@ -177,7 +177,6 @@ var _ = Describe("Custodian Controller", func() {
 				etcd := testutils.EtcdBuilderWithDefaults("test", "default").WithReadyStatus().Build()
 
 				Expect(len(etcd.Status.Members)).To(BeEquivalentTo(1))
-				Expect(*etcd.Status.ClusterSize).To(BeEquivalentTo(1))
 
 				It("should be set to 0", func() {
 					etcd.Spec.Replicas = 1
@@ -187,23 +186,13 @@ var _ = Describe("Custodian Controller", func() {
 				})
 			})
 
-			When("clusterSize is nil", func() {
-				etcd := testutils.EtcdBuilderWithDefaults("test", "default").WithReplicas(3).WithReadyStatus().Build()
-				etcd.Status.ClusterSize = nil
-
-				It("should be set to quorum size", func() {
-					Expect(componentpdb.CalculatePDBMinAvailable(etcd)).To(BeEquivalentTo(2))
-				})
-			})
-
 			When("having a multi node cluster", func() {
-				etcd := testutils.EtcdBuilderWithDefaults("test", "default").WithReplicas(5).WithReadyStatus().Build()
+				etcd := testutils.EtcdBuilderWithDefaults("test", "default").WithReplicas(3).WithReadyStatus().Build()
 
-				Expect(len(etcd.Status.Members)).To(BeEquivalentTo(5))
-				Expect(*etcd.Status.ClusterSize).To(BeEquivalentTo(5))
+				Expect(len(etcd.Status.Members)).To(BeEquivalentTo(3))
 
 				It("should calculate the value correctly", func() {
-					Expect(componentpdb.CalculatePDBMinAvailable(etcd)).To(BeEquivalentTo(3))
+					Expect(componentpdb.CalculatePDBMinAvailable(etcd)).To(BeEquivalentTo(2))
 				})
 			})
 		})

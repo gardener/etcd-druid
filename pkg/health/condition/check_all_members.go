@@ -35,19 +35,26 @@ func (a *allMembersReady) Check(_ context.Context, etcd druidv1alpha1.Etcd) Resu
 
 	result := &result{
 		conType: druidv1alpha1.ConditionTypeAllMembersReady,
-		status:  druidv1alpha1.ConditionTrue,
-		reason:  "AllMembersReady",
-		message: "All members are ready",
+		status:  druidv1alpha1.ConditionFalse,
+		reason:  "NotAllMembersReady",
+		message: "At least one member is not ready",
 	}
 
-	for _, member := range etcd.Status.Members {
-		if member.Status != druidv1alpha1.EtcdMemberStatusReady {
-			result.status = druidv1alpha1.ConditionFalse
-			result.reason = "NotAllMembersReady"
-			result.message = "At least one member is not ready"
+	notAllMembersRegistered := int32(len(etcd.Status.Members)) < etcd.Spec.Replicas
+	if notAllMembersRegistered {
+		return result
+	}
 
-			return result
-		}
+	// If we are here this means that all members have registered. Check if any member
+	// has a not-ready status. If there is at least one then set the overall status as false.
+	ready := true
+	for _, member := range etcd.Status.Members {
+		ready = ready && member.Status == druidv1alpha1.EtcdMemberStatusReady
+	}
+	if ready {
+		result.status = druidv1alpha1.ConditionTrue
+		result.reason = "AllMembersReady"
+		result.message = "All members are ready"
 	}
 
 	return result

@@ -376,15 +376,18 @@ type EtcdStatus struct {
 	// +optional
 	Conditions []Condition `json:"conditions,omitempty"`
 	// ServiceName is the name of the etcd service.
+	// Deprecated: this field will be removed in the future.
 	// +optional
 	ServiceName *string `json:"serviceName,omitempty"`
 	// LastError represents the last occurred error.
 	// +optional
 	LastError *string `json:"lastError,omitempty"`
-	// Cluster size is the size of the etcd cluster.
+	// Cluster size is the current size of the etcd cluster.
+	// Deprecated: this field will not be populated with any value and will be removed in the future.
 	// +optional
 	ClusterSize *int32 `json:"clusterSize,omitempty"`
 	// CurrentReplicas is the current replica count for the etcd cluster.
+	// Deprecated: this field will be removed in the future.
 	// +optional
 	CurrentReplicas int32 `json:"currentReplicas,omitempty"`
 	// Replicas is the replica count of the etcd resource.
@@ -397,10 +400,12 @@ type EtcdStatus struct {
 	// +optional
 	Ready *bool `json:"ready,omitempty"`
 	// UpdatedReplicas is the count of updated replicas in the etcd cluster.
+	// Deprecated: this field will be removed in the future.
 	// +optional
 	UpdatedReplicas int32 `json:"updatedReplicas,omitempty"`
 	// LabelSelector is a label query over pods that should match the replica count.
 	// It must match the pod template's labels.
+	// Deprecated: this field will be removed in the future.
 	// +optional
 	LabelSelector *metav1.LabelSelector `json:"labelSelector,omitempty"`
 	// Members represents the members of the etcd cluster
