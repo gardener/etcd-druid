@@ -286,7 +286,8 @@ func immutableFieldUpdate(sts *appsv1.StatefulSet, val Values) bool {
 
 func clusterScaledUpToMultiNode(val *Values, sts *appsv1.StatefulSet) bool {
 	if sts != nil && sts.Spec.Replicas != nil {
-		return val.Replicas > 1 && *sts.Spec.Replicas == 1
+		return (val.Replicas > 1 && *sts.Spec.Replicas == 1) ||
+			(metav1.HasAnnotation(sts.ObjectMeta, scaleToMultiNodeAnnotationKey) && sts.Status.UpdatedReplicas < *sts.Spec.Replicas)
 	}
 	return val.Replicas > 1 && val.StatusReplicas == 1
 }
@@ -476,6 +477,7 @@ func getStsAnnotations(val *Values, sts *appsv1.StatefulSet) map[string]string {
 		},
 		val.Annotations,
 	)
+
 	if clusterScaledUpToMultiNode(val, sts) {
 		annotations[scaleToMultiNodeAnnotationKey] = ""
 	}
