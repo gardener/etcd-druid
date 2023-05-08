@@ -172,7 +172,7 @@ var _ = Describe("Etcd", func() {
 
 			By("Scaling up cluster (from 0 to 1)")
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
-			etcd.Spec.Replicas = multiNodeEtcdReplicas
+			etcd.Spec.Replicas = 1
 			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
 			By("Scaling up a healthy cluster (from 1 to 3)")
