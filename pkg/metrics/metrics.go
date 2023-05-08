@@ -25,8 +25,8 @@ const (
 	// ValueSucceededFalse is value False for metric label failed.
 	ValueSucceededFalse = "false"
 
-	// ShootNamespace is the label for prometheus metrics to indicate shoot namespace
-	ShootNamespace = "shoot_namespace"
+	// EtcdNamespace is the label for prometheus metrics to indicate etcd namespace
+	EtcdNamespace = "etcd_namespace"
 )
 
 var (

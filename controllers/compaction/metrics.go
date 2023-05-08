@@ -45,7 +45,7 @@ var (
 			Name:      "jobs_current",
 			Help:      "Number of currently running comapction job.",
 		},
-		[]string{druidmetrics.ShootNamespace},
+		[]string{druidmetrics.EtcdNamespace},
 	)
 
 	// metricJobDurationSeconds is the metric used to expose the time taken to finish running a compaction job.
