@@ -14,16 +14,16 @@ These metrics give an idea about the compaction jobs that run after some interva
 
 | Name | Description | Type |
 |------|-------------|------|
-| jobs_total | Total number of compaction jobs initiated by compaction controller. | Counter |
-| jobs_current | Number of currently running comapction job. | Gauge |
-| job_duration_seconds | Total time taken in seconds to finish running a compaction job. | Gauge |
-| num_delta_events | Total number of etcd events to be compacted by a compaction job. | Gauge |
+| etcddruid_compaction_jobs_total | Total number of compaction jobs initiated by compaction controller. | Counter |
+| etcddruid_compaction_jobs_current | Number of currently running comapction job. | Gauge |
+| etcddruid_compaction_job_duration_seconds | Total time taken in seconds to finish running a compaction job. | Gauge |
+| etcddruid_compaction_num_delta_events | Total number of etcd events to be compacted by a compaction job. | Gauge |
 
-There are two labels for `jobs_total` metrics. The label `succeeded` shows how many of the compaction jobs are succeeded and label `failed` shows how many of compaction jobs are failed.
+There are two labels for `etcddruid_compaction_jobs_total` metrics. The label `succeeded` shows how many of the compaction jobs are succeeded and label `failed` shows how many of compaction jobs are failed.
 
-There are two labels for `job_duration_seconds` metrics. The label `succeeded` shows how much time taken by a successful job to complete and label `failed` shows how much time taken by a failed compaction job.
+There are two labels for `etcddruid_compaction_job_duration_seconds` metrics. The label `succeeded` shows how much time taken by a successful job to complete and label `failed` shows how much time taken by a failed compaction job.
 
-`jobs_current` metric comes with label `shoot_namespace` that indicates the namespace of control plane of a shoot cluster.
+`etcddruid_compaction_jobs_current` metric comes with label `etcd_namespace` that indicates the namespace of the ETCD running in the control plane of a shoot cluster..
 
 
 ## Prometheus supplied metrics
