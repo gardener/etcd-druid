@@ -155,7 +155,7 @@ var _ = Describe("Etcd", func() {
 			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
 
-		It("should scale down a single-node etcd and then scale up to a multi-node etcd cluster", func() {
+		It("should scale down a single-node etcd to 0, then scale from 0->1 and then from 1->3", func() {
 			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
 			defer cancelFunc()
 
