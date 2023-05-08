@@ -155,7 +155,7 @@ var _ = Describe("Etcd", func() {
 			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
 
-		It("should scale down a single-node etcd to 0, then scale from 0->1 and then from 1->3", func() {
+		It("should scale down a single-node etcd to 0, then scale up from 0->1 replicas and then from 1->3 replicas", func() {
 			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
 			defer cancelFunc()
 
@@ -165,17 +165,17 @@ var _ = Describe("Etcd", func() {
 			By("Creating a single-node etcd")
 			createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
 
-			By("Scaling down a healthy cluster (from 1 to 0)")
+			By("Scaling down a healthy cluster (from 1 to 0 replica)")
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = 0
 			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			By("Scaling up cluster (from 0 to 1)")
+			By("Scaling up cluster (from 0 to 1 replica)")
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = 1
 			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			By("Scaling up a healthy cluster (from 1 to 3)")
+			By("Scaling up a healthy cluster (from 1 to 3 replica)")
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = 3
 			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
