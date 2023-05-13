@@ -24,6 +24,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
+	"github.com/gardener/gardener/pkg/controllerutils"
 	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	"github.com/gardener/gardener/pkg/utils/flow"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -53,7 +54,7 @@ type component struct {
 	values Values
 }
 
-// New creates a new statefulset deployer instance.
+// New creates a new StatefulSet deployer instance.
 func New(c client.Client, logger logr.Logger, values Values) Interface {
 	objectLogger := logger.WithValues("sts", client.ObjectKey{Name: values.Name, Namespace: values.Namespace})
 
@@ -101,8 +102,11 @@ const (
 // Wait waits for the deployment of the StatefulSet to finish
 func (c *component) Wait(ctx context.Context) error {
 	sts := c.emptyStatefulset()
-	err := c.waitDeploy(ctx, sts, c.values.Replicas)
+	err := c.waitDeploy(ctx, sts, c.values.Replicas, defaultTimeout)
 	if err != nil {
+		if getErr := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); getErr != nil {
+			return err
+		}
 		messages, err2 := c.fetchPVCEventsFor(ctx, sts)
 		if err2 != nil {
 			c.logger.Error(err2, "Error while fetching events for depending PVC")
@@ -118,16 +122,56 @@ func (c *component) Wait(ctx context.Context) error {
 	return err
 }
 
-func (c *component) waitDeploy(ctx context.Context, sts *appsv1.StatefulSet, replicas int32) error {
-	return gardenerretry.UntilTimeout(ctx, defaultInterval, defaultTimeout, func(ctx context.Context) (bool, error) {
-		if err := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
+func (c *component) getLatestPodCreationTime(ctx context.Context, sts *appsv1.StatefulSet) (time.Time, error) {
+	pods := corev1.PodList{}
+	if err := c.client.List(ctx, &pods, client.InNamespace(sts.Namespace), client.MatchingLabels(sts.Spec.Template.Labels)); err != nil {
+		return time.Time{}, err
+	}
+	var recentCreationTime time.Time
+	for _, pod := range pods.Items {
+		if recentCreationTime.Before(pod.CreationTimestamp.Time) {
+			recentCreationTime = pod.CreationTimestamp.Time
+		}
+	}
+	return recentCreationTime, nil
+}
+
+func (c *component) waitUtilPodsReady(ctx context.Context, originalSts *appsv1.StatefulSet, podDeletionTime time.Time, interval time.Duration, timeout time.Duration) error {
+	sts := appsv1.StatefulSet{}
+	return gardenerretry.UntilTimeout(ctx, interval, timeout, func(ctx context.Context) (bool, error) {
+		if err := c.client.Get(ctx, client.ObjectKeyFromObject(originalSts), &sts); err != nil {
 			if apierrors.IsNotFound(err) {
 				return gardenerretry.MinorError(err)
 			}
 			return gardenerretry.SevereError(err)
 		}
-		ready, reason := utils.IsStatefulSetReady(replicas, sts)
-		if !ready {
+		if sts.Status.ReadyReplicas < *sts.Spec.Replicas {
+			return gardenerretry.MinorError(fmt.Errorf(fmt.Sprintf("Only %d out of %d replicas are ready", sts.Status.ReadyReplicas, sts.Spec.Replicas)))
+		}
+		recentPodCreationTime, err := c.getLatestPodCreationTime(ctx, &sts)
+		if err != nil {
+			return gardenerretry.MinorError(fmt.Errorf("failed to get most recent pod creation timestamp: %w", err))
+		}
+		if recentPodCreationTime.Before(podDeletionTime) {
+			return gardenerretry.MinorError(fmt.Errorf(fmt.Sprintf("Most recent pod creation time %v is still before the %v time when the pods were deleted.", recentPodCreationTime, podDeletionTime)))
+		}
+		return gardenerretry.Ok()
+	})
+}
+
+func (c *component) waitDeploy(ctx context.Context, originalSts *appsv1.StatefulSet, replicas int32, timeout time.Duration) error {
+	updatedSts := appsv1.StatefulSet{}
+	return gardenerretry.UntilTimeout(ctx, defaultInterval, timeout, func(ctx context.Context) (bool, error) {
+		if err := c.client.Get(ctx, client.ObjectKeyFromObject(originalSts), &updatedSts); err != nil {
+			if apierrors.IsNotFound(err) {
+				return gardenerretry.MinorError(err)
+			}
+			return gardenerretry.SevereError(err)
+		}
+		if updatedSts.Generation < originalSts.Generation {
+			return gardenerretry.MinorError(fmt.Errorf("StatulfulSet generation has not yet been updated in the cache"))
+		}
+		if ready, reason := utils.IsStatefulSetReady(replicas, &updatedSts); !ready {
 			return gardenerretry.MinorError(fmt.Errorf(reason))
 		}
 		return gardenerretry.Ok()
@@ -152,7 +196,11 @@ func (c *component) WaitCleanup(ctx context.Context) error {
 }
 
 func (c *component) createDeployFlow(ctx context.Context) (*flow.Flow, error) {
-	sts, err := c.getExistingSts(ctx)
+	var (
+		sts *appsv1.StatefulSet
+		err error
+	)
+	sts, err = c.getExistingSts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -168,21 +216,22 @@ func (c *component) createDeployFlow(ctx context.Context) (*flow.Flow, error) {
 			taskID = c.addImmutableFieldUpdateTask(g, sts)
 		}
 	}
-	if taskID != nil || sts == nil {
-		sts = c.emptyStatefulset()
-	}
 	c.addCreateOrPatchTask(g, sts, taskID)
 
 	return g.Compile(), nil
 }
 
 // addTasksForPeerUrlTLSChangedToEnabled adds tasks to the deployment flow in case the peer url tls has been changed to `enabled`.
-// To ensure that the tls enablement of peer url is properly reflected in etcd, the etcd StatefulSet should be recreated twice. Assume
+// To ensure that the tls enablement of peer url is properly reflected in etcd, the existing etcd StatefulSet pods should be restarted twice. Assume
 // that the current state of etcd is that peer url is not TLS enabled. First restart pushes a new configuration which contains
 // PeerUrlTLS configuration. etcd-backup-restore will update the member peer url. This will result in the change of the peer url in the etcd db file,
 // but it will not reflect in the already running etcd container. Ideally a restart of an etcd container would have been sufficient but currently k8s
-// does not expose an API to force restart a single container within a pod. Therefore, we delete the sts once again. When it gets created the second time
-// it will now start etcd with the correct peer url which will be TLS enabled.
+// does not expose an API to force restart a single container within a pod. Therefore, we need to restart the StatefulSet pod(s) once again. When the pod(s) is
+// restarted the second time it will now start etcd with the correct peer url which will be TLS enabled.
+// To achieve 2 restarts following is done:
+// 1. An update is made to the spec mounting the peer URL TLS secrets. This will cause a rolling update of the existing pod.
+// 2. Once the update is successfully completed, then we delete StatefulSet pods, causing a restart by the StatefulSet controller.
+// NOTE: The need to restart etcd pods twice will change in the future.
 func (c *component) addTasksForPeerUrlTLSChangedToEnabled(g *flow.Graph, sts *appsv1.StatefulSet) *flow.TaskID {
 	var existingStsReplicas int32
 	if sts.Spec.Replicas != nil {
@@ -190,30 +239,28 @@ func (c *component) addTasksForPeerUrlTLSChangedToEnabled(g *flow.Graph, sts *ap
 	}
 
 	if c.values.PeerTLSChangedToEnabled {
-		firstDelOpName := "(recreate-sts): delete sts due to peer url tls"
-		delTaskID := g.Add(flow.Task{
-			Name:         firstDelOpName,
-			Fn:           func(ctx context.Context) error { return c.destroyAndWait(ctx, firstDelOpName) },
+		updateStsOpName := "(update-sts-spec): update Peer TLS secret mount"
+		updateTaskID := g.Add(flow.Task{
+			Name: updateStsOpName,
+			Fn: func(ctx context.Context) error {
+				return c.updateAndWait(ctx, updateStsOpName, sts, existingStsReplicas)
+			},
 			Dependencies: nil,
 		})
+		c.logger.Info("adding task to deploy flow", "name", updateStsOpName, "ID", updateTaskID)
 
-		// ensure that the recreation of StatefulSet is done using existing replicas and not the desired replicas as contained in c.values.Replicas
-		createOrPatchOpName := fmt.Sprintf("(recreate-sts): create sts due to peer url tls with replicas: %d", existingStsReplicas)
-		createTaskID := g.Add(flow.Task{
-			Name:         createOrPatchOpName,
-			Fn:           func(ctx context.Context) error { return c.createAndWait(ctx, createOrPatchOpName, existingStsReplicas) },
-			Dependencies: flow.NewTaskIDs(delTaskID),
+		deleteAllStsPodsOpName := "(delete-sts-pods): deleting all sts pods"
+		deleteAllStsPodsTaskID := g.Add(flow.Task{
+			Name: deleteAllStsPodsOpName,
+			Fn: func(ctx context.Context) error {
+				return c.deleteAllStsPods(ctx, deleteAllStsPodsOpName, sts)
+			},
+			Dependencies: flow.NewTaskIDs(updateTaskID),
 		})
 
-		secondDelOpName := "(recreate-sts): second-delete of sts due to peer url tls"
-		secondDeleteTaskID := g.Add(flow.Task{
-			Name:         secondDelOpName,
-			Fn:           func(ctx context.Context) error { return c.destroyAndWait(ctx, secondDelOpName) },
-			Dependencies: flow.NewTaskIDs(createTaskID),
-		})
+		c.logger.Info("adding task to deploy flow", "name", deleteAllStsPodsOpName, "ID", deleteAllStsPodsTaskID)
 
-		c.logger.Info("added tasks to deploy flow due to peer url tls changed to enabled", "namespace", c.values.Namespace, "name", c.values.Name, "etcdUID", c.values.EtcdUID, "replicas", c.values.Replicas)
-		return &secondDeleteTaskID
+		return &deleteAllStsPodsTaskID
 	}
 	return nil
 }
@@ -232,8 +279,10 @@ func (c *component) addImmutableFieldUpdateTask(g *flow.Graph, sts *appsv1.State
 	return nil
 }
 
-func (c *component) addCreateOrPatchTask(g *flow.Graph, sts *appsv1.StatefulSet, taskIDDependency *flow.TaskID) {
-	var dependencies flow.TaskIDs
+func (c *component) addCreateOrPatchTask(g *flow.Graph, originalSts *appsv1.StatefulSet, taskIDDependency *flow.TaskID) {
+	var (
+		dependencies flow.TaskIDs
+	)
 	if taskIDDependency != nil {
 		dependencies = flow.NewTaskIDs(taskIDDependency)
 	}
@@ -241,8 +290,21 @@ func (c *component) addCreateOrPatchTask(g *flow.Graph, sts *appsv1.StatefulSet,
 	taskID := g.Add(flow.Task{
 		Name: "sync StatefulSet task",
 		Fn: func(ctx context.Context) error {
-			c.logger.Info("createOrPatch sts")
-			return c.createOrPatch(ctx, sts, c.values.Replicas)
+			c.logger.Info("createOrPatch sts", "replicas", c.values.Replicas)
+			var (
+				sts = originalSts
+				err error
+			)
+			if taskIDDependency != nil {
+				sts, err = c.getExistingSts(ctx)
+				if err != nil {
+					return err
+				}
+			}
+			if sts == nil {
+				sts = c.emptyStatefulset()
+			}
+			return c.createOrPatch(ctx, sts, c.values.Replicas, false)
 		},
 		Dependencies: dependencies,
 	})
@@ -260,15 +322,33 @@ func (c *component) getExistingSts(ctx context.Context) (*appsv1.StatefulSet, er
 	return sts, nil
 }
 
-func (c *component) createAndWait(ctx context.Context, opName string, replicas int32) error {
-	sts := c.emptyStatefulset()
-	c.logger.Info("createOrPatch sts", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID, "replicas", replicas)
-	err := c.createOrPatch(ctx, sts, replicas)
-	if err != nil {
+func (c *component) updateAndWait(ctx context.Context, opName string, sts *appsv1.StatefulSet, replicas int32) error {
+	c.logger.Info("Updating StatefulSet spec with Peer URL TLS mount", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID, "replicas", replicas)
+	return c.doCreateOrUpdate(ctx, opName, sts, replicas, true)
+}
+
+func (c *component) deleteAllStsPods(ctx context.Context, opName string, sts *appsv1.StatefulSet) error {
+	replicas := sts.Spec.Replicas
+	c.logger.Info("Deleting all StatefulSet pods", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID, "replicas", replicas, "matching labels", sts.Spec.Template.Labels)
+	timeBeforeDeletion := time.Now()
+
+	if err := c.client.DeleteAllOf(ctx, &corev1.Pod{}, client.InNamespace(sts.Namespace), client.MatchingLabels(sts.Spec.Template.Labels)); err != nil {
 		return err
 	}
-	c.logger.Info("waiting for createOrPatch sts to finish", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID, "replicas", replicas)
-	return c.waitDeploy(ctx, sts, replicas)
+
+	const timeout = 3 * time.Minute
+	const interval = 2 * time.Second
+
+	c.logger.Info("waiting for StatefulSet pods to start again after delete", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID, "replicas", replicas)
+	return c.waitUtilPodsReady(ctx, sts, timeBeforeDeletion, interval, timeout)
+}
+
+func (c *component) doCreateOrUpdate(ctx context.Context, opName string, sts *appsv1.StatefulSet, replicas int32, preserveObjectMetadata bool) error {
+	if err := c.createOrPatch(ctx, sts, replicas, preserveObjectMetadata); err != nil {
+		return err
+	}
+	c.logger.Info("waiting for StatefulSet replicas to be ready", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "target-replicas", replicas)
+	return c.waitDeploy(ctx, sts, replicas, defaultTimeout)
 }
 
 func (c *component) destroyAndWait(ctx context.Context, opName string) error {
@@ -286,117 +366,125 @@ func immutableFieldUpdate(sts *appsv1.StatefulSet, val Values) bool {
 
 func clusterScaledUpToMultiNode(val *Values, sts *appsv1.StatefulSet) bool {
 	if sts != nil && sts.Spec.Replicas != nil {
-		return (val.Replicas > 1 && *sts.Spec.Replicas == 1) ||
+		return (val.Replicas > 1 && *sts.Spec.Replicas == 1 && sts.Status.AvailableReplicas == 1) ||
 			(metav1.HasAnnotation(sts.ObjectMeta, scaleToMultiNodeAnnotationKey) && sts.Status.UpdatedReplicas < *sts.Spec.Replicas)
 	}
 	return val.Replicas > 1 && val.StatusReplicas == 1
 }
 
-func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, replicas int32) error {
-	var (
-		stsOriginal = sts.DeepCopy()
-		patch       = client.StrategicMergeFrom(stsOriginal)
-	)
+func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, replicas int32, preserveObjectMeta bool) error {
+	mutatingFn := func() error {
+		var stsOriginal = sts.DeepCopy()
 
-	podVolumes, err := getVolumes(ctx, c.client, c.logger, c.values)
-	if err != nil {
-		return err
-	}
+		podVolumes, err := getVolumes(ctx, c.client, c.logger, c.values)
+		if err != nil {
+			return err
+		}
 
-	sts.ObjectMeta = getObjectMeta(&c.values, sts)
-	sts.Spec = appsv1.StatefulSetSpec{
-		PodManagementPolicy: appsv1.ParallelPodManagement,
-		UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
-			Type: appsv1.RollingUpdateStatefulSetStrategyType,
-		},
-		Replicas:    &replicas,
-		ServiceName: c.values.PeerServiceName,
-		Selector: &metav1.LabelSelector{
-			MatchLabels: getCommonLabels(&c.values),
-		},
-		Template: corev1.PodTemplateSpec{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: c.values.Annotations,
-				Labels:      sts.GetLabels(),
+		if !preserveObjectMeta {
+			sts.ObjectMeta = getObjectMeta(&c.values, sts)
+		} else {
+			sts.ObjectMeta = stsOriginal.ObjectMeta
+		}
+		sts.Spec = appsv1.StatefulSetSpec{
+			PodManagementPolicy: appsv1.ParallelPodManagement,
+			UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
+				Type: appsv1.RollingUpdateStatefulSetStrategyType,
 			},
-			Spec: corev1.PodSpec{
-				HostAliases: []corev1.HostAlias{
-					{
-						IP:        "127.0.0.1",
-						Hostnames: []string{c.values.Name + "-local"},
-					},
+			Replicas:    &replicas,
+			ServiceName: c.values.PeerServiceName,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: getCommonLabels(&c.values),
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: c.values.Annotations,
+					Labels:      sts.GetLabels(),
 				},
-				ServiceAccountName:        c.values.ServiceAccountName,
-				Affinity:                  c.values.Affinity,
-				TopologySpreadConstraints: c.values.TopologySpreadConstraints,
-				Containers: []corev1.Container{
-					{
-						Name:            "etcd",
-						Image:           c.values.EtcdImage,
-						ImagePullPolicy: corev1.PullIfNotPresent,
-						Command:         c.values.EtcdCommand,
-						ReadinessProbe: &corev1.Probe{
-							ProbeHandler:        getReadinessHandler(c.values),
-							InitialDelaySeconds: 15,
-							PeriodSeconds:       5,
-							FailureThreshold:    5,
+				Spec: corev1.PodSpec{
+					HostAliases: []corev1.HostAlias{
+						{
+							IP:        "127.0.0.1",
+							Hostnames: []string{c.values.Name + "-local"},
 						},
-						Ports:        getEtcdPorts(c.values),
-						Resources:    getEtcdResources(c.values),
-						Env:          getEtcdEnvVars(c.values),
-						VolumeMounts: getEtcdVolumeMounts(c.values),
 					},
-					{
-						Name:            "backup-restore",
-						Image:           c.values.BackupImage,
-						ImagePullPolicy: corev1.PullIfNotPresent,
-						Command:         c.values.EtcdBackupCommand,
-						Ports:           getBackupPorts(c.values),
-						Resources:       getBackupResources(c.values),
-						Env:             getBackupRestoreEnvVars(c.values),
-						VolumeMounts:    getBackupRestoreVolumeMounts(c.values),
-						SecurityContext: &corev1.SecurityContext{
-							Capabilities: &corev1.Capabilities{
-								Add: []corev1.Capability{
-									"SYS_PTRACE",
+					ServiceAccountName:        c.values.ServiceAccountName,
+					Affinity:                  c.values.Affinity,
+					TopologySpreadConstraints: c.values.TopologySpreadConstraints,
+					Containers: []corev1.Container{
+						{
+							Name:            "etcd",
+							Image:           c.values.EtcdImage,
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Command:         c.values.EtcdCommand,
+							ReadinessProbe: &corev1.Probe{
+								ProbeHandler:        getReadinessHandler(c.values),
+								InitialDelaySeconds: 15,
+								PeriodSeconds:       5,
+								FailureThreshold:    5,
+							},
+							Ports:        getEtcdPorts(c.values),
+							Resources:    getEtcdResources(c.values),
+							Env:          getEtcdEnvVars(c.values),
+							VolumeMounts: getEtcdVolumeMounts(c.values),
+						},
+						{
+							Name:            "backup-restore",
+							Image:           c.values.BackupImage,
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Command:         c.values.EtcdBackupCommand,
+							Ports:           getBackupPorts(c.values),
+							Resources:       getBackupResources(c.values),
+							Env:             getBackupRestoreEnvVars(c.values),
+							VolumeMounts:    getBackupRestoreVolumeMounts(c.values),
+							SecurityContext: &corev1.SecurityContext{
+								Capabilities: &corev1.Capabilities{
+									Add: []corev1.Capability{
+										"SYS_PTRACE",
+									},
 								},
 							},
 						},
 					},
+					ShareProcessNamespace: pointer.Bool(true),
+					Volumes:               podVolumes,
 				},
-				ShareProcessNamespace: pointer.Bool(true),
-				Volumes:               podVolumes,
 			},
-		},
-		VolumeClaimTemplates: []corev1.PersistentVolumeClaim{
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: c.values.VolumeClaimTemplateName,
-				},
-				Spec: corev1.PersistentVolumeClaimSpec{
-					AccessModes: []corev1.PersistentVolumeAccessMode{
-						corev1.ReadWriteOnce,
+			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: c.values.VolumeClaimTemplateName,
 					},
-					Resources: getStorageReq(c.values),
+					Spec: corev1.PersistentVolumeClaimSpec{
+						AccessModes: []corev1.PersistentVolumeAccessMode{
+							corev1.ReadWriteOnce,
+						},
+						Resources: getStorageReq(c.values),
+					},
 				},
 			},
-		},
-	}
-	if c.values.StorageClass != nil && *c.values.StorageClass != "" {
-		sts.Spec.VolumeClaimTemplates[0].Spec.StorageClassName = c.values.StorageClass
-	}
-	if c.values.PriorityClassName != nil {
-		sts.Spec.Template.Spec.PriorityClassName = *c.values.PriorityClassName
+		}
+		if c.values.StorageClass != nil && *c.values.StorageClass != "" {
+			sts.Spec.VolumeClaimTemplates[0].Spec.StorageClassName = c.values.StorageClass
+		}
+		if c.values.PriorityClassName != nil {
+			sts.Spec.Template.Spec.PriorityClassName = *c.values.PriorityClassName
+		}
+
+		if stsOriginal.Generation > 0 {
+			// Keep immutable fields
+			sts.Spec.PodManagementPolicy = stsOriginal.Spec.PodManagementPolicy
+			sts.Spec.ServiceName = stsOriginal.Spec.ServiceName
+		}
+		return nil
 	}
 
-	if stsOriginal.Generation > 0 {
-		// Keep immutable fields
-		sts.Spec.PodManagementPolicy = stsOriginal.Spec.PodManagementPolicy
-		sts.Spec.ServiceName = stsOriginal.Spec.ServiceName
-		return c.client.Patch(ctx, sts, patch)
+	operationResult, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, c.client, sts, mutatingFn)
+	if err != nil {
+		return err
 	}
-
-	return c.client.Create(ctx, sts)
+	c.logger.Info("createOrPatch is completed", "Namespace", sts.Namespace, "Name", sts.Name, "operation-result", operationResult)
+	return nil
 }
 
 func (c *component) fetchPVCEventsFor(ctx context.Context, ss *appsv1.StatefulSet) (string, error) {
