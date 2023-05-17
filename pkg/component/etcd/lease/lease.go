@@ -30,9 +30,6 @@ import (
 // Interface provides a facade for operations on leases.
 type Interface interface {
 	gardenercomponent.Deployer
-	// GetPeerURLTLSEnabledStatus checks the Peer URL TLS enabled status by inspecting all the lease objects and returns
-	// a result after applying value captured in the lease object for each member in conjunction.
-	GetPeerURLTLSEnabledStatus(context.Context) (bool, error)
 }
 type component struct {
 	client    client.Client
@@ -81,18 +78,6 @@ func (c *component) Destroy(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (c *component) GetPeerURLTLSEnabledStatus(ctx context.Context) (bool, error) {
-	tlsEnabledValues, err := c.getTLSEnabledAnnotationValues(ctx, c.values.EtcdName)
-	if err != nil {
-		return false, err
-	}
-	tlsEnabled := true
-	for _, v := range tlsEnabledValues {
-		tlsEnabled = tlsEnabled && v
-	}
-	return tlsEnabled, nil
 }
 
 // New creates a new lease deployer instance.
