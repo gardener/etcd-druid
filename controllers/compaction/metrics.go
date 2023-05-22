@@ -37,7 +37,7 @@ var (
 		[]string{druidmetrics.LabelSucceeded},
 	)
 
-	// metricJobsCurrent is the metric used to expose currently running comapction job. This metric is important to get a sense of total number of compaction job running in a seed cluster..
+	// metricJobsCurrent is the metric used to expose currently running compaction job. This metric is important to get a sense of total number of compaction job running in a seed cluster.
 	metricJobsCurrent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespaceEtcdDruid,
@@ -48,13 +48,13 @@ var (
 		[]string{druidmetrics.EtcdNamespace},
 	)
 
-	// metricJobDurationSeconds is the metric used to expose the time taken to finish running a compaction job.
-	metricJobDurationSeconds = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	// metricJobDurationSeconds is the metric used to expose the time taken to finish a compaction job.
+	metricJobDurationSeconds = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
 			Namespace: namespaceEtcdDruid,
 			Subsystem: subsystemCompaction,
 			Name:      "job_duration_seconds",
-			Help:      "Total time taken in seconds to finish running a compaction job.",
+			Help:      "Total time taken in seconds to finish a running compaction job.",
 		},
 		[]string{druidmetrics.LabelSucceeded},
 	)

@@ -201,7 +201,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 	if job.Status.Failed > 0 {
 		metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(0)
 		if job.Status.StartTime != nil {
-			metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse}).Set(time.Since(job.Status.StartTime.Time).Seconds())
+			metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse}).Observe(time.Since(job.Status.StartTime.Time).Seconds())
 		}
 		err = r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground))
 		if err != nil {
@@ -220,7 +220,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 		metricJobsTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue}).Inc()
 		metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(0)
 		if job.Status.CompletionTime != nil {
-			metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue}).Set(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds())
+			metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue}).Observe(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds())
 		}
 		return r.delete(ctx, logger, etcd)
 	}
