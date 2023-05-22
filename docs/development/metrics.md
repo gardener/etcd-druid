@@ -15,8 +15,8 @@ These metrics give an idea about the compaction jobs that run after some interva
 | Name | Description | Type |
 |------|-------------|------|
 | etcddruid_compaction_jobs_total | Total number of compaction jobs initiated by compaction controller. | Counter |
-| etcddruid_compaction_jobs_current | Number of currently running comapction job. | Gauge |
-| etcddruid_compaction_job_duration_seconds | Total time taken in seconds to finish running a compaction job. | Gauge |
+| etcddruid_compaction_jobs_current | Number of currently running compaction job. | Gauge |
+| etcddruid_compaction_job_duration_seconds | Total time taken in seconds to finish a running compaction job. | Histogram |
 | etcddruid_compaction_num_delta_events | Total number of etcd events to be compacted by a compaction job. | Gauge |
 
 There are two labels for `etcddruid_compaction_jobs_total` metrics. The label `succeeded` shows how many of the compaction jobs are succeeded and label `failed` shows how many of compaction jobs are failed.
