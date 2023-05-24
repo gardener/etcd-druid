@@ -249,13 +249,23 @@ func (c *component) addTasksForPeerUrlTLSChangedToEnabled(g *flow.Graph, sts *ap
 		})
 		c.logger.Info("adding task to deploy flow", "name", updateStsOpName, "ID", updateTaskID)
 
+		waitForLeaseUpdateOpName := "(wait-lease-update): Wait for lease to be updated with peer TLS"
+		waitLeaseUpdateID := g.Add(flow.Task{
+			Name: waitForLeaseUpdateOpName,
+			Fn: func(ctx context.Context) error {
+				return c.waitUntilTLSEnabled(ctx, waitForLeaseUpdateOpName, 3*time.Minute)
+			},
+			Dependencies: flow.NewTaskIDs(updateTaskID),
+		})
+		c.logger.Info("adding task to deploy flow", "name", updateStsOpName, "ID", waitLeaseUpdateID)
+
 		deleteAllStsPodsOpName := "(delete-sts-pods): deleting all sts pods"
 		deleteAllStsPodsTaskID := g.Add(flow.Task{
 			Name: deleteAllStsPodsOpName,
 			Fn: func(ctx context.Context) error {
 				return c.deleteAllStsPods(ctx, deleteAllStsPodsOpName, sts)
 			},
-			Dependencies: flow.NewTaskIDs(updateTaskID),
+			Dependencies: flow.NewTaskIDs(waitLeaseUpdateID),
 		})
 
 		c.logger.Info("adding task to deploy flow", "name", deleteAllStsPodsOpName, "ID", deleteAllStsPodsTaskID)
@@ -327,6 +337,19 @@ func (c *component) updateAndWait(ctx context.Context, opName string, sts *appsv
 	return c.doCreateOrUpdate(ctx, opName, sts, replicas, true)
 }
 
+func (c *component) waitUntilTLSEnabled(ctx context.Context, opName string, timeout time.Duration) error {
+	return gardenerretry.UntilTimeout(ctx, defaultInterval, timeout, func(ctx context.Context) (bool, error) {
+		tlsEnabled, err := utils.IsPeerURLTLSEnabled(ctx, c.client, c.values.Namespace, c.values.Name, c.logger)
+		if err != nil {
+			return gardenerretry.MinorError(err)
+		}
+		if !tlsEnabled {
+			return gardenerretry.MinorError(fmt.Errorf("TLS not yet enabled for etcd [name: %s, namespace: %s]", c.values.Name, c.values.Namespace))
+		}
+		return gardenerretry.Ok()
+	})
+}
+
 func (c *component) deleteAllStsPods(ctx context.Context, opName string, sts *appsv1.StatefulSet) error {
 	replicas := sts.Spec.Replicas
 	c.logger.Info("Deleting all StatefulSet pods", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID, "replicas", replicas, "matching labels", sts.Spec.Template.Labels)
@@ -372,7 +395,7 @@ func clusterScaledUpToMultiNode(val *Values, sts *appsv1.StatefulSet) bool {
 	return val.Replicas > 1 && val.StatusReplicas == 1
 }
 
-func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, replicas int32, preserveObjectMeta bool) error {
+func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, replicas int32, preserveAnnotations bool) error {
 	mutatingFn := func() error {
 		var stsOriginal = sts.DeepCopy()
 
@@ -381,11 +404,7 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 			return err
 		}
 
-		if !preserveObjectMeta {
-			sts.ObjectMeta = getObjectMeta(&c.values, sts)
-		} else {
-			sts.ObjectMeta = stsOriginal.ObjectMeta
-		}
+		sts.ObjectMeta = getObjectMeta(&c.values, sts, preserveAnnotations)
 		sts.Spec = appsv1.StatefulSetSpec{
 			PodManagementPolicy: appsv1.ParallelPodManagement,
 			UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
@@ -530,9 +549,14 @@ func getCommonLabels(val *Values) map[string]string {
 	}
 }
 
-func getObjectMeta(val *Values, sts *appsv1.StatefulSet) metav1.ObjectMeta {
+func getObjectMeta(val *Values, sts *appsv1.StatefulSet, preserveAnnotations bool) metav1.ObjectMeta {
+	var annotations map[string]string
 	labels := utils.MergeStringMaps(getCommonLabels(val), val.Labels)
-	annotations := getStsAnnotations(val, sts)
+	if preserveAnnotations {
+		annotations = sts.Annotations
+	} else {
+		annotations = getStsAnnotations(val, sts)
+	}
 	ownerRefs := []metav1.OwnerReference{
 		{
 			APIVersion:         druidv1alpha1.GroupVersion.String(),
