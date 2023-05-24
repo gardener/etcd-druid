@@ -34,7 +34,7 @@ var (
 			Name:      "jobs_total",
 			Help:      "Total number of compaction jobs initiated by compaction controller.",
 		},
-		[]string{druidmetrics.LabelSucceeded},
+		[]string{druidmetrics.LabelSucceeded, druidmetrics.EtcdNamespace},
 	)
 
 	// metricJobsCurrent is the metric used to expose currently running compaction job. This metric is important to get a sense of total number of compaction job running in a seed cluster.
@@ -56,7 +56,7 @@ var (
 			Name:      "job_duration_seconds",
 			Help:      "Total time taken in seconds to finish a running compaction job.",
 		},
-		[]string{druidmetrics.LabelSucceeded},
+		[]string{druidmetrics.LabelSucceeded, druidmetrics.EtcdNamespace},
 	)
 
 	// metricNumDeltaEvents is the metric used to expose the total number of etcd events to be compacted by a compaction job.
@@ -67,7 +67,7 @@ var (
 			Name:      "num_delta_events",
 			Help:      "Total number of etcd events to be compacted by a compaction job.",
 		},
-		[]string{},
+		[]string{druidmetrics.EtcdNamespace},
 	)
 )
 
@@ -75,6 +75,7 @@ func init() {
 	// metricJobsTotalValues
 	metricJobsTotalValues := map[string][]string{
 		druidmetrics.LabelSucceeded: druidmetrics.DruidLabels[druidmetrics.LabelSucceeded],
+		druidmetrics.EtcdNamespace:  druidmetrics.DruidLabels[druidmetrics.EtcdNamespace],
 	}
 	metricJobsTotalCombinations := druidmetrics.GenerateLabelCombinations(metricJobsTotalValues)
 	for _, combination := range metricJobsTotalCombinations {
@@ -84,6 +85,7 @@ func init() {
 	// metricJobDurationSecondsValues
 	metricJobDurationSecondsValues := map[string][]string{
 		druidmetrics.LabelSucceeded: druidmetrics.DruidLabels[druidmetrics.LabelSucceeded],
+		druidmetrics.EtcdNamespace:  druidmetrics.DruidLabels[druidmetrics.EtcdNamespace],
 	}
 	compactionJobDurationSecondsCombinations := druidmetrics.GenerateLabelCombinations(metricJobDurationSecondsValues)
 	for _, combination := range compactionJobDurationSecondsCombinations {
