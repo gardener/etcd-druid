@@ -17,11 +17,9 @@ package lease
 import (
 	"context"
 	"fmt"
-	"strconv"
 
-	"github.com/gardener/etcd-druid/pkg/common"
+	"github.com/gardener/etcd-druid/pkg/utils"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/flow"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -30,7 +28,7 @@ import (
 )
 
 func (c *component) deleteAllMemberLeases(ctx context.Context) error {
-	labels := getMemberLeaseLabels(c.values.EtcdName)
+	labels := utils.GetMemberLeaseLabels(c.values.EtcdName)
 
 	return c.client.DeleteAllOf(ctx, &coordinationv1.Lease{}, client.InNamespace(c.namespace), client.MatchingLabels(labels))
 }
@@ -39,7 +37,7 @@ func (c *component) syncMemberLeases(ctx context.Context) error {
 	var (
 		fns []flow.TaskFn
 
-		labels     = getMemberLeaseLabels(c.values.EtcdName)
+		labels     = utils.GetMemberLeaseLabels(c.values.EtcdName)
 		prefix     = c.values.EtcdName
 		leaseNames = sets.NewString()
 	)
@@ -86,48 +84,6 @@ func (c *component) syncMemberLeases(ctx context.Context) error {
 	}
 
 	return flow.Parallel(fns...)(ctx)
-}
-
-func (c *component) getTLSEnabledAnnotationValues(ctx context.Context, etcdName string) ([]bool, error) {
-	var tlsEnabledValues []bool
-	labels := getMemberLeaseLabels(etcdName)
-	leaseList := &coordinationv1.LeaseList{}
-	if err := c.client.List(ctx, leaseList, client.InNamespace(c.namespace), client.MatchingLabels(labels)); err != nil {
-		return nil, err
-	}
-	for _, lease := range leaseList.Items {
-		tlsEnabled := c.parseAndGetTLSEnabledValue(lease)
-		if tlsEnabled != nil {
-			tlsEnabledValues = append(tlsEnabledValues, *tlsEnabled)
-		}
-	}
-	return tlsEnabledValues, nil
-}
-
-func (c *component) parseAndGetTLSEnabledValue(lease coordinationv1.Lease) *bool {
-	const peerURLTLSEnabledKey = "member.etcd.gardener.cloud/tls-enabled"
-	if lease.Annotations != nil {
-		if tlsEnabledStr, ok := lease.Annotations[peerURLTLSEnabledKey]; ok {
-			tlsEnabled, err := strconv.ParseBool(tlsEnabledStr)
-			if err != nil {
-				c.logger.Error(err, "tls-enabled value is not a valid boolean", "namespace", lease.Namespace, "leaseName", lease.Name)
-				return nil
-			}
-			return &tlsEnabled
-		}
-		c.logger.V(4).Info("tls-enabled annotation not present for lease.", "namespace", lease.Namespace, "leaseName", lease.Name)
-	}
-	return nil
-}
-
-// PurposeMemberLease is a constant used as a purpose for etcd member lease objects.
-const PurposeMemberLease = "etcd-member-lease"
-
-func getMemberLeaseLabels(etcdName string) map[string]string {
-	return map[string]string{
-		common.GardenerOwnedBy:           etcdName,
-		v1beta1constants.GardenerPurpose: PurposeMemberLease,
-	}
 }
 
 func memberLeaseName(etcdName string, replica int) string {
