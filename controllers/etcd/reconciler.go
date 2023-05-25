@@ -361,7 +361,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		return reconcileResult{err: err}
 	}
 
-	peerTLSEnabled, err := leaseDeployer.GetPeerURLTLSEnabledStatus(ctx)
+	peerTLSEnabled, err := druidutils.IsPeerURLTLSEnabled(ctx, r.Client, etcd.Namespace, etcd.Name, logger)
 	if err != nil {
 		return reconcileResult{err: err}
 	}

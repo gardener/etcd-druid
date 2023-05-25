@@ -143,7 +143,6 @@ var _ = Describe("Statefulset", func() {
 
 		sts = &appsv1.StatefulSet{
 			ObjectMeta: metav1.ObjectMeta{
-
 				Name:      values.Name,
 				Namespace: values.Namespace,
 			},
