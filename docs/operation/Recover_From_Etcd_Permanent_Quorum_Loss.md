@@ -1,3 +1,7 @@
+---
+title: Recover from etcd Permanent Quorum Loss
+---
+
 ## Quorum loss in ETCD Cluster
 [Quorum loss](https://etcd.io/docs/v3.4/op-guide/recovery/) means when majority of ETCD pods(greater than or equal to n/2 + 1) are down simultaneously for some reason. 
 

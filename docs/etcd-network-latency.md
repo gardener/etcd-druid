@@ -1,3 +1,7 @@
+---
+title: etcd Network Latency
+---
+
 # Network Latency analysis: `sn-etcd-sz` vs  `mn-etcd-sz` vs `mn-etcd-mz`
 This page captures the ETCD cluster latency analysis for below scenarios using [benchmark tool](benchmark) (build from [ETCD benchmark tool](https://github.com/seshachalam-yv/etcd)).
 
