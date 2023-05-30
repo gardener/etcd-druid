@@ -71,6 +71,12 @@ run: fmt check
 install: manifests
 	kubectl apply -f config/crd/bases
 
+# Deploy controller in the configured Kubernetes cluster in ~/.kube/config
+.PHONY: deploy
+deploy-via-kustomize: manifests $(KUSTOMIZE)
+	kubectl apply -f config/crd/bases
+	kustomize build config/default | kubectl apply -f -
+
 # Deploy controller to the Kubernetes cluster specified in the environment variable KUBECONFIG
 # Modify the Helm template located at charts/druid/templates if any changes are required
 .PHONY: deploy
