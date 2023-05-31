@@ -333,7 +333,7 @@ func (c *component) getExistingSts(ctx context.Context) (*appsv1.StatefulSet, er
 }
 
 func (c *component) updateAndWait(ctx context.Context, opName string, sts *appsv1.StatefulSet, replicas int32) error {
-	c.logger.Info("Updating StatefulSet spec with Peer URL TLS mount", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID, "replicas", replicas)
+	c.logger.Info("Updating StatefulSet spec with Peer URL TLS mount", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference), "replicas", replicas)
 	return c.doCreateOrUpdate(ctx, opName, sts, replicas, true)
 }
 
@@ -352,7 +352,7 @@ func (c *component) waitUntilTLSEnabled(ctx context.Context, opName string, time
 
 func (c *component) deleteAllStsPods(ctx context.Context, opName string, sts *appsv1.StatefulSet) error {
 	replicas := sts.Spec.Replicas
-	c.logger.Info("Deleting all StatefulSet pods", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID, "replicas", replicas, "matching labels", sts.Spec.Template.Labels)
+	c.logger.Info("Deleting all StatefulSet pods", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference), "replicas", replicas, "matching labels", sts.Spec.Template.Labels)
 	timeBeforeDeletion := time.Now()
 
 	if err := c.client.DeleteAllOf(ctx, &corev1.Pod{}, client.InNamespace(sts.Namespace), client.MatchingLabels(sts.Spec.Template.Labels)); err != nil {
@@ -362,7 +362,7 @@ func (c *component) deleteAllStsPods(ctx context.Context, opName string, sts *ap
 	const timeout = 3 * time.Minute
 	const interval = 2 * time.Second
 
-	c.logger.Info("waiting for StatefulSet pods to start again after delete", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID, "replicas", replicas)
+	c.logger.Info("waiting for StatefulSet pods to start again after delete", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference), "replicas", replicas)
 	return c.waitUtilPodsReady(ctx, sts, timeBeforeDeletion, interval, timeout)
 }
 
