@@ -62,6 +62,7 @@ func GenerateValues(
 		StatusReplicas:            etcd.Status.Replicas,
 		Annotations:               utils.MergeStringMaps(checksumAnnotations, etcd.Spec.Annotations),
 		Labels:                    etcd.GetDefaultLabels(),
+		PodAdditionalLabels:       etcd.Spec.Labels,
 		EtcdImage:                 etcdImage,
 		BackupImage:               backupImage,
 		PriorityClassName:         etcd.Spec.PriorityClassName,

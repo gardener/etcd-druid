@@ -637,6 +637,7 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 						"instance": Equal(instance.Name),
 					}),
 					"Labels": MatchAllKeys(Keys{
+						"app":      Equal("etcd-statefulset"),
 						"name":     Equal("etcd"),
 						"instance": Equal(instance.Name),
 					}),
@@ -992,6 +993,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 						"instance": Equal(instance.Name),
 					}),
 					"Labels": MatchAllKeys(Keys{
+						"app":      Equal("etcd-statefulset"),
 						"name":     Equal("etcd"),
 						"instance": Equal(instance.Name),
 					}),
