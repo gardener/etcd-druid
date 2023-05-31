@@ -73,9 +73,15 @@ install: manifests
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 .PHONY: deploy
-deploy: manifests $(KUSTOMIZE)
+deploy-via-kustomize: manifests $(KUSTOMIZE)
 	kubectl apply -f config/crd/bases
 	kustomize build config/default | kubectl apply -f -
+
+# Deploy controller to the Kubernetes cluster specified in the environment variable KUBECONFIG
+# Modify the Helm template located at charts/druid/templates if any changes are required
+.PHONY: deploy
+deploy: $(SKAFFOLD) 
+	$(SKAFFOLD) run -m etcd-druid
 
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: manifests
@@ -152,6 +158,7 @@ add-license-headers: $(GO_ADD_LICENSE)
 	
 .PHONY: kind-up
 kind-up:
+	@printf "\n\033[0;33m📌 NOTE: To target the newly created KinD cluster, please run the following command:\n\n    export KUBECONFIG=$(KUBECONFIG_PATH)\n\033[0m\n"
 	kind create cluster --name etcd-druid-e2e --config hack/e2e-test/infrastructure/kind/cluster.yaml 
 
 .PHONY: kind-down
