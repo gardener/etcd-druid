@@ -453,6 +453,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 						"instance": Equal(values.Name),
 					}),
 					"Labels": MatchAllKeys(Keys{
+						"foo":      Equal("bar"),
 						"name":     Equal("etcd"),
 						"instance": Equal(values.Name),
 					}),
