@@ -57,7 +57,7 @@ type Values struct {
 	AutoCompactionRetention *string
 	// ConfigMapChecksum is the checksum of deployed configmap
 	ConfigMapChecksum string
-	// Labels is the labels of deployed configmap
+	// Labels are the labels of deployed configmap
 	Labels map[string]string
 	// OwnerReference are the OwnerReference of the Configmap.
 	OwnerReference metav1.OwnerReference
