@@ -403,7 +403,6 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 		if err != nil {
 			return err
 		}
-		podLabels := utils.MergeStringMaps(make(map[string]string, 0), c.values.PodAdditionalLabels, c.values.Labels)
 		sts.ObjectMeta = getObjectMeta(&c.values, sts, preserveAnnotations)
 		sts.Spec = appsv1.StatefulSetSpec{
 			PodManagementPolicy: appsv1.ParallelPodManagement,
@@ -418,7 +417,7 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: c.values.Annotations,
-					Labels:      podLabels,
+					Labels:      utils.MergeStringMaps(make(map[string]string), c.values.PodAdditionalLabels, c.values.Labels),
 				},
 				Spec: corev1.PodSpec{
 					HostAliases: []corev1.HostAlias{
