@@ -80,16 +80,16 @@ var _ = Describe("Etcd", func() {
 			ctx, cancelFunc := context.WithTimeout(parentCtx, 15*time.Minute)
 			defer cancelFunc()
 
-			etcd := getDefaultMultiNodeEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
+			etcd := getDefaultMultiNodeEtcdWithPeerTlsEnabled(etcdName, namespace, storageContainer, storePrefix, provider)
 			objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
 
 			By("Create etcd")
 			createAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			By("Hibernate etcd (Scale down from 3->0)")
+			By("Hibernate etcd (Scale down from 3->0 replica)")
 			hibernateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			By("Wakeup etcd (Scale up from 0->3)")
+			By("Wakeup etcd (Scale up from 0->3 replicas)")
 			// scale up etcd replicas to 3 and ensures etcd cluster with 3 replicas is ready.
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = multiNodeEtcdReplicas
@@ -136,7 +136,7 @@ var _ = Describe("Etcd", func() {
 	})
 
 	Context("when a single-node is configured", func() {
-		It("should scale a single-node etcd to a multi-node etcd cluster", func() {
+		It("should scale a single-node etcd (TLS not enabled for peerUrl) to a multi-node etcd cluster (TLS not enabled for peerUrl)", func() {
 			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
 			defer cancelFunc()
 
@@ -146,9 +146,29 @@ var _ = Describe("Etcd", func() {
 			By("Creating a single-node etcd")
 			createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
 
-			By("Scaling up a healthy cluster (from 1 to 3)")
+			By("Scaling up a healthy cluster (from 1 to 3 replicas)")
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = 3
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+			By("Deleting the single-node etcd")
+			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+		})
+
+		It("should scale a single-node etcd (TLS not enabled for peerUrl) to a multi-node etcd cluster (TLS enabled for peerUrl)", func() {
+			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
+			defer cancelFunc()
+
+			etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
+			objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
+
+			By("Creating a single-node etcd")
+			createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
+
+			By("Scaling up a healthy cluster (from 1 to 3 replicas)")
+			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+			etcd.Spec.Replicas = 3
+			etcd.Spec.Etcd.PeerUrlTLS = getPeerTls(provider.Suffix)
 			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
 			By("Deleting the single-node etcd")
@@ -178,6 +198,36 @@ var _ = Describe("Etcd", func() {
 			By("Scaling up a healthy cluster (from 1 to 3 replica)")
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = 3
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+			By("Deleting the single-node etcd")
+			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+		})
+
+		It("should scale down a single-node etcd to 0 replica, then scale up from 0->1 replica and then from 1->3 replicas with Tls enabled for cluster peerUrl", func() {
+			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
+			defer cancelFunc()
+
+			etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
+			objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
+
+			By("Creating a single-node etcd")
+			createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
+
+			By("Scaling down a healthy cluster (from 1 to 0 replica)")
+			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+			etcd.Spec.Replicas = 0
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+			By("Scaling up cluster (from 0 to 1 replica)")
+			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+			etcd.Spec.Replicas = 1
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+			By("Scaling up a healthy cluster (from 1 to 3 replica) with TLS enablement for peerUrl")
+			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+			etcd.Spec.Replicas = 3
+			etcd.Spec.Etcd.PeerUrlTLS = getPeerTls(provider.Suffix)
 			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
 			By("Deleting the single-node etcd")
