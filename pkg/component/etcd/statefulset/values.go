@@ -42,7 +42,7 @@ type Values struct {
 	// Labels is the labels of StatefulSet..
 	Labels map[string]string
 	// AdditionalPodLabels represents additional labels to be applied to the StatefulSet pods.
-	PodAdditionalLabels map[string]string
+	AdditionalPodLabels map[string]string
 	// BackupImage is the backup restore image.
 	BackupImage string
 	// EtcdImage is the etcd custom image.

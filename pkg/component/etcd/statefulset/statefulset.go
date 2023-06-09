@@ -417,7 +417,7 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: c.values.Annotations,
-					Labels:      utils.MergeStringMaps(make(map[string]string), c.values.PodAdditionalLabels, c.values.Labels),
+					Labels:      utils.MergeStringMaps(make(map[string]string), c.values.AdditionalPodLabels, c.values.Labels),
 				},
 				Spec: corev1.PodSpec{
 					HostAliases: []corev1.HostAlias{
