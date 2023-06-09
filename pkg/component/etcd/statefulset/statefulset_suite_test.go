@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestService(t *testing.T) {
+func TestStatefulSet(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Statefulset Component Suite")
 }

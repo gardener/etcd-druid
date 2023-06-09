@@ -17,9 +17,10 @@ package compaction
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
-	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/utils"
@@ -252,7 +253,7 @@ func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) 
 			"Namespace": Equal(instance.Namespace),
 			"OwnerReferences": MatchElements(testutils.OwnerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
-					"APIVersion":         Equal("druid.gardener.cloud/v1alpha1"),
+					"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
 					"Kind":               Equal("Etcd"),
 					"Name":               Equal(instance.Name),
 					"UID":                Equal(instance.UID),

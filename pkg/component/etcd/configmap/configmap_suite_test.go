@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestService(t *testing.T) {
+func TestConfigMap(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Configmap Component Suite")
 }

@@ -431,7 +431,6 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
 				"instance": Equal(values.Name),
-				"foo":      Equal("bar"),
 			}),
 		}),
 
@@ -454,9 +453,9 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 						"instance": Equal(values.Name),
 					}),
 					"Labels": MatchAllKeys(Keys{
+						"foo":      Equal("bar"),
 						"name":     Equal("etcd"),
 						"instance": Equal(values.Name),
-						"foo":      Equal("bar"),
 					}),
 				}),
 				//s.Spec.Template.Spec.HostAliases
@@ -630,7 +629,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"ConfigMap": PointTo(MatchFields(IgnoreExtras, Fields{
 									"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-										"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(values.EtcdUID[:6]))),
+										"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(values.OwnerReference.UID[:6]))),
 									}),
 									"DefaultMode": PointTo(Equal(int32(0644))),
 									"Items": MatchAllElements(keyIterator, Elements{
@@ -716,14 +715,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 }
 
 func checkStsOwnerRefs(ors []metav1.OwnerReference, values Values) {
-	Expect(ors).To(ConsistOf(Equal(metav1.OwnerReference{
-		APIVersion:         druidv1alpha1.GroupVersion.String(),
-		Kind:               "Etcd",
-		Name:               values.Name,
-		UID:                values.EtcdUID,
-		Controller:         pointer.Bool(true),
-		BlockOwnerDeletion: pointer.Bool(true),
-	})))
+	Expect(ors).To(Equal([]metav1.OwnerReference{values.OwnerReference}))
 }
 
 func getEtcd(name, namespace string, tlsEnabled bool, replicas int32, storageProvider *string) *druidv1alpha1.Etcd {

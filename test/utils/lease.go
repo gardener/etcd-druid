@@ -17,13 +17,15 @@ package utils
 import (
 	"context"
 	"fmt"
+	"time"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"time"
 )
 
 // CreateLease creates a lease with its owner reference set to etcd.
@@ -37,7 +39,7 @@ func CreateLease(name, namespace, etcdName string, etcdUID types.UID) *coordinat
 				"name":     "etcd",
 			},
 			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion:         "druid.gardener.cloud/v1alpha1",
+				APIVersion:         druidv1alpha1.GroupVersion.String(),
 				Kind:               "Etcd",
 				Name:               etcdName,
 				UID:                etcdUID,

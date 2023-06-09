@@ -14,9 +14,7 @@
 
 package lease
 
-import (
-	"k8s.io/apimachinery/pkg/types"
-)
+import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // Values contains the values necessary for creating ETCD leases.
 type Values struct {
@@ -24,12 +22,14 @@ type Values struct {
 	BackupEnabled bool
 	// EtcdName is the name of the etcd resource.
 	EtcdName string
-	// EtcdName is the UID of the etcd resource.
-	EtcdUID types.UID
 	// DeltaSnapshotLeaseName is the name of the delta snapshot lease object.
 	DeltaSnapshotLeaseName string
 	// FullSnapshotLeaseName is the name of the full snapshot lease object.
 	FullSnapshotLeaseName string
 	// Replicas is the replica count of the etcd cluster.
 	Replicas int32
+	// Labels is the labels of deployed configmap
+	Labels map[string]string
+	// OwnerReference is the OwnerReference for the Configmap.
+	OwnerReference metav1.OwnerReference
 }

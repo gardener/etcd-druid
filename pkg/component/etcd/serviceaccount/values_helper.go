@@ -16,18 +16,15 @@ package serviceaccount
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // GenerateValues generates `serviceaccount.Values` for the serviceaccount component for the given `etcd` object.
 func GenerateValues(etcd *druidv1alpha1.Etcd, disableEtcdServiceAccountAutomount bool) *Values {
 	return &Values{
-		Name:      etcd.GetServiceAccountName(),
-		Namespace: etcd.Namespace,
-		Labels:    etcd.GetDefaultLabels(),
-		OwnerReferences: []metav1.OwnerReference{
-			etcd.GetAsOwnerReference(),
-		},
+		Name:             etcd.GetServiceAccountName(),
+		Namespace:        etcd.Namespace,
+		Labels:           etcd.GetDefaultLabels(),
+		OwnerReference:   etcd.GetAsOwnerReference(),
 		DisableAutomount: disableEtcdServiceAccountAutomount,
 	}
 }

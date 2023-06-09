@@ -36,14 +36,17 @@ import (
 var _ = Describe("ServiceAccount Component", Ordered, func() {
 	var (
 		saComponent gardenercomponent.Deployer
-		ctx         = context.TODO()
-		c           = fake.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
+		ctx         context.Context
+		c           client.Client
 		values      *Values
 	)
 
 	Context("#Deploy", func() {
 
 		BeforeEach(func() {
+			ctx = context.Background()
+			c = fake.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
+
 			values = &Values{
 				Name:      "test-service-account",
 				Namespace: "test-namespace",
@@ -51,15 +54,13 @@ var _ = Describe("ServiceAccount Component", Ordered, func() {
 					"foo": "bar",
 				},
 				DisableAutomount: true,
-				OwnerReferences: []metav1.OwnerReference{
-					{
-						APIVersion:         druidv1alpha1.GroupVersion.String(),
-						Kind:               "Etcd",
-						Name:               "test-etcd",
-						UID:                "123-456-789",
-						Controller:         pointer.Bool(true),
-						BlockOwnerDeletion: pointer.Bool(true),
-					},
+				OwnerReference: metav1.OwnerReference{
+					APIVersion:         druidv1alpha1.GroupVersion.String(),
+					Kind:               "Etcd",
+					Name:               "test-etcd",
+					UID:                "123-456-789",
+					Controller:         pointer.Bool(true),
+					BlockOwnerDeletion: pointer.Bool(true),
 				},
 			}
 			saComponent = New(c, values)
@@ -112,6 +113,9 @@ var _ = Describe("ServiceAccount Component", Ordered, func() {
 
 	Context("#Destroy", func() {
 		BeforeEach(func() {
+			ctx = context.Background()
+			c = fake.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
+
 			values = &Values{
 				Name:      "test-service-account",
 				Namespace: "test-namespace",
@@ -119,15 +123,13 @@ var _ = Describe("ServiceAccount Component", Ordered, func() {
 					"foo": "bar",
 				},
 				DisableAutomount: true,
-				OwnerReferences: []metav1.OwnerReference{
-					{
-						APIVersion:         druidv1alpha1.GroupVersion.String(),
-						Kind:               "Etcd",
-						Name:               "test-etcd",
-						UID:                "123-456-789",
-						Controller:         pointer.Bool(true),
-						BlockOwnerDeletion: pointer.Bool(true),
-					},
+				OwnerReference: metav1.OwnerReference{
+					APIVersion:         druidv1alpha1.GroupVersion.String(),
+					Kind:               "Etcd",
+					Name:               "test-etcd",
+					UID:                "123-456-789",
+					Controller:         pointer.Bool(true),
+					BlockOwnerDeletion: pointer.Bool(true),
 				},
 			}
 			saComponent = New(c, values)
@@ -161,10 +163,10 @@ func getServiceAccountKeyFromValue(value *Values) types.NamespacedName {
 	return client.ObjectKey{Name: value.Name, Namespace: value.Namespace}
 }
 
-func verifyServicAccountValues(expected *corev1.ServiceAccount, value *Values) {
-	Expect(expected.Name).To(Equal(value.Name))
-	Expect(expected.Labels).Should(Equal(value.Labels))
-	Expect(expected.Namespace).To(Equal(value.Namespace))
-	Expect(expected.OwnerReferences).To(Equal(value.OwnerReferences))
-	Expect(expected.AutomountServiceAccountToken).To(Equal(pointer.Bool(!value.DisableAutomount)))
+func verifyServicAccountValues(expected *corev1.ServiceAccount, values *Values) {
+	Expect(expected.Name).To(Equal(values.Name))
+	Expect(expected.Labels).Should(Equal(values.Labels))
+	Expect(expected.Namespace).To(Equal(values.Namespace))
+	Expect(expected.OwnerReferences).To(Equal([]metav1.OwnerReference{values.OwnerReference}))
+	Expect(expected.AutomountServiceAccountToken).To(Equal(pointer.Bool(!values.DisableAutomount)))
 }

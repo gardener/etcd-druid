@@ -205,7 +205,7 @@ func (c *component) createDeployFlow(ctx context.Context) (*flow.Flow, error) {
 		return nil, err
 	}
 
-	flowName := fmt.Sprintf("(etcd: %s) Deploy Flow for StatefulSet %s for Namespace: %s", c.values.EtcdUID, c.values.Name, c.values.Namespace)
+	flowName := fmt.Sprintf("(etcd: %s) Deploy Flow for StatefulSet %s for Namespace: %s", getOwnerReferenceNameWithUID(c.values.OwnerReference), c.values.Name, c.values.Namespace)
 	g := flow.NewGraph(flowName)
 
 	var taskID *flow.TaskID
@@ -283,7 +283,7 @@ func (c *component) addImmutableFieldUpdateTask(g *flow.Graph, sts *appsv1.State
 			Fn:           func(ctx context.Context) error { return c.destroyAndWait(ctx, opName) },
 			Dependencies: nil,
 		})
-		c.logger.Info("added delete StatefulSet task to deploy flow due to immutable field update task", "namespace", c.values.Namespace, "name", c.values.Name, "etcdUID", c.values.EtcdUID)
+		c.logger.Info("added delete StatefulSet task to deploy flow due to immutable field update task", "namespace", c.values.Namespace, "name", c.values.Name, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference))
 		return &taskID
 	}
 	return nil
@@ -318,7 +318,7 @@ func (c *component) addCreateOrPatchTask(g *flow.Graph, originalSts *appsv1.Stat
 		},
 		Dependencies: dependencies,
 	})
-	c.logger.Info("added createOrPatch StatefulSet task to the deploy flow", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", c.values.EtcdUID, "StatefulSetName", c.values.Name, "replicas", c.values.Replicas)
+	c.logger.Info("added createOrPatch StatefulSet task to the deploy flow", "taskID", taskID, "namespace", c.values.Namespace, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference), "StatefulSetName", c.values.Name, "replicas", c.values.Replicas)
 }
 
 func (c *component) getExistingSts(ctx context.Context) (*appsv1.StatefulSet, error) {
@@ -333,7 +333,7 @@ func (c *component) getExistingSts(ctx context.Context) (*appsv1.StatefulSet, er
 }
 
 func (c *component) updateAndWait(ctx context.Context, opName string, sts *appsv1.StatefulSet, replicas int32) error {
-	c.logger.Info("Updating StatefulSet spec with Peer URL TLS mount", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID, "replicas", replicas)
+	c.logger.Info("Updating StatefulSet spec with Peer URL TLS mount", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference), "replicas", replicas)
 	return c.doCreateOrUpdate(ctx, opName, sts, replicas, true)
 }
 
@@ -352,7 +352,7 @@ func (c *component) waitUntilTLSEnabled(ctx context.Context, opName string, time
 
 func (c *component) deleteAllStsPods(ctx context.Context, opName string, sts *appsv1.StatefulSet) error {
 	replicas := sts.Spec.Replicas
-	c.logger.Info("Deleting all StatefulSet pods", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID, "replicas", replicas, "matching labels", sts.Spec.Template.Labels)
+	c.logger.Info("Deleting all StatefulSet pods", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference), "replicas", replicas, "matching labels", sts.Spec.Template.Labels)
 	timeBeforeDeletion := time.Now()
 
 	if err := c.client.DeleteAllOf(ctx, &corev1.Pod{}, client.InNamespace(sts.Namespace), client.MatchingLabels(sts.Spec.Template.Labels)); err != nil {
@@ -362,7 +362,7 @@ func (c *component) deleteAllStsPods(ctx context.Context, opName string, sts *ap
 	const timeout = 3 * time.Minute
 	const interval = 2 * time.Second
 
-	c.logger.Info("waiting for StatefulSet pods to start again after delete", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID, "replicas", replicas)
+	c.logger.Info("waiting for StatefulSet pods to start again after delete", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference), "replicas", replicas)
 	return c.waitUtilPodsReady(ctx, sts, timeBeforeDeletion, interval, timeout)
 }
 
@@ -376,7 +376,7 @@ func (c *component) doCreateOrUpdate(ctx context.Context, opName string, sts *ap
 
 func (c *component) destroyAndWait(ctx context.Context, opName string) error {
 	deleteAndWait := gardenercomponent.OpDestroyAndWait(c)
-	c.logger.Info("deleting sts", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", c.values.EtcdUID)
+	c.logger.Info("deleting sts", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference))
 	if err := deleteAndWait.Destroy(ctx); err != nil {
 		return err
 	}
@@ -403,7 +403,6 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 		if err != nil {
 			return err
 		}
-
 		sts.ObjectMeta = getObjectMeta(&c.values, sts, preserveAnnotations)
 		sts.Spec = appsv1.StatefulSetSpec{
 			PodManagementPolicy: appsv1.ParallelPodManagement,
@@ -413,12 +412,12 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 			Replicas:    &replicas,
 			ServiceName: c.values.PeerServiceName,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: getCommonLabels(&c.values),
+				MatchLabels: c.values.Labels,
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: c.values.Annotations,
-					Labels:      sts.GetLabels(),
+					Labels:      utils.MergeStringMaps(make(map[string]string), c.values.AdditionalPodLabels, c.values.Labels),
 				},
 				Spec: corev1.PodSpec{
 					HostAliases: []corev1.HostAlias{
@@ -542,38 +541,18 @@ func (c *component) emptyStatefulset() *appsv1.StatefulSet {
 	}
 }
 
-func getCommonLabels(val *Values) map[string]string {
-	return map[string]string{
-		"name":     "etcd",
-		"instance": val.Name,
-	}
-}
-
 func getObjectMeta(val *Values, sts *appsv1.StatefulSet, preserveAnnotations bool) metav1.ObjectMeta {
-	var annotations map[string]string
-	labels := utils.MergeStringMaps(getCommonLabels(val), val.Labels)
-	if preserveAnnotations {
-		annotations = sts.Annotations
-	} else {
+	annotations := sts.Annotations
+	if !preserveAnnotations {
 		annotations = getStsAnnotations(val, sts)
-	}
-	ownerRefs := []metav1.OwnerReference{
-		{
-			APIVersion:         druidv1alpha1.GroupVersion.String(),
-			Kind:               "Etcd",
-			Name:               val.Name,
-			UID:                val.EtcdUID,
-			Controller:         pointer.Bool(true),
-			BlockOwnerDeletion: pointer.Bool(true),
-		},
 	}
 
 	return metav1.ObjectMeta{
 		Name:            val.Name,
 		Namespace:       val.Namespace,
-		Labels:          labels,
+		Labels:          val.Labels,
 		Annotations:     annotations,
-		OwnerReferences: ownerRefs,
+		OwnerReferences: []metav1.OwnerReference{val.OwnerReference},
 	}
 }
 
@@ -987,4 +966,8 @@ func getReadinessHandlerForMultiNode(val Values) corev1.ProbeHandler {
 			Command: val.ReadinessProbeCommand,
 		},
 	}
+}
+
+func getOwnerReferenceNameWithUID(ref metav1.OwnerReference) string {
+	return fmt.Sprintf("%s:%s", ref.Name, ref.UID)
 }

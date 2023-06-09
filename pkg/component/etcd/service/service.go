@@ -17,12 +17,9 @@ package service
 import (
 	"context"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-
 	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -83,36 +80,4 @@ func (c *component) emptyService(name string) *corev1.Service {
 			Namespace: c.namespace,
 		},
 	}
-}
-
-func getOwnerReferences(val Values) []metav1.OwnerReference {
-	return []metav1.OwnerReference{
-		{
-			APIVersion:         druidv1alpha1.GroupVersion.String(),
-			Kind:               "Etcd",
-			Name:               val.EtcdName,
-			UID:                val.EtcdUID,
-			Controller:         pointer.Bool(true),
-			BlockOwnerDeletion: pointer.Bool(true),
-		},
-	}
-}
-
-func getSelectors(val Values) map[string]string {
-	selectors := map[string]string{
-		"instance": val.EtcdName,
-		"name":     "etcd",
-	}
-
-	return selectors
-}
-
-func getLabels(val Values) map[string]string {
-	labels := map[string]string{}
-
-	for k, v := range val.Labels {
-		labels[k] = v
-	}
-
-	return labels
 }

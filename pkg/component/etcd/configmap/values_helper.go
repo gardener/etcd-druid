@@ -27,8 +27,7 @@ import (
 func GenerateValues(etcd *druidv1alpha1.Etcd) *Values {
 	initialCluster := prepareInitialCluster(etcd)
 	values := &Values{
-		EtcdName:                etcd.Name,
-		EtcdNameSpace:           etcd.Namespace,
+		Name:                    etcd.GetConfigmapName(),
 		EtcdUID:                 etcd.UID,
 		Metrics:                 etcd.Spec.Etcd.Metrics,
 		Quota:                   etcd.Spec.Etcd.Quota,
@@ -41,8 +40,8 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) *Values {
 		ServerPort:              etcd.Spec.Etcd.ServerPort,
 		AutoCompactionMode:      etcd.Spec.Common.AutoCompactionMode,
 		AutoCompactionRetention: etcd.Spec.Common.AutoCompactionRetention,
-		ConfigMapName:           etcd.GetConfigmapName(),
-		Labels:                  etcd.Spec.Labels,
+		OwnerReference:          etcd.GetAsOwnerReference(),
+		Labels:                  etcd.GetDefaultLabels(),
 	}
 	return values
 }

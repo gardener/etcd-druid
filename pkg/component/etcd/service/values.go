@@ -14,7 +14,9 @@
 
 package service
 
-import "k8s.io/apimachinery/pkg/types"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 // Values contains the values necessary for creating ETCD services.
 type Values struct {
@@ -28,14 +30,14 @@ type Values struct {
 	ClientServiceAnnotations map[string]string
 	// ClientServiceLabels are the labels to be added to the client service
 	ClientServiceLabels map[string]string
-	// EtcdName is the name of the etcd resource.
-	EtcdName string
-	// EtcdName is the UID of the etcd resource.
-	EtcdUID types.UID
 	// Labels are the service labels.
 	Labels map[string]string
 	// PeerServiceName is the name of the service responsible for peer traffic.
 	PeerServiceName string
-	// ServerPort is the port used for etcd peer communication.
-	ServerPort int32
+	// PeerPort is the port used for etcd peer communication.
+	PeerPort int32
+	// OwnerReference is the OwnerReference for the ETCD services.
+	OwnerReference metav1.OwnerReference
+	// SelectorLabels are the labels to be used in the Service.spec selector
+	SelectorLabels map[string]string
 }

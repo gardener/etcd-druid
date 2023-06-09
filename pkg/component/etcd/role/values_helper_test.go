@@ -49,9 +49,7 @@ var _ = Describe("Role", func() {
 				"name":     "etcd",
 				"instance": etcd.Name,
 			},
-			OwnerReferences: []metav1.OwnerReference{
-				etcd.GetAsOwnerReference(),
-			},
+			OwnerReference: etcd.GetAsOwnerReference(),
 			Rules: []rbacv1.PolicyRule{
 				{
 					APIGroups: []string{"coordination.k8s.io"},

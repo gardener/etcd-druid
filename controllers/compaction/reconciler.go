@@ -268,7 +268,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 			Labels:    getLabels(etcd),
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion:         "druid.gardener.cloud/v1alpha1",
+					APIVersion:         druidv1alpha1.GroupVersion.String(),
 					BlockOwnerDeletion: pointer.Bool(true),
 					Controller:         pointer.Bool(true),
 					Kind:               "Etcd",

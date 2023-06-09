@@ -14,7 +14,9 @@
 
 package poddisruptionbudget
 
-import "k8s.io/apimachinery/pkg/types"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 const (
 	instanceKey = "instance"
@@ -24,12 +26,8 @@ const (
 
 // Values contains the values necessary for creating PodDisruptionBudget.
 type Values struct {
-	// EtcdName is the name of the etcd resource.
-	EtcdName string
-	// EtcdNameSpace is the namespace of etcd resource
-	EtcdNameSpace string
-	// EtcdUID is the UID of the etcd resource.
-	EtcdUID types.UID
+	// Name is the name of the PodDisruptionBudget.
+	Name string
 	// Labels are the PDB labels.
 	Labels map[string]string
 	// SelectorLabels are the labels to be used in the PDB spec selector
@@ -38,4 +36,6 @@ type Values struct {
 	Annotations map[string]string
 	// MinAvailable defined the minimum number of pods to be available at any point of time
 	MinAvailable int32
+	// OwnerReference is the OwnerReference for the PodDisruptionBudget.
+	OwnerReference metav1.OwnerReference
 }

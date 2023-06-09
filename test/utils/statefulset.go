@@ -64,7 +64,7 @@ func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32
 			},
 			Annotations: nil,
 			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion:         "druid.gardener.cloud/v1alpha1",
+				APIVersion:         druidv1alpha1.GroupVersion.String(),
 				Kind:               "Etcd",
 				Name:               name,
 				UID:                etcdUID,

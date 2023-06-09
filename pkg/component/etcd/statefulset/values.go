@@ -20,7 +20,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // Values contains the values necessary for creating ETCD statefulset.
@@ -30,8 +29,8 @@ type Values struct {
 	// Namespace is the namespace of StatefulSet.
 	Namespace string
 
-	// Name is the UID of the etcd resource.
-	EtcdUID types.UID
+	// OwnerReference is the OwnerReference for the StatefulSet.
+	OwnerReference metav1.OwnerReference
 
 	// Replicas is the number of ETCD instance that the ETCD cluster will have.
 	Replicas int32
@@ -40,8 +39,10 @@ type Values struct {
 
 	// Annotations is the annotation provided in ETCD spec.
 	Annotations map[string]string
-	// Labels is the labels provided in ETCD spec.
+	// Labels is the labels of StatefulSet..
 	Labels map[string]string
+	// AdditionalPodLabels represents additional labels to be applied to the StatefulSet pods.
+	AdditionalPodLabels map[string]string
 	// BackupImage is the backup restore image.
 	BackupImage string
 	// EtcdImage is the etcd custom image.

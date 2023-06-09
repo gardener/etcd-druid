@@ -129,7 +129,6 @@ var _ = Describe("Etcd", func() {
 
 	Context("GetAsOwnerReference", func() {
 		It("should return an OwnerReference object that represents the current Etcd instance", func() {
-
 			expected := metav1.OwnerReference{
 				APIVersion:         GroupVersion.String(),
 				Kind:               "Etcd",

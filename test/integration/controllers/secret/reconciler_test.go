@@ -19,6 +19,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
@@ -69,7 +70,7 @@ var _ = Describe("Secret Controller", func() {
 
 		By("verifying secret references got finalizer")
 		for _, name := range secretNames {
-			Eventually(getFinalizersForSecret(name)).Should(ConsistOf("druid.gardener.cloud/etcd-druid"), "for secret "+name)
+			Eventually(getFinalizersForSecret(name)).Should(ConsistOf(common.FinalizerName), "for secret "+name)
 		}
 
 		By("updating existing etcd with new secret references")
@@ -95,7 +96,7 @@ var _ = Describe("Secret Controller", func() {
 
 		By("verifying new secret references got finalizer")
 		for _, name := range newSecretNames {
-			Eventually(getFinalizersForSecret(name)).Should(ConsistOf("druid.gardener.cloud/etcd-druid"), "for secret "+name)
+			Eventually(getFinalizersForSecret(name)).Should(ConsistOf(common.FinalizerName), "for secret "+name)
 		}
 
 		By("verifying old secret references have no finalizer anymore")

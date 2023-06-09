@@ -35,7 +35,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -138,7 +137,7 @@ var _ = Describe("Configmap", func() {
 		cm = &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("etcd-bootstrap-%s", string(values.EtcdUID[:6])),
-				Namespace: values.EtcdName,
+				Namespace: namespace,
 			},
 		}
 
@@ -152,8 +151,8 @@ var _ = Describe("Configmap", func() {
 
 				cm := &corev1.ConfigMap{}
 
-				Expect(cl.Get(ctx, kutil.Key(namespace, values.ConfigMapName), cm)).To(Succeed())
-				checkConfigmap(cm, values)
+				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), cm)).To(Succeed())
+				checkConfigMap(cm, values, namespace)
 
 			})
 		})
@@ -166,8 +165,8 @@ var _ = Describe("Configmap", func() {
 
 				cm := &corev1.ConfigMap{}
 
-				Expect(cl.Get(ctx, kutil.Key(namespace, values.ConfigMapName), cm)).To(Succeed())
-				checkConfigmap(cm, values)
+				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), cm)).To(Succeed())
+				checkConfigMap(cm, values, namespace)
 			})
 		})
 	})
@@ -192,9 +191,11 @@ var _ = Describe("Configmap", func() {
 	})
 })
 
-func checkConfigmap(cm *corev1.ConfigMap, values *Values) {
-	checkConfigmapMetadata(&cm.ObjectMeta, values)
-
+func checkConfigMap(cm *corev1.ConfigMap, values *Values, namespace string) {
+	Expect(cm.Name).To(Equal(values.Name))
+	Expect(cm.OwnerReferences).To(HaveLen(1))
+	Expect(cm.OwnerReferences[0]).To(Equal(values.OwnerReference))
+	Expect(cm.Labels).To(Equal(values.Labels))
 	configYML := cm.Data[etcdConfig]
 	config := map[string]interface{}{}
 	err := yaml.Unmarshal([]byte(configYML), &config)
@@ -216,7 +217,7 @@ func checkConfigmap(cm *corev1.ConfigMap, values *Values) {
 			"auto-tls":         Equal(false),
 		}),
 		"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", *values.ClientPort)),
-		"advertise-client-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "https", values.PeerServiceName, values.EtcdNameSpace, *values.ClientPort)),
+		"advertise-client-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "https", values.PeerServiceName, namespace, *values.ClientPort)),
 
 		"peer-transport-security": MatchKeys(IgnoreExtras, Keys{
 			"cert-file":        Equal("/var/etcd/ssl/peer/server/tls.crt"),
@@ -226,7 +227,7 @@ func checkConfigmap(cm *corev1.ConfigMap, values *Values) {
 			"auto-tls":         Equal(false),
 		}),
 		"listen-peer-urls":            Equal(fmt.Sprintf("https://0.0.0.0:%d", *values.ServerPort)),
-		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "https", values.PeerServiceName, values.EtcdNameSpace, *values.ServerPort)),
+		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "https", values.PeerServiceName, namespace, *values.ServerPort)),
 
 		"initial-cluster-token":     Equal("etcd-cluster"),
 		"initial-cluster-state":     Equal("new"),
@@ -239,27 +240,4 @@ func checkConfigmap(cm *corev1.ConfigMap, values *Values) {
 	configMapChecksum := utils.ComputeSHA256Hex(jsonString)
 
 	Expect(configMapChecksum).To(Equal(values.ConfigMapChecksum))
-}
-
-func checkConfigmapMetadata(meta *metav1.ObjectMeta, values *Values) {
-	Expect(meta.OwnerReferences).To(ConsistOf(Equal(metav1.OwnerReference{
-		APIVersion:         druidv1alpha1.GroupVersion.String(),
-		Kind:               "Etcd",
-		Name:               values.EtcdName,
-		UID:                values.EtcdUID,
-		Controller:         pointer.Bool(true),
-		BlockOwnerDeletion: pointer.Bool(true),
-	})))
-	Expect(meta.Labels).To(Equal(configmapLabels(values)))
-}
-
-func configmapLabels(val *Values) map[string]string {
-	labels := map[string]string{
-		"name":     "etcd",
-		"instance": val.EtcdName,
-		"app":      "etcd-statefulset",
-		"role":     "main",
-	}
-
-	return labels
 }

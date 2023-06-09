@@ -53,9 +53,8 @@ var _ = Describe("ServiceAccount", func() {
 				"name":     "etcd",
 				"instance": etcd.Name,
 			},
-			OwnerReferences: []metav1.OwnerReference{
-				etcd.GetAsOwnerReference(),
-			},
+			OwnerReference: etcd.GetAsOwnerReference(),
+
 			DisableAutomount: true,
 		}
 	})

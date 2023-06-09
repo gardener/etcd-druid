@@ -149,14 +149,9 @@ var _ = Describe("Lease", func() {
 
 		Context("when backup is disabled", func() {
 			BeforeEach(func() {
-				leaseDeployer = New(c,
-					logr.Discard(),
-					namespace, Values{
-						BackupEnabled: false,
-						EtcdName:      name,
-						EtcdUID:       uid,
-						Replicas:      replicas,
-					})
+				newValues := GenerateValues(etcd)
+				newValues.BackupEnabled = false // backup is disabled
+				leaseDeployer = New(c, logr.Discard(), namespace, newValues)
 			})
 
 			It("should successfully deploy", func() {
@@ -244,7 +239,6 @@ func checkMemberLeases(ctx context.Context, c client.Client, etcd *druidv1alpha1
 		common.GardenerOwnedBy:           etcd.Name,
 		v1beta1constants.GardenerPurpose: "etcd-member-lease",
 	}))).To(Succeed())
-
 	Expect(leases.Items).To(ConsistOf(memberLeases(etcd.Name, etcd.UID, etcd.Spec.Replicas)))
 }
 

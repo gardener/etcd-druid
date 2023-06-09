@@ -23,6 +23,7 @@ import (
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/flow"
 	coordinationv1 "k8s.io/api/coordination/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -55,7 +56,7 @@ func (c *component) syncMemberLeases(ctx context.Context) error {
 				for k, v := range labels {
 					lease.Labels[k] = v
 				}
-				lease.OwnerReferences = getOwnerReferences(c.values)
+				lease.OwnerReferences = []metav1.OwnerReference{c.values.OwnerReference}
 				return nil
 			})
 			return err

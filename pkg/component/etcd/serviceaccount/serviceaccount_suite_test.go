@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestService(t *testing.T) {
+func TestServiceAccount(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "ServiceAccount Component Suite")
 }

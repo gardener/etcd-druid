@@ -20,17 +20,18 @@ import (
 	"github.com/gardener/etcd-druid/pkg/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func (c *component) syncClientService(ctx context.Context, svc *corev1.Service) error {
 	_, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, c.client, svc, func() error {
-		svc.Labels = utils.MergeStringMaps(getLabels(c.values), c.values.ClientServiceLabels, getSelectors(c.values))
+		svc.Labels = utils.MergeStringMaps(c.values.Labels, c.values.ClientServiceLabels)
 		svc.Annotations = c.values.ClientServiceAnnotations
-		svc.OwnerReferences = getOwnerReferences(c.values)
+		svc.OwnerReferences = []metav1.OwnerReference{c.values.OwnerReference}
 		svc.Spec.Type = corev1.ServiceTypeClusterIP
 		svc.Spec.SessionAffinity = corev1.ServiceAffinityNone
-		svc.Spec.Selector = getSelectors(c.values)
+		svc.Spec.Selector = c.values.SelectorLabels
 		svc.Spec.Ports = []corev1.ServicePort{
 			{
 				Name:       "client",
@@ -42,8 +43,8 @@ func (c *component) syncClientService(ctx context.Context, svc *corev1.Service) 
 			{
 				Name:       "server",
 				Protocol:   corev1.ProtocolTCP,
-				Port:       c.values.ServerPort,
-				TargetPort: intstr.FromInt(int(c.values.ServerPort)),
+				Port:       c.values.PeerPort,
+				TargetPort: intstr.FromInt(int(c.values.PeerPort)),
 			},
 			{
 				Name:       "backuprestore",
