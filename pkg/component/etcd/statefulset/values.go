@@ -41,7 +41,7 @@ type Values struct {
 	Annotations map[string]string
 	// Labels is the labels of StatefulSet..
 	Labels map[string]string
-	// // PodAdditionalLabels represents additional labels to be applied to the StatefulSet pods.
+	// AdditionalPodLabels represents additional labels to be applied to the StatefulSet pods.
 	PodAdditionalLabels map[string]string
 	// BackupImage is the backup restore image.
 	BackupImage string
