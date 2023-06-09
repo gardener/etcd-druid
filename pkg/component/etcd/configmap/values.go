@@ -31,7 +31,7 @@ const (
 type Values struct {
 	// Name is the name of the configmap that holds the ETCD config
 	Name string
-	// EtcdName is the UID of the etcd resource.
+	// EtcdUID is the UID of the etcd resource.
 	EtcdUID types.UID
 	// Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics.
 	Metrics *druidv1alpha1.MetricsLevel
