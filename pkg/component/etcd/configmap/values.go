@@ -59,6 +59,6 @@ type Values struct {
 	ConfigMapChecksum string
 	// Labels are the labels of deployed configmap
 	Labels map[string]string
-	// OwnerReference are the OwnerReference of the Configmap.
+	// OwnerReference is the OwnerReference for the Configmap.
 	OwnerReference metav1.OwnerReference
 }
