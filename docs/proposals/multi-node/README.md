@@ -166,7 +166,7 @@ The advantages of this approach are given below.
 - The problem domain is smaller.
 There are no leader election and quorum related issues to be handled.
 It is simpler to setup and manage a single-node etcd cluster.
-- Single-node etcd clusters instances have [less request latency]((https://etcd.io/docs/v2/admin_guide/#optimal-cluster-size)) than multi-node etcd clusters because there is no requirement to replicate the changes to the other members before committing the changes.
+- Single-node etcd clusters instances have [less request latency](https://etcd.io/docs/v2/admin_guide/#optimal-cluster-size) than multi-node etcd clusters because there is no requirement to replicate the changes to the other members before committing the changes.
 - `etcd-druid` provisions etcd cluster instances as pods (actually as `statefulsets`) in a Kubernetes cluster and Kubernetes is quick (<`20s`) to restart container/pods if they go down.
 - Also, `etcd-druid` is currently only used by gardener to provision etcd clusters to act as back-ends for Kubernetes control-planes and Kubernetes control-plane components (`kube-apiserver`, `kubelet`, `kube-controller-manager`, `kube-scheduler` etc.) can tolerate etcd going down and recover when it comes back up.
 - Single-node etcd clusters incur less cost (CPU, memory and storage)
