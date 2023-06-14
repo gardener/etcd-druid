@@ -157,13 +157,13 @@ add-license-headers: $(GO_ADD_LICENSE)
 	@./hack/addlicenseheaders.sh ${YEAR}
 	
 .PHONY: kind-up
-kind-up:
+kind-up: $(KIND)
 	@printf "\n\033[0;33m📌 NOTE: To target the newly created KinD cluster, please run the following command:\n\n    export KUBECONFIG=$(KUBECONFIG_PATH)\n\033[0m\n"
-	kind create cluster --name etcd-druid-e2e --config hack/e2e-test/infrastructure/kind/cluster.yaml 
+	./hack/kind-up.sh
 
 .PHONY: kind-down
-kind-down:
-	kind delete cluster --name etcd-druid-e2e
+kind-down: $(KIND)
+	$(KIND) delete cluster --name etcd-druid-e2e
 
 .PHONY: deploy-localstack
 deploy-localstack: $(KUBECTL)
