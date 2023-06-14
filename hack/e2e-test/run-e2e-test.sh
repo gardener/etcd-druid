@@ -116,7 +116,7 @@ function test_e2e {
       echo "-------------------"
 
       SOURCE_PATH=$PWD \
-      go test -timeout=0 -mod=vendor ./test/e2e --v -args -ginkgo.v -ginkgo.progress
+      go test -timeout=0 -mod=vendor ./test/e2e --v -args -ginkgo.v -ginkgo.show-node-events
     fi
 }
 
