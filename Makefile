@@ -101,7 +101,7 @@ clean: set-permissions
 
 # Check packages
 .PHONY: check
-check: $(GOLANGCI_LINT) $(GOIMPORTS) set-permissions
+check: $(GOLANGCI_LINT) $(GOIMPORTS) set-permissions fmt manifests
 	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
 
 .PHONY: check-generate
@@ -128,7 +128,7 @@ docker-push:
 
 # Run tests
 .PHONY: test
-test: set-permissions $(GINKGO) $(SETUP_ENVTEST) fmt check manifests
+test: set-permissions $(GINKGO) $(SETUP_ENVTEST)
 	@"$(REPO_ROOT)/hack/test.sh" ./api/... ./controllers/... ./pkg/...
 
 .PHONY: test-cov
@@ -144,7 +144,7 @@ test-e2e: set-permissions $(KUBECTL) $(HELM) $(SKAFFOLD)
 	@"$(REPO_ROOT)/hack/e2e-test/run-e2e-test.sh" $(PROVIDERS)
 
 .PHONY: test-integration
-test-integration: set-permissions $(GINKGO) $(SETUP_ENVTEST) fmt check manifests
+test-integration: set-permissions $(GINKGO) $(SETUP_ENVTEST)
 	@"$(REPO_ROOT)/hack/test.sh" ./test/integration/...
 
 .PHONY: update-dependencies
