@@ -136,7 +136,7 @@ var _ = Describe("Etcd", func() {
 	})
 
 	Context("when a single-node is configured", func() {
-		It("should scale a single-node etcd without peerUrl TLS enabled to a multi-node etcd cluster with peerUrl TLS enabled", func() {
+		It("should scale a single-node etcd (TLS not enabled for peerUrl) to a multi-node etcd cluster (TLS not enabled for peerUrl)", func() {
 			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
 			defer cancelFunc()
 
@@ -165,7 +165,7 @@ var _ = Describe("Etcd", func() {
 			By("Creating a single-node etcd")
 			createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
 
-			By("Scaling up a healthy cluster (from 1 to 3 replicas)")
+			By("Scaling up a healthy cluster (from 1 to 3 replicas) with TLS enabled for peerUrl")
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = 3
 			etcd.Spec.Etcd.PeerUrlTLS = getPeerTls(provider.Suffix)
@@ -204,7 +204,7 @@ var _ = Describe("Etcd", func() {
 			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
 
-		It("should scale down a single-node etcd to 0 replica, then scale up from 0->1 replica and then from 1->3 replicas with Tls enabled for cluster peerUrl", func() {
+		It("should scale down a single-node etcd to 0 replica, then scale up from 0->1 replica and then from 1->3 replicas with TLS enabled for cluster peerUrl", func() {
 			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
 			defer cancelFunc()
 
@@ -224,7 +224,7 @@ var _ = Describe("Etcd", func() {
 			etcd.Spec.Replicas = 1
 			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			By("Scaling up a healthy cluster (from 1 to 3 replica) with TLS enablement for peerUrl")
+			By("Scaling up a healthy cluster (from 1 to 3 replica) with TLS enabled for peerUrl")
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = 3
 			etcd.Spec.Etcd.PeerUrlTLS = getPeerTls(provider.Suffix)
