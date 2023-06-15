@@ -426,11 +426,11 @@ I.e. every time an etcd container restarts, [the old member (represented by the 
 Since the likelyhood of a member not having valid metadata in the WAL files is much more likely in the [ephemeral](#ephemeral) persistence scenario, one option is to pass the information that ephemeral persistence is being used to the `etcd-backup-restore` sidecar (say, via command-line flags or environment variables).
 
 But in principle, it might be better to determine this from the WAL files directly so that the possibility of corrupted WAL files also gets handled correctly.
-To do this, the [wal](https://github.com/etcd-io/etcd/tree/master/server/wal) package has [some](https://github.com/etcd-io/etcd/blob/57a092b45d0eae6c9e600e62513ffcd2f1f25a92/server/wal/wal.go#L324-L326) [functions](https://github.com/etcd-io/etcd/blob/57a092b45d0eae6c9e600e62513ffcd2f1f25a92/server/wal/wal.go#L429-L548) that might be useful.
+To do this, the [wal](https://github.com/etcd-io/etcd/tree/main/server/storage/wal) package has [some](https://github.com/etcd-io/etcd/blob/57a092b45d0eae6c9e600e62513ffcd2f1f25a92/server/wal/wal.go#L324-L326) [functions](https://github.com/etcd-io/etcd/blob/57a092b45d0eae6c9e600e62513ffcd2f1f25a92/server/wal/wal.go#L429-L548) that might be useful.
 
 #### Recommendation
 
-It might be possible that using the [wal](https://github.com/etcd-io/etcd/tree/master/server/wal) package for verifying if valid metadata exists might be performance intensive.
+It might be possible that using the [wal](https://github.com/etcd-io/etcd/tree/main/server/storage/wal) package for verifying if valid metadata exists might be performance intensive.
 So, the performance impact needs to be measured.
 If the performance impact is acceptable (both in terms of resource usage and time), it is recommended to use this way to verify if the member contains valid metadata.
 Otherwise, alternatives such as a simple check that WAL folder exists coupled with the static information about use of [persistent](#persistent) or [ephemeral](#ephemeral) storage might be considered.
@@ -996,7 +996,7 @@ Remove `d - n` existing members (numbered `d`, `d + 1` ... `n`) by scaling the `
 
 Also, delete the [member `leases`](#member-leases) for the `d - n` members being removed.
 
-The [superfluous entries in the `members` array](13-superfluous-member-entries-in-etcd-status) will be cleaned up as explained [here](#recommended-action-12).
+The [superfluous entries in the `members` array](#13-superfluous-member-entries-in-etcd-status) will be cleaned up as explained [here](#recommended-action-12).
 The superfluous members in the ETCD cluster will be cleaned up by the [leading `etcd-backup-restore` sidecar](#work-flows-only-on-the-leading-member).
 
 ### 13. Superfluous member entries in `Etcd` status
@@ -1353,7 +1353,7 @@ In case of a conflict, the recommendation is to use the highest of the applicabl
 ## Rolling updates to etcd members
 
 Any changes to the `Etcd` resource spec that might result in a change to `StatefulSet` spec or otherwise result in a rolling update of member pods should be applied/propagated by `etcd-druid` only when the etcd cluster is fully healthy to reduce the risk of quorum loss during the updates.
-This would include vertical autoscaling changes (via, [HVPA](https://github.com/gsrdener/hvpa-controller)).
+This would include vertical autoscaling changes (via, [HVPA](https://github.com/gardener/hvpa-controller)).
 If the cluster [status](#status) unhealthy (i.e. if either `AllMembersReady` or `BackupReady` [conditions](#conditions) are `false`), `etcd-druid` must restore it to full health [before proceeding](#backup-failure) with such operations that lead to rolling updates.
 This can be further optimized in the future to handle the cases where rolling updates can still be performed on an etcd cluster that is not fully healthy.
 
