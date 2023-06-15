@@ -80,13 +80,13 @@ var _ = Describe("Etcd", func() {
 			ctx, cancelFunc := context.WithTimeout(parentCtx, 15*time.Minute)
 			defer cancelFunc()
 
-			etcd := getDefaultMultiNodeEtcdWithPeerTlsEnabled(etcdName, namespace, storageContainer, storePrefix, provider)
+			etcd := getDefaultMultiNodeEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
 			objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
 
 			By("Create etcd")
 			createAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			By("Hibernate etcd (Scale down from 3->0 replica)")
+			By("Hibernate etcd (Scale down from 3 replicas to 0)")
 			hibernateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
 			By("Wakeup etcd (Scale up from 0->3 replicas)")
@@ -136,7 +136,7 @@ var _ = Describe("Etcd", func() {
 	})
 
 	Context("when a single-node is configured", func() {
-		It("should scale a single-node etcd (TLS not enabled for peerUrl) to a multi-node etcd cluster (TLS not enabled for peerUrl)", func() {
+		It("should scale a single-node etcd without peerUrl TLS enabled to a multi-node etcd cluster with peerUrl TLS enabled", func() {
 			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
 			defer cancelFunc()
 

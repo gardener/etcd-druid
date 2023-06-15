@@ -238,13 +238,7 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 	return etcd
 }
 
-func getDefaultMultiNodeEtcdWithPeerTlsNotEnabled(name, namespace, container, prefix string, provider TestProvider) *v1alpha1.Etcd {
-	etcd := getDefaultEtcd(name, namespace, container, prefix, provider)
-	etcd.Spec.Replicas = multiNodeEtcdReplicas
-	return etcd
-}
-
-func getDefaultMultiNodeEtcdWithPeerTlsEnabled(name, namespace, container, prefix string, provider TestProvider) *v1alpha1.Etcd {
+func getDefaultMultiNodeEtcd(name, namespace, container, prefix string, provider TestProvider) *v1alpha1.Etcd {
 	etcd := getDefaultEtcd(name, namespace, container, prefix, provider)
 	etcd.Spec.Replicas = multiNodeEtcdReplicas
 	etcd.Spec.Etcd.PeerUrlTLS = getPeerTls(provider.Suffix)
