@@ -241,6 +241,7 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 func getDefaultMultiNodeEtcd(name, namespace, container, prefix string, provider TestProvider) *v1alpha1.Etcd {
 	etcd := getDefaultEtcd(name, namespace, container, prefix, provider)
 	etcd.Spec.Replicas = multiNodeEtcdReplicas
+	etcd.Spec.Etcd.PeerUrlTLS = getPeerTls(provider.Suffix)
 	return etcd
 }
 
@@ -252,6 +253,21 @@ func defaultTls(provider string) v1alpha1.TLSConfig {
 		},
 		ClientTLSSecretRef: corev1.SecretReference{
 			Name:      fmt.Sprintf("%s-%s", "etcd-client-tls", provider),
+			Namespace: namespace,
+		},
+		TLSCASecretRef: v1alpha1.SecretReference{
+			SecretReference: corev1.SecretReference{
+				Name:      fmt.Sprintf("%s-%s", "ca-etcd", provider),
+				Namespace: namespace,
+			},
+		},
+	}
+}
+
+func getPeerTls(provider string) *v1alpha1.TLSConfig {
+	return &v1alpha1.TLSConfig{
+		ServerTLSSecretRef: corev1.SecretReference{
+			Name:      fmt.Sprintf("%s-%s", "etcd-server-cert", provider),
 			Namespace: namespace,
 		},
 		TLSCASecretRef: v1alpha1.SecretReference{
