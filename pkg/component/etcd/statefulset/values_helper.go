@@ -119,7 +119,7 @@ func GenerateValues(
 		PeerTLSChangedToEnabled: peerTLSChangedToEnabled,
 	}
 
-	values.EtcdCommand = getEtcdCommand()
+	values.EtcdCommand = getEtcdCommand(values)
 
 	// Use linearizability for readiness probe so that pod is only considered ready
 	// when it has an active connection to the cluster and the cluster maintains a quorum.
@@ -130,8 +130,27 @@ func GenerateValues(
 	return values
 }
 
-func getEtcdCommand() []string {
-	return []string{"/var/etcd/bin/bootstrap.sh"}
+func getEtcdCommand(val Values) []string {
+	command := []string{"" + "start-etcd"}
+
+	if val.ClientUrlTLS != nil {
+		dataKey := "ca.crt"
+		if val.ClientUrlTLS.TLSCASecretRef.DataKey != nil {
+			dataKey = *val.ClientUrlTLS.TLSCASecretRef.DataKey
+		}
+		command = append(command, "--backup-restore-tls-enabled=true")
+		command = append(command, fmt.Sprintf("--backup-restore-host-port=%s-local:8080", val.Name))
+		command = append(command, fmt.Sprintf("--etcd-server-name=%s-local", val.Name))
+		command = append(command, "--etcd-client-cert-path=/var/etcd/ssl/client/client/tls.crt")
+		command = append(command, "--etcd-client-key-path=/var/etcd/ssl/client/client/tls.key")
+		command = append(command, fmt.Sprintf("--backup-restore-ca-cert-bundle-path=/var/etcd/ssl/client/ca/%s", dataKey))
+	} else {
+		command = append(command, "--backup-restore-tls-enabled=false")
+		command = append(command, fmt.Sprintf("--backup-restore-host-port=%s-local:8080", val.Name))
+		command = append(command, fmt.Sprintf("--etcd-server-name=%s-local", val.Name))
+	}
+
+	return command
 }
 
 type consistencyLevel string
@@ -178,8 +197,7 @@ func getProbeCommand(val Values, consistency consistencyLevel) []string {
 }
 
 func getBackupRestoreCommand(val Values) []string {
-	command := []string{"" + "etcdbrctl"}
-	command = append(command, "server")
+	command := []string{"" + "server"}
 
 	if val.BackupStore != nil {
 		command = append(command, "--enable-snapshot-lease-renewal=true")
@@ -206,7 +224,7 @@ func getBackupRestoreCommand(val Values) []string {
 	}
 
 	command = append(command, "--data-dir=/var/etcd/data/new.etcd")
-	command = append(command, "--restoration-temp-snapshots-dir=/var/etcd/restoration.temp")
+	command = append(command, "--restoration-temp-snapshots-dir=/var/etcd/data/restoration.temp")
 
 	if val.BackupStore != nil {
 		store, _ := utils.StorageProviderFromInfraProvider(val.BackupStore.Provider)

@@ -126,9 +126,14 @@ var _ = Describe("Etcd", func() {
 			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
 			By("Single member restoration")
+			objLogger.Info("Create debug pod")
+			debugPod := createDebugPod(ctx, etcd)
 			objLogger.Info("Delete member dir of one member pod")
-			deleteMemberDir(ctx, cl, objLogger, etcd, "etcd-aws-2")
+			deleteMemberDir(ctx, cl, objLogger, etcd, debugPod.Name)
 			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+			By("Delete debug pod")
+			Expect(cl.Delete(ctx, debugPod)).ToNot(HaveOccurred())
 
 			By("Delete etcd")
 			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
@@ -151,7 +156,7 @@ var _ = Describe("Etcd", func() {
 			etcd.Spec.Replicas = 3
 			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			By("Deleting the single-node etcd")
+			By("Deleting etcd")
 			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
 
@@ -237,7 +242,7 @@ var _ = Describe("Etcd", func() {
 })
 
 func deleteMemberDir(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName string) {
-	ExpectWithOffset(1, deleteDir(kubeconfigPath, namespace, podName, "backup-restore", "/var/etcd/data/new.etcd/member")).To(Succeed())
+	ExpectWithOffset(1, deleteDir(kubeconfigPath, namespace, podName, "etcd-debug", "/var/etcd/data/new.etcd/member")).To(Succeed())
 	checkUnreadySts(ctx, cl, logger, etcd)
 }
 

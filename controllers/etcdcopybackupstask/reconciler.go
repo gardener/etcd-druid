@@ -454,12 +454,12 @@ func createVolumeMountsFromStore(store *druidv1alpha1.StoreSpec, provider, volum
 	case druidutils.GCS:
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      getVolumeNamePrefix(volumeMountPrefix) + "etcd-backup",
-			MountPath: "/root/." + getVolumeNamePrefix(volumeMountPrefix) + "gcp/",
+			MountPath: "/var/." + getVolumeNamePrefix(volumeMountPrefix) + "gcp/",
 		})
 	case druidutils.S3, druidutils.ABS, druidutils.Swift, druidutils.OCS, druidutils.OSS:
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      getVolumeNamePrefix(volumeMountPrefix) + "etcd-backup",
-			MountPath: "/root/" + getVolumeNamePrefix(volumeMountPrefix) + "etcd-backup/",
+			MountPath: "/var/" + getVolumeNamePrefix(volumeMountPrefix) + "etcd-backup/",
 		})
 	}
 	return
@@ -480,17 +480,17 @@ func createEnvVarsFromStore(store *druidv1alpha1.StoreSpec, storeProvider, envKe
 	envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.STORAGE_CONTAINER, *store.Container))
 	switch storeProvider {
 	case druidutils.S3:
-		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.AWS_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
+		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.AWS_APPLICATION_CREDENTIALS, "/var/"+volumePrefix+"etcd-backup"))
 	case druidutils.ABS:
-		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.AZURE_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
+		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.AZURE_APPLICATION_CREDENTIALS, "/var/"+volumePrefix+"etcd-backup"))
 	case druidutils.GCS:
-		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.GOOGLE_APPLICATION_CREDENTIALS, "/root/."+volumePrefix+"gcp/serviceaccount.json"))
+		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.GOOGLE_APPLICATION_CREDENTIALS, "/var/."+volumePrefix+"gcp/serviceaccount.json"))
 	case druidutils.Swift:
-		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.OPENSTACK_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
+		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.OPENSTACK_APPLICATION_CREDENTIALS, "/var/"+volumePrefix+"etcd-backup"))
 	case druidutils.OCS:
-		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.OPENSHIFT_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
+		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.OPENSHIFT_APPLICATION_CREDENTIALS, "/var/"+volumePrefix+"etcd-backup"))
 	case druidutils.OSS:
-		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.ALICLOUD_APPLICATION_CREDENTIALS, "/root/"+volumePrefix+"etcd-backup"))
+		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.ALICLOUD_APPLICATION_CREDENTIALS, "/var/"+volumePrefix+"etcd-backup"))
 	}
 	return envVars
 }
