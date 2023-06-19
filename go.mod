@@ -12,6 +12,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.6.1
 	github.com/onsi/gomega v1.24.2
 	github.com/prometheus/client_golang v1.14.0
+	github.com/robfig/cron/v3 v3.0.1
 	go.uber.org/zap v1.24.0
 	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
 	gopkg.in/yaml.v2 v2.4.0
@@ -92,7 +93,6 @@ require (
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
-	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/afero v1.8.2 // indirect

@@ -16,7 +16,9 @@ package utils
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/robfig/cron/v3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -76,4 +78,20 @@ func Max(x, y int) int {
 		return y
 	}
 	return x
+}
+
+// ComputeScheduleDuration computes the duration between two activations for the given cron schedule.
+// Assumes that every cron activation is at equal durations apart, based on cron schedules such as
+// "once every X hours", "once every Y days", "at 1:00pm on every Tuesday", etc.
+// TODO: write a new function to accurately compute the previous activation time from the cron schedule
+// in order to compute when the previous activation of the cron schedule was supposed to have occurred.
+func ComputeScheduleDuration(cronSchedule string) (time.Duration, error) {
+	schedule, err := cron.ParseStandard(cronSchedule)
+	if err != nil {
+		return 0, err
+	}
+
+	nextScheduledTime := schedule.Next(time.Now())
+	nextNextScheduledTime := schedule.Next(nextScheduledTime.Add(time.Second))
+	return nextNextScheduledTime.Sub(nextScheduledTime), nil
 }
