@@ -387,7 +387,6 @@ type EtcdStatus struct {
 	// +optional
 	ClusterSize *int32 `json:"clusterSize,omitempty"`
 	// CurrentReplicas is the current replica count for the etcd cluster.
-	// Deprecated: this field will be removed in the future.
 	// +optional
 	CurrentReplicas int32 `json:"currentReplicas,omitempty"`
 	// Replicas is the replica count of the etcd resource.
