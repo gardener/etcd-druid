@@ -104,7 +104,7 @@ func CreateEtcdCopyBackupsJob(taskName, namespace string) *batchv1.Job {
 							Name:            "copy-backups",
 							Image:           "eu.gcr.io/gardener-project/gardener/etcdbrctl",
 							ImagePullPolicy: corev1.PullIfNotPresent,
-							Command:         []string{"etcdbrctl", "copy"}, // since this is only used for testing the command here is not complete.
+							Args:            []string{"copy"}, // since this is only used for testing the command here is not complete.
 						},
 					},
 					RestartPolicy: "OnFailure",
