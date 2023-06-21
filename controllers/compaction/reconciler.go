@@ -298,7 +298,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 						Name:            "compact-backup",
 						Image:           *etcdBackupImage,
 						ImagePullPolicy: v1.PullIfNotPresent,
-						Command:         getCompactionJobCommands(etcd),
+						Args:            getCompactionJobArgs(etcd),
 						VolumeMounts:    getCompactionJobVolumeMounts(etcd, logger),
 						Env:             getCompactionJobEnvVar(etcd, logger),
 					}},
@@ -483,11 +483,10 @@ func getEnvVarFromSecrets(name, secretName, secretKey string) v1.EnvVar {
 	}
 }
 
-func getCompactionJobCommands(etcd *druidv1alpha1.Etcd) []string {
-	command := []string{"" + "etcdbrctl"}
-	command = append(command, "compact")
+func getCompactionJobArgs(etcd *druidv1alpha1.Etcd) []string {
+	command := []string{"" + "compact"}
 	command = append(command, "--data-dir=/var/etcd/data/compaction.etcd")
-	command = append(command, "--restoration-temp-snapshots-dir=/var/etcd/compaction.restoration.temp")
+	command = append(command, "--restoration-temp-snapshots-dir=/var/etcd/data/compaction.restoration.temp")
 	command = append(command, "--snapstore-temp-directory=/var/etcd/data/tmp")
 	command = append(command, "--enable-snapshot-lease-renewal=true")
 	command = append(command, "--full-snapshot-lease-name="+etcd.GetFullSnapshotLeaseName())
