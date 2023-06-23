@@ -3,8 +3,8 @@
 To mark a cluster for scale-up from single node to multi-node etcd, just patch the etcd custom resource's `.spec.replicas` from `1` to `3` (for example).
 
 ### Challenges for scale-up
-1. Etcd cluster with single replica don't have any peers, so no peer communication is required hence peer URL may or may not be TLS enabled. However, while scaling up from single node etcd to multi-node etcd, there will be a requirement to have peer communication between members of the etcd cluster. Peer communication is required for various reasons, for instance for members to sync up cluster state, data, and to perform leader election or any cluster wide operation like to removal or addition of a member etc. Hence in multi-node etcd cluster we need to have TLS enable peer URL for peer communication.
-2. Providing the correct configuration to start a new etcd members as it is different from boostrapping a cluster since this new etcd members will join an existing cluster.
+1. Etcd cluster with single replica don't have any peers, so no peer communication is required hence peer URL may or may not be TLS enabled. However, while scaling up from single node etcd to multi-node etcd, there will be a requirement to have peer communication between members of the etcd cluster. Peer communication is required for various reasons, for instance for members to sync up cluster state, data, and to perform leader election or any cluster wide operation like removal or addition of a member etc. Hence in a multi-node etcd cluster we need to have TLS enable peer URL for peer communication.
+2. Providing the correct configuration to start new etcd members as it is different from boostrapping a cluster since these new etcd members will join an existing cluster.
 
 ### Approach
 We first went through the etcd doc of [update-advertise-peer-urls](https://etcd.io/docs/v3.4/op-guide/runtime-configuration/#update-advertise-peer-urls) to find out information regarding peer URL updation. Interestingly, etcd doc has mentioned the following:
