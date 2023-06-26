@@ -50,6 +50,9 @@ func (a *allMembersReady) Check(_ context.Context, etcd druidv1alpha1.Etcd) Resu
 	ready := true
 	for _, member := range etcd.Status.Members {
 		ready = ready && member.Status == druidv1alpha1.EtcdMemberStatusReady
+		if !ready {
+		        break
+		}
 	}
 	if ready {
 		result.status = druidv1alpha1.ConditionTrue
