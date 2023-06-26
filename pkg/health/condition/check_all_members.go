@@ -41,7 +41,7 @@ func (a *allMembersReady) Check(_ context.Context, etcd druidv1alpha1.Etcd) Resu
 	}
 
 	if int32(len(etcd.Status.Members)) < etcd.Spec.Replicas {
-	        // not all members are registered yet
+		// not all members are registered yet
 		return result
 	}
 
@@ -51,7 +51,7 @@ func (a *allMembersReady) Check(_ context.Context, etcd druidv1alpha1.Etcd) Resu
 	for _, member := range etcd.Status.Members {
 		ready = ready && member.Status == druidv1alpha1.EtcdMemberStatusReady
 		if !ready {
-		        break
+			break
 		}
 	}
 	if ready {
