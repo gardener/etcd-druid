@@ -40,8 +40,8 @@ func (a *allMembersReady) Check(_ context.Context, etcd druidv1alpha1.Etcd) Resu
 		message: "At least one member is not ready",
 	}
 
-	notAllMembersRegistered := int32(len(etcd.Status.Members)) < etcd.Spec.Replicas
-	if notAllMembersRegistered {
+	if int32(len(etcd.Status.Members)) < etcd.Spec.Replicas {
+	        // not all members are registered yet
 		return result
 	}
 
