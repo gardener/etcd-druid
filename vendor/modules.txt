@@ -887,7 +887,7 @@ k8s.io/apimachinery/third_party/forked/golang/reflect
 # k8s.io/autoscaler v0.0.0-20190805135949-100e91ba756e
 ## explicit
 k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1
-# k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible => k8s.io/client-go v0.26.1
+# k8s.io/client-go v0.26.1
 ## explicit; go 1.19
 k8s.io/client-go/applyconfigurations/admissionregistration/v1
 k8s.io/client-go/applyconfigurations/admissionregistration/v1alpha1
@@ -1243,4 +1243,3 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit; go 1.12
 sigs.k8s.io/yaml
 # google.golang.org/grpc => google.golang.org/grpc v1.29.0
-# k8s.io/client-go => k8s.io/client-go v0.26.1
