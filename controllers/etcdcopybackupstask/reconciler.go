@@ -147,7 +147,7 @@ func (r *Reconciler) doReconcile(ctx context.Context, task *druidv1alpha1.EtcdCo
 	}
 
 	// Create job
-	logger.Info("Creating job", "job", kutil.ObjectName(job))
+	logger.Info("Creating job", "namespace", job.Namespace, "name", job.Name)
 	if err := r.Create(ctx, job); err != nil {
 		return status, fmt.Errorf("could not create job %s: %w", kutil.ObjectName(job), err)
 	}
@@ -213,7 +213,7 @@ func (r *Reconciler) doDelete(ctx context.Context, task *druidv1alpha1.EtcdCopyB
 
 	// Delete job if needed
 	if job.DeletionTimestamp == nil {
-		logger.Info("Deleting job", "job", kutil.ObjectName(job))
+		logger.Info("Deleting job", "namespace", job.Namespace, "name", job.Name)
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); client.IgnoreNotFound(err) != nil {
 			return status, false, fmt.Errorf("could not delete job %s: %w", kutil.ObjectName(job), err)
 		}

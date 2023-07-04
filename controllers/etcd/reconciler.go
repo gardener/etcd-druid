@@ -164,7 +164,7 @@ func (r *Reconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd) (c
 
 	// Add Finalizers to Etcd
 	if finalizers := sets.NewString(etcd.Finalizers...); !finalizers.Has(common.FinalizerName) {
-		logger.Info("Adding finalizer", "finalizerName", common.FinalizerName)
+		logger.Info("Adding finalizer", "namespace", etcd.Namespace, "name", etcd.Name, "finalizerName", common.FinalizerName)
 		if err := controllerutils.AddFinalizers(ctx, r.Client, etcd, common.FinalizerName); err != nil {
 			if err := r.updateEtcdErrorStatus(ctx, etcd, reconcileResult{err: err}); err != nil {
 				return ctrl.Result{
@@ -221,7 +221,7 @@ func (r *Reconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd) (c
 
 func (r *Reconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	logger := r.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String(), "operation", "delete")
-	logger.Info("Starting operation")
+	logger.Info("Starting deletion operation", "namespace", etcd.Namespace, "name", etcd.Name)
 
 	stsDeployer := gardenercomponent.OpDestroyAndWait(componentsts.New(r.Client, logger, componentsts.Values{Name: etcd.Name, Namespace: etcd.Namespace}))
 	if err := stsDeployer.Destroy(ctx); err != nil {
@@ -288,14 +288,14 @@ func (r *Reconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl
 	}
 
 	if sets.NewString(etcd.Finalizers...).Has(common.FinalizerName) {
-		logger.Info("Removing finalizer", "finalizerName", common.FinalizerName)
+		logger.Info("Removing finalizer", "namespace", etcd.Namespace, "name", etcd.Name, "finalizerName", common.FinalizerName)
 		if err := controllerutils.RemoveFinalizers(ctx, r.Client, etcd, common.FinalizerName); client.IgnoreNotFound(err) != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
 		}
 	}
-	logger.Info("Deleted etcd successfully.")
+	logger.Info("Deleted etcd successfully", "namespace", etcd.Namespace, "name", etcd.Name)
 	return ctrl.Result{}, nil
 }
 
@@ -444,7 +444,7 @@ func (r *Reconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.E
 
 func (r *Reconciler) removeOperationAnnotation(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
 	if _, ok := etcd.Annotations[v1beta1constants.GardenerOperation]; ok {
-		logger.Info("Removing operation annotation", "annotation", v1beta1constants.GardenerOperation)
+		logger.Info("Removing operation annotation", "namespace", etcd.Namespace, "name", etcd.Name, "annotation", v1beta1constants.GardenerOperation)
 		withOpAnnotation := etcd.DeepCopy()
 		delete(etcd.Annotations, v1beta1constants.GardenerOperation)
 		return r.Patch(ctx, etcd, client.MergeFrom(withOpAnnotation))

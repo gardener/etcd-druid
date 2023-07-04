@@ -110,7 +110,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	fullLease := &coordinationv1.Lease{}
 
 	if err := r.Get(ctx, kutil.Key(etcd.Namespace, etcd.GetFullSnapshotLeaseName()), fullLease); err != nil {
-		logger.Info("Couldn't fetch full snap lease", "error", err.Error())
+		logger.Error(err, "Couldn't fetch full snap lease", "namespace", etcd.Namespace, "name", etcd.GetFullSnapshotLeaseName())
 
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,
@@ -119,7 +119,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	deltaLease := &coordinationv1.Lease{}
 	if err := r.Get(ctx, kutil.Key(etcd.Namespace, etcd.GetDeltaSnapshotLeaseName()), deltaLease); err != nil {
-		logger.Info("Couldn't fetch delta snap lease", "error", err.Error())
+		logger.Error(err, "Couldn't fetch delta snap lease", "namespace", etcd.Namespace, "name", etcd.GetDeltaSnapshotLeaseName())
 
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,
@@ -134,7 +134,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	full, err := strconv.ParseInt(*fullLease.Spec.HolderIdentity, 10, 64)
 	if err != nil {
-		logger.Error(err, "Can't convert holder identity of full snap lease to integer")
+		logger.Error(err, "Can't convert holder identity of full snap lease to integer",
+			"namespace", fullLease.Namespace, "leaseName", fullLease.Name, "holderIdentity", fullLease.Spec.HolderIdentity)
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,
 		}, err
@@ -142,7 +143,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	delta, err := strconv.ParseInt(*deltaLease.Spec.HolderIdentity, 10, 64)
 	if err != nil {
-		logger.Error(err, "Can't convert holder identity of delta snap lease to integer")
+		logger.Error(err, "Can't convert holder identity of delta snap lease to integer",
+			"namespace", deltaLease.Namespace, "leaseName", deltaLease.Name, "holderIdentity", deltaLease.Spec.HolderIdentity)
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,
 		}, err
@@ -175,8 +177,8 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 		if r.config.EnableBackupCompaction {
 			// Required job doesn't exist. Create new
+			logger.Info("Creating etcd compaction job", "namespace", etcd.Namespace, "name", etcd.GetCompactionJobName())
 			job, err = r.createCompactionJob(ctx, logger, etcd)
-			logger.Info("Job Creation")
 			if err != nil {
 				return ctrl.Result{
 					RequeueAfter: 10 * time.Second,
@@ -240,7 +242,7 @@ func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druid
 	}
 
 	if job.DeletionTimestamp == nil {
-		logger.Info("Deleting job", "job", kutil.ObjectName(job))
+		logger.Info("Deleting job", "namespace", job.Namespace, "name", job.Name)
 		if err := client.IgnoreNotFound(r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground))); err != nil {
 			return ctrl.Result{
 				RequeueAfter: 10 * time.Second,
@@ -310,7 +312,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 		job.Spec.Template.Spec.Containers[0].Resources = *etcd.Spec.Backup.CompactionResources
 	}
 
-	logger.Info("Creating job", "job", kutil.Key(job.Namespace, job.Name).String())
+	logger.Info("Creating job", "namespace", job.Namespace, "name", job.Name)
 	err = r.Create(ctx, job)
 	if err != nil {
 		return nil, err
@@ -344,7 +346,7 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, logger logr.Logger) 
 
 	provider, err := utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
 	if err != nil {
-		logger.Info("Storage provider is not recognized. Compaction job will not mount any volume with provider specific credentials.", "error", err)
+		logger.Error(err, "Storage provider is not recognized. Compaction job will not mount any volume with provider specific credentials", "namespace", etcd.Namespace, "name", etcd.Name)
 		return vms
 	}
 
@@ -380,13 +382,14 @@ func getCompactionJobVolumes(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.
 	storeValues := etcd.Spec.Backup.Store
 	provider, err := utils.StorageProviderFromInfraProvider(storeValues.Provider)
 	if err != nil {
-		logger.Info("Storage provider is not recognized. Compaction job will fail as no storage could be configured.", "error", err)
+		logger.Error(err, "Storage provider is not recognized. Compaction job will fail as no storage could be configured", "namespace", etcd.Namespace, "name", etcd.Name)
 		return vs
 	}
 
 	if provider == utils.GCS || provider == utils.S3 || provider == utils.OSS || provider == utils.ABS || provider == utils.Swift || provider == utils.OCS {
 		if storeValues.SecretRef == nil {
-			logger.Info("No secretRef is configured for backup store. Compaction job will fail as no storage could be configured.")
+			logger.Info("No secretRef is configured for backup store. Compaction job will fail as no storage could be configured.",
+				"namespace", etcd.Namespace, "name", etcd.Name)
 			return vs
 		}
 
@@ -416,7 +419,7 @@ func getCompactionJobEnvVar(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.E
 
 	provider, err := utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
 	if err != nil {
-		logger.Info("Storage provider is not recognized. Compaction job will likely fail as there is no provider specific credentials.", "error", err)
+		logger.Error(err, "Storage provider is not recognized. Compaction job will likely fail as there is no provider specific credentials.", "namespace", etcd.Namespace, "name", etcd.Name)
 		return env
 	}
 
@@ -433,7 +436,8 @@ func getCompactionJobEnvVar(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.E
 		env = append(env, getEnvVarFromValues("ALICLOUD_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
 	case utils.ECS:
 		if storeValues.SecretRef == nil {
-			logger.Info("No secretRef is configured for backup store. Compaction job will fail as no storage could be configured.")
+			logger.Info("No secretRef is configured for backup store. Compaction job will fail as no storage could be configured.",
+				"namespace", etcd.Namespace, "name", etcd.Name)
 			return env
 		}
 

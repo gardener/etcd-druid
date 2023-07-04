@@ -66,42 +66,44 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	if isFinalizerNeeded(secret.Name, etcdList) {
+	if needed, etcd := isFinalizerNeeded(secret.Name, etcdList); needed {
+		logger.Info("Adding finalizer for secret since it is referenced by etcd resource",
+			"secretNamespace", secret.Namespace, "secretName", secret.Name, "etcdNamespace", etcd.Namespace, "etcdName", etcd.Name)
 		return ctrl.Result{}, addFinalizer(ctx, logger, r.Client, secret)
 	}
 	return ctrl.Result{}, removeFinalizer(ctx, logger, r.Client, secret)
 }
 
-func isFinalizerNeeded(secretName string, etcdList *druidv1alpha1.EtcdList) bool {
+func isFinalizerNeeded(secretName string, etcdList *druidv1alpha1.EtcdList) (bool, *druidv1alpha1.Etcd) {
 	for _, etcd := range etcdList.Items {
 		if etcd.Spec.Etcd.ClientUrlTLS != nil &&
 			(etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name == secretName ||
 				etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name == secretName ||
 				etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name == secretName) {
-			return true
+			return true, &etcd
 		}
 
 		if etcd.Spec.Etcd.PeerUrlTLS != nil &&
 			(etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name == secretName ||
 				etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name == secretName) { // Currently, no client certificate for peer url is used in ETCD cluster
-			return true
+			return true, &etcd
 		}
 
 		if etcd.Spec.Backup.Store != nil &&
 			etcd.Spec.Backup.Store.SecretRef != nil &&
 			etcd.Spec.Backup.Store.SecretRef.Name == secretName {
-			return true
+			return true, &etcd
 		}
 	}
 
-	return false
+	return false, nil
 }
 
 func addFinalizer(ctx context.Context, logger logr.Logger, k8sClient client.Client, secret *corev1.Secret) error {
 	if finalizers := sets.NewString(secret.Finalizers...); finalizers.Has(common.FinalizerName) {
 		return nil
 	}
-	logger.Info("Adding finalizer", "finalizerName", common.FinalizerName)
+	logger.Info("Adding finalizer", "namespace", secret.Namespace, "name", secret.Name, "finalizerName", common.FinalizerName)
 	return client.IgnoreNotFound(controllerutils.AddFinalizers(ctx, k8sClient, secret, common.FinalizerName))
 }
 
@@ -109,6 +111,6 @@ func removeFinalizer(ctx context.Context, logger logr.Logger, k8sClient client.C
 	if finalizers := sets.NewString(secret.Finalizers...); !finalizers.Has(common.FinalizerName) {
 		return nil
 	}
-	logger.Info("Removing finalizer", "finalizerName", common.FinalizerName)
+	logger.Info("Removing finalizer", "namespace", secret.Namespace, "name", secret.Name, "finalizerName", common.FinalizerName)
 	return client.IgnoreNotFound(controllerutils.RemoveFinalizers(ctx, k8sClient, secret, common.FinalizerName))
 }
