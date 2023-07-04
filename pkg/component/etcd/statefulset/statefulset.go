@@ -146,14 +146,14 @@ func (c *component) waitUtilPodsReady(ctx context.Context, originalSts *appsv1.S
 			return gardenerretry.SevereError(err)
 		}
 		if sts.Status.ReadyReplicas < *sts.Spec.Replicas {
-			return gardenerretry.MinorError(fmt.Errorf(fmt.Sprintf("Only %d out of %d replicas are ready", sts.Status.ReadyReplicas, sts.Spec.Replicas)))
+			return gardenerretry.MinorError(fmt.Errorf("only %d out of %d replicas are ready", sts.Status.ReadyReplicas, sts.Spec.Replicas))
 		}
 		recentPodCreationTime, err := c.getLatestPodCreationTime(ctx, &sts)
 		if err != nil {
 			return gardenerretry.MinorError(fmt.Errorf("failed to get most recent pod creation timestamp: %w", err))
 		}
 		if recentPodCreationTime.Before(podDeletionTime) {
-			return gardenerretry.MinorError(fmt.Errorf(fmt.Sprintf("Most recent pod creation time %v is still before the %v time when the pods were deleted.", recentPodCreationTime, podDeletionTime)))
+			return gardenerretry.MinorError(fmt.Errorf("most recent pod creation time %v is still before the %v time when the pods were deleted", recentPodCreationTime, podDeletionTime))
 		}
 		return gardenerretry.Ok()
 	})
@@ -169,7 +169,7 @@ func (c *component) waitDeploy(ctx context.Context, originalSts *appsv1.Stateful
 			return gardenerretry.SevereError(err)
 		}
 		if updatedSts.Generation < originalSts.Generation {
-			return gardenerretry.MinorError(fmt.Errorf("StatulfulSet generation has not yet been updated in the cache"))
+			return gardenerretry.MinorError(fmt.Errorf("statefulset generation has not yet been updated in the cache"))
 		}
 		if ready, reason := utils.IsStatefulSetReady(replicas, &updatedSts); !ready {
 			return gardenerretry.MinorError(fmt.Errorf(reason))
@@ -300,7 +300,7 @@ func (c *component) addCreateOrPatchTask(g *flow.Graph, originalSts *appsv1.Stat
 	taskID := g.Add(flow.Task{
 		Name: "sync StatefulSet task",
 		Fn: func(ctx context.Context) error {
-			c.logger.Info("createOrPatch sts", "replicas", c.values.Replicas)
+			c.logger.Info("createOrPatch sts", "namespace", c.values.Namespace, "name", c.values.Name, "replicas", c.values.Replicas)
 			var (
 				sts = originalSts
 				err error
@@ -501,7 +501,7 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 	if err != nil {
 		return err
 	}
-	c.logger.Info("createOrPatch is completed", "Namespace", sts.Namespace, "Name", sts.Name, "operation-result", operationResult)
+	c.logger.Info("createOrPatch is completed", "namespace", sts.Namespace, "name", sts.Name, "operation-result", operationResult)
 	return nil
 }
 

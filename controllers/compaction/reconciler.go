@@ -110,7 +110,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	fullLease := &coordinationv1.Lease{}
 
 	if err := r.Get(ctx, kutil.Key(etcd.Namespace, etcd.GetFullSnapshotLeaseName()), fullLease); err != nil {
-		logger.Info("Couldn't fetch full snap lease because: " + err.Error())
+		logger.Info("Couldn't fetch full snap lease", "error", err.Error())
 
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,
@@ -119,7 +119,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	deltaLease := &coordinationv1.Lease{}
 	if err := r.Get(ctx, kutil.Key(etcd.Namespace, etcd.GetDeltaSnapshotLeaseName()), deltaLease); err != nil {
-		logger.Info("Couldn't fetch delta snap lease because: " + err.Error())
+		logger.Info("Couldn't fetch delta snap lease", "error", err.Error())
 
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,
@@ -187,14 +187,15 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 	}
 
 	if !job.DeletionTimestamp.IsZero() {
-		logger.Info(fmt.Sprintf("Job %s/%s is already in deletion. A new job will only be created if the previous one has been deleted.", job.Namespace, job.Name))
+		logger.Info("Job is already in deletion. A new job will be created only if the previous one has been deleted.", "namespace", job.Namespace, "name", job.Name)
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,
 		}, nil
 	}
 
 	if job.Name != "" {
-		logger.Info(fmt.Sprintf("Current compaction job is %s/%s , status: %d", job.Namespace, job.Name, job.Status.Succeeded))
+		logger.Info("Current compaction job status",
+			"namespace", job.Namespace, "name", job.Name, "succeeded", job.Status.Succeeded)
 	}
 
 	// Delete job and requeue if the job failed
@@ -343,7 +344,7 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, logger logr.Logger) 
 
 	provider, err := utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
 	if err != nil {
-		logger.Info("Storage provider is not recognized. Compaction job will not mount any volume with provider specific credentials.")
+		logger.Info("Storage provider is not recognized. Compaction job will not mount any volume with provider specific credentials.", "error", err)
 		return vms
 	}
 
@@ -379,7 +380,7 @@ func getCompactionJobVolumes(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.
 	storeValues := etcd.Spec.Backup.Store
 	provider, err := utils.StorageProviderFromInfraProvider(storeValues.Provider)
 	if err != nil {
-		logger.Info("Storage provider is not recognized. Compaction job will fail as no storage could be configured.")
+		logger.Info("Storage provider is not recognized. Compaction job will fail as no storage could be configured.", "error", err)
 		return vs
 	}
 
@@ -415,7 +416,7 @@ func getCompactionJobEnvVar(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.E
 
 	provider, err := utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
 	if err != nil {
-		logger.Info("Storage provider is not recognized. Compaction job will likely fail as there is no provider specific credentials.")
+		logger.Info("Storage provider is not recognized. Compaction job will likely fail as there is no provider specific credentials.", "error", err)
 		return env
 	}
 

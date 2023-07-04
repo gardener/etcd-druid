@@ -16,7 +16,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 
 	"go.uber.org/zap/zapcore"
@@ -64,12 +63,12 @@ func main() {
 }
 
 func printFlags(logger logr.Logger) {
-	var flagsToPrint string
+	var flagKVs []interface{}
 	flag.VisitAll(func(f *flag.Flag) {
-		flagsToPrint += fmt.Sprintf("%s: %s, ", f.Name, f.Value)
+		flagKVs = append(flagKVs, f.Name, f.Value.String())
 	})
 
-	logger.Info(fmt.Sprintf("Running with flags: %s", flagsToPrint[:len(flagsToPrint)-2]))
+	logger.Info("Running with flags", flagKVs...)
 }
 
 func buildDefaultLoggerOpts() []zap.Opts {

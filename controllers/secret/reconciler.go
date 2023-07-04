@@ -101,7 +101,7 @@ func addFinalizer(ctx context.Context, logger logr.Logger, k8sClient client.Clie
 	if finalizers := sets.NewString(secret.Finalizers...); finalizers.Has(common.FinalizerName) {
 		return nil
 	}
-	logger.Info("Adding finalizer")
+	logger.Info("Adding finalizer", "finalizerName", common.FinalizerName)
 	return client.IgnoreNotFound(controllerutils.AddFinalizers(ctx, k8sClient, secret, common.FinalizerName))
 }
 
@@ -109,6 +109,6 @@ func removeFinalizer(ctx context.Context, logger logr.Logger, k8sClient client.C
 	if finalizers := sets.NewString(secret.Finalizers...); !finalizers.Has(common.FinalizerName) {
 		return nil
 	}
-	logger.Info("Removing finalizer")
+	logger.Info("Removing finalizer", "finalizerName", common.FinalizerName)
 	return client.IgnoreNotFound(controllerutils.RemoveFinalizers(ctx, k8sClient, secret, common.FinalizerName))
 }

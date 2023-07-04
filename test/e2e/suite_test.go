@@ -117,7 +117,7 @@ var _ = AfterSuite(func() {
 
 	namespaceLogger := logger.WithValues("namespace", etcdNamespace)
 
-	namespaceLogger.Info("deleting namespace")
+	namespaceLogger.Info("deleting namespace", "namespace", etcdNamespace)
 	err = cl.Delete(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: etcdNamespace,
