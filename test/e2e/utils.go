@@ -62,6 +62,9 @@ const (
 	etcdPrefix             = "etcd"
 
 	etcdCommandMaxRetries = 3
+
+	debugPodName          = "etcd-debug"
+	debugPodContainerName = "etcd-debug"
 )
 
 // Storage contains information about the storage provider.
@@ -647,7 +650,7 @@ func populateEtcd(logger logr.Logger, kubeconfigPath, namespace, etcdName, podNa
 	}
 
 	for i := startKeyNo; i <= endKeyNo; {
-		cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://etcd-aws-client.shoot.svc:%d --cacert /var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key put %s-%d %s-%d", etcdClientPort, keyPrefix, i, valuePrefix, i)
+		cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-client.shoot.svc:%d --cacert /var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key put %s-%d %s-%d", etcdName, etcdClientPort, keyPrefix, i, valuePrefix, i)
 		stdout, stderr, err = executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
 		if err != nil || stderr != "" || stdout != "OK" {
 			logger.Error(err, fmt.Sprintf("failed to put (%s-%d, %s-%d): stdout: %s; stderr: %s. Retrying", keyPrefix, i, valuePrefix, i, stdout, stderr))
@@ -673,7 +676,7 @@ func getEtcdKey(kubeconfigPath, namespace, etcdName, podName, containerName, key
 		err    error
 	)
 
-	cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://etcd-aws-client.shoot.svc:%d --cacert /var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key get %s-%d", etcdClientPort, keyPrefix, suffix)
+	cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-client.shoot.svc:%d --cacert /var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key get %s-%d", etcdName, etcdClientPort, keyPrefix, suffix)
 	stdout, stderr, err = executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stderr != "" {
 		return "", "", fmt.Errorf("failed to get %s-%d: stdout: %s; stderr: %s; err: %v", keyPrefix, suffix, stdout, stderr, err)
@@ -713,7 +716,7 @@ func getEtcdKeys(logger logr.Logger, kubeconfigPath, namespace, etcdName, podNam
 	return keyValueMap, nil
 }
 
-func triggerOnDemandSnapshot(kubeconfigPath, namespace, podName, containerName string, port int, snapshotKind string) (*brtypes.Snapshot, error) {
+func triggerOnDemandSnapshot(kubeconfigPath, namespace, etcdName, podName, containerName string, port int, snapshotKind string) (*brtypes.Snapshot, error) {
 	var (
 		snapshot *brtypes.Snapshot
 		snapKind string
@@ -727,7 +730,7 @@ func triggerOnDemandSnapshot(kubeconfigPath, namespace, podName, containerName s
 	default:
 		return nil, fmt.Errorf("invalid snapshotKind %s", snapshotKind)
 	}
-	cmd := fmt.Sprintf("curl https://etcd-aws-client.shoot.svc:%d/snapshot/%s -k -s", port, snapKind)
+	cmd := fmt.Sprintf("curl https://%s-client.shoot.svc:%d/snapshot/%s -k -s", etcdName, port, snapKind)
 	stdout, stderr, err := executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stdout == "" {
 		return nil, fmt.Errorf("failed to trigger on-demand %s snapshot for %s: stdout: %s; stderr: %s; err: %v", snapKind, podName, stdout, stderr, err)
@@ -741,7 +744,7 @@ func triggerOnDemandSnapshot(kubeconfigPath, namespace, podName, containerName s
 
 func getLatestSnapshots(kubeconfigPath, namespace, etcdName, podName, containerName string, port int) (*LatestSnapshots, error) {
 	var latestSnapshots *LatestSnapshots
-	cmd := fmt.Sprint("curl https://etcd-aws-client.shoot.svc:8080/snapshot/latest -k -s")
+	cmd := fmt.Sprintf("curl https://%s-client.shoot.svc:%d/snapshot/latest -k -s", etcdName, port)
 	stdout, stderr, err := executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stdout == "" {
 		return nil, fmt.Errorf("failed to fetch latest snapshots taken for %s: stdout: %s; stderr: %s; err: %v", podName, stdout, stderr, err)
@@ -896,15 +899,17 @@ func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
 		volumeName = *etcd.Spec.VolumeClaimTemplate
 	}
 
+	pvcName := volumeName + "-" + etcd.Name + "-0"
+
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "etcd-debug",
+			Name:      debugPodName,
 			Namespace: namespace,
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:  "etcd-debug",
+					Name:  debugPodContainerName,
 					Image: "nginx",
 					VolumeMounts: []corev1.VolumeMount{
 						{
@@ -959,7 +964,7 @@ func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
 					Name: volumeName,
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-							ClaimName: "etcd-aws-etcd-aws-0",
+							ClaimName: pvcName,
 						},
 					},
 				},

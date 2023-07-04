@@ -7,5 +7,5 @@ images:
   tag: "v0.25.0"
 - name: etcd
   sourceRepository: github.com/gardener/etcd-wrapper #github.com/gardener/etcd-custom-image
-  repository: aaronfernandes/etcd-wrapper #eu.gcr.io/gardener-project/gardener/etcd
-  tag: "v1.4" #"v3.4.13-bootstrap-11"
+  repository: eu.gcr.io/gardener-project/gardener/etcd-wrapper #aaronfernandes/etcd-wrapper #eu.gcr.io/gardener-project/gardener/etcd
+  tag: "v0.1.0-dev-a840477e90c81e928fafe302db01ac65e0022323" #"v1.4" #"v3.4.13-bootstrap-11"

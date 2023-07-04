@@ -991,7 +991,7 @@ func getReadinessHandlerForMultiNode(val Values) corev1.ProbeHandler {
 	return corev1.ProbeHandler{
 		HTTPGet: &corev1.HTTPGetAction{
 			Path:   "/readyz",
-			Port:   intstr.FromInt(int(pointer.Int32Deref(pointer.Int32(9095), *pointer.Int32(9095)))),
+			Port:   intstr.FromInt(int(pointer.Int32Deref(val.WrapperPort, defaultWrapperPort))),
 			Scheme: scheme,
 		},
 	}

@@ -484,7 +484,7 @@ func getEnvVarFromSecrets(name, secretName, secretKey string) v1.EnvVar {
 }
 
 func getCompactionJobArgs(etcd *druidv1alpha1.Etcd) []string {
-	command := []string{"" + "compact"}
+	command := []string{"compact"}
 	command = append(command, "--data-dir=/var/etcd/data/compaction.etcd")
 	command = append(command, "--restoration-temp-snapshots-dir=/var/etcd/data/compaction.restoration.temp")
 	command = append(command, "--snapstore-temp-directory=/var/etcd/data/tmp")

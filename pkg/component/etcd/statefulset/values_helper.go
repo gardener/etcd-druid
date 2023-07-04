@@ -28,6 +28,7 @@ const (
 	defaultBackupPort              int32 = 8080
 	defaultServerPort              int32 = 2380
 	defaultClientPort              int32 = 2379
+	defaultWrapperPort             int32 = 9095
 	defaultQuota                   int64 = 8 * 1024 * 1024 * 1024 // 8Gi
 	defaultSnapshotMemoryLimit     int64 = 100 * 1024 * 1024      // 100Mi
 	defaultHeartbeatDuration             = "10s"
@@ -112,6 +113,7 @@ func GenerateValues(
 		PeerServiceName:   etcd.GetPeerServiceName(),
 		ServerPort:        serverPort,
 		BackupPort:        backupPort,
+		WrapperPort:       pointer.Int32(defaultWrapperPort),
 
 		AutoCompactionMode:      etcd.Spec.Common.AutoCompactionMode,
 		AutoCompactionRetention: etcd.Spec.Common.AutoCompactionRetention,
@@ -120,10 +122,6 @@ func GenerateValues(
 	}
 
 	values.EtcdCommand = getEtcdCommand(values)
-
-	// Use linearizability for readiness probe so that pod is only considered ready
-	// when it has an active connection to the cluster and the cluster maintains a quorum.
-	values.ReadinessProbeCommand = getProbeCommand(values, linearizable)
 
 	values.EtcdBackupCommand = getBackupRestoreCommand(values)
 
@@ -197,7 +195,7 @@ func getProbeCommand(val Values, consistency consistencyLevel) []string {
 }
 
 func getBackupRestoreCommand(val Values) []string {
-	command := []string{"" + "server"}
+	command := []string{"server"}
 
 	if val.BackupStore != nil {
 		command = append(command, "--enable-snapshot-lease-renewal=true")
