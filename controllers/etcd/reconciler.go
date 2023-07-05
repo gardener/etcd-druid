@@ -398,25 +398,11 @@ func isPeerTLSChangedToEnabled(peerTLSEnabledStatusFromMembers bool, configMapVa
 	return configMapValues.PeerUrlTLS != nil
 }
 
-func bootstrapReset(etcd *druidv1alpha1.Etcd) {
-	etcd.Status.Members = nil
-	etcd.Status.ClusterSize = pointer.Int32(etcd.Spec.Replicas)
-}
-
-func clusterInBootstrap(etcd *druidv1alpha1.Etcd) bool {
-	return etcd.Status.Replicas == 0 ||
-		(etcd.Spec.Replicas > 1 && etcd.Status.Replicas == 1)
-}
-
 func (r *Reconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, result reconcileResult) error {
 	lastErrStr := fmt.Sprintf("%v", result.err)
 	etcd.Status.LastError = &lastErrStr
 	etcd.Status.ObservedGeneration = &etcd.Generation
 	if result.sts != nil {
-		if clusterInBootstrap(etcd) {
-			// Reset members in bootstrap phase to ensure dependent conditions can be calculated correctly.
-			bootstrapReset(etcd)
-		}
 		ready, _ := druidutils.IsStatefulSetReady(etcd.Spec.Replicas, result.sts)
 		etcd.Status.Ready = &ready
 		etcd.Status.Replicas = pointer.Int32Deref(result.sts.Spec.Replicas, 0)
@@ -426,10 +412,6 @@ func (r *Reconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alp
 }
 
 func (r *Reconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, result reconcileResult) error {
-	if clusterInBootstrap(etcd) {
-		// Reset members in bootstrap phase to ensure dependent conditions can be calculated correctly.
-		bootstrapReset(etcd)
-	}
 	if result.sts != nil {
 		ready, _ := druidutils.IsStatefulSetReady(etcd.Spec.Replicas, result.sts)
 		etcd.Status.Ready = &ready

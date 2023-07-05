@@ -120,12 +120,12 @@ var _ = Describe("Etcd Controller", func() {
 			err = k8sClient.Status().Update(ctx, sts)
 			Eventually(func() (bool, error) { return testutils.IsStatefulSetCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeTrue())
 			Expect(err).NotTo(HaveOccurred())
-			Eventually(func() (*int32, error) {
+			Eventually(func() (*bool, error) {
 				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), instance); err != nil {
 					return nil, err
 				}
-				return instance.Status.ClusterSize, nil
-			}, timeout, pollingInterval).Should(Equal(pointer.Int32(instance.Spec.Replicas)))
+				return instance.Status.Ready, nil
+			}, timeout, pollingInterval).Should(Equal(pointer.Bool(true)))
 		})
 		It("should create and adopt statefulset and printing events", func() {
 			// Check StatefulSet requirements

@@ -205,15 +205,6 @@ func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, e
 			return fmt.Errorf("etcd %s is not ready", etcd.Name)
 		}
 
-		if etcd.Status.ClusterSize == nil {
-			return fmt.Errorf("etcd %s cluster size is empty", etcd.Name)
-		}
-
-		if *etcd.Status.ClusterSize != etcd.Spec.Replicas {
-			return fmt.Errorf("etcd %s cluster size is %v, but it's not expected size as %v",
-				etcd.Name, etcd.Status.ClusterSize, etcd.Spec.Replicas)
-		}
-
 		if len(etcd.Status.Conditions) == 0 {
 			return fmt.Errorf("etcd %s status conditions is empty", etcd.Name)
 		}
