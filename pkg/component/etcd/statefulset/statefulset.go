@@ -107,9 +107,10 @@ func (c *component) Wait(ctx context.Context) error {
 		if getErr := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); getErr != nil {
 			return err
 		}
-		messages, err2 := c.fetchPVCEventsFor(ctx, sts)
+		messages, err2, errorPVC := c.fetchPVCEventsForStatefulset(ctx, sts)
 		if err2 != nil {
-			c.logger.Error(err2, "Error while fetching events for depending PVC")
+			c.logger.Error(err2, "Error while fetching events for depending PVCs for statefulset",
+				"namespace", sts.Namespace, "statefulsetName", sts.Name, "pvcName", errorPVC)
 			// don't expose this error since fetching events is the best effort
 			// and shouldn't be confused with the actual error
 			return err
@@ -253,7 +254,7 @@ func (c *component) addTasksForPeerUrlTLSChangedToEnabled(g *flow.Graph, sts *ap
 		waitLeaseUpdateID := g.Add(flow.Task{
 			Name: waitForLeaseUpdateOpName,
 			Fn: func(ctx context.Context) error {
-				return c.waitUntilTLSEnabled(ctx, waitForLeaseUpdateOpName, 3*time.Minute)
+				return c.waitUntilTLSEnabled(ctx, 3*time.Minute)
 			},
 			Dependencies: flow.NewTaskIDs(updateTaskID),
 		})
@@ -337,7 +338,7 @@ func (c *component) updateAndWait(ctx context.Context, opName string, sts *appsv
 	return c.doCreateOrUpdate(ctx, opName, sts, replicas, true)
 }
 
-func (c *component) waitUntilTLSEnabled(ctx context.Context, opName string, timeout time.Duration) error {
+func (c *component) waitUntilTLSEnabled(ctx context.Context, timeout time.Duration) error {
 	return gardenerretry.UntilTimeout(ctx, defaultInterval, timeout, func(ctx context.Context) (bool, error) {
 		tlsEnabled, err := utils.IsPeerURLTLSEnabled(ctx, c.client, c.values.Namespace, c.values.Name, c.logger)
 		if err != nil {
@@ -505,10 +506,12 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 	return nil
 }
 
-func (c *component) fetchPVCEventsFor(ctx context.Context, ss *appsv1.StatefulSet) (string, error) {
+// fetchPVCEventsForStatefulset fetches events for PVCs for a statefulset and return the events,
+// as well as possible error and name of the PVC that caused the error
+func (c *component) fetchPVCEventsForStatefulset(ctx context.Context, ss *appsv1.StatefulSet) (string, error, *string) {
 	pvcs := &corev1.PersistentVolumeClaimList{}
 	if err := c.client.List(ctx, pvcs, client.InNamespace(ss.GetNamespace())); err != nil {
-		return "", err
+		return "", err, nil
 	}
 
 	var (
@@ -522,14 +525,14 @@ func (c *component) fetchPVCEventsFor(ctx context.Context, ss *appsv1.StatefulSe
 			}
 			messages, err := kutil.FetchEventMessages(ctx, c.client.Scheme(), c.client, &pvc, corev1.EventTypeWarning, 2)
 			if err != nil {
-				return "", err
+				return "", err, &pvc.Name
 			}
 			if messages != "" {
 				pvcMessages += fmt.Sprintf("Warning for PVC %s:\n%s\n", pvc.Name, messages)
 			}
 		}
 	}
-	return pvcMessages, nil
+	return pvcMessages, nil, nil
 }
 
 func (c *component) emptyStatefulset() *appsv1.StatefulSet {
