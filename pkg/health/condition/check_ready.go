@@ -18,21 +18,12 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/utils"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type readyCheck struct{}
 
 func (r *readyCheck) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
-	if etcd.Status.ClusterSize == nil {
-		return &result{
-			conType: druidv1alpha1.ConditionTypeReady,
-			status:  druidv1alpha1.ConditionUnknown,
-			reason:  "ClusterSizeUnknown",
-			message: "Cannot determine readiness of cluster since no cluster size has been calculated",
-		}
-	}
 
 	// TODO: remove this case as soon as leases are completely supported by etcd-backup-restore
 	if len(etcd.Status.Members) == 0 {
@@ -45,7 +36,7 @@ func (r *readyCheck) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
 	}
 
 	var (
-		size         = utils.Max(int(*etcd.Status.ClusterSize), len(etcd.Status.Members))
+		size         = len(etcd.Status.Members)
 		quorum       = size/2 + 1
 		readyMembers = 0
 	)

@@ -138,7 +138,6 @@ func (eb *EtcdBuilder) WithReadyStatus() *EtcdBuilder {
 		members = append(members, druidv1alpha1.EtcdMemberStatus{Status: druidv1alpha1.EtcdMemberStatusReady})
 	}
 	eb.etcd.Status = druidv1alpha1.EtcdStatus{
-		ClusterSize:     pointer.Int32(eb.etcd.Spec.Replicas),
 		ReadyReplicas:   eb.etcd.Spec.Replicas,
 		Replicas:        eb.etcd.Spec.Replicas,
 		CurrentReplicas: eb.etcd.Spec.Replicas,
