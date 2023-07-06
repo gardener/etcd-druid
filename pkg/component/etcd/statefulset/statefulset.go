@@ -107,10 +107,10 @@ func (c *component) Wait(ctx context.Context) error {
 		if getErr := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); getErr != nil {
 			return err
 		}
-		messages, err2, errorPVC := c.fetchPVCEventsForStatefulset(ctx, sts)
+		messages, errorPVC, err2 := c.fetchPVCEventsForStatefulset(ctx, sts)
 		if err2 != nil {
 			c.logger.Error(err2, "Error while fetching events for depending PVCs for statefulset",
-				"namespace", sts.Namespace, "statefulsetName", sts.Name, "pvcName", errorPVC)
+				"namespace", sts.Namespace, "statefulsetName", sts.Name, "pvcName", *errorPVC)
 			// don't expose this error since fetching events is the best effort
 			// and shouldn't be confused with the actual error
 			return err
@@ -508,10 +508,10 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 
 // fetchPVCEventsForStatefulset fetches events for PVCs for a statefulset and return the events,
 // as well as possible error and name of the PVC that caused the error
-func (c *component) fetchPVCEventsForStatefulset(ctx context.Context, ss *appsv1.StatefulSet) (string, error, *string) {
+func (c *component) fetchPVCEventsForStatefulset(ctx context.Context, ss *appsv1.StatefulSet) (string, *string, error) {
 	pvcs := &corev1.PersistentVolumeClaimList{}
 	if err := c.client.List(ctx, pvcs, client.InNamespace(ss.GetNamespace())); err != nil {
-		return "", err, nil
+		return "", pointer.String(""), err
 	}
 
 	var (
@@ -525,7 +525,7 @@ func (c *component) fetchPVCEventsForStatefulset(ctx context.Context, ss *appsv1
 			}
 			messages, err := kutil.FetchEventMessages(ctx, c.client.Scheme(), c.client, &pvc, corev1.EventTypeWarning, 2)
 			if err != nil {
-				return "", err, &pvc.Name
+				return "", &pvc.Name, err
 			}
 			if messages != "" {
 				pvcMessages += fmt.Sprintf("Warning for PVC %s:\n%s\n", pvc.Name, messages)
