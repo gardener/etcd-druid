@@ -645,7 +645,7 @@ func populateEtcdWithCount(logger logr.Logger, kubeconfigPath, namespace, etcdNa
 			}
 			continue
 		}
-		logger.Info(fmt.Sprintf("put (%s-%d, %s-%d) successful", keyPrefix, i, valuePrefix, i))
+		logger.Info("put key-value successful", "key", fmt.Sprintf("%s-%d", keyPrefix, i), "value", fmt.Sprintf("%s-%d", valuePrefix, i))
 		retries = 0
 		i++
 	}
@@ -685,7 +685,7 @@ func getEtcdKeys(logger logr.Logger, kubeconfigPath, namespace, etcdName, podNam
 	for i := start; i <= end; {
 		key, val, err = getEtcdKey(kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix, i)
 		if err != nil {
-			logger.Info(fmt.Sprintf("failed to get key %s-%d. Retrying", keyPrefix, i))
+			logger.Info("failed to get key. Retrying...", "key", fmt.Sprintf("%s-%d", keyPrefix, i))
 			retries++
 			if retries >= etcdCommandMaxRetries {
 				return nil, fmt.Errorf("failed to get key %s-%d", keyPrefix, i)
@@ -693,7 +693,7 @@ func getEtcdKeys(logger logr.Logger, kubeconfigPath, namespace, etcdName, podNam
 			continue
 		}
 		retries = 0
-		logger.Info(fmt.Sprintf("fetched (%s, %s) from etcd", key, val))
+		logger.Info("fetched key-value pair from etcd", "key", key, "value", val)
 		keyValueMap[key] = val
 		i++
 	}
@@ -751,15 +751,6 @@ func deleteDir(kubeconfigPath, namespace, podName, containerName string, dirPath
 	stdout, stderr, err := executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stdout != "" {
 		return fmt.Errorf("failed to delete directory %s for %s: stdout: %s; stderr: %s; err: %v", dirPath, podName, stdout, stderr, err)
-	}
-	return nil
-}
-
-func corruptDBFile(kubeconfigPath, namespace, podName, containerName string, dirPath string) error {
-	cmd := fmt.Sprintf("echo destrory > %s", dirPath)
-	stdout, stderr, err := executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
-	if err != nil || stdout != "" {
-		return fmt.Errorf("failed to corrupt db %s for %s: stdout: %s; stderr: %s; err: %v", dirPath, podName, stdout, stderr, err)
 	}
 	return nil
 }

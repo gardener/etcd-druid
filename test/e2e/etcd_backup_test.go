@@ -97,7 +97,10 @@ var _ = Describe("Etcd Backup", func() {
 					Expect(latestSnapshotBeforePopulate).To(Not(BeNil()))
 
 					By("Put keys into etcd")
-					logger.Info(fmt.Sprintf("populating etcd with %s-1 to %s-10", etcdKeyPrefix, etcdKeyPrefix))
+					logger.Info("populating etcd with sequential key-value pairs",
+						"fromKey", fmt.Sprintf("%s-1", etcdKeyPrefix), "fromValue", fmt.Sprintf("%s-1", etcdValuePrefix),
+						"toKey", fmt.Sprintf("%s-10", etcdKeyPrefix), "toValue", fmt.Sprintf("%s-10", etcdValuePrefix))
+
 					// populate 10 keys in etcd, finishing in 10 seconds
 					err = populateEtcdWithCount(logger, kubeconfigPath, namespace, etcdName, podName, "etcd", etcdKeyPrefix, etcdValuePrefix, 1, 10, time.Second*1)
 					Expect(err).ShouldNot(HaveOccurred())
@@ -123,7 +126,9 @@ var _ = Describe("Etcd Backup", func() {
 					Expect(fullSnapshot.LastRevision).To(Equal(10 + latestSnapshotBeforePopulate.LastRevision))
 
 					By("Put additional data into etcd")
-					logger.Info(fmt.Sprintf("populating etcd with %s-11 to %s-15", etcdKeyPrefix, etcdKeyPrefix))
+					logger.Info("populating etcd with sequential key-value pairs",
+						"fromKey", fmt.Sprintf("%s-11", etcdKeyPrefix), "fromValue", fmt.Sprintf("%s-11", etcdValuePrefix),
+						"toKey", fmt.Sprintf("%s-15", etcdKeyPrefix), "toValue", fmt.Sprintf("%s-15", etcdValuePrefix))
 					// populate 5 keys in etcd, finishing in 5 seconds
 					err = populateEtcdWithCount(logger, kubeconfigPath, namespace, etcdName, podName, "etcd", etcdKeyPrefix, etcdValuePrefix, 11, 15, time.Second*1)
 					Expect(err).ShouldNot(HaveOccurred())

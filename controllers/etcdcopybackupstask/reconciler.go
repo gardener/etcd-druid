@@ -99,7 +99,7 @@ func (r *Reconciler) reconcile(ctx context.Context, task *druidv1alpha1.EtcdCopy
 
 	// Ensure finalizer
 	if !controllerutil.ContainsFinalizer(task, common.FinalizerName) {
-		logger.V(1).Info("Adding finalizer")
+		logger.V(1).Info("Adding finalizer", "finalizerName", common.FinalizerName)
 		if err := controllerutils.AddFinalizers(ctx, r.Client, task, common.FinalizerName); err != nil {
 			return ctrl.Result{}, fmt.Errorf("could not add finalizer: %w", err)
 		}
@@ -147,7 +147,7 @@ func (r *Reconciler) doReconcile(ctx context.Context, task *druidv1alpha1.EtcdCo
 	}
 
 	// Create job
-	logger.Info("Creating job", "job", kutil.ObjectName(job))
+	logger.Info("Creating job", "namespace", job.Namespace, "name", job.Name)
 	if err := r.Create(ctx, job); err != nil {
 		return status, fmt.Errorf("could not create job %s: %w", kutil.ObjectName(job), err)
 	}
@@ -160,7 +160,7 @@ func (r *Reconciler) delete(ctx context.Context, task *druidv1alpha1.EtcdCopyBac
 
 	// Check finalizer
 	if !controllerutil.ContainsFinalizer(task, common.FinalizerName) {
-		logger.V(1).Info("Skipping as it does not have a finalizer")
+		logger.V(1).Info("Skipping since finalizer not present", "finalizerName", common.FinalizerName)
 		return ctrl.Result{}, nil
 	}
 
@@ -185,7 +185,7 @@ func (r *Reconciler) delete(ctx context.Context, task *druidv1alpha1.EtcdCopyBac
 
 	// Remove finalizer if requested
 	if removeFinalizer {
-		logger.V(1).Info("Removing finalizer")
+		logger.V(1).Info("Removing finalizer", "finalizerName", common.FinalizerName)
 		if err := controllerutils.RemoveFinalizers(ctx, r.Client, task, common.FinalizerName); err != nil {
 			return ctrl.Result{}, fmt.Errorf("could not remove finalizer: %w", err)
 		}
@@ -213,7 +213,7 @@ func (r *Reconciler) doDelete(ctx context.Context, task *druidv1alpha1.EtcdCopyB
 
 	// Delete job if needed
 	if job.DeletionTimestamp == nil {
-		logger.Info("Deleting job", "job", kutil.ObjectName(job))
+		logger.Info("Deleting job", "namespace", job.Namespace, "name", job.Name)
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); client.IgnoreNotFound(err) != nil {
 			return status, false, fmt.Errorf("could not delete job %s: %w", kutil.ObjectName(job), err)
 		}

@@ -16,7 +16,6 @@ package custodian
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -76,7 +75,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logger := r.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
 
 	if etcd.Status.LastError != nil && *etcd.Status.LastError != "" {
-		logger.Info(fmt.Sprintf("Requeue item because of last error: %v", *etcd.Status.LastError))
+		logger.Info("Requeue item because of last error", "namespace", etcd.Namespace, "name", etcd.Name, "lastError", *etcd.Status.LastError)
 		return ctrl.Result{
 			RequeueAfter: 30 * time.Second,
 		}, nil
@@ -111,7 +110,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 func (r *Reconciler) updateEtcdStatus(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {
-	logger.Info("Updating etcd status with statefulset information")
+	logger.Info("Updating etcd status with statefulset information", "namespace", etcd.Namespace, "name", etcd.Name)
 
 	if sts != nil {
 		etcd.Status.Etcd = &druidv1alpha1.CrossVersionObjectReference{
@@ -127,7 +126,8 @@ func (r *Reconciler) updateEtcdStatus(ctx context.Context, logger logr.Logger, e
 		etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
 		etcd.Status.UpdatedReplicas = sts.Status.UpdatedReplicas
 		etcd.Status.Ready = &ready
-		logger.Info(fmt.Sprintf("ETCD status updated for statefulset current replicas: %v, ready replicas: %v, updated replicas: %v", sts.Status.CurrentReplicas, sts.Status.ReadyReplicas, sts.Status.UpdatedReplicas))
+		logger.Info("ETCD status updated for statefulset", "namespace", etcd.Namespace, "name", etcd.Name,
+			"currentReplicas", sts.Status.CurrentReplicas, "readyReplicas", sts.Status.ReadyReplicas, "updatedReplicas", sts.Status.UpdatedReplicas)
 	} else {
 		etcd.Status.CurrentReplicas = 0
 		etcd.Status.ReadyReplicas = 0

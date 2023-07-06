@@ -61,7 +61,8 @@ var _ = Describe("SecretController", func() {
 		})
 
 		It("should return false if secret is not referred to by any Etcd object", func() {
-			Expect(isFinalizerNeeded(testSecretName, &etcdList)).To(BeFalse())
+			isFinalizerNeeded, _ := isFinalizerNeeded(testSecretName, &etcdList)
+			Expect(isFinalizerNeeded).To(BeFalse())
 		})
 
 		It("should return true if secret is referred to in an Etcd object's Spec.Etcd.ClientUrlTLS section", func() {
@@ -71,7 +72,8 @@ var _ = Describe("SecretController", func() {
 					Namespace: testNamespace,
 				},
 			}
-			Expect(isFinalizerNeeded(testSecretName, &etcdList)).To(BeTrue())
+			isFinalizerNeeded, _ := isFinalizerNeeded(testSecretName, &etcdList)
+			Expect(isFinalizerNeeded).To(BeTrue())
 		})
 
 		It("should return true if secret is referred to in an Etcd object's Spec.Etcd.PeerUrlTLS section", func() {
@@ -81,7 +83,8 @@ var _ = Describe("SecretController", func() {
 					Namespace: testNamespace,
 				},
 			}
-			Expect(isFinalizerNeeded(testSecretName, &etcdList)).To(BeTrue())
+			isFinalizerNeeded, _ := isFinalizerNeeded(testSecretName, &etcdList)
+			Expect(isFinalizerNeeded).To(BeTrue())
 		})
 
 		It("should return true if secret is referred to in an Etcd object's Spec.Backup.Store section", func() {
@@ -91,7 +94,8 @@ var _ = Describe("SecretController", func() {
 					Namespace: testNamespace,
 				},
 			}
-			Expect(isFinalizerNeeded(testSecretName, &etcdList)).To(BeTrue())
+			isFinalizerNeeded, _ := isFinalizerNeeded(testSecretName, &etcdList)
+			Expect(isFinalizerNeeded).To(BeTrue())
 		})
 	})
 
