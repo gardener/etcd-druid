@@ -384,18 +384,18 @@ func checkJobReady(ctx context.Context, cl client.Client, jobName string) {
 }
 
 // etcdZeroDownTimeValidatorJob returns k8s job which ensures
-// Etcd cluster zero down time by continuously checking etcd cluster health.
+// Etcd cluster zero downtime by continuously checking etcd cluster health.
 // This job fails once health check fails and associated pod results in error status.
 func startEtcdZeroDownTimeValidatorJob(ctx context.Context, cl client.Client,
 	etcd *v1alpha1.Etcd, testName string) *batchv1.Job {
 	job := etcdZeroDownTimeValidatorJob(etcd.Name+"-client", testName, etcd.Spec.Etcd.ClientUrlTLS)
 
-	logger.Info(fmt.Sprintf("Creating job %s to ensure etcd zero downtime", job.Name))
+	logger.Info("Creating job to ensure etcd zero downtime", "job", job.Name)
 	ExpectWithOffset(1, cl.Create(ctx, job)).ShouldNot(HaveOccurred())
 
 	// Wait until zeroDownTimeValidator job is up and running.
 	checkJobReady(ctx, cl, job.Name)
-	logger.Info(fmt.Sprintf("Job %s is ready", job.Name))
+	logger.Info("Job is ready", "job", job.Name)
 	return job
 }
 
