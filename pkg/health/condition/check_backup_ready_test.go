@@ -243,7 +243,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
 				Expect(result.Reason()).To(Equal(BackupFailed))
-				Expect(result.Message()).To(Equal("Delta snapshot backup failed. Delta snapshot lease not renewed in a long time"))
+				Expect(result.Message()).To(ContainSubstring("Delta snapshot backup failed"))
 			})
 
 			It("Should set status to BackupSucceeded if both leases are recently renewed", func() {
@@ -291,7 +291,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
 				Expect(result.Reason()).To(Equal(BackupFailed))
-				Expect(result.Message()).To(Equal("Stale snapshot leases. Not renewed in a long time"))
+				Expect(result.Message()).To(ContainSubstring("Stale snapshot leases"))
 			})
 		})
 

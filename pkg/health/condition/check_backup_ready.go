@@ -38,8 +38,6 @@ const (
 	BackupFailed string = "BackupFailed"
 	// Unknown is a constant that means that the etcd backup status is currently not known
 	Unknown string = "Unknown"
-	// NotChecked is a constant that means that the etcd backup status has not been updated or rechecked
-	NotChecked string = "ConditionNotChecked"
 )
 
 func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
@@ -50,19 +48,26 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 	}
 
 	// Fetch snapshot leases
-	fullSnapshotLease, err := a.fetchLease(ctx, etcd.GetFullSnapshotLeaseName(), etcd.Namespace)
-	if err != nil {
+	fullSnapshotLease, fullSnapshotLeaseErr := a.fetchLease(ctx, etcd.GetFullSnapshotLeaseName(), etcd.Namespace)
+	deltaSnapSnapshotLease, deltaSnapshotLeaseErr := a.fetchLease(ctx, etcd.GetDeltaSnapshotLeaseName(), etcd.Namespace)
+
+	if fullSnapshotLeaseErr != nil && deltaSnapshotLeaseErr != nil {
 		return createBackupConditionResult(
 			druidv1alpha1.ConditionUnknown, Unknown,
-			fmt.Sprintf("Unable to fetch full snap lease. %s", err.Error()),
+			fmt.Sprintf("Unable to fetch both delta snap leases. %s\n%s", fullSnapshotLeaseErr.Error(), deltaSnapshotLeaseErr.Error()),
+		)
+	}
+	if fullSnapshotLeaseErr != nil {
+		return createBackupConditionResult(
+			druidv1alpha1.ConditionUnknown, Unknown,
+			fmt.Sprintf("Unable to fetch full snap lease. %s", fullSnapshotLeaseErr.Error()),
 		)
 	}
 
-	deltaSnapSnapshotLease, err := a.fetchLease(ctx, etcd.GetDeltaSnapshotLeaseName(), etcd.Namespace)
-	if err != nil {
+	if deltaSnapshotLeaseErr != nil {
 		return createBackupConditionResult(
 			druidv1alpha1.ConditionUnknown, Unknown,
-			fmt.Sprintf("Unable to fetch delta snap lease. %s", err.Error()),
+			fmt.Sprintf("Unable to fetch delta snap lease. %s", deltaSnapshotLeaseErr.Error()),
 		)
 	}
 
@@ -85,26 +90,28 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 		)
 	}
 
-	// Most probable during reconcile of existing clusters if fresh leases are created
-	if fullSnapshotLeaseRenewTime == nil && deltaSnapshotLeaseRenewTime != nil {
-		return handleOnlyDeltaSnapshotLeaseRenewedCase(
-			fullSnapshotLeaseCreationTime.Time, fullSnapshotDuration,
-			deltaSnapshotLeaseRenewTime.Time, 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration,
+	// Both snap leases are renewed, ie, maintained. Both are expected to be renewed periodically
+	if fullSnapshotLeaseRenewTime != nil && deltaSnapshotLeaseRenewTime != nil {
+		return handleRenewedSnapshotLeases(
+			fullSnapshotLease.Spec.RenewTime.Time, fullSnapshotDuration,
+			deltaSnapSnapshotLease.Spec.RenewTime.Time, 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration,
 		)
 	}
 
+	// Full snapshot lease is renewed, while delta snapshot lease is not.
 	// Most probable during a startup of a new cluster and only full snapshot has been taken
 	if fullSnapshotLeaseRenewTime != nil && deltaSnapshotLeaseRenewTime == nil {
-		return handleSnapshotterStartupCase(
+		return handleOnlyFullSnapshotLeaseRenewal(
 			fullSnapshotLease.Spec.RenewTime.Time,
 			5*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration,
 		)
 	}
 
-	// Both snap leases are renewed, ie, maintained. Both are expected to be renewed periodically
-	return handleRenewedSnapshotLeases(
-		fullSnapshotLease.Spec.RenewTime.Time, fullSnapshotDuration,
-		deltaSnapSnapshotLease.Spec.RenewTime.Time, 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration,
+	// Delta snapshot lease is renewed, while full snapshot lease is not.
+	// Most probable during reconcile of existing clusters if fresh leases are created
+	return handleOnlyDeltaSnapshotLeaseRenewal(
+		fullSnapshotLeaseCreationTime.Time, fullSnapshotDuration,
+		deltaSnapshotLeaseRenewTime.Time, 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration,
 	)
 }
 
@@ -131,24 +138,79 @@ func wasLeaseCreatedRecently(creationTime time.Time, creationGracePeriod time.Du
 	return time.Since(creationTime) < creationGracePeriod
 }
 
-// handleOnlyDeltaSnapshotLeaseRenewedCase handles cases where only delta snapshot lease is renewed,
+// handleRenewedSnapshotLeases checks whether full and delta snapshot leases
+// have been renewed within the required times respectively.
+func handleRenewedSnapshotLeases(fullSnapshotLeaseRenewTime time.Time, fullSnapshotLeaseRenewalGracePeriod time.Duration,
+	deltaSnapshotLeaseRenewTime time.Time, deltaSnapshotLeaseRenewalGracePeriod time.Duration) *result {
+	isFullSnapshotLeaseStale := isLeaseStale(fullSnapshotLeaseRenewTime, fullSnapshotLeaseRenewalGracePeriod)
+	isDeltaSnapshotLeaseStale := isLeaseStale(deltaSnapshotLeaseRenewTime, deltaSnapshotLeaseRenewalGracePeriod)
+
+	if isFullSnapshotLeaseStale && !isDeltaSnapshotLeaseStale {
+		return createBackupConditionResult(
+			druidv1alpha1.ConditionFalse, BackupFailed,
+			fmt.Sprintf("Stale full snapshot lease. Not renewed for %v", fullSnapshotLeaseRenewalGracePeriod),
+		)
+	}
+
+	if !isFullSnapshotLeaseStale && isDeltaSnapshotLeaseStale {
+		return createBackupConditionResult(
+			druidv1alpha1.ConditionFalse, BackupFailed,
+			fmt.Sprintf("Stale delta snapshot lease. Not renewed for %v", deltaSnapshotLeaseRenewalGracePeriod),
+		)
+	}
+
+	if isFullSnapshotLeaseStale && isDeltaSnapshotLeaseStale {
+		return createBackupConditionResult(
+			druidv1alpha1.ConditionFalse, BackupFailed,
+			fmt.Sprintf("Stale snapshot leases. Full snapshot lease not renewed for %v and delta snapshot lease not renewed for %v",
+				fullSnapshotLeaseRenewalGracePeriod, deltaSnapshotLeaseRenewalGracePeriod),
+		)
+	}
+
+	return createBackupConditionResult(
+		druidv1alpha1.ConditionTrue, BackupSucceeded,
+		"Snapshot backup succeeded",
+	)
+}
+
+// handleOnlyFullSnapshotLeaseRenewal handles cases where snapshotter has just started,
+// so only full snapshot has been taken, while delta snapshot is still not taken.
+// Returns `Unknown` condition for some time to allow delta snapshotting to begin, because
+// even though the full snapshot may have succeeded within the required time, we must still wait
+// for delta snapshotting to begin to consider the backups as healthy, because full snapshot is old now.
+func handleOnlyFullSnapshotLeaseRenewal(fullSnapshotLeaseRenewTime time.Time, deltaSnapshotRenewalGracePeriod time.Duration) *result {
+	if time.Since(fullSnapshotLeaseRenewTime) > deltaSnapshotRenewalGracePeriod {
+		return createBackupConditionResult(
+			druidv1alpha1.ConditionFalse, BackupFailed,
+			fmt.Sprintf("Delta snapshot backup failed. Delta snapshot lease not renewed for %v", deltaSnapshotRenewalGracePeriod),
+		)
+	}
+
+	return createBackupConditionResult(
+		druidv1alpha1.ConditionUnknown, Unknown,
+		"Waiting for delta snapshotting to begin",
+	)
+}
+
+// handleOnlyDeltaSnapshotLeaseRenewal handles cases where only delta snapshot lease is renewed,
 // while the full snapshot lease is not renewed, possibly since it might have been recreated recently.
 // Treats backup as succeeded if delta snapshot lease is renewed within the required time window
 // and full snapshot lease object is not older than the computed full snapshot duration.
-func handleOnlyDeltaSnapshotLeaseRenewedCase(fullSnapshotLeaseCreationTime time.Time, fullSnapshotLeaseCreationGracePeriod time.Duration, deltaSnapshotLeaseRenewTime time.Time, deltaSnapshotLeaseRenewalGracePeriod time.Duration) *result {
+func handleOnlyDeltaSnapshotLeaseRenewal(fullSnapshotLeaseCreationTime time.Time, fullSnapshotLeaseCreationGracePeriod time.Duration,
+	deltaSnapshotLeaseRenewTime time.Time, deltaSnapshotLeaseRenewalGracePeriod time.Duration) *result {
 	// wasFullSnapshotLeaseCreatedRecently indicates whether full snapshot was created within the given grace period. If it was,
 	// then it can be renewed only upon the next scheduled full snapshot event, so until then we cannot assume the status of the last
 	// full snapshot. But if it was created before the grace period and not been renewed, then full snapshot lease can be considered stale.
 	wasFullSnapshotLeaseCreatedRecently := wasLeaseCreatedRecently(fullSnapshotLeaseCreationTime, fullSnapshotLeaseCreationGracePeriod)
 
-	// isDeltaSnapshotLeaseStale indicates whether the delta snapshot lease was renewed within the given grace period.
+	// isDeltaSnapshotLeaseStale indicates whether the delta snapshot lease has not been renewed within the given grace period.
 	isDeltaSnapshotLeaseStale := isLeaseStale(deltaSnapshotLeaseRenewTime, deltaSnapshotLeaseRenewalGracePeriod)
 
 	// Delta snapshot lease is stale, while staleness of full snapshot lease cannot be determined yet
 	if isDeltaSnapshotLeaseStale && wasFullSnapshotLeaseCreatedRecently {
 		return createBackupConditionResult(
 			druidv1alpha1.ConditionFalse, BackupFailed,
-			"Delta snapshot backup failed. Delta snapshot lease not renewed in a long time",
+			fmt.Sprintf("Delta snapshot backup failed. Delta snapshot lease not renewed for %v", deltaSnapshotLeaseRenewalGracePeriod),
 		)
 	}
 
@@ -156,7 +218,8 @@ func handleOnlyDeltaSnapshotLeaseRenewedCase(fullSnapshotLeaseCreationTime time.
 	if isDeltaSnapshotLeaseStale && !wasFullSnapshotLeaseCreatedRecently {
 		return createBackupConditionResult(
 			druidv1alpha1.ConditionFalse, BackupFailed,
-			"Stale snapshot leases. Not renewed in a long time",
+			fmt.Sprintf("Stale snapshot leases. Full snapshot lease not renewed for %v and delta snapshot lease not renewed for %v",
+				fullSnapshotLeaseCreationGracePeriod, deltaSnapshotLeaseRenewalGracePeriod),
 		)
 	}
 
@@ -173,58 +236,6 @@ func handleOnlyDeltaSnapshotLeaseRenewedCase(fullSnapshotLeaseCreationTime time.
 	return createBackupConditionResult(
 		druidv1alpha1.ConditionTrue, BackupSucceeded,
 		"Delta snapshot backup succeeded",
-	)
-}
-
-// handleSnapshotterStartupCase handles cases where snapshotter has just started,
-// so only full snapshot has been taken, while delta snapshot is still not taken.
-// Returns `Unknown` condition for some time to allow delta snapshotting to begin, because
-// even though the full snapshot may have succeeded within the required time, we must still wait
-// for delta snapshotting to begin to consider the backups as healthy, to maintain the given RPO.
-func handleSnapshotterStartupCase(fullSnapshotLeaseRenewTime time.Time, deltaSnapshotRenewalGracePeriod time.Duration) *result {
-	if time.Since(fullSnapshotLeaseRenewTime) > deltaSnapshotRenewalGracePeriod {
-		return createBackupConditionResult(
-			druidv1alpha1.ConditionFalse, BackupFailed,
-			"Delta snapshot backup failed. Delta snapshot lease not renewed in a long time",
-		)
-	}
-
-	return createBackupConditionResult(
-		druidv1alpha1.ConditionUnknown, Unknown,
-		"Waiting for delta snapshotting to begin",
-	)
-}
-
-// handleRenewedSnapshotLeases checks whether full and delta snapshot leases
-// have been renewed within the required times respectively.
-func handleRenewedSnapshotLeases(fullSnapshotLeaseRenewTime time.Time, fullSnapshotLeaseRenewalGracePeriod time.Duration, deltaSnapshotLeaseRenewTime time.Time, deltaSnapshotLeaseRenewalGracePeriod time.Duration) *result {
-	isFullSnapshotLeaseStale := isLeaseStale(fullSnapshotLeaseRenewTime, fullSnapshotLeaseRenewalGracePeriod)
-	isDeltaSnapshotLeaseStale := isLeaseStale(deltaSnapshotLeaseRenewTime, deltaSnapshotLeaseRenewalGracePeriod)
-
-	if isFullSnapshotLeaseStale && !isDeltaSnapshotLeaseStale {
-		return createBackupConditionResult(
-			druidv1alpha1.ConditionFalse, BackupFailed,
-			"Stale full snapshot lease. Not renewed in a long time",
-		)
-	}
-
-	if !isFullSnapshotLeaseStale && isDeltaSnapshotLeaseStale {
-		return createBackupConditionResult(
-			druidv1alpha1.ConditionFalse, BackupFailed,
-			"Stale delta snapshot lease. Not renewed in a long time",
-		)
-	}
-
-	if isFullSnapshotLeaseStale && isDeltaSnapshotLeaseStale {
-		return createBackupConditionResult(
-			druidv1alpha1.ConditionFalse, BackupFailed,
-			"Stale snapshot leases. Not renewed in a long time",
-		)
-	}
-
-	return createBackupConditionResult(
-		druidv1alpha1.ConditionTrue, BackupSucceeded,
-		"Snapshot backup succeeded",
 	)
 }
 

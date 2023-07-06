@@ -92,6 +92,6 @@ func ComputeScheduleDuration(cronSchedule string) (time.Duration, error) {
 	}
 
 	nextScheduledTime := schedule.Next(time.Now())
-	nextNextScheduledTime := schedule.Next(nextScheduledTime.Add(time.Second))
+	nextNextScheduledTime := schedule.Next(nextScheduledTime)
 	return nextNextScheduledTime.Sub(nextScheduledTime), nil
 }
