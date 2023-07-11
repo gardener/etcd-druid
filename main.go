@@ -17,12 +17,14 @@ package main
 import (
 	"flag"
 	"os"
+	"runtime"
 
+	"github.com/go-logr/logr"
 	"go.uber.org/zap/zapcore"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/gardener/etcd-druid/controllers"
-	"github.com/go-logr/logr"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"github.com/gardener/etcd-druid/pkg/version"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -35,6 +37,8 @@ func main() {
 	ctx := ctrl.SetupSignalHandler()
 
 	ctrl.SetLogger(zap.New(buildDefaultLoggerOpts()...))
+
+	printVersionInfo()
 
 	mgrConfig := controllers.ManagerConfig{}
 	controllers.InitFromFlags(flag.CommandLine, &mgrConfig)
@@ -60,6 +64,11 @@ func main() {
 		logger.Error(err, "Error running manager")
 		os.Exit(1)
 	}
+}
+
+func printVersionInfo() {
+	logger.Info("Etcd-druid build information", "Etcd-druid Version", version.Version, "Git SHA", version.GitSHA)
+	logger.Info("Golang runtime information", "Version", runtime.Version(), "OS", runtime.GOOS, "Arch", runtime.GOARCH)
 }
 
 func printFlags(logger logr.Logger) {
