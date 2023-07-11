@@ -430,12 +430,31 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 					ServiceAccountName:        c.values.ServiceAccountName,
 					Affinity:                  c.values.Affinity,
 					TopologySpreadConstraints: c.values.TopologySpreadConstraints,
+					InitContainers: []corev1.Container{
+						{
+							Name:         "change-permissions",
+							Image:        "alpine:3.18.0",
+							Command:      []string{"sh", "-c", "--"},
+							Args:         []string{"chown -R 65532:65532 /var/etcd/data"},
+							VolumeMounts: getEtcdVolumeMounts(c.values),
+							SecurityContext: &corev1.SecurityContext{
+								RunAsGroup:   pointer.Int64(0),
+								RunAsNonRoot: pointer.Bool(false),
+								RunAsUser:    pointer.Int64(0),
+							},
+						},
+					},
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsGroup:   pointer.Int64(65532),
+						RunAsNonRoot: pointer.Bool(true),
+						RunAsUser:    pointer.Int64(65532),
+					},
 					Containers: []corev1.Container{
 						{
 							Name:            "etcd",
 							Image:           c.values.EtcdImage,
 							ImagePullPolicy: corev1.PullIfNotPresent,
-							Command:         c.values.EtcdCommand,
+							Args:            c.values.EtcdCommand,
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler:        getReadinessHandler(c.values),
 								InitialDelaySeconds: 15,
@@ -451,7 +470,7 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 							Name:            "backup-restore",
 							Image:           c.values.BackupImage,
 							ImagePullPolicy: corev1.PullIfNotPresent,
-							Command:         c.values.EtcdBackupCommand,
+							Args:            c.values.EtcdBackupCommand,
 							Ports:           getBackupPorts(c.values),
 							Resources:       getBackupResources(c.values),
 							Env:             getBackupRestoreEnvVars(c.values),
@@ -698,12 +717,12 @@ func getBackupRestoreVolumeMounts(val Values) []corev1.VolumeMount {
 	case utils.GCS:
 		vms = append(vms, corev1.VolumeMount{
 			Name:      "etcd-backup",
-			MountPath: "/root/.gcp/",
+			MountPath: "/var/.gcp/",
 		})
 	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
 		vms = append(vms, corev1.VolumeMount{
 			Name:      "etcd-backup",
-			MountPath: "/root/etcd-backup/",
+			MountPath: "/var/etcd-backup/",
 		})
 	}
 
@@ -878,7 +897,7 @@ func getBackupRestoreEnvVars(val Values) []corev1.EnvVar {
 	}
 
 	// TODO(timuthy): move this to a non root path when we switch to a rootless distribution
-	const credentialsMountPath = "/root/etcd-backup"
+	const credentialsMountPath = "/var/etcd-backup"
 	switch provider {
 	case utils.S3:
 		env = append(env, getEnvVarFromValue("AWS_APPLICATION_CREDENTIALS", credentialsMountPath))
@@ -887,7 +906,7 @@ func getBackupRestoreEnvVars(val Values) []corev1.EnvVar {
 		env = append(env, getEnvVarFromValue("AZURE_APPLICATION_CREDENTIALS", credentialsMountPath))
 
 	case utils.GCS:
-		env = append(env, getEnvVarFromValue("GOOGLE_APPLICATION_CREDENTIALS", "/root/.gcp/serviceaccount.json"))
+		env = append(env, getEnvVarFromValue("GOOGLE_APPLICATION_CREDENTIALS", "/var/.gcp/serviceaccount.json"))
 
 	case utils.Swift:
 		env = append(env, getEnvVarFromValue("OPENSTACK_APPLICATION_CREDENTIALS", credentialsMountPath))
@@ -964,9 +983,16 @@ func getReadinessHandlerForSingleNode(val Values) corev1.ProbeHandler {
 }
 
 func getReadinessHandlerForMultiNode(val Values) corev1.ProbeHandler {
+	scheme := corev1.URISchemeHTTPS
+	if val.BackupTLS == nil {
+		scheme = corev1.URISchemeHTTP
+	}
+
 	return corev1.ProbeHandler{
-		Exec: &corev1.ExecAction{
-			Command: val.ReadinessProbeCommand,
+		HTTPGet: &corev1.HTTPGetAction{
+			Path:   "/readyz",
+			Port:   intstr.FromInt(int(pointer.Int32Deref(val.WrapperPort, defaultWrapperPort))),
+			Scheme: scheme,
 		},
 	}
 }

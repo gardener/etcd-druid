@@ -231,16 +231,16 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 		})
 	})
 
-	Describe("#createJobCommandFromStore", func() {
+	Describe("#createJobArgumentFromStore", func() {
 		Context("when given a nil store", func() {
-			It("returns an empty command slice", func() {
-				Expect(createJobCommandFromStore(nil, "provider", "prefix")).To(BeEmpty())
+			It("returns an empty argument slice", func() {
+				Expect(createJobArgumentFromStore(nil, "provider", "prefix")).To(BeEmpty())
 			})
 		})
 
 		Context("when given a empty provider", func() {
-			It("returns an empty command slice", func() {
-				Expect(createJobCommandFromStore(nil, "", "prefix")).To(BeEmpty())
+			It("returns an empty argument slice", func() {
+				Expect(createJobArgumentFromStore(nil, "", "prefix")).To(BeEmpty())
 			})
 		})
 
@@ -260,47 +260,46 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				prefix = "prefix"
 			})
 
-			It("returns a command slice with provider, prefix, and container information", func() {
+			It("returns a argument slice with provider, prefix, and container information", func() {
 				expected := []string{
 					"--prefixstorage-provider=storage_provider",
 					"--prefixstore-prefix=store_prefix",
 					"--prefixstore-container=store_container",
 				}
-				Expect(createJobCommandFromStore(&store, provider, prefix)).To(Equal(expected))
+				Expect(createJobArgumentFromStore(&store, provider, prefix)).To(Equal(expected))
 			})
 
-			It("should return a command slice with provider and prefix information only when StoreSpec.Container is nil", func() {
+			It("should return a argument slice with provider and prefix information only when StoreSpec.Container is nil", func() {
 				expected := []string{
 					"--prefixstorage-provider=storage_provider",
 					"--prefixstore-prefix=store_prefix",
 				}
 				store.Container = nil
-				Expect(createJobCommandFromStore(&store, provider, prefix)).To(Equal(expected))
+				Expect(createJobArgumentFromStore(&store, provider, prefix)).To(Equal(expected))
 			})
 
-			It("should return a command slice with provider and container information only when StoreSpec.Prefix is empty", func() {
+			It("should return a argument slice with provider and container information only when StoreSpec.Prefix is empty", func() {
 				expected := []string{
 					"--prefixstorage-provider=storage_provider",
 					"--prefixstore-container=store_container",
 				}
 				store.Prefix = ""
-				Expect(createJobCommandFromStore(&store, provider, prefix)).To(Equal(expected))
+				Expect(createJobArgumentFromStore(&store, provider, prefix)).To(Equal(expected))
 			})
 
-			It("returns an empty command slice when StoreSpec.Provider is empty", func() {
+			It("returns an empty argument slice when StoreSpec.Provider is empty", func() {
 				provider = ""
-				Expect(createJobCommandFromStore(&store, provider, prefix)).To(BeEmpty())
+				Expect(createJobArgumentFromStore(&store, provider, prefix)).To(BeEmpty())
 			})
 		})
 	})
 
-	Describe("#createJobCommand", func() {
+	Describe("#createJobArguments", func() {
 		var (
 			providerLocal = druidv1alpha1.StorageProvider(druidutils.Local)
 			providerS3    = druidv1alpha1.StorageProvider(druidutils.S3)
 			task          *druidv1alpha1.EtcdCopyBackupsTask
 			expected      = []string{
-				"etcdbrctl",
 				"copy",
 				"--snapstore-temp-directory=/var/etcd/data/tmp",
 				"--storage-provider=S3",
@@ -332,38 +331,38 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			}
 		})
 
-		It("should create the correct command", func() {
-			command := createJobCommand(task, druidutils.Local, druidutils.S3)
-			Expect(command).To(Equal(expected))
+		It("should create the correct arguments", func() {
+			arguments := createJobArgs(task, druidutils.Local, druidutils.S3)
+			Expect(arguments).To(Equal(expected))
 		})
 
-		It("should include the max backup age in the command", func() {
+		It("should include the max backup age in the arguments", func() {
 			task.Spec.MaxBackupAge = pointer.Uint32(10)
-			command := createJobCommand(task, druidutils.Local, druidutils.S3)
-			Expect(command).To(Equal(append(expected, "--max-backup-age=10")))
+			arguments := createJobArgs(task, druidutils.Local, druidutils.S3)
+			Expect(arguments).To(Equal(append(expected, "--max-backup-age=10")))
 		})
 
-		It("should include the max number of backups in the command", func() {
+		It("should include the max number of backups in the arguments", func() {
 			task.Spec.MaxBackups = pointer.Uint32(5)
-			command := createJobCommand(task, druidutils.Local, druidutils.S3)
-			Expect(command).To(Equal(append(expected, "--max-backups-to-copy=5")))
+			arguments := createJobArgs(task, druidutils.Local, druidutils.S3)
+			Expect(arguments).To(Equal(append(expected, "--max-backups-to-copy=5")))
 		})
 
-		It("should include the wait for final snapshot in the command", func() {
+		It("should include the wait for final snapshot in the arguments", func() {
 			task.Spec.WaitForFinalSnapshot = &druidv1alpha1.WaitForFinalSnapshotSpec{
 				Enabled: true,
 			}
-			command := createJobCommand(task, druidutils.Local, druidutils.S3)
-			Expect(command).To(Equal(append(expected, "--wait-for-final-snapshot=true")))
+			arguments := createJobArgs(task, druidutils.Local, druidutils.S3)
+			Expect(arguments).To(Equal(append(expected, "--wait-for-final-snapshot=true")))
 		})
 
-		It("should include the wait for final snapshot and timeout in the command", func() {
+		It("should include the wait for final snapshot and timeout in the arguments", func() {
 			task.Spec.WaitForFinalSnapshot = &druidv1alpha1.WaitForFinalSnapshotSpec{
 				Enabled: true,
 				Timeout: &metav1.Duration{Duration: time.Minute},
 			}
-			command := createJobCommand(task, druidutils.Local, druidutils.S3)
-			Expect(command).To(Equal(append(expected, "--wait-for-final-snapshot=true", "--wait-for-final-snapshot-timeout=1m0s")))
+			arguments := createJobArgs(task, druidutils.Local, druidutils.S3)
+			Expect(arguments).To(Equal(append(expected, "--wait-for-final-snapshot=true", "--wait-for-final-snapshot-timeout=1m0s")))
 		})
 	})
 
@@ -455,10 +454,10 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 						expectedMountPath = *storeSpec.Container
 					case druidutils.GCS:
 						expectedMountName = volumeMountPrefix + "etcd-backup"
-						expectedMountPath = "/root/." + volumeMountPrefix + "gcp/"
+						expectedMountPath = "/var/." + volumeMountPrefix + "gcp/"
 					case druidutils.S3, druidutils.ABS, druidutils.Swift, druidutils.OCS, druidutils.OSS:
 						expectedMountName = volumeMountPrefix + "etcd-backup"
-						expectedMountPath = "/root/" + volumeMountPrefix + "etcd-backup/"
+						expectedMountPath = "/var/" + volumeMountPrefix + "etcd-backup/"
 					default:
 						Fail(fmt.Sprintf("Unknown provider: %s", provider))
 					}
@@ -689,12 +688,12 @@ func checkEnvVars(envVars []corev1.EnvVar, storeProvider, container, envKeyPrefi
 	case druidutils.S3, druidutils.ABS, druidutils.Swift, druidutils.OCS, druidutils.OSS:
 		expected = append(expected, corev1.EnvVar{
 			Name:  mapToEnvVarKey[storeProvider],
-			Value: "/root/" + volumePrefix + "etcd-backup",
+			Value: "/var/" + volumePrefix + "etcd-backup",
 		})
 	case druidutils.GCS:
 		expected = append(expected, corev1.EnvVar{
 			Name:  mapToEnvVarKey[storeProvider],
-			Value: "/root/." + volumePrefix + "gcp/serviceaccount.json",
+			Value: "/var/." + volumePrefix + "gcp/serviceaccount.json",
 		})
 	}
 	Expect(envVars).To(Equal(expected))
@@ -744,7 +743,7 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 							"Name":            Equal("copy-backups"),
 							"Image":           Equal(fmt.Sprintf("%s:%s", backupRestoreImage.Repository, *backupRestoreImage.Tag)),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
-							"Command":         MatchAllElements(testutils.CmdIterator, getCmdElements(task, sourceProvider, targetProvider)),
+							"Args":            MatchAllElements(testutils.CmdIterator, getArgElements(task, sourceProvider, targetProvider)),
 							"Env":             MatchElements(testutils.EnvIterator, IgnoreExtras, getEnvElements(task)),
 						}),
 					}),
@@ -756,10 +755,9 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 	return And(matcher, matchJobWithProviders(task, sourceProvider, targetProvider))
 }
 
-func getCmdElements(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvider, targetProvider string) Elements {
+func getArgElements(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvider, targetProvider string) Elements {
 	elements := Elements{
-		"etcdbrctl": Equal("etcdbrctl"),
-		"copy":      Equal("copy"),
+		"copy": Equal("copy"),
 		"--snapstore-temp-directory=/var/etcd/data/tmp": Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
 	}
 	if targetProvider != "" {
@@ -861,42 +859,42 @@ func getProviderEnvElements(storeProvider, prefix, volumePrefix string) Elements
 		return Elements{
 			prefix + "AWS_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 				"Name":  Equal(prefix + "AWS_APPLICATION_CREDENTIALS"),
-				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "ABS":
 		return Elements{
 			prefix + "AZURE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 				"Name":  Equal(prefix + "AZURE_APPLICATION_CREDENTIALS"),
-				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "GCS":
 		return Elements{
 			prefix + "GOOGLE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 				"Name":  Equal(prefix + "GOOGLE_APPLICATION_CREDENTIALS"),
-				"Value": Equal(fmt.Sprintf("/root/.%sgcp/serviceaccount.json", volumePrefix)),
+				"Value": Equal(fmt.Sprintf("/var/.%sgcp/serviceaccount.json", volumePrefix)),
 			}),
 		}
 	case "Swift":
 		return Elements{
 			prefix + "OPENSTACK_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 				"Name":  Equal(prefix + "OPENSTACK_APPLICATION_CREDENTIALS"),
-				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "OSS":
 		return Elements{
 			prefix + "ALICLOUD_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 				"Name":  Equal(prefix + "ALICLOUD_APPLICATION_CREDENTIALS"),
-				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "OCS":
 		return Elements{
 			prefix + "OPENSHIFT_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 				"Name":  Equal(prefix + "OPENSHIFT_APPLICATION_CREDENTIALS"),
-				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	default:
@@ -910,14 +908,14 @@ func getVolumeMountsElements(storeProvider, volumePrefix string) Elements {
 		return Elements{
 			volumePrefix + "etcd-backup": MatchFields(IgnoreExtras, Fields{
 				"Name":      Equal(volumePrefix + "etcd-backup"),
-				"MountPath": Equal(fmt.Sprintf("/root/.%sgcp/", volumePrefix)),
+				"MountPath": Equal(fmt.Sprintf("/var/.%sgcp/", volumePrefix)),
 			}),
 		}
 	default:
 		return Elements{
 			volumePrefix + "etcd-backup": MatchFields(IgnoreExtras, Fields{
 				"Name":      Equal(volumePrefix + "etcd-backup"),
-				"MountPath": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+				"MountPath": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	}

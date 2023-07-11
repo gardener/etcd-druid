@@ -269,9 +269,9 @@ func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) 
 					"RestartPolicy": Equal(corev1.RestartPolicyNever),
 					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						"compact-backup": MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
+							"Args": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--data-dir=/var/etcd/data/compaction.etcd":                                                                 Equal("--data-dir=/var/etcd/data/compaction.etcd"),
-								"--restoration-temp-snapshots-dir=/var/etcd/compaction.restoration.temp":                                    Equal("--restoration-temp-snapshots-dir=/var/etcd/compaction.restoration.temp"),
+								"--restoration-temp-snapshots-dir=/var/etcd/data/compaction.restoration.temp":                               Equal("--restoration-temp-snapshots-dir=/var/etcd/data/compaction.restoration.temp"),
 								"--snapstore-temp-directory=/var/etcd/data/tmp":                                                             Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
 								"--enable-snapshot-lease-renewal=true":                                                                      Equal("--enable-snapshot-lease-renewal=true"),
 								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", instance.GetFullSnapshotLeaseName()):                     Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", instance.GetFullSnapshotLeaseName())),
@@ -331,7 +331,7 @@ func validateStoreGCPForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 				"Spec": MatchFields(IgnoreExtras, Fields{
 					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						"compact-backup": MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
+							"Args": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=GCS": Equal("--storage-provider=GCS"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):        Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
@@ -339,7 +339,7 @@ func validateStoreGCPForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 							"VolumeMounts": MatchElements(testutils.VolumeMountIterator, IgnoreExtras, Elements{
 								"etcd-backup": MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal("etcd-backup"),
-									"MountPath": Equal("/root/.gcp/"),
+									"MountPath": Equal("/var/.gcp/"),
 								}),
 							}),
 							"Env": MatchAllElements(testutils.EnvIterator, Elements{
@@ -357,7 +357,7 @@ func validateStoreGCPForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 								}),
 								"GOOGLE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("GOOGLE_APPLICATION_CREDENTIALS"),
-									"Value": Equal("/root/.gcp/serviceaccount.json"),
+									"Value": Equal("/var/.gcp/serviceaccount.json"),
 								}),
 							}),
 						}),
@@ -385,7 +385,7 @@ func validateStoreAWSForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 				"Spec": MatchFields(IgnoreExtras, Fields{
 					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						"compact-backup": MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
+							"Args": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=S3": Equal("--storage-provider=S3"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):        Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
@@ -405,7 +405,7 @@ func validateStoreAWSForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 								}),
 								"AWS_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("AWS_APPLICATION_CREDENTIALS"),
-									"Value": Equal("/root/etcd-backup"),
+									"Value": Equal("/var/etcd-backup"),
 								}),
 							}),
 						}),
@@ -433,7 +433,7 @@ func validateStoreAzureForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1
 				"Spec": MatchFields(IgnoreExtras, Fields{
 					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						"compact-backup": MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
+							"Args": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=ABS": Equal("--storage-provider=ABS"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):        Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
@@ -453,7 +453,7 @@ func validateStoreAzureForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1
 								}),
 								"AZURE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("AZURE_APPLICATION_CREDENTIALS"),
-									"Value": Equal("/root/etcd-backup"),
+									"Value": Equal("/var/etcd-backup"),
 								}),
 							}),
 						}),
@@ -481,7 +481,7 @@ func validateStoreOpenstackForCompactionJob(instance *druidv1alpha1.Etcd, j *bat
 				"Spec": MatchFields(IgnoreExtras, Fields{
 					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						"compact-backup": MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
+							"Args": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=Swift": Equal("--storage-provider=Swift"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):        Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
@@ -501,7 +501,7 @@ func validateStoreOpenstackForCompactionJob(instance *druidv1alpha1.Etcd, j *bat
 								}),
 								"OPENSTACK_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("OPENSTACK_APPLICATION_CREDENTIALS"),
-									"Value": Equal("/root/etcd-backup"),
+									"Value": Equal("/var/etcd-backup"),
 								}),
 							}),
 						}),
@@ -529,7 +529,7 @@ func validateStoreAlicloudForCompactionJob(instance *druidv1alpha1.Etcd, j *batc
 				"Spec": MatchFields(IgnoreExtras, Fields{
 					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						"compact-backup": MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
+							"Args": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=OSS": Equal("--storage-provider=OSS"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):        Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
@@ -550,7 +550,7 @@ func validateStoreAlicloudForCompactionJob(instance *druidv1alpha1.Etcd, j *batc
 								}),
 								"ALICLOUD_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("ALICLOUD_APPLICATION_CREDENTIALS"),
-									"Value": Equal("/root/etcd-backup"),
+									"Value": Equal("/var/etcd-backup"),
 								}),
 							}),
 						}),

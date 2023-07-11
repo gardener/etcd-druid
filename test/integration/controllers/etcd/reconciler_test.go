@@ -668,8 +668,11 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 									ContainerPort: clientPort,
 								},
 							}),
-							"Command": MatchAllElements(testutils.CmdIterator, Elements{
-								"/var/etcd/bin/bootstrap.sh": Equal("/var/etcd/bin/bootstrap.sh"),
+							"Args": MatchAllElements(testutils.CmdIterator, Elements{
+								"start-etcd":                         Equal("start-etcd"),
+								"--backup-restore-tls-enabled=false": Equal("--backup-restore-tls-enabled=false"),
+								fmt.Sprintf("--backup-restore-host-port=%s-local:%d", instance.Name, backupPort): Equal(fmt.Sprintf("--backup-restore-host-port=%s-local:%d", instance.Name, backupPort)),
+								fmt.Sprintf("--etcd-server-name=%s-local", instance.Name):                        Equal(fmt.Sprintf("--etcd-server-name=%s-local", instance.Name)),
 							}),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
 							"Image":           Equal(fmt.Sprintf("%s:%s", images[common.Etcd].Repository, *images[common.Etcd].Tag)),
@@ -700,17 +703,16 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 						}),
 
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Command": MatchAllElements(testutils.CmdIterator, Elements{
-								"etcdbrctl":                          Equal("etcdbrctl"),
+							"Args": MatchAllElements(testutils.CmdIterator, Elements{
 								"server":                             Equal("server"),
 								"--data-dir=/var/etcd/data/new.etcd": Equal("--data-dir=/var/etcd/data/new.etcd"),
-								"--restoration-temp-snapshots-dir=/var/etcd/restoration.temp": Equal("--restoration-temp-snapshots-dir=/var/etcd/restoration.temp"),
-								"--insecure-transport=true":                                   Equal("--insecure-transport=true"),
-								"--insecure-skip-tls-verify=true":                             Equal("--insecure-skip-tls-verify=true"),
-								"--etcd-connection-timeout=5m":                                Equal("--etcd-connection-timeout=5m"),
-								"--snapstore-temp-directory=/var/etcd/data/temp":              Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
-								"--enable-member-lease-renewal=true":                          Equal("--enable-member-lease-renewal=true"),
-								"--k8s-heartbeat-duration=10s":                                Equal("--k8s-heartbeat-duration=10s"),
+								"--restoration-temp-snapshots-dir=/var/etcd/data/restoration.temp": Equal("--restoration-temp-snapshots-dir=/var/etcd/data/restoration.temp"),
+								"--insecure-transport=true":                                        Equal("--insecure-transport=true"),
+								"--insecure-skip-tls-verify=true":                                  Equal("--insecure-skip-tls-verify=true"),
+								"--etcd-connection-timeout=5m":                                     Equal("--etcd-connection-timeout=5m"),
+								"--snapstore-temp-directory=/var/etcd/data/temp":                   Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
+								"--enable-member-lease-renewal=true":                               Equal("--enable-member-lease-renewal=true"),
+								"--k8s-heartbeat-duration=10s":                                     Equal("--k8s-heartbeat-duration=10s"),
 
 								fmt.Sprintf("--delta-snapshot-memory-limit=%d", deltaSnapShotMemLimit.Value()):                 Equal(fmt.Sprintf("--delta-snapshot-memory-limit=%d", deltaSnapShotMemLimit.Value())),
 								fmt.Sprintf("--garbage-collection-policy=%s", druidv1alpha1.GarbageCollectionPolicyLimitBased): Equal(fmt.Sprintf("--garbage-collection-policy=%s", druidv1alpha1.GarbageCollectionPolicyLimitBased)),
@@ -1025,8 +1027,14 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 									ContainerPort: *instance.Spec.Etcd.ClientPort,
 								},
 							}),
-							"Command": MatchAllElements(testutils.CmdIterator, Elements{
-								"/var/etcd/bin/bootstrap.sh": Equal("/var/etcd/bin/bootstrap.sh"),
+							"Args": MatchAllElements(testutils.CmdIterator, Elements{
+								"start-etcd":                        Equal("start-etcd"),
+								"--backup-restore-tls-enabled=true": Equal("--backup-restore-tls-enabled=true"),
+								"--etcd-client-cert-path=/var/etcd/ssl/client/client/tls.crt":                    Equal("--etcd-client-cert-path=/var/etcd/ssl/client/client/tls.crt"),
+								"--etcd-client-key-path=/var/etcd/ssl/client/client/tls.key":                     Equal("--etcd-client-key-path=/var/etcd/ssl/client/client/tls.key"),
+								"--backup-restore-ca-cert-bundle-path=/var/etcd/ssl/client/ca/ca.crt":            Equal("--backup-restore-ca-cert-bundle-path=/var/etcd/ssl/client/ca/ca.crt"),
+								fmt.Sprintf("--backup-restore-host-port=%s-local:%d", instance.Name, backupPort): Equal(fmt.Sprintf("--backup-restore-host-port=%s-local:%d", instance.Name, backupPort)),
+								fmt.Sprintf("--etcd-server-name=%s-local", instance.Name):                        Equal(fmt.Sprintf("--etcd-server-name=%s-local", instance.Name)),
 							}),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
 							"Image":           Equal(*instance.Spec.Etcd.Image),
@@ -1081,16 +1089,15 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 						}),
 
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Command": MatchAllElements(testutils.CmdIterator, Elements{
-								"etcdbrctl": Equal("etcdbrctl"),
-								"server":    Equal("server"),
+							"Args": MatchAllElements(testutils.CmdIterator, Elements{
+								"server": Equal("server"),
 								"--cert=/var/etcd/ssl/client/client/tls.crt":                                                                        Equal("--cert=/var/etcd/ssl/client/client/tls.crt"),
 								"--key=/var/etcd/ssl/client/client/tls.key":                                                                         Equal("--key=/var/etcd/ssl/client/client/tls.key"),
 								"--cacert=/var/etcd/ssl/client/ca/ca.crt":                                                                           Equal("--cacert=/var/etcd/ssl/client/ca/ca.crt"),
 								"--server-cert=/var/etcd/ssl/client/server/tls.crt":                                                                 Equal("--server-cert=/var/etcd/ssl/client/server/tls.crt"),
 								"--server-key=/var/etcd/ssl/client/server/tls.key":                                                                  Equal("--server-key=/var/etcd/ssl/client/server/tls.key"),
 								"--data-dir=/var/etcd/data/new.etcd":                                                                                Equal("--data-dir=/var/etcd/data/new.etcd"),
-								"--restoration-temp-snapshots-dir=/var/etcd/restoration.temp":                                                       Equal("--restoration-temp-snapshots-dir=/var/etcd/restoration.temp"),
+								"--restoration-temp-snapshots-dir=/var/etcd/data/restoration.temp":                                                  Equal("--restoration-temp-snapshots-dir=/var/etcd/data/restoration.temp"),
 								"--insecure-transport=false":                                                                                        Equal("--insecure-transport=false"),
 								"--insecure-skip-tls-verify=false":                                                                                  Equal("--insecure-skip-tls-verify=false"),
 								"--snapstore-temp-directory=/var/etcd/data/temp":                                                                    Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
@@ -1274,14 +1281,14 @@ func validateStoreGCP(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *co
 				"Spec": MatchFields(IgnoreExtras, Fields{
 					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
+							"Args": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=GCS": Equal("--storage-provider=GCS"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix): Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 							}),
 							"VolumeMounts": MatchElements(testutils.VolumeMountIterator, IgnoreExtras, Elements{
 								"etcd-backup": MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal("etcd-backup"),
-									"MountPath": Equal("/root/.gcp/"),
+									"MountPath": Equal("/var/.gcp/"),
 								}),
 							}),
 							"Env": MatchAllElements(testutils.EnvIterator, Elements{
@@ -1307,7 +1314,7 @@ func validateStoreGCP(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *co
 								}),
 								"GOOGLE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("GOOGLE_APPLICATION_CREDENTIALS"),
-									"Value": Equal("/root/.gcp/serviceaccount.json"),
+									"Value": Equal("/var/.gcp/serviceaccount.json"),
 								}),
 							}),
 						}),
@@ -1337,7 +1344,7 @@ func validateStoreAzure(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *
 				"Spec": MatchFields(IgnoreExtras, Fields{
 					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
+							"Args": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=ABS": Equal("--storage-provider=ABS"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix): Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 							}),
@@ -1364,7 +1371,7 @@ func validateStoreAzure(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *
 								}),
 								"AZURE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("AZURE_APPLICATION_CREDENTIALS"),
-									"Value": Equal("/root/etcd-backup"),
+									"Value": Equal("/var/etcd-backup"),
 								}),
 							}),
 						}),
@@ -1393,7 +1400,7 @@ func validateStoreOpenstack(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet,
 				"Spec": MatchFields(IgnoreExtras, Fields{
 					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
+							"Args": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=Swift": Equal("--storage-provider=Swift"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix): Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 							}),
@@ -1420,7 +1427,7 @@ func validateStoreOpenstack(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet,
 								}),
 								"OPENSTACK_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("OPENSTACK_APPLICATION_CREDENTIALS"),
-									"Value": Equal("/root/etcd-backup"),
+									"Value": Equal("/var/etcd-backup"),
 								}),
 							}),
 						}),
@@ -1450,7 +1457,7 @@ func validateStoreAlicloud(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, 
 					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
+							"Args": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=OSS": Equal("--storage-provider=OSS"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix): Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 							}),
@@ -1478,7 +1485,7 @@ func validateStoreAlicloud(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, 
 								}),
 								"ALICLOUD_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("ALICLOUD_APPLICATION_CREDENTIALS"),
-									"Value": Equal("/root/etcd-backup"),
+									"Value": Equal("/var/etcd-backup"),
 								}),
 							}),
 						}),
@@ -1508,7 +1515,7 @@ func validateStoreAWS(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *co
 					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Command": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
+							"Args": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
 								"--storage-provider=S3": Equal("--storage-provider=S3"),
 								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix): Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
 							}),
@@ -1536,7 +1543,7 @@ func validateStoreAWS(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *co
 								}),
 								"AWS_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal("AWS_APPLICATION_CREDENTIALS"),
-									"Value": Equal("/root/etcd-backup"),
+									"Value": Equal("/var/etcd-backup"),
 								}),
 							}),
 						}),

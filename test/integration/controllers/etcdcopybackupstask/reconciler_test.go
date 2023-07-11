@@ -175,7 +175,7 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 							"Name":            Equal("copy-backups"),
 							"Image":           Equal(fmt.Sprintf("%s:%s", backupRestoreImage.Repository, *backupRestoreImage.Tag)),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
-							"Command":         MatchAllElements(testutils.CmdIterator, getCmdElements(task, sourceProvider, targetProvider)),
+							"Args":            MatchAllElements(testutils.CmdIterator, getArgElements(task, sourceProvider, targetProvider)),
 							"Env":             MatchElements(testutils.EnvIterator, IgnoreExtras, getEnvElements(task)),
 						}),
 					}),
@@ -187,10 +187,9 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 	return And(matcher, matchJobWithProviders(task, sourceProvider, targetProvider))
 }
 
-func getCmdElements(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvider, targetProvider string) Elements {
+func getArgElements(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvider, targetProvider string) Elements {
 	elements := Elements{
-		"etcdbrctl": Equal("etcdbrctl"),
-		"copy":      Equal("copy"),
+		"copy": Equal("copy"),
 		"--snapstore-temp-directory=/var/etcd/data/tmp": Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
 	}
 	if targetProvider != "" {
@@ -292,42 +291,42 @@ func getProviderEnvElements(storeProvider, prefix, volumePrefix string) Elements
 		return Elements{
 			prefix + "AWS_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 				"Name":  Equal(prefix + "AWS_APPLICATION_CREDENTIALS"),
-				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "ABS":
 		return Elements{
 			prefix + "AZURE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 				"Name":  Equal(prefix + "AZURE_APPLICATION_CREDENTIALS"),
-				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "GCS":
 		return Elements{
 			prefix + "GOOGLE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 				"Name":  Equal(prefix + "GOOGLE_APPLICATION_CREDENTIALS"),
-				"Value": Equal(fmt.Sprintf("/root/.%sgcp/serviceaccount.json", volumePrefix)),
+				"Value": Equal(fmt.Sprintf("/var/.%sgcp/serviceaccount.json", volumePrefix)),
 			}),
 		}
 	case "Swift":
 		return Elements{
 			prefix + "OPENSTACK_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 				"Name":  Equal(prefix + "OPENSTACK_APPLICATION_CREDENTIALS"),
-				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "OSS":
 		return Elements{
 			prefix + "ALICLOUD_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 				"Name":  Equal(prefix + "ALICLOUD_APPLICATION_CREDENTIALS"),
-				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "OCS":
 		return Elements{
 			prefix + "OPENSHIFT_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
 				"Name":  Equal(prefix + "OPENSHIFT_APPLICATION_CREDENTIALS"),
-				"Value": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	default:
@@ -341,14 +340,14 @@ func getVolumeMountsElements(storeProvider, volumePrefix string) Elements {
 		return Elements{
 			volumePrefix + "etcd-backup": MatchFields(IgnoreExtras, Fields{
 				"Name":      Equal(volumePrefix + "etcd-backup"),
-				"MountPath": Equal(fmt.Sprintf("/root/.%sgcp/", volumePrefix)),
+				"MountPath": Equal(fmt.Sprintf("/var/.%sgcp/", volumePrefix)),
 			}),
 		}
 	default:
 		return Elements{
 			volumePrefix + "etcd-backup": MatchFields(IgnoreExtras, Fields{
 				"Name":      Equal(volumePrefix + "etcd-backup"),
-				"MountPath": Equal(fmt.Sprintf("/root/%setcd-backup", volumePrefix)),
+				"MountPath": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	}

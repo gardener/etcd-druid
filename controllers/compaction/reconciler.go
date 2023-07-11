@@ -298,7 +298,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 						Name:            "compact-backup",
 						Image:           *etcdBackupImage,
 						ImagePullPolicy: v1.PullIfNotPresent,
-						Command:         getCompactionJobCommands(etcd),
+						Args:            getCompactionJobArgs(etcd),
 						VolumeMounts:    getCompactionJobVolumeMounts(etcd, logger),
 						Env:             getCompactionJobEnvVar(etcd, logger),
 					}},
@@ -353,12 +353,12 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, logger logr.Logger) 
 	if provider == utils.GCS {
 		vms = append(vms, v1.VolumeMount{
 			Name:      "etcd-backup",
-			MountPath: "/root/.gcp/",
+			MountPath: "/var/.gcp/",
 		})
 	} else if provider == utils.S3 || provider == utils.ABS || provider == utils.OSS || provider == utils.Swift || provider == utils.OCS {
 		vms = append(vms, v1.VolumeMount{
 			Name:      "etcd-backup",
-			MountPath: "/root/etcd-backup/",
+			MountPath: "/var/etcd-backup/",
 		})
 	}
 
@@ -425,15 +425,15 @@ func getCompactionJobEnvVar(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.E
 
 	switch provider {
 	case utils.S3:
-		env = append(env, getEnvVarFromValues("AWS_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
+		env = append(env, getEnvVarFromValues("AWS_APPLICATION_CREDENTIALS", "/var/etcd-backup"))
 	case utils.ABS:
-		env = append(env, getEnvVarFromValues("AZURE_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
+		env = append(env, getEnvVarFromValues("AZURE_APPLICATION_CREDENTIALS", "/var/etcd-backup"))
 	case utils.GCS:
-		env = append(env, getEnvVarFromValues("GOOGLE_APPLICATION_CREDENTIALS", "/root/.gcp/serviceaccount.json"))
+		env = append(env, getEnvVarFromValues("GOOGLE_APPLICATION_CREDENTIALS", "/var/.gcp/serviceaccount.json"))
 	case utils.Swift:
-		env = append(env, getEnvVarFromValues("OPENSTACK_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
+		env = append(env, getEnvVarFromValues("OPENSTACK_APPLICATION_CREDENTIALS", "/var/etcd-backup"))
 	case utils.OSS:
-		env = append(env, getEnvVarFromValues("ALICLOUD_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
+		env = append(env, getEnvVarFromValues("ALICLOUD_APPLICATION_CREDENTIALS", "/var/etcd-backup"))
 	case utils.ECS:
 		if storeValues.SecretRef == nil {
 			logger.Info("No secretRef is configured for backup store. Compaction job will fail as no storage could be configured.",
@@ -445,7 +445,7 @@ func getCompactionJobEnvVar(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.E
 		env = append(env, getEnvVarFromSecrets("ECS_ACCESS_KEY_ID", storeValues.SecretRef.Name, "accessKeyID"))
 		env = append(env, getEnvVarFromSecrets("ECS_SECRET_ACCESS_KEY", storeValues.SecretRef.Name, "secretAccessKey"))
 	case utils.OCS:
-		env = append(env, getEnvVarFromValues("OPENSHIFT_APPLICATION_CREDENTIALS", "/root/etcd-backup"))
+		env = append(env, getEnvVarFromValues("OPENSHIFT_APPLICATION_CREDENTIALS", "/var/etcd-backup"))
 	}
 
 	return env
@@ -483,11 +483,10 @@ func getEnvVarFromSecrets(name, secretName, secretKey string) v1.EnvVar {
 	}
 }
 
-func getCompactionJobCommands(etcd *druidv1alpha1.Etcd) []string {
-	command := []string{"" + "etcdbrctl"}
-	command = append(command, "compact")
+func getCompactionJobArgs(etcd *druidv1alpha1.Etcd) []string {
+	command := []string{"compact"}
 	command = append(command, "--data-dir=/var/etcd/data/compaction.etcd")
-	command = append(command, "--restoration-temp-snapshots-dir=/var/etcd/compaction.restoration.temp")
+	command = append(command, "--restoration-temp-snapshots-dir=/var/etcd/data/compaction.restoration.temp")
 	command = append(command, "--snapstore-temp-directory=/var/etcd/data/tmp")
 	command = append(command, "--enable-snapshot-lease-renewal=true")
 	command = append(command, "--full-snapshot-lease-name="+etcd.GetFullSnapshotLeaseName())

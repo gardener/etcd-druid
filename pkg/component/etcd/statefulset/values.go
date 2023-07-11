@@ -57,9 +57,8 @@ type Values struct {
 	EtcdResourceRequirements   *corev1.ResourceRequirements
 	BackupResourceRequirements *corev1.ResourceRequirements
 
-	EtcdCommand           []string
-	ReadinessProbeCommand []string
-	EtcdBackupCommand     []string
+	EtcdCommand       []string
+	EtcdBackupCommand []string
 
 	EnableClientTLS string
 	EnablePeerTLS   string
@@ -114,8 +113,10 @@ type Values struct {
 	PeerServiceName string
 	// ServerPort is the peer port.
 	ServerPort *int32
-	// ServerPort is the backup-restore side-car port.
+	// BackupPort is the backup-restore side-car port.
 	BackupPort *int32
+	// WrapperPort is the port where etcd-wrapper registers and exposes it's ready endpoint
+	WrapperPort *int32
 
 	// AutoCompactionMode defines the auto-compaction-mode: 'periodic' or 'revision'.
 	AutoCompactionMode *druidv1alpha1.CompactionMode
