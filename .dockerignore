@@ -18,3 +18,4 @@
 !LICENSE.md
 !Makefile
 !VERSION
+!hack/get-version.sh
