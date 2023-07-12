@@ -52,7 +52,7 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) Values {
 // CalculatePDBMinAvailable calculates the minimum available value for the PDB
 func CalculatePDBMinAvailable(etcd *druidv1alpha1.Etcd) int {
 	// do not enable for single node cluster
-	if etcd.Spec.Replicas < 2 {
+	if etcd.Spec.Replicas <= 1 {
 		return 0
 	}
 
