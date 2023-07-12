@@ -52,7 +52,7 @@ spec:
     garbageCollectionPeriod: 43200s
     garbageCollectionPolicy: Exponential
     imageRepository: eu.gcr.io/gardener-project/gardener/etcdbrctl
-    imageVersion: v0.12.0
+    imageVersion: v0.25.0
     port: 8080
     resources:
       limits:
@@ -67,8 +67,8 @@ spec:
     clientPort: 2379
     defragmentationSchedule: 0 */24 * * *
     enableTLS: false
-    imageRepository: eu.gcr.io/gardener-project/gardener/etcd
-    imageVersion: v3.4.13-bootstrap
+    imageRepository: eu.gcr.io/gardener-project/gardener/etcd-wrapper
+    imageVersion: v0.1.0
     initialClusterState: new
     initialClusterToken: new
     metrics: basic
