@@ -16,6 +16,8 @@ package controllers
 
 import (
 	"flag"
+	"github.com/gardener/etcd-druid/pkg/features"
+	"k8s.io/component-base/featuregate"
 
 	"github.com/gardener/etcd-druid/controllers/compaction"
 	"github.com/gardener/etcd-druid/controllers/custodian"
@@ -61,6 +63,8 @@ type ManagerConfig struct {
 	DisableLeaseCache bool
 	// IgnoreOperationAnnotation specifies whether to ignore or honour the operation annotation on resources to be reconciled.
 	IgnoreOperationAnnotation bool
+	// FeatureFlags contains the feature flags to be used by etcd-druid.
+	FeatureFlags map[string]bool
 	// EtcdControllerConfig is the configuration required for etcd controller.
 	EtcdControllerConfig *etcd.Config
 	// CustodianControllerConfig is the configuration required for custodian controller.
@@ -88,6 +92,9 @@ func InitFromFlags(fs *flag.FlagSet, cfg *ManagerConfig) {
 	flag.BoolVar(&cfg.IgnoreOperationAnnotation, ignoreOperationAnnotationFlagName, defaultIgnoreOperationAnnotation,
 		"Specifies whether to ignore or honour the operation annotation on resources to be reconciled.")
 
+	cfg.FeatureFlags = features.GetDefaultFeatureFlags()
+	InitFeatureFlags(fs, cfg.FeatureFlags)
+
 	cfg.EtcdControllerConfig = &etcd.Config{}
 	etcd.InitFromFlags(fs, cfg.EtcdControllerConfig)
 
@@ -102,6 +109,20 @@ func InitFromFlags(fs *flag.FlagSet, cfg *ManagerConfig) {
 
 	cfg.SecretControllerConfig = &secret.Config{}
 	secret.InitFromFlags(fs, cfg.SecretControllerConfig)
+}
+
+// InitFeatureFlags initializes the features flags from the provided CLI flag set.
+// TODO: passing by value and not by reference, will this work?
+func InitFeatureFlags(fs *flag.FlagSet, featureFlags map[string]bool) {
+	for feature, value := range featureFlags {
+		fs.BoolVar(&value, feature, value, features.FeatureDescriptions[featuregate.Feature(feature)])
+	}
+}
+
+// PopulateControllerFeatureFlags
+// TODO: opt1
+func PopulateControllerFeatureFlags() {
+
 }
 
 // Validate validates the controller manager config.

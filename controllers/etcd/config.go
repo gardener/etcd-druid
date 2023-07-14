@@ -18,6 +18,7 @@ import (
 	"flag"
 
 	"github.com/gardener/etcd-druid/controllers/utils"
+	"github.com/gardener/etcd-druid/pkg/features"
 )
 
 const (
@@ -28,12 +29,22 @@ const (
 	defaultDisableEtcdServiceAccountAutomount = false
 )
 
+// RelevantFeatures holds the feature flag names that are relevant for the Etcd Controller.
+// TODO: come up with better name for this variable
+// TODO: write getter method on Config struct for this var
+var RelevantFeatures = []string{
+	string(features.UseEtcdWrapper),
+}
+
 // Config defines the configuration for the Etcd Controller.
 type Config struct {
 	// Workers is the number of workers concurrently processing reconciliation requests.
 	Workers int
 	// DisableEtcdServiceAccountAutomount controls the auto-mounting of service account token for etcd statefulsets.
 	DisableEtcdServiceAccountAutomount bool
+	// FeatureFlags contains the feature flags to be used by Etcd Controller.
+	// TODO: set this from managerConfig (filtered using RelevantFeatures) before running the reconciler
+	FeatureFlags map[string]bool
 }
 
 // InitFromFlags initializes the config from the provided CLI flag set.

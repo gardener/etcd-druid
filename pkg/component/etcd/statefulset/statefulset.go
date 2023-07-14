@@ -137,7 +137,7 @@ func (c *component) getLatestPodCreationTime(ctx context.Context, sts *appsv1.St
 	return recentCreationTime, nil
 }
 
-func (c *component) waitUtilPodsReady(ctx context.Context, originalSts *appsv1.StatefulSet, podDeletionTime time.Time, interval time.Duration, timeout time.Duration) error {
+func (c *component) waitUntilPodsReady(ctx context.Context, originalSts *appsv1.StatefulSet, podDeletionTime time.Time, interval time.Duration, timeout time.Duration) error {
 	sts := appsv1.StatefulSet{}
 	return gardenerretry.UntilTimeout(ctx, interval, timeout, func(ctx context.Context) (bool, error) {
 		if err := c.client.Get(ctx, client.ObjectKeyFromObject(originalSts), &sts); err != nil {
@@ -364,7 +364,7 @@ func (c *component) deleteAllStsPods(ctx context.Context, opName string, sts *ap
 	const interval = 2 * time.Second
 
 	c.logger.Info("waiting for StatefulSet pods to start again after delete", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference), "replicas", replicas)
-	return c.waitUtilPodsReady(ctx, sts, timeBeforeDeletion, interval, timeout)
+	return c.waitUntilPodsReady(ctx, sts, timeBeforeDeletion, interval, timeout)
 }
 
 func (c *component) doCreateOrUpdate(ctx context.Context, opName string, sts *appsv1.StatefulSet, replicas int32, preserveObjectMetadata bool) error {

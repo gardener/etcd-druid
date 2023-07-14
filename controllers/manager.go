@@ -82,6 +82,7 @@ func registerControllersWithManager(mgr ctrl.Manager, config *ManagerConfig) err
 	var err error
 
 	// Add etcd reconciler to the manager
+	// TODO: opt2: easiest place to set controller-specific featureFlags
 	etcdReconciler, err := etcd.NewReconciler(mgr, config.EtcdControllerConfig)
 	if err != nil {
 		return err
