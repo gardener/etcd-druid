@@ -30,6 +30,7 @@ import (
 	componentservice "github.com/gardener/etcd-druid/pkg/component/etcd/service"
 	componentserviceaccount "github.com/gardener/etcd-druid/pkg/component/etcd/serviceaccount"
 	componentsts "github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
+	"github.com/gardener/etcd-druid/pkg/features"
 	druidutils "github.com/gardener/etcd-druid/pkg/utils"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
@@ -76,7 +77,7 @@ type Reconciler struct {
 
 // NewReconciler creates a new reconciler for Etcd.
 func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
-	imageVector, err := utils.CreateImageVector()
+	imageVector, err := utils.CreateImageVector(config.FeatureGates[string(features.UseEtcdWrapper)])
 	if err != nil {
 		return nil, err
 	}
@@ -367,7 +368,8 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 	}
 
 	peerUrlTLSChangedToEnabled := isPeerTLSChangedToEnabled(peerTLSEnabled, configMapValues)
-	statefulSetValues := componentsts.GenerateValues(etcd,
+	statefulSetValues := componentsts.GenerateValues(
+		etcd,
 		&serviceValues.ClientPort,
 		&serviceValues.PeerPort,
 		&serviceValues.BackupPort,
@@ -375,7 +377,9 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		*etcdBackupImage,
 		map[string]string{
 			"checksum/etcd-configmap": configMapValues.ConfigMapChecksum,
-		}, peerUrlTLSChangedToEnabled)
+		}, peerUrlTLSChangedToEnabled,
+		r.config.FeatureGates[string(features.UseEtcdWrapper)],
+	)
 
 	// Create an OpWaiter because after the deployment we want to wait until the StatefulSet is ready.
 	var (

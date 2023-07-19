@@ -23,6 +23,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/common"
+	"github.com/gardener/etcd-druid/pkg/features"
 	druidutils "github.com/gardener/etcd-druid/pkg/utils"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
@@ -60,7 +61,7 @@ type Reconciler struct {
 
 // NewReconciler creates a new reconciler for EtcdCopyBackupsTask.
 func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
-	imageVector, err := utils.CreateImageVector()
+	imageVector, err := utils.CreateImageVector(config.FeatureGates[string(features.UseEtcdWrapper)])
 	if err != nil {
 		return nil, err
 	}

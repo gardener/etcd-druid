@@ -15,11 +15,15 @@
 package custodian
 
 import (
-	"flag"
 	"time"
 
 	"github.com/gardener/etcd-druid/controllers/utils"
+	flag "github.com/spf13/pflag"
+	"k8s.io/component-base/featuregate"
 )
+
+// relevantFeatures holds the feature flag names that are relevant for the Custodian Controller.
+var relevantFeatures = []featuregate.Feature{}
 
 const (
 	workersFlagName                     = "custodian-workers"
@@ -41,6 +45,8 @@ type Config struct {
 	SyncPeriod time.Duration
 	// EtcdMember holds configuration related to etcd members.
 	EtcdMember EtcdMemberConfig
+	// FeatureGates contains the feature flags to be used by Custodian Controller.
+	FeatureGates map[string]bool
 }
 
 // EtcdMemberConfig holds configuration related to etcd members.
@@ -78,4 +84,9 @@ func (cfg *Config) Validate() error {
 		return err
 	}
 	return nil
+}
+
+// GetRelevantFeatures returns feature gates relevant to the Custodian controller
+func (cfg *Config) GetRelevantFeatures() []featuregate.Feature {
+	return relevantFeatures
 }

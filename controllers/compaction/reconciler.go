@@ -22,6 +22,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
+	"github.com/gardener/etcd-druid/pkg/features"
 	druidmetrics "github.com/gardener/etcd-druid/pkg/metrics"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
@@ -56,7 +57,7 @@ type Reconciler struct {
 
 // NewReconciler creates a new reconciler for Compaction
 func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
-	imageVector, err := ctrlutils.CreateImageVector()
+	imageVector, err := ctrlutils.CreateImageVector(config.FeatureGates[string(features.UseEtcdWrapper)])
 	if err != nil {
 		return nil, err
 	}

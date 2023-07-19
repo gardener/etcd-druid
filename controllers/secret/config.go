@@ -15,10 +15,13 @@
 package secret
 
 import (
-	"flag"
-
 	"github.com/gardener/etcd-druid/controllers/utils"
+	flag "github.com/spf13/pflag"
+	"k8s.io/component-base/featuregate"
 )
+
+// relevantFeatures holds the feature gate names that are relevant for the Secret Controller.
+var relevantFeatures = []featuregate.Feature{}
 
 const (
 	workersFlagName = "secret-workers"
@@ -30,6 +33,8 @@ const (
 type Config struct {
 	// Workers is the number of workers concurrently processing reconciliation requests.
 	Workers int
+	// FeatureGates contains the feature flags to be used by Secret Controller.
+	FeatureGates map[string]bool
 }
 
 // InitFromFlags initializes the config from the provided CLI flag set.
@@ -44,4 +49,9 @@ func (cfg *Config) Validate() error {
 		return err
 	}
 	return nil
+}
+
+// GetRelevantFeatures returns feature gates relevant to the Secret controller
+func (cfg *Config) GetRelevantFeatures() []featuregate.Feature {
+	return relevantFeatures
 }

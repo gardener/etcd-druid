@@ -15,7 +15,6 @@
 package main
 
 import (
-	"flag"
 	"os"
 	"runtime"
 
@@ -25,6 +24,7 @@ import (
 
 	"github.com/gardener/etcd-druid/controllers"
 	"github.com/gardener/etcd-druid/pkg/version"
+	flag "github.com/spf13/pflag"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -41,7 +41,10 @@ func main() {
 	printVersionInfo()
 
 	mgrConfig := controllers.ManagerConfig{}
-	controllers.InitFromFlags(flag.CommandLine, &mgrConfig)
+	if err := controllers.InitFromFlags(flag.CommandLine, &mgrConfig); err != nil {
+		logger.Error(err, "failed to initialize from flags")
+		os.Exit(1)
+	}
 
 	flag.Parse()
 
@@ -52,8 +55,6 @@ func main() {
 		logger.Error(err, "validation of manager config failed")
 		os.Exit(1)
 	}
-
-	// TODO: opt1: write new method for managerConfig to populate filtered featureFlags for each controller (at controllers/config.go)
 
 	mgr, err := controllers.CreateManagerWithControllers(&mgrConfig)
 	if err != nil {

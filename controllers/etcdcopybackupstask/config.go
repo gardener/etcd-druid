@@ -15,10 +15,16 @@
 package etcdcopybackupstask
 
 import (
-	"flag"
-
 	"github.com/gardener/etcd-druid/controllers/utils"
+	"github.com/gardener/etcd-druid/pkg/features"
+	flag "github.com/spf13/pflag"
+	"k8s.io/component-base/featuregate"
 )
+
+// relevantFeatures holds the feature flag names that are relevant for the EtcdCopyBackupTask Controller.
+var relevantFeatures = []featuregate.Feature{
+	features.UseEtcdWrapper,
+}
 
 const (
 	workersFlagName = "etcd-copy-backups-task-workers"
@@ -30,6 +36,8 @@ const (
 type Config struct {
 	// Workers is the number of workers concurrently processing reconciliation requests.
 	Workers int
+	// FeatureGates contains the feature flags to be used by EtcdCopyBackupTask Controller.
+	FeatureGates map[string]bool
 }
 
 // InitFromFlags initializes the config from the provided CLI flag set.
@@ -44,4 +52,9 @@ func (cfg *Config) Validate() error {
 		return err
 	}
 	return nil
+}
+
+// GetRelevantFeatures returns feature gates relevant to the EtcdCopyBackupTask controller
+func (cfg *Config) GetRelevantFeatures() []featuregate.Feature {
+	return relevantFeatures
 }

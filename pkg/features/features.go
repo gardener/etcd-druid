@@ -31,7 +31,7 @@ const (
 	// changes required for the usage of the etcd-wrapper image.
 	// owner @unmarshall @aaronfern
 	// alpha: v0.19
-	UseEtcdWrapper featuregate.Feature = "use-etcd-wrapper"
+	UseEtcdWrapper featuregate.Feature = "UseEtcdWrapper"
 )
 
 // FeatureDescriptions stores descriptions for each defined feature
@@ -43,26 +43,7 @@ var defaultFeatures = map[featuregate.Feature]featuregate.FeatureSpec{
 	UseEtcdWrapper: {Default: false, PreRelease: featuregate.Alpha},
 }
 
-// GetDefaultFeatureFlags returns the default feature flags known to etcd-druid.
-func GetDefaultFeatureFlags() map[string]bool {
-	featureFlags := make(map[string]bool)
-
-	for feature, featureSpec := range defaultFeatures {
-		featureFlags[string(feature)] = featureSpec.Default
-	}
-
-	return featureFlags
-}
-
-// GetFilteredFeatureFlags returns the filtered feature flags from given feature flags.
-func GetFilteredFeatureFlags(featureFlags map[string]bool, filteredFeatures []string) map[string]bool {
-	filteredFeatureFlags := make(map[string]bool)
-
-	for _, feature := range filteredFeatures {
-		if value, ok := featureFlags[feature]; ok {
-			filteredFeatureFlags[feature] = value
-		}
-	}
-
-	return filteredFeatureFlags
+// GetDefaultFeatures returns the default feature gates known to etcd-druid.
+func GetDefaultFeatures() map[featuregate.Feature]featuregate.FeatureSpec {
+	return defaultFeatures
 }

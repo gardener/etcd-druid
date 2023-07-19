@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/gardener/etcd-druid/controllers/etcd"
+	"github.com/gardener/etcd-druid/pkg/features"
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
 	"github.com/gardener/etcd-druid/test/integration/setup"
 	. "github.com/onsi/ginkgo/v2"
@@ -56,6 +57,9 @@ var _ = BeforeSuite(func() {
 		reconciler, err := etcd.NewReconcilerWithImageVector(mgr, &etcd.Config{
 			Workers:                            5,
 			DisableEtcdServiceAccountAutomount: false,
+			FeatureGates: map[string]bool{
+				string(features.UseEtcdWrapper): true,
+			},
 		}, imageVector,
 			assets.GetEtcdChartPath())
 		Expect(err).To(BeNil())

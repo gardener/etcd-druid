@@ -430,25 +430,6 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 					ServiceAccountName:        c.values.ServiceAccountName,
 					Affinity:                  c.values.Affinity,
 					TopologySpreadConstraints: c.values.TopologySpreadConstraints,
-					InitContainers: []corev1.Container{
-						{
-							Name:         "change-permissions",
-							Image:        "alpine:3.18.0",
-							Command:      []string{"sh", "-c", "--"},
-							Args:         []string{"chown -R 65532:65532 /var/etcd/data"},
-							VolumeMounts: getEtcdVolumeMounts(c.values),
-							SecurityContext: &corev1.SecurityContext{
-								RunAsGroup:   pointer.Int64(0),
-								RunAsNonRoot: pointer.Bool(false),
-								RunAsUser:    pointer.Int64(0),
-							},
-						},
-					},
-					SecurityContext: &corev1.PodSecurityContext{
-						RunAsGroup:   pointer.Int64(65532),
-						RunAsNonRoot: pointer.Bool(true),
-						RunAsUser:    pointer.Int64(65532),
-					},
 					Containers: []corev1.Container{
 						{
 							Name:            "etcd",
@@ -507,6 +488,29 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 		}
 		if c.values.PriorityClassName != nil {
 			sts.Spec.Template.Spec.PriorityClassName = *c.values.PriorityClassName
+		}
+		if c.values.UseEtcdWrapper {
+			// sections to add only when using etcd wrapper
+			// TODO: @aaronfern add this back to sts.Spec when UseEtcdWrapper becomes GA
+			sts.Spec.Template.Spec.InitContainers = []corev1.Container{
+				{
+					Name:         "change-permissions",
+					Image:        "alpine:3.18.2",
+					Command:      []string{"sh", "-c", "--"},
+					Args:         []string{"chown -R 65532:65532 /var/etcd/data"},
+					VolumeMounts: getEtcdVolumeMounts(c.values),
+					SecurityContext: &corev1.SecurityContext{
+						RunAsGroup:   pointer.Int64(0),
+						RunAsNonRoot: pointer.Bool(false),
+						RunAsUser:    pointer.Int64(0),
+					},
+				},
+			}
+			sts.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
+				RunAsGroup:   pointer.Int64(65532),
+				RunAsNonRoot: pointer.Bool(true),
+				RunAsUser:    pointer.Int64(65532),
+			}
 		}
 
 		if stsOriginal.Generation > 0 {
@@ -983,16 +987,25 @@ func getReadinessHandlerForSingleNode(val Values) corev1.ProbeHandler {
 }
 
 func getReadinessHandlerForMultiNode(val Values) corev1.ProbeHandler {
-	scheme := corev1.URISchemeHTTPS
-	if val.BackupTLS == nil {
-		scheme = corev1.URISchemeHTTP
+	if val.UseEtcdWrapper {
+		//TODO @aaronfern: remove this feature gate when UseEtcdWrapper becomes GA
+		scheme := corev1.URISchemeHTTPS
+		if val.BackupTLS == nil {
+			scheme = corev1.URISchemeHTTP
+		}
+
+		return corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Path:   "/readyz",
+				Port:   intstr.FromInt(int(pointer.Int32Deref(val.WrapperPort, defaultWrapperPort))),
+				Scheme: scheme,
+			},
+		}
 	}
 
 	return corev1.ProbeHandler{
-		HTTPGet: &corev1.HTTPGetAction{
-			Path:   "/readyz",
-			Port:   intstr.FromInt(int(pointer.Int32Deref(val.WrapperPort, defaultWrapperPort))),
-			Scheme: scheme,
+		Exec: &corev1.ExecAction{
+			Command: val.ReadinessProbeCommand,
 		},
 	}
 }

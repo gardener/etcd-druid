@@ -15,7 +15,8 @@
 package etcd
 
 import (
-	"flag"
+	flag "github.com/spf13/pflag"
+	"k8s.io/component-base/featuregate"
 
 	"github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/features"
@@ -29,11 +30,9 @@ const (
 	defaultDisableEtcdServiceAccountAutomount = false
 )
 
-// RelevantFeatures holds the feature flag names that are relevant for the Etcd Controller.
-// TODO: come up with better name for this variable
-// TODO: write getter method on Config struct for this var
-var RelevantFeatures = []string{
-	string(features.UseEtcdWrapper),
+// relevantFeatures holds the feature flag names that are relevant for the Etcd Controller.
+var relevantFeatures = []featuregate.Feature{
+	features.UseEtcdWrapper,
 }
 
 // Config defines the configuration for the Etcd Controller.
@@ -42,9 +41,8 @@ type Config struct {
 	Workers int
 	// DisableEtcdServiceAccountAutomount controls the auto-mounting of service account token for etcd statefulsets.
 	DisableEtcdServiceAccountAutomount bool
-	// FeatureFlags contains the feature flags to be used by Etcd Controller.
-	// TODO: set this from managerConfig (filtered using RelevantFeatures) before running the reconciler
-	FeatureFlags map[string]bool
+	// FeatureGates contains the feature flags to be used by Etcd Controller.
+	FeatureGates map[string]bool
 }
 
 // InitFromFlags initializes the config from the provided CLI flag set.
@@ -61,4 +59,9 @@ func (cfg *Config) Validate() error {
 		return err
 	}
 	return nil
+}
+
+// GetRelevantFeatures returns feature gates relevant to the Etcd controller
+func (cfg *Config) GetRelevantFeatures() []featuregate.Feature {
+	return relevantFeatures
 }

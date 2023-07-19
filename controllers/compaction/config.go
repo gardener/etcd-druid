@@ -15,11 +15,18 @@
 package compaction
 
 import (
-	"flag"
 	"time"
 
 	"github.com/gardener/etcd-druid/controllers/utils"
+	"github.com/gardener/etcd-druid/pkg/features"
+	flag "github.com/spf13/pflag"
+	"k8s.io/component-base/featuregate"
 )
+
+// relevantFeatures holds the feature flag names that are relevant for the Compaction Controller.
+var relevantFeatures = []featuregate.Feature{
+	features.UseEtcdWrapper,
+}
 
 const (
 	enableBackupCompactionFlagName = "enable-backup-compaction"
@@ -43,6 +50,8 @@ type Config struct {
 	EventsThreshold int64
 	// ActiveDeadlineDuration is the duration after which a running compaction job will be killed.
 	ActiveDeadlineDuration time.Duration
+	// FeatureGates contains the feature flags to be used by Compaction Controller.
+	FeatureGates map[string]bool
 }
 
 // InitFromFlags initializes the compaction controller config from the provided CLI flag set.
@@ -69,4 +78,9 @@ func (cfg *Config) Validate() error {
 		return err
 	}
 	return nil
+}
+
+// GetRelevantFeatures returns feature gates relevant to the Compaction controller
+func (cfg *Config) GetRelevantFeatures() []featuregate.Feature {
+	return relevantFeatures
 }
