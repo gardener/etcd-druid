@@ -23,6 +23,16 @@ deploy:
         helm: {}
       # Dependency builds create new dep archives and thus circumvent Docker's build cache at the next run.
       skipBuildDependencies: true
+profiles:
+- name: use-feature-gates
+  activation:
+  - env: "USE_ETCD_DRUID_FEATURE_GATES=true"
+  patches:
+  - op: add
+    path: /deploy/helm/releases/0/setValues
+    value:
+      featureGates:
+        UseEtcdWrapper: true
 ---
 apiVersion: skaffold/v2beta25
 kind: Config
