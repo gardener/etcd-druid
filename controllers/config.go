@@ -117,20 +117,20 @@ func InitFromFlags(fs *flag.FlagSet, cfg *ManagerConfig) error {
 }
 
 // initFeatureGates initializes feature gates from the provided CLI flag set.
-func initFeatureGates(fs *flag.FlagSet, mgrcfg *ManagerConfig) error {
+func initFeatureGates(fs *flag.FlagSet, mgrCfg *ManagerConfig) error {
 	featureGates := featuregate.NewFeatureGate()
 	if err := featureGates.Add(features.GetDefaultFeatures()); err != nil {
 		return fmt.Errorf("error adding features to the featuregate: %v", err)
 	}
 	featureGates.AddFlag(fs)
 
-	mgrcfg.FeatureGates = featureGates
+	mgrCfg.FeatureGates = featureGates
 
 	return nil
 }
 
-// PopulateControllersFeatureGates adds relevant feature gates to every controller configuration
-func PopulateControllersFeatureGates(config *ManagerConfig) {
+// populateControllersFeatureGates adds relevant feature gates to every controller configuration
+func populateControllersFeatureGates(config *ManagerConfig) {
 
 	// Add etcd controller feature gates
 	config.EtcdControllerConfig.FeatureGates = make(map[string]bool)
@@ -150,7 +150,7 @@ func PopulateControllersFeatureGates(config *ManagerConfig) {
 		config.CompactionControllerConfig.FeatureGates[string(feature)] = config.FeatureGates.Enabled(feature)
 	}
 
-	// Add etcd-copy-backup-task controller feature gates
+	// Add etcd-copy-backups-task controller feature gates
 	config.EtcdCopyBackupsTaskControllerConfig.FeatureGates = make(map[string]bool)
 	for _, feature := range config.EtcdCopyBackupsTaskControllerConfig.GetRelevantFeatures() {
 		config.EtcdCopyBackupsTaskControllerConfig.FeatureGates[string(feature)] = config.FeatureGates.Enabled(feature)

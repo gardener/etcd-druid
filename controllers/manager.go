@@ -45,7 +45,7 @@ func CreateManagerWithControllers(config *ManagerConfig) (ctrl.Manager, error) {
 		mgr ctrl.Manager
 	)
 
-	PopulateControllersFeatureGates(config)
+	populateControllersFeatureGates(config)
 
 	if mgr, err = createManager(config); err != nil {
 		return nil, err

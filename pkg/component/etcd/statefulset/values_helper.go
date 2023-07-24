@@ -159,7 +159,7 @@ func getEtcdCommand(val Values) []string {
 		return command
 	}
 
-	// safe to return an empty string array here since etcd-custom-image:v3.4.13-bootstrap-12 now uses an entry point thay calls bootstrap.sh
+	// safe to return an empty string array here since etcd-custom-image:v3.4.13-bootstrap-12 now uses an entry point that calls bootstrap.sh
 	return []string{}
 }
 
