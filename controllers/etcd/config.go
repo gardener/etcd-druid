@@ -15,11 +15,11 @@
 package etcd
 
 import (
-	flag "github.com/spf13/pflag"
-	"k8s.io/component-base/featuregate"
-
 	"github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/features"
+
+	flag "github.com/spf13/pflag"
+	"k8s.io/component-base/featuregate"
 )
 
 const (
@@ -41,7 +41,7 @@ type Config struct {
 	Workers int
 	// DisableEtcdServiceAccountAutomount controls the auto-mounting of service account token for etcd statefulsets.
 	DisableEtcdServiceAccountAutomount bool
-	// FeatureGates contains the feature flags to be used by Etcd Controller.
+	// FeatureGates contains the feature gates to be used by Etcd Controller.
 	FeatureGates map[string]bool
 }
 

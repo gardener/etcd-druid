@@ -48,8 +48,7 @@ func main() {
 
 	flag.Parse()
 
-	flags := getFlags()
-	printFlags(logger, flags)
+	printFlags(logger)
 
 	if err := mgrConfig.Validate(); err != nil {
 		logger.Error(err, "validation of manager config failed")
@@ -76,20 +75,12 @@ func printVersionInfo() {
 	logger.Info("Golang runtime information", "Version", runtime.Version(), "OS", runtime.GOOS, "Arch", runtime.GOARCH)
 }
 
-// TODO: remove; get flags within printFlags() function
-func getFlags() map[string]flag.Value {
-	flags := make(map[string]flag.Value)
-	flag.VisitAll(func(f *flag.Flag) {
-		flags[f.Name] = f.Value
-	})
-	return flags
-}
-
-func printFlags(logger logr.Logger, flags map[string]flag.Value) {
+func printFlags(logger logr.Logger) {
 	var flagKVs []interface{}
-	for k, v := range flags {
-		flagKVs = append(flagKVs, k, v.String())
-	}
+	flag.VisitAll(func(f *flag.Flag) {
+		flagKVs = append(flagKVs, f.Name, f.Value.String())
+	})
+
 	logger.Info("Running with flags", flagKVs...)
 }
 

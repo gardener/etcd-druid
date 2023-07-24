@@ -16,6 +16,7 @@ package secret
 
 import (
 	"github.com/gardener/etcd-druid/controllers/utils"
+
 	flag "github.com/spf13/pflag"
 	"k8s.io/component-base/featuregate"
 )
@@ -33,7 +34,7 @@ const (
 type Config struct {
 	// Workers is the number of workers concurrently processing reconciliation requests.
 	Workers int
-	// FeatureGates contains the feature flags to be used by Secret Controller.
+	// FeatureGates contains the feature gates to be used by Secret Controller.
 	FeatureGates map[string]bool
 }
 

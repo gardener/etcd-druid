@@ -23,8 +23,8 @@ import (
 	"github.com/gardener/etcd-druid/controllers/etcd"
 	"github.com/gardener/etcd-druid/controllers/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/controllers/secret"
-
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
+
 	coordinationv1 "k8s.io/api/coordination/v1"
 	coordinationv1beta1 "k8s.io/api/coordination/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -45,7 +45,7 @@ func CreateManagerWithControllers(config *ManagerConfig) (ctrl.Manager, error) {
 		mgr ctrl.Manager
 	)
 
-	PopulateControllerFeatureGates(config)
+	PopulateControllersFeatureGates(config)
 
 	if mgr, err = createManager(config); err != nil {
 		return nil, err
@@ -84,7 +84,6 @@ func registerControllersWithManager(mgr ctrl.Manager, config *ManagerConfig) err
 	var err error
 
 	// Add etcd reconciler to the manager
-	// TODO: opt2: easiest place to set controller-specific featureFlags
 	etcdReconciler, err := etcd.NewReconciler(mgr, config.EtcdControllerConfig)
 	if err != nil {
 		return err

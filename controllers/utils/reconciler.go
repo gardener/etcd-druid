@@ -32,17 +32,17 @@ const (
 	EtcdWrapperImageVector = "images-wrapper.yaml"
 )
 
-// GetImageYAMLPath returns the path to the default images.yaml file.
-func GetImageYAMLPath(useEtcdWrapperImages bool) string {
-	if useEtcdWrapperImages {
+// GetImageYAMLPath returns the path to the image vector YAML file.
+func GetImageYAMLPath(useEtcdWrapperImageVector bool) string {
+	if useEtcdWrapperImageVector {
 		return filepath.Join(common.ChartPath, EtcdWrapperImageVector)
 	}
 	return filepath.Join(common.ChartPath, DefaultImageVector)
 }
 
 // CreateImageVector creates an image vector from the default images.yaml file or the images-wrapper.yaml file.
-func CreateImageVector(useEtcdWrapperImages bool) (imagevector.ImageVector, error) {
-	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(GetImageYAMLPath(useEtcdWrapperImages))
+func CreateImageVector(useEtcdWrapperImageVector bool) (imagevector.ImageVector, error) {
+	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(GetImageYAMLPath(useEtcdWrapperImageVector))
 	if err != nil {
 		return nil, err
 	}

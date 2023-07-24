@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/controllers/utils"
+
 	flag "github.com/spf13/pflag"
 	"k8s.io/component-base/featuregate"
 )
@@ -45,7 +46,7 @@ type Config struct {
 	SyncPeriod time.Duration
 	// EtcdMember holds configuration related to etcd members.
 	EtcdMember EtcdMemberConfig
-	// FeatureGates contains the feature flags to be used by Custodian Controller.
+	// FeatureGates contains the feature gates to be used by Custodian Controller.
 	FeatureGates map[string]bool
 }
 

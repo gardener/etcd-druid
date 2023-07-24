@@ -497,7 +497,7 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 					Name:         "change-permissions",
 					Image:        "alpine:3.18.2",
 					Command:      []string{"sh", "-c", "--"},
-					Args:         []string{"chown -R 65532:65532 /var/etcd/data"},
+					Args:         []string{"chown", "-R", "65532:65532", "/var/etcd/data"},
 					VolumeMounts: getEtcdVolumeMounts(c.values),
 					SecurityContext: &corev1.SecurityContext{
 						RunAsGroup:   pointer.Int64(0),

@@ -1,27 +1,26 @@
-# Feature Flags in Etcd-Druid
+# Feature Gates in Etcd-Druid
 
-This page contains an overview of the various feature flags an administrator can specify on etcd-druid.
+This page contains an overview of the various feature gates an administrator can specify on etcd-druid.
 
 ## Overview
 
-Feature flags are a set of key=value pairs that describe etcd-druid features. You can turn these features on or off by passing them as CLI flags to the etcd-druid command.
+Feature gates are a set of key=value pairs that describe etcd-druid features. You can turn these features on or off by passing them to the `--feature-gates` CLI flag in the etcd-druid command.
 
-The following tables are a summary of the feature flags that you can set on etcd-druid.
+The following tables are a summary of the feature gates that you can set on etcd-druid.
 
-* The “CLI Flag” column contains the CLI flag name that must be passed to the etcd-druid command.
 * The “Since” column contains the etcd-druid release when a feature is introduced or its release stage is changed.
-* The “Until” column, if not empty, contains the last etcd-druid release in which you can still use a feature flag.
-* If a feature is in the *Alpha* or *Beta* state, you can find the feature listed in the Alpha/Beta feature flag table.
-* If a feature is stable you can find all stages for that feature listed in the Graduated/Deprecated feature flag table.
-* The Graduated/Deprecated feature flag table also lists deprecated and withdrawn features.
+* The “Until” column, if not empty, contains the last etcd-druid release in which you can still use a feature gate.
+* If a feature is in the *Alpha* or *Beta* state, you can find the feature listed in the Alpha/Beta feature gate table.
+* If a feature is stable you can find all stages for that feature listed in the Graduated/Deprecated feature gate table.
+* The Graduated/Deprecated feature gate table also lists deprecated and withdrawn features.
 
-## Feature Flags for Alpha or Beta Features
+## Feature Gates for Alpha or Beta Features
 
-| Feature          | CLI Flag           | Default | Stage   | Since  | Until |
-|------------------|--------------------|---------|---------|--------|-------|
-| `UseEtcdWrapper` | `use-etcd-wrapper` | `false` | `Alpha` | `0.19` |       |
+| Feature          | Default | Stage   | Since  | Until |
+|------------------|---------|---------|--------|-------|
+| `UseEtcdWrapper` | `false` | `Alpha` | `0.19` |       |
 
-## Feature Flags for Graduated or Deprecated Features
+## Feature Gates for Graduated or Deprecated Features
 
 | Feature | Default | Stage | Since | Until |
 |---------|---------|-------|-------|-------|
@@ -57,10 +56,10 @@ A *Beta* feature means:
 A *General Availability* (GA) feature is also referred to as a *stable* feature. It means:
 
 * The feature is always enabled; you cannot disable it.
-* The corresponding feature flag is no longer needed.
+* The corresponding feature gate is no longer needed.
 * Stable versions of features will appear in released software for many subsequent versions.
 
-## List of Feature Flags
+## List of Feature Gates
 
 | Feature          | Description                                                                                                                                                                                   |
 |------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|

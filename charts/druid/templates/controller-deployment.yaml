@@ -25,13 +25,13 @@ spec:
         - --enable-leader-election=true
         - --ignore-operation-annotation={{ .Values.ignoreOperationAnnotation }}
         - --workers=3
-        {{ if .Values.featureGates }}
-        {{- $featuregates := "" -}}
+        {{- if .Values.featureGates }}
+        {{- $featuregates := "" }}
         {{- range $feature, $value := $.Values.featureGates }}
         {{- $featuregates = printf "%s%s=%t," $featuregates $feature $value }}
         {{- end }}
-        - --feature-gates={{ $featuregates }}
-        {{ end}}
+        - --feature-gates={{ $featuregates | trimSuffix "," }}
+        {{- end }}
         resources:
           limits:
             cpu: 300m

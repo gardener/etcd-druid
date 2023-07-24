@@ -6,3 +6,5 @@ image:
   imagePullPolicy: IfNotPresent
 replicas: 1
 ignoreOperationAnnotation: false
+# featureGates:
+#   UseEtcdWrapper: true

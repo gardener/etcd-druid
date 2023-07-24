@@ -34,11 +34,6 @@ const (
 	UseEtcdWrapper featuregate.Feature = "UseEtcdWrapper"
 )
 
-// FeatureDescriptions stores descriptions for each defined feature
-var FeatureDescriptions = map[featuregate.Feature]string{
-	UseEtcdWrapper: "Enables the use of etcd-wrapper image and a compatible version of etcd-backup-restore, along with component-specific configuration changes necessary for the usage of the etcd-wrapper image.",
-}
-
 var defaultFeatures = map[featuregate.Feature]featuregate.FeatureSpec{
 	UseEtcdWrapper: {Default: false, PreRelease: featuregate.Alpha},
 }
