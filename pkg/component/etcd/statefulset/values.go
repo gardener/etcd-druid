@@ -127,5 +127,6 @@ type Values struct {
 	ConfigMapName           string
 	PeerTLSChangedToEnabled bool
 
+	// UseEtcdWrapper enables the use of etcd-wrapper image and a compatible version of etcd-backup-restore
 	UseEtcdWrapper bool
 }

@@ -80,7 +80,7 @@ type ManagerConfig struct {
 }
 
 // InitFromFlags initializes the controller manager config from the provided CLI flag set.
-func InitFromFlags(fs *flag.FlagSet, cfg *ManagerConfig) error {
+func (cfg *ManagerConfig) InitFromFlags(fs *flag.FlagSet) error {
 	flag.StringVar(&cfg.MetricsAddr, metricsAddrFlagName, defaultMetricsAddr, ""+
 		"The address the metric endpoint binds to.")
 	flag.BoolVar(&cfg.EnableLeaderElection, enableLeaderElectionFlagName, defaultEnableLeaderElection,
@@ -94,7 +94,7 @@ func InitFromFlags(fs *flag.FlagSet, cfg *ManagerConfig) error {
 	flag.BoolVar(&cfg.IgnoreOperationAnnotation, ignoreOperationAnnotationFlagName, defaultIgnoreOperationAnnotation,
 		"Specifies whether to ignore or honour the operation annotation on resources to be reconciled.")
 
-	if err := initFeatureGates(fs, cfg); err != nil {
+	if err := cfg.initFeatureGates(fs); err != nil {
 		return err
 	}
 
@@ -117,51 +117,30 @@ func InitFromFlags(fs *flag.FlagSet, cfg *ManagerConfig) error {
 }
 
 // initFeatureGates initializes feature gates from the provided CLI flag set.
-func initFeatureGates(fs *flag.FlagSet, mgrCfg *ManagerConfig) error {
+func (cfg *ManagerConfig) initFeatureGates(fs *flag.FlagSet) error {
 	featureGates := featuregate.NewFeatureGate()
 	if err := featureGates.Add(features.GetDefaultFeatures()); err != nil {
 		return fmt.Errorf("error adding features to the featuregate: %v", err)
 	}
 	featureGates.AddFlag(fs)
 
-	mgrCfg.FeatureGates = featureGates
+	cfg.FeatureGates = featureGates
 
 	return nil
 }
 
 // populateControllersFeatureGates adds relevant feature gates to every controller configuration
-func populateControllersFeatureGates(config *ManagerConfig) {
+func (cfg *ManagerConfig) populateControllersFeatureGates() {
+	// Feature gates populated only for controllers that use feature gates
 
 	// Add etcd controller feature gates
-	config.EtcdControllerConfig.FeatureGates = make(map[string]bool)
-	for _, feature := range config.EtcdControllerConfig.GetRelevantFeatures() {
-		config.EtcdControllerConfig.FeatureGates[string(feature)] = config.FeatureGates.Enabled(feature)
-	}
-
-	// Add custodian controller feature gates
-	config.CustodianControllerConfig.FeatureGates = make(map[string]bool)
-	for _, feature := range config.CustodianControllerConfig.GetRelevantFeatures() {
-		config.CustodianControllerConfig.FeatureGates[string(feature)] = config.FeatureGates.Enabled(feature)
-	}
+	cfg.EtcdControllerConfig.CaptureFeatureActivations(cfg.FeatureGates)
 
 	// Add compaction controller feature gates
-	config.CompactionControllerConfig.FeatureGates = make(map[string]bool)
-	for _, feature := range config.CompactionControllerConfig.GetRelevantFeatures() {
-		config.CompactionControllerConfig.FeatureGates[string(feature)] = config.FeatureGates.Enabled(feature)
-	}
+	cfg.CompactionControllerConfig.CaptureFeatureActivations(cfg.FeatureGates)
 
 	// Add etcd-copy-backups-task controller feature gates
-	config.EtcdCopyBackupsTaskControllerConfig.FeatureGates = make(map[string]bool)
-	for _, feature := range config.EtcdCopyBackupsTaskControllerConfig.GetRelevantFeatures() {
-		config.EtcdCopyBackupsTaskControllerConfig.FeatureGates[string(feature)] = config.FeatureGates.Enabled(feature)
-	}
-
-	// Add secret controller feature gates
-	config.SecretControllerConfig.FeatureGates = make(map[string]bool)
-	for _, feature := range config.SecretControllerConfig.GetRelevantFeatures() {
-		config.SecretControllerConfig.FeatureGates[string(feature)] = config.FeatureGates.Enabled(feature)
-	}
-
+	cfg.EtcdCopyBackupsTaskControllerConfig.CaptureFeatureActivations(cfg.FeatureGates)
 }
 
 // Validate validates the controller manager config.

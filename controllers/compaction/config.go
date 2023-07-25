@@ -24,8 +24,8 @@ import (
 	"k8s.io/component-base/featuregate"
 )
 
-// relevantFeatures holds the feature flag names that are relevant for the Compaction Controller.
-var relevantFeatures = []featuregate.Feature{
+// featureList holds the feature gate names that are relevant for the Compaction Controller.
+var featureList = []featuregate.Feature{
 	features.UseEtcdWrapper,
 }
 
@@ -81,7 +81,17 @@ func (cfg *Config) Validate() error {
 	return nil
 }
 
-// GetRelevantFeatures returns feature gates relevant to the Compaction controller
-func (cfg *Config) GetRelevantFeatures() []featuregate.Feature {
-	return relevantFeatures
+// GetFeatureList returns feature gates relevant to the Compaction controller
+func (cfg *Config) GetFeatureList() []featuregate.Feature {
+	return featureList
+}
+
+// CaptureFeatureActivations captures all feature gates required by the controller into controller config
+func (cfg *Config) CaptureFeatureActivations(fg featuregate.FeatureGate) {
+	if cfg.FeatureGates == nil {
+		cfg.FeatureGates = make(map[string]bool)
+	}
+	for _, feature := range cfg.GetFeatureList() {
+		cfg.FeatureGates[string(feature)] = fg.Enabled(feature)
+	}
 }

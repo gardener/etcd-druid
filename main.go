@@ -41,7 +41,7 @@ func main() {
 	printVersionInfo()
 
 	mgrConfig := controllers.ManagerConfig{}
-	if err := controllers.InitFromFlags(flag.CommandLine, &mgrConfig); err != nil {
+	if err := mgrConfig.InitFromFlags(flag.CommandLine); err != nil {
 		logger.Error(err, "failed to initialize from flags")
 		os.Exit(1)
 	}

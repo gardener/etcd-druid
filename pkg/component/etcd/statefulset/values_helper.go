@@ -135,32 +135,29 @@ func GenerateValues(
 }
 
 func getEtcdCommand(val Values) []string {
-	if val.UseEtcdWrapper {
-		//TODO @aaronfern: remove this feature gate when UseEtcdWraper becomes GA
-		command := []string{"" + "start-etcd"}
+	if !val.UseEtcdWrapper {
+		// safe to return an empty string array here since etcd-custom-image:v3.4.13-bootstrap-12 now uses an entry point that calls bootstrap.sh
+		return []string{}
+	}
+	//TODO @aaronfern: remove this feature gate when UseEtcdWraper becomes GA
+	command := []string{"" + "start-etcd"}
+	command = append(command, fmt.Sprintf("--backup-restore-host-port=%s-local:8080", val.Name))
+	command = append(command, fmt.Sprintf("--etcd-server-name=%s-local", val.Name))
 
-		if val.ClientUrlTLS != nil {
-			dataKey := "ca.crt"
-			if val.ClientUrlTLS.TLSCASecretRef.DataKey != nil {
-				dataKey = *val.ClientUrlTLS.TLSCASecretRef.DataKey
-			}
-			command = append(command, "--backup-restore-tls-enabled=true")
-			command = append(command, fmt.Sprintf("--backup-restore-host-port=%s-local:8080", val.Name))
-			command = append(command, fmt.Sprintf("--etcd-server-name=%s-local", val.Name))
-			command = append(command, "--etcd-client-cert-path=/var/etcd/ssl/client/client/tls.crt")
-			command = append(command, "--etcd-client-key-path=/var/etcd/ssl/client/client/tls.key")
-			command = append(command, fmt.Sprintf("--backup-restore-ca-cert-bundle-path=/var/etcd/ssl/client/ca/%s", dataKey))
-		} else {
-			command = append(command, "--backup-restore-tls-enabled=false")
-			command = append(command, fmt.Sprintf("--backup-restore-host-port=%s-local:8080", val.Name))
-			command = append(command, fmt.Sprintf("--etcd-server-name=%s-local", val.Name))
+	if val.ClientUrlTLS == nil {
+		command = append(command, "--backup-restore-tls-enabled=false")
+	} else {
+		dataKey := "ca.crt"
+		if val.ClientUrlTLS.TLSCASecretRef.DataKey != nil {
+			dataKey = *val.ClientUrlTLS.TLSCASecretRef.DataKey
 		}
-
-		return command
+		command = append(command, "--backup-restore-tls-enabled=true")
+		command = append(command, "--etcd-client-cert-path=/var/etcd/ssl/client/client/tls.crt")
+		command = append(command, "--etcd-client-key-path=/var/etcd/ssl/client/client/tls.key")
+		command = append(command, fmt.Sprintf("--backup-restore-ca-cert-bundle-path=/var/etcd/ssl/client/ca/%s", dataKey))
 	}
 
-	// safe to return an empty string array here since etcd-custom-image:v3.4.13-bootstrap-12 now uses an entry point that calls bootstrap.sh
-	return []string{}
+	return command
 }
 
 type consistencyLevel string
