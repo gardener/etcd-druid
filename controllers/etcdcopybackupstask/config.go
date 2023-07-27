@@ -55,17 +55,12 @@ func (cfg *Config) Validate() error {
 	return nil
 }
 
-// GetFeatureList returns feature gates relevant to the EtcdCopyBackupTask controller
-func (cfg *Config) GetFeatureList() []featuregate.Feature {
-	return featureList
-}
-
 // CaptureFeatureActivations captures all feature gates required by the controller into controller config
 func (cfg *Config) CaptureFeatureActivations(fg featuregate.FeatureGate) {
 	if cfg.FeatureGates == nil {
 		cfg.FeatureGates = make(map[string]bool)
 	}
-	for _, feature := range cfg.GetFeatureList() {
+	for _, feature := range featureList {
 		cfg.FeatureGates[string(feature)] = fg.Enabled(feature)
 	}
 }
