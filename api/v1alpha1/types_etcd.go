@@ -178,6 +178,12 @@ type BackupSpec struct {
 	// DeltaSnapshotMemoryLimit defines the memory limit after which delta snapshots will be taken
 	// +optional
 	DeltaSnapshotMemoryLimit *resource.Quantity `json:"deltaSnapshotMemoryLimit,omitempty"`
+	// DeltaSnapshotRetentionPeriod defines the duration to retain old delta snapshots. Delta snapshots within this
+	// duration will not be deleted. This provides more flexibility for backup retention by allowing older delta snapshots
+	// to be preserved.
+	// +optional
+	DeltaSnapshotRetentionPeriod *metav1.Duration `json:"deltaSnapshotRetentionPeriod,omitempty"`
+
 	// SnapshotCompression defines the specification for compression of Snapshots.
 	// +optional
 	SnapshotCompression *CompressionSpec `json:"compression,omitempty"`
