@@ -34,8 +34,8 @@ import (
 	druidutils "github.com/gardener/etcd-druid/pkg/utils"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	gardenercomponent "github.com/gardener/gardener/pkg/component"
 	"github.com/gardener/gardener/pkg/controllerutils"
-	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2023 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+# Copyright 2023 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,7 +26,8 @@ if ! command -v setup-envtest &> /dev/null ; then
   exit 1
 fi
 
-export KUBEBUILDER_ASSETS="$(setup-envtest use -p path ${ENVTEST_K8S_VERSION})"
+# --use-env allows overwriting the envtest tools path via the KUBEBUILDER_ASSETS env var
+export KUBEBUILDER_ASSETS="$(setup-envtest use --use-env -p path ${ENVTEST_K8S_VERSION})"
 echo "using envtest tools installed at '$KUBEBUILDER_ASSETS'"
 
 source "$(dirname "$0")/test-integration.env"

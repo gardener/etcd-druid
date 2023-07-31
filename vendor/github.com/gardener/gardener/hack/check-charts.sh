@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2019 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+# Copyright 2019 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,9 +27,9 @@ if [[ -d "$1" ]]; then
     exit 1
   fi
   echo "Checking whether all charts can be rendered"
-  for chart_dir in $(find charts -type d -exec test -f '{}'/Chart.yaml \;  -print -prune | sort); do
+  for chart_dir in $(find charts -type d -exec test -f '{}'/Chart.yaml \; -print -prune | sort); do
     [ -f "$chart_dir/values-test.yaml" ] && values_files="-f $chart_dir/values-test.yaml" || unset values_files
-    helm template $values_files "$chart_dir" 1> /dev/null
+    helm template $values_files "$chart_dir" 3>&1 1>/dev/null 2>&3 | (grep -v "found symbolic link in path" || true)
   done
 fi
 

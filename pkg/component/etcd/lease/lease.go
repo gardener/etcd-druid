@@ -19,7 +19,7 @@ import (
 
 	"github.com/go-logr/logr"
 
-	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
+	gardenercomponent "github.com/gardener/gardener/pkg/component"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"

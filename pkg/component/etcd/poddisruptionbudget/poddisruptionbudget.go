@@ -20,8 +20,8 @@ import (
 	"github.com/Masterminds/semver"
 	"github.com/gardener/etcd-druid/pkg/utils"
 
+	gardenercomponent "github.com/gardener/gardener/pkg/component"
 	"github.com/gardener/gardener/pkg/controllerutils"
-	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	policyv1 "k8s.io/api/policy/v1"
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

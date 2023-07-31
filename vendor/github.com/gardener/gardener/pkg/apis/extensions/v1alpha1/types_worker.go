@@ -1,4 +1,4 @@
-// Copyright (c) 2019 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2019 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -210,6 +210,9 @@ type WorkerStatus struct {
 	// +patchMergeKey=name
 	// +patchStrategy=merge
 	MachineDeployments []MachineDeployment `json:"machineDeployments,omitempty" patchStrategy:"merge" patchMergeKey:"name"`
+	// MachineDeploymentsLastUpdateTime is the timestamp when the status.MachineDeployments slice was last updated.
+	// +optional
+	MachineDeploymentsLastUpdateTime *metav1.Time `json:"machineDeploymentsLastUpdateTime,omitempty"`
 }
 
 // MachineDeployment is a created machine deployment.

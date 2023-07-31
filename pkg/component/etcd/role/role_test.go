@@ -21,7 +21,7 @@ import (
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	"github.com/gardener/etcd-druid/pkg/component/etcd/role"
 
-	"github.com/gardener/gardener/pkg/operation/botanist/component"
+	"github.com/gardener/gardener/pkg/component"
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

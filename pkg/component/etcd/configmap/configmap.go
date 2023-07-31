@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
+	gardenercomponent "github.com/gardener/gardener/pkg/component"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

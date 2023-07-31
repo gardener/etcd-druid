@@ -19,7 +19,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
-	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
+	gardenercomponent "github.com/gardener/gardener/pkg/component"
 
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
