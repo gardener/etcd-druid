@@ -125,7 +125,7 @@ func registerControllersWithManager(mgr ctrl.Manager, config *ManagerConfig) err
 	if err = secret.NewReconciler(
 		mgr,
 		config.SecretControllerConfig,
-	).RegisterWithManager(mgr); err != nil {
+	).RegisterWithManager(ctx, mgr); err != nil {
 		return err
 	}
 
