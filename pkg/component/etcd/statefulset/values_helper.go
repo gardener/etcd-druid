@@ -48,7 +48,7 @@ func GenerateValues(
 	clientPort, serverPort, backupPort *int32,
 	etcdImage, backupImage string,
 	checksumAnnotations map[string]string,
-	peerTLSChangedToEnabled bool) Values {
+	peerTLSChangedToEnabled, useEtcdWrapper bool) Values {
 
 	volumeClaimTemplateName := etcd.Name
 	if etcd.Spec.VolumeClaimTemplate != nil && len(*etcd.Spec.VolumeClaimTemplate) != 0 {
@@ -119,9 +119,15 @@ func GenerateValues(
 		AutoCompactionRetention: etcd.Spec.Common.AutoCompactionRetention,
 		ConfigMapName:           etcd.GetConfigmapName(),
 		PeerTLSChangedToEnabled: peerTLSChangedToEnabled,
+
+		UseEtcdWrapper: useEtcdWrapper,
 	}
 
 	values.EtcdCommand = getEtcdCommand(values)
+
+	// Use linearizability for readiness probe so that pod is only considered ready
+	// when it has an active connection to the cluster and the cluster maintains a quorum.
+	values.ReadinessProbeCommand = getProbeCommand(values, linearizable)
 
 	values.EtcdBackupCommand = getBackupRestoreCommand(values)
 
@@ -129,23 +135,26 @@ func GenerateValues(
 }
 
 func getEtcdCommand(val Values) []string {
+	if !val.UseEtcdWrapper {
+		// safe to return an empty string array here since etcd-custom-image:v3.4.13-bootstrap-12 now uses an entry point that calls bootstrap.sh
+		return []string{}
+	}
+	//TODO @aaronfern: remove this feature gate when UseEtcdWraper becomes GA
 	command := []string{"" + "start-etcd"}
+	command = append(command, fmt.Sprintf("--backup-restore-host-port=%s-local:8080", val.Name))
+	command = append(command, fmt.Sprintf("--etcd-server-name=%s-local", val.Name))
 
-	if val.ClientUrlTLS != nil {
+	if val.ClientUrlTLS == nil {
+		command = append(command, "--backup-restore-tls-enabled=false")
+	} else {
 		dataKey := "ca.crt"
 		if val.ClientUrlTLS.TLSCASecretRef.DataKey != nil {
 			dataKey = *val.ClientUrlTLS.TLSCASecretRef.DataKey
 		}
 		command = append(command, "--backup-restore-tls-enabled=true")
-		command = append(command, fmt.Sprintf("--backup-restore-host-port=%s-local:8080", val.Name))
-		command = append(command, fmt.Sprintf("--etcd-server-name=%s-local", val.Name))
 		command = append(command, "--etcd-client-cert-path=/var/etcd/ssl/client/client/tls.crt")
 		command = append(command, "--etcd-client-key-path=/var/etcd/ssl/client/client/tls.key")
 		command = append(command, fmt.Sprintf("--backup-restore-ca-cert-bundle-path=/var/etcd/ssl/client/ca/%s", dataKey))
-	} else {
-		command = append(command, "--backup-restore-tls-enabled=false")
-		command = append(command, fmt.Sprintf("--backup-restore-host-port=%s-local:8080", val.Name))
-		command = append(command, fmt.Sprintf("--etcd-server-name=%s-local", val.Name))
 	}
 
 	return command

@@ -57,8 +57,9 @@ type Values struct {
 	EtcdResourceRequirements   *corev1.ResourceRequirements
 	BackupResourceRequirements *corev1.ResourceRequirements
 
-	EtcdCommand       []string
-	EtcdBackupCommand []string
+	EtcdCommand           []string
+	ReadinessProbeCommand []string
+	EtcdBackupCommand     []string
 
 	EnableClientTLS string
 	EnablePeerTLS   string
@@ -125,4 +126,7 @@ type Values struct {
 	// ConfigMapName is the name of the configmap that holds the ETCD config.
 	ConfigMapName           string
 	PeerTLSChangedToEnabled bool
+
+	// UseEtcdWrapper enables the use of etcd-wrapper image and a compatible version of etcd-backup-restore
+	UseEtcdWrapper bool
 }

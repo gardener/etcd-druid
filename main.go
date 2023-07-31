@@ -15,7 +15,6 @@
 package main
 
 import (
-	"flag"
 	"os"
 	"runtime"
 
@@ -25,6 +24,7 @@ import (
 
 	"github.com/gardener/etcd-druid/controllers"
 	"github.com/gardener/etcd-druid/pkg/version"
+	flag "github.com/spf13/pflag"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -41,9 +41,13 @@ func main() {
 	printVersionInfo()
 
 	mgrConfig := controllers.ManagerConfig{}
-	controllers.InitFromFlags(flag.CommandLine, &mgrConfig)
+	if err := mgrConfig.InitFromFlags(flag.CommandLine); err != nil {
+		logger.Error(err, "failed to initialize from flags")
+		os.Exit(1)
+	}
 
 	flag.Parse()
+
 	printFlags(logger)
 
 	if err := mgrConfig.Validate(); err != nil {

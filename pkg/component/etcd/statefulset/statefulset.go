@@ -137,7 +137,7 @@ func (c *component) getLatestPodCreationTime(ctx context.Context, sts *appsv1.St
 	return recentCreationTime, nil
 }
 
-func (c *component) waitUtilPodsReady(ctx context.Context, originalSts *appsv1.StatefulSet, podDeletionTime time.Time, interval time.Duration, timeout time.Duration) error {
+func (c *component) waitUntilPodsReady(ctx context.Context, originalSts *appsv1.StatefulSet, podDeletionTime time.Time, interval time.Duration, timeout time.Duration) error {
 	sts := appsv1.StatefulSet{}
 	return gardenerretry.UntilTimeout(ctx, interval, timeout, func(ctx context.Context) (bool, error) {
 		if err := c.client.Get(ctx, client.ObjectKeyFromObject(originalSts), &sts); err != nil {
@@ -364,7 +364,7 @@ func (c *component) deleteAllStsPods(ctx context.Context, opName string, sts *ap
 	const interval = 2 * time.Second
 
 	c.logger.Info("waiting for StatefulSet pods to start again after delete", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference), "replicas", replicas)
-	return c.waitUtilPodsReady(ctx, sts, timeBeforeDeletion, interval, timeout)
+	return c.waitUntilPodsReady(ctx, sts, timeBeforeDeletion, interval, timeout)
 }
 
 func (c *component) doCreateOrUpdate(ctx context.Context, opName string, sts *appsv1.StatefulSet, replicas int32, preserveObjectMetadata bool) error {
@@ -430,25 +430,6 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 					ServiceAccountName:        c.values.ServiceAccountName,
 					Affinity:                  c.values.Affinity,
 					TopologySpreadConstraints: c.values.TopologySpreadConstraints,
-					InitContainers: []corev1.Container{
-						{
-							Name:         "change-permissions",
-							Image:        "alpine:3.18.0",
-							Command:      []string{"sh", "-c", "--"},
-							Args:         []string{"chown -R 65532:65532 /var/etcd/data"},
-							VolumeMounts: getEtcdVolumeMounts(c.values),
-							SecurityContext: &corev1.SecurityContext{
-								RunAsGroup:   pointer.Int64(0),
-								RunAsNonRoot: pointer.Bool(false),
-								RunAsUser:    pointer.Int64(0),
-							},
-						},
-					},
-					SecurityContext: &corev1.PodSecurityContext{
-						RunAsGroup:   pointer.Int64(65532),
-						RunAsNonRoot: pointer.Bool(true),
-						RunAsUser:    pointer.Int64(65532),
-					},
 					Containers: []corev1.Container{
 						{
 							Name:            "etcd",
@@ -507,6 +488,29 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 		}
 		if c.values.PriorityClassName != nil {
 			sts.Spec.Template.Spec.PriorityClassName = *c.values.PriorityClassName
+		}
+		if c.values.UseEtcdWrapper {
+			// sections to add only when using etcd wrapper
+			// TODO: @aaronfern add this back to sts.Spec when UseEtcdWrapper becomes GA
+			sts.Spec.Template.Spec.InitContainers = []corev1.Container{
+				{
+					Name:         "change-permissions",
+					Image:        "alpine:3.18.2",
+					Command:      []string{"sh", "-c", "--"},
+					Args:         []string{"chown -R 65532:65532 /var/etcd/data"},
+					VolumeMounts: getEtcdVolumeMounts(c.values),
+					SecurityContext: &corev1.SecurityContext{
+						RunAsGroup:   pointer.Int64(0),
+						RunAsNonRoot: pointer.Bool(false),
+						RunAsUser:    pointer.Int64(0),
+					},
+				},
+			}
+			sts.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
+				RunAsGroup:   pointer.Int64(65532),
+				RunAsNonRoot: pointer.Bool(true),
+				RunAsUser:    pointer.Int64(65532),
+			}
 		}
 
 		if stsOriginal.Generation > 0 {
@@ -983,16 +987,25 @@ func getReadinessHandlerForSingleNode(val Values) corev1.ProbeHandler {
 }
 
 func getReadinessHandlerForMultiNode(val Values) corev1.ProbeHandler {
-	scheme := corev1.URISchemeHTTPS
-	if val.BackupTLS == nil {
-		scheme = corev1.URISchemeHTTP
+	if val.UseEtcdWrapper {
+		//TODO @aaronfern: remove this feature gate when UseEtcdWrapper becomes GA
+		scheme := corev1.URISchemeHTTPS
+		if val.BackupTLS == nil {
+			scheme = corev1.URISchemeHTTP
+		}
+
+		return corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Path:   "/readyz",
+				Port:   intstr.FromInt(int(pointer.Int32Deref(val.WrapperPort, defaultWrapperPort))),
+				Scheme: scheme,
+			},
+		}
 	}
 
 	return corev1.ProbeHandler{
-		HTTPGet: &corev1.HTTPGetAction{
-			Path:   "/readyz",
-			Port:   intstr.FromInt(int(pointer.Int32Deref(val.WrapperPort, defaultWrapperPort))),
-			Scheme: scheme,
+		Exec: &corev1.ExecAction{
+			Command: val.ReadinessProbeCommand,
 		},
 	}
 }

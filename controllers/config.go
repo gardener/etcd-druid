@@ -15,7 +15,7 @@
 package controllers
 
 import (
-	"flag"
+	"fmt"
 
 	"github.com/gardener/etcd-druid/controllers/compaction"
 	"github.com/gardener/etcd-druid/controllers/custodian"
@@ -23,7 +23,11 @@ import (
 	"github.com/gardener/etcd-druid/controllers/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/controllers/secret"
 	"github.com/gardener/etcd-druid/controllers/utils"
+	"github.com/gardener/etcd-druid/pkg/features"
+
+	flag "github.com/spf13/pflag"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
+	"k8s.io/component-base/featuregate"
 )
 
 const (
@@ -61,6 +65,8 @@ type ManagerConfig struct {
 	DisableLeaseCache bool
 	// IgnoreOperationAnnotation specifies whether to ignore or honour the operation annotation on resources to be reconciled.
 	IgnoreOperationAnnotation bool
+	// FeatureGates contains the feature gates to be used by etcd-druid.
+	FeatureGates featuregate.MutableFeatureGate
 	// EtcdControllerConfig is the configuration required for etcd controller.
 	EtcdControllerConfig *etcd.Config
 	// CustodianControllerConfig is the configuration required for custodian controller.
@@ -74,7 +80,7 @@ type ManagerConfig struct {
 }
 
 // InitFromFlags initializes the controller manager config from the provided CLI flag set.
-func InitFromFlags(fs *flag.FlagSet, cfg *ManagerConfig) {
+func (cfg *ManagerConfig) InitFromFlags(fs *flag.FlagSet) error {
 	flag.StringVar(&cfg.MetricsAddr, metricsAddrFlagName, defaultMetricsAddr, ""+
 		"The address the metric endpoint binds to.")
 	flag.BoolVar(&cfg.EnableLeaderElection, enableLeaderElectionFlagName, defaultEnableLeaderElection,
@@ -87,6 +93,10 @@ func InitFromFlags(fs *flag.FlagSet, cfg *ManagerConfig) {
 		"Disable cache for lease.coordination.k8s.io resources.")
 	flag.BoolVar(&cfg.IgnoreOperationAnnotation, ignoreOperationAnnotationFlagName, defaultIgnoreOperationAnnotation,
 		"Specifies whether to ignore or honour the operation annotation on resources to be reconciled.")
+
+	if err := cfg.initFeatureGates(fs); err != nil {
+		return err
+	}
 
 	cfg.EtcdControllerConfig = &etcd.Config{}
 	etcd.InitFromFlags(fs, cfg.EtcdControllerConfig)
@@ -102,6 +112,35 @@ func InitFromFlags(fs *flag.FlagSet, cfg *ManagerConfig) {
 
 	cfg.SecretControllerConfig = &secret.Config{}
 	secret.InitFromFlags(fs, cfg.SecretControllerConfig)
+
+	return nil
+}
+
+// initFeatureGates initializes feature gates from the provided CLI flag set.
+func (cfg *ManagerConfig) initFeatureGates(fs *flag.FlagSet) error {
+	featureGates := featuregate.NewFeatureGate()
+	if err := featureGates.Add(features.GetDefaultFeatures()); err != nil {
+		return fmt.Errorf("error adding features to the featuregate: %v", err)
+	}
+	featureGates.AddFlag(fs)
+
+	cfg.FeatureGates = featureGates
+
+	return nil
+}
+
+// populateControllersFeatureGates adds relevant feature gates to every controller configuration
+func (cfg *ManagerConfig) populateControllersFeatureGates() {
+	// Feature gates populated only for controllers that use feature gates
+
+	// Add etcd controller feature gates
+	cfg.EtcdControllerConfig.CaptureFeatureActivations(cfg.FeatureGates)
+
+	// Add compaction controller feature gates
+	cfg.CompactionControllerConfig.CaptureFeatureActivations(cfg.FeatureGates)
+
+	// Add etcd-copy-backups-task controller feature gates
+	cfg.EtcdCopyBackupsTaskControllerConfig.CaptureFeatureActivations(cfg.FeatureGates)
 }
 
 // Validate validates the controller manager config.

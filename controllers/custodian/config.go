@@ -15,10 +15,11 @@
 package custodian
 
 import (
-	"flag"
 	"time"
 
 	"github.com/gardener/etcd-druid/controllers/utils"
+
+	flag "github.com/spf13/pflag"
 )
 
 const (
