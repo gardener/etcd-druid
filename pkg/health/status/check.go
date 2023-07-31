@@ -74,10 +74,7 @@ func (c *Checker) Check(ctx context.Context, logger logr.Logger, etcd *druidv1al
 	}
 
 	// Execute condition checks after the etcd member checks because we need their result here.
-	if err := c.executeConditionChecks(ctx, etcd); err != nil {
-		return err
-	}
-	return nil
+	return c.executeConditionChecks(ctx, etcd)
 }
 
 // executeConditionChecks runs all registered condition checks **in parallel**.

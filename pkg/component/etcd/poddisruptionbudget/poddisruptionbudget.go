@@ -76,11 +76,8 @@ func (c *component) Deploy(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := c.syncPodDisruptionBudget(ctx, pdb); err != nil {
-		return err
-	}
 
-	return nil
+	return c.syncPodDisruptionBudget(ctx, pdb)
 }
 
 // syncPodDisruptionBudget Creates a PDB if it does not exist

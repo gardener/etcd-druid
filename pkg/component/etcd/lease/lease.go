@@ -50,11 +50,7 @@ func (c *component) Deploy(ctx context.Context) error {
 		return err
 	}
 
-	if err := c.syncMemberLeases(ctx); err != nil {
-		return err
-	}
-
-	return nil
+	return c.syncMemberLeases(ctx)
 }
 
 func (c *component) Destroy(ctx context.Context) error {
@@ -71,11 +67,7 @@ func (c *component) Destroy(ctx context.Context) error {
 		return err
 	}
 
-	if err := c.deleteAllMemberLeases(ctx); err != nil {
-		return err
-	}
-
-	return nil
+	return c.deleteAllMemberLeases(ctx)
 }
 
 // New creates a new lease deployer instance.

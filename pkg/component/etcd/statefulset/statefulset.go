@@ -70,10 +70,7 @@ func New(c client.Client, logger logr.Logger, values Values, featureGates map[st
 // Destroy deletes the StatefulSet
 func (c *component) Destroy(ctx context.Context) error {
 	sts := c.emptyStatefulset()
-	if err := client.IgnoreNotFound(c.client.Delete(ctx, sts)); err != nil {
-		return err
-	}
-	return nil
+	return client.IgnoreNotFound(c.client.Delete(ctx, sts))
 }
 
 // Deploy executes a deploy-flow to ensure that the StatefulSet is synchronized correctly
@@ -380,10 +377,7 @@ func (c *component) doCreateOrUpdate(ctx context.Context, opName string, sts *ap
 func (c *component) destroyAndWait(ctx context.Context, opName string) error {
 	deleteAndWait := gardenercomponent.OpDestroyAndWait(c)
 	c.logger.Info("deleting sts", "namespace", c.values.Namespace, "name", c.values.Name, "operation", opName, "etcdUID", getOwnerReferenceNameWithUID(c.values.OwnerReference))
-	if err := deleteAndWait.Destroy(ctx); err != nil {
-		return err
-	}
-	return nil
+	return deleteAndWait.Destroy(ctx)
 }
 
 func immutableFieldUpdate(sts *appsv1.StatefulSet, val Values) bool {

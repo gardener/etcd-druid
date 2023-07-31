@@ -885,7 +885,7 @@ func cmdIterator(element interface{}) string {
 
 func getReadinessHandler(val Values) gomegatypes.GomegaMatcher {
 	if val.Replicas > 1 {
-		return getReadinessHandlerForMultiNode(val)
+		return getReadinessHandlerForMultiNode()
 	}
 	return getReadinessHandlerForSingleNode()
 }
@@ -900,7 +900,7 @@ func getReadinessHandlerForSingleNode() gomegatypes.GomegaMatcher {
 	})
 }
 
-func getReadinessHandlerForMultiNode(val Values) gomegatypes.GomegaMatcher {
+func getReadinessHandlerForMultiNode() gomegatypes.GomegaMatcher {
 	return MatchFields(IgnoreExtras, Fields{
 		"HTTPGet": PointTo(MatchFields(IgnoreExtras, Fields{
 			"Path":   Equal("/readyz"),

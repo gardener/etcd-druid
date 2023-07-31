@@ -49,18 +49,12 @@ func New(c client.Client, namespace string, values *Values) gardenercomponent.De
 
 func (c *component) Deploy(ctx context.Context) error {
 	cm := c.emptyConfigmap()
-	if err := c.syncConfigmap(ctx, cm); err != nil {
-		return err
-	}
-	return nil
+	return c.syncConfigmap(ctx, cm)
 }
 
 func (c *component) Destroy(ctx context.Context) error {
 	configMap := c.emptyConfigmap()
-	if err := c.deleteConfigmap(ctx, configMap); err != nil {
-		return err
-	}
-	return nil
+	return c.deleteConfigmap(ctx, configMap)
 }
 
 type etcdTLSTarget string

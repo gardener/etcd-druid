@@ -40,11 +40,7 @@ func (c *component) Deploy(ctx context.Context) error {
 		return err
 	}
 
-	if err := c.syncPeerService(ctx, peerService); err != nil {
-		return err
-	}
-
-	return nil
+	return c.syncPeerService(ctx, peerService)
 }
 
 func (c *component) Destroy(ctx context.Context) error {
@@ -57,11 +53,7 @@ func (c *component) Destroy(ctx context.Context) error {
 		return err
 	}
 
-	if err := client.IgnoreNotFound(c.client.Delete(ctx, peerService)); err != nil {
-		return err
-	}
-
-	return nil
+	return client.IgnoreNotFound(c.client.Delete(ctx, peerService))
 }
 
 // New creates a new service deployer instance.
