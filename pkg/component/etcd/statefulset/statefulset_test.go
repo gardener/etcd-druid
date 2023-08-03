@@ -197,6 +197,26 @@ var _ = Describe("Statefulset", func() {
 					Expect(metav1.HasAnnotation(sts.ObjectMeta, "gardener.cloud/scaled-to-multi-node")).To(BeFalse())
 				})
 			})
+
+			Context("DeltaSnapshotRetentionPeriod field is set in Etcd CRD", func() {
+				It("should include --delta-snapshot-retention-period flag in etcd-backup-restore container command", func() {
+					etcd.Spec.Backup.DeltaSnapshotRetentionPeriod = &metav1.Duration{Duration: time.Hour * 24}
+					values = GenerateValues(
+						etcd,
+						pointer.Int32(clientPort),
+						pointer.Int32(serverPort),
+						pointer.Int32(backupPort),
+						imageEtcd,
+						imageBR,
+						checkSumAnnotations, false, true)
+					stsDeployer = New(cl, logr.Discard(), values)
+					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
+
+					sts := &appsv1.StatefulSet{}
+					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
+					checkStatefulset(sts, values)
+				})
+			})
 		})
 
 		Context("when statefulset exists", func() {
@@ -247,6 +267,26 @@ var _ = Describe("Statefulset", func() {
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
 					checkStatefulset(updatedSts, values)
 					Expect(updatedSts.Spec.PodManagementPolicy).To(Equal(appsv1.ParallelPodManagement))
+				})
+			})
+
+			Context("DeltaSnapshotRetentionPeriod field is updated in Etcd CRD", func() {
+				It("should update --delta-snapshot-retention-period flag in etcd-backup-restore container command", func() {
+					etcd.Spec.Backup.DeltaSnapshotRetentionPeriod = &metav1.Duration{Duration: time.Hour * 48}
+					values = GenerateValues(
+						etcd,
+						pointer.Int32(clientPort),
+						pointer.Int32(serverPort),
+						pointer.Int32(backupPort),
+						imageEtcd,
+						imageBR,
+						checkSumAnnotations, false, true)
+					stsDeployer = New(cl, logr.Discard(), values)
+					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
+
+					sts := &appsv1.StatefulSet{}
+					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
+					checkStatefulset(sts, values)
 				})
 			})
 		})
@@ -418,8 +458,6 @@ func checkBackup(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) {
 
 func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 	checkStsOwnerRefs(sts.ObjectMeta.OwnerReferences, values)
-	store, err := druidutils.StorageProviderFromInfraProvider(values.BackupStore.Provider)
-	Expect(err).NotTo(HaveOccurred())
 	Expect(*sts).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 			"Name":      Equal(values.Name),
@@ -535,42 +573,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 						}),
 
 						backupRestore: MatchFields(IgnoreExtras, Fields{
-							"Args": MatchAllElements(cmdIterator, Elements{
-								"server": Equal("server"),
-								"--cert=/var/etcd/ssl/client/client/tls.crt":                       Equal("--cert=/var/etcd/ssl/client/client/tls.crt"),
-								"--key=/var/etcd/ssl/client/client/tls.key":                        Equal("--key=/var/etcd/ssl/client/client/tls.key"),
-								"--cacert=/var/etcd/ssl/client/ca/ca.crt":                          Equal("--cacert=/var/etcd/ssl/client/ca/ca.crt"),
-								"--server-cert=/var/etcd/ssl/client/server/tls.crt":                Equal("--server-cert=/var/etcd/ssl/client/server/tls.crt"),
-								"--server-key=/var/etcd/ssl/client/server/tls.key":                 Equal("--server-key=/var/etcd/ssl/client/server/tls.key"),
-								"--data-dir=/var/etcd/data/new.etcd":                               Equal("--data-dir=/var/etcd/data/new.etcd"),
-								"--restoration-temp-snapshots-dir=/var/etcd/data/restoration.temp": Equal("--restoration-temp-snapshots-dir=/var/etcd/data/restoration.temp"),
-								"--insecure-transport=false":                                       Equal("--insecure-transport=false"),
-								"--insecure-skip-tls-verify=false":                                 Equal("--insecure-skip-tls-verify=false"),
-								"--snapstore-temp-directory=/var/etcd/data/temp":                   Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
-								fmt.Sprintf("%s=%s", "--etcd-connection-timeout-leader-election", etcdLeaderElectionConnectionTimeout.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--etcd-connection-timeout-leader-election", values.LeaderElection.EtcdConnectionTimeout.Duration.String())),
-								"--etcd-connection-timeout=5m":                                                                        Equal("--etcd-connection-timeout=5m"),
-								"--enable-snapshot-lease-renewal=true":                                                                Equal("--enable-snapshot-lease-renewal=true"),
-								"--enable-member-lease-renewal=true":                                                                  Equal("--enable-member-lease-renewal=true"),
-								"--k8s-heartbeat-duration=10s":                                                                        Equal("--k8s-heartbeat-duration=10s"),
-								fmt.Sprintf("--defragmentation-schedule=%s", *values.DefragmentationSchedule):                         Equal(fmt.Sprintf("--defragmentation-schedule=%s", *values.DefragmentationSchedule)),
-								fmt.Sprintf("--schedule=%s", *values.FullSnapshotSchedule):                                            Equal(fmt.Sprintf("--schedule=%s", *values.FullSnapshotSchedule)),
-								fmt.Sprintf("%s=%s", "--garbage-collection-policy", *values.GarbageCollectionPolicy):                  Equal(fmt.Sprintf("%s=%s", "--garbage-collection-policy", *values.GarbageCollectionPolicy)),
-								fmt.Sprintf("%s=%s", "--storage-provider", store):                                                     Equal(fmt.Sprintf("%s=%s", "--storage-provider", store)),
-								fmt.Sprintf("%s=%s", "--store-prefix", values.BackupStore.Prefix):                                     Equal(fmt.Sprintf("%s=%s", "--store-prefix", values.BackupStore.Prefix)),
-								fmt.Sprintf("--delta-snapshot-memory-limit=%d", values.DeltaSnapshotMemoryLimit.Value()):              Equal(fmt.Sprintf("--delta-snapshot-memory-limit=%d", values.DeltaSnapshotMemoryLimit.Value())),
-								fmt.Sprintf("--garbage-collection-policy=%s", *values.GarbageCollectionPolicy):                        Equal(fmt.Sprintf("--garbage-collection-policy=%s", *values.GarbageCollectionPolicy)),
-								fmt.Sprintf("--endpoints=https://%s-local:%d", values.Name, clientPort):                               Equal(fmt.Sprintf("--endpoints=https://%s-local:%d", values.Name, clientPort)),
-								fmt.Sprintf("--service-endpoints=https://%s:%d", values.ClientServiceName, clientPort):                Equal(fmt.Sprintf("--service-endpoints=https://%s:%d", values.ClientServiceName, clientPort)),
-								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(values.Quota.Value())):                            Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(values.Quota.Value()))),
-								fmt.Sprintf("%s=%s", "--delta-snapshot-period", values.DeltaSnapshotPeriod.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-period", values.DeltaSnapshotPeriod.Duration.String())),
-								fmt.Sprintf("%s=%s", "--garbage-collection-period", values.GarbageCollectionPeriod.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--garbage-collection-period", values.GarbageCollectionPeriod.Duration.String())),
-								fmt.Sprintf("%s=%s", "--auto-compaction-mode", *values.AutoCompactionMode):                            Equal(fmt.Sprintf("%s=%s", "--auto-compaction-mode", *values.AutoCompactionMode)),
-								fmt.Sprintf("%s=%s", "--auto-compaction-retention", *values.AutoCompactionRetention):                  Equal(fmt.Sprintf("%s=%s", "--auto-compaction-retention", *values.AutoCompactionRetention)),
-								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", values.EtcdSnapshotTimeout.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", values.EtcdSnapshotTimeout.Duration.String())),
-								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", values.EtcdDefragTimeout.Duration.String()):             Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", values.EtcdDefragTimeout.Duration.String())),
-								fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", values.DeltaSnapLeaseName):                        Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", values.DeltaSnapLeaseName)),
-								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", values.FullSnapLeaseName):                          Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", values.FullSnapLeaseName)),
-							}),
+							"Args": MatchAllElements(cmdIterator, expectedBackupArgs(&values)),
 							"Ports": ConsistOf([]corev1.ContainerPort{
 								{
 									Name:          "server",
@@ -926,4 +929,51 @@ func checkLocalProviderVaues(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, 
 		Name:      "host-storage",
 		MountPath: container,
 	}))
+}
+
+func expectedBackupArgs(values *Values) Elements {
+	store, err := druidutils.StorageProviderFromInfraProvider(values.BackupStore.Provider)
+	Expect(err).NotTo(HaveOccurred())
+	elements := Elements{
+		"server": Equal("server"),
+		"--cert=/var/etcd/ssl/client/client/tls.crt":                       Equal("--cert=/var/etcd/ssl/client/client/tls.crt"),
+		"--key=/var/etcd/ssl/client/client/tls.key":                        Equal("--key=/var/etcd/ssl/client/client/tls.key"),
+		"--cacert=/var/etcd/ssl/client/ca/ca.crt":                          Equal("--cacert=/var/etcd/ssl/client/ca/ca.crt"),
+		"--server-cert=/var/etcd/ssl/client/server/tls.crt":                Equal("--server-cert=/var/etcd/ssl/client/server/tls.crt"),
+		"--server-key=/var/etcd/ssl/client/server/tls.key":                 Equal("--server-key=/var/etcd/ssl/client/server/tls.key"),
+		"--data-dir=/var/etcd/data/new.etcd":                               Equal("--data-dir=/var/etcd/data/new.etcd"),
+		"--restoration-temp-snapshots-dir=/var/etcd/data/restoration.temp": Equal("--restoration-temp-snapshots-dir=/var/etcd/data/restoration.temp"),
+		"--insecure-transport=false":                                       Equal("--insecure-transport=false"),
+		"--insecure-skip-tls-verify=false":                                 Equal("--insecure-skip-tls-verify=false"),
+		"--snapstore-temp-directory=/var/etcd/data/temp":                   Equal("--snapstore-temp-directory=/var/etcd/data/temp"),
+		fmt.Sprintf("%s=%s", "--etcd-connection-timeout-leader-election", etcdLeaderElectionConnectionTimeout.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--etcd-connection-timeout-leader-election", values.LeaderElection.EtcdConnectionTimeout.Duration.String())),
+		"--etcd-connection-timeout=5m":                                                                        Equal("--etcd-connection-timeout=5m"),
+		"--enable-snapshot-lease-renewal=true":                                                                Equal("--enable-snapshot-lease-renewal=true"),
+		"--enable-member-lease-renewal=true":                                                                  Equal("--enable-member-lease-renewal=true"),
+		"--k8s-heartbeat-duration=10s":                                                                        Equal("--k8s-heartbeat-duration=10s"),
+		fmt.Sprintf("--defragmentation-schedule=%s", *values.DefragmentationSchedule):                         Equal(fmt.Sprintf("--defragmentation-schedule=%s", *values.DefragmentationSchedule)),
+		fmt.Sprintf("--schedule=%s", *values.FullSnapshotSchedule):                                            Equal(fmt.Sprintf("--schedule=%s", *values.FullSnapshotSchedule)),
+		fmt.Sprintf("%s=%s", "--garbage-collection-policy", *values.GarbageCollectionPolicy):                  Equal(fmt.Sprintf("%s=%s", "--garbage-collection-policy", *values.GarbageCollectionPolicy)),
+		fmt.Sprintf("%s=%s", "--storage-provider", store):                                                     Equal(fmt.Sprintf("%s=%s", "--storage-provider", store)),
+		fmt.Sprintf("%s=%s", "--store-prefix", values.BackupStore.Prefix):                                     Equal(fmt.Sprintf("%s=%s", "--store-prefix", values.BackupStore.Prefix)),
+		fmt.Sprintf("--delta-snapshot-memory-limit=%d", values.DeltaSnapshotMemoryLimit.Value()):              Equal(fmt.Sprintf("--delta-snapshot-memory-limit=%d", values.DeltaSnapshotMemoryLimit.Value())),
+		fmt.Sprintf("--garbage-collection-policy=%s", *values.GarbageCollectionPolicy):                        Equal(fmt.Sprintf("--garbage-collection-policy=%s", *values.GarbageCollectionPolicy)),
+		fmt.Sprintf("--endpoints=https://%s-local:%d", values.Name, clientPort):                               Equal(fmt.Sprintf("--endpoints=https://%s-local:%d", values.Name, clientPort)),
+		fmt.Sprintf("--service-endpoints=https://%s:%d", values.ClientServiceName, clientPort):                Equal(fmt.Sprintf("--service-endpoints=https://%s:%d", values.ClientServiceName, clientPort)),
+		fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(values.Quota.Value())):                            Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(values.Quota.Value()))),
+		fmt.Sprintf("%s=%s", "--delta-snapshot-period", values.DeltaSnapshotPeriod.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-period", values.DeltaSnapshotPeriod.Duration.String())),
+		fmt.Sprintf("%s=%s", "--garbage-collection-period", values.GarbageCollectionPeriod.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--garbage-collection-period", values.GarbageCollectionPeriod.Duration.String())),
+		fmt.Sprintf("%s=%s", "--auto-compaction-mode", *values.AutoCompactionMode):                            Equal(fmt.Sprintf("%s=%s", "--auto-compaction-mode", *values.AutoCompactionMode)),
+		fmt.Sprintf("%s=%s", "--auto-compaction-retention", *values.AutoCompactionRetention):                  Equal(fmt.Sprintf("%s=%s", "--auto-compaction-retention", *values.AutoCompactionRetention)),
+		fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", values.EtcdSnapshotTimeout.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", values.EtcdSnapshotTimeout.Duration.String())),
+		fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", values.EtcdDefragTimeout.Duration.String()):             Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", values.EtcdDefragTimeout.Duration.String())),
+		fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", values.DeltaSnapLeaseName):                        Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", values.DeltaSnapLeaseName)),
+		fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", values.FullSnapLeaseName):                          Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", values.FullSnapLeaseName)),
+	}
+
+	if values.DeltaSnapshotRetentionPeriod != nil {
+		elements[fmt.Sprintf("--delta-snapshot-retention-period=%s", values.DeltaSnapshotRetentionPeriod.Duration.String())] = Equal(fmt.Sprintf("--delta-snapshot-retention-period=%s", values.DeltaSnapshotRetentionPeriod.Duration.String()))
+		println("Adding the check.....")
+	}
+	return elements
 }
