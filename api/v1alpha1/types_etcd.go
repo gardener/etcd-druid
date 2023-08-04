@@ -179,9 +179,9 @@ type BackupSpec struct {
 	// +optional
 	DeltaSnapshotMemoryLimit *resource.Quantity `json:"deltaSnapshotMemoryLimit,omitempty"`
 	// DeltaSnapshotRetentionPeriod defines the duration for which delta snapshots will be retained, excluding the latest snapshot set.
-	// The value should be a string formatted as a duration (e.g., '1s', '2m', '3h', '4d') with a minimum value of 1 second.
+	// The value should be a string formatted as a duration (e.g., '1s', '2m', '3h', '4d')
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Pattern="^([1-9][0-9]*([.][0-9]+)?(s|m|h|d))+$"
+	// +kubebuilder:validation:Pattern="^([0-9][0-9]*([.][0-9]+)?(s|m|h|d))+$"
 	// +optional
 	DeltaSnapshotRetentionPeriod *metav1.Duration `json:"deltaSnapshotRetentionPeriod,omitempty"`
 
