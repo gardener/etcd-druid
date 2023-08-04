@@ -973,7 +973,6 @@ func expectedBackupArgs(values *Values) Elements {
 
 	if values.DeltaSnapshotRetentionPeriod != nil {
 		elements[fmt.Sprintf("--delta-snapshot-retention-period=%s", values.DeltaSnapshotRetentionPeriod.Duration.String())] = Equal(fmt.Sprintf("--delta-snapshot-retention-period=%s", values.DeltaSnapshotRetentionPeriod.Duration.String()))
-		println("Adding the check.....")
 	}
 	return elements
 }
