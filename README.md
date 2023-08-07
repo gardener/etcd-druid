@@ -28,8 +28,6 @@ The existing method of deploying etcd and backup-sidecar as a StatefulSet allevi
 The etcd CRD should contain the information required to create the etcd and backup-restore sidecar in a pod/statefulset.
 
 ```yaml
----
-
 apiVersion: druid.gardener.cloud/v1alpha1
 kind: Etcd
 metadata:

@@ -1,22 +1,20 @@
----
-title: Recover from etcd Permanent Quorum Loss
----
+# Recovery from Permanent Quorum Loss in an Etcd Cluster
 
-## Quorum loss in ETCD Cluster
-[Quorum loss](https://etcd.io/docs/v3.4/op-guide/recovery/) means when majority of ETCD pods(greater than or equal to n/2 + 1) are down simultaneously for some reason. 
+## Quorum loss in Etcd Cluster
+[Quorum loss](https://etcd.io/docs/v3.4/op-guide/recovery/) means when majority of Etcd pods(greater than or equal to n/2 + 1) are down simultaneously for some reason. 
 
-There are two types of quorum loss that can happen to [ETCD multinode cluster](https://github.com/gardener/etcd-druid/tree/master/docs/proposals/multi-node) :
+There are two types of quorum loss that can happen to [Etcd multinode cluster](https://github.com/gardener/etcd-druid/tree/master/docs/proposals/multi-node) :
 
-1. **Transient quorum loss** - A quorum loss is called transient when majority of ETCD pods are down simultaneously for some time. The pods may be down due to network unavailability, high resource usages etc. When the pods come back after some time, they can re-join to the cluster and the quorum is recovered automatically without any manual intervention. There should not be a permanent failure for majority of etcd pods due to hardware failure or disk corruption.
+1. **Transient quorum loss** - A quorum loss is called transient when majority of Etcd pods are down simultaneously for some time. The pods may be down due to network unavailability, high resource usages etc. When the pods come back after some time, they can re-join to the cluster and the quorum is recovered automatically without any manual intervention. There should not be a permanent failure for majority of etcd pods due to hardware failure or disk corruption.
 
-2. **Permanent quorum loss** - A quorum loss is called permanent when majority of ETCD cluster members experience permanent failure, whether due to hardware failure or disk corruption etc. then the etcd cluster is not going to recover automatically from the quorum loss. A human operator will now need to intervene and execute the following steps to recover the multi-node ETCD cluster.
+2. **Permanent quorum loss** - A quorum loss is called permanent when majority of Etcd cluster members experience permanent failure, whether due to hardware failure or disk corruption etc. then the etcd cluster is not going to recover automatically from the quorum loss. A human operator will now need to intervene and execute the following steps to recover the multi-node Etcd cluster.
 
-If permanent quorum loss occurs to a multinode ETCD cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs etc related to that ETCD cluster and work on those resources only. Following steps guide a human operator to recover from permanent quorum loss of a ETCD cluster. We assume the name of the ETCD CR for the ETCD cluster is `etcd-main`.
+If permanent quorum loss occurs to a multinode Etcd cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs etc related to that Etcd cluster and work on those resources only. Following steps guide a human operator to recover from permanent quorum loss of a Etcd cluster. We assume the name of the Etcd CR for the Etcd cluster is `etcd-main`.
 
-**ETCD cluster in shoot control plane of gardener deployment:**
-There are two [ETCD clusters](https://github.com/gardener/etcd-druid/tree/master/docs/proposals/multi-node) running in shoot control plane. One is named as `etcd-events` and another is named `etcd-main`. The operator needs to take care of permanent quorum loss to a specific cluster. If permanent quorum loss occurs to `etcd-events` cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs etc related to `etcd-events` cluster and work on those resources only. 
+**Etcd cluster in shoot control plane of gardener deployment:**
+There are two [Etcd clusters](https://github.com/gardener/etcd-druid/tree/master/docs/proposals/multi-node) running in shoot control plane. One is named as `etcd-events` and another is named `etcd-main`. The operator needs to take care of permanent quorum loss to a specific cluster. If permanent quorum loss occurs to `etcd-events` cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs etc related to `etcd-events` cluster and work on those resources only. 
 
-:warning: **Note:** Please note that manually restoring etcd can result in data loss. This guide is the last resort to bring an ETCD cluster up and running again.
+:warning: **Note:** Please note that manually restoring etcd can result in data loss. This guide is the last resort to bring an Etcd cluster up and running again.
 
    If etcd-druid and etcd-backup-restore is being used with gardener, then 
 
@@ -84,13 +82,13 @@ There are two [ETCD clusters](https://github.com/gardener/etcd-druid/tree/master
        etcd-main-1   2/2     Running   0          1m
        etcd-main-2   2/2     Running   0          1m
        ```
-       Additionally, check if the ETCD CR is ready with `kubectl get etcd etcd-main` :
+       Additionally, check if the Etcd CR is ready with `kubectl get etcd etcd-main` :
        ```                                                                                                                                                 ✹
        NAME        READY   AGE
        etcd-main   true    13d
        ```
 
-       Additionally, check the leases for 30 seconds at least. There should be leases starting with `etcd-main` as many as `etcd-main` replicas. One of those leases will have holder identity as `<etcd-member-id>:Leader` and rest of those leases have holder identities as `<etcd-member-id>:Member`. The `AGE` of those leases can also be inspected to identify if those leases were updated in conjunction with the restart of the ETCD cluster: Example:
+       Additionally, check the leases for 30 seconds at least. There should be leases starting with `etcd-main` as many as `etcd-main` replicas. One of those leases will have holder identity as `<etcd-member-id>:Leader` and rest of those leases have holder identities as `<etcd-member-id>:Member`. The `AGE` of those leases can also be inspected to identify if those leases were updated in conjunction with the restart of the Etcd cluster: Example:
        
        ```
        NAME        HOLDER                  AGE
