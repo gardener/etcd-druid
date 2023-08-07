@@ -136,7 +136,7 @@ func GenerateValues(
 
 func getEtcdCommand(val Values) []string {
 	if !val.UseEtcdWrapper {
-		// safe to return an empty string array here since etcd-custom-image:v3.4.13-bootstrap-12 now uses an entry point that calls bootstrap.sh
+		// safe to return an empty string array here since etcd-custom-image:v3.4.13-bootstrap-12 (as well as v3.4.26) now uses an entry point that calls bootstrap.sh
 		return []string{}
 	}
 	//TODO @aaronfern: remove this feature gate when UseEtcdWraper becomes GA
