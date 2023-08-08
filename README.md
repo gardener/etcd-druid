@@ -119,8 +119,8 @@ As first step implement defragmentation during maintenance windows. Subsequently
 
 ### Deployment workflow
 
-![controller-diagram](./docs/controller.png)
+![controller-diagram](./docs/images/controller.png)
 
 ### Defragmentation workflow
 
-![defrag-diagram](./docs/defrag.png)
+![defrag-diagram](./docs/images/defrag.png)
