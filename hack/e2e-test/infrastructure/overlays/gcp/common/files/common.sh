@@ -21,8 +21,8 @@ function setup_gcloud() {
   cd $HOME
   apt update > /dev/null
   apt install -y curl > /dev/null
-  apt install -y python > /dev/null
-  curl -Lo "google-cloud-sdk.tar.gz" https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-346.0.0-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/aarch64/arm/').tar.gz
+  apt install -y python3 > /dev/null
+  curl -Lo "google-cloud-sdk.tar.gz" https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-441.0.0-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/aarch64/arm/').tar.gz
   tar -xzf google-cloud-sdk.tar.gz
   ./google-cloud-sdk/install.sh -q
   export PATH=$PATH:${HOME}/google-cloud-sdk/bin
