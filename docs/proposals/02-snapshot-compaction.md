@@ -1,42 +1,42 @@
-# Backup Compaction for ETCD
+# Snapshot Compaction for Etcd
 
 ## Current Problem
-To ensure recoverability of ETCD, backups of the database are taken at regular interval.
+To ensure recoverability of Etcd, backups of the database are taken at regular interval.
 Backups are of two types: Full Snapshots and Incremental Snapshots. 
 
 ### Full Snapshots
 Full snapshot is a snapshot of the complete database at given point in time.The size of the database keeps changing with time and typically the size is relatively large (measured in 100s of megabytes or even in gigabytes. For this reason, full snapshots are taken after some large intervals.
 
 ### Incremental Snapshots
-Incremental Snapshots are collection of events on ETCD database, obtained through running WATCH API Call on ETCD. After some short intervals, all the events that are accumulated through WATCH API Call are saved in a file and named as Incremental Snapshots at relatively short time intervals.
+Incremental Snapshots are collection of events on Etcd database, obtained through running WATCH API Call on Etcd. After some short intervals, all the events that are accumulated through WATCH API Call are saved in a file and named as Incremental Snapshots at relatively short time intervals.
 
 ### Recovery from the Snapshots
 
 #### Recovery from Full Snapshots
-As the full snapshots are snapshots of the complete database, the whole database can be recovered from a full snapshot in one go. ETCD provides API Call to restore the database from a full snapshot file.
+As the full snapshots are snapshots of the complete database, the whole database can be recovered from a full snapshot in one go. Etcd provides API Call to restore the database from a full snapshot file.
 
 #### Recovery from Incremental Snapshots
-Delta snapshots are collection of retrospective ETCD events. So, to restore from Incremental snapshot file, the events from the file are needed to be applied sequentially on ETCD database through ETCD Put/Delete API calls. As it is heavily dependent on ETCD calls sequentially, restoring from Incremental Snapshot files can take long if there are numerous commands captured in Incremental Snapshot files.
+Delta snapshots are collection of retrospective Etcd events. So, to restore from Incremental snapshot file, the events from the file are needed to be applied sequentially on Etcd database through Etcd Put/Delete API calls. As it is heavily dependent on Etcd calls sequentially, restoring from Incremental Snapshot files can take long if there are numerous commands captured in Incremental Snapshot files.
 
-Delta snapshots are applied on top of running ETCD database. So, if there is inconsistency between the state of database at the point of applying and the state of the database when the delta snapshot commands were captured, restoration will fail.
+Delta snapshots are applied on top of running Etcd database. So, if there is inconsistency between the state of database at the point of applying and the state of the database when the delta snapshot commands were captured, restoration will fail.
 
-Currently, in Gardener setup, ETCD is restored from the last full snapshot and then the delta snapshots, which were captured after the last full snapshot.
+Currently, in Gardener setup, Etcd is restored from the last full snapshot and then the delta snapshots, which were captured after the last full snapshot.
 
 The main problem with this is that the complete restoration time can be unacceptably large if the rate of change coming into the etcd database is quite high because there are large number of events in the delta snapshots to be applied sequentially.
 A secondary problem is that, though auto-compaction is enabled for etcd, it is not quick enough to compact all the changes from the incremental snapshots being re-applied during the relatively short period of time of restoration (as compared to the actual period of time when the incremental snapshots were accumulated). This may lead to the etcd pod (the backup-restore sidecar container, to be precise) to run out of memory and/or storage space even if it is sufficient for normal operations.
 
 ## Solution
 ### Compaction command
-To help with the problem mentioned earlier, our proposal is to introduce `compact` subcommand with `etcdbrctl`. On execution of `compact` command, A separate embedded ETCD process will be started  where the ETCD data will be restored from the snapstore (exactly as in the restoration scenario today). Then the new ETCD database will be compacted and defragmented using ETCD API calls. The compaction will strip off the ETCD database of old revisions as per the ETCD auto-compaction configuration. The defragmentation will free up the unused fragment memory space released after compaction. Then a full snapshot of the compacted database will be saved in snapstore which then can be used as the base snapshot during any subsequent restoration (or backup compaction).
+To help with the problem mentioned earlier, our proposal is to introduce `compact` subcommand with `etcdbrctl`. On execution of `compact` command, A separate embedded Etcd process will be started  where the Etcd data will be restored from the snapstore (exactly as in the restoration scenario today). Then the new Etcd database will be compacted and defragmented using Etcd API calls. The compaction will strip off the Etcd database of old revisions as per the Etcd auto-compaction configuration. The defragmentation will free up the unused fragment memory space released after compaction. Then a full snapshot of the compacted database will be saved in snapstore which then can be used as the base snapshot during any subsequent restoration (or backup compaction).
 
 ### How the solution works
-The newly introduced compact command does not disturb the running ETCD while compacting the backup snapshots. The command is designed to run potentially separately (from the main ETCD process/container/pod). ETCD Druid can be configured to run the newly introduced compact command as a separate job (scheduled periodically) based on total number of ETCD events accumulated after the most recent full snapshot.
+The newly introduced compact command does not disturb the running Etcd while compacting the backup snapshots. The command is designed to run potentially separately (from the main Etcd process/container/pod). Etcd Druid can be configured to run the newly introduced compact command as a separate job (scheduled periodically) based on total number of Etcd events accumulated after the most recent full snapshot.
 
 ### Druid flags:
-ETCD druid introduced following flags to configure the compaction job:
+Etcd druid introduced following flags to configure the compaction job:
 - `--enable-backup-compaction` (default `false`): Set this flag to `true` to enable the automatic compaction of etcd backups when `etcd-events-threshold` is exceeded.
 - `--compaction-workers` (default `3`): If this flag is set to zero, no compaction job will be running. If it's set to any value greater than zero, druid controller will have that many threads to kickstart the compaction job.
-- `--etcd-events-threshold` (default `1000000`): Set this flag with the value which will signify the number of ETCD events allowed after the most recent full snapshot. Once the number of ETCD events crosses the value mentioned in this flag, compaction job will be kickstarted. 
+- `--etcd-events-threshold` (default `1000000`): Set this flag with the value which will signify the number of Etcd events allowed after the most recent full snapshot. Once the number of Etcd events crosses the value mentioned in this flag, compaction job will be kickstarted. 
 - `--active-deadline-duration` (default `3h`): This flag signifies the maximum duration till which a compaction job won't be garbage-collected.
 
 ### **Points to take care while saving the compacted snapshot:**
@@ -47,7 +47,7 @@ As compacted snapshot and the existing periodic full snapshots are taken by diff
 
 #### **How to swap full snapshot with compacted snapshot atomically**
 
-Currently, full snapshots and the subsequent delta snapshots are grouped under same prefix path in the snapstore. When a full snapshot is created, it is placed under a prefix/directory with the name comprising of timestamp. Then subsequent delta snapshots are also pushed into the same directory. Thus each prefix/directory contains a single full snapshot and the subsequent delta snapshots. So far, it is the job of ETCDBR to start main ETCD process and snapshotter process which takes full snapshot and delta snapshot periodically. But as per our proposal, compaction will be running as parallel process to main ETCD process and snapshotter process. So we can't reliably co-ordinate between the processes to achieve switching to the compacted snapshot as the base snapshot atomically.
+Currently, full snapshots and the subsequent delta snapshots are grouped under same prefix path in the snapstore. When a full snapshot is created, it is placed under a prefix/directory with the name comprising of timestamp. Then subsequent delta snapshots are also pushed into the same directory. Thus each prefix/directory contains a single full snapshot and the subsequent delta snapshots. So far, it is the job of ETCDBR to start main Etcd process and snapshotter process which takes full snapshot and delta snapshot periodically. But as per our proposal, compaction will be running as parallel process to main Etcd process and snapshotter process. So we can't reliably co-ordinate between the processes to achieve switching to the compacted snapshot as the base snapshot atomically.
 
 ##### **Current Directory Structure**
 ```yaml
@@ -64,7 +64,7 @@ Currently, full snapshots and the subsequent delta snapshots are grouped under s
 ```
 
 To solve the problem, proposal is:
-1. ETCDBR will take the first full snapshot after it starts main ETCD Process and snapshotter process. After taking the first full snapshot, snapshotter will continue taking full snapshots. On the other hand, ETCDBR compactor command will be run as periodic job in a separate pod and use the existing full or compacted snapshots to produce further compacted snapshots. Full snapshots and compacted snapshots will be named after same fashion. So, there is no need of any mechanism to choose which snapshots(among full and compacted snapshot) to consider as base snapshots. 
+1. ETCDBR will take the first full snapshot after it starts main Etcd Process and snapshotter process. After taking the first full snapshot, snapshotter will continue taking full snapshots. On the other hand, ETCDBR compactor command will be run as periodic job in a separate pod and use the existing full or compacted snapshots to produce further compacted snapshots. Full snapshots and compacted snapshots will be named after same fashion. So, there is no need of any mechanism to choose which snapshots(among full and compacted snapshot) to consider as base snapshots. 
 2. Flatten the directory structure of backup folder. Save all the full snapshots, delta snapshots and compacted snapshots under same directory/prefix. Restorer will restore from full/compacted snapshots and delta snapshots sorted based on the revision numbers in name (or timestamp if the revision numbers are equal).
 
 ##### **Proposed Directory Structure**
@@ -91,7 +91,7 @@ I.e. they will be garbage collected according to the configured backup snapshot 
 For example, if an `exponential` retention policy is configured and if compaction is done every `30m` then there might be at most `48` additional (compacted) full snapshots (`24h * 2`) in the backup for the latest day. As time rolls forward to the next day, these additional compacted snapshots (along with the delta snapshots that were compacted into them) will get garbage collected retaining only one full snapshot for the day before according to the retention policy.
 
 ##### **Future work**
-In future, we have plan to stop the snapshotter just after taking the first full snapshot. Then, the compaction job will be solely responsible for taking subsequent full snapshots. The directory structure would be looking like following:
+In the future, we have plan to stop the snapshotter just after taking the first full snapshot. Then, the compaction job will be solely responsible for taking subsequent full snapshots. The directory structure would be looking like following:
 
 ```yaml
 Backup :
