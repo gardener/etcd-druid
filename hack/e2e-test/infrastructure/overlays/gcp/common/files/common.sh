@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# More information at https://cloud.google.com/sdk/docs/install#linux
 function setup_gcloud() {
   if $(which gcloud > /dev/null); then
     return

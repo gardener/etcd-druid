@@ -19,6 +19,7 @@ if [[ -n "${LOCALSTACK_HOST}" ]]; then
   ENDPOINT_URL=" --endpoint-url=http://${LOCALSTACK_HOST}"
 fi
 
+# More information at https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 function setup_aws() {
   if $(which aws > /dev/null); then
     return

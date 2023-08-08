@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# More information at https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt
 function setup_azcli() {
   if $(which az > /dev/null); then
     return
