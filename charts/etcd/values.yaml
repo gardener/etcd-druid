@@ -1,7 +1,0 @@
-name: test
-uid: uuid-of-etcd-resource
-
-serviceAccountName: test
-disableEtcdServiceAccountAutomount: false
-
-labels: {}
