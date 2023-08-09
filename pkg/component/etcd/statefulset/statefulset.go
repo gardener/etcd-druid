@@ -49,19 +49,21 @@ type Interface interface {
 }
 
 type component struct {
-	client client.Client
-	logger logr.Logger
-	values Values
+	client       client.Client
+	logger       logr.Logger
+	values       Values
+	featureGates map[string]bool
 }
 
 // New creates a new StatefulSet deployer instance.
-func New(c client.Client, logger logr.Logger, values Values) Interface {
+func New(c client.Client, logger logr.Logger, values Values, featureGates map[string]bool) Interface {
 	objectLogger := logger.WithValues("sts", client.ObjectKey{Name: values.Name, Namespace: values.Namespace})
 
 	return &component{
-		client: c,
-		logger: objectLogger,
-		values: values,
+		client:       c,
+		logger:       objectLogger,
+		values:       values,
+		featureGates: featureGates,
 	}
 }
 
@@ -456,7 +458,7 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 							Ports:           getBackupPorts(c.values),
 							Resources:       getBackupResources(c.values),
 							Env:             getBackupRestoreEnvVars(c.values),
-							VolumeMounts:    getBackupRestoreVolumeMounts(c.values),
+							VolumeMounts:    getBackupRestoreVolumeMounts(c),
 							SecurityContext: &corev1.SecurityContext{
 								Capabilities: &corev1.Capabilities{
 									Add: []corev1.Capability{
@@ -506,6 +508,25 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 						RunAsUser:    pointer.Int64(0),
 					},
 				},
+			}
+			if c.values.BackupStore != nil {
+				// Special container to change permissions of backup bucket folder to 65532 (nonroot)
+				// Only used with local provider
+				prov, _ := utils.StorageProviderFromInfraProvider(c.values.BackupStore.Provider)
+				if prov == utils.Local {
+					sts.Spec.Template.Spec.InitContainers = append(sts.Spec.Template.Spec.InitContainers, corev1.Container{
+						Name:         "change-backup-bucket-permissions",
+						Image:        "alpine:3.18.2",
+						Command:      []string{"sh", "-c", "--"},
+						Args:         []string{fmt.Sprintf("chown -R 65532:65532 /home/nonroot/%s", *c.values.BackupStore.Container)},
+						VolumeMounts: getBackupRestoreVolumeMounts(c),
+						SecurityContext: &corev1.SecurityContext{
+							RunAsGroup:   pointer.Int64(0),
+							RunAsNonRoot: pointer.Bool(false),
+							RunAsUser:    pointer.Int64(0),
+						},
+					})
+				}
 			}
 			sts.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
 				RunAsGroup:   pointer.Int64(65532),
@@ -688,10 +709,10 @@ func getSecretVolumeMounts(clientUrlTLS, peerUrlTLS *druidv1alpha1.TLSConfig) []
 	return vms
 }
 
-func getBackupRestoreVolumeMounts(val Values) []corev1.VolumeMount {
+func getBackupRestoreVolumeMounts(c *component) []corev1.VolumeMount {
 	vms := []corev1.VolumeMount{
 		{
-			Name:      val.VolumeClaimTemplateName,
+			Name:      c.values.VolumeClaimTemplateName,
 			MountPath: "/var/etcd/data",
 		},
 		{
@@ -700,24 +721,31 @@ func getBackupRestoreVolumeMounts(val Values) []corev1.VolumeMount {
 		},
 	}
 
-	vms = append(vms, getSecretVolumeMounts(val.ClientUrlTLS, val.PeerUrlTLS)...)
+	vms = append(vms, getSecretVolumeMounts(c.values.ClientUrlTLS, c.values.PeerUrlTLS)...)
 
-	if val.BackupStore == nil {
+	if c.values.BackupStore == nil {
 		return vms
 	}
 
-	provider, err := utils.StorageProviderFromInfraProvider(val.BackupStore.Provider)
+	provider, err := utils.StorageProviderFromInfraProvider(c.values.BackupStore.Provider)
 	if err != nil {
 		return vms
 	}
 
 	switch provider {
 	case utils.Local:
-		if val.BackupStore.Container != nil {
-			vms = append(vms, corev1.VolumeMount{
-				Name:      "host-storage",
-				MountPath: pointer.StringDeref(val.BackupStore.Container, ""),
-			})
+		if c.values.BackupStore.Container != nil {
+			if c.featureGates["UseEtcdWrapper"] {
+				vms = append(vms, corev1.VolumeMount{
+					Name:      "host-storage",
+					MountPath: "/home/nonroot/" + pointer.StringDeref(c.values.BackupStore.Container, ""),
+				})
+			} else {
+				vms = append(vms, corev1.VolumeMount{
+					Name:      "host-storage",
+					MountPath: pointer.StringDeref(c.values.BackupStore.Container, ""),
+				})
+			}
 		}
 	case utils.GCS:
 		vms = append(vms, corev1.VolumeMount{
