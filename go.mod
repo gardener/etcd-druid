@@ -72,7 +72,6 @@ require (
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1 // indirect
 	github.com/google/uuid v1.3.0 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.2.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.7.0 // indirect
 	github.com/gophercloud/gophercloud v0.17.0 // indirect
 	github.com/gophercloud/utils v0.0.0-20200204043447-9864b6f1f12f // indirect
@@ -146,4 +145,8 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace google.golang.org/grpc => google.golang.org/grpc v1.29.0
+replace (
+	cloud.google.com/go/storage => cloud.google.com/go/storage v1.14.0
+	google.golang.org/api => google.golang.org/api v0.57.0
+	google.golang.org/grpc => google.golang.org/grpc v1.29.0
+)
