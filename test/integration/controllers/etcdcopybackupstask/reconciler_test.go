@@ -190,7 +190,7 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 func getArgElements(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvider, targetProvider string) Elements {
 	elements := Elements{
 		"copy": Equal("copy"),
-		"--snapstore-temp-directory=/var/etcd/data/tmp": Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
+		"--snapstore-temp-directory=/home/nonroot/data/tmp": Equal("--snapstore-temp-directory=/home/nonroot/data/tmp"),
 	}
 	if targetProvider != "" {
 		addEqual(elements, fmt.Sprintf("%s=%s", "--storage-provider", targetProvider))

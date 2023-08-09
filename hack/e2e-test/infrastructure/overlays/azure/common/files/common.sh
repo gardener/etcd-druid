@@ -13,12 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# More information at https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt
 function setup_azcli() {
   if $(which az > /dev/null); then
     return
   fi
   echo "Installing azure-cli..."
-  pip3 install azure-cli
+  apt update > /dev/null
+  apt install -y curl > /dev/null
+  curl -sL https://aka.ms/InstallAzureCLIDeb | bash
   echo "Successfully installed azure-cli."
 }
 
@@ -29,7 +32,7 @@ function create_azure_bucket() {
 }
 
 function delete_azure_bucket() {
-  echo "Deleting ABS bucket ${TEST_ID} from storage acount ${STORAGE_ACCOUNT} ..."
+  echo "Deleting ABS bucket ${TEST_ID} from storage account ${STORAGE_ACCOUNT} ..."
   az storage container delete --account-name "${STORAGE_ACCOUNT}" --account-key "${STORAGE_KEY}" --name "${TEST_ID}"
-  echo "Successfully deleted ABS bucket ${TEST_ID} from storage acount ${STORAGE_ACCOUNT} ."
+  echo "Successfully deleted ABS bucket ${TEST_ID} from storage account ${STORAGE_ACCOUNT} ."
 }

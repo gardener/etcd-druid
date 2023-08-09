@@ -143,7 +143,10 @@ var _ = Describe("Statefulset", func() {
 			false,
 			true,
 		)
-		stsDeployer = New(cl, logr.Discard(), values)
+		fg := map[string]bool{
+			"UseEtcdWrapper": true,
+		}
+		stsDeployer = New(cl, logr.Discard(), values, fg)
 
 		sts = &appsv1.StatefulSet{
 			ObjectMeta: metav1.ObjectMeta{
@@ -924,6 +927,6 @@ func checkLocalProviderVaues(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, 
 	// check volume mount
 	ExpectWithOffset(1, backupRestoreContainer.VolumeMounts).To(ContainElement(corev1.VolumeMount{
 		Name:      "host-storage",
-		MountPath: container,
+		MountPath: "/home/nonroot/" + container,
 	}))
 }
