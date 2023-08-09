@@ -1145,7 +1145,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								}),
 								"host-storage": MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal("host-storage"),
-									"MountPath": Equal(*instance.Spec.Backup.Store.Container),
+									"MountPath": Equal("/home/nonroot/" + *instance.Spec.Backup.Store.Container),
 								}),
 							}),
 							"Env": MatchElements(testutils.EnvIterator, IgnoreExtras, Elements{

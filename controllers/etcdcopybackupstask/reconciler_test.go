@@ -158,6 +158,9 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 					Repository: "test-repo",
 					Tag:        pointer.String("etcd-test-tag"),
 				}},
+				Config: &Config{
+					FeatureGates: make(map[string]bool),
+				},
 			}
 		})
 
@@ -301,7 +304,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			task          *druidv1alpha1.EtcdCopyBackupsTask
 			expected      = []string{
 				"copy",
-				"--snapstore-temp-directory=/var/etcd/data/tmp",
+				"--snapstore-temp-directory=/home/nonroot/data/tmp",
 				"--storage-provider=S3",
 				"--store-prefix=/target",
 				"--store-container=target-container",
@@ -442,7 +445,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				})
 
 				It("should create the correct volume mounts", func() {
-					volumeMounts := createVolumeMountsFromStore(storeSpec, provider, volumeMountPrefix)
+					volumeMounts := createVolumeMountsFromStore(storeSpec, provider, volumeMountPrefix, false)
 					Expect(volumeMounts).To(HaveLen(1))
 
 					expectedMountPath := ""
@@ -758,7 +761,7 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 func getArgElements(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvider, targetProvider string) Elements {
 	elements := Elements{
 		"copy": Equal("copy"),
-		"--snapstore-temp-directory=/var/etcd/data/tmp": Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
+		"--snapstore-temp-directory=/home/nonroot/data/tmp": Equal("--snapstore-temp-directory=/home/nonroot/data/tmp"),
 	}
 	if targetProvider != "" {
 		addEqual(elements, fmt.Sprintf("%s=%s", "--storage-provider", targetProvider))
