@@ -91,8 +91,9 @@ func GenerateValues(
 		BackupStore:     etcd.Spec.Backup.Store,
 		EnableProfiling: etcd.Spec.Backup.EnableProfiling,
 
-		DeltaSnapshotPeriod:      etcd.Spec.Backup.DeltaSnapshotPeriod,
-		DeltaSnapshotMemoryLimit: etcd.Spec.Backup.DeltaSnapshotMemoryLimit,
+		DeltaSnapshotPeriod:          etcd.Spec.Backup.DeltaSnapshotPeriod,
+		DeltaSnapshotRetentionPeriod: etcd.Spec.Backup.DeltaSnapshotRetentionPeriod,
+		DeltaSnapshotMemoryLimit:     etcd.Spec.Backup.DeltaSnapshotMemoryLimit,
 
 		DefragmentationSchedule: etcd.Spec.Etcd.DefragmentationSchedule,
 		FullSnapshotSchedule:    etcd.Spec.Backup.FullSnapshotSchedule,
@@ -275,6 +276,10 @@ func getBackupRestoreCommand(val Values) []string {
 
 	if val.DeltaSnapshotPeriod != nil {
 		command = append(command, "--delta-snapshot-period="+val.DeltaSnapshotPeriod.Duration.String())
+	}
+
+	if val.DeltaSnapshotRetentionPeriod != nil {
+		command = append(command, "--delta-snapshot-retention-period="+val.DeltaSnapshotRetentionPeriod.Duration.String())
 	}
 
 	var deltaSnapshotMemoryLimit = defaultSnapshotMemoryLimit

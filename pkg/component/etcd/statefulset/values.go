@@ -89,7 +89,8 @@ type Values struct {
 
 	EnableProfiling *bool
 
-	DeltaSnapshotPeriod *metav1.Duration
+	DeltaSnapshotPeriod          *metav1.Duration
+	DeltaSnapshotRetentionPeriod *metav1.Duration
 
 	SnapshotCompression *druidv1alpha1.CompressionSpec
 	HeartbeatDuration   *metav1.Duration
