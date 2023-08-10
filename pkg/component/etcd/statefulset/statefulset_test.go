@@ -212,7 +212,10 @@ var _ = Describe("Statefulset", func() {
 						imageEtcd,
 						imageBR,
 						checkSumAnnotations, false, true)
-					stsDeployer = New(cl, logr.Discard(), values)
+					fg := map[string]bool{
+						"UseEtcdWrapper": true,
+					}
+					stsDeployer = New(cl, logr.Discard(), values, fg)
 					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
 
 					sts := &appsv1.StatefulSet{}
@@ -284,7 +287,10 @@ var _ = Describe("Statefulset", func() {
 						imageEtcd,
 						imageBR,
 						checkSumAnnotations, false, true)
-					stsDeployer = New(cl, logr.Discard(), values)
+					fg := map[string]bool{
+						"UseEtcdWrapper": true,
+					}
+					stsDeployer = New(cl, logr.Discard(), values, fg)
 					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
 
 					sts := &appsv1.StatefulSet{}
