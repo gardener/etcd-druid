@@ -28,7 +28,7 @@ import (
 
 type etcdToSecretMapper struct{}
 
-func (m *etcdToSecretMapper) Map(ctx context.Context, log logr.Logger, reader client.Reader, obj client.Object) []reconcile.Request {
+func (m *etcdToSecretMapper) Map(_ context.Context, _ logr.Logger, _ client.Reader, obj client.Object) []reconcile.Request {
 	etcd, ok := obj.(*druidv1alpha1.Etcd)
 	if !ok {
 		return nil

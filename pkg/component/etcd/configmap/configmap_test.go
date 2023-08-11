@@ -24,7 +24,7 @@ import (
 	. "github.com/gardener/etcd-druid/pkg/component/etcd/configmap"
 	"github.com/ghodss/yaml"
 
-	"github.com/gardener/gardener/pkg/operation/botanist/component"
+	"github.com/gardener/gardener/pkg/component"
 	"github.com/gardener/gardener/pkg/utils"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"

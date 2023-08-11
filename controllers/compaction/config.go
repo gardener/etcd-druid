@@ -75,10 +75,7 @@ func (cfg *Config) Validate() error {
 	if err := utils.MustBeGreaterThan(eventsThresholdFlagName, 0, cfg.EventsThreshold); err != nil {
 		return err
 	}
-	if err := utils.MustBeGreaterThan(activeDeadlineDurationFlagName, 0, cfg.ActiveDeadlineDuration.Seconds()); err != nil {
-		return err
-	}
-	return nil
+	return utils.MustBeGreaterThan(activeDeadlineDurationFlagName, 0, cfg.ActiveDeadlineDuration.Seconds())
 }
 
 // CaptureFeatureActivations captures all feature gates required by the controller into controller config

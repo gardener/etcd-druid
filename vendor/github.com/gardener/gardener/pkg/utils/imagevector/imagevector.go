@@ -1,4 +1,4 @@
-// Copyright (c) 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -349,7 +349,7 @@ func (v ImageVector) FindImage(name string, opts ...FindOptionFunc) (*Image, err
 // In case multiple images match the search, the first which was found is returned.
 // In case no image was found, an error is returned.
 func FindImages(v ImageVector, names []string, opts ...FindOptionFunc) (map[string]*Image, error) {
-	images := map[string]*Image{}
+	images := make(map[string]*Image, len(names))
 	for _, imageName := range names {
 		image, err := v.FindImage(imageName, opts...)
 		if err != nil {

@@ -1,4 +1,4 @@
-// Copyright (c) 2020 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2020 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ package flow
 
 import (
 	"context"
+	"strings"
 )
 
 // ProgressReporterFn is continuously called on progress in a flow.
@@ -29,4 +30,15 @@ type ProgressReporter interface {
 	Stop()
 	// Report reports the progress using the current statistics.
 	Report(context.Context, *Stats)
+}
+
+// MakeDescription returns a description based on the stats.
+func MakeDescription(stats *Stats) string {
+	if stats.ProgressPercent() == 0 {
+		return "Starting " + stats.FlowName
+	}
+	if stats.ProgressPercent() == 100 {
+		return stats.FlowName + " finished"
+	}
+	return strings.Join(stats.Running.StringList(), ", ")
 }

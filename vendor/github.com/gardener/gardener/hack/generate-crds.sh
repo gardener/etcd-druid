@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+# Copyright 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ fi
 output_dir="$(pwd)"
 file_name_prefix="$1"
 add_deletion_protection_label=false
+crd_options=""
 
 get_group_package () {
   case "$1" in
@@ -54,12 +55,21 @@ get_group_package () {
     echo "github.com/gardener/hvpa-controller/api/v1alpha1"
     ;;
   "fluentbit.fluent.io")
-    echo "github.com/fluent/fluent-operator/apis/fluentbit/v1alpha2"
+    echo "github.com/fluent/fluent-operator/v2/apis/fluentbit/v1alpha2"
     ;;
   *)
     >&2 echo "unknown group $1"
     return 1
   esac
+}
+
+generate_all_groups () {
+  generate_group extensions.gardener.cloud
+  generate_group resources.gardener.cloud
+  generate_group operator.gardener.cloud
+  generate_group druid.gardener.cloud
+  generate_group autoscaling.k8s.io
+  generate_group fluentbit.fluent.io
 }
 
 generate_group () {
@@ -80,7 +90,7 @@ generate_group () {
     rm "$output_dir"/*${group}_*.yaml
   fi
 
-  controller-gen crd paths="$package_path" output:crd:dir="$output_dir" output:stdout
+  controller-gen crd"$crd_options" paths="$package_path" output:crd:dir="$output_dir" output:stdout
 
   while IFS= read -r crd; do
     crd_out="$output_dir/$file_name_prefix$(basename $crd)"
@@ -113,12 +123,17 @@ if [ -n "${2:-}" ]; then
         shift
       done
     else
-      generate_group extensions.gardener.cloud
-      generate_group resources.gardener.cloud
-      generate_group operator.gardener.cloud
-      generate_group druid.gardener.cloud
-      generate_group autoscaling.k8s.io
-      generate_group fluentbit.fluent.io
+      generate_all_groups
+    fi
+  elif [ "${2}" == "-allow-dangerous-types" ]; then
+    crd_options=":allowDangerousTypes=true"
+    if [ -n "${3:-}" ]; then
+      while [ -n "${3:-}" ] ; do
+        generate_group "$3"
+        shift
+      done
+    else
+      generate_all_groups
     fi
   else
     while [ -n "${2:-}" ] ; do
@@ -127,10 +142,6 @@ if [ -n "${2:-}" ]; then
     done
   fi
 else
-  generate_group extensions.gardener.cloud
-  generate_group resources.gardener.cloud
-  generate_group operator.gardener.cloud
-  generate_group druid.gardener.cloud
-  generate_group autoscaling.k8s.io
-  generate_group fluentbit.fluent.io
+  generate_all_groups
 fi
+

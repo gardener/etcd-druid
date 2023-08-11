@@ -1,4 +1,4 @@
-// Copyright (c) 2023 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2023 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,16 +27,32 @@ import (
 )
 
 // InjectNetworkPolicyAnnotationsForScrapeTargets injects the provided ports into the
-// `networking.resources.gardener.cloud/from-policy-allowed-ports` annotation of the given service. In addition, it adds
-// the well-known annotation for scrape targets of Prometheus in shoot namespaces.
+// `networking.resources.gardener.cloud/from-all-scrape-targets-allowed-ports` annotation of the given service.
 func InjectNetworkPolicyAnnotationsForScrapeTargets(service *corev1.Service, ports ...networkingv1.NetworkPolicyPort) error {
+	return injectNetworkPolicyAnnotationsForScrapeTargets(service, v1beta1constants.LabelNetworkPolicyScrapeTargets, ports...)
+}
+
+// InjectNetworkPolicyAnnotationsForSeedScrapeTargets injects the provided ports into the
+// `networking.resources.gardener.cloud/from-all-seed-scrape-targets-allowed-ports` annotation of the given service.
+func InjectNetworkPolicyAnnotationsForSeedScrapeTargets(service *corev1.Service, ports ...networkingv1.NetworkPolicyPort) error {
+	return injectNetworkPolicyAnnotationsForScrapeTargets(service, v1beta1constants.LabelNetworkPolicySeedScrapeTargets, ports...)
+}
+
+// InjectNetworkPolicyAnnotationsForWebhookTargets injects the provided ports into the
+// `networking.resources.gardener.cloud/from-all-webhook-targets-allowed-ports` annotation of the given service.
+func InjectNetworkPolicyAnnotationsForWebhookTargets(service *corev1.Service, ports ...networkingv1.NetworkPolicyPort) error {
+	return injectNetworkPolicyAnnotationsForScrapeTargets(service, v1beta1constants.LabelNetworkPolicyWebhookTargets, ports...)
+}
+
+// InjectNetworkPolicyAnnotationsForScrapeTargets injects the provided ports into the
+// `networking.resources.gardener.cloud/from-<podLabelSelector>-allowed-ports` annotation of the given service.
+func injectNetworkPolicyAnnotationsForScrapeTargets(service *corev1.Service, podLabelSelector string, ports ...networkingv1.NetworkPolicyPort) error {
 	rawPorts, err := json.Marshal(ports)
 	if err != nil {
 		return err
 	}
 
-	metav1.SetMetaDataAnnotation(&service.ObjectMeta, resourcesv1alpha1.NetworkingFromPolicyPodLabelSelector, v1beta1constants.LabelNetworkPolicyScrapeTargets)
-	metav1.SetMetaDataAnnotation(&service.ObjectMeta, resourcesv1alpha1.NetworkingFromPolicyAllowedPorts, string(rawPorts))
+	metav1.SetMetaDataAnnotation(&service.ObjectMeta, resourcesv1alpha1.NetworkPolicyFromPolicyAnnotationPrefix+podLabelSelector+resourcesv1alpha1.NetworkPolicyFromPolicyAnnotationSuffix, string(rawPorts))
 	return nil
 }
 

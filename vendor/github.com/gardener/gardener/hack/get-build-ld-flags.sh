@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+# Copyright 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ set -e
 PACKAGE_PATH="${1:-k8s.io/component-base}"
 VERSION_PATH="${2:-$(dirname $0)/../VERSION}"
 PROGRAM_NAME="${3:-Gardener}"
+BUILD_DATE="${4:-$(date '+%Y-%m-%dT%H:%M:%S%z' | sed 's/\([0-9][0-9]\)$/:\1/g')}"
 VERSION_VERSIONFILE="$(cat "$VERSION_PATH")"
 VERSION="${EFFECTIVE_VERSION:-$VERSION_VERSIONFILE}"
 
@@ -46,5 +47,5 @@ echo "-X $PACKAGE_PATH/version.gitMajor=$MAJOR_VERSION
       -X $PACKAGE_PATH/version.gitVersion=$VERSION
       -X $PACKAGE_PATH/version.gitTreeState=$TREE_STATE
       -X $PACKAGE_PATH/version.gitCommit=$(git rev-parse --verify HEAD)
-      -X $PACKAGE_PATH/version.buildDate=$(date '+%Y-%m-%dT%H:%M:%S%z' | sed 's/\([0-9][0-9]\)$/:\1/g')
+      -X $PACKAGE_PATH/version.buildDate=$BUILD_DATE
       -X $PACKAGE_PATH/version/verflag.programName=$PROGRAM_NAME"

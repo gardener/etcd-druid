@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+# Copyright 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,8 +36,8 @@ this_module=$(go list -m)
 export GO111MODULE=off
 
 packages=()
-for p in "$@" ; do
+for p in "$@"; do
   packages+=("$this_module/${p#./}")
 done
 
-import-boss --include-test-files=true --verify-only --input-dirs "$(IFS=, ; echo "${packages[*]}")"
+import-boss --include-test-files=true --verify-only --input-dirs "$(IFS=, ; echo "${packages[*]}")" 2>&1 | grep -Ev "Ignoring child directory"

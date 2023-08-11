@@ -75,8 +75,5 @@ func (cfg *Config) Validate() error {
 	if err := utils.MustBeGreaterThan(etcdMemberNotReadyThresholdFlagName, 0, cfg.EtcdMember.NotReadyThreshold); err != nil {
 		return err
 	}
-	if err := utils.MustBeGreaterThan(etcdMemberUnknownThresholdFlagName, 0, cfg.EtcdMember.UnknownThreshold); err != nil {
-		return err
-	}
-	return nil
+	return utils.MustBeGreaterThan(etcdMemberUnknownThresholdFlagName, 0, cfg.EtcdMember.UnknownThreshold)
 }
