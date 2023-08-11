@@ -23,7 +23,7 @@ There are two labels for `etcddruid_compaction_jobs_total` metrics. The label `s
 
 There are two labels for `etcddruid_compaction_job_duration_seconds` metrics. The label `succeeded` shows how much time taken by a successful job to complete and label `failed` shows how much time taken by a failed compaction job.
 
-`etcddruid_compaction_jobs_current` metric comes with label `etcd_namespace` that indicates the namespace of the ETCD running in the control plane of a shoot cluster..
+`etcddruid_compaction_jobs_current` metric comes with label `etcd_namespace` that indicates the namespace of the Etcd running in the control plane of a shoot cluster..
 
 
 ## Etcd
