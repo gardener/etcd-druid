@@ -1,4 +1,4 @@
-// Copyright (c) 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,22 +23,8 @@ import (
 )
 
 var (
-	// ConstraintK8sEqual120 is a version constraint for versions == 1.20.
-	ConstraintK8sEqual120 *semver.Constraints
-	// ConstraintK8sGreaterEqual120 is a version constraint for versions >= 1.20.
-	ConstraintK8sGreaterEqual120 *semver.Constraints
-	// ConstraintK8sLessEqual121 is a version constraint for versions <= 1.21.
-	ConstraintK8sLessEqual121 *semver.Constraints
-	// ConstraintK8sEqual121 is a version constraint for versions == 1.21.
-	ConstraintK8sEqual121 *semver.Constraints
-	// ConstraintK8sGreaterEqual121 is a version constraint for versions >= 1.21.
-	ConstraintK8sGreaterEqual121 *semver.Constraints
-	// ConstraintK8sLessEqual122 is a version constraint for versions <= 1.22.
-	ConstraintK8sLessEqual122 *semver.Constraints
 	// ConstraintK8sEqual122 is a version constraint for versions == 1.22.
 	ConstraintK8sEqual122 *semver.Constraints
-	// ConstraintK8sGreaterEqual122 is a version constraint for versions >= 1.22.
-	ConstraintK8sGreaterEqual122 *semver.Constraints
 	// ConstraintK8sEqual123 is a version constraint for versions == 1.23.
 	ConstraintK8sEqual123 *semver.Constraints
 	// ConstraintK8sGreaterEqual123 is a version constraint for versions >= 1.23.
@@ -57,25 +43,15 @@ var (
 	ConstraintK8sGreaterEqual126 *semver.Constraints
 	// ConstraintK8sLess126 is a version constraint for versions < 1.26.
 	ConstraintK8sLess126 *semver.Constraints
+	// ConstraintK8sGreaterEqual127 is a version constraint for versions >= 1.27.
+	ConstraintK8sGreaterEqual127 *semver.Constraints
+	// ConstraintK8sLess127 is a version constraint for versions < 1.27.
+	ConstraintK8sLess127 *semver.Constraints
 )
 
 func init() {
 	var err error
-	ConstraintK8sEqual120, err = semver.NewConstraint("~ 1.20.x-0")
-	utilruntime.Must(err)
-	ConstraintK8sGreaterEqual120, err = semver.NewConstraint(">= 1.20-0")
-	utilruntime.Must(err)
-	ConstraintK8sLessEqual121, err = semver.NewConstraint("<= 1.21.x-0")
-	utilruntime.Must(err)
-	ConstraintK8sEqual121, err = semver.NewConstraint("~ 1.21.x-0")
-	utilruntime.Must(err)
-	ConstraintK8sGreaterEqual121, err = semver.NewConstraint(">= 1.21-0")
-	utilruntime.Must(err)
-	ConstraintK8sLessEqual122, err = semver.NewConstraint("<= 1.22.x-0")
-	utilruntime.Must(err)
 	ConstraintK8sEqual122, err = semver.NewConstraint("~ 1.22.x-0")
-	utilruntime.Must(err)
-	ConstraintK8sGreaterEqual122, err = semver.NewConstraint(">= 1.22-0")
 	utilruntime.Must(err)
 	ConstraintK8sEqual123, err = semver.NewConstraint("~ 1.23.x-0")
 	utilruntime.Must(err)
@@ -94,6 +70,10 @@ func init() {
 	ConstraintK8sGreaterEqual126, err = semver.NewConstraint(">= 1.26-0")
 	utilruntime.Must(err)
 	ConstraintK8sLess126, err = semver.NewConstraint("< 1.26-0")
+	utilruntime.Must(err)
+	ConstraintK8sGreaterEqual127, err = semver.NewConstraint(">= 1.27-0")
+	utilruntime.Must(err)
+	ConstraintK8sLess127, err = semver.NewConstraint("< 1.27-0")
 	utilruntime.Must(err)
 }
 

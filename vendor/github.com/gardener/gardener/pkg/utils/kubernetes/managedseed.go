@@ -1,4 +1,4 @@
-// Copyright (c) 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ func GetManagedSeedWithReader(ctx context.Context, r client.Reader, shootNamespa
 	return &managedSeedList.Items[0], nil
 }
 
-// GetManagedSeedByName tries to reads a ManagedSeed in the garden namespace. If it's not found then `nil` is returned.
+// GetManagedSeedByName tries to read a ManagedSeed in the garden namespace. If it's not found then `nil` is returned.
 func GetManagedSeedByName(ctx context.Context, client client.Client, name string) (*seedmanagementv1alpha1.ManagedSeed, error) {
 	managedSeed := &seedmanagementv1alpha1.ManagedSeed{}
 	if err := client.Get(ctx, Key(constants.GardenNamespace, name), managedSeed); err != nil {

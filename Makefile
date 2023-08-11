@@ -110,7 +110,7 @@ check-generate: set-permissions
 
 # Generate code
 .PHONY: generate
-generate: set-permissions $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
+generate: set-permissions manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
 	@go generate "$(REPO_ROOT)/pkg/..."
 	@"$(REPO_ROOT)/hack/update-codegen.sh"
 
