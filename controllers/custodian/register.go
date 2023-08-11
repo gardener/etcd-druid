@@ -52,7 +52,7 @@ func (r *Reconciler) RegisterWithManager(ctx context.Context, mgr ctrl.Manager, 
 
 	return c.Watch(
 		&source.Kind{Type: &appsv1.StatefulSet{}},
-		mapper.EnqueueRequestsFrom(druidmapper.StatefulSetToEtcd(ctx, mgr.GetClient()), mapper.UpdateWithNew, c.GetLogger()),
+		mapper.EnqueueRequestsFrom(ctx, mgr.GetCache(), druidmapper.StatefulSetToEtcd(ctx, mgr.GetClient()), mapper.UpdateWithNew, c.GetLogger()),
 		druidpredicates.StatefulSetStatusChange(),
 	)
 }

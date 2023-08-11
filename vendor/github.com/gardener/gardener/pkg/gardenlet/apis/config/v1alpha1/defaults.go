@@ -1,4 +1,4 @@
-// Copyright (c) 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -141,9 +141,6 @@ func SetDefaults_GardenletControllerConfiguration(obj *GardenletControllerConfig
 	if obj.BackupEntry == nil {
 		obj.BackupEntry = &BackupEntryControllerConfiguration{}
 	}
-	if obj.BackupEntryMigration == nil {
-		obj.BackupEntryMigration = &BackupEntryMigrationControllerConfiguration{}
-	}
 	if obj.Bastion == nil {
 		obj.Bastion = &BastionControllerConfiguration{}
 	}
@@ -168,20 +165,17 @@ func SetDefaults_GardenletControllerConfiguration(obj *GardenletControllerConfig
 	if obj.SeedCare == nil {
 		obj.SeedCare = &SeedCareControllerConfiguration{}
 	}
-	if obj.ShootMigration == nil {
-		obj.ShootMigration = &ShootMigrationControllerConfiguration{}
-	}
-	if obj.ShootSecret == nil {
-		obj.ShootSecret = &ShootSecretControllerConfiguration{}
-	}
-	if obj.ShootStateSync == nil {
-		obj.ShootStateSync = &ShootStateSyncControllerConfiguration{}
+	if obj.ShootState == nil {
+		obj.ShootState = &ShootStateControllerConfiguration{}
 	}
 	if obj.NetworkPolicy == nil {
 		obj.NetworkPolicy = &NetworkPolicyControllerConfiguration{}
 	}
 	if obj.ManagedSeed == nil {
 		obj.ManagedSeed = &ManagedSeedControllerConfiguration{}
+	}
+	if obj.TokenRequestor == nil {
+		obj.TokenRequestor = &TokenRequestorControllerConfiguration{}
 	}
 }
 
@@ -246,29 +240,6 @@ func SetDefaults_ShootMonitoringConfig(obj *ShootMonitoringConfig) {
 	if obj.Enabled == nil {
 		v := true
 		obj.Enabled = &v
-	}
-}
-
-// SetDefaults_BackupEntryMigrationControllerConfiguration sets defaults for the backup entry migration controller.
-func SetDefaults_BackupEntryMigrationControllerConfiguration(obj *BackupEntryMigrationControllerConfiguration) {
-	if obj.ConcurrentSyncs == nil {
-		v := 5
-		obj.ConcurrentSyncs = &v
-	}
-
-	if obj.SyncPeriod == nil {
-		v := metav1.Duration{Duration: time.Minute}
-		obj.SyncPeriod = &v
-	}
-
-	if obj.GracePeriod == nil {
-		v := metav1.Duration{Duration: 10 * time.Minute}
-		obj.GracePeriod = &v
-	}
-
-	if obj.LastOperationStaleDuration == nil {
-		v := metav1.Duration{Duration: 2 * time.Minute}
-		obj.LastOperationStaleDuration = &v
 	}
 }
 
@@ -385,29 +356,6 @@ func SetDefaults_ShootCareControllerConfiguration(obj *ShootCareControllerConfig
 	}
 }
 
-// SetDefaults_ShootMigrationControllerConfiguration sets defaults for the shoot migration controller.
-func SetDefaults_ShootMigrationControllerConfiguration(obj *ShootMigrationControllerConfiguration) {
-	if obj.ConcurrentSyncs == nil {
-		v := 5
-		obj.ConcurrentSyncs = &v
-	}
-
-	if obj.SyncPeriod == nil {
-		v := metav1.Duration{Duration: time.Minute}
-		obj.SyncPeriod = &v
-	}
-
-	if obj.GracePeriod == nil {
-		v := metav1.Duration{Duration: 2 * time.Hour}
-		obj.GracePeriod = &v
-	}
-
-	if obj.LastOperationStaleDuration == nil {
-		v := metav1.Duration{Duration: 10 * time.Minute}
-		obj.LastOperationStaleDuration = &v
-	}
-}
-
 // SetDefaults_StaleExtensionHealthChecks sets defaults for the stale extension health checks.
 func SetDefaults_StaleExtensionHealthChecks(obj *StaleExtensionHealthChecks) {
 	if obj.Threshold == nil {
@@ -416,28 +364,20 @@ func SetDefaults_StaleExtensionHealthChecks(obj *StaleExtensionHealthChecks) {
 	}
 }
 
-// SetDefaults_ShootSecretControllerConfiguration sets defaults for the shoot secret controller.
-func SetDefaults_ShootSecretControllerConfiguration(obj *ShootSecretControllerConfiguration) {
+// SetDefaults_ShootStateControllerConfiguration sets defaults for the shoot secret controller.
+func SetDefaults_ShootStateControllerConfiguration(obj *ShootStateControllerConfiguration) {
 	if obj.ConcurrentSyncs == nil {
 		obj.ConcurrentSyncs = pointer.Int(5)
 	}
-}
-
-// SetDefaults_ShootStateSyncControllerConfiguration sets defaults for the shoot state controller.
-func SetDefaults_ShootStateSyncControllerConfiguration(obj *ShootStateSyncControllerConfiguration) {
-	if obj.ConcurrentSyncs == nil {
-		// The controller actually starts one controller per extension resource per Seed.
-		// For one seed that is already 1 * 10 extension resources = 10 workers.
-		v := 1
-		obj.ConcurrentSyncs = &v
+	if obj.SyncPeriod == nil {
+		obj.SyncPeriod = &metav1.Duration{Duration: 6 * time.Hour}
 	}
 }
 
-// SetDefaults_NetworkPolicyControllerConfiguration sets defaults for the seed apiserver endpoints controller.
+// SetDefaults_NetworkPolicyControllerConfiguration sets defaults for the network policy controller.
 func SetDefaults_NetworkPolicyControllerConfiguration(obj *NetworkPolicyControllerConfiguration) {
 	if obj.ConcurrentSyncs == nil {
-		// only use few workers for each seed, as the API server endpoints should stay the same most of the time.
-		v := 3
+		v := 5
 		obj.ConcurrentSyncs = &v
 	}
 }
@@ -466,6 +406,13 @@ func SetDefaults_ManagedSeedControllerConfiguration(obj *ManagedSeedControllerCo
 
 	if obj.JitterUpdates == nil {
 		obj.JitterUpdates = pointer.Bool(false)
+	}
+}
+
+// SetDefaults_TokenRequestorControllerConfiguration sets defaults for the TokenRequestor controller.
+func SetDefaults_TokenRequestorControllerConfiguration(obj *TokenRequestorControllerConfiguration) {
+	if obj.ConcurrentSyncs == nil {
+		obj.ConcurrentSyncs = pointer.Int(5)
 	}
 }
 
@@ -504,17 +451,17 @@ func SetDefaults_Logging(obj *Logging) {
 	if obj.Enabled == nil {
 		obj.Enabled = pointer.Bool(false)
 	}
-	if obj.Loki == nil {
-		obj.Loki = &Loki{}
+	if obj.Vali == nil {
+		obj.Vali = &Vali{}
 	}
-	if obj.Loki.Enabled == nil {
-		obj.Loki.Enabled = obj.Enabled
+	if obj.Vali.Enabled == nil {
+		obj.Vali.Enabled = obj.Enabled
 	}
-	if obj.Loki.Garden == nil {
-		obj.Loki.Garden = &GardenLoki{}
+	if obj.Vali.Garden == nil {
+		obj.Vali.Garden = &GardenVali{}
 	}
-	if obj.Loki.Garden.Storage == nil {
-		obj.Loki.Garden.Storage = &DefaultCentralLokiStorage
+	if obj.Vali.Garden.Storage == nil {
+		obj.Vali.Garden.Storage = &DefaultCentralValiStorage
 	}
 	if obj.ShootEventLogging == nil {
 		obj.ShootEventLogging = &ShootEventLogging{}

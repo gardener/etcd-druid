@@ -20,8 +20,8 @@ import (
 	"github.com/Masterminds/semver"
 	"github.com/gardener/etcd-druid/pkg/utils"
 
+	gardenercomponent "github.com/gardener/gardener/pkg/component"
 	"github.com/gardener/gardener/pkg/controllerutils"
-	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	policyv1 "k8s.io/api/policy/v1"
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,11 +76,8 @@ func (c *component) Deploy(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := c.syncPodDisruptionBudget(ctx, pdb); err != nil {
-		return err
-	}
 
-	return nil
+	return c.syncPodDisruptionBudget(ctx, pdb)
 }
 
 // syncPodDisruptionBudget Creates a PDB if it does not exist

@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
+	gardenercomponent "github.com/gardener/gardener/pkg/component"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -49,18 +49,12 @@ func New(c client.Client, namespace string, values *Values) gardenercomponent.De
 
 func (c *component) Deploy(ctx context.Context) error {
 	cm := c.emptyConfigmap()
-	if err := c.syncConfigmap(ctx, cm); err != nil {
-		return err
-	}
-	return nil
+	return c.syncConfigmap(ctx, cm)
 }
 
 func (c *component) Destroy(ctx context.Context) error {
 	configMap := c.emptyConfigmap()
-	if err := c.deleteConfigmap(ctx, configMap); err != nil {
-		return err
-	}
-	return nil
+	return c.deleteConfigmap(ctx, configMap)
 }
 
 type etcdTLSTarget string

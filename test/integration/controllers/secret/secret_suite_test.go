@@ -15,6 +15,7 @@
 package secret
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gardener/etcd-druid/controllers/secret"
@@ -53,7 +54,7 @@ var _ = BeforeSuite(func() {
 		reconciler := secret.NewReconciler(mgr, &secret.Config{
 			Workers: 5,
 		})
-		Expect(reconciler.RegisterWithManager(mgr)).To(Succeed())
+		Expect(reconciler.RegisterWithManager(context.TODO(), mgr)).To(Succeed())
 	}).StartManager()
 	k8sClient = intTestEnv.K8sClient
 	namespace = intTestEnv.TestNs.Name

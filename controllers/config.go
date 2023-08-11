@@ -164,11 +164,7 @@ func (cfg *ManagerConfig) Validate() error {
 		return err
 	}
 
-	if err := cfg.SecretControllerConfig.Validate(); err != nil {
-		return err
-	}
-
-	return nil
+	return cfg.SecretControllerConfig.Validate()
 }
 
 // getAllowedLeaderElectionResourceLocks gives the resource names that can be used for leader election.

@@ -1,4 +1,4 @@
-// Copyright (c) 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2021 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ func CheckIfDeletionIsConfirmed(obj client.Object) error {
 func ConfirmDeletion(ctx context.Context, w client.Writer, obj client.Object) error {
 	patch := client.MergeFrom(obj.DeepCopyObject().(client.Object))
 	kubernetesutils.SetMetaDataAnnotation(obj, ConfirmationDeletion, "true")
-	kubernetesutils.SetMetaDataAnnotation(obj, v1beta1constants.GardenerTimestamp, TimeNow().UTC().String())
+	kubernetesutils.SetMetaDataAnnotation(obj, v1beta1constants.GardenerTimestamp, TimeNow().UTC().Format(time.RFC3339Nano))
 	return w.Patch(ctx, obj, patch)
 }
 
