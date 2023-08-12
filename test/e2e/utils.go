@@ -33,7 +33,6 @@ import (
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -341,7 +340,6 @@ func getProviders() ([]TestProvider, error) {
 
 	var providers []TestProvider
 
-	// TODO(timuthy): Add support for provider Local
 	for _, p := range providerNames {
 		var provider TestProvider
 		switch p {
@@ -402,6 +400,15 @@ func getProviders() ([]TestProvider, error) {
 						},
 					},
 				}
+			}
+		case providerLocal:
+			provider = TestProvider{
+				Name:   "local",
+				Suffix: "local",
+				Storage: &Storage{
+					Provider:   utils.Local,
+					SecretData: map[string][]byte{},
+				},
 			}
 		}
 		providers = append(providers, provider)
@@ -602,7 +609,7 @@ func getSnapstore(storageProvider, storageContainer, storePrefix string) (brtype
 	snapstoreConfig := &brtypes.SnapstoreConfig{
 		Provider:  storageProvider,
 		Container: storageContainer,
-		Prefix:    path.Join(storePrefix, "v1"),
+		Prefix:    path.Join(storePrefix, "v2"),
 	}
 	store, err := snapstore.GetSnapstore(snapstoreConfig)
 	if err != nil {
@@ -626,6 +633,44 @@ func purgeSnapstore(store brtypes.SnapStore) error {
 	}
 
 	return nil
+}
+
+func getPurgeLocalSnapstoreJob(storeContainer string) *batchv1.Job {
+	directory := corev1.HostPathDirectory
+
+	return newTestHelperJob(
+		"purge-local-snapstore",
+		&corev1.PodSpec{
+			Volumes: []corev1.Volume{
+				{
+					Name: "host-dir",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: "/etc",
+							Type: &directory,
+						},
+					},
+				},
+			},
+			Containers: []corev1.Container{
+				{
+					Name:    "infra",
+					Image:   "ubuntu:23.10",
+					Command: []string{"/bin/bash"},
+					Args: []string{"-c",
+						fmt.Sprintf("rm -rf /host-dir-etc/gardener/local-backupbuckets/%s/*", storeContainer),
+					},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "host-dir",
+							MountPath: "/host-dir-etc",
+						},
+					},
+				},
+			},
+			RestartPolicy: corev1.RestartPolicyNever,
+		},
+	)
 }
 
 func populateEtcd(logger logr.Logger, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix, valuePrefix string, startKeyNo, endKeyNo int, delay time.Duration) error {
@@ -800,11 +845,11 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 	return newTestHelperJob(
 		"etcd-zero-down-time-validator-"+testName,
 		&corev1.PodSpec{
-			Volumes: []v1.Volume{
+			Volumes: []corev1.Volume{
 				{
 					Name: "client-url-ca-etcd",
-					VolumeSource: v1.VolumeSource{
-						Secret: &v1.SecretVolumeSource{
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
 							SecretName:  tls.TLSCASecretRef.Name,
 							DefaultMode: pointer.Int32(420),
 						},
@@ -812,8 +857,8 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 				},
 				{
 					Name: "client-url-etcd-server-tls",
-					VolumeSource: v1.VolumeSource{
-						Secret: &v1.SecretVolumeSource{
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
 							SecretName:  tls.ClientTLSSecretRef.Name,
 							DefaultMode: pointer.Int32(420),
 						},
@@ -821,8 +866,8 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 				},
 				{
 					Name: "client-url-etcd-client-tls",
-					VolumeSource: v1.VolumeSource{
-						Secret: &v1.SecretVolumeSource{
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
 							SecretName:  tls.ServerTLSSecretRef.Name,
 							DefaultMode: pointer.Int32(420),
 						},
@@ -845,13 +890,13 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 							"sleep 1; done;  echo \"etcd is unhealthy\"; exit 1;" +
 							"' > test.sh && sh test.sh",
 					},
-					ReadinessProbe: &v1.Probe{
+					ReadinessProbe: &corev1.Probe{
 						InitialDelaySeconds: int32(5),
 						FailureThreshold:    int32(1),
 						PeriodSeconds:       int32(1),
 						SuccessThreshold:    int32(3),
-						ProbeHandler: v1.ProbeHandler{
-							Exec: &v1.ExecAction{
+						ProbeHandler: corev1.ProbeHandler{
+							Exec: &corev1.ExecAction{
 								Command: []string{
 									"cat",
 									"/tmp/healthy",
@@ -859,12 +904,12 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 							},
 						},
 					},
-					LivenessProbe: &v1.Probe{
+					LivenessProbe: &corev1.Probe{
 						InitialDelaySeconds: int32(5),
 						FailureThreshold:    int32(1),
 						PeriodSeconds:       int32(1),
-						ProbeHandler: v1.ProbeHandler{
-							Exec: &v1.ExecAction{
+						ProbeHandler: corev1.ProbeHandler{
+							Exec: &corev1.ExecAction{
 								Command: []string{
 									"cat",
 									"/tmp/healthy",
@@ -872,7 +917,7 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 							},
 						},
 					},
-					VolumeMounts: []v1.VolumeMount{
+					VolumeMounts: []corev1.VolumeMount{
 						{
 							MountPath: "/var/etcd/ssl/client/ca",
 							Name:      "client-url-ca-etcd",
@@ -889,7 +934,7 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 					},
 				},
 			},
-			RestartPolicy: v1.RestartPolicyNever,
+			RestartPolicy: corev1.RestartPolicyNever,
 		})
 }
 

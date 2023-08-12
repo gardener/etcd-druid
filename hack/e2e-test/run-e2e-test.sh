@@ -188,6 +188,26 @@ function setup_gcp_e2e {
   setup_e2e
 }
 
+function usage_local {
+    cat <<EOM
+Usage:
+run-e2e-test.sh local
+
+Please make sure the following environment variables are set:
+
+    TEST_ID                           ID of the test, used for test objects and assets.
+EOM
+    exit 0
+}
+
+function setup_local_e2e {
+  [[ -z ${TEST_ID:=""} ]] && usage_local
+
+  profile_setup="local-setup"
+  profile_cleanup="local-cleanup"
+  setup_e2e
+}
+
 : ${INFRA_PROVIDERS:=""}
 : ${STEPS:="setup,deploy,test,undeploy,cleanup"}
 : ${cleanup_done:="false"}
@@ -199,7 +219,7 @@ export INFRA_PROVIDERS=${1}
 for p in ${1//,/ }; do
   case $p in
     all)
-      export INFRA_PROVIDERS="aws,azure,gcp"
+      export INFRA_PROVIDERS="aws,azure,gcp,local"
       setup_aws_e2e
       setup_azure_e2e
       setup_gcp_e2e
@@ -212,6 +232,9 @@ for p in ${1//,/ }; do
       ;;
     gcp)
       setup_gcp_e2e
+      ;;
+    local)
+      setup_local_e2e
       ;;
     *)
       echo "Provider ${1} is not supported."

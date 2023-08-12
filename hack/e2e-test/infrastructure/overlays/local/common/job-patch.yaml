@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: infra-job
+spec:
+  template:
+    spec:
+      containers:
+      - name: infra
+        envFrom:
+        - secretRef:
+            name: infra-secret
+        volumeMounts:
+        - name: common
+          mountPath: /var/lib/infra/data/common
+        - name: host-dir
+          mountPath: /host-dir-etc
+      volumes:
+      - name: common
+        configMap:
+          name: infra-common
+          defaultMode: 0755
+      - name: host-dir
+        hostPath:
+          path: /etc
+          type: Directory
