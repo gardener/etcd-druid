@@ -187,7 +187,7 @@ When an etcd-member starts, then it needs to find out:
 
 Druid adds an annotation `gardener.cloud/scaled-to-multi-node` on the `StatefulSet` which is then shared by all etcd-members irrespective of the starting state of an etcd-member (as `Learner` or `Voting-Member`). This especially creates an issue for the current leader (often pod with index 0) during the scale-up of an etcd cluster as described in [this](https://github.com/gardener/etcd-backup-restore/issues/646) issue. 
 
-It has been agreed that the current solution to [this]([[BUG] Restart of first cluster member can lead to quorum loss while scaling up a non-HA etcd cluster. · Issue #646 · gardener/etcd-backup-restore · GitHub](https://github.com/gardener/etcd-backup-restore/issues/646)) issue is a quick and dirty fix and needs to be revisited to be uniformly applied to all etcd-members. The authors propose to provide a more deterministic approach to scale-up using the `EtcdMember` resource.
+It has been agreed that the current solution to [this issue](https://github.com/gardener/etcd-backup-restore/issues/646) is a quick and dirty fix and needs to be revisited to be uniformly applied to all etcd-members. The authors propose to provide a more deterministic approach to scale-up using the `EtcdMember` resource.
 
 **New approach**
 
