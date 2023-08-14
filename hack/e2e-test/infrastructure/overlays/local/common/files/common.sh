@@ -14,22 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-HOST_DIR="/host-dir-etc/gardener/local-backupbuckets"
+MOUNT_PATH="/host-dir-etc"
+HOST_PATH="/etc"
+BACKUP_BUCKETS_DIR="gardener/local-backupbuckets"
 
 function create_local_bucket() {
-  echo "Creating Local bucket ${TEST_ID} at host directory ${HOST_DIR} ."
-  mkdir -p "${HOST_DIR}/${TEST_ID}"
-  echo "Successfully created Local bucket ${TEST_ID} at host directory ${HOST_DIR} ."
+  echo "Creating Local bucket ${TEST_ID} at host directory ${HOST_PATH}/${BACKUP_BUCKETS_DIR} ."
+  mkdir -p "${MOUNT_PATH}/${BACKUP_BUCKETS_DIR}/${TEST_ID}"
+  echo "Successfully created Local bucket ${TEST_ID} at host directory ${HOST_PATH}/${BACKUP_BUCKETS_DIR} ."
 }
 
 function delete_local_bucket() {
-  echo "About to delete Local bucket ${TEST_ID} from host directory ${HOST_DIR} ."
-  rm -rf "${HOST_DIR:?}/${TEST_ID}"
-  echo "Successfully deleted Local bucket ${TEST_ID} from host directory ${HOST_DIR} ."
-}
-
-function purge_local_bucket_contents() {
-  echo "About to purge contents from Local bucket ${HOST_DIR}/${TEST_ID} ."
-  rm -rf "${HOST_DIR:?}/${TEST_ID}/*"
-  echo "Successfully purged contents from Local bucket ${HOST_DIR}/${TEST_ID} ."
+  echo "About to delete Local bucket ${TEST_ID} from host directory ${HOST_PATH}/${BACKUP_BUCKETS_DIR} ."
+  rm -rf "${MOUNT_PATH:?}/${BACKUP_BUCKETS_DIR}/${TEST_ID}"
+  echo "Successfully deleted Local bucket ${TEST_ID} from host directory ${HOST_PATH}/${BACKUP_BUCKETS_DIR} ."
 }
