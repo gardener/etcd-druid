@@ -99,6 +99,9 @@ const (
 	defaultInterval = 5 * time.Second
 	// defaultTimeout is the default timeout for retry operations.
 	defaultTimeout = 90 * time.Second
+
+	// ScaleToMultiNodeAnnotationKey is used to represent scale-up annotation.
+	ScaleToMultiNodeAnnotationKey = "gardener.cloud/scaled-to-multi-node"
 )
 
 // Wait waits for the deployment of the StatefulSet to finish
@@ -603,10 +606,6 @@ func getObjectMeta(val *Values, sts *appsv1.StatefulSet, preserveAnnotations boo
 		OwnerReferences: []metav1.OwnerReference{val.OwnerReference},
 	}
 }
-
-const (
-	ScaleToMultiNodeAnnotationKey = "gardener.cloud/scaled-to-multi-node"
-)
 
 func getStsAnnotations(val *Values, sts *appsv1.StatefulSet) map[string]string {
 	annotations := utils.MergeStringMaps(
