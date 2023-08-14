@@ -393,7 +393,7 @@ func immutableFieldUpdate(sts *appsv1.StatefulSet, val Values) bool {
 func clusterScaledUpToMultiNode(val *Values, sts *appsv1.StatefulSet) bool {
 	if sts != nil && sts.Spec.Replicas != nil {
 		return (val.Replicas > 1 && *sts.Spec.Replicas == 1 && sts.Status.AvailableReplicas == 1) ||
-			(metav1.HasAnnotation(sts.ObjectMeta, scaleToMultiNodeAnnotationKey) &&
+			(metav1.HasAnnotation(sts.ObjectMeta, ScaleToMultiNodeAnnotationKey) &&
 				(sts.Status.UpdatedReplicas < *sts.Spec.Replicas || sts.Status.AvailableReplicas < sts.Status.UpdatedReplicas))
 	}
 	return val.Replicas > 1 && val.StatusReplicas == 1
@@ -605,7 +605,7 @@ func getObjectMeta(val *Values, sts *appsv1.StatefulSet, preserveAnnotations boo
 }
 
 const (
-	scaleToMultiNodeAnnotationKey = "gardener.cloud/scaled-to-multi-node"
+	ScaleToMultiNodeAnnotationKey = "gardener.cloud/scaled-to-multi-node"
 )
 
 func getStsAnnotations(val *Values, sts *appsv1.StatefulSet) map[string]string {
@@ -618,7 +618,7 @@ func getStsAnnotations(val *Values, sts *appsv1.StatefulSet) map[string]string {
 	)
 
 	if clusterScaledUpToMultiNode(val, sts) {
-		annotations[scaleToMultiNodeAnnotationKey] = ""
+		annotations[ScaleToMultiNodeAnnotationKey] = ""
 	}
 	return annotations
 }
