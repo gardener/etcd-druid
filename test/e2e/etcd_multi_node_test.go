@@ -371,6 +371,8 @@ func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Lo
 func updateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
 	sts := &appsv1.StatefulSet{}
 	ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts)).To(Succeed())
+	Expect(etcd).ToNot(BeNil())
+	Expect(etcd.Status.ObservedGeneration).ToNot(BeNil())
 	oldStsObservedGeneration, oldEtcdObservedGeneration := sts.Status.ObservedGeneration, *etcd.Status.ObservedGeneration
 
 	// update reconcile annotation, druid to reconcile and update the changes.

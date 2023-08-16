@@ -115,6 +115,7 @@ var _ = Describe("Statefulset", func() {
 	var (
 		ctx context.Context
 		cl  client.Client
+		err error
 
 		etcd      *druidv1alpha1.Etcd
 		namespace string
@@ -123,7 +124,7 @@ var _ = Describe("Statefulset", func() {
 		replicas *int32
 		sts      *appsv1.StatefulSet
 
-		values      Values
+		values      *Values
 		stsDeployer component.Deployer
 
 		storageProvider *string
@@ -131,7 +132,7 @@ var _ = Describe("Statefulset", func() {
 
 	JustBeforeEach(func() {
 		etcd = getEtcd(name, namespace, true, *replicas, storageProvider)
-		values = GenerateValues(
+		values, err = GenerateValues(
 			etcd,
 			pointer.Int32(clientPort),
 			pointer.Int32(serverPort),
@@ -142,10 +143,11 @@ var _ = Describe("Statefulset", func() {
 			false,
 			true,
 		)
+		Expect(err).ToNot(HaveOccurred())
 		fg := map[string]bool{
 			"UseEtcdWrapper": true,
 		}
-		stsDeployer = New(cl, logr.Discard(), values, fg)
+		stsDeployer = New(cl, logr.Discard(), *values, fg)
 
 		sts = &appsv1.StatefulSet{
 			ObjectMeta: metav1.ObjectMeta{
@@ -181,7 +183,7 @@ var _ = Describe("Statefulset", func() {
 					sts := &appsv1.StatefulSet{}
 
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
-					checkStatefulset(sts, values)
+					checkStatefulset(sts, *values)
 				})
 			})
 
@@ -195,7 +197,7 @@ var _ = Describe("Statefulset", func() {
 					sts := &appsv1.StatefulSet{}
 
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
-					checkStatefulset(sts, values)
+					checkStatefulset(sts, *values)
 					// ensure that scale-up annotation "gardener.cloud/scaled-to-multi-node" is not there
 					Expect(metav1.HasAnnotation(sts.ObjectMeta, ScaleToMultiNodeAnnotationKey)).To(BeFalse())
 				})
@@ -207,12 +209,12 @@ var _ = Describe("Statefulset", func() {
 					fg := map[string]bool{
 						"UseEtcdWrapper": true,
 					}
-					stsDeployer = New(cl, logr.Discard(), values, fg)
+					stsDeployer = New(cl, logr.Discard(), *values, fg)
 					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
 
 					updatedSts := &appsv1.StatefulSet{}
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
-					checkStatefulset(updatedSts, values)
+					checkStatefulset(updatedSts, *values)
 				})
 			})
 		})
@@ -228,7 +230,7 @@ var _ = Describe("Statefulset", func() {
 				updatedSts := &appsv1.StatefulSet{}
 
 				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
-				checkStatefulset(updatedSts, values)
+				checkStatefulset(updatedSts, *values)
 			})
 
 			Context("when multi-node cluster is configured", func() {
@@ -252,7 +254,7 @@ var _ = Describe("Statefulset", func() {
 					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
 					updatedSts := &appsv1.StatefulSet{}
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
-					checkStatefulset(updatedSts, values)
+					checkStatefulset(updatedSts, *values)
 					// ensure that scale-up annotation "gardener.cloud/scaled-to-multi-node" should be added to statefulset.
 					Expect(metav1.HasAnnotation(updatedSts.ObjectMeta, ScaleToMultiNodeAnnotationKey)).To(BeTrue())
 				})
@@ -283,7 +285,7 @@ var _ = Describe("Statefulset", func() {
 
 					updatedSts := &appsv1.StatefulSet{}
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
-					checkStatefulset(updatedSts, values)
+					checkStatefulset(updatedSts, *values)
 					// ensure that scale-up annotation "gardener.cloud/scaled-to-multi-node"
 					// shouldn't be removed from statefulset until scale-up succeeds.
 					Expect(metav1.HasAnnotation(updatedSts.ObjectMeta, ScaleToMultiNodeAnnotationKey)).To(BeTrue())
@@ -316,7 +318,7 @@ var _ = Describe("Statefulset", func() {
 
 					updatedSts := &appsv1.StatefulSet{}
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
-					checkStatefulset(updatedSts, values)
+					checkStatefulset(updatedSts, *values)
 					// ensure that scale-up annotation "gardener.cloud/scaled-to-multi-node"
 					// shouldn't be removed from statefulset until scale-up succeeds.
 					Expect(metav1.HasAnnotation(updatedSts.ObjectMeta, ScaleToMultiNodeAnnotationKey)).To(BeTrue())
@@ -348,7 +350,7 @@ var _ = Describe("Statefulset", func() {
 
 					updatedSts := &appsv1.StatefulSet{}
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
-					checkStatefulset(updatedSts, values)
+					checkStatefulset(updatedSts, *values)
 					// After scale-up succeeds ensure that scale-up annotation "gardener.cloud/scaled-to-multi-node"
 					// should be removed from statefulset.
 					Expect(metav1.HasAnnotation(updatedSts.ObjectMeta, ScaleToMultiNodeAnnotationKey)).To(BeFalse())
@@ -364,7 +366,7 @@ var _ = Describe("Statefulset", func() {
 
 					updatedSts := &appsv1.StatefulSet{}
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
-					checkStatefulset(updatedSts, values)
+					checkStatefulset(updatedSts, *values)
 					Expect(updatedSts.Spec.ServiceName).To(Equal(values.PeerServiceName))
 				})
 
@@ -380,7 +382,7 @@ var _ = Describe("Statefulset", func() {
 
 					updatedSts := &appsv1.StatefulSet{}
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
-					checkStatefulset(updatedSts, values)
+					checkStatefulset(updatedSts, *values)
 					Expect(updatedSts.Spec.PodManagementPolicy).To(Equal(appsv1.ParallelPodManagement))
 				})
 			})
@@ -388,7 +390,7 @@ var _ = Describe("Statefulset", func() {
 			Context("DeltaSnapshotRetentionPeriod field is updated in Etcd CRD", func() {
 				It("should update --delta-snapshot-retention-period flag in etcd-backup-restore container command", func() {
 					etcd.Spec.Backup.DeltaSnapshotRetentionPeriod = &metav1.Duration{Duration: time.Hour * 48}
-					values = GenerateValues(
+					values, err = GenerateValues(
 						etcd,
 						pointer.Int32(clientPort),
 						pointer.Int32(serverPort),
@@ -396,15 +398,16 @@ var _ = Describe("Statefulset", func() {
 						imageEtcd,
 						imageBR,
 						checkSumAnnotations, false, true)
+					Expect(err).ToNot(HaveOccurred())
 					fg := map[string]bool{
 						"UseEtcdWrapper": true,
 					}
-					stsDeployer = New(cl, logr.Discard(), values, fg)
+					stsDeployer = New(cl, logr.Discard(), *values, fg)
 					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
 
 					sts := &appsv1.StatefulSet{}
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
-					checkStatefulset(sts, values)
+					checkStatefulset(sts, *values)
 				})
 			})
 		})
@@ -467,7 +470,7 @@ var _ = Describe("Statefulset", func() {
 						sts := &appsv1.StatefulSet{}
 						Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
 
-						checkLocalProviderVaues(etcd, sts, hostPath)
+						checkLocalProviderValues(etcd, sts, hostPath)
 					})
 				})
 
@@ -483,7 +486,7 @@ var _ = Describe("Statefulset", func() {
 						sts := &appsv1.StatefulSet{}
 						Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
 
-						checkLocalProviderVaues(etcd, sts, druidutils.LocalProviderDefaultMountPath)
+						checkLocalProviderValues(etcd, sts, druidutils.LocalProviderDefaultMountPath)
 					})
 				})
 			})
@@ -1019,7 +1022,7 @@ func getReadinessHandlerForMultiNode() gomegatypes.GomegaMatcher {
 	})
 }
 
-func checkLocalProviderVaues(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, hostPath string) {
+func checkLocalProviderValues(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, hostPath string) {
 	hpt := corev1.HostPathDirectory
 
 	// check volumes
@@ -1078,7 +1081,7 @@ func expectedBackupArgs(values *Values) Elements {
 		fmt.Sprintf("--garbage-collection-policy=%s", *values.GarbageCollectionPolicy):                        Equal(fmt.Sprintf("--garbage-collection-policy=%s", *values.GarbageCollectionPolicy)),
 		fmt.Sprintf("--endpoints=https://%s-local:%d", values.Name, clientPort):                               Equal(fmt.Sprintf("--endpoints=https://%s-local:%d", values.Name, clientPort)),
 		fmt.Sprintf("--service-endpoints=https://%s:%d", values.ClientServiceName, clientPort):                Equal(fmt.Sprintf("--service-endpoints=https://%s:%d", values.ClientServiceName, clientPort)),
-		fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(values.Quota.Value())):                            Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", int64(values.Quota.Value()))),
+		fmt.Sprintf("--embedded-etcd-quota-bytes=%d", values.Quota.Value()):                                   Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", values.Quota.Value())),
 		fmt.Sprintf("%s=%s", "--delta-snapshot-period", values.DeltaSnapshotPeriod.Duration.String()):         Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-period", values.DeltaSnapshotPeriod.Duration.String())),
 		fmt.Sprintf("%s=%s", "--garbage-collection-period", values.GarbageCollectionPeriod.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--garbage-collection-period", values.GarbageCollectionPeriod.Duration.String())),
 		fmt.Sprintf("%s=%s", "--auto-compaction-mode", *values.AutoCompactionMode):                            Equal(fmt.Sprintf("%s=%s", "--auto-compaction-mode", *values.AutoCompactionMode)),
