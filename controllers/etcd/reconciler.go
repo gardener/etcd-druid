@@ -368,7 +368,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 	}
 
 	peerUrlTLSChangedToEnabled := isPeerTLSChangedToEnabled(peerTLSEnabled, configMapValues)
-	statefulSetValues := componentsts.GenerateValues(
+	statefulSetValues, err := componentsts.GenerateValues(
 		etcd,
 		&serviceValues.ClientPort,
 		&serviceValues.PeerPort,
@@ -380,10 +380,13 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		}, peerUrlTLSChangedToEnabled,
 		r.config.FeatureGates[string(features.UseEtcdWrapper)],
 	)
+	if err != nil {
+		return reconcileResult{err: err}
+	}
 
 	// Create an OpWaiter because after the deployment we want to wait until the StatefulSet is ready.
 	var (
-		stsDeployer  = componentsts.New(r.Client, logger, statefulSetValues, r.config.FeatureGates)
+		stsDeployer  = componentsts.New(r.Client, logger, *statefulSetValues, r.config.FeatureGates)
 		deployWaiter = gardenercomponent.OpWait(stsDeployer)
 	)
 

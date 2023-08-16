@@ -57,9 +57,9 @@ type Values struct {
 	EtcdResourceRequirements   *corev1.ResourceRequirements
 	BackupResourceRequirements *corev1.ResourceRequirements
 
-	EtcdCommand           []string
-	ReadinessProbeCommand []string
-	EtcdBackupCommand     []string
+	EtcdCommandArgs              []string
+	ReadinessProbeCommand        []string
+	EtcdBackupRestoreCommandArgs []string
 
 	EnableClientTLS string
 	EnablePeerTLS   string
