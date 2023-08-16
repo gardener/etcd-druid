@@ -23,7 +23,6 @@ import (
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
 	"github.com/gardener/etcd-druid/pkg/common"
 	. "github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
-	"github.com/gardener/etcd-druid/pkg/utils"
 	druidutils "github.com/gardener/etcd-druid/pkg/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
@@ -175,20 +174,7 @@ var _ = Describe("Statefulset", func() {
 
 	Describe("#Deploy", func() {
 		Context("when statefulset does not exist", func() {
-			It("should create the statefulset successfully", func() {
-				Expect(stsDeployer.Deploy(ctx)).To(Succeed())
-
-				sts := &appsv1.StatefulSet{}
-
-				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
-				checkStatefulset(sts, values)
-			})
-
-			Context("should bootstrap a multi replica statefulset successfully", func() {
-				BeforeEach(func() {
-					replicas = pointer.Int32(3)
-				})
-
+			Context("bootstrap of a single replica statefulset", func() {
 				It("should create the statefulset successfully", func() {
 					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
 
@@ -196,31 +182,37 @@ var _ = Describe("Statefulset", func() {
 
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
 					checkStatefulset(sts, values)
-					// ensure that annotation gardener.cloud/scaled-to-multi-node is not there
-					Expect(metav1.HasAnnotation(sts.ObjectMeta, "gardener.cloud/scaled-to-multi-node")).To(BeFalse())
+				})
+			})
+
+			Context("bootstrap of a multi replica statefulset", func() {
+				BeforeEach(func() {
+					replicas = pointer.Int32(3)
+				})
+				It("should create the statefulset successfully", func() {
+					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
+
+					sts := &appsv1.StatefulSet{}
+
+					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
+					checkStatefulset(sts, values)
+					// ensure that scale-up annotation "gardener.cloud/scaled-to-multi-node" is not there
+					Expect(metav1.HasAnnotation(sts.ObjectMeta, ScaleToMultiNodeAnnotationKey)).To(BeFalse())
 				})
 			})
 
 			Context("DeltaSnapshotRetentionPeriod field is set in Etcd CRD", func() {
 				It("should include --delta-snapshot-retention-period flag in etcd-backup-restore container command", func() {
 					etcd.Spec.Backup.DeltaSnapshotRetentionPeriod = &metav1.Duration{Duration: time.Hour * 24}
-					values = GenerateValues(
-						etcd,
-						pointer.Int32(clientPort),
-						pointer.Int32(serverPort),
-						pointer.Int32(backupPort),
-						imageEtcd,
-						imageBR,
-						checkSumAnnotations, false, true)
 					fg := map[string]bool{
 						"UseEtcdWrapper": true,
 					}
 					stsDeployer = New(cl, logr.Discard(), values, fg)
 					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
 
-					sts := &appsv1.StatefulSet{}
-					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
-					checkStatefulset(sts, values)
+					updatedSts := &appsv1.StatefulSet{}
+					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
+					checkStatefulset(updatedSts, values)
 				})
 			})
 		})
@@ -233,17 +225,134 @@ var _ = Describe("Statefulset", func() {
 
 				Expect(stsDeployer.Deploy(ctx)).To(Succeed())
 
-				sts := &appsv1.StatefulSet{}
+				updatedSts := &appsv1.StatefulSet{}
 
-				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
-				checkStatefulset(sts, values)
+				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
+				checkStatefulset(updatedSts, values)
 			})
 
 			Context("when multi-node cluster is configured", func() {
+				var (
+					annotations = make(map[string]string)
+				)
 				BeforeEach(func() {
 					replicas = pointer.Int32(3)
+					annotations = map[string]string{
+						ScaleToMultiNodeAnnotationKey: "",
+					}
 				})
 
+				It("should add scale-up annotation to statefulset", func() {
+					sts.Generation = 1
+					sts.Spec.Replicas = pointer.Int32(1)
+					sts.Status.AvailableReplicas = 1
+					Expect(cl.Create(ctx, sts)).To(Succeed())
+					Expect(metav1.HasAnnotation(sts.ObjectMeta, ScaleToMultiNodeAnnotationKey)).To(BeFalse())
+
+					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
+					updatedSts := &appsv1.StatefulSet{}
+					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
+					checkStatefulset(updatedSts, values)
+					// ensure that scale-up annotation "gardener.cloud/scaled-to-multi-node" should be added to statefulset.
+					Expect(metav1.HasAnnotation(updatedSts.ObjectMeta, ScaleToMultiNodeAnnotationKey)).To(BeTrue())
+				})
+				It("shouldn't remove the scale-up annotation from statefulset if scale-up is not completed yet", func() {
+					sts = &appsv1.StatefulSet{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      values.Name,
+							Namespace: values.Namespace,
+							// add the scale-up annotation to statefulset
+							Annotations: annotations,
+						},
+						Spec: appsv1.StatefulSetSpec{
+							Replicas: pointer.Int32(3),
+						},
+						Status: appsv1.StatefulSetStatus{
+							// assuming scale-up isn't completed yet, hence
+							// set the UpdatedReplicas to 2
+							UpdatedReplicas:   2,
+							AvailableReplicas: 3,
+							Replicas:          3,
+						},
+					}
+
+					Expect(cl.Create(ctx, sts)).To(Succeed())
+					Expect(metav1.HasAnnotation(sts.ObjectMeta, ScaleToMultiNodeAnnotationKey)).To(BeTrue())
+
+					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
+
+					updatedSts := &appsv1.StatefulSet{}
+					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
+					checkStatefulset(updatedSts, values)
+					// ensure that scale-up annotation "gardener.cloud/scaled-to-multi-node"
+					// shouldn't be removed from statefulset until scale-up succeeds.
+					Expect(metav1.HasAnnotation(updatedSts.ObjectMeta, ScaleToMultiNodeAnnotationKey)).To(BeTrue())
+				})
+				It("shouldn't remove the scale-up annotation from statefulset if scale-up is not successful yet", func() {
+					sts = &appsv1.StatefulSet{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      values.Name,
+							Namespace: values.Namespace,
+							// add the scale-up annotation to statefulset
+							Annotations: annotations,
+						},
+						Spec: appsv1.StatefulSetSpec{
+							Replicas: pointer.Int32(3),
+						},
+						Status: appsv1.StatefulSetStatus{
+							// assuming scale-up isn't successful yet, hence
+							// set the UpdatedReplicas to 3 as pod spec has been updated for all members,
+							// but set AvailableReplicas is 2 as one pod member unable to come-up.
+							UpdatedReplicas:   3,
+							AvailableReplicas: 2,
+							Replicas:          3,
+						},
+					}
+
+					Expect(cl.Create(ctx, sts)).To(Succeed())
+					Expect(metav1.HasAnnotation(sts.ObjectMeta, ScaleToMultiNodeAnnotationKey)).To(BeTrue())
+
+					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
+
+					updatedSts := &appsv1.StatefulSet{}
+					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
+					checkStatefulset(updatedSts, values)
+					// ensure that scale-up annotation "gardener.cloud/scaled-to-multi-node"
+					// shouldn't be removed from statefulset until scale-up succeeds.
+					Expect(metav1.HasAnnotation(updatedSts.ObjectMeta, ScaleToMultiNodeAnnotationKey)).To(BeTrue())
+				})
+				It("should remove the scale-up annotation from statefulset after scale-up succeeds", func() {
+					sts = &appsv1.StatefulSet{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      values.Name,
+							Namespace: values.Namespace,
+							// add the scale-up annotation to statefulset
+							Annotations: annotations,
+						},
+						Spec: appsv1.StatefulSetSpec{
+							Replicas: pointer.Int32(3),
+						},
+						Status: appsv1.StatefulSetStatus{
+							// scale-up is successful, hence
+							// set the Replicas, UpdatedReplicas and AvailableReplicas to `3`.
+							UpdatedReplicas:   3,
+							AvailableReplicas: 3,
+							Replicas:          3,
+						},
+					}
+
+					Expect(cl.Create(ctx, sts)).To(Succeed())
+					Expect(metav1.HasAnnotation(sts.ObjectMeta, ScaleToMultiNodeAnnotationKey)).To(BeTrue())
+
+					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
+
+					updatedSts := &appsv1.StatefulSet{}
+					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), updatedSts)).To(Succeed())
+					checkStatefulset(updatedSts, values)
+					// After scale-up succeeds ensure that scale-up annotation "gardener.cloud/scaled-to-multi-node"
+					// should be removed from statefulset.
+					Expect(metav1.HasAnnotation(updatedSts.ObjectMeta, ScaleToMultiNodeAnnotationKey)).To(BeFalse())
+				})
 				It("should re-create statefulset because serviceName is changed", func() {
 					sts.Generation = 2
 					sts.Spec.ServiceName = "foo"
@@ -349,7 +458,7 @@ var _ = Describe("Statefulset", func() {
 					BeforeEach(func() {
 						hostPath = "/data"
 						backupSecretData = map[string][]byte{
-							utils.EtcdBackupSecretHostPath: []byte(hostPath),
+							druidutils.EtcdBackupSecretHostPath: []byte(hostPath),
 						}
 					})
 
@@ -374,7 +483,7 @@ var _ = Describe("Statefulset", func() {
 						sts := &appsv1.StatefulSet{}
 						Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), sts)).To(Succeed())
 
-						checkLocalProviderVaues(etcd, sts, utils.LocalProviderDefaultMountPath)
+						checkLocalProviderVaues(etcd, sts, druidutils.LocalProviderDefaultMountPath)
 					})
 				})
 			})
@@ -471,7 +580,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 			"Name":      Equal(values.Name),
 			"Namespace": Equal(values.Namespace),
-			"Annotations": MatchAllKeys(Keys{
+			"Annotations": MatchKeys(IgnoreExtras, Keys{
 				"checksum/etcd-configmap":   Equal("abc123"),
 				"gardener.cloud/owned-by":   Equal(fmt.Sprintf("%s/%s", values.Namespace, values.Name)),
 				"gardener.cloud/owner-type": Equal("etcd"),
