@@ -174,7 +174,7 @@ var _ = Describe("Statefulset", func() {
 
 	Describe("#Deploy", func() {
 		Context("when statefulset does not exist", func() {
-			Context("bootstrap a single replica statefulset", func() {
+			Context("bootstrap of a single replica statefulset", func() {
 				It("should create the statefulset successfully", func() {
 					Expect(stsDeployer.Deploy(ctx)).To(Succeed())
 
@@ -185,7 +185,7 @@ var _ = Describe("Statefulset", func() {
 				})
 			})
 
-			Context("bootstrap a multi replica statefulset successfully", func() {
+			Context("bootstrap of a multi replica statefulset", func() {
 				BeforeEach(func() {
 					replicas = pointer.Int32(3)
 				})
@@ -233,11 +233,11 @@ var _ = Describe("Statefulset", func() {
 
 			Context("when multi-node cluster is configured", func() {
 				var (
-					annotation = make(map[string]string)
+					annotations = make(map[string]string)
 				)
 				BeforeEach(func() {
 					replicas = pointer.Int32(3)
-					annotation = map[string]string{
+					annotations = map[string]string{
 						ScaleToMultiNodeAnnotationKey: "",
 					}
 				})
@@ -262,7 +262,7 @@ var _ = Describe("Statefulset", func() {
 							Name:      values.Name,
 							Namespace: values.Namespace,
 							// add the scale-up annotation to statefulset
-							Annotations: annotation,
+							Annotations: annotations,
 						},
 						Spec: appsv1.StatefulSetSpec{
 							Replicas: pointer.Int32(3),
@@ -294,7 +294,7 @@ var _ = Describe("Statefulset", func() {
 							Name:      values.Name,
 							Namespace: values.Namespace,
 							// add the scale-up annotation to statefulset
-							Annotations: annotation,
+							Annotations: annotations,
 						},
 						Spec: appsv1.StatefulSetSpec{
 							Replicas: pointer.Int32(3),
@@ -327,7 +327,7 @@ var _ = Describe("Statefulset", func() {
 							Name:      values.Name,
 							Namespace: values.Namespace,
 							// add the scale-up annotation to statefulset
-							Annotations: annotation,
+							Annotations: annotations,
 						},
 						Spec: appsv1.StatefulSetSpec{
 							Replicas: pointer.Int32(3),
