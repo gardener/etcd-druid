@@ -339,7 +339,7 @@ Hence, if incremental snapshots are required to be applied, the etcd cluster mus
 - The etcd-druid controller will provision a statefulset with the etcd main container and the etcd-backup-restore sidecar container. It will pass on the `spec.replicas` field from the etcd resource to the statefulset. It will also supply the right pre-computed configuration to both the containers. 
 - The statefulset controller will create the pods based on the pod template in the statefulset spec and these individual pods will be the members that form the etcd cluster. 
 
-![Component diagram](images/multinodeetcd.png)
+![Component diagram](assets/01-multi-node-etcd.png)
 
 This approach makes it possible to satisfy the [assumption](#assumption) that the DNS for the individual members of the etcd cluster must be known/computable.
 This can be achieved by using a `headless` service (along with the statefulset) for each etcd cluster instance.
@@ -1034,7 +1034,7 @@ It also might have to handle the etcd database verification and restoration func
 
 The initialization sequence itself is proposed to be as follows.
 It is an enhancement of the [existing](https://github.com/gardener/etcd-backup-restore/blob/master/doc/proposals/design.md#workflow) initialization sequence.
-![etcd member initialization sequence](images/etcd-member-initialization-sequence.png)
+![etcd member initialization sequence](assets/01-etcd-member-initialization-sequence.png)
 
 The details of the decisions to be taken during the initialization are given below.
 
@@ -1244,7 +1244,7 @@ Some new work-flows like status updates have been introduced.
 Some of these work-flows are sensitive to which `etcd-backup-restore` container is [leading](#backup) and some are not.
 
 The life-cycle of these work-flows is shown below.
-![etcd-backup-restore work-flows life-cycle](images/etcd-backup-restore-work-flows-life-cycle.png)
+![etcd-backup-restore work-flows life-cycle](assets/01-etcd-backup-restore-work-flows-life-cycle.png)
 
 ### Work-flows independent of leader election in all members
 

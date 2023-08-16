@@ -4,7 +4,7 @@ structure:
 - name: _index.md
   properties:
     frontmatter:
-      title: etcd Druid
+      title: Etcd Druid
       description: An operator for etcd management in Gardener
   source: /README.md
 - name: api-reference
@@ -15,11 +15,20 @@ structure:
       categories:
         - Developers
   source: https://github.com/gardener/etcd-druid-api/blob/DEFAULT_BRANCH/docs/api-reference/druid.md
+- name: deployment
+  properties:
+    frontmatter:
+      title: Deployment
+      weight: 2
+      categories:
+        - Operators
+  nodesSelector:
+    path: /docs/deployment
 - name: development
   properties:
     frontmatter:
       title: Development
-      weight: 2
+      weight: 3
       categories:
         - Developers
   nodesSelector:
@@ -28,8 +37,17 @@ structure:
   properties:
     frontmatter:
       title: Operations
-      weight: 3
+      weight: 4
       categories:
         - Operators
   nodesSelector:
     path: /docs/operations
+- name: proposals
+  properties:
+    frontmatter:
+      title: Proposals
+      weight: 5
+      categories:
+        - Developers
+  nodesSelector:
+    path: /docs/proposals

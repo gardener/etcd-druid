@@ -3,13 +3,13 @@ title: etcd Network Latency
 ---
 
 # Network Latency analysis: `sn-etcd-sz` vs  `mn-etcd-sz` vs `mn-etcd-mz`
-This page captures the ETCD cluster latency analysis for below scenarios using the benchmark tool (build from [ETCD benchmark tool](https://github.com/seshachalam-yv/etcd)).
+This page captures the etcd cluster latency analysis for below scenarios using the benchmark tool (build from [etcd benchmark tool](https://github.com/seshachalam-yv/etcd)).
 
-`sn-etcd-sz` -> single-node ETCD single zone (Only single replica of etcd will be running)
+`sn-etcd-sz` -> single-node etcd single zone (Only single replica of etcd will be running)
 
-`mn-etcd-sz` -> multi-node ETCD single zone (Multiple replicas of etcd pods will be running across nodes in a single zone)
+`mn-etcd-sz` -> multi-node etcd single zone (Multiple replicas of etcd pods will be running across nodes in a single zone)
 
-`mn-etcd-mz` -> multi-node ETCD multi zone (Multiple replicas of etcd pods will be running across nodes in multiple zones)
+`mn-etcd-mz` -> multi-node etcd multi zone (Multiple replicas of etcd pods will be running across nodes in multiple zones)
 
 ## PUT Analysis
 
@@ -39,7 +39,7 @@ benchmark put  --conns=1 --clients=1 --precise \
 
 ```
 
-### Latency analysis during PUT requests to ETCD
+### Latency analysis during PUT requests to etcd
 
 * 
   <details>
@@ -191,7 +191,7 @@ benchmark range 0 --target-leader --conns=100 --clients=1000 --precise \
 ```
 
 
-### Latency analysis during Range requests to ETCD 
+### Latency analysis during Range requests to etcd 
 
 * 
   <details>
@@ -468,4 +468,4 @@ benchmark range 0 --target-leader --conns=100 --clients=1000 --precise \
 <br>
 <br>
 
->NOTE: This Network latency analysis is inspired by [ETCD performance](https://etcd.io/docs/v3.5/op-guide/performance/).
+>NOTE: This Network latency analysis is inspired by [etcd performance](https://etcd.io/docs/v3.5/op-guide/performance/).
