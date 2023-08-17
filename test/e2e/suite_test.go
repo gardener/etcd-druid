@@ -55,7 +55,7 @@ var (
 	sourcePath     string
 	kubeconfigPath string
 
-	storePrefix = "etcd-main"
+	storePrefix = "etcd-test"
 
 	etcdKeyPrefix   = "foo"
 	etcdValuePrefix = "bar"

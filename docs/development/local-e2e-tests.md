@@ -34,20 +34,21 @@ The following providers are supported for e2e tests:
 - AWS
 - Azure
 - GCP
+- Local
 
-> Valid credentials need to be provided when tests happen with mentioned cloud providers.
+> Valid credentials need to be provided when tests are executed with mentioned cloud providers.
 
 ## Flow
 
 An e2e test execution involves the following steps:
 
-| Step   	  | Description                                                                                                                                                                                                |
-|-----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `setup`	  | Create a storage bucket which is used for etcd backups (only with cloud providers). 	                                                                                                                      |
-| `deploy`	 | Build Docker image, upload it to registry (if remote cluster - see [Docker build](https://skaffold.dev/docs/pipeline-stages/builders/docker/)), deploy Helm chart (`charts/druid`) to Kubernetes cluster.	 |
-| `test`    | Execute e2e tests as defined in `test/e2e`.                                                                                                                                                                |
-| `undeploy` | Remove the deployed artifacts from Kubernetes cluster.                                                                                                                                                     |
-| `cleanup` | Delete storage bucket and Druid deployment from test cluster.	                                                                                                                                             |
+| Step       | Description                                                                                                                                                                                               |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setup`    | Create a storage bucket which is used for etcd backups (only with cloud providers).                                                                                                                       |
+| `deploy`   | Build Docker image, upload it to registry (if remote cluster - see [Docker build](https://skaffold.dev/docs/pipeline-stages/builders/docker/)), deploy Helm chart (`charts/druid`) to Kubernetes cluster. |
+| `test`     | Execute e2e tests as defined in `test/e2e`.                                                                                                                                                               |
+| `undeploy` | Remove the deployed artifacts from Kubernetes cluster.                                                                                                                                                    |
+| `cleanup`  | Delete storage bucket and Druid deployment from test cluster.                                                                                                                                             |
 
 ### Make target
 
@@ -62,7 +63,7 @@ make test-e2e
 
 The following environment variables influence how the flow described above is executed:
 
-- `PROVIDERS`:  Providers used for testing (`all`, `aws`, `azure`, `gcp`). Multiple entries must be comma separated. 
+- `PROVIDERS`:  Providers used for testing (`all`, `aws`, `azure`, `gcp`, `local`). Multiple entries must be comma separated. 
     > **Note**: Some tests will use very first entry from env `PROVIDERS` for e2e testing (ex: multi-node tests). So for multi-node tests to use specific provider, specify that provider as first entry in env `PROVIDERS`.
 - `KUBECONFIG`: Kubeconfig pointing to cluster where Etcd-Druid will be deployed (preferably [KinD](https://kind.sigs.k8s.io)).
 - `TEST_ID`:    Some ID which is used to create assets for and during testing.
@@ -124,9 +125,24 @@ make \
 test-e2e
 ```
 
+### Local Env Variables
+
+No special environment variables are required for running e2e tests with `Local` provider.
+
+Example:
+
+```
+make \
+  KUBECONFIG="$HOME/.kube/config" \
+  PROVIDERS="local" \
+  TEST_ID="some-test-id" \
+  STEPS="setup,deploy,test,undeploy,cleanup" \
+test-e2e
+```
+
 ## e2e test with localstack
 
-Above mentioned e2e tests need actual storage from cloud provider to be setup. But there is a tool named [localstack](https://docs.localstack.cloud/user-guide/aws/s3/) that enables to run e2e test with mock AWS storage. We can also provision KIND cluster for e2e tests. So, together with localstack and KIND cluster, we don't need to depend on any actual cloud provider infrastructure to be setup to run e2e tests.
+The above-mentioned e2e tests need storage from real cloud providers to be setup. But there is a tool named [localstack](https://docs.localstack.cloud/user-guide/aws/s3/) that enables to run e2e test with mock AWS storage. We can also provision KIND cluster for e2e tests. So, together with localstack and KIND cluster, we don't need to depend on any actual cloud provider infrastructure to be setup to run e2e tests.
 
 ### How are the KIND cluster and localstack set up
 
@@ -138,13 +154,7 @@ The developer needs to run `make ci-e2e-kind` command. This command in turn runs
 
 ### How to execute e2e tests with localstack and KIND cluster
 
-The developer just needs to install KIND following https://kind.sigs.k8s.io/docs/user/quick-start/ and start docker daemon. Additionaly, KIND cluster can be enabled via docker desktop.
-
-Check if KIND is working on your machine by running the following command:
-`kind create cluster --name kind-2`
-
-If successful, delete the cluster by:
-`kind delete cluster --name kind-2`
-
-Run the following `make` command to perform e2e tests that will automatically take care of spinning up KIND clsuter and deploying localstack pod:
-`make ci-e2e-kind`
+Run the following `make` command to spin up a KinD cluster, deploy localstack and run the e2e tests with provider `aws`:
+```
+make ci-e2e-kind
+```

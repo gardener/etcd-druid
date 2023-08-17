@@ -10,6 +10,4 @@ data:
     
     source "/var/lib/infra/data/common/common.sh"
     
-    setup_gcloud
-    configure_gcloud
-    delete_gcs_bucket
+    create_local_bucket

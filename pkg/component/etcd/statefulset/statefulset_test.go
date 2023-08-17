@@ -74,7 +74,7 @@ var (
 	autoCompactionRetention       = "2m"
 	quota                         = resource.MustParse("8Gi")
 	prefix                        = "/tmp"
-	volumeClaimTemplateName       = "etcd-main"
+	volumeClaimTemplateName       = "etcd-test"
 	garbageCollectionPolicy       = druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
 	metricsBasic                  = druidv1alpha1.Basic
 	etcdSnapshotTimeout           = metav1.Duration{

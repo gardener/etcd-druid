@@ -28,7 +28,7 @@ import (
 var _ = Describe("Image retrieval tests", func() {
 
 	const (
-		etcdName  = "etcd-main-0"
+		etcdName  = "etcd-test-0"
 		namespace = "default"
 	)
 	var (
