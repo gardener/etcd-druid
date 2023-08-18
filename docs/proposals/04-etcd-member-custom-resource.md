@@ -137,7 +137,7 @@ Following DFA represents top level state transitions (without any representation
 
 * `New`- this is a start state for all newly created etcd-members
 
-* `Initializing` - In this state backup-restore will perform pre-requisite actions before it triggers the start of an etcd process. DB validation and optionally restoration is done in this state. Possible sub-states are: `DBValidationSanity`, `DBValidationFully` and `Restoration`
+* `Initializing` - In this state backup-restore will perform pre-requisite actions before it triggers the start of an etcd process. DB validation and optionally restoration is done in this state. Possible sub-states are: `DBValidationSanity`, `DBValidationFull` and `Restoration`
 
 * `Starting` - Once the optional initialization is done backup-restore will trigger the start of an etcd process. It can either directly go to `Learner` sub-state or wait for getting added as a learner and therefore be in `PendingLearner` sub-state.
 
@@ -535,6 +535,22 @@ Druid is responsible for deletion of all existing `EtcdMember` resources for an 
 3. Transient scale down of an etcd cluster to 0 replicas to recover from a quorum loss.
 
 Authors found no reason to retain EtcdMember resources when the etcd cluster is scale down to 0 replicas since the information contained in each EtcdMember resource would no longer represent the current state of each member and would thus be stale. Any controller in druid which acts upon the `EtcdMember.Status` could potentially take incorrect actions.
+
+#### Reconciliation
+
+Authors propose to introduce a new controller (lets call it `etcd-member-controller`) which watches for changes to the `EtcdMember` resource(s). If a reconciliation of an `Etcd` resource is required as a result of change in `EtcdMember` status then this controller should enqueue an event and force a reconciliation via existing `etcd-controller`, thus preserving the single-actor-principal constraint which ensures deterministic changes to etcd cluster resources.
+
+> NOTE: Further decisions w.r.t responsibility segregation will be taken during implementation and will not be documented in this proposal.
+
+##### Stale EtcdMember Status Handling
+
+It is possible that an etcd-member is unable to update its respective `EtcdMember` resource. Following can be some of the implications which should be kept in mind while reconciling `EtcdMember` resource in druid:
+
+* Druid sees stale state transitions (this assumes that the backup-sidecar attempts to update the state/sub-state in `etcdMember.status.transitions` with best attempt). There is currently no implication other than an operator seeing a stale state.
+* `dbSize` and `dbSizeInUse` could not be updated. A consequence could be that druid continues to see high value for  `dbSize - dbSizeInUse` for a extended amount of time. Druid should ensure that it does not trigger repeated defragmentations. 
+* If `VolumeMismatches` is stale, then druid should no longer attempt to recover by repeatedly restarting the pod.
+* Failed `restoration` was recorded last and further updates to this array failed. Druid should not repeatedly take full-snapshots.
+* If `snapshots.accumulatedDeltaSize` could not be updated, then druid should not schedule repeated compaction Jobs.
 
 ## Reference
 
