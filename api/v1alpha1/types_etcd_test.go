@@ -95,7 +95,7 @@ var _ = Describe("Etcd", func() {
 
 	Context("GetCompactionJobName", func() {
 		It("should return the correct compaction job name", func() {
-			Expect(created.GetCompactionJobName()).To(Equal("123456-compact-job"))
+			Expect(created.GetCompactionJobName()).To(Equal("compact-job-123456"))
 		})
 	})
 
