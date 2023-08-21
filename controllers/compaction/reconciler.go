@@ -57,7 +57,7 @@ type Reconciler struct {
 
 // NewReconciler creates a new reconciler for Compaction
 func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
-	imageVector, err := ctrlutils.CreateImageVector(config.FeatureGates[string(features.UseEtcdWrapper)])
+	imageVector, err := ctrlutils.CreateImageVector()
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +260,7 @@ func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druid
 func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*batchv1.Job, error) {
 	activeDeadlineSeconds := r.config.ActiveDeadlineDuration.Seconds()
 
-	_, etcdBackupImage, err := utils.GetEtcdImages(etcd, r.imageVector)
+	_, etcdBackupImage, err := utils.GetEtcdImages(etcd, r.imageVector, r.config.FeatureGates[string(features.UseEtcdWrapper)])
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch etcd backup image: %v", err)
 	}
