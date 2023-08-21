@@ -91,7 +91,7 @@ This proposal introduces a new custom resource `EtcdMember`, and in the followin
 
 ### Etcd Member Metadata
 
-Every etcd-member has a unique `memberID` and it is part of an etcd cluster which has a unique `clusterID`. In a well-formed etcd cluster every member must have the same `clusterID`. Publishing this information to druid helps in identifying issues when one or more etcd-members form their own individual clusters, thus resulting in multiple clusters where only one was expected. Issues [Issue#361](https://github.com/gardener/etcd-druid/issues/361) and [Issue#419](https://github.com/gardener/etcd-druid/issues/419) are some such occurrences.
+Every etcd-member has a unique `memberID` and it is part of an etcd cluster which has a unique `clusterID`. In a well-formed etcd cluster every member must have the same `clusterID`. Publishing this information to druid helps in identifying issues when one or more etcd-members form their own individual clusters, thus resulting in multiple clusters where only one was expected. Issues  [Issue#419](https://github.com/gardener/etcd-druid/issues/419), Canary#4027, Canary#3973  are some such occurrences.
 
 Today, this information is published by using a member [lease](https://kubernetes.io/docs/concepts/architecture/leases/). Both these fields are populated in the leases' `Spec.HolderIdentity` by the backup-sidecar container. 
 
