@@ -37,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -52,11 +53,11 @@ type component struct {
 	client       client.Client
 	logger       logr.Logger
 	values       Values
-	featureGates map[string]bool
+	featureGates map[featuregate.Feature]bool
 }
 
 // New creates a new StatefulSet deployer instance.
-func New(c client.Client, logger logr.Logger, values Values, featureGates map[string]bool) Interface {
+func New(c client.Client, logger logr.Logger, values Values, featureGates map[featuregate.Feature]bool) Interface {
 	objectLogger := logger.WithValues("sts", client.ObjectKey{Name: values.Name, Namespace: values.Namespace})
 
 	return &component{

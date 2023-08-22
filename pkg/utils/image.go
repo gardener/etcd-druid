@@ -21,27 +21,29 @@ import (
 	"k8s.io/utils/pointer"
 )
 
+func getEtcdImageKeys(useEtcdWrapper bool) (etcdImageKey string, etcdbrImageKey string) {
+	switch useEtcdWrapper {
+	case true:
+		etcdImageKey = common.EtcdWrapper
+		etcdbrImageKey = common.BackupRestoreDistroless
+	default:
+		etcdImageKey = common.Etcd
+		etcdbrImageKey = common.BackupRestore
+	}
+	return
+}
+
 // GetEtcdImages returns images for etcd and backup-restore by inspecting the etcd spec and the image vector.
 // It will give preference to images that are set in the etcd spec and only if the image is not found in it should
 // it be picked up from the image vector if it's set there.
 // A return value of nil for either of the images indicates that the image is not set.
 func GetEtcdImages(etcd *druidv1alpha1.Etcd, iv imagevector.ImageVector, useEtcdWrapper bool) (*string, *string, error) {
-	var err error
-	var etcdImage, etcdBackupRestoreImage *string
-	if useEtcdWrapper {
-		etcdImage, err = chooseImage(common.EtcdWrapper, etcd.Spec.Etcd.Image, iv)
-	} else {
-		etcdImage, err = chooseImage(common.Etcd, etcd.Spec.Etcd.Image, iv)
-	}
+	etcdImageKey, etcdbrImageKey := getEtcdImageKeys(useEtcdWrapper)
+	etcdImage, err := chooseImage(etcdImageKey, etcd.Spec.Etcd.Image, iv)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	if useEtcdWrapper {
-		etcdBackupRestoreImage, err = chooseImage(common.BackupRestoreDistroless, etcd.Spec.Backup.Image, iv)
-	} else {
-		etcdBackupRestoreImage, err = chooseImage(common.BackupRestore, etcd.Spec.Backup.Image, iv)
-	}
+	etcdBackupRestoreImage, err := chooseImage(etcdbrImageKey, etcd.Spec.Backup.Image, iv)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -65,9 +67,6 @@ func chooseImage(key string, specImage *string, iv imagevector.ImageVector) (*st
 
 // GetEtcdBackupRestoreImage returns the image for backup-restore from the given image vector.
 func GetEtcdBackupRestoreImage(iv imagevector.ImageVector, useEtcdWrapper bool) (*string, error) {
-	if useEtcdWrapper {
-		return chooseImage(common.BackupRestoreDistroless, nil, iv)
-	} else {
-		return chooseImage(common.BackupRestore, nil, iv)
-	}
+	_, etcdbrImageKey := getEtcdImageKeys(useEtcdWrapper)
+	return chooseImage(etcdbrImageKey, nil, iv)
 }
