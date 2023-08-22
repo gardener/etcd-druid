@@ -14,37 +14,43 @@ reviewers:
 
 ## Table of Contents
 
- * [Summary](#summary)
- * [Terminology](#terminology)
- * [Motivation](#motivation)
-    * [Goals](#goals)
-    * [Non-Goals](#non-goals)
- * [Proposal](#proposal)
-    * [Etcd Member Metadata](#etcd-member-metadata)
-    * [Etcd Member State Transitions](#etcd-member-state-transitions)
-       * [States and Sub-States](#states-and-sub-states)
-       * [Top Level State Transitions](#top-level-state-transitions)
-       * [Starting an Etcd-Member in a Single-Node Etcd Cluster](#starting-an-etcd-member-in-a-single-node-etcd-cluster)
-       * [Addition of a New Etcd-Member in a Multi-Node Etcd Cluster](#addition-of-a-new-etcd-member-in-a-multi-node-etcd-cluster)
-       * [Restart of a Voting Etcd-Member in a Multi-Node Etcd Cluster](#restart-of-a-voting-etcd-member-in-a-multi-node-etcd-cluster)
-    * [Deterministic Etcd Member Bootstrap/Restart During Scale-Up](#deterministic-etcd-member-bootstraprestart-during-scale-up)
-    * [TLS Enablement for Peer Communication](#tls-enablement-for-peer-communication)
-    * [Monitoring Backup Health](#monitoring-backup-health)
-    * [Enhanced Snapshot Compaction](#enhanced-snapshot-compaction)
-    * [Enhanced Defragmentation](#enhanced-defragmentation)
-    * [Monitoring Defragmentations](#monitoring-defragmentations)
-    * [Monitoring Restorations](#monitoring-restorations)
-    * [Monitoring Volume Mismatches](#monitoring-volume-mismatches)
-    * [Custom Resource API](#custom-resource-api)
-       * [Spec vs Status](#spec-vs-status)
-       * [Representing State Transitions](#representing-state-transitions)
-          * [Reason Codes](#reason-codes)
-       * [API](#api)
-    * [Lifecycle of an EtcdMember](#lifecycle-of-an-etcdmember)
-       * [Creation](#creation)
-       * [Updation](#updation)
-       * [Deletion](#deletion)
- * [Reference](#reference)
+* [DEP-04: EtcdMember Custom Resource](#dep-04-etcdmember-custom-resource)
+   * [Table of Contents](#table-of-contents)
+   * [Summary](#summary)
+   * [Terminology](#terminology)
+   * [Motivation](#motivation)
+      * [Goals](#goals)
+      * [Non-Goals](#non-goals)
+   * [Proposal](#proposal)
+      * [Etcd Member Metadata](#etcd-member-metadata)
+      * [Etcd Member State Transitions](#etcd-member-state-transitions)
+         * [States and Sub-States](#states-and-sub-states)
+         * [Top Level State Transitions](#top-level-state-transitions)
+         * [Starting an Etcd-Member in a Single-Node Etcd Cluster](#starting-an-etcd-member-in-a-single-node-etcd-cluster)
+         * [Addition of a New Etcd-Member in a Multi-Node Etcd Cluster](#addition-of-a-new-etcd-member-in-a-multi-node-etcd-cluster)
+         * [Restart of a Voting Etcd-Member in a Multi-Node Etcd Cluster](#restart-of-a-voting-etcd-member-in-a-multi-node-etcd-cluster)
+      * [Deterministic Etcd Member Creation/Restart During Scale-Up](#deterministic-etcd-member-creationrestart-during-scale-up)
+      * [TLS Enablement for Peer Communication](#tls-enablement-for-peer-communication)
+      * [Monitoring Backup Health](#monitoring-backup-health)
+      * [Enhanced Snapshot Compaction](#enhanced-snapshot-compaction)
+      * [Enhanced Defragmentation](#enhanced-defragmentation)
+      * [Monitoring Defragmentations](#monitoring-defragmentations)
+      * [Monitoring Restorations](#monitoring-restorations)
+      * [Monitoring Volume Mismatches](#monitoring-volume-mismatches)
+      * [Custom Resource API](#custom-resource-api)
+         * [Spec vs Status](#spec-vs-status)
+         * [Representing State Transitions](#representing-state-transitions)
+            * [Reason Codes](#reason-codes)
+         * [API](#api)
+            * [EtcdMember](#etcdmember)
+            * [Etcd](#etcd)
+      * [Lifecycle of an EtcdMember](#lifecycle-of-an-etcdmember)
+         * [Creation](#creation)
+         * [Updation](#updation)
+         * [Deletion](#deletion)
+         * [Reconciliation](#reconciliation)
+            * [Stale EtcdMember Status Handling](#stale-etcdmember-status-handling)
+   * [Reference](#reference)
 
 ## Summary
 
@@ -74,11 +80,9 @@ There is a need to have a clear distinction between an etcd-member state and etc
 
 ### Goals
 
-* Introduce `EtcdMember` custom resource.
-
-* Enhance [etcd-backup-restore](https://github.com/gardener/etcd-backup-restore) to publish member specific information by updating `EtcdMember` resource. 
-
-* Today [leases](https://kubernetes.io/docs/concepts/architecture/leases/) are misused to share member-specific information with etcd-druid. Their usage to share member state [leader, follower, learner], member-id, snapshot revisions etc should be removed.
+* Introduce `EtcdMember` custom resource via which each etcd-member can publish information about its state. This enables druid to deterministically orchestrate out-of-turn operations like compaction, defragmentation, volume management etc. 
+* Define and capture states, sub-states and deterministic transitions amongst states of an etcd-member.
+* Today [leases](https://kubernetes.io/docs/concepts/architecture/leases/) are *misused* to share member-specific information with druid. Their usage to share member state [leader, follower, learner], member-id, snapshot revisions etc should be removed.
 
 ### Non-Goals
 
@@ -435,22 +439,23 @@ status:
 
 The authors propose the following list of possible reason codes for transitions. This list is not exhaustive, and can be further enhanced to capture any new transitions in the future.
 
-| Reason                                | Transition From State (SubState)                             | Transition To State (SubState)         |
-| ------------------------------------- | ------------------------------------------------------------ | -------------------------------------- |
-| `ClusterCreated`                      | nil                                                          | New                                    |
-| `DetectedPreviousCleanExit`           | New \| Started (Leader) \| Started (Follower)                | Initializing (DBValidationSanity)      |
-| `DetectedPreviousUncleanExit`         | New \| Started (Leader) \| Started (Follower)                | Initializing (DBValidationFull)        |
-| `DBValidationFailed`                  | Initializing (DBValidationSanity) \| Initializing (DBValidationFull) | Initializing (Restoration) \| New      |
-| `DBValidationSucceeded`               | Initializing (DBValidationSanity) \| Initializing (DBValidationFull) | Started (Leader) \| Started (Follower) |
-| `Initializing (Restoration)Succeeded` | Initializing (Restoration)                                   | Started (Leader)                       |
-| `ClusterScaledUp`                     | nil                                                          | New                                    |
-| `WaitingToJoinAsLearner`              | New                                                          | Starting (PendingLearner)              |
-| `JoinedAsLearner`                     | Starting (PendingLearner)                                    | Starting (Learner)                     |
-| `PromotedAsVotingMember`              | Starting (Learner)                                           | Started (Follower)                     |
-| `GainedClusterLeadership`             | Started (Follower)                                           | Started (Leader)                       |
-| `LostClusterLeadership`               | Started (Leader)                                             | Started (Follower)                     |
+| Reason                                            | Transition From State (SubState)                             | Transition To State (SubState)         |
+| ------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------- |
+| `ClusterScaledUp` | `NewSingleNodeClusterCreated` | nil                                                          | New                                    |
+| `DetectedPreviousCleanExit`                       | New \| Started (Leader) \| Started (Follower)                | Initializing (DBValidationSanity)      |
+| `DetectedPreviousUncleanExit`                     | New \| Started (Leader) \| Started (Follower)                | Initializing (DBValidationFull)        |
+| `DBValidationFailed`                              | Initializing (DBValidationSanity) \| Initializing (DBValidationFull) | Initializing (Restoration) \| New      |
+| `DBValidationSucceeded`                           | Initializing (DBValidationSanity) \| Initializing (DBValidationFull) | Started (Leader) \| Started (Follower) |
+| `Initializing (Restoration)Succeeded`             | Initializing (Restoration)                                   | Started (Leader)                       |
+| `WaitingToJoinAsLearner`                          | New                                                          | Starting (PendingLearner)              |
+| `JoinedAsLearner`                                 | Starting (PendingLearner)                                    | Starting (Learner)                     |
+| `PromotedAsVotingMember`                          | Starting (Learner)                                           | Started (Follower)                     |
+| `GainedClusterLeadership`                         | Started (Follower)                                           | Started (Leader)                       |
+| `LostClusterLeadership`                           | Started (Leader)                                             | Started (Follower)                     |
 
 #### API
+
+##### EtcdMember
 
 The authors propose to add the `EtcdMember` custom resource API to etcd-druid APIs and initially introduce it with `v1alpha1` version.
 
@@ -513,6 +518,25 @@ status:
     transitionTime: <time of transition to this state>
     message: <detailed message if any>
 ```
+
+
+
+##### Etcd
+
+Authors propose the following changes to the `Etcd` API:
+
+1. In`Etcd.Status` resource API, [member status](https://github.com/gardener/etcd-druid/blob/9a598d05e639099ddf404803f87376852261a052/api/v1alpha1/types_etcd.go#L419) is computed and stored. This field will be marked as deprecated and in a later version of druid it will be removed. In its place authors propose to introduce the following:
+
+```go
+type EtcdStatus struct {
+  // MemberRefs contains references to all existing EtcdMember resources
+  MemberRefs []CrossVersionObjectReference
+}
+```
+
+2. In `Etcd.Status` resource API, [PeerUrlTLSEnabled](https://github.com/gardener/etcd-druid/blob/9a598d05e639099ddf404803f87376852261a052/api/v1alpha1/types_etcd.go#L422) reflects  the status of enabling TLS for peer communication across all etcd-members. Currentlty this field is not been used anywhere. In this proposal we have also proposed that each `EtcdMember` resource will capture the status of TLS enablement of peer URL. Authors propose to relook at the need to have this field under `EtcdStatus`. 
+
+   
 
 ### Lifecycle of an EtcdMember
 
