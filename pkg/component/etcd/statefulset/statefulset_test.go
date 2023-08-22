@@ -40,6 +40,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -144,7 +145,7 @@ var _ = Describe("Statefulset", func() {
 			true,
 		)
 		Expect(err).ToNot(HaveOccurred())
-		fg := map[string]bool{
+		fg := map[featuregate.Feature]bool{
 			"UseEtcdWrapper": true,
 		}
 		stsDeployer = New(cl, logr.Discard(), *values, fg)
@@ -206,7 +207,7 @@ var _ = Describe("Statefulset", func() {
 			Context("DeltaSnapshotRetentionPeriod field is set in Etcd CRD", func() {
 				It("should include --delta-snapshot-retention-period flag in etcd-backup-restore container command", func() {
 					etcd.Spec.Backup.DeltaSnapshotRetentionPeriod = &metav1.Duration{Duration: time.Hour * 24}
-					fg := map[string]bool{
+					fg := map[featuregate.Feature]bool{
 						"UseEtcdWrapper": true,
 					}
 					stsDeployer = New(cl, logr.Discard(), *values, fg)
@@ -399,7 +400,7 @@ var _ = Describe("Statefulset", func() {
 						imageBR,
 						checkSumAnnotations, false, true)
 					Expect(err).ToNot(HaveOccurred())
-					fg := map[string]bool{
+					fg := map[featuregate.Feature]bool{
 						"UseEtcdWrapper": true,
 					}
 					stsDeployer = New(cl, logr.Discard(), *values, fg)

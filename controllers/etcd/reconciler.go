@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/controllers/utils"
+	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/common"
 	componentconfigmap "github.com/gardener/etcd-druid/pkg/component/etcd/configmap"
 	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
@@ -77,7 +77,7 @@ type Reconciler struct {
 
 // NewReconciler creates a new reconciler for Etcd.
 func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
-	imageVector, err := utils.CreateImageVector(config.FeatureGates[string(features.UseEtcdWrapper)])
+	imageVector, err := ctrlutils.CreateImageVector()
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +307,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		return reconcileResult{err: fmt.Errorf("Spec.Replicas should not be even number: %d", etcd.Spec.Replicas)}
 	}
 
-	etcdImage, etcdBackupImage, err := druidutils.GetEtcdImages(etcd, r.imageVector)
+	etcdImage, etcdBackupImage, err := druidutils.GetEtcdImages(etcd, r.imageVector, r.config.FeatureGates[features.UseEtcdWrapper])
 	if err != nil {
 		return reconcileResult{err: err}
 	}
@@ -378,7 +378,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		map[string]string{
 			"checksum/etcd-configmap": configMapValues.ConfigMapChecksum,
 		}, peerUrlTLSChangedToEnabled,
-		r.config.FeatureGates[string(features.UseEtcdWrapper)],
+		r.config.FeatureGates[features.UseEtcdWrapper],
 	)
 	if err != nil {
 		return reconcileResult{err: err}
