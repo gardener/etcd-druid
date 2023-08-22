@@ -28,6 +28,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -159,7 +160,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 					Tag:        pointer.String("etcd-test-tag"),
 				}},
 				Config: &Config{
-					FeatureGates: make(map[string]bool),
+					FeatureGates: make(map[featuregate.Feature]bool),
 				},
 			}
 		})

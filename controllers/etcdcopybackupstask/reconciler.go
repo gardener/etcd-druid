@@ -61,7 +61,7 @@ type Reconciler struct {
 
 // NewReconciler creates a new reconciler for EtcdCopyBackupsTask.
 func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
-	imageVector, err := utils.CreateImageVector(config.FeatureGates[string(features.UseEtcdWrapper)])
+	imageVector, err := utils.CreateImageVector()
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +285,7 @@ func getConditionType(jobConditionType batchv1.JobConditionType) druidv1alpha1.C
 }
 
 func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask) (*batchv1.Job, error) {
-	etcdBackupImage, err := druidutils.GetEtcdBackupRestoreImage(r.imageVector)
+	etcdBackupImage, err := druidutils.GetEtcdBackupRestoreImage(r.imageVector, r.Config.FeatureGates[features.UseEtcdWrapper])
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +309,7 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 	env := append(createEnvVarsFromStore(&sourceStore, sourceProvider, "SOURCE_", sourcePrefix), createEnvVarsFromStore(&targetStore, targetProvider, "", "")...)
 
 	// Formulate the job's volume mounts.
-	volumeMounts := append(createVolumeMountsFromStore(&sourceStore, sourceProvider, sourcePrefix, r.Config.FeatureGates[string(features.UseEtcdWrapper)]), createVolumeMountsFromStore(&targetStore, targetProvider, targetPrefix, r.Config.FeatureGates[string(features.UseEtcdWrapper)])...)
+	volumeMounts := append(createVolumeMountsFromStore(&sourceStore, sourceProvider, sourcePrefix, r.Config.FeatureGates[features.UseEtcdWrapper]), createVolumeMountsFromStore(&targetStore, targetProvider, targetPrefix, r.Config.FeatureGates[features.UseEtcdWrapper])...)
 
 	// Formulate the job's volumes from the source store.
 	sourceVolumes, err := r.createVolumesFromStore(ctx, &sourceStore, task.Namespace, sourceProvider, sourcePrefix)
@@ -362,7 +362,7 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 		},
 	}
 
-	if r.Config.FeatureGates[string(features.UseEtcdWrapper)] {
+	if r.Config.FeatureGates[features.UseEtcdWrapper] {
 		if targetProvider == druidutils.Local {
 			// init container to change file permissions of the folders used as store to 65532 (nonroot)
 			// used only with local provider
