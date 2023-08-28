@@ -364,7 +364,7 @@ Gardener has a similar need to capture a shoot state and they have taken the dec
 
 The authors wish to instead align themselves with the [K8S API conventions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#spec-and-status) and choose to use `EtcdMember` custom resource and capture the status of each member in `Status` field of this resource. This has the following advantages:
 
-* `Spec` represents a desired state of a resource and what we capture is the `As-Is` state of a resource which `Status` is meant to capture. Therefore semantically using `Status` is the correct choice.
+* `Spec` represents a desired state of a resource and what is intended to be captured is the `As-Is` state of a resource which `Status` is meant to capture. Therefore, semantically using `Status` is the correct choice.
 
 * Not mis-using `Spec` now to represent `As-Is` state provides us with a choice to extend the custom resource with any future need for a `Spec` a.k.a desired state.
 
@@ -439,19 +439,19 @@ status:
 
 The authors propose the following list of possible reason codes for transitions. This list is not exhaustive, and can be further enhanced to capture any new transitions in the future.
 
-| Reason                                            | Transition From State (SubState)                             | Transition To State (SubState)         |
-| ------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------- |
-| `ClusterScaledUp` | `NewSingleNodeClusterCreated` | nil                                                          | New                                    |
-| `DetectedPreviousCleanExit`                       | New \| Started (Leader) \| Started (Follower)                | Initializing (DBValidationSanity)      |
-| `DetectedPreviousUncleanExit`                     | New \| Started (Leader) \| Started (Follower)                | Initializing (DBValidationFull)        |
-| `DBValidationFailed`                              | Initializing (DBValidationSanity) \| Initializing (DBValidationFull) | Initializing (Restoration) \| New      |
-| `DBValidationSucceeded`                           | Initializing (DBValidationSanity) \| Initializing (DBValidationFull) | Started (Leader) \| Started (Follower) |
-| `Initializing (Restoration)Succeeded`             | Initializing (Restoration)                                   | Started (Leader)                       |
-| `WaitingToJoinAsLearner`                          | New                                                          | Starting (PendingLearner)              |
-| `JoinedAsLearner`                                 | Starting (PendingLearner)                                    | Starting (Learner)                     |
-| `PromotedAsVotingMember`                          | Starting (Learner)                                           | Started (Follower)                     |
-| `GainedClusterLeadership`                         | Started (Follower)                                           | Started (Leader)                       |
-| `LostClusterLeadership`                           | Started (Leader)                                             | Started (Follower)                     |
+| Reason                                                 | Transition From State (SubState)                                         | Transition To State (SubState)             |
+|--------------------------------------------------------|--------------------------------------------------------------------------|--------------------------------------------|
+| `ClusterScaledUp` &#124; `NewSingleNodeClusterCreated` | nil                                                                      | New                                        |
+| `DetectedPreviousCleanExit`                            | New &#124; Started (Leader) &#124; Started (Follower)                    | Initializing (DBValidationSanity)          |
+| `DetectedPreviousUncleanExit`                          | New &#124; Started (Leader) &#124; Started (Follower)                    | Initializing (DBValidationFull)            |
+| `DBValidationFailed`                                   | Initializing (DBValidationSanity) &#124; Initializing (DBValidationFull) | Initializing (Restoration) &#124; New      |
+| `DBValidationSucceeded`                                | Initializing (DBValidationSanity) &#124; Initializing (DBValidationFull) | Started (Leader) &#124; Started (Follower) |
+| `Initializing (Restoration)Succeeded`                  | Initializing (Restoration)                                               | Started (Leader)                           |
+| `WaitingToJoinAsLearner`                               | New                                                                      | Starting (PendingLearner)                  |
+| `JoinedAsLearner`                                      | Starting (PendingLearner)                                                | Starting (Learner)                         |
+| `PromotedAsVotingMember`                               | Starting (Learner)                                                       | Started (Follower)                         |
+| `GainedClusterLeadership`                              | Started (Follower)                                                       | Started (Leader)                           |
+| `LostClusterLeadership`                                | Started (Leader)                                                         | Started (Follower)                         |
 
 #### API
 
@@ -525,7 +525,7 @@ status:
 
 Authors propose the following changes to the `Etcd` API:
 
-1. In`Etcd.Status` resource API, [member status](https://github.com/gardener/etcd-druid/blob/9a598d05e639099ddf404803f87376852261a052/api/v1alpha1/types_etcd.go#L419) is computed and stored. This field will be marked as deprecated and in a later version of druid it will be removed. In its place authors propose to introduce the following:
+1. In the `Etcd.Status` resource API, [member status](https://github.com/gardener/etcd-druid/blob/9a598d05e639099ddf404803f87376852261a052/api/v1alpha1/types_etcd.go#L419) is computed and stored. This field will be marked as deprecated and in a later version of druid it will be removed. In its place, the authors propose to introduce the following:
 
 ```go
 type EtcdStatus struct {
@@ -534,7 +534,7 @@ type EtcdStatus struct {
 }
 ```
 
-2. In `Etcd.Status` resource API, [PeerUrlTLSEnabled](https://github.com/gardener/etcd-druid/blob/9a598d05e639099ddf404803f87376852261a052/api/v1alpha1/types_etcd.go#L422) reflects  the status of enabling TLS for peer communication across all etcd-members. Currentlty this field is not been used anywhere. In this proposal we have also proposed that each `EtcdMember` resource will capture the status of TLS enablement of peer URL. Authors propose to relook at the need to have this field under `EtcdStatus`. 
+2. In `Etcd.Status` resource API, [PeerUrlTLSEnabled](https://github.com/gardener/etcd-druid/blob/9a598d05e639099ddf404803f87376852261a052/api/v1alpha1/types_etcd.go#L422) reflects  the status of enabling TLS for peer communication across all etcd-members. Currentlty this field is not been used anywhere. In this proposal, the authors have also proposed that each `EtcdMember` resource should capture the status of TLS enablement of peer URL. The authors propose to relook at the need to have this field under `EtcdStatus`.
 
    
 
@@ -562,7 +562,7 @@ Authors found no reason to retain EtcdMember resources when the etcd cluster is 
 
 #### Reconciliation
 
-Authors propose to introduce a new controller (lets call it `etcd-member-controller`) which watches for changes to the `EtcdMember` resource(s). If a reconciliation of an `Etcd` resource is required as a result of change in `EtcdMember` status then this controller should enqueue an event and force a reconciliation via existing `etcd-controller`, thus preserving the single-actor-principal constraint which ensures deterministic changes to etcd cluster resources.
+Authors propose to introduce a new controller (let's call it `etcd-member-controller`) which watches for changes to the `EtcdMember` resource(s). If a reconciliation of an `Etcd` resource is required as a result of change in `EtcdMember` status then this controller should enqueue an event and force a reconciliation via existing `etcd-controller`, thus preserving the single-actor-principal constraint which ensures deterministic changes to etcd cluster resources.
 
 > NOTE: Further decisions w.r.t responsibility segregation will be taken during implementation and will not be documented in this proposal.
 
