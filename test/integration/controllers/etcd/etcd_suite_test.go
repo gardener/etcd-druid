@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/rest"
+	"k8s.io/component-base/featuregate"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
@@ -57,8 +58,8 @@ var _ = BeforeSuite(func() {
 		reconciler, err := etcd.NewReconcilerWithImageVector(mgr, &etcd.Config{
 			Workers:                            5,
 			DisableEtcdServiceAccountAutomount: false,
-			FeatureGates: map[string]bool{
-				string(features.UseEtcdWrapper): true,
+			FeatureGates: map[featuregate.Feature]bool{
+				features.UseEtcdWrapper: true,
 			},
 		}, imageVector,
 			assets.GetEtcdChartPath())

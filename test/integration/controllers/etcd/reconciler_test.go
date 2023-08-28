@@ -72,6 +72,8 @@ var (
 	imageNames                    = []string{
 		common.Etcd,
 		common.BackupRestore,
+		common.EtcdWrapper,
+		common.BackupRestoreDistroless,
 	}
 )
 
@@ -675,7 +677,7 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 								fmt.Sprintf("--etcd-server-name=%s-local", instance.Name):                        Equal(fmt.Sprintf("--etcd-server-name=%s-local", instance.Name)),
 							}),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
-							"Image":           Equal(fmt.Sprintf("%s:%s", images[common.Etcd].Repository, *images[common.Etcd].Tag)),
+							"Image":           Equal(fmt.Sprintf("%s:%s", images[common.EtcdWrapper].Repository, *images[common.EtcdWrapper].Tag)),
 							"Resources": MatchFields(IgnoreExtras, Fields{
 								"Requests": MatchKeys(IgnoreExtras, Keys{
 									corev1.ResourceCPU:    Equal(resource.MustParse("50m")),
@@ -733,7 +735,7 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 									ContainerPort: backupPort,
 								},
 							}),
-							"Image":           Equal(fmt.Sprintf("%s:%s", images[common.BackupRestore].Repository, *images[common.BackupRestore].Tag)),
+							"Image":           Equal(fmt.Sprintf("%s:%s", images[common.BackupRestoreDistroless].Repository, *images[common.BackupRestoreDistroless].Tag)),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
 							"VolumeMounts": MatchAllElements(testutils.VolumeMountIterator, Elements{
 								instance.Name: MatchFields(IgnoreExtras, Fields{
@@ -1145,7 +1147,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 								}),
 								"host-storage": MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal("host-storage"),
-									"MountPath": Equal(*instance.Spec.Backup.Store.Container),
+									"MountPath": Equal("/home/nonroot/" + *instance.Spec.Backup.Store.Container),
 								}),
 							}),
 							"Env": MatchElements(testutils.EnvIterator, IgnoreExtras, Elements{

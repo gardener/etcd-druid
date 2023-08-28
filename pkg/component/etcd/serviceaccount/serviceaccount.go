@@ -19,7 +19,7 @@ import (
 
 	"github.com/gardener/gardener/pkg/controllerutils"
 
-	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
+	gardenercomponent "github.com/gardener/gardener/pkg/component"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"

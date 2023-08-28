@@ -61,7 +61,7 @@ type Reconciler struct {
 
 // NewReconciler creates a new reconciler for EtcdCopyBackupsTask.
 func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
-	imageVector, err := utils.CreateImageVector(config.FeatureGates[string(features.UseEtcdWrapper)])
+	imageVector, err := utils.CreateImageVector()
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +285,7 @@ func getConditionType(jobConditionType batchv1.JobConditionType) druidv1alpha1.C
 }
 
 func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask) (*batchv1.Job, error) {
-	etcdBackupImage, err := druidutils.GetEtcdBackupRestoreImage(r.imageVector)
+	etcdBackupImage, err := druidutils.GetEtcdBackupRestoreImage(r.imageVector, r.Config.FeatureGates[features.UseEtcdWrapper])
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +309,7 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 	env := append(createEnvVarsFromStore(&sourceStore, sourceProvider, "SOURCE_", sourcePrefix), createEnvVarsFromStore(&targetStore, targetProvider, "", "")...)
 
 	// Formulate the job's volume mounts.
-	volumeMounts := append(createVolumeMountsFromStore(&sourceStore, sourceProvider, sourcePrefix), createVolumeMountsFromStore(&targetStore, targetProvider, targetPrefix)...)
+	volumeMounts := append(createVolumeMountsFromStore(&sourceStore, sourceProvider, sourcePrefix, r.Config.FeatureGates[features.UseEtcdWrapper]), createVolumeMountsFromStore(&targetStore, targetProvider, targetPrefix, r.Config.FeatureGates[features.UseEtcdWrapper])...)
 
 	// Formulate the job's volumes from the source store.
 	sourceVolumes, err := r.createVolumesFromStore(ctx, &sourceStore, task.Namespace, sourceProvider, sourcePrefix)
@@ -355,10 +355,37 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 							VolumeMounts:    volumeMounts,
 						},
 					},
-					Volumes: volumes,
+					ShareProcessNamespace: pointer.Bool(true),
+					Volumes:               volumes,
 				},
 			},
 		},
+	}
+
+	if r.Config.FeatureGates[features.UseEtcdWrapper] {
+		if targetProvider == druidutils.Local {
+			// init container to change file permissions of the folders used as store to 65532 (nonroot)
+			// used only with local provider
+			job.Spec.Template.Spec.InitContainers = []corev1.Container{
+				{
+					Name:         "change-backup-bucket-permissions",
+					Image:        "alpine:3.18.2",
+					Command:      []string{"sh", "-c", "--"},
+					Args:         []string{fmt.Sprintf("%s%s%s%s", "chown -R 65532:65532 /home/nonroot/", *targetStore.Container, " /home/nonroot/", *sourceStore.Container)},
+					VolumeMounts: volumeMounts,
+					SecurityContext: &corev1.SecurityContext{
+						RunAsGroup:   pointer.Int64(0),
+						RunAsNonRoot: pointer.Bool(false),
+						RunAsUser:    pointer.Int64(0),
+					},
+				},
+			}
+		}
+		job.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
+			RunAsGroup:   pointer.Int64(65532),
+			RunAsNonRoot: pointer.Bool(true),
+			RunAsUser:    pointer.Int64(65532),
+		}
 	}
 
 	if err := controllerutil.SetControllerReference(task, job, r.Scheme()); err != nil {
@@ -371,7 +398,7 @@ func createJobArgs(task *druidv1alpha1.EtcdCopyBackupsTask, sourceObjStoreProvid
 	// Create the initial arguments for the copy-backups job.
 	args := []string{
 		"copy",
-		"--snapstore-temp-directory=/var/etcd/data/tmp",
+		"--snapstore-temp-directory=/home/nonroot/data/tmp",
 	}
 
 	// Formulate the job's arguments.
@@ -444,13 +471,20 @@ func (r *Reconciler) createVolumesFromStore(ctx context.Context, store *druidv1a
 // createVolumesFromStore generates a slice of volumes for an EtcdCopyBackups job based on the given StoreSpec, namespace,
 // provider, and prefix. The prefix is used to differentiate between source and target volumes.
 // This function creates the necessary Volume configurations for various storage providers and returns any errors encountered.
-func createVolumeMountsFromStore(store *druidv1alpha1.StoreSpec, provider, volumeMountPrefix string) (volumeMounts []corev1.VolumeMount) {
+func createVolumeMountsFromStore(store *druidv1alpha1.StoreSpec, provider, volumeMountPrefix string, useEtcdWrapper bool) (volumeMounts []corev1.VolumeMount) {
 	switch provider {
 	case druidutils.Local:
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      volumeMountPrefix + "host-storage",
-			MountPath: *store.Container,
-		})
+		if useEtcdWrapper {
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      volumeMountPrefix + "host-storage",
+				MountPath: "/home/nonroot/" + *store.Container,
+			})
+		} else {
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      volumeMountPrefix + "host-storage",
+				MountPath: *store.Container,
+			})
+		}
 	case druidutils.GCS:
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      getVolumeNamePrefix(volumeMountPrefix) + "etcd-backup",

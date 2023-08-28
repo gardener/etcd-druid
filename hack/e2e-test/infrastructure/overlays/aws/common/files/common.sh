@@ -19,6 +19,7 @@ if [[ -n "${LOCALSTACK_HOST}" ]]; then
   ENDPOINT_URL=" --endpoint-url=http://${LOCALSTACK_HOST}"
 fi
 
+# More information at https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 function setup_aws() {
   if $(which aws > /dev/null); then
     return
@@ -28,7 +29,7 @@ function setup_aws() {
   apt install -y curl > /dev/null
   apt install -y unzip > /dev/null
   cd $HOME
-  curl -Lo "awscliv2.zip" "https://awscli.amazonaws.com/awscli-exe-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/').zip"
+  curl -Lo "awscliv2.zip" "https://awscli.amazonaws.com/awscli-exe-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m).zip"
   unzip awscliv2.zip > /dev/null
   ./aws/install -i /usr/local/aws-cli -b /usr/local/bin
   echo "Successfully installed awscli."

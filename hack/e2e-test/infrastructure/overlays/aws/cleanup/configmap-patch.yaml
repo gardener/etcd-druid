@@ -8,7 +8,7 @@ data:
     
     set -e
     
-    source /var/lib/infra/data/common/common.sh
+    source "/var/lib/infra/data/common/common.sh"
     
     setup_aws
     configure_aws

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+# Copyright 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ export_artifacts() {
       kubectl -n "$namespace" get pod "$node" --show-managed-fields -oyaml >"$node_dir/pod.yaml" || true
 
       # systemd units
-      for unit in cloud-config-downloader kubelet containerd; do
+      for unit in cloud-config-downloader kubelet containerd containerd-configuration-local-setup; do
         kubectl -n "$namespace" exec "$node" -- journalctl --no-pager -u $unit.service >"$node_dir/$unit.log" || true
       done
       kubectl -n "$namespace" exec "$node" -- journalctl --no-pager >"$node_dir/journal.log" || true

@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/controllers/utils"
+	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/common"
 	componentconfigmap "github.com/gardener/etcd-druid/pkg/component/etcd/configmap"
 	componentlease "github.com/gardener/etcd-druid/pkg/component/etcd/lease"
@@ -34,8 +34,8 @@ import (
 	druidutils "github.com/gardener/etcd-druid/pkg/utils"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	gardenercomponent "github.com/gardener/gardener/pkg/component"
 	"github.com/gardener/gardener/pkg/controllerutils"
-	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
@@ -77,7 +77,7 @@ type Reconciler struct {
 
 // NewReconciler creates a new reconciler for Etcd.
 func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
-	imageVector, err := utils.CreateImageVector(config.FeatureGates[string(features.UseEtcdWrapper)])
+	imageVector, err := ctrlutils.CreateImageVector()
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +224,7 @@ func (r *Reconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl
 	logger := r.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String(), "operation", "delete")
 	logger.Info("Starting deletion operation", "namespace", etcd.Namespace, "name", etcd.Name)
 
-	stsDeployer := gardenercomponent.OpDestroyAndWait(componentsts.New(r.Client, logger, componentsts.Values{Name: etcd.Name, Namespace: etcd.Namespace}))
+	stsDeployer := gardenercomponent.OpDestroyAndWait(componentsts.New(r.Client, logger, componentsts.Values{Name: etcd.Name, Namespace: etcd.Namespace}, r.config.FeatureGates))
 	if err := stsDeployer.Destroy(ctx); err != nil {
 		if err = r.updateEtcdErrorStatus(ctx, etcd, reconcileResult{err: err}); err != nil {
 			return ctrl.Result{
@@ -307,7 +307,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		return reconcileResult{err: fmt.Errorf("Spec.Replicas should not be even number: %d", etcd.Spec.Replicas)}
 	}
 
-	etcdImage, etcdBackupImage, err := druidutils.GetEtcdImages(etcd, r.imageVector)
+	etcdImage, etcdBackupImage, err := druidutils.GetEtcdImages(etcd, r.imageVector, r.config.FeatureGates[features.UseEtcdWrapper])
 	if err != nil {
 		return reconcileResult{err: err}
 	}
@@ -368,7 +368,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 	}
 
 	peerUrlTLSChangedToEnabled := isPeerTLSChangedToEnabled(peerTLSEnabled, configMapValues)
-	statefulSetValues := componentsts.GenerateValues(
+	statefulSetValues, err := componentsts.GenerateValues(
 		etcd,
 		&serviceValues.ClientPort,
 		&serviceValues.PeerPort,
@@ -378,12 +378,15 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		map[string]string{
 			"checksum/etcd-configmap": configMapValues.ConfigMapChecksum,
 		}, peerUrlTLSChangedToEnabled,
-		r.config.FeatureGates[string(features.UseEtcdWrapper)],
+		r.config.FeatureGates[features.UseEtcdWrapper],
 	)
+	if err != nil {
+		return reconcileResult{err: err}
+	}
 
 	// Create an OpWaiter because after the deployment we want to wait until the StatefulSet is ready.
 	var (
-		stsDeployer  = componentsts.New(r.Client, logger, statefulSetValues)
+		stsDeployer  = componentsts.New(r.Client, logger, *statefulSetValues, r.config.FeatureGates)
 		deployWaiter = gardenercomponent.OpWait(stsDeployer)
 	)
 

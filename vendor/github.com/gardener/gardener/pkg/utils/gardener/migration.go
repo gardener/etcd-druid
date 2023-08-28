@@ -1,4 +1,4 @@
-// Copyright (c) 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,37 +13,6 @@
 // limitations under the License.
 
 package gardener
-
-import (
-	"context"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
-	v1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
-	kubernetesutils "github.com/gardener/gardener/pkg/utils/kubernetes"
-)
-
-// IsObjectBeingMigrated checks whether the object is being migrated.
-func IsObjectBeingMigrated(
-	ctx context.Context,
-	reader client.Reader,
-	obj client.Object,
-	seedName string,
-	getSeedNamesFromObject func(client.Object) (*string, *string),
-) bool {
-	specSeedName, statusSeedName := getSeedNamesFromObject(obj)
-
-	if specSeedName != nil && statusSeedName != nil && *specSeedName != *statusSeedName && *specSeedName == seedName {
-		seed := &gardencorev1beta1.Seed{}
-		if err := reader.Get(ctx, kubernetesutils.Key(*statusSeedName), seed); err != nil {
-			return false
-		}
-		return v1beta1helper.SeedSettingOwnerChecksEnabled(seed.Spec.Settings)
-	}
-
-	return false
-}
 
 // GetResponsibleSeedName returns the seed name which is responsible for the next reconciliation.
 func GetResponsibleSeedName(specSeedName, statusSeedName *string) string {

@@ -1,4 +1,4 @@
-// Copyright (c) 2020 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2020 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ func New(client client.Client, namespace, name, class string, keepObjects *bool,
 func NewForShoot(c client.Client, namespace, name, origin string, keepObjects bool) *builder.ManagedResource {
 	var (
 		injectedLabels = map[string]string{v1beta1constants.ShootNoCleanup: "true"}
-		labels         = map[string]string{LabelKeyOrigin: LabelValueGardener}
+		labels         = map[string]string{LabelKeyOrigin: origin}
 	)
 
 	return New(c, namespace, name, "", &keepObjects, labels, injectedLabels, nil)

@@ -42,7 +42,7 @@ type Config struct {
 	// DisableEtcdServiceAccountAutomount controls the auto-mounting of service account token for etcd statefulsets.
 	DisableEtcdServiceAccountAutomount bool
 	// FeatureGates contains the feature gates to be used by Etcd Controller.
-	FeatureGates map[string]bool
+	FeatureGates map[featuregate.Feature]bool
 }
 
 // InitFromFlags initializes the config from the provided CLI flag set.
@@ -55,18 +55,15 @@ func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 
 // Validate validates the config.
 func (cfg *Config) Validate() error {
-	if err := utils.MustBeGreaterThan(workersFlagName, 0, cfg.Workers); err != nil {
-		return err
-	}
-	return nil
+	return utils.MustBeGreaterThan(workersFlagName, 0, cfg.Workers)
 }
 
 // CaptureFeatureActivations captures all feature gates required by the controller into controller config
 func (cfg *Config) CaptureFeatureActivations(fg featuregate.FeatureGate) {
 	if cfg.FeatureGates == nil {
-		cfg.FeatureGates = make(map[string]bool)
+		cfg.FeatureGates = make(map[featuregate.Feature]bool)
 	}
 	for _, feature := range featureList {
-		cfg.FeatureGates[string(feature)] = fg.Enabled(feature)
+		cfg.FeatureGates[feature] = fg.Enabled(feature)
 	}
 }

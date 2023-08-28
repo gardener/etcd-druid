@@ -48,7 +48,7 @@ func GenerateValues(
 	clientPort, serverPort, backupPort *int32,
 	etcdImage, backupImage string,
 	checksumAnnotations map[string]string,
-	peerTLSChangedToEnabled, useEtcdWrapper bool) Values {
+	peerTLSChangedToEnabled, useEtcdWrapper bool) (*Values, error) {
 
 	volumeClaimTemplateName := etcd.Name
 	if etcd.Spec.VolumeClaimTemplate != nil && len(*etcd.Spec.VolumeClaimTemplate) != 0 {
@@ -91,8 +91,9 @@ func GenerateValues(
 		BackupStore:     etcd.Spec.Backup.Store,
 		EnableProfiling: etcd.Spec.Backup.EnableProfiling,
 
-		DeltaSnapshotPeriod:      etcd.Spec.Backup.DeltaSnapshotPeriod,
-		DeltaSnapshotMemoryLimit: etcd.Spec.Backup.DeltaSnapshotMemoryLimit,
+		DeltaSnapshotPeriod:          etcd.Spec.Backup.DeltaSnapshotPeriod,
+		DeltaSnapshotRetentionPeriod: etcd.Spec.Backup.DeltaSnapshotRetentionPeriod,
+		DeltaSnapshotMemoryLimit:     etcd.Spec.Backup.DeltaSnapshotMemoryLimit,
 
 		DefragmentationSchedule: etcd.Spec.Etcd.DefragmentationSchedule,
 		FullSnapshotSchedule:    etcd.Spec.Backup.FullSnapshotSchedule,
@@ -123,23 +124,27 @@ func GenerateValues(
 		UseEtcdWrapper: useEtcdWrapper,
 	}
 
-	values.EtcdCommand = getEtcdCommand(values)
+	values.EtcdCommandArgs = getEtcdCommandArgs(values)
 
 	// Use linearizability for readiness probe so that pod is only considered ready
 	// when it has an active connection to the cluster and the cluster maintains a quorum.
 	values.ReadinessProbeCommand = getProbeCommand(values, linearizable)
 
-	values.EtcdBackupCommand = getBackupRestoreCommand(values)
+	etcdBackupRestoreCommandArgs, err := getBackupRestoreCommandArgs(values)
+	if err != nil {
+		return nil, err
+	}
+	values.EtcdBackupRestoreCommandArgs = etcdBackupRestoreCommandArgs
 
-	return values
+	return &values, nil
 }
 
-func getEtcdCommand(val Values) []string {
+func getEtcdCommandArgs(val Values) []string {
 	if !val.UseEtcdWrapper {
 		// safe to return an empty string array here since etcd-custom-image:v3.4.13-bootstrap-12 (as well as v3.4.26) now uses an entry point that calls bootstrap.sh
 		return []string{}
 	}
-	//TODO @aaronfern: remove this feature gate when UseEtcdWraper becomes GA
+	//TODO @aaronfern: remove this feature gate when UseEtcdWrapper becomes GA
 	command := []string{"" + "start-etcd"}
 	command = append(command, fmt.Sprintf("--backup-restore-host-port=%s-local:8080", val.Name))
 	command = append(command, fmt.Sprintf("--etcd-server-name=%s-local", val.Name))
@@ -203,7 +208,7 @@ func getProbeCommand(val Values, consistency consistencyLevel) []string {
 	}
 }
 
-func getBackupRestoreCommand(val Values) []string {
+func getBackupRestoreCommandArgs(val Values) ([]string, error) {
 	command := []string{"server"}
 
 	if val.BackupStore != nil {
@@ -234,7 +239,10 @@ func getBackupRestoreCommand(val Values) []string {
 	command = append(command, "--restoration-temp-snapshots-dir=/var/etcd/data/restoration.temp")
 
 	if val.BackupStore != nil {
-		store, _ := utils.StorageProviderFromInfraProvider(val.BackupStore.Provider)
+		store, err := utils.StorageProviderFromInfraProvider(val.BackupStore.Provider)
+		if err != nil {
+			return nil, err
+		}
 		command = append(command, "--storage-provider="+store)
 		command = append(command, "--store-prefix="+string(val.BackupStore.Prefix))
 	}
@@ -275,6 +283,10 @@ func getBackupRestoreCommand(val Values) []string {
 
 	if val.DeltaSnapshotPeriod != nil {
 		command = append(command, "--delta-snapshot-period="+val.DeltaSnapshotPeriod.Duration.String())
+	}
+
+	if val.DeltaSnapshotRetentionPeriod != nil {
+		command = append(command, "--delta-snapshot-retention-period="+val.DeltaSnapshotRetentionPeriod.Duration.String())
 	}
 
 	var deltaSnapshotMemoryLimit = defaultSnapshotMemoryLimit
@@ -340,5 +352,5 @@ func getBackupRestoreCommand(val Values) []string {
 		}
 	}
 
-	return command
+	return command, nil
 }

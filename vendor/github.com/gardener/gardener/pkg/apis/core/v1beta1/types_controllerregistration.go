@@ -1,4 +1,4 @@
-// Copyright (c) 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -82,6 +82,10 @@ type ControllerResource struct {
 	//  Migrate: "BeforeKubeAPIServer"
 	// +optional
 	Lifecycle *ControllerResourceLifecycle `json:"lifecycle,omitempty" protobuf:"bytes,6,opt,name=lifecycle"`
+	// WorkerlessSupported specifies whether this ControllerResource supports Workerless Shoot clusters.
+	// This field is only relevant when kind is "Extension".
+	// +optional
+	WorkerlessSupported *bool `json:"workerlessSupported,omitempty" protobuf:"varint,7,opt,name=workerlessSupported"`
 }
 
 // DeploymentRef contains information about `ControllerDeployment` references.

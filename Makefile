@@ -72,7 +72,7 @@ install: manifests
 	kubectl apply -f config/crd/bases
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
-.PHONY: deploy
+.PHONY: deploy-via-kustomize
 deploy-via-kustomize: manifests $(KUSTOMIZE)
 	kubectl apply -f config/crd/bases
 	kustomize build config/default | kubectl apply -f -
@@ -110,7 +110,7 @@ check-generate: set-permissions
 
 # Generate code
 .PHONY: generate
-generate: set-permissions $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
+generate: set-permissions manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
 	@go generate "$(REPO_ROOT)/pkg/..."
 	@"$(REPO_ROOT)/hack/update-codegen.sh"
 

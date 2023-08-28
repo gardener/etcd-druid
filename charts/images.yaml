@@ -9,3 +9,13 @@ images:
   sourceRepository: github.com/gardener/etcd-custom-image
   repository: eu.gcr.io/gardener-project/gardener/etcd
   tag: "v3.4.26-2"
+- name: etcd-backup-restore-distroless
+  resourceId:
+    name: 'etcdbrctl'
+  sourceRepository: github.com/gardener/etcd-backup-restore
+  repository: eu.gcr.io/gardener-project/gardener/etcdbrctl
+  tag: "v0.25.1"
+- name: etcd-wrapper
+  sourceRepository: github.com/gardener/etcd-wrapper
+  repository: eu.gcr.io/gardener-project/gardener/etcd-wrapper
+  tag: "v0.1.0"

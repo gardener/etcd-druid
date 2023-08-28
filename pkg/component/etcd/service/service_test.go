@@ -22,7 +22,7 @@ import (
 	. "github.com/gardener/etcd-druid/pkg/component/etcd/service"
 	"github.com/gardener/etcd-druid/pkg/utils"
 
-	"github.com/gardener/gardener/pkg/operation/botanist/component"
+	"github.com/gardener/gardener/pkg/component"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"

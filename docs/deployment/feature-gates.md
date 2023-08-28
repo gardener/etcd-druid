@@ -1,3 +1,7 @@
+---
+title: Feature Gates in Etcd-Druid
+---
+
 # Feature Gates in Etcd-Druid
 
 This page contains an overview of the various feature gates an administrator can specify on etcd-druid.

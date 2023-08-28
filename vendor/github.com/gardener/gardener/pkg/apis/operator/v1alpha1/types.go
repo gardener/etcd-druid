@@ -1,4 +1,4 @@
-// Copyright (c) 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
@@ -63,11 +64,35 @@ type GardenSpec struct {
 
 // RuntimeCluster contains configuration for the runtime cluster.
 type RuntimeCluster struct {
+	// Ingress configures Ingress specific settings for the Garden cluster. This field is immutable.
+	Ingress gardencorev1beta1.Ingress `json:"ingress"`
+	// Networking defines the networking configuration of the runtime cluster.
+	Networking RuntimeNetworking `json:"networking"`
 	// Provider defines the provider-specific information for this cluster.
 	Provider Provider `json:"provider"`
 	// Settings contains certain settings for this cluster.
 	// +optional
 	Settings *Settings `json:"settings,omitempty"`
+}
+
+// RuntimeNetworking defines the networking configuration of the runtime cluster.
+type RuntimeNetworking struct {
+	// Nodes is the CIDR of the node network. This field is immutable.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	// +optional
+	Nodes *string `json:"nodes,omitempty"`
+	// Pods is the CIDR of the pod network. This field is immutable.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	Pods string `json:"pods"`
+	// Services is the CIDR of the service network. This field is immutable.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	Services string `json:"services"`
+	// BlockCIDRs is a list of network addresses that should be blocked.
+	// +optional
+	BlockCIDRs []string `json:"blockCIDRs,omitempty"`
 }
 
 // Provider defines the provider-specific information for this cluster.
@@ -87,6 +112,10 @@ type Settings struct {
 	// cluster.
 	// +optional
 	VerticalPodAutoscaler *SettingVerticalPodAutoscaler `json:"verticalPodAutoscaler,omitempty"`
+	// TopologyAwareRouting controls certain settings for topology-aware traffic routing in the cluster.
+	// See https://github.com/gardener/gardener/blob/master/docs/operations/topology_aware_routing.md.
+	// +optional
+	TopologyAwareRouting *SettingTopologyAwareRouting `json:"topologyAwareRouting,omitempty"`
 }
 
 // SettingLoadBalancerServices controls certain settings for services of type load balancer that are created in the
@@ -109,16 +138,47 @@ type SettingVerticalPodAutoscaler struct {
 	Enabled *bool `json:"enabled,omitempty"`
 }
 
+// SettingTopologyAwareRouting controls certain settings for topology-aware traffic routing in the cluster.
+// See https://github.com/gardener/gardener/blob/master/docs/operations/topology_aware_routing.md.
+type SettingTopologyAwareRouting struct {
+	// Enabled controls whether certain Services deployed in the cluster should be topology-aware.
+	// These Services are virtual-garden-etcd-main-client, virtual-garden-etcd-events-client and virtual-garden-kube-apiserver.
+	// Additionally, other components that are deployed to the runtime cluster via other means can read this field and
+	// according to its value enable/disable topology-aware routing for their Services.
+	Enabled bool `json:"enabled"`
+}
+
 // VirtualCluster contains configuration for the virtual cluster.
 type VirtualCluster struct {
 	// ControlPlane holds information about the general settings for the control plane of the virtual cluster.
 	// +optional
 	ControlPlane *ControlPlane `json:"controlPlane,omitempty"`
+	// DNS holds information about DNS settings.
+	DNS DNS `json:"dns"`
 	// ETCD contains configuration for the etcds of the virtual garden cluster.
 	// +optional
 	ETCD *ETCD `json:"etcd,omitempty"`
+	// Gardener contains the configuration options for the Gardener control plane components.
+	Gardener Gardener `json:"gardener"`
+	// Kubernetes contains the version and configuration options for the Kubernetes components of the virtual garden
+	// cluster.
+	Kubernetes Kubernetes `json:"kubernetes"`
 	// Maintenance contains information about the time window for maintenance operations.
 	Maintenance Maintenance `json:"maintenance"`
+	// Networking contains information about cluster networking such as CIDRs, etc.
+	Networking Networking `json:"networking"`
+}
+
+// DNS holds information about DNS settings.
+type DNS struct {
+	// Deprecated: This field is deprecated and will be removed soon. Please use `Domains` instead.
+	// TODO(timuthy): Drop this after v1.74 has been released.
+	// +optional
+	Domain *string `json:"domain,omitempty"`
+	// Domains are the external domains of the virtual garden cluster.
+	// The first given domain in this list is immutable.
+	// +optional
+	Domains []string `json:"domains,omitempty"`
 }
 
 // ETCD contains configuration for the etcds of the virtual garden cluster.
@@ -188,6 +248,234 @@ type ControlPlane struct {
 // HighAvailability specifies the configuration settings for high availability for a resource.
 type HighAvailability struct{}
 
+// Kubernetes contains the version and configuration options for the Kubernetes components of the virtual garden
+// cluster.
+type Kubernetes struct {
+	// KubeAPIServer contains configuration settings for the kube-apiserver.
+	// +optional
+	KubeAPIServer *KubeAPIServerConfig `json:"kubeAPIServer,omitempty"`
+	// KubeControllerManager contains configuration settings for the kube-controller-manager.
+	// +optional
+	KubeControllerManager *KubeControllerManagerConfig `json:"kubeControllerManager,omitempty"`
+	// Version is the semantic Kubernetes version to use for the virtual garden cluster.
+	// +kubebuilder:validation:MinLength=1
+	Version string `json:"version"`
+}
+
+// KubeAPIServerConfig contains configuration settings for the kube-apiserver.
+type KubeAPIServerConfig struct {
+	// KubeAPIServerConfig contains all configuration values not specific to the virtual garden cluster.
+	// +optional
+	*gardencorev1beta1.KubeAPIServerConfig `json:",inline"`
+	// AuditWebhook contains settings related to an audit webhook configuration.
+	// +optional
+	AuditWebhook *AuditWebhook `json:"auditWebhook,omitempty"`
+	// Authentication contains settings related to authentication.
+	// +optional
+	Authentication *Authentication `json:"authentication,omitempty"`
+	// Authorization contains settings related to authorization.
+	// +optional
+	Authorization *Authorization `json:"authorization,omitempty"`
+	// ResourcesToStoreInETCDEvents contains a list of resources which should be stored in etcd-events instead of
+	// etcd-main. The 'events' resource is always stored in etcd-events. Note that adding or removing resources from
+	// this list will not migrate them automatically from the etcd-main to etcd-events or vice versa.
+	// +optional
+	ResourcesToStoreInETCDEvents []GroupResource `json:"resourcesToStoreInETCDEvents,omitempty"`
+	// SNI contains configuration options for the TLS SNI settings.
+	// +optional
+	SNI *SNI `json:"sni,omitempty"`
+}
+
+// AuditWebhook contains settings related to an audit webhook configuration.
+type AuditWebhook struct {
+	// BatchMaxSize is the maximum size of a batch.
+	// +kubebuilder:default=30
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	BatchMaxSize *int32 `json:"batchMaxSize,omitempty"`
+	// KubeconfigSecretName specifies the name of a secret containing the kubeconfig for this webhook.
+	// +kubebuilder:validation:MinLength=1
+	KubeconfigSecretName string `json:"kubeconfigSecretName"`
+	// Version is the API version to send and expect from the webhook.
+	// +kubebuilder:default=audit.k8s.io/v1
+	// +kubebuilder:validation:Enum=audit.k8s.io/v1
+	// +optional
+	Version *string `json:"version,omitempty"`
+}
+
+// Authentication contains settings related to authentication.
+type Authentication struct {
+	// Webhook contains settings related to an authentication webhook configuration.
+	// +optional
+	Webhook *AuthenticationWebhook `json:"webhook,omitempty"`
+}
+
+// AuthenticationWebhook contains settings related to an authentication webhook configuration.
+type AuthenticationWebhook struct {
+	// CacheTTL is the duration to cache responses from the webhook authenticator.
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
+	// +optional
+	CacheTTL *metav1.Duration `json:"cacheTTL,omitempty"`
+	// KubeconfigSecretName specifies the name of a secret containing the kubeconfig for this webhook.
+	// +kubebuilder:validation:MinLength=1
+	KubeconfigSecretName string `json:"kubeconfigSecretName"`
+	// Version is the API version to send and expect from the webhook.
+	// +kubebuilder:default=v1beta1
+	// +kubebuilder:validation:Enum=v1alpha1;v1beta1;v1
+	// +optional
+	Version *string `json:"version,omitempty"`
+}
+
+// Authorization contains settings related to authorization.
+type Authorization struct {
+	// Webhook contains settings related to an authorization webhook configuration.
+	// +optional
+	Webhook *AuthorizationWebhook `json:"webhook,omitempty"`
+}
+
+// AuthorizationWebhook contains settings related to an authorization webhook configuration.
+type AuthorizationWebhook struct {
+	// CacheAuthorizedTTL is the duration to cache 'authorized' responses from the webhook authorizer.
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
+	// +optional
+	CacheAuthorizedTTL *metav1.Duration `json:"cacheAuthorizedTTL,omitempty"`
+	// CacheUnauthorizedTTL is the duration to cache 'unauthorized' responses from the webhook authorizer.
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
+	// +optional
+	CacheUnauthorizedTTL *metav1.Duration `json:"cacheUnauthorizedTTL,omitempty"`
+	// KubeconfigSecretName specifies the name of a secret containing the kubeconfig for this webhook.
+	// +kubebuilder:validation:MinLength=1
+	KubeconfigSecretName string `json:"kubeconfigSecretName"`
+	// Version is the API version to send and expect from the webhook.
+	// +kubebuilder:default=v1beta1
+	// +kubebuilder:validation:Enum=v1beta1;v1
+	// +optional
+	Version *string `json:"version,omitempty"`
+}
+
+// GroupResource contains a list of resources which should be stored in etcd-events instead of etcd-main.
+type GroupResource struct {
+	// Group is the API group name.
+	// +kubebuilder:validation:MinLength=1
+	Group string `json:"group"`
+	// Resource is the resource name.
+	// +kubebuilder:validation:MinLength=1
+	Resource string `json:"resource"`
+}
+
+// SNI contains configuration options for the TLS SNI settings.
+type SNI struct {
+	// SecretName is the name of a secret containing the TLS certificate and private key.
+	// +kubebuilder:validation:MinLength=1
+	SecretName string `json:"secretName"`
+	// DomainPatterns is a list of fully qualified domain names, possibly with prefixed wildcard segments. The domain
+	// patterns also allow IP addresses, but IPs should only be used if the apiserver has visibility to the IP address
+	// requested by a client. If no domain patterns are provided, the names of the certificate are extracted.
+	// Non-wildcard matches trump over wildcard matches, explicit domain patterns trump over extracted names.
+	// +optional
+	DomainPatterns []string `json:"domainPatterns,omitempty"`
+}
+
+// Networking defines networking parameters for the virtual garden cluster.
+type Networking struct {
+	// Services is the CIDR of the service network. This field is immutable.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	Services string `json:"services"`
+}
+
+// KubeControllerManagerConfig contains configuration settings for the kube-controller-manager.
+type KubeControllerManagerConfig struct {
+	// KubeControllerManagerConfig contains all configuration values not specific to the virtual garden cluster.
+	// +optional
+	*gardencorev1beta1.KubeControllerManagerConfig `json:",inline"`
+	// CertificateSigningDuration is the maximum length of duration signed certificates will be given. Individual CSRs
+	// may request shorter certs by setting `spec.expirationSeconds`.
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
+	// +kubebuilder:default=`48h`
+	// +optional
+	CertificateSigningDuration *metav1.Duration `json:"certificateSigningDuration,omitempty"`
+}
+
+// Gardener contains the configuration settings for the Gardener componenets.
+type Gardener struct {
+	// ClusterIdentity is the identity of the garden cluster. This field is immutable.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	ClusterIdentity string `json:"clusterIdentity"`
+	// APIServer contains configuration settings for the gardener-apiserver.
+	// +optional
+	APIServer *GardenerAPIServerConfig `json:"gardenerAPIServer,omitempty"`
+	// ControllerManager contains configuration settings for the gardener-controller-manager.
+	// +optional
+	ControllerManager *GardenerControllerManagerConfig `json:"gardenerControllerManager,omitempty"`
+	// Scheduler contains configuration settings for the gardener-scheduler.
+	// +optional
+	Scheduler *GardenerSchedulerConfig `json:"gardenerScheduler,omitempty"`
+}
+
+// GardenerAPIServerConfig contains configuration settings for the gardener-apiserver.
+type GardenerAPIServerConfig struct {
+	gardencorev1beta1.KubernetesConfig `json:",inline"`
+	// AdmissionPlugins contains the list of user-defined admission plugins (additional to those managed by Gardener),
+	// and, if desired, the corresponding configuration.
+	// +optional
+	AdmissionPlugins []gardencorev1beta1.AdmissionPlugin `json:"admissionPlugins,omitempty"`
+	// AuditConfig contains configuration settings for the audit of the kube-apiserver.
+	// +optional
+	AuditConfig *gardencorev1beta1.AuditConfig `json:"auditConfig,omitempty"`
+	// Logging contains configuration for the log level and HTTP access logs.
+	// +optional
+	Logging *gardencorev1beta1.APIServerLogging `json:"logging,omitempty"`
+	// Requests contains configuration for request-specific settings for the kube-apiserver.
+	// +optional
+	Requests *gardencorev1beta1.APIServerRequests `json:"requests,omitempty"`
+	// WatchCacheSizes contains configuration of the API server's watch cache sizes.
+	// Configuring these flags might be useful for large-scale Garden clusters with a lot of parallel update requests
+	// and a lot of watching controllers (e.g. large ManagedSeed clusters). When the API server's watch cache's
+	// capacity is too small to cope with the amount of update requests and watchers for a particular resource, it
+	// might happen that controller watches are permanently stopped with `too old resource version` errors.
+	// Starting from kubernetes v1.19, the API server's watch cache size is adapted dynamically and setting the watch
+	// cache size flags will have no effect, except when setting it to 0 (which disables the watch cache).
+	// +optional
+	WatchCacheSizes *gardencorev1beta1.WatchCacheSizes `json:"watchCacheSizes,omitempty"`
+}
+
+// GardenerControllerManagerConfig contains configuration settings for the gardener-controller-manager.
+type GardenerControllerManagerConfig struct {
+	gardencorev1beta1.KubernetesConfig `json:",inline"`
+	// DefaultProjectQuotas is the default configuration matching projects are set up with if a quota is not already
+	// specified.
+	// +optional
+	DefaultProjectQuotas []ProjectQuotaConfiguration `json:"defaultProjectQuotas,omitempty"`
+}
+
+// ProjectQuotaConfiguration defines quota configurations.
+type ProjectQuotaConfiguration struct {
+	// Config is the quota specification used for the project set-up.
+	// Only v1.ResourceQuota resources are supported.
+	Config runtime.RawExtension `json:"config"`
+	// ProjectSelector is an optional setting to select the projects considered for quotas.
+	// Defaults to empty LabelSelector, which matches all projects.
+	// +optional
+	ProjectSelector *metav1.LabelSelector `json:"projectSelector,omitempty"`
+}
+
+// GardenerSchedulerConfig contains configuration settings for the gardener-scheduler.
+type GardenerSchedulerConfig struct {
+	gardencorev1beta1.KubernetesConfig `json:",inline"`
+	// LogLevel is the configured log level for the gardener-admission-controller. Must be one of [info,debug,error].
+	// Defaults to info.
+	// +kubebuilder:validation:Enum=info;debug;error
+	// +kubebuilder:default=info
+	// +optional
+	LogLevel *string `json:"logLevel,omitempty"`
+}
+
 // GardenStatus is the status of a garden environment.
 type GardenStatus struct {
 	// Gardener holds information about the Gardener which last acted on the Garden.
@@ -195,6 +483,9 @@ type GardenStatus struct {
 	Gardener *gardencorev1beta1.Gardener `json:"gardener,omitempty"`
 	// Conditions is a list of conditions.
 	Conditions []gardencorev1beta1.Condition `json:"conditions,omitempty"`
+	// LastOperation holds information about the last operation on the Garden.
+	// +optional
+	LastOperation *gardencorev1beta1.LastOperation `json:"lastOperation,omitempty"`
 	// ObservedGeneration is the most recent generation observed for this resource.
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 	// Credentials contains information about the virtual garden cluster credentials.
@@ -214,18 +505,32 @@ type CredentialsRotation struct {
 	// CertificateAuthorities contains information about the certificate authority credential rotation.
 	// +optional
 	CertificateAuthorities *gardencorev1beta1.CARotation `json:"certificateAuthorities,omitempty"`
+	// ServiceAccountKey contains information about the service account key credential rotation.
+	// +optional
+	ServiceAccountKey *gardencorev1beta1.ServiceAccountKeyRotation `json:"serviceAccountKey,omitempty"`
+	// ETCDEncryptionKey contains information about the ETCD encryption key credential rotation.
+	// +optional
+	ETCDEncryptionKey *gardencorev1beta1.ETCDEncryptionKeyRotation `json:"etcdEncryptionKey,omitempty"`
 }
 
 const (
-	// GardenReconciled is a constant for a condition type indicating that the garden has been reconciled.
-	GardenReconciled gardencorev1beta1.ConditionType = "Reconciled"
+	// RuntimeComponentsHealthy is a constant for a condition type indicating the runtime components health.
+	RuntimeComponentsHealthy gardencorev1beta1.ConditionType = "RuntimeComponentsHealthy"
+	// VirtualComponentsHealthy is a constant for a condition type indicating the virtual garden components health.
+	VirtualComponentsHealthy gardencorev1beta1.ConditionType = "VirtualComponentsHealthy"
+	// VirtualGardenAPIServerAvailable is a constant for a condition type indicating that the virtual garden's API server is available.
+	VirtualGardenAPIServerAvailable gardencorev1beta1.ConditionType = "VirtualGardenAPIServerAvailable"
 )
 
 // AvailableOperationAnnotations is the set of available operation annotations for Garden resources.
-var AvailableOperationAnnotations = sets.New[string](
+var AvailableOperationAnnotations = sets.New(
 	v1beta1constants.GardenerOperationReconcile,
 	v1beta1constants.OperationRotateCAStart,
 	v1beta1constants.OperationRotateCAComplete,
+	v1beta1constants.OperationRotateServiceAccountKeyStart,
+	v1beta1constants.OperationRotateServiceAccountKeyComplete,
+	v1beta1constants.OperationRotateETCDEncryptionKeyStart,
+	v1beta1constants.OperationRotateETCDEncryptionKeyComplete,
 	v1beta1constants.OperationRotateCredentialsStart,
 	v1beta1constants.OperationRotateCredentialsComplete,
 )

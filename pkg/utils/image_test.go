@@ -28,7 +28,7 @@ import (
 var _ = Describe("Image retrieval tests", func() {
 
 	const (
-		etcdName  = "etcd-main-0"
+		etcdName  = "etcd-test-0"
 		namespace = "default"
 	)
 	var (
@@ -39,8 +39,8 @@ var _ = Describe("Image retrieval tests", func() {
 
 	It("etcd spec defines etcd and backup-restore images", func() {
 		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
-		imageVector = createImageVector(true, true)
-		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector)
+		imageVector = createImageVector(true, true, false, false)
+		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector, false)
 		Expect(err).To(BeNil())
 		Expect(etcdImage).ToNot(BeNil())
 		Expect(etcdImage).To(Equal(etcd.Spec.Etcd.Image))
@@ -53,8 +53,8 @@ var _ = Describe("Image retrieval tests", func() {
 		Expect(err).To(BeNil())
 		etcd.Spec.Etcd.Image = nil
 		etcd.Spec.Backup.Image = nil
-		imageVector = createImageVector(true, true)
-		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector)
+		imageVector = createImageVector(true, true, false, false)
+		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector, false)
 		Expect(err).To(BeNil())
 		Expect(etcdImage).ToNot(BeNil())
 		vectorEtcdImage, err := imageVector.FindImage(common.Etcd)
@@ -70,8 +70,8 @@ var _ = Describe("Image retrieval tests", func() {
 		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
 		Expect(err).To(BeNil())
 		etcd.Spec.Etcd.Image = nil
-		imageVector = createImageVector(true, false)
-		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector)
+		imageVector = createImageVector(true, false, false, false)
+		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector, false)
 		Expect(err).To(BeNil())
 		Expect(etcdImage).ToNot(BeNil())
 		vectorEtcdImage, err := imageVector.FindImage(common.Etcd)
@@ -85,20 +85,40 @@ var _ = Describe("Image retrieval tests", func() {
 		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
 		Expect(err).To(BeNil())
 		etcd.Spec.Backup.Image = nil
-		imageVector = createImageVector(true, false)
-		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector)
+		imageVector = createImageVector(true, false, false, false)
+		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector, false)
 		Expect(err).ToNot(BeNil())
 		Expect(etcdImage).To(BeNil())
 		Expect(etcdBackupRestoreImage).To(BeNil())
 	})
+
+	It("etcd spec has no images defined, image vector has all images, and UseEtcdWrapper feature gate is turned on", func() {
+		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
+		Expect(err).To(BeNil())
+		etcd.Spec.Etcd.Image = nil
+		etcd.Spec.Backup.Image = nil
+		imageVector = createImageVector(true, true, true, true)
+		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector, true)
+		Expect(err).To(BeNil())
+		Expect(etcdImage).ToNot(BeNil())
+		vectorEtcdImage, err := imageVector.FindImage(common.EtcdWrapper)
+		Expect(err).To(BeNil())
+		Expect(*etcdImage).To(Equal(vectorEtcdImage.String()))
+		Expect(etcdBackupRestoreImage).ToNot(BeNil())
+		vectorBackupRestoreImage, err := imageVector.FindImage(common.BackupRestoreDistroless)
+		Expect(err).To(BeNil())
+		Expect(*etcdBackupRestoreImage).To(Equal(vectorBackupRestoreImage.String()))
+	})
 })
 
-func createImageVector(withEtcdImage, withBackupRestoreImage bool) imagevector.ImageVector {
+func createImageVector(withEtcdImage, withBackupRestoreImage, withEtcdWrapperImage, withBackupRestoreDistrolessImage bool) imagevector.ImageVector {
 	var imageSources []*imagevector.ImageSource
 	const (
-		repo             = "test-repo"
-		etcdTag          = "etcd-test-tag"
-		backupRestoreTag = "backup-restore-test-tag"
+		repo                       = "test-repo"
+		etcdTag                    = "etcd-test-tag"
+		etcdWrapperTag             = "etcd-wrapper-test-tag"
+		backupRestoreTag           = "backup-restore-test-tag"
+		backupRestoreDistrolessTag = "backup-restore-distroless-test-tag"
 	)
 	if withEtcdImage {
 		imageSources = append(imageSources, &imagevector.ImageSource{
@@ -114,6 +134,20 @@ func createImageVector(withEtcdImage, withBackupRestoreImage bool) imagevector.I
 			Tag:        pointer.String(backupRestoreTag),
 		})
 
+	}
+	if withEtcdWrapperImage {
+		imageSources = append(imageSources, &imagevector.ImageSource{
+			Name:       common.EtcdWrapper,
+			Repository: repo,
+			Tag:        pointer.String(etcdWrapperTag),
+		})
+	}
+	if withBackupRestoreDistrolessImage {
+		imageSources = append(imageSources, &imagevector.ImageSource{
+			Name:       common.BackupRestoreDistroless,
+			Repository: repo,
+			Tag:        pointer.String(backupRestoreDistrolessTag),
+		})
 	}
 	return imageSources
 }

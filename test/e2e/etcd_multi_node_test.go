@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/pkg/utils"
+
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
@@ -35,7 +37,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8s_labels "k8s.io/apimachinery/pkg/labels"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
@@ -61,11 +63,17 @@ var _ = Describe("Etcd", func() {
 		storageContainer = getEnvAndExpectNoError(envStorageContainer)
 
 		snapstoreProvider := provider.Storage.Provider
-		store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
-		Expect(err).ShouldNot(HaveOccurred())
 
-		// purge any existing backups in bucket
-		Expect(purgeSnapstore(store)).To(Succeed())
+		if snapstoreProvider == utils.Local {
+			purgeLocalSnapstoreJob := purgeLocalSnapstore(parentCtx, cl, storageContainer)
+			defer cleanUpTestHelperJob(parentCtx, cl, purgeLocalSnapstoreJob.Name)
+		} else {
+			store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
+			Expect(err).ShouldNot(HaveOccurred())
+			// purge any existing backups in bucket
+			Expect(purgeSnapstore(store)).To(Succeed())
+		}
+
 		Expect(deployBackupSecret(parentCtx, cl, logger, provider, etcdNamespace, storageContainer))
 
 	})
@@ -371,6 +379,8 @@ func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Lo
 func updateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
 	sts := &appsv1.StatefulSet{}
 	ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts)).To(Succeed())
+	Expect(etcd).ToNot(BeNil())
+	Expect(etcd.Status.ObservedGeneration).ToNot(BeNil())
 	oldStsObservedGeneration, oldEtcdObservedGeneration := sts.Status.ObservedGeneration, *etcd.Status.ObservedGeneration
 
 	// update reconcile annotation, druid to reconcile and update the changes.
@@ -412,9 +422,9 @@ func cleanUpTestHelperJob(ctx context.Context, cl client.Client, jobName string)
 // checkJobReady checks k8s job associated pod is ready, up and running.
 // checkJobReady is a helper function, uses Gomega Eventually.
 func checkJobReady(ctx context.Context, cl client.Client, jobName string) {
-	r, _ := k8s_labels.NewRequirement("job-name", selection.Equals, []string{jobName})
+	r, _ := k8slabels.NewRequirement("job-name", selection.Equals, []string{jobName})
 	opts := &client.ListOptions{
-		LabelSelector: k8s_labels.NewSelector().Add(*r),
+		LabelSelector: k8slabels.NewSelector().Add(*r),
 		Namespace:     namespace,
 	}
 
@@ -441,8 +451,7 @@ func checkJobReady(ctx context.Context, cl client.Client, jobName string) {
 // etcdZeroDownTimeValidatorJob returns k8s job which ensures
 // Etcd cluster zero downtime by continuously checking etcd cluster health.
 // This job fails once health check fails and associated pod results in error status.
-func startEtcdZeroDownTimeValidatorJob(ctx context.Context, cl client.Client,
-	etcd *v1alpha1.Etcd, testName string) *batchv1.Job {
+func startEtcdZeroDownTimeValidatorJob(ctx context.Context, cl client.Client, etcd *v1alpha1.Etcd, testName string) *batchv1.Job {
 	job := etcdZeroDownTimeValidatorJob(etcd.Name+"-client", testName, etcd.Spec.Etcd.ClientUrlTLS)
 
 	logger.Info("Creating job to ensure etcd zero downtime", "job", job.Name)
@@ -550,4 +559,31 @@ func purgeEtcd(ctx context.Context, cl client.Client, providers []TestProvider) 
 			purgeEtcdPVCs(ctx, cl, e.Name)
 		}
 	}
+}
+
+// checkJobSucceeded checks for the k8s job to succeed.
+func checkJobSucceeded(ctx context.Context, cl client.Client, jobName string) {
+	EventuallyWithOffset(1, func() error {
+		job := &batchv1.Job{}
+		if err := cl.Get(ctx, types.NamespacedName{Namespace: namespace, Name: jobName}, job); err != nil {
+			return err
+		}
+		if job.Status.Succeeded == 0 {
+			return fmt.Errorf("waiting for job %v to succeed", job.Name)
+		}
+		return nil
+	}, time.Minute, pollingInterval).Should(BeNil())
+}
+
+// purgeLocalSnapstore deploys a job to purge the contents of the given Local provider snapstore
+func purgeLocalSnapstore(ctx context.Context, cl client.Client, storeContainer string) *batchv1.Job {
+	job := getPurgeLocalSnapstoreJob(storeContainer)
+
+	logger.Info("Creating job to purge local snapstore", "job", job.Name)
+	ExpectWithOffset(1, cl.Create(ctx, job)).ShouldNot(HaveOccurred())
+
+	// Wait until purgeLocalSnapstore job has succeeded.
+	checkJobSucceeded(ctx, cl, job.Name)
+	logger.Info("Job has succeeded", "job", job.Name)
+	return job
 }

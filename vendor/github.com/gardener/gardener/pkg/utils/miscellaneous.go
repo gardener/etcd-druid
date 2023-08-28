@@ -1,4 +1,4 @@
-// Copyright (c) 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+// Copyright 2018 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
 package utils
 
 import (
+	"fmt"
+	"math/big"
 	"net"
 	"regexp"
 	"strings"
@@ -40,7 +42,7 @@ func ValueExists(value string, list []string) bool {
 // MergeMaps takes two maps <a>, <b> and merges them. If <b> defines a value with a key
 // already existing in the <a> map, the <a> value for that key will be overwritten.
 func MergeMaps(a, b map[string]interface{}) map[string]interface{} {
-	var values = map[string]interface{}{}
+	var values = make(map[string]interface{}, len(b))
 
 	for i, v := range b {
 		existing, ok := a[i]
@@ -69,11 +71,11 @@ func MergeMaps(a, b map[string]interface{}) map[string]interface{} {
 
 // MergeStringMaps merges the content of the newMaps with the oldMap. If a key already exists then
 // it gets overwritten by the last value with the same key.
-func MergeStringMaps(oldMap map[string]string, newMaps ...map[string]string) map[string]string {
-	var out map[string]string
+func MergeStringMaps[T any](oldMap map[string]T, newMaps ...map[string]T) map[string]T {
+	var out map[string]T
 
 	if oldMap != nil {
-		out = make(map[string]string)
+		out = make(map[string]T, len(oldMap))
 	}
 	for k, v := range oldMap {
 		out[k] = v
@@ -81,7 +83,7 @@ func MergeStringMaps(oldMap map[string]string, newMaps ...map[string]string) map
 
 	for _, newMap := range newMaps {
 		if newMap != nil && out == nil {
-			out = make(map[string]string)
+			out = make(map[string]T)
 		}
 
 		for k, v := range newMap {
@@ -141,6 +143,20 @@ func ProtocolPtr(protocol corev1.Protocol) *corev1.Protocol {
 	return &protocol
 }
 
+// TimePtr returns a time.Time pointer to its argument.
+func TimePtr(t time.Time) *time.Time {
+	return &t
+}
+
+// TimePtrDeref dereferences the time.Time ptr and returns it if not nil, or else
+// returns def.
+func TimePtrDeref(ptr *time.Time, def time.Time) time.Time {
+	if ptr != nil {
+		return *ptr
+	}
+	return def
+}
+
 // IntStrPtrFromInt returns an intstr.IntOrString pointer to its argument.
 func IntStrPtrFromInt(port int) *intstr.IntOrString {
 	v := intstr.FromInt(port)
@@ -174,4 +190,61 @@ func IifString(condition bool, onTrue, onFalse string) string {
 		return onTrue
 	}
 	return onFalse
+}
+
+// InterfaceMapToStringMap translates map[string]interface{} to map[string]string.
+func InterfaceMapToStringMap(in map[string]interface{}) map[string]string {
+	m := make(map[string]string, len(in))
+	for k, v := range in {
+		m[k] = fmt.Sprint(v)
+	}
+	return m
+}
+
+// FilterEntriesByPrefix returns a list of strings which begin with the given prefix.
+func FilterEntriesByPrefix(prefix string, entries []string) []string {
+	var result []string
+	for _, entry := range entries {
+		if strings.HasPrefix(entry, prefix) {
+			result = append(result, entry)
+		}
+	}
+	return result
+}
+
+// ComputeOffsetIP parses the provided <subnet> and offsets with the value of <offset>.
+// For example, <subnet> = 100.64.0.0/11 and <offset> = 10 the result would be 100.64.0.10
+// IPv6 and IPv4 is supported.
+func ComputeOffsetIP(subnet *net.IPNet, offset int64) (net.IP, error) {
+	if subnet == nil {
+		return nil, fmt.Errorf("subnet is nil")
+	}
+
+	isIPv6 := false
+
+	bytes := subnet.IP.To4()
+	if bytes == nil {
+		isIPv6 = true
+		bytes = subnet.IP.To16()
+	}
+
+	ip := net.IP(big.NewInt(0).Add(big.NewInt(0).SetBytes(bytes), big.NewInt(offset)).Bytes())
+
+	if !subnet.Contains(ip) {
+		return nil, fmt.Errorf("cannot compute IP with offset %d - subnet %q too small", offset, subnet)
+	}
+
+	// there is no broadcast address on IPv6
+	if isIPv6 {
+		return ip, nil
+	}
+
+	for i := range ip {
+		// IP address is not the same, so it's not the broadcast ip.
+		if ip[i] != ip[i]|^subnet.Mask[i] {
+			return ip.To4(), nil
+		}
+	}
+
+	return nil, fmt.Errorf("computed IPv4 address %q is broadcast for subnet %q", ip, subnet)
 }

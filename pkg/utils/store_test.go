@@ -59,7 +59,9 @@ var _ = Describe("Store tests", func() {
 		})
 
 		It("no secret ref configured, should return default mount path", func() {
-			Expect(GetHostMountPathFromSecretRef(ctx, fakeClient, logger, storeSpec, testNamespace)).To(Equal(LocalProviderDefaultMountPath))
+			hostMountPath, err := GetHostMountPathFromSecretRef(ctx, fakeClient, logger, storeSpec, testNamespace)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(hostMountPath).To(Equal(LocalProviderDefaultMountPath))
 		})
 
 		It("secret ref points to an unknown secret, should return an error", func() {
@@ -86,7 +88,9 @@ var _ = Describe("Store tests", func() {
 				Name:      "backup-secret",
 				Namespace: testNamespace,
 			}
-			Expect(GetHostMountPathFromSecretRef(ctx, fakeClient, logger, storeSpec, testNamespace)).To(Equal(LocalProviderDefaultMountPath))
+			hostMountPath, err := GetHostMountPathFromSecretRef(ctx, fakeClient, logger, storeSpec, testNamespace)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(hostMountPath).To(Equal(LocalProviderDefaultMountPath))
 		})
 
 		It("secret ref points to a secret whose data has a path, should return the path defined in secret.Data", func() {
@@ -106,7 +110,9 @@ var _ = Describe("Store tests", func() {
 				Name:      "backup-secret",
 				Namespace: testNamespace,
 			}
-			Expect(GetHostMountPathFromSecretRef(ctx, fakeClient, logger, storeSpec, testNamespace)).To(Equal(hostPath))
+			hostMountPath, err := GetHostMountPathFromSecretRef(ctx, fakeClient, logger, storeSpec, testNamespace)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(hostMountPath).To(Equal(hostPath))
 		})
 	})
 })

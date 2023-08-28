@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+# Copyright 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -125,16 +125,27 @@ function upgrade_to_next_release() {
 
 function set_gardener_upgrade_version_env_variables() {
   if [[ -z "$GARDENER_PREVIOUS_RELEASE" ]]; then
-    previous_minor_version=$(echo "$VERSION" | awk -F. '{printf("%s.%d.*\n", $1, $2-1)}')
+    previous_minor_version=$(echo "$VERSION" | awk -F. '{printf("%s.%d", $1, $2-1)}')
+    pre_previous_minor_version=$(echo "$previous_minor_version" | awk -F. '{printf("%s.%d", $1, $2-1)}')
     # List all the tags that match the previous minor version pattern
-    tag_list=$(git tag -l "$previous_minor_version")
+    tag_list=$(git tag -l "${previous_minor_version}.*")
+    tag_list_pre=$(git tag -l "${pre_previous_minor_version}.*")
 
-    if [ -z "$tag_list" ]; then
-      echo "No tags found for the previous minor version ($VERSION) to upgrade Gardener." >&2
+    # Find the most recent tag for the previous minor version
+    if [ "$tag_list" ]; then
+      export GARDENER_PREVIOUS_RELEASE=$(echo "$tag_list" | tail -n 1)
+    # Try to use release branch of previous version as backup
+    elif [ "$(git ls-remote https://github.com/gardener/gardener release-"${previous_minor_version}")" ]; then
+      export GARDENER_PREVIOUS_RELEASE="release-${previous_minor_version}"
+      echo "No tags found for the previous minor version ($VERSION) to upgrade Gardener. Using branch $GARDENER_PREVIOUS_RELEASE instead." >&2
+    # If the release branch is found neither, use the tag of the pre previous version as last resort
+    elif [ "$tag_list_pre" ]; then
+      export GARDENER_PREVIOUS_RELEASE=$(echo "$tag_list_pre" | tail -n 1)
+      echo "No tags and branches found for the previous minor version ($VERSION) to upgrade Gardener. Using tag $GARDENER_PREVIOUS_RELEASE instead." >&2
+    else
+      echo "No tags and release branches found for the previous and pre-previous minor version ($VERSION) to upgrade Gardener." >&2
       exit 1
     fi
-    # Find the most recent tag for the previous minor version
-    export GARDENER_PREVIOUS_RELEASE=$(echo "$tag_list" | tail -n 1)
   fi
 
   if [[ -z "$GARDENER_NEXT_RELEASE" ]]; then
@@ -170,6 +181,30 @@ function set_seed_name() {
   esac
 }
 
+function run_pre_upgrade_test() {
+  local test_command
+
+  if [[ "$SHOOT_FAILURE_TOLERANCE_TYPE" == "node" || "$SHOOT_FAILURE_TOLERANCE_TYPE" == "zone" ]]; then
+    test_command="test-pre-upgrade"
+  else
+    test_command="test-non-ha-pre-upgrade"
+  fi
+
+  make "$test_command" GARDENER_PREVIOUS_RELEASE="$GARDENER_PREVIOUS_RELEASE" GARDENER_NEXT_RELEASE="$GARDENER_NEXT_RELEASE"
+}
+
+function run_post_upgrade_test() {
+  local test_command
+
+  if [[ "$SHOOT_FAILURE_TOLERANCE_TYPE" == "node" || "$SHOOT_FAILURE_TOLERANCE_TYPE" == "zone" ]]; then
+    test_command="test-post-upgrade"
+  else
+    test_command="test-non-ha-post-upgrade"
+  fi
+
+  make "$test_command" GARDENER_PREVIOUS_RELEASE="$GARDENER_PREVIOUS_RELEASE" GARDENER_NEXT_RELEASE="$GARDENER_NEXT_RELEASE"
+}
+
 clamp_mss_to_pmtu
 set_gardener_upgrade_version_env_variables
 set_cluster_name
@@ -193,7 +228,7 @@ echo "Installing gardener version '$GARDENER_PREVIOUS_RELEASE'"
 install_previous_release
 
 echo "Running gardener pre-upgrade tests"
-make test-pre-upgrade GARDENER_PREVIOUS_RELEASE=$GARDENER_PREVIOUS_RELEASE GARDENER_NEXT_RELEASE=$GARDENER_NEXT_RELEASE
+run_pre_upgrade_test
 
 echo "Upgrading gardener version '$GARDENER_PREVIOUS_RELEASE' to '$GARDENER_NEXT_RELEASE'"
 upgrade_to_next_release
@@ -205,7 +240,13 @@ kubectl wait seed $SEED_NAME --timeout=5m --for=jsonpath="{.status.gardener.vers
 # In a multi-zone setup, 6 istio-ingressgateway pods will be running, and it will take 18 minutes to complete the rollout.
 TIMEOUT=1200 ./hack/usage/wait-for.sh seed "$SEED_NAME" GardenletReady Bootstrapped SeedSystemComponentsHealthy ExtensionsReady BackupBucketsReady
 
+# The downtime validator considers downtime after 3 consecutive failures, taking a total of 30 seconds.
+# Therefore, we're waiting for double that amount of time (60s) to detect if there is any downtime after the upgrade process.
+# By waiting for double the amount of time (60 seconds) post-upgrade, the script accounts for the possibility of missing the last 30-second window,
+# thus ensuring that any potential downtime after the post-upgrade is detected.
+sleep 60
+
 echo "Running gardener post-upgrade tests"
-make test-post-upgrade GARDENER_PREVIOUS_RELEASE=$GARDENER_PREVIOUS_RELEASE GARDENER_NEXT_RELEASE=$GARDENER_NEXT_RELEASE
+run_post_upgrade_test
 
 gardener_down

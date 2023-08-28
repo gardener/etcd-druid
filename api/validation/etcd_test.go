@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	name      = "etcd-main"
+	name      = "etcd-test"
 	namespace = "shoot--foo--bar"
 	uuid      = "f1a38edd-e506-412a-82e6-e0fa839d0707"
 	provider  = "aws"
