@@ -176,17 +176,15 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 			}, fmt.Errorf("error while fetching compaction job: %v", err)
 		}
 
-		if r.config.EnableBackupCompaction {
-			// Required job doesn't exist. Create new
-			logger.Info("Creating etcd compaction job", "namespace", etcd.Namespace, "name", etcd.GetCompactionJobName())
-			job, err = r.createCompactionJob(ctx, logger, etcd)
-			if err != nil {
-				return ctrl.Result{
-					RequeueAfter: 10 * time.Second,
-				}, fmt.Errorf("error during compaction job creation: %v", err)
-			}
-			metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(1)
+		// Required job doesn't exist. Create new
+		logger.Info("Creating etcd compaction job", "namespace", etcd.Namespace, "name", etcd.GetCompactionJobName())
+		job, err = r.createCompactionJob(ctx, logger, etcd)
+		if err != nil {
+			return ctrl.Result{
+				RequeueAfter: 10 * time.Second,
+			}, fmt.Errorf("error during compaction job creation: %v", err)
 		}
+		metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(1)
 	}
 
 	if !job.DeletionTimestamp.IsZero() {
