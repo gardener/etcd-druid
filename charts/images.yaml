@@ -8,7 +8,7 @@ images:
 - name: etcd
   sourceRepository: github.com/gardener/etcd-custom-image
   repository: eu.gcr.io/gardener-project/gardener/etcd
-  tag: "v3.4.13-bootstrap-12"
+  tag: "v3.4.26-2"
 - name: etcd-backup-restore-distroless
   resourceId:
     name: 'etcdbrctl'
