@@ -323,7 +323,7 @@ Each etcd-member may perform restoration of data multiple times throughout its l
 
 * [**Diagnostics**] Druid can detect frequent or multiple restorations on an etcd-member and derive insights on whether there is an underlying issue that is causing frequent corruptions of the etcd DB.
 
-* [**Operational**] In case of failed restoration backup-sidecar could detect if the restoration failure is due to corrupt backup. In order to aid restoration of the etcd-member, druid can force a full-snapshot. See [related issue](https://github.com/gardener/etcd-backup-restore/issues/583).
+* [**Operational**] Restoration from backup-bucket only happens for a single node etcd cluster. If restoration is failing then druid cannot take any remediatory actions since there is no etcd quorum.
 
 The authors propose to capture this information under `restorations` section in the `EtcdMember` resource.
 
