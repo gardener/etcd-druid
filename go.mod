@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/Masterminds/semver v1.5.0
-	github.com/gardener/etcd-backup-restore v0.23.0
+	github.com/gardener/etcd-backup-restore v0.25.1
 	github.com/gardener/gardener v1.76.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v1.2.4
