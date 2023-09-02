@@ -103,13 +103,15 @@ func registerControllersWithManager(mgr ctrl.Manager, config *ManagerConfig) err
 		return err
 	}
 
-	// Add compaction reconciler to the manager
-	compactionReconciler, err := compaction.NewReconciler(mgr, config.CompactionControllerConfig)
-	if err != nil {
-		return err
-	}
-	if err = compactionReconciler.RegisterWithManager(mgr); err != nil {
-		return err
+	// Add compaction reconciler to the manager if the CLI flag enable-backup-compaction is true.
+	if config.CompactionControllerConfig.EnableBackupCompaction {
+		compactionReconciler, err := compaction.NewReconciler(mgr, config.CompactionControllerConfig)
+		if err != nil {
+			return err
+		}
+		if err = compactionReconciler.RegisterWithManager(mgr); err != nil {
+			return err
+		}
 	}
 
 	// Add etcd-copy-backups-task reconciler to the manager
