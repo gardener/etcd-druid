@@ -88,6 +88,7 @@ There is a need to have a clear distinction between an etcd-member state and etc
 
 * Auto-recovery from quorum loss or cluster-split due to network partitioning.
 * Auto-recovery of an etcd-member due to volume mismatch.
+* Relooking at segregating responsiblities between `etcd` and `backup-sidecar ` containers.
 
 ## Proposal
 
@@ -299,20 +300,20 @@ Difference between `dbSize` and `dbSizeInUse` gives a clear indication of how mu
 
 As discussed in the previous section, every etcd-member is defragmented periodically, and can also be defragmented based on the DB size reaching a certain threshold. It is beneficial for druid to have knowledge of this data from each etcd-member for the following reasons:
 
-* [**Diagnostics**] Druid can aggregate data about every member's defragmentations and calculate the frequency of defragmentations on an etcd cluster. Combined with details about the triggers for these defragmentations, druid can derive insights and raise alerts about the cause for frequent defragmentations, such as possible DB spikes.
+* [**Diagnostics**] It is expected that `backup-sidecar` will push releveant metrics and configure alerts on these metrics.
 
 * [**Operational**] Derive status of defragmentation at etcd cluster level. In case of partial failures for a subset of etcd-members druid can potentially re-trigger defragmentation only for those etcd-members.
 
-The authors propose to capture this information as part of `defragmentations` section in the `EtcdMember` resource.
+The authors propose to capture this information as part of `lastDefragmentation` section in the `EtcdMember` resource.
 
 ```yaml
-defragmentations:
-- startTime: <start time of defragmentation>
+lastDefragmentation:
+  startTime: <start time of defragmentation>
   endTime: <end time of defragmentation>
   status: <Succeeded | Failed>
   message: <success or failure message>
   initialDBSize: <size of etcd DB prior to defragmentation>
-  finalDBSize: <size of etcd DB post degragmentation>
+  finalDBSize: <size of etcd DB post defragmentation>
 ```
 
 > **NOTE**: Defragmentation is a cluster-wide operation, and insights derived from aggregating defragmentation data from individual etcd-members would be captured in the `Etcd` resource status 
@@ -321,20 +322,49 @@ defragmentations:
 
 Each etcd-member may perform restoration of data multiple times throughout its lifecycle, possibly owing to data corruptions. It would be useful to capture this information as part of an `EtcdMember` resource, for the following use cases:
 
-* [**Diagnostics**] Druid can detect frequent or multiple restorations on an etcd-member and derive insights on whether there is an underlying issue that is causing frequent corruptions of the etcd DB.
+* [**Diagnostics**] It is expected that `backup-sidecar` will push a metric indicating failure to restore.
 
 * [**Operational**] Restoration from backup-bucket only happens for a single node etcd cluster. If restoration is failing then druid cannot take any remediatory actions since there is no etcd quorum.
 
-The authors propose to capture this information under `restorations` section in the `EtcdMember` resource.
+The authors propose to capture this information under `lastRestoration` section in the `EtcdMember` resource.
 
 ```yaml
-restorations:
-- status: <Failed | Success | In-Progress>
+lastRestoration:
+  status: <Failed | Success | In-Progress>
   reason: <reason-code for status>
   message: <human readable message for status>
   startTime: <start time of restoration>
   endTime: <end time of restoration>
 ```
+
+Authors have considered the following cases to better understand how errors during restoration will be handled:
+
+**Case #1** - *Failure to connect to Provider Object Store*
+
+At present full and delta snapshots are downloaded during restoration. If there is a failure then initialization status transitions to `Failed`  followed by `New` which forces `etcd-wrapper` to trigger the initialization again. This in a way forces a retry and currently there is no limit on the number of attempts. 
+
+Authors propose to improve the retry logic but keep the overall behavior of not forcing a container restart the same.
+
+**Case #2** - *Read-Only Mounted volume*
+
+If a mounted volume which is used to create the etcd data directory turns `read-only` then authors propose to capture this state via `EtcdMember`. 
+
+Authors propose that `druid` should initiate recovery by deleting the PVC for this etcd-member and letting `StatefulSet` controller re-create the Pod and the PVC. Removing PVC and deleting the pod is considered safe because:
+
+* Data directory is present and is the DB is corrupt resulting in an un-usasble etcd.
+* Data directory is not present but any attempt to create a directory structure fails due to `read-only` FS.
+
+In both these cases there is no side-effect of deleting the PVC and the Pod.
+
+**Case #3** - *Revision mismatch*
+
+There is currently an issue in `backup-sidecar` which results in a revision mismatch in the snapshots (full/delta) taken by leading the `backup-sidecar` container. This results in a restoration failure. One occurance of such issue has been captured in [Issue#583](https://github.com/gardener/etcd-backup-restore/issues/583).  This occurence points to a bug which should be fixed however there is a rare possibility that these snapshots (full/delta) get corrupted. In this rare situation, `backup-sidecar` should only raise an alert. 
+
+Authors propose that `druid` should not take any remediatory actions as this involves:
+
+* Inspecting snapshots
+* If the full snapshot is corrupt then a decision needs to be taken to recover from the last full snapshot as the base snapshot. This can result in data loss and therefore needs manual intervention.
+* If a delta snapshot is corrupt, then recovery can be done till the corrupt revision in the delta snapshot. Since this will also result in a loss of data therefore this decision needs to be take by an operator.
 
 ### Monitoring Volume Mismatches
 
@@ -494,18 +524,18 @@ status:
       startRevision: <start revision of etcd db captured in the snapshot>
       endRevision: <end revision of etcd db captured in the snapshot>
     accumulatedDeltaSize: <total size of delta snapshots since last full snapshot>
-  restorations:
-  - type: <FromSnapshot | FromLeader>
+  lastRestoration:
+    type: <FromSnapshot | FromLeader>
     status: <Failed | Success | In-Progress>
     startTime: <start time of restoration>
     endTime: <end time of restoration>
-  defragmentations:
-  - startTime: <start time of defragmentation>
+  lastDefragmentation:
+    startTime: <start time of defragmentation>
     endTime: <end time of defragmentation>
     reason: 
     message:
     initialDBSize: <size of etcd DB prior to defragmentation>
-    finalDBSize: <size of etcd DB post degragmentation>
+    finalDBSize: <size of etcd DB post defragmentation>
   volumeMismatches:
   - identifiedAt: <time at which wrong volume mount was identified>
     fixedAt: <time at which correct volume was mounted>
