@@ -251,13 +251,7 @@ func (r *Reconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl
 	}
 
 	pdbValues := componentpdb.GenerateValues(etcd)
-	k8sversion, err := druidutils.GetClusterK8sVersion(r.restConfig)
-	if err != nil {
-		return ctrl.Result{
-			Requeue: true,
-		}, err
-	}
-	pdbDeployer := componentpdb.New(r.Client, etcd.Namespace, &pdbValues, *k8sversion)
+	pdbDeployer := componentpdb.New(r.Client, etcd.Namespace, &pdbValues)
 	if err := pdbDeployer.Destroy(ctx); err != nil {
 		return ctrl.Result{
 			Requeue: true,
@@ -325,18 +319,13 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 	}
 
 	configMapValues := componentconfigmap.GenerateValues(etcd)
-
 	cmDeployer := componentconfigmap.New(r.Client, etcd.Namespace, configMapValues)
 	if err := cmDeployer.Deploy(ctx); err != nil {
 		return reconcileResult{err: err}
 	}
 
 	pdbValues := componentpdb.GenerateValues(etcd)
-	k8sversion, err := druidutils.GetClusterK8sVersion(r.restConfig)
-	if err != nil {
-		return reconcileResult{err: err}
-	}
-	pdbDeployer := componentpdb.New(r.Client, etcd.Namespace, &pdbValues, *k8sversion)
+	pdbDeployer := componentpdb.New(r.Client, etcd.Namespace, &pdbValues)
 	if err := pdbDeployer.Deploy(ctx); err != nil {
 		return reconcileResult{err: err}
 	}
