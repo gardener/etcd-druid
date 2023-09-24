@@ -301,7 +301,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 						VolumeMounts:    getCompactionJobVolumeMounts(etcd, logger),
 						Env:             getCompactionJobEnvVar(etcd, logger),
 					}},
-					Volumes: getCompactionJobVolumes(etcd, logger),
+					Volumes: getCompactionJobVolumes(ctx, etcd, r.Client, logger),
 				},
 			},
 		},
@@ -348,13 +348,18 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, logger logr.Logger) 
 		logger.Error(err, "Storage provider is not recognized. Compaction job will not mount any volume with provider specific credentials", "namespace", etcd.Namespace, "name", etcd.Name)
 		return vms
 	}
-
-	if provider == utils.GCS {
+	switch provider {
+	case utils.Local:
+		vms = append(vms, v1.VolumeMount{
+			Name:      "host-storage",
+			MountPath: pointer.StringDeref(etcd.Spec.Backup.Store.Container, ""),
+		})
+	case utils.GCS:
 		vms = append(vms, v1.VolumeMount{
 			Name:      "etcd-backup",
 			MountPath: "/var/.gcp/",
 		})
-	} else if provider == utils.S3 || provider == utils.ABS || provider == utils.OSS || provider == utils.Swift || provider == utils.OCS {
+	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
 		vms = append(vms, v1.VolumeMount{
 			Name:      "etcd-backup",
 			MountPath: "/var/etcd-backup/",
@@ -364,7 +369,7 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, logger logr.Logger) 
 	return vms
 }
 
-func getCompactionJobVolumes(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.Volume {
+func getCompactionJobVolumes(ctx context.Context, etcd *druidv1alpha1.Etcd, cl client.Client, logger logr.Logger) []v1.Volume {
 	vs := []v1.Volume{
 		{
 			Name: "etcd-workspace-dir",
@@ -384,8 +389,25 @@ func getCompactionJobVolumes(etcd *druidv1alpha1.Etcd, logger logr.Logger) []v1.
 		logger.Error(err, "Storage provider is not recognized. Compaction job will fail as no storage could be configured", "namespace", etcd.Namespace, "name", etcd.Name)
 		return vs
 	}
+	switch provider {
+	case "Local":
+		hostPath, err := utils.GetHostMountPathFromSecretRef(ctx, cl, logger, storeValues, etcd.Namespace)
+		if err != nil {
+			logger.Error(err, "Host mount path could not be detremined from provided secrets", "namespace", etcd.Namespace, "name", etcd.Name)
+			return vs
+		}
 
-	if provider == utils.GCS || provider == utils.S3 || provider == utils.OSS || provider == utils.ABS || provider == utils.Swift || provider == utils.OCS {
+		hpt := v1.HostPathDirectory
+		vs = append(vs, v1.Volume{
+			Name: "host-storage",
+			VolumeSource: v1.VolumeSource{
+				HostPath: &v1.HostPathVolumeSource{
+					Path: hostPath + "/" + pointer.StringDeref(storeValues.Container, ""),
+					Type: &hpt,
+				},
+			},
+		})
+	case utils.GCS, utils.S3, utils.OSS, utils.ABS, utils.Swift, utils.OCS:
 		if storeValues.SecretRef == nil {
 			logger.Info("No secretRef is configured for backup store. Compaction job will fail as no storage could be configured.",
 				"namespace", etcd.Namespace, "name", etcd.Name)
