@@ -51,3 +51,12 @@ structure:
         - Developers
   nodesSelector:
     path: /docs/proposals
+- name: usage
+  properties:
+    frontmatter:
+      title: Usage
+      weight: 6
+      categories:
+        - Operators
+  nodesSelector:
+    path: /docs/usage
