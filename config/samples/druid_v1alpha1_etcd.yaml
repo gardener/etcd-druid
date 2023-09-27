@@ -62,8 +62,8 @@ spec:
   sharedConfig:
     autoCompactionMode: periodic
     autoCompactionRetention: "30m"
-  schedulingConstraints:
-    affinity: {}
+  # schedulingConstraints:
+    # affinity: {}
     # topologySpreadConstraints:
     # - maxSkew: 1
     #   topologyKey: topology.kubernetes.io/zone
