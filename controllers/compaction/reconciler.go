@@ -154,19 +154,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	diff := delta - full
 	metricNumDeltaEvents.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(float64(diff))
 
-	// Update metrics for currently running compaction job, if any
-	job := &batchv1.Job{}
-	err = r.Get(ctx, types.NamespacedName{Name: etcd.GetCompactionJobName(), Namespace: etcd.Namespace}, job)
-	if err != nil {
-		logger.Info("Could not fetch any running compaction job")
-	}
-
-	if job != nil && job.Name != "" {
-		metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(1)
-	} else {
-		metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(0)
-	}
-
 	// Reconcile job only when number of accumulated revisions over the last full snapshot is more than the configured threshold value via 'events-threshold' flag
 	if diff >= r.config.EventsThreshold {
 		return r.reconcileJob(ctx, logger, etcd)

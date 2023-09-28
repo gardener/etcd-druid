@@ -56,6 +56,8 @@ var (
 		prometheus.HistogramOpts{
 			Namespace: namespaceEtcdDruid,
 			Subsystem: subsystemCompaction,
+			Name:      "job_duration_seconds",
+			Help:      "Total time taken in seconds to finish a running compaction job.",
 			Buckets: []float64{baseDuration.Seconds(),
 				5 * baseDuration.Seconds(),
 				10 * baseDuration.Seconds(),
@@ -63,8 +65,6 @@ var (
 				20 * baseDuration.Seconds(),
 				30 * baseDuration.Seconds(),
 			},
-			Name: "job_duration_seconds",
-			Help: "Total time taken in seconds to finish a running compaction job.",
 		},
 		[]string{druidmetrics.LabelSucceeded, druidmetrics.EtcdNamespace},
 	)
