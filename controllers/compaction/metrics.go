@@ -15,6 +15,8 @@
 package compaction
 
 import (
+	"time"
+
 	druidmetrics "github.com/gardener/etcd-druid/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
@@ -26,6 +28,7 @@ const (
 )
 
 var (
+	baseDuration = 60 * time.Second
 	// metricJobsTotal is the metric used to count the total number of compaction jobs initiated by compaction controller.
 	metricJobsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -55,6 +58,13 @@ var (
 			Subsystem: subsystemCompaction,
 			Name:      "job_duration_seconds",
 			Help:      "Total time taken in seconds to finish a running compaction job.",
+			Buckets: []float64{baseDuration.Seconds(),
+				5 * baseDuration.Seconds(),
+				10 * baseDuration.Seconds(),
+				15 * baseDuration.Seconds(),
+				20 * baseDuration.Seconds(),
+				30 * baseDuration.Seconds(),
+			},
 		},
 		[]string{druidmetrics.LabelSucceeded, druidmetrics.EtcdNamespace},
 	)

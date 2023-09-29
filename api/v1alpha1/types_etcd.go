@@ -444,7 +444,7 @@ func (e *Etcd) GetConfigmapName() string {
 
 // GetCompactionJobName returns the compaction job name for the Etcd.
 func (e *Etcd) GetCompactionJobName() string {
-	return fmt.Sprintf("%s-compact-job", string(e.UID[:6]))
+	return fmt.Sprintf("%s-compactor", e.Name)
 }
 
 // GetOrdinalPodName returns the Etcd pod name based on the ordinal.
