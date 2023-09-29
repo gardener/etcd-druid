@@ -44,7 +44,8 @@ import (
 
 const (
 	// DefaultETCDQuota is the default etcd quota.
-	DefaultETCDQuota = 8 * 1024 * 1024 * 1024 // 8Gi
+	DefaultETCDQuota                 = 8 * 1024 * 1024 * 1024 // 8Gi
+	DefaultMetricsScrapeWaitDuration = "60s"
 )
 
 // Reconciler reconciles compaction jobs for Etcd resources.
@@ -487,6 +488,7 @@ func getCompactionJobArgs(etcd *druidv1alpha1.Etcd) []string {
 	command = append(command, "--data-dir=/var/etcd/data/compaction.etcd")
 	command = append(command, "--restoration-temp-snapshots-dir=/var/etcd/data/compaction.restoration.temp")
 	command = append(command, "--snapstore-temp-directory=/var/etcd/data/tmp")
+	command = append(command, "--metrics-scrape-wait-duration="+DefaultMetricsScrapeWaitDuration)
 	command = append(command, "--enable-snapshot-lease-renewal=true")
 	command = append(command, "--full-snapshot-lease-name="+etcd.GetFullSnapshotLeaseName())
 	command = append(command, "--delta-snapshot-lease-name="+etcd.GetDeltaSnapshotLeaseName())
