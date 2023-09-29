@@ -23,7 +23,6 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -143,7 +142,7 @@ func LeaseHolderIdentityChange() predicate.Predicate {
 	}
 }
 
-// EtcdReconciliationFinished is a predicate to use for etcd resources whose reconciliation is finished.
+// EtcdReconciliationFinished is a predicate to use for etcd resources whose reconciliation has finished.
 func EtcdReconciliationFinished(ignoreOperationAnnotation bool) predicate.Predicate {
 	reconciliationFinished := func(obj client.Object) bool {
 		etcd, ok := obj.(*druidv1alpha1.Etcd)
@@ -151,27 +150,17 @@ func EtcdReconciliationFinished(ignoreOperationAnnotation bool) predicate.Predic
 			return false
 		}
 
-		if ignoreOperationAnnotation {
-			return etcd.Status.Ready != nil
-		}
-
-		return !hasOperationAnnotation(etcd) && etcd.Status.Ready != nil
-	}
-
-	reconciliationFinishedUpdate := func(objNew, objOld client.Object) bool {
-		etcdNew, ok := objNew.(*druidv1alpha1.Etcd)
-		if !ok {
-			return false
-		}
-		etcdOld, ok := objOld.(*druidv1alpha1.Etcd)
-		if !ok {
+		if etcd.Status.ObservedGeneration == nil {
 			return false
 		}
 
-		readinessChanged := !reflect.DeepEqual(etcdNew.Status.Ready, etcdOld.Status.Ready)
-		ready := pointer.BoolDeref(etcdNew.Status.Ready, false)
+		condition := *etcd.Status.ObservedGeneration == etcd.Generation
 
-		return readinessChanged && ready
+		if !ignoreOperationAnnotation {
+			condition = condition && !hasOperationAnnotation(etcd)
+		}
+
+		return condition
 	}
 
 	return predicate.Funcs{
@@ -179,7 +168,7 @@ func EtcdReconciliationFinished(ignoreOperationAnnotation bool) predicate.Predic
 			return reconciliationFinished(event.Object)
 		},
 		UpdateFunc: func(event event.UpdateEvent) bool {
-			return reconciliationFinishedUpdate(event.ObjectNew, event.ObjectOld)
+			return reconciliationFinished(event.ObjectNew)
 		},
 		GenericFunc: func(event event.GenericEvent) bool {
 			return reconciliationFinished(event.Object)

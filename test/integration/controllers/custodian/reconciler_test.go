@@ -59,16 +59,16 @@ var _ = Describe("Custodian Controller", func() {
 					}, instance)
 				}, timeout, pollingInterval).Should(BeNil())
 
-				// update etcd status.Ready to true so that custodian predicate is satisfied
-				instance.Status.Ready = pointer.Bool(true)
+				// update etcd status.ObservedGeneration to metadata.Generation so that custodian predicate is satisfied
+				instance.Status.ObservedGeneration = pointer.Int64(instance.Generation)
 				Expect(k8sClient.Status().Update(ctx, instance)).To(Succeed())
 				// wait for etcd status update to succeed
 				Eventually(func() error {
 					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), instance); err != nil {
 						return err
 					}
-					if *instance.Status.Ready != true {
-						return fmt.Errorf("etcd not ready yet")
+					if *instance.Status.ObservedGeneration != instance.Generation {
+						return fmt.Errorf("etcd not reconciled yet")
 					}
 					return nil
 				}, timeout, pollingInterval).Should(Succeed())
