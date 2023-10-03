@@ -25,6 +25,7 @@ spec:
         - --enable-leader-election=true
         - --ignore-operation-annotation={{ .Values.ignoreOperationAnnotation }}
         - --workers=3
+        - --custodian-sync-period=15s
         {{- if .Values.featureGates }}
         {{- $featuregates := "" }}
         {{- range $feature, $value := $.Values.featureGates }}
