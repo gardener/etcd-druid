@@ -57,6 +57,6 @@ structure:
       title: Usage
       weight: 6
       categories:
-        - Operators
+        - Users
   nodesSelector:
     path: /docs/usage
