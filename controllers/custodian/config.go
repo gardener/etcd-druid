@@ -25,12 +25,11 @@ import (
 const (
 	workersFlagName                     = "custodian-workers"
 	syncPeriodFlagName                  = "custodian-sync-period"
-	requeueIntervalFlagName             = "custodian-requeue-interval"
 	etcdMemberNotReadyThresholdFlagName = "etcd-member-notready-threshold"
 	etcdMemberUnknownThresholdFlagName  = "etcd-member-unknown-threshold"
 
 	defaultCustodianWorkers            = 3
-	defaultCustodianRequeueInterval    = 30 * time.Second
+	defaultCustodianSyncPeriod         = 30 * time.Second
 	defaultEtcdMemberNotReadyThreshold = 5 * time.Minute
 	defaultEtcdMemberUnknownThreshold  = 1 * time.Minute
 )
@@ -40,11 +39,7 @@ type Config struct {
 	// Workers denotes the number of worker threads for the custodian controller.
 	Workers int
 	// SyncPeriod is the duration after which re-enqueuing happens.
-	// Deprecated: this field will be removed in the future. Please use RequeueInterval instead.
-	// TODO (shreyas-s-rao): remove this in druid v0.22
 	SyncPeriod time.Duration
-	// RequeueInterval is the interval for custodian controller to requeue reconciliations.
-	RequeueInterval time.Duration
 	// EtcdMember holds configuration related to etcd members.
 	EtcdMember EtcdMemberConfig
 }
@@ -61,14 +56,8 @@ type EtcdMemberConfig struct {
 func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 	fs.IntVar(&cfg.Workers, workersFlagName, defaultCustodianWorkers,
 		"Number of worker threads for the custodian controller.")
-	// TODO (shreyas-s-rao): remove this in druid v0.22
-	fs.DurationVar(&cfg.RequeueInterval, syncPeriodFlagName, defaultCustodianRequeueInterval,
-		"Sync period of the custodian controller.\n"+
-			"This flag is deprecated, and will be removed in the future. Please use --"+requeueIntervalFlagName+" instead.\n"+
-			"If both --"+syncPeriodFlagName+" and --"+requeueIntervalFlagName+" are specified, the one provided later in the flags to druid, will be considered final.")
-	fs.DurationVar(&cfg.RequeueInterval, requeueIntervalFlagName, cfg.RequeueInterval,
-		"Requeue interval for custodian controller to requeue reconciliations.\n"+
-			"If both --"+requeueIntervalFlagName+" and --"+syncPeriodFlagName+" are specified, the one provided later in the flags to druid, will be considered final.")
+	fs.DurationVar(&cfg.SyncPeriod, syncPeriodFlagName, defaultCustodianSyncPeriod,
+		"Sync period of the custodian controller.")
 	fs.DurationVar(&cfg.EtcdMember.NotReadyThreshold, etcdMemberNotReadyThresholdFlagName, defaultEtcdMemberNotReadyThreshold,
 		"Threshold after which an etcd member is considered not ready if the status was unknown before.")
 	fs.DurationVar(&cfg.EtcdMember.UnknownThreshold, etcdMemberUnknownThresholdFlagName, defaultEtcdMemberUnknownThreshold,
@@ -80,7 +69,7 @@ func (cfg *Config) Validate() error {
 	if err := utils.MustBeGreaterThan(workersFlagName, 0, cfg.Workers); err != nil {
 		return err
 	}
-	if err := utils.MustBeGreaterThan(requeueIntervalFlagName, 0, cfg.RequeueInterval); err != nil {
+	if err := utils.MustBeGreaterThan(syncPeriodFlagName, 0, cfg.SyncPeriod); err != nil {
 		return err
 	}
 	if err := utils.MustBeGreaterThan(etcdMemberNotReadyThresholdFlagName, 0, cfg.EtcdMember.NotReadyThreshold); err != nil {

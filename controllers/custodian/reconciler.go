@@ -96,7 +96,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{RequeueAfter: r.config.RequeueInterval}, nil
+	return ctrl.Result{RequeueAfter: r.config.SyncPeriod}, nil
 }
 
 func (r *Reconciler) updateEtcdStatus(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {

@@ -54,8 +54,8 @@ var _ = BeforeSuite(func() {
 	intTestEnv = setup.NewIntegrationTestEnv(testNamespacePrefix, "custodian-int-tests", crdPaths)
 	intTestEnv.RegisterReconcilers(func(mgr manager.Manager) {
 		reconciler := custodian.NewReconciler(mgr, &custodian.Config{
-			Workers:         5,
-			RequeueInterval: 15 * time.Second,
+			Workers:    5,
+			SyncPeriod: 15 * time.Second,
 			EtcdMember: custodian.EtcdMemberConfig{
 				NotReadyThreshold: 1 * time.Minute,
 				UnknownThreshold:  2 * time.Minute,
