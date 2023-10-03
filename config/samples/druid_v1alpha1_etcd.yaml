@@ -72,7 +72,7 @@ spec:
     #     matchLabels:
     #       app: etcd-statefulset
 
-  replicas: 1
+  replicas: 3
   # priorityClassName: priority-class-name
   # storageClass: default
   # storageCapacity: 10Gi
