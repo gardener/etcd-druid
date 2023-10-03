@@ -15,9 +15,10 @@
 package compaction
 
 import (
-	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
 	"testing"
 	"time"
+
+	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
 
 	"github.com/gardener/etcd-druid/controllers/compaction"
 	"github.com/gardener/etcd-druid/test/integration/setup"
@@ -53,10 +54,11 @@ var _ = BeforeSuite(func() {
 	intTestEnv = setup.NewIntegrationTestEnv(testNamespacePrefix, "compaction-int-tests", crdPaths)
 	intTestEnv.RegisterReconcilers(func(mgr manager.Manager) {
 		reconciler := compaction.NewReconcilerWithImageVector(mgr, &compaction.Config{
-			EnableBackupCompaction: true,
-			Workers:                5,
-			EventsThreshold:        100,
-			ActiveDeadlineDuration: 2 * time.Minute,
+			EnableBackupCompaction:    true,
+			Workers:                   5,
+			EventsThreshold:           100,
+			ActiveDeadlineDuration:    2 * time.Minute,
+			MetricsScrapeWaitDuration: 60 * time.Second,
 		}, imageVector)
 		Expect(reconciler.RegisterWithManager(mgr)).To(Succeed())
 	}).StartManager()

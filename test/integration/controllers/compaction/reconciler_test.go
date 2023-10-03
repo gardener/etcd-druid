@@ -273,7 +273,7 @@ func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) 
 								"--data-dir=/var/etcd/data/compaction.etcd":                                                                 Equal("--data-dir=/var/etcd/data/compaction.etcd"),
 								"--restoration-temp-snapshots-dir=/var/etcd/data/compaction.restoration.temp":                               Equal("--restoration-temp-snapshots-dir=/var/etcd/data/compaction.restoration.temp"),
 								"--snapstore-temp-directory=/var/etcd/data/tmp":                                                             Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
-								"--metrics-scrape-wait-duration=60s":                                                                        Equal("--metrics-scrape-wait-duration=60s"),
+								"--metrics-scrape-wait-duration=1m0s":                                                                       Equal("--metrics-scrape-wait-duration=1m0s"),
 								"--enable-snapshot-lease-renewal=true":                                                                      Equal("--enable-snapshot-lease-renewal=true"),
 								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", instance.GetFullSnapshotLeaseName()):                     Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", instance.GetFullSnapshotLeaseName())),
 								fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", instance.GetDeltaSnapshotLeaseName()):                   Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", instance.GetDeltaSnapshotLeaseName())),
