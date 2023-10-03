@@ -18,8 +18,8 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidpredicates "github.com/gardener/etcd-druid/controllers/predicate"
 	druidmapper "github.com/gardener/etcd-druid/pkg/mapper"
-	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	appsv1 "k8s.io/api/apps/v1"

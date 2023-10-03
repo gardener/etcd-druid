@@ -16,17 +16,18 @@ package predicate_test
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	. "github.com/gardener/etcd-druid/controllers/predicate"
+
 	. "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-
-	. "github.com/gardener/etcd-druid/pkg/predicate"
 
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )

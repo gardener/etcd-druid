@@ -19,6 +19,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druidmapper "github.com/gardener/etcd-druid/pkg/mapper"
+
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"

@@ -16,7 +16,8 @@ package etcd
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
+	druidpredicates "github.com/gardener/etcd-druid/controllers/predicate"
+
 	predicateutils "github.com/gardener/gardener/pkg/controllerutils/predicate"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
