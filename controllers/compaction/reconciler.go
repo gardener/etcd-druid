@@ -301,7 +301,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 						VolumeMounts:    getCompactionJobVolumeMounts(etcd, logger),
 						Env:             getCompactionJobEnvVar(etcd, logger),
 					}},
-					Volumes: getCompactionJobVolumes(ctx, etcd, r.Client, logger),
+					Volumes: getCompactionJobVolumes(ctx, r.Client, logger, etcd),
 				},
 			},
 		},
@@ -369,7 +369,7 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, logger logr.Logger) 
 	return vms
 }
 
-func getCompactionJobVolumes(ctx context.Context, etcd *druidv1alpha1.Etcd, cl client.Client, logger logr.Logger) []v1.Volume {
+func getCompactionJobVolumes(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd) []v1.Volume {
 	vs := []v1.Volume{
 		{
 			Name: "etcd-workspace-dir",
@@ -393,7 +393,7 @@ func getCompactionJobVolumes(ctx context.Context, etcd *druidv1alpha1.Etcd, cl c
 	case "Local":
 		hostPath, err := utils.GetHostMountPathFromSecretRef(ctx, cl, logger, storeValues, etcd.Namespace)
 		if err != nil {
-			logger.Error(err, "Host mount path could not be detremined from provided secrets", "namespace", etcd.Namespace, "name", etcd.Name)
+			logger.Error(err, "host mount path could not be determined from provided secrets", "namespace", etcd.Namespace, "name", etcd.Name)
 			return vs
 		}
 
