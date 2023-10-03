@@ -4,7 +4,7 @@ images:
     name: 'etcdbrctl'
   sourceRepository: github.com/gardener/etcd-backup-restore
   repository: eu.gcr.io/gardener-project/gardener/etcdbrctl
-  tag: "v0.24.3"
+  tag: "v0.24.4"
 - name: etcd
   sourceRepository: github.com/gardener/etcd-custom-image
   repository: eu.gcr.io/gardener-project/gardener/etcd
@@ -14,7 +14,7 @@ images:
     name: 'etcdbrctl'
   sourceRepository: github.com/gardener/etcd-backup-restore
   repository: eu.gcr.io/gardener-project/gardener/etcdbrctl
-  tag: "v0.25.1"
+  tag: "v0.26.0"
 - name: etcd-wrapper
   sourceRepository: github.com/gardener/etcd-wrapper
   repository: eu.gcr.io/gardener-project/gardener/etcd-wrapper
