@@ -17,7 +17,6 @@ package poddisruptionbudget_test
 import (
 	"context"
 
-	"github.com/Masterminds/semver"
 	. "github.com/gardener/etcd-druid/pkg/component/etcd/poddisruptionbudget"
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
@@ -26,7 +25,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
-	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gardener/gardener/pkg/component"
@@ -47,7 +45,7 @@ var _ = Describe("PodDisruptionBudget", func() {
 		ctx context.Context
 		cl  client.Client
 
-		defaultPDB *policyv1beta1.PodDisruptionBudget
+		defaultPDB *policyv1.PodDisruptionBudget
 		etcd       *druidv1alpha1.Etcd
 		namespace  string
 		name       string
@@ -59,18 +57,11 @@ var _ = Describe("PodDisruptionBudget", func() {
 
 		values      Values
 		pdbDeployer component.Deployer
-
-		k8sVersion_1_20_0, k8sVersion_1_25_0, k8sVersion_1_20_0_dev, k8sVersion_1_25_0_dev *semver.Version
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
 		cl = GetFakeKubernetesClientSet()
-
-		k8sVersion_1_20_0, _ = semver.NewVersion("1.20.0")
-		k8sVersion_1_25_0, _ = semver.NewVersion("1.25.0")
-		k8sVersion_1_20_0_dev, _ = semver.NewVersion("1.20.0-dev")
-		k8sVersion_1_25_0_dev, _ = semver.NewVersion("1.25.0-dev")
 
 		name = "poddisruptionbudget"
 		namespace = "default"
@@ -119,12 +110,12 @@ var _ = Describe("PodDisruptionBudget", func() {
 			},
 		}
 
-		defaultPDB = &policyv1beta1.PodDisruptionBudget{
+		defaultPDB = &policyv1.PodDisruptionBudget{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: namespace,
 			},
-			Spec: policyv1beta1.PodDisruptionBudgetSpec{
+			Spec: policyv1.PodDisruptionBudgetSpec{
 				MinAvailable: &intstr.IntOrString{
 					Type:   0,
 					IntVal: 0,
@@ -134,10 +125,10 @@ var _ = Describe("PodDisruptionBudget", func() {
 	})
 	Describe("#Deploy", func() {
 		var (
-			pdb *policyv1beta1.PodDisruptionBudget
+			pdb *policyv1.PodDisruptionBudget
 		)
 		BeforeEach(func() {
-			pdb = &policyv1beta1.PodDisruptionBudget{}
+			pdb = &policyv1.PodDisruptionBudget{}
 		})
 		AfterEach(func() {
 			Expect(cl.Delete(ctx, pdb)).To(Succeed())
@@ -148,24 +139,24 @@ var _ = Describe("PodDisruptionBudget", func() {
 					etcd.Spec.Replicas = 0
 					etcd.Status = druidv1alpha1.EtcdStatus{}
 					values = GenerateValues(etcd)
-					pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_20_0)
+					pdbDeployer = New(cl, namespace, &values)
 					Expect(pdbDeployer.Deploy(ctx)).To(Succeed())
 
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), pdb)).To(Succeed())
 					Expect(pdb.Spec.MinAvailable.IntVal).To(BeNumerically("==", 0))
-					checkV1beta1PDB(pdb, &values, namespace)
+					checkPDB(pdb, &values, namespace)
 				})
 			})
 			Context("when etcd replicas are 5", func() {
 				It("should create the PDB successfully", func() {
 					etcd.Spec.Replicas = 5
 					values = GenerateValues(etcd)
-					pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_20_0)
+					pdbDeployer = New(cl, namespace, &values)
 					Expect(pdbDeployer.Deploy(ctx)).To(Succeed())
 
 					Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), pdb)).To(Succeed())
 					Expect(pdb.Spec.MinAvailable.IntVal).To(BeNumerically("==", 3))
-					checkV1beta1PDB(pdb, &values, namespace)
+					checkPDB(pdb, &values, namespace)
 				})
 			})
 		})
@@ -181,28 +172,28 @@ var _ = Describe("PodDisruptionBudget", func() {
 				// Post updating the etcd replicas
 				etcd.Spec.Replicas = 5
 				values = GenerateValues(etcd)
-				pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_20_0)
+				pdbDeployer = New(cl, namespace, &values)
 				Expect(pdbDeployer.Deploy(ctx)).To(Succeed())
 
 				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), pdb)).To(Succeed())
 				Expect(pdb.Spec.MinAvailable.IntVal).To(BeNumerically("==", 3))
-				checkV1beta1PDB(pdb, &values, namespace)
+				checkPDB(pdb, &values, namespace)
 			})
 		})
 	})
 
 	Describe("#Destroy", func() {
 		var (
-			pdb    *policyv1beta1.PodDisruptionBudget
+			pdb    *policyv1.PodDisruptionBudget
 			values Values
 		)
 		BeforeEach(func() {
-			pdb = &policyv1beta1.PodDisruptionBudget{}
+			pdb = &policyv1.PodDisruptionBudget{}
 			values = GenerateValues(etcd)
 		})
 		Context("when PDB does not exist", func() {
 			It("should destroy successfully ignoring the not-found error", func() {
-				pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_20_0)
+				pdbDeployer = New(cl, namespace, &values)
 				Expect(pdbDeployer.Destroy(ctx)).To(Succeed())
 				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), pdb)).To(BeNotFoundError())
 			})
@@ -211,111 +202,15 @@ var _ = Describe("PodDisruptionBudget", func() {
 		Context("when PDB exists", func() {
 			It("should destroy successfully", func() {
 				Expect(cl.Create(ctx, defaultPDB)).To(Succeed())
-				pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_20_0)
+				pdbDeployer = New(cl, namespace, &values)
 				Expect(pdbDeployer.Destroy(ctx)).To(Succeed())
 				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), pdb)).To(BeNotFoundError())
 			})
 		})
 	})
-
-	Describe("#K8sUpgrade", func() {
-		Context("When a v1beta1 PDB exists and we try to deploy a v1 PDB", func() {
-			It("Should successfully deploy the v1 PDB", func() {
-				pdb := &policyv1beta1.PodDisruptionBudget{}
-				Expect(cl.Create(ctx, defaultPDB)).To(Succeed())
-				Expect(cl.Get(ctx, kutil.Key(namespace, name), pdb)).To(Succeed())
-				Expect(pdb.Spec.MinAvailable.IntVal).To(BeNumerically("==", 0))
-				Expect(pdb.APIVersion).To(Equal("policy/v1beta1"))
-
-				etcd.Spec.Replicas = 5
-				values = GenerateValues(etcd)
-				pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_25_0)
-				Expect(pdbDeployer.Deploy(ctx)).To(Succeed())
-
-				pdb1 := &policyv1.PodDisruptionBudget{}
-				Expect(cl.Get(ctx, kutil.Key(namespace, name), pdb1)).To(Succeed())
-				Expect(pdb1.APIVersion).To(Equal("policy/v1"))
-				Expect(pdb1.Spec.MinAvailable.IntVal).To(BeNumerically("==", 3))
-				checkV1PDB(pdb1, &values, namespace)
-
-				Expect(cl.Delete(ctx, pdb1)).To(Succeed())
-				Expect(cl.Delete(ctx, pdb)).To(Succeed())
-			})
-		})
-	})
-
-	Describe("#PDB APIVersion", func() {
-		Context("With k8s version less than 1.21", func() {
-			It("Should create a PDB with the policy/v1beta1 API", func() {
-				values = GenerateValues(etcd)
-				pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_20_0)
-				Expect(pdbDeployer.Deploy(ctx)).To(Succeed())
-
-				pdb := &policyv1beta1.PodDisruptionBudget{}
-				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), pdb)).To(Succeed())
-				Expect(pdb.APIVersion).To(Equal("policy/v1beta1"))
-				checkV1beta1PDB(pdb, &values, namespace)
-
-				Expect(cl.Delete(ctx, pdb)).To(Succeed())
-			})
-		})
-		Context("With k8s version greater than 1.21", func() {
-			It("Should create a PDB with the policyv1 API", func() {
-				values = GenerateValues(etcd)
-				pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_25_0)
-				Expect(pdbDeployer.Deploy(ctx)).To(Succeed())
-
-				pdb := &policyv1.PodDisruptionBudget{}
-				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), pdb)).To(Succeed())
-				Expect(pdb.APIVersion).To(Equal("policy/v1"))
-				checkV1PDB(pdb, &values, namespace)
-
-				Expect(cl.Delete(ctx, pdb)).To(Succeed())
-			})
-		})
-	})
-	Describe("#PDB APIVersion with suffix", func() {
-		Context("With k8s version 1.20.0-dev", func() {
-			It("Should consider a case of k8s v1.20.0 create a PDB with the policy/v1beta1 API", func() {
-				values = GenerateValues(etcd)
-				pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_20_0_dev)
-				Expect(pdbDeployer.Deploy(ctx)).To(Succeed())
-
-				pdb := &policyv1beta1.PodDisruptionBudget{}
-				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), pdb)).To(Succeed())
-				Expect(pdb.APIVersion).To(Equal("policy/v1beta1"))
-				checkV1beta1PDB(pdb, &values, namespace)
-
-				Expect(cl.Delete(ctx, pdb)).To(Succeed())
-			})
-		})
-		Context("With k8s version 1.25.0-dev", func() {
-			It("Should consider a case of k8s v1.25.0 create a PDB with the policyv1 API", func() {
-				values = GenerateValues(etcd)
-				pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_25_0_dev)
-				Expect(pdbDeployer.Deploy(ctx)).To(Succeed())
-
-				pdb := &policyv1.PodDisruptionBudget{}
-				Expect(cl.Get(ctx, kutil.Key(namespace, values.Name), pdb)).To(Succeed())
-				Expect(pdb.APIVersion).To(Equal("policy/v1"))
-				checkV1PDB(pdb, &values, namespace)
-
-				Expect(cl.Delete(ctx, pdb)).To(Succeed())
-			})
-		})
-	})
 })
 
-func checkV1beta1PDB(pdb *policyv1beta1.PodDisruptionBudget, values *Values, expectedNamespace string) {
-	Expect(pdb.Name).To(Equal(values.Name))
-	Expect(pdb.Namespace).To(Equal(expectedNamespace))
-	Expect(pdb.OwnerReferences).To(Equal([]metav1.OwnerReference{values.OwnerReference}))
-	Expect(pdb.Labels).To(Equal(pdbLabels(values)))
-	Expect(pdb.Spec.MinAvailable.IntVal).To(BeNumerically("==", values.MinAvailable))
-	Expect(pdb.Spec.Selector).To(Equal(pdbSelectorLabels(values)))
-}
-
-func checkV1PDB(pdb *policyv1.PodDisruptionBudget, values *Values, expectedNamespace string) {
+func checkPDB(pdb *policyv1.PodDisruptionBudget, values *Values, expectedNamespace string) {
 	Expect(pdb.Name).To(Equal(values.Name))
 	Expect(pdb.Namespace).To(Equal(expectedNamespace))
 	Expect(pdb.OwnerReferences).To(Equal([]metav1.OwnerReference{values.OwnerReference}))
