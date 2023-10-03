@@ -16,17 +16,18 @@ package predicate_test
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	. "github.com/gardener/etcd-druid/controllers/predicate"
+
 	. "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-
-	. "github.com/gardener/etcd-druid/pkg/predicate"
 
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
@@ -357,11 +358,12 @@ var _ = Describe("Druid Predicate", func() {
 			pred = EtcdReconciliationFinished(false)
 		})
 
-		Context("when etcd has no reconcile operation annotation and no ready status", func() {
+		Context("when etcd has no reconcile operation annotation and observedGeneration is not present", func() {
 			BeforeEach(func() {
 				obj = &druidv1alpha1.Etcd{
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: make(map[string]string),
+						Generation:  2,
 					},
 				}
 			})
@@ -374,33 +376,15 @@ var _ = Describe("Druid Predicate", func() {
 			})
 		})
 
-		Context("when etcd has no reconcile operation annotation but ready status", func() {
+		Context("when etcd has no reconcile operation annotation and observedGeneration is not equal to generation", func() {
 			BeforeEach(func() {
 				obj = &druidv1alpha1.Etcd{
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: make(map[string]string),
+						Generation:  2,
 					},
 					Status: druidv1alpha1.EtcdStatus{
-						Ready: pointer.Bool(false),
-					},
-				}
-			})
-
-			It("should return true", func() {
-				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
-				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
-				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
-			})
-		})
-
-		Context("when etcd has reconcile operation annotation", func() {
-			BeforeEach(func() {
-				obj = &druidv1alpha1.Etcd{
-					ObjectMeta: metav1.ObjectMeta{
-						Annotations: map[string]string{
-							v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
-						},
+						ObservedGeneration: pointer.Int64(1),
 					},
 				}
 			})
@@ -413,43 +397,15 @@ var _ = Describe("Druid Predicate", func() {
 			})
 		})
 
-		Context("when etcd changed ready status to false", func() {
+		Context("when etcd has no reconcile operation annotation and observedGeneration is equal to generation", func() {
 			BeforeEach(func() {
-				oldObj = &druidv1alpha1.Etcd{
-					Status: druidv1alpha1.EtcdStatus{
-						Ready: nil,
-					},
-				}
 				obj = &druidv1alpha1.Etcd{
 					ObjectMeta: metav1.ObjectMeta{
-						Annotations: map[string]string{
-							v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
-						},
+						Annotations: make(map[string]string),
+						Generation:  2,
 					},
 					Status: druidv1alpha1.EtcdStatus{
-						Ready: pointer.Bool(false),
-					},
-				}
-			})
-
-			It("should return false", func() {
-				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
-				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
-				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
-				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
-			})
-		})
-
-		Context("when etcd changed ready status to true", func() {
-			BeforeEach(func() {
-				oldObj = &druidv1alpha1.Etcd{
-					Status: druidv1alpha1.EtcdStatus{
-						Ready: nil,
-					},
-				}
-				obj = &druidv1alpha1.Etcd{
-					Status: druidv1alpha1.EtcdStatus{
-						Ready: pointer.Bool(true),
+						ObservedGeneration: pointer.Int64(2),
 					},
 				}
 			})
@@ -459,6 +415,72 @@ var _ = Describe("Druid Predicate", func() {
 				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
 				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
 				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+
+		Context("when etcd has reconcile operation annotation and observedGeneration is not present", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+						},
+						Generation: 1,
+					},
+				}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
+			})
+		})
+
+		Context("when etcd has reconcile operation annotation and observedGeneration is not equal to generation", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+						},
+						Generation: 2,
+					},
+					Status: druidv1alpha1.EtcdStatus{
+						ObservedGeneration: pointer.Int64(1),
+					},
+				}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
+			})
+		})
+
+		Context("when etcd has reconcile operation annotation and observedGeneration is equal to generation", func() {
+			BeforeEach(func() {
+				obj = &druidv1alpha1.Etcd{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+						},
+						Generation: 2,
+					},
+					Status: druidv1alpha1.EtcdStatus{
+						ObservedGeneration: pointer.Int64(2),
+					},
+				}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
 			})
 		})
 	})

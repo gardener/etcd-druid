@@ -18,12 +18,11 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidpredicates "github.com/gardener/etcd-druid/controllers/predicate"
 	druidmapper "github.com/gardener/etcd-druid/pkg/mapper"
-	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	appsv1 "k8s.io/api/apps/v1"
-	coordinationv1 "k8s.io/api/coordination/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -44,7 +43,6 @@ func (r *Reconciler) RegisterWithManager(ctx context.Context, mgr ctrl.Manager, 
 			&druidv1alpha1.Etcd{},
 			ctrlbuilder.WithPredicates(druidpredicates.EtcdReconciliationFinished(ignoreOperationAnnotation)),
 		).
-		Owns(&coordinationv1.Lease{}).
 		Build(r)
 	if err != nil {
 		return err

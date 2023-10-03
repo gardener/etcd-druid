@@ -16,7 +16,8 @@ package compaction
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
+	druidpredicates "github.com/gardener/etcd-druid/controllers/predicate"
+
 	coordinationv1 "k8s.io/api/coordination/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"

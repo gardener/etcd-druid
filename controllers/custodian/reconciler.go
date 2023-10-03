@@ -92,16 +92,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	if sts == nil {
-		if err := r.updateEtcdStatus(ctx, logger, etcd, nil); err != nil {
-			logger.Error(err, "Error while updating ETCD status when no StatefulSet found")
-		}
-		return ctrl.Result{
-			RequeueAfter: 5 * time.Second,
-		}, nil
-
-	}
-
 	if err := r.updateEtcdStatus(ctx, logger, etcd, sts); err != nil {
 		return ctrl.Result{}, err
 	}
