@@ -62,17 +62,17 @@ spec:
   sharedConfig:
     autoCompactionMode: periodic
     autoCompactionRetention: "30m"
-  schedulingConstraints:
-    affinity: {}
-    topologySpreadConstraints:
-    - maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: DoNotSchedule
-      labelSelector:
-        matchLabels:
-          app: etcd-statefulset
+  # schedulingConstraints:
+    # affinity: {}
+    # topologySpreadConstraints:
+    # - maxSkew: 1
+    #   topologyKey: topology.kubernetes.io/zone
+    #   whenUnsatisfiable: DoNotSchedule
+    #   labelSelector:
+    #     matchLabels:
+    #       app: etcd-statefulset
 
   replicas: 3
   # priorityClassName: priority-class-name
-  storageClass: default
-  storageCapacity: 10Gi
+  # storageClass: default
+  # storageCapacity: 10Gi
