@@ -23,6 +23,7 @@ import (
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
@@ -114,13 +115,21 @@ var _ = Describe("Druid Predicate", func() {
 		var pred predicate.Predicate
 
 		JustBeforeEach(func() {
-			pred = LeaseHolderIdentityChange()
+			pred = SnapshotLeaseChanged()
 		})
 
-		Context("when holder identity is nil", func() {
+		Context("when holder identity is nil for delta snap leases", func() {
 			BeforeEach(func() {
-				obj = &coordinationv1.Lease{}
-				oldObj = &coordinationv1.Lease{}
+				obj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo-delta-snap",
+					},
+				}
+				oldObj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo-delta-snap",
+					},
+				}
 			})
 
 			It("should return false", func() {
@@ -131,14 +140,20 @@ var _ = Describe("Druid Predicate", func() {
 			})
 		})
 
-		Context("when holder identity matches", func() {
+		Context("when holder identity matches for delta snap leases", func() {
 			BeforeEach(func() {
 				obj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo-delta-snap",
+					},
 					Spec: coordinationv1.LeaseSpec{
 						HolderIdentity: pointer.String("0"),
 					},
 				}
 				oldObj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo-delta-snap",
+					},
 					Spec: coordinationv1.LeaseSpec{
 						HolderIdentity: pointer.String("0"),
 					},
@@ -153,14 +168,20 @@ var _ = Describe("Druid Predicate", func() {
 			})
 		})
 
-		Context("when holder identity differs", func() {
+		Context("when holder identity differs for delta snap leases", func() {
 			BeforeEach(func() {
 				obj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo-delta-snap",
+					},
 					Spec: coordinationv1.LeaseSpec{
 						HolderIdentity: pointer.String("5"),
 					},
 				}
 				oldObj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo-delta-snap",
+					},
 					Spec: coordinationv1.LeaseSpec{
 						HolderIdentity: pointer.String("0"),
 					},
@@ -172,6 +193,166 @@ var _ = Describe("Druid Predicate", func() {
 				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
 				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
 				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+
+		Context("when holder identity is nil for full snap leases", func() {
+			BeforeEach(func() {
+				obj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo-full-snap",
+					},
+				}
+				oldObj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo-full-snap",
+					},
+				}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+
+		Context("when holder identity matches for full snap leases", func() {
+			BeforeEach(func() {
+				obj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo-full-snap",
+					},
+					Spec: coordinationv1.LeaseSpec{
+						HolderIdentity: pointer.String("0"),
+					},
+				}
+				oldObj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo-full-snap",
+					},
+					Spec: coordinationv1.LeaseSpec{
+						HolderIdentity: pointer.String("0"),
+					},
+				}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+
+		Context("when holder identity differs for full snap leases", func() {
+			BeforeEach(func() {
+				obj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo-full-snap",
+					},
+					Spec: coordinationv1.LeaseSpec{
+						HolderIdentity: pointer.String("5"),
+					},
+				}
+				oldObj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo-full-snap",
+					},
+					Spec: coordinationv1.LeaseSpec{
+						HolderIdentity: pointer.String("0"),
+					},
+				}
+			})
+
+			It("should return true", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+			})
+		})
+
+		Context("when holder identity differs for any other leases", func() {
+			BeforeEach(func() {
+				obj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo",
+					},
+					Spec: coordinationv1.LeaseSpec{
+						HolderIdentity: pointer.String("5"),
+					},
+				}
+				oldObj = &coordinationv1.Lease{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo",
+					},
+					Spec: coordinationv1.LeaseSpec{
+						HolderIdentity: pointer.String("0"),
+					},
+				}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
+			})
+		})
+	})
+
+	Describe("#Job", func() {
+		var pred predicate.Predicate
+
+		JustBeforeEach(func() {
+			pred = JobStatusChanged()
+		})
+
+		Context("when status matches", func() {
+			BeforeEach(func() {
+				now := metav1.Now()
+				obj = &batchv1.Job{
+					Status: batchv1.JobStatus{
+						CompletionTime: &now,
+					},
+				}
+				oldObj = &batchv1.Job{
+					Status: batchv1.JobStatus{
+						CompletionTime: &now,
+					},
+				}
+			})
+
+			It("should return false", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
+			})
+		})
+
+		Context("when status differs", func() {
+			BeforeEach(func() {
+				now := metav1.Now()
+				obj = &batchv1.Job{
+					Status: batchv1.JobStatus{
+						CompletionTime: nil,
+					},
+				}
+				oldObj = &batchv1.Job{
+					Status: batchv1.JobStatus{
+						CompletionTime: &now,
+					},
+				}
+			})
+
+			It("should return true", func() {
+				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
 			})
 		})
 	})
@@ -472,65 +653,6 @@ var _ = Describe("Druid Predicate", func() {
 					},
 					Status: druidv1alpha1.EtcdStatus{
 						ObservedGeneration: pointer.Int64(2),
-					},
-				}
-			})
-
-			It("should return false", func() {
-				gomega.Expect(pred.Create(createEvent)).To(gomega.BeFalse())
-				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
-				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
-				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
-			})
-		})
-	})
-
-	Describe("#IsSnapshotLease", func() {
-		var pred predicate.Predicate
-
-		BeforeEach(func() {
-			pred = IsSnapshotLease()
-		})
-
-		Context("when lease is delta snapshot lease", func() {
-			BeforeEach(func() {
-				obj = &coordinationv1.Lease{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "foo-delta-snap",
-					},
-				}
-			})
-
-			It("should return true", func() {
-				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
-			})
-		})
-
-		Context("when lease is full snapshot lease", func() {
-			BeforeEach(func() {
-				obj = &coordinationv1.Lease{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "foo-full-snap",
-					},
-				}
-			})
-
-			It("should return true", func() {
-				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
-			})
-		})
-
-		Context("when lease is any other lease", func() {
-			BeforeEach(func() {
-				obj = &coordinationv1.Lease{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "foo",
 					},
 				}
 			})

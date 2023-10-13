@@ -82,7 +82,7 @@ func NewReconcilerWithImageVector(mgr manager.Manager, config *Config, imageVect
 
 // Reconcile reconciles the compaction job.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.logger.Info("Lease controller reconciliation started")
+	r.logger.Info("Compaction job reconciliation started")
 	etcd := &druidv1alpha1.Etcd{}
 	if err := r.Get(ctx, req.NamespacedName, etcd); err != nil {
 		if errors.IsNotFound(err) {
@@ -107,12 +107,39 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	logger := r.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
 
+	// Update metrics for currently running compaction job, if any
+	job := &batchv1.Job{}
+	err := r.Get(ctx, types.NamespacedName{Name: etcd.GetCompactionJobName(), Namespace: etcd.Namespace}, job)
+	if err != nil {
+		logger.Info("Could not fetch any running compaction job")
+	}
+
+	if job != nil && job.Name != "" {
+		// Check if there is one active job or not
+		if job.Status.Active > 0 {
+			metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(1)
+			// Don't need to requeue if the job is currently running
+			return ctrl.Result{}, nil
+		}
+
+		// Delete job if the job succeeded
+		if job.Status.Succeeded > 0 {
+			metricJobsTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue, druidmetrics.EtcdNamespace: etcd.Namespace}).Inc()
+			metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(0)
+			if job.Status.CompletionTime != nil {
+				metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue, druidmetrics.EtcdNamespace: etcd.Namespace}).Observe(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds())
+			}
+			if err = r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
+				logger.Error(err, "Couldn't delete the succeful job", "namespace", etcd.Namespace, "name", etcd.GetCompactionJobName())
+			}
+		}
+	}
+
 	// Get full and delta snapshot lease to check the HolderIdentity value to take decision on compaction job
 	fullLease := &coordinationv1.Lease{}
 
 	if err := r.Get(ctx, kutil.Key(etcd.Namespace, etcd.GetFullSnapshotLeaseName()), fullLease); err != nil {
 		logger.Error(err, "Couldn't fetch full snap lease", "namespace", etcd.Namespace, "name", etcd.GetFullSnapshotLeaseName())
-
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,
 		}, err
@@ -121,7 +148,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	deltaLease := &coordinationv1.Lease{}
 	if err := r.Get(ctx, kutil.Key(etcd.Namespace, etcd.GetDeltaSnapshotLeaseName()), deltaLease); err != nil {
 		logger.Error(err, "Couldn't fetch delta snap lease", "namespace", etcd.Namespace, "name", etcd.GetDeltaSnapshotLeaseName())
-
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,
 		}, err

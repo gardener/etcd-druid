@@ -18,12 +18,11 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druidpredicates "github.com/gardener/etcd-druid/controllers/predicate"
 
+	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/source"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 const controllerName = "compaction-controller"
@@ -36,12 +35,11 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: r.config.Workers,
 		}).
-		Watches(
-			&source.Kind{Type: &coordinationv1.Lease{}},
-			&handler.EnqueueRequestForOwner{OwnerType: &druidv1alpha1.Etcd{}, IsController: true},
-			ctrlbuilder.WithPredicates(
-				druidpredicates.LeaseHolderIdentityChange(),
-				druidpredicates.IsSnapshotLease(),
-			)).
+		For(&druidv1alpha1.Etcd{}).
+		WithEventFilter(predicate.
+			Or(druidpredicates.SnapshotLeaseChanged(),
+				druidpredicates.JobStatusChanged())).
+		Owns(&coordinationv1.Lease{}).
+		Owns(&batchv1.Job{}).
 		Complete(r)
 }
