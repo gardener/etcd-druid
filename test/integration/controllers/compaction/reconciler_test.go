@@ -87,7 +87,7 @@ var _ = Describe("Compaction Controller", func() {
 
 			deleteEtcdSnapshotLeasesAndWait(k8sClient, instance)
 		},
-		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", "foo71", druidv1alpha1.StorageProvider("Local"), validateEtcdForCompactionJob),
+		Entry("if fields are set in etcd.Spec and TLS enabled, the resources should reflect the spec changes", "foo71", druidv1alpha1.StorageProvider("local"), validateEtcdForCompactionJob),
 		Entry("if the store is S3, the statefulset and compaction job should reflect the spec changes", "foo72", druidv1alpha1.StorageProvider("aws"), validateStoreAWSForCompactionJob),
 		Entry("if the store is ABS, the statefulset and compaction job should reflect the spec changes", "foo73", druidv1alpha1.StorageProvider("azure"), validateStoreAzureForCompactionJob),
 		Entry("if the store is GCS, the statefulset and compaction job should reflect the spec changes", "foo74", druidv1alpha1.StorageProvider("gcp"), validateStoreGCPForCompactionJob),
@@ -112,7 +112,7 @@ var _ = Describe("Compaction Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testutils.EtcdBuilderWithDefaults("foo77", namespace).Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo77", namespace).WithProviderLocal().Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
@@ -315,6 +315,14 @@ func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) 
 								"HostPath": BeNil(),
 								"EmptyDir": PointTo(MatchFields(IgnoreExtras, Fields{
 									"SizeLimit": BeNil(),
+								})),
+							}),
+						}),
+						"host-storage": MatchFields(IgnoreExtras, Fields{
+							"Name": Equal("host-storage"),
+							"VolumeSource": MatchFields(IgnoreExtras, Fields{
+								"HostPath": PointTo(MatchFields(IgnoreExtras, Fields{
+									"Path": Equal("/etc/gardener/local-backupbuckets/default.bkp"),
 								})),
 							}),
 						}),

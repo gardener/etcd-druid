@@ -166,6 +166,8 @@ func (eb *EtcdBuilder) WithStorageProvider(provider druidv1alpha1.StorageProvide
 		return eb.WithProviderGCS()
 	case "openstack":
 		return eb.WithProviderSwift()
+	case "local":
+		return eb.WithProviderLocal()
 	default:
 		return eb
 	}
@@ -222,6 +224,16 @@ func (eb *EtcdBuilder) WithProviderOSS() *EtcdBuilder {
 	eb.etcd.Spec.Backup.Store = getBackupStore(
 		eb.etcd.Name,
 		"alicloud",
+	)
+	return eb
+}
+
+func (eb *EtcdBuilder) WithProviderLocal() *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Backup.Store = getBackupStoreForLocal(
+		eb.etcd.Name,
 	)
 	return eb
 }
@@ -358,6 +370,15 @@ func getBackupStore(name string, provider druidv1alpha1.StorageProvider) *druidv
 		SecretRef: &corev1.SecretReference{
 			Name: "etcd-backup",
 		},
+	}
+}
+
+func getBackupStoreForLocal(name string) *druidv1alpha1.StoreSpec {
+	provider := druidv1alpha1.StorageProvider("local")
+	return &druidv1alpha1.StoreSpec{
+		Container: &container,
+		Prefix:    name,
+		Provider:  &provider,
 	}
 }
 
