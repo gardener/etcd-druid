@@ -18,40 +18,5 @@ set -o nounset
 set -o pipefail
 
 kubectl apply -f ./hack/e2e-test/infrastructure/localstack/localstack.yaml
-
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-data:
-  Corefile: |
-    .:53 {
-        errors
-        health {
-           lameduck 5s
-        }
-        ready
-        rewrite name $BUCKET_NAME.localstack.default localstack.default.svc.cluster.local
-        
-        kubernetes cluster.local in-addr.arpa ip6.arpa {
-           pods insecure
-           fallthrough in-addr.arpa ip6.arpa
-           ttl 30
-        }
-        prometheus :9153
-        forward . /etc/resolv.conf {
-           max_concurrent 1000
-        }
-        cache 30
-        loop
-        reload
-        loadbalance
-    }
-kind: ConfigMap
-metadata:
-  name: coredns
-  namespace: kube-system
-EOF
-
-kubectl delete pods -n kube-system -l k8s-app=kube-dns
-kubectl delete pods -n kube-system -l k8s-app=kube-dns
-kubectl wait --for=condition=ready pod -n kube-system -l k8s-app=kube-dns --timeout=120s
+kubectl rollout status deploy/localstack
 kubectl wait --for=condition=ready pod -l app=localstack --timeout=240s
