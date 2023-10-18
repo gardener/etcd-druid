@@ -46,7 +46,7 @@ var defaultStorageCapacity = resource.MustParse("16Gi")
 func GenerateValues(
 	etcd *druidv1alpha1.Etcd,
 	clientPort, serverPort, backupPort *int32,
-	etcdImage, backupImage string,
+	etcdImage, backupImage, initContainerImage string,
 	checksumAnnotations map[string]string,
 	peerTLSChangedToEnabled, useEtcdWrapper bool) (*Values, error) {
 
@@ -66,6 +66,7 @@ func GenerateValues(
 		AdditionalPodLabels:       etcd.Spec.Labels,
 		EtcdImage:                 etcdImage,
 		BackupImage:               backupImage,
+		InitContainerImage:        initContainerImage,
 		PriorityClassName:         etcd.Spec.PriorityClassName,
 		ServiceAccountName:        etcd.GetServiceAccountName(),
 		Affinity:                  etcd.Spec.SchedulingConstraints.Affinity,

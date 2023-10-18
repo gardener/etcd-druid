@@ -154,11 +154,18 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			reconciler = &Reconciler{
 				Client: fakeClient,
 				logger: logr.Discard(),
-				imageVector: imagevector.ImageVector{&imagevector.ImageSource{
-					Name:       common.BackupRestore,
-					Repository: "test-repo",
-					Tag:        pointer.String("etcd-test-tag"),
-				}},
+				imageVector: imagevector.ImageVector{
+					&imagevector.ImageSource{
+						Name:       common.BackupRestore,
+						Repository: "test-repo",
+						Tag:        pointer.String("etcd-test-tag"),
+					},
+					&imagevector.ImageSource{
+						Name:       common.Alpine,
+						Repository: "test-repo",
+						Tag:        pointer.String("alpine-tag"),
+					},
+				},
 				Config: &Config{
 					FeatureGates: make(map[featuregate.Feature]bool),
 				},

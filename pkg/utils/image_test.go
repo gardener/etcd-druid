@@ -40,12 +40,15 @@ var _ = Describe("Image retrieval tests", func() {
 	It("etcd spec defines etcd and backup-restore images", func() {
 		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
 		imageVector = createImageVector(true, true, false, false)
-		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector, false)
+		etcdImage, etcdBackupRestoreImage, alpine, err := GetEtcdImages(etcd, imageVector, false)
 		Expect(err).To(BeNil())
 		Expect(etcdImage).ToNot(BeNil())
 		Expect(etcdImage).To(Equal(etcd.Spec.Etcd.Image))
 		Expect(etcdBackupRestoreImage).ToNot(BeNil())
 		Expect(etcdBackupRestoreImage).To(Equal(etcd.Spec.Backup.Image))
+		vectorAlpineImage, err := imageVector.FindImage(common.Alpine)
+		Expect(err).To(BeNil())
+		Expect(*alpine).To(Equal(vectorAlpineImage.String()))
 	})
 
 	It("etcd spec has no image defined and image vector has both images set", func() {
@@ -54,7 +57,7 @@ var _ = Describe("Image retrieval tests", func() {
 		etcd.Spec.Etcd.Image = nil
 		etcd.Spec.Backup.Image = nil
 		imageVector = createImageVector(true, true, false, false)
-		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector, false)
+		etcdImage, etcdBackupRestoreImage, alpine, err := GetEtcdImages(etcd, imageVector, false)
 		Expect(err).To(BeNil())
 		Expect(etcdImage).ToNot(BeNil())
 		vectorEtcdImage, err := imageVector.FindImage(common.Etcd)
@@ -64,6 +67,9 @@ var _ = Describe("Image retrieval tests", func() {
 		vectorBackupRestoreImage, err := imageVector.FindImage(common.BackupRestore)
 		Expect(err).To(BeNil())
 		Expect(*etcdBackupRestoreImage).To(Equal(vectorBackupRestoreImage.String()))
+		vectorAlpineImage, err := imageVector.FindImage(common.Alpine)
+		Expect(err).To(BeNil())
+		Expect(*alpine).To(Equal(vectorAlpineImage.String()))
 	})
 
 	It("etcd spec only has backup-restore image and image-vector has only etcd image", func() {
@@ -71,7 +77,7 @@ var _ = Describe("Image retrieval tests", func() {
 		Expect(err).To(BeNil())
 		etcd.Spec.Etcd.Image = nil
 		imageVector = createImageVector(true, false, false, false)
-		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector, false)
+		etcdImage, etcdBackupRestoreImage, alpine, err := GetEtcdImages(etcd, imageVector, false)
 		Expect(err).To(BeNil())
 		Expect(etcdImage).ToNot(BeNil())
 		vectorEtcdImage, err := imageVector.FindImage(common.Etcd)
@@ -79,6 +85,9 @@ var _ = Describe("Image retrieval tests", func() {
 		Expect(*etcdImage).To(Equal(vectorEtcdImage.String()))
 		Expect(etcdBackupRestoreImage).ToNot(BeNil())
 		Expect(etcdBackupRestoreImage).To(Equal(etcd.Spec.Backup.Image))
+		vectorAlpineImage, err := imageVector.FindImage(common.Alpine)
+		Expect(err).To(BeNil())
+		Expect(*alpine).To(Equal(vectorAlpineImage.String()))
 	})
 
 	It("both spec and image vector do not have backup-restore image", func() {
@@ -86,10 +95,11 @@ var _ = Describe("Image retrieval tests", func() {
 		Expect(err).To(BeNil())
 		etcd.Spec.Backup.Image = nil
 		imageVector = createImageVector(true, false, false, false)
-		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector, false)
+		etcdImage, etcdBackupRestoreImage, alpine, err := GetEtcdImages(etcd, imageVector, false)
 		Expect(err).ToNot(BeNil())
 		Expect(etcdImage).To(BeNil())
 		Expect(etcdBackupRestoreImage).To(BeNil())
+		Expect(alpine).To(BeNil())
 	})
 
 	It("etcd spec has no images defined, image vector has all images, and UseEtcdWrapper feature gate is turned on", func() {
@@ -98,7 +108,7 @@ var _ = Describe("Image retrieval tests", func() {
 		etcd.Spec.Etcd.Image = nil
 		etcd.Spec.Backup.Image = nil
 		imageVector = createImageVector(true, true, true, true)
-		etcdImage, etcdBackupRestoreImage, err := GetEtcdImages(etcd, imageVector, true)
+		etcdImage, etcdBackupRestoreImage, alpine, err := GetEtcdImages(etcd, imageVector, true)
 		Expect(err).To(BeNil())
 		Expect(etcdImage).ToNot(BeNil())
 		vectorEtcdImage, err := imageVector.FindImage(common.EtcdWrapper)
@@ -108,6 +118,9 @@ var _ = Describe("Image retrieval tests", func() {
 		vectorBackupRestoreImage, err := imageVector.FindImage(common.BackupRestoreDistroless)
 		Expect(err).To(BeNil())
 		Expect(*etcdBackupRestoreImage).To(Equal(vectorBackupRestoreImage.String()))
+		vectorAlpineImage, err := imageVector.FindImage(common.Alpine)
+		Expect(err).To(BeNil())
+		Expect(*alpine).To(Equal(vectorAlpineImage.String()))
 	})
 })
 
@@ -119,6 +132,7 @@ func createImageVector(withEtcdImage, withBackupRestoreImage, withEtcdWrapperIma
 		etcdWrapperTag             = "etcd-wrapper-test-tag"
 		backupRestoreTag           = "backup-restore-test-tag"
 		backupRestoreDistrolessTag = "backup-restore-distroless-test-tag"
+		alpineTag                  = "alpine-tag"
 	)
 	if withEtcdImage {
 		imageSources = append(imageSources, &imagevector.ImageSource{
@@ -149,5 +163,10 @@ func createImageVector(withEtcdImage, withBackupRestoreImage, withEtcdWrapperIma
 			Tag:        pointer.String(backupRestoreDistrolessTag),
 		})
 	}
+	imageSources = append(imageSources, &imagevector.ImageSource{
+		Name:       common.Alpine,
+		Repository: repo,
+		Tag:        pointer.String(alpineTag),
+	})
 	return imageSources
 }
