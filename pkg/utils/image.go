@@ -34,7 +34,8 @@ func getEtcdImageKeys(useEtcdWrapper bool) (etcdImageKey string, etcdbrImageKey 
 	return
 }
 
-// GetEtcdImages returns images for etcd and backup-restore by inspecting the etcd spec and the image vector.
+// GetEtcdImages returns images for etcd and backup-restore by inspecting the etcd spec and the image vector
+// and returns the image for the init container by inspecting the image vector.
 // It will give preference to images that are set in the etcd spec and only if the image is not found in it should
 // it be picked up from the image vector if it's set there.
 // A return value of nil for either of the images indicates that the image is not set.
