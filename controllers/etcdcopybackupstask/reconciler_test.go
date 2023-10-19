@@ -163,7 +163,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 					&imagevector.ImageSource{
 						Name:       common.Alpine,
 						Repository: "test-repo",
-						Tag:        pointer.String("alpine-tag"),
+						Tag:        pointer.String("init-container-test-tag"),
 					},
 				},
 				Config: &Config{

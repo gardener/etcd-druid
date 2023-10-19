@@ -39,7 +39,7 @@ func getEtcdImageKeys(useEtcdWrapper bool) (etcdImageKey string, etcdbrImageKey 
 // it be picked up from the image vector if it's set there.
 // A return value of nil for either of the images indicates that the image is not set.
 func GetEtcdImages(etcd *druidv1alpha1.Etcd, iv imagevector.ImageVector, useEtcdWrapper bool) (*string, *string, *string, error) {
-	etcdImageKey, etcdbrImageKey, alpineImageKey := getEtcdImageKeys(useEtcdWrapper)
+	etcdImageKey, etcdbrImageKey, initContainerImageKey := getEtcdImageKeys(useEtcdWrapper)
 	etcdImage, err := chooseImage(etcdImageKey, etcd.Spec.Etcd.Image, iv)
 	if err != nil {
 		return nil, nil, nil, err
@@ -48,12 +48,12 @@ func GetEtcdImages(etcd *druidv1alpha1.Etcd, iv imagevector.ImageVector, useEtcd
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	alpineImage, err := chooseImage(alpineImageKey, nil, iv)
+	initContainerImage, err := chooseImage(initContainerImageKey, nil, iv)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	return etcdImage, etcdBackupRestoreImage, alpineImage, nil
+	return etcdImage, etcdBackupRestoreImage, initContainerImage, nil
 }
 
 // chooseImage selects an image based on the given key, specImage, and image vector.

@@ -132,7 +132,7 @@ func createImageVector(withEtcdImage, withBackupRestoreImage, withEtcdWrapperIma
 		etcdWrapperTag             = "etcd-wrapper-test-tag"
 		backupRestoreTag           = "backup-restore-test-tag"
 		backupRestoreDistrolessTag = "backup-restore-distroless-test-tag"
-		alpineTag                  = "alpine-tag"
+		initContainerTag           = "init-container-test-tag"
 	)
 	if withEtcdImage {
 		imageSources = append(imageSources, &imagevector.ImageSource{
@@ -166,7 +166,7 @@ func createImageVector(withEtcdImage, withBackupRestoreImage, withEtcdWrapperIma
 	imageSources = append(imageSources, &imagevector.ImageSource{
 		Name:       common.Alpine,
 		Repository: repo,
-		Tag:        pointer.String(alpineTag),
+		Tag:        pointer.String(initContainerTag),
 	})
 	return imageSources
 }
