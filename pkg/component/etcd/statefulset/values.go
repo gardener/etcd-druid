@@ -47,7 +47,7 @@ type Values struct {
 	BackupImage string
 	// EtcdImage is the etcd custom image.
 	EtcdImage string
-	// InitContainerImage is the container used in the init container if the etcd pod
+	// InitContainerImage is the image used in the init container in the etcd pod
 	InitContainerImage string
 	// PriorityClassName is the Priority Class name.
 	PriorityClassName *string

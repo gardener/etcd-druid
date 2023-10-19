@@ -76,7 +76,7 @@ func GetEtcdBackupRestoreImage(iv imagevector.ImageVector, useEtcdWrapper bool) 
 	return chooseImage(etcdbrImageKey, nil, iv)
 }
 
-// GetInitContainerImage returns the image for backup-restore from the given image vector.
+// GetInitContainerImage returns the image for init container from the given image vector.
 func GetInitContainerImage(iv imagevector.ImageVector) (*string, error) {
 	return chooseImage(common.Alpine, nil, iv)
 }

@@ -23,7 +23,7 @@ const (
 	EtcdWrapper = "etcd-wrapper"
 	// BackupRestoreDistroless is the key for the etcd-backup-restore image in the image vector.
 	BackupRestoreDistroless = "etcd-backup-restore-distroless"
-	// Alpine is the key for the alpine image in the alpine vector
+	// Alpine is the key for the alpine image in the image vector.
 	Alpine = "alpine"
 	// ChartPath is the directory containing the default image vector file.
 	ChartPath = "charts"
