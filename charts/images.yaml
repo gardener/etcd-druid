@@ -19,3 +19,6 @@ images:
   sourceRepository: github.com/gardener/etcd-wrapper
   repository: eu.gcr.io/gardener-project/gardener/etcd-wrapper
   tag: "v0.1.0"
+- name: alpine
+  repository: eu.gcr.io/gardener-project/3rd/alpine
+  tag: "3.15.8"
