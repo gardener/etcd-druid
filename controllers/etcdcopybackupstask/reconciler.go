@@ -290,6 +290,11 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 		return nil, err
 	}
 
+	initContainerImage, err := druidutils.GetInitContainerImage(r.imageVector)
+	if err != nil {
+		return nil, err
+	}
+
 	targetStore := task.Spec.TargetStore
 	targetProvider, err := druidutils.StorageProviderFromInfraProvider(targetStore.Provider)
 	if err != nil {
@@ -369,7 +374,7 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 			job.Spec.Template.Spec.InitContainers = []corev1.Container{
 				{
 					Name:         "change-backup-bucket-permissions",
-					Image:        "alpine:3.18.2",
+					Image:        *initContainerImage,
 					Command:      []string{"sh", "-c", "--"},
 					Args:         []string{fmt.Sprintf("%s%s%s%s", "chown -R 65532:65532 /home/nonroot/", *targetStore.Container, " /home/nonroot/", *sourceStore.Container)},
 					VolumeMounts: volumeMounts,

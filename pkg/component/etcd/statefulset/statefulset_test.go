@@ -64,6 +64,7 @@ var (
 	uid                           = "a9b8c7d6e5f4"
 	imageEtcd                     = "eu.gcr.io/gardener-project/gardener/etcd-wrapper:v0.1.0"
 	imageBR                       = "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.25.0"
+	imageInitContainer            = "alpine:3.18.2"
 	snapshotSchedule              = "0 */24 * * *"
 	defragSchedule                = "0 */24 * * *"
 	container                     = "default.bkp"
@@ -140,6 +141,7 @@ var _ = Describe("Statefulset", func() {
 			pointer.Int32(backupPort),
 			imageEtcd,
 			imageBR,
+			imageInitContainer,
 			checkSumAnnotations,
 			false,
 			true,
@@ -398,6 +400,7 @@ var _ = Describe("Statefulset", func() {
 						pointer.Int32(backupPort),
 						imageEtcd,
 						imageBR,
+						imageInitContainer,
 						checkSumAnnotations, false, true)
 					Expect(err).ToNot(HaveOccurred())
 					fg := map[featuregate.Feature]bool{
