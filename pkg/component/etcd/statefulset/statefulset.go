@@ -495,11 +495,12 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 			// TODO: @aaronfern add this back to sts.Spec when UseEtcdWrapper becomes GA
 			sts.Spec.Template.Spec.InitContainers = []corev1.Container{
 				{
-					Name:         "change-permissions",
-					Image:        "alpine:3.18.2",
-					Command:      []string{"sh", "-c", "--"},
-					Args:         []string{"chown -R 65532:65532 /var/etcd/data"},
-					VolumeMounts: getEtcdVolumeMounts(c.values),
+					Name:            "change-permissions",
+					Image:           c.values.InitContainerImage,
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Command:         []string{"sh", "-c", "--"},
+					Args:            []string{"chown -R 65532:65532 /var/etcd/data"},
+					VolumeMounts:    getEtcdVolumeMounts(c.values),
 					SecurityContext: &corev1.SecurityContext{
 						RunAsGroup:   pointer.Int64(0),
 						RunAsNonRoot: pointer.Bool(false),
@@ -513,11 +514,12 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 				prov, _ := utils.StorageProviderFromInfraProvider(c.values.BackupStore.Provider)
 				if prov == utils.Local {
 					sts.Spec.Template.Spec.InitContainers = append(sts.Spec.Template.Spec.InitContainers, corev1.Container{
-						Name:         "change-backup-bucket-permissions",
-						Image:        "alpine:3.18.2",
-						Command:      []string{"sh", "-c", "--"},
-						Args:         []string{fmt.Sprintf("chown -R 65532:65532 /home/nonroot/%s", *c.values.BackupStore.Container)},
-						VolumeMounts: getBackupRestoreVolumeMounts(c),
+						Name:            "change-backup-bucket-permissions",
+						Image:           c.values.InitContainerImage,
+						ImagePullPolicy: corev1.PullIfNotPresent,
+						Command:         []string{"sh", "-c", "--"},
+						Args:            []string{fmt.Sprintf("chown -R 65532:65532 /home/nonroot/%s", *c.values.BackupStore.Container)},
+						VolumeMounts:    getBackupRestoreVolumeMounts(c),
 						SecurityContext: &corev1.SecurityContext{
 							RunAsGroup:   pointer.Int64(0),
 							RunAsNonRoot: pointer.Bool(false),

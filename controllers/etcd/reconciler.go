@@ -301,7 +301,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		return reconcileResult{err: fmt.Errorf("Spec.Replicas should not be even number: %d", etcd.Spec.Replicas)}
 	}
 
-	etcdImage, etcdBackupImage, err := druidutils.GetEtcdImages(etcd, r.imageVector, r.config.FeatureGates[features.UseEtcdWrapper])
+	etcdImage, etcdBackupImage, initContainerImage, err := druidutils.GetEtcdImages(etcd, r.imageVector, r.config.FeatureGates[features.UseEtcdWrapper])
 	if err != nil {
 		return reconcileResult{err: err}
 	}
@@ -364,6 +364,7 @@ func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd
 		&serviceValues.BackupPort,
 		*etcdImage,
 		*etcdBackupImage,
+		*initContainerImage,
 		map[string]string{
 			"checksum/etcd-configmap": configMapValues.ConfigMapChecksum,
 		}, peerUrlTLSChangedToEnabled,
