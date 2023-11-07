@@ -77,5 +77,5 @@ aws s3 ls etcd-bucket/etcd-test/v2/
 To dismantle the setup, execute the following command:
 
 ```bash
-make kind-down
+make kind-down && unset AWS_ENDPOINT_URL_S3
 ```
