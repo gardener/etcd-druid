@@ -27,7 +27,7 @@ kubectl wait --for=condition=ready node --all
 export AWS_APPLICATION_CREDENTIALS_JSON="/tmp/aws.json"
 echo "{ \"accessKeyID\": \"ACCESSKEYAWSUSER\", \"secretAccessKey\": \"sEcreTKey\", \"region\": \"us-east-2\", \"endpoint\": \"http://127.0.0.1:4566\", \"s3ForcePathStyle\": true, \"bucketName\": \"${BUCKET_NAME}\" }" >/tmp/aws.json
 
-make deploy-localstack BUCKET_NAME="$BUCKET_NAME"
+make deploy-localstack
 make LOCALSTACK_HOST="localstack.default:4566" \
   AWS_ACCESS_KEY_ID="ACCESSKEYAWSUSER" \
   AWS_SECRET_ACCESS_KEY="sEcreTKey" \

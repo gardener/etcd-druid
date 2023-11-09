@@ -81,7 +81,7 @@ deploy-via-kustomize: manifests $(KUSTOMIZE)
 # Modify the Helm template located at charts/druid/templates if any changes are required
 .PHONY: deploy
 deploy: $(SKAFFOLD) 
-	$(SKAFFOLD) run -m etcd-druid
+	$(SKAFFOLD) run -m etcd-druid --kubeconfig=$(KUBECONFIG_PATH)
 
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: manifests
@@ -167,7 +167,7 @@ kind-down: $(KIND)
 
 .PHONY: deploy-localstack
 deploy-localstack: $(KUBECTL)
-	BUCKET_NAME=$(BUCKET_NAME) ./hack/deploy-localstack.sh
+	./hack/deploy-localstack.sh
 
 .PHONY: ci-e2e-kind
 ci-e2e-kind:
