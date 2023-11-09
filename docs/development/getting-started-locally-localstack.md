@@ -25,12 +25,15 @@ Deploy LocalStack onto the Kubernetes cluster using the command below:
 make deploy-localstack
 ```
 
-### Step 3: Establish an S3 Bucket
+### Step 3: Set up an S3 Bucket
 
-1. Specify the AWS endpoint URL for `S3` interactions to utilize the AWS CLI with LocalStack:
+1. Set up the AWS CLI to interact with LocalStack by setting the necessary environment variables. This configuration redirects S3 commands to the LocalStack endpoint and provides the required credentials for authentication:
 
 ```bash
 export AWS_ENDPOINT_URL_S3="http://localhost:4566"
+export AWS_ACCESS_KEY_ID=ACCESSKEYAWSUSER
+export AWS_SECRET_ACCESS_KEY=sEcreTKey
+export AWS_DEFAULT_REGION=us-east-2
 ```
 
 2. Create an S3 bucket for etcd-druid backup purposes:
@@ -77,5 +80,7 @@ aws s3 ls etcd-bucket/etcd-test/v2/
 To dismantle the setup, execute the following command:
 
 ```bash
-make kind-down && unset AWS_ENDPOINT_URL_S3
+make kind-down
+unset AWS_ENDPOINT_URL_S3 AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION KUBECONFIG
+
 ```
