@@ -80,7 +80,7 @@ deploy-via-kustomize: manifests $(KUSTOMIZE)
 # Deploy controller to the Kubernetes cluster specified in the environment variable KUBECONFIG
 # Modify the Helm template located at charts/druid/templates if any changes are required
 .PHONY: deploy
-deploy: $(SKAFFOLD) 
+deploy: $(SKAFFOLD) $(HELM)
 	$(SKAFFOLD) run -m etcd-druid --kubeconfig=$(KUBECONFIG_PATH)
 
 # Generate manifests e.g. CRD, RBAC etc.
