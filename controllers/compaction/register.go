@@ -37,7 +37,7 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 		}).
 		For(&druidv1alpha1.Etcd{}).
 		WithEventFilter(predicate.
-			Or(druidpredicates.SnapshotLeaseChanged(),
+			Or(druidpredicates.SnapshotRevisionChanged(),
 				druidpredicates.JobStatusChanged())).
 		Owns(&coordinationv1.Lease{}).
 		Owns(&batchv1.Job{}).

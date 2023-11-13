@@ -149,9 +149,9 @@ func EtcdReconciliationFinished(ignoreOperationAnnotation bool) predicate.Predic
 	}
 }
 
-// SnapshotLeaseChanged is a predicate that is `true` if the passed lease object is a snapshot lease and if the lease
+// SnapshotRevisionChanged is a predicate that is `true` if the passed lease object is a snapshot lease and if the lease
 // object's holderIdentity is updated.
-func SnapshotLeaseChanged() predicate.Predicate {
+func SnapshotRevisionChanged() predicate.Predicate {
 	isSnapshotLease := func(obj client.Object) bool {
 		lease, ok := obj.(*coordinationv1.Lease)
 		if !ok {
@@ -182,10 +182,10 @@ func SnapshotLeaseChanged() predicate.Predicate {
 			return isSnapshotLease(event.ObjectNew) && holderIdentityChange(event.ObjectOld, event.ObjectNew)
 		},
 		GenericFunc: func(event event.GenericEvent) bool {
-			return isSnapshotLease(event.Object)
+			return false
 		},
 		DeleteFunc: func(event event.DeleteEvent) bool {
-			return isSnapshotLease(event.Object)
+			return false
 		},
 	}
 }

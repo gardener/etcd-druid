@@ -115,7 +115,7 @@ var _ = Describe("Druid Predicate", func() {
 		var pred predicate.Predicate
 
 		JustBeforeEach(func() {
-			pred = SnapshotLeaseChanged()
+			pred = SnapshotRevisionChanged()
 		})
 
 		Context("when holder identity is nil for delta snap leases", func() {
@@ -135,8 +135,8 @@ var _ = Describe("Druid Predicate", func() {
 			It("should return false", func() {
 				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
 				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
-				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
 			})
 		})
 
@@ -163,8 +163,8 @@ var _ = Describe("Druid Predicate", func() {
 			It("should return false", func() {
 				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
 				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
-				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
 			})
 		})
 
@@ -191,8 +191,8 @@ var _ = Describe("Druid Predicate", func() {
 			It("should return true", func() {
 				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
 				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
 			})
 		})
 
@@ -213,8 +213,8 @@ var _ = Describe("Druid Predicate", func() {
 			It("should return false", func() {
 				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
 				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
-				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
 			})
 		})
 
@@ -241,8 +241,8 @@ var _ = Describe("Druid Predicate", func() {
 			It("should return false", func() {
 				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
 				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeFalse())
-				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
 			})
 		})
 
@@ -269,8 +269,8 @@ var _ = Describe("Druid Predicate", func() {
 			It("should return true", func() {
 				gomega.Expect(pred.Create(createEvent)).To(gomega.BeTrue())
 				gomega.Expect(pred.Update(updateEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeTrue())
-				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeTrue())
+				gomega.Expect(pred.Delete(deleteEvent)).To(gomega.BeFalse())
+				gomega.Expect(pred.Generic(genericEvent)).To(gomega.BeFalse())
 			})
 		})
 

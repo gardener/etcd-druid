@@ -96,17 +96,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}, err
 	}
 
-	if !etcd.DeletionTimestamp.IsZero() {
+	if !etcd.DeletionTimestamp.IsZero() || etcd.Spec.Backup.Store == nil {
 		// Delete compaction job if exists
 		return r.delete(ctx, r.logger, etcd)
 	}
 
-	if etcd.Spec.Backup.Store == nil {
-		return ctrl.Result{}, nil
-	}
-
 	logger := r.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
 
+	return r.reconcileJob(ctx, logger, etcd)
+}
+
+func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	// Update metrics for currently running compaction job, if any
 	job := &batchv1.Job{}
 	err := r.Get(ctx, types.NamespacedName{Name: etcd.GetCompactionJobName(), Namespace: etcd.Namespace}, job)
@@ -115,6 +115,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if job != nil && job.Name != "" {
+		if !job.DeletionTimestamp.IsZero() {
+			logger.Info("Job is already in deletion. A new job will be created only if the previous one has been deleted.", "namespace", job.Namespace, "name", job.Name)
+			return ctrl.Result{
+				RequeueAfter: 10 * time.Second,
+			}, nil
+		}
+
 		// Check if there is one active job or not
 		if job.Status.Active > 0 {
 			metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(1)
@@ -124,14 +131,35 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 		// Delete job if the job succeeded
 		if job.Status.Succeeded > 0 {
-			metricJobsTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue, druidmetrics.EtcdNamespace: etcd.Namespace}).Inc()
 			metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(0)
 			if job.Status.CompletionTime != nil {
 				metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue, druidmetrics.EtcdNamespace: etcd.Namespace}).Observe(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds())
 			}
 			if err = r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
-				logger.Error(err, "Couldn't delete the succeful job", "namespace", etcd.Namespace, "name", etcd.GetCompactionJobName())
+				logger.Error(err, "Couldn't delete the successful job", "namespace", etcd.Namespace, "name", etcd.GetCompactionJobName())
+				return ctrl.Result{
+					RequeueAfter: 10 * time.Second,
+				}, fmt.Errorf("error while deleting successful compaction job: %v", err)
 			}
+			metricJobsTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue, druidmetrics.EtcdNamespace: etcd.Namespace}).Inc()
+		}
+
+		// Delete job and requeue if the job failed
+		if job.Status.Failed > 0 {
+			metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(0)
+			if job.Status.StartTime != nil {
+				metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse, druidmetrics.EtcdNamespace: etcd.Namespace}).Observe(time.Since(job.Status.StartTime.Time).Seconds())
+			}
+			err = r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground))
+			if err != nil {
+				return ctrl.Result{
+					RequeueAfter: 10 * time.Second,
+				}, fmt.Errorf("error while deleting failed compaction job: %v", err)
+			}
+			metricJobsTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse, druidmetrics.EtcdNamespace: etcd.Namespace}).Inc()
+			return ctrl.Result{
+				RequeueAfter: 10 * time.Second,
+			}, nil
 		}
 	}
 
@@ -182,27 +210,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Reconcile job only when number of accumulated revisions over the last full snapshot is more than the configured threshold value via 'events-threshold' flag
 	if diff >= r.config.EventsThreshold {
-		return r.reconcileJob(ctx, logger, etcd)
-	}
-
-	return ctrl.Result{}, nil
-}
-
-func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
-	logger.Info("Reconcile etcd compaction job")
-
-	// First check if a job is already running
-	job := &batchv1.Job{}
-	err := r.Get(ctx, types.NamespacedName{Name: etcd.GetCompactionJobName(), Namespace: etcd.Namespace}, job)
-
-	if err != nil {
-		if !errors.IsNotFound(err) {
-			return ctrl.Result{
-				RequeueAfter: 10 * time.Second,
-			}, fmt.Errorf("error while fetching compaction job: %v", err)
-		}
-
-		// Required job doesn't exist. Create new
 		logger.Info("Creating etcd compaction job", "namespace", etcd.Namespace, "name", etcd.GetCompactionJobName())
 		job, err = r.createCompactionJob(ctx, logger, etcd)
 		if err != nil {
@@ -214,44 +221,9 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 		metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(1)
 	}
 
-	if !job.DeletionTimestamp.IsZero() {
-		logger.Info("Job is already in deletion. A new job will be created only if the previous one has been deleted.", "namespace", job.Namespace, "name", job.Name)
-		return ctrl.Result{
-			RequeueAfter: 10 * time.Second,
-		}, nil
-	}
-
 	if job.Name != "" {
 		logger.Info("Current compaction job status",
 			"namespace", job.Namespace, "name", job.Name, "succeeded", job.Status.Succeeded)
-	}
-
-	// Delete job and requeue if the job failed
-	if job.Status.Failed > 0 {
-		metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(0)
-		if job.Status.StartTime != nil {
-			metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse, druidmetrics.EtcdNamespace: etcd.Namespace}).Observe(time.Since(job.Status.StartTime.Time).Seconds())
-		}
-		err = r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground))
-		if err != nil {
-			return ctrl.Result{
-				RequeueAfter: 10 * time.Second,
-			}, fmt.Errorf("error while deleting failed compaction job: %v", err)
-		}
-		metricJobsTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse, druidmetrics.EtcdNamespace: etcd.Namespace}).Inc()
-		return ctrl.Result{
-			RequeueAfter: 10 * time.Second,
-		}, nil
-	}
-
-	// Delete job and return if the job succeeded
-	if job.Status.Succeeded > 0 {
-		metricJobsTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue, druidmetrics.EtcdNamespace: etcd.Namespace}).Inc()
-		metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(0)
-		if job.Status.CompletionTime != nil {
-			metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue, druidmetrics.EtcdNamespace: etcd.Namespace}).Observe(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds())
-		}
-		return r.delete(ctx, logger, etcd)
 	}
 
 	return ctrl.Result{Requeue: false}, nil
