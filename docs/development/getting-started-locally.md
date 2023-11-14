@@ -1,7 +1,3 @@
----
-title: Etcd-Druid Local Setup
----
-
 # Etcd-Druid Local Setup
 
 This page aims to provide steps on how to setup Etcd-Druid locally with/without storage providers
@@ -13,19 +9,27 @@ This page aims to provide steps on how to setup Etcd-Druid locally with/without 
 
 [k9s](https://k9scli.io/) is an interactive terminal based UI to play with your kubernetes cluster. Makes it easy to interact with the cluster resources
 
-On Mac OS install using brew
+On Mac OS & Linux, install using brew
 
 ```sh
+# via Homebrew
 brew install k9s
 ```
 
-To install via MacPort or for other OS's, follow the installation [guide](https://k9scli.io/topics/install/)
+On Windows,
+```sh
+# via scoop
+scoop install k9s
+# via chocolatey
+choco install k9s
+```
 
 ## Setting up Druid
 
 ### Clone the Etcd-Druid Github repo
     
 ```sh
+# clone the repo
 git clone https://github.com/gardener/etcd-druid.git
 # cd into etcd-druid folder
 cd etcd-druid
@@ -40,6 +44,7 @@ cd etcd-druid
 ### Setting up the Kind Cluster
 
 ```sh
+# Create a kind cluster
 make kind-up
 ```
 
@@ -51,14 +56,9 @@ export KUBECONFIG=$PWD/hack/e2e-test/infrastructure/kind/kubeconfig
 ```
 
 ### Setting up Etcd-Druid
-* 
-    Generate the Etcd CRD in the cluster
-    ```sh
-    make manifests
-    ```
 
 * 
-    Deploy etcd-druid into the cluster
+    Generates the Etcd CRD and deploy etcd-druid into the cluster
     ```sh
     make deploy
     ```
@@ -67,6 +67,7 @@ export KUBECONFIG=$PWD/hack/e2e-test/infrastructure/kind/kubeconfig
 
 To setup Etcd-druid without backups enabled, apply the Etcd yaml to the cluster 
 ```sh
+# Apply the druid yaml
 kubectl apply -f config/samples/druid_v1alpha1_etcd.yaml
 ``` 
 
@@ -75,6 +76,7 @@ Confirm that the `spec.backup.store` is commented out.
 This creates an Etcd resource but it won't be reconciled without annotation. To reconcile the Etcd, annotate `gardener.cloud/operation:reconcile` on the Etcd resource.
 
 ```sh
+# Annotate etcd-test CR to reconcile
 kubectl annotate etcd etcd-test gardener.cloud/operation="reconcile"
 ```
 
@@ -115,17 +117,20 @@ Brief explanation of keys:
 
 Create the Etcd CR (Custom Resource) by applying the Etcd yaml to the cluster 
 ```sh
+# Apply the druid yaml
 kubectl apply -f config/samples/druid_v1alpha1_etcd.yaml
 ```
 
 Reconcile the controller to create Etcd cluster by annotating the Etcd CR with `gardener.cloud/operation:reconcile`.
 ```sh
+# Annotate etcd-test CR to reconcile
 kubectl annotate etcd etcd-test gardener.cloud/operation="reconcile"
 ```
 
 ## Cleaning the setup
 
 ```sh
+# Delete the cluster
 make kind-down
 ```
 
