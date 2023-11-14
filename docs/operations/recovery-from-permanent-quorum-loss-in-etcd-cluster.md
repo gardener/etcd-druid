@@ -1,7 +1,7 @@
 # Recovery from Permanent Quorum Loss in an Etcd Cluster
 
 ## Quorum loss in Etcd Cluster
-[Quorum loss](https://etcd.io/docs/v3.4/op-guide/recovery/) means when majority of Etcd pods(greater than or equal to n/2 + 1) are down simultaneously for some reason. 
+[Quorum loss](https://etcd.io/docs/v3.4/op-guide/recovery/) means when majority of Etcd pods(greater than or equal to n/2 + 1) are down simultaneously for some reason.
 
 There are two types of quorum loss that can happen to [Etcd multinode cluster](https://github.com/gardener/etcd-druid/tree/master/docs/proposals/multi-node) :
 
@@ -12,15 +12,16 @@ There are two types of quorum loss that can happen to [Etcd multinode cluster](h
 If permanent quorum loss occurs to a multinode Etcd cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs etc related to that Etcd cluster and work on those resources only. Following steps guide a human operator to recover from permanent quorum loss of a Etcd cluster. We assume the name of the Etcd CR for the Etcd cluster is `etcd-main`.
 
 **Etcd cluster in shoot control plane of gardener deployment:**
-There are two [Etcd clusters](https://github.com/gardener/etcd-druid/tree/master/docs/proposals/multi-node) running in shoot control plane. One is named as `etcd-events` and another is named `etcd-main`. The operator needs to take care of permanent quorum loss to a specific cluster. If permanent quorum loss occurs to `etcd-events` cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs etc related to `etcd-events` cluster and work on those resources only. 
+There are two [Etcd clusters](https://github.com/gardener/etcd-druid/tree/master/docs/proposals/multi-node) running in shoot control plane. One is named as `etcd-events` and another is named `etcd-main`. The operator needs to take care of permanent quorum loss to a specific cluster. If permanent quorum loss occurs to `etcd-events` cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs etc related to `etcd-events` cluster and work on those resources only.
 
 :warning: **Note:** Please note that manually restoring etcd can result in data loss. This guide is the last resort to bring an Etcd cluster up and running again.
 
-   If etcd-druid and etcd-backup-restore is being used with gardener, then 
+   If etcd-druid and etcd-backup-restore is being used with gardener, then
 
    Target the control plane of affected shoot cluster via `kubectl`. Alternatively, you can use [gardenctl](https://github.com/gardener/gardenctl-v2) to target the control plane of the affected shoot cluster. You can get the details to target the control plane from the Access tile in the shoot cluster details page on the Gardener dashboard. Ensure that you are targeting the correct namespace.
-   
+
    1. Add the following annotation to the `Etcd` resource `kubectl annotate etcd etcd-main druid.gardener.cloud/ignore-reconciliation="true"`
+
    2. Note down the configmap name that is attached to the `etcd-main` statefulset. If you describe the statefulset with `kubectl describe sts etcd-main`, look for the lines similar to following lines to identify attached configmap name. It will be needed at later stages:
 
    ```
@@ -38,7 +39,7 @@ There are two [Etcd clusters](https://github.com/gardener/etcd-druid/tree/master
 
       `kubectl scale sts etcd-main --replicas=0`
    4. The PVCs will look like the following on listing them with the command `kubectl get pvc` :
-      
+
       ```
       main-etcd-etcd-main-0        Bound    pv-shoot--garden--aws-ha-dcb51848-49fa-4501-b2f2-f8d8f1fad111   80Gi       RWO            gardener.cloud-fast   13d
       main-etcd-etcd-main-1        Bound    pv-shoot--garden--aws-ha-b4751b28-c06e-41b7-b08c-6486e03090dd   80Gi       RWO            gardener.cloud-fast   13d
@@ -47,8 +48,23 @@ There are two [Etcd clusters](https://github.com/gardener/etcd-druid/tree/master
       Delete all PVCs that are attached to `etcd-main` cluster.
 
       `kubectl delete pvc -l instance=etcd-main`
-   5. Edit the `etcd-main` cluster's configmap (ex: `etcd-bootstrap-4785b0`) as follows:
-      
+
+   5. Check the etcd's member leases. There should be leases starting with `etcd-main` as many as `etcd-main` replicas.
+   One of those leases will have holder identity as `<etcd-member-id>:Leader` and rest of etcd member leases have holder identities as `<etcd-member-id>:Member`.
+   Please ignore the snapshot leases i.e those leases which have suffix `snap`.
+
+   etcd-main member leases:
+      ```
+       NAME        HOLDER                  AGE
+       etcd-main-0 4c37667312a3912b:Member 1m
+       etcd-main-1 75a9b74cfd3077cc:Member 1m
+       etcd-main-2 c62ee6af755e890d:Leader 1m
+      ```
+
+      Delete all `etcd-main` member leases.
+
+   6. Edit the `etcd-main` cluster's configmap (ex: `etcd-bootstrap-4785b0`) as follows:
+
       Find the `initial-cluster` field in the configmap. It will look like the following:
       ```
       # Initial cluster
@@ -61,19 +77,24 @@ There are two [Etcd clusters](https://github.com/gardener/etcd-druid/tree/master
       # Initial cluster
         initial-cluster: etcd-main-0=https://etcd-main-0.etcd-main-peer.default.svc:2380
       ```
-   6. Scale up the `etcd-main` statefulset replicas to `1`
+
+   7. Scale up the `etcd-main` statefulset replicas to `1`
 
       `kubectl scale sts etcd-main --replicas=1`
-   7. Wait for the single-member etcd cluster to be completely ready.
+
+   8. Wait for the single-member etcd cluster to be completely ready.
 
       `kubectl get pods etcd-main-0` will give the following output when ready:
       ```
       NAME          READY   STATUS    RESTARTS   AGE
       etcd-main-0   2/2     Running   0          1m
       ```
-   8. Remove the following annotation from the `Etcd` resource `etcd-main`: `kubectl annotate etcd etcd-main druid.gardener.cloud/ignore-reconciliation-`
-   9. Finally add the following annotation to the `Etcd` resource `etcd-main`: `kubectl annotate etcd etcd-main gardener.cloud/operation="reconcile"`
-   10. Verify that the etcd cluster is formed correctly.
+
+   9. Remove the following annotation from the `Etcd` resource `etcd-main`: `kubectl annotate etcd etcd-main druid.gardener.cloud/ignore-reconciliation-`
+
+   10. Finally add the following annotation to the `Etcd` resource `etcd-main`: `kubectl annotate etcd etcd-main gardener.cloud/operation="reconcile"`
+
+   11. Verify that the etcd cluster is formed correctly.
 
        All the `etcd-main` pods will have outputs similar to following:
        ```
@@ -83,13 +104,13 @@ There are two [Etcd clusters](https://github.com/gardener/etcd-druid/tree/master
        etcd-main-2   2/2     Running   0          1m
        ```
        Additionally, check if the Etcd CR is ready with `kubectl get etcd etcd-main` :
-       ```                                                                                                                                                 ✹
+       ```
        NAME        READY   AGE
        etcd-main   true    13d
        ```
 
        Additionally, check the leases for 30 seconds at least. There should be leases starting with `etcd-main` as many as `etcd-main` replicas. One of those leases will have holder identity as `<etcd-member-id>:Leader` and rest of those leases have holder identities as `<etcd-member-id>:Member`. The `AGE` of those leases can also be inspected to identify if those leases were updated in conjunction with the restart of the Etcd cluster: Example:
-       
+
        ```
        NAME        HOLDER                  AGE
        etcd-main-0 4c37667312a3912b:Member 1m
