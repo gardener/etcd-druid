@@ -64,7 +64,7 @@ var (
 	uid                           = "a9b8c7d6e5f4"
 	imageEtcd                     = "eu.gcr.io/gardener-project/gardener/etcd-wrapper:v0.1.0"
 	imageBR                       = "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.25.0"
-	imageInitContainer            = "alpine:3.18.2"
+	imageInitContainer            = "eu.gcr.io/gardener-project/3rd/alpine:3.18.4"
 	snapshotSchedule              = "0 */24 * * *"
 	defragSchedule                = "0 */24 * * *"
 	container                     = "default.bkp"

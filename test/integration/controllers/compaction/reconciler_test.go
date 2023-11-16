@@ -619,7 +619,7 @@ func createCompactionJob(instance *druidv1alpha1.Etcd) *batchv1.Job {
 					Containers: []corev1.Container{
 						{
 							Name:    "compact-backup",
-							Image:   "eu.gcr.io/gardener-project/alpine:3.14",
+							Image:   "eu.gcr.io/gardener-project/3rd/alpine:3.18.4",
 							Command: []string{"sh", "-c", "tail -f /dev/null"},
 						},
 					},
