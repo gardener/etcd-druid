@@ -21,18 +21,20 @@ deploy:
         image: eu.gcr.io/gardener-project/gardener/etcd-druid
       imageStrategy:
         helm: {}
-      # Dependency builds create new dep archives and thus circumvent Docker's build cache at the next run.
       skipBuildDependencies: true
+      setValues:
+        enableBackupCompaction: "true" # Set the default value or specify it dynamically
+        eventsThreshold: 15 # Example value, adjust as needed
+        metricsScrapeWaitDuration: "30s" # Example value, adjust as needed
 profiles:
 - name: use-feature-gates
   activation:
   - env: "USE_ETCD_DRUID_FEATURE_GATES=true"
   patches:
   - op: add
-    path: /deploy/helm/releases/0/setValues
+    path: /deploy/helm/releases/0/setValues/featureGates
     value:
-      featureGates:
-        UseEtcdWrapper: true
+      UseEtcdWrapper: true
 ---
 apiVersion: skaffold/v2beta25
 kind: Config

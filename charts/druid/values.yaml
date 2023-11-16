@@ -6,8 +6,8 @@ image:
   imagePullPolicy: IfNotPresent
 replicas: 1
 ignoreOperationAnnotation: false
-enableBackupCompaction: true
-eventsThreshold: 15
-metricsScrapeWaitDuration: "10s"
+# enableBackupCompaction: true
+# eventsThreshold: 15
+# metricsScrapeWaitDuration: "10s"
 featureGates:
   UseEtcdWrapper: false
