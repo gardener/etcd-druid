@@ -109,9 +109,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	// Update metrics for currently running compaction job, if any
 	job := &batchv1.Job{}
-	err := r.Get(ctx, types.NamespacedName{Name: etcd.GetCompactionJobName(), Namespace: etcd.Namespace}, job)
-	if err != nil {
-		logger.Info("Could not fetch any running compaction job")
+	if err := r.Get(ctx, types.NamespacedName{Name: etcd.GetCompactionJobName(), Namespace: etcd.Namespace}, job); err != nil {
+		if errors.IsNotFound(err) {
+			logger.Info("Currently, no compaction job is running")
+		} else {
+			// Error reading the object - requeue the request.
+			return ctrl.Result{
+				RequeueAfter: 10 * time.Second,
+			}, err
+		}
 	}
 
 	if job != nil && job.Name != "" {
@@ -135,7 +141,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 			if job.Status.CompletionTime != nil {
 				metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue, druidmetrics.EtcdNamespace: etcd.Namespace}).Observe(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds())
 			}
-			if err = r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
+			if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 				logger.Error(err, "Couldn't delete the successful job", "namespace", etcd.Namespace, "name", etcd.GetCompactionJobName())
 				return ctrl.Result{
 					RequeueAfter: 10 * time.Second,
@@ -150,7 +156,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 			if job.Status.StartTime != nil {
 				metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse, druidmetrics.EtcdNamespace: etcd.Namespace}).Observe(time.Since(job.Status.StartTime.Time).Seconds())
 			}
-			err = r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground))
+			err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground))
 			if err != nil {
 				return ctrl.Result{
 					RequeueAfter: 10 * time.Second,
