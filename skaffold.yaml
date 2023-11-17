@@ -23,9 +23,9 @@ deploy:
         helm: {}
       skipBuildDependencies: true
       setValues:
-        enableBackupCompaction: "true" # Set the default value or specify it dynamically
-        eventsThreshold: 15 # Example value, adjust as needed
-        metricsScrapeWaitDuration: "30s" # Example value, adjust as needed
+        enableBackupCompaction: "true"
+        eventsThreshold: 15
+        metricsScrapeWaitDuration: "30s"
 profiles:
 - name: use-feature-gates
   activation:

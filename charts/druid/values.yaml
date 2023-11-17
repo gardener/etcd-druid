@@ -9,5 +9,5 @@ ignoreOperationAnnotation: false
 # enableBackupCompaction: true
 # eventsThreshold: 15
 # metricsScrapeWaitDuration: "10s"
-featureGates:
-  UseEtcdWrapper: false
+# featureGates:
+#   UseEtcdWrapper: true

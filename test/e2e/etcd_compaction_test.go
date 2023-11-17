@@ -1,4 +1,4 @@
-// Copyright (c) 2022 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file.
+// Copyright (c) 2023 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ var _ = Describe("Etcd Compaction", func() {
 					Expect(deployBackupSecret(parentCtx, cl, logger, provider, etcdNamespace, storageContainer))
 				})
 
-				It("Should test compaction on backup", func() {
+				It("should test compaction on backup", func() {
 					ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
 					defer cancelFunc()
 
@@ -101,11 +101,15 @@ var _ = Describe("Etcd Compaction", func() {
 					Expect(err).ShouldNot(HaveOccurred())
 
 					By("Check snapshot after putting data into etcd")
-					// allow 5 second buffer to upload full/delta snapshot
-					time.Sleep(time.Second * 5)
 
 					latestSnapshotsAfterPopulate, err := getLatestSnapshots(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
 					Expect(err).ShouldNot(HaveOccurred())
+
+					Eventually(func() int {
+						latestSnapshotsAfterPopulate, err = getLatestSnapshots(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
+						Expect(err).NotTo(HaveOccurred())
+						return len(latestSnapshotsAfterPopulate.DeltaSnapshots)
+					}, singleNodeEtcdTimeout, pollingInterval).Should(BeNumerically(">", len(latestSnapshotsBeforePopulate.DeltaSnapshots)))
 
 					latestSnapshotAfterPopulate := latestSnapshotsAfterPopulate.FullSnapshot
 					if numDeltas := len(latestSnapshotsAfterPopulate.DeltaSnapshots); numDeltas > 0 {
@@ -150,10 +154,7 @@ var _ = Describe("Etcd Compaction", func() {
 					}, singleNodeEtcdTimeout, pollingInterval).Should(BeNil())
 					logger.Info("compaction job is successful")
 
-					// allow 5 second buffer to upload full/delta snapshot
-					time.Sleep(time.Second * 5)
-
-					By("Verify that there is no delta snapshot as compaction would trigger at first 15th revision")
+					By("Verify that all the delta snapshots are compacted to full snapshots by compaction triggerred at first 15th revision")
 					latestSnapshotsAfterPopulate, err = getLatestSnapshots(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
 					Expect(err).ShouldNot(HaveOccurred())
 
