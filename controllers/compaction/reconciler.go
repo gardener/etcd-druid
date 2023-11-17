@@ -111,18 +111,18 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 	job := &batchv1.Job{}
 	if err := r.Get(ctx, types.NamespacedName{Name: etcd.GetCompactionJobName(), Namespace: etcd.Namespace}, job); err != nil {
 		if errors.IsNotFound(err) {
-			logger.Info("Currently, no compaction job is running")
+			logger.Info("Currently, no compaction job is running in the namespace ", etcd.Namespace)
 		} else {
 			// Error reading the object - requeue the request.
 			return ctrl.Result{
 				RequeueAfter: 10 * time.Second,
-			}, err
+			}, fmt.Errorf("error while fetching compaction job with the name %v, in the namespace %v: %v", etcd.GetCompactionJobName(), etcd.Namespace, err)
 		}
 	}
 
 	if job != nil && job.Name != "" {
 		if !job.DeletionTimestamp.IsZero() {
-			logger.Info("Job is already in deletion. A new job will be created only if the previous one has been deleted.", "namespace", job.Namespace, "name", job.Name)
+			logger.Info("Job is already in deletion. A new job will be created only if the previous one has been deleted.", "namespace: ", job.Namespace, "name: ", job.Name)
 			return ctrl.Result{
 				RequeueAfter: 10 * time.Second,
 			}, nil
