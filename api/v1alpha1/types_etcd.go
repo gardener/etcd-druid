@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 )
 
@@ -33,7 +34,7 @@ const (
 	ZlibCompression CompressionPolicy = "zlib"
 
 	// DefaultCompression is constant for default compression policy(only if compression is enabled).
-	DefaultCompression CompressionPolicy = GzipCompression
+	DefaultCompression = GzipCompression
 	// DefaultCompressionEnabled is constant to define whether to compress the snapshots or not.
 	DefaultCompressionEnabled = false
 
@@ -381,8 +382,14 @@ type EtcdStatus struct {
 	// +optional
 	ServiceName *string `json:"serviceName,omitempty"`
 	// LastError represents the last occurred error.
+	// Deprecated: Use LastErrors instead.
 	// +optional
 	LastError *string `json:"lastError,omitempty"`
+	// LastErrors captures errors that occurred during the last operation.
+	// +optional
+	LastErrors []LastError
+	// LastOperation indicates the last operation performed on this resource.
+	LastOperation *LastOperation
 	// Cluster size is the current size of the etcd cluster.
 	// Deprecated: this field will not be populated with any value and will be removed in the future.
 	// +optional
@@ -416,6 +423,68 @@ type EtcdStatus struct {
 	PeerUrlTLSEnabled *bool `json:"peerUrlTLSEnabled,omitempty"`
 }
 
+// LastOperationType is a string alias representing type of the last operation.
+type LastOperationType string
+
+const (
+	// LastOperationTypeCreate indicates that the last operation was a creation of a new etcd resource.
+	LastOperationTypeCreate LastOperationType = "Create"
+	// LastOperationTypeReconcile indicates that the last operation was a reconciliation of the spec of an etcd resource.
+	LastOperationTypeReconcile LastOperationType = "Reconcile"
+	// LastOperationTypeDelete indicates that the last operation was a deletion of an existing etcd resource.
+	LastOperationTypeDelete LastOperationType = "Delete"
+)
+
+// LastOperationState is a string alias representing the state of the last operation.
+type LastOperationState string
+
+const (
+	// LastOperationStateProcessing indicates that an operation is in progress.
+	LastOperationStateProcessing LastOperationState = "Processing"
+	// LastOperationStateSucceeded indicates that an operation has completed successfully.
+	LastOperationStateSucceeded LastOperationState = "Succeeded"
+	// LastOperationStateError indicates that an operation is completed with errors and will be retried.
+	LastOperationStateError LastOperationState = "Error"
+)
+
+// LastOperation holds the information on the last operation done on this resource.
+type LastOperation struct {
+	// Type is the type of last operation.
+	Type LastOperationType `json:"type"`
+	// State is the state of the last operation.
+	State LastOperationState `json:"state"`
+	// Description describes the last operation.
+	Description string `json:"description"`
+	// RunID correlates an operation with a reconciliation run.
+	// Every time an etcd resource is reconciled (barring status reconciliation which is periodic), a unique ID is
+	// generated which can be used to correlate all actions done as part of a single reconcile run. Capturing this
+	// as part of LastOperation aids in establishing this correlation. This further helps in also easily filtering
+	// reconcile logs as all structured logs in a reconcile run should have the `runID` referenced.
+	RunID string
+	// LastUpdateTime is the time at which the operation was updated.
+	LastUpdateTime metav1.Time `json:"lastUpdateTime"`
+}
+
+// ErrorCode is a string alias representing an error code that identifies an error.
+type ErrorCode string
+
+type LastError struct {
+	// Code is an error code that uniquely identifies an error.
+	Code ErrorCode
+	// Description is a human-readable message indicating details of the error.
+	Description string
+	// LastUpdateTime is the time the error was reported.
+	LastUpdateTime metav1.Time
+}
+
+// GetNamespaceName is a convenience function which creates a types.NamespacedName for an etcd resource.
+func (e *Etcd) GetNamespaceName() types.NamespacedName {
+	return types.NamespacedName{
+		Namespace: e.Namespace,
+		Name:      e.Name,
+	}
+}
+
 // GetPeerServiceName returns the peer service name for the Etcd cluster reachable by members within the Etcd cluster.
 func (e *Etcd) GetPeerServiceName() string {
 	return fmt.Sprintf("%s-peer", e.Name)
@@ -431,8 +500,8 @@ func (e *Etcd) GetServiceAccountName() string {
 	return e.Name
 }
 
-// GetConfigmapName returns the name of the configmap for the Etcd.
-func (e *Etcd) GetConfigmapName() string {
+// GetConfigMapName returns the name of the configmap for the Etcd.
+func (e *Etcd) GetConfigMapName() string {
 	return fmt.Sprintf("etcd-bootstrap-%s", string(e.UID[:6]))
 }
 
@@ -454,6 +523,16 @@ func (e *Etcd) GetDeltaSnapshotLeaseName() string {
 // GetFullSnapshotLeaseName returns the name of the full snapshot lease for the Etcd.
 func (e *Etcd) GetFullSnapshotLeaseName() string {
 	return fmt.Sprintf("%s-full-snap", e.Name)
+}
+
+// GetMemberLeaseNames returns the name of member leases for the Etcd.
+func (e *Etcd) GetMemberLeaseNames() []string {
+	numReplicas := int(e.Spec.Replicas)
+	leaseNames := make([]string, 0, numReplicas)
+	for i := 0; i < numReplicas; i++ {
+		leaseNames = append(leaseNames, fmt.Sprintf("%s-%d", e.Name, i))
+	}
+	return leaseNames
 }
 
 // GetDefaultLabels returns the default labels for etcd.
@@ -484,4 +563,14 @@ func (e *Etcd) GetRoleName() string {
 // GetRoleBindingName returns the rolebinding name for the Etcd
 func (e *Etcd) GetRoleBindingName() string {
 	return fmt.Sprintf("%s:etcd:%s", GroupVersion.Group, e.Name)
+}
+
+// IsBackupEnabled returns true if backup has been enabled for this etcd, else returns false.
+func (e *Etcd) IsBackupEnabled() bool {
+	return e.Spec.Backup.Store != nil
+}
+
+// IsMarkedForDeletion returns true if a deletion timestamp has been set and false otherwise.
+func (e *Etcd) IsMarkedForDeletion() bool {
+	return !e.DeletionTimestamp.IsZero()
 }
