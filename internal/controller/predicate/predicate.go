@@ -22,6 +22,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
+	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -78,36 +79,6 @@ func LastOperationNotSuccessful() predicate.Predicate {
 		},
 		DeleteFunc: func(event event.DeleteEvent) bool {
 			return operationNotSucceeded(event.Object)
-		},
-	}
-}
-
-// StatefulSetStatusChange is a predicate for status changes of `StatefulSet` resources.
-func StatefulSetStatusChange() predicate.Predicate {
-	statusChange := func(objOld, objNew client.Object) bool {
-		stsOld, ok := objOld.(*appsv1.StatefulSet)
-		if !ok {
-			return false
-		}
-		stsNew, ok := objNew.(*appsv1.StatefulSet)
-		if !ok {
-			return false
-		}
-		return !apiequality.Semantic.DeepEqual(stsOld.Status, stsNew.Status)
-	}
-
-	return predicate.Funcs{
-		CreateFunc: func(event event.CreateEvent) bool {
-			return true
-		},
-		UpdateFunc: func(event event.UpdateEvent) bool {
-			return statusChange(event.ObjectOld, event.ObjectNew)
-		},
-		GenericFunc: func(event event.GenericEvent) bool {
-			return true
-		},
-		DeleteFunc: func(event event.DeleteEvent) bool {
-			return true
 		},
 	}
 }
@@ -210,6 +181,86 @@ func JobStatusChanged() predicate.Predicate {
 		},
 		UpdateFunc: func(event event.UpdateEvent) bool {
 			return statusChange(event.ObjectOld, event.ObjectNew)
+		},
+		GenericFunc: func(event event.GenericEvent) bool {
+			return false
+		},
+		DeleteFunc: func(event event.DeleteEvent) bool {
+			return false
+		},
+	}
+}
+
+// StatefulSetSpecChange is a predicate for status changes of `StatefulSet` resources.
+func StatefulSetSpecChange() predicate.Predicate {
+	specChange := func(objOld, objNew client.Object) bool {
+		stsOld, ok := objOld.(*appsv1.StatefulSet)
+		if !ok {
+			return false
+		}
+		stsNew, ok := objNew.(*appsv1.StatefulSet)
+		if !ok {
+			return false
+		}
+		return !apiequality.Semantic.DeepEqual(stsOld.Spec, stsNew.Spec)
+	}
+
+	return predicate.Funcs{
+		CreateFunc: func(event event.CreateEvent) bool {
+			return true
+		},
+		UpdateFunc: func(event event.UpdateEvent) bool {
+			return specChange(event.ObjectOld, event.ObjectNew)
+		},
+		GenericFunc: func(event event.GenericEvent) bool {
+			return true
+		},
+		DeleteFunc: func(event event.DeleteEvent) bool {
+			return true
+		},
+	}
+}
+
+func StatefulSetContainerResourcesChange() predicate.Predicate {
+	containerResourcesChange := func(objOld, objNew client.Object) bool {
+		stsOld, ok := objOld.(*appsv1.StatefulSet)
+		if !ok {
+			return false
+		}
+		stsNew, ok := objNew.(*appsv1.StatefulSet)
+		if !ok {
+			return false
+		}
+
+		containersOld := make(map[string]*corev1.Container)
+		containersNew := make(map[string]*corev1.Container)
+
+		if len(stsOld.Spec.Template.Spec.Containers) != len(stsNew.Spec.Template.Spec.Containers) {
+			return true
+		}
+		for _, c := range stsOld.Spec.Template.Spec.Containers {
+			containersOld[c.Name] = &c
+		}
+		for _, cNew := range stsNew.Spec.Template.Spec.Containers {
+			containersNew[cNew.Name] = &cNew
+			cOld, ok := containersOld[cNew.Name]
+			if !ok {
+				return true
+			}
+			if !apiequality.Semantic.DeepEqual(cNew.Resources, cOld.Resources) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	return predicate.Funcs{
+		CreateFunc: func(event event.CreateEvent) bool {
+			return false
+		},
+		UpdateFunc: func(event event.UpdateEvent) bool {
+			return containerResourcesChange(event.ObjectOld, event.ObjectNew)
 		},
 		GenericFunc: func(event event.GenericEvent) bool {
 			return false

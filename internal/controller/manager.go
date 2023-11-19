@@ -18,9 +18,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/gardener/etcd-druid/controllers/custodian"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/controller/compaction"
+	"github.com/gardener/etcd-druid/internal/controller/custodian"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
@@ -96,9 +96,7 @@ func registerControllersWithManager(mgr ctrl.Manager, config *ManagerConfig) err
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-	if err = custodianReconciler.RegisterWithManager(ctx, mgr, config.IgnoreOperationAnnotation); err != nil {
+	if err = custodianReconciler.RegisterWithManager(mgr); err != nil {
 		return err
 	}
 
@@ -123,6 +121,8 @@ func registerControllersWithManager(mgr ctrl.Manager, config *ManagerConfig) err
 	}
 
 	// Add secret reconciler to the manager
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
 	return secret.NewReconciler(
 		mgr,
 		config.SecretControllerConfig,

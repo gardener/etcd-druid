@@ -17,8 +17,8 @@ package controller
 import (
 	"fmt"
 
-	"github.com/gardener/etcd-druid/controllers/custodian"
 	"github.com/gardener/etcd-druid/internal/controller/compaction"
+	"github.com/gardener/etcd-druid/internal/controller/custodian"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
