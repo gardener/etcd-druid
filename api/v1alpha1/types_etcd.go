@@ -468,6 +468,7 @@ type LastOperation struct {
 // ErrorCode is a string alias representing an error code that identifies an error.
 type ErrorCode string
 
+// LastError stores details of the most recent error encountered for a resource.
 type LastError struct {
 	// Code is an error code that uniquely identifies an error.
 	Code ErrorCode `json:"code"`

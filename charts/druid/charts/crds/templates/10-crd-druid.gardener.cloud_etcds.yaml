@@ -1841,6 +1841,8 @@ spec:
                 description: LastErrors captures errors that occurred during the last
                   operation.
                 items:
+                  description: LastError stores details of the most recent error encountered
+                    for a resource.
                   properties:
                     code:
                       description: Code is an error code that uniquely identifies
