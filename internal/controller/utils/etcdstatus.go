@@ -5,7 +5,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/resource"
+	"github.com/gardener/etcd-druid/internal/registry/resource"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"

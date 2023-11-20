@@ -7,7 +7,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
-	"github.com/gardener/etcd-druid/internal/resource"
+	"github.com/gardener/etcd-druid/internal/registry/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/go-logr/logr"

@@ -2,7 +2,7 @@ package rolebinding
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/resource"
+	"github.com/gardener/etcd-druid/internal/registry/resource"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/go-logr/logr"
 	rbacv1 "k8s.io/api/rbac/v1"

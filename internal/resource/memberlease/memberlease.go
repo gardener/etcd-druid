@@ -5,8 +5,9 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
-	"github.com/gardener/etcd-druid/internal/resource"
+	"github.com/gardener/etcd-druid/internal/registry/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
+
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/flow"
