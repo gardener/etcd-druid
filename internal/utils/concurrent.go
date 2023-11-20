@@ -5,7 +5,7 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"github.com/gardener/etcd-druid/internal/registry/resource"
+	"github.com/gardener/etcd-druid/internal/operator/resource"
 )
 
 // OperatorTask is a holder for a named function.

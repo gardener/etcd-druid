@@ -5,8 +5,8 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
-	"github.com/gardener/etcd-druid/internal/registry"
-	"github.com/gardener/etcd-druid/internal/registry/resource"
+	"github.com/gardener/etcd-druid/internal/operator"
+	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
@@ -24,7 +24,7 @@ type Reconciler struct {
 	config            *Config
 	recorder          record.EventRecorder
 	imageVector       imagevector.ImageVector
-	operatorRegistry  registry.OperatorRegistry
+	operatorRegistry  operator.Registry
 	lastOpErrRecorder ctrlutils.LastOperationErrorRecorder
 	logger            logr.Logger
 }
@@ -36,9 +36,9 @@ func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 	if err != nil {
 		return nil, err
 	}
-	operatorReg := registry.NewOperatorRegistry(mgr.GetClient(),
+	operatorReg := operator.NewRegistry(mgr.GetClient(),
 		logger,
-		registry.OperatorConfig{
+		operator.Config{
 			DisableEtcdServiceAccountAutomount: config.DisableEtcdServiceAccountAutomount,
 		},
 	)

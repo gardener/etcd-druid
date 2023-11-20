@@ -15,13 +15,16 @@
 package utils
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -58,6 +61,16 @@ func ContainsFinalizer(o client.Object, finalizer string) bool {
 		}
 	}
 	return false
+}
+
+func GetLatestEtcd(ctx context.Context, client client.Client, objectKey client.ObjectKey, etcd *druidv1alpha1.Etcd) ReconcileStepResult {
+	if err := client.Get(ctx, objectKey, etcd); err != nil {
+		if apierrors.IsNotFound(err) {
+			return DoNotRequeue()
+		}
+		return ReconcileWithError(err)
+	}
+	return ContinueReconcile()
 }
 
 type ReconcileStepResult struct {
@@ -108,6 +121,14 @@ func ReconcileAfter(period time.Duration, description string) ReconcileStepResul
 		continueReconcile: false,
 		result:            ctrl.Result{RequeueAfter: period},
 		description:       description,
+	}
+}
+
+func ReconcileWithErrorAfter(period time.Duration, errs ...error) ReconcileStepResult {
+	return ReconcileStepResult{
+		result:            ctrl.Result{RequeueAfter: period},
+		errs:              errs,
+		continueReconcile: false,
 	}
 }
 

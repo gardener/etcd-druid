@@ -1,26 +1,25 @@
-package registry
+package operator
 
 import (
-	"github.com/gardener/etcd-druid/internal/registry/resource"
-	"github.com/gardener/etcd-druid/internal/resource/clientservice"
-	"github.com/gardener/etcd-druid/internal/resource/configmap"
-	"github.com/gardener/etcd-druid/internal/resource/memberlease"
-	"github.com/gardener/etcd-druid/internal/resource/peerservice"
-	"github.com/gardener/etcd-druid/internal/resource/poddistruptionbudget"
-	"github.com/gardener/etcd-druid/internal/resource/role"
-	"github.com/gardener/etcd-druid/internal/resource/rolebinding"
-	"github.com/gardener/etcd-druid/internal/resource/serviceaccount"
-	"github.com/gardener/etcd-druid/internal/resource/snapshotlease"
-
+	"github.com/gardener/etcd-druid/internal/operator/clientservice"
+	"github.com/gardener/etcd-druid/internal/operator/configmap"
+	"github.com/gardener/etcd-druid/internal/operator/memberlease"
+	"github.com/gardener/etcd-druid/internal/operator/peerservice"
+	"github.com/gardener/etcd-druid/internal/operator/poddistruptionbudget"
+	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/role"
+	"github.com/gardener/etcd-druid/internal/operator/rolebinding"
+	"github.com/gardener/etcd-druid/internal/operator/serviceaccount"
+	"github.com/gardener/etcd-druid/internal/operator/snapshotlease"
 	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type OperatorConfig struct {
+type Config struct {
 	DisableEtcdServiceAccountAutomount bool
 }
 
-type OperatorRegistry interface {
+type Registry interface {
 	AllOperators() map[Kind]resource.Operator
 	StatefulSetOperator() resource.Operator
 	ServiceAccountOperator() resource.Operator
@@ -53,7 +52,7 @@ type registry struct {
 	operators map[Kind]resource.Operator
 }
 
-func NewOperatorRegistry(client client.Client, logger logr.Logger, config OperatorConfig) OperatorRegistry {
+func NewRegistry(client client.Client, logger logr.Logger, config Config) Registry {
 	operators := make(map[Kind]resource.Operator)
 	operators[ConfigMapKind] = configmap.New(client, logger)
 	operators[ServiceAccountKind] = serviceaccount.New(client, logger, config.DisableEtcdServiceAccountAutomount)

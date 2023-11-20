@@ -17,6 +17,7 @@ package utils
 import (
 	"fmt"
 	"maps"
+	"strings"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -85,18 +86,17 @@ func Key(namespaceOrName string, nameOpt ...string) client.ObjectKey {
 	return client.ObjectKey{Namespace: namespace, Name: name}
 }
 
-// Max returns the larger of x or y.
-func Max(x, y int) int {
-	if y > x {
-		return y
-	}
-	return x
-}
-
 // TypeDeref dereferences a pointer to a type if it is not nil, else it returns the default value.
 func TypeDeref[T any](val *T, defaultVal T) T {
 	if val != nil {
 		return *val
 	}
 	return defaultVal
+}
+
+func IsEmptyString(s string) bool {
+	if len(strings.TrimSpace(s)) == 0 {
+		return true
+	}
+	return false
 }

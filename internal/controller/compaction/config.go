@@ -29,18 +29,24 @@ var featureList = []featuregate.Feature{
 	features.UseEtcdWrapper,
 }
 
+// Flag name constants
 const (
-	enableBackupCompactionFlagName    = "enable-backup-compaction"
-	workersFlagName                   = "compaction-workers"
-	eventsThresholdFlagName           = "etcd-events-threshold"
-	activeDeadlineDurationFlagName    = "active-deadline-duration"
-	metricsScrapeWaitDurationFlagname = "metrics-scrape-wait-duration"
+	enableBackupCompactionFlagName                 = "enable-backup-compaction"
+	workersFlagName                                = "compaction-workers"
+	eventsThresholdFlagName                        = "etcd-events-threshold"
+	activeDeadlineDurationFlagName                 = "active-deadline-duration"
+	cleanupDeadlineDurationAfterCompletionFlagName = "cleanup-deadline-duration-after-completion"
+	metricsScrapeWaitDurationFlagname              = "metrics-scrape-wait-duration"
+)
 
-	defaultEnableBackupCompaction    = false
-	defaultCompactionWorkers         = 3
-	defaultEventsThreshold           = 1000000
-	defaultActiveDeadlineDuration    = 3 * time.Hour
-	defaultMetricsScrapeWaitDuration = 0
+// Default value constants
+const (
+	defaultEnableBackupCompaction                 = false
+	defaultCompactionWorkers                      = 3
+	defaultEventsThreshold                        = 1000000
+	defaultActiveDeadlineDuration                 = 3 * time.Hour
+	defaultCleanupDeadlineDurationAfterCompletion = 3 * time.Hour
+	defaultMetricsScrapeWaitDuration              = 0
 )
 
 // Config contains configuration for the Compaction Controller.
@@ -53,6 +59,10 @@ type Config struct {
 	EventsThreshold int64
 	// ActiveDeadlineDuration is the duration after which a running compaction job will be killed.
 	ActiveDeadlineDuration time.Duration
+	// CleanupDeadlineAfterCompletion is the duration after which an explicit cleanup of resources used by compaction will be done.
+	// This will ensure that resources used by compaction are eventually cleaned up. This additionally ensures that an operator
+	// can inspect the resources before they are cleaned-up.
+	CleanupDeadlineDurationAfterCompletion time.Duration
 	// MetricsScrapeWaitDuration is the duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped
 	MetricsScrapeWaitDuration time.Duration
 	// FeatureGates contains the feature gates to be used by Compaction Controller.
@@ -68,9 +78,11 @@ func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 	fs.Int64Var(&cfg.EventsThreshold, eventsThresholdFlagName, defaultEventsThreshold,
 		"Total number of etcd events that can be allowed before a backup compaction job is triggered.")
 	fs.DurationVar(&cfg.ActiveDeadlineDuration, activeDeadlineDurationFlagName, defaultActiveDeadlineDuration,
-		"Duration after which a running backup compaction job will be killed (Ex: \"300ms\", \"20s\" or \"2h45m\").\").")
+		"Duration after which a running backup compaction job will be killed (Ex: \"300ms\", \"20s\" or \"2h45m\").\" or similar).")
+	fs.DurationVar(&cfg.CleanupDeadlineDurationAfterCompletion, cleanupDeadlineDurationAfterCompletionFlagName, defaultCleanupDeadlineDurationAfterCompletion,
+		"Duration after which resources consumed by a completed compaction is cleaned up (Ex: \\\"300ms\\\" or \\\"2h45m\\\" or similar).\\\").")
 	fs.DurationVar(&cfg.MetricsScrapeWaitDuration, metricsScrapeWaitDurationFlagname, defaultMetricsScrapeWaitDuration,
-		"Duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped (Ex: \"300ms\", \"60s\" or \"2h45m\").\").")
+		"Duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped (Ex: \"300ms\", \"60s\" or \"2h45m\").\" or similar).")
 }
 
 // Validate validates the config.
