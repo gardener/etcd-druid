@@ -111,7 +111,7 @@ func GenerateValues(
 
 		AutoCompactionMode:      etcd.Spec.Common.AutoCompactionMode,
 		AutoCompactionRetention: etcd.Spec.Common.AutoCompactionRetention,
-		ConfigMapName:           etcd.GetConfigmapName(),
+		ConfigMapName:           etcd.GetConfigMapName(),
 		PeerTLSChangedToEnabled: peerTLSChangedToEnabled,
 
 		UseEtcdWrapper: useEtcdWrapper,

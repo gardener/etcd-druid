@@ -17,7 +17,7 @@ import (
 func GenerateValues(etcd *druidv1alpha1.Etcd) *Values {
 	initialCluster := prepareInitialCluster(etcd)
 	values := &Values{
-		Name:                    etcd.GetConfigmapName(),
+		Name:                    etcd.GetConfigMapName(),
 		EtcdUID:                 etcd.UID,
 		Metrics:                 etcd.Spec.Etcd.Metrics,
 		Quota:                   etcd.Spec.Etcd.Quota,
