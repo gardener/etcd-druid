@@ -1834,8 +1834,67 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
               lastError:
-                description: LastError represents the last occurred error.
+                description: 'LastError represents the last occurred error. Deprecated:
+                  Use LastErrors instead.'
                 type: string
+              lastErrors:
+                description: LastErrors captures errors that occurred during the last
+                  operation.
+                items:
+                  properties:
+                    code:
+                      description: Code is an error code that uniquely identifies
+                        an error.
+                      type: string
+                    description:
+                      description: Description is a human-readable message indicating
+                        details of the error.
+                      type: string
+                    lastUpdateTime:
+                      description: LastUpdateTime is the time the error was reported.
+                      format: date-time
+                      type: string
+                  required:
+                  - code
+                  - description
+                  - lastUpdateTime
+                  type: object
+                type: array
+              lastOperation:
+                description: LastOperation indicates the last operation performed
+                  on this resource.
+                properties:
+                  description:
+                    description: Description describes the last operation.
+                    type: string
+                  lastUpdateTime:
+                    description: LastUpdateTime is the time at which the operation
+                      was updated.
+                    format: date-time
+                    type: string
+                  rundID:
+                    description: RunID correlates an operation with a reconciliation
+                      run. Every time an etcd resource is reconciled (barring status
+                      reconciliation which is periodic), a unique ID is generated
+                      which can be used to correlate all actions done as part of a
+                      single reconcile run. Capturing this as part of LastOperation
+                      aids in establishing this correlation. This further helps in
+                      also easily filtering reconcile logs as all structured logs
+                      in a reconcile run should have the `runID` referenced.
+                    type: string
+                  state:
+                    description: State is the state of the last operation.
+                    type: string
+                  type:
+                    description: Type is the type of last operation.
+                    type: string
+                required:
+                - description
+                - lastUpdateTime
+                - rundID
+                - state
+                - type
+                type: object
               members:
                 description: Members represents the members of the etcd cluster
                 items:
