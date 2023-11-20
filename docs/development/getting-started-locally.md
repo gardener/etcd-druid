@@ -1,11 +1,11 @@
 # Etcd-Druid Local Setup
 
-This page aims to provide steps on how to setup Etcd-Druid locally with/without storage providers
+This page aims to provide steps on how to setup Etcd-Druid locally with and without storage providers
 
 ## Prerequisites 
 
 
-### [Optional] Installing [k9s](https://k9scli.io/) 
+### [Optional] Installing [k9s](https://k9scli.io/topics/install/) 
 
 [k9s](https://k9scli.io/) is an interactive terminal based UI to play with your kubernetes cluster. Makes it easy to interact with the cluster resources
 
@@ -50,7 +50,7 @@ make kind-up
 
 This creates a new kind cluster and stores the kubeconfig in the  `./hack/e2e-test/infrastructure/kind/kubeconfig` file.
 
-To target this newly created cluster, set the `KUBECONFIG` environment variable to the kubeconfig file located at `./hack/e2e-test/infrastructure/kind/kubeconfig` by doing 
+To target this newly created cluster, set the `KUBECONFIG` environment variable to the kubeconfig file located at `./hack/e2e-test/infrastructure/kind/kubeconfig` by using the following 
 ```sh
 export KUBECONFIG=$PWD/hack/e2e-test/infrastructure/kind/kubeconfig
 ```
@@ -58,74 +58,74 @@ export KUBECONFIG=$PWD/hack/e2e-test/infrastructure/kind/kubeconfig
 ### Setting up Etcd-Druid
 
 * 
-    Generates the Etcd CRD and deploy etcd-druid into the cluster
+    Generates the Etcd CRD and deploy an etcd-druid pod into the cluster
     ```sh
     make deploy
     ```
 
-### Without Backups enabled
+### Applying the etcd CR
 
-To setup Etcd-druid without backups enabled, apply the Etcd yaml to the cluster 
-```sh
-# Apply the druid yaml
-kubectl apply -f config/samples/druid_v1alpha1_etcd.yaml
-``` 
+- **Without Backups enabled**
 
-Confirm that the `spec.backup.store` is commented out.
+    To setup Etcd-druid without backups enabled, apply the Etcd yaml to the cluster 
 
-This creates an Etcd resource but it won't be reconciled without annotation. To reconcile the Etcd, annotate `gardener.cloud/operation:reconcile` on the Etcd resource.
+    Confirm that the `spec.backup.store` is commented out.
+    ```sh
+    # Apply the etcd CR yaml
+    kubectl apply -f config/samples/druid_v1alpha1_etcd.yaml
+    ``` 
+
+- **With Backups enabled (On Cloud Object Stores)**
+
+    Create a secret for cloud provider access. Find the secret yaml templates for different cloud providers [here](https://github.com/gardener/etcd-backup-restore/tree/master/example/storage-provider-secrets). 
+
+    Replace the dummy values with the actual configurations and make sure to add a name and a namespace to the secret as intended. 
+
+    >Note 1): The secret should be applied in the same namespace as druid.
+    >
+    >Note 2): All the values in the data field of secret yaml should be in base64 encoded format.
+
+    <b>Apply the secret</b> 
+    ```sh
+    kubectl apply -f path/to/secret
+    ``````
+
+    Uncomment the `spec.backup.store` section of the druid yaml and set the keys to allow backuprestore to take backups by connecting to an object store. 
+
+    ```yaml
+    # Configuration for storage provider
+    store:
+        secretRef:
+            name: etcd-backup-secret-name
+        container: object-storage-container-name
+        provider: aws # options: aws,azure,gcp,openstack,alicloud,dell,openshift,local
+        prefix: etcd-test
+    ```
+    Brief explanation of keys:
+
+    * `secretRef.name` is the name of the secret that was applied as mentioned above
+    * `store.container` is the object storage bucket name
+    * `store.provider`  is the bucket provider. Pick from the options mentioned in comment
+    * `store.prefix`    is the folder name that you want to use for your snapshots.
+
+    > Note: Before applying the Etcd yaml, make sure the bucket is created in the corresponding cloud provider
+
+
+    Create the Etcd CR (Custom Resource) by applying the Etcd yaml to the cluster 
+    ```sh
+    # Apply the etcd CR yaml
+    kubectl apply -f config/samples/druid_v1alpha1_etcd.yaml
+    ```
+
+### Annotate the etcd CR 
+
+The above step creates an Etcd resource, however etcd-druid won't pick it up for reconciliation without an annotation. To get etcd-druid to reconcile the etcd CR, annotate it with the following `gardener.cloud/operation:reconcile`.
 
 ```sh
 # Annotate etcd-test CR to reconcile
 kubectl annotate etcd etcd-test gardener.cloud/operation="reconcile"
 ```
-
-This should start creating the etcd cluster by rolling the pods one by one to ensure quorum is never lost.
-
-### With Backups enabled on an actual cloud provider
-
-Create a secret for cloud provider access. Find the secret yaml templates for different cloud providers [here](https://github.com/gardener/etcd-backup-restore/tree/master/example/storage-provider-secrets). 
-
-Replace the dummy values with the actual configurations and make sure to name and namespace the secret as intended. 
-
->Note 1): The secret should be applied in the same namespace as druid.
->
->Note 2): All the values in the data field of secret yaml should be in base64 encoded format.
-
-<b>Apply the secret</b> `kubectl apply -f path_to_secret`
-
-Uncomment the `spec.backup.store` section of the druid yaml and set the keys to allow backuprestore to take backups by connecting to an object store. 
-
-```yaml
-# Configuration for storage provider
-store:
-    secretRef:
-        name: etcd-backup-secret-name
-    container: object-storage-container-name
-    provider: aws # options: aws,azure,gcp,openstack,alicloud,dell,openshift,local
-    prefix: etcd-test
-```
-Brief explanation of keys:
-
-* `secretRef.name` is the name of the secret that was applied as mentioned above
-* `store.container` is the object storage bucket name
-* `store.provider`  is the bucket provider. Pick from the options mentioned in comment
-* `store.prefix`    is the folder name that you want to use for your snapshots.
-
-> Note: Before applying the Etcd yaml, make sure the bucket is created in the corresponding cloud provider
-
-
-Create the Etcd CR (Custom Resource) by applying the Etcd yaml to the cluster 
-```sh
-# Apply the druid yaml
-kubectl apply -f config/samples/druid_v1alpha1_etcd.yaml
-```
-
-Reconcile the controller to create Etcd cluster by annotating the Etcd CR with `gardener.cloud/operation:reconcile`.
-```sh
-# Annotate etcd-test CR to reconcile
-kubectl annotate etcd etcd-test gardener.cloud/operation="reconcile"
-```
+This starts creating the etcd cluster
 
 ## Cleaning the setup
 
@@ -134,4 +134,4 @@ kubectl annotate etcd etcd-test gardener.cloud/operation="reconcile"
 make kind-down
 ```
 
-This deletes the created Etcd and all pods that got created along the way and also other resources such as statefulsets, services, PV's, PVC's, etc.
+This cleans up the cluster i.e deletes the created Etcd and all pods that got created along the way and also other resources such as statefulsets, services, PV's, PVC's, etc.
