@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -309,7 +310,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 		},
 	}
 
-	if vms, err := getCompactionJobVolumeMounts(etcd); err != nil {
+	if vms, err := getCompactionJobVolumeMounts(etcd, r.config.FeatureGates); err != nil {
 		return nil, fmt.Errorf("error while creating compaction job in %v for %v : %v",
 			etcd.Namespace,
 			etcd.Name,
@@ -360,7 +361,7 @@ func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 		"networking.gardener.cloud/to-public-networks":  "allowed",
 	}
 }
-func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd) ([]v1.VolumeMount, error) {
+func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featuregate.Feature]bool) ([]v1.VolumeMount, error) {
 	vms := []v1.VolumeMount{
 		{
 			Name:      "etcd-workspace-dir",
@@ -374,10 +375,17 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd) ([]v1.VolumeMount, e
 	}
 	switch provider {
 	case utils.Local:
-		vms = append(vms, v1.VolumeMount{
-			Name:      "host-storage",
-			MountPath: pointer.StringDeref(etcd.Spec.Backup.Store.Container, ""),
-		})
+		if featureMap[features.UseEtcdWrapper] {
+			vms = append(vms, v1.VolumeMount{
+				Name:      "host-storage",
+				MountPath: "/home/nonroot/" + pointer.StringDeref(etcd.Spec.Backup.Store.Container, ""),
+			})
+		} else {
+			vms = append(vms, v1.VolumeMount{
+				Name:      "host-storage",
+				MountPath: pointer.StringDeref(etcd.Spec.Backup.Store.Container, ""),
+			})
+		}
 	case utils.GCS:
 		vms = append(vms, v1.VolumeMount{
 			Name:      "etcd-backup",

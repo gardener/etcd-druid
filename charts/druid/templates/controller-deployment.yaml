@@ -26,6 +26,16 @@ spec:
         - --ignore-operation-annotation={{ .Values.ignoreOperationAnnotation }}
         - --workers=3
         - --custodian-sync-period=15s
+        {{- if .Values.enableBackupCompaction }}
+        - --enable-backup-compaction={{ .Values.enableBackupCompaction }}
+        {{- end }}
+        {{- if .Values.eventsThreshold }}
+        - --etcd-events-threshold={{ .Values.eventsThreshold }}
+        {{- end }}
+        {{- if .Values.metricsScrapeWaitDuration }}
+        - --metrics-scrape-wait-duration={{ .Values.metricsScrapeWaitDuration }}
+        {{- end }}
+
         {{- if .Values.featureGates }}
         {{- $featuregates := "" }}
         {{- range $feature, $value := $.Values.featureGates }}
