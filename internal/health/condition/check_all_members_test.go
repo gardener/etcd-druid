@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	. "github.com/gardener/etcd-druid/pkg/health/condition"
+	. "github.com/gardener/etcd-druid/internal/health/condition"
 )
 
 var _ = Describe("AllMembersReadyCheck", func() {
@@ -51,7 +51,7 @@ var _ = Describe("AllMembersReadyCheck", func() {
 						},
 					},
 				}
-				check := AllMembersCheck(nil)
+				check := AllMembersReadyCheck(nil)
 
 				result := check.Check(context.TODO(), etcd)
 
@@ -72,7 +72,7 @@ var _ = Describe("AllMembersReadyCheck", func() {
 						},
 					},
 				}
-				check := AllMembersCheck(nil)
+				check := AllMembersReadyCheck(nil)
 
 				result := check.Check(context.TODO(), etcd)
 
@@ -92,7 +92,7 @@ var _ = Describe("AllMembersReadyCheck", func() {
 						},
 					},
 				}
-				check := AllMembersCheck(nil)
+				check := AllMembersReadyCheck(nil)
 
 				result := check.Check(context.TODO(), etcd)
 
@@ -112,7 +112,7 @@ var _ = Describe("AllMembersReadyCheck", func() {
 						Members: []druidv1alpha1.EtcdMemberStatus{},
 					},
 				}
-				check := AllMembersCheck(nil)
+				check := AllMembersReadyCheck(nil)
 
 				result := check.Check(context.TODO(), etcd)
 

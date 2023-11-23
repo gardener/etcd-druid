@@ -18,22 +18,21 @@ import (
 	"context"
 	"time"
 
-	"k8s.io/utils/pointer"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/health/condition"
+	"github.com/gardener/etcd-druid/internal/health/etcdmember"
+	. "github.com/gardener/etcd-druid/internal/health/status"
 
-	"github.com/go-logr/logr"
-
-	"github.com/gardener/etcd-druid/pkg/health/condition"
-	"github.com/gardener/etcd-druid/pkg/health/etcdmember"
-	"github.com/gardener/gardener/pkg/utils/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
+
+	"github.com/gardener/gardener/pkg/utils/test"
+	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	. "github.com/gardener/etcd-druid/pkg/health/status"
 )
 
 var _ = Describe("Check", func() {
@@ -113,6 +112,9 @@ var _ = Describe("Check", func() {
 				},
 				func(client.Client) condition.Checker {
 					return createConditionCheck(druidv1alpha1.ConditionTypeBackupReady, druidv1alpha1.ConditionUnknown, "foobar reason", "foobar message")
+				},
+				func(client.Client) condition.Checker {
+					return createConditionCheck(druidv1alpha1.ConditionTypeDataVolumesReady, druidv1alpha1.ConditionUnknown, "foobar reason", "foobar message")
 				},
 			})()
 

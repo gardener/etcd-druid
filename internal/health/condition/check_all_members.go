@@ -63,7 +63,7 @@ func (a *allMembersReady) Check(_ context.Context, etcd druidv1alpha1.Etcd) Resu
 	return result
 }
 
-// AllMembersCheck returns a check for the "AllMembersReady" condition.
-func AllMembersCheck(_ client.Client) Checker {
+// AllMembersReadyCheck returns a check for the "AllMembersReady" condition.
+func AllMembersReadyCheck(_ client.Client) Checker {
 	return &allMembersReady{}
 }

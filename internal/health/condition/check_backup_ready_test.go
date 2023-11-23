@@ -19,7 +19,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	. "github.com/gardener/etcd-druid/pkg/health/condition"
+	. "github.com/gardener/etcd-druid/internal/health/condition"
 	mockclient "github.com/gardener/etcd-druid/pkg/mock/controller-runtime/client"
 
 	"github.com/golang/mock/gomock"

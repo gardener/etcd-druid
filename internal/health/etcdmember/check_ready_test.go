@@ -20,11 +20,16 @@ import (
 	"fmt"
 	"time"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	"github.com/go-logr/logr"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
+	. "github.com/gardener/etcd-druid/internal/health/etcdmember"
+	mockclient "github.com/gardener/etcd-druid/internal/mock/controller-runtime/client"
+	"github.com/gardener/etcd-druid/internal/utils"
 
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/test"
+	"github.com/go-logr/logr"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -36,12 +41,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/common"
-	. "github.com/gardener/etcd-druid/pkg/health/etcdmember"
-	mockclient "github.com/gardener/etcd-druid/pkg/mock/controller-runtime/client"
-	"github.com/gardener/etcd-druid/pkg/utils"
 )
 
 var _ = Describe("ReadyCheck", func() {
