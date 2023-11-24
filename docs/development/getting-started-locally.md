@@ -2,29 +2,7 @@
 
 This page aims to provide steps on how to setup Etcd-Druid locally with and without storage providers
 
-## Prerequisites 
-
-
-### [Optional] Installing [k9s](https://k9scli.io/topics/install/) 
-
-[k9s](https://k9scli.io/) is an interactive terminal based UI to play with your kubernetes cluster. Makes it easy to interact with the cluster resources
-
-On Mac OS & Linux, install using brew
-
-```sh
-# via Homebrew
-brew install k9s
-```
-
-On Windows,
-```sh
-# via scoop
-scoop install k9s
-# via chocolatey
-choco install k9s
-```
-
-## Setting up Druid
+## Setting up etcd-druid
 
 ### Clone the Etcd-Druid Github repo
     
@@ -37,7 +15,7 @@ cd etcd-druid
 
 ---
 
->Note: To setup Etcd-Druid with backups enabled on a [LocalStack](https://github.com/localstack/localstack) provider, refer [this](https://github.com/gardener/etcd-druid/blob/master/docs/development/getting-started-locally-localstack.md)
+>**Note**: To setup Etcd-Druid with backups enabled on a [LocalStack](https://github.com/localstack/localstack) provider, refer [this document](https://github.com/gardener/etcd-druid/blob/master/docs/development/getting-started-locally-localstack.md)
 
 ---
 
@@ -57,11 +35,10 @@ export KUBECONFIG=$PWD/hack/e2e-test/infrastructure/kind/kubeconfig
 
 ### Setting up Etcd-Druid
 
-* 
-    Generates the Etcd CRD and deploy an etcd-druid pod into the cluster
-    ```sh
-    make deploy
-    ```
+Generates the Etcd CRD and deploy an etcd-druid pod into the cluster
+```sh
+make deploy
+```
 
 ### Applying the etcd CR
 
@@ -75,7 +52,7 @@ export KUBECONFIG=$PWD/hack/e2e-test/infrastructure/kind/kubeconfig
     kubectl apply -f config/samples/druid_v1alpha1_etcd.yaml
     ``` 
 
-- **With Backups enabled (On Cloud Object Stores)**
+- **With Backups enabled (On Cloud Provider Object Stores)**
 
     Create a secret for cloud provider access. Find the secret yaml templates for different cloud providers [here](https://github.com/gardener/etcd-backup-restore/tree/master/example/storage-provider-secrets). 
 
