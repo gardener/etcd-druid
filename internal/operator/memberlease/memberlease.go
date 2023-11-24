@@ -7,10 +7,10 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
+	"github.com/hashicorp/go-multierror"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
-	"github.com/gardener/gardener/pkg/utils/flow"
 	"github.com/go-logr/logr"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,14 +42,27 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKeys := getObjectKeys(etcd)
-	createFns := make([]flow.TaskFn, len(objectKeys))
-	for _, objKey := range objectKeys {
-		objKey := objKey
-		createFns = append(createFns, func(ctx context.Context) error {
-			return r.doCreateOrUpdate(ctx, etcd, objKey)
-		})
+	createTasks := make([]utils.OperatorTask, len(objectKeys))
+	var errs error
+
+	for i, objKey := range objectKeys {
+		objKey := objKey // capture the range variable
+		createTasks[i] = utils.OperatorTask{
+			Name: "CreateOrUpdate-" + objKey.String(),
+			Fn: func(ctx resource.OperatorContext) error {
+				return r.doCreateOrUpdate(ctx, etcd, objKey)
+			},
+		}
 	}
-	return flow.Parallel(createFns...)(ctx)
+
+	if errorList := utils.RunConcurrently(ctx, createTasks); len(errorList) > 0 {
+		for _, err := range errorList {
+			errs = multierror.Append(errs, err)
+		}
+		return errs
+	}
+
+	return nil
 }
 
 func (r _resource) doCreateOrUpdate(ctx context.Context, etcd *druidv1alpha1.Etcd, objKey client.ObjectKey) error {
