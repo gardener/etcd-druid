@@ -20,7 +20,6 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
-	"github.com/gardener/etcd-druid/internal/utils"
 	druidmetrics "github.com/gardener/etcd-druid/pkg/metrics"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
@@ -88,7 +87,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return result.ReconcileResult()
 	}
 
-	return r.reconcileJob(ctx, rLog)
+	return r.reconcileJob(ctx, rLog, etcd)
 	/*
 		Get latest etcd
 		if it is not found then do not requeue
@@ -141,7 +140,8 @@ func (r *Reconciler) reconcileExistingJob(ctx context.Context, logger logr.Logge
 }
 
 func (r *Reconciler) getMatchingJobs(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) {
-	r.client.List(ctx)
+	// TODO: @seshachalam-yv need to fix
+	// r.client.List(ctx)
 }
 
 func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
@@ -152,15 +152,16 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 		return ctrlutils.ReconcileWithError(err).ReconcileResult()
 	}
 
+	// TODO: @seshachalam-yv need to fix
 	// If there is an existing Job then check the Job status and take appropriate action.
-	if !utils.IsEmptyString(job.Name) {
-		if result := r.handleExistingJob(ctx, rjLog, job); ctrlutils.ShortCircuitReconcileFlow(result) {
-			return result.ReconcileResult()
-		}
-	}
+	// if !utils.IsEmptyString(job.Name) {
+	// 	if result := r.handleExistingJob(ctx, rjLog, job); ctrlutils.ShortCircuitReconcileFlow(result) {
+	// 		return result.ReconcileResult()
+	// 	}
+	// }
 
-	latestDeltaRevision, err := getLatestDeltaRevision(ctx, etcd.GetDeltaSnapshotLeaseName())
-
+	// latestDeltaRevision, err := getLatestDeltaRevision(ctx, etcd.GetDeltaSnapshotLeaseName())
+	return ctrlutils.ReconcileWithError(nil).ReconcileResult()
 }
 
 func (r *Reconciler) canScheduleJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) {
@@ -177,9 +178,12 @@ func (r *Reconciler) getLatestFullSnapshotRevision(ctx context.Context, logger l
 }
 
 func parseRevision(lease *coordinationv1.Lease) (int64, error) {
-	if lease.Spec.HolderIdentity == nil {
+	// TODO: @seshachalam-yv need to fix
+	// if lease.Spec.HolderIdentity == nil {
 
-	}
+	// }
+
+	return int64(0), nil
 }
 
 func (r *Reconciler) handleExistingJob(ctx context.Context, logger logr.Logger, job *batchv1.Job) ctrlutils.ReconcileStepResult {
