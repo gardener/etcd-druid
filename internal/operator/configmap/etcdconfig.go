@@ -77,7 +77,7 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		AutoCompactionMode:      utils.TypeDeref[druidv1alpha1.CompactionMode](etcd.Spec.Common.AutoCompactionMode, druidv1alpha1.Periodic),
 		AutoCompactionRetention: utils.TypeDeref[string](etcd.Spec.Common.AutoCompactionRetention, defaultAutoCompactionRetention),
 		ListenPeerUrls:          fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)),
-		ListenClientUrls:        fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)),
+		ListenClientUrls:        fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort)),
 		AdvertisePeerUrls:       fmt.Sprintf("%s@%s@%s@%d", peerScheme, etcd.GetPeerServiceName(), etcd.Namespace, utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)),
 		AdvertiseClientUrls:     fmt.Sprintf("%s@%s@%s@%d", clientScheme, etcd.GetPeerServiceName(), etcd.Namespace, utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort)),
 	}
