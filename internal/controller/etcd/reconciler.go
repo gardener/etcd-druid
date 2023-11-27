@@ -1,10 +1,26 @@
+// Copyright 2023 SAP SE or an SAP affiliate company
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package etcd
 
 import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/controller/utils"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
+	"github.com/gardener/etcd-druid/internal/features"
 	"github.com/gardener/etcd-druid/internal/operator"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
@@ -38,8 +54,10 @@ func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 	}
 	operatorReg := operator.NewRegistry(mgr.GetClient(),
 		logger,
-		operator.Config{
+		resource.Config{
 			DisableEtcdServiceAccountAutomount: config.DisableEtcdServiceAccountAutomount,
+			UseEtcdWrapper:                     config.FeatureGates[features.UseEtcdWrapper],
+			ImageVector:                        imageVector,
 		},
 	)
 	lastOpErrRecorder := ctrlutils.NewLastOperationErrorRecorder(mgr.GetClient(), logger)
@@ -118,7 +136,14 @@ func (r *Reconciler) reconcileSpec(ctx context.Context, etcdObjectKey client.Obj
 		return result
 	}
 
-	return ctrlutils.DoNotRequeue()
+	operatorCtx := resource.NewOperatorContext(ctx, r.logger, runID)
+	resourceOperators := r.getOrderedOperatorsForSync()
+	for _, operator := range resourceOperators {
+		if err := operator.Sync(operatorCtx, etcd); err != nil {
+			return utils.ReconcileWithError(err)
+		}
+	}
+	return utils.ContinueReconcile()
 }
 
 func (r *Reconciler) reconcileStatus(ctx context.Context, etcdNamespacedName types.NamespacedName, runID string) ctrlutils.ReconcileStepResult {

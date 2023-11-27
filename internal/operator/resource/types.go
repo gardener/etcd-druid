@@ -4,12 +4,19 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
 )
 
 const (
 	ConfigMapCheckSumKey = "checksum/etcd-configmap"
 )
+
+type Config struct {
+	DisableEtcdServiceAccountAutomount bool
+	ImageVector                        imagevector.ImageVector
+	UseEtcdWrapper                     bool
+}
 
 type OperatorContext struct {
 	context.Context
