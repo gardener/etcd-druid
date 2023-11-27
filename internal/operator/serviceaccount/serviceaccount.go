@@ -15,7 +15,6 @@ import (
 type _resource struct {
 	client           client.Client
 	logger           logr.Logger
-	etcd             *druidv1alpha1.Etcd
 	disableAutoMount bool
 }
 
@@ -35,9 +34,9 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	sa := emptyServiceAccount(getObjectKey(etcd))
 	opResult, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, sa, func() error {
-		sa.Labels = r.etcd.GetDefaultLabels()
-		sa.OwnerReferences = []metav1.OwnerReference{r.etcd.GetAsOwnerReference()}
-		sa.AutomountServiceAccountToken = pointer.Bool(r.disableAutoMount)
+		sa.Labels = etcd.GetDefaultLabels()
+		sa.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+		sa.AutomountServiceAccountToken = pointer.Bool(!r.disableAutoMount)
 		return nil
 	})
 	r.logger.Info("TriggerCreateOrUpdate operation result", "result", opResult)
