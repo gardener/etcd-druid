@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	// ConfigMapCheckSumKey is the key which stores the latest checksum value of the ConfigMap changes as part of an etcd spec reconciliation.
 	ConfigMapCheckSumKey = "checksum/etcd-configmap"
 )
 
@@ -18,13 +19,18 @@ type Config struct {
 	UseEtcdWrapper                     bool
 }
 
+// OperatorContext holds the underline context.Context along with additional data that needs to be passed from one reconcile-step to another in a multistep reconciliation run.
 type OperatorContext struct {
 	context.Context
-	RunID  string
+	// RunID is unique ID identifying a single reconciliation run.
+	RunID string
+	// Logger is the logger that can be used by a reconcile flow or sub-flow.
 	Logger logr.Logger
-	Data   map[string]string
+	// Data is place-holder for steps to record data that can be accessed by steps ahead in the reconcile flow.
+	Data map[string]string
 }
 
+// NewOperatorContext creates a new instance of OperatorContext.
 func NewOperatorContext(ctx context.Context, logger logr.Logger, runID string) OperatorContext {
 	return OperatorContext{
 		Context: ctx,

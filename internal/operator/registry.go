@@ -16,7 +16,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// Registry is a facade which gives access to all resource operators.
 type Registry interface {
+	// AllOperators gives a map, where the key is the Kind of resource that an operator manages and the value is an Operator itself.
 	AllOperators() map[Kind]resource.Operator
 	StatefulSetOperator() resource.Operator
 	ServiceAccountOperator() resource.Operator
@@ -33,15 +35,25 @@ type Registry interface {
 type Kind string
 
 const (
-	StatefulSetKind         Kind = "StatefulSet"
-	ServiceAccountKind      Kind = "ServiceAccount"
-	RoleKind                Kind = "Role"
-	RoleBindingKind         Kind = "RoleBinding"
-	MemberLeaseKind         Kind = "MemberLease"
-	SnapshotLeaseKind       Kind = "SnapshotLease"
-	ConfigMapKind           Kind = "ConfigMap"
-	PeerServiceKind         Kind = "PeerService"
-	ClientServiceKind       Kind = "ClientService"
+	// StatefulSetKind indicates that the kind of resource is a StatefulSet.
+	StatefulSetKind Kind = "StatefulSet"
+	// ServiceAccountKind indicates that the kind of resource is a ServiceAccount.
+	ServiceAccountKind Kind = "ServiceAccount"
+	// RoleKind indicates that the kind of resource is a Role.
+	RoleKind Kind = "Role"
+	// RoleBindingKind indicates that the kind of resource is RoleBinding
+	RoleBindingKind Kind = "RoleBinding"
+	// MemberLeaseKind indicates that the kind of resource is a Lease used for an etcd member heartbeat.
+	MemberLeaseKind Kind = "MemberLease"
+	// SnapshotLeaseKind indicates that the kind of resource is a Lease used to capture snapshot information.
+	SnapshotLeaseKind Kind = "SnapshotLease"
+	// ConfigMapKind indicates that the kind of resource is a ConfigMap.
+	ConfigMapKind Kind = "ConfigMap"
+	// PeerServiceKind indicates that the kind of resource is a Service used for etcd peer communication.
+	PeerServiceKind Kind = "PeerService"
+	// ClientServiceKind indicates that the kind of resource is a Service used for etcd client communication.
+	ClientServiceKind Kind = "ClientService"
+	// PodDisruptionBudgetKind indicates that the kind of resource is a PodDisruptionBudget.
 	PodDisruptionBudgetKind Kind = "PodDisruptionBudget"
 )
 
@@ -49,6 +61,7 @@ type registry struct {
 	operators map[Kind]resource.Operator
 }
 
+// NewRegistry creates a new instance of a Registry.
 func NewRegistry(client client.Client, logger logr.Logger, config resource.Config) Registry {
 	operators := make(map[Kind]resource.Operator)
 	operators[ConfigMapKind] = configmap.New(client, logger)
