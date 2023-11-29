@@ -25,13 +25,13 @@ import (
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	coordinationv1 "k8s.io/api/coordination/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("BackupReadyCheck", func() {
@@ -56,6 +56,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				Spec: druidv1alpha1.EtcdSpec{
 					Replicas: 1,
 					Backup: druidv1alpha1.BackupSpec{
+						FullSnapshotSchedule: pointer.String("0 0 * * *"), // at 00:00 every day
 						DeltaSnapshotPeriod: &v1.Duration{
 							Duration: deltaSnapshotDuration,
 						},
@@ -90,7 +91,7 @@ var _ = Describe("BackupReadyCheck", func() {
 		})
 
 		Context("With no snapshot leases present", func() {
-			It("Should return Unknown rediness", func() {
+			It("Should return Unknown readiness", func() {
 				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease, _ ...client.GetOption) error {
 						return &noLeaseError

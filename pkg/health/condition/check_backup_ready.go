@@ -20,6 +20,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/pkg/utils"
 	coordinationv1 "k8s.io/api/coordination/v1"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -56,16 +57,17 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 		return nil
 	}
 
-	//Fetch snapshot leases
+	// Fetch snapshot leases
 	var (
-		fullSnapErr, incrSnapErr error
-		fullSnapLease            = &coordinationv1.Lease{}
-		deltaSnapLease           = &coordinationv1.Lease{}
+		err, fullSnapErr, incrSnapErr error
+		fullSnapshotDuration          = 24 * time.Hour
+		fullSnapLease                 = &coordinationv1.Lease{}
+		deltaSnapLease                = &coordinationv1.Lease{}
 	)
 	fullSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getFullSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, fullSnapLease)
 	incrSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getDeltaSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, deltaSnapLease)
 
-	//Set status to Unknown if errors in fetching snapshot leases or lease never renewed
+	// Set status to Unknown if errors in fetching snapshot leases or lease never renewed
 	if fullSnapErr != nil || incrSnapErr != nil || (fullSnapLease.Spec.RenewTime == nil && deltaSnapLease.Spec.RenewTime == nil) {
 		return result
 	}
@@ -74,25 +76,34 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 	fullLeaseRenewTime := fullSnapLease.Spec.RenewTime
 	fullLeaseCreateTime := &fullSnapLease.ObjectMeta.CreationTimestamp
 
+	// TODO: make etcd.Spec.Backup.FullSnapshotSchedule non-optional, since it is mandatory to
+	// set the full snapshot schedule, or introduce defaulting webhook to add default value for this field
+	if etcd.Spec.Backup.FullSnapshotSchedule != nil {
+		if fullSnapshotDuration, err = utils.ComputeScheduleDuration(*etcd.Spec.Backup.FullSnapshotSchedule); err != nil {
+			return result
+		}
+	}
+
 	if fullLeaseRenewTime == nil && deltaLeaseRenewTime != nil {
 		// Most probable during reconcile of existing clusters if fresh leases are created
-		// Treat backup as succeeded if delta snap lease renewal happens in the required time window and full snap lease is not older than 24h.
-		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseCreateTime.Time) < 24*time.Hour {
+		// Treat backup as succeeded if delta snap lease renewal happens in the required time window
+		// and full snap lease is not older than full snapshot duration.
+		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseCreateTime.Time) < fullSnapshotDuration {
 			result.reason = BackupSucceeded
 			result.message = "Delta snapshot backup succeeded"
 			result.status = druidv1alpha1.ConditionTrue
 			return result
 		}
 	} else if deltaLeaseRenewTime == nil && fullLeaseRenewTime != nil {
-		//Most probable during a startup scenario for new clusters
-		//Special case. Return Unknown condition for some time to allow delta backups to start up
+		// Most probable during a startup scenario for new clusters
+		// Special case. Return Unknown condition for some time to allow delta backups to start up
 		if time.Since(fullLeaseRenewTime.Time) > 5*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration {
 			result.message = "Periodic delta snapshots not started yet"
 			return result
 		}
 	} else if deltaLeaseRenewTime != nil && fullLeaseRenewTime != nil {
-		//Both snap leases are maintained. Both are expected to be renewed periodically
-		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseRenewTime.Time) < 24*time.Hour {
+		// Both snap leases are maintained. Both are expected to be renewed periodically
+		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseRenewTime.Time) < fullSnapshotDuration {
 			result.reason = BackupSucceeded
 			result.message = "Snapshot backup succeeded"
 			result.status = druidv1alpha1.ConditionTrue
@@ -100,8 +111,8 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 		}
 	}
 
-	//Cases where snapshot leases are not updated for a long time
-	//If snapshot leases are present and leases aren't updated, it is safe to assume that backup is not healthy
+	// Cases where snapshot leases are not updated for a long time
+	// If snapshot leases are present and leases aren't updated, it is safe to assume that backup is not healthy
 
 	if etcd.Status.Conditions != nil {
 		var prevBackupReadyStatus druidv1alpha1.Condition
@@ -122,16 +133,16 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 		}
 	}
 
-	//Transition to "Unknown" state is we cannot prove a "True" state
+	// Transition to "Unknown" state is we cannot prove a "True" state
 	return result
 }
 
 func getDeltaSnapLeaseName(etcd *druidv1alpha1.Etcd) string {
-	return fmt.Sprintf("%s-delta-snap", string(etcd.ObjectMeta.Name))
+	return fmt.Sprintf("%s-delta-snap", etcd.ObjectMeta.Name)
 }
 
 func getFullSnapLeaseName(etcd *druidv1alpha1.Etcd) string {
-	return fmt.Sprintf("%s-full-snap", string(etcd.ObjectMeta.Name))
+	return fmt.Sprintf("%s-full-snap", etcd.ObjectMeta.Name)
 }
 
 // BackupReadyCheck returns a check for the "BackupReady" condition.

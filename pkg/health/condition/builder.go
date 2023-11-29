@@ -23,7 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// skipMergeConditions contain the list of conditions we dont want to add to the list if not recalculated
+// skipMergeConditions contain the list of conditions we don't want to add to the list if not recalculated
 var skipMergeConditions = map[druidv1alpha1.ConditionType]struct{}{
 	druidv1alpha1.ConditionTypeReady:           {},
 	druidv1alpha1.ConditionTypeAllMembersReady: {},
