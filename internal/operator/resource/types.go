@@ -51,3 +51,5 @@ type Operator interface {
 	// managed by this Operator then those resource(s) will be either be updated or a deletion is triggered.
 	Sync(ctx OperatorContext, etcd *druidv1alpha1.Etcd) error
 }
+
+type OperatorCreatorFn func() Operator

@@ -62,7 +62,7 @@ func getEtcdCommandArgs(useEtcdWrapper bool, etcd *druidv1alpha1.Etcd) []string 
 		// safe to return an empty string array here since etcd-custom-image:v3.4.13-bootstrap-12 (as well as v3.4.26) now uses an entry point that calls bootstrap.sh
 		return []string{}
 	}
-	//TODO @aaronfern: remove this feature gate when UseEtcdWrapper becomes GA
+	//TODO @aaronfern: remove this feature gate when useEtcdWrapper becomes GA
 	command := []string{"" + "start-etcd"}
 	command = append(command, fmt.Sprintf("--backup-restore-host-port=%s-local:8080", etcd.Name))
 	command = append(command, fmt.Sprintf("--etcd-server-name=%s-local", etcd.Name))
@@ -110,7 +110,7 @@ func getReadinessHandlerForSingleNode(etcd *druidv1alpha1.Etcd) corev1.ProbeHand
 
 func getReadinessHandlerForMultiNode(useEtcdWrapper bool, etcd *druidv1alpha1.Etcd) corev1.ProbeHandler {
 	if useEtcdWrapper {
-		//TODO @aaronfern: remove this feature gate when UseEtcdWrapper becomes GA
+		//TODO @aaronfern: remove this feature gate when useEtcdWrapper becomes GA
 		scheme := corev1.URISchemeHTTPS
 		if etcd.Spec.Backup.TLS == nil {
 			scheme = corev1.URISchemeHTTP

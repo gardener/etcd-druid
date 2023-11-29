@@ -1,25 +1,16 @@
 package operator
 
 import (
-	"github.com/gardener/etcd-druid/internal/operator/clientservice"
-	"github.com/gardener/etcd-druid/internal/operator/configmap"
-	"github.com/gardener/etcd-druid/internal/operator/memberlease"
-	"github.com/gardener/etcd-druid/internal/operator/peerservice"
-	"github.com/gardener/etcd-druid/internal/operator/poddistruptionbudget"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
-	"github.com/gardener/etcd-druid/internal/operator/role"
-	"github.com/gardener/etcd-druid/internal/operator/rolebinding"
-	"github.com/gardener/etcd-druid/internal/operator/serviceaccount"
-	"github.com/gardener/etcd-druid/internal/operator/snapshotlease"
-	"github.com/gardener/etcd-druid/internal/operator/statefulset"
-	"github.com/go-logr/logr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Registry is a facade which gives access to all resource operators.
 type Registry interface {
+	// Register provides consumers to register an operator against the kind of resource it operates on.
+	Register(kind Kind, operator resource.Operator)
 	// AllOperators gives a map, where the key is the Kind of resource that an operator manages and the value is an Operator itself.
 	AllOperators() map[Kind]resource.Operator
+	GetOperator(kind Kind) resource.Operator
 	StatefulSetOperator() resource.Operator
 	ServiceAccountOperator() resource.Operator
 	RoleOperator() resource.Operator
@@ -62,21 +53,19 @@ type registry struct {
 }
 
 // NewRegistry creates a new instance of a Registry.
-func NewRegistry(client client.Client, logger logr.Logger, config resource.Config) Registry {
+func NewRegistry() Registry {
 	operators := make(map[Kind]resource.Operator)
-	operators[ConfigMapKind] = configmap.New(client, logger)
-	operators[ServiceAccountKind] = serviceaccount.New(client, logger, config.DisableEtcdServiceAccountAutomount)
-	operators[MemberLeaseKind] = memberlease.New(client, logger)
-	operators[SnapshotLeaseKind] = snapshotlease.New(client, logger)
-	operators[ClientServiceKind] = clientservice.New(client, logger)
-	operators[PeerServiceKind] = peerservice.New(client, logger)
-	operators[PodDisruptionBudgetKind] = poddistruptionbudget.New(client, logger)
-	operators[RoleKind] = role.New(client, logger)
-	operators[RoleBindingKind] = rolebinding.New(client, logger)
-	operators[StatefulSetKind] = statefulset.New(client, logger, config)
 	return registry{
 		operators: operators,
 	}
+}
+
+func (r registry) Register(kind Kind, operator resource.Operator) {
+	r.operators[kind] = operator
+}
+
+func (r registry) GetOperator(kind Kind) resource.Operator {
+	return r.operators[kind]
 }
 
 func (r registry) AllOperators() map[Kind]resource.Operator {

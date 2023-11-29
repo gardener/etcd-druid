@@ -31,7 +31,7 @@ const (
 	// changes required for the usage of the etcd-wrapper image.
 	// owner @unmarshall @aaronfern
 	// alpha: v0.19
-	UseEtcdWrapper featuregate.Feature = "UseEtcdWrapper"
+	UseEtcdWrapper featuregate.Feature = "useEtcdWrapper"
 )
 
 var defaultFeatures = map[featuregate.Feature]featuregate.FeatureSpec{

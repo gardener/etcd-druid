@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/features"
+	"k8s.io/component-base/featuregate"
 
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -25,20 +27,19 @@ type _resource struct {
 	client         client.Client
 	logger         logr.Logger
 	imageVector    imagevector.ImageVector
-	UseEtcdWrapper bool
+	useEtcdWrapper bool
 }
 
-func New(client client.Client, logger logr.Logger, config resource.Config) resource.Operator {
-
+func New(client client.Client, logger logr.Logger, imageVector imagevector.ImageVector, featureGates map[featuregate.Feature]bool) resource.Operator {
 	return &_resource{
 		client:         client,
 		logger:         logger,
-		imageVector:    config.ImageVector,
-		UseEtcdWrapper: config.UseEtcdWrapper,
+		imageVector:    imageVector,
+		useEtcdWrapper: featureGates[features.UseEtcdWrapper],
 	}
 }
 
-func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r *_resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	sts := &appsv1.StatefulSet{}
 	if err := r.client.Get(ctx, getObjectKey(etcd), sts); err != nil {
@@ -51,7 +52,7 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 	return resourceNames, nil
 }
 
-func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r *_resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	var (
 		existingSts *appsv1.StatefulSet
 		err         error
@@ -62,7 +63,7 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 	}
 
 	if existingSts == nil {
-		return r.createoOrPatch(ctx, etcd, etcd.Spec.Replicas)
+		return r.createOrPatch(ctx, etcd, etcd.Spec.Replicas)
 	}
 	// Check current TLS status of etcd members
 	peerTLSEnabled, err := utils.IsPeerURLTLSEnabled(ctx, r.client, etcd.Namespace, etcd.Name, r.logger)
@@ -72,7 +73,7 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 
 	// Handling Peer TLS changes
 	if r.isPeerTLSChangedToEnabled(peerTLSEnabled, etcd) {
-		if err := r.createoOrPatch(ctx, etcd, *existingSts.Spec.Replicas); err != nil {
+		if err := r.createOrPatch(ctx, etcd, *existingSts.Spec.Replicas); err != nil {
 			return err
 		}
 		tlsEnabled, err := utils.IsPeerURLTLSEnabled(ctx, r.client, etcd.Namespace, etcd.Name, r.logger)
@@ -95,10 +96,10 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 		}
 	}
 
-	return r.createoOrPatch(ctx, etcd, etcd.Spec.Replicas)
+	return r.createOrPatch(ctx, etcd, etcd.Spec.Replicas)
 }
 
-func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r *_resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	return client.IgnoreNotFound(r.client.Delete(ctx, emptyStatefulset(getObjectKey(etcd))))
 }
 
@@ -132,7 +133,7 @@ func (r *_resource) isPeerTLSChangedToEnabled(peerTLSEnabledStatusFromMembers bo
 	return !peerTLSEnabledStatusFromMembers && etcd.Spec.Etcd.PeerUrlTLS != nil
 }
 
-func (r _resource) getExistingStatefulSet(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSet, error) {
+func (r *_resource) getExistingStatefulSet(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSet, error) {
 	sts := emptyStatefulset(getObjectKey(etcd))
 	if err := r.client.Get(ctx, getObjectKey(etcd), sts); err != nil {
 		if errors.IsNotFound(err) {
@@ -143,7 +144,7 @@ func (r _resource) getExistingStatefulSet(ctx resource.OperatorContext, etcd *dr
 	return sts, nil
 }
 
-func (r _resource) getVolumes(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]corev1.Volume, error) {
+func (r *_resource) getVolumes(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]corev1.Volume, error) {
 	vs := []corev1.Volume{
 		{
 			Name: "etcd-config-file",
@@ -255,9 +256,9 @@ func (r _resource) getVolumes(ctx resource.OperatorContext, etcd *druidv1alpha1.
 	return vs, nil
 }
 
-func (r _resource) createoOrPatch(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, replicas int32) error {
+func (r *_resource) createOrPatch(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, replicas int32) error {
 	desiredStatefulSet := emptyStatefulset(getObjectKey(etcd))
-	etcdImage, etcdBackupImage, initContainerImage, err := druidutils.GetEtcdImages(etcd, r.imageVector, r.UseEtcdWrapper)
+	etcdImage, etcdBackupImage, initContainerImage, err := druidutils.GetEtcdImages(etcd, r.imageVector, r.useEtcdWrapper)
 	if err != nil {
 		return err
 	}
@@ -331,9 +332,9 @@ func (r _resource) createoOrPatch(ctx resource.OperatorContext, etcd *druidv1alp
 					Name:            "etcd",
 					Image:           *etcdImage,
 					ImagePullPolicy: corev1.PullIfNotPresent,
-					Args:            getEtcdCommandArgs(r.UseEtcdWrapper, etcd),
+					Args:            getEtcdCommandArgs(r.useEtcdWrapper, etcd),
 					ReadinessProbe: &corev1.Probe{
-						ProbeHandler:        getReadinessHandler(r.UseEtcdWrapper, etcd),
+						ProbeHandler:        getReadinessHandler(r.useEtcdWrapper, etcd),
 						InitialDelaySeconds: 15,
 						PeriodSeconds:       5,
 						FailureThreshold:    5,
@@ -351,7 +352,7 @@ func (r _resource) createoOrPatch(ctx resource.OperatorContext, etcd *druidv1alp
 					Ports:           getBackupPorts(),
 					Resources:       getBackupResources(etcd),
 					Env:             getBackupRestoreEnvVars(etcd),
-					VolumeMounts:    getBackupRestoreVolumeMounts(r.UseEtcdWrapper, etcd),
+					VolumeMounts:    getBackupRestoreVolumeMounts(r.useEtcdWrapper, etcd),
 					SecurityContext: &corev1.SecurityContext{
 						Capabilities: &corev1.Capabilities{
 							Add: []corev1.Capability{
@@ -371,9 +372,9 @@ func (r _resource) createoOrPatch(ctx resource.OperatorContext, etcd *druidv1alp
 		if etcd.Spec.PriorityClassName != nil {
 			desiredStatefulSet.Spec.Template.Spec.PriorityClassName = *etcd.Spec.PriorityClassName
 		}
-		if r.UseEtcdWrapper {
+		if r.useEtcdWrapper {
 			// sections to add only when using etcd wrapper
-			// TODO: @aaronfern add this back to desiredStatefulSet.Spec when UseEtcdWrapper becomes GA
+			// TODO: @aaronfern add this back to desiredStatefulSet.Spec when useEtcdWrapper becomes GA
 			desiredStatefulSet.Spec.Template.Spec.InitContainers = []corev1.Container{
 				{
 					Name:            "change-permissions",
@@ -400,7 +401,7 @@ func (r _resource) createoOrPatch(ctx resource.OperatorContext, etcd *druidv1alp
 						ImagePullPolicy: corev1.PullIfNotPresent,
 						Command:         []string{"sh", "-c", "--"},
 						Args:            []string{fmt.Sprintf("chown -R 65532:65532 /home/nonroot/%s", *etcd.Spec.Backup.Store.Container)},
-						VolumeMounts:    getBackupRestoreVolumeMounts(r.UseEtcdWrapper, etcd),
+						VolumeMounts:    getBackupRestoreVolumeMounts(r.useEtcdWrapper, etcd),
 						SecurityContext: &corev1.SecurityContext{
 							RunAsGroup:   pointer.Int64(0),
 							RunAsNonRoot: pointer.Bool(false),

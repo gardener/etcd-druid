@@ -102,7 +102,7 @@ var _ = Describe("Image retrieval tests", func() {
 		Expect(initContainerImage).To(BeNil())
 	})
 
-	It("etcd spec has no images defined, image vector has all images, and UseEtcdWrapper feature gate is turned on", func() {
+	It("etcd spec has no images defined, image vector has all images, and useEtcdWrapper feature gate is turned on", func() {
 		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
 		Expect(err).To(BeNil())
 		etcd.Spec.Etcd.Image = nil
