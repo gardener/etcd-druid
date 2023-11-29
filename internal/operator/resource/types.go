@@ -4,7 +4,6 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
 )
 
@@ -12,12 +11,6 @@ const (
 	// ConfigMapCheckSumKey is the key which stores the latest checksum value of the ConfigMap changes as part of an etcd spec reconciliation.
 	ConfigMapCheckSumKey = "checksum/etcd-configmap"
 )
-
-type Config struct {
-	DisableEtcdServiceAccountAutomount bool
-	ImageVector                        imagevector.ImageVector
-	UseEtcdWrapper                     bool
-}
 
 // OperatorContext holds the underline context.Context along with additional data that needs to be passed from one reconcile-step to another in a multistep reconciliation run.
 type OperatorContext struct {
@@ -51,5 +44,3 @@ type Operator interface {
 	// managed by this Operator then those resource(s) will be either be updated or a deletion is triggered.
 	Sync(ctx OperatorContext, etcd *druidv1alpha1.Etcd) error
 }
-
-type OperatorCreatorFn func() Operator
