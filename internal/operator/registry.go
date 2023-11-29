@@ -10,17 +10,9 @@ type Registry interface {
 	Register(kind Kind, operator resource.Operator)
 	// AllOperators gives a map, where the key is the Kind of resource that an operator manages and the value is an Operator itself.
 	AllOperators() map[Kind]resource.Operator
+	// GetOperator gets an operator that operates on the kind.
+	// Returns the operator if an operator is found, else nil will be returned.
 	GetOperator(kind Kind) resource.Operator
-	StatefulSetOperator() resource.Operator
-	ServiceAccountOperator() resource.Operator
-	RoleOperator() resource.Operator
-	RoleBindingOperator() resource.Operator
-	MemberLeaseOperator() resource.Operator
-	SnapshotLeaseOperator() resource.Operator
-	ConfigMapOperator() resource.Operator
-	PeerServiceOperator() resource.Operator
-	ClientServiceOperator() resource.Operator
-	PodDisruptionBudgetOperator() resource.Operator
 }
 
 type Kind string
