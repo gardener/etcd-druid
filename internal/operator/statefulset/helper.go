@@ -1,17 +1,23 @@
 package statefulset
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
+	gardenerutils "github.com/gardener/gardener/pkg/utils"
+	"github.com/go-logr/logr"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type consistencyLevel string
@@ -50,10 +56,12 @@ func extractObjectMetaFromEtcd(etcd *druidv1alpha1.Etcd) metav1.ObjectMeta {
 		OwnerReferences: []metav1.OwnerReference{etcd.GetAsOwnerReference()},
 	}
 }
-func extractPodTemplateObjectMetaFromEtcd(etcd *druidv1alpha1.Etcd) metav1.ObjectMeta {
+func extractPodObjectMetaFromEtcd(etcd *druidv1alpha1.Etcd, configMapChecksum string) metav1.ObjectMeta {
 	return metav1.ObjectMeta{
-		Labels:      utils.MergeStringMaps(make(map[string]string), etcd.Spec.Labels, etcd.GetDefaultLabels()),
-		Annotations: etcd.Spec.Annotations,
+		Labels: utils.MergeStringMaps(make(map[string]string), etcd.Spec.Labels, etcd.GetDefaultLabels()),
+		Annotations: utils.MergeStringMaps(map[string]string{
+			resource.ConfigMapCheckSumKey: configMapChecksum,
+		}, etcd.Spec.Annotations),
 	}
 }
 
@@ -579,4 +587,284 @@ func getStorageReq(etcd *druidv1alpha1.Etcd) corev1.ResourceRequirements {
 			corev1.ResourceStorage: storageCapacity,
 		},
 	}
+}
+
+func addEtcdContainer(etcdImage *string, isEtcdWrapperEnabled bool, etcd *druidv1alpha1.Etcd) *corev1.Container {
+	return &corev1.Container{
+		Name:            "etcd",
+		Image:           *etcdImage,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Args:            getEtcdCommandArgs(isEtcdWrapperEnabled, etcd),
+		ReadinessProbe: &corev1.Probe{
+			ProbeHandler:        getReadinessHandler(isEtcdWrapperEnabled, etcd),
+			InitialDelaySeconds: 15,
+			PeriodSeconds:       5,
+			FailureThreshold:    5,
+		},
+		Ports:        getEtcdPorts(),
+		Resources:    getEtcdResources(etcd),
+		Env:          getEtcdEnvVars(etcd),
+		VolumeMounts: getEtcdVolumeMounts(etcd),
+	}
+}
+
+func addBackupRestoreContainer(etcdBackupImage *string, isEtcdWrapperEnabled bool, etcd *druidv1alpha1.Etcd) *corev1.Container {
+	return &corev1.Container{
+		Name:            "backup-restore",
+		Image:           *etcdBackupImage,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Args:            getBackupRestoreCommandArgs(etcd),
+		Ports:           getBackupPorts(),
+		Resources:       getBackupResources(etcd),
+		Env:             getBackupRestoreEnvVars(etcd),
+		VolumeMounts:    getBackupRestoreVolumeMounts(isEtcdWrapperEnabled, etcd),
+		SecurityContext: &corev1.SecurityContext{
+			Capabilities: &corev1.Capabilities{
+				Add: []corev1.Capability{
+					"SYS_PTRACE",
+				},
+			},
+		},
+	}
+}
+
+func addInitContainersIfWrapperEnabled(initContainerImage *string, isEtcdWrapperEnabled bool, etcd *druidv1alpha1.Etcd) []corev1.Container {
+	if !isEtcdWrapperEnabled {
+		return []corev1.Container{}
+	}
+
+	// Initialize the slice with the 'change-permissions' container
+	initContainers := []corev1.Container{
+		{
+			Name:            "change-permissions",
+			Image:           *initContainerImage,
+			ImagePullPolicy: corev1.PullIfNotPresent,
+			Command:         []string{"sh", "-c", "--"},
+			Args:            []string{"chown -R 65532:65532 /var/etcd/data"},
+			VolumeMounts:    getEtcdVolumeMounts(etcd),
+			SecurityContext: &corev1.SecurityContext{
+				RunAsGroup:   pointer.Int64(0),
+				RunAsNonRoot: pointer.Bool(false),
+				RunAsUser:    pointer.Int64(0),
+			},
+		},
+	}
+
+	if etcd.Spec.Backup.Store != nil {
+		prov, _ := utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
+		if prov == utils.Local {
+			initContainers = append(initContainers, corev1.Container{
+				Name:            "change-backup-bucket-permissions",
+				Image:           *initContainerImage,
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Command:         []string{"sh", "-c", "--"},
+				Args:            []string{fmt.Sprintf("chown -R 65532:65532 /home/nonroot/%s", *etcd.Spec.Backup.Store.Container)},
+				VolumeMounts:    getBackupRestoreVolumeMounts(isEtcdWrapperEnabled, etcd),
+				SecurityContext: &corev1.SecurityContext{
+					RunAsGroup:   pointer.Int64(0),
+					RunAsNonRoot: pointer.Bool(false),
+					RunAsUser:    pointer.Int64(0),
+				},
+			})
+		}
+	}
+
+	return initContainers
+}
+
+func getVolumeClaimTemplates(etcd *druidv1alpha1.Etcd) []corev1.PersistentVolumeClaim {
+	return []corev1.PersistentVolumeClaim{{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: getvolumeClaimTemplateName(etcd),
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteOnce,
+			},
+			Resources:        getStorageReq(etcd),
+			StorageClassName: etcd.Spec.StorageClass,
+		},
+	},
+	}
+}
+
+func addSecurityContextIfWrapperEnabled(isEtcdWrapperEnabled bool) *corev1.PodSecurityContext {
+	return &corev1.PodSecurityContext{
+		RunAsGroup:   pointer.Int64(65532),
+		RunAsNonRoot: pointer.Bool(true),
+		RunAsUser:    pointer.Int64(65532),
+	}
+}
+
+func getPriorityClassName(etcd *druidv1alpha1.Etcd) string {
+	if etcd.Spec.PriorityClassName != nil {
+		return *etcd.Spec.PriorityClassName
+	}
+	return ""
+}
+
+// hasImmutableFieldChanged checks if any immutable fields have changed in the StatefulSet
+// specification compared to the Etcd object. It returns true if there are changes in the immutable fields.
+// Currently, it checks for changes in the ServiceName and PodManagementPolicy.
+func hasImmutableFieldChanged(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) bool {
+	return sts.Spec.ServiceName != etcd.GetPeerServiceName() || sts.Spec.PodManagementPolicy != appsv1.ParallelPodManagement
+}
+
+func getVolumes(client client.Client, logger logr.Logger, ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]corev1.Volume, error) {
+	vs := []corev1.Volume{
+		{
+			Name: "etcd-config-file",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: etcd.GetConfigMapName(),
+					},
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "etcd.conf.yaml",
+							Path: "etcd.conf.yaml",
+						},
+					},
+					DefaultMode: pointer.Int32(0644),
+				},
+			},
+		},
+	}
+
+	if etcd.Spec.Etcd.ClientUrlTLS != nil {
+		vs = append(vs, corev1.Volume{
+			Name: "client-url-ca-etcd",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name,
+				},
+			},
+		},
+			corev1.Volume{
+				Name: "client-url-etcd-server-tls",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name,
+					},
+				},
+			},
+			corev1.Volume{
+				Name: "client-url-etcd-client-tls",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name,
+					},
+				},
+			})
+	}
+
+	if etcd.Spec.Etcd.PeerUrlTLS != nil {
+		vs = append(vs, corev1.Volume{
+			Name: "peer-url-ca-etcd",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name,
+				},
+			},
+		},
+			corev1.Volume{
+				Name: "peer-url-etcd-server-tls",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name,
+					},
+				},
+			})
+	}
+
+	if etcd.Spec.Backup.Store == nil {
+		return vs, nil
+	}
+
+	storeValues := etcd.Spec.Backup.Store
+	provider, err := utils.StorageProviderFromInfraProvider(storeValues.Provider)
+	if err != nil {
+		return vs, nil
+	}
+
+	switch provider {
+	case "Local":
+		hostPath, err := utils.GetHostMountPathFromSecretRef(ctx, client, logger, storeValues, etcd.GetNamespace())
+		if err != nil {
+			return nil, err
+		}
+
+		hpt := corev1.HostPathDirectory
+		vs = append(vs, corev1.Volume{
+			Name: "host-storage",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: hostPath + "/" + pointer.StringDeref(storeValues.Container, ""),
+					Type: &hpt,
+				},
+			},
+		})
+	case utils.GCS, utils.S3, utils.OSS, utils.ABS, utils.Swift, utils.OCS:
+		if storeValues.SecretRef == nil {
+			return nil, fmt.Errorf("no secretRef configured for backup store")
+		}
+
+		vs = append(vs, corev1.Volume{
+			Name: "etcd-backup",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: storeValues.SecretRef.Name,
+				},
+			},
+		})
+	}
+
+	return vs, nil
+}
+
+func getConfigMapChecksum(cl client.Client, ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) (string, error) {
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      etcd.GetConfigMapName(),
+			Namespace: etcd.Namespace,
+		},
+	}
+	if err := cl.Get(ctx, client.ObjectKeyFromObject(cm), cm); err != nil {
+
+		return "", err
+	}
+	jsonString, err := json.Marshal(cm.Data)
+	if err != nil {
+		return "", err
+	}
+
+	return gardenerutils.ComputeSHA256Hex(jsonString), nil
+}
+
+func deleteAllStsPods(ctx resource.OperatorContext, cl client.Client, logger logr.Logger, opName string, sts *appsv1.StatefulSet) error {
+	// Get all Pods belonging to the StatefulSet
+	podList := &corev1.PodList{}
+	listOpts := []client.ListOption{
+		client.InNamespace(sts.Namespace),
+		client.MatchingLabels(sts.Spec.Selector.MatchLabels),
+	}
+
+	if err := cl.List(ctx, podList, listOpts...); err != nil {
+		logger.Error(err, "Failed to list pods for StatefulSet", "StatefulSet", client.ObjectKeyFromObject(sts))
+		return err
+	}
+
+	for _, pod := range podList.Items {
+		if err := cl.Delete(ctx, &pod); err != nil {
+			logger.Error(err, "Failed to delete pod", "Pod", pod.Name, "Namespace", pod.Namespace)
+			return err
+		}
+	}
+
+	return nil
+}
+
+// isPeerTLSChangedToEnabled checks if the Peer TLS setting has changed to enabled
+func isPeerTLSChangedToEnabled(peerTLSEnabledStatusFromMembers bool, etcd *druidv1alpha1.Etcd) bool {
+	return !peerTLSEnabledStatusFromMembers && etcd.Spec.Etcd.PeerUrlTLS != nil
 }

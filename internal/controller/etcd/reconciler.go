@@ -155,8 +155,9 @@ func (r *Reconciler) reconcileSpec(ctx context.Context, etcdObjectKey client.Obj
 
 	operatorCtx := resource.NewOperatorContext(ctx, r.logger, runID)
 	resourceOperators := r.getOrderedOperatorsForSync()
-	for _, operator := range resourceOperators {
-		if err := operator.Sync(operatorCtx, etcd); err != nil {
+	for _, kind := range resourceOperators {
+		op := r.operatorRegistry.GetOperator(kind)
+		if err := op.Sync(operatorCtx, etcd); err != nil {
 			return utils.ReconcileWithError(err)
 		}
 	}

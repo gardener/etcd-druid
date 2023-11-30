@@ -16,7 +16,7 @@ package etcd
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
@@ -60,17 +60,17 @@ func (r *Reconciler) recordEtcdSpecReconcileSuspension(etcd *druidv1alpha1.Etcd,
 	)
 }
 
-func (r *Reconciler) getOrderedOperatorsForSync() []resource.Operator {
-	return []resource.Operator{
-		r.operatorRegistry.MemberLeaseOperator(),
-		r.operatorRegistry.SnapshotLeaseOperator(),
-		r.operatorRegistry.ClientServiceOperator(),
-		r.operatorRegistry.PeerServiceOperator(),
-		r.operatorRegistry.ConfigMapOperator(),
-		r.operatorRegistry.PodDisruptionBudgetOperator(),
-		r.operatorRegistry.ServiceAccountOperator(),
-		r.operatorRegistry.RoleOperator(),
-		r.operatorRegistry.RoleBindingOperator(),
-		r.operatorRegistry.StatefulSetOperator(),
+func (r *Reconciler) getOrderedOperatorsForSync() []operator.Kind {
+	return []operator.Kind{
+		operator.MemberLeaseKind,
+		operator.SnapshotLeaseKind,
+		operator.ClientServiceKind,
+		operator.PeerServiceKind,
+		operator.ConfigMapKind,
+		operator.PodDisruptionBudgetKind,
+		operator.ServiceAccountKind,
+		operator.RoleKind,
+		operator.RoleBindingKind,
+		operator.StatefulSetKind,
 	}
 }
