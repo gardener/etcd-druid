@@ -39,8 +39,8 @@ const (
 	BackupFailed string = "BackupFailed"
 	// Unknown is a constant that means that the etcd backup status is currently not known
 	Unknown string = "Unknown"
-	// ConditionNotChecked is a constant that means that the etcd backup status has not been updated or rechecked
-	ConditionNotChecked string = "ConditionNotChecked"
+	// NotChecked is a constant that means that the etcd backup status has not been updated or rechecked
+	NotChecked string = "NotChecked"
 )
 
 func (a *backupReadyCheck) Check(ctx context.Context, logger logr.Logger, etcd druidv1alpha1.Etcd) Result {
@@ -60,16 +60,16 @@ func (a *backupReadyCheck) Check(ctx context.Context, logger logr.Logger, etcd d
 
 	// Fetch snapshot leases
 	var (
-		err, fullSnapErr, incrSnapErr error
-		fullSnapshotDuration          = 1 * time.Hour
-		fullSnapLease                 = &coordinationv1.Lease{}
-		deltaSnapLease                = &coordinationv1.Lease{}
+		err, fullSnapErr, deltaSnapErr error
+		fullSnapshotInterval           = 1 * time.Hour
+		fullSnapLease                  = &coordinationv1.Lease{}
+		deltaSnapLease                 = &coordinationv1.Lease{}
 	)
-	fullSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getFullSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, fullSnapLease)
-	incrSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getDeltaSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, deltaSnapLease)
+	fullSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getFullSnapLeaseName(&etcd), Namespace: etcd.Namespace}, fullSnapLease)
+	deltaSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getDeltaSnapLeaseName(&etcd), Namespace: etcd.Namespace}, deltaSnapLease)
 
 	// Set status to Unknown if errors in fetching snapshot leases or lease never renewed
-	if fullSnapErr != nil || incrSnapErr != nil || (fullSnapLease.Spec.RenewTime == nil && deltaSnapLease.Spec.RenewTime == nil) {
+	if fullSnapErr != nil || deltaSnapErr != nil || (fullSnapLease.Spec.RenewTime == nil && deltaSnapLease.Spec.RenewTime == nil) {
 		return result
 	}
 
@@ -80,7 +80,7 @@ func (a *backupReadyCheck) Check(ctx context.Context, logger logr.Logger, etcd d
 	// TODO: make etcd.Spec.Backup.FullSnapshotSchedule non-optional, since it is mandatory to
 	// set the full snapshot schedule, or introduce defaulting webhook to add default value for this field
 	if etcd.Spec.Backup.FullSnapshotSchedule != nil {
-		if fullSnapshotDuration, err = utils.ComputeScheduleDuration(*etcd.Spec.Backup.FullSnapshotSchedule); err != nil {
+		if fullSnapshotInterval, err = utils.ComputeScheduleInterval(*etcd.Spec.Backup.FullSnapshotSchedule); err != nil {
 			logger.Error(err, "unable to compute full snapshot duration from full snapshot schedule", "fullSnapshotSchedule", *etcd.Spec.Backup.FullSnapshotSchedule)
 			return result
 		}
@@ -90,7 +90,7 @@ func (a *backupReadyCheck) Check(ctx context.Context, logger logr.Logger, etcd d
 		// Most probable during reconcile of existing clusters if fresh leases are created
 		// Treat backup as succeeded if delta snap lease renewal happens in the required time window
 		// and full snap lease is not older than full snapshot duration.
-		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseCreateTime.Time) < fullSnapshotDuration {
+		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseCreateTime.Time) < fullSnapshotInterval {
 			result.reason = BackupSucceeded
 			result.message = "Delta snapshot backup succeeded"
 			result.status = druidv1alpha1.ConditionTrue
@@ -105,7 +105,7 @@ func (a *backupReadyCheck) Check(ctx context.Context, logger logr.Logger, etcd d
 		}
 	} else if deltaLeaseRenewTime != nil && fullLeaseRenewTime != nil {
 		// Both snap leases are maintained. Both are expected to be renewed periodically
-		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseRenewTime.Time) < fullSnapshotDuration {
+		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseRenewTime.Time) < fullSnapshotInterval {
 			result.reason = BackupSucceeded
 			result.message = "Snapshot backup succeeded"
 			result.status = druidv1alpha1.ConditionTrue
@@ -140,11 +140,11 @@ func (a *backupReadyCheck) Check(ctx context.Context, logger logr.Logger, etcd d
 }
 
 func getDeltaSnapLeaseName(etcd *druidv1alpha1.Etcd) string {
-	return fmt.Sprintf("%s-delta-snap", etcd.ObjectMeta.Name)
+	return fmt.Sprintf("%s-delta-snap", etcd.Name)
 }
 
 func getFullSnapLeaseName(etcd *druidv1alpha1.Etcd) string {
-	return fmt.Sprintf("%s-full-snap", etcd.ObjectMeta.Name)
+	return fmt.Sprintf("%s-full-snap", etcd.Name)
 }
 
 // BackupReadyCheck returns a check for the "BackupReady" condition.
