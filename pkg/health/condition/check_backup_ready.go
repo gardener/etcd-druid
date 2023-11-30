@@ -21,8 +21,9 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/utils"
-	coordinationv1 "k8s.io/api/coordination/v1"
 
+	"github.com/go-logr/logr"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -42,7 +43,7 @@ const (
 	ConditionNotChecked string = "ConditionNotChecked"
 )
 
-func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
+func (a *backupReadyCheck) Check(ctx context.Context, logger logr.Logger, etcd druidv1alpha1.Etcd) Result {
 	//Default case
 	result := &result{
 		conType: druidv1alpha1.ConditionTypeBackupReady,
@@ -60,7 +61,7 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 	// Fetch snapshot leases
 	var (
 		err, fullSnapErr, incrSnapErr error
-		fullSnapshotDuration          = 24 * time.Hour
+		fullSnapshotDuration          = 1 * time.Hour
 		fullSnapLease                 = &coordinationv1.Lease{}
 		deltaSnapLease                = &coordinationv1.Lease{}
 	)
@@ -80,6 +81,7 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 	// set the full snapshot schedule, or introduce defaulting webhook to add default value for this field
 	if etcd.Spec.Backup.FullSnapshotSchedule != nil {
 		if fullSnapshotDuration, err = utils.ComputeScheduleDuration(*etcd.Spec.Backup.FullSnapshotSchedule); err != nil {
+			logger.Error(err, "unable to compute full snapshot duration from full snapshot schedule", "fullSnapshotSchedule", *etcd.Spec.Backup.FullSnapshotSchedule)
 			return result
 		}
 	}

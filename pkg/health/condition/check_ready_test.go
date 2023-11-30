@@ -17,15 +17,21 @@ package condition_test
 import (
 	"context"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	. "github.com/gardener/etcd-druid/pkg/health/condition"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	. "github.com/gardener/etcd-druid/pkg/health/condition"
+	"github.com/go-logr/logr"
 )
 
 var _ = Describe("ReadyCheck", func() {
 	Describe("#Check", func() {
-		var readyMember, notReadyMember, unknownMember druidv1alpha1.EtcdMemberStatus
+		var (
+			readyMember, notReadyMember, unknownMember druidv1alpha1.EtcdMemberStatus
+
+			logger = logr.Discard()
+		)
 
 		BeforeEach(func() {
 			readyMember = druidv1alpha1.EtcdMemberStatus{
@@ -52,7 +58,7 @@ var _ = Describe("ReadyCheck", func() {
 				}
 				check := ReadyCheck(nil)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
@@ -70,7 +76,7 @@ var _ = Describe("ReadyCheck", func() {
 				}
 				check := ReadyCheck(nil)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
@@ -88,7 +94,7 @@ var _ = Describe("ReadyCheck", func() {
 				}
 				check := ReadyCheck(nil)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
@@ -106,7 +112,7 @@ var _ = Describe("ReadyCheck", func() {
 				}
 				check := ReadyCheck(nil)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
@@ -123,7 +129,7 @@ var _ = Describe("ReadyCheck", func() {
 				}
 				check := ReadyCheck(nil)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
@@ -131,5 +137,4 @@ var _ = Describe("ReadyCheck", func() {
 			})
 		})
 	})
-
 })

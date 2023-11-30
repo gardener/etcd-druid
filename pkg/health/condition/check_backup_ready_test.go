@@ -18,19 +18,20 @@ import (
 	"context"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	. "github.com/gardener/etcd-druid/pkg/health/condition"
-	mockclient "github.com/gardener/etcd-druid/pkg/mock/controller-runtime/client"
-
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	. "github.com/gardener/etcd-druid/pkg/health/condition"
+	mockclient "github.com/gardener/etcd-druid/pkg/mock/controller-runtime/client"
 
 	coordinationv1 "k8s.io/api/coordination/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -47,6 +48,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				},
 			}
 			deltaSnapshotDuration = 2 * time.Minute
+			logger                = ctrl.Log.WithName("backup-ready-checker")
 
 			etcd = druidv1alpha1.Etcd{
 				ObjectMeta: v1.ObjectMeta{
@@ -99,7 +101,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				).AnyTimes()
 
 				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
@@ -118,7 +120,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				).AnyTimes()
 
 				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
@@ -126,7 +128,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				Expect(result.Reason()).To(Equal(BackupSucceeded))
 			})
 
-			It("Should set status to BackupSucceeded if delta snap lease is recently created and empty full snap lease has been created in the last 24h", func() {
+			It("Should set status to BackupSucceeded if delta snap lease is recently created and empty full snap lease has been created recently", func() {
 				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-full-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
 						*le = lease
@@ -144,7 +146,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				).AnyTimes()
 
 				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
@@ -170,7 +172,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				).AnyTimes()
 
 				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
@@ -199,7 +201,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				}
 
 				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
@@ -227,7 +229,7 @@ var _ = Describe("BackupReadyCheck", func() {
 				}
 
 				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
@@ -246,7 +248,7 @@ var _ = Describe("BackupReadyCheck", func() {
 
 				etcd.Spec.Backup.Store = nil
 				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result).To(BeNil())
 				etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
@@ -266,7 +268,7 @@ var _ = Describe("BackupReadyCheck", func() {
 
 				etcd.Spec.Backup.Store.Provider = nil
 				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result).To(BeNil())
 				etcd.Spec.Backup.Store.Provider = &storageProvider
