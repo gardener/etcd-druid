@@ -18,22 +18,21 @@ import (
 	"context"
 	"time"
 
-	"k8s.io/utils/pointer"
-
-	"github.com/go-logr/logr"
-
-	"github.com/gardener/etcd-druid/pkg/health/condition"
-	"github.com/gardener/etcd-druid/pkg/health/etcdmember"
-	"github.com/gardener/gardener/pkg/utils/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/pkg/health/condition"
+	"github.com/gardener/etcd-druid/pkg/health/etcdmember"
 	. "github.com/gardener/etcd-druid/pkg/health/status"
+
+	"github.com/gardener/gardener/pkg/utils/test"
+	"github.com/go-logr/logr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var _ = Describe("Check", func() {
@@ -214,16 +213,16 @@ func (r *conditionResult) Message() string {
 	return r.ConMessage
 }
 
-type testChecker struct {
+type conditionTestChecker struct {
 	result *conditionResult
 }
 
-func (t *testChecker) Check(_ context.Context, _ druidv1alpha1.Etcd) condition.Result {
+func (t *conditionTestChecker) Check(_ context.Context, _ logr.Logger, _ druidv1alpha1.Etcd) condition.Result {
 	return t.result
 }
 
 func createConditionCheck(conType druidv1alpha1.ConditionType, status druidv1alpha1.ConditionStatus, reason, message string) condition.Checker {
-	return &testChecker{
+	return &conditionTestChecker{
 		result: &conditionResult{
 			ConType:    conType,
 			ConStatus:  status,

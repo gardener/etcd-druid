@@ -18,12 +18,13 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type allMembersReady struct{}
 
-func (a *allMembersReady) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
+func (a *allMembersReady) Check(_ context.Context, _ logr.Logger, etcd druidv1alpha1.Etcd) Result {
 	if len(etcd.Status.Members) == 0 {
 		return &result{
 			conType: druidv1alpha1.ConditionTypeAllMembersReady,

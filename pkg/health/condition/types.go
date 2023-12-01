@@ -18,11 +18,12 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/go-logr/logr"
 )
 
 // Checker is an interface to check the etcd resource and to return condition results.
 type Checker interface {
-	Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result
+	Check(ctx context.Context, logger logr.Logger, etcd druidv1alpha1.Etcd) Result
 }
 
 // Result encapsulates a condition result

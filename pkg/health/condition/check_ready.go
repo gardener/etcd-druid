@@ -18,12 +18,13 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type readyCheck struct{}
 
-func (r *readyCheck) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
+func (r *readyCheck) Check(_ context.Context, _ logr.Logger, etcd druidv1alpha1.Etcd) Result {
 
 	// TODO: remove this case as soon as leases are completely supported by etcd-backup-restore
 	if len(etcd.Status.Members) == 0 {
