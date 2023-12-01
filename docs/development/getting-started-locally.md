@@ -1,10 +1,8 @@
 # Etcd-Druid Local Setup
 
-This page aims to provide steps on how to setup Etcd-Druid locally with and without storage providers
+This page aims to provide steps on how to setup Etcd-Druid locally with and without storage providers.
 
-## Setting up etcd-druid
-
-### Clone the Etcd-Druid Github repo
+## Clone the etcd-druid github repo
 
 ```sh
 # clone the repo
@@ -15,11 +13,13 @@ cd etcd-druid
 
 ---
 
-> **Note:** To setup Etcd-Druid with backups enabled on a [LocalStack](https://github.com/localstack/localstack) provider, refer [this document](https://github.com/gardener/etcd-druid/blob/master/docs/development/getting-started-locally-localstack.md)
+> **Note:**
+>
+>- Etcd-druid uses [kind](https://kind.sigs.k8s.io/) as it's local Kubernetes engine. The local setup is configured for kind due to it's convenience but any other kubernetes setup would also work.
+>- To setup Etcd-Druid with backups enabled on a [LocalStack](https://github.com/localstack/localstack) provider, refer [this document](getting-started-locally-localstack.md)
+>- In the section [Annotate Etcd CR with the reconcile annotation](#annotate-etcd-cr-with-the-reconcile-annotation), the flag `ignore-operation-annotation` is set to false, which means manual annotation to the Etcd CR is requied to reconcile the Etcd CR. To disable this and auto reconcile the Etcd CR for any change in the Etcd yaml, set the`ignoreOperationAnnotation` flag to `true` in the `values.yaml` located at `$PWD/charts/druid/values.yaml`. Or if the Etcd-Druid is being run as a process, then while starting the process, attach the CLI flag `--ignore-operation-annotation=true` to it.
 
----
-
-### Setting up the Kind Cluster
+## Setting up the kind cluster
 
 ```sh
 # Create a kind cluster
@@ -34,28 +34,27 @@ To target this newly created cluster, set the `KUBECONFIG` environment variable 
 export KUBECONFIG=$PWD/hack/e2e-test/infrastructure/kind/kubeconfig
 ```
 
-### Setting up Etcd-Druid
-
-Generates the Etcd CRD and deploy an etcd-druid pod into the cluster
+## Setting up etcd-druid
 
 ```sh
 make deploy
 ```
 
-### Applying the etcd CR
+This generates the `Etcd` CRD and deploys an etcd-druid pod into the cluster
+
+### Prepare the Etcd CR
+
+Etcd CR can be configured in 2 ways. Either to take backups to the store or disable them. Follow the appropriate section below based on the requirement.
+
+The Etcd CR can be found at this location `$PWD/config/samples/druid_v1alpha1_etcd.yaml`
 
 - **Without Backups enabled**
 
-    To setup Etcd-druid without backups enabled, apply the Etcd yaml to the cluster
-
-    Confirm that the `spec.backup.store` is commented out.
-
-    ```sh
-    # Apply the etcd CR yaml
-    kubectl apply -f config/samples/druid_v1alpha1_etcd.yaml
-    ```
+    To setup Etcd-druid without backups enabled, make sure the `spec.backup.store` section of the Etcd CR is commented out.
 
 - **With Backups enabled (On Cloud Provider Object Stores)**
+
+  - **Prepare the secret**
 
     Create a secret for cloud provider access. Find the secret yaml templates for different cloud providers [here](https://github.com/gardener/etcd-backup-restore/tree/master/example/storage-provider-secrets).
 
@@ -65,11 +64,13 @@ make deploy
     >
     > **Note 2:** All the values in the data field of secret yaml should be in base64 encoded format.
 
-    **Apply the secret**
+  - **Apply the secret**
 
     ```sh
     kubectl apply -f path/to/secret
-    ``````
+    ```
+
+  - **Update Etcd**
 
     Uncomment the `spec.backup.store` section of the druid yaml and set the keys to allow backuprestore to take backups by connecting to an object store.
 
@@ -85,21 +86,25 @@ make deploy
 
     Brief explanation of keys:
 
-  - `secretRef.name` is the name of the secret that was applied as mentioned above
-  - `store.container` is the object storage bucket name
-  - `store.provider`  is the bucket provider. Pick from the options mentioned in comment
-  - `store.prefix`    is the folder name that you want to use for your snapshots.
+    - `secretRef.name` is the name of the secret that was applied as mentioned above
+    - `store.container` is the object storage bucket name
+    - `store.provider`  is the bucket provider. Pick from the options mentioned in comment
+    - `store.prefix`    is the folder name that you want to use for your snapshots inside the bucket.
 
-    > **Note:** Before applying the Etcd yaml, make sure the bucket is created in the corresponding cloud provider
+### Applying the Etcd CR
 
-    Create the Etcd CR (Custom Resource) by applying the Etcd yaml to the cluster
+> **Note:** With backups enabled, make sure the bucket is created in corresponding cloud provider before applying the Etcd yaml
 
-    ```sh
-    # Apply the etcd CR yaml
-    kubectl apply -f config/samples/druid_v1alpha1_etcd.yaml
-    ```
+Create the Etcd CR (Custom Resource) by applying the Etcd yaml to the cluster
 
-### Annotate the etcd CR
+```sh
+# Apply the prepared etcd CR yaml
+kubectl apply -f config/samples/druid_v1alpha1_etcd.yaml
+```
+
+### Annotate Etcd CR with the reconcile annotation
+
+> **Note :** If the `ignore-operation-annotation` flag is set to `true`, this step is not required
 
 The above step creates an Etcd resource, however etcd-druid won't pick it up for reconciliation without an annotation. To get etcd-druid to reconcile the etcd CR, annotate it with the following `gardener.cloud/operation:reconcile`.
 
@@ -110,6 +115,43 @@ kubectl annotate etcd etcd-test gardener.cloud/operation="reconcile"
 
 This starts creating the etcd cluster
 
+### Verify the Etcd cluster
+
+To obtain information regarding the newly instantiated etcd cluster, perform the following step, which gives details such as the cluster size, readiness status of its members, and various other attributes.
+
+```sh
+kubectl get etcd -o=wide
+```
+
+#### Verify Etcd Member Pods
+
+To check the etcd member pods, do the following and look out for pods starting with the name `etcd-`
+
+```sh
+kubectl get pods
+```
+
+#### Verify Etcd Pods' Functionality
+
+Verify the working conditions of the etcd pods by putting data through a etcd container and access the db from same/another container depending on single/multi node etcd cluster
+
+```sh
+# Put a key-value pair into the etcd 
+kubectl exec -it <etcd_pod> -c etcd -- etcdctl put key1 value1
+# Retrieve all key-value pairs in the etcd db
+kubectl exec -it <etcd_pod> -c etcd -- etcdctl get --prefix ""
+```
+
+If multinode etcd cluster, insert the key-value pair from `etcd` container of one etcd member and retrieve from `etcd` container of another to verify consensus between the multiple etcd members.
+
+#### View Etcd Database File
+
+To inspect the Etcd database file, execute the following command in the `backup-restore` container of any Etcd pods to check the database file located at `var/etcd/data/new.etcd/snap/db`
+
+```sh
+kubectl exec -it <etcd_pod> -c backup-restore -- cat var/etcd/data/new.etcd/snap/db
+```
+
 ## Cleaning the setup
 
 ```sh
@@ -117,4 +159,4 @@ This starts creating the etcd cluster
 make kind-down
 ```
 
-This cleans up the cluster i.e deletes the created Etcd and all pods that got created along the way and also other resources such as statefulsets, services, PV's, PVC's, etc.
+This cleans up the entire setup as the kind cluster gets deleted. It deletes the created Etcd, all pods that got created along the way and also other resources such as statefulsets, services, PV's, PVC's, etc.
