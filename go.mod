@@ -39,7 +39,7 @@ require (
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/ahmetb/gen-crd-api-reference-docs v0.3.0 // indirect
 	github.com/aliyun/aliyun-oss-go-sdk v2.1.8+incompatible // indirect
-	github.com/aws/aws-sdk-go v1.32.6 // indirect
+	github.com/aws/aws-sdk-go v1.34.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/bronze1man/yaml2json v0.0.0-20211227013850-8972abeaea25 // indirect

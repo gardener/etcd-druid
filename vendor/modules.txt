@@ -43,7 +43,7 @@ github.com/ahmetb/gen-crd-api-reference-docs
 # github.com/aliyun/aliyun-oss-go-sdk v2.1.8+incompatible
 ## explicit
 github.com/aliyun/aliyun-oss-go-sdk/oss
-# github.com/aws/aws-sdk-go v1.32.6
+# github.com/aws/aws-sdk-go v1.34.0
 ## explicit; go 1.11
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/arn
