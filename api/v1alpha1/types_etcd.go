@@ -567,8 +567,8 @@ func (e *Etcd) GetRoleBindingName() string {
 	return fmt.Sprintf("%s:etcd:%s", GroupVersion.Group, e.Name)
 }
 
-// IsBackupEnabled returns true if backup has been enabled for this etcd, else returns false.
-func (e *Etcd) IsBackupEnabled() bool {
+// IsBackupStoreEnabled returns true if backup store has been enabled for this etcd, else returns false.
+func (e *Etcd) IsBackupStoreEnabled() bool {
 	return e.Spec.Backup.Store != nil
 }
 

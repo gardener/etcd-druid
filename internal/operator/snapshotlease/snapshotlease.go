@@ -57,7 +57,7 @@ func (r _resource) getLease(ctx context.Context, objectKey client.ObjectKey) (*c
 }
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	if !etcd.IsBackupEnabled() {
+	if !etcd.IsBackupStoreEnabled() {
 		r.logger.Info("Backup has been disabled. Triggering delete of snapshot leases")
 		return r.TriggerDelete(ctx, etcd)
 	}

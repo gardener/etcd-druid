@@ -80,7 +80,7 @@ package compaction
 //	}
 //	rLog := r.logger.WithValues("etcd", etcd.GetNamespaceName())
 //	jobKey := getJobKey(etcd)
-//	if etcd.IsMarkedForDeletion() || !etcd.IsBackupEnabled() {
+//	if etcd.IsMarkedForDeletion() || !etcd.IsBackupStoreEnabled() {
 //		return r.triggerJobDeletion(ctx, rLog, jobKey)
 //	}
 //

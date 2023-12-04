@@ -79,7 +79,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	rLog := r.logger.WithValues("etcd", etcd.GetNamespaceName())
 	jobKey := getJobKey(etcd)
-	if etcd.IsMarkedForDeletion() || !etcd.IsBackupEnabled() {
+	if etcd.IsMarkedForDeletion() || !etcd.IsBackupStoreEnabled() {
 		return r.triggerJobDeletion(ctx, rLog, jobKey)
 	}
 

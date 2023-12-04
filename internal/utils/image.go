@@ -39,22 +39,22 @@ func getEtcdImageKeys(useEtcdWrapper bool) (etcdImageKey string, etcdbrImageKey 
 // It will give preference to images that are set in the etcd spec and only if the image is not found in it should
 // it be picked up from the image vector if it's set there.
 // A return value of nil for either of the images indicates that the image is not set.
-func GetEtcdImages(etcd *druidv1alpha1.Etcd, iv imagevector.ImageVector, useEtcdWrapper bool) (*string, *string, *string, error) {
+func GetEtcdImages(etcd *druidv1alpha1.Etcd, iv imagevector.ImageVector, useEtcdWrapper bool) (string, string, string, error) {
 	etcdImageKey, etcdbrImageKey, initContainerImageKey := getEtcdImageKeys(useEtcdWrapper)
 	etcdImage, err := chooseImage(etcdImageKey, etcd.Spec.Etcd.Image, iv)
 	if err != nil {
-		return nil, nil, nil, err
+		return "", "", "", err
 	}
 	etcdBackupRestoreImage, err := chooseImage(etcdbrImageKey, etcd.Spec.Backup.Image, iv)
 	if err != nil {
-		return nil, nil, nil, err
+		return "", "", "", err
 	}
 	initContainerImage, err := chooseImage(initContainerImageKey, nil, iv)
 	if err != nil {
-		return nil, nil, nil, err
+		return "", "", "", err
 	}
 
-	return etcdImage, etcdBackupRestoreImage, initContainerImage, nil
+	return *etcdImage, *etcdBackupRestoreImage, *initContainerImage, nil
 }
 
 // chooseImage selects an image based on the given key, specImage, and image vector.

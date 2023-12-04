@@ -100,3 +100,19 @@ func IsEmptyString(s string) bool {
 	}
 	return false
 }
+
+// IfConditionOr implements a simple ternary operator, if the passed condition is true then trueVal is returned else falseVal is returned.
+func IfConditionOr[T any](condition bool, trueVal, falseVal T) T {
+	if condition {
+		return trueVal
+	}
+	return falseVal
+}
+
+// IsNilOrEmptyStringPtr returns true if the string pointer is nil or the return value of IsEmptyString(s).
+func IsNilOrEmptyStringPtr(s *string) bool {
+	if s == nil {
+		return true
+	}
+	return IsEmptyString(*s)
+}
