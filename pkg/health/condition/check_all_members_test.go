@@ -22,11 +22,16 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	. "github.com/gardener/etcd-druid/pkg/health/condition"
+	"github.com/go-logr/logr"
 )
 
 var _ = Describe("AllMembersReadyCheck", func() {
 	Describe("#Check", func() {
-		var readyMember, notReadyMember druidv1alpha1.EtcdMemberStatus
+		var (
+			readyMember, notReadyMember druidv1alpha1.EtcdMemberStatus
+
+			logger = logr.Discard()
+		)
 
 		BeforeEach(func() {
 			readyMember = druidv1alpha1.EtcdMemberStatus{
@@ -53,7 +58,7 @@ var _ = Describe("AllMembersReadyCheck", func() {
 				}
 				check := AllMembersCheck(nil)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeAllMembersReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
@@ -74,7 +79,7 @@ var _ = Describe("AllMembersReadyCheck", func() {
 				}
 				check := AllMembersCheck(nil)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeAllMembersReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
@@ -94,7 +99,7 @@ var _ = Describe("AllMembersReadyCheck", func() {
 				}
 				check := AllMembersCheck(nil)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeAllMembersReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
@@ -114,7 +119,7 @@ var _ = Describe("AllMembersReadyCheck", func() {
 				}
 				check := AllMembersCheck(nil)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(context.TODO(), logger, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeAllMembersReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))

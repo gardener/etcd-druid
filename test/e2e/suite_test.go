@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/api/v1alpha1"
-
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	singleNodeEtcdTimeout = time.Minute
+	singleNodeEtcdTimeout = time.Minute * 3
 	multiNodeEtcdTimeout  = time.Minute * 5
 
 	pollingInterval   = time.Second * 2

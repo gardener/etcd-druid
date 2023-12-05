@@ -74,24 +74,24 @@ func (c *Checker) Check(ctx context.Context, logger logr.Logger, etcd *druidv1al
 	}
 
 	// Execute condition checks after the etcd member checks because we need their result here.
-	return c.executeConditionChecks(ctx, etcd)
+	return c.executeConditionChecks(ctx, logger, etcd)
 }
 
 // executeConditionChecks runs all registered condition checks **in parallel**.
-func (c *Checker) executeConditionChecks(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+func (c *Checker) executeConditionChecks(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
 	var (
 		resultCh = make(chan condition.Result)
 
 		wg sync.WaitGroup
 	)
 
-	// Run condition checks in parallel since they work independently from each other.
+	// Run condition checks in parallel since they work independent of each other.
 	for _, newCheck := range c.conditionCheckFns {
 		c := newCheck(c.cl)
 		wg.Add(1)
 		go (func() {
 			defer wg.Done()
-			resultCh <- c.Check(ctx, *etcd)
+			resultCh <- c.Check(ctx, logger, *etcd)
 		})()
 	}
 

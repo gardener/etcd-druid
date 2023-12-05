@@ -1,6 +1,6 @@
 module github.com/gardener/etcd-druid
 
-go 1.20
+go 1.21
 
 require (
 	github.com/gardener/etcd-backup-restore v0.26.0
@@ -11,6 +11,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.11.0
 	github.com/onsi/gomega v1.27.8
 	github.com/prometheus/client_golang v1.14.0
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/pflag v1.0.5
 	go.uber.org/zap v1.24.0
 	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
@@ -99,7 +100,6 @@ require (
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
-	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/afero v1.8.2 // indirect

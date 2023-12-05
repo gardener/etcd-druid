@@ -108,11 +108,14 @@ var _ = Describe("Etcd Backup", func() {
 					Expect(err).ShouldNot(HaveOccurred())
 
 					By("Check snapshot after putting data into etcd")
-					// allow 5 second buffer to upload full/delta snapshot
-					time.Sleep(time.Second * 5)
-
 					latestSnapshotsAfterPopulate, err := getLatestSnapshots(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
 					Expect(err).ShouldNot(HaveOccurred())
+
+					Eventually(func() int {
+						latestSnapshotsAfterPopulate, err = getLatestSnapshots(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
+						Expect(err).NotTo(HaveOccurred())
+						return len(latestSnapshotsAfterPopulate.DeltaSnapshots)
+					}, singleNodeEtcdTimeout, pollingInterval).Should(BeNumerically(">", len(latestSnapshotsBeforePopulate.DeltaSnapshots)))
 
 					latestSnapshotAfterPopulate := latestSnapshotsAfterPopulate.FullSnapshot
 					if numDeltas := len(latestSnapshotsAfterPopulate.DeltaSnapshots); numDeltas > 0 {

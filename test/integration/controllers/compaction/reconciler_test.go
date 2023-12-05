@@ -119,14 +119,8 @@ var _ = Describe("Compaction Controller", func() {
 			fullSnapLease, deltaSnapLease = createEtcdSnapshotLeasesAndWait(k8sClient, instance)
 
 			// manually create compaction job
-			j = createCompactionJob(instance)
-			Expect(k8sClient.Create(ctx, j)).To(Succeed())
-
-			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
-
-			// Update job status as failed
-			j.Status.Failed = 1
-			Expect(k8sClient.Status().Update(ctx, j)).To(Succeed())
+			// j = createCompactionJob(instance)
+			// Expect(k8sClient.Create(ctx, j)).To(Succeed())
 
 			// Deliberately update the full lease
 			fullSnapLease.Spec.HolderIdentity = pointer.String("0")
@@ -137,6 +131,15 @@ var _ = Describe("Compaction Controller", func() {
 			deltaSnapLease.Spec.HolderIdentity = pointer.String("101")
 			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
+
+			j = &batchv1.Job{}
+			Eventually(func() error {
+				return jobIsCorrectlyReconciled(k8sClient, instance, j)
+			}, timeout, pollingInterval).Should(BeNil())
+
+			// Update job status as failed
+			j.Status.Failed = 1
+			Expect(k8sClient.Status().Update(ctx, j)).To(Succeed())
 
 			// Wait until the job gets the "foregroundDeletion" finalizer and remove it
 			Eventually(func() (*batchv1.Job, error) {
@@ -161,21 +164,11 @@ var _ = Describe("Compaction Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testutils.EtcdBuilderWithDefaults("foo78", "default").Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo78", "default").WithProviderLocal().Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
 			fullSnapLease, deltaSnapLease = createEtcdSnapshotLeasesAndWait(k8sClient, instance)
-
-			// create compaction job
-			j := createCompactionJob(instance)
-			Expect(k8sClient.Create(ctx, j)).To(Succeed())
-
-			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
-
-			// Update job status as succeeded
-			j.Status.Succeeded = 1
-			Expect(k8sClient.Status().Update(context.TODO(), j)).To(Succeed())
 
 			// Deliberately update the full lease
 			fullSnapLease.Spec.HolderIdentity = pointer.String("0")
@@ -186,6 +179,15 @@ var _ = Describe("Compaction Controller", func() {
 			deltaSnapLease.Spec.HolderIdentity = pointer.String("101")
 			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
+
+			j = &batchv1.Job{}
+			Eventually(func() error {
+				return jobIsCorrectlyReconciled(k8sClient, instance, j)
+			}, timeout, pollingInterval).Should(BeNil())
+
+			// Update job status as succeeded
+			j.Status.Succeeded = 1
+			Expect(k8sClient.Status().Update(context.TODO(), j)).To(Succeed())
 
 			// Wait until the job gets the "foregroundDeletion" finalizer and remove it
 			Eventually(func() (*batchv1.Job, error) {
@@ -206,26 +208,30 @@ var _ = Describe("Compaction Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testutils.EtcdBuilderWithDefaults("foo79", "default").Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo79", "default").WithProviderLocal().Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
 			fullSnapLease, deltaSnapLease = createEtcdSnapshotLeasesAndWait(k8sClient, instance)
 
-			// create compaction job
-			j := createCompactionJob(instance)
-			Expect(k8sClient.Create(ctx, j)).To(Succeed())
+			// Deliberately update the full lease
+			fullSnapLease.Spec.HolderIdentity = pointer.String("0")
+			fullSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(k8sClient.Update(context.TODO(), fullSnapLease)).To(Succeed())
 
-			Eventually(func() error { return jobIsCorrectlyReconciled(k8sClient, instance, j) }, timeout, pollingInterval).Should(BeNil())
+			// Deliberately update the delta lease
+			deltaSnapLease.Spec.HolderIdentity = pointer.String("101")
+			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
+
+			j = &batchv1.Job{}
+			Eventually(func() error {
+				return jobIsCorrectlyReconciled(k8sClient, instance, j)
+			}, timeout, pollingInterval).Should(BeNil())
 
 			// Update job status as active
 			j.Status.Active = 1
 			Expect(k8sClient.Status().Update(ctx, j)).To(Succeed())
-
-			// Deliberately update the delta lease
-			deltaSnapLease.Spec.HolderIdentity = pointer.String("100")
-			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
 
 			// The active job should exist
 			Eventually(func() error {
@@ -239,8 +245,47 @@ var _ = Describe("Compaction Controller", func() {
 			}, timeout, pollingInterval).Should(BeNil())
 		})
 
-	})
+		It("should let the existing job run even without any lease update", func() {
+			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+			defer cancel()
 
+			instance = testutils.EtcdBuilderWithDefaults("foo80", "default").WithProviderLocal().Build()
+			createEtcdAndWait(k8sClient, instance)
+
+			// manually create full and delta snapshot leases since etcd controller is not running
+			fullSnapLease, deltaSnapLease = createEtcdSnapshotLeasesAndWait(k8sClient, instance)
+
+			// Deliberately update the full lease
+			fullSnapLease.Spec.HolderIdentity = pointer.String("0")
+			fullSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(k8sClient.Update(context.TODO(), fullSnapLease)).To(Succeed())
+
+			// Deliberately update the delta lease
+			deltaSnapLease.Spec.HolderIdentity = pointer.String("101")
+			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
+
+			j = &batchv1.Job{}
+			Eventually(func() error {
+				return jobIsCorrectlyReconciled(k8sClient, instance, j)
+			}, timeout, pollingInterval).Should(BeNil())
+
+			// Update job status as active
+			j.Status.Active = 1
+			Expect(k8sClient.Status().Update(ctx, j)).To(Succeed())
+
+			// The active job should exist
+			Eventually(func() error {
+				if err := jobIsCorrectlyReconciled(k8sClient, instance, j); err != nil {
+					return err
+				}
+				if j.Status.Active != 1 {
+					return fmt.Errorf("compaction job is not currently active")
+				}
+				return nil
+			}, timeout, pollingInterval).Should(BeNil())
+		})
+	})
 })
 
 func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
@@ -619,7 +664,7 @@ func createCompactionJob(instance *druidv1alpha1.Etcd) *batchv1.Job {
 					Containers: []corev1.Container{
 						{
 							Name:    "compact-backup",
-							Image:   "eu.gcr.io/gardener-project/alpine:3.14",
+							Image:   "eu.gcr.io/gardener-project/3rd/alpine:3.18.4",
 							Command: []string{"sh", "-c", "tail -f /dev/null"},
 						},
 					},
