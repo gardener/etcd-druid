@@ -13,10 +13,14 @@ import (
 // the underline error (cause) along with error code and contextual information captured
 // as operation during which an error occurred and any custom message.
 type DruidError struct {
-	Code      druidv1alpha1.ErrorCode
-	Cause     error
+	// Code indicates the category of error adding contextual information to the underline error.
+	Code druidv1alpha1.ErrorCode
+	// Cause is the underline error.
+	Cause error
+	// Operation is the semantic operation during which this error is created/wrapped.
 	Operation string
-	Message   string
+	// Message is the custom message providing additional context for the error.
+	Message string
 }
 
 func (r *DruidError) Error() string {
