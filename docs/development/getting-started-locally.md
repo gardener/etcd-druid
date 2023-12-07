@@ -17,7 +17,7 @@ cd etcd-druid
 >
 >- Etcd-druid uses [kind](https://kind.sigs.k8s.io/) as it's local Kubernetes engine. The local setup is configured for kind due to it's convenience but any other kubernetes setup would also work.
 >- To setup Etcd-Druid with backups enabled on a [LocalStack](https://github.com/localstack/localstack) provider, refer [this document](getting-started-locally-localstack.md)
->- In the section [Annotate Etcd CR with the reconcile annotation](#annotate-etcd-cr-with-the-reconcile-annotation), the flag `ignore-operation-annotation` is set to false, which means manual annotation to the Etcd CR is requied to reconcile the Etcd CR. To disable this and auto reconcile the Etcd CR for any change in the Etcd yaml, set the`ignoreOperationAnnotation` flag to `true` in the `values.yaml` located at `$PWD/charts/druid/values.yaml`. Or if the Etcd-Druid is being run as a process, then while starting the process, attach the CLI flag `--ignore-operation-annotation=true` to it.
+>- In the section [Annotate Etcd CR with the reconcile annotation](#annotate-etcd-cr-with-the-reconcile-annotation), the flag `ignore-operation-annotation` is set to false, which means a special annotation is required  on the Etcd CR, for etcd-druid to reconcile it. To disable this behavior and allow auto-reconciliation of the Etcd CR for any change in the Etcd spec, set the `ignoreOperationAnnotation` flag to `true` in the `values.yaml` located at [`charts/druid/values.yaml`](../../charts/druid/values.yaml). Or if etcd-druid is being run as a process, then while starting the process, set the CLI flag `--ignore-operation-annotation=true` for it.
 
 ## Setting up the kind cluster
 
@@ -70,7 +70,7 @@ The Etcd CR can be found at this location `$PWD/config/samples/druid_v1alpha1_et
     kubectl apply -f path/to/secret
     ```
 
-  - **Update Etcd**
+  - **Adapt `Etcd` resource**
 
     Uncomment the `spec.backup.store` section of the druid yaml and set the keys to allow backuprestore to take backups by connecting to an object store.
 
@@ -133,24 +133,22 @@ kubectl get pods
 
 #### Verify Etcd Pods' Functionality
 
-Verify the working conditions of the etcd pods by putting data through a etcd container and access the db from same/another container depending on single/multi node etcd cluster
+Verify the working conditions of the etcd pods by putting data through a etcd container and access the db from same/another container depending on single/multi node etcd cluster.
+
+Ideally, you can exec into the etcd container using `kubectl exec -it <etcd_pod> -c etcd -- bash` if it utilizes a base image containing a shell. However, note that the `etcd-wrapper` Docker image employs a [distroless image](https://github.com/GoogleContainerTools/distroless), which lacks a shell. To interact with etcd, use an [Ephemeral container](https://kubernetes.io/docs/concepts/workloads/pods/ephemeral-containers/) as a debug container. Refer to this [documentation](https://github.com/gardener/etcd-wrapper/blob/main/docs/deployment/ops.md#build-image) for building and using an ephemeral container by attaching it to the etcd container.
 
 ```sh
 # Put a key-value pair into the etcd 
-kubectl exec -it <etcd_pod> -c etcd -- etcdctl put key1 value1
-# Retrieve all key-value pairs in the etcd db
-kubectl exec -it <etcd_pod> -c etcd -- etcdctl get --prefix ""
+etcdctl put key1 value1
+# Retrieve all key-value pairs from the etcd db
+etcdctl get --prefix ""
 ```
 
-If multinode etcd cluster, insert the key-value pair from `etcd` container of one etcd member and retrieve from `etcd` container of another to verify consensus between the multiple etcd members.
+For a multi-node etcd cluster, insert the key-value pair from the `etcd` container of one etcd member and retrieve it from the `etcd` container of another member to verify consensus among the multiple etcd members.
 
 #### View Etcd Database File
 
-To inspect the Etcd database file, execute the following command in the `backup-restore` container of any Etcd pods to check the database file located at `var/etcd/data/new.etcd/snap/db`
-
-```sh
-kubectl exec -it <etcd_pod> -c backup-restore -- cat var/etcd/data/new.etcd/snap/db
-```
+The Etcd database file is located at `var/etcd/data/new.etcd/snap/db` inside the `backup-restore` container. In versions with an `alpine` base image, you can exec directly into the container. However, in recent versions where the `backup-restore` docker image started using a distroless image, a debug container is required to communicate with it, as mentioned in the previous section.
 
 ## Cleaning the setup
 
