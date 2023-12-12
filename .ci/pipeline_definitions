@@ -5,7 +5,8 @@ etcd-druid:
         preprocess:
           'inject-commit-hash'
         inject_effective_version: true
-      component_descriptor: ~
+      component_descriptor:
+        ocm_repository: europe-docker.pkg.dev/gardener-project/snapshots
       publish:
         oci-builder: 'docker-buildx'
         platforms:
@@ -13,7 +14,7 @@ etcd-druid:
         - linux/arm64
         dockerimages:
           etcd-druid:
-            image: 'eu.gcr.io/gardener-project/gardener/etcd-druid'
+            image: europe-docker.pkg.dev/gardener-project/snapshots/gardener/etcd-druid
             dockerfile: 'Dockerfile'
             inputs:
               repos:
@@ -44,7 +45,9 @@ etcd-druid:
     head-update:
       traits:
         draft_release: ~
-        component_descriptor: ~
+        component_descriptor:
+          ocm_repository_mappings:
+            - repository: europe-docker.pkg.dev/gardener-project/releases
     pull-request:
       traits:
         pull-request: ~
@@ -52,7 +55,12 @@ etcd-druid:
       traits:
         version:
           preprocess: 'finalize'
-        component_descriptor: ~
+        component_descriptor:
+          ocm_repository: europe-docker.pkg.dev/gardener-project/releases
+        publish:
+          dockerimages:
+            etcd-druid:
+              image: europe-docker.pkg.dev/gardener-project/releases/gardener/etcd-druid
         release:
           nextversion: 'bump_minor'
           git_tags:
