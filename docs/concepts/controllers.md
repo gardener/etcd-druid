@@ -50,7 +50,7 @@ It handles the provisioning and management of the etcd cluster. Different compon
 While building the controller, an event filter is set such that the behaviour of the controller depends on the `gardener.cloud/operation: reconcile` *annotation*. This is controlled by the `--ignore-operation-annotation` CLI flag, which, if set to `false`, tells the controller to perform reconciliation only when this annotation is present. If the flag is set to `true`, the controller will trigger reconciliation anytime the `Etcd` spec, and thus `generation`, changes.  
 
 The reason this filter is present is because any disruption in the `Etcd` resource due to reconciliation (due to changes in the `Etcd` spec, for example) while workloads are being run would be disastrous.
-Hence, any user who wishes to avoid such disruptions, can choose to set the `--ignore-operation-annotation` CLI flag to `false`. An example of this is Gardener's [gardenlet](https://github.com/gardener/gardener/blob/master/docs/concepts/gardenlet.md), which reconciles of the `Etcd` resource only during a shoot cluster's [*maintenance window*](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_maintenance.md).
+Hence, any user who wishes to avoid such disruptions, can choose to set the `--ignore-operation-annotation` CLI flag to `false`. An example of this is Gardener's [gardenlet](https://github.com/gardener/gardener/blob/master/docs/concepts/gardenlet.md), which reconciles the `Etcd` resource only during a shoot cluster's [*maintenance window*](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_maintenance.md).
 
 The controller adds a finalizer to the `Etcd` resource in order to ensure that the `Etcd` instance does not get deleted while the system is still dependent on the existence of the `Etcd` resource.
 Only the *etcd controller* can delete a resource once it adds finalizers to it. This ensures that the proper deletion flow steps are followed while deleting the resource. When the *etcd controller* enters the deletion flow, components are deleted in the reverse order that they were deployed in.
@@ -65,7 +65,6 @@ The primary purpose of the *custodian controller* is to update the status of the
 It watches for changes in the status of the `Statefulset`s associated with the `Etcd` resources.
 Even though the `Etcd` resource owns the `Statefulset`, it is not necessary that the *etcd controller* reconciles whenever there are changes in the statuses of the objects that the `Etcd` resource owns.
 
-<!--- udpateEtcdStatus,-->
 Status fields of the `Etcd` resource which correspond to the `StatefulSet` like `CurrentReplicas`, `ReadyReplicas`, `Replicas` and `Ready` are updated to reflect those of the `StatefulSet` by the controller. Cluster membership (`EtcdMemberStatus`) and `Conditions` are updated as follows:
 
 - Cluster Membership: The controller updates the information about etcd cluster membership like `Role`, `Status`, `Reason`, `LastTransitionTime` and identifying information like the `Name` and `ID`. For the `Status` field, the member is checked for the *Ready* condition, where the member can be in `Ready`, `NotReady` and `Unknown` statuses.
