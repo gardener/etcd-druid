@@ -131,7 +131,7 @@ To check the etcd member pods, do the following and look out for pods starting w
 kubectl get pods
 ```
 
-#### Verify Etcd Pod's Functionality
+#### Verify Etcd Pods' Functionality
 
 Verify the working conditions of the etcd pods by putting data through a etcd container and access the db from same/another container depending on single/multi node etcd cluster.
 
