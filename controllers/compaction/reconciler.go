@@ -25,6 +25,7 @@ import (
 	"github.com/gardener/etcd-druid/pkg/features"
 	druidmetrics "github.com/gardener/etcd-druid/pkg/metrics"
 	"github.com/gardener/etcd-druid/pkg/utils"
+
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
@@ -319,7 +320,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 		job.Spec.Template.Spec.Containers[0].VolumeMounts = vms
 	}
 
-	if env, err := getCompactionJobEnvVar(etcd); err != nil {
+	if env, err := utils.GetBackupRestoreContainerEnvVars(etcd.Spec.Backup.Store); err != nil {
 		return nil, fmt.Errorf("error while creating compaction job in %v for %v : %v",
 			etcd.Namespace,
 			etcd.Name,
@@ -449,77 +450,6 @@ func getCompactionJobVolumes(ctx context.Context, cl client.Client, logger logr.
 	}
 
 	return vs, nil
-}
-
-func getCompactionJobEnvVar(etcd *druidv1alpha1.Etcd) ([]v1.EnvVar, error) {
-	var env []v1.EnvVar
-
-	storeValues := etcd.Spec.Backup.Store
-
-	env = append(env, getEnvVarFromValues("STORAGE_CONTAINER", *storeValues.Container))
-	env = append(env, getEnvVarFromFields("POD_NAMESPACE", "metadata.namespace"))
-
-	provider, err := utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
-	if err != nil {
-		return env, fmt.Errorf("storage provider is not recognized while fetching secrets from environment variable")
-	}
-
-	switch provider {
-	case utils.S3:
-		env = append(env, getEnvVarFromValues("AWS_APPLICATION_CREDENTIALS", "/var/etcd-backup"))
-	case utils.ABS:
-		env = append(env, getEnvVarFromValues("AZURE_APPLICATION_CREDENTIALS", "/var/etcd-backup"))
-	case utils.GCS:
-		env = append(env, getEnvVarFromValues("GOOGLE_APPLICATION_CREDENTIALS", "/var/.gcp/serviceaccount.json"))
-	case utils.Swift:
-		env = append(env, getEnvVarFromValues("OPENSTACK_APPLICATION_CREDENTIALS", "/var/etcd-backup"))
-	case utils.OSS:
-		env = append(env, getEnvVarFromValues("ALICLOUD_APPLICATION_CREDENTIALS", "/var/etcd-backup"))
-	case utils.ECS:
-		if storeValues.SecretRef == nil {
-			return env, fmt.Errorf("no secretRef could be configured for backup store of ECS")
-		}
-
-		env = append(env, getEnvVarFromSecrets("ECS_ENDPOINT", storeValues.SecretRef.Name, "endpoint"))
-		env = append(env, getEnvVarFromSecrets("ECS_ACCESS_KEY_ID", storeValues.SecretRef.Name, "accessKeyID"))
-		env = append(env, getEnvVarFromSecrets("ECS_SECRET_ACCESS_KEY", storeValues.SecretRef.Name, "secretAccessKey"))
-	case utils.OCS:
-		env = append(env, getEnvVarFromValues("OPENSHIFT_APPLICATION_CREDENTIALS", "/var/etcd-backup"))
-	}
-
-	return env, nil
-}
-
-func getEnvVarFromValues(name, value string) v1.EnvVar {
-	return v1.EnvVar{
-		Name:  name,
-		Value: value,
-	}
-}
-
-func getEnvVarFromFields(name, fieldPath string) v1.EnvVar {
-	return v1.EnvVar{
-		Name: name,
-		ValueFrom: &v1.EnvVarSource{
-			FieldRef: &v1.ObjectFieldSelector{
-				FieldPath: fieldPath,
-			},
-		},
-	}
-}
-
-func getEnvVarFromSecrets(name, secretName, secretKey string) v1.EnvVar {
-	return v1.EnvVar{
-		Name: name,
-		ValueFrom: &v1.EnvVarSource{
-			SecretKeyRef: &v1.SecretKeySelector{
-				LocalObjectReference: v1.LocalObjectReference{
-					Name: secretName,
-				},
-				Key: secretKey,
-			},
-		},
-	}
 }
 
 func getCompactionJobArgs(etcd *druidv1alpha1.Etcd, metricsScrapeWaitDuration string) []string {

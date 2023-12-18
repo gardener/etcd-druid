@@ -24,6 +24,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
+
 	gardenercomponent "github.com/gardener/gardener/pkg/component"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/flow"
@@ -455,7 +456,6 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 							Args:            c.values.EtcdBackupRestoreCommandArgs,
 							Ports:           getBackupPorts(c.values),
 							Resources:       getBackupResources(c.values),
-							Env:             getBackupRestoreEnvVars(c.values),
 							VolumeMounts:    getBackupRestoreVolumeMounts(c),
 							SecurityContext: &corev1.SecurityContext{
 								Capabilities: &corev1.Capabilities{
@@ -483,6 +483,11 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 					},
 				},
 			},
+		}
+		if backupRestoreEnvVars, err := utils.GetBackupRestoreContainerEnvVars(c.values.BackupStore); err != nil {
+			return fmt.Errorf("unable to fetch env vars for backup-restore container: %v", err)
+		} else {
+			sts.Spec.Template.Spec.Containers[1].Env = backupRestoreEnvVars
 		}
 		if c.values.StorageClass != nil && *c.values.StorageClass != "" {
 			sts.Spec.VolumeClaimTemplates[0].Spec.StorageClassName = c.values.StorageClass
@@ -658,8 +663,8 @@ func getEtcdEnvVars(val Values) []corev1.EnvVar {
 	endpoint := fmt.Sprintf("%s://%s-local:%d", protocol, val.Name, pointer.Int32Deref(val.BackupPort, defaultBackupPort))
 
 	return []corev1.EnvVar{
-		getEnvVarFromValue("ENABLE_TLS", strconv.FormatBool(val.BackupTLS != nil)),
-		getEnvVarFromValue("BACKUP_ENDPOINT", endpoint),
+		utils.GetEnvVarFromValue("ENABLE_TLS", strconv.FormatBool(val.BackupTLS != nil)),
+		utils.GetEnvVarFromValue("BACKUP_ENDPOINT", endpoint),
 	}
 }
 
@@ -898,93 +903,6 @@ func getVolumes(ctx context.Context, cl client.Client, logger logr.Logger, val V
 	}
 
 	return vs, nil
-}
-
-func getBackupRestoreEnvVars(val Values) []corev1.EnvVar {
-	var (
-		env              []corev1.EnvVar
-		storageContainer string
-		storeValues      = val.BackupStore
-	)
-
-	if val.BackupStore != nil {
-		storageContainer = pointer.StringDeref(val.BackupStore.Container, "")
-	}
-
-	// TODO(timuthy, shreyas-s-rao): Move STORAGE_CONTAINER a few lines below so that we can append and exit in one step. This should only be done in a release where a restart of etcd is acceptable.
-	env = append(env, getEnvVarFromValue("STORAGE_CONTAINER", storageContainer))
-	env = append(env, getEnvVarFromField("POD_NAME", "metadata.name"))
-	env = append(env, getEnvVarFromField("POD_NAMESPACE", "metadata.namespace"))
-
-	if storeValues == nil {
-		return env
-	}
-
-	provider, err := utils.StorageProviderFromInfraProvider(val.BackupStore.Provider)
-	if err != nil {
-		return env
-	}
-
-	// TODO(timuthy): move this to a non root path when we switch to a rootless distribution
-	const credentialsMountPath = "/var/etcd-backup"
-	switch provider {
-	case utils.S3:
-		env = append(env, getEnvVarFromValue("AWS_APPLICATION_CREDENTIALS", credentialsMountPath))
-
-	case utils.ABS:
-		env = append(env, getEnvVarFromValue("AZURE_APPLICATION_CREDENTIALS", credentialsMountPath))
-
-	case utils.GCS:
-		env = append(env, getEnvVarFromValue("GOOGLE_APPLICATION_CREDENTIALS", "/var/.gcp/serviceaccount.json"))
-
-	case utils.Swift:
-		env = append(env, getEnvVarFromValue("OPENSTACK_APPLICATION_CREDENTIALS", credentialsMountPath))
-
-	case utils.OSS:
-		env = append(env, getEnvVarFromValue("ALICLOUD_APPLICATION_CREDENTIALS", credentialsMountPath))
-
-	case utils.ECS:
-		env = append(env, getEnvVarFromSecrets("ECS_ENDPOINT", storeValues.SecretRef.Name, "endpoint"))
-		env = append(env, getEnvVarFromSecrets("ECS_ACCESS_KEY_ID", storeValues.SecretRef.Name, "accessKeyID"))
-		env = append(env, getEnvVarFromSecrets("ECS_SECRET_ACCESS_KEY", storeValues.SecretRef.Name, "secretAccessKey"))
-
-	case utils.OCS:
-		env = append(env, getEnvVarFromValue("OPENSHIFT_APPLICATION_CREDENTIALS", credentialsMountPath))
-	}
-
-	return env
-}
-
-func getEnvVarFromValue(name, value string) corev1.EnvVar {
-	return corev1.EnvVar{
-		Name:  name,
-		Value: value,
-	}
-}
-
-func getEnvVarFromField(name, fieldPath string) corev1.EnvVar {
-	return corev1.EnvVar{
-		Name: name,
-		ValueFrom: &corev1.EnvVarSource{
-			FieldRef: &corev1.ObjectFieldSelector{
-				FieldPath: fieldPath,
-			},
-		},
-	}
-}
-
-func getEnvVarFromSecrets(name, secretName, secretKey string) corev1.EnvVar {
-	return corev1.EnvVar{
-		Name: name,
-		ValueFrom: &corev1.EnvVarSource{
-			SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: secretName,
-				},
-				Key: secretKey,
-			},
-		},
-	}
 }
 
 func getReadinessHandler(val Values) corev1.ProbeHandler {

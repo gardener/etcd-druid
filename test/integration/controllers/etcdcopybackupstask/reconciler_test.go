@@ -228,14 +228,14 @@ func getArgElements(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvider, tar
 func getEnvElements(task *druidv1alpha1.EtcdCopyBackupsTask) Elements {
 	elements := Elements{}
 	if task.Spec.TargetStore.Container != nil && *task.Spec.TargetStore.Container != "" {
-		elements["STORAGE_CONTAINER"] = MatchFields(IgnoreExtras, Fields{
-			"Name":  Equal("STORAGE_CONTAINER"),
+		elements[common.EnvStorageContainer] = MatchFields(IgnoreExtras, Fields{
+			"Name":  Equal(common.EnvStorageContainer),
 			"Value": Equal(*task.Spec.TargetStore.Container),
 		})
 	}
 	if task.Spec.SourceStore.Container != nil && *task.Spec.SourceStore.Container != "" {
-		elements["SOURCE_STORAGE_CONTAINER"] = MatchFields(IgnoreExtras, Fields{
-			"Name":  Equal("SOURCE_STORAGE_CONTAINER"),
+		elements[common.EnvSourceStorageContainer] = MatchFields(IgnoreExtras, Fields{
+			"Name":  Equal(common.EnvSourceStorageContainer),
 			"Value": Equal(*task.Spec.SourceStore.Container),
 		})
 	}
@@ -289,43 +289,43 @@ func getProviderEnvElements(storeProvider, prefix, volumePrefix string) Elements
 	switch storeProvider {
 	case "S3":
 		return Elements{
-			prefix + "AWS_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-				"Name":  Equal(prefix + "AWS_APPLICATION_CREDENTIALS"),
+			prefix + common.EnvAWSApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + common.EnvAWSApplicationCredentials),
 				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "ABS":
 		return Elements{
-			prefix + "AZURE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-				"Name":  Equal(prefix + "AZURE_APPLICATION_CREDENTIALS"),
+			prefix + common.EnvAzureApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + common.EnvAzureApplicationCredentials),
 				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "GCS":
 		return Elements{
-			prefix + "GOOGLE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-				"Name":  Equal(prefix + "GOOGLE_APPLICATION_CREDENTIALS"),
+			prefix + common.EnvGoogleApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + common.EnvGoogleApplicationCredentials),
 				"Value": Equal(fmt.Sprintf("/var/.%sgcp/serviceaccount.json", volumePrefix)),
 			}),
 		}
 	case "Swift":
 		return Elements{
-			prefix + "OPENSTACK_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-				"Name":  Equal(prefix + "OPENSTACK_APPLICATION_CREDENTIALS"),
+			prefix + common.EnvOpenstackApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + common.EnvOpenstackApplicationCredentials),
 				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "OSS":
 		return Elements{
-			prefix + "ALICLOUD_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-				"Name":  Equal(prefix + "ALICLOUD_APPLICATION_CREDENTIALS"),
+			prefix + common.EnvAlicloudApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + common.EnvAlicloudApplicationCredentials),
 				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "OCS":
 		return Elements{
-			prefix + "OPENSHIFT_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-				"Name":  Equal(prefix + "OPENSHIFT_APPLICATION_CREDENTIALS"),
+			prefix + common.EnvOpenshiftApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + common.EnvOpenshiftApplicationCredentials),
 				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
