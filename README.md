@@ -124,3 +124,7 @@ As first step implement defragmentation during maintenance windows. Subsequently
 ### Defragmentation workflow
 
 ![defrag-diagram](./docs/images/defrag.png)
+
+## Local Setup
+
+To setup Etcd-druid locally as a pod running inside a [kind](https://kind.sigs.k8s.io/) cluster, follow this [document](docs/development/getting-started-locally.md)
