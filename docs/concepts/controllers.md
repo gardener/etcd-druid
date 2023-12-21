@@ -9,9 +9,9 @@ All controllers that are a part of etcd-druid reside in package `./controllers`,
 etcd-druid currently consists of 5 controllers, each having its own responsibility:
 
 - *etcd* : responsible for the reconciliation of the `Etcd` CR, which allows users to run etcd clusters within the specified Kubernetes cluster.
-- *custodian* : responsible for updation of the status of the `Etcd` CR.
+- *custodian* : responsible for the updation of the status of the `Etcd` CR.
 - *compaction* : responsible for [snapshot compaction](/docs/proposals/02-snapshot-compaction.md).
-- *etcdcopybackupstask* : responsible for reconciliation of the `EtcdCopyBackupsTask` CR, which helps perform the job of copying snapshot backups from one object store to another.
+- *etcdcopybackupstask* : responsible for the reconciliation of the `EtcdCopyBackupsTask` CR, which helps perform the job of copying snapshot backups from one object store to another.
 - *secret* : responsible in making sure `Secret`s being referenced by `Etcd` resources are not deleted while in use.
 
 ## Package Structure
@@ -35,7 +35,7 @@ Each controller package also contains auxiliary files which are relevant to that
 
 A *manager* is first created for all controllers that are a part of etcd-druid.
 The *controller manager* is responsible for all the controllers that are associated with CRDs.
-Once the manager is `Start()`-ed, all the controllers that are *registered* with it are started.  
+Once the manager is `Start()`ed, all the controllers that are *registered* with it are started.  
 
 Each controller is built using a controller builder, configured with details such as the type of object being reconciled, owned objects whose owner object is reconciled, event filters (predicates), etc. `Predicates` are filters which allow controllers to filter which type of events the controller should respond to and which ones to ignore.
 
@@ -44,11 +44,11 @@ The logic relevant to the controller manager like the creation of the controller
 ## Etcd Controller
 
 The *etcd controller* is responsible for the reconciliation of the `Etcd` resource.
-It handles the provisioning and management of the etcd cluster. Different components that are required for the functioning of the cluster like `Leases`, `ConfigMap`s, and the `Statefulset` for the etcd cluster are all deployed and  managed by the *etcd controller*.
+It handles the provisioning and management of the etcd cluster. Different components that are required for the functioning of the cluster like `Leases`, `ConfigMap`s, and the `Statefulset` for the etcd cluster are all deployed and managed by the *etcd controller*.
 
-While building the controller, an event filter is set such that the behaviour of the controller depends on the `gardener.cloud/operation: reconcile` *annotation*. This is controlled by the `--ignore-operation-annotation` CLI flag, which, if set to `false`, tells the controller to perform reconciliation only when this annotation is present. If the flag is set to `true`, the controller will trigger reconciliation anytime the `Etcd` spec, and thus `generation`, changes.  
+While building the controller, an event filter is set such that the behavior of the controller depends on the `gardener.cloud/operation: reconcile` *annotation*. This is controlled by the `--ignore-operation-annotation` CLI flag, which, if set to `false`, tells the controller to perform reconciliation only when this annotation is present. If the flag is set to `true`, the controller will trigger reconciliation anytime the `Etcd` spec, and thus `generation`, changes.  
 
-The reason this filter is present is because any disruption in the `Etcd` resource due to reconciliation (due to changes in the `Etcd` spec, for example) while workloads are being run would be disastrous.
+The reason this filter is present is that any disruption in the `Etcd` resource due to reconciliation (due to changes in the `Etcd` spec, for example) while workloads are being run would be disastrous.
 Hence, any user who wishes to avoid such disruptions, can choose to set the `--ignore-operation-annotation` CLI flag to `false`. An example of this is Gardener's [gardenlet](https://github.com/gardener/gardener/blob/master/docs/concepts/gardenlet.md), which reconciles the `Etcd` resource only during a shoot cluster's [*maintenance window*](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_maintenance.md).
 
 The controller adds a finalizer to the `Etcd` resource in order to ensure that the `Etcd` instance does not get deleted while the system is still dependent on the existence of the `Etcd` resource.
@@ -85,8 +85,8 @@ The controller watches for changes in *snapshot* `Leases` associated with `Etcd`
 It checks the full and delta snapshot `Leases` and calculates the difference in events between the latest delta snapshot and the previous full snapshot, and initiates the compaction job if the event threshold is crossed.
 
 The number of worker threads for the *compaction controller* needs to be greater than or equal to 0 (default 3).
-This is unlike other controllers which need atleast one worker thread for the proper functioning of etcd-druid as snapshot compaction is not a core functionality for the etcd clusters to be deployed.
-The compaction controller should be explicity enabled by the user, through the `--enable-backup-compaction` CLI flag.
+This is unlike other controllers which need at least one worker thread for the proper functioning of etcd-druid as snapshot compaction is not a core functionality for the etcd clusters to be deployed.
+The compaction controller should be explicitly enabled by the user, through the `--enable-backup-compaction` CLI flag.
 
 ## Etcdcopybackupstask Controller
 
@@ -94,7 +94,7 @@ The *etcdcopybackupstask controller* is responsible for deploying the [`etcdbrct
 This controller reacts to create/update events arising from EtcdCopyBackupsTask resources, and deploys the `EtcdCopyBackupsTask` job with source and target backup storage providers as arguments, which are derived from source and target bucket secrets referenced by the `EtcdCopyBackupsTask` resource.
 
 The number of worker threads for the *etcdcopybackupstask controller* needs to be greater than or equal to 0 (default being 3).
-This is unlike other controllers who need atleast one worker thread for the proper functioning of etcd-druid as `EtcdCopyBackupsTask` is not a core functionality for the etcd clusters to be deployed.
+This is unlike other controllers who need at least one worker thread for the proper functioning of etcd-druid as `EtcdCopyBackupsTask` is not a core functionality for the etcd clusters to be deployed.
 
 ## Secret Controller
 
@@ -104,4 +104,4 @@ This finalizer is added to ensure that `Secret`s which are referenced by the `Et
 
 Events arising from the `Etcd` resource are mapped to a list of `Secret`s such as backup and TLS secrets that are referenced by the `Etcd` resource, and are enqueued into the request queue, which the reconciler then acts on.
 
-The number of worker threads for the secret controller must be atleast 1 (default being 10) for this core controller, since the referenced TLS and infrastructure access secrets are essential to the proper functioning of the etcd cluster.
+The number of worker threads for the secret controller must be at least 1 (default being 10) for this core controller, since the referenced TLS and infrastructure access secrets are essential to the proper functioning of the etcd cluster.
