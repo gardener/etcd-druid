@@ -15,8 +15,8 @@
 # Image URL to use all building/pushing image targets
 VERSION             := $(shell cat VERSION)
 REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
-REGISTRY            := eu.gcr.io/gardener-project/gardener
-IMAGE_REPOSITORY    := $(REGISTRY)/etcd-druid
+REGISTRY            := europe-docker.pkg.dev/gardener-project/public
+IMAGE_REPOSITORY    := $(REGISTRY)/gardener/etcd-druid
 IMAGE_BUILD_TAG     := $(VERSION)
 BUILD_DIR           := build
 PROVIDERS           := ""
@@ -80,7 +80,7 @@ deploy-via-kustomize: manifests $(KUSTOMIZE)
 # Deploy controller to the Kubernetes cluster specified in the environment variable KUBECONFIG
 # Modify the Helm template located at charts/druid/templates if any changes are required
 .PHONY: deploy
-deploy: $(SKAFFOLD) 
+deploy: $(SKAFFOLD) $(HELM)
 	$(SKAFFOLD) run -m etcd-druid --kubeconfig=$(KUBECONFIG_PATH)
 
 # Generate manifests e.g. CRD, RBAC etc.
@@ -155,7 +155,7 @@ update-dependencies:
 .PHONY: add-license-headers
 add-license-headers: $(GO_ADD_LICENSE)
 	@./hack/addlicenseheaders.sh ${YEAR}
-	
+
 .PHONY: kind-up
 kind-up: $(KIND)
 	@printf "\n\033[0;33m📌 NOTE: To target the newly created KinD cluster, please run the following command:\n\n    export KUBECONFIG=$(KUBECONFIG_PATH)\n\033[0m\n"

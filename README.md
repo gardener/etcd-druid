@@ -51,7 +51,7 @@ spec:
     fullSnapshotSchedule: 0 */24 * * *
     garbageCollectionPeriod: 43200s
     garbageCollectionPolicy: Exponential
-    imageRepository: eu.gcr.io/gardener-project/gardener/etcdbrctl
+    imageRepository: europe-docker.pkg.dev/gardener-project/public/gardener/etcdbrctl
     imageVersion: v0.25.0
     port: 8080
     resources:
@@ -67,7 +67,7 @@ spec:
     clientPort: 2379
     defragmentationSchedule: 0 */24 * * *
     enableTLS: false
-    imageRepository: eu.gcr.io/gardener-project/gardener/etcd-wrapper
+    imageRepository: europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper
     imageVersion: v0.1.0
     initialClusterState: new
     initialClusterToken: new
@@ -124,3 +124,7 @@ As first step implement defragmentation during maintenance windows. Subsequently
 ### Defragmentation workflow
 
 ![defrag-diagram](./docs/images/defrag.png)
+
+## Local Setup
+
+To setup Etcd-druid locally as a pod running inside a [kind](https://kind.sigs.k8s.io/) cluster, follow this [document](docs/development/getting-started-locally.md)
