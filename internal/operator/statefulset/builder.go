@@ -61,6 +61,10 @@ type stsBuilder struct {
 	initContainerImage     string
 	sts                    *appsv1.StatefulSet
 	logger                 logr.Logger
+
+	clientPort int32
+	serverPort int32
+	backupPort int32
 }
 
 func newStsBuilder(client client.Client,
@@ -89,6 +93,9 @@ func newStsBuilder(client client.Client,
 		etcdBackupRestoreImage: etcdBackupRestoreImage,
 		initContainerImage:     initContainerImage,
 		sts:                    sts,
+		clientPort:             pointer.Int32Deref(etcd.Spec.Etcd.ClientPort, defaultClientPort),
+		serverPort:             pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, defaultServerPort),
+		backupPort:             pointer.Int32Deref(etcd.Spec.Backup.Port, defaultBackupPort),
 	}, nil
 }
 
@@ -288,7 +295,7 @@ func (b *stsBuilder) getEtcdDataVolumeMount() corev1.VolumeMount {
 	volumeClaimTemplateName := utils.TypeDeref[string](b.etcd.Spec.VolumeClaimTemplate, b.etcd.Name)
 	return corev1.VolumeMount{
 		Name:      volumeClaimTemplateName,
-		MountPath: "/var/etcd/data/",
+		MountPath: "/var/etcd/data",
 	}
 }
 
@@ -302,13 +309,13 @@ func (b *stsBuilder) getEtcdContainer() corev1.Container {
 		Ports: []corev1.ContainerPort{
 			{
 				Name:          "server",
-				Protocol:      "TCP",
-				ContainerPort: defaultServerPort,
+				Protocol:      corev1.ProtocolTCP,
+				ContainerPort: b.serverPort,
 			},
 			{
 				Name:          "client",
-				Protocol:      "TCP",
-				ContainerPort: defaultClientPort,
+				Protocol:      corev1.ProtocolTCP,
+				ContainerPort: b.clientPort,
 			},
 		},
 		Resources:    utils.TypeDeref[corev1.ResourceRequirements](b.etcd.Spec.Etcd.Resources, defaultResourceRequirements),
@@ -322,11 +329,24 @@ func (b *stsBuilder) getBackupRestoreContainer() corev1.Container {
 		Name:            "backup-restore",
 		Image:           b.etcdBackupRestoreImage,
 		ImagePullPolicy: corev1.PullIfNotPresent,
-		Args:            nil,
-		Ports:           nil,
-		Env:             nil,
-		Resources:       corev1.ResourceRequirements{},
-		VolumeMounts:    nil,
+		Args:            b.getBackupRestoreContainerCommandArgs(),
+		Ports: []corev1.ContainerPort{
+			{
+				Name:          "server",
+				Protocol:      corev1.ProtocolTCP,
+				ContainerPort: b.backupPort,
+			},
+		},
+		Env:          b.getBackupRestorContainerEnvVars(),
+		Resources:    utils.TypeDeref[corev1.ResourceRequirements](b.etcd.Spec.Backup.Resources, defaultResourceRequirements),
+		VolumeMounts: b.getBackupRestoreContainerVolumeMounts(),
+		SecurityContext: &corev1.SecurityContext{
+			Capabilities: &corev1.Capabilities{
+				Add: []corev1.Capability{
+					"SYS_PTRACE",
+				},
+			},
+		},
 	}
 
 }
@@ -374,13 +394,13 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 		commandArgs = append(commandArgs, fmt.Sprintf("--cacert=/var/etcd/ssl/client/ca/%s", dataKey))
 		commandArgs = append(commandArgs, "--insecure-transport=false")
 		commandArgs = append(commandArgs, "--insecure-skip-tls-verify=false")
-		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=https://%s-local:%d", b.etcd.Name, defaultClientPort))
-		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=https://%s:%d", b.etcd.GetClientServiceName(), defaultClientPort))
+		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=https://%s-local:%d", b.etcd.Name, b.clientPort))
+		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=https://%s:%d", b.etcd.GetClientServiceName(), b.clientPort))
 	} else {
 		commandArgs = append(commandArgs, "--insecure-transport=true")
 		commandArgs = append(commandArgs, "--insecure-skip-tls-verify=true")
-		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=http://%s-local:%d", b.etcd.Name, defaultClientPort))
-		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=http://%s:%d", b.etcd.GetClientServiceName(), defaultClientPort))
+		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=http://%s-local:%d", b.etcd.Name, b.clientPort))
+		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=http://%s:%d", b.etcd.GetClientServiceName(), b.clientPort))
 	}
 	if b.etcd.Spec.Backup.TLS != nil {
 		commandArgs = append(commandArgs, "--server-cert=/var/etcd/ssl/client/server/tls.crt")
@@ -391,7 +411,9 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	// -----------------------------------------------------------------------------------------------------------------
 	commandArgs = append(commandArgs, "--data-dir=/var/etcd/data/new.etcd")
 	commandArgs = append(commandArgs, "--restoration-temp-snapshots-dir=/var/etcd/data/restoration.temp")
+	commandArgs = append(commandArgs, "--snapstore-temp-directory=/var/etcd/data/temp")
 	commandArgs = append(commandArgs, fmt.Sprintf("--etcd-connection-timeout=%s", defaultEtcdConnectionTimeout))
+	commandArgs = append(commandArgs, "--enable-member-lease-renewal=true")
 
 	var quota = defaultQuota
 	if b.etcd.Spec.Etcd.Quota != nil {
@@ -522,9 +544,9 @@ func (b *stsBuilder) getEtcdContainerReadinessProbeCommand() []string {
 		cmdBuilder.WriteString(" --cacert=/var/etcd/ssl/client/ca/" + dataKey)
 		cmdBuilder.WriteString(" --cert=/var/etcd/ssl/client/client/tls.crt")
 		cmdBuilder.WriteString(" --key=/var/etcd/ssl/client/client/tls.key")
-		cmdBuilder.WriteString(fmt.Sprintf(" --endpoints=https://%s-local:%d", b.etcd.Name, defaultClientPort))
+		cmdBuilder.WriteString(fmt.Sprintf(" --endpoints=https://%s-local:%d", b.etcd.Name, b.clientPort))
 	} else {
-		cmdBuilder.WriteString(fmt.Sprintf(" --endpoints=http://%s-local:%d", b.etcd.Name, defaultClientPort))
+		cmdBuilder.WriteString(fmt.Sprintf(" --endpoints=http://%s-local:%d", b.etcd.Name, b.clientPort))
 	}
 	cmdBuilder.WriteString(" get foo")
 	cmdBuilder.WriteString(" --consistency=l")
@@ -563,12 +585,65 @@ func (b *stsBuilder) getEtcdContainerEnvVars() []corev1.EnvVar {
 	}
 	backTLSEnabled := b.etcd.Spec.Backup.TLS != nil
 	scheme := utils.IfConditionOr[string](backTLSEnabled, "https", "http")
-	endpoint := fmt.Sprintf("%s://%s-local:%d", scheme, b.etcd.Name, defaultBackupPort)
+	endpoint := fmt.Sprintf("%s://%s-local:%d", scheme, b.etcd.Name, b.backupPort)
 
 	return []corev1.EnvVar{
 		{Name: "ENABLE_TLS", Value: strconv.FormatBool(backTLSEnabled)},
 		{Name: "BACKUP_ENDPOINT", Value: endpoint},
 	}
+}
+
+func (b *stsBuilder) getBackupRestorContainerEnvVars() []corev1.EnvVar {
+	var (
+		env              []corev1.EnvVar
+		storageContainer string
+		storeValues      = b.etcd.Spec.Backup.Store
+	)
+
+	if b.etcd.Spec.Backup.Store != nil {
+		storageContainer = pointer.StringDeref(b.etcd.Spec.Backup.Store.Container, "")
+	}
+
+	env = append(env, getEnvVarFromField("POD_NAME", "metadata.name"))
+	env = append(env, getEnvVarFromField("POD_NAMESPACE", "metadata.namespace"))
+
+	if storeValues == nil {
+		return env
+	}
+
+	provider, err := utils.StorageProviderFromInfraProvider(b.etcd.Spec.Backup.Store.Provider)
+	if err != nil {
+		return env
+	}
+	env = append(env, getEnvVarFromValue("STORAGE_CONTAINER", storageContainer))
+
+	const credentialsMountPath = "/var/etcd-backup"
+	switch provider {
+	case utils.S3:
+		env = append(env, getEnvVarFromValue("AWS_APPLICATION_CREDENTIALS", credentialsMountPath))
+
+	case utils.ABS:
+		env = append(env, getEnvVarFromValue("AZURE_APPLICATION_CREDENTIALS", credentialsMountPath))
+
+	case utils.GCS:
+		env = append(env, getEnvVarFromValue("GOOGLE_APPLICATION_CREDENTIALS", "/var/.gcp/serviceaccount.json"))
+
+	case utils.Swift:
+		env = append(env, getEnvVarFromValue("OPENSTACK_APPLICATION_CREDENTIALS", credentialsMountPath))
+
+	case utils.OSS:
+		env = append(env, getEnvVarFromValue("ALICLOUD_APPLICATION_CREDENTIALS", credentialsMountPath))
+
+	case utils.ECS:
+		env = append(env, getEnvVarFromSecrets("ECS_ENDPOINT", storeValues.SecretRef.Name, "endpoint"))
+		env = append(env, getEnvVarFromSecrets("ECS_ACCESS_KEY_ID", storeValues.SecretRef.Name, "accessKeyID"))
+		env = append(env, getEnvVarFromSecrets("ECS_SECRET_ACCESS_KEY", storeValues.SecretRef.Name, "secretAccessKey"))
+
+	case utils.OCS:
+		env = append(env, getEnvVarFromValue("OPENSHIFT_APPLICATION_CREDENTIALS", credentialsMountPath))
+	}
+
+	return env
 }
 
 func (b *stsBuilder) getPodSecurityContext() *corev1.PodSecurityContext {
@@ -748,4 +823,36 @@ func getBackupStoreProvider(etcd *druidv1alpha1.Etcd) (*string, error) {
 		return nil, err
 	}
 	return &provider, nil
+}
+
+func getEnvVarFromValue(name, value string) corev1.EnvVar {
+	return corev1.EnvVar{
+		Name:  name,
+		Value: value,
+	}
+}
+
+func getEnvVarFromField(name, fieldPath string) corev1.EnvVar {
+	return corev1.EnvVar{
+		Name: name,
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				FieldPath: fieldPath,
+			},
+		},
+	}
+}
+
+func getEnvVarFromSecrets(name, secretName, secretKey string) corev1.EnvVar {
+	return corev1.EnvVar{
+		Name: name,
+		ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: secretName,
+				},
+				Key: secretKey,
+			},
+		},
+	}
 }
