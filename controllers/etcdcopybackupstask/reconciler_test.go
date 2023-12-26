@@ -19,6 +19,16 @@ import (
 	"fmt"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
+	"github.com/gardener/etcd-druid/pkg/common"
+	"github.com/gardener/etcd-druid/pkg/utils"
+	testutils "github.com/gardener/etcd-druid/test/utils"
+
+	"github.com/gardener/gardener/pkg/controllerutils"
+	"github.com/gardener/gardener/pkg/utils/imagevector"
+	. "github.com/gardener/gardener/pkg/utils/test/matchers"
+
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -32,16 +42,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
-	"github.com/gardener/etcd-druid/pkg/common"
-	"github.com/gardener/etcd-druid/pkg/utils"
-	druidutils "github.com/gardener/etcd-druid/pkg/utils"
-	testutils "github.com/gardener/etcd-druid/test/utils"
-	"github.com/gardener/gardener/pkg/controllerutils"
-	"github.com/gardener/gardener/pkg/utils/imagevector"
-	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 )
 
 var _ = Describe("EtcdCopyBackupsTaskController", func() {
@@ -307,8 +307,8 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 	Describe("#createJobArguments", func() {
 		var (
-			providerLocal = druidv1alpha1.StorageProvider(druidutils.Local)
-			providerS3    = druidv1alpha1.StorageProvider(druidutils.S3)
+			providerLocal = druidv1alpha1.StorageProvider(utils.Local)
+			providerS3    = druidv1alpha1.StorageProvider(utils.S3)
 			task          *druidv1alpha1.EtcdCopyBackupsTask
 			expected      = []string{
 				"copy",
@@ -343,19 +343,19 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 		})
 
 		It("should create the correct arguments", func() {
-			arguments := createJobArgs(task, druidutils.Local, druidutils.S3)
+			arguments := createJobArgs(task, utils.Local, utils.S3)
 			Expect(arguments).To(Equal(expected))
 		})
 
 		It("should include the max backup age in the arguments", func() {
 			task.Spec.MaxBackupAge = pointer.Uint32(10)
-			arguments := createJobArgs(task, druidutils.Local, druidutils.S3)
+			arguments := createJobArgs(task, utils.Local, utils.S3)
 			Expect(arguments).To(Equal(append(expected, "--max-backup-age=10")))
 		})
 
 		It("should include the max number of backups in the arguments", func() {
 			task.Spec.MaxBackups = pointer.Uint32(5)
-			arguments := createJobArgs(task, druidutils.Local, druidutils.S3)
+			arguments := createJobArgs(task, utils.Local, utils.S3)
 			Expect(arguments).To(Equal(append(expected, "--max-backups-to-copy=5")))
 		})
 
@@ -363,7 +363,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			task.Spec.WaitForFinalSnapshot = &druidv1alpha1.WaitForFinalSnapshotSpec{
 				Enabled: true,
 			}
-			arguments := createJobArgs(task, druidutils.Local, druidutils.S3)
+			arguments := createJobArgs(task, utils.Local, utils.S3)
 			Expect(arguments).To(Equal(append(expected, "--wait-for-final-snapshot=true")))
 		})
 
@@ -372,7 +372,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Enabled: true,
 				Timeout: &metav1.Duration{Duration: time.Minute},
 			}
-			arguments := createJobArgs(task, druidutils.Local, druidutils.S3)
+			arguments := createJobArgs(task, utils.Local, utils.S3)
 			Expect(arguments).To(Equal(append(expected, "--wait-for-final-snapshot=true", "--wait-for-final-snapshot-timeout=1m0s")))
 		})
 	})
@@ -386,12 +386,12 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 		)
 		// Loop through different storage providers to test with
 		for _, p := range []string{
-			druidutils.ABS,
-			druidutils.GCS,
-			druidutils.S3,
-			druidutils.Swift,
-			druidutils.OSS,
-			druidutils.OCS,
+			utils.ABS,
+			utils.GCS,
+			utils.S3,
+			utils.Swift,
+			utils.OSS,
+			utils.OCS,
 		} {
 			Context(fmt.Sprintf("with provider #%s", p), func() {
 				provider := p
@@ -412,7 +412,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 		}
 		Context("with provider #Local", func() {
 			BeforeEach(func() {
-				storageProvider := druidv1alpha1.StorageProvider(druidutils.Local)
+				storageProvider := druidv1alpha1.StorageProvider(utils.Local)
 				storeSpec = &druidv1alpha1.StoreSpec{
 					Container: &container,
 					Provider:  &storageProvider,
@@ -420,8 +420,8 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			})
 
 			It("should create the correct env vars", func() {
-				envVars := createEnvVarsFromStore(storeSpec, druidutils.Local, envKeyPrefix, volumePrefix)
-				checkEnvVars(envVars, druidutils.Local, container, envKeyPrefix, volumePrefix)
+				envVars := createEnvVarsFromStore(storeSpec, utils.Local, envKeyPrefix, volumePrefix)
+				checkEnvVars(envVars, utils.Local, container, envKeyPrefix, volumePrefix)
 
 			})
 		})
@@ -434,13 +434,13 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 		)
 		// Loop through different storage providers to test with
 		for _, p := range []string{
-			druidutils.Local,
-			druidutils.ABS,
-			druidutils.GCS,
-			druidutils.S3,
-			druidutils.Swift,
-			druidutils.OSS,
-			druidutils.OCS,
+			utils.Local,
+			utils.ABS,
+			utils.GCS,
+			utils.S3,
+			utils.Swift,
+			utils.OSS,
+			utils.OCS,
 		} {
 			Context(fmt.Sprintf("with provider #%s", p), func() {
 				provider := p
@@ -460,13 +460,13 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 					expectedMountName := ""
 
 					switch provider {
-					case druidutils.Local:
+					case utils.Local:
 						expectedMountName = volumeMountPrefix + "host-storage"
 						expectedMountPath = *storeSpec.Container
-					case druidutils.GCS:
+					case utils.GCS:
 						expectedMountName = volumeMountPrefix + "etcd-backup"
 						expectedMountPath = "/var/." + volumeMountPrefix + "gcp/"
-					case druidutils.S3, druidutils.ABS, druidutils.Swift, druidutils.OCS, druidutils.OSS:
+					case utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
 						expectedMountName = volumeMountPrefix + "etcd-backup"
 						expectedMountPath = "/var/" + volumeMountPrefix + "etcd-backup/"
 					default:
@@ -515,7 +515,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 			It("should create the correct volumes when secret data hostPath is set", func() {
 				secret.Data = map[string][]byte{
-					druidutils.EtcdBackupSecretHostPath: []byte("/test/hostPath"),
+					utils.EtcdBackupSecretHostPath: []byte("/test/hostPath"),
 				}
 				Expect(fakeClient.Create(ctx, secret)).To(Succeed())
 
@@ -542,7 +542,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 				hostPathVolumeSource := volumes[0].VolumeSource.HostPath
 				Expect(hostPathVolumeSource).NotTo(BeNil())
-				Expect(hostPathVolumeSource.Path).To(Equal(druidutils.LocalProviderDefaultMountPath + "/" + *store.Container))
+				Expect(hostPathVolumeSource.Path).To(Equal(utils.LocalProviderDefaultMountPath + "/" + *store.Container))
 				Expect(*hostPathVolumeSource.Type).To(Equal(corev1.HostPathDirectory))
 			})
 
@@ -557,7 +557,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 				hostPathVolumeSource := volumes[0].VolumeSource.HostPath
 				Expect(hostPathVolumeSource).NotTo(BeNil())
-				Expect(hostPathVolumeSource.Path).To(Equal(druidutils.LocalProviderDefaultMountPath + "/" + *store.Container))
+				Expect(hostPathVolumeSource.Path).To(Equal(utils.LocalProviderDefaultMountPath + "/" + *store.Container))
 				Expect(*hostPathVolumeSource.Type).To(Equal(corev1.HostPathDirectory))
 			})
 		})
@@ -578,12 +578,12 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 			// Loop through different storage providers to test with
 			for _, p := range []string{
-				druidutils.ABS,
-				druidutils.GCS,
-				druidutils.S3,
-				druidutils.Swift,
-				druidutils.OSS,
-				druidutils.OCS,
+				utils.ABS,
+				utils.GCS,
+				utils.S3,
+				utils.Swift,
+				utils.OSS,
+				utils.OCS,
 			} {
 				Context(fmt.Sprintf("#%s", p), func() {
 					BeforeEach(func() {
@@ -684,24 +684,24 @@ func addDeletionTimestampToTask(ctx context.Context, task *druidv1alpha1.EtcdCop
 func checkEnvVars(envVars []corev1.EnvVar, storeProvider, container, envKeyPrefix, volumePrefix string) {
 	expected := []corev1.EnvVar{
 		{
-			Name:  envKeyPrefix + "STORAGE_CONTAINER",
+			Name:  envKeyPrefix + common.EnvStorageContainer,
 			Value: container,
 		}}
 	mapToEnvVarKey := map[string]string{
-		druidutils.S3:    envKeyPrefix + common.AWS_APPLICATION_CREDENTIALS,
-		druidutils.ABS:   envKeyPrefix + common.AZURE_APPLICATION_CREDENTIALS,
-		druidutils.GCS:   envKeyPrefix + common.GOOGLE_APPLICATION_CREDENTIALS,
-		druidutils.Swift: envKeyPrefix + common.OPENSTACK_APPLICATION_CREDENTIALS,
-		druidutils.OCS:   envKeyPrefix + common.OPENSHIFT_APPLICATION_CREDENTIALS,
-		druidutils.OSS:   envKeyPrefix + common.ALICLOUD_APPLICATION_CREDENTIALS,
+		utils.S3:    envKeyPrefix + common.EnvAWSApplicationCredentials,
+		utils.ABS:   envKeyPrefix + common.EnvAzureApplicationCredentials,
+		utils.GCS:   envKeyPrefix + common.EnvGoogleApplicationCredentials,
+		utils.Swift: envKeyPrefix + common.EnvOpenstackApplicationCredentials,
+		utils.OCS:   envKeyPrefix + common.EnvOpenshiftApplicationCredentials,
+		utils.OSS:   envKeyPrefix + common.EnvAlicloudApplicationCredentials,
 	}
 	switch storeProvider {
-	case druidutils.S3, druidutils.ABS, druidutils.Swift, druidutils.OCS, druidutils.OSS:
+	case utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
 		expected = append(expected, corev1.EnvVar{
 			Name:  mapToEnvVarKey[storeProvider],
 			Value: "/var/" + volumePrefix + "etcd-backup",
 		})
-	case druidutils.GCS:
+	case utils.GCS:
 		expected = append(expected, corev1.EnvVar{
 			Name:  mapToEnvVarKey[storeProvider],
 			Value: "/var/." + volumePrefix + "gcp/serviceaccount.json",
@@ -807,14 +807,14 @@ func getArgElements(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvider, tar
 func getEnvElements(task *druidv1alpha1.EtcdCopyBackupsTask) Elements {
 	elements := Elements{}
 	if task.Spec.TargetStore.Container != nil && *task.Spec.TargetStore.Container != "" {
-		elements["STORAGE_CONTAINER"] = MatchFields(IgnoreExtras, Fields{
-			"Name":  Equal("STORAGE_CONTAINER"),
+		elements[common.EnvStorageContainer] = MatchFields(IgnoreExtras, Fields{
+			"Name":  Equal(common.EnvStorageContainer),
 			"Value": Equal(*task.Spec.TargetStore.Container),
 		})
 	}
 	if task.Spec.SourceStore.Container != nil && *task.Spec.SourceStore.Container != "" {
-		elements["SOURCE_STORAGE_CONTAINER"] = MatchFields(IgnoreExtras, Fields{
-			"Name":  Equal("SOURCE_STORAGE_CONTAINER"),
+		elements[common.EnvSourceStorageContainer] = MatchFields(IgnoreExtras, Fields{
+			"Name":  Equal(common.EnvSourceStorageContainer),
 			"Value": Equal(*task.Spec.SourceStore.Container),
 		})
 	}
@@ -868,43 +868,43 @@ func getProviderEnvElements(storeProvider, prefix, volumePrefix string) Elements
 	switch storeProvider {
 	case "S3":
 		return Elements{
-			prefix + "AWS_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-				"Name":  Equal(prefix + "AWS_APPLICATION_CREDENTIALS"),
+			prefix + common.EnvAWSApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + common.EnvAWSApplicationCredentials),
 				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "ABS":
 		return Elements{
-			prefix + "AZURE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-				"Name":  Equal(prefix + "AZURE_APPLICATION_CREDENTIALS"),
+			prefix + common.EnvAzureApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + common.EnvAzureApplicationCredentials),
 				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "GCS":
 		return Elements{
-			prefix + "GOOGLE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-				"Name":  Equal(prefix + "GOOGLE_APPLICATION_CREDENTIALS"),
+			prefix + common.EnvGoogleApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + common.EnvGoogleApplicationCredentials),
 				"Value": Equal(fmt.Sprintf("/var/.%sgcp/serviceaccount.json", volumePrefix)),
 			}),
 		}
 	case "Swift":
 		return Elements{
-			prefix + "OPENSTACK_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-				"Name":  Equal(prefix + "OPENSTACK_APPLICATION_CREDENTIALS"),
+			prefix + common.EnvOpenstackApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + common.EnvOpenstackApplicationCredentials),
 				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "OSS":
 		return Elements{
-			prefix + "ALICLOUD_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-				"Name":  Equal(prefix + "ALICLOUD_APPLICATION_CREDENTIALS"),
+			prefix + common.EnvAlicloudApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + common.EnvAlicloudApplicationCredentials),
 				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
 	case "OCS":
 		return Elements{
-			prefix + "OPENSHIFT_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-				"Name":  Equal(prefix + "OPENSHIFT_APPLICATION_CREDENTIALS"),
+			prefix + common.EnvOpenshiftApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+				"Name":  Equal(prefix + common.EnvOpenshiftApplicationCredentials),
 				"Value": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}

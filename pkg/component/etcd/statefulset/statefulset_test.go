@@ -555,23 +555,23 @@ func checkBackup(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) {
 
 	switch *etcd.Spec.Backup.Store.Provider {
 	case druidutils.S3:
-		envVarName = "AWS_APPLICATION_CREDENTIALS"
+		envVarName = common.EnvAWSApplicationCredentials
 
 	case druidutils.ABS:
-		envVarName = "AZURE_APPLICATION_CREDENTIALS"
+		envVarName = common.EnvAzureApplicationCredentials
 
 	case druidutils.GCS:
-		envVarName = "GOOGLE_APPLICATION_CREDENTIALS"
+		envVarName = common.EnvGoogleApplicationCredentials
 		envVarValue = "/var/.gcp/serviceaccount.json"
 
 	case druidutils.Swift:
-		envVarName = "OPENSTACK_APPLICATION_CREDENTIALS"
+		envVarName = common.EnvOpenstackApplicationCredentials
 
 	case druidutils.OSS:
-		envVarName = "ALICLOUD_APPLICATION_CREDENTIALS"
+		envVarName = common.EnvAlicloudApplicationCredentials
 
 	case druidutils.OCS:
-		envVarName = "OPENSHIFT_APPLICATION_CREDENTIALS"
+		envVarName = common.EnvOpenshiftApplicationCredentials
 	}
 
 	// Check env var
@@ -724,28 +724,28 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 								}),
 							}),
 							"Env": MatchElements(envIterator, IgnoreExtras, Elements{
-								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("STORAGE_CONTAINER"),
+								common.EnvStorageContainer: MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal(common.EnvStorageContainer),
 									"Value": Equal(*values.BackupStore.Container),
 								}),
-								"POD_NAME": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("POD_NAME"),
+								common.EnvPodName: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvPodName),
 									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
 										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
 											"FieldPath": Equal("metadata.name"),
 										})),
 									})),
 								}),
-								"POD_NAMESPACE": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("POD_NAMESPACE"),
+								common.EnvPodNamespace: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvPodNamespace),
 									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
 										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
 											"FieldPath": Equal("metadata.namespace"),
 										})),
 									})),
 								}),
-								"AZURE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("AZURE_APPLICATION_CREDENTIALS"),
+								common.EnvAzureApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal(common.EnvAzureApplicationCredentials),
 									"Value": Equal("/var/etcd-backup"),
 								}),
 							}),

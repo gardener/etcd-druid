@@ -21,10 +21,11 @@ import (
 	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/controllers/utils"
+	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/features"
-	druidutils "github.com/gardener/etcd-druid/pkg/utils"
+	"github.com/gardener/etcd-druid/pkg/utils"
+
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
@@ -61,7 +62,7 @@ type Reconciler struct {
 
 // NewReconciler creates a new reconciler for EtcdCopyBackupsTask.
 func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
-	imageVector, err := utils.CreateImageVector()
+	imageVector, err := ctrlutils.CreateImageVector()
 	if err != nil {
 		return nil, err
 	}
@@ -285,24 +286,24 @@ func getConditionType(jobConditionType batchv1.JobConditionType) druidv1alpha1.C
 }
 
 func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask) (*batchv1.Job, error) {
-	etcdBackupImage, err := druidutils.GetEtcdBackupRestoreImage(r.imageVector, r.Config.FeatureGates[features.UseEtcdWrapper])
+	etcdBackupImage, err := utils.GetEtcdBackupRestoreImage(r.imageVector, r.Config.FeatureGates[features.UseEtcdWrapper])
 	if err != nil {
 		return nil, err
 	}
 
-	initContainerImage, err := druidutils.GetInitContainerImage(r.imageVector)
+	initContainerImage, err := utils.GetInitContainerImage(r.imageVector)
 	if err != nil {
 		return nil, err
 	}
 
 	targetStore := task.Spec.TargetStore
-	targetProvider, err := druidutils.StorageProviderFromInfraProvider(targetStore.Provider)
+	targetProvider, err := utils.StorageProviderFromInfraProvider(targetStore.Provider)
 	if err != nil {
 		return nil, err
 	}
 
 	sourceStore := task.Spec.SourceStore
-	sourceProvider, err := druidutils.StorageProviderFromInfraProvider(sourceStore.Provider)
+	sourceProvider, err := utils.StorageProviderFromInfraProvider(sourceStore.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -368,7 +369,7 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 	}
 
 	if r.Config.FeatureGates[features.UseEtcdWrapper] {
-		if targetProvider == druidutils.Local {
+		if targetProvider == utils.Local {
 			// init container to change file permissions of the folders used as store to 65532 (nonroot)
 			// used only with local provider
 			job.Spec.Template.Spec.InitContainers = []corev1.Container{
@@ -440,9 +441,9 @@ func getVolumeNamePrefix(prefix string) string {
 // This function creates the necessary Volume configurations for various storage providers.
 func (r *Reconciler) createVolumesFromStore(ctx context.Context, store *druidv1alpha1.StoreSpec, namespace, provider, prefix string) (volumes []corev1.Volume, err error) {
 	switch provider {
-	case druidutils.Local:
+	case utils.Local:
 		hostPathDirectory := corev1.HostPathDirectory
-		hostPathPrefix, err := druidutils.GetHostMountPathFromSecretRef(ctx, r.Client, r.logger, store, namespace)
+		hostPathPrefix, err := utils.GetHostMountPathFromSecretRef(ctx, r.Client, r.logger, store, namespace)
 		if err != nil {
 			return nil, err
 		}
@@ -455,7 +456,7 @@ func (r *Reconciler) createVolumesFromStore(ctx context.Context, store *druidv1a
 				},
 			},
 		})
-	case druidutils.GCS, druidutils.S3, druidutils.ABS, druidutils.Swift, druidutils.OCS, druidutils.OSS:
+	case utils.GCS, utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
 		if store.SecretRef == nil {
 			err = fmt.Errorf("no secretRef is configured for backup %sstore", prefix)
 			return
@@ -478,7 +479,7 @@ func (r *Reconciler) createVolumesFromStore(ctx context.Context, store *druidv1a
 // This function creates the necessary Volume configurations for various storage providers and returns any errors encountered.
 func createVolumeMountsFromStore(store *druidv1alpha1.StoreSpec, provider, volumeMountPrefix string, useEtcdWrapper bool) (volumeMounts []corev1.VolumeMount) {
 	switch provider {
-	case druidutils.Local:
+	case utils.Local:
 		if useEtcdWrapper {
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
 				Name:      volumeMountPrefix + "host-storage",
@@ -490,12 +491,12 @@ func createVolumeMountsFromStore(store *druidv1alpha1.StoreSpec, provider, volum
 				MountPath: *store.Container,
 			})
 		}
-	case druidutils.GCS:
+	case utils.GCS:
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      getVolumeNamePrefix(volumeMountPrefix) + "etcd-backup",
 			MountPath: "/var/." + getVolumeNamePrefix(volumeMountPrefix) + "gcp/",
 		})
-	case druidutils.S3, druidutils.ABS, druidutils.Swift, druidutils.OCS, druidutils.OSS:
+	case utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      getVolumeNamePrefix(volumeMountPrefix) + "etcd-backup",
 			MountPath: "/var/" + getVolumeNamePrefix(volumeMountPrefix) + "etcd-backup/",
@@ -504,32 +505,25 @@ func createVolumeMountsFromStore(store *druidv1alpha1.StoreSpec, provider, volum
 	return
 }
 
-func mapToEnvVar(name, value string) corev1.EnvVar {
-	return corev1.EnvVar{
-		Name:  name,
-		Value: value,
-	}
-}
-
 // createEnvVarsFromStore generates a slice of environment variables for an EtcdCopyBackups job based on the given StoreSpec,
 // storeProvider, prefix, and volumePrefix. The prefix is used to differentiate between source and target environment variables.
 // This function creates the necessary environment variables for various storage providers and configurations. The generated
 // environment variables include storage container information and provider-specific credentials.
 func createEnvVarsFromStore(store *druidv1alpha1.StoreSpec, storeProvider, envKeyPrefix, volumePrefix string) (envVars []corev1.EnvVar) {
-	envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.STORAGE_CONTAINER, *store.Container))
+	envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvStorageContainer, *store.Container))
 	switch storeProvider {
-	case druidutils.S3:
-		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.AWS_APPLICATION_CREDENTIALS, "/var/"+volumePrefix+"etcd-backup"))
-	case druidutils.ABS:
-		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.AZURE_APPLICATION_CREDENTIALS, "/var/"+volumePrefix+"etcd-backup"))
-	case druidutils.GCS:
-		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.GOOGLE_APPLICATION_CREDENTIALS, "/var/."+volumePrefix+"gcp/serviceaccount.json"))
-	case druidutils.Swift:
-		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.OPENSTACK_APPLICATION_CREDENTIALS, "/var/"+volumePrefix+"etcd-backup"))
-	case druidutils.OCS:
-		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.OPENSHIFT_APPLICATION_CREDENTIALS, "/var/"+volumePrefix+"etcd-backup"))
-	case druidutils.OSS:
-		envVars = append(envVars, mapToEnvVar(envKeyPrefix+common.ALICLOUD_APPLICATION_CREDENTIALS, "/var/"+volumePrefix+"etcd-backup"))
+	case utils.S3:
+		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvAWSApplicationCredentials, "/var/"+volumePrefix+"etcd-backup"))
+	case utils.ABS:
+		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvAzureApplicationCredentials, "/var/"+volumePrefix+"etcd-backup"))
+	case utils.GCS:
+		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvGoogleApplicationCredentials, "/var/."+volumePrefix+"gcp/serviceaccount.json"))
+	case utils.Swift:
+		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvOpenstackApplicationCredentials, "/var/"+volumePrefix+"etcd-backup"))
+	case utils.OCS:
+		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvOpenshiftApplicationCredentials, "/var/"+volumePrefix+"etcd-backup"))
+	case utils.OSS:
+		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvAlicloudApplicationCredentials, "/var/"+volumePrefix+"etcd-backup"))
 	}
 	return envVars
 }

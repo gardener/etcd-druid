@@ -19,16 +19,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gardener/gardener/pkg/controllerutils"
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
-
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
+	"github.com/gardener/gardener/pkg/controllerutils"
+	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
-
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -338,12 +338,20 @@ func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) 
 								}),
 							}),
 							"Env": MatchElements(testutils.EnvIterator, IgnoreExtras, Elements{
-								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("STORAGE_CONTAINER"),
+								common.EnvStorageContainer: MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal(common.EnvStorageContainer),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
 								}),
-								"POD_NAMESPACE": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("POD_NAMESPACE"),
+								common.EnvPodName: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvPodName),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.name"),
+										})),
+									})),
+								}),
+								common.EnvPodNamespace: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvPodNamespace),
 									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
 										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
 											"FieldPath": Equal("metadata.namespace"),
@@ -397,21 +405,41 @@ func validateStoreGCPForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 								}),
 							}),
 							"Env": MatchAllElements(testutils.EnvIterator, Elements{
-								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("STORAGE_CONTAINER"),
+								common.EnvStorageContainer: MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal(common.EnvStorageContainer),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
 								}),
-								"POD_NAMESPACE": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("POD_NAMESPACE"),
+								common.EnvPodName: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvPodName),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.name"),
+										})),
+									})),
+								}),
+								common.EnvPodNamespace: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvPodNamespace),
 									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
 										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
 											"FieldPath": Equal("metadata.namespace"),
 										})),
 									})),
 								}),
-								"GOOGLE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("GOOGLE_APPLICATION_CREDENTIALS"),
+								common.EnvGoogleApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal(common.EnvGoogleApplicationCredentials),
 									"Value": Equal("/var/.gcp/serviceaccount.json"),
+								}),
+								common.EnvGoogleStorageAPIEndpoint: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvGoogleStorageAPIEndpoint),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
+												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
+											}),
+											"Key":      Equal("storageAPIEndpoint"),
+											"Optional": Equal(pointer.Bool(true)),
+										})),
+									})),
 								}),
 							}),
 						}),
@@ -445,20 +473,28 @@ func validateStoreAWSForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
 							}),
 							"Env": MatchAllElements(testutils.EnvIterator, Elements{
-								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("STORAGE_CONTAINER"),
+								common.EnvStorageContainer: MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal(common.EnvStorageContainer),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
 								}),
-								"POD_NAMESPACE": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("POD_NAMESPACE"),
+								common.EnvPodName: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvPodName),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.name"),
+										})),
+									})),
+								}),
+								common.EnvPodNamespace: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvPodNamespace),
 									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
 										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
 											"FieldPath": Equal("metadata.namespace"),
 										})),
 									})),
 								}),
-								"AWS_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("AWS_APPLICATION_CREDENTIALS"),
+								common.EnvAWSApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal(common.EnvAWSApplicationCredentials),
 									"Value": Equal("/var/etcd-backup"),
 								}),
 							}),
@@ -493,20 +529,28 @@ func validateStoreAzureForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1
 								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
 							}),
 							"Env": MatchAllElements(testutils.EnvIterator, Elements{
-								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("STORAGE_CONTAINER"),
+								common.EnvStorageContainer: MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal(common.EnvStorageContainer),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
 								}),
-								"POD_NAMESPACE": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("POD_NAMESPACE"),
+								common.EnvPodName: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvPodName),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.name"),
+										})),
+									})),
+								}),
+								common.EnvPodNamespace: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvPodNamespace),
 									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
 										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
 											"FieldPath": Equal("metadata.namespace"),
 										})),
 									})),
 								}),
-								"AZURE_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("AZURE_APPLICATION_CREDENTIALS"),
+								common.EnvAzureApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal(common.EnvAzureApplicationCredentials),
 									"Value": Equal("/var/etcd-backup"),
 								}),
 							}),
@@ -541,20 +585,28 @@ func validateStoreOpenstackForCompactionJob(instance *druidv1alpha1.Etcd, j *bat
 								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
 							}),
 							"Env": MatchAllElements(testutils.EnvIterator, Elements{
-								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("STORAGE_CONTAINER"),
+								common.EnvStorageContainer: MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal(common.EnvStorageContainer),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
 								}),
-								"POD_NAMESPACE": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("POD_NAMESPACE"),
+								common.EnvPodName: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvPodName),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.name"),
+										})),
+									})),
+								}),
+								common.EnvPodNamespace: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvPodNamespace),
 									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
 										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
 											"FieldPath": Equal("metadata.namespace"),
 										})),
 									})),
 								}),
-								"OPENSTACK_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("OPENSTACK_APPLICATION_CREDENTIALS"),
+								common.EnvOpenstackApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal(common.EnvOpenstackApplicationCredentials),
 									"Value": Equal("/var/etcd-backup"),
 								}),
 							}),
@@ -590,20 +642,28 @@ func validateStoreAlicloudForCompactionJob(instance *druidv1alpha1.Etcd, j *batc
 							}),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
 							"Env": MatchAllElements(testutils.EnvIterator, Elements{
-								"STORAGE_CONTAINER": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("STORAGE_CONTAINER"),
+								common.EnvStorageContainer: MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal(common.EnvStorageContainer),
 									"Value": Equal(*instance.Spec.Backup.Store.Container),
 								}),
-								"POD_NAMESPACE": MatchFields(IgnoreExtras, Fields{
-									"Name": Equal("POD_NAMESPACE"),
+								common.EnvPodName: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvPodName),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"FieldPath": Equal("metadata.name"),
+										})),
+									})),
+								}),
+								common.EnvPodNamespace: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvPodNamespace),
 									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
 										"FieldRef": PointTo(MatchFields(IgnoreExtras, Fields{
 											"FieldPath": Equal("metadata.namespace"),
 										})),
 									})),
 								}),
-								"ALICLOUD_APPLICATION_CREDENTIALS": MatchFields(IgnoreExtras, Fields{
-									"Name":  Equal("ALICLOUD_APPLICATION_CREDENTIALS"),
+								common.EnvAlicloudApplicationCredentials: MatchFields(IgnoreExtras, Fields{
+									"Name":  Equal(common.EnvAlicloudApplicationCredentials),
 									"Value": Equal("/var/etcd-backup"),
 								}),
 							}),
@@ -643,36 +703,6 @@ func jobIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, job
 	}
 
 	return nil
-}
-
-func createCompactionJob(instance *druidv1alpha1.Etcd) *batchv1.Job {
-	j := batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      instance.GetCompactionJobName(),
-			Namespace: instance.Namespace,
-			Labels:    instance.Labels,
-		},
-		Spec: batchv1.JobSpec{
-			BackoffLimit: pointer.Int32(0),
-			Completions:  pointer.Int32(1),
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: instance.Labels,
-				},
-				Spec: corev1.PodSpec{
-					RestartPolicy: "Never",
-					Containers: []corev1.Container{
-						{
-							Name:    "compact-backup",
-							Image:   "europe-docker.pkg.dev/gardener-project/releases/3rd/alpine:3.18.4",
-							Command: []string{"sh", "-c", "tail -f /dev/null"},
-						},
-					},
-				},
-			},
-		},
-	}
-	return &j
 }
 
 func etcdSnapshotLeaseIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, lease *coordinationv1.Lease) error {
