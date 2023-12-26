@@ -64,15 +64,6 @@ func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {
 	return client.ObjectKey{Name: etcd.GetPeerServiceName(), Namespace: etcd.Namespace}
 }
 
-func (r _resource) getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
-	var labelMaps []map[string]string
-	labelMaps = append(labelMaps, etcd.GetDefaultLabels())
-	if etcd.Spec.Etcd.ClientService != nil {
-		labelMaps = append(labelMaps, etcd.Spec.Etcd.ClientService.Labels)
-	}
-	return utils.MergeMaps[string, string](labelMaps...)
-}
-
 func emptyPeerService(objectKey client.ObjectKey) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
