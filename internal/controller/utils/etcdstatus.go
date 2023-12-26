@@ -8,6 +8,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -69,23 +70,28 @@ func (l *lastOpErrRecorder) RecordError(ctx resource.OperatorContext, etcd *drui
 }
 
 func (l *lastOpErrRecorder) recordLastOperationAndErrors(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidv1alpha1.LastOperationType, operationState druidv1alpha1.LastOperationState, description string, lastErrors ...druidv1alpha1.LastError) error {
-	etcdPatch := client.StrategicMergeFrom(etcd.DeepCopy())
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		etcdLatest := &druidv1alpha1.Etcd{}
+		if err := l.client.Get(ctx, etcd.GetNamespaceName(), etcdLatest); err != nil {
+			return err
+		}
 
-	// update last operation
-	if etcd.Status.LastOperation == nil {
-		etcd.Status.LastOperation = &druidv1alpha1.LastOperation{}
-	}
-	etcd.Status.LastOperation.RunID = ctx.RunID
-	etcd.Status.LastOperation.Type = operationType
-	etcd.Status.LastOperation.State = operationState
-	etcd.Status.LastOperation.LastUpdateTime = metav1.NewTime(time.Now().UTC())
-	etcd.Status.LastOperation.Description = description
-	// update last errors
-	etcd.Status.LastErrors = lastErrors
+		// Apply changes to the latest version of etcd
+		etcdLatest.Status.LastOperation = &druidv1alpha1.LastOperation{
+			RunID:          ctx.RunID,
+			Type:           operationType,
+			State:          operationState,
+			LastUpdateTime: metav1.NewTime(time.Now().UTC()),
+			Description:    description,
+		}
+		etcdLatest.Status.LastErrors = lastErrors
 
-	err := l.client.Status().Patch(ctx, etcd, etcdPatch)
-	if err != nil {
-		l.logger.Error(err, "failed to update LastOperation and LastErrors")
+		return l.client.Status().Update(ctx, etcdLatest)
+	})
+
+	if retryErr != nil {
+		l.logger.Error(retryErr, "Failed to update etcd status.LastOperation after retries")
 	}
-	return err
+
+	return retryErr
 }
