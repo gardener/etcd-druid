@@ -62,6 +62,8 @@ func GetProviderEnvVars(store *druidv1alpha1.StoreSpec) ([]corev1.EnvVar, error)
 
 	case ABS:
 		envVars = append(envVars, GetEnvVarFromValue(common.EnvAzureApplicationCredentials, credentialsMountPath))
+		envVars = append(envVars, GetEnvVarFromSecret(common.EnvAzureEnableAzurite, store.SecretRef.Name, "enableAzurite", true))
+		envVars = append(envVars, GetEnvVarFromSecret(common.EnvAzureStorageAPIEndpoint, store.SecretRef.Name, "storageAPIEndpoint", true))
 
 	case GCS:
 		envVars = append(envVars, GetEnvVarFromValue(common.EnvGoogleApplicationCredentials, "/var/.gcp/serviceaccount.json"))
