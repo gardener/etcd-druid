@@ -125,6 +125,8 @@ func GetProviderEnvVars(store *druidv1alpha1.StoreSpec) ([]corev1.EnvVar, error)
 
 	case ABS:
 		envVars = append(envVars, utils.GetEnvVarFromValue(common.EnvAzureApplicationCredentials, common.VolumeMountPathNonGCSProviderBackupSecret))
+		envVars = append(envVars, utils.GetEnvVarFromSecret(common.EnvAzureEmulatorEnabled, store.SecretRef.Name, "emulatorEnabled", true))
+		envVars = append(envVars, utils.GetEnvVarFromSecret(common.EnvAzureStorageAPIEndpoint, store.SecretRef.Name, "storageAPIEndpoint", true))
 
 	case GCS:
 		envVars = append(envVars, utils.GetEnvVarFromValue(common.EnvGoogleApplicationCredentials, fmt.Sprintf("%sserviceaccount.json", common.VolumeMountPathGCSBackupSecret)))

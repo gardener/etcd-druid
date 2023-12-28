@@ -133,7 +133,7 @@ docker-push:
 # Rules for local environment                                       #
 #####################################################################
 
-kind-up kind-down ci-e2e-kind deploy-localstack test-e2e deploy deploy-dev deploy-debug undeploy: export KUBECONFIG = $(KUBECONFIG_PATH)
+kind-up kind-down ci-e2e-kind ci-e2e-kind-azure deploy-localstack deploy-azurite test-e2e deploy deploy-dev deploy-debug undeploy: export KUBECONFIG = $(KUBECONFIG_PATH)
 
 .PHONY: kind-up
 kind-up: $(KIND)
@@ -182,6 +182,10 @@ undeploy: $(SKAFFOLD) $(HELM)
 deploy-localstack: $(KUBECTL)
 	@bash $(HACK_DIR)/deploy-localstack.sh
 
+.PHONY: deploy-azurite
+deploy-azurite: $(KUBECTL)
+	./hack/deploy-azurite.sh
+
 .PHONY: test-e2e
 test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
 	@bash $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
@@ -189,3 +193,7 @@ test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
 .PHONY: ci-e2e-kind
 ci-e2e-kind:
 	@BUCKET_NAME=$(BUCKET_NAME) bash $(HACK_DIR)/ci-e2e-kind.sh
+
+.PHONY: ci-e2e-kind-azure
+ci-e2e-kind-azure:
+	@BUCKET_NAME=$(BUCKET_NAME) bash $(HACK_DIR)/ci-e2e-kind-azure.sh

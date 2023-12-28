@@ -543,6 +543,30 @@ func validateStoreAzureForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1
 									"Name":  Equal(common.EnvAzureApplicationCredentials),
 									"Value": Equal(common.VolumeMountPathNonGCSProviderBackupSecret),
 								}),
+								common.EnvAzureEmulatorEnabled: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvAzureEmulatorEnabled),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
+												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
+											}),
+											"Key":      Equal("emulatorEnabled"),
+											"Optional": Equal(pointer.Bool(true)),
+										})),
+									})),
+								}),
+								common.EnvAzureStorageAPIEndpoint: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvAzureStorageAPIEndpoint),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
+												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
+											}),
+											"Key":      Equal("storageAPIEndpoint"),
+											"Optional": Equal(pointer.Bool(true)),
+										})),
+									})),
+								}),
 							}),
 						}),
 					}),
