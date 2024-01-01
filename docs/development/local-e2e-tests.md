@@ -140,21 +140,40 @@ make \
 test-e2e
 ```
 
-## e2e test with localstack
+## e2e test with local storage emulators [AWS, GCP]
 
-The above-mentioned e2e tests need storage from real cloud providers to be setup. But there is a tool named [localstack](https://docs.localstack.cloud/user-guide/aws/s3/) that enables to run e2e test with mock AWS storage. We can also provision KIND cluster for e2e tests. So, together with localstack and KIND cluster, we don't need to depend on any actual cloud provider infrastructure to be setup to run e2e tests.
+The above-mentioned e2e tests need storage from real cloud providers to be setup. But there are tools named [localstack](https://docs.localstack.cloud/user-guide/aws/s3/) & [fake-gcs-server](https://github.com/fsouza/fake-gcs-server) that enables to run e2e test with mock AWS storage & mock GCS storage respectively. We can also provision KIND cluster for e2e tests. So, together with local emulators and KIND cluster, we don't need to depend on any actual cloud provider infrastructure to be setup to run e2e tests.
 
-### How are the KIND cluster and localstack set up
+### How are the KIND cluster and local emulators set up
 
 KIND or Kubernetes-In-Docker is a kubernetes cluster that is set up inside a docker container. This cluster is with limited capability as it does not have much compute power. But this cluster can easily be setup inside a container and can be tear down easily just by removing a container. That's why KIND cluster is very easy to use for e2e tests. `Makefile` command helps to spin up a KIND cluster and use the cluster to run e2e tests.
+
+#### Localstack setup
 
 There is a docker image for localstack. The image is deployed as pod inside the KIND cluster through `hack/e2e-test/infrastructure/localstack/localstack.yaml`. `Makefile` takes care of deploying the yaml file in a KIND cluster.
 
 The developer needs to run `make ci-e2e-kind` command. This command in turn runs `hack/ci-e2e-kind.sh` which spin up the KIND cluster and deploy localstack in it and then run the e2e tests using localstack as mock AWS storage provider. e2e tests are actually run on host machine but deploy the druid controller inside KIND cluster. Druid controller spawns multinode etcd clusters inside KIND cluster. e2e tests verify whether the druid controller performs its jobs correctly or not. Mock localstack storage is cleaned up after every e2e tests. That's why the e2e tests need to access the localstack pod running inside KIND cluster. The network traffic between host machine and localstack pod is resolved via mapping localstack pod port to host port while setting up the KIND cluster via `hack/e2e-test/infrastructure/kind/cluster.yaml`
 
-### How to execute e2e tests with localstack and KIND cluster
+##### How to execute e2e tests with localstack and KIND cluster
 
 Run the following `make` command to spin up a KinD cluster, deploy localstack and run the e2e tests with provider `aws`:
-```
+
+```bash
 make ci-e2e-kind
+```
+
+#### Fake-GCS-Server setup
+
+[Fake-gcs-server](https://github.com/fsouza/fake-gcs-server) is run inside a pod as a [docker image](https://hub.docker.com/r/fsouza/fake-gcs-server) in a KIND cluster.
+
+The user needs to run `make ci-e2e-kind-gcs` to start the e2e tests for druid with GCS emulator as the object storage for etcd backups. The above command internally runs the script `hack/ci-e2e-kind-gcs.sh` which initializes the setup with required steps before going to create a KIND cluster and deploy fakegcs in it and use that emulator to run e2e tests.
+
+The `fake-gcs-server` running inside the pod serves HTTP requests at port-8000 and HTTPS requests at port-4443. As the e2e tests runs on the host machine while the emulator runs on KIND, both ports i.e 8000 & 4443 needs to be port-forwarded from the host machine to fake-gcs service running inside the KIND cluster. The port forwardings is defined in the `hack/e2e-test/infrastructure/kind/cluster.yaml` file.
+
+##### How to execute e2e tests with fake-gcs-server and KIND cluster
+
+Run the following `make` command to spin up a KinD cluster, deploy localstack and run the e2e tests with provider `gcp`:
+
+```bash
+make ci-e2e-kind-gcs
 ```

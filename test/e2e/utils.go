@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -390,6 +391,12 @@ func getProviders() ([]TestProvider, error) {
 							"serviceaccount.json": gcsSA,
 						},
 					},
+				}
+				fakegcsenabled := getEnvOrFallback(common.EnvGCSEmulatorEnabled, "")
+				if enable, err := strconv.ParseBool(fakegcsenabled); err == nil && enable {
+					gcsEmulatorURL := getEnvOrFallback("GCS_EMULATOR_HOST", "")
+					provider.Storage.SecretData["storageAPIEndpoint"] = []byte("http://" + gcsEmulatorURL + "/storage/v1/")
+					provider.Storage.SecretData["emulatorEnabled"] = []byte(fakegcsenabled)
 				}
 			}
 		case providerLocal:
