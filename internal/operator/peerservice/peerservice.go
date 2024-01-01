@@ -5,7 +5,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
-	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,7 +16,6 @@ const defaultServerPort = 2380
 
 type _resource struct {
 	client client.Client
-	logger logr.Logger
 }
 
 func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
@@ -53,10 +51,9 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 	return client.IgnoreNotFound(r.client.Delete(ctx, emptyPeerService(getObjectKey(etcd))))
 }
 
-func New(client client.Client, logger logr.Logger) resource.Operator {
+func New(client client.Client) resource.Operator {
 	return &_resource{
 		client: client,
-		logger: logger,
 	}
 }
 

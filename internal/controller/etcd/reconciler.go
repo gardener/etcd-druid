@@ -78,22 +78,7 @@ func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 	}, nil
 }
 
-func createAndInitializeOperatorRegistry(client client.Client, logger logr.Logger, config *Config, imageVector imagevector.ImageVector) operator.Registry {
-	reg := operator.NewRegistry()
-	reg.Register(operator.ConfigMapKind, configmap.New(client, logger))
-	reg.Register(operator.ServiceAccountKind, serviceaccount.New(client, logger, config.DisableEtcdServiceAccountAutomount))
-	reg.Register(operator.MemberLeaseKind, memberlease.New(client, logger))
-	reg.Register(operator.SnapshotLeaseKind, snapshotlease.New(client, logger))
-	reg.Register(operator.ClientServiceKind, clientservice.New(client, logger))
-	reg.Register(operator.PeerServiceKind, peerservice.New(client, logger))
-	reg.Register(operator.PodDisruptionBudgetKind, poddistruptionbudget.New(client, logger))
-	reg.Register(operator.RoleKind, role.New(client, logger))
-	reg.Register(operator.RoleBindingKind, rolebinding.New(client, logger))
-	reg.Register(operator.StatefulSetKind, statefulset.New(client, logger, imageVector, config.FeatureGates))
-	return reg
-}
-
-type reconcileFn func(ctx context.Context, objectKey client.ObjectKey, runID string) ctrlutils.ReconcileStepResult
+type reconcileFn func(ctx resource.OperatorContext, objectKey client.ObjectKey) ctrlutils.ReconcileStepResult
 
 // TODO: where/how is this being used?
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds,verbs=get;list;watch;create;update;patch
@@ -112,7 +97,7 @@ type reconcileFn func(ctx context.Context, objectKey client.ObjectKey, runID str
 //
 // The reconciliation process involves the following steps:
 //  1. Deletion Handling: If the Etcd resource has a deletionTimestamp, initiate the deletion workflow. On error, requeue the request.
-//  2. Reconciliation Decision: Determine whether the Etcd spec should be reconciled based on annotations and flags.
+//  2. Spec Reconciliation : Determine whether the Etcd spec should be reconciled based on annotations and flags and if there is a need then reconcile spec.
 //  3. Status Reconciliation: Always update the status of the Etcd resource to reflect its current state.
 //  4. Scheduled Requeue: Requeue the reconciliation request after a defined period (EtcdStatusSyncPeriod) to maintain sync.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -120,63 +105,79 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if result := r.getLatestEtcd(ctx, req.NamespacedName, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result.ReconcileResult()
 	}
-
-	var reconcileFns []reconcileFn
-	// If the etcd resource is marked for deletion.
-	if etcd.DeletionTimestamp != nil {
-		reconcileFns = append(reconcileFns, r.reconcileEtcdDeletion)
-	} else {
-		// Check if we can reconcile spec.
-		if r.canReconcileSpec(etcd) {
-			reconcileFns = append(reconcileFns, r.reconcileSpec)
-		}
+	reconcileFns := []reconcileFn{
+		r.reconcileEtcdDeletion,
+		r.reconcileSpec,
+		r.reconcileStatus,
 	}
-
-	// Always reconcile status.
-	reconcileFns = append(reconcileFns, r.reconcileStatus)
-
 	// Execute the reconcile functions.
 	runID := uuid.New().String()
+	operatorCtx := resource.NewOperatorContext(ctx, r.logger, runID)
 	for _, fn := range reconcileFns {
-		if result := fn(ctx, req.NamespacedName, runID); ctrlutils.ShortCircuitReconcileFlow(result) {
+		if result := fn(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
 			return result.ReconcileResult()
 		}
 	}
-	return ctrlutils.ReconcileAfter(r.config.EtcdStatusSyncPeriod, "Reqeue").ReconcileResult()
+
+	return ctrlutils.ReconcileAfter(r.config.EtcdStatusSyncPeriod, "Periodic Requeue").ReconcileResult()
 }
 
-func (r *Reconciler) reconcileEtcdDeletion(ctx context.Context, etcdObjectKey client.ObjectKey, runID string) ctrlutils.ReconcileStepResult {
+func createAndInitializeOperatorRegistry(client client.Client, logger logr.Logger, config *Config, imageVector imagevector.ImageVector) operator.Registry {
+	reg := operator.NewRegistry()
+	reg.Register(operator.ConfigMapKind, configmap.New(client))
+	reg.Register(operator.ServiceAccountKind, serviceaccount.New(client, logger, config.DisableEtcdServiceAccountAutomount))
+	reg.Register(operator.MemberLeaseKind, memberlease.New(client))
+	reg.Register(operator.SnapshotLeaseKind, snapshotlease.New(client, logger))
+	reg.Register(operator.ClientServiceKind, clientservice.New(client))
+	reg.Register(operator.PeerServiceKind, peerservice.New(client))
+	reg.Register(operator.PodDisruptionBudgetKind, poddistruptionbudget.New(client, logger))
+	reg.Register(operator.RoleKind, role.New(client, logger))
+	reg.Register(operator.RoleBindingKind, rolebinding.New(client, logger))
+	reg.Register(operator.StatefulSetKind, statefulset.New(client, logger, imageVector, config.FeatureGates))
+	return reg
+}
+
+func (r *Reconciler) reconcileEtcdDeletion(ctx resource.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
 	etcd := &druidv1alpha1.Etcd{}
 	if result := r.getLatestEtcd(ctx, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
 	if etcd.IsMarkedForDeletion() {
-		operatorCtx := resource.NewOperatorContext(ctx, r.logger, runID)
-		dLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "delete").WithValues("Reconciler", runID)
-		return r.triggerDeletionFlow(operatorCtx, dLog, etcdObjectKey)
+		dLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "delete").WithValues("runId", ctx.RunID)
+		ctx.SetLogger(dLog)
+		return r.triggerDeletionFlow(ctx, dLog, etcdObjectKey)
 	}
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) reconcileSpec(ctx context.Context, etcdObjectKey client.ObjectKey, runID string) ctrlutils.ReconcileStepResult {
-	operatorCtx := resource.NewOperatorContext(ctx, r.logger, runID)
-	rLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileSpec").WithValues("Reconciler", runID)
-	return r.triggerReconcileSpec(operatorCtx, rLog, etcdObjectKey)
+func (r *Reconciler) reconcileSpec(ctx resource.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+	etcd := &druidv1alpha1.Etcd{}
+	if result := r.getLatestEtcd(ctx, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result
+	}
+	if r.canReconcileSpec(etcd) {
+		rLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileSpec").WithValues("runID", ctx.RunID)
+		ctx.SetLogger(rLog)
+		return r.triggerReconcileSpecFlow(ctx, etcdObjectKey)
+	}
+	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) reconcileStatus(ctx context.Context, etcdObjectKey client.ObjectKey, runID string) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) reconcileStatus(ctx resource.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
 	etcd := &druidv1alpha1.Etcd{}
 	if result := r.getLatestEtcd(ctx, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
 
+	sLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileStatus").WithValues("runID", ctx.RunID)
+	// TODO: Sesha to remove the hard coding for the timeout durations
 	statusCheck := status.NewChecker(r.client, 5*time.Minute, 1*time.Minute)
-	if err := statusCheck.Check(ctx, r.logger, etcd); err != nil {
+	if err := statusCheck.Check(ctx, sLog, etcd); err != nil {
 		r.logger.Error(err, "Error executing status checks")
 		return utils.ReconcileWithError(err)
 	}
 
-	r.logger.Info("Updating etcd status with statefulset information", "namespace", etcd.Namespace, "name", etcd.Name)
+	r.logger.Info("Updating etcd status with StatefulSet information", "namespace", etcd.Namespace, "name", etcd.Name)
 
 	sts, err := pkgutils.GetStatefulSet(ctx, r.client, etcd)
 	if err != nil {

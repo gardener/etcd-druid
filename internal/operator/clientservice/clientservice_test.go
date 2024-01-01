@@ -32,7 +32,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // ------------------------ GetExistingResourceNames ------------------------
@@ -269,7 +268,7 @@ func setupWithFakeClient(t *testing.T, withExistingService bool) (g *gomega.With
 
 		cl = fakeclient.NewClientBuilder().Build()
 	}
-	op = New(cl, log.Log.WithName("test"))
+	op = New(cl)
 	return
 }
 
@@ -278,6 +277,6 @@ func setupWithMockClient(t *testing.T) (g *gomega.WithT, ctx resource.OperatorCo
 	ctx = resource.NewOperatorContext(context.TODO(), logr.Logger{}, "xxx-yyyy-zzzz")
 	etcd = sampleEtcd()
 	cl = mockclient.NewMockClient(gomock.NewController(t))
-	op = New(cl, log.Log.WithName("test"))
+	op = New(cl)
 	return
 }

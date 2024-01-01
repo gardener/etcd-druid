@@ -1,8 +1,6 @@
 package memberlease
 
 import (
-	"context"
-
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
@@ -11,7 +9,6 @@ import (
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
-	"github.com/go-logr/logr"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -21,7 +18,6 @@ const purpose = "etcd-member-lease"
 
 type _resource struct {
 	client client.Client
-	logger logr.Logger
 }
 
 func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
@@ -65,7 +61,7 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 	return nil
 }
 
-func (r _resource) doCreateOrUpdate(ctx context.Context, etcd *druidv1alpha1.Etcd, objKey client.ObjectKey) error {
+func (r _resource) doCreateOrUpdate(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, objKey client.ObjectKey) error {
 	lease := emptyMemberLease(objKey)
 	opResult, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, lease, func() error {
 		lease.Labels = utils.MergeMaps[string](utils.GetMemberLeaseLabels(etcd.Name), etcd.GetDefaultLabels())
@@ -75,7 +71,7 @@ func (r _resource) doCreateOrUpdate(ctx context.Context, etcd *druidv1alpha1.Etc
 	if err != nil {
 		return err
 	}
-	r.logger.Info("triggered creation of member lease", "lease", objKey, "operationResult", opResult)
+	ctx.Logger.Info("triggered creation of member lease", "lease", objKey, "operationResult", opResult)
 	return nil
 }
 
@@ -86,10 +82,9 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 		client.MatchingLabels(etcd.GetDefaultLabels()))
 }
 
-func New(client client.Client, logger logr.Logger) resource.Operator {
+func New(client client.Client) resource.Operator {
 	return &_resource{
 		client: client,
-		logger: logger,
 	}
 }
 

@@ -7,7 +7,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils"
-	"github.com/go-logr/logr"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -17,7 +16,6 @@ import (
 
 type _resource struct {
 	client client.Client
-	logger logr.Logger
 }
 
 func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
@@ -61,14 +59,13 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
-	r.logger.Info("Triggering delete of ConfigMap", "objectKey", objectKey)
+	ctx.Logger.Info("Triggering delete of ConfigMap", "objectKey", objectKey)
 	return client.IgnoreNotFound(r.client.Delete(ctx, emptyConfigMap(objectKey)))
 }
 
-func New(client client.Client, logger logr.Logger) resource.Operator {
+func New(client client.Client) resource.Operator {
 	return &_resource{
 		client: client,
-		logger: logger,
 	}
 }
 

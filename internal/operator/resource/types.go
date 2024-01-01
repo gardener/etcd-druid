@@ -33,6 +33,10 @@ func NewOperatorContext(ctx context.Context, logger logr.Logger, runID string) O
 	}
 }
 
+func (o *OperatorContext) SetLogger(logger logr.Logger) {
+	o.Logger = logger
+}
+
 // Operator manages one or more resources of a specific Kind which are provisioned for an etcd cluster.
 type Operator interface {
 	// GetExistingResourceNames gets all resources that currently exist that this Operator manages.
