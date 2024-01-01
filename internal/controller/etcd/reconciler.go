@@ -16,10 +16,12 @@ package etcd
 
 import (
 	"context"
+	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/utils"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
+	"github.com/gardener/etcd-druid/internal/health/status"
 	"github.com/gardener/etcd-druid/internal/operator"
 	"github.com/gardener/etcd-druid/internal/operator/clientservice"
 	"github.com/gardener/etcd-druid/internal/operator/configmap"
@@ -32,12 +34,14 @@ import (
 	"github.com/gardener/etcd-druid/internal/operator/serviceaccount"
 	"github.com/gardener/etcd-druid/internal/operator/snapshotlease"
 	"github.com/gardener/etcd-druid/internal/operator/statefulset"
+	pkgutils "github.com/gardener/etcd-druid/pkg/utils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -89,21 +93,7 @@ func createAndInitializeOperatorRegistry(client client.Client, logger logr.Logge
 	return reg
 }
 
-/*
-	If deletionTimestamp set:
-		triggerDeletionFlow(); if err then requeue
-	Else:
-		If ignore-reconciliation is set to true:
-			skip reconcileSpec()
-		Else If IgnoreOperationAnnotation flag is true:
-			always reconcileSpec()
-		Else If IgnoreOperationAnnotation flag is false and reconcile-op annotation is present:
-			reconcileSpec()
-			if err in getting etcd, return with requeue
-			if err in deploying any of the components, then record pending requeue
-	reconcileStatus()
-	requeue after minimum of X seconds (EtcdStatusSyncPeriod) and previously recorded requeue request
-*/
+type reconcileFn func(ctx context.Context, objectKey client.ObjectKey, runID string) ctrlutils.ReconcileStepResult
 
 // TODO: where/how is this being used?
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds,verbs=get;list;watch;create;update;patch
@@ -118,20 +108,41 @@ func createAndInitializeOperatorRegistry(client client.Client, logger logr.Logge
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;get;list
 
+// Reconcile manages the reconciliation of the Etcd resource to align it with its desired specifications.
+//
+// The reconciliation process involves the following steps:
+//  1. Deletion Handling: If the Etcd resource has a deletionTimestamp, initiate the deletion workflow. On error, requeue the request.
+//  2. Reconciliation Decision: Determine whether the Etcd spec should be reconciled based on annotations and flags.
+//  3. Status Reconciliation: Always update the status of the Etcd resource to reflect its current state.
+//  4. Scheduled Requeue: Requeue the reconciliation request after a defined period (EtcdStatusSyncPeriod) to maintain sync.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	type reconcileFn func(ctx context.Context, objectKey client.ObjectKey, runID string) ctrlutils.ReconcileStepResult
-	reconcileFns := []reconcileFn{
-		r.reconcileEtcdDeletion,
-		r.reconcileSpec,
-		r.reconcileStatus,
+	etcd := &druidv1alpha1.Etcd{}
+	if result := r.getLatestEtcd(ctx, req.NamespacedName, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result.ReconcileResult()
 	}
+
+	var reconcileFns []reconcileFn
+	// If the etcd resource is marked for deletion.
+	if etcd.DeletionTimestamp != nil {
+		reconcileFns = append(reconcileFns, r.reconcileEtcdDeletion)
+	} else {
+		// Check if we can reconcile spec.
+		if r.canReconcileSpec(etcd) {
+			reconcileFns = append(reconcileFns, r.reconcileSpec)
+		}
+	}
+
+	// Always reconcile status.
+	reconcileFns = append(reconcileFns, r.reconcileStatus)
+
+	// Execute the reconcile functions.
 	runID := uuid.New().String()
 	for _, fn := range reconcileFns {
 		if result := fn(ctx, req.NamespacedName, runID); ctrlutils.ShortCircuitReconcileFlow(result) {
 			return result.ReconcileResult()
 		}
 	}
-	return ctrlutils.DoNotRequeue().ReconcileResult()
+	return ctrlutils.ReconcileAfter(r.config.EtcdStatusSyncPeriod, "Reqeue").ReconcileResult()
 }
 
 func (r *Reconciler) reconcileEtcdDeletion(ctx context.Context, etcdObjectKey client.ObjectKey, runID string) ctrlutils.ReconcileStepResult {
@@ -141,40 +152,72 @@ func (r *Reconciler) reconcileEtcdDeletion(ctx context.Context, etcdObjectKey cl
 	}
 	if etcd.IsMarkedForDeletion() {
 		operatorCtx := resource.NewOperatorContext(ctx, r.logger, runID)
-		dLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "delete")
+		dLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "delete").WithValues("Reconciler", runID)
 		return r.triggerDeletionFlow(operatorCtx, dLog, etcdObjectKey)
 	}
 	return ctrlutils.ContinueReconcile()
 }
 
 func (r *Reconciler) reconcileSpec(ctx context.Context, etcdObjectKey client.ObjectKey, runID string) ctrlutils.ReconcileStepResult {
+	operatorCtx := resource.NewOperatorContext(ctx, r.logger, runID)
+	rLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileSpec").WithValues("Reconciler", runID)
+	return r.triggerReconcileSpec(operatorCtx, rLog, etcdObjectKey)
+}
+
+func (r *Reconciler) reconcileStatus(ctx context.Context, etcdObjectKey client.ObjectKey, runID string) ctrlutils.ReconcileStepResult {
 	etcd := &druidv1alpha1.Etcd{}
 	if result := r.getLatestEtcd(ctx, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
 
-	operatorCtx := resource.NewOperatorContext(ctx, r.logger, runID)
-	resourceOperators := r.getOrderedOperatorsForSync()
-	for _, kind := range resourceOperators {
-		op := r.operatorRegistry.GetOperator(kind)
-		if err := op.Sync(operatorCtx, etcd); err != nil {
-			return utils.ReconcileWithError(err)
-		}
+	statusCheck := status.NewChecker(r.client, 5*time.Minute, 1*time.Minute)
+	if err := statusCheck.Check(ctx, r.logger, etcd); err != nil {
+		r.logger.Error(err, "Error executing status checks")
+		return utils.ReconcileWithError(err)
 	}
+
+	r.logger.Info("Updating etcd status with statefulset information", "namespace", etcd.Namespace, "name", etcd.Name)
+
+	sts, err := pkgutils.GetStatefulSet(ctx, r.client, etcd)
+	if err != nil {
+		return utils.ReconcileWithError(err)
+	}
+
+	updateEtcdStatus := func() error {
+		latestetcd := etcd.DeepCopy()
+		if err := r.client.Get(ctx, etcd.GetNamespaceName(), latestetcd); err != nil {
+			return err
+		}
+		latestetcd.Status = etcd.Status
+		if sts != nil {
+			latestetcd.Status.Etcd = &druidv1alpha1.CrossVersionObjectReference{
+				APIVersion: sts.APIVersion,
+				Kind:       sts.Kind,
+				Name:       sts.Name,
+			}
+			ready, _ := pkgutils.IsStatefulSetReady(etcd.Spec.Replicas, sts)
+			latestetcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
+			latestetcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
+			latestetcd.Status.UpdatedReplicas = sts.Status.UpdatedReplicas
+			latestetcd.Status.Replicas = sts.Status.CurrentReplicas
+			latestetcd.Status.Ready = &ready
+		} else {
+			latestetcd.Status.CurrentReplicas = 0
+			latestetcd.Status.ReadyReplicas = 0
+			latestetcd.Status.UpdatedReplicas = 0
+			latestetcd.Status.Ready = pointer.Bool(false)
+		}
+
+		return r.client.Status().Update(ctx, latestetcd)
+	}
+
+	err = retry.RetryOnConflict(retry.DefaultRetry, updateEtcdStatus)
+	if err != nil {
+		r.logger.Error(err, "Failed to update etcd status")
+		return utils.ReconcileWithError(err)
+	}
+
 	return utils.ContinueReconcile()
-}
-
-func (r *Reconciler) reconcileStatus(ctx context.Context, etcdNamespacedName types.NamespacedName, runID string) ctrlutils.ReconcileStepResult {
-	/*
-		fetch EtcdMember resources
-		fetch member leases
-		status.condition checks
-		status.members checks
-		fetch latest Etcd resource
-		update etcd status
-	*/
-
-	return ctrlutils.DoNotRequeue()
 }
 
 func (r *Reconciler) getLatestEtcd(ctx context.Context, objectKey client.ObjectKey, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
@@ -186,42 +229,3 @@ func (r *Reconciler) getLatestEtcd(ctx context.Context, objectKey client.ObjectK
 	}
 	return ctrlutils.ContinueReconcile()
 }
-
-//func (r *Reconciler) runPreSpecReconcileChecks(etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
-//	suspendEtcdSpecReconcileAnnotationKey := getSuspendEtcdReconcileAnnotationKey(etcd)
-//	if suspendEtcdSpecReconcileAnnotationKey != nil {
-//		r.recorder.Eventf(
-//			etcd,
-//			corev1.EventTypeWarning,
-//			"SpecReconciliationSkipped",
-//			"spec reconciliation of %s/%s is skipped by etcd-druid due to the presence of annotation %s on the etcd resource",
-//			etcd.Namespace,
-//			etcd.Name,
-//			suspendEtcdSpecReconcileAnnotationKey,
-//		)
-//
-//	}
-//}
-
-//func (r *Reconciler) checkAndHandleReconcileSuspension(etcd *druidv1alpha1.Etcd) bool {
-//	//TODO: Once no one uses IgnoreReconciliationAnnotation annotation, then we can simplify this code.
-//	var annotationKey string
-//	if metav1.HasAnnotation(etcd.ObjectMeta, druidv1alpha1.SuspendEtcdSpecReconcileAnnotation) {
-//		annotationKey = druidv1alpha1.SuspendEtcdSpecReconcileAnnotation
-//	} else if metav1.HasAnnotation(etcd.ObjectMeta, druidv1alpha1.IgnoreReconciliationAnnotation) {
-//		annotationKey = druidv1alpha1.IgnoreReconciliationAnnotation
-//	}
-//	if len(annotationKey) > 0 {
-//		r.recorder.Eventf(
-//			etcd,
-//			corev1.EventTypeWarning,
-//			"SpecReconciliationSkipped",
-//			"spec reconciliation of %s/%s is skipped by etcd-druid due to the presence of annotation %s on the etcd resource",
-//			etcd.Namespace,
-//			etcd.Name,
-//			annotationKey,
-//		)
-//		return true
-//	}
-//	return ctrlutils.ContinueReconcile()
-//}

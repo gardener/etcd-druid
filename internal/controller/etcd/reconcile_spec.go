@@ -16,24 +16,139 @@ package etcd
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/controller/utils"
+	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/operator"
+	"github.com/gardener/etcd-druid/internal/operator/resource"
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (r *Reconciler) triggerReconcileSpec() error {
-	return nil
+// reconcileStepFn is a step in the reconcile spec flow. Every step must have this signature.
+type reconcileStepFn func(ctx resource.OperatorContext, logger logr.Logger, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult
+
+func (r *Reconciler) triggerReconcileSpec(ctx resource.OperatorContext, logger logr.Logger, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+	reconcileStepFns := []reconcileStepFn{
+		r.recordReconcileStartOperation,
+		r.syncEtcdResources,
+		r.removeOperationAnnotation,
+		r.recordReconcileSuccessOperation,
+	}
+	etcd := &druidv1alpha1.Etcd{}
+	if result := r.getLatestEtcd(ctx, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result
+	}
+
+	for _, fn := range reconcileStepFns {
+		if stepResult := fn(ctx, logger, etcdObjectKey); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
+			return r.recordIncompleteReconcileOperation(ctx, logger, etcdObjectKey, stepResult)
+		}
+	}
+	return ctrlutils.DoNotRequeue()
 }
 
+func (r *Reconciler) removeOperationAnnotation(ctx resource.OperatorContext, logger logr.Logger, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+	etcd := &druidv1alpha1.Etcd{}
+	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result
+	}
+	if _, ok := etcd.Annotations[v1beta1constants.GardenerOperation]; ok {
+		logger.Info("Removing operation annotation")
+		withOpAnnotation := etcd.DeepCopy()
+		delete(etcd.Annotations, v1beta1constants.GardenerOperation)
+		if err := r.client.Patch(ctx, etcd, client.MergeFrom(withOpAnnotation)); err != nil {
+			return utils.ReconcileWithError(err)
+		}
+	}
+	return ctrlutils.ContinueReconcile()
+}
+func (r *Reconciler) syncEtcdResources(ctx resource.OperatorContext, logger logr.Logger, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+	etcd := &druidv1alpha1.Etcd{}
+	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result
+	}
+	resourceOperators := r.getOrderedOperatorsForSync()
+	for _, kind := range resourceOperators {
+		op := r.operatorRegistry.GetOperator(kind)
+		if err := op.Sync(ctx, etcd); err != nil {
+			return utils.ReconcileWithError(err)
+		}
+	}
+	return ctrlutils.ContinueReconcile()
+}
+
+func (r *Reconciler) recordReconcileStartOperation(ctx resource.OperatorContext, logger logr.Logger, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+	etcd := &druidv1alpha1.Etcd{}
+	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result
+	}
+	if err := r.lastOpErrRecorder.RecordStart(ctx, etcd, druidv1alpha1.LastOperationTypeReconcile); err != nil {
+		logger.Error(err, "failed to record etcd reconcile start operation")
+		return ctrlutils.ReconcileWithError(err)
+	}
+	return ctrlutils.ContinueReconcile()
+}
+
+func (r *Reconciler) recordReconcileSuccessOperation(ctx resource.OperatorContext, logger logr.Logger, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+	etcd := &druidv1alpha1.Etcd{}
+	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result
+	}
+	if err := r.lastOpErrRecorder.RecordSuccess(ctx, etcd, druidv1alpha1.LastOperationTypeReconcile); err != nil {
+		logger.Error(err, "failed to record etcd reconcile success operation")
+		return ctrlutils.ReconcileWithError(err)
+	}
+	return ctrlutils.ContinueReconcile()
+}
+
+func (r *Reconciler) recordIncompleteReconcileOperation(ctx resource.OperatorContext, logger logr.Logger, etcdObjKey client.ObjectKey, exitReconcileStepResult ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {
+	etcd := &druidv1alpha1.Etcd{}
+	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result
+	}
+	if err := r.lastOpErrRecorder.RecordError(ctx, etcd, druidv1alpha1.LastOperationTypeReconcile, exitReconcileStepResult.GetDescription(), exitReconcileStepResult.GetErrors()...); err != nil {
+		logger.Error(err, "failed to record last operation and last errors for etcd reconcilation")
+		return ctrlutils.ReconcileWithError(err)
+	}
+	return exitReconcileStepResult
+}
+
+// canReconcileSpec assesses whether the Etcd spec should undergo reconciliation.
+//
+// Reconciliation decision follows these rules:
+// - Skipped if 'druid.gardener.cloud/suspend-etcd-spec-reconcile' annotation is present, signaling a pause in reconciliation.
+// - Also skipped if the deprecated 'druid.gardener.cloud/ignore-reconciliation' annotation is set.
+// - Automatic reconciliation occurs if EnableEtcdSpecAutoReconcile is true.
+// - If 'gardener.cloud/operation: reconcile' annotation exists and neither 'druid.gardener.cloud/suspend-etcd-spec-reconcile' nor the deprecated 'druid.gardener.cloud/ignore-reconciliation' is set to true, reconciliation proceeds upon Etcd spec changes.
+// - Reconciliation is not initiated if EnableEtcdSpecAutoReconcile is false and none of the relevant annotations are present.
 func (r *Reconciler) canReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
-	//Check if spec reconciliation has been suspended, if yes, then record the event and return false.
+	// Check if spec reconciliation has been suspended, if yes, then record the event and return false.
 	if suspendReconcileAnnotKey := r.getSuspendEtcdSpecReconcileAnnotationKey(etcd); suspendReconcileAnnotKey != nil {
 		r.recordEtcdSpecReconcileSuspension(etcd, *suspendReconcileAnnotKey)
 		return false
 	}
-	// Check if
-	return true
+
+	// Prefer using EnableEtcdSpecAutoReconcile for automatic reconciliation.
+	if r.config.EnableEtcdSpecAutoReconcile {
+		return true
+	}
+
+	// Fallback to deprecated IgnoreOperationAnnotation if EnableEtcdSpecAutoReconcile is false.
+	if r.config.IgnoreOperationAnnotation {
+		return true
+	}
+
+	// Reconcile if the 'reconcile-op' annotation is present.
+	if hasOperationAnnotationToReconcile(etcd) {
+		return true
+	}
+
+	// Default case: Do not reconcile.
+	return false
 }
 
 // getSuspendEtcdSpecReconcileAnnotationKey gets the annotation key set on an etcd resource signalling the intent
@@ -73,4 +188,8 @@ func (r *Reconciler) getOrderedOperatorsForSync() []operator.Kind {
 		operator.RoleBindingKind,
 		operator.StatefulSetKind,
 	}
+}
+
+func hasOperationAnnotationToReconcile(etcd *druidv1alpha1.Etcd) bool {
+	return etcd.GetAnnotations()[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationReconcile
 }
