@@ -16,13 +16,11 @@ package custodian
 
 import (
 	"context"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,27 +55,7 @@ func NewReconciler(mgr manager.Manager, config *Config) *Reconciler {
 
 // Reconcile reconciles the etcd.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.logger.Info("Custodian controller reconciliation started")
-	etcd := &druidv1alpha1.Etcd{}
-	if err := r.Get(ctx, req.NamespacedName, etcd); err != nil {
-		if errors.IsNotFound(err) {
-			// Object not found, return. Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers.
-			return ctrl.Result{}, nil
-		}
-		// Error reading the object - requeue the request.
-		return ctrl.Result{}, err
-	}
-
-	logger := r.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
-
-	if !metav1.HasAnnotation(etcd.ObjectMeta, druidv1alpha1.SuspendEtcdSpecReconcileAnnotation) &&
-		etcd.Status.LastOperation != nil && etcd.Status.LastOperation.State != druidv1alpha1.LastOperationStateProcessing {
-		if err := r.triggerEtcdReconcile(ctx, logger, etcd); err != nil {
-			return ctrl.Result{Requeue: true}, err
-		}
-	}
-
+	// TODO: @seshachalam-yv Already etcd-controller itself updating the etcd's status.
 	return ctrl.Result{}, nil
 }
 
