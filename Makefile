@@ -169,6 +169,14 @@ kind-down: $(KIND)
 deploy-localstack: $(KUBECTL)
 	./hack/deploy-localstack.sh
 
+.PHONY: deploy-fakegcs
+deploy-fakegcs: $(KUBECTL)
+	./hack/deploy-fakegcs.sh
+
 .PHONY: ci-e2e-kind
 ci-e2e-kind:
 	BUCKET_NAME=$(BUCKET_NAME) ./hack/ci-e2e-kind.sh
+
+.PHONY: ci-gcs-e2e-kind
+ci-gcs-e2e-kind:
+	BUCKET_NAME=$(BUCKET_NAME) ./hack/ci-gcs-e2e-kind.sh

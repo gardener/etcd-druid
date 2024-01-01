@@ -441,6 +441,18 @@ func validateStoreGCPForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 										})),
 									})),
 								}),
+								common.EnvGoogleEnableGCSEmulator: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvGoogleEnableGCSEmulator),
+									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
+										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
+											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
+												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
+											}),
+											"Key":      Equal("enableGCSEmulator"),
+											"Optional": Equal(pointer.Bool(true)),
+										})),
+									})),
+								}),
 							}),
 						}),
 					}),
