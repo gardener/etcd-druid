@@ -44,7 +44,7 @@ func (r *Reconciler) RegisterWithManager(ctx context.Context, mgr ctrl.Manager) 
 	}
 
 	return c.Watch(
-		&source.Kind{Type: &druidv1alpha1.Etcd{}},
+		source.Kind(mgr.GetCache(), &druidv1alpha1.Etcd{}),
 		mapper.EnqueueRequestsFrom(ctx, mgr.GetCache(), druidmapper.EtcdToSecret(), mapper.UpdateWithOldAndNew, c.GetLogger()),
 	)
 }
