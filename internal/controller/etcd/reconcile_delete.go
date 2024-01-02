@@ -92,7 +92,7 @@ func (r *Reconciler) recordDeletionStartOperation(ctx resource.OperatorContext, 
 	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
-	if err := r.lastOpErrRecorder.RecordStart(ctx, etcd, druidv1alpha1.LastOperationTypeDelete); err != nil {
+	if err := r.lastOpErrRecorder.RecordStart(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeDelete); err != nil {
 		ctx.Logger.Error(err, "failed to record etcd deletion start operation")
 		return ctrlutils.ReconcileWithError(err)
 	}
@@ -104,7 +104,7 @@ func (r *Reconciler) recordIncompleteDeletionOperation(ctx resource.OperatorCont
 	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
-	if err := r.lastOpErrRecorder.RecordError(ctx, etcd, druidv1alpha1.LastOperationTypeDelete, exitReconcileStepResult.GetDescription(), exitReconcileStepResult.GetErrors()...); err != nil {
+	if err := r.lastOpErrRecorder.RecordError(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeDelete, exitReconcileStepResult.GetDescription(), exitReconcileStepResult.GetErrors()...); err != nil {
 		logger.Error(err, "failed to record last operation and last errors for etcd deletion")
 		return ctrlutils.ReconcileWithError(err)
 	}

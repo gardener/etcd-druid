@@ -16,6 +16,7 @@ package etcd
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -40,7 +41,6 @@ import (
 	"github.com/google/uuid"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -170,51 +170,40 @@ func (r *Reconciler) reconcileStatus(ctx resource.OperatorContext, etcdObjectKey
 	}
 
 	sLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileStatus").WithValues("runID", ctx.RunID)
+	slog.Info("Started etcd status update")
 	// TODO: Sesha to remove the hard coding for the timeout durations
 	statusCheck := status.NewChecker(r.client, 5*time.Minute, 1*time.Minute)
 	if err := statusCheck.Check(ctx, sLog, etcd); err != nil {
-		r.logger.Error(err, "Error executing status checks")
+		sLog.Error(err, "Error executing status checks")
 		return utils.ReconcileWithError(err)
 	}
-
-	r.logger.Info("Updating etcd status with StatefulSet information", "namespace", etcd.Namespace, "name", etcd.Name)
 
 	sts, err := pkgutils.GetStatefulSet(ctx, r.client, etcd)
 	if err != nil {
 		return utils.ReconcileWithError(err)
 	}
-
-	updateEtcdStatus := func() error {
-		latestetcd := etcd.DeepCopy()
-		if err := r.client.Get(ctx, etcd.GetNamespaceName(), latestetcd); err != nil {
-			return err
+	if sts != nil {
+		etcd.Status.Etcd = &druidv1alpha1.CrossVersionObjectReference{
+			APIVersion: sts.APIVersion,
+			Kind:       sts.Kind,
+			Name:       sts.Name,
 		}
-		latestetcd.Status = etcd.Status
-		if sts != nil {
-			latestetcd.Status.Etcd = &druidv1alpha1.CrossVersionObjectReference{
-				APIVersion: sts.APIVersion,
-				Kind:       sts.Kind,
-				Name:       sts.Name,
-			}
-			ready, _ := pkgutils.IsStatefulSetReady(etcd.Spec.Replicas, sts)
-			latestetcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
-			latestetcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
-			latestetcd.Status.UpdatedReplicas = sts.Status.UpdatedReplicas
-			latestetcd.Status.Replicas = sts.Status.CurrentReplicas
-			latestetcd.Status.Ready = &ready
-		} else {
-			latestetcd.Status.CurrentReplicas = 0
-			latestetcd.Status.ReadyReplicas = 0
-			latestetcd.Status.UpdatedReplicas = 0
-			latestetcd.Status.Ready = pointer.Bool(false)
-		}
-
-		return r.client.Status().Update(ctx, latestetcd)
+		ready, _ := pkgutils.IsStatefulSetReady(etcd.Spec.Replicas, sts)
+		etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
+		etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
+		etcd.Status.UpdatedReplicas = sts.Status.UpdatedReplicas
+		etcd.Status.Replicas = sts.Status.CurrentReplicas
+		etcd.Status.Ready = &ready
+	} else {
+		etcd.Status.CurrentReplicas = 0
+		etcd.Status.ReadyReplicas = 0
+		etcd.Status.UpdatedReplicas = 0
+		etcd.Status.Ready = pointer.Bool(false)
 	}
 
-	err = retry.RetryOnConflict(retry.DefaultRetry, updateEtcdStatus)
+	err = r.client.Status().Update(ctx, etcd)
 	if err != nil {
-		r.logger.Error(err, "Failed to update etcd status")
+		sLog.Error(err, "Failed to update etcd status")
 		return utils.ReconcileWithError(err)
 	}
 
