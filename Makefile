@@ -179,4 +179,4 @@ ci-e2e-kind:
 
 .PHONY: ci-gcs-e2e-kind
 ci-gcs-e2e-kind:
-	BUCKET_NAME=$(BUCKET_NAME) ./hack/ci-gcs-e2e-kind.sh
+	BUCKET_NAME=$(BUCKET_NAME) KUBECONFIG_PATH=$(KUBECONFIG_PATH) ./hack/ci-gcs-e2e-kind.sh

@@ -24,7 +24,8 @@ trap "
 " EXIT
 
 kubectl wait --for=condition=ready node --all
-export KUBECONFIG=/Users/i586337/work/etcd-druid/hack/e2e-test/infrastructure/kind/kubeconfig
+export KUBECONFIG=$KUBECONFIG_PATH
+echo "{ \"serviceaccount.json\": \"\", \"storageAPIEndpoint\": \"http://fake-gcs.default:8000/storage/v1/\", \"enableGCSEmulator\": \"True\" }" >/tmp/svc_acc.json
 
 export GOOGLE_STORAGE_API_ENDPOINT="http://localhost:8000/storage/v1/"
 
