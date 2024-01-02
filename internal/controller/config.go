@@ -18,7 +18,6 @@ import (
 	"fmt"
 
 	"github.com/gardener/etcd-druid/internal/controller/compaction"
-	"github.com/gardener/etcd-druid/internal/controller/custodian"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
@@ -66,8 +65,6 @@ type ManagerConfig struct {
 	FeatureGates featuregate.MutableFeatureGate
 	// EtcdControllerConfig is the configuration required for etcd controller.
 	EtcdControllerConfig *etcd.Config
-	// CustodianControllerConfig is the configuration required for custodian controller.
-	CustodianControllerConfig *custodian.Config
 	// CompactionControllerConfig is the configuration required for compaction controller.
 	CompactionControllerConfig *compaction.Config
 	// EtcdCopyBackupsTaskControllerConfig is the configuration required for etcd-copy-backup-tasks controller.
@@ -95,9 +92,6 @@ func (cfg *ManagerConfig) InitFromFlags(fs *flag.FlagSet) error {
 
 	cfg.EtcdControllerConfig = &etcd.Config{}
 	etcd.InitFromFlags(fs, cfg.EtcdControllerConfig)
-
-	cfg.CustodianControllerConfig = &custodian.Config{}
-	custodian.InitFromFlags(fs, cfg.CustodianControllerConfig)
 
 	cfg.CompactionControllerConfig = &compaction.Config{}
 	compaction.InitFromFlags(fs, cfg.CompactionControllerConfig)
@@ -144,10 +138,6 @@ func (cfg *ManagerConfig) Validate() error {
 		return err
 	}
 	if err := cfg.EtcdControllerConfig.Validate(); err != nil {
-		return err
-	}
-
-	if err := cfg.CustodianControllerConfig.Validate(); err != nil {
 		return err
 	}
 

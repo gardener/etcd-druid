@@ -20,7 +20,6 @@ import (
 
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/controller/compaction"
-	"github.com/gardener/etcd-druid/internal/controller/custodian"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
@@ -88,15 +87,6 @@ func registerControllersWithManager(mgr ctrl.Manager, config *ManagerConfig) err
 		return err
 	}
 	if err = etcdReconciler.RegisterWithManager(mgr); err != nil {
-		return err
-	}
-
-	// Add custodian reconciler to the manager
-	custodianReconciler := custodian.NewReconciler(mgr, config.CustodianControllerConfig)
-	if err != nil {
-		return err
-	}
-	if err = custodianReconciler.RegisterWithManager(mgr); err != nil {
 		return err
 	}
 

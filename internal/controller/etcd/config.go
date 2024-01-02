@@ -17,6 +17,8 @@ const (
 	enableEtcdSpecAutoReconcileFlagName        = "enable-etcd-spec-auto-reconcile"
 	disableEtcdServiceAccountAutomountFlagName = "disable-etcd-serviceaccount-automount"
 	etcdStatusSyncPeriodFlagName               = "etcd-status-sync-period"
+	etcdMemberNotReadyThresholdFlagName        = "etcd-member-notready-threshold"
+	etcdMemberUnknownThresholdFlagName         = "etcd-member-unknown-threshold"
 )
 
 const (
@@ -25,6 +27,8 @@ const (
 	defaultDisableEtcdServiceAccountAutomount = false
 	defaultEnableEtcdSpecAutoReconcile        = false
 	defaultEtcdStatusSyncPeriod               = 15 * time.Second
+	defaultEtcdMemberNotReadyThreshold        = 5 * time.Minute
+	defaultEtcdMemberUnknownThreshold         = 1 * time.Minute
 )
 
 // featureList holds the feature gate names that are relevant for the Etcd Controller.
@@ -53,6 +57,17 @@ type Config struct {
 	EtcdStatusSyncPeriod time.Duration
 	// FeatureGates contains the feature gates to be used by Etcd Controller.
 	FeatureGates map[featuregate.Feature]bool
+
+	// EtcdMember holds configuration related to etcd members.
+	EtcdMember EtcdMemberConfig
+}
+
+// EtcdMemberConfig holds configuration related to etcd members.
+type EtcdMemberConfig struct {
+	// NotReadyThreshold is the duration after which an etcd member's state is considered `NotReady`.
+	NotReadyThreshold time.Duration
+	// UnknownThreshold is the duration after which an etcd member's state is considered `Unknown`.
+	UnknownThreshold time.Duration
 }
 
 // InitFromFlags initializes the config from the provided CLI flag set.
@@ -67,6 +82,10 @@ func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 		"If true then .automountServiceAccountToken will be set to false for the ServiceAccount created for etcd StatefulSets.")
 	fs.DurationVar(&cfg.EtcdStatusSyncPeriod, etcdStatusSyncPeriodFlagName, defaultEtcdStatusSyncPeriod,
 		"Period after which an etcd status sync will be attempted.")
+	fs.DurationVar(&cfg.EtcdMember.NotReadyThreshold, etcdMemberNotReadyThresholdFlagName, defaultEtcdMemberNotReadyThreshold,
+		"Threshold after which an etcd member is considered not ready if the status was unknown before.")
+	fs.DurationVar(&cfg.EtcdMember.UnknownThreshold, etcdMemberUnknownThresholdFlagName, defaultEtcdMemberUnknownThreshold,
+		"Threshold after which an etcd member is considered unknown.")
 }
 
 // Validate validates the config.
