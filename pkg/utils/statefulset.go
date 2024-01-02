@@ -10,8 +10,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -38,16 +37,18 @@ func IsStatefulSetReady(etcdReplicas int32, statefulSet *appsv1.StatefulSet) (bo
 
 // GetStatefulSet fetches StatefulSet created for the etcd.
 func GetStatefulSet(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSet, error) {
-	statefulSets := &appsv1.StatefulSetList{}
-	if err := cl.List(ctx, statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: labels.Set(etcd.GetDefaultLabels()).AsSelector()}); err != nil {
+	sts := &appsv1.StatefulSet{}
+
+	if err := cl.Get(ctx, client.ObjectKey{
+		Name:      etcd.Name,
+		Namespace: etcd.Namespace,
+	}, sts); err != nil {
+
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
-	for _, sts := range statefulSets.Items {
-		if metav1.IsControlledBy(&sts, etcd) {
-			return &sts, nil
-		}
-	}
-
-	return nil, nil
+	return sts, nil
 }
