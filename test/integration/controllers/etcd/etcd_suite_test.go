@@ -61,8 +61,7 @@ var _ = BeforeSuite(func() {
 			FeatureGates: map[featuregate.Feature]bool{
 				features.UseEtcdWrapper: true,
 			},
-		}, imageVector,
-			assets.GetEtcdChartPath())
+		}, imageVector)
 		Expect(err).To(BeNil())
 		Expect(reconciler.RegisterWithManager(mgr, true)).To(Succeed())
 	}).StartManager()

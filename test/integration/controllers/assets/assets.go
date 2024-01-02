@@ -33,19 +33,9 @@ func GetEtcdCopyBackupsTaskCrdPath() string {
 	return filepath.Join("..", "..", "..", "..", "config", "crd", "bases", "10-crd-druid.gardener.cloud_etcdcopybackupstasks.yaml")
 }
 
-// GetEtcdCopyBackupsBaseChartPath returns the path to the etcd-copy-backups chart.
-func GetEtcdCopyBackupsBaseChartPath() string {
-	return filepath.Join("..", "..", "..", "..", "charts", "etcd-copy-backups")
-}
-
-// GetEtcdChartPath returns the path to the etcd chart.
-func GetEtcdChartPath() string {
-	return filepath.Join("..", "..", "..", "..", "charts", "etcd")
-}
-
 // CreateImageVector creates an image vector.
 func CreateImageVector() imagevector.ImageVector {
-	imageVectorPath := filepath.Join("..", "..", "..", "..", common.ChartPath, "images.yaml")
+	imageVectorPath := filepath.Join("..", "..", "..", "..", common.DefaultImageVectorFilePath)
 	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(imageVectorPath)
 	Expect(err).To(BeNil())
 	return imageVector
