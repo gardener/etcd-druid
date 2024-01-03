@@ -42,7 +42,7 @@ druid: fmt check
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 .PHONY: run
-run: fmt check
+run:
 	go run ./main.go
 
 # Install CRDs into a cluster

@@ -31,6 +31,7 @@ func (r *Reconciler) triggerReconcileSpecFlow(ctx resource.OperatorContext, etcd
 	reconcileStepFns := []reconcileFn{
 		r.recordReconcileStartOperation,
 		r.syncEtcdResources,
+		r.updateObservedGeneration,
 		r.recordReconcileSuccessOperation,
 		r.removeOperationAnnotation,
 	}
@@ -70,6 +71,20 @@ func (r *Reconciler) syncEtcdResources(ctx resource.OperatorContext, etcdObjKey 
 			return utils.ReconcileWithError(err)
 		}
 	}
+	return ctrlutils.ContinueReconcile()
+}
+
+func (r *Reconciler) updateObservedGeneration(ctx resource.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+	etcd := &druidv1alpha1.Etcd{}
+	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result
+	}
+	originalEtcd := etcd.DeepCopy()
+	etcd.Status.ObservedGeneration = &etcd.Generation
+	if err := r.client.Status().Patch(ctx, etcd, client.MergeFrom(originalEtcd)); err != nil {
+		return ctrlutils.ReconcileWithError(err)
+	}
+	ctx.Logger.Info("patched status.ObservedGeneration", "ObservedGeneration", etcd.Generation)
 	return ctrlutils.ContinueReconcile()
 }
 

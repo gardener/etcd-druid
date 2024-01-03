@@ -44,7 +44,7 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	svc := emptyClientService(getObjectKey(etcd))
-	_, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, svc, func() error {
+	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, svc, func() error {
 		svc.Labels = getLabels(etcd)
 		svc.Annotations = getAnnotations(etcd)
 		svc.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
@@ -55,6 +55,9 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 
 		return nil
 	})
+	if err == nil {
+		ctx.Logger.Info("synced", "resource", "client-service", "name", svc.Name, "result", result)
+	}
 	return druiderr.WrapError(err,
 		ErrSyncingClientService,
 		"Sync",
@@ -66,6 +69,9 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of client service")
 	err := client.IgnoreNotFound(r.client.Delete(ctx, emptyClientService(objectKey)))
+	if err == nil {
+		ctx.Logger.Info("deleted", "resource", "client-service", "name", objectKey.Name)
+	}
 	return druiderr.WrapError(
 		err,
 		ErrDeletingClientService,

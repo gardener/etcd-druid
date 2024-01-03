@@ -36,6 +36,14 @@ import (
 
 // ------------------------ GetExistingResourceNames ------------------------
 
+//func TestGetExistingResourceNames(t *testing.T) {
+//	testcases := []struct {
+//		description string
+//		svcExists bool
+//
+//	}
+//}
+
 func TestClientServiceGetExistingResourceNames_WithExistingService(t *testing.T) {
 	g, ctx, etcd, _, op := setupWithFakeClient(t, true)
 
