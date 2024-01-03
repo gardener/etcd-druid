@@ -31,11 +31,12 @@ const (
 	// changes required for the usage of the etcd-wrapper image.
 	// owner @unmarshall @aaronfern
 	// alpha: v0.19
+	// beta:  v0.22
 	UseEtcdWrapper featuregate.Feature = "UseEtcdWrapper"
 )
 
 var defaultFeatures = map[featuregate.Feature]featuregate.FeatureSpec{
-	UseEtcdWrapper: {Default: false, PreRelease: featuregate.Alpha},
+	UseEtcdWrapper: {Default: true, PreRelease: featuregate.Beta},
 }
 
 // GetDefaultFeatures returns the default feature gates known to etcd-druid.
