@@ -9,7 +9,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
-	"github.com/go-logr/logr"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,7 +20,6 @@ const purpose = "etcd-snapshot-lease"
 
 type _resource struct {
 	client client.Client
-	logger logr.Logger
 }
 
 func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
@@ -58,7 +56,7 @@ func (r _resource) getLease(ctx context.Context, objectKey client.ObjectKey) (*c
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	if !etcd.IsBackupStoreEnabled() {
-		r.logger.Info("Backup has been disabled. Triggering delete of snapshot leases")
+		ctx.Logger.Info("Backup has been disabled. Triggering delete of snapshot leases")
 		return r.TriggerDelete(ctx, etcd)
 	}
 	for _, objKey := range getObjectKeys(etcd) {
@@ -66,7 +64,7 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 		if err != nil {
 			return err
 		}
-		r.logger.Info("Triggered create or update", "lease", objKey, "result", opResult)
+		ctx.Logger.Info("Triggered create or update", "lease", objKey, "result", opResult)
 	}
 	return nil
 }
@@ -91,10 +89,9 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 	return nil
 }
 
-func New(client client.Client, logger logr.Logger) resource.Operator {
+func New(client client.Client) resource.Operator {
 	return &_resource{
 		client: client,
-		logger: logger,
 	}
 }
 

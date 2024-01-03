@@ -7,7 +7,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/gardener/pkg/controllerutils"
-	"github.com/go-logr/logr"
 	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,7 +16,6 @@ import (
 
 type _resource struct {
 	client client.Client
-	logger logr.Logger
 }
 
 func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
@@ -55,10 +53,9 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 	return r.client.Delete(ctx, emptyPodDisruptionBudget(getObjectKey(etcd)))
 }
 
-func New(client client.Client, logger logr.Logger) resource.Operator {
+func New(client client.Client) resource.Operator {
 	return &_resource{
 		client: client,
-		logger: logger,
 	}
 }
 

@@ -123,15 +123,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func createAndInitializeOperatorRegistry(client client.Client, logger logr.Logger, config *Config, imageVector imagevector.ImageVector) operator.Registry {
 	reg := operator.NewRegistry()
 	reg.Register(operator.ConfigMapKind, configmap.New(client))
-	reg.Register(operator.ServiceAccountKind, serviceaccount.New(client, logger, config.DisableEtcdServiceAccountAutomount))
+	reg.Register(operator.ServiceAccountKind, serviceaccount.New(client, config.DisableEtcdServiceAccountAutomount))
 	reg.Register(operator.MemberLeaseKind, memberlease.New(client))
-	reg.Register(operator.SnapshotLeaseKind, snapshotlease.New(client, logger))
+	reg.Register(operator.SnapshotLeaseKind, snapshotlease.New(client))
 	reg.Register(operator.ClientServiceKind, clientservice.New(client))
 	reg.Register(operator.PeerServiceKind, peerservice.New(client))
-	reg.Register(operator.PodDisruptionBudgetKind, poddistruptionbudget.New(client, logger))
-	reg.Register(operator.RoleKind, role.New(client, logger))
-	reg.Register(operator.RoleBindingKind, rolebinding.New(client, logger))
-	reg.Register(operator.StatefulSetKind, statefulset.New(client, logger, imageVector, config.FeatureGates))
+	reg.Register(operator.PodDisruptionBudgetKind, poddistruptionbudget.New(client))
+	reg.Register(operator.RoleKind, role.New(client))
+	reg.Register(operator.RoleBindingKind, rolebinding.New(client))
+	reg.Register(operator.StatefulSetKind, statefulset.New(client, imageVector, config.FeatureGates))
 	return reg
 }
 

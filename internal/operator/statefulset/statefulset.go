@@ -12,7 +12,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
-	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,15 +20,13 @@ import (
 
 type _resource struct {
 	client         client.Client
-	logger         logr.Logger
 	imageVector    imagevector.ImageVector
 	useEtcdWrapper bool
 }
 
-func New(client client.Client, logger logr.Logger, imageVector imagevector.ImageVector, featureGates map[featuregate.Feature]bool) resource.Operator {
+func New(client client.Client, imageVector imagevector.ImageVector, featureGates map[featuregate.Feature]bool) resource.Operator {
 	return &_resource{
 		client:         client,
-		logger:         logger,
 		imageVector:    imageVector,
 		useEtcdWrapper: featureGates[features.UseEtcdWrapper],
 	}
@@ -79,7 +76,7 @@ func (r _resource) getExistingStatefulSet(ctx resource.OperatorContext, etcd *dr
 func (r _resource) createOrPatch(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, replicas int32) error {
 	desiredStatefulSet := emptyStatefulSet(getObjectKey(etcd))
 	mutatingFn := func() error {
-		if builder, err := newStsBuilder(r.client, r.logger, etcd, replicas, r.useEtcdWrapper, r.imageVector, desiredStatefulSet); err != nil {
+		if builder, err := newStsBuilder(r.client, ctx.Logger, etcd, replicas, r.useEtcdWrapper, r.imageVector, desiredStatefulSet); err != nil {
 			return err
 		} else {
 			return builder.Build(ctx)
@@ -90,7 +87,7 @@ func (r _resource) createOrPatch(ctx resource.OperatorContext, etcd *druidv1alph
 		return err
 	}
 
-	r.logger.Info("triggered creation of statefulSet", "statefulSet", getObjectKey(etcd), "operationResult", opResult)
+	ctx.Logger.Info("triggered creation of statefulSet", "statefulSet", getObjectKey(etcd), "operationResult", opResult)
 	return nil
 }
 
@@ -158,7 +155,7 @@ func (r _resource) createOrPatch(ctx resource.OperatorContext, etcd *druidv1alph
 
 func (r _resource) handleImmutableFieldUpdates(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) error {
 	if existingSts.Generation > 1 && hasImmutableFieldChanged(existingSts, etcd) {
-		r.logger.Info("Immutable fields have been updated, need to recreate StatefulSet", "etcd")
+		ctx.Logger.Info("Immutable fields have been updated, need to recreate StatefulSet", "etcd")
 
 		if err := r.TriggerDelete(ctx, etcd); err != nil {
 			return fmt.Errorf("error deleting StatefulSet with immutable field updates: %v", err)
@@ -175,19 +172,19 @@ func hasImmutableFieldChanged(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd)
 }
 
 func (r _resource) handlePeerTLSEnabled(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) error {
-	peerTLSEnabled, err := utils.IsPeerURLTLSEnabled(ctx, r.client, etcd.Namespace, etcd.Name, r.logger)
+	peerTLSEnabled, err := utils.IsPeerURLTLSEnabled(ctx, r.client, etcd.Namespace, etcd.Name, ctx.Logger)
 	if err != nil {
 		return fmt.Errorf("error checking if peer URL TLS is enabled: %v", err)
 	}
 
 	if isPeerTLSChangedToEnabled(peerTLSEnabled, etcd) {
-		r.logger.Info("Enabling TLS for etcd peers", "namespace", etcd.Namespace, "name", etcd.Name)
+		ctx.Logger.Info("Enabling TLS for etcd peers", "namespace", etcd.Namespace, "name", etcd.Name)
 
 		if err := r.createOrPatch(ctx, etcd, *existingSts.Spec.Replicas); err != nil {
 			return fmt.Errorf("error creating or patching StatefulSet with TLS enabled: %v", err)
 		}
 
-		tlsEnabled, err := utils.IsPeerURLTLSEnabled(ctx, r.client, etcd.Namespace, etcd.Name, r.logger)
+		tlsEnabled, err := utils.IsPeerURLTLSEnabled(ctx, r.client, etcd.Namespace, etcd.Name, ctx.Logger)
 		if err != nil {
 			return fmt.Errorf("error verifying if TLS is enabled post-patch: %v", err)
 		}
@@ -195,11 +192,11 @@ func (r _resource) handlePeerTLSEnabled(ctx resource.OperatorContext, etcd *drui
 			return fmt.Errorf("failed to enable TLS for etcd [name: %s, namespace: %s]", etcd.Name, etcd.Namespace)
 		}
 
-		if err := deleteAllStsPods(ctx, r.client, r.logger, "Deleting all StatefulSet pods due to TLS enablement", existingSts); err != nil {
+		if err := deleteAllStsPods(ctx, r.client, "Deleting all StatefulSet pods due to TLS enablement", existingSts); err != nil {
 			return fmt.Errorf("error deleting StatefulSet pods after enabling TLS: %v", err)
 		}
 
-		r.logger.Info("TLS enabled for etcd peers", "namespace", etcd.Namespace, "name", etcd.Name)
+		ctx.Logger.Info("TLS enabled for etcd peers", "namespace", etcd.Namespace, "name", etcd.Name)
 	}
 
 	return nil
@@ -210,7 +207,7 @@ func isPeerTLSChangedToEnabled(peerTLSEnabledStatusFromMembers bool, etcd *druid
 	return !peerTLSEnabledStatusFromMembers && etcd.Spec.Etcd.PeerUrlTLS != nil
 }
 
-func deleteAllStsPods(ctx resource.OperatorContext, cl client.Client, logger logr.Logger, opName string, sts *appsv1.StatefulSet) error {
+func deleteAllStsPods(ctx resource.OperatorContext, cl client.Client, opName string, sts *appsv1.StatefulSet) error {
 	// Get all Pods belonging to the StatefulSet
 	podList := &corev1.PodList{}
 	listOpts := []client.ListOption{
@@ -219,13 +216,13 @@ func deleteAllStsPods(ctx resource.OperatorContext, cl client.Client, logger log
 	}
 
 	if err := cl.List(ctx, podList, listOpts...); err != nil {
-		logger.Error(err, "Failed to list pods for StatefulSet", "StatefulSet", client.ObjectKeyFromObject(sts))
+		ctx.Logger.Error(err, "Failed to list pods for StatefulSet", "StatefulSet", client.ObjectKeyFromObject(sts))
 		return err
 	}
 
 	for _, pod := range podList.Items {
 		if err := cl.Delete(ctx, &pod); err != nil {
-			logger.Error(err, "Failed to delete pod", "Pod", pod.Name, "Namespace", pod.Namespace)
+			ctx.Logger.Error(err, "Failed to delete pod", "Pod", pod.Name, "Namespace", pod.Namespace)
 			return err
 		}
 	}

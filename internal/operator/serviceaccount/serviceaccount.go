@@ -4,7 +4,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/gardener/pkg/controllerutils"
-	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,7 +13,6 @@ import (
 
 type _resource struct {
 	client           client.Client
-	logger           logr.Logger
 	disableAutoMount bool
 }
 
@@ -39,7 +37,7 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 		sa.AutomountServiceAccountToken = pointer.Bool(!r.disableAutoMount)
 		return nil
 	})
-	r.logger.Info("TriggerCreateOrUpdate operation result", "result", opResult)
+	ctx.Logger.Info("TriggerCreateOrUpdate operation result", "result", opResult)
 	return err
 }
 
@@ -47,10 +45,9 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 	return client.IgnoreNotFound(r.client.Delete(ctx, emptyServiceAccount(getObjectKey(etcd))))
 }
 
-func New(client client.Client, logger logr.Logger, disableAutomount bool) resource.Operator {
+func New(client client.Client, disableAutomount bool) resource.Operator {
 	return &_resource{
 		client:           client,
-		logger:           logger,
 		disableAutoMount: disableAutomount,
 	}
 }
