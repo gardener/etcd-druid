@@ -72,7 +72,7 @@ func (l *lastOpErrRecorder) recordLastOperationAndErrors(ctx resource.OperatorCo
 	if err := l.client.Get(ctx, etcdObjectKey, etcd); err != nil {
 		return err
 	}
-
+	originalEtcd := etcd.DeepCopy()
 	etcd.Status.LastOperation = &druidv1alpha1.LastOperation{
 		RunID:          ctx.RunID,
 		Type:           operationType,
@@ -81,6 +81,5 @@ func (l *lastOpErrRecorder) recordLastOperationAndErrors(ctx resource.OperatorCo
 		Description:    description,
 	}
 	etcd.Status.LastErrors = lastErrors
-
-	return l.client.Status().Update(ctx, etcd)
+	return l.client.Status().Patch(ctx, etcd, client.MergeFrom(originalEtcd))
 }

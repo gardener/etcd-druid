@@ -15,8 +15,6 @@
 package etcd
 
 import (
-	"time"
-
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/utils"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
@@ -36,17 +34,13 @@ func (r *Reconciler) triggerReconcileSpecFlow(ctx resource.OperatorContext, etcd
 		r.recordReconcileSuccessOperation,
 		r.removeOperationAnnotation,
 	}
-	etcd := &druidv1alpha1.Etcd{}
-	if result := r.getLatestEtcd(ctx, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
 
 	for _, fn := range reconcileStepFns {
 		if stepResult := fn(ctx, etcdObjectKey); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
 			return r.recordIncompleteReconcileOperation(ctx, etcdObjectKey, stepResult)
 		}
 	}
-	return ctrlutils.ReconcileAfter(5*time.Second, "requeue with delay for status updates")
+	return ctrlutils.ContinueReconcile()
 }
 
 func (r *Reconciler) removeOperationAnnotation(ctx resource.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
@@ -80,10 +74,6 @@ func (r *Reconciler) syncEtcdResources(ctx resource.OperatorContext, etcdObjKey 
 }
 
 func (r *Reconciler) recordReconcileStartOperation(ctx resource.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcd := &druidv1alpha1.Etcd{}
-	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
 	if err := r.lastOpErrRecorder.RecordStart(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeReconcile); err != nil {
 		ctx.Logger.Error(err, "failed to record etcd reconcile start operation")
 		return ctrlutils.ReconcileWithError(err)
@@ -92,10 +82,6 @@ func (r *Reconciler) recordReconcileStartOperation(ctx resource.OperatorContext,
 }
 
 func (r *Reconciler) recordReconcileSuccessOperation(ctx resource.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcd := &druidv1alpha1.Etcd{}
-	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
 	if err := r.lastOpErrRecorder.RecordSuccess(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeReconcile); err != nil {
 		ctx.Logger.Error(err, "failed to record etcd reconcile success operation")
 		return ctrlutils.ReconcileWithError(err)
@@ -104,10 +90,6 @@ func (r *Reconciler) recordReconcileSuccessOperation(ctx resource.OperatorContex
 }
 
 func (r *Reconciler) recordIncompleteReconcileOperation(ctx resource.OperatorContext, etcdObjKey client.ObjectKey, exitReconcileStepResult ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {
-	etcd := &druidv1alpha1.Etcd{}
-	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
 	if err := r.lastOpErrRecorder.RecordError(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeReconcile, exitReconcileStepResult.GetDescription(), exitReconcileStepResult.GetErrors()...); err != nil {
 		ctx.Logger.Error(err, "failed to record last operation and last errors for etcd reconcilation")
 		return ctrlutils.ReconcileWithError(err)
