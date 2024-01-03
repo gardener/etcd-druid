@@ -16,7 +16,6 @@ package etcd
 
 import (
 	"context"
-	"log/slog"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/utils"
@@ -167,10 +166,10 @@ func (r *Reconciler) reconcileStatus(ctx resource.OperatorContext, etcdObjectKey
 	if result := r.getLatestEtcd(ctx, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
-
+	originalEtcd := etcd.DeepCopy()
 	sLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileStatus").WithValues("runID", ctx.RunID)
-	slog.Info("Started etcd status update")
-	// TODO: Sesha to remove the hard coding for the timeout durations
+	sLog.Info("Started etcd status update")
+
 	statusCheck := status.NewChecker(r.client, r.config.EtcdMember.NotReadyThreshold, r.config.EtcdMember.UnknownThreshold)
 	if err := statusCheck.Check(ctx, sLog, etcd); err != nil {
 		sLog.Error(err, "Error executing status checks")
@@ -200,7 +199,7 @@ func (r *Reconciler) reconcileStatus(ctx resource.OperatorContext, etcdObjectKey
 		etcd.Status.Ready = pointer.Bool(false)
 	}
 
-	err = r.client.Status().Update(ctx, etcd)
+	err = r.client.Status().Patch(ctx, etcd, client.MergeFrom(originalEtcd))
 	if err != nil {
 		sLog.Error(err, "Failed to update etcd status")
 		return utils.ReconcileWithError(err)
