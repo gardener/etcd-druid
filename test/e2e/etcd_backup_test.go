@@ -221,6 +221,11 @@ func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, e
 			return err
 		}
 
+		// Ensure the etcd cluster's current generation matches the observed generation
+		if etcd.Status.ObservedGeneration != &etcd.Generation {
+			return fmt.Errorf("etcd '%s' is not at the expected generation (observed: %d, expected: %d)", etcd.Name, etcd.Status.ObservedGeneration, etcd.Generation)
+		}
+
 		if etcd.Status.Ready == nil || *etcd.Status.Ready != true {
 			return fmt.Errorf("etcd %s is not ready", etcd.Name)
 		}
