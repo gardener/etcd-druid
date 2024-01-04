@@ -28,4 +28,4 @@ EOF
   exit 1
 fi
 
-addlicense -v -c "SAP SE or an SAP affiliate company" -y "${YEAR}" -l apache -ignore "vendor/**" -ignore "**/*.md" -ignore "**/*.yaml" -ignore "**/Dockerfile" .
+addlicense -v -c "SAP SE or an SAP affiliate company" -y "${YEAR}" -l apache -ignore "**/*.md" -ignore "**/*.yaml" -ignore "**/Dockerfile" .
