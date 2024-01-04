@@ -127,7 +127,6 @@ test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD)
 test-integration: $(GINKGO) $(SETUP_ENVTEST)
 	@bash $(HACK_DIR)/test.sh ./test/integration/...
 
-# TODO: remove?
 .PHONY: update-dependencies
 update-dependencies:
 	@env GO111MODULE=on go get -u
