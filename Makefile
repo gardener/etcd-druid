@@ -140,7 +140,7 @@ add-license-headers: $(GO_ADD_LICENSE)
 .PHONY: kind-up
 kind-up: $(KIND)
 	@printf "\n\033[0;33m📌 NOTE: To target the newly created KinD cluster, please run the following command:\n\n    export KUBECONFIG=$(KUBECONFIG_PATH)\n\033[0m\n"
-	@bash $(HACK_DIR)/kind-up.sh
+	@GARDENER_HACK_DIR=$(GARDENER_HACK_DIR) bash $(HACK_DIR)/kind-up.sh
 
 .PHONY: kind-down
 kind-down: $(KIND)

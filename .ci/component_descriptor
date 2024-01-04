@@ -1,4 +1,3 @@
 #!/usr/bin/env bash
 
-chmod +x "$(dirname "$0")"/../vendor/github.com/gardener/gardener/hack/.ci/component_descriptor
-"$(dirname "$0")"/../vendor/github.com/gardener/gardener/hack/.ci/component_descriptor "$(dirname "$0")"/..
+"$(dirname "$0")"/hack/component_descriptor "$(dirname "$0")"/..

@@ -8,7 +8,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-source $(dirname "${0}")/../vendor/github.com/gardener/gardener/hack/ci-common.sh
+source "${GARDENER_HACK_DIR}"/ci-common.sh
 
 clamp_mss_to_pmtu
 
