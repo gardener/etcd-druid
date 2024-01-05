@@ -14,6 +14,7 @@ type FakeClientBuilder struct {
 	getErr        error
 	createErr     error
 	patchErr      error
+	deleteErr     error
 }
 
 // NewFakeClientBuilder creates a new FakeClientBuilder.
@@ -35,6 +36,12 @@ func (b *FakeClientBuilder) WithGetError(err error) *FakeClientBuilder {
 	return b
 }
 
+// WithDeleteError sets the error that should be returned when a Delete request is made on the fake client.
+func (b *FakeClientBuilder) WithDeleteError(err error) *FakeClientBuilder {
+	b.deleteErr = err
+	return b
+}
+
 // Build returns an instance of client.WithWatch which has capability to return the configured errors for operations.
 func (b *FakeClientBuilder) Build() client.WithWatch {
 	return &fakeClient{
@@ -42,6 +49,7 @@ func (b *FakeClientBuilder) Build() client.WithWatch {
 		getErr:    b.getErr,
 		createErr: b.createErr,
 		patchErr:  b.patchErr,
+		deleteErr: b.deleteErr,
 	}
 }
 
@@ -50,6 +58,7 @@ type fakeClient struct {
 	getErr    error
 	createErr error
 	patchErr  error
+	deleteErr error
 }
 
 // Get overwrites the fake client Get implementation with a capability to return any configured error.
@@ -58,4 +67,12 @@ func (f *fakeClient) Get(ctx context.Context, key client.ObjectKey, obj client.O
 		return f.getErr
 	}
 	return f.WithWatch.Get(ctx, key, obj, opts...)
+}
+
+// Delete overwrites the fake client Get implementation with a capability to return any configured error.
+func (f *fakeClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
+	return f.WithWatch.Delete(ctx, obj, opts...)
 }
