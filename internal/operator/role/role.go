@@ -1,13 +1,21 @@
 package role
 
 import (
+	"fmt"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	ErrSyncRole   druidv1alpha1.ErrorCode = "ERR_SYNC_ROLE"
+	ErrDeleteRole druidv1alpha1.ErrorCode = "ERR_DELETE_ROLE"
 )
 
 type _resource struct {
@@ -29,17 +37,33 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	role := emptyRole(etcd)
-	_, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, role, func() error {
+	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, role, func() error {
 		role.Labels = etcd.GetDefaultLabels()
 		role.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
 		role.Rules = createPolicyRules()
 		return nil
 	})
-	return err
+	if err == nil {
+		ctx.Logger.Info("synced", "resource", "role", "name", role.Name, "result", result)
+	}
+	return druiderr.WrapError(err,
+		ErrSyncRole,
+		"Sync",
+		fmt.Sprintf("Error during create or update of role %s for etcd: %v", etcd.GetRoleName(), etcd.GetNamespaceName()),
+	)
 }
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	return r.client.Delete(ctx, emptyRole(etcd))
+	ctx.Logger.Info("Triggering delete of role")
+	err := r.client.Delete(ctx, emptyRole(etcd))
+	if err == nil {
+		ctx.Logger.Info("deleted", "resource", "role", "name", etcd.GetRoleName())
+	}
+	return druiderr.WrapError(err,
+		ErrDeleteRole,
+		"TriggerDelete",
+		fmt.Sprintf("Failed to delete role: %s for etcd: %v", etcd.GetRoleName(), etcd.GetNamespaceName()),
+	)
 }
 
 func New(client client.Client) resource.Operator {

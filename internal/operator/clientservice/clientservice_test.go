@@ -48,7 +48,7 @@ const (
 func TestGetExistingResourceNames(t *testing.T) {
 	internalErr := errors.New("test internal error")
 	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
-	testcases := []struct {
+	testCases := []struct {
 		name                 string
 		svcExists            bool
 		getErr               *apierrors.StatusError
@@ -65,7 +65,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 		{
 			"should return empty slice when service is not found",
 			false,
-			apierrors.NewNotFound(corev1.Resource("services"), ""),
+			apierrors.NewNotFound(corev1.Resource("services"), etcd.GetClientServiceName()),
 			nil,
 			[]string{},
 		},
@@ -81,7 +81,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 
-	for _, tc := range testcases {
+	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClientBuilder := testutils.NewFakeClientBuilder()
 			if tc.getErr != nil {
@@ -134,7 +134,7 @@ func TestClientServiceSync(t *testing.T) {
 			svcExists: false,
 			setupFn:   nil,
 			expectError: &druiderr.DruidError{
-				Code:      ErrSyncingClientService,
+				Code:      ErrSyncClientService,
 				Cause:     fmt.Errorf("fake get error"),
 				Operation: "Sync",
 				Message:   "Error during create or update of client service",
@@ -218,7 +218,7 @@ func TestClientServiceTriggerDelete(t *testing.T) {
 			svcExists: true,
 			setupFn:   nil,
 			expectError: &druiderr.DruidError{
-				Code:      ErrDeletingClientService,
+				Code:      ErrDeleteClientService,
 				Cause:     errors.New("fake delete error"),
 				Operation: "TriggerDelete",
 				Message:   "Failed to delete client service",

@@ -1,6 +1,8 @@
 package clientservice
 
 import (
+	"fmt"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
@@ -21,8 +23,8 @@ const (
 )
 
 const (
-	ErrDeletingClientService druidv1alpha1.ErrorCode = "ERR_DELETING_CLIENT_SERVICE"
-	ErrSyncingClientService  druidv1alpha1.ErrorCode = "ERR_SYNC_CLIENT_SERVICE"
+	ErrDeleteClientService druidv1alpha1.ErrorCode = "ERR_DELETE_CLIENT_SERVICE"
+	ErrSyncClientService   druidv1alpha1.ErrorCode = "ERR_SYNC_CLIENT_SERVICE"
 )
 
 type _resource struct {
@@ -59,9 +61,9 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 		ctx.Logger.Info("synced", "resource", "client-service", "name", svc.Name, "result", result)
 	}
 	return druiderr.WrapError(err,
-		ErrSyncingClientService,
+		ErrSyncClientService,
 		"Sync",
-		"Error during create or update of client service",
+		fmt.Sprintf("Error during create or update of client service for etcd: %v", etcd.GetNamespaceName()),
 	)
 }
 
@@ -74,7 +76,7 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 	}
 	return druiderr.WrapError(
 		err,
-		ErrDeletingClientService,
+		ErrDeleteClientService,
 		"TriggerDelete",
 		"Failed to delete client service",
 	)
