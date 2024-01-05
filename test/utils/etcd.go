@@ -10,6 +10,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1 "k8s.io/api/core/v1"
@@ -225,6 +226,56 @@ func (eb *EtcdBuilder) WithProviderLocal() *EtcdBuilder {
 	eb.etcd.Spec.Backup.Store = getBackupStoreForLocal(
 		eb.etcd.Name,
 	)
+	return eb
+}
+
+func (eb *EtcdBuilder) WithEtcdClientPort(clientPort *int32) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Etcd.ClientPort = clientPort
+	return eb
+}
+
+func (eb *EtcdBuilder) WithEtcdClientServiceLabels(labels map[string]string) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+
+	if eb.etcd.Spec.Etcd.ClientService == nil {
+		eb.etcd.Spec.Etcd.ClientService = &druidv1alpha1.ClientService{}
+	}
+
+	eb.etcd.Spec.Etcd.ClientService.Labels = utils.MergeMaps[string](eb.etcd.Spec.Etcd.ClientService.Labels, labels)
+	return eb
+}
+
+func (eb *EtcdBuilder) WithEtcdClientServiceAnnotations(annotations map[string]string) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+
+	if eb.etcd.Spec.Etcd.ClientService == nil {
+		eb.etcd.Spec.Etcd.ClientService = &druidv1alpha1.ClientService{}
+	}
+
+	eb.etcd.Spec.Etcd.ClientService.Annotations = utils.MergeMaps[string](eb.etcd.Spec.Etcd.ClientService.Annotations, annotations)
+	return eb
+}
+
+func (eb *EtcdBuilder) WithEtcdServerPort(serverPort *int32) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Etcd.ServerPort = serverPort
+	return eb
+}
+
+func (eb *EtcdBuilder) WithBackupPort(port *int32) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Backup.Port = port
 	return eb
 }
 
