@@ -26,6 +26,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/test/sample"
+	testsample "github.com/gardener/etcd-druid/test/sample"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
@@ -46,7 +47,7 @@ const (
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
 	internalErr := errors.New("test internal error")
-	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 	testcases := []struct {
 		name                 string
 		svcExists            bool
@@ -104,11 +105,11 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestClientServiceSync(t *testing.T) {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
 	testCases := []struct {
 		name        string
 		svcExists   bool
-		setupFn     func(eb *testutils.EtcdBuilder)
+		setupFn     func(eb *testsample.EtcdBuilder)
 		expectError *druiderr.DruidError
 		getErr      *apierrors.StatusError
 	}{
@@ -120,7 +121,7 @@ func TestClientServiceSync(t *testing.T) {
 			name:      "Update existing service",
 			svcExists: true,
 
-			setupFn: func(eb *testutils.EtcdBuilder) {
+			setupFn: func(eb *testsample.EtcdBuilder) {
 				eb.WithEtcdClientPort(nil).
 					WithBackupPort(nil).
 					WithEtcdServerPort(nil).
@@ -134,11 +135,11 @@ func TestClientServiceSync(t *testing.T) {
 			setupFn:   nil,
 			expectError: &druiderr.DruidError{
 				Code:      ErrSyncingClientService,
-				Cause:     fmt.Errorf("Fake get error"),
+				Cause:     fmt.Errorf("fake get error"),
 				Operation: "Sync",
 				Message:   "Error during create or update of client service",
 			},
-			getErr: apierrors.NewInternalError(errors.New("Fake get error")),
+			getErr: apierrors.NewInternalError(errors.New("fake get error")),
 		},
 	}
 
@@ -156,7 +157,7 @@ func TestClientServiceSync(t *testing.T) {
 				fakeClientBuilder.WithGetError(tc.getErr)
 			}
 			if tc.svcExists {
-				fakeClientBuilder.WithObjects(sample.NewClientService(testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()))
+				fakeClientBuilder.WithObjects(sample.NewClientService(testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()))
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl)
@@ -189,11 +190,11 @@ func TestClientServiceSync(t *testing.T) {
 
 // ----------------------------- TriggerDelete -------------------------------
 func TestClientServiceTriggerDelete(t *testing.T) {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
 	testCases := []struct {
 		name        string
 		svcExists   bool
-		setupFn     func(eb *testutils.EtcdBuilder)
+		setupFn     func(eb *testsample.EtcdBuilder)
 		expectError *druiderr.DruidError
 		deleteErr   *apierrors.StatusError
 	}{
@@ -204,7 +205,7 @@ func TestClientServiceTriggerDelete(t *testing.T) {
 		{
 			name:      "Service Not Found - No Operation",
 			svcExists: true,
-			setupFn: func(eb *testutils.EtcdBuilder) {
+			setupFn: func(eb *testsample.EtcdBuilder) {
 				eb.WithEtcdClientPort(nil).
 					WithBackupPort(nil).
 					WithEtcdServerPort(nil).
@@ -218,11 +219,11 @@ func TestClientServiceTriggerDelete(t *testing.T) {
 			setupFn:   nil,
 			expectError: &druiderr.DruidError{
 				Code:      ErrDeletingClientService,
-				Cause:     errors.New("Fake delete error"),
+				Cause:     errors.New("fake delete error"),
 				Operation: "TriggerDelete",
 				Message:   "Failed to delete client service",
 			},
-			deleteErr: apierrors.NewInternalError(errors.New("Fake delete error")),
+			deleteErr: apierrors.NewInternalError(errors.New("fake delete error")),
 		},
 	}
 	g := NewWithT(t)
@@ -239,7 +240,7 @@ func TestClientServiceTriggerDelete(t *testing.T) {
 				fakeClientBuilder.WithDeleteError(tc.deleteErr)
 			}
 			if tc.svcExists {
-				fakeClientBuilder.WithObjects(sample.NewClientService(testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()))
+				fakeClientBuilder.WithObjects(sample.NewClientService(testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()))
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl)
