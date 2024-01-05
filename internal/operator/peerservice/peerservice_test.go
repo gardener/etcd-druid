@@ -16,221 +16,263 @@ package peerservice
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
-	mockclient "github.com/gardener/etcd-druid/pkg/mock/controller-runtime/client"
+	"github.com/gardener/etcd-druid/test/sample"
+	testsample "github.com/gardener/etcd-druid/test/sample"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
-	"github.com/golang/mock/gomock"
-	"github.com/onsi/gomega"
+	"github.com/google/uuid"
+	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
+)
+
+const (
+	testEtcdName = "test-etcd"
+	testNs       = "test-namespace"
 )
 
 // ------------------------ GetExistingResourceNames ------------------------
-func TestGetExistingResourceNames_WithExistingService(t *testing.T) {
-	g, ctx, etcd, _, op := setupWithFakeClient(t, true)
+func TestGetExistingResourceNames(t *testing.T) {
+	internalErr := errors.New("test internal error")
+	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	testcases := []struct {
+		name                 string
+		svcExists            bool
+		getErr               *apierrors.StatusError
+		expectedErr          error
+		expectedServiceNames []string
+	}{
+		{
+			"should return the existing service name",
+			true,
+			nil,
+			nil,
+			[]string{etcd.GetPeerServiceName()},
+		},
+		{
+			"should return empty slice when service is not found",
+			false,
+			apierrors.NewNotFound(corev1.Resource("services"), ""),
+			nil,
+			[]string{},
+		},
+		{
+			"should return error when get fails",
+			true,
+			apierrors.NewInternalError(internalErr),
+			apierrors.NewInternalError(internalErr),
+			nil,
+		},
+	}
 
-	err := op.Sync(ctx, etcd)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g := NewWithT(t)
+	t.Parallel()
 
-	names, err := op.GetExistingResourceNames(ctx, etcd)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(names).To(gomega.ContainElement(etcd.GetPeerServiceName()))
-
-}
-
-func TestGetExistingResourceNames_ServiceNotFound(t *testing.T) {
-	g, ctx, etcd, _, op := setupWithFakeClient(t, false)
-
-	names, err := op.GetExistingResourceNames(ctx, etcd)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(names).To(gomega.BeEmpty())
-}
-
-func TestGetExistingResourceNames_WithError(t *testing.T) {
-	g, ctx, etcd, cl, op := setupWithMockClient(t)
-	cl.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(fmt.Errorf("fake get error")).AnyTimes()
-
-	names, err := op.GetExistingResourceNames(ctx, etcd)
-	g.Expect(err).To(gomega.HaveOccurred())
-	g.Expect(names).To(gomega.BeEmpty())
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeClientBuilder := testutils.NewFakeClientBuilder()
+			if tc.getErr != nil {
+				fakeClientBuilder.WithGetError(tc.getErr)
+			}
+			if tc.svcExists {
+				fakeClientBuilder.WithObjects(sample.NewPeerService(etcd))
+			}
+			operator := New(fakeClientBuilder.Build())
+			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			svcNames, err := operator.GetExistingResourceNames(opCtx, etcd)
+			if tc.expectedErr != nil {
+				g.Expect(errors.Is(err, tc.getErr)).To(BeTrue())
+			} else {
+				g.Expect(err).To(BeNil())
+			}
+			g.Expect(svcNames, tc.expectedServiceNames)
+		})
+	}
 }
 
 // ----------------------------------- Sync -----------------------------------
+func TestPeerServiceSync(t *testing.T) {
+	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	testCases := []struct {
+		name        string
+		svcExists   bool
+		setupFn     func(eb *testsample.EtcdBuilder)
+		expectError *druiderr.DruidError
+		getErr      *apierrors.StatusError
+	}{
+		{
+			name:      "Create new service",
+			svcExists: false,
+		},
+		{
+			name:      "Update existing service",
+			svcExists: true,
 
-func TestSync_CreateNewService(t *testing.T) {
-	g, ctx, etcd, cl, op := setupWithFakeClient(t, false)
-	err := op.Sync(ctx, etcd)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-
-	service := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      etcd.GetPeerServiceName(),
-			Namespace: etcd.Namespace,
+			setupFn: func(eb *testsample.EtcdBuilder) {
+				eb.WithBackupPort(nil)
+			},
+		},
+		{
+			name:      "With client error",
+			svcExists: false,
+			setupFn:   nil,
+			expectError: &druiderr.DruidError{
+				Code:      ErrSyncingPeerService,
+				Cause:     fmt.Errorf("fake get error"),
+				Operation: "Sync",
+				Message:   "Error during create or update of peer service",
+			},
+			getErr: apierrors.NewInternalError(errors.New("fake get error")),
 		},
 	}
-	err = cl.Get(ctx, client.ObjectKeyFromObject(service), service)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	checkPeerService(g, service, etcd)
 
-}
+	g := NewWithT(t)
+	t.Parallel()
 
-func TestSync_UpdateExistingService(t *testing.T) {
-	g, ctx, etcd, cl, op := setupWithFakeClient(t, true)
-	etcd.Spec.Etcd.ServerPort = nil
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.setupFn != nil {
+				tc.setupFn(etcdBuilder)
+			}
+			etcd := etcdBuilder.Build()
+			fakeClientBuilder := testutils.NewFakeClientBuilder()
+			if tc.getErr != nil {
+				fakeClientBuilder.WithGetError(tc.getErr)
+			}
+			if tc.svcExists {
+				fakeClientBuilder.WithObjects(sample.NewPeerService(testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()))
+			}
+			cl := fakeClientBuilder.Build()
+			operator := New(cl)
+			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			err := operator.Sync(opCtx, etcd)
+			if tc.expectError != nil {
+				g.Expect(err).To(HaveOccurred())
+				var druidErr *druiderr.DruidError
+				g.Expect(errors.As(err, &druidErr)).To(BeTrue())
+				g.Expect(druidErr.Code).To(Equal(tc.expectError.Code))
+				g.Expect(errors.Is(druidErr.Cause, tc.getErr)).To(BeTrue())
+				g.Expect(druidErr.Message).To(Equal(tc.expectError.Message))
+				g.Expect(druidErr.Operation).To(Equal(tc.expectError.Operation))
 
-	err := op.Sync(ctx, etcd)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-
-	service := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      etcd.GetPeerServiceName(),
-			Namespace: etcd.Namespace,
-		},
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				service := &corev1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      etcd.GetPeerServiceName(),
+						Namespace: etcd.Namespace,
+					},
+				}
+				err = cl.Get(opCtx, client.ObjectKeyFromObject(service), service)
+				g.Expect(err).NotTo(HaveOccurred())
+				checkPeerService(g, service, etcd)
+			}
+		})
 	}
-	err = cl.Get(ctx, client.ObjectKeyFromObject(service), service)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(service).ToNot(gomega.BeNil())
-	checkPeerService(g, service, etcd)
-}
-
-func TestSync_WithClientError(t *testing.T) {
-	g, ctx, etcd, cl, op := setupWithMockClient(t)
-	cl.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(fmt.Errorf("fake get error")).AnyTimes()
-	cl.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(fmt.Errorf("fake create error")).AnyTimes()
-	cl.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Return(fmt.Errorf("fake update error")).AnyTimes()
-
-	err := op.Sync(ctx, etcd)
-	g.Expect(err).To(gomega.HaveOccurred())
 }
 
 // ----------------------------- TriggerDelete -------------------------------
-
-func TestTriggerDelete_ExistingService(t *testing.T) {
-	g, ctx, etcd, cl, op := setupWithFakeClient(t, true)
-	err := op.TriggerDelete(ctx, etcd)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-
-	serviceList := &corev1.List{}
-	err = cl.List(ctx, serviceList)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(serviceList.Items).To(gomega.BeEmpty())
-}
-
-func TestTriggerDelete_ServiceNotFound(t *testing.T) {
-	g, ctx, etcd, _, op := setupWithFakeClient(t, false)
-
-	err := op.TriggerDelete(ctx, etcd)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-}
-
-func TestTriggerDelete_WithClientError(t *testing.T) {
-	g, ctx, etcd, cl, op := setupWithMockClient(t)
-	// Configure the mock client to return an error on delete operation
-	cl.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Return(fmt.Errorf("fake delete error")).AnyTimes()
-
-	err := op.TriggerDelete(ctx, etcd)
-	g.Expect(err).To(gomega.HaveOccurred())
-}
-
-// ---------------------------- Helper Functions -----------------------------
-
-func sampleEtcd() *druidv1alpha1.Etcd {
-	return &druidv1alpha1.Etcd{
-
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-etcd",
-			Namespace: "test-namespace",
-			UID:       "xxx-yyy-zzz",
+func TestPeerServiceTriggerDelete(t *testing.T) {
+	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	testCases := []struct {
+		name        string
+		svcExists   bool
+		setupFn     func(eb *testsample.EtcdBuilder)
+		expectError *druiderr.DruidError
+		deleteErr   *apierrors.StatusError
+	}{
+		{
+			name:      "Existing Service - Delete Operation",
+			svcExists: false,
 		},
-		Spec: druidv1alpha1.EtcdSpec{
-
-			Backup: druidv1alpha1.BackupSpec{
-				Port: pointer.Int32(1111),
-			},
-			Etcd: druidv1alpha1.EtcdConfig{
-				ClientPort: pointer.Int32(2222),
-				ServerPort: pointer.Int32(3333),
+		{
+			name:      "Service Not Found - No Operation",
+			svcExists: true,
+			setupFn: func(eb *testsample.EtcdBuilder) {
+				eb.WithEtcdServerPort(nil)
 			},
 		},
+		{
+			name:      "Client Error on Delete - Returns Error",
+			svcExists: true,
+			setupFn:   nil,
+			expectError: &druiderr.DruidError{
+				Code:      ErrDeletingPeerService,
+				Cause:     errors.New("fake delete error"),
+				Operation: "TriggerDelete",
+				Message:   "Failed to delete peer service",
+			},
+			deleteErr: apierrors.NewInternalError(errors.New("fake delete error")),
+		},
+	}
+	g := NewWithT(t)
+	t.Parallel()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.setupFn != nil {
+				tc.setupFn(etcdBuilder)
+			}
+			etcd := etcdBuilder.Build()
+			fakeClientBuilder := testutils.NewFakeClientBuilder()
+			if tc.deleteErr != nil {
+				fakeClientBuilder.WithDeleteError(tc.deleteErr)
+			}
+			if tc.svcExists {
+				fakeClientBuilder.WithObjects(sample.NewPeerService(testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()))
+			}
+			cl := fakeClientBuilder.Build()
+			operator := New(cl)
+			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			err := operator.TriggerDelete(opCtx, etcd)
+			if tc.expectError != nil {
+				g.Expect(err).To(HaveOccurred())
+				var druidErr *druiderr.DruidError
+				g.Expect(errors.As(err, &druidErr)).To(BeTrue())
+				g.Expect(druidErr.Code).To(Equal(tc.expectError.Code))
+				g.Expect(errors.Is(druidErr.Cause, tc.deleteErr)).To(BeTrue())
+				g.Expect(druidErr.Message).To(Equal(tc.expectError.Message))
+				g.Expect(druidErr.Operation).To(Equal(tc.expectError.Operation))
+
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				serviceList := &corev1.List{}
+				err = cl.List(opCtx, serviceList)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(serviceList.Items).To(BeEmpty())
+
+			}
+		})
 	}
 }
 
-func checkPeerService(g *gomega.WithT, svc *corev1.Service, etcd *druidv1alpha1.Etcd) {
+// ---------------------------- Helper Functions -----------------------------
+func checkPeerService(g *WithT, svc *corev1.Service, etcd *druidv1alpha1.Etcd) {
 	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)
-	g.Expect(svc.OwnerReferences).To(gomega.Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}))
-	g.Expect(svc.Labels).To(gomega.Equal(etcd.GetDefaultLabels()))
-	g.Expect(svc.Spec.PublishNotReadyAddresses).To(gomega.BeTrue())
-	g.Expect(svc.Spec.Type).To(gomega.Equal(corev1.ServiceTypeClusterIP))
-	g.Expect(svc.Spec.ClusterIP).To(gomega.Equal(corev1.ClusterIPNone))
-	g.Expect(svc.Spec.SessionAffinity).To(gomega.Equal(corev1.ServiceAffinityNone))
-	g.Expect(svc.Spec.Selector).To(gomega.Equal(etcd.GetDefaultLabels()))
-	g.Expect(svc.Spec.Ports).To(gomega.ConsistOf(
-		gomega.Equal(corev1.ServicePort{
+	g.Expect(svc.OwnerReferences).To(Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}))
+	g.Expect(svc.Labels).To(Equal(etcd.GetDefaultLabels()))
+	g.Expect(svc.Spec.PublishNotReadyAddresses).To(BeTrue())
+	g.Expect(svc.Spec.Type).To(Equal(corev1.ServiceTypeClusterIP))
+	g.Expect(svc.Spec.ClusterIP).To(Equal(corev1.ClusterIPNone))
+	g.Expect(svc.Spec.SessionAffinity).To(Equal(corev1.ServiceAffinityNone))
+	g.Expect(svc.Spec.Selector).To(Equal(etcd.GetDefaultLabels()))
+	g.Expect(svc.Spec.Ports).To(ConsistOf(
+		Equal(corev1.ServicePort{
 			Name:       "peer",
 			Protocol:   corev1.ProtocolTCP,
 			Port:       peerPort,
 			TargetPort: intstr.FromInt(int(peerPort)),
 		}),
 	))
-}
-
-func existingService(etcd *druidv1alpha1.Etcd) *corev1.Service {
-	service := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      etcd.GetPeerServiceName(),
-			Namespace: etcd.Namespace,
-			Labels:    etcd.GetDefaultLabels(),
-			OwnerReferences: []metav1.OwnerReference{
-				etcd.GetAsOwnerReference(),
-			},
-		},
-		Spec: corev1.ServiceSpec{
-			Type:                     corev1.ServiceTypeClusterIP,
-			ClusterIP:                corev1.ClusterIPNone,
-			SessionAffinity:          corev1.ServiceAffinityNone,
-			Selector:                 etcd.GetDefaultLabels(),
-			PublishNotReadyAddresses: true,
-			Ports: []corev1.ServicePort{
-				{
-					Name:       "peer",
-					Protocol:   corev1.ProtocolTCP,
-					Port:       *etcd.Spec.Etcd.ServerPort,
-					TargetPort: intstr.FromInt(int(*etcd.Spec.Etcd.ServerPort)),
-				},
-			},
-		},
-	}
-	return service
-}
-
-func setupWithFakeClient(t *testing.T, withExistingService bool) (g *gomega.WithT, ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, cl client.Client, op resource.Operator) {
-	g = gomega.NewWithT(t)
-	ctx = resource.NewOperatorContext(context.TODO(), logr.Logger{}, "xxx-yyyy-zzzz")
-	etcd = sampleEtcd()
-	if withExistingService {
-		cl = fakeclient.NewClientBuilder().WithObjects(existingService(etcd)).Build()
-	} else {
-
-		cl = fakeclient.NewClientBuilder().Build()
-	}
-	op = New(cl)
-	return
-}
-
-func setupWithMockClient(t *testing.T) (g *gomega.WithT, ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, cl *mockclient.MockClient, op resource.Operator) {
-	g = gomega.NewWithT(t)
-	ctx = resource.NewOperatorContext(context.TODO(), logr.Logger{}, "xxx-yyyy-zzzz")
-	etcd = sampleEtcd()
-	cl = mockclient.NewMockClient(gomock.NewController(t))
-	op = New(cl)
-	return
 }

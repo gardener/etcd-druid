@@ -2,6 +2,7 @@ package peerservice
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
@@ -13,6 +14,11 @@ import (
 )
 
 const defaultServerPort = 2380
+
+const (
+	ErrDeletingPeerService druidv1alpha1.ErrorCode = "ERR_DELETING_PEER_SERVICE"
+	ErrSyncingPeerService  druidv1alpha1.ErrorCode = "ERR_SYNC_PEER_SERVICE"
+)
 
 type _resource struct {
 	client client.Client
@@ -33,7 +39,7 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	svc := emptyPeerService(getObjectKey(etcd))
-	_, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, svc, func() error {
+	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, svc, func() error {
 		svc.Labels = etcd.GetDefaultLabels()
 		svc.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
 		svc.Spec.Type = corev1.ServiceTypeClusterIP
@@ -44,11 +50,29 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 		svc.Spec.Ports = getPorts(etcd)
 		return nil
 	})
-	return err
+	if err == nil {
+		ctx.Logger.Info("synced", "resource", "peer-service", "name", svc.Name, "result", result)
+	}
+	return druiderr.WrapError(err,
+		ErrSyncingPeerService,
+		"Sync",
+		"Error during create or update of peer service",
+	)
 }
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	return client.IgnoreNotFound(r.client.Delete(ctx, emptyPeerService(getObjectKey(etcd))))
+	objectKey := getObjectKey(etcd)
+	ctx.Logger.Info("Triggering delete of client service")
+	err := client.IgnoreNotFound(r.client.Delete(ctx, emptyPeerService(objectKey)))
+	if err == nil {
+		ctx.Logger.Info("deleted", "resource", "peer-service", "name", objectKey.Name)
+	}
+	return druiderr.WrapError(
+		err,
+		ErrDeletingPeerService,
+		"TriggerDelete",
+		"Failed to delete peer service",
+	)
 }
 
 func New(client client.Client) resource.Operator {

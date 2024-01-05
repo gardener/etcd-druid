@@ -31,6 +31,35 @@ func NewClientService(etcd *druidv1alpha1.Etcd) *corev1.Service {
 	}
 }
 
+// NewPeerService creates a new sample peer service initializing it from the passed in etcd object.
+func NewPeerService(etcd *druidv1alpha1.Etcd) *corev1.Service {
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      etcd.GetPeerServiceName(),
+			Namespace: etcd.Namespace,
+			Labels:    etcd.GetDefaultLabels(),
+			OwnerReferences: []metav1.OwnerReference{
+				etcd.GetAsOwnerReference(),
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Type:                     corev1.ServiceTypeClusterIP,
+			ClusterIP:                corev1.ClusterIPNone,
+			SessionAffinity:          corev1.ServiceAffinityNone,
+			Selector:                 etcd.GetDefaultLabels(),
+			PublishNotReadyAddresses: true,
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "peer",
+					Protocol:   corev1.ProtocolTCP,
+					Port:       *etcd.Spec.Etcd.ServerPort,
+					TargetPort: intstr.FromInt(int(*etcd.Spec.Etcd.ServerPort)),
+				},
+			},
+		},
+	}
+}
+
 func getClientServicePorts(etcd *druidv1alpha1.Etcd) []corev1.ServicePort {
 	backupPort := utils.TypeDeref[int32](etcd.Spec.Backup.Port, defaultBackupPort)
 	clientPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort)
