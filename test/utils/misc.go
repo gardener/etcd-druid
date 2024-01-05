@@ -5,10 +5,10 @@
 package utils
 
 import (
-	. "github.com/onsi/gomega"
-
 	"os"
 
+	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 	gomegatypes "github.com/onsi/gomega/types"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
