@@ -55,7 +55,7 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	ctx.Logger.Info("Triggering delete of role")
-	err := r.client.Delete(ctx, emptyRole(etcd))
+	err := client.IgnoreNotFound(r.client.Delete(ctx, emptyRole(etcd)))
 	if err == nil {
 		ctx.Logger.Info("deleted", "resource", "role", "name", etcd.GetRoleName())
 	}
