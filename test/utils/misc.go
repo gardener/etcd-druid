@@ -5,6 +5,7 @@
 package utils
 
 import (
+	"maps"
 	"os"
 
 	. "github.com/onsi/gomega"
@@ -48,4 +49,26 @@ func SwitchDirectory(path string) func() {
 			Expect(err).NotTo(HaveOccurred())
 		}
 	}
+}
+
+// MergeMaps merges the contents of maps. All maps will be processed in the order
+// in which they are sent. For overlapping keys across source maps, value in the merged map
+// for this key will be from the last occurrence of the key-value.
+func MergeMaps[K comparable, V any](sourceMaps ...map[K]V) map[K]V {
+	if sourceMaps == nil {
+		return nil
+	}
+	merged := make(map[K]V)
+	for _, m := range sourceMaps {
+		maps.Copy(merged, m)
+	}
+	return merged
+}
+
+// TypeDeref dereferences a pointer to a type if it is not nil, else it returns the default value.
+func TypeDeref[T any](val *T, defaultVal T) T {
+	if val != nil {
+		return *val
+	}
+	return defaultVal
 }

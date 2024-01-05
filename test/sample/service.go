@@ -2,7 +2,7 @@ package sample
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -61,9 +61,9 @@ func NewPeerService(etcd *druidv1alpha1.Etcd) *corev1.Service {
 }
 
 func getClientServicePorts(etcd *druidv1alpha1.Etcd) []corev1.ServicePort {
-	backupPort := utils.TypeDeref[int32](etcd.Spec.Backup.Port, defaultBackupPort)
-	clientPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort)
-	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)
+	backupPort := testutils.TypeDeref[int32](etcd.Spec.Backup.Port, defaultBackupPort)
+	clientPort := testutils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort)
+	peerPort := testutils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)
 	return []corev1.ServicePort{
 		{
 			Name:       "client",

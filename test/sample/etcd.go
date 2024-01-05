@@ -18,7 +18,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils"
+
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	corev1 "k8s.io/api/core/v1"
@@ -253,7 +253,7 @@ func (eb *EtcdBuilder) WithEtcdClientServiceLabels(labels map[string]string) *Et
 		eb.etcd.Spec.Etcd.ClientService = &druidv1alpha1.ClientService{}
 	}
 
-	eb.etcd.Spec.Etcd.ClientService.Labels = utils.MergeMaps[string](eb.etcd.Spec.Etcd.ClientService.Labels, labels)
+	eb.etcd.Spec.Etcd.ClientService.Labels = testutils.MergeMaps[string](eb.etcd.Spec.Etcd.ClientService.Labels, labels)
 	return eb
 }
 
@@ -266,7 +266,7 @@ func (eb *EtcdBuilder) WithEtcdClientServiceAnnotations(annotations map[string]s
 		eb.etcd.Spec.Etcd.ClientService = &druidv1alpha1.ClientService{}
 	}
 
-	eb.etcd.Spec.Etcd.ClientService.Annotations = utils.MergeMaps[string](eb.etcd.Spec.Etcd.ClientService.Annotations, annotations)
+	eb.etcd.Spec.Etcd.ClientService.Annotations = testutils.MergeMaps[string](eb.etcd.Spec.Etcd.ClientService.Annotations, annotations)
 	return eb
 }
 
