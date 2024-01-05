@@ -128,7 +128,7 @@ func TestPeerServiceSync(t *testing.T) {
 			svcExists: false,
 			setupFn:   nil,
 			expectError: &druiderr.DruidError{
-				Code:      ErrSyncingPeerService,
+				Code:      ErrSyncPeerService,
 				Cause:     fmt.Errorf("fake get error"),
 				Operation: "Sync",
 				Message:   "Error during create or update of peer service",
@@ -208,7 +208,7 @@ func TestPeerServiceTriggerDelete(t *testing.T) {
 			svcExists: true,
 			setupFn:   nil,
 			expectError: &druiderr.DruidError{
-				Code:      ErrDeletingPeerService,
+				Code:      ErrDeletePeerService,
 				Cause:     errors.New("fake delete error"),
 				Operation: "TriggerDelete",
 				Message:   "Failed to delete peer service",

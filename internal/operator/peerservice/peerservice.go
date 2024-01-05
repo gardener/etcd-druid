@@ -16,8 +16,8 @@ import (
 const defaultServerPort = 2380
 
 const (
-	ErrDeletingPeerService druidv1alpha1.ErrorCode = "ERR_DELETING_PEER_SERVICE"
-	ErrSyncingPeerService  druidv1alpha1.ErrorCode = "ERR_SYNC_PEER_SERVICE"
+	ErrDeletePeerService druidv1alpha1.ErrorCode = "ERR_DELETE_PEER_SERVICE"
+	ErrSyncPeerService   druidv1alpha1.ErrorCode = "ERR_SYNC_PEER_SERVICE"
 )
 
 type _resource struct {
@@ -54,7 +54,7 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 		ctx.Logger.Info("synced", "resource", "peer-service", "name", svc.Name, "result", result)
 	}
 	return druiderr.WrapError(err,
-		ErrSyncingPeerService,
+		ErrSyncPeerService,
 		"Sync",
 		"Error during create or update of peer service",
 	)
@@ -69,7 +69,7 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 	}
 	return druiderr.WrapError(
 		err,
-		ErrDeletingPeerService,
+		ErrDeletePeerService,
 		"TriggerDelete",
 		"Failed to delete peer service",
 	)
