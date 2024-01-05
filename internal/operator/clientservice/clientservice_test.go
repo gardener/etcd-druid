@@ -30,7 +30,7 @@ import (
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
-	"github.com/onsi/gomega"
+
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -164,7 +164,7 @@ func TestClientServiceSync(t *testing.T) {
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.Sync(opCtx, etcd)
 			if tc.expectError != nil {
-				g.Expect(err).To(gomega.HaveOccurred())
+				g.Expect(err).To(HaveOccurred())
 				var druidErr *druiderr.DruidError
 				g.Expect(errors.As(err, &druidErr)).To(BeTrue())
 				g.Expect(druidErr.Code).To(Equal(tc.expectError.Code))
@@ -173,7 +173,7 @@ func TestClientServiceSync(t *testing.T) {
 				g.Expect(druidErr.Operation).To(Equal(tc.expectError.Operation))
 
 			} else {
-				g.Expect(err).NotTo(gomega.HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 				service := &corev1.Service{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      etcd.GetClientServiceName(),
@@ -181,7 +181,7 @@ func TestClientServiceSync(t *testing.T) {
 					},
 				}
 				err = cl.Get(opCtx, client.ObjectKeyFromObject(service), service)
-				g.Expect(err).NotTo(gomega.HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 				checkClientService(g, service, etcd)
 			}
 		})
@@ -247,7 +247,7 @@ func TestClientServiceTriggerDelete(t *testing.T) {
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.TriggerDelete(opCtx, etcd)
 			if tc.expectError != nil {
-				g.Expect(err).To(gomega.HaveOccurred())
+				g.Expect(err).To(HaveOccurred())
 				var druidErr *druiderr.DruidError
 				g.Expect(errors.As(err, &druidErr)).To(BeTrue())
 				g.Expect(druidErr.Code).To(Equal(tc.expectError.Code))
@@ -256,18 +256,18 @@ func TestClientServiceTriggerDelete(t *testing.T) {
 				g.Expect(druidErr.Operation).To(Equal(tc.expectError.Operation))
 
 			} else {
-				g.Expect(err).NotTo(gomega.HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 				serviceList := &corev1.List{}
 				err = cl.List(opCtx, serviceList)
-				g.Expect(err).NotTo(gomega.HaveOccurred())
-				g.Expect(serviceList.Items).To(gomega.BeEmpty())
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(serviceList.Items).To(BeEmpty())
 
 			}
 		})
 	}
 }
 
-func checkClientService(g *gomega.WithT, svc *corev1.Service, etcd *druidv1alpha1.Etcd) {
+func checkClientService(g *WithT, svc *corev1.Service, etcd *druidv1alpha1.Etcd) {
 	clientPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort)
 	backupPort := utils.TypeDeref[int32](etcd.Spec.Backup.Port, defaultBackupPort)
 	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)
@@ -278,26 +278,26 @@ func checkClientService(g *gomega.WithT, svc *corev1.Service, etcd *druidv1alpha
 		expectedAnnotations = etcd.Spec.Etcd.ClientService.Annotations
 		expectedLabels = utils.MergeMaps[string](etcd.Spec.Etcd.ClientService.Labels, etcd.GetDefaultLabels())
 	}
-	g.Expect(svc.OwnerReferences).To(gomega.Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}))
-	g.Expect(svc.Annotations).To(gomega.Equal(expectedAnnotations))
-	g.Expect(svc.Labels).To(gomega.Equal(expectedLabels))
-	g.Expect(svc.Spec.Type).To(gomega.Equal(corev1.ServiceTypeClusterIP))
-	g.Expect(svc.Spec.SessionAffinity).To(gomega.Equal(corev1.ServiceAffinityNone))
-	g.Expect(svc.Spec.Selector).To(gomega.Equal(etcd.GetDefaultLabels()))
-	g.Expect(svc.Spec.Ports).To(gomega.ConsistOf(
-		gomega.Equal(corev1.ServicePort{
+	g.Expect(svc.OwnerReferences).To(Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}))
+	g.Expect(svc.Annotations).To(Equal(expectedAnnotations))
+	g.Expect(svc.Labels).To(Equal(expectedLabels))
+	g.Expect(svc.Spec.Type).To(Equal(corev1.ServiceTypeClusterIP))
+	g.Expect(svc.Spec.SessionAffinity).To(Equal(corev1.ServiceAffinityNone))
+	g.Expect(svc.Spec.Selector).To(Equal(etcd.GetDefaultLabels()))
+	g.Expect(svc.Spec.Ports).To(ConsistOf(
+		Equal(corev1.ServicePort{
 			Name:       "client",
 			Protocol:   corev1.ProtocolTCP,
 			Port:       clientPort,
 			TargetPort: intstr.FromInt(int(clientPort)),
 		}),
-		gomega.Equal(corev1.ServicePort{
+		Equal(corev1.ServicePort{
 			Name:       "server",
 			Protocol:   corev1.ProtocolTCP,
 			Port:       peerPort,
 			TargetPort: intstr.FromInt(int(peerPort)),
 		}),
-		gomega.Equal(corev1.ServicePort{
+		Equal(corev1.ServicePort{
 			Name:       "backuprestore",
 			Protocol:   corev1.ProtocolTCP,
 			Port:       backupPort,
