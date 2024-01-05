@@ -704,7 +704,7 @@ func etcdSnapshotLeaseIsCorrectlyReconciled(c client.Client, instance *druidv1al
 		return err
 	}
 
-	if !testutils.CheckEtcdOwnerReference(lease.GetOwnerReferences(), instance) {
+	if !testutils.CheckEtcdOwnerReference(lease.GetOwnerReferences(), instance.UID) {
 		return fmt.Errorf("ownerReference does not exists for lease")
 	}
 	return nil

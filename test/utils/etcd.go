@@ -17,9 +17,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func CheckEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
+// CheckEtcdOwnerReference checks if one of the owner references points to etcd owner UID.
+func CheckEtcdOwnerReference(refs []metav1.OwnerReference, etcdOwnerUID types.UID) bool {
 	for _, ownerRef := range refs {
-		if ownerRef.UID == etcd.UID {
+		if ownerRef.UID == etcdOwnerUID {
 			return true
 		}
 	}

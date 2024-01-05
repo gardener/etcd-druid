@@ -42,19 +42,15 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 	if err != nil {
 		return fmt.Errorf("error getting existing StatefulSet: %w", err)
 	}
-
 	if existingSts == nil {
 		return r.createOrPatch(ctx, etcd, etcd.Spec.Replicas)
 	}
-
-	if err := r.handlePeerTLSEnabled(ctx, etcd, existingSts); err != nil {
+	if err = r.handlePeerTLSEnabled(ctx, etcd, existingSts); err != nil {
 		return fmt.Errorf("error handling peer TLS: %w", err)
 	}
-
-	if err := r.handleImmutableFieldUpdates(ctx, etcd, existingSts); err != nil {
+	if err = r.handleImmutableFieldUpdates(ctx, etcd, existingSts); err != nil {
 		return fmt.Errorf("error handling immutable field updates: %w", err)
 	}
-
 	return r.createOrPatch(ctx, etcd, etcd.Spec.Replicas)
 }
 
@@ -90,68 +86,6 @@ func (r _resource) createOrPatch(ctx resource.OperatorContext, etcd *druidv1alph
 	ctx.Logger.Info("triggered creation of statefulSet", "statefulSet", getObjectKey(etcd), "operationResult", opResult)
 	return nil
 }
-
-//func (r _resource) createOrPatch(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, replicas int32) error {
-//	desiredStatefulSet := emptyStatefulSet(getObjectKey(etcd))
-//	etcdImage, etcdBackupImage, initContainerImage, err := druidutils.GetEtcdImages(etcd, r.imageVector, r.useEtcdWrapper)
-//	if err != nil {
-//		return err
-//	}
-//	podVolumes, err := getVolumes(r.client, r.logger, ctx, etcd)
-//	if err != nil {
-//		return err
-//	}
-//
-//	configMapChecksum, err := getConfigMapChecksum(r.client, ctx, etcd)
-//	if err != nil {
-//		return err
-//	}
-//
-//	mutatingFn := func() error {
-//		desiredStatefulSet.ObjectMeta = extractObjectMetaFromEtcd(etcd)
-//		desiredStatefulSet.Spec = appsv1.StatefulSetSpec{
-//			Replicas:    &replicas,
-//			ServiceName: etcd.GetPeerServiceName(),
-//			Selector: &metav1.LabelSelector{
-//				MatchLabels: etcd.GetDefaultLabels(),
-//			},
-//			PodManagementPolicy: appsv1.ParallelPodManagement,
-//			UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
-//				Type: appsv1.RollingUpdateStatefulSetStrategyType,
-//			},
-//			VolumeClaimTemplates: getVolumeClaimTemplates(etcd),
-//			Template: corev1.PodTemplateSpec{
-//				ObjectMeta: extractPodObjectMetaFromEtcd(etcd, configMapChecksum),
-//				Spec: corev1.PodSpec{
-//					HostAliases: []corev1.HostAlias{{
-//						IP:        "127.0.0.1",
-//						Hostnames: []string{etcd.Name + "-local"}}},
-//					ServiceAccountName:        etcd.GetServiceAccountName(),
-//					Affinity:                  etcd.Spec.SchedulingConstraints.Affinity,
-//					TopologySpreadConstraints: etcd.Spec.SchedulingConstraints.TopologySpreadConstraints,
-//					Containers: []corev1.Container{
-//						*addEtcdContainer(etcdImage, r.useEtcdWrapper, etcd),
-//						*addBackupRestoreContainer(etcdBackupImage, r.useEtcdWrapper, etcd),
-//					},
-//					InitContainers:        addInitContainersIfWrapperEnabled(initContainerImage, r.useEtcdWrapper, etcd),
-//					ShareProcessNamespace: pointer.Bool(true),
-//					Volumes:               podVolumes,
-//					SecurityContext:       addSecurityContextIfWrapperEnabled(r.useEtcdWrapper),
-//					PriorityClassName:     getPriorityClassName(etcd),
-//				},
-//			},
-//		}
-//		return nil
-//	}
-//
-//	opResult, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, desiredStatefulSet, mutatingFn)
-//	if err != nil {
-//		return err
-//	}
-//
-//	r.logger.Info("triggered creation of statefulSet", "statefulSet", getObjectKey(etcd), "operationResult", opResult)
-//	return nil
-//}
 
 func (r _resource) handleImmutableFieldUpdates(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) error {
 	if existingSts.Generation > 1 && hasImmutableFieldChanged(existingSts, etcd) {
