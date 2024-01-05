@@ -9,6 +9,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
+	testsample "github.com/gardener/etcd-druid/test/sample"
 	"github.com/gardener/etcd-druid/test/utils"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -74,7 +75,7 @@ var _ = Describe("tests for statefulset utility functions", func() {
 		BeforeEach(func() {
 			ctx = context.TODO()
 			stsListToCleanup = &appsv1.StatefulSetList{}
-			etcd = utils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).Build()
+			etcd = testsample.EtcdBuilderWithDefaults(testEtcdName, testNamespace).Build()
 		})
 
 		AfterEach(func() {

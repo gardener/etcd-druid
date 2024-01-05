@@ -16,6 +16,7 @@ import (
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
+	testsample "github.com/gardener/etcd-druid/test/sample"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	gardenerUtils "github.com/gardener/gardener/pkg/utils"
@@ -79,7 +80,7 @@ var _ = Describe("Etcd Controller", func() {
 		)
 
 		BeforeEach(func() {
-			instance = testutils.EtcdBuilderWithDefaults("foo1", namespace).Build()
+			instance = testsample.EtcdBuilderWithDefaults("foo1", namespace).Build()
 
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
 			errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
@@ -196,12 +197,12 @@ var _ = Describe("Etcd Controller", func() {
 				rb              *rbac.RoleBinding
 				ctx             = context.TODO()
 				instance        *druidv1alpha1.Etcd
-				instanceBuilder *testutils.EtcdBuilder
+				instanceBuilder *testsample.EtcdBuilder
 			)
 			if etcdWithDefaults {
-				instanceBuilder = testutils.EtcdBuilderWithDefaults(etcdName, namespace)
+				instanceBuilder = testsample.EtcdBuilderWithDefaults(etcdName, namespace)
 			} else {
-				instanceBuilder = testutils.EtcdBuilderWithoutDefaults(etcdName, namespace)
+				instanceBuilder = testsample.EtcdBuilderWithoutDefaults(etcdName, namespace)
 			}
 			if withTLS {
 				instanceBuilder.WithTLS()
@@ -278,7 +279,7 @@ var _ = Describe("Multinode ETCD", func() {
 		)
 
 		BeforeEach(func() {
-			instance = testutils.EtcdBuilderWithDefaults("foo82", namespace).Build()
+			instance = testsample.EtcdBuilderWithDefaults("foo82", namespace).Build()
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
 			errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
 			Expect(len(errors)).Should(BeZero())
@@ -379,7 +380,7 @@ var _ = Describe("Multinode ETCD", func() {
 			ctx      = context.TODO()
 			instance *druidv1alpha1.Etcd
 		)
-		instance = testutils.EtcdBuilderWithDefaults(etcdName, namespace).WithReplicas(int32(replicas)).Build()
+		instance = testsample.EtcdBuilderWithDefaults(etcdName, namespace).WithReplicas(int32(replicas)).Build()
 
 		if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name

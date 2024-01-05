@@ -11,6 +11,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	componentpdb "github.com/gardener/etcd-druid/pkg/component/etcd/poddisruptionbudget"
+	testsample "github.com/gardener/etcd-druid/test/sample"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
@@ -38,7 +39,7 @@ var _ = Describe("Custodian Controller", func() {
 			)
 
 			BeforeEach(func() {
-				instance = testutils.EtcdBuilderWithDefaults(name, namespace).Build()
+				instance = testsample.EtcdBuilderWithDefaults(name, namespace).Build()
 
 				Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 				// wait for Etcd creation to succeed
@@ -164,7 +165,7 @@ var _ = Describe("Custodian Controller", func() {
 	Describe("PodDisruptionBudget", func() {
 		Context("minAvailable of PodDisruptionBudget", func() {
 			When("having a single node cluster", func() {
-				etcd := testutils.EtcdBuilderWithDefaults("test", "default").WithReadyStatus().Build()
+				etcd := testsample.EtcdBuilderWithDefaults("test", "default").WithReadyStatus().Build()
 
 				Expect(len(etcd.Status.Members)).To(BeEquivalentTo(1))
 
@@ -177,7 +178,7 @@ var _ = Describe("Custodian Controller", func() {
 			})
 
 			When("having a multi node cluster", func() {
-				etcd := testutils.EtcdBuilderWithDefaults("test", "default").WithReplicas(3).WithReadyStatus().Build()
+				etcd := testsample.EtcdBuilderWithDefaults("test", "default").WithReplicas(3).WithReadyStatus().Build()
 
 				Expect(len(etcd.Status.Members)).To(BeEquivalentTo(3))
 

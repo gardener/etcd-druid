@@ -10,6 +10,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
+	testsample "github.com/gardener/etcd-druid/test/sample"
 	"github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
@@ -32,7 +33,7 @@ var _ = Describe("Secret Controller", func() {
 	)
 
 	BeforeEach(func() {
-		etcd = utils.EtcdBuilderWithDefaults("etcd", namespace).WithTLS().Build()
+		etcd = testsample.EtcdBuilderWithDefaults("etcd", namespace).WithTLS().Build()
 	})
 
 	It("should reconcile the finalizers for the referenced secrets", func() {

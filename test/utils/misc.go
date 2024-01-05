@@ -6,10 +6,11 @@ package utils
 
 import (
 	. "github.com/onsi/gomega"
-	. "github.com/onsi/gomega/gstruct"
+
+	"os"
+
 	gomegatypes "github.com/onsi/gomega/types"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"os"
 )
 
 func MatchFinalizer(finalizer string) gomegatypes.GomegaMatcher {
