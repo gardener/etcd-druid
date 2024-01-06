@@ -1,13 +1,21 @@
 package rolebinding
 
 import (
+	"fmt"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	ErrSyncRoleBinding   druidv1alpha1.ErrorCode = "ERR_SYNC_ROLE_BINDING"
+	ErrDeleteRoleBinding druidv1alpha1.ErrorCode = "ERR_DELETE_ROLE_BINDING"
 )
 
 type _resource struct {
@@ -40,7 +48,7 @@ func (r _resource) Exists(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	rb := emptyRoleBinding(etcd)
-	opResult, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, rb, func() error {
+	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, rb, func() error {
 		rb.Labels = etcd.GetDefaultLabels()
 		rb.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
 		rb.RoleRef = rbacv1.RoleRef{
@@ -57,12 +65,27 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 		}
 		return nil
 	})
-	ctx.Logger.Info("TriggerCreateOrUpdate operation result", "result", opResult)
-	return err
+	if err == nil {
+		ctx.Logger.Info("synced", "resource", "role", "name", rb.Name, "result", result)
+	}
+	return druiderr.WrapError(err,
+		ErrSyncRoleBinding,
+		"Sync",
+		fmt.Sprintf("Error during create or update of role-binding %s for etcd: %v", etcd.GetRoleBindingName(), etcd.GetNamespaceName()),
+	)
 }
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	return client.IgnoreNotFound(r.client.Delete(ctx, emptyRoleBinding(etcd)))
+	ctx.Logger.Info("Triggering delete of role")
+	err := client.IgnoreNotFound(r.client.Delete(ctx, emptyRoleBinding(etcd)))
+	if err == nil {
+		ctx.Logger.Info("deleted", "resource", "role-binding", "name", etcd.GetRoleBindingName())
+	}
+	return druiderr.WrapError(err,
+		ErrDeleteRoleBinding,
+		"TriggerDelete",
+		fmt.Sprintf("Failed to delete role-binding: %s for etcd: %v", etcd.GetRoleBindingName(), etcd.GetNamespaceName()),
+	)
 }
 
 func New(client client.Client) resource.Operator {

@@ -289,7 +289,7 @@ func (eb *EtcdBuilder) WithBackupPort(port *int32) *EtcdBuilder {
 // WithLabels merges the labels that already exists with the ones that are passed to this method. If an entry is
 // already present in the existing labels then it gets overwritten with the new value present in the passed in labels.
 func (eb *EtcdBuilder) WithLabels(labels map[string]string) *EtcdBuilder {
-	utils.MergeMaps[string, string](eb.etcd.Labels, labels)
+	testutils.MergeMaps[string, string](eb.etcd.Labels, labels)
 	return eb
 }
 
