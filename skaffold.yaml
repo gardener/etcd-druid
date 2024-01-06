@@ -27,14 +27,14 @@ deploy:
         eventsThreshold: 15
         metricsScrapeWaitDuration: "30s"
 profiles:
-- name: use-feature-gates
+- name: do-not-use-feature-gates
   activation:
-  - env: "USE_ETCD_DRUID_FEATURE_GATES=true"
+  - env: "USE_ETCD_DRUID_FEATURE_GATES=false"
   patches:
   - op: add
     path: /deploy/helm/releases/0/setValues/featureGates
     value:
-      UseEtcdWrapper: true
+      UseEtcdWrapper: false
 ---
 apiVersion: skaffold/v2beta25
 kind: Config
