@@ -138,7 +138,6 @@ rules:
 - apiGroups:
   - batch
   resources:
-  - cronjobs
   - jobs
   verbs:
   - get
@@ -147,3 +146,4 @@ rules:
   - create
   - patch
   - update
+  - delete
