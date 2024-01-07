@@ -84,26 +84,40 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 		var (
 			ctx        = context.Background()
 			task       *druidv1alpha1.EtcdCopyBackupsTask
-			fakeClient = fakeclient.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
-			r          = &Reconciler{
-				Client: fakeClient,
-				logger: logr.Discard(),
-			}
+			fakeClient client.WithWatch
+			r          *Reconciler
 		)
 		const (
-			testTaskName  = "test-etcd-backup-copy-task"
+			testTaskName  = "test-etcd-copy-backups-task"
 			testNamespace = "test-ns"
 		)
 
-		Context("delete EtcdCopyBackupsTask object tests when it exists", func() {
+		Context("delete EtcdCopyBackupsTask object when it exists", func() {
 			BeforeEach(func() {
-				task = ensureEtcdCopyBackupsTaskCreation(ctx, testTaskName, testNamespace, fakeClient)
+				task = testutils.CreateEtcdCopyBackupsTask(testTaskName, testNamespace, "aws", false)
+
+				By("Create fake client with task object")
+				fakeClient = fakeclient.NewClientBuilder().
+					WithScheme(kubernetes.Scheme).
+					WithObjects(task).
+					WithStatusSubresource(task).
+					Build()
+
+				By("Ensure that copy backups task is created")
+				Eventually(func() error {
+					return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)
+				}).Should(Succeed())
+
+				r = &Reconciler{
+					Client: fakeClient,
+					logger: logr.Discard(),
+				}
 			})
 			AfterEach(func() {
 				ensureEtcdCopyBackupsTaskRemoval(ctx, testTaskName, testNamespace, fakeClient)
 			})
 
-			It("should not delete if there is no deletion timestamp set and no finalizer set", func() {
+			It("should not delete task if there is no deletion timestamp set and no finalizer set", func() {
 				_, err := r.delete(ctx, task)
 				Expect(err).To(BeNil())
 				foundTask := &druidv1alpha1.EtcdCopyBackupsTask{}
@@ -111,9 +125,13 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(client.ObjectKeyFromObject(foundTask)).To(Equal(client.ObjectKeyFromObject(task)))
 			})
 
-			It("should remove finalizer for task which does not have a corresponding job", func() {
+			It("should remove finalizer and delete task if it does not have a corresponding job", func() {
 				Expect(controllerutils.AddFinalizers(ctx, fakeClient, task, common.FinalizerName)).To(Succeed())
-				Expect(addDeletionTimestampToTask(ctx, task, time.Now(), fakeClient)).To(Succeed())
+				// use fakeClient.Delete() to simply add deletionTimestamp to `task` object,
+				// due to https://github.com/kubernetes-sigs/controller-runtime/pull/2316
+				Expect(fakeClient.Delete(ctx, task)).To(Succeed())
+				// get the updated object after deletionTimestamp has been added by fakeClient.Delete() call
+				Expect(fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)).To(Succeed())
 
 				_, err := r.delete(ctx, task)
 				Expect(err).To(BeNil())
@@ -122,11 +140,13 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				}).Should(BeNotFoundError())
 			})
 
-			It("should delete job but not the task for which the deletion timestamp, finalizer is set and job is present", func() {
+			It("should delete job but not the task for which deletion timestamp and finalizer are set and job is present", func() {
 				job := testutils.CreateEtcdCopyBackupsJob(testTaskName, testNamespace)
 				Expect(fakeClient.Create(ctx, job)).To(Succeed())
 				Expect(controllerutils.AddFinalizers(ctx, fakeClient, task, common.FinalizerName)).To(Succeed())
-				Expect(addDeletionTimestampToTask(ctx, task, time.Now(), fakeClient)).To(Succeed())
+				Expect(fakeClient.Delete(ctx, task)).To(Succeed())
+				Expect(fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)).To(Succeed())
+
 				_, err := r.delete(ctx, task)
 				Expect(err).To(BeNil())
 				Eventually(func() error {
@@ -136,9 +156,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 					return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)
 				}).Should(BeNil())
 			})
-
 		})
-
 	})
 
 	Describe("#createJobObject", func() {
@@ -637,21 +655,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			}
 		})
 	})
-
 })
-
-func ensureEtcdCopyBackupsTaskCreation(ctx context.Context, name, namespace string, fakeClient client.WithWatch) *druidv1alpha1.EtcdCopyBackupsTask {
-	task := testutils.CreateEtcdCopyBackupsTask(name, namespace, "aws", false)
-	By("create task")
-	Expect(fakeClient.Create(ctx, task)).To(Succeed())
-
-	By("Ensure that copy backups task is created")
-	Eventually(func() error {
-		return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)
-	}).Should(Succeed())
-
-	return task
-}
 
 func ensureEtcdCopyBackupsTaskRemoval(ctx context.Context, name, namespace string, fakeClient client.WithWatch) {
 	task := &druidv1alpha1.EtcdCopyBackupsTask{}
@@ -673,12 +677,6 @@ func ensureEtcdCopyBackupsTaskRemoval(ctx context.Context, name, namespace strin
 	Eventually(func() error {
 		return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)
 	}).Should(BeNotFoundError())
-}
-
-func addDeletionTimestampToTask(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask, deletionTime time.Time, fakeClient client.WithWatch) error {
-	patch := client.MergeFrom(task.DeepCopy())
-	task.DeletionTimestamp = &metav1.Time{Time: deletionTime}
-	return fakeClient.Patch(ctx, task, patch)
 }
 
 func checkEnvVars(envVars []corev1.EnvVar, storeProvider, container, envKeyPrefix, volumePrefix string) {
