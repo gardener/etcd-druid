@@ -6,6 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// NewRoleBinding creates a new RoleBinding using the passed in etcd object.
 func NewRoleBinding(etcd *druidv1alpha1.Etcd) *rbacv1.RoleBinding {
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{

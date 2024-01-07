@@ -13,6 +13,7 @@ import (
 type FakeClientBuilder struct {
 	clientBuilder *fakeclient.ClientBuilder
 	getErr        *apierrors.StatusError
+	listErr       *apierrors.StatusError
 	createErr     *apierrors.StatusError
 	patchErr      *apierrors.StatusError
 	deleteErr     *apierrors.StatusError
@@ -34,6 +35,11 @@ func (b *FakeClientBuilder) WithObjects(objs ...client.Object) *FakeClientBuilde
 // WithGetError sets the error that should be returned when a Get request is made on the fake client.
 func (b *FakeClientBuilder) WithGetError(err *apierrors.StatusError) *FakeClientBuilder {
 	b.getErr = err
+	return b
+}
+
+func (b *FakeClientBuilder) WithListError(err *apierrors.StatusError) *FakeClientBuilder {
+	b.listErr = err
 	return b
 }
 
@@ -60,6 +66,7 @@ func (b *FakeClientBuilder) Build() client.WithWatch {
 	return &fakeClient{
 		WithWatch: b.clientBuilder.Build(),
 		getErr:    b.getErr,
+		listErr:   b.listErr,
 		createErr: b.createErr,
 		patchErr:  b.patchErr,
 		deleteErr: b.deleteErr,
@@ -69,6 +76,7 @@ func (b *FakeClientBuilder) Build() client.WithWatch {
 type fakeClient struct {
 	client.WithWatch
 	getErr    *apierrors.StatusError
+	listErr   *apierrors.StatusError
 	createErr *apierrors.StatusError
 	patchErr  *apierrors.StatusError
 	deleteErr *apierrors.StatusError
@@ -80,6 +88,13 @@ func (f *fakeClient) Get(ctx context.Context, key client.ObjectKey, obj client.O
 		return f.getErr
 	}
 	return f.WithWatch.Get(ctx, key, obj, opts...)
+}
+
+func (f *fakeClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	if f.listErr != nil {
+		return f.listErr
+	}
+	return f.WithWatch.List(ctx, list, opts...)
 }
 
 // Delete overwrites the fake client Get implementation with a capability to return any configured error.

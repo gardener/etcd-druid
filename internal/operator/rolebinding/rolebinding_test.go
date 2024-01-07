@@ -33,6 +33,7 @@ var (
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
 	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	getErr := apierrors.NewInternalError(internalErr)
 	testCases := []struct {
 		name                     string
 		roleBindingExists        bool
@@ -41,25 +42,21 @@ func TestGetExistingResourceNames(t *testing.T) {
 		expectedRoleBindingNames []string
 	}{
 		{
-			"should return the existing role binding name",
-			true,
-			nil,
-			nil,
-			[]string{etcd.GetRoleBindingName()},
+			name:                     "should return the existing role binding name",
+			roleBindingExists:        true,
+			expectedRoleBindingNames: []string{etcd.GetRoleBindingName()},
 		},
 		{
-			"should return empty slice when role binding is not found",
-			false,
-			apierrors.NewNotFound(corev1.Resource("roles"), etcd.GetRoleBindingName()),
-			nil,
-			[]string{},
+			name:                     "should return empty slice when role binding is not found",
+			roleBindingExists:        false,
+			getErr:                   apierrors.NewNotFound(corev1.Resource("roles"), etcd.GetRoleBindingName()),
+			expectedRoleBindingNames: []string{},
 		},
 		{
-			"should return error when get fails",
-			true,
-			apierrors.NewInternalError(internalErr),
-			apierrors.NewInternalError(internalErr),
-			nil,
+			name:              "should return error when get fails",
+			roleBindingExists: true,
+			getErr:            getErr,
+			expectedErr:       getErr,
 		},
 	}
 
