@@ -32,33 +32,34 @@ var (
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
 	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	getInternalErr := apierrors.NewInternalError(internalErr)
 	testCases := []struct {
 		name              string
 		roleExists        bool
 		getErr            *apierrors.StatusError
-		expectedErr       *apierrors.StatusError
+		expectedErr       *druiderr.DruidError
 		expectedRoleNames []string
 	}{
 		{
-			"should return the existing role name",
-			true,
-			nil,
-			nil,
-			[]string{etcd.GetRoleName()},
+			name:              "should return the existing role name",
+			roleExists:        true,
+			expectedRoleNames: []string{etcd.GetRoleName()},
 		},
 		{
-			"should return empty slice when role is not found",
-			false,
-			apierrors.NewNotFound(corev1.Resource("roles"), etcd.GetRoleName()),
-			nil,
-			[]string{},
+			name:              "should return empty slice when role is not found",
+			roleExists:        false,
+			getErr:            apierrors.NewNotFound(corev1.Resource("roles"), etcd.GetRoleName()),
+			expectedRoleNames: []string{},
 		},
 		{
-			"should return error when get fails",
-			true,
-			apierrors.NewInternalError(internalErr),
-			apierrors.NewInternalError(internalErr),
-			nil,
+			name:       "should return error when get fails",
+			roleExists: true,
+			getErr:     getInternalErr,
+			expectedErr: &druiderr.DruidError{
+				Code:      ErrGetRole,
+				Cause:     getInternalErr,
+				Operation: "GetExistingResourceNames",
+			},
 		},
 	}
 
@@ -78,7 +79,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			roleNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
-				g.Expect(errors.Is(err, tc.getErr)).To(BeTrue())
+				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).To(BeNil())
 			}
@@ -140,12 +141,7 @@ func TestSync(t *testing.T) {
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.Sync(opCtx, etcd)
 			if tc.expectedErr != nil {
-				g.Expect(err).To(HaveOccurred())
-				var druidErr *druiderr.DruidError
-				g.Expect(errors.As(err, &druidErr)).To(BeTrue())
-				g.Expect(druidErr.Code).To(Equal(tc.expectedErr.Code))
-				g.Expect(errors.Is(druidErr.Cause, tc.expectedErr.Cause)).To(BeTrue())
-				g.Expect(druidErr.Operation).To(Equal(tc.expectedErr.Operation))
+				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				existingRole := &rbacv1.Role{
@@ -209,12 +205,7 @@ func TestTriggerDelete(t *testing.T) {
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.TriggerDelete(opCtx, etcd)
 			if tc.expectedErr != nil {
-				g.Expect(err).To(HaveOccurred())
-				var druidErr *druiderr.DruidError
-				g.Expect(errors.As(err, &druidErr)).To(BeTrue())
-				g.Expect(druidErr.Code).To(Equal(tc.expectedErr.Code))
-				g.Expect(errors.Is(druidErr.Cause, tc.expectedErr.Cause)).To(BeTrue())
-				g.Expect(druidErr.Operation).To(Equal(tc.expectedErr.Operation))
+				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 				existingRole := rbacv1.Role{}

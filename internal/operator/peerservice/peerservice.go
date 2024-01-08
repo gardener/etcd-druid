@@ -1,6 +1,8 @@
 package peerservice
 
 import (
+	"fmt"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
@@ -16,6 +18,7 @@ import (
 const defaultServerPort = 2380
 
 const (
+	ErrGetPeerService    druidv1alpha1.ErrorCode = "ERR_GET_PEER_SERVICE"
 	ErrDeletePeerService druidv1alpha1.ErrorCode = "ERR_DELETE_PEER_SERVICE"
 	ErrSyncPeerService   druidv1alpha1.ErrorCode = "ERR_SYNC_PEER_SERVICE"
 )
@@ -26,12 +29,16 @@ type _resource struct {
 
 func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
+	svcObjectKey := getObjectKey(etcd)
 	svc := &corev1.Service{}
-	if err := r.client.Get(ctx, getObjectKey(etcd), svc); err != nil {
+	if err := r.client.Get(ctx, svcObjectKey, svc); err != nil {
 		if errors.IsNotFound(err) {
 			return resourceNames, nil
 		}
-		return resourceNames, err
+		return resourceNames, druiderr.WrapError(err,
+			ErrGetPeerService,
+			"GetExistingResourceNames",
+			fmt.Sprintf("Error getting peer service: %s for etcd: %v", svcObjectKey.Name, etcd.GetNamespaceName()))
 	}
 	resourceNames = append(resourceNames, svc.Name)
 	return resourceNames, nil
@@ -56,7 +63,7 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 	return druiderr.WrapError(err,
 		ErrSyncPeerService,
 		"Sync",
-		"Error during create or update of peer service",
+		fmt.Sprintf("Error during create or update of peer service: %s for etcd: %v", svc.Name, etcd.GetNamespaceName()),
 	)
 }
 
@@ -71,7 +78,7 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 		err,
 		ErrDeletePeerService,
 		"TriggerDelete",
-		"Failed to delete peer service",
+		fmt.Sprintf("Failed to delete peer service: %s for etcd: %v", objectKey.Name, etcd.GetNamespaceName()),
 	)
 }
 

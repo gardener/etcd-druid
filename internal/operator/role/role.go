@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	ErrGetRole    druidv1alpha1.ErrorCode = "ERR_GET_ROLE"
 	ErrSyncRole   druidv1alpha1.ErrorCode = "ERR_SYNC_ROLE"
 	ErrDeleteRole druidv1alpha1.ErrorCode = "ERR_DELETE_ROLE"
 )
@@ -24,12 +25,16 @@ type _resource struct {
 
 func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
+	roleObjectKey := getObjectKey(etcd)
 	role := &rbacv1.Role{}
-	if err := r.client.Get(ctx, getObjectKey(etcd), role); err != nil {
+	if err := r.client.Get(ctx, roleObjectKey, role); err != nil {
 		if errors.IsNotFound(err) {
 			return resourceNames, nil
 		}
-		return resourceNames, err
+		return resourceNames, druiderr.WrapError(err,
+			ErrGetRole,
+			"GetExistingResourceNames",
+			fmt.Sprintf("Error getting role: %s for etcd: %v", roleObjectKey.Name, etcd.GetNamespaceName()))
 	}
 	resourceNames = append(resourceNames, role.Name)
 	return resourceNames, nil

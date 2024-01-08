@@ -23,6 +23,7 @@ const (
 )
 
 const (
+	ErrGetClientService    druidv1alpha1.ErrorCode = "ERR_GET_CLIENT_SERVICE"
 	ErrDeleteClientService druidv1alpha1.ErrorCode = "ERR_DELETE_CLIENT_SERVICE"
 	ErrSyncClientService   druidv1alpha1.ErrorCode = "ERR_SYNC_CLIENT_SERVICE"
 )
@@ -34,11 +35,15 @@ type _resource struct {
 func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	svc := &corev1.Service{}
-	if err := r.client.Get(ctx, getObjectKey(etcd), svc); err != nil {
+	svcObjectKey := getObjectKey(etcd)
+	if err := r.client.Get(ctx, svcObjectKey, svc); err != nil {
 		if errors.IsNotFound(err) {
 			return resourceNames, nil
 		}
-		return resourceNames, err
+		return resourceNames, druiderr.WrapError(err,
+			ErrGetClientService,
+			"GetExistingResourceNames",
+			fmt.Sprintf("Error getting client service: %s for etcd: %v", svcObjectKey.Name, etcd.GetNamespaceName()))
 	}
 	resourceNames = append(resourceNames, svc.Name)
 	return resourceNames, nil

@@ -17,7 +17,6 @@ package peerservice
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -45,34 +44,35 @@ const (
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
 	internalErr := errors.New("test internal error")
+	getInternalErr := apierrors.NewInternalError(internalErr)
 	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 	testcases := []struct {
 		name                 string
 		svcExists            bool
 		getErr               *apierrors.StatusError
-		expectedErr          error
+		expectedErr          *druiderr.DruidError
 		expectedServiceNames []string
 	}{
 		{
-			"should return the existing service name",
-			true,
-			nil,
-			nil,
-			[]string{etcd.GetPeerServiceName()},
+			name:                 "should return the existing service name",
+			svcExists:            true,
+			expectedServiceNames: []string{etcd.GetPeerServiceName()},
 		},
 		{
-			"should return empty slice when service is not found",
-			false,
-			apierrors.NewNotFound(corev1.Resource("services"), ""),
-			nil,
-			[]string{},
+			name:                 "should return empty slice when service is not found",
+			svcExists:            false,
+			getErr:               apierrors.NewNotFound(corev1.Resource("services"), ""),
+			expectedServiceNames: []string{},
 		},
 		{
-			"should return error when get fails",
-			true,
-			apierrors.NewInternalError(internalErr),
-			apierrors.NewInternalError(internalErr),
-			nil,
+			name:      "should return error when get fails",
+			svcExists: true,
+			getErr:    getInternalErr,
+			expectedErr: &druiderr.DruidError{
+				Code:      ErrGetPeerService,
+				Cause:     getInternalErr,
+				Operation: "GetExistingResourceNames",
+			},
 		},
 	}
 
@@ -92,7 +92,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			svcNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
-				g.Expect(errors.Is(err, tc.getErr)).To(BeTrue())
+				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).To(BeNil())
 			}
@@ -104,12 +104,13 @@ func TestGetExistingResourceNames(t *testing.T) {
 // ----------------------------------- Sync -----------------------------------
 func TestPeerServiceSync(t *testing.T) {
 	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	getInternalErr := apierrors.NewInternalError(errors.New("fake get internal error"))
 	testCases := []struct {
 		name        string
 		svcExists   bool
 		setupFn     func(eb *testsample.EtcdBuilder)
-		expectError *druiderr.DruidError
 		getErr      *apierrors.StatusError
+		expectError *druiderr.DruidError
 	}{
 		{
 			name:      "Create new service",
@@ -129,11 +130,11 @@ func TestPeerServiceSync(t *testing.T) {
 			setupFn:   nil,
 			expectError: &druiderr.DruidError{
 				Code:      ErrSyncPeerService,
-				Cause:     fmt.Errorf("fake get error"),
+				Cause:     getInternalErr,
 				Operation: "Sync",
 				Message:   "Error during create or update of peer service",
 			},
-			getErr: apierrors.NewInternalError(errors.New("fake get error")),
+			getErr: getInternalErr,
 		},
 	}
 
@@ -158,14 +159,7 @@ func TestPeerServiceSync(t *testing.T) {
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.Sync(opCtx, etcd)
 			if tc.expectError != nil {
-				g.Expect(err).To(HaveOccurred())
-				var druidErr *druiderr.DruidError
-				g.Expect(errors.As(err, &druidErr)).To(BeTrue())
-				g.Expect(druidErr.Code).To(Equal(tc.expectError.Code))
-				g.Expect(errors.Is(druidErr.Cause, tc.getErr)).To(BeTrue())
-				g.Expect(druidErr.Message).To(Equal(tc.expectError.Message))
-				g.Expect(druidErr.Operation).To(Equal(tc.expectError.Operation))
-
+				testutils.CheckDruidError(g, tc.expectError, err)
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 				service := &corev1.Service{
@@ -185,12 +179,13 @@ func TestPeerServiceSync(t *testing.T) {
 // ----------------------------- TriggerDelete -------------------------------
 func TestPeerServiceTriggerDelete(t *testing.T) {
 	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	deleteInternalErr := apierrors.NewInternalError(errors.New("fake delete internal error"))
 	testCases := []struct {
 		name        string
 		svcExists   bool
 		setupFn     func(eb *testsample.EtcdBuilder)
-		expectError *druiderr.DruidError
 		deleteErr   *apierrors.StatusError
+		expectError *druiderr.DruidError
 	}{
 		{
 			name:      "Existing Service - Delete Operation",
@@ -207,13 +202,13 @@ func TestPeerServiceTriggerDelete(t *testing.T) {
 			name:      "Client Error on Delete - Returns Error",
 			svcExists: true,
 			setupFn:   nil,
+			deleteErr: deleteInternalErr,
 			expectError: &druiderr.DruidError{
 				Code:      ErrDeletePeerService,
-				Cause:     errors.New("fake delete error"),
+				Cause:     deleteInternalErr,
 				Operation: "TriggerDelete",
 				Message:   "Failed to delete peer service",
 			},
-			deleteErr: apierrors.NewInternalError(errors.New("fake delete error")),
 		},
 	}
 	g := NewWithT(t)
@@ -237,14 +232,7 @@ func TestPeerServiceTriggerDelete(t *testing.T) {
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.TriggerDelete(opCtx, etcd)
 			if tc.expectError != nil {
-				g.Expect(err).To(HaveOccurred())
-				var druidErr *druiderr.DruidError
-				g.Expect(errors.As(err, &druidErr)).To(BeTrue())
-				g.Expect(druidErr.Code).To(Equal(tc.expectError.Code))
-				g.Expect(errors.Is(druidErr.Cause, tc.deleteErr)).To(BeTrue())
-				g.Expect(druidErr.Message).To(Equal(tc.expectError.Message))
-				g.Expect(druidErr.Operation).To(Equal(tc.expectError.Operation))
-
+				testutils.CheckDruidError(g, tc.expectError, err)
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 				serviceList := &corev1.List{}

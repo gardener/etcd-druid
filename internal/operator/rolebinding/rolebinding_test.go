@@ -38,7 +38,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 		name                     string
 		roleBindingExists        bool
 		getErr                   *apierrors.StatusError
-		expectedErr              *apierrors.StatusError
+		expectedErr              *druiderr.DruidError
 		expectedRoleBindingNames []string
 	}{
 		{
@@ -56,7 +56,11 @@ func TestGetExistingResourceNames(t *testing.T) {
 			name:              "should return error when get fails",
 			roleBindingExists: true,
 			getErr:            getErr,
-			expectedErr:       getErr,
+			expectedErr: &druiderr.DruidError{
+				Code:      ErrGetRoleBinding,
+				Cause:     getErr,
+				Operation: "GetExistingResourceNames",
+			},
 		},
 	}
 
@@ -76,7 +80,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			roleBindingNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
-				g.Expect(errors.Is(err, tc.getErr)).To(BeTrue())
+				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).To(BeNil())
 			}
@@ -138,12 +142,7 @@ func TestSync(t *testing.T) {
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.Sync(opCtx, etcd)
 			if tc.expectedErr != nil {
-				g.Expect(err).To(HaveOccurred())
-				var druidErr *druiderr.DruidError
-				g.Expect(errors.As(err, &druidErr)).To(BeTrue())
-				g.Expect(druidErr.Code).To(Equal(tc.expectedErr.Code))
-				g.Expect(errors.Is(druidErr.Cause, tc.expectedErr.Cause)).To(BeTrue())
-				g.Expect(druidErr.Operation).To(Equal(tc.expectedErr.Operation))
+				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				existingRoleBinding := &rbacv1.RoleBinding{
@@ -207,12 +206,7 @@ func TestTriggerDelete(t *testing.T) {
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.TriggerDelete(opCtx, etcd)
 			if tc.expectedErr != nil {
-				g.Expect(err).To(HaveOccurred())
-				var druidErr *druiderr.DruidError
-				g.Expect(errors.As(err, &druidErr)).To(BeTrue())
-				g.Expect(druidErr.Code).To(Equal(tc.expectedErr.Code))
-				g.Expect(errors.Is(druidErr.Cause, tc.expectedErr.Cause)).To(BeTrue())
-				g.Expect(druidErr.Operation).To(Equal(tc.expectedErr.Operation))
+				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 				existingRoleBinding := rbacv1.RoleBinding{}

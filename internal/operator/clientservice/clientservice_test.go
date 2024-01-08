@@ -17,7 +17,6 @@ package clientservice
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -47,34 +46,35 @@ const (
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
 	internalErr := errors.New("test internal error")
+	getErr := apierrors.NewInternalError(internalErr)
 	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 	testCases := []struct {
 		name                 string
 		svcExists            bool
 		getErr               *apierrors.StatusError
-		expectedErr          error
+		expectedErr          *druiderr.DruidError
 		expectedServiceNames []string
 	}{
 		{
-			"should return the existing service name",
-			true,
-			nil,
-			nil,
-			[]string{etcd.GetClientServiceName()},
+			name:                 "should return the existing service name",
+			svcExists:            true,
+			expectedServiceNames: []string{etcd.GetClientServiceName()},
 		},
 		{
-			"should return empty slice when service is not found",
-			false,
-			apierrors.NewNotFound(corev1.Resource("services"), etcd.GetClientServiceName()),
-			nil,
-			[]string{},
+			name:                 "should return empty slice when service is not found",
+			svcExists:            false,
+			getErr:               apierrors.NewNotFound(corev1.Resource("services"), etcd.GetClientServiceName()),
+			expectedServiceNames: []string{},
 		},
 		{
-			"should return error when get fails",
-			true,
-			apierrors.NewInternalError(internalErr),
-			apierrors.NewInternalError(internalErr),
-			nil,
+			name:      "should return error when get fails",
+			svcExists: true,
+			getErr:    getErr,
+			expectedErr: &druiderr.DruidError{
+				Code:      ErrGetClientService,
+				Cause:     getErr,
+				Operation: "GetExistingResourceNames",
+			},
 		},
 	}
 
@@ -94,7 +94,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			svcNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
-				g.Expect(errors.Is(err, tc.getErr)).To(BeTrue())
+				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).To(BeNil())
 			}
@@ -106,12 +106,13 @@ func TestGetExistingResourceNames(t *testing.T) {
 // ----------------------------------- Sync -----------------------------------
 func TestClientServiceSync(t *testing.T) {
 	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	getErr := apierrors.NewInternalError(errors.New("fake get error"))
 	testCases := []struct {
-		name        string
-		svcExists   bool
-		setupFn     func(eb *testsample.EtcdBuilder)
-		expectError *druiderr.DruidError
-		getErr      *apierrors.StatusError
+		name          string
+		svcExists     bool
+		setupFn       func(eb *testsample.EtcdBuilder)
+		expectedError *druiderr.DruidError
+		getErr        *apierrors.StatusError
 	}{
 		{
 			name:      "Create new service",
@@ -133,13 +134,13 @@ func TestClientServiceSync(t *testing.T) {
 			name:      "With client error",
 			svcExists: false,
 			setupFn:   nil,
-			expectError: &druiderr.DruidError{
+			expectedError: &druiderr.DruidError{
 				Code:      ErrSyncClientService,
-				Cause:     fmt.Errorf("fake get error"),
+				Cause:     getErr,
 				Operation: "Sync",
 				Message:   "Error during create or update of client service",
 			},
-			getErr: apierrors.NewInternalError(errors.New("fake get error")),
+			getErr: getErr,
 		},
 	}
 
@@ -163,15 +164,8 @@ func TestClientServiceSync(t *testing.T) {
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.Sync(opCtx, etcd)
-			if tc.expectError != nil {
-				g.Expect(err).To(HaveOccurred())
-				var druidErr *druiderr.DruidError
-				g.Expect(errors.As(err, &druidErr)).To(BeTrue())
-				g.Expect(druidErr.Code).To(Equal(tc.expectError.Code))
-				g.Expect(errors.Is(druidErr.Cause, tc.getErr)).To(BeTrue())
-				g.Expect(druidErr.Message).To(Equal(tc.expectError.Message))
-				g.Expect(druidErr.Operation).To(Equal(tc.expectError.Operation))
-
+			if tc.expectedError != nil {
+				testutils.CheckDruidError(g, tc.expectedError, err)
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 				service := &corev1.Service{
@@ -191,6 +185,7 @@ func TestClientServiceSync(t *testing.T) {
 // ----------------------------- TriggerDelete -------------------------------
 func TestClientServiceTriggerDelete(t *testing.T) {
 	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	deleteErr := apierrors.NewInternalError(errors.New("fake delete error"))
 	testCases := []struct {
 		name        string
 		svcExists   bool
@@ -219,11 +214,11 @@ func TestClientServiceTriggerDelete(t *testing.T) {
 			setupFn:   nil,
 			expectError: &druiderr.DruidError{
 				Code:      ErrDeleteClientService,
-				Cause:     errors.New("fake delete error"),
+				Cause:     deleteErr,
 				Operation: "TriggerDelete",
 				Message:   "Failed to delete client service",
 			},
-			deleteErr: apierrors.NewInternalError(errors.New("fake delete error")),
+			deleteErr: deleteErr,
 		},
 	}
 	g := NewWithT(t)
@@ -247,14 +242,7 @@ func TestClientServiceTriggerDelete(t *testing.T) {
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.TriggerDelete(opCtx, etcd)
 			if tc.expectError != nil {
-				g.Expect(err).To(HaveOccurred())
-				var druidErr *druiderr.DruidError
-				g.Expect(errors.As(err, &druidErr)).To(BeTrue())
-				g.Expect(druidErr.Code).To(Equal(tc.expectError.Code))
-				g.Expect(errors.Is(druidErr.Cause, tc.deleteErr)).To(BeTrue())
-				g.Expect(druidErr.Message).To(Equal(tc.expectError.Message))
-				g.Expect(druidErr.Operation).To(Equal(tc.expectError.Operation))
-
+				testutils.CheckDruidError(g, tc.expectError, err)
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 				serviceList := &corev1.List{}
