@@ -1,8 +1,11 @@
 package memberlease
 
 import (
+	"fmt"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
+	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/hashicorp/go-multierror"
@@ -12,6 +15,12 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	ErrListMemberLease   druidv1alpha1.ErrorCode = "ERR_LIST_MEMBER_LEASE"
+	ErrDeleteMemberLease druidv1alpha1.ErrorCode = "ERR_DELETE_MEMBER_LEASE"
+	ErrSyncMemberLease   druidv1alpha1.ErrorCode = "ERR_SYNC_MEMBER_LEASE"
 )
 
 const purpose = "etcd-member-lease"
@@ -28,7 +37,10 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 		client.InNamespace(etcd.Namespace),
 		client.MatchingLabels(getLabels(etcd)))
 	if err != nil {
-		return resourceNames, err
+		return resourceNames, druiderr.WrapError(err,
+			ErrListMemberLease,
+			"GetExistingResourceNames",
+			fmt.Sprintf("Error listing member leases for etcd: %v", etcd.GetNamespaceName()))
 	}
 	for _, lease := range leaseList.Items {
 		resourceNames = append(resourceNames, lease.Name)
@@ -50,15 +62,12 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 			},
 		}
 	}
-
 	if errorList := utils.RunConcurrently(ctx, createTasks); len(errorList) > 0 {
 		for _, err := range errorList {
 			errs = multierror.Append(errs, err)
 		}
-		return errs
 	}
-
-	return nil
+	return errs
 }
 
 func (r _resource) doCreateOrUpdate(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, objKey client.ObjectKey) error {
@@ -69,17 +78,29 @@ func (r _resource) doCreateOrUpdate(ctx resource.OperatorContext, etcd *druidv1a
 		return nil
 	})
 	if err != nil {
-		return err
+		return druiderr.WrapError(err,
+			ErrSyncMemberLease,
+			"Sync",
+			fmt.Sprintf("Error syncing member lease: %s for etcd: %v", objKey.Name, etcd.GetNamespaceName()))
 	}
-	ctx.Logger.Info("triggered creation of member lease", "lease", objKey, "operationResult", opResult)
+	ctx.Logger.Info("triggered create or update of member lease", "lease", objKey, "operationResult", opResult)
 	return nil
 }
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	return r.client.DeleteAllOf(ctx,
+	ctx.Logger.Info("Triggering delete of member leases")
+	err := r.client.DeleteAllOf(ctx,
 		&coordinationv1.Lease{},
 		client.InNamespace(etcd.Namespace),
 		client.MatchingLabels(etcd.GetDefaultLabels()))
+	if err == nil {
+		ctx.Logger.Info("deleted", "resource", "member-leases")
+		return nil
+	}
+	return druiderr.WrapError(err,
+		ErrDeleteMemberLease,
+		"TriggerDelete",
+		fmt.Sprintf("Failed to delete member leases for etcd: %v", etcd.GetNamespaceName()))
 }
 
 func New(client client.Client) resource.Operator {

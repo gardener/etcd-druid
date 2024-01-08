@@ -64,6 +64,7 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 	})
 	if err == nil {
 		ctx.Logger.Info("synced", "resource", "client-service", "name", svc.Name, "result", result)
+		return nil
 	}
 	return druiderr.WrapError(err,
 		ErrSyncClientService,
@@ -75,16 +76,16 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of client service")
-	err := client.IgnoreNotFound(r.client.Delete(ctx, emptyClientService(objectKey)))
-	if err == nil {
-		ctx.Logger.Info("deleted", "resource", "client-service", "name", objectKey.Name)
+	if err := client.IgnoreNotFound(r.client.Delete(ctx, emptyClientService(objectKey))); err != nil {
+		return druiderr.WrapError(
+			err,
+			ErrDeleteClientService,
+			"TriggerDelete",
+			"Failed to delete client service",
+		)
 	}
-	return druiderr.WrapError(
-		err,
-		ErrDeleteClientService,
-		"TriggerDelete",
-		"Failed to delete client service",
-	)
+	ctx.Logger.Info("deleted", "resource", "client-service", "name", objectKey.Name)
+	return nil
 }
 
 func New(client client.Client) resource.Operator {

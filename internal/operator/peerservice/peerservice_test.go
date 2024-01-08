@@ -107,23 +107,19 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
 	testCases := []struct {
 		name           string
-		svcExists      bool
 		createWithPort *int32
 		createErr      *apierrors.StatusError
 		expectedError  *druiderr.DruidError
 	}{
 		{
-			name:      "create peer service with default ports when none exists",
-			svcExists: false,
+			name: "create peer service with default ports when none exists",
 		},
 		{
 			name:           "create service when none exists with custom ports",
-			svcExists:      false,
 			createWithPort: pointer.Int32(2222),
 		},
 		{
 			name:      "create fails when there is a create error",
-			svcExists: false,
 			createErr: apiInternalErr,
 			expectedError: &druiderr.DruidError{
 				Code:      ErrSyncPeerService,
@@ -158,19 +154,16 @@ func TestSyncWhenServiceExists(t *testing.T) {
 	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
 	testCases := []struct {
 		name           string
-		svcExists      bool
 		updateWithPort *int32
 		patchErr       *apierrors.StatusError
 		expectedError  *druiderr.DruidError
 	}{
 		{
 			name:           "update peer service with new server port",
-			svcExists:      true,
 			updateWithPort: pointer.Int32(2222),
 		},
 		{
 			name:           "update fails when there is a patch error",
-			svcExists:      true,
 			updateWithPort: pointer.Int32(2222),
 			patchErr:       apiInternalErr,
 			expectedError: &druiderr.DruidError{
