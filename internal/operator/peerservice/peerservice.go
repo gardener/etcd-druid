@@ -59,6 +59,7 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 	})
 	if err == nil {
 		ctx.Logger.Info("synced", "resource", "peer-service", "name", svc.Name, "result", result)
+		return nil
 	}
 	return druiderr.WrapError(err,
 		ErrSyncPeerService,
@@ -69,10 +70,11 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
-	ctx.Logger.Info("Triggering delete of client service")
+	ctx.Logger.Info("Triggering delete of peer service")
 	err := client.IgnoreNotFound(r.client.Delete(ctx, emptyPeerService(objectKey)))
 	if err == nil {
 		ctx.Logger.Info("deleted", "resource", "peer-service", "name", objectKey.Name)
+		return nil
 	}
 	return druiderr.WrapError(
 		err,
