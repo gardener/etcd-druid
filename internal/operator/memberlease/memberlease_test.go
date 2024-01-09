@@ -88,7 +88,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				WithGetError(tc.getErr).
 				WithListError(tc.listErr)
 			if tc.numExistingLeases > 0 {
-				leases, err := testsample.NewMemberLeases(etcd, tc.numExistingLeases, getAdditionalMemberLeaseLabels(etcd.Name))
+				leases, err := testsample.NewMemberLeases(etcd, tc.numExistingLeases, getAdditionalMemberLeaseLabels(etcd.Namespace))
 				g.Expect(err).ToNot(HaveOccurred())
 				for _, lease := range leases {
 					fakeClientBuilder.WithObjects(lease)
@@ -248,6 +248,8 @@ func TestTriggerDelete(t *testing.T) {
 			// ***************** Setup operator and test *****************
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			memberLeasesBeforeDelete := getLatestMemberLeases(g, cl, etcd)
+			fmt.Println(memberLeasesBeforeDelete)
 			err := operator.TriggerDelete(opCtx, etcd)
 			memberLeasesPostDelete := getLatestMemberLeases(g, cl, etcd)
 			if tc.expectedErr != nil {

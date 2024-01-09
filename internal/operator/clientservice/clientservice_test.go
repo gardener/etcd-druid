@@ -232,26 +232,22 @@ func TestTriggerDelete(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
-			fakeClientBuilder := testutils.NewFakeClientBuilder()
-			if tc.deleteErr != nil {
-				fakeClientBuilder.WithDeleteError(tc.deleteErr)
-			}
+			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr)
 			if tc.svcExists {
 				fakeClientBuilder.WithObjects(sample.NewClientService(testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()))
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			err := operator.TriggerDelete(opCtx, etcd)
+			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd)
+			latestClientService, getErr := getLatestClientService(cl, etcd)
 			if tc.expectError != nil {
-				testutils.CheckDruidError(g, tc.expectError, err)
+				testutils.CheckDruidError(g, tc.expectError, triggerDeleteErr)
+				g.Expect(getErr).To(BeNil())
+				g.Expect(latestClientService).ToNot(BeNil())
 			} else {
-				g.Expect(err).NotTo(HaveOccurred())
-				serviceList := &corev1.List{}
-				err = cl.List(opCtx, serviceList)
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(serviceList.Items).To(BeEmpty())
-
+				g.Expect(triggerDeleteErr).NotTo(HaveOccurred())
+				g.Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
 			}
 		})
 	}
@@ -273,7 +269,8 @@ func buildEtcd(clientPort, peerPort, backupPort *int32) *druidv1alpha1.Etcd {
 }
 
 func checkClientService(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) {
-	svc := getLatestClientService(g, cl, etcd)
+	svc, err := getLatestClientService(cl, etcd)
+	g.Expect(err).To(BeNil())
 	clientPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort)
 	backupPort := utils.TypeDeref[int32](etcd.Spec.Backup.Port, defaultBackupPort)
 	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)
@@ -312,9 +309,8 @@ func checkClientService(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) {
 	))
 }
 
-func getLatestClientService(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) *corev1.Service {
+func getLatestClientService(cl client.Client, etcd *druidv1alpha1.Etcd) (*corev1.Service, error) {
 	svc := &corev1.Service{}
 	err := cl.Get(context.Background(), client.ObjectKey{Name: etcd.GetClientServiceName(), Namespace: etcd.Namespace}, svc)
-	g.Expect(err).To(BeNil())
-	return svc
+	return svc, err
 }
