@@ -200,34 +200,24 @@ func TestSyncWhenServiceExists(t *testing.T) {
 }
 
 // ----------------------------- TriggerDelete -------------------------------
-func TestClientServiceTriggerDelete(t *testing.T) {
-	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
+func TestTriggerDelete(t *testing.T) {
 	testCases := []struct {
 		name        string
 		svcExists   bool
-		setupFn     func(eb *testsample.EtcdBuilder)
 		expectError *druiderr.DruidError
 		deleteErr   *apierrors.StatusError
 	}{
 		{
-			name:      "Existing Service - Delete Operation",
+			name:      "no-op when client service does not exist",
 			svcExists: false,
 		},
 		{
-			name:      "Service Not Found - No Operation",
+			name:      "successfully delete client service",
 			svcExists: true,
-			setupFn: func(eb *testsample.EtcdBuilder) {
-				eb.WithEtcdClientPort(nil).
-					WithBackupPort(nil).
-					WithEtcdServerPort(nil).
-					WithEtcdClientServiceLabels(map[string]string{"testingKey": "testingValue"}).
-					WithEtcdClientServiceAnnotations(map[string]string{"testingAnnotationKey": "testingValue"})
-			},
 		},
 		{
-			name:      "Client Error on Delete - Returns Error",
+			name:      "returns error when client delete fails",
 			svcExists: true,
-			setupFn:   nil,
 			expectError: &druiderr.DruidError{
 				Code:      ErrDeleteClientService,
 				Cause:     apiInternalErr,
@@ -241,10 +231,7 @@ func TestClientServiceTriggerDelete(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.setupFn != nil {
-				tc.setupFn(etcdBuilder)
-			}
-			etcd := etcdBuilder.Build()
+			etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 			fakeClientBuilder := testutils.NewFakeClientBuilder()
 			if tc.deleteErr != nil {
 				fakeClientBuilder.WithDeleteError(tc.deleteErr)

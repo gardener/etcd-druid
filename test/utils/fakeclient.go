@@ -11,12 +11,13 @@ import (
 // FakeClientBuilder builds a fake client with initial set of objects and additionally
 // provides an ability to set custom errors for operations supported on the client.
 type FakeClientBuilder struct {
-	clientBuilder *fakeclient.ClientBuilder
-	getErr        *apierrors.StatusError
-	listErr       *apierrors.StatusError
-	createErr     *apierrors.StatusError
-	patchErr      *apierrors.StatusError
-	deleteErr     *apierrors.StatusError
+	clientBuilder  *fakeclient.ClientBuilder
+	getErr         *apierrors.StatusError
+	listErr        *apierrors.StatusError
+	createErr      *apierrors.StatusError
+	patchErr       *apierrors.StatusError
+	deleteErr      *apierrors.StatusError
+	deleteAllOfErr *apierrors.StatusError
 }
 
 // NewFakeClientBuilder creates a new FakeClientBuilder.
@@ -61,25 +62,32 @@ func (b *FakeClientBuilder) WithDeleteError(err *apierrors.StatusError) *FakeCli
 	return b
 }
 
+func (b *FakeClientBuilder) WithDeleteAllOfError(err *apierrors.StatusError) *FakeClientBuilder {
+	b.deleteAllOfErr = err
+	return b
+}
+
 // Build returns an instance of client.WithWatch which has capability to return the configured errors for operations.
 func (b *FakeClientBuilder) Build() client.WithWatch {
 	return &fakeClient{
-		WithWatch: b.clientBuilder.Build(),
-		getErr:    b.getErr,
-		listErr:   b.listErr,
-		createErr: b.createErr,
-		patchErr:  b.patchErr,
-		deleteErr: b.deleteErr,
+		WithWatch:      b.clientBuilder.Build(),
+		getErr:         b.getErr,
+		listErr:        b.listErr,
+		createErr:      b.createErr,
+		patchErr:       b.patchErr,
+		deleteErr:      b.deleteErr,
+		deleteAllOfErr: b.deleteAllOfErr,
 	}
 }
 
 type fakeClient struct {
 	client.WithWatch
-	getErr    *apierrors.StatusError
-	listErr   *apierrors.StatusError
-	createErr *apierrors.StatusError
-	patchErr  *apierrors.StatusError
-	deleteErr *apierrors.StatusError
+	getErr         *apierrors.StatusError
+	listErr        *apierrors.StatusError
+	createErr      *apierrors.StatusError
+	patchErr       *apierrors.StatusError
+	deleteErr      *apierrors.StatusError
+	deleteAllOfErr *apierrors.StatusError
 }
 
 // Get overwrites the fake client Get implementation with a capability to return any configured error.
@@ -103,6 +111,13 @@ func (f *fakeClient) Delete(ctx context.Context, obj client.Object, opts ...clie
 		return f.deleteErr
 	}
 	return f.WithWatch.Delete(ctx, obj, opts...)
+}
+
+func (f *fakeClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
+	if f.deleteAllOfErr != nil {
+		return f.deleteAllOfErr
+	}
+	return f.WithWatch.DeleteAllOf(ctx, obj, opts...)
 }
 
 func (f *fakeClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
