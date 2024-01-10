@@ -119,7 +119,7 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 			createWithPort: pointer.Int32(2222),
 		},
 		{
-			name:      "create fails when there is a create error",
+			name:      "returns error when client create fails",
 			createErr: apiInternalErr,
 			expectedError: &druiderr.DruidError{
 				Code:      ErrSyncPeerService,
@@ -214,14 +214,13 @@ func TestPeerServiceTriggerDelete(t *testing.T) {
 			svcExists: true,
 		},
 		{
-			name:      "fails to delete on client delete error",
+			name:      "returns error when client delete fails",
 			svcExists: true,
 			deleteErr: deleteInternalErr,
 			expectError: &druiderr.DruidError{
 				Code:      ErrDeletePeerService,
 				Cause:     deleteInternalErr,
 				Operation: "TriggerDelete",
-				Message:   "Failed to delete peer service",
 			},
 		},
 	}

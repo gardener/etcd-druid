@@ -5,6 +5,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
+	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	policyv1 "k8s.io/api/policy/v1"
@@ -12,6 +13,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	ErrGetPodDisruptionBudget    druidv1alpha1.ErrorCode = "ERR_GET_POD_DISRUPTION_BUDGET"
+	ErrDeletePodDisruptionBudget druidv1alpha1.ErrorCode = "ERR_DELETE_POD_DISRUPTION_BUDGET"
+	ErrSyncPodDisruptionBudget   druidv1alpha1.ErrorCode = "ERR_SYNC_POD_DISRUPTION_BUDGET"
 )
 
 type _resource struct {
@@ -25,7 +32,10 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 		if errors.IsNotFound(err) {
 			return resourceNames, nil
 		}
-		return resourceNames, err
+		return resourceNames, druiderr.WrapError(err,
+			ErrGetPodDisruptionBudget,
+			"GetExistingResourceNames",
+			fmt.Sprintf("Error getting PDB: %s for etcd: %v", pdb.Name, etcd.GetNamespaceName()))
 	}
 	resourceNames = append(resourceNames, pdb.Name)
 	return resourceNames, nil
@@ -33,7 +43,7 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	pdb := emptyPodDisruptionBudget(getObjectKey(etcd))
-	_, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, pdb, func() error {
+	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, pdb, func() error {
 		pdb.Labels = etcd.GetDefaultLabels()
 		pdb.Annotations = getAnnotations(etcd)
 		pdb.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
@@ -46,11 +56,27 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 		}
 		return nil
 	})
-	return err
+	if err == nil {
+		ctx.Logger.Info("synced", "resource", "pod-disruption-budget", "name", pdb.Name, "result", result)
+		return nil
+	}
+	return druiderr.WrapError(err,
+		ErrSyncPodDisruptionBudget,
+		"Sync",
+		fmt.Sprintf("Error during create or update of PDB: %s for etcd: %v", pdb.Name, etcd.GetNamespaceName()))
 }
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	return r.client.Delete(ctx, emptyPodDisruptionBudget(getObjectKey(etcd)))
+	ctx.Logger.Info("Triggering delete of PDB")
+	pdbObjectKey := getObjectKey(etcd)
+	if err := client.IgnoreNotFound(r.client.Delete(ctx, emptyPodDisruptionBudget(pdbObjectKey))); err != nil {
+		return druiderr.WrapError(err,
+			ErrDeletePodDisruptionBudget,
+			"TriggerDelete",
+			fmt.Sprintf("Failed to delete PDB: %s for etcd: %v", pdbObjectKey.Name, etcd.GetNamespaceName()))
+	}
+	ctx.Logger.Info("deleted", "resource", "pod-disruption-budget", "name", pdbObjectKey.Name)
+	return nil
 }
 
 func New(client client.Client) resource.Operator {
