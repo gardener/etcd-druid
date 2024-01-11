@@ -62,9 +62,9 @@ var (
 	backupPort              int32 = 8080
 	wrapperPort             int32 = 9095
 	uid                           = "a9b8c7d6e5f4"
-	imageEtcd                     = "eu.gcr.io/gardener-project/gardener/etcd-wrapper:v0.1.0"
-	imageBR                       = "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.25.0"
-	imageInitContainer            = "eu.gcr.io/gardener-project/3rd/alpine:3.18.4"
+	imageEtcd                     = "europe-docker.pkg.dev/gardener-project/releases/gardener/etcd-wrapper:v0.1.0"
+	imageBR                       = "europe-docker.pkg.dev/gardener-project/releases/gardener/etcdbrctl:v0.25.0"
+	imageInitContainer            = "europe-docker.pkg.dev/gardener-project/releases/3rd/alpine:3.18.4"
 	snapshotSchedule              = "0 */24 * * *"
 	defragSchedule                = "0 */24 * * *"
 	container                     = "default.bkp"

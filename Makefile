@@ -15,8 +15,8 @@
 # Image URL to use all building/pushing image targets
 VERSION             := $(shell cat VERSION)
 REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
-REGISTRY            := eu.gcr.io/gardener-project/gardener
-IMAGE_REPOSITORY    := $(REGISTRY)/etcd-druid
+REGISTRY            := europe-docker.pkg.dev/gardener-project/snapshots
+IMAGE_REPOSITORY    := $(REGISTRY)/gardener/etcd-druid
 IMAGE_BUILD_TAG     := $(VERSION)
 BUILD_DIR           := build
 PROVIDERS           := ""
@@ -155,7 +155,7 @@ update-dependencies:
 .PHONY: add-license-headers
 add-license-headers: $(GO_ADD_LICENSE)
 	@./hack/addlicenseheaders.sh ${YEAR}
-	
+
 .PHONY: kind-up
 kind-up: $(KIND)
 	@printf "\n\033[0;33m📌 NOTE: To target the newly created KinD cluster, please run the following command:\n\n    export KUBECONFIG=$(KUBECONFIG_PATH)\n\033[0m\n"

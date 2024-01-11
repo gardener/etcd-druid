@@ -102,7 +102,7 @@ func CreateEtcdCopyBackupsJob(taskName, namespace string) *batchv1.Job {
 					Containers: []corev1.Container{
 						{
 							Name:            "copy-backups",
-							Image:           "eu.gcr.io/gardener-project/gardener/etcdbrctl",
+							Image:           "europe-docker.pkg.dev/gardener-project/public/gardener/etcdbrctl",
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							Args:            []string{"copy"}, // since this is only used for testing the command here is not complete.
 						},

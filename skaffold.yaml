@@ -7,7 +7,7 @@ build:
   local:
     useBuildkit: true
   artifacts:
-  - image: eu.gcr.io/gardener-project/gardener/etcd-druid
+  - image: europe-docker.pkg.dev/gardener-project/public/gardener/etcd-druid
     docker:
       dockerfile: Dockerfile
       target: druid
@@ -18,7 +18,7 @@ deploy:
       chartPath: charts/druid
       namespace: default
       artifactOverrides:
-        image: eu.gcr.io/gardener-project/gardener/etcd-druid
+        image: europe-docker.pkg.dev/gardener-project/public/gardener/etcd-druid
       imageStrategy:
         helm: {}
       skipBuildDependencies: true
