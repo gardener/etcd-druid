@@ -177,6 +177,10 @@ spec:
                     - Exponential
                     - LimitBased
                     type: string
+                  maxBackupsLimitBased:
+                    description: MaxBackupsLimitBased defines the no.of full snaps to retain in LimitBased GC
+                    format: int32
+                    type: integer
                   image:
                     description: Image defines the etcd container image and tag
                     type: string
