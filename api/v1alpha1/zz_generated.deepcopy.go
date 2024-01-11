@@ -68,6 +68,11 @@ func (in *BackupSpec) DeepCopyInto(out *BackupSpec) {
 		*out = new(GarbageCollectionPolicy)
 		**out = **in
 	}
+	if in.MaxBackupsLimitBased != nil {
+		in, out := &in.MaxBackupsLimitBased, &out.MaxBackupsLimitBased
+		*out = new(int32)
+		**out = **in
+	}
 	if in.GarbageCollectionPeriod != nil {
 		in, out := &in.GarbageCollectionPeriod, &out.GarbageCollectionPeriod
 		*out = new(metav1.Duration)

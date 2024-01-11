@@ -177,10 +177,6 @@ spec:
                     - Exponential
                     - LimitBased
                     type: string
-                  maxBackupsLimitBased:
-                    description: MaxBackupsLimitBased defines the no.of full snaps to retain in LimitBased GC
-                    format: int32
-                    type: integer
                   image:
                     description: Image defines the etcd container image and tag
                     type: string
@@ -197,6 +193,12 @@ spec:
                           leadership status of corresponding etcd is checked.
                         type: string
                     type: object
+                  maxBackupsLimitBased:
+                    description: MaxBackupsLimitBased defines the maximum number of
+                      Full snapshots to retain in Limit Based GC. All full snapshots
+                      beyond this limit are removed
+                    format: int32
+                    type: integer
                   port:
                     description: Port define the port on which etcd-backup-restore
                       server will be exposed.
