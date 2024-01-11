@@ -193,9 +193,9 @@ spec:
                           leadership status of corresponding etcd is checked.
                         type: string
                     type: object
-                  maxBackupsLimitBased:
-                    description: MaxBackupsLimitBased defines the maximum number of
-                      Full snapshots to retain in Limit Based GC. All full snapshots
+                  maxBackupsLimitBasedGC:
+                    description: MaxBackupsLimitBasedGC defines the maximum number
+                      of Full snapshots to retain in Limit Based GC. All full snapshots
                       beyond this limit are removed
                     format: int32
                     type: integer

@@ -84,7 +84,7 @@ type Values struct {
 	DeltaSnapshotMemoryLimit *resource.Quantity
 
 	GarbageCollectionPolicy *druidv1alpha1.GarbageCollectionPolicy
-	MaxBackupsLimitBased    *int32
+	MaxBackupsLimitBasedGC  *int32
 	GarbageCollectionPeriod *metav1.Duration
 
 	LeaderElection *druidv1alpha1.LeaderElectionSpec

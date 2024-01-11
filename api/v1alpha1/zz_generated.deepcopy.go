@@ -68,8 +68,8 @@ func (in *BackupSpec) DeepCopyInto(out *BackupSpec) {
 		*out = new(GarbageCollectionPolicy)
 		**out = **in
 	}
-	if in.MaxBackupsLimitBased != nil {
-		in, out := &in.MaxBackupsLimitBased, &out.MaxBackupsLimitBased
+	if in.MaxBackupsLimitBasedGC != nil {
+		in, out := &in.MaxBackupsLimitBasedGC, &out.MaxBackupsLimitBasedGC
 		*out = new(int32)
 		**out = **in
 	}

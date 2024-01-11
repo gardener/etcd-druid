@@ -105,7 +105,7 @@ func GenerateValues(
 		EtcdDefragTimeout:   etcd.Spec.Etcd.EtcdDefragTimeout,
 
 		GarbageCollectionPolicy: etcd.Spec.Backup.GarbageCollectionPolicy,
-		MaxBackupsLimitBased:    etcd.Spec.Backup.MaxBackupsLimitBased,
+		MaxBackupsLimitBasedGC:  etcd.Spec.Backup.MaxBackupsLimitBasedGC,
 		GarbageCollectionPeriod: etcd.Spec.Backup.GarbageCollectionPeriod,
 
 		SnapshotCompression: etcd.Spec.Backup.SnapshotCompression,
@@ -236,7 +236,7 @@ func getBackupRestoreCommandArgs(val Values) ([]string, error) {
 
 	command = append(command, "--garbage-collection-policy="+garbageCollectionPolicy)
 	if garbageCollectionPolicy == "LimitBased" {
-		command = append(command, "--max-backups="+strconv.Itoa(int(pointer.Int32Deref(val.MaxBackupsLimitBased, defaultMaxBackupsLimitBased))))
+		command = append(command, "--max-backups="+strconv.Itoa(int(pointer.Int32Deref(val.MaxBackupsLimitBasedGC, defaultMaxBackupsLimitBased))))
 	}
 
 	command = append(command, "--data-dir=/var/etcd/data/new.etcd")
