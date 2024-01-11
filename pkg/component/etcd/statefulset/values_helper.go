@@ -30,7 +30,7 @@ const (
 	defaultServerPort              int32 = 2380
 	defaultClientPort              int32 = 2379
 	defaultWrapperPort             int32 = 9095
-	defaultMaxBackupsLimitBased    int32 = 7
+	defaultMaxBackupsLimitBasedGC  int32 = 7
 	defaultQuota                   int64 = 8 * 1024 * 1024 * 1024 // 8Gi
 	defaultSnapshotMemoryLimit     int64 = 100 * 1024 * 1024      // 100Mi
 	defaultHeartbeatDuration             = "10s"
@@ -236,7 +236,7 @@ func getBackupRestoreCommandArgs(val Values) ([]string, error) {
 
 	command = append(command, "--garbage-collection-policy="+garbageCollectionPolicy)
 	if garbageCollectionPolicy == "LimitBased" {
-		command = append(command, "--max-backups="+strconv.Itoa(int(pointer.Int32Deref(val.MaxBackupsLimitBasedGC, defaultMaxBackupsLimitBased))))
+		command = append(command, "--max-backups="+strconv.Itoa(int(pointer.Int32Deref(val.MaxBackupsLimitBasedGC, defaultMaxBackupsLimitBasedGC))))
 	}
 
 	command = append(command, "--data-dir=/var/etcd/data/new.etcd")
