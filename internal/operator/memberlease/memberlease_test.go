@@ -196,11 +196,12 @@ func TestSync(t *testing.T) {
 // ----------------------------- TriggerDelete -------------------------------
 func TestTriggerDelete(t *testing.T) {
 	testCases := []struct {
-		name              string
-		etcdReplicas      int32 // original replicas
-		numExistingLeases int
-		deleteAllOfErr    *apierrors.StatusError
-		expectedErr       *druiderr.DruidError
+		name                   string
+		etcdReplicas           int32 // original replicas
+		numExistingLeases      int
+		testWithSnapshotLeases bool // this is to ensure that delete of member leases should not delete snapshot leases
+		deleteAllOfErr         *apierrors.StatusError
+		expectedErr            *druiderr.DruidError
 	}{
 		{
 			name:              "no-op when no member lease exists",
@@ -211,6 +212,12 @@ func TestTriggerDelete(t *testing.T) {
 			name:              "successfully deletes all member leases",
 			etcdReplicas:      3,
 			numExistingLeases: 3,
+		},
+		{
+			name:                   "only delete member leases and not snapshot leases",
+			etcdReplicas:           3,
+			numExistingLeases:      3,
+			testWithSnapshotLeases: true,
 		},
 		{
 			name:              "successfully deletes remainder member leases",
@@ -244,6 +251,9 @@ func TestTriggerDelete(t *testing.T) {
 					fakeClientBuilder.WithObjects(lease)
 				}
 			}
+			if tc.testWithSnapshotLeases {
+				fakeClientBuilder.WithObjects(testsample.NewDeltaSnapshotLease(etcd), testsample.NewFullSnapshotLease(etcd))
+			}
 			cl := fakeClientBuilder.Build()
 			// ***************** Setup operator and test *****************
 			operator := New(cl)
@@ -257,13 +267,16 @@ func TestTriggerDelete(t *testing.T) {
 				g.Expect(memberLeasesPostDelete).Should(HaveLen(tc.numExistingLeases))
 			} else {
 				g.Expect(memberLeasesPostDelete).Should(HaveLen(0))
+				if tc.testWithSnapshotLeases {
+					snapshotLeases := getLatestSnapshotLeases(g, cl, etcd)
+					g.Expect(snapshotLeases).To(HaveLen(2))
+				}
 			}
 		})
 	}
 }
 
 // ---------------------------- Helper Functions -----------------------------
-
 func getAdditionalMemberLeaseLabels(etcdName string) map[string]string {
 	return map[string]string{
 		common.GardenerOwnedBy:           etcdName,
@@ -272,11 +285,25 @@ func getAdditionalMemberLeaseLabels(etcdName string) map[string]string {
 }
 
 func getLatestMemberLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) []coordinationv1.Lease {
-	leases := &coordinationv1.LeaseList{}
-	g.Expect(cl.List(context.Background(), leases, client.InNamespace(etcd.Namespace), client.MatchingLabels(map[string]string{
+	return doGetLatestLeases(g, cl, etcd, map[string]string{
 		common.GardenerOwnedBy:           etcd.Name,
-		v1beta1constants.GardenerPurpose: "etcd-member-lease",
-	}))).To(Succeed())
+		v1beta1constants.GardenerPurpose: purpose,
+	})
+}
+
+func getLatestSnapshotLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) []coordinationv1.Lease {
+	return doGetLatestLeases(g, cl, etcd, map[string]string{
+		common.GardenerOwnedBy:           etcd.Name,
+		v1beta1constants.GardenerPurpose: "etcd-snapshot-lease",
+	})
+}
+
+func doGetLatestLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd, matchingLabels map[string]string) []coordinationv1.Lease {
+	leases := &coordinationv1.LeaseList{}
+	g.Expect(cl.List(context.Background(),
+		leases,
+		client.InNamespace(etcd.Namespace),
+		client.MatchingLabels(matchingLabels))).To(Succeed())
 	return leases.Items
 }
 

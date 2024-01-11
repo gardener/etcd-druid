@@ -89,18 +89,17 @@ func (r _resource) doCreateOrUpdate(ctx resource.OperatorContext, etcd *druidv1a
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	ctx.Logger.Info("Triggering delete of member leases")
-	err := r.client.DeleteAllOf(ctx,
+	if err := r.client.DeleteAllOf(ctx,
 		&coordinationv1.Lease{},
 		client.InNamespace(etcd.Namespace),
-		client.MatchingLabels(etcd.GetDefaultLabels()))
-	if err == nil {
-		ctx.Logger.Info("deleted", "resource", "member-leases")
-		return nil
+		client.MatchingLabels(getLabels(etcd))); err != nil {
+		return druiderr.WrapError(err,
+			ErrDeleteMemberLease,
+			"TriggerDelete",
+			fmt.Sprintf("Failed to delete member leases for etcd: %v", etcd.GetNamespaceName()))
 	}
-	return druiderr.WrapError(err,
-		ErrDeleteMemberLease,
-		"TriggerDelete",
-		fmt.Sprintf("Failed to delete member leases for etcd: %v", etcd.GetNamespaceName()))
+	ctx.Logger.Info("deleted", "resource", "member-leases")
+	return nil
 }
 
 func New(client client.Client) resource.Operator {

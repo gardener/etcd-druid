@@ -61,27 +61,27 @@ func NewPeerService(etcd *druidv1alpha1.Etcd) *corev1.Service {
 }
 
 func getClientServicePorts(etcd *druidv1alpha1.Etcd) []corev1.ServicePort {
-	backupPort := testutils.TypeDeref[int32](etcd.Spec.Backup.Port, defaultBackupPort)
-	clientPort := testutils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort)
-	peerPort := testutils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)
+	svcBackupPort := testutils.TypeDeref[int32](etcd.Spec.Backup.Port, defaultBackupPort)
+	svcClientPort := testutils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort)
+	svcPeerPort := testutils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)
 	return []corev1.ServicePort{
 		{
 			Name:       "client",
 			Protocol:   corev1.ProtocolTCP,
-			Port:       clientPort,
-			TargetPort: intstr.FromInt(int(clientPort)),
+			Port:       svcClientPort,
+			TargetPort: intstr.FromInt(int(svcClientPort)),
 		},
 		{
 			Name:       "server",
 			Protocol:   corev1.ProtocolTCP,
-			Port:       peerPort,
-			TargetPort: intstr.FromInt(int(peerPort)),
+			Port:       svcPeerPort,
+			TargetPort: intstr.FromInt(int(svcPeerPort)),
 		},
 		{
 			Name:       "backuprestore",
 			Protocol:   corev1.ProtocolTCP,
-			Port:       backupPort,
-			TargetPort: intstr.FromInt(int(backupPort)),
+			Port:       svcBackupPort,
+			TargetPort: intstr.FromInt(int(svcBackupPort)),
 		},
 	}
 }

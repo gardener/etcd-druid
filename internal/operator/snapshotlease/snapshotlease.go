@@ -2,9 +2,11 @@ package snapshotlease
 
 import (
 	"context"
+	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
+	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
@@ -17,6 +19,12 @@ import (
 )
 
 const purpose = "etcd-snapshot-lease"
+
+const (
+	ErrGetSnapshotLease    druidv1alpha1.ErrorCode = "ERR_GET_SNAPSHOT_LEASE"
+	ErrDeleteSnapshotLease druidv1alpha1.ErrorCode = "ERR_DELETE_SNAPSHOT_LEASE"
+	ErrSyncSnapshotLease   druidv1alpha1.ErrorCode = "ERR_SYNC_SNAPSHOT_LEASE"
+)
 
 type _resource struct {
 	client client.Client
@@ -31,16 +39,80 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 	deltaSnapshotLease, err := r.getLease(ctx,
 		client.ObjectKey{Name: etcd.GetDeltaSnapshotLeaseName(), Namespace: etcd.Namespace})
 	if err != nil {
-		return resourceNames, err
+		return resourceNames, &druiderr.DruidError{
+			Code:      ErrGetSnapshotLease,
+			Cause:     err,
+			Operation: "GetExistingResourceNames",
+			Message:   fmt.Sprintf("Error getting delta snapshot lease: %s for etcd: %v", etcd.GetDeltaSnapshotLeaseName(), etcd.GetNamespaceName()),
+		}
 	}
-	resourceNames = append(resourceNames, deltaSnapshotLease.Name)
+	if deltaSnapshotLease != nil {
+		resourceNames = append(resourceNames, deltaSnapshotLease.Name)
+	}
 	fullSnapshotLease, err := r.getLease(ctx,
 		client.ObjectKey{Name: etcd.GetFullSnapshotLeaseName(), Namespace: etcd.Namespace})
 	if err != nil {
-		return resourceNames, err
+		return resourceNames, &druiderr.DruidError{
+			Code:      ErrGetSnapshotLease,
+			Cause:     err,
+			Operation: "GetExistingResourceNames",
+			Message:   fmt.Sprintf("Error getting full snapshot lease: %s for etcd: %v", etcd.GetFullSnapshotLeaseName(), etcd.GetNamespaceName()),
+		}
 	}
-	resourceNames = append(resourceNames, fullSnapshotLease.Name)
+	if fullSnapshotLease != nil {
+		resourceNames = append(resourceNames, fullSnapshotLease.Name)
+	}
 	return resourceNames, nil
+}
+
+func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	if !etcd.IsBackupStoreEnabled() {
+		ctx.Logger.Info("Backup has been disabled. Triggering delete of snapshot leases")
+		return r.deleteAllSnapshotLeases(ctx, etcd, func(err error) error {
+			return druiderr.WrapError(err,
+				ErrSyncSnapshotLease,
+				"Sync",
+				fmt.Sprintf("Failed to delete existing snapshot leases due to backup being disabled for etcd: %v", etcd.GetNamespaceName()))
+		})
+	}
+	for _, objKey := range getObjectKeys(etcd) {
+		opResult, err := r.doSync(ctx, etcd, objKey)
+		if err != nil {
+			return err
+		}
+		ctx.Logger.Info("Triggered create or update", "lease", objKey, "result", opResult)
+	}
+	return nil
+}
+
+func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	ctx.Logger.Info("Triggering delete of snapshot leases")
+	if err := r.deleteAllSnapshotLeases(ctx, etcd, func(err error) error {
+		return druiderr.WrapError(err,
+			ErrDeleteSnapshotLease,
+			"TriggerDelete",
+			fmt.Sprintf("Failed to delete snapshot leases for etcd: %v", etcd.GetNamespaceName()))
+	}); err != nil {
+		return err
+	}
+	ctx.Logger.Info("deleted", "resource", "snapshot-leases")
+	return nil
+}
+
+func (r _resource) deleteAllSnapshotLeases(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, wrapErrFn func(error) error) error {
+	if err := r.client.DeleteAllOf(ctx,
+		&coordinationv1.Lease{},
+		client.InNamespace(etcd.Namespace),
+		client.MatchingLabels(getLabels(etcd))); err != nil {
+		return wrapErrFn(err)
+	}
+	return nil
+}
+
+func New(client client.Client) resource.Operator {
+	return &_resource{
+		client: client,
+	}
 }
 
 func (r _resource) getLease(ctx context.Context, objectKey client.ObjectKey) (*coordinationv1.Lease, error) {
@@ -54,21 +126,6 @@ func (r _resource) getLease(ctx context.Context, objectKey client.ObjectKey) (*c
 	return lease, nil
 }
 
-func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	if !etcd.IsBackupStoreEnabled() {
-		ctx.Logger.Info("Backup has been disabled. Triggering delete of snapshot leases")
-		return r.TriggerDelete(ctx, etcd)
-	}
-	for _, objKey := range getObjectKeys(etcd) {
-		opResult, err := r.doSync(ctx, etcd, objKey)
-		if err != nil {
-			return err
-		}
-		ctx.Logger.Info("Triggered create or update", "lease", objKey, "result", opResult)
-	}
-	return nil
-}
-
 func (r _resource) doSync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, leaseObjectKey client.ObjectKey) (controllerutil.OperationResult, error) {
 	lease := emptySnapshotLease(leaseObjectKey)
 	opResult, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, lease, func() error {
@@ -79,27 +136,11 @@ func (r _resource) doSync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd
 	return opResult, err
 }
 
-func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	for _, objKey := range getObjectKeys(etcd) {
-		err := client.IgnoreNotFound(r.client.Delete(ctx, emptySnapshotLease(objKey)))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func New(client client.Client) resource.Operator {
-	return &_resource{
-		client: client,
-	}
-}
-
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	labels := make(map[string]string)
 	labels[common.GardenerOwnedBy] = etcd.Name
 	labels[v1beta1constants.GardenerPurpose] = purpose
-	return utils.MergeMaps[string, string](labels, etcd.GetDefaultLabels())
+	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), labels)
 }
 
 func getObjectKeys(etcd *druidv1alpha1.Etcd) []client.ObjectKey {

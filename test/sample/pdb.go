@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
 	policyv1 "k8s.io/api/policy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -18,8 +17,8 @@ func NewPodDisruptionBudget(etcd *druidv1alpha1.Etcd) *policyv1.PodDisruptionBud
 			Namespace: etcd.Namespace,
 			Labels:    etcd.GetDefaultLabels(),
 			Annotations: map[string]string{
-				common.GardenerOwnedBy:   fmt.Sprintf("%s/%s", etcd.Namespace, etcd.Name),
-				common.GardenerOwnerType: "etcd",
+				"gardener.cloud/owned-by":   fmt.Sprintf("%s/%s", etcd.Namespace, etcd.Name),
+				"gardener.cloud/owner-type": "etcd",
 			},
 			OwnerReferences: []metav1.OwnerReference{etcd.GetAsOwnerReference()},
 		},

@@ -236,15 +236,14 @@ func TestPeerServiceTriggerDelete(t *testing.T) {
 			cl := fakeClientBuilder.Build()
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			err := operator.TriggerDelete(opCtx, etcd)
+			syncErr := operator.TriggerDelete(opCtx, etcd)
+			_, getErr := getLatestPeerService(cl, etcd)
 			if tc.expectError != nil {
-				testutils.CheckDruidError(g, tc.expectError, err)
+				testutils.CheckDruidError(g, tc.expectError, syncErr)
+				g.Expect(getErr).ToNot(HaveOccurred())
 			} else {
-				g.Expect(err).NotTo(HaveOccurred())
-				svc := corev1.Service{}
-				err = cl.Get(context.Background(), client.ObjectKey{Name: etcd.GetPeerServiceName(), Namespace: etcd.Namespace}, &svc)
-				g.Expect(err).ToNot(BeNil())
-				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
+				g.Expect(syncErr).NotTo(HaveOccurred())
+				g.Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
 			}
 		})
 	}
@@ -252,7 +251,8 @@ func TestPeerServiceTriggerDelete(t *testing.T) {
 
 // ---------------------------- Helper Functions -----------------------------
 func checkPeerService(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) {
-	svc := getLatestPeerService(g, cl, etcd)
+	svc, err := getLatestPeerService(cl, etcd)
+	g.Expect(err).ToNot(HaveOccurred())
 	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)
 	g.Expect(svc.OwnerReferences).To(Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}))
 	g.Expect(svc.Labels).To(Equal(etcd.GetDefaultLabels()))
@@ -271,9 +271,8 @@ func checkPeerService(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) {
 	))
 }
 
-func getLatestPeerService(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) *corev1.Service {
+func getLatestPeerService(cl client.Client, etcd *druidv1alpha1.Etcd) (*corev1.Service, error) {
 	svc := &corev1.Service{}
 	err := cl.Get(context.Background(), client.ObjectKey{Name: etcd.GetPeerServiceName(), Namespace: etcd.Namespace}, svc)
-	g.Expect(err).To(BeNil())
-	return svc
+	return svc, err
 }

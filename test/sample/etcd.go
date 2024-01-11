@@ -293,6 +293,12 @@ func (eb *EtcdBuilder) WithLabels(labels map[string]string) *EtcdBuilder {
 	return eb
 }
 
+// WithDefaultBackup creates a default backup spec and initializes etcd with it.
+func (eb *EtcdBuilder) WithDefaultBackup() *EtcdBuilder {
+	eb.etcd.Spec.Backup = getBackupSpec()
+	return eb
+}
+
 func (eb *EtcdBuilder) Build() *druidv1alpha1.Etcd {
 	return eb.etcd
 }
@@ -361,35 +367,7 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 			StorageClass:        &storageClass,
 			PriorityClassName:   &priorityClassName,
 			VolumeClaimTemplate: &volumeClaimTemplateName,
-			Backup: druidv1alpha1.BackupSpec{
-				Image:                    &imageBR,
-				Port:                     &backupPort,
-				FullSnapshotSchedule:     &snapshotSchedule,
-				GarbageCollectionPolicy:  &garbageCollectionPolicy,
-				GarbageCollectionPeriod:  &garbageCollectionPeriod,
-				DeltaSnapshotPeriod:      &deltaSnapshotPeriod,
-				DeltaSnapshotMemoryLimit: &deltaSnapShotMemLimit,
-				EtcdSnapshotTimeout:      &etcdSnapshotTimeout,
-
-				Resources: &corev1.ResourceRequirements{
-					Limits: corev1.ResourceList{
-						"cpu":    testutils.ParseQuantity("500m"),
-						"memory": testutils.ParseQuantity("2Gi"),
-					},
-					Requests: corev1.ResourceList{
-						"cpu":    testutils.ParseQuantity("23m"),
-						"memory": testutils.ParseQuantity("128Mi"),
-					},
-				},
-				Store: &druidv1alpha1.StoreSpec{
-					SecretRef: &corev1.SecretReference{
-						Name: "etcd-backup",
-					},
-					Container: &container,
-					Provider:  &localProvider,
-					Prefix:    prefix,
-				},
-			},
+			Backup:              getBackupSpec(),
 			Etcd: druidv1alpha1.EtcdConfig{
 				Quota:                   &quota,
 				Metrics:                 &metricsBasic,
@@ -413,6 +391,38 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 				AutoCompactionMode:      &autoCompactionMode,
 				AutoCompactionRetention: &autoCompactionRetention,
 			},
+		},
+	}
+}
+
+func getBackupSpec() druidv1alpha1.BackupSpec {
+	return druidv1alpha1.BackupSpec{
+		Image:                    &imageBR,
+		Port:                     &backupPort,
+		FullSnapshotSchedule:     &snapshotSchedule,
+		GarbageCollectionPolicy:  &garbageCollectionPolicy,
+		GarbageCollectionPeriod:  &garbageCollectionPeriod,
+		DeltaSnapshotPeriod:      &deltaSnapshotPeriod,
+		DeltaSnapshotMemoryLimit: &deltaSnapShotMemLimit,
+		EtcdSnapshotTimeout:      &etcdSnapshotTimeout,
+
+		Resources: &corev1.ResourceRequirements{
+			Limits: corev1.ResourceList{
+				"cpu":    testutils.ParseQuantity("500m"),
+				"memory": testutils.ParseQuantity("2Gi"),
+			},
+			Requests: corev1.ResourceList{
+				"cpu":    testutils.ParseQuantity("23m"),
+				"memory": testutils.ParseQuantity("128Mi"),
+			},
+		},
+		Store: &druidv1alpha1.StoreSpec{
+			SecretRef: &corev1.SecretReference{
+				Name: "etcd-backup",
+			},
+			Container: &container,
+			Provider:  &localProvider,
+			Prefix:    prefix,
 		},
 	}
 }
