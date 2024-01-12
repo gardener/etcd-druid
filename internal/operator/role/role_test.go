@@ -82,8 +82,8 @@ func TestGetExistingResourceNames(t *testing.T) {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).To(BeNil())
+				g.Expect(roleNames).To(Equal(tc.expectedRoleNames))
 			}
-			g.Expect(roleNames, tc.expectedRoleNames)
 		})
 	}
 }

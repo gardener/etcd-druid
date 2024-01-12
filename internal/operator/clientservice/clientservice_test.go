@@ -98,8 +98,8 @@ func TestGetExistingResourceNames(t *testing.T) {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).To(BeNil())
+				g.Expect(svcNames).To(Equal(tc.expectedServiceNames))
 			}
-			g.Expect(svcNames, tc.expectedServiceNames)
 		})
 	}
 }

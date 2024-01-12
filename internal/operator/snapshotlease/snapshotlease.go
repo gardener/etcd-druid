@@ -11,11 +11,11 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
+	"github.com/hashicorp/go-multierror"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 const purpose = "etcd-snapshot-lease"
@@ -75,14 +75,27 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 				fmt.Sprintf("Failed to delete existing snapshot leases due to backup being disabled for etcd: %v", etcd.GetNamespaceName()))
 		})
 	}
-	for _, objKey := range getObjectKeys(etcd) {
-		opResult, err := r.doSync(ctx, etcd, objKey)
-		if err != nil {
-			return err
+
+	objectKeys := getObjectKeys(etcd)
+	createTasks := make([]utils.OperatorTask, len(objectKeys))
+	var errs error
+
+	for i, objKey := range objectKeys {
+		objKey := objKey // capture the range variable
+		createTasks[i] = utils.OperatorTask{
+			Name: "CreateOrUpdate-" + objKey.String(),
+			Fn: func(ctx resource.OperatorContext) error {
+				return r.doCreateOrUpdate(ctx, etcd, objKey)
+			},
 		}
-		ctx.Logger.Info("Triggered create or update", "lease", objKey, "result", opResult)
 	}
-	return nil
+
+	if errorList := utils.RunConcurrently(ctx, createTasks); len(errorList) > 0 {
+		for _, err := range errorList {
+			errs = multierror.Append(errs, err)
+		}
+	}
+	return errs
 }
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
@@ -126,14 +139,22 @@ func (r _resource) getLease(ctx context.Context, objectKey client.ObjectKey) (*c
 	return lease, nil
 }
 
-func (r _resource) doSync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, leaseObjectKey client.ObjectKey) (controllerutil.OperationResult, error) {
+func (r _resource) doCreateOrUpdate(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, leaseObjectKey client.ObjectKey) error {
 	lease := emptySnapshotLease(leaseObjectKey)
 	opResult, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, lease, func() error {
 		lease.Labels = getLabels(etcd)
 		lease.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
 		return nil
 	})
-	return opResult, err
+	if err != nil {
+		return druiderr.WrapError(err,
+			ErrSyncSnapshotLease,
+			"Sync",
+			fmt.Sprintf("Error syncing snapshot lease: %s for etcd: %v", leaseObjectKey.Name, etcd.GetNamespaceName()))
+	}
+	ctx.Logger.Info("triggered create or update of snapshot lease", "lease", leaseObjectKey, "operationResult", opResult)
+
+	return nil
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {

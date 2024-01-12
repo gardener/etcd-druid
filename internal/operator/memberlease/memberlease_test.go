@@ -88,7 +88,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				WithGetError(tc.getErr).
 				WithListError(tc.listErr)
 			if tc.numExistingLeases > 0 {
-				leases, err := testsample.NewMemberLeases(etcd, tc.numExistingLeases, getAdditionalMemberLeaseLabels(etcd.Namespace))
+				leases, err := testsample.NewMemberLeases(etcd, tc.numExistingLeases, getAdditionalMemberLeaseLabels(etcd.Name))
 				g.Expect(err).ToNot(HaveOccurred())
 				for _, lease := range leases {
 					fakeClientBuilder.WithObjects(lease)
@@ -101,7 +101,8 @@ func TestGetExistingResourceNames(t *testing.T) {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).To(BeNil())
-				g.Expect(len(memberLeaseNames), tc.numExistingLeases)
+				expectedLeaseNames := etcd.GetMemberLeaseNames()[:tc.numExistingLeases]
+				g.Expect(memberLeaseNames).To(Equal(expectedLeaseNames))
 			}
 		})
 	}
