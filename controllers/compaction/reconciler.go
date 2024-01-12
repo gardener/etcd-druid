@@ -22,6 +22,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
+	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/features"
 	druidmetrics "github.com/gardener/etcd-druid/pkg/metrics"
 	"github.com/gardener/etcd-druid/pkg/utils"
@@ -32,10 +33,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -53,6 +55,7 @@ const (
 type Reconciler struct {
 	client.Client
 	config      *Config
+	recorder    record.EventRecorder
 	imageVector imagevector.ImageVector
 	logger      logr.Logger
 }
@@ -72,8 +75,9 @@ func NewReconcilerWithImageVector(mgr manager.Manager, config *Config, imageVect
 	return &Reconciler{
 		Client:      mgr.GetClient(),
 		config:      config,
+		recorder:    mgr.GetEventRecorderFor(controllerName),
 		imageVector: imageVector,
-		logger:      log.Log.WithName("compaction-lease-controller"),
+		logger:      log.Log.WithName("compaction-controller"),
 	}
 }
 
@@ -113,7 +117,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 	job := &batchv1.Job{}
 	if err := r.Get(ctx, types.NamespacedName{Name: etcd.GetCompactionJobName(), Namespace: etcd.Namespace}, job); err != nil {
 		if errors.IsNotFound(err) {
-			logger.Info("Currently, no compaction job is running in the namespace ", etcd.Namespace)
+			logger.Info("Currently, no compaction job is running in the namespace", "namespace", etcd.Namespace)
 		} else {
 			// Error reading the object - requeue the request.
 			return ctrl.Result{
@@ -139,6 +143,15 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 		// Delete job if the job succeeded
 		if job.Status.Succeeded > 0 {
+			r.recorder.Eventf(
+				etcd,
+				corev1.EventTypeNormal,
+				common.EventReasonSnapshotCompactionSucceeded,
+				"snapshot compaction for etcd %s/%s, via job %s, has succeeded",
+				etcd.Namespace,
+				etcd.Name,
+				job.Name,
+			)
 			metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(0)
 			if job.Status.CompletionTime != nil {
 				metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue, druidmetrics.EtcdNamespace: etcd.Namespace}).Observe(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds())
@@ -154,6 +167,15 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 		// Delete job and requeue if the job failed
 		if job.Status.Failed > 0 {
+			r.recorder.Eventf(
+				etcd,
+				corev1.EventTypeWarning,
+				common.EventReasonSnapshotCompactionFailed,
+				"snapshot compaction for etcd %s/%s, via job %s, has failed",
+				etcd.Namespace,
+				etcd.Name,
+				job.Name,
+			)
 			metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(0)
 			if job.Status.StartTime != nil {
 				metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse, druidmetrics.EtcdNamespace: etcd.Namespace}).Observe(time.Since(job.Status.StartTime.Time).Seconds())
@@ -291,19 +313,19 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 			ActiveDeadlineSeconds: pointer.Int64(int64(activeDeadlineSeconds)),
 			Completions:           pointer.Int32(1),
 			BackoffLimit:          pointer.Int32(0),
-			Template: v1.PodTemplateSpec{
+			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: etcd.Spec.Annotations,
 					Labels:      getLabels(etcd),
 				},
-				Spec: v1.PodSpec{
+				Spec: corev1.PodSpec{
 					ActiveDeadlineSeconds: pointer.Int64(int64(activeDeadlineSeconds)),
 					ServiceAccountName:    etcd.GetServiceAccountName(),
-					RestartPolicy:         v1.RestartPolicyNever,
-					Containers: []v1.Container{{
+					RestartPolicy:         corev1.RestartPolicyNever,
+					Containers: []corev1.Container{{
 						Name:            "compact-backup",
 						Image:           *etcdBackupImage,
-						ImagePullPolicy: v1.PullIfNotPresent,
+						ImagePullPolicy: corev1.PullIfNotPresent,
 						Args:            getCompactionJobArgs(etcd, r.config.MetricsScrapeWaitDuration.String()),
 					}},
 				},
@@ -362,8 +384,8 @@ func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 		"networking.gardener.cloud/to-public-networks":  "allowed",
 	}
 }
-func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featuregate.Feature]bool) ([]v1.VolumeMount, error) {
-	vms := []v1.VolumeMount{
+func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featuregate.Feature]bool) ([]corev1.VolumeMount, error) {
+	vms := []corev1.VolumeMount{
 		{
 			Name:      "etcd-workspace-dir",
 			MountPath: "/var/etcd/data",
@@ -377,23 +399,23 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featu
 	switch provider {
 	case utils.Local:
 		if featureMap[features.UseEtcdWrapper] {
-			vms = append(vms, v1.VolumeMount{
+			vms = append(vms, corev1.VolumeMount{
 				Name:      "host-storage",
 				MountPath: "/home/nonroot/" + pointer.StringDeref(etcd.Spec.Backup.Store.Container, ""),
 			})
 		} else {
-			vms = append(vms, v1.VolumeMount{
+			vms = append(vms, corev1.VolumeMount{
 				Name:      "host-storage",
 				MountPath: pointer.StringDeref(etcd.Spec.Backup.Store.Container, ""),
 			})
 		}
 	case utils.GCS:
-		vms = append(vms, v1.VolumeMount{
+		vms = append(vms, corev1.VolumeMount{
 			Name:      "etcd-backup",
 			MountPath: "/var/.gcp/",
 		})
 	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
-		vms = append(vms, v1.VolumeMount{
+		vms = append(vms, corev1.VolumeMount{
 			Name:      "etcd-backup",
 			MountPath: "/var/etcd-backup/",
 		})
@@ -402,12 +424,12 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featu
 	return vms, nil
 }
 
-func getCompactionJobVolumes(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd) ([]v1.Volume, error) {
-	vs := []v1.Volume{
+func getCompactionJobVolumes(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd) ([]corev1.Volume, error) {
+	vs := []corev1.Volume{
 		{
 			Name: "etcd-workspace-dir",
-			VolumeSource: v1.VolumeSource{
-				EmptyDir: &v1.EmptyDirVolumeSource{},
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		},
 	}
@@ -424,11 +446,11 @@ func getCompactionJobVolumes(ctx context.Context, cl client.Client, logger logr.
 			return vs, fmt.Errorf("could not determine host mount path for local provider")
 		}
 
-		hpt := v1.HostPathDirectory
-		vs = append(vs, v1.Volume{
+		hpt := corev1.HostPathDirectory
+		vs = append(vs, corev1.Volume{
 			Name: "host-storage",
-			VolumeSource: v1.VolumeSource{
-				HostPath: &v1.HostPathVolumeSource{
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
 					Path: hostPath + "/" + pointer.StringDeref(storeValues.Container, ""),
 					Type: &hpt,
 				},
@@ -439,10 +461,10 @@ func getCompactionJobVolumes(ctx context.Context, cl client.Client, logger logr.
 			return vs, fmt.Errorf("could not configure secretRef for backup store %v", provider)
 		}
 
-		vs = append(vs, v1.Volume{
+		vs = append(vs, corev1.Volume{
 			Name: "etcd-backup",
-			VolumeSource: v1.VolumeSource{
-				Secret: &v1.SecretVolumeSource{
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
 					SecretName: storeValues.SecretRef.Name,
 				},
 			},

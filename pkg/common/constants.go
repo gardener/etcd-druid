@@ -63,4 +63,11 @@ const (
 	EnvECSAccessKeyID = "ECS_ACCESS_KEY_ID"
 	// EnvECSSecretAccessKey is the environment variable key for Dell ECS secret access key.
 	EnvECSSecretAccessKey = "ECS_SECRET_ACCESS_KEY"
+
+	// EventReasonReconciliationIgnored is the reason used when recording events for ignored or skipped etcd reconciliations.
+	EventReasonReconciliationIgnored = "ReconciliationIgnored"
+	// EventReasonSnapshotCompactionSucceeded is the reason used when recording events for successful snapshot compaction jobs.
+	EventReasonSnapshotCompactionSucceeded = "SnapshotCompactionSucceeded"
+	// EventReasonSnapshotCompactionFailed is the reason used when recording events for failed snapshot compaction jobs.
+	EventReasonSnapshotCompactionFailed = "SnapshotCompactionFailed"
 )

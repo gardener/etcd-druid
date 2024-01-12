@@ -357,7 +357,7 @@ var _ = Describe("Multinode ETCD", func() {
 				}
 
 				for _, event := range events.Items {
-					if event.Reason == "ReconciliationIgnored" {
+					if event.Reason == common.EventReasonReconciliationIgnored {
 						return nil
 					}
 				}

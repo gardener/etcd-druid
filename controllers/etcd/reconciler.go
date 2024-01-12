@@ -138,7 +138,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.recorder.Eventf(
 			etcd,
 			corev1.EventTypeWarning,
-			"ReconciliationIgnored",
+			common.EventReasonReconciliationIgnored,
 			"reconciliation of %s/%s is ignored by etcd-druid due to the presence of annotation %s on the etcd resource",
 			etcd.Namespace,
 			etcd.Name,

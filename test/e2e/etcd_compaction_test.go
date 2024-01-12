@@ -20,11 +20,13 @@ import (
 	"time"
 
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
-	batchv1 "k8s.io/api/batch/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"github.com/gardener/etcd-druid/pkg/common"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -131,26 +133,39 @@ var _ = Describe("Etcd Compaction", func() {
 					_, err = triggerOnDemandSnapshot(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080, brtypes.SnapshotKindDelta)
 					Expect(err).ShouldNot(HaveOccurred())
 
+					snapshotTriggeredTime := time.Now()
 					logger.Info("waiting for compaction job to become successful")
 					Eventually(func() error {
 						ctx, cancelFunc := context.WithTimeout(context.Background(), singleNodeEtcdTimeout)
 						defer cancelFunc()
 
-						req := types.NamespacedName{
-							Name:      etcd.GetCompactionJobName(),
-							Namespace: etcd.Namespace,
-						}
-
-						j := &batchv1.Job{}
-						if err := cl.Get(ctx, req, j); err != nil {
+						config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+						if err != nil {
 							return err
 						}
 
-						if j.Status.Succeeded < 1 {
-							return fmt.Errorf("compaction job started but not yet successful")
+						clientset, err := kubernetes.NewForConfig(config)
+						if err != nil {
+							return err
+						}
+						eventsClient := clientset.CoreV1().Events(etcd.Namespace)
+						eventList, err := eventsClient.List(ctx, metav1.ListOptions{
+							FieldSelector: fmt.Sprintf("involvedObject.kind=Etcd,involvedObject.name=%s", etcd.Name),
+						})
+						if err != nil {
+							return err
 						}
 
-						return nil
+						for _, event := range eventList.Items {
+							if event.FirstTimestamp.Time.Sub(snapshotTriggeredTime) > 0 {
+								if event.Reason == common.EventReasonSnapshotCompactionSucceeded {
+									return nil
+								} else if event.Reason == common.EventReasonSnapshotCompactionFailed {
+									return fmt.Errorf("snapshot compaction job failed")
+								}
+							}
+						}
+						return fmt.Errorf("no events with reason %s or %s found", common.EventReasonSnapshotCompactionSucceeded, common.EventReasonSnapshotCompactionFailed)
 					}, singleNodeEtcdTimeout, pollingInterval).Should(BeNil())
 					logger.Info("compaction job is successful")
 
