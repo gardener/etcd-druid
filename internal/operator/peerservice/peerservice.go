@@ -47,14 +47,7 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	svc := emptyPeerService(getObjectKey(etcd))
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, svc, func() error {
-		svc.Labels = etcd.GetDefaultLabels()
-		svc.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
-		svc.Spec.Type = corev1.ServiceTypeClusterIP
-		svc.Spec.ClusterIP = corev1.ClusterIPNone
-		svc.Spec.SessionAffinity = corev1.ServiceAffinityNone
-		svc.Spec.Selector = etcd.GetDefaultLabels()
-		svc.Spec.PublishNotReadyAddresses = true
-		svc.Spec.Ports = getPorts(etcd)
+		buildResource(etcd, svc)
 		return nil
 	})
 	if err == nil {
@@ -88,6 +81,17 @@ func New(client client.Client) resource.Operator {
 	return &_resource{
 		client: client,
 	}
+}
+
+func buildResource(etcd *druidv1alpha1.Etcd, svc *corev1.Service) {
+	svc.Labels = etcd.GetDefaultLabels()
+	svc.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+	svc.Spec.Type = corev1.ServiceTypeClusterIP
+	svc.Spec.ClusterIP = corev1.ClusterIPNone
+	svc.Spec.SessionAffinity = corev1.ServiceAffinityNone
+	svc.Spec.Selector = etcd.GetDefaultLabels()
+	svc.Spec.PublishNotReadyAddresses = true
+	svc.Spec.Ports = getPorts(etcd)
 }
 
 func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {

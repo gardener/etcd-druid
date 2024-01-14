@@ -21,11 +21,11 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+	. "github.com/onsi/gomega/gstruct"
 	"k8s.io/utils/pointer"
 
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
-	"github.com/gardener/etcd-druid/test/sample"
 	testsample "github.com/gardener/etcd-druid/test/sample"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
@@ -34,7 +34,6 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -89,7 +88,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClientBuilder := testutils.NewFakeClientBuilder().WithGetError(tc.getErr)
 			if tc.svcExists {
-				fakeClientBuilder.WithObjects(sample.NewClientService(etcd))
+				fakeClientBuilder.WithObjects(newClientService(etcd))
 			}
 			operator := New(fakeClientBuilder.Build())
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -142,17 +141,25 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.Sync(opCtx, etcd)
+			latestClientSvc, getErr := getLatestClientService(cl, etcd)
 			if tc.expectedError != nil {
 				testutils.CheckDruidError(g, tc.expectedError, err)
+				g.Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
-				checkClientService(g, cl, etcd)
+				matchClientService(g, etcd, *latestClientSvc)
 			}
 		})
 	}
 }
 
 func TestSyncWhenServiceExists(t *testing.T) {
+	const (
+		originalClientPort = 2379
+		originalServerPort = 2380
+		originalBackupPort = 8080
+	)
+	existingEtcd := buildEtcd(pointer.Int32(originalClientPort), pointer.Int32(originalServerPort), pointer.Int32(originalBackupPort))
 	testCases := []struct {
 		name          string
 		clientPort    *int32
@@ -181,19 +188,25 @@ func TestSyncWhenServiceExists(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			existingEtcd := buildEtcd(nil, nil, nil)
-			cl := testutils.NewFakeClientBuilder().WithPatchError(tc.patchErr).
-				WithObjects(sample.NewClientService(existingEtcd)).
+			// ********************* Setup *********************
+			cl := testutils.NewFakeClientBuilder().
+				WithPatchError(tc.patchErr).
+				WithObjects(newClientService(existingEtcd)).
 				Build()
+			// ********************* test sync with updated ports *********************
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			updatedEtcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort)
-			err := operator.Sync(opCtx, updatedEtcd)
+			syncErr := operator.Sync(opCtx, updatedEtcd)
+			latestClientSvc, getErr := getLatestClientService(cl, updatedEtcd)
+			g.Expect(latestClientSvc).ToNot(BeNil())
 			if tc.expectedError != nil {
-				testutils.CheckDruidError(g, tc.expectedError, err)
+				testutils.CheckDruidError(g, tc.expectedError, syncErr)
+				g.Expect(getErr).ToNot(HaveOccurred())
+				matchClientService(g, existingEtcd, *latestClientSvc)
 			} else {
-				g.Expect(err).NotTo(HaveOccurred())
-				checkClientService(g, cl, updatedEtcd)
+				g.Expect(syncErr).NotTo(HaveOccurred())
+				matchClientService(g, updatedEtcd, *latestClientSvc)
 			}
 		})
 	}
@@ -231,14 +244,17 @@ func TestTriggerDelete(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			// ********************* Setup *********************
 			etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr)
-			if tc.svcExists {
-				fakeClientBuilder.WithObjects(sample.NewClientService(testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()))
-			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr).Build()
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			if tc.svcExists {
+				syncErr := operator.Sync(opCtx, etcd)
+				g.Expect(syncErr).ToNot(HaveOccurred())
+				ensureClientServiceExists(g, cl, etcd)
+			}
+			// ********************* Test trigger delete *********************
 			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd)
 			latestClientService, getErr := getLatestClientService(cl, etcd)
 			if tc.expectError != nil {
@@ -268,9 +284,7 @@ func buildEtcd(clientPort, peerPort, backupPort *int32) *druidv1alpha1.Etcd {
 	return etcdBuilder.Build()
 }
 
-func checkClientService(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) {
-	svc, err := getLatestClientService(cl, etcd)
-	g.Expect(err).To(BeNil())
+func matchClientService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Service) {
 	clientPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort)
 	backupPort := utils.TypeDeref[int32](etcd.Spec.Backup.Port, defaultBackupPort)
 	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)
@@ -281,32 +295,53 @@ func checkClientService(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) {
 		expectedAnnotations = etcd.Spec.Etcd.ClientService.Annotations
 		expectedLabels = utils.MergeMaps[string](etcd.Spec.Etcd.ClientService.Labels, etcd.GetDefaultLabels())
 	}
-	g.Expect(svc.OwnerReferences).To(Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}))
-	g.Expect(svc.Annotations).To(Equal(expectedAnnotations))
-	g.Expect(svc.Labels).To(Equal(expectedLabels))
-	g.Expect(svc.Spec.Type).To(Equal(corev1.ServiceTypeClusterIP))
-	g.Expect(svc.Spec.SessionAffinity).To(Equal(corev1.ServiceAffinityNone))
-	g.Expect(svc.Spec.Selector).To(Equal(etcd.GetDefaultLabels()))
-	g.Expect(svc.Spec.Ports).To(ConsistOf(
-		Equal(corev1.ServicePort{
-			Name:       "client",
-			Protocol:   corev1.ProtocolTCP,
-			Port:       clientPort,
-			TargetPort: intstr.FromInt(int(clientPort)),
+
+	g.Expect(actualSvc).To(MatchFields(IgnoreExtras, Fields{
+		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
+			"Name":            Equal(etcd.GetClientServiceName()),
+			"Namespace":       Equal(etcd.Namespace),
+			"Annotations":     testutils.MatchResourceAnnotations(expectedAnnotations),
+			"Labels":          testutils.MatchResourceLabels(expectedLabels),
+			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcd.Name, etcd.UID),
 		}),
-		Equal(corev1.ServicePort{
-			Name:       "server",
-			Protocol:   corev1.ProtocolTCP,
-			Port:       peerPort,
-			TargetPort: intstr.FromInt(int(peerPort)),
+		"Spec": MatchFields(IgnoreExtras, Fields{
+			"Type":            Equal(corev1.ServiceTypeClusterIP),
+			"SessionAffinity": Equal(corev1.ServiceAffinityNone),
+			"Selector":        Equal(etcd.GetDefaultLabels()),
+			"Ports": ConsistOf(
+				Equal(corev1.ServicePort{
+					Name:       "client",
+					Protocol:   corev1.ProtocolTCP,
+					Port:       clientPort,
+					TargetPort: intstr.FromInt(int(clientPort)),
+				}),
+				Equal(corev1.ServicePort{
+					Name:       "server",
+					Protocol:   corev1.ProtocolTCP,
+					Port:       peerPort,
+					TargetPort: intstr.FromInt(int(peerPort)),
+				}),
+				Equal(corev1.ServicePort{
+					Name:       "backuprestore",
+					Protocol:   corev1.ProtocolTCP,
+					Port:       backupPort,
+					TargetPort: intstr.FromInt(int(backupPort)),
+				}),
+			),
 		}),
-		Equal(corev1.ServicePort{
-			Name:       "backuprestore",
-			Protocol:   corev1.ProtocolTCP,
-			Port:       backupPort,
-			TargetPort: intstr.FromInt(int(backupPort)),
-		}),
-	))
+	}))
+}
+
+func newClientService(etcd *druidv1alpha1.Etcd) *corev1.Service {
+	svc := emptyClientService(getObjectKey(etcd))
+	buildResource(etcd, svc)
+	return svc
+}
+
+func ensureClientServiceExists(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) {
+	svc, err := getLatestClientService(cl, etcd)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(svc).ToNot(BeNil())
 }
 
 func getLatestClientService(cl client.Client, etcd *druidv1alpha1.Etcd) (*corev1.Service, error) {

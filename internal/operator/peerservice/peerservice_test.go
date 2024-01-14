@@ -23,15 +23,14 @@ import (
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
-	"github.com/gardener/etcd-druid/test/sample"
 	testsample "github.com/gardener/etcd-druid/test/sample"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -87,7 +86,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClientBuilder := testutils.NewFakeClientBuilder().WithGetError(tc.getErr)
 			if tc.svcExists {
-				fakeClientBuilder.WithObjects(sample.NewPeerService(etcd))
+				fakeClientBuilder.WithObjects(newPeerService(etcd))
 			}
 			operator := New(fakeClientBuilder.Build())
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -139,12 +138,16 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 			etcd := etcdBuilder.Build()
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			err := operator.Sync(opCtx, etcd)
+			syncErr := operator.Sync(opCtx, etcd)
+			latestPeerService, getErr := getLatestPeerService(cl, etcd)
 			if tc.expectedError != nil {
-				testutils.CheckDruidError(g, tc.expectedError, err)
+				testutils.CheckDruidError(g, tc.expectedError, syncErr)
+				g.Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
 			} else {
-				g.Expect(err).NotTo(HaveOccurred())
-				checkPeerService(g, cl, etcd)
+				g.Expect(syncErr).NotTo(HaveOccurred())
+				g.Expect(getErr).ToNot(HaveOccurred())
+				g.Expect(latestPeerService).ToNot(BeNil())
+				matchPeerService(g, etcd, *latestPeerService)
 			}
 		})
 	}
@@ -179,17 +182,20 @@ func TestSyncWhenServiceExists(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			existingEtcd := etcdBuilder.Build()
 			cl := testutils.NewFakeClientBuilder().WithPatchError(tc.patchErr).
-				WithObjects(sample.NewPeerService(existingEtcd)).
+				WithObjects(newPeerService(existingEtcd)).
 				Build()
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			updatedEtcd := etcdBuilder.WithEtcdServerPort(tc.updateWithPort).Build()
-			err := operator.Sync(opCtx, updatedEtcd)
+			syncErr := operator.Sync(opCtx, updatedEtcd)
+			latestPeerService, getErr := getLatestPeerService(cl, updatedEtcd)
 			if tc.expectedError != nil {
-				testutils.CheckDruidError(g, tc.expectedError, err)
+				testutils.CheckDruidError(g, tc.expectedError, syncErr)
+				g.Expect(getErr).ToNot(HaveOccurred())
 			} else {
-				g.Expect(err).NotTo(HaveOccurred())
-				checkPeerService(g, cl, updatedEtcd)
+				g.Expect(syncErr).NotTo(HaveOccurred())
+				g.Expect(latestPeerService).ToNot(BeNil())
+				matchPeerService(g, updatedEtcd, *latestPeerService)
 			}
 		})
 	}
@@ -231,7 +237,7 @@ func TestPeerServiceTriggerDelete(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr)
 			if tc.svcExists {
-				fakeClientBuilder.WithObjects(sample.NewPeerService(etcd))
+				fakeClientBuilder.WithObjects(newPeerService(etcd))
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl)
@@ -250,25 +256,37 @@ func TestPeerServiceTriggerDelete(t *testing.T) {
 }
 
 // ---------------------------- Helper Functions -----------------------------
-func checkPeerService(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) {
-	svc, err := getLatestPeerService(cl, etcd)
-	g.Expect(err).ToNot(HaveOccurred())
+
+func newPeerService(etcd *druidv1alpha1.Etcd) *corev1.Service {
+	svc := emptyPeerService(getObjectKey(etcd))
+	buildResource(etcd, svc)
+	return svc
+}
+
+func matchPeerService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Service) {
 	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)
-	g.Expect(svc.OwnerReferences).To(Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}))
-	g.Expect(svc.Labels).To(Equal(etcd.GetDefaultLabels()))
-	g.Expect(svc.Spec.PublishNotReadyAddresses).To(BeTrue())
-	g.Expect(svc.Spec.Type).To(Equal(corev1.ServiceTypeClusterIP))
-	g.Expect(svc.Spec.ClusterIP).To(Equal(corev1.ClusterIPNone))
-	g.Expect(svc.Spec.SessionAffinity).To(Equal(corev1.ServiceAffinityNone))
-	g.Expect(svc.Spec.Selector).To(Equal(etcd.GetDefaultLabels()))
-	g.Expect(svc.Spec.Ports).To(ConsistOf(
-		Equal(corev1.ServicePort{
-			Name:       "peer",
-			Protocol:   corev1.ProtocolTCP,
-			Port:       peerPort,
-			TargetPort: intstr.FromInt(int(peerPort)),
+	g.Expect(actualSvc).To(MatchFields(IgnoreExtras, Fields{
+		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
+			"Name":            Equal(etcd.GetPeerServiceName()),
+			"Namespace":       Equal(etcd.Namespace),
+			"Labels":          testutils.MatchResourceLabels(etcd.GetDefaultLabels()),
+			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcd.Name, etcd.UID),
 		}),
-	))
+		"Spec": MatchFields(IgnoreExtras, Fields{
+			"Type":            Equal(corev1.ServiceTypeClusterIP),
+			"ClusterIP":       Equal(corev1.ClusterIPNone),
+			"SessionAffinity": Equal(corev1.ServiceAffinityNone),
+			"Selector":        Equal(etcd.GetDefaultLabels()),
+			"Ports": ConsistOf(
+				Equal(corev1.ServicePort{
+					Name:       "peer",
+					Protocol:   corev1.ProtocolTCP,
+					Port:       peerPort,
+					TargetPort: intstr.FromInt(int(peerPort)),
+				}),
+			),
+		}),
+	}))
 }
 
 func getLatestPeerService(cl client.Client, etcd *druidv1alpha1.Etcd) (*corev1.Service, error) {
