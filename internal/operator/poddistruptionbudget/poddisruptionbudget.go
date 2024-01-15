@@ -44,16 +44,7 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	pdb := emptyPodDisruptionBudget(getObjectKey(etcd))
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, pdb, func() error {
-		pdb.Labels = etcd.GetDefaultLabels()
-		pdb.Annotations = getAnnotations(etcd)
-		pdb.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
-		pdb.Spec.MinAvailable = &intstr.IntOrString{
-			IntVal: computePDBMinAvailable(int(etcd.Spec.Replicas)),
-			Type:   intstr.Int,
-		}
-		pdb.Spec.Selector = &metav1.LabelSelector{
-			MatchLabels: etcd.GetDefaultLabels(),
-		}
+		buildResource(etcd, pdb)
 		return nil
 	})
 	if err == nil {
@@ -82,6 +73,19 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 func New(client client.Client) resource.Operator {
 	return &_resource{
 		client: client,
+	}
+}
+
+func buildResource(etcd *druidv1alpha1.Etcd, pdb *policyv1.PodDisruptionBudget) {
+	pdb.Labels = etcd.GetDefaultLabels()
+	pdb.Annotations = getAnnotations(etcd)
+	pdb.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+	pdb.Spec.MinAvailable = &intstr.IntOrString{
+		IntVal: computePDBMinAvailable(int(etcd.Spec.Replicas)),
+		Type:   intstr.Int,
+	}
+	pdb.Spec.Selector = &metav1.LabelSelector{
+		MatchLabels: etcd.GetDefaultLabels(),
 	}
 }
 

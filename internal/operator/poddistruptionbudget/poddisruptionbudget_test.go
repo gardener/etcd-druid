@@ -17,10 +17,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 )
 
 const (
@@ -73,7 +74,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClientBuilder := testutils.NewFakeClientBuilder().WithGetError(tc.getErr)
 			if tc.pdbExists {
-				fakeClientBuilder.WithObjects(testsample.NewPodDisruptionBudget(etcd))
+				fakeClientBuilder.WithObjects(newPodDisruptionBudget(etcd))
 			}
 			operator := New(fakeClientBuilder.Build())
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -135,7 +136,8 @@ func TestSyncWhenNoPDBExists(t *testing.T) {
 			} else {
 				g.Expect(syncErr).ToNot(HaveOccurred())
 				g.Expect(getErr).ToNot(HaveOccurred())
-				checkPodDisruptionBudget(g, etcd, latestPDB, tc.expectedPDBMinAvailable)
+				g.Expect(latestPDB).ToNot(BeNil())
+				matchPodDisruptionBudget(g, etcd, *latestPDB, tc.expectedPDBMinAvailable)
 			}
 		})
 	}
@@ -178,7 +180,7 @@ func TestSyncWhenPDBExists(t *testing.T) {
 			existingEtcd := etcdBuilder.WithReplicas(tc.originalEtcdReplicas).Build()
 			cl := testutils.NewFakeClientBuilder().
 				WithPatchError(tc.patchErr).
-				WithObjects(testsample.NewPodDisruptionBudget(existingEtcd)).
+				WithObjects(newPodDisruptionBudget(existingEtcd)).
 				Build()
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -231,7 +233,7 @@ func TestTriggerDelete(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr)
 			if tc.pdbExists {
-				fakeClientBuilder.WithObjects(testsample.NewPodDisruptionBudget(etcd))
+				fakeClientBuilder.WithObjects(newPodDisruptionBudget(etcd))
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl)
@@ -251,22 +253,39 @@ func TestTriggerDelete(t *testing.T) {
 
 // ---------------------------- Helper Functions -----------------------------
 
-func checkPodDisruptionBudget(g *WithT, etcd *druidv1alpha1.Etcd, actualPDB *policyv1.PodDisruptionBudget, expectedPDBMinAvailable int32) {
-	g.Expect(actualPDB.Name).To(Equal(etcd.Name))
-	g.Expect(actualPDB.Namespace).To(Equal(etcd.Namespace))
-	g.Expect(actualPDB.Labels).To(Equal(etcd.GetDefaultLabels()))
-	expectedAnnotations := map[string]string{
-		common.GardenerOwnedBy:   fmt.Sprintf("%s/%s", etcd.Namespace, etcd.Name),
-		common.GardenerOwnerType: "etcd",
-	}
-	g.Expect(actualPDB.Annotations).To(Equal(expectedAnnotations))
-	g.Expect(actualPDB.OwnerReferences).To(Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}))
-	g.Expect(*actualPDB.Spec.Selector).To(Equal(metav1.LabelSelector{MatchLabels: etcd.GetDefaultLabels()}))
-	g.Expect(actualPDB.Spec.MinAvailable.IntVal).To(Equal(expectedPDBMinAvailable))
+func newPodDisruptionBudget(etcd *druidv1alpha1.Etcd) *policyv1.PodDisruptionBudget {
+	pdb := emptyPodDisruptionBudget(getObjectKey(etcd))
+	buildResource(etcd, pdb)
+	return pdb
 }
 
 func getLatestPodDisruptionBudget(cl client.Client, etcd *druidv1alpha1.Etcd) (*policyv1.PodDisruptionBudget, error) {
 	pdb := &policyv1.PodDisruptionBudget{}
 	err := cl.Get(context.Background(), client.ObjectKey{Name: etcd.Name, Namespace: etcd.Namespace}, pdb)
 	return pdb, err
+}
+
+func matchPodDisruptionBudget(g *WithT, etcd *druidv1alpha1.Etcd, actualPDB policyv1.PodDisruptionBudget, expectedPDBMinAvailable int32) {
+	expectedAnnotations := map[string]string{
+		common.GardenerOwnedBy:   fmt.Sprintf("%s/%s", etcd.Namespace, etcd.Name),
+		common.GardenerOwnerType: "etcd",
+	}
+
+	g.Expect(actualPDB).To(MatchFields(IgnoreExtras, Fields{
+		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
+			"Name":            Equal(etcd.Name),
+			"Namespace":       Equal(etcd.Namespace),
+			"Labels":          testutils.MatchResourceLabels(etcd.GetDefaultLabels()),
+			"Annotations":     testutils.MatchResourceAnnotations(expectedAnnotations),
+			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcd.Name, etcd.UID),
+		}),
+		"Spec": MatchFields(IgnoreExtras, Fields{
+			"Selector": testutils.MatchSpecLabelSelector(etcd.GetDefaultLabels()),
+			"MinAvailable": PointTo(MatchFields(IgnoreExtras, Fields{
+				"Type":   Equal(intstr.Int),
+				"IntVal": Equal(expectedPDBMinAvailable),
+			})),
+		}),
+	}))
+
 }
