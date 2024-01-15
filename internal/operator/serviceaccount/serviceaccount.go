@@ -45,9 +45,7 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	sa := emptyServiceAccount(getObjectKey(etcd))
 	opResult, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, sa, func() error {
-		sa.Labels = etcd.GetDefaultLabels()
-		sa.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
-		sa.AutomountServiceAccountToken = pointer.Bool(!r.disableAutoMount)
+		buildResource(etcd, sa, !r.disableAutoMount)
 		return nil
 	})
 	if err == nil {
@@ -78,6 +76,12 @@ func New(client client.Client, disableAutomount bool) resource.Operator {
 		client:           client,
 		disableAutoMount: disableAutomount,
 	}
+}
+
+func buildResource(etcd *druidv1alpha1.Etcd, sa *corev1.ServiceAccount, autoMountServiceAccountToken bool) {
+	sa.Labels = etcd.GetDefaultLabels()
+	sa.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+	sa.AutomountServiceAccountToken = pointer.Bool(autoMountServiceAccountToken)
 }
 
 func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {

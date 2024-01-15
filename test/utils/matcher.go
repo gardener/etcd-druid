@@ -74,6 +74,12 @@ func MatchResourceLabels(expected map[string]string) gomegatypes.GomegaMatcher {
 	}
 }
 
+func MatchSpecLabelSelector(expected map[string]string) gomegatypes.GomegaMatcher {
+	return PointTo(MatchFields(IgnoreExtras, Fields{
+		"MatchLabels": MatchResourceLabels(expected),
+	}))
+}
+
 // MatchEtcdOwnerReference is a custom gomega matcher which creates a matcher for ObjectMeta.OwnerReferences
 func MatchEtcdOwnerReference(etcdName string, etcdUID types.UID) gomegatypes.GomegaMatcher {
 	return ConsistOf(MatchFields(IgnoreExtras, Fields{

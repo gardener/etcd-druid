@@ -12,10 +12,8 @@ import (
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
-	gomegatypes "github.com/onsi/gomega/types"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
@@ -71,7 +69,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClientBuilder := testutils.NewFakeClientBuilder().WithGetError(tc.getErr)
 			if tc.saExists {
-				fakeClientBuilder.WithObjects(testsample.NewServiceAccount(etcd, false))
+				fakeClientBuilder.WithObjects(newServiceAccount(etcd, false))
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl, true)
@@ -81,8 +79,8 @@ func TestGetExistingResourceNames(t *testing.T) {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				if tc.saExists {
-					existingSA, err := getLatestServiceAccount(cl, etcd)
-					g.Expect(err).ToNot(HaveOccurred())
+					existingSA, getErr := getLatestServiceAccount(cl, etcd)
+					g.Expect(getErr).ToNot(HaveOccurred())
 					g.Expect(saNames).To(HaveLen(1))
 					g.Expect(saNames[0]).To(Equal(existingSA.Name))
 				} else {
@@ -134,7 +132,8 @@ func TestSync(t *testing.T) {
 				g.Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
 			} else {
 				g.Expect(getErr).To(BeNil())
-				g.Expect(*latestSA).To(matchServiceAccount(etcd.GetServiceAccountName(), etcd.Namespace, etcd.Name, etcd.UID, tc.disableAutoMount))
+				g.Expect(latestSA).ToNot(BeNil())
+				matchServiceAccount(g, etcd, *latestSA, tc.disableAutoMount)
 			}
 		})
 	}
@@ -175,7 +174,7 @@ func TestTriggerDelete(t *testing.T) {
 			etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr)
 			if tc.saExists {
-				fakeClientBuilder.WithObjects(testsample.NewServiceAccount(etcd, false))
+				fakeClientBuilder.WithObjects(newServiceAccount(etcd, false))
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl, false)
@@ -195,26 +194,26 @@ func TestTriggerDelete(t *testing.T) {
 }
 
 // ---------------------------- Helper Functions -----------------------------
+func newServiceAccount(etcd *druidv1alpha1.Etcd, disableAutomount bool) *corev1.ServiceAccount {
+	sa := emptyServiceAccount(getObjectKey(etcd))
+	buildResource(etcd, sa, !disableAutomount)
+	return sa
+}
+
 func getLatestServiceAccount(cl client.Client, etcd *druidv1alpha1.Etcd) (*corev1.ServiceAccount, error) {
 	sa := &corev1.ServiceAccount{}
 	err := cl.Get(context.Background(), client.ObjectKey{Name: etcd.GetServiceAccountName(), Namespace: etcd.Namespace}, sa)
 	return sa, err
 }
 
-func matchServiceAccount(saName, saNamespace, etcdName string, etcdUID types.UID, disableAutomount bool) gomegatypes.GomegaMatcher {
-	return MatchFields(IgnoreExtras, Fields{
+func matchServiceAccount(g *WithT, etcd *druidv1alpha1.Etcd, actualSA corev1.ServiceAccount, disableAutoMount bool) {
+	g.Expect(actualSA).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(saName),
-			"Namespace": Equal(saNamespace),
-			"OwnerReferences": ConsistOf(MatchFields(IgnoreExtras, Fields{
-				"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
-				"Kind":               Equal("Etcd"),
-				"Name":               Equal(etcdName),
-				"UID":                Equal(etcdUID),
-				"Controller":         PointTo(BeTrue()),
-				"BlockOwnerDeletion": PointTo(BeTrue()),
-			})),
+			"Name":            Equal(etcd.GetServiceAccountName()),
+			"Namespace":       Equal(etcd.Namespace),
+			"Labels":          testutils.MatchResourceLabels(etcd.GetDefaultLabels()),
+			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcd.Name, etcd.UID),
 		}),
-		"AutomountServiceAccountToken": PointTo(Equal(!disableAutomount)),
-	})
+		"AutomountServiceAccountToken": PointTo(Equal(!disableAutoMount)),
+	}))
 }
