@@ -13,10 +13,10 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -73,7 +73,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				fakeClientBuilder.WithGetError(tc.getErr)
 			}
 			if tc.roleExists {
-				fakeClientBuilder.WithObjects(testsample.NewRole(etcd))
+				fakeClientBuilder.WithObjects(newRole(etcd))
 			}
 			operator := New(fakeClientBuilder.Build())
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -94,29 +94,15 @@ func TestSync(t *testing.T) {
 	internalStatusErr := apierrors.NewInternalError(internalErr)
 	testCases := []struct {
 		name        string
-		roleExists  bool
-		getErr      *apierrors.StatusError
 		createErr   *apierrors.StatusError
 		expectedErr *druiderr.DruidError
 	}{
 		{
-			name:       "create role when none exists",
-			roleExists: false,
+			name: "create role when none exists",
 		},
 		{
-			name:       "create role fails when client create fails",
-			roleExists: false,
-			createErr:  internalStatusErr,
-			expectedErr: &druiderr.DruidError{
-				Code:      ErrSyncRole,
-				Cause:     internalStatusErr,
-				Operation: "Sync",
-			},
-		},
-		{
-			name:       "create role fails when get errors out",
-			roleExists: false,
-			getErr:     internalStatusErr,
+			name:      "create role fails when client create fails",
+			createErr: internalStatusErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncRole,
 				Cause:     internalStatusErr,
@@ -130,29 +116,21 @@ func TestSync(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder().
-				WithGetError(tc.getErr).
-				WithCreateError(tc.createErr)
-			if tc.roleExists {
-				fakeClientBuilder.WithObjects(testsample.NewRole(etcd))
-			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.NewFakeClientBuilder().
+				WithCreateError(tc.createErr).
+				Build()
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			err := operator.Sync(opCtx, etcd)
+			syncErr := operator.Sync(opCtx, etcd)
+			latestRole, getErr := getLatestRole(cl, etcd)
 			if tc.expectedErr != nil {
-				testutils.CheckDruidError(g, tc.expectedErr, err)
+				testutils.CheckDruidError(g, tc.expectedErr, syncErr)
+				g.Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
 			} else {
-				g.Expect(err).ToNot(HaveOccurred())
-				existingRole := &rbacv1.Role{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      etcd.GetRoleName(),
-						Namespace: etcd.Namespace,
-					},
-				}
-				err = cl.Get(context.Background(), client.ObjectKeyFromObject(existingRole), existingRole)
-				g.Expect(err).ToNot(HaveOccurred())
-				checkRole(g, existingRole, etcd)
+				g.Expect(syncErr).ToNot(HaveOccurred())
+				g.Expect(getErr).ToNot(HaveOccurred())
+				g.Expect(latestRole).ToNot(BeNil())
+				matchRole(g, etcd, *latestRole)
 			}
 		})
 	}
@@ -198,44 +176,63 @@ func TestTriggerDelete(t *testing.T) {
 				fakeClientBuilder.WithDeleteError(tc.deleteErr)
 			}
 			if tc.roleExists {
-				fakeClientBuilder.WithObjects(testsample.NewRole(etcd))
+				fakeClientBuilder.WithObjects(newRole(etcd))
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			err := operator.TriggerDelete(opCtx, etcd)
+			deleteErr := operator.TriggerDelete(opCtx, etcd)
+			latestRole, getErr := getLatestRole(cl, etcd)
 			if tc.expectedErr != nil {
-				testutils.CheckDruidError(g, tc.expectedErr, err)
+				testutils.CheckDruidError(g, tc.expectedErr, deleteErr)
+				g.Expect(getErr).ToNot(HaveOccurred())
+				g.Expect(latestRole).ToNot(BeNil())
 			} else {
-				g.Expect(err).NotTo(HaveOccurred())
-				existingRole := rbacv1.Role{}
-				err = cl.Get(context.Background(), client.ObjectKey{Name: etcd.GetRoleName(), Namespace: etcd.Namespace}, &existingRole)
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
+				g.Expect(deleteErr).NotTo(HaveOccurred())
+				g.Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
 			}
 		})
 	}
 }
 
 // ---------------------------- Helper Functions -----------------------------
-func checkRole(g *WithT, role *rbacv1.Role, etcd *druidv1alpha1.Etcd) {
-	g.Expect(role.OwnerReferences).To(Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}))
-	g.Expect(role.Labels).To(Equal(etcd.GetDefaultLabels()))
-	g.Expect(role.Rules).To(ConsistOf(
-		rbacv1.PolicyRule{
-			APIGroups: []string{"coordination.k8s.io"},
-			Resources: []string{"leases"},
-			Verbs:     []string{"get", "list", "patch", "update", "watch"},
-		},
-		rbacv1.PolicyRule{
-			APIGroups: []string{"apps"},
-			Resources: []string{"statefulsets"},
-			Verbs:     []string{"get", "list", "patch", "update", "watch"},
-		},
-		rbacv1.PolicyRule{
-			APIGroups: []string{""},
-			Resources: []string{"pods"},
-			Verbs:     []string{"get", "list", "watch"},
-		},
-	))
+
+func newRole(etcd *druidv1alpha1.Etcd) *rbacv1.Role {
+	role := emptyRole(etcd)
+	buildResource(etcd, role)
+	return role
+}
+
+func getLatestRole(cl client.Client, etcd *druidv1alpha1.Etcd) (*rbacv1.Role, error) {
+	role := &rbacv1.Role{}
+	err := cl.Get(context.Background(), client.ObjectKey{Name: etcd.GetRoleName(), Namespace: etcd.Namespace}, role)
+	return role, err
+}
+
+func matchRole(g *WithT, etcd *druidv1alpha1.Etcd, actualRole rbacv1.Role) {
+	g.Expect(actualRole).To(MatchFields(IgnoreExtras, Fields{
+		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
+			"Name":            Equal(etcd.GetRoleName()),
+			"Namespace":       Equal(etcd.Namespace),
+			"Labels":          testutils.MatchResourceLabels(etcd.GetDefaultLabels()),
+			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcd.Name, etcd.UID),
+		}),
+		"Rules": ConsistOf(
+			rbacv1.PolicyRule{
+				APIGroups: []string{"coordination.k8s.io"},
+				Resources: []string{"leases"},
+				Verbs:     []string{"get", "list", "patch", "update", "watch"},
+			},
+			rbacv1.PolicyRule{
+				APIGroups: []string{"apps"},
+				Resources: []string{"statefulsets"},
+				Verbs:     []string{"get", "list", "patch", "update", "watch"},
+			},
+			rbacv1.PolicyRule{
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+		),
+	}))
 }

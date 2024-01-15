@@ -43,9 +43,7 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	role := emptyRole(etcd)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, role, func() error {
-		role.Labels = etcd.GetDefaultLabels()
-		role.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
-		role.Rules = createPolicyRules()
+		buildResource(etcd, role)
 		return nil
 	})
 	if err == nil {
@@ -90,8 +88,10 @@ func emptyRole(etcd *druidv1alpha1.Etcd) *rbacv1.Role {
 	}
 }
 
-func createPolicyRules() []rbacv1.PolicyRule {
-	return []rbacv1.PolicyRule{
+func buildResource(etcd *druidv1alpha1.Etcd, role *rbacv1.Role) {
+	role.Labels = etcd.GetDefaultLabels()
+	role.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+	role.Rules = []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{"coordination.k8s.io"},
 			Resources: []string{"leases"},

@@ -56,20 +56,7 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	rb := emptyRoleBinding(etcd)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, rb, func() error {
-		rb.Labels = etcd.GetDefaultLabels()
-		rb.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
-		rb.RoleRef = rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "Role",
-			Name:     etcd.GetRoleName(),
-		}
-		rb.Subjects = []rbacv1.Subject{
-			{
-				Kind:      "ServiceAccount",
-				Name:      etcd.GetServiceAccountName(),
-				Namespace: etcd.Namespace,
-			},
-		}
+		buildResource(etcd, rb)
 		return nil
 	})
 	if err == nil {
@@ -107,6 +94,23 @@ func emptyRoleBinding(etcd *druidv1alpha1.Etcd) *rbacv1.RoleBinding {
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      etcd.GetRoleBindingName(),
+			Namespace: etcd.Namespace,
+		},
+	}
+}
+
+func buildResource(etcd *druidv1alpha1.Etcd, rb *rbacv1.RoleBinding) {
+	rb.Labels = etcd.GetDefaultLabels()
+	rb.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+	rb.RoleRef = rbacv1.RoleRef{
+		APIGroup: "rbac.authorization.k8s.io",
+		Kind:     "Role",
+		Name:     etcd.GetRoleName(),
+	}
+	rb.Subjects = []rbacv1.Subject{
+		{
+			Kind:      "ServiceAccount",
+			Name:      etcd.GetServiceAccountName(),
 			Namespace: etcd.Namespace,
 		},
 	}

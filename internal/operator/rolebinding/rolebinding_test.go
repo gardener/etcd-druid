@@ -15,10 +15,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 )
 
 const (
@@ -74,7 +74,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				fakeClientBuilder.WithGetError(tc.getErr)
 			}
 			if tc.roleBindingExists {
-				fakeClientBuilder.WithObjects(testsample.NewRoleBinding(etcd))
+				fakeClientBuilder.WithObjects(newRoleBinding(etcd))
 			}
 			operator := New(fakeClientBuilder.Build())
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -94,30 +94,16 @@ func TestSync(t *testing.T) {
 	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 	internalStatusErr := apierrors.NewInternalError(internalErr)
 	testCases := []struct {
-		name              string
-		roleBindingExists bool
-		getErr            *apierrors.StatusError
-		createErr         *apierrors.StatusError
-		expectedErr       *druiderr.DruidError
+		name        string
+		createErr   *apierrors.StatusError
+		expectedErr *druiderr.DruidError
 	}{
 		{
-			name:              "create role when none exists",
-			roleBindingExists: false,
+			name: "create role when none exists",
 		},
 		{
-			name:              "create role fails when client create fails",
-			roleBindingExists: false,
-			createErr:         internalStatusErr,
-			expectedErr: &druiderr.DruidError{
-				Code:      ErrSyncRoleBinding,
-				Cause:     internalStatusErr,
-				Operation: "Sync",
-			},
-		},
-		{
-			name:              "create role fails when get errors out",
-			roleBindingExists: false,
-			getErr:            internalStatusErr,
+			name:      "create role fails when client create fails",
+			createErr: internalStatusErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncRoleBinding,
 				Cause:     internalStatusErr,
@@ -131,29 +117,19 @@ func TestSync(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder().
-				WithGetError(tc.getErr).
-				WithCreateError(tc.createErr)
-			if tc.roleBindingExists {
-				fakeClientBuilder.WithObjects(testsample.NewRoleBinding(etcd))
-			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).Build()
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			err := operator.Sync(opCtx, etcd)
+			syncErr := operator.Sync(opCtx, etcd)
+			latestRoleBinding, getErr := getLatestRoleBinding(cl, etcd)
 			if tc.expectedErr != nil {
-				testutils.CheckDruidError(g, tc.expectedErr, err)
+				testutils.CheckDruidError(g, tc.expectedErr, syncErr)
+				g.Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
 			} else {
-				g.Expect(err).ToNot(HaveOccurred())
-				existingRoleBinding := &rbacv1.RoleBinding{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      etcd.GetRoleBindingName(),
-						Namespace: etcd.Namespace,
-					},
-				}
-				err = cl.Get(context.Background(), client.ObjectKeyFromObject(existingRoleBinding), existingRoleBinding)
-				g.Expect(err).ToNot(HaveOccurred())
-				checkRoleBinding(g, existingRoleBinding, etcd)
+				g.Expect(syncErr).ToNot(HaveOccurred())
+				g.Expect(getErr).To(BeNil())
+				g.Expect(latestRoleBinding).ToNot(BeNil())
+				matchRoleBinding(g, etcd, *latestRoleBinding)
 			}
 		})
 	}
@@ -164,19 +140,19 @@ func TestTriggerDelete(t *testing.T) {
 	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 	internalStatusErr := apierrors.NewInternalError(internalErr)
 	testCases := []struct {
-		name        string
-		roleExists  bool
-		deleteErr   *apierrors.StatusError
-		expectedErr *druiderr.DruidError
+		name              string
+		roleBindingExists bool
+		deleteErr         *apierrors.StatusError
+		expectedErr       *druiderr.DruidError
 	}{
 		{
-			name:       "successfully delete existing role",
-			roleExists: true,
+			name:              "successfully delete existing role",
+			roleBindingExists: true,
 		},
 		{
-			name:       "delete fails due to failing client delete",
-			roleExists: true,
-			deleteErr:  internalStatusErr,
+			name:              "delete fails due to failing client delete",
+			roleBindingExists: true,
+			deleteErr:         internalStatusErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrDeleteRoleBinding,
 				Cause:     internalStatusErr,
@@ -184,8 +160,8 @@ func TestTriggerDelete(t *testing.T) {
 			},
 		},
 		{
-			name:       "delete is a no-op if role does not exist",
-			roleExists: false,
+			name:              "delete is a no-op if role does not exist",
+			roleBindingExists: false,
 		},
 	}
 
@@ -198,8 +174,8 @@ func TestTriggerDelete(t *testing.T) {
 			if tc.deleteErr != nil {
 				fakeClientBuilder.WithDeleteError(tc.deleteErr)
 			}
-			if tc.roleExists {
-				fakeClientBuilder.WithObjects(testsample.NewRoleBinding(etcd))
+			if tc.roleBindingExists {
+				fakeClientBuilder.WithObjects(newRoleBinding(etcd))
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl)
@@ -219,19 +195,38 @@ func TestTriggerDelete(t *testing.T) {
 }
 
 // ---------------------------- Helper Functions -----------------------------
-func checkRoleBinding(g *WithT, roleBinding *rbacv1.RoleBinding, etcd *druidv1alpha1.Etcd) {
-	g.Expect(roleBinding.OwnerReferences).To(Equal([]metav1.OwnerReference{etcd.GetAsOwnerReference()}))
-	g.Expect(roleBinding.Labels).To(Equal(etcd.GetDefaultLabels()))
-	g.Expect(roleBinding.RoleRef).To(Equal(rbacv1.RoleRef{
-		APIGroup: "rbac.authorization.k8s.io",
-		Kind:     "Role",
-		Name:     etcd.GetRoleName(),
+
+func newRoleBinding(etcd *druidv1alpha1.Etcd) *rbacv1.RoleBinding {
+	rb := emptyRoleBinding(etcd)
+	buildResource(etcd, rb)
+	return rb
+}
+
+func getLatestRoleBinding(cl client.Client, etcd *druidv1alpha1.Etcd) (*rbacv1.RoleBinding, error) {
+	rb := &rbacv1.RoleBinding{}
+	err := cl.Get(context.Background(), client.ObjectKey{Name: etcd.GetRoleBindingName(), Namespace: etcd.Namespace}, rb)
+	return rb, err
+}
+
+func matchRoleBinding(g *WithT, etcd *druidv1alpha1.Etcd, actualRoleBinding rbacv1.RoleBinding) {
+	g.Expect(actualRoleBinding).To(MatchFields(IgnoreExtras, Fields{
+		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
+			"Name":            Equal(etcd.GetRoleBindingName()),
+			"Namespace":       Equal(etcd.Namespace),
+			"Labels":          testutils.MatchResourceLabels(etcd.GetDefaultLabels()),
+			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcd.Name, etcd.UID),
+		}),
+		"RoleRef": Equal(rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     etcd.GetRoleName(),
+		}),
+		"Subjects": ConsistOf(
+			rbacv1.Subject{
+				Kind:      "ServiceAccount",
+				Name:      etcd.GetServiceAccountName(),
+				Namespace: etcd.Namespace,
+			},
+		),
 	}))
-	g.Expect(roleBinding.Subjects).To(ConsistOf(
-		rbacv1.Subject{
-			Kind:      "ServiceAccount",
-			Name:      etcd.GetServiceAccountName(),
-			Namespace: etcd.Namespace,
-		},
-	))
 }
