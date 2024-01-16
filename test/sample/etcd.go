@@ -18,6 +18,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/google/uuid"
 
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
@@ -52,7 +53,6 @@ var (
 	quota                         = resource.MustParse("8Gi")
 	localProvider                 = druidv1alpha1.StorageProvider("Local")
 	prefix                        = "/tmp"
-	uid                           = "a9b8c7d6e5f4"
 	volumeClaimTemplateName       = "etcd-main"
 	garbageCollectionPolicy       = druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
 	metricsBasic                  = druidv1alpha1.Basic
@@ -341,7 +341,7 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
-			UID:       types.UID(uid),
+			UID:       types.UID(uuid.NewString()),
 		},
 		Spec: druidv1alpha1.EtcdSpec{
 			Annotations: map[string]string{

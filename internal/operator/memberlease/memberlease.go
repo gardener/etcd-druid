@@ -73,8 +73,7 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 func (r _resource) doCreateOrUpdate(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, objKey client.ObjectKey) error {
 	lease := emptyMemberLease(objKey)
 	opResult, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, lease, func() error {
-		lease.Labels = utils.MergeMaps[string](utils.GetMemberLeaseLabels(etcd.Name), etcd.GetDefaultLabels())
-		lease.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+		buildResource(etcd, lease)
 		return nil
 	})
 	if err != nil {
@@ -106,6 +105,11 @@ func New(client client.Client) resource.Operator {
 	return &_resource{
 		client: client,
 	}
+}
+
+func buildResource(etcd *druidv1alpha1.Etcd, lease *coordinationv1.Lease) {
+	lease.Labels = utils.MergeMaps[string](utils.GetMemberLeaseLabels(etcd.Name), etcd.GetDefaultLabels())
+	lease.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
 }
 
 func getObjectKeys(etcd *druidv1alpha1.Etcd) []client.ObjectKey {

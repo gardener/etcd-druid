@@ -21,13 +21,15 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	testEtcdName = "test-etcd"
-	testNs       = "test-namespace"
+	testEtcdName      = "test-etcd"
+	nonTargetEtcdName = "another-etcd"
+	testNs            = "test-namespace"
 )
 
 var (
@@ -88,7 +90,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				WithGetError(tc.getErr).
 				WithListError(tc.listErr)
 			if tc.numExistingLeases > 0 {
-				leases, err := testsample.NewMemberLeases(etcd, tc.numExistingLeases, getAdditionalMemberLeaseLabels(etcd.Name))
+				leases, err := newMemberLeases(etcd, tc.numExistingLeases)
 				g.Expect(err).ToNot(HaveOccurred())
 				for _, lease := range leases {
 					fakeClientBuilder.WithObjects(lease)
@@ -163,7 +165,7 @@ func TestSync(t *testing.T) {
 			etcd := etcdBuilder.WithReplicas(tc.etcdReplicas).Build()
 			fakeClientBuilder := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).WithGetError(tc.getErr)
 			if tc.numExistingLeases > 0 {
-				leases, err := testsample.NewMemberLeases(etcd, tc.numExistingLeases, getAdditionalMemberLeaseLabels(etcd.Name))
+				leases, err := newMemberLeases(etcd, tc.numExistingLeases)
 				g.Expect(err).ToNot(HaveOccurred())
 				for _, lease := range leases {
 					fakeClientBuilder.WithObjects(lease)
@@ -197,12 +199,11 @@ func TestSync(t *testing.T) {
 // ----------------------------- TriggerDelete -------------------------------
 func TestTriggerDelete(t *testing.T) {
 	testCases := []struct {
-		name                   string
-		etcdReplicas           int32 // original replicas
-		numExistingLeases      int
-		testWithSnapshotLeases bool // this is to ensure that delete of member leases should not delete snapshot leases
-		deleteAllOfErr         *apierrors.StatusError
-		expectedErr            *druiderr.DruidError
+		name              string
+		etcdReplicas      int32 // original replicas
+		numExistingLeases int
+		deleteAllOfErr    *apierrors.StatusError
+		expectedErr       *druiderr.DruidError
 	}{
 		{
 			name:              "no-op when no member lease exists",
@@ -215,10 +216,9 @@ func TestTriggerDelete(t *testing.T) {
 			numExistingLeases: 3,
 		},
 		{
-			name:                   "only delete member leases and not snapshot leases",
-			etcdReplicas:           3,
-			numExistingLeases:      3,
-			testWithSnapshotLeases: true,
+			name:              "only delete member leases and not snapshot leases",
+			etcdReplicas:      3,
+			numExistingLeases: 3,
 		},
 		{
 			name:              "successfully deletes remainder member leases",
@@ -240,20 +240,22 @@ func TestTriggerDelete(t *testing.T) {
 
 	g := NewWithT(t)
 	t.Parallel()
+	nonTargetEtcd := testsample.EtcdBuilderWithDefaults(nonTargetEtcdName, testNs).Build()
+	nonTargetLeaseNames := []string{"another-etcd-0", "another-etcd-1"}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// *************** set up existing environment *****************
 			etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).WithReplicas(tc.etcdReplicas).Build()
 			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteAllOfError(tc.deleteAllOfErr)
 			if tc.numExistingLeases > 0 {
-				leases, err := testsample.NewMemberLeases(etcd, tc.numExistingLeases, getAdditionalMemberLeaseLabels(etcd.Name))
+				leases, err := newMemberLeases(etcd, tc.numExistingLeases)
 				g.Expect(err).ToNot(HaveOccurred())
 				for _, lease := range leases {
 					fakeClientBuilder.WithObjects(lease)
 				}
 			}
-			if tc.testWithSnapshotLeases {
-				fakeClientBuilder.WithObjects(testsample.NewDeltaSnapshotLease(etcd), testsample.NewFullSnapshotLease(etcd))
+			for _, nonTargetLeaseName := range nonTargetLeaseNames {
+				fakeClientBuilder.WithObjects(testutils.CreateLease(nonTargetLeaseName, nonTargetEtcd.Namespace, nonTargetEtcd.Name, nonTargetEtcd.UID, purpose))
 			}
 			cl := fakeClientBuilder.Build()
 			// ***************** Setup operator and test *****************
@@ -268,23 +270,15 @@ func TestTriggerDelete(t *testing.T) {
 				g.Expect(memberLeasesPostDelete).Should(HaveLen(tc.numExistingLeases))
 			} else {
 				g.Expect(memberLeasesPostDelete).Should(HaveLen(0))
-				if tc.testWithSnapshotLeases {
-					snapshotLeases := getLatestSnapshotLeases(g, cl, etcd)
-					g.Expect(snapshotLeases).To(HaveLen(2))
-				}
+				nonTargetMemberLeases := getLatestNonTargetMemberLeases(g, cl, nonTargetEtcd)
+				g.Expect(nonTargetMemberLeases).To(HaveLen(len(nonTargetLeaseNames)))
+				g.Expect(nonTargetMemberLeases).To(ConsistOf(memberLeases(nonTargetEtcd.Name, nonTargetEtcd.UID, int32(len(nonTargetLeaseNames)))))
 			}
 		})
 	}
 }
 
 // ---------------------------- Helper Functions -----------------------------
-func getAdditionalMemberLeaseLabels(etcdName string) map[string]string {
-	return map[string]string{
-		common.GardenerOwnedBy:           etcdName,
-		v1beta1constants.GardenerPurpose: purpose,
-	}
-}
-
 func getLatestMemberLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) []coordinationv1.Lease {
 	return doGetLatestLeases(g, cl, etcd, map[string]string{
 		common.GardenerOwnedBy:           etcd.Name,
@@ -292,11 +286,8 @@ func getLatestMemberLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd)
 	})
 }
 
-func getLatestSnapshotLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) []coordinationv1.Lease {
-	return doGetLatestLeases(g, cl, etcd, map[string]string{
-		common.GardenerOwnedBy:           etcd.Name,
-		v1beta1constants.GardenerPurpose: "etcd-snapshot-lease",
-	})
+func getLatestNonTargetMemberLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) []coordinationv1.Lease {
+	return doGetLatestLeases(g, cl, etcd, getAdditionalMemberLeaseLabels(etcd.Name))
 }
 
 func doGetLatestLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd, matchingLabels map[string]string) []coordinationv1.Lease {
@@ -308,9 +299,9 @@ func doGetLatestLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd, mat
 	return leases.Items
 }
 
-func memberLeases(etcdName string, etcdUID types.UID, replicas int32) []interface{} {
+func memberLeases(etcdName string, etcdUID types.UID, numLeases int32) []interface{} {
 	var elements []interface{}
-	for i := 0; i < int(replicas); i++ {
+	for i := 0; i < int(numLeases); i++ {
 		leaseName := fmt.Sprintf("%s-%d", etcdName, i)
 		elements = append(elements, matchLeaseElement(leaseName, etcdName, etcdUID))
 	}
@@ -320,15 +311,36 @@ func memberLeases(etcdName string, etcdUID types.UID, replicas int32) []interfac
 func matchLeaseElement(leaseName, etcdName string, etcdUID types.UID) gomegatypes.GomegaMatcher {
 	return MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name": Equal(leaseName),
-			"OwnerReferences": ConsistOf(MatchFields(IgnoreExtras, Fields{
-				"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
-				"Kind":               Equal("Etcd"),
-				"Name":               Equal(etcdName),
-				"UID":                Equal(etcdUID),
-				"Controller":         PointTo(BeTrue()),
-				"BlockOwnerDeletion": PointTo(BeTrue()),
-			})),
+			"Name":            Equal(leaseName),
+			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcdName, etcdUID),
 		}),
 	})
+}
+
+func newMemberLeases(etcd *druidv1alpha1.Etcd, numLeases int) ([]*coordinationv1.Lease, error) {
+	if numLeases > int(etcd.Spec.Replicas) {
+		return nil, errors.New("number of requested leases is greater than the etcd replicas")
+	}
+	additionalLabels := getAdditionalMemberLeaseLabels(etcd.Name)
+	memberLeaseNames := etcd.GetMemberLeaseNames()
+	leases := make([]*coordinationv1.Lease, 0, numLeases)
+	for i := 0; i < numLeases; i++ {
+		lease := &coordinationv1.Lease{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            memberLeaseNames[i],
+				Namespace:       etcd.Namespace,
+				Labels:          testutils.MergeMaps[string, string](etcd.GetDefaultLabels(), additionalLabels),
+				OwnerReferences: []metav1.OwnerReference{etcd.GetAsOwnerReference()},
+			},
+		}
+		leases = append(leases, lease)
+	}
+	return leases, nil
+}
+
+func getAdditionalMemberLeaseLabels(etcdName string) map[string]string {
+	return map[string]string{
+		common.GardenerOwnedBy:           etcdName,
+		v1beta1constants.GardenerPurpose: purpose,
+	}
 }

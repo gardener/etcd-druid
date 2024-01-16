@@ -732,11 +732,11 @@ func deleteEtcdAndWait(c client.Client, etcd *druidv1alpha1.Etcd) {
 
 func createEtcdSnapshotLeasesAndWait(c client.Client, etcd *druidv1alpha1.Etcd) (*coordinationv1.Lease, *coordinationv1.Lease) {
 	By("create full snapshot lease")
-	fullSnapLease := testutils.CreateLease(etcd.GetFullSnapshotLeaseName(), etcd.Namespace, etcd.Name, etcd.UID)
+	fullSnapLease := testutils.CreateLease(etcd.GetFullSnapshotLeaseName(), etcd.Namespace, etcd.Name, etcd.UID, "etcd-snapshot-lease")
 	Expect(c.Create(context.TODO(), fullSnapLease)).To(Succeed())
 
 	By("create delta snapshot lease")
-	deltaSnapLease := testutils.CreateLease(etcd.GetDeltaSnapshotLeaseName(), etcd.Namespace, etcd.Name, etcd.UID)
+	deltaSnapLease := testutils.CreateLease(etcd.GetDeltaSnapshotLeaseName(), etcd.Namespace, etcd.Name, etcd.UID, "etcd-snapshot-lease")
 	Expect(c.Create(context.TODO(), deltaSnapLease)).To(Succeed())
 
 	// wait for full snapshot lease to be created

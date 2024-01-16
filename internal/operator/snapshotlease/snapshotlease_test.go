@@ -21,12 +21,14 @@ import (
 	gomegatypes "github.com/onsi/gomega/types"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	testEtcdName = "test-etcd"
-	testNs       = "test-namespace"
+	testEtcdName      = "test-etcd"
+	nonTargetEtcdName = "another-etcd"
+	testNs            = "test-namespace"
 )
 
 var (
@@ -79,7 +81,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 			etcd := etcdBuilder.Build()
 			fakeClientBuilder := testutils.NewFakeClientBuilder().WithGetError(tc.getErr)
 			if tc.backupEnabled {
-				fakeClientBuilder.WithObjects(testsample.NewDeltaSnapshotLease(etcd), testsample.NewFullSnapshotLease(etcd))
+				fakeClientBuilder.WithObjects(newDeltaSnapshotLease(etcd), newFullSnapshotLease(etcd))
 			}
 			operator := New(fakeClientBuilder.Build())
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -138,6 +140,7 @@ func TestSyncWhenBackupIsEnabled(t *testing.T) {
 }
 
 func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
+	nonTargetEtcd := testsample.EtcdBuilderWithDefaults(nonTargetEtcdName, testNs).Build()
 	existingEtcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()   // backup is enabled
 	updatedEtcd := testsample.EtcdBuilderWithoutDefaults(testEtcdName, testNs).Build() // backup is disabled
 	testCases := []struct {
@@ -165,7 +168,11 @@ func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cl := testutils.NewFakeClientBuilder().
 				WithDeleteAllOfError(tc.deleteAllOfErr).
-				WithObjects(testsample.NewDeltaSnapshotLease(existingEtcd), testsample.NewFullSnapshotLease(existingEtcd)).
+				WithObjects(
+					newDeltaSnapshotLease(existingEtcd),
+					newFullSnapshotLease(existingEtcd),
+					newDeltaSnapshotLease(nonTargetEtcd),
+					newFullSnapshotLease(nonTargetEtcd)).
 				Build()
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -177,6 +184,10 @@ func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
 				g.Expect(latestSnapshotLeases).To(HaveLen(2))
 			} else {
 				g.Expect(latestSnapshotLeases).To(HaveLen(0))
+				// To ensure that delete of snapshot leases did not remove non-target- snapshot leases also check that these still exist
+				actualNonTargetSnapshotLeases, nonTargetSnapshotListErr := getLatestNonTargetSnapshotLeases(cl, nonTargetEtcd)
+				g.Expect(nonTargetSnapshotListErr).To(BeNil())
+				g.Expect(actualNonTargetSnapshotLeases).To(HaveLen(2))
 			}
 		})
 	}
@@ -184,6 +195,7 @@ func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
 
 // ----------------------------- TriggerDelete -------------------------------
 func TestTriggerDelete(t *testing.T) {
+	nonTargetEtcd := testsample.EtcdBuilderWithDefaults(nonTargetEtcdName, testNs).Build()
 	etcdBuilder := testsample.EtcdBuilderWithoutDefaults(testEtcdName, testNs).WithReplicas(3)
 	testCases := []struct {
 		name          string
@@ -219,42 +231,60 @@ func TestTriggerDelete(t *testing.T) {
 				etcdBuilder.WithDefaultBackup()
 			}
 			etcd := etcdBuilder.Build()
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteAllOfError(tc.deleteAllErr)
-			memberLeases, err := testsample.NewMemberLeases(etcd, int(etcd.Spec.Replicas), map[string]string{
-				common.GardenerOwnedBy:           etcd.Name,
-				v1beta1constants.GardenerPurpose: "etcd-member-lease",
-			})
-			g.Expect(err).ToNot(HaveOccurred())
-			for _, lease := range memberLeases {
-				fakeClientBuilder.WithObjects(lease)
-			}
+			fakeClientBuilder := testutils.NewFakeClientBuilder().
+				WithDeleteAllOfError(tc.deleteAllErr).
+				WithObjects(
+					newDeltaSnapshotLease(nonTargetEtcd),
+					newFullSnapshotLease(nonTargetEtcd),
+				)
 			if tc.backupEnabled {
-				fakeClientBuilder.WithObjects(testsample.NewDeltaSnapshotLease(etcd), testsample.NewFullSnapshotLease(etcd))
+				fakeClientBuilder.WithObjects(newDeltaSnapshotLease(etcd), newFullSnapshotLease(etcd))
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd)
 			latestSnapshotLeases, snapshotLeaseListErr := getLatestSnapshotLeases(cl, etcd)
-			latestMemberLeases, memberLeaseListErr := getLatestMemberLeases(cl, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, triggerDeleteErr)
 				g.Expect(snapshotLeaseListErr).ToNot(HaveOccurred())
 				g.Expect(latestSnapshotLeases).To(HaveLen(2))
-				g.Expect(memberLeaseListErr).ToNot(HaveOccurred())
-				g.Expect(latestMemberLeases).To(HaveLen(int(etcd.Spec.Replicas)))
 			} else {
 				g.Expect(triggerDeleteErr).ToNot(HaveOccurred())
 				g.Expect(snapshotLeaseListErr).ToNot(HaveOccurred())
 				g.Expect(latestSnapshotLeases).To(HaveLen(0))
-				g.Expect(memberLeaseListErr).ToNot(HaveOccurred())
-				g.Expect(latestMemberLeases).To(HaveLen(int(etcd.Spec.Replicas)))
 			}
+			actualNonTargetSnapshotLeases, nonTargetSnapshotListErr := getLatestNonTargetSnapshotLeases(cl, nonTargetEtcd)
+			g.Expect(nonTargetSnapshotListErr).ToNot(HaveOccurred())
+			g.Expect(actualNonTargetSnapshotLeases).To(HaveLen(2))
 		})
 	}
 }
 
 // ---------------------------- Helper Functions -----------------------------
+func newDeltaSnapshotLease(etcd *druidv1alpha1.Etcd) *coordinationv1.Lease {
+	leaseName := etcd.GetDeltaSnapshotLeaseName()
+	return buildLease(etcd, leaseName)
+}
+
+func newFullSnapshotLease(etcd *druidv1alpha1.Etcd) *coordinationv1.Lease {
+	leaseName := etcd.GetFullSnapshotLeaseName()
+	return buildLease(etcd, leaseName)
+}
+
+func buildLease(etcd *druidv1alpha1.Etcd, leaseName string) *coordinationv1.Lease {
+	return &coordinationv1.Lease{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      leaseName,
+			Namespace: etcd.Namespace,
+			Labels: utils.MergeMaps[string, string](etcd.GetDefaultLabels(), map[string]string{
+				"gardener.cloud/owned-by":        etcd.Name,
+				v1beta1constants.GardenerPurpose: "etcd-snapshot-lease",
+			}),
+			OwnerReferences: []metav1.OwnerReference{etcd.GetAsOwnerReference()},
+		},
+	}
+}
 
 func matchLease(leaseName string, etcd *druidv1alpha1.Etcd) gomegatypes.GomegaMatcher {
 	expectedLabels := utils.MergeMaps[string, string](etcd.GetDefaultLabels(), map[string]string{
@@ -263,25 +293,18 @@ func matchLease(leaseName string, etcd *druidv1alpha1.Etcd) gomegatypes.GomegaMa
 	})
 	return MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(leaseName),
-			"Namespace": Equal(etcd.Namespace),
-			"Labels":    Equal(expectedLabels),
-			"OwnerReferences": ConsistOf(MatchFields(IgnoreExtras, Fields{
-				"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
-				"Kind":               Equal("Etcd"),
-				"Name":               Equal(etcd.Name),
-				"UID":                Equal(etcd.UID),
-				"Controller":         PointTo(BeTrue()),
-				"BlockOwnerDeletion": PointTo(BeTrue()),
-			})),
+			"Name":            Equal(leaseName),
+			"Namespace":       Equal(etcd.Namespace),
+			"Labels":          testutils.MatchResourceLabels(expectedLabels),
+			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcd.Name, etcd.UID),
 		}),
 	})
 }
 
-func getLatestMemberLeases(cl client.Client, etcd *druidv1alpha1.Etcd) ([]coordinationv1.Lease, error) {
+func getLatestNonTargetSnapshotLeases(cl client.Client, etcd *druidv1alpha1.Etcd) ([]coordinationv1.Lease, error) {
 	return doGetLatestLeases(cl, etcd, map[string]string{
 		common.GardenerOwnedBy:           etcd.Name,
-		v1beta1constants.GardenerPurpose: "etcd-member-lease",
+		v1beta1constants.GardenerPurpose: "etcd-snapshot-lease",
 	})
 }
 

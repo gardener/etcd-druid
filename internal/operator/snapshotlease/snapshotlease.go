@@ -77,12 +77,12 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 	}
 
 	objectKeys := getObjectKeys(etcd)
-	createTasks := make([]utils.OperatorTask, len(objectKeys))
+	syncTasks := make([]utils.OperatorTask, len(objectKeys))
 	var errs error
 
 	for i, objKey := range objectKeys {
 		objKey := objKey // capture the range variable
-		createTasks[i] = utils.OperatorTask{
+		syncTasks[i] = utils.OperatorTask{
 			Name: "CreateOrUpdate-" + objKey.String(),
 			Fn: func(ctx resource.OperatorContext) error {
 				return r.doCreateOrUpdate(ctx, etcd, objKey)
@@ -90,11 +90,7 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 		}
 	}
 
-	if errorList := utils.RunConcurrently(ctx, createTasks); len(errorList) > 0 {
-		for _, err := range errorList {
-			errs = multierror.Append(errs, err)
-		}
-	}
+	errs = multierror.Append(errs, utils.RunConcurrently(ctx, syncTasks)...)
 	return errs
 }
 
@@ -142,8 +138,7 @@ func (r _resource) getLease(ctx context.Context, objectKey client.ObjectKey) (*c
 func (r _resource) doCreateOrUpdate(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, leaseObjectKey client.ObjectKey) error {
 	lease := emptySnapshotLease(leaseObjectKey)
 	opResult, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, lease, func() error {
-		lease.Labels = getLabels(etcd)
-		lease.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+		buildResource(etcd, lease)
 		return nil
 	})
 	if err != nil {
@@ -155,6 +150,11 @@ func (r _resource) doCreateOrUpdate(ctx resource.OperatorContext, etcd *druidv1a
 	ctx.Logger.Info("triggered create or update of snapshot lease", "lease", leaseObjectKey, "operationResult", opResult)
 
 	return nil
+}
+
+func buildResource(etcd *druidv1alpha1.Etcd, lease *coordinationv1.Lease) {
+	lease.Labels = getLabels(etcd)
+	lease.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
