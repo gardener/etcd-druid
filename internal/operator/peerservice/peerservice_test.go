@@ -23,7 +23,6 @@ import (
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
-	testsample "github.com/gardener/etcd-druid/test/sample"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
@@ -48,7 +47,7 @@ var (
 
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
-	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 	testcases := []struct {
 		name                 string
 		svcExists            bool
@@ -103,7 +102,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenNoServiceExists(t *testing.T) {
-	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs)
 	testCases := []struct {
 		name           string
 		createWithPort *int32
@@ -154,7 +153,7 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 }
 
 func TestSyncWhenServiceExists(t *testing.T) {
-	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs)
 	testCases := []struct {
 		name           string
 		updateWithPort *int32
@@ -203,7 +202,7 @@ func TestSyncWhenServiceExists(t *testing.T) {
 
 // ----------------------------- TriggerDelete -------------------------------
 func TestPeerServiceTriggerDelete(t *testing.T) {
-	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 	deleteInternalErr := apierrors.NewInternalError(errors.New("fake delete internal error"))
 	testCases := []struct {
 		name        string

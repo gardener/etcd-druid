@@ -8,7 +8,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
-	testsample "github.com/gardener/etcd-druid/test/sample"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
@@ -32,7 +31,7 @@ var (
 
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
-	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 	testCases := []struct {
 		name            string
 		saExists        bool
@@ -122,7 +121,7 @@ func TestSync(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			cl := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).Build()
-			etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 			operator := New(cl, tc.disableAutoMount)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
@@ -171,7 +170,7 @@ func TestTriggerDelete(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr)
 			if tc.saExists {
 				fakeClientBuilder.WithObjects(newServiceAccount(etcd, false))

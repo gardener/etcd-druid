@@ -11,7 +11,6 @@ import (
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
-	testsample "github.com/gardener/etcd-druid/test/sample"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/go-logr/logr"
@@ -38,7 +37,7 @@ var (
 
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
-	etcdBuilder := testsample.EtcdBuilderWithoutDefaults(testEtcdName, testNs)
+	etcdBuilder := testutils.EtcdBuilderWithoutDefaults(testEtcdName, testNs)
 	testCases := []struct {
 		name               string
 		backupEnabled      bool
@@ -98,7 +97,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenBackupIsEnabled(t *testing.T) {
-	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 	testCases := []struct {
 		name        string
 		createErr   *apierrors.StatusError
@@ -140,9 +139,9 @@ func TestSyncWhenBackupIsEnabled(t *testing.T) {
 }
 
 func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
-	nonTargetEtcd := testsample.EtcdBuilderWithDefaults(nonTargetEtcdName, testNs).Build()
-	existingEtcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()   // backup is enabled
-	updatedEtcd := testsample.EtcdBuilderWithoutDefaults(testEtcdName, testNs).Build() // backup is disabled
+	nonTargetEtcd := testutils.EtcdBuilderWithDefaults(nonTargetEtcdName, testNs).Build()
+	existingEtcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()   // backup is enabled
+	updatedEtcd := testutils.EtcdBuilderWithoutDefaults(testEtcdName, testNs).Build() // backup is disabled
 	testCases := []struct {
 		name           string
 		deleteAllOfErr *apierrors.StatusError
@@ -195,8 +194,8 @@ func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
 
 // ----------------------------- TriggerDelete -------------------------------
 func TestTriggerDelete(t *testing.T) {
-	nonTargetEtcd := testsample.EtcdBuilderWithDefaults(nonTargetEtcdName, testNs).Build()
-	etcdBuilder := testsample.EtcdBuilderWithoutDefaults(testEtcdName, testNs).WithReplicas(3)
+	nonTargetEtcd := testutils.EtcdBuilderWithDefaults(nonTargetEtcdName, testNs).Build()
+	etcdBuilder := testutils.EtcdBuilderWithoutDefaults(testEtcdName, testNs).WithReplicas(3)
 	testCases := []struct {
 		name          string
 		backupEnabled bool

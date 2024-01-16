@@ -26,7 +26,6 @@ import (
 
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
-	testsample "github.com/gardener/etcd-druid/test/sample"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
@@ -50,7 +49,7 @@ var (
 
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
-	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 	testCases := []struct {
 		name                 string
 		svcExists            bool
@@ -245,7 +244,7 @@ func TestTriggerDelete(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// ********************* Setup *********************
-			etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 			cl := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr).Build()
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -271,7 +270,7 @@ func TestTriggerDelete(t *testing.T) {
 
 // ---------------------------- Helper Functions -----------------------------
 func buildEtcd(clientPort, peerPort, backupPort *int32) *druidv1alpha1.Etcd {
-	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs)
 	if clientPort != nil {
 		etcdBuilder.WithEtcdClientPort(clientPort)
 	}

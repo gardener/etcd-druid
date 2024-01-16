@@ -10,7 +10,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
-	testsample "github.com/gardener/etcd-druid/test/sample"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
@@ -36,7 +35,7 @@ var (
 
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
-	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 	testCases := []struct {
 		name             string
 		pdbExists        bool
@@ -91,7 +90,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenNoPDBExists(t *testing.T) {
-	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs)
 	testCases := []struct {
 		name                    string
 		etcdReplicas            int32
@@ -144,7 +143,7 @@ func TestSyncWhenNoPDBExists(t *testing.T) {
 }
 
 func TestSyncWhenPDBExists(t *testing.T) {
-	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs)
 	testCases := []struct {
 		name                    string
 		originalEtcdReplicas    int32
@@ -200,7 +199,7 @@ func TestSyncWhenPDBExists(t *testing.T) {
 
 // ----------------------------- TriggerDelete -------------------------------
 func TestTriggerDelete(t *testing.T) {
-	etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 	testCases := []struct {
 		name        string
 		pdbExists   bool

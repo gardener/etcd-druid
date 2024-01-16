@@ -10,7 +10,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
-	testsample "github.com/gardener/etcd-druid/test/sample"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/go-logr/logr"
@@ -39,7 +38,7 @@ var (
 
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
-	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs)
 	testCases := []struct {
 		name              string
 		etcdReplicas      int32
@@ -112,7 +111,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestSync(t *testing.T) {
-	etcdBuilder := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs)
 	testCases := []struct {
 		name              string
 		etcdReplicas      int32 // original replicas
@@ -240,12 +239,12 @@ func TestTriggerDelete(t *testing.T) {
 
 	g := NewWithT(t)
 	t.Parallel()
-	nonTargetEtcd := testsample.EtcdBuilderWithDefaults(nonTargetEtcdName, testNs).Build()
+	nonTargetEtcd := testutils.EtcdBuilderWithDefaults(nonTargetEtcdName, testNs).Build()
 	nonTargetLeaseNames := []string{"another-etcd-0", "another-etcd-1"}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// *************** set up existing environment *****************
-			etcd := testsample.EtcdBuilderWithDefaults(testEtcdName, testNs).WithReplicas(tc.etcdReplicas).Build()
+			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).WithReplicas(tc.etcdReplicas).Build()
 			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteAllOfError(tc.deleteAllOfErr)
 			if tc.numExistingLeases > 0 {
 				leases, err := newMemberLeases(etcd, tc.numExistingLeases)
