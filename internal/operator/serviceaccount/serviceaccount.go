@@ -6,6 +6,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -19,6 +20,8 @@ const (
 	ErrDeleteServiceAccount druidv1alpha1.ErrorCode = "ERR_DELETE_SERVICE_ACCOUNT"
 	ErrSyncServiceAccount   druidv1alpha1.ErrorCode = "ERR_SYNC_SERVICE_ACCOUNT"
 )
+
+const componentName = "druid-service-account"
 
 type _resource struct {
 	client           client.Client
@@ -79,9 +82,17 @@ func New(client client.Client, disableAutomount bool) resource.Operator {
 }
 
 func buildResource(etcd *druidv1alpha1.Etcd, sa *corev1.ServiceAccount, autoMountServiceAccountToken bool) {
-	sa.Labels = etcd.GetDefaultLabels()
+	sa.Labels = getLabels(etcd)
 	sa.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
 	sa.AutomountServiceAccountToken = pointer.Bool(autoMountServiceAccountToken)
+}
+
+func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
+	roleLabels := map[string]string{
+		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelAppNameKey:   etcd.GetServiceAccountName(),
+	}
+	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), roleLabels)
 }
 
 func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {

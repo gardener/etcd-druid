@@ -7,12 +7,10 @@ import (
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
@@ -184,7 +182,7 @@ func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
 			} else {
 				g.Expect(latestSnapshotLeases).To(HaveLen(0))
 				// To ensure that delete of snapshot leases did not remove non-target- snapshot leases also check that these still exist
-				actualNonTargetSnapshotLeases, nonTargetSnapshotListErr := getLatestNonTargetSnapshotLeases(cl, nonTargetEtcd)
+				actualNonTargetSnapshotLeases, nonTargetSnapshotListErr := getLatestSnapshotLeases(cl, nonTargetEtcd)
 				g.Expect(nonTargetSnapshotListErr).To(BeNil())
 				g.Expect(actualNonTargetSnapshotLeases).To(HaveLen(2))
 			}
@@ -253,7 +251,7 @@ func TestTriggerDelete(t *testing.T) {
 				g.Expect(snapshotLeaseListErr).ToNot(HaveOccurred())
 				g.Expect(latestSnapshotLeases).To(HaveLen(0))
 			}
-			actualNonTargetSnapshotLeases, nonTargetSnapshotListErr := getLatestNonTargetSnapshotLeases(cl, nonTargetEtcd)
+			actualNonTargetSnapshotLeases, nonTargetSnapshotListErr := getLatestSnapshotLeases(cl, nonTargetEtcd)
 			g.Expect(nonTargetSnapshotListErr).ToNot(HaveOccurred())
 			g.Expect(actualNonTargetSnapshotLeases).To(HaveLen(2))
 		})
@@ -277,8 +275,8 @@ func buildLease(etcd *druidv1alpha1.Etcd, leaseName string) *coordinationv1.Leas
 			Name:      leaseName,
 			Namespace: etcd.Namespace,
 			Labels: utils.MergeMaps[string, string](etcd.GetDefaultLabels(), map[string]string{
-				"gardener.cloud/owned-by":        etcd.Name,
-				v1beta1constants.GardenerPurpose: "etcd-snapshot-lease",
+				druidv1alpha1.LabelComponentKey: componentName,
+				druidv1alpha1.LabelAppNameKey:   leaseName,
 			}),
 			OwnerReferences: []metav1.OwnerReference{etcd.GetAsOwnerReference()},
 		},
@@ -287,8 +285,8 @@ func buildLease(etcd *druidv1alpha1.Etcd, leaseName string) *coordinationv1.Leas
 
 func matchLease(leaseName string, etcd *druidv1alpha1.Etcd) gomegatypes.GomegaMatcher {
 	expectedLabels := utils.MergeMaps[string, string](etcd.GetDefaultLabels(), map[string]string{
-		common.GardenerOwnedBy:           etcd.Name,
-		v1beta1constants.GardenerPurpose: purpose,
+		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelAppNameKey:   leaseName,
 	})
 	return MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
@@ -300,18 +298,12 @@ func matchLease(leaseName string, etcd *druidv1alpha1.Etcd) gomegatypes.GomegaMa
 	})
 }
 
-func getLatestNonTargetSnapshotLeases(cl client.Client, etcd *druidv1alpha1.Etcd) ([]coordinationv1.Lease, error) {
-	return doGetLatestLeases(cl, etcd, map[string]string{
-		common.GardenerOwnedBy:           etcd.Name,
-		v1beta1constants.GardenerPurpose: "etcd-snapshot-lease",
-	})
-}
-
 func getLatestSnapshotLeases(cl client.Client, etcd *druidv1alpha1.Etcd) ([]coordinationv1.Lease, error) {
-	return doGetLatestLeases(cl, etcd, map[string]string{
-		common.GardenerOwnedBy:           etcd.Name,
-		v1beta1constants.GardenerPurpose: purpose,
-	})
+	return doGetLatestLeases(cl,
+		etcd,
+		utils.MergeMaps[string, string](map[string]string{
+			druidv1alpha1.LabelComponentKey: componentName,
+		}, etcd.GetDefaultLabels()))
 }
 
 func doGetLatestLeases(cl client.Client, etcd *druidv1alpha1.Etcd, matchingLabels map[string]string) ([]coordinationv1.Lease, error) {

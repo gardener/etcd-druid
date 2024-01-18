@@ -3,11 +3,9 @@ package poddistruptionbudget
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -265,17 +263,11 @@ func getLatestPodDisruptionBudget(cl client.Client, etcd *druidv1alpha1.Etcd) (*
 }
 
 func matchPodDisruptionBudget(g *WithT, etcd *druidv1alpha1.Etcd, actualPDB policyv1.PodDisruptionBudget, expectedPDBMinAvailable int32) {
-	expectedAnnotations := map[string]string{
-		common.GardenerOwnedBy:   fmt.Sprintf("%s/%s", etcd.Namespace, etcd.Name),
-		common.GardenerOwnerType: "etcd",
-	}
-
 	g.Expect(actualPDB).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 			"Name":            Equal(etcd.Name),
 			"Namespace":       Equal(etcd.Namespace),
 			"Labels":          testutils.MatchResourceLabels(etcd.GetDefaultLabels()),
-			"Annotations":     testutils.MatchResourceAnnotations(expectedAnnotations),
 			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcd.Name, etcd.UID),
 		}),
 		"Spec": MatchFields(IgnoreExtras, Fields{

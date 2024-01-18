@@ -20,9 +20,9 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
-	"github.com/gardener/etcd-druid/pkg/common"
-	"github.com/gardener/etcd-druid/pkg/utils"
+	"github.com/gardener/etcd-druid/internal/client/kubernetes"
+	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/gardener/gardener/pkg/controllerutils"

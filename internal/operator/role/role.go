@@ -6,6 +6,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -18,6 +19,8 @@ const (
 	ErrSyncRole   druidv1alpha1.ErrorCode = "ERR_SYNC_ROLE"
 	ErrDeleteRole druidv1alpha1.ErrorCode = "ERR_DELETE_ROLE"
 )
+
+const componentName = "druid-role"
 
 type _resource struct {
 	client client.Client
@@ -89,7 +92,7 @@ func emptyRole(etcd *druidv1alpha1.Etcd) *rbacv1.Role {
 }
 
 func buildResource(etcd *druidv1alpha1.Etcd, role *rbacv1.Role) {
-	role.Labels = etcd.GetDefaultLabels()
+	role.Labels = getLabels(etcd)
 	role.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
 	role.Rules = []rbacv1.PolicyRule{
 		{
@@ -108,4 +111,12 @@ func buildResource(etcd *druidv1alpha1.Etcd, role *rbacv1.Role) {
 			Verbs:     []string{"get", "list", "watch"},
 		},
 	}
+}
+
+func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
+	roleLabels := map[string]string{
+		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelAppNameKey:   etcd.GetRoleName(),
+	}
+	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), roleLabels)
 }

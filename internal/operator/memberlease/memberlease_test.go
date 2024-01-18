@@ -7,11 +7,10 @@ import (
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
@@ -254,7 +253,7 @@ func TestTriggerDelete(t *testing.T) {
 				}
 			}
 			for _, nonTargetLeaseName := range nonTargetLeaseNames {
-				fakeClientBuilder.WithObjects(testutils.CreateLease(nonTargetLeaseName, nonTargetEtcd.Namespace, nonTargetEtcd.Name, nonTargetEtcd.UID, purpose))
+				fakeClientBuilder.WithObjects(testutils.CreateLease(nonTargetLeaseName, nonTargetEtcd.Namespace, nonTargetEtcd.Name, nonTargetEtcd.UID, componentName))
 			}
 			cl := fakeClientBuilder.Build()
 			// ***************** Setup operator and test *****************
@@ -269,7 +268,7 @@ func TestTriggerDelete(t *testing.T) {
 				g.Expect(memberLeasesPostDelete).Should(HaveLen(tc.numExistingLeases))
 			} else {
 				g.Expect(memberLeasesPostDelete).Should(HaveLen(0))
-				nonTargetMemberLeases := getLatestNonTargetMemberLeases(g, cl, nonTargetEtcd)
+				nonTargetMemberLeases := getLatestMemberLeases(g, cl, nonTargetEtcd)
 				g.Expect(nonTargetMemberLeases).To(HaveLen(len(nonTargetLeaseNames)))
 				g.Expect(nonTargetMemberLeases).To(ConsistOf(memberLeases(nonTargetEtcd.Name, nonTargetEtcd.UID, int32(len(nonTargetLeaseNames)))))
 			}
@@ -279,14 +278,12 @@ func TestTriggerDelete(t *testing.T) {
 
 // ---------------------------- Helper Functions -----------------------------
 func getLatestMemberLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) []coordinationv1.Lease {
-	return doGetLatestLeases(g, cl, etcd, map[string]string{
-		common.GardenerOwnedBy:           etcd.Name,
-		v1beta1constants.GardenerPurpose: purpose,
-	})
-}
-
-func getLatestNonTargetMemberLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) []coordinationv1.Lease {
-	return doGetLatestLeases(g, cl, etcd, getAdditionalMemberLeaseLabels(etcd.Name))
+	return doGetLatestLeases(g,
+		cl,
+		etcd,
+		utils.MergeMaps[string, string](map[string]string{
+			druidv1alpha1.LabelComponentKey: componentName,
+		}, etcd.GetDefaultLabels()))
 }
 
 func doGetLatestLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd, matchingLabels map[string]string) []coordinationv1.Lease {
@@ -320,7 +317,6 @@ func newMemberLeases(etcd *druidv1alpha1.Etcd, numLeases int) ([]*coordinationv1
 	if numLeases > int(etcd.Spec.Replicas) {
 		return nil, errors.New("number of requested leases is greater than the etcd replicas")
 	}
-	additionalLabels := getAdditionalMemberLeaseLabels(etcd.Name)
 	memberLeaseNames := etcd.GetMemberLeaseNames()
 	leases := make([]*coordinationv1.Lease, 0, numLeases)
 	for i := 0; i < numLeases; i++ {
@@ -328,18 +324,11 @@ func newMemberLeases(etcd *druidv1alpha1.Etcd, numLeases int) ([]*coordinationv1
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            memberLeaseNames[i],
 				Namespace:       etcd.Namespace,
-				Labels:          testutils.MergeMaps[string, string](etcd.GetDefaultLabels(), additionalLabels),
+				Labels:          getLabels(etcd, memberLeaseNames[i]),
 				OwnerReferences: []metav1.OwnerReference{etcd.GetAsOwnerReference()},
 			},
 		}
 		leases = append(leases, lease)
 	}
 	return leases, nil
-}
-
-func getAdditionalMemberLeaseLabels(etcdName string) map[string]string {
-	return map[string]string{
-		common.GardenerOwnedBy:           etcdName,
-		v1beta1constants.GardenerPurpose: purpose,
-	}
 }

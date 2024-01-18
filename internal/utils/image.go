@@ -16,23 +16,10 @@ package utils
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/common"
+	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"k8s.io/utils/pointer"
 )
-
-func getEtcdImageKeys(useEtcdWrapper bool) (etcdImageKey string, etcdbrImageKey string, alpine string) {
-	alpine = common.Alpine
-	switch useEtcdWrapper {
-	case true:
-		etcdImageKey = common.EtcdWrapper
-		etcdbrImageKey = common.BackupRestoreDistroless
-	default:
-		etcdImageKey = common.Etcd
-		etcdbrImageKey = common.BackupRestore
-	}
-	return
-}
 
 // GetEtcdImages returns images for etcd and backup-restore by inspecting the etcd spec and the image vector
 // and returns the image for the init container by inspecting the image vector.
@@ -40,12 +27,12 @@ func getEtcdImageKeys(useEtcdWrapper bool) (etcdImageKey string, etcdbrImageKey 
 // it be picked up from the image vector if it's set there.
 // A return value of nil for either of the images indicates that the image is not set.
 func GetEtcdImages(etcd *druidv1alpha1.Etcd, iv imagevector.ImageVector, useEtcdWrapper bool) (string, string, string, error) {
-	etcdImageKey, etcdbrImageKey, initContainerImageKey := getEtcdImageKeys(useEtcdWrapper)
+	etcdImageKey, etcdBRImageKey, initContainerImageKey := getEtcdImageKeys(useEtcdWrapper)
 	etcdImage, err := chooseImage(etcdImageKey, etcd.Spec.Etcd.Image, iv)
 	if err != nil {
 		return "", "", "", err
 	}
-	etcdBackupRestoreImage, err := chooseImage(etcdbrImageKey, etcd.Spec.Backup.Image, iv)
+	etcdBackupRestoreImage, err := chooseImage(etcdBRImageKey, etcd.Spec.Backup.Image, iv)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -55,6 +42,18 @@ func GetEtcdImages(etcd *druidv1alpha1.Etcd, iv imagevector.ImageVector, useEtcd
 	}
 
 	return *etcdImage, *etcdBackupRestoreImage, *initContainerImage, nil
+}
+
+func getEtcdImageKeys(useEtcdWrapper bool) (etcdImageKey string, etcdBRImageKey string, alpine string) {
+	alpine = common.Alpine
+	if useEtcdWrapper {
+		etcdImageKey = common.EtcdWrapper
+		etcdBRImageKey = common.BackupRestoreDistroless
+	} else {
+		etcdImageKey = common.Etcd
+		etcdBRImageKey = common.BackupRestore
+	}
+	return
 }
 
 // chooseImage selects an image based on the given key, specImage, and image vector.

@@ -5,8 +5,9 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
-	"github.com/gardener/gardener/pkg/utils"
+	gardenerutils "github.com/gardener/gardener/pkg/utils"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -32,19 +33,9 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 }
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	cfg := createEtcdConfig(etcd)
-	cfgYaml, err := yaml.Marshal(cfg)
-	if err != nil {
-		return err
-	}
 	cm := emptyConfigMap(getObjectKey(etcd))
-	_, err = controllerutils.GetAndCreateOrMergePatch(ctx, r.client, cm, func() error {
-		cm.Name = etcd.GetConfigMapName()
-		cm.Namespace = etcd.Namespace
-		cm.Labels = etcd.GetDefaultLabels()
-		cm.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
-		cm.Data = map[string]string{"etcd.conf.yaml": string(cfgYaml)}
-		return nil
+	_, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, cm, func() error {
+		return buildResource(etcd, cm)
 	})
 	if err != nil {
 		return err
@@ -69,6 +60,28 @@ func New(client client.Client) resource.Operator {
 	}
 }
 
+func buildResource(etcd *druidv1alpha1.Etcd, cm *corev1.ConfigMap) error {
+	cfg := createEtcdConfig(etcd)
+	cfgYaml, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	cm.Name = etcd.GetConfigMapName()
+	cm.Namespace = etcd.Namespace
+	cm.Labels = getLabels(etcd)
+	cm.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+	cm.Data = map[string]string{"etcd.conf.yaml": string(cfgYaml)}
+	return nil
+}
+
+func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
+	cmLabels := map[string]string{
+		druidv1alpha1.LabelComponentKey: "etcd-config",
+		druidv1alpha1.LabelAppNameKey:   etcd.GetConfigMapName(),
+	}
+	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), cmLabels)
+}
+
 func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {
 	return client.ObjectKey{
 		Name:      etcd.GetConfigMapName(),
@@ -90,5 +103,5 @@ func computeCheckSum(cm *corev1.ConfigMap) (string, error) {
 	if err != nil {
 		return "", nil
 	}
-	return utils.ComputeSHA256Hex(jsonData), nil
+	return gardenerutils.ComputeSHA256Hex(jsonData), nil
 }

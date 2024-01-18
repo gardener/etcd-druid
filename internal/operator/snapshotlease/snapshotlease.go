@@ -5,11 +5,9 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/hashicorp/go-multierror"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -18,13 +16,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const purpose = "etcd-snapshot-lease"
-
 const (
 	ErrGetSnapshotLease    druidv1alpha1.ErrorCode = "ERR_GET_SNAPSHOT_LEASE"
 	ErrDeleteSnapshotLease druidv1alpha1.ErrorCode = "ERR_DELETE_SNAPSHOT_LEASE"
 	ErrSyncSnapshotLease   druidv1alpha1.ErrorCode = "ERR_SYNC_SNAPSHOT_LEASE"
 )
+
+const componentName = "snapshot-lease"
 
 type _resource struct {
 	client client.Client
@@ -112,7 +110,7 @@ func (r _resource) deleteAllSnapshotLeases(ctx resource.OperatorContext, etcd *d
 	if err := r.client.DeleteAllOf(ctx,
 		&coordinationv1.Lease{},
 		client.InNamespace(etcd.Namespace),
-		client.MatchingLabels(getLabels(etcd))); err != nil {
+		client.MatchingLabels(getSelectorLabelsForAllSnapshotLeases(etcd))); err != nil {
 		return wrapErrFn(err)
 	}
 	return nil
@@ -153,15 +151,23 @@ func (r _resource) doCreateOrUpdate(ctx resource.OperatorContext, etcd *druidv1a
 }
 
 func buildResource(etcd *druidv1alpha1.Etcd, lease *coordinationv1.Lease) {
-	lease.Labels = getLabels(etcd)
+	lease.Labels = getLabels(etcd, lease.Name)
 	lease.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
 }
 
-func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
-	labels := make(map[string]string)
-	labels[common.GardenerOwnedBy] = etcd.Name
-	labels[v1beta1constants.GardenerPurpose] = purpose
-	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), labels)
+func getSelectorLabelsForAllSnapshotLeases(etcd *druidv1alpha1.Etcd) map[string]string {
+	leaseMatchingLabels := map[string]string{
+		druidv1alpha1.LabelComponentKey: componentName,
+	}
+	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), leaseMatchingLabels)
+}
+
+func getLabels(etcd *druidv1alpha1.Etcd, leaseName string) map[string]string {
+	leaseLabels := map[string]string{
+		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelAppNameKey:   leaseName,
+	}
+	return utils.MergeMaps[string, string](leaseLabels, etcd.GetDefaultLabels())
 }
 
 func getObjectKeys(etcd *druidv1alpha1.Etcd) []client.ObjectKey {

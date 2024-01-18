@@ -16,6 +16,7 @@ import (
 )
 
 const defaultServerPort = 2380
+const componentName = "peer-service"
 
 const (
 	ErrGetPeerService    druidv1alpha1.ErrorCode = "ERR_GET_PEER_SERVICE"
@@ -84,7 +85,7 @@ func New(client client.Client) resource.Operator {
 }
 
 func buildResource(etcd *druidv1alpha1.Etcd, svc *corev1.Service) {
-	svc.Labels = etcd.GetDefaultLabels()
+	svc.Labels = getLabels(etcd)
 	svc.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
 	svc.Spec.Type = corev1.ServiceTypeClusterIP
 	svc.Spec.ClusterIP = corev1.ClusterIPNone
@@ -92,6 +93,14 @@ func buildResource(etcd *druidv1alpha1.Etcd, svc *corev1.Service) {
 	svc.Spec.Selector = etcd.GetDefaultLabels()
 	svc.Spec.PublishNotReadyAddresses = true
 	svc.Spec.Ports = getPorts(etcd)
+}
+
+func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
+	svcLabels := map[string]string{
+		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelAppNameKey:   etcd.GetPeerServiceName(),
+	}
+	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), svcLabels)
 }
 
 func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {

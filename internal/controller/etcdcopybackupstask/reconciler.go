@@ -21,10 +21,11 @@ import (
 	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
-	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
-	"github.com/gardener/etcd-druid/internal/features"
+	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
+	"github.com/gardener/etcd-druid/pkg/common"
+	"github.com/gardener/etcd-druid/pkg/features"
 	"github.com/gardener/etcd-druid/pkg/utils"
+
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"

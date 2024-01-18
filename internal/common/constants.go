@@ -14,6 +14,7 @@
 
 package common
 
+// Constants for image keys
 const (
 	// Etcd is the key for the etcd image in the image vector.
 	Etcd = "etcd"
@@ -25,15 +26,27 @@ const (
 	BackupRestoreDistroless = "etcd-backup-restore-distroless"
 	// Alpine is the key for the alpine image in the image vector.
 	Alpine = "alpine"
+)
+
+// Constants defining keys used in resource labels and annotation keys.
+const (
+	// GardenerOwnedBy is a constant for an annotation/label on a resource that describes the owner resource.
+	// Deprecated: This key will be removed in later releases and code should not depend upon it.
+	GardenerOwnedBy = "gardener.cloud/owned-by"
+	// GardenerOwnerType is a constant for an annotation/label on a resource that describes the type of owner resource.
+	// Deprecated: This key will be removed in later releases and code should not depend upon it.
+	GardenerOwnerType = "gardener.cloud/owner-type"
+)
+
+const (
 	// ChartPath is the directory containing the default image vector file.
 	ChartPath = "charts"
-	// GardenerOwnedBy is a constant for an annotation on a resource that describes the owner resource.
-	GardenerOwnedBy = "gardener.cloud/owned-by"
-	// GardenerOwnerType is a constant for an annotation on a resource that describes the type of owner resource.
-	GardenerOwnerType = "gardener.cloud/owner-type"
 	// FinalizerName is the name of the etcd finalizer.
 	FinalizerName = "druid.gardener.cloud/etcd-druid"
+)
 
+// Constants for environment variables
+const (
 	// EnvPodName is the environment variable key for the pod name.
 	EnvPodName = "POD_NAME"
 	// EnvPodNamespace is the environment variable key for the pod namespace.
@@ -42,7 +55,6 @@ const (
 	EnvStorageContainer = "STORAGE_CONTAINER"
 	// EnvSourceStorageContainer is the environment variable key for the source storage container.
 	EnvSourceStorageContainer = "SOURCE_STORAGE_CONTAINER"
-
 	// EnvAWSApplicationCredentials is the environment variable key for AWS application credentials.
 	EnvAWSApplicationCredentials = "AWS_APPLICATION_CREDENTIALS"
 	// EnvAzureApplicationCredentials is the environment variable key for Azure application credentials.

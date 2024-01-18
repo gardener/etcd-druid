@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -20,6 +20,8 @@ const (
 	ErrDeletePodDisruptionBudget druidv1alpha1.ErrorCode = "ERR_DELETE_POD_DISRUPTION_BUDGET"
 	ErrSyncPodDisruptionBudget   druidv1alpha1.ErrorCode = "ERR_SYNC_POD_DISRUPTION_BUDGET"
 )
+
+const componentName = "etcd-pdb"
 
 type _resource struct {
 	client client.Client
@@ -77,8 +79,7 @@ func New(client client.Client) resource.Operator {
 }
 
 func buildResource(etcd *druidv1alpha1.Etcd, pdb *policyv1.PodDisruptionBudget) {
-	pdb.Labels = etcd.GetDefaultLabels()
-	pdb.Annotations = getAnnotations(etcd)
+	pdb.Labels = getLabels(etcd)
 	pdb.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
 	pdb.Spec.MinAvailable = &intstr.IntOrString{
 		IntVal: computePDBMinAvailable(int(etcd.Spec.Replicas)),
@@ -87,6 +88,14 @@ func buildResource(etcd *druidv1alpha1.Etcd, pdb *policyv1.PodDisruptionBudget) 
 	pdb.Spec.Selector = &metav1.LabelSelector{
 		MatchLabels: etcd.GetDefaultLabels(),
 	}
+}
+
+func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
+	pdbLabels := map[string]string{
+		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelAppNameKey:   etcd.Name,
+	}
+	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), pdbLabels)
 }
 
 func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {
@@ -99,13 +108,6 @@ func emptyPodDisruptionBudget(objectKey client.ObjectKey) *policyv1.PodDisruptio
 			Name:      objectKey.Name,
 			Namespace: objectKey.Namespace,
 		},
-	}
-}
-
-func getAnnotations(etcd *druidv1alpha1.Etcd) map[string]string {
-	return map[string]string{
-		common.GardenerOwnedBy:   fmt.Sprintf("%s/%s", etcd.Namespace, etcd.Name),
-		common.GardenerOwnerType: "etcd",
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -18,6 +19,8 @@ const (
 	ErrSyncRoleBinding   druidv1alpha1.ErrorCode = "ERR_SYNC_ROLE_BINDING"
 	ErrDeleteRoleBinding druidv1alpha1.ErrorCode = "ERR_DELETE_ROLE_BINDING"
 )
+
+const componentName = "druid-role-binding"
 
 type _resource struct {
 	client client.Client
@@ -100,7 +103,7 @@ func emptyRoleBinding(etcd *druidv1alpha1.Etcd) *rbacv1.RoleBinding {
 }
 
 func buildResource(etcd *druidv1alpha1.Etcd, rb *rbacv1.RoleBinding) {
-	rb.Labels = etcd.GetDefaultLabels()
+	rb.Labels = getLabels(etcd)
 	rb.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
 	rb.RoleRef = rbacv1.RoleRef{
 		APIGroup: "rbac.authorization.k8s.io",
@@ -114,4 +117,12 @@ func buildResource(etcd *druidv1alpha1.Etcd, rb *rbacv1.RoleBinding) {
 			Namespace: etcd.Namespace,
 		},
 	}
+}
+
+func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
+	roleLabels := map[string]string{
+		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelAppNameKey:   etcd.GetRoleBindingName(),
+	}
+	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), roleLabels)
 }
