@@ -23,6 +23,8 @@ import (
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
+	"github.com/gardener/etcd-druid/internal/webhook/sentinel"
+
 	coordinationv1 "k8s.io/api/coordination/v1"
 	coordinationv1beta1 "k8s.io/api/coordination/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -71,7 +73,10 @@ func createManager(config *ManagerConfig) (ctrl.Manager, error) {
 	return ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		ClientDisableCacheFor:      uncachedObjects,
 		Scheme:                     kubernetes.Scheme,
-		MetricsBindAddress:         config.MetricsAddr,
+		MetricsBindAddress:         config.Server.Metrics.BindAddress,
+		Host:                       config.Server.Webhook.BindAddress,
+		Port:                       config.Server.Webhook.Port,
+		CertDir:                    config.Server.Webhook.TLS.ServerCertDir,
 		LeaderElection:             config.EnableLeaderElection,
 		LeaderElectionID:           config.LeaderElectionID,
 		LeaderElectionResourceLock: config.LeaderElectionResourceLock,
@@ -113,8 +118,24 @@ func registerControllersWithManager(mgr ctrl.Manager, config *ManagerConfig) err
 	// Add secret reconciler to the manager
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
-	return secret.NewReconciler(
+	if err = secret.NewReconciler(
 		mgr,
 		config.SecretControllerConfig,
-	).RegisterWithManager(ctx, mgr)
+	).RegisterWithManager(ctx, mgr); err != nil {
+		return err
+	}
+
+	// Add sentinel webhook to the manager
+	if config.SentinelWebhookConfig.Enabled {
+		var sentinelWebhook *sentinel.Handler
+		if sentinelWebhook, err = sentinel.NewHandler(
+			mgr,
+			config.SentinelWebhookConfig,
+		); err != nil {
+			return err
+		}
+		return sentinelWebhook.RegisterWithManager(mgr)
+	}
+
+	return nil
 }

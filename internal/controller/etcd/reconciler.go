@@ -205,6 +205,7 @@ func (r *Reconciler) reconcileStatus(ctx resource.OperatorContext, etcdObjectKey
 		return utils.ReconcileWithError(err)
 	}
 
+	sLog.Info("Finished etcd status update")
 	return utils.ContinueReconcile()
 }
 

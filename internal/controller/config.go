@@ -23,6 +23,8 @@ import (
 	"github.com/gardener/etcd-druid/internal/controller/secret"
 	"github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/features"
+	"github.com/gardener/etcd-druid/internal/webhook/sentinel"
+
 	flag "github.com/spf13/pflag"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/component-base/featuregate"
@@ -30,17 +32,54 @@ import (
 
 const (
 	metricsAddrFlagName                = "metrics-addr"
+	webhookServerBindAddressFlagName   = "webhook-server-bind-address"
+	webhookServerPortFlagName          = "webhook-server-port"
+	webhookServerTLSServerCertDir      = "webhook-server-tls-server-cert-dir"
 	enableLeaderElectionFlagName       = "enable-leader-election"
 	leaderElectionIDFlagName           = "leader-election-id"
 	leaderElectionResourceLockFlagName = "leader-election-resource-lock"
 	disableLeaseCacheFlagName          = "disable-lease-cache"
 
 	defaultMetricsAddr                = ":8080"
+	defaultWebhookServerBindAddress   = ""
+	defaultWebhookServerPort          = 9443
+	defaultWebhookServerTLSServerCert = "/etc/webhook-server-tls"
 	defaultEnableLeaderElection       = false
 	defaultLeaderElectionID           = "druid-leader-election"
 	defaultLeaderElectionResourceLock = resourcelock.LeasesResourceLock
 	defaultDisableLeaseCache          = false
 )
+
+// ServerConfig contains details for the HTTP(S) servers.
+type ServerConfig struct {
+	// Webhook is the configuration for the HTTPS webhook server.
+	Webhook HTTPSServer
+	// Metrics is the configuration for serving the metrics endpoint.
+	Metrics *Server
+}
+
+// HTTPSServer is the configuration for the HTTPSServer server.
+type HTTPSServer struct {
+	// Server is the configuration for the bind address and the port.
+	Server
+	// TLSServer contains information about the TLS configuration for an HTTPS server.
+	TLS TLSServer
+}
+
+// TLSServer contains information about the TLS configuration for an HTTPS server.
+type TLSServer struct {
+	// ServerCertDir is the path to a directory containing the server's TLS certificate and key (the files must be
+	// named tls.crt and tls.key respectively).
+	ServerCertDir string
+}
+
+// Server contains information for HTTP(S) server configuration.
+type Server struct {
+	// BindAddress is the IP address on which to listen for the specified port.
+	BindAddress string
+	// Port is the port on which to serve unsecured, unauthenticated access.
+	Port int
+}
 
 // LeaderElectionConfig defines the configuration for the leader election for the controller manager.
 type LeaderElectionConfig struct {
@@ -57,7 +96,10 @@ type LeaderElectionConfig struct {
 // ManagerConfig defines the configuration for the controller manager.
 type ManagerConfig struct {
 	// MetricsAddr is the address the metric endpoint binds to.
+	// Deprecated: This field will be eventually removed. Please use Server.Metrics.BindAddress instead.
 	MetricsAddr string
+	// Server is the configuration for the HTTP server.
+	Server *ServerConfig
 	LeaderElectionConfig
 	// DisableLeaseCache specifies whether to disable cache for lease.coordination.k8s.io resources.
 	DisableLeaseCache bool
@@ -71,12 +113,25 @@ type ManagerConfig struct {
 	EtcdCopyBackupsTaskControllerConfig *etcdcopybackupstask.Config
 	// SecretControllerConfig is the configuration required for secret controller.
 	SecretControllerConfig *secret.Config
+	// SentinelWebhookConfig is the configuration required for sentinel webhook.
+	SentinelWebhookConfig *sentinel.Config
 }
 
 // InitFromFlags initializes the controller manager config from the provided CLI flag set.
 func (cfg *ManagerConfig) InitFromFlags(fs *flag.FlagSet) error {
-	flag.StringVar(&cfg.MetricsAddr, metricsAddrFlagName, defaultMetricsAddr, ""+
+	cfg.Server = &ServerConfig{}
+	cfg.Server.Metrics = &Server{}
+	cfg.Server.Webhook = HTTPSServer{}
+	cfg.Server.Webhook.Server = Server{}
+
+	flag.StringVar(&cfg.Server.Metrics.BindAddress, metricsAddrFlagName, defaultMetricsAddr,
 		"The address the metric endpoint binds to.")
+	flag.StringVar(&cfg.Server.Webhook.Server.BindAddress, webhookServerBindAddressFlagName, defaultWebhookServerBindAddress,
+		"The IP address on which to listen for the HTTPS webhook server.")
+	flag.IntVar(&cfg.Server.Webhook.Server.Port, webhookServerPortFlagName, defaultWebhookServerPort,
+		"The port on which to listen for the HTTPS webhook server.")
+	flag.StringVar(&cfg.Server.Webhook.TLS.ServerCertDir, webhookServerTLSServerCertDir, defaultWebhookServerTLSServerCert,
+		"The path to a directory containing the server's TLS certificate and key (the files must be named tls.crt and tls.key respectively).")
 	flag.BoolVar(&cfg.EnableLeaderElection, enableLeaderElectionFlagName, defaultEnableLeaderElection,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&cfg.LeaderElectionID, leaderElectionIDFlagName, defaultLeaderElectionID,
@@ -101,6 +156,9 @@ func (cfg *ManagerConfig) InitFromFlags(fs *flag.FlagSet) error {
 
 	cfg.SecretControllerConfig = &secret.Config{}
 	secret.InitFromFlags(fs, cfg.SecretControllerConfig)
+
+	cfg.SentinelWebhookConfig = &sentinel.Config{}
+	sentinel.InitFromFlags(fs, cfg.SentinelWebhookConfig)
 
 	return nil
 }
@@ -137,6 +195,16 @@ func (cfg *ManagerConfig) Validate() error {
 	if err := utils.ShouldBeOneOfAllowedValues("LeaderElectionResourceLock", getAllowedLeaderElectionResourceLocks(), cfg.LeaderElectionResourceLock); err != nil {
 		return err
 	}
+
+	if cfg.SentinelWebhookConfig.Enabled {
+		if cfg.Server.Webhook.Port == 0 {
+			return fmt.Errorf("webhook port cannot be 0")
+		}
+		if cfg.Server.Webhook.TLS.ServerCertDir == "" {
+			return fmt.Errorf("webhook server cert dir cannot be empty")
+		}
+	}
+
 	if err := cfg.EtcdControllerConfig.Validate(); err != nil {
 		return err
 	}

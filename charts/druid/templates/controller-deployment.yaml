@@ -2,9 +2,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}
+  name: etcd-druid
   namespace: {{ .Release.Namespace }}
   labels:
+    gardener.cloud/role: etcd-druid
 spec:
   replicas: {{ .Values.replicas }}
   selector:
@@ -24,8 +25,7 @@ spec:
         - /etcd-druid
         - --enable-leader-election=true
         - --ignore-operation-annotation={{ .Values.ignoreOperationAnnotation }}
-        - --workers=3
-        - --custodian-sync-period=15s
+        - --etcd-workers=3
         {{- if .Values.enableBackupCompaction }}
         - --enable-backup-compaction={{ .Values.enableBackupCompaction }}
         {{- end }}
@@ -43,6 +43,21 @@ spec:
         {{- end }}
         - --feature-gates={{ $featuregates | trimSuffix "," }}
         {{- end }}
+
+        {{- if (((.Values.server).webhook).bindAddress) }}
+        - --webhook-server-bind-address={{ .Values.server.webhook.bindAddress }}
+        {{- end }}
+        {{- if (((.Values.server).webhook).port) }}
+        - --webhook-server-port={{ .Values.server.webhook.port }}
+        {{- end }}
+        {{- if ((((.Values.server).webhook).tls).serverCertDir) }}
+        - --webhook-server-tls-server-cert-dir={{ .Values.server.webhook.tls.serverCertDir }}
+        {{- end }}
+
+        {{- if .Values.enableSentinelWebhook }}
+        - --enable-sentinel-webhook={{ .Values.enableSentinelWebhook }}
+        {{- end }}
+
         resources:
           limits:
             cpu: 300m
@@ -52,3 +67,12 @@ spec:
             memory: 128Mi
         ports:
         - containerPort: 9569
+        volumeMounts:
+          - mountPath: /etc/webhook-server-tls
+            name: tls
+            readOnly: true
+      volumes:
+        - name: tls
+          secret:
+            defaultMode: 420
+            secretName: etcd-druid-server-tls

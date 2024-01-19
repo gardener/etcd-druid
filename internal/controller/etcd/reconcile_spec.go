@@ -41,6 +41,7 @@ func (r *Reconciler) triggerReconcileSpecFlow(ctx resource.OperatorContext, etcd
 			return r.recordIncompleteReconcileOperation(ctx, etcdObjectKey, stepResult)
 		}
 	}
+	ctx.Logger.Info("Finished spec reconciliation flow")
 	return ctrlutils.ContinueReconcile()
 }
 

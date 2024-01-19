@@ -11,3 +11,12 @@ ignoreOperationAnnotation: false
 # metricsScrapeWaitDuration: "10s"
 # featureGates:
 #   UseEtcdWrapper: true
+
+server:
+  webhook:
+    bindAddress: ""
+    port: 9443
+    tls:
+      serverCertDir: /etc/webhook-server-tls
+
+enableSentinelWebhook: true
