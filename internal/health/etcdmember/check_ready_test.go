@@ -24,9 +24,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	. "github.com/gardener/etcd-druid/internal/health/etcdmember"
 	mockclient "github.com/gardener/etcd-druid/internal/mock/controller-runtime/client"
-	"github.com/gardener/etcd-druid/internal/utils"
-
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/test"
 	"github.com/go-logr/logr"
@@ -88,7 +85,11 @@ var _ = Describe("ReadyCheck", func() {
 
 		JustBeforeEach(func() {
 			cl.EXPECT().List(ctx, gomock.AssignableToTypeOf(&coordinationv1.LeaseList{}), client.InNamespace(etcd.Namespace),
-				client.MatchingLabels{common.GardenerOwnedBy: etcd.Name, v1beta1constants.GardenerPurpose: utils.PurposeMemberLease}).
+				client.MatchingLabels{
+					druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
+					druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
+					druidv1alpha1.LabelPartOfKey:    etcd.Name,
+				}).
 				DoAndReturn(
 					func(_ context.Context, leases *coordinationv1.LeaseList, _ ...client.ListOption) error {
 						*leases = *leasesList

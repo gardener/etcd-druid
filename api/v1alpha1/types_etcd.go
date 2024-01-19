@@ -540,7 +540,7 @@ func (e *Etcd) GetMemberLeaseNames() []string {
 // GetDefaultLabels returns the default labels for etcd.
 func (e *Etcd) GetDefaultLabels() map[string]string {
 	return map[string]string{
-		LabelManagedByKey: "etcd-druid",
+		LabelManagedByKey: LabelManagedByValue,
 		LabelPartOfKey:    e.Name,
 	}
 }

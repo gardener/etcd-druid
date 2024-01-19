@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -20,8 +21,6 @@ const (
 	ErrDeleteServiceAccount druidv1alpha1.ErrorCode = "ERR_DELETE_SERVICE_ACCOUNT"
 	ErrSyncServiceAccount   druidv1alpha1.ErrorCode = "ERR_SYNC_SERVICE_ACCOUNT"
 )
-
-const componentName = "druid-service-account"
 
 type _resource struct {
 	client           client.Client
@@ -89,7 +88,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, sa *corev1.ServiceAccount, autoMoun
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	roleLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelComponentKey: common.ServiceAccountComponentName,
 		druidv1alpha1.LabelAppNameKey:   etcd.GetServiceAccountName(),
 	}
 	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), roleLabels)

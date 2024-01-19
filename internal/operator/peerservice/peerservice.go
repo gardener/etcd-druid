@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -16,7 +17,6 @@ import (
 )
 
 const defaultServerPort = 2380
-const componentName = "peer-service"
 
 const (
 	ErrGetPeerService    druidv1alpha1.ErrorCode = "ERR_GET_PEER_SERVICE"
@@ -97,7 +97,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, svc *corev1.Service) {
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	svcLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelComponentKey: common.PeerServiceComponentName,
 		druidv1alpha1.LabelAppNameKey:   etcd.GetPeerServiceName(),
 	}
 	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), svcLabels)

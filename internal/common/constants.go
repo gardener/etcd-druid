@@ -28,16 +28,6 @@ const (
 	Alpine = "alpine"
 )
 
-// Constants defining keys used in resource labels and annotation keys.
-const (
-	// GardenerOwnedBy is a constant for an annotation/label on a resource that describes the owner resource.
-	// Deprecated: This key will be removed in later releases and code should not depend upon it.
-	GardenerOwnedBy = "gardener.cloud/owned-by"
-	// GardenerOwnerType is a constant for an annotation/label on a resource that describes the type of owner resource.
-	// Deprecated: This key will be removed in later releases and code should not depend upon it.
-	GardenerOwnerType = "gardener.cloud/owner-type"
-)
-
 const (
 	// ChartPath is the directory containing the default image vector file.
 	ChartPath = "charts"
@@ -75,4 +65,18 @@ const (
 	EnvECSAccessKeyID = "ECS_ACCESS_KEY_ID"
 	// EnvECSSecretAccessKey is the environment variable key for Dell ECS secret access key.
 	EnvECSSecretAccessKey = "ECS_SECRET_ACCESS_KEY"
+)
+
+// Constants for values to be set against druidv1alpha1.LabelComponentKey
+const (
+	ClientServiceComponentName       = "etcd-client-service"
+	ConfigMapComponentName           = "etcd-config"
+	MemberLeaseComponentName         = "etcd-member-lease"
+	SnapshotLeaseComponentName       = "etcd-snapshot-lease"
+	PeerServiceComponentName         = "etcd-peer-service"
+	PodDisruptionBudgetComponentName = "etcd-pdb"
+	RoleComponentName                = "etcd-druid-role"
+	RoleBindingComponentName         = "druid-role-binding"
+	ServiceAccountComponentName      = "druid-service-account"
+	StatefulSetComponentName         = "etcd-sts"
 )

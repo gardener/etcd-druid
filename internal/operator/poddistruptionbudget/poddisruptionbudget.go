@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -20,8 +21,6 @@ const (
 	ErrDeletePodDisruptionBudget druidv1alpha1.ErrorCode = "ERR_DELETE_POD_DISRUPTION_BUDGET"
 	ErrSyncPodDisruptionBudget   druidv1alpha1.ErrorCode = "ERR_SYNC_POD_DISRUPTION_BUDGET"
 )
-
-const componentName = "etcd-pdb"
 
 type _resource struct {
 	client client.Client
@@ -92,7 +91,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, pdb *policyv1.PodDisruptionBudget) 
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	pdbLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelComponentKey: common.PodDisruptionBudgetComponentName,
 		druidv1alpha1.LabelAppNameKey:   etcd.Name,
 	}
 	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), pdbLabels)

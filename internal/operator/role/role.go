@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -19,8 +20,6 @@ const (
 	ErrSyncRole   druidv1alpha1.ErrorCode = "ERR_SYNC_ROLE"
 	ErrDeleteRole druidv1alpha1.ErrorCode = "ERR_DELETE_ROLE"
 )
-
-const componentName = "druid-role"
 
 type _resource struct {
 	client client.Client
@@ -115,7 +114,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, role *rbacv1.Role) {
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	roleLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelComponentKey: common.RoleComponentName,
 		druidv1alpha1.LabelAppNameKey:   etcd.GetRoleName(),
 	}
 	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), roleLabels)

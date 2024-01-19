@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -21,8 +22,6 @@ const (
 	ErrDeleteSnapshotLease druidv1alpha1.ErrorCode = "ERR_DELETE_SNAPSHOT_LEASE"
 	ErrSyncSnapshotLease   druidv1alpha1.ErrorCode = "ERR_SYNC_SNAPSHOT_LEASE"
 )
-
-const componentName = "snapshot-lease"
 
 type _resource struct {
 	client client.Client
@@ -157,14 +156,14 @@ func buildResource(etcd *druidv1alpha1.Etcd, lease *coordinationv1.Lease) {
 
 func getSelectorLabelsForAllSnapshotLeases(etcd *druidv1alpha1.Etcd) map[string]string {
 	leaseMatchingLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelComponentKey: common.SnapshotLeaseComponentName,
 	}
 	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), leaseMatchingLabels)
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd, leaseName string) map[string]string {
 	leaseLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelComponentKey: common.SnapshotLeaseComponentName,
 		druidv1alpha1.LabelAppNameKey:   leaseName,
 	}
 	return utils.MergeMaps[string, string](leaseLabels, etcd.GetDefaultLabels())

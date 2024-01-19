@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
@@ -76,7 +77,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, cm *corev1.ConfigMap) error {
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	cmLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: "etcd-config",
+		druidv1alpha1.LabelComponentKey: common.ConfigMapComponentName,
 		druidv1alpha1.LabelAppNameKey:   etcd.GetConfigMapName(),
 	}
 	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), cmLabels)

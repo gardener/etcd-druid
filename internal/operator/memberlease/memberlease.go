@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -20,8 +21,6 @@ const (
 	ErrDeleteMemberLease druidv1alpha1.ErrorCode = "ERR_DELETE_MEMBER_LEASE"
 	ErrSyncMemberLease   druidv1alpha1.ErrorCode = "ERR_SYNC_MEMBER_LEASE"
 )
-
-const componentName = "member-lease"
 
 type _resource struct {
 	client client.Client
@@ -121,14 +120,14 @@ func getObjectKeys(etcd *druidv1alpha1.Etcd) []client.ObjectKey {
 
 func getSelectorLabelsForAllMemberLeases(etcd *druidv1alpha1.Etcd) map[string]string {
 	leaseMatchingLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
 	}
 	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), leaseMatchingLabels)
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd, leaseName string) map[string]string {
 	leaseLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
 		druidv1alpha1.LabelAppNameKey:   leaseName,
 	}
 	return utils.MergeMaps[string, string](leaseLabels, etcd.GetDefaultLabels())

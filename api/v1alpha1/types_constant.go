@@ -4,11 +4,13 @@ package v1alpha1
 const (
 	// LabelAppNameKey is a label which sets the name of the resource provisioned for an etcd cluster.
 	LabelAppNameKey = "app.kubernetes.io/name"
-	// LabelManagedByKey is a label which sets druid as a manager for resources provisioned for an etcd cluster.
+	// LabelManagedByKey is a key of a label which sets druid as a manager for resources provisioned for an etcd cluster.
 	LabelManagedByKey = "app.kubernetes.io/managed-by"
-	// LabelPartOfKey is a label which establishes that a provisioned resource belongs to a parent etcd cluster.
+	// LabelManagedByValue is the value for LabelManagedByKey.
+	LabelManagedByValue = "etcd-druid"
+	// LabelPartOfKey is a key of a label which establishes that a provisioned resource belongs to a parent etcd cluster.
 	LabelPartOfKey = "app.kubernetes.io/part-of"
-	// LabelComponentKey sets the component type label on resources provisioned for an etcd cluster.
+	// LabelComponentKey is a key for a label that sets the component type on resources provisioned for an etcd cluster.
 	LabelComponentKey = "app.kubernetes.io/component"
 )
 

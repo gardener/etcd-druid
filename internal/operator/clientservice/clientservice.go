@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -27,8 +28,6 @@ const (
 	ErrDeleteClientService druidv1alpha1.ErrorCode = "ERR_DELETE_CLIENT_SERVICE"
 	ErrSyncClientService   druidv1alpha1.ErrorCode = "ERR_SYNC_CLIENT_SERVICE"
 )
-
-const componentName = "client-service"
 
 type _resource struct {
 	client client.Client
@@ -109,7 +108,7 @@ func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	clientSvcLabels := map[string]string{
 		druidv1alpha1.LabelAppNameKey:   etcd.GetClientServiceName(),
-		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelComponentKey: common.ClientServiceComponentName,
 	}
 	// Add any client service labels as defined in the etcd resource
 	specClientSvcLabels := map[string]string{}
