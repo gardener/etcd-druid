@@ -1,122 +1,170 @@
-// Copyright 2023 SAP SE or an SAP affiliate company
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package utils
 
 import (
 	"context"
+	"errors"
+	"testing"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
-	testsample "github.com/gardener/etcd-druid/test/sample"
-	"github.com/gardener/etcd-druid/test/utils"
-	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/util/uuid"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-
-	. "github.com/onsi/ginkgo/v2"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 	. "github.com/onsi/gomega"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/uuid"
 )
 
-var _ = Describe("tests for statefulset utility functions", func() {
+const (
+	stsName      = "etcd-test-0"
+	stsNamespace = "test-ns"
+)
 
-	var (
-		ctx        context.Context
-		fakeClient = fake.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
-	)
+func TestIsStatefulSetReady(t *testing.T) {
+	testCases := []struct {
+		name                          string
+		specGeneration                int64
+		statusObservedGeneration      int64
+		etcdSpecReplicas              int32
+		statusReadyReplicas           int32
+		statusCurrentReplicas         int32
+		statusUpdatedReplicas         int32
+		statusCurrentRevision         string
+		statusUpdateRevision          string
+		expectedStsReady              bool
+		expectedNotReadyReasonPresent bool
+	}{
+		{
+			name:                          "sts has less number of ready replicas as compared to configured etcd replicas",
+			specGeneration:                1,
+			statusObservedGeneration:      1,
+			etcdSpecReplicas:              3,
+			statusReadyReplicas:           2,
+			expectedStsReady:              false,
+			expectedNotReadyReasonPresent: true,
+		},
+		{
+			name:                          "sts has equal number of replicas as defined in etcd but observed generation is outdated",
+			specGeneration:                2,
+			statusObservedGeneration:      1,
+			etcdSpecReplicas:              3,
+			statusReadyReplicas:           3,
+			expectedStsReady:              false,
+			expectedNotReadyReasonPresent: true,
+		},
+		{
+			name:                          "sts has mismatching current and update revision",
+			specGeneration:                2,
+			statusObservedGeneration:      2,
+			etcdSpecReplicas:              3,
+			statusReadyReplicas:           3,
+			statusCurrentRevision:         "etcd-main-6d5cc8f559",
+			statusUpdateRevision:          "etcd-main-bf6b695326",
+			expectedStsReady:              false,
+			expectedNotReadyReasonPresent: true,
+		},
+		{
+			name:                          "sts has mismatching status ready and updated replicas",
+			specGeneration:                2,
+			statusObservedGeneration:      2,
+			etcdSpecReplicas:              3,
+			statusReadyReplicas:           3,
+			statusCurrentRevision:         "etcd-main-6d5cc8f559",
+			statusUpdateRevision:          "etcd-main-bf6b695326",
+			statusCurrentReplicas:         3,
+			statusUpdatedReplicas:         2,
+			expectedStsReady:              false,
+			expectedNotReadyReasonPresent: true,
+		},
+		{
+			name:                          "sts is completely up-to-date",
+			specGeneration:                2,
+			statusObservedGeneration:      2,
+			etcdSpecReplicas:              3,
+			statusReadyReplicas:           3,
+			statusCurrentRevision:         "etcd-main-6d5cc8f559",
+			statusUpdateRevision:          "etcd-main-6d5cc8f559",
+			statusCurrentReplicas:         3,
+			statusUpdatedReplicas:         3,
+			expectedStsReady:              true,
+			expectedNotReadyReasonPresent: false,
+		},
+	}
 
-	Describe("#IsStatefulSetReady", func() {
-		const (
-			stsName      = "etcd-test-0"
-			stsNamespace = "test-ns"
-		)
-		It("statefulset has less number of ready replicas as compared to configured etcd replicas", func() {
-			sts := utils.CreateStatefulSet(stsName, stsNamespace, uuid.NewUUID(), 2)
-			sts.Generation = 1
-			sts.Status.ObservedGeneration = 1
-			sts.Status.Replicas = 2
-			sts.Status.ReadyReplicas = 2
-			ready, reasonMsg := IsStatefulSetReady(3, sts)
-			Expect(ready).To(BeFalse())
-			Expect(reasonMsg).ToNot(BeNil())
+	g := NewWithT(t)
+	t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			sts := testutils.CreateStatefulSet(stsName, stsNamespace, uuid.NewUUID(), 2)
+			sts.Generation = tc.specGeneration
+			sts.Status.ObservedGeneration = tc.statusObservedGeneration
+			sts.Status.ReadyReplicas = tc.statusReadyReplicas
+			sts.Status.CurrentReplicas = tc.statusCurrentReplicas
+			sts.Status.UpdatedReplicas = tc.statusUpdatedReplicas
+			sts.Status.CurrentRevision = tc.statusCurrentRevision
+			sts.Status.UpdateRevision = tc.statusUpdateRevision
+			stsReady, reasonMsg := IsStatefulSetReady(tc.etcdSpecReplicas, sts)
+			g.Expect(stsReady).To(Equal(tc.expectedStsReady))
+			g.Expect(!IsEmptyString(reasonMsg)).To(Equal(tc.expectedNotReadyReasonPresent))
 		})
+	}
+}
 
-		It("statefulset has equal number of replicas as defined in etcd but observed generation is outdated", func() {
-			sts := utils.CreateStatefulSet(stsName, stsNamespace, uuid.NewUUID(), 3)
-			sts.Generation = 2
-			sts.Status.ObservedGeneration = 1
-			sts.Status.Replicas = 3
-			sts.Status.ReadyReplicas = 3
-			ready, reasonMsg := IsStatefulSetReady(3, sts)
-			Expect(ready).To(BeFalse())
-			Expect(reasonMsg).ToNot(BeNil())
-		})
+func TestGetStatefulSet(t *testing.T) {
+	internalErr := errors.New("test internal error")
+	apiInternalErr := apierrors.NewInternalError(internalErr)
 
-		It("statefulset has equal number of replicas as defined in etcd and observed generation = generation", func() {
-			sts := utils.CreateStatefulSet(stsName, stsNamespace, uuid.NewUUID(), 3)
-			utils.SetStatefulSetReady(sts)
-			ready, reasonMsg := IsStatefulSetReady(3, sts)
-			Expect(ready).To(BeTrue())
-			Expect(len(reasonMsg)).To(BeZero())
-		})
-	})
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(3).Build()
+	testCases := []struct {
+		name         string
+		isStsPresent bool
+		ownedByEtcd  bool
+		listErr      *apierrors.StatusError
+		expectedErr  *apierrors.StatusError
+	}{
+		{
+			name:         "no sts found",
+			isStsPresent: false,
+			ownedByEtcd:  false,
+		},
+		{
+			name:         "sts found but not owned by etcd",
+			isStsPresent: true,
+			ownedByEtcd:  false,
+		},
+		{
+			name:         "sts found and owned by etcd",
+			isStsPresent: true,
+			ownedByEtcd:  true,
+		},
+		{
+			name:         "returns error when client list fails",
+			isStsPresent: true,
+			ownedByEtcd:  true,
+			listErr:      apiInternalErr,
+			expectedErr:  apiInternalErr,
+		},
+	}
 
-	Describe("#GetStatefulSet", func() {
-		var (
-			etcd             *druidv1alpha1.Etcd
-			stsListToCleanup *appsv1.StatefulSetList
-		)
-		const (
-			testEtcdName  = "etcd-test-0"
-			testNamespace = "test-ns"
-		)
-
-		BeforeEach(func() {
-			ctx = context.TODO()
-			stsListToCleanup = &appsv1.StatefulSetList{}
-			etcd = testsample.EtcdBuilderWithDefaults(testEtcdName, testNamespace).Build()
-		})
-
-		AfterEach(func() {
-			for _, sts := range stsListToCleanup.Items {
-				Expect(fakeClient.Delete(ctx, &sts)).To(Succeed())
+	g := NewWithT(t)
+	t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeClientBuilder := testutils.NewFakeClientBuilder().WithListError(tc.listErr)
+			if tc.isStsPresent {
+				etcdUID := etcd.UID
+				if !tc.ownedByEtcd {
+					etcdUID = uuid.NewUUID()
+				}
+				sts := testutils.CreateStatefulSet(etcd.Name, etcd.Namespace, etcdUID, etcd.Spec.Replicas)
+				fakeClientBuilder.WithObjects(sts)
+			}
+			cl := fakeClientBuilder.Build()
+			foundSts, err := GetStatefulSet(context.Background(), cl, etcd)
+			if tc.expectedErr != nil {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(errors.Is(err, tc.expectedErr)).To(BeTrue())
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				expectedStsToBeFound := tc.isStsPresent && tc.ownedByEtcd
+				g.Expect(foundSts != nil).To(Equal(expectedStsToBeFound))
 			}
 		})
-
-		It("no statefulset is found irrespective of ownership", func() {
-			sts, err := GetStatefulSet(ctx, fakeClient, etcd)
-			Expect(err).To(BeNil())
-			Expect(sts).To(BeNil())
-		})
-
-		It("statefulset is present but it is not owned by etcd", func() {
-			sts := utils.CreateStatefulSet(etcd.Name, etcd.Namespace, uuid.NewUUID(), 3)
-			Expect(fakeClient.Create(ctx, sts)).To(Succeed())
-			stsListToCleanup.Items = append(stsListToCleanup.Items, *sts)
-			foundSts, err := GetStatefulSet(ctx, fakeClient, etcd)
-			Expect(err).To(BeNil())
-			Expect(foundSts).To(BeNil())
-		})
-
-		It("found statefulset owned by etcd", func() {
-			sts := utils.CreateStatefulSet(etcd.Name, etcd.Namespace, etcd.UID, 3)
-			Expect(fakeClient.Create(ctx, sts)).To(Succeed())
-			stsListToCleanup.Items = append(stsListToCleanup.Items, *sts)
-			foundSts, err := GetStatefulSet(ctx, fakeClient, etcd)
-			Expect(err).To(BeNil())
-			Expect(foundSts).ToNot(BeNil())
-			Expect(foundSts.UID).To(Equal(sts.UID))
-		})
-	})
-})
+	}
+}

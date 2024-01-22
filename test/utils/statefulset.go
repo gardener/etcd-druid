@@ -48,9 +48,10 @@ func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32
 			Name:      name,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app":      "etcd-statefulset",
-				"instance": name,
-				"name":     "etcd",
+				druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
+				druidv1alpha1.LabelPartOfKey:    name,
+				druidv1alpha1.LabelAppNameKey:   name,
+				druidv1alpha1.LabelComponentKey: "etcd-sts",
 			},
 			Annotations: nil,
 			OwnerReferences: []metav1.OwnerReference{{
