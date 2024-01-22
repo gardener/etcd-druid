@@ -16,7 +16,6 @@ package statefulset
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -236,7 +235,7 @@ func getBackupRestoreCommandArgs(val Values) ([]string, error) {
 
 	command = append(command, "--garbage-collection-policy="+garbageCollectionPolicy)
 	if garbageCollectionPolicy == "LimitBased" {
-		command = append(command, "--max-backups="+strconv.Itoa(int(pointer.Int32Deref(val.MaxBackupsLimitBasedGC, defaultMaxBackupsLimitBasedGC))))
+		command = append(command, "--max-backups="+fmt.Sprint(pointer.Int32Deref(val.MaxBackupsLimitBasedGC, defaultMaxBackupsLimitBasedGC)))
 	}
 
 	command = append(command, "--data-dir=/var/etcd/data/new.etcd")

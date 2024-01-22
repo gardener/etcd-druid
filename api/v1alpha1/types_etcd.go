@@ -169,8 +169,8 @@ type BackupSpec struct {
 	// GarbageCollectionPolicy defines the policy for garbage collecting old backups
 	// +optional
 	GarbageCollectionPolicy *GarbageCollectionPolicy `json:"garbageCollectionPolicy,omitempty"`
-	// MaxBackupsLimitBasedGC defines the maximum number of Full snapshots to retain in Limit Based GC.
-	// All full snapshots beyond this limit are removed
+	// MaxBackupsLimitBasedGC defines the maximum number of Full snapshots to retain in Limit Based GarbageCollectionPolicy
+	// All full snapshots beyond this limit will be garbage collected.
 	// +optional
 	MaxBackupsLimitBasedGC *int32 `json:"maxBackupsLimitBasedGC,omitempty"`
 	// GarbageCollectionPeriod defines the period for garbage collecting old backups

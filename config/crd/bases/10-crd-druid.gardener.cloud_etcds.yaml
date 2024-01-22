@@ -195,8 +195,8 @@ spec:
                     type: object
                   maxBackupsLimitBasedGC:
                     description: MaxBackupsLimitBasedGC defines the maximum number
-                      of Full snapshots to retain in Limit Based GC. All full snapshots
-                      beyond this limit are removed
+                      of Full snapshots to retain in Limit Based GarbageCollectionPolicy
+                      All full snapshots beyond this limit will be garbage collected.
                     format: int32
                     type: integer
                   port:
