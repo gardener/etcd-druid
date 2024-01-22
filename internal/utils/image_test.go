@@ -1,128 +1,125 @@
-// Copyright 2023 SAP SE or an SAP affiliate company
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package utils
 
 import (
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/common"
-	testsample "github.com/gardener/etcd-druid/test/sample"
+	"testing"
 
-	"github.com/gardener/gardener/pkg/utils/imagevector"
-	. "github.com/onsi/ginkgo/v2"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	. "github.com/onsi/gomega"
+
+	"github.com/gardener/etcd-druid/internal/common"
+	testutils "github.com/gardener/etcd-druid/test/utils"
+	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"k8s.io/utils/pointer"
 )
 
-var _ = Describe("Image retrieval tests", func() {
+// ************************** GetEtcdImages **************************
+func TestGetEtcdImages(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(g *WithT, etcd *druidv1alpha1.Etcd)
+	}{
+		{"etcd spec defines etcd and etcdBR images", testWithEtcdAndEtcdBRImages},
+		{"etcd spec has no image defined and image vector has etcd and etcdBR images set", testWithNoImageInSpecAndIVWithEtcdAndBRImages},
+		{"", testSpecWithEtcdBRImageAndIVWithEtcdImage},
+		{"", testSpecAndIVWithoutEtcdBRImage},
+		{"", testWithSpecAndIVNotHavingAnyImages},
+		{"", testWithNoImagesInSpecAndIVWithAllImagesWithWrapper},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
+			g := NewWithT(t)
+			test.run(g, etcd)
+		})
+	}
+}
 
-	const (
-		etcdName  = "etcd-test-0"
-		namespace = "default"
-	)
-	var (
-		imageVector imagevector.ImageVector
-		etcd        *druidv1alpha1.Etcd
-		err         error
-	)
+func testWithEtcdAndEtcdBRImages(g *WithT, etcd *druidv1alpha1.Etcd) {
+	iv := createImageVector(true, true, false, false)
+	etcdImg, etcdBRImg, initContainerImg, err := GetEtcdImages(etcd, iv, false)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdImg).ToNot(BeEmpty())
+	g.Expect(etcdImg).To(Equal(*etcd.Spec.Etcd.Image))
+	g.Expect(etcdBRImg).ToNot(BeEmpty())
+	g.Expect(etcdBRImg).To(Equal(*etcd.Spec.Backup.Image))
+	vectorInitContainerImage, err := iv.FindImage(common.Alpine)
+	g.Expect(err).To(BeNil())
+	g.Expect(initContainerImg).To(Equal(vectorInitContainerImage.String()))
+}
 
-	It("etcd spec defines etcd and backup-restore images", func() {
-		etcd = testsample.EtcdBuilderWithDefaults(etcdName, namespace).Build()
-		imageVector = createImageVector(true, true, false, false)
-		etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, imageVector, false)
-		Expect(err).To(BeNil())
-		Expect(etcdImage).ToNot(BeNil())
-		Expect(etcdImage).To(Equal(etcd.Spec.Etcd.Image))
-		Expect(etcdBackupRestoreImage).ToNot(BeNil())
-		Expect(etcdBackupRestoreImage).To(Equal(etcd.Spec.Backup.Image))
-		vectorInitContainerImage, err := imageVector.FindImage(common.Alpine)
-		Expect(err).To(BeNil())
-		Expect(initContainerImage).To(Equal(vectorInitContainerImage.String()))
-	})
+func testWithNoImageInSpecAndIVWithEtcdAndBRImages(g *WithT, etcd *druidv1alpha1.Etcd) {
+	etcd.Spec.Etcd.Image = nil
+	etcd.Spec.Backup.Image = nil
+	iv := createImageVector(true, true, false, false)
+	etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, iv, false)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdImage).ToNot(BeEmpty())
+	vectorEtcdImage, err := iv.FindImage(common.Etcd)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdImage).To(Equal(vectorEtcdImage.String()))
+	g.Expect(etcdBackupRestoreImage).ToNot(BeNil())
+	vectorBackupRestoreImage, err := iv.FindImage(common.BackupRestore)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdBackupRestoreImage).To(Equal(vectorBackupRestoreImage.String()))
+	vectorInitContainerImage, err := iv.FindImage(common.Alpine)
+	g.Expect(err).To(BeNil())
+	g.Expect(initContainerImage).To(Equal(vectorInitContainerImage.String()))
+}
 
-	It("etcd spec has no image defined and image vector has both images set", func() {
-		etcd = testsample.EtcdBuilderWithDefaults(etcdName, namespace).Build()
-		Expect(err).To(BeNil())
-		etcd.Spec.Etcd.Image = nil
-		etcd.Spec.Backup.Image = nil
-		imageVector = createImageVector(true, true, false, false)
-		etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, imageVector, false)
-		Expect(err).To(BeNil())
-		Expect(etcdImage).ToNot(BeNil())
-		vectorEtcdImage, err := imageVector.FindImage(common.Etcd)
-		Expect(err).To(BeNil())
-		Expect(etcdImage).To(Equal(vectorEtcdImage.String()))
-		Expect(etcdBackupRestoreImage).ToNot(BeNil())
-		vectorBackupRestoreImage, err := imageVector.FindImage(common.BackupRestore)
-		Expect(err).To(BeNil())
-		Expect(etcdBackupRestoreImage).To(Equal(vectorBackupRestoreImage.String()))
-		vectorInitContainerImage, err := imageVector.FindImage(common.Alpine)
-		Expect(err).To(BeNil())
-		Expect(initContainerImage).To(Equal(vectorInitContainerImage.String()))
-	})
+func testSpecWithEtcdBRImageAndIVWithEtcdImage(g *WithT, etcd *druidv1alpha1.Etcd) {
+	etcd.Spec.Etcd.Image = nil
+	iv := createImageVector(true, false, false, false)
+	etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, iv, false)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdImage).ToNot(BeEmpty())
+	vectorEtcdImage, err := iv.FindImage(common.Etcd)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdImage).To(Equal(vectorEtcdImage.String()))
+	g.Expect(etcdBackupRestoreImage).ToNot(BeNil())
+	g.Expect(etcdBackupRestoreImage).To(Equal(*etcd.Spec.Backup.Image))
+	vectorInitContainerImage, err := iv.FindImage(common.Alpine)
+	g.Expect(err).To(BeNil())
+	g.Expect(initContainerImage).To(Equal(vectorInitContainerImage.String()))
+}
 
-	It("etcd spec only has backup-restore image and image-vector has only etcd image", func() {
-		etcd = testsample.EtcdBuilderWithDefaults(etcdName, namespace).Build()
-		Expect(err).To(BeNil())
-		etcd.Spec.Etcd.Image = nil
-		imageVector = createImageVector(true, false, false, false)
-		etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, imageVector, false)
-		Expect(err).To(BeNil())
-		Expect(etcdImage).ToNot(BeNil())
-		vectorEtcdImage, err := imageVector.FindImage(common.Etcd)
-		Expect(err).To(BeNil())
-		Expect(etcdImage).To(Equal(vectorEtcdImage.String()))
-		Expect(etcdBackupRestoreImage).ToNot(BeNil())
-		Expect(etcdBackupRestoreImage).To(Equal(etcd.Spec.Backup.Image))
-		vectorInitContainerImage, err := imageVector.FindImage(common.Alpine)
-		Expect(err).To(BeNil())
-		Expect(initContainerImage).To(Equal(vectorInitContainerImage.String()))
-	})
+func testSpecAndIVWithoutEtcdBRImage(g *WithT, etcd *druidv1alpha1.Etcd) {
+	etcd.Spec.Backup.Image = nil
+	iv := createImageVector(true, false, false, false)
+	etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, iv, false)
+	g.Expect(err).ToNot(BeNil())
+	g.Expect(etcdImage).To(BeEmpty())
+	g.Expect(etcdBackupRestoreImage).To(BeEmpty())
+	g.Expect(initContainerImage).To(BeEmpty())
+}
 
-	It("both spec and image vector do not have backup-restore image", func() {
-		etcd = testsample.EtcdBuilderWithDefaults(etcdName, namespace).Build()
-		Expect(err).To(BeNil())
-		etcd.Spec.Backup.Image = nil
-		imageVector = createImageVector(true, false, false, false)
-		etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, imageVector, false)
-		Expect(err).ToNot(BeNil())
-		Expect(etcdImage).To(BeNil())
-		Expect(etcdBackupRestoreImage).To(BeNil())
-		Expect(initContainerImage).To(BeNil())
-	})
+func testWithSpecAndIVNotHavingAnyImages(g *WithT, etcd *druidv1alpha1.Etcd) {
+	etcd.Spec.Backup.Image = nil
+	iv := createImageVector(false, false, false, false)
+	etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, iv, false)
+	g.Expect(err).ToNot(BeNil())
+	g.Expect(etcdImage).To(BeEmpty())
+	g.Expect(etcdBackupRestoreImage).To(BeEmpty())
+	g.Expect(initContainerImage).To(BeEmpty())
+}
 
-	It("etcd spec has no images defined, image vector has all images, and useEtcdWrapper feature gate is turned on", func() {
-		etcd = testsample.EtcdBuilderWithDefaults(etcdName, namespace).Build()
-		Expect(err).To(BeNil())
-		etcd.Spec.Etcd.Image = nil
-		etcd.Spec.Backup.Image = nil
-		imageVector = createImageVector(true, true, true, true)
-		etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, imageVector, true)
-		Expect(err).To(BeNil())
-		Expect(etcdImage).ToNot(BeNil())
-		vectorEtcdImage, err := imageVector.FindImage(common.EtcdWrapper)
-		Expect(err).To(BeNil())
-		Expect(etcdImage).To(Equal(vectorEtcdImage.String()))
-		Expect(etcdBackupRestoreImage).ToNot(BeNil())
-		vectorBackupRestoreImage, err := imageVector.FindImage(common.BackupRestoreDistroless)
-		Expect(err).To(BeNil())
-		Expect(etcdBackupRestoreImage).To(Equal(vectorBackupRestoreImage.String()))
-		vectorInitContainerImage, err := imageVector.FindImage(common.Alpine)
-		Expect(err).To(BeNil())
-		Expect(initContainerImage).To(Equal(vectorInitContainerImage.String()))
-	})
-})
+func testWithNoImagesInSpecAndIVWithAllImagesWithWrapper(g *WithT, etcd *druidv1alpha1.Etcd) {
+	etcd.Spec.Etcd.Image = nil
+	etcd.Spec.Backup.Image = nil
+	iv := createImageVector(true, true, true, true)
+	etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, iv, true)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdImage).ToNot(BeEmpty())
+	vectorEtcdImage, err := iv.FindImage(common.EtcdWrapper)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdImage).To(Equal(vectorEtcdImage.String()))
+	g.Expect(etcdBackupRestoreImage).ToNot(BeEmpty())
+	vectorBackupRestoreImage, err := iv.FindImage(common.BackupRestoreDistroless)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdBackupRestoreImage).To(Equal(vectorBackupRestoreImage.String()))
+	vectorInitContainerImage, err := iv.FindImage(common.Alpine)
+	g.Expect(err).To(BeNil())
+	g.Expect(initContainerImage).To(Equal(vectorInitContainerImage.String()))
+}
 
 func createImageVector(withEtcdImage, withBackupRestoreImage, withEtcdWrapperImage, withBackupRestoreDistrolessImage bool) imagevector.ImageVector {
 	var imageSources []*imagevector.ImageSource

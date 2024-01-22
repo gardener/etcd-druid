@@ -20,18 +20,13 @@ import (
 	. "github.com/onsi/gomega/gstruct"
 )
 
-const (
-	testEtcdName = "test-etcd"
-	testNs       = "test-namespace"
-)
-
 var (
 	internalErr = errors.New("test internal error")
 )
 
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
-	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	getErr := apierrors.NewInternalError(internalErr)
 	testCases := []struct {
 		name                     string
@@ -90,7 +85,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestSync(t *testing.T) {
-	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	internalStatusErr := apierrors.NewInternalError(internalErr)
 	testCases := []struct {
 		name        string
@@ -136,7 +131,7 @@ func TestSync(t *testing.T) {
 
 // ----------------------------- TriggerDelete -------------------------------
 func TestTriggerDelete(t *testing.T) {
-	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	internalStatusErr := apierrors.NewInternalError(internalErr)
 	testCases := []struct {
 		name              string

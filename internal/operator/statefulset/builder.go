@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
 	druidutils "github.com/gardener/etcd-druid/internal/utils"
@@ -111,9 +112,17 @@ func (b *stsBuilder) createStatefulSetObjectMeta() {
 	b.sts.ObjectMeta = metav1.ObjectMeta{
 		Name:            b.etcd.Name,
 		Namespace:       b.etcd.Namespace,
-		Labels:          b.etcd.GetDefaultLabels(),
+		Labels:          b.getLabels(),
 		OwnerReferences: []metav1.OwnerReference{b.etcd.GetAsOwnerReference()},
 	}
+}
+
+func (b *stsBuilder) getLabels() map[string]string {
+	stsLabels := map[string]string{
+		druidv1alpha1.LabelComponentKey: common.StatefulSetComponentName,
+		druidv1alpha1.LabelAppNameKey:   b.etcd.Name,
+	}
+	return utils.MergeMaps[string, string](b.etcd.GetDefaultLabels(), stsLabels)
 }
 
 func (b *stsBuilder) createStatefulSetSpec(ctx resource.OperatorContext) error {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -25,9 +26,7 @@ import (
 )
 
 const (
-	testEtcdName      = "test-etcd"
 	nonTargetEtcdName = "another-etcd"
-	testNs            = "test-namespace"
 )
 
 var (
@@ -37,7 +36,7 @@ var (
 
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 	testCases := []struct {
 		name              string
 		etcdReplicas      int32
@@ -110,7 +109,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestSync(t *testing.T) {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 	testCases := []struct {
 		name              string
 		etcdReplicas      int32 // original replicas
@@ -238,12 +237,12 @@ func TestTriggerDelete(t *testing.T) {
 
 	g := NewWithT(t)
 	t.Parallel()
-	nonTargetEtcd := testutils.EtcdBuilderWithDefaults(nonTargetEtcdName, testNs).Build()
+	nonTargetEtcd := testutils.EtcdBuilderWithDefaults(nonTargetEtcdName, testutils.TestNamespace).Build()
 	nonTargetLeaseNames := []string{"another-etcd-0", "another-etcd-1"}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// *************** set up existing environment *****************
-			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).WithReplicas(tc.etcdReplicas).Build()
+			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(tc.etcdReplicas).Build()
 			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteAllOfError(tc.deleteAllOfErr)
 			if tc.numExistingLeases > 0 {
 				leases, err := newMemberLeases(etcd, tc.numExistingLeases)
@@ -253,7 +252,7 @@ func TestTriggerDelete(t *testing.T) {
 				}
 			}
 			for _, nonTargetLeaseName := range nonTargetLeaseNames {
-				fakeClientBuilder.WithObjects(testutils.CreateLease(nonTargetLeaseName, nonTargetEtcd.Namespace, nonTargetEtcd.Name, nonTargetEtcd.UID, componentName))
+				fakeClientBuilder.WithObjects(testutils.CreateLease(nonTargetLeaseName, nonTargetEtcd.Namespace, nonTargetEtcd.Name, nonTargetEtcd.UID, common.MemberLeaseComponentName))
 			}
 			cl := fakeClientBuilder.Build()
 			// ***************** Setup operator and test *****************
@@ -282,7 +281,7 @@ func getLatestMemberLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd)
 		cl,
 		etcd,
 		utils.MergeMaps[string, string](map[string]string{
-			druidv1alpha1.LabelComponentKey: componentName,
+			druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
 		}, etcd.GetDefaultLabels()))
 }
 

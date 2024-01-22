@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -23,9 +24,7 @@ import (
 )
 
 const (
-	testEtcdName      = "test-etcd"
 	nonTargetEtcdName = "another-etcd"
-	testNs            = "test-namespace"
 )
 
 var (
@@ -35,7 +34,7 @@ var (
 
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
-	etcdBuilder := testutils.EtcdBuilderWithoutDefaults(testEtcdName, testNs)
+	etcdBuilder := testutils.EtcdBuilderWithoutDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 	testCases := []struct {
 		name               string
 		backupEnabled      bool
@@ -52,8 +51,8 @@ func TestGetExistingResourceNames(t *testing.T) {
 			name:          "successfully returns delta and full snapshot leases",
 			backupEnabled: true,
 			expectedLeaseNames: []string{
-				fmt.Sprintf("%s-delta-snap", testEtcdName),
-				fmt.Sprintf("%s-full-snap", testEtcdName),
+				fmt.Sprintf("%s-delta-snap", testutils.TestEtcdName),
+				fmt.Sprintf("%s-full-snap", testutils.TestEtcdName),
 			},
 		},
 		{
@@ -95,7 +94,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenBackupIsEnabled(t *testing.T) {
-	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestEtcdName).Build()
 	testCases := []struct {
 		name        string
 		createErr   *apierrors.StatusError
@@ -137,9 +136,9 @@ func TestSyncWhenBackupIsEnabled(t *testing.T) {
 }
 
 func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
-	nonTargetEtcd := testutils.EtcdBuilderWithDefaults(nonTargetEtcdName, testNs).Build()
-	existingEtcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()   // backup is enabled
-	updatedEtcd := testutils.EtcdBuilderWithoutDefaults(testEtcdName, testNs).Build() // backup is disabled
+	nonTargetEtcd := testutils.EtcdBuilderWithDefaults(nonTargetEtcdName, testutils.TestNamespace).Build()
+	existingEtcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()   // backup is enabled
+	updatedEtcd := testutils.EtcdBuilderWithoutDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build() // backup is disabled
 	testCases := []struct {
 		name           string
 		deleteAllOfErr *apierrors.StatusError
@@ -192,8 +191,8 @@ func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
 
 // ----------------------------- TriggerDelete -------------------------------
 func TestTriggerDelete(t *testing.T) {
-	nonTargetEtcd := testutils.EtcdBuilderWithDefaults(nonTargetEtcdName, testNs).Build()
-	etcdBuilder := testutils.EtcdBuilderWithoutDefaults(testEtcdName, testNs).WithReplicas(3)
+	nonTargetEtcd := testutils.EtcdBuilderWithDefaults(nonTargetEtcdName, testutils.TestNamespace).Build()
+	etcdBuilder := testutils.EtcdBuilderWithoutDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(3)
 	testCases := []struct {
 		name          string
 		backupEnabled bool
@@ -275,7 +274,7 @@ func buildLease(etcd *druidv1alpha1.Etcd, leaseName string) *coordinationv1.Leas
 			Name:      leaseName,
 			Namespace: etcd.Namespace,
 			Labels: utils.MergeMaps[string, string](etcd.GetDefaultLabels(), map[string]string{
-				druidv1alpha1.LabelComponentKey: componentName,
+				druidv1alpha1.LabelComponentKey: common.SnapshotLeaseComponentName,
 				druidv1alpha1.LabelAppNameKey:   leaseName,
 			}),
 			OwnerReferences: []metav1.OwnerReference{etcd.GetAsOwnerReference()},
@@ -285,7 +284,7 @@ func buildLease(etcd *druidv1alpha1.Etcd, leaseName string) *coordinationv1.Leas
 
 func matchLease(leaseName string, etcd *druidv1alpha1.Etcd) gomegatypes.GomegaMatcher {
 	expectedLabels := utils.MergeMaps[string, string](etcd.GetDefaultLabels(), map[string]string{
-		druidv1alpha1.LabelComponentKey: componentName,
+		druidv1alpha1.LabelComponentKey: common.SnapshotLeaseComponentName,
 		druidv1alpha1.LabelAppNameKey:   leaseName,
 	})
 	return MatchFields(IgnoreExtras, Fields{
@@ -302,7 +301,7 @@ func getLatestSnapshotLeases(cl client.Client, etcd *druidv1alpha1.Etcd) ([]coor
 	return doGetLatestLeases(cl,
 		etcd,
 		utils.MergeMaps[string, string](map[string]string{
-			druidv1alpha1.LabelComponentKey: componentName,
+			druidv1alpha1.LabelComponentKey: common.SnapshotLeaseComponentName,
 		}, etcd.GetDefaultLabels()))
 }
 

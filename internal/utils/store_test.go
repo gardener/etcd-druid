@@ -1,118 +1,126 @@
-// Copyright 2023 SAP SE or an SAP affiliate company
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package utils
 
 import (
 	"context"
+	"errors"
+	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	corev1 "k8s.io/api/core/v1"
-	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
-
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 )
 
-var _ = Describe("Store tests", func() {
+func TestGetHostMountPathFromSecretRef(t *testing.T) {
+	const (
+		hostPath              = "/var/data/etcd-backup"
+		existingSecretName    = "test-backup-secret"
+		nonExistingSecretName = "non-existing-backup-secret"
+	)
+	internalErr := errors.New("test internal error")
+	apiInternalErr := apierrors.NewInternalError(internalErr)
+	logger := logr.Discard()
 
-	Describe("#GetHostMountPathFromSecretRef", func() {
-		var (
-			ctx        context.Context
-			fakeClient = fakeclient.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
-			storeSpec  *druidv1alpha1.StoreSpec
-			sec        *corev1.Secret
-			logger     = logr.Discard()
-		)
-		const (
-			testNamespace = "test-ns"
-		)
+	testCases := []struct {
+		name                  string
+		secretRefDefined      bool
+		secretExists          bool
+		hostPathSetInSecret   bool
+		hostPathInSecret      *string
+		expectedHostMountPath string
+		getErr                *apierrors.StatusError
+		expectedErr           *apierrors.StatusError
+	}{
+		{
+			name:                  "no secret ref configured, should return default mount path",
+			secretRefDefined:      false,
+			expectedHostMountPath: LocalProviderDefaultMountPath,
+		},
+		{
+			name:             "secret ref points to an unknown secret, should return an error",
+			secretRefDefined: true,
+			secretExists:     false,
+			expectedErr:      apierrors.NewNotFound(corev1.Resource("secrets"), nonExistingSecretName),
+		},
+		{
+			name:                  "secret ref points to a secret whose data does not have path set, should return default mount path",
+			secretRefDefined:      true,
+			secretExists:          true,
+			hostPathSetInSecret:   false,
+			expectedHostMountPath: LocalProviderDefaultMountPath,
+		},
+		{
+			name:                  "secret ref points to a secret whose data has a path, should return the path defined in secret.Data",
+			secretRefDefined:      true,
+			secretExists:          true,
+			hostPathSetInSecret:   true,
+			hostPathInSecret:      pointer.String(hostPath),
+			expectedHostMountPath: hostPath,
+		},
+		{
+			name:             "secret exists but get fails, should return an error",
+			secretRefDefined: true,
+			secretExists:     true,
+			getErr:           apiInternalErr,
+			expectedErr:      apiInternalErr,
+		},
+	}
 
-		BeforeEach(func() {
-			ctx = context.Background()
-			storeSpec = &druidv1alpha1.StoreSpec{}
-		})
-
-		AfterEach(func() {
-			if sec != nil {
-				err := fakeClient.Delete(ctx, sec)
-				if err != nil {
-					Expect(err).To(matchers.BeNotFoundError())
-				}
+	g := NewWithT(t)
+	t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeClientBuilder := testutils.NewFakeClientBuilder().WithGetError(tc.getErr)
+			if tc.secretExists {
+				sec := createSecret(existingSecretName, testutils.TestNamespace, tc.hostPathInSecret)
+				fakeClientBuilder.WithObjects(sec)
+			}
+			cl := fakeClientBuilder.Build()
+			secretName := IfConditionOr[string](tc.secretExists, existingSecretName, nonExistingSecretName)
+			storeSpec := createStoreSpec(tc.secretRefDefined, secretName, testutils.TestNamespace)
+			actualHostPath, err := GetHostMountPathFromSecretRef(context.Background(), cl, logger, storeSpec, testutils.TestNamespace)
+			if tc.expectedErr != nil {
+				g.Expect(err).ToNot(BeNil())
+				var actualErr *apierrors.StatusError
+				g.Expect(errors.As(err, &actualErr)).To(BeTrue())
+				g.Expect(actualErr.Status().Code).To(Equal(tc.expectedErr.Status().Code))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(actualHostPath).To(Equal(tc.expectedHostMountPath))
 			}
 		})
+	}
+}
 
-		It("no secret ref configured, should return default mount path", func() {
-			hostMountPath, err := GetHostMountPathFromSecretRef(ctx, fakeClient, logger, storeSpec, testNamespace)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(hostMountPath).To(Equal(LocalProviderDefaultMountPath))
-		})
+func createStoreSpec(secretRefDefined bool, secretName, secretNamespace string) *druidv1alpha1.StoreSpec {
+	var secretRef *corev1.SecretReference
+	if secretRefDefined {
+		secretRef = &corev1.SecretReference{
+			Name:      secretName,
+			Namespace: secretNamespace,
+		}
+	}
+	return &druidv1alpha1.StoreSpec{
+		SecretRef: secretRef,
+	}
+}
 
-		It("secret ref points to an unknown secret, should return an error", func() {
-			storeSpec.SecretRef = &corev1.SecretReference{
-				Name:      "not-to-be-found-secret-ref",
-				Namespace: testNamespace,
-			}
-			_, err := GetHostMountPathFromSecretRef(ctx, fakeClient, logger, storeSpec, testNamespace)
-			Expect(err).ToNot(BeNil())
-			Expect(err).To(matchers.BeNotFoundError())
-		})
-
-		It("secret ref points to a secret whose data does not have path set, should return default mount path", func() {
-			const secretName = "backup-secret"
-			sec = &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      secretName,
-					Namespace: testNamespace,
-				},
-				Data: map[string][]byte{"bucketName": []byte("NDQ5YjEwZj")},
-			}
-			Expect(fakeClient.Create(ctx, sec)).To(Succeed())
-			storeSpec.SecretRef = &corev1.SecretReference{
-				Name:      "backup-secret",
-				Namespace: testNamespace,
-			}
-			hostMountPath, err := GetHostMountPathFromSecretRef(ctx, fakeClient, logger, storeSpec, testNamespace)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(hostMountPath).To(Equal(LocalProviderDefaultMountPath))
-		})
-
-		It("secret ref points to a secret whose data has a path, should return the path defined in secret.Data", func() {
-			const (
-				secretName = "backup-secret"
-				hostPath   = "/var/data/etcd-backup"
-			)
-			sec = &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      secretName,
-					Namespace: testNamespace,
-				},
-				Data: map[string][]byte{"bucketName": []byte("NDQ5YjEwZj"), "hostPath": []byte(hostPath)},
-			}
-			Expect(fakeClient.Create(ctx, sec)).To(Succeed())
-			storeSpec.SecretRef = &corev1.SecretReference{
-				Name:      "backup-secret",
-				Namespace: testNamespace,
-			}
-			hostMountPath, err := GetHostMountPathFromSecretRef(ctx, fakeClient, logger, storeSpec, testNamespace)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(hostMountPath).To(Equal(hostPath))
-		})
-	})
-})
+func createSecret(name, namespace string, hostPath *string) *corev1.Secret {
+	data := map[string][]byte{
+		"bucketName": []byte("NDQ5YjEwZj"),
+	}
+	if hostPath != nil {
+		data["hostPath"] = []byte(*hostPath)
+	}
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Data: data,
+	}
+}

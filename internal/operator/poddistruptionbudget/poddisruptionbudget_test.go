@@ -21,11 +21,6 @@ import (
 	. "github.com/onsi/gomega/gstruct"
 )
 
-const (
-	testEtcdName = "test-etcd"
-	testNs       = "test-namespace"
-)
-
 var (
 	internalErr    = errors.New("fake get internal error")
 	apiInternalErr = apierrors.NewInternalError(internalErr)
@@ -33,7 +28,7 @@ var (
 
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
-	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	testCases := []struct {
 		name             string
 		pdbExists        bool
@@ -88,7 +83,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenNoPDBExists(t *testing.T) {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 	testCases := []struct {
 		name                    string
 		etcdReplicas            int32
@@ -141,7 +136,7 @@ func TestSyncWhenNoPDBExists(t *testing.T) {
 }
 
 func TestSyncWhenPDBExists(t *testing.T) {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 	testCases := []struct {
 		name                    string
 		originalEtcdReplicas    int32
@@ -197,7 +192,7 @@ func TestSyncWhenPDBExists(t *testing.T) {
 
 // ----------------------------- TriggerDelete -------------------------------
 func TestTriggerDelete(t *testing.T) {
-	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	testCases := []struct {
 		name        string
 		pdbExists   bool

@@ -19,11 +19,6 @@ import (
 	. "github.com/onsi/gomega/gstruct"
 )
 
-const (
-	testEtcdName = "test-etcd"
-	testNs       = "test-namespace"
-)
-
 var (
 	internalErr    = errors.New("fake get internal error")
 	apiInternalErr = apierrors.NewInternalError(internalErr)
@@ -31,7 +26,7 @@ var (
 
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
-	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	testCases := []struct {
 		name            string
 		saExists        bool
@@ -121,7 +116,7 @@ func TestSync(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			cl := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).Build()
-			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 			operator := New(cl, tc.disableAutoMount)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
@@ -170,7 +165,7 @@ func TestTriggerDelete(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr)
 			if tc.saExists {
 				fakeClientBuilder.WithObjects(newServiceAccount(etcd, false))
