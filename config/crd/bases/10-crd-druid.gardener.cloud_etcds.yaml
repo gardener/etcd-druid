@@ -193,6 +193,12 @@ spec:
                           leadership status of corresponding etcd is checked.
                         type: string
                     type: object
+                  maxBackupsLimitBasedGC:
+                    description: MaxBackupsLimitBasedGC defines the maximum number
+                      of Full snapshots to retain in Limit Based GarbageCollectionPolicy
+                      All full snapshots beyond this limit will be garbage collected.
+                    format: int32
+                    type: integer
                   port:
                     description: Port define the port on which etcd-backup-restore
                       server will be exposed.

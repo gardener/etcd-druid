@@ -29,6 +29,7 @@ const (
 	defaultServerPort              int32 = 2380
 	defaultClientPort              int32 = 2379
 	defaultWrapperPort             int32 = 9095
+	defaultMaxBackupsLimitBasedGC  int32 = 7
 	defaultQuota                   int64 = 8 * 1024 * 1024 * 1024 // 8Gi
 	defaultSnapshotMemoryLimit     int64 = 100 * 1024 * 1024      // 100Mi
 	defaultHeartbeatDuration             = "10s"
@@ -103,6 +104,7 @@ func GenerateValues(
 		EtcdDefragTimeout:   etcd.Spec.Etcd.EtcdDefragTimeout,
 
 		GarbageCollectionPolicy: etcd.Spec.Backup.GarbageCollectionPolicy,
+		MaxBackupsLimitBasedGC:  etcd.Spec.Backup.MaxBackupsLimitBasedGC,
 		GarbageCollectionPeriod: etcd.Spec.Backup.GarbageCollectionPeriod,
 
 		SnapshotCompression: etcd.Spec.Backup.SnapshotCompression,
@@ -233,7 +235,7 @@ func getBackupRestoreCommandArgs(val Values) ([]string, error) {
 
 	command = append(command, "--garbage-collection-policy="+garbageCollectionPolicy)
 	if garbageCollectionPolicy == "LimitBased" {
-		command = append(command, "--max-backups=7")
+		command = append(command, "--max-backups="+fmt.Sprint(pointer.Int32Deref(val.MaxBackupsLimitBasedGC, defaultMaxBackupsLimitBasedGC)))
 	}
 
 	command = append(command, "--data-dir=/var/etcd/data/new.etcd")
