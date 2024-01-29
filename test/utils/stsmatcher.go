@@ -29,6 +29,7 @@ var (
 	}
 )
 
+// StatefulSetMatcher is the type used for matching StatefulSets. It holds relevant information required for matching.
 type StatefulSetMatcher struct {
 	g                  *WithT
 	cl                 client.Client
@@ -44,6 +45,7 @@ type StatefulSetMatcher struct {
 	backupPort         int32
 }
 
+// NewStatefulSetMatcher constructs a new instance of StatefulSetMatcher.
 func NewStatefulSetMatcher(g *WithT,
 	cl client.Client,
 	etcd *druidv1alpha1.Etcd,
@@ -67,6 +69,7 @@ func NewStatefulSetMatcher(g *WithT,
 	}
 }
 
+// MatchStatefulSet returns a custom gomega matcher that will match both the ObjectMeta and Spec of a StatefulSet.
 func (s StatefulSetMatcher) MatchStatefulSet() gomegatypes.GomegaMatcher {
 	return MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": s.matchSTSObjectMeta(),

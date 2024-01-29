@@ -74,6 +74,7 @@ func MatchResourceLabels(expected map[string]string) gomegatypes.GomegaMatcher {
 	}
 }
 
+// MatchSpecLabelSelector returns a custom gomega matcher which matches label selector on a resource against the expected labels.
 func MatchSpecLabelSelector(expected map[string]string) gomegatypes.GomegaMatcher {
 	return PointTo(MatchFields(IgnoreExtras, Fields{
 		"MatchLabels": MatchResourceLabels(expected),

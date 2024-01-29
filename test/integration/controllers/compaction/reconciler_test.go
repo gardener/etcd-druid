@@ -12,7 +12,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/etcd-druid/pkg/utils"
-	testsample "github.com/gardener/etcd-druid/test/sample"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/gardener/gardener/pkg/controllerutils"
@@ -48,7 +47,7 @@ var _ = Describe("Compaction Controller", func() {
 				j              *batchv1.Job
 			)
 
-			instance = testsample.EtcdBuilderWithDefaults(name, namespace).WithTLS().WithStorageProvider(provider).Build()
+			instance = testutils.EtcdBuilderWithDefaults(name, namespace).WithPeerTLS().WithClientTLS().WithStorageProvider(provider).Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
@@ -103,7 +102,7 @@ var _ = Describe("Compaction Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testsample.EtcdBuilderWithDefaults("foo77", namespace).WithProviderLocal().Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo77", namespace).WithProviderLocal().Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
@@ -155,7 +154,7 @@ var _ = Describe("Compaction Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testsample.EtcdBuilderWithDefaults("foo78", "default").WithProviderLocal().Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo78", "default").WithProviderLocal().Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
@@ -199,7 +198,7 @@ var _ = Describe("Compaction Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testsample.EtcdBuilderWithDefaults("foo79", "default").WithProviderLocal().Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo79", "default").WithProviderLocal().Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
@@ -240,7 +239,7 @@ var _ = Describe("Compaction Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testsample.EtcdBuilderWithDefaults("foo80", "default").WithProviderLocal().Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo80", "default").WithProviderLocal().Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running

@@ -9,8 +9,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/client/kubernetes"
-	testsample "github.com/gardener/etcd-druid/test/sample"
-	"github.com/gardener/etcd-druid/test/utils"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -32,7 +31,7 @@ var _ = Describe("tests for statefulset utility functions", func() {
 			stsNamespace = "test-ns"
 		)
 		It("statefulset has less number of ready replicas as compared to configured etcd replicas", func() {
-			sts := utils.CreateStatefulSet(stsName, stsNamespace, uuid.NewUUID(), 2)
+			sts := testutils.CreateStatefulSet(stsName, stsNamespace, uuid.NewUUID(), 2)
 			sts.Generation = 1
 			sts.Status.ObservedGeneration = 1
 			sts.Status.Replicas = 2
@@ -43,7 +42,7 @@ var _ = Describe("tests for statefulset utility functions", func() {
 		})
 
 		It("statefulset has equal number of replicas as defined in etcd but observed generation is outdated", func() {
-			sts := utils.CreateStatefulSet(stsName, stsNamespace, uuid.NewUUID(), 3)
+			sts := testutils.CreateStatefulSet(stsName, stsNamespace, uuid.NewUUID(), 3)
 			sts.Generation = 2
 			sts.Status.ObservedGeneration = 1
 			sts.Status.Replicas = 3
@@ -54,8 +53,8 @@ var _ = Describe("tests for statefulset utility functions", func() {
 		})
 
 		It("statefulset has equal number of replicas as defined in etcd and observed generation = generation", func() {
-			sts := utils.CreateStatefulSet(stsName, stsNamespace, uuid.NewUUID(), 3)
-			utils.SetStatefulSetReady(sts)
+			sts := testutils.CreateStatefulSet(stsName, stsNamespace, uuid.NewUUID(), 3)
+			testutils.SetStatefulSetReady(sts)
 			ready, reasonMsg := IsStatefulSetReady(3, sts)
 			Expect(ready).To(BeTrue())
 			Expect(len(reasonMsg)).To(BeZero())
@@ -75,7 +74,7 @@ var _ = Describe("tests for statefulset utility functions", func() {
 		BeforeEach(func() {
 			ctx = context.TODO()
 			stsListToCleanup = &appsv1.StatefulSetList{}
-			etcd = testsample.EtcdBuilderWithDefaults(testEtcdName, testNamespace).Build()
+			etcd = testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).Build()
 		})
 
 		AfterEach(func() {
@@ -91,7 +90,7 @@ var _ = Describe("tests for statefulset utility functions", func() {
 		})
 
 		It("statefulset is present but it is not owned by etcd", func() {
-			sts := utils.CreateStatefulSet(etcd.Name, etcd.Namespace, uuid.NewUUID(), 3)
+			sts := testutils.CreateStatefulSet(etcd.Name, etcd.Namespace, uuid.NewUUID(), 3)
 			Expect(fakeClient.Create(ctx, sts)).To(Succeed())
 			stsListToCleanup.Items = append(stsListToCleanup.Items, *sts)
 			foundSts, err := GetStatefulSet(ctx, fakeClient, etcd)
@@ -100,7 +99,7 @@ var _ = Describe("tests for statefulset utility functions", func() {
 		})
 
 		It("found statefulset owned by etcd", func() {
-			sts := utils.CreateStatefulSet(etcd.Name, etcd.Namespace, etcd.UID, 3)
+			sts := testutils.CreateStatefulSet(etcd.Name, etcd.Namespace, etcd.UID, 3)
 			Expect(fakeClient.Create(ctx, sts)).To(Succeed())
 			stsListToCleanup.Items = append(stsListToCleanup.Items, *sts)
 			foundSts, err := GetStatefulSet(ctx, fakeClient, etcd)

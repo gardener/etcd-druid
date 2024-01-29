@@ -7,7 +7,7 @@ package utils
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/pkg/common"
-	testsample "github.com/gardener/etcd-druid/test/sample"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	. "github.com/onsi/ginkgo/v2"
@@ -28,7 +28,7 @@ var _ = Describe("Image retrieval tests", func() {
 	)
 
 	It("etcd spec defines etcd and backup-restore images", func() {
-		etcd = testsample.EtcdBuilderWithDefaults(etcdName, namespace).Build()
+		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
 		imageVector = createImageVector(true, true, false, false)
 		etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, imageVector, false)
 		Expect(err).To(BeNil())
@@ -42,7 +42,7 @@ var _ = Describe("Image retrieval tests", func() {
 	})
 
 	It("etcd spec has no image defined and image vector has both images set", func() {
-		etcd = testsample.EtcdBuilderWithDefaults(etcdName, namespace).Build()
+		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
 		Expect(err).To(BeNil())
 		etcd.Spec.Etcd.Image = nil
 		etcd.Spec.Backup.Image = nil
@@ -63,7 +63,7 @@ var _ = Describe("Image retrieval tests", func() {
 	})
 
 	It("etcd spec only has backup-restore image and image-vector has only etcd image", func() {
-		etcd = testsample.EtcdBuilderWithDefaults(etcdName, namespace).Build()
+		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
 		Expect(err).To(BeNil())
 		etcd.Spec.Etcd.Image = nil
 		imageVector = createImageVector(true, false, false, false)
@@ -81,7 +81,7 @@ var _ = Describe("Image retrieval tests", func() {
 	})
 
 	It("both spec and image vector do not have backup-restore image", func() {
-		etcd = testsample.EtcdBuilderWithDefaults(etcdName, namespace).Build()
+		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
 		Expect(err).To(BeNil())
 		etcd.Spec.Backup.Image = nil
 		imageVector = createImageVector(true, false, false, false)
@@ -93,7 +93,7 @@ var _ = Describe("Image retrieval tests", func() {
 	})
 
 	It("etcd spec has no images defined, image vector has all images, and UseEtcdWrapper feature gate is turned on", func() {
-		etcd = testsample.EtcdBuilderWithDefaults(etcdName, namespace).Build()
+		etcd = testutils.EtcdBuilderWithDefaults(etcdName, namespace).Build()
 		Expect(err).To(BeNil())
 		etcd.Spec.Etcd.Image = nil
 		etcd.Spec.Backup.Image = nil
