@@ -16,7 +16,6 @@ package clientservice
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -37,19 +36,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
-	testEtcdName = "test-etcd"
-	testNs       = "test-namespace"
-)
-
-var (
-	internalErr    = errors.New("fake get internal error")
-	apiInternalErr = apierrors.NewInternalError(internalErr)
-)
-
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
-	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	testCases := []struct {
 		name                 string
 		svcExists            bool
@@ -71,10 +60,10 @@ func TestGetExistingResourceNames(t *testing.T) {
 		{
 			name:      "should return error when get fails",
 			svcExists: true,
-			getErr:    apiInternalErr,
+			getErr:    testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrGetClientService,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "GetExistingResourceNames",
 			},
 		},
@@ -95,7 +84,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
-				g.Expect(err).To(BeNil())
+				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(svcNames).To(Equal(tc.expectedServiceNames))
 			}
 		})
@@ -105,12 +94,12 @@ func TestGetExistingResourceNames(t *testing.T) {
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenNoServiceExists(t *testing.T) {
 	testCases := []struct {
-		name          string
-		clientPort    *int32
-		backupPort    *int32
-		peerPort      *int32
-		createErr     *apierrors.StatusError
-		expectedError *druiderr.DruidError
+		name        string
+		clientPort  *int32
+		backupPort  *int32
+		peerPort    *int32
+		createErr   *apierrors.StatusError
+		expectedErr *druiderr.DruidError
 	}{
 		{
 			name: "create client service with default ports",
@@ -123,10 +112,10 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 		},
 		{
 			name:      "create fails when there is a create error",
-			createErr: apiInternalErr,
-			expectedError: &druiderr.DruidError{
+			createErr: testutils.TestAPIInternalErr,
+			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncClientService,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "Sync",
 			},
 		},
@@ -141,8 +130,8 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.Sync(opCtx, etcd)
 			latestClientSvc, getErr := getLatestClientService(cl, etcd)
-			if tc.expectedError != nil {
-				testutils.CheckDruidError(g, tc.expectedError, err)
+			if tc.expectedErr != nil {
+				testutils.CheckDruidError(g, tc.expectedErr, err)
 				g.Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
@@ -175,10 +164,10 @@ func TestSyncWhenServiceExists(t *testing.T) {
 		{
 			name:       "update fails when there is a patch error",
 			clientPort: pointer.Int32(2222),
-			patchErr:   apiInternalErr,
+			patchErr:   testutils.TestAPIInternalErr,
 			expectedError: &druiderr.DruidError{
 				Code:      ErrSyncClientService,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "Sync",
 			},
 		},
@@ -216,35 +205,35 @@ func TestTriggerDelete(t *testing.T) {
 	testCases := []struct {
 		name        string
 		svcExists   bool
-		expectError *druiderr.DruidError
 		deleteErr   *apierrors.StatusError
+		expectedErr *druiderr.DruidError
 	}{
 		{
 			name:      "no-op when client service does not exist",
 			svcExists: false,
 		},
 		{
-			name:      "successfully delete client service",
+			name:      "successfully delete existing client service",
 			svcExists: true,
 		},
 		{
 			name:      "returns error when client delete fails",
 			svcExists: true,
-			expectError: &druiderr.DruidError{
+			expectedErr: &druiderr.DruidError{
 				Code:      ErrDeleteClientService,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "TriggerDelete",
 			},
-			deleteErr: apiInternalErr,
+			deleteErr: testutils.TestAPIInternalErr,
 		},
 	}
 	g := NewWithT(t)
 	t.Parallel()
 
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// ********************* Setup *********************
-			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs).Build()
 			cl := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr).Build()
 			operator := New(cl)
 			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -256,8 +245,8 @@ func TestTriggerDelete(t *testing.T) {
 			// ********************* Test trigger delete *********************
 			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd)
 			latestClientService, getErr := getLatestClientService(cl, etcd)
-			if tc.expectError != nil {
-				testutils.CheckDruidError(g, tc.expectError, triggerDeleteErr)
+			if tc.expectedErr != nil {
+				testutils.CheckDruidError(g, tc.expectedErr, triggerDeleteErr)
 				g.Expect(getErr).To(BeNil())
 				g.Expect(latestClientService).ToNot(BeNil())
 			} else {
@@ -270,7 +259,7 @@ func TestTriggerDelete(t *testing.T) {
 
 // ---------------------------- Helper Functions -----------------------------
 func buildEtcd(clientPort, peerPort, backupPort *int32) *druidv1alpha1.Etcd {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNs)
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 	if clientPort != nil {
 		etcdBuilder.WithEtcdClientPort(clientPort)
 	}

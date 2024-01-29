@@ -8,8 +8,6 @@ import (
 
 	"github.com/gardener/etcd-druid/internal/common"
 	testutils "github.com/gardener/etcd-druid/test/utils"
-	"github.com/gardener/gardener/pkg/utils/imagevector"
-	"k8s.io/utils/pointer"
 )
 
 // ************************** GetEtcdImages **************************
@@ -35,7 +33,7 @@ func TestGetEtcdImages(t *testing.T) {
 }
 
 func testWithEtcdAndEtcdBRImages(g *WithT, etcd *druidv1alpha1.Etcd) {
-	iv := createImageVector(true, true, false, false)
+	iv := testutils.CreateImageVector(true, true, false, false)
 	etcdImg, etcdBRImg, initContainerImg, err := GetEtcdImages(etcd, iv, false)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImg).ToNot(BeEmpty())
@@ -50,7 +48,7 @@ func testWithEtcdAndEtcdBRImages(g *WithT, etcd *druidv1alpha1.Etcd) {
 func testWithNoImageInSpecAndIVWithEtcdAndBRImages(g *WithT, etcd *druidv1alpha1.Etcd) {
 	etcd.Spec.Etcd.Image = nil
 	etcd.Spec.Backup.Image = nil
-	iv := createImageVector(true, true, false, false)
+	iv := testutils.CreateImageVector(true, true, false, false)
 	etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, iv, false)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).ToNot(BeEmpty())
@@ -68,7 +66,7 @@ func testWithNoImageInSpecAndIVWithEtcdAndBRImages(g *WithT, etcd *druidv1alpha1
 
 func testSpecWithEtcdBRImageAndIVWithEtcdImage(g *WithT, etcd *druidv1alpha1.Etcd) {
 	etcd.Spec.Etcd.Image = nil
-	iv := createImageVector(true, false, false, false)
+	iv := testutils.CreateImageVector(true, false, false, false)
 	etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, iv, false)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).ToNot(BeEmpty())
@@ -84,7 +82,7 @@ func testSpecWithEtcdBRImageAndIVWithEtcdImage(g *WithT, etcd *druidv1alpha1.Etc
 
 func testSpecAndIVWithoutEtcdBRImage(g *WithT, etcd *druidv1alpha1.Etcd) {
 	etcd.Spec.Backup.Image = nil
-	iv := createImageVector(true, false, false, false)
+	iv := testutils.CreateImageVector(true, false, false, false)
 	etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, iv, false)
 	g.Expect(err).ToNot(BeNil())
 	g.Expect(etcdImage).To(BeEmpty())
@@ -94,7 +92,7 @@ func testSpecAndIVWithoutEtcdBRImage(g *WithT, etcd *druidv1alpha1.Etcd) {
 
 func testWithSpecAndIVNotHavingAnyImages(g *WithT, etcd *druidv1alpha1.Etcd) {
 	etcd.Spec.Backup.Image = nil
-	iv := createImageVector(false, false, false, false)
+	iv := testutils.CreateImageVector(false, false, false, false)
 	etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, iv, false)
 	g.Expect(err).ToNot(BeNil())
 	g.Expect(etcdImage).To(BeEmpty())
@@ -105,7 +103,7 @@ func testWithSpecAndIVNotHavingAnyImages(g *WithT, etcd *druidv1alpha1.Etcd) {
 func testWithNoImagesInSpecAndIVWithAllImagesWithWrapper(g *WithT, etcd *druidv1alpha1.Etcd) {
 	etcd.Spec.Etcd.Image = nil
 	etcd.Spec.Backup.Image = nil
-	iv := createImageVector(true, true, true, true)
+	iv := testutils.CreateImageVector(true, true, true, true)
 	etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, iv, true)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).ToNot(BeEmpty())
@@ -119,51 +117,4 @@ func testWithNoImagesInSpecAndIVWithAllImagesWithWrapper(g *WithT, etcd *druidv1
 	vectorInitContainerImage, err := iv.FindImage(common.Alpine)
 	g.Expect(err).To(BeNil())
 	g.Expect(initContainerImage).To(Equal(vectorInitContainerImage.String()))
-}
-
-func createImageVector(withEtcdImage, withBackupRestoreImage, withEtcdWrapperImage, withBackupRestoreDistrolessImage bool) imagevector.ImageVector {
-	var imageSources []*imagevector.ImageSource
-	const (
-		repo                       = "test-repo"
-		etcdTag                    = "etcd-test-tag"
-		etcdWrapperTag             = "etcd-wrapper-test-tag"
-		backupRestoreTag           = "backup-restore-test-tag"
-		backupRestoreDistrolessTag = "backup-restore-distroless-test-tag"
-		initContainerTag           = "init-container-test-tag"
-	)
-	if withEtcdImage {
-		imageSources = append(imageSources, &imagevector.ImageSource{
-			Name:       common.Etcd,
-			Repository: repo,
-			Tag:        pointer.String(etcdTag),
-		})
-	}
-	if withBackupRestoreImage {
-		imageSources = append(imageSources, &imagevector.ImageSource{
-			Name:       common.BackupRestore,
-			Repository: repo,
-			Tag:        pointer.String(backupRestoreTag),
-		})
-
-	}
-	if withEtcdWrapperImage {
-		imageSources = append(imageSources, &imagevector.ImageSource{
-			Name:       common.EtcdWrapper,
-			Repository: repo,
-			Tag:        pointer.String(etcdWrapperTag),
-		})
-	}
-	if withBackupRestoreDistrolessImage {
-		imageSources = append(imageSources, &imagevector.ImageSource{
-			Name:       common.BackupRestoreDistroless,
-			Repository: repo,
-			Tag:        pointer.String(backupRestoreDistrolessTag),
-		})
-	}
-	imageSources = append(imageSources, &imagevector.ImageSource{
-		Name:       common.Alpine,
-		Repository: repo,
-		Tag:        pointer.String(initContainerTag),
-	})
-	return imageSources
 }

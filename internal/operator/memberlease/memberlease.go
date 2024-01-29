@@ -77,9 +77,9 @@ func (r _resource) doCreateOrUpdate(ctx resource.OperatorContext, etcd *druidv1a
 		return druiderr.WrapError(err,
 			ErrSyncMemberLease,
 			"Sync",
-			fmt.Sprintf("Error syncing member lease: %s for etcd: %v", objKey.Name, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error syncing member lease: %v for etcd: %v", objKey, etcd.GetNamespaceName()))
 	}
-	ctx.Logger.Info("triggered create or update of member lease", "lease", objKey, "operationResult", opResult)
+	ctx.Logger.Info("triggered create or update of member lease", "objectKey", objKey, "operationResult", opResult)
 	return nil
 }
 

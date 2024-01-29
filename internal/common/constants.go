@@ -69,14 +69,47 @@ const (
 
 // Constants for values to be set against druidv1alpha1.LabelComponentKey
 const (
-	ClientServiceComponentName       = "etcd-client-service"
-	ConfigMapComponentName           = "etcd-config"
-	MemberLeaseComponentName         = "etcd-member-lease"
-	SnapshotLeaseComponentName       = "etcd-snapshot-lease"
-	PeerServiceComponentName         = "etcd-peer-service"
+	// ClientServiceComponentName is the component name for client service resource.
+	ClientServiceComponentName = "etcd-client-service"
+	// ConfigMapComponentName is the component  name for config map resource.
+	ConfigMapComponentName = "etcd-config"
+	// MemberLeaseComponentName is the component name for member lease resource.
+	MemberLeaseComponentName = "etcd-member-lease"
+	// SnapshotLeaseComponentName is the component name for snapshot lease resource.
+	SnapshotLeaseComponentName = "etcd-snapshot-lease"
+	// PeerServiceComponentName is the component name for peer service resource.
+	PeerServiceComponentName = "etcd-peer-service"
+	// PodDisruptionBudgetComponentName is the component name for pod disruption budget resource.
 	PodDisruptionBudgetComponentName = "etcd-pdb"
-	RoleComponentName                = "etcd-druid-role"
-	RoleBindingComponentName         = "druid-role-binding"
-	ServiceAccountComponentName      = "druid-service-account"
-	StatefulSetComponentName         = "etcd-sts"
+	// RoleComponentName is the component name for role resource.
+	RoleComponentName = "etcd-druid-role"
+	// RoleBindingComponentName is the component name for role binding resource.
+	RoleBindingComponentName = "druid-role-binding"
+	// ServiceAccountComponentName is the component name for service account resource.
+	ServiceAccountComponentName = "druid-service-account"
+	// StatefulSetComponentName is the component name for statefulset resource.
+	StatefulSetComponentName = "etcd-sts"
+	// CompactionJobComponentName is the component name for compaction job resource.
+	CompactionJobComponentName = "etcd-compaction-job"
+	// EtcdCopyBackupTaskComponentName is the component name for copy-backup task resource.
+	EtcdCopyBackupTaskComponentName = "etcd-copy-backup-task"
+)
+
+const (
+	// ConfigMapCheckSumKey is the key that is set by a configmap operator and used by StatefulSet operator to
+	// place an annotation on the StatefulSet pods. The value contains the check-sum of the latest configmap that
+	// should be reflected on the pods.
+	ConfigMapCheckSumKey = "checksum/etcd-configmap"
+)
+
+// Constants for container names
+const (
+	// EtcdContainerName is the name of the etcd container.
+	EtcdContainerName = "etcd"
+	// EtcdBackupRestoreContainerName is the name of the backup-restore container.
+	EtcdBackupRestoreContainerName = "backup-restore"
+	// ChangePermissionsInitContainerName is the name of the change permissions init container.
+	ChangePermissionsInitContainerName = "change-permissions"
+	// ChangeBackupBucketPermissionsInitContainerName is the name of the change backup bucket permissions init container.
+	ChangeBackupBucketPermissionsInitContainerName = "change-backup-bucket-permissions"
 )

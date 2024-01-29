@@ -27,48 +27,56 @@ type _resource struct {
 
 func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
-	rbObjectKey := getObjectKey(etcd)
+	objectKey := getObjectKey(etcd)
 	rb := &rbacv1.RoleBinding{}
-	if err := r.client.Get(ctx, rbObjectKey, rb); err != nil {
+	if err := r.client.Get(ctx, objectKey, rb); err != nil {
 		if errors.IsNotFound(err) {
 			return resourceNames, nil
 		}
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetRoleBinding,
 			"GetExistingResourceNames",
-			fmt.Sprintf("Error getting role-binding: %s for etcd: %v", rbObjectKey.Name, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting role-binding: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
 	}
 	resourceNames = append(resourceNames, rb.Name)
 	return resourceNames, nil
 }
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	ctx.Logger.Info("Triggering delete of role")
-	err := client.IgnoreNotFound(r.client.Delete(ctx, emptyRoleBinding(etcd)))
-	if err == nil {
-		ctx.Logger.Info("deleted", "resource", "role-binding", "name", etcd.GetRoleBindingName())
+	objectKey := getObjectKey(etcd)
+	ctx.Logger.Info("Triggering delete of role", "objectKey", objectKey)
+	err := r.client.Delete(ctx, emptyRoleBinding(objectKey))
+	if err != nil {
+		if errors.IsNotFound(err) {
+			ctx.Logger.Info("No RoleBinding found, Deletion is a No-Op", "objectKey", objectKey)
+			return nil
+		}
+		return druiderr.WrapError(err,
+			ErrDeleteRoleBinding,
+			"TriggerDelete",
+			fmt.Sprintf("Failed to delete role-binding: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+		)
 	}
-	return druiderr.WrapError(err,
-		ErrDeleteRoleBinding,
-		"TriggerDelete",
-		fmt.Sprintf("Failed to delete role-binding: %s for etcd: %v", etcd.GetRoleBindingName(), etcd.GetNamespaceName()),
-	)
+	ctx.Logger.Info("deleted", "resource", "role-binding", "objectKey", objectKey)
+	return nil
 }
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	rb := emptyRoleBinding(etcd)
+	objectKey := getObjectKey(etcd)
+	rb := emptyRoleBinding(objectKey)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, rb, func() error {
 		buildResource(etcd, rb)
 		return nil
 	})
-	if err == nil {
-		ctx.Logger.Info("synced", "resource", "role", "name", rb.Name, "result", result)
+	if err != nil {
+		return druiderr.WrapError(err,
+			ErrSyncRoleBinding,
+			"Sync",
+			fmt.Sprintf("Error during create or update of role-binding %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+		)
 	}
-	return druiderr.WrapError(err,
-		ErrSyncRoleBinding,
-		"Sync",
-		fmt.Sprintf("Error during create or update of role-binding %s for etcd: %v", etcd.GetRoleBindingName(), etcd.GetNamespaceName()),
-	)
+	ctx.Logger.Info("synced", "resource", "role", "objectKey", objectKey, "result", result)
+	return nil
 }
 
 func (r _resource) Exists(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) (bool, error) {
@@ -92,11 +100,11 @@ func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {
 	return client.ObjectKey{Name: etcd.GetRoleBindingName(), Namespace: etcd.Namespace}
 }
 
-func emptyRoleBinding(etcd *druidv1alpha1.Etcd) *rbacv1.RoleBinding {
+func emptyRoleBinding(objKey client.ObjectKey) *rbacv1.RoleBinding {
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      etcd.GetRoleBindingName(),
-			Namespace: etcd.Namespace,
+			Name:      objKey.Name,
+			Namespace: objKey.Namespace,
 		},
 	}
 }

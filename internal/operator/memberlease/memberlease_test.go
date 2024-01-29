@@ -29,11 +29,6 @@ const (
 	nonTargetEtcdName = "another-etcd"
 )
 
-var (
-	internalErr    = errors.New("test internal error")
-	apiInternalErr = apierrors.NewInternalError(internalErr)
-)
-
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
 	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
@@ -68,10 +63,10 @@ func TestGetExistingResourceNames(t *testing.T) {
 		},
 		{
 			name:    "should return error when list fails",
-			listErr: apiInternalErr,
+			listErr: testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrListMemberLease,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "GetExistingResourceNames",
 			},
 		},
@@ -134,10 +129,10 @@ func TestSync(t *testing.T) {
 			name:              "should return error when client create fails",
 			etcdReplicas:      3,
 			numExistingLeases: 0,
-			createErr:         apiInternalErr,
+			createErr:         testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncMemberLease,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "Sync",
 			},
 		},
@@ -145,10 +140,10 @@ func TestSync(t *testing.T) {
 			name:              "should return error when client get fails",
 			etcdReplicas:      3,
 			numExistingLeases: 0,
-			getErr:            apiInternalErr,
+			getErr:            testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncMemberLease,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "Sync",
 			},
 		},
@@ -226,10 +221,10 @@ func TestTriggerDelete(t *testing.T) {
 			name:              "returns error when client delete fails",
 			etcdReplicas:      3,
 			numExistingLeases: 3,
-			deleteAllOfErr:    apiInternalErr,
+			deleteAllOfErr:    testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrDeleteMemberLease,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "TriggerDelete",
 			},
 		},

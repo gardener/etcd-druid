@@ -7,11 +7,6 @@ import (
 	"github.com/go-logr/logr"
 )
 
-const (
-	// ConfigMapCheckSumKey is the key which stores the latest checksum value of the ConfigMap changes as part of an etcd spec reconciliation.
-	ConfigMapCheckSumKey = "checksum/etcd-configmap"
-)
-
 // OperatorContext holds the underline context.Context along with additional data that needs to be passed from one reconcile-step to another in a multistep reconciliation run.
 type OperatorContext struct {
 	context.Context

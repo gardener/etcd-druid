@@ -46,36 +46,41 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 }
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	svc := emptyPeerService(getObjectKey(etcd))
+	objectKey := getObjectKey(etcd)
+	svc := emptyPeerService(objectKey)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, svc, func() error {
 		buildResource(etcd, svc)
 		return nil
 	})
-	if err == nil {
-		ctx.Logger.Info("synced", "resource", "peer-service", "name", svc.Name, "result", result)
-		return nil
+	if err != nil {
+		return druiderr.WrapError(err,
+			ErrSyncPeerService,
+			"Sync",
+			fmt.Sprintf("Error during create or update of peer service: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+		)
 	}
-	return druiderr.WrapError(err,
-		ErrSyncPeerService,
-		"Sync",
-		fmt.Sprintf("Error during create or update of peer service: %s for etcd: %v", svc.Name, etcd.GetNamespaceName()),
-	)
+	ctx.Logger.Info("synced", "resource", "peer-service", "objectKey", objectKey, "result", result)
+	return nil
 }
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of peer service")
-	err := client.IgnoreNotFound(r.client.Delete(ctx, emptyPeerService(objectKey)))
-	if err == nil {
-		ctx.Logger.Info("deleted", "resource", "peer-service", "name", objectKey.Name)
-		return nil
+	err := r.client.Delete(ctx, emptyPeerService(objectKey))
+	if err != nil {
+		if errors.IsNotFound(err) {
+			ctx.Logger.Info("No Peer Service found, Deletion is a No-Op", "objectKey", objectKey)
+			return nil
+		}
+		return druiderr.WrapError(
+			err,
+			ErrDeletePeerService,
+			"TriggerDelete",
+			fmt.Sprintf("Failed to delete peer service: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+		)
 	}
-	return druiderr.WrapError(
-		err,
-		ErrDeletePeerService,
-		"TriggerDelete",
-		fmt.Sprintf("Failed to delete peer service: %s for etcd: %v", objectKey.Name, etcd.GetNamespaceName()),
-	)
+	ctx.Logger.Info("deleted", "resource", "peer-service", "objectKey", objectKey)
+	return nil
 }
 
 func New(client client.Client) resource.Operator {

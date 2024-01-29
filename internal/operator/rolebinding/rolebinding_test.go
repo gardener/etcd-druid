@@ -2,7 +2,6 @@ package rolebinding
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -20,14 +19,9 @@ import (
 	. "github.com/onsi/gomega/gstruct"
 )
 
-var (
-	internalErr = errors.New("test internal error")
-)
-
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
-	getErr := apierrors.NewInternalError(internalErr)
 	testCases := []struct {
 		name                     string
 		roleBindingExists        bool
@@ -49,10 +43,10 @@ func TestGetExistingResourceNames(t *testing.T) {
 		{
 			name:              "should return error when get fails",
 			roleBindingExists: true,
-			getErr:            getErr,
+			getErr:            testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrGetRoleBinding,
-				Cause:     getErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "GetExistingResourceNames",
 			},
 		},
@@ -86,7 +80,6 @@ func TestGetExistingResourceNames(t *testing.T) {
 // ----------------------------------- Sync -----------------------------------
 func TestSync(t *testing.T) {
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
-	internalStatusErr := apierrors.NewInternalError(internalErr)
 	testCases := []struct {
 		name        string
 		createErr   *apierrors.StatusError
@@ -97,10 +90,10 @@ func TestSync(t *testing.T) {
 		},
 		{
 			name:      "create role fails when client create fails",
-			createErr: internalStatusErr,
+			createErr: testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncRoleBinding,
-				Cause:     internalStatusErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "Sync",
 			},
 		},
@@ -132,7 +125,6 @@ func TestSync(t *testing.T) {
 // ----------------------------- TriggerDelete -------------------------------
 func TestTriggerDelete(t *testing.T) {
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
-	internalStatusErr := apierrors.NewInternalError(internalErr)
 	testCases := []struct {
 		name              string
 		roleBindingExists bool
@@ -146,10 +138,10 @@ func TestTriggerDelete(t *testing.T) {
 		{
 			name:              "delete fails due to failing client delete",
 			roleBindingExists: true,
-			deleteErr:         internalStatusErr,
+			deleteErr:         testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrDeleteRoleBinding,
-				Cause:     internalStatusErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "TriggerDelete",
 			},
 		},
@@ -191,7 +183,7 @@ func TestTriggerDelete(t *testing.T) {
 // ---------------------------- Helper Functions -----------------------------
 
 func newRoleBinding(etcd *druidv1alpha1.Etcd) *rbacv1.RoleBinding {
-	rb := emptyRoleBinding(etcd)
+	rb := emptyRoleBinding(getObjectKey(etcd))
 	buildResource(etcd, rb)
 	return rb
 }

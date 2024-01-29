@@ -2,7 +2,6 @@ package snapshotlease
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 
@@ -25,11 +24,6 @@ import (
 
 const (
 	nonTargetEtcdName = "another-etcd"
-)
-
-var (
-	internalErr    = errors.New("test internal error")
-	apiInternalErr = apierrors.NewInternalError(internalErr)
 )
 
 // ------------------------ GetExistingResourceNames ------------------------
@@ -58,10 +52,10 @@ func TestGetExistingResourceNames(t *testing.T) {
 		{
 			name:          "returns error when client get fails",
 			backupEnabled: true,
-			getErr:        apiInternalErr,
+			getErr:        testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrGetSnapshotLease,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "GetExistingResourceNames",
 			},
 		},
@@ -105,10 +99,10 @@ func TestSyncWhenBackupIsEnabled(t *testing.T) {
 		},
 		{
 			name:      "returns error when client create fails",
-			createErr: apiInternalErr,
+			createErr: testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncSnapshotLease,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "Sync",
 			},
 		},
@@ -149,10 +143,10 @@ func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
 		},
 		{
 			name:           "returns error when client delete fails",
-			deleteAllOfErr: apiInternalErr,
+			deleteAllOfErr: testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncSnapshotLease,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "Sync",
 			},
 		},
@@ -210,10 +204,10 @@ func TestTriggerDelete(t *testing.T) {
 		{
 			name:          "should return error when client delete-all fails",
 			backupEnabled: true,
-			deleteAllErr:  apiInternalErr,
+			deleteAllErr:  testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrDeleteSnapshotLease,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "TriggerDelete",
 			},
 		},

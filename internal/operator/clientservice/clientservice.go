@@ -44,33 +44,38 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetClientService,
 			"GetExistingResourceNames",
-			fmt.Sprintf("Error getting client service: %s for etcd: %v", svcObjectKey.Name, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting client service: %v for etcd: %v", svcObjectKey, etcd.GetNamespaceName()))
 	}
 	resourceNames = append(resourceNames, svc.Name)
 	return resourceNames, nil
 }
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	svc := emptyClientService(getObjectKey(etcd))
+	objectKey := getObjectKey(etcd)
+	svc := emptyClientService(objectKey)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, svc, func() error {
 		buildResource(etcd, svc)
 		return nil
 	})
-	if err == nil {
-		ctx.Logger.Info("synced", "resource", "client-service", "name", svc.Name, "result", result)
-		return nil
+	if err != nil {
+		return druiderr.WrapError(err,
+			ErrSyncClientService,
+			"Sync",
+			fmt.Sprintf("Error during create or update of client service: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+		)
 	}
-	return druiderr.WrapError(err,
-		ErrSyncClientService,
-		"Sync",
-		fmt.Sprintf("Error during create or update of client service for etcd: %v", etcd.GetNamespaceName()),
-	)
+	ctx.Logger.Info("synced", "resource", "client-service", "objectKey", objectKey, "result", result)
+	return nil
 }
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
-	ctx.Logger.Info("Triggering delete of client service")
-	if err := client.IgnoreNotFound(r.client.Delete(ctx, emptyClientService(objectKey))); err != nil {
+	ctx.Logger.Info("Triggering delete of client service", "objectKey", objectKey)
+	if err := r.client.Delete(ctx, emptyClientService(objectKey)); err != nil {
+		if errors.IsNotFound(err) {
+			ctx.Logger.Info("No Client Service found, Deletion is a No-Op", "objectKey", objectKey)
+			return nil
+		}
 		return druiderr.WrapError(
 			err,
 			ErrDeleteClientService,
@@ -78,7 +83,7 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 			"Failed to delete client service",
 		)
 	}
-	ctx.Logger.Info("deleted", "resource", "client-service", "name", objectKey.Name)
+	ctx.Logger.Info("deleted", "resource", "client-service", "objectKey", objectKey)
 	return nil
 }
 

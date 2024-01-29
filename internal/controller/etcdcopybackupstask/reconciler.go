@@ -18,13 +18,12 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
-	"github.com/gardener/etcd-druid/pkg/common"
-	"github.com/gardener/etcd-druid/pkg/features"
-	"github.com/gardener/etcd-druid/pkg/utils"
+	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/gardener/etcd-druid/internal/features"
+	"github.com/gardener/etcd-druid/internal/utils"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
@@ -336,18 +335,12 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      task.GetJobName(),
 			Namespace: task.Namespace,
-			Annotations: map[string]string{
-				common.GardenerOwnedBy:   client.ObjectKeyFromObject(task).String(),
-				common.GardenerOwnerType: strings.ToLower(task.Kind),
-			},
+			Labels:    getLabels(task, false),
 		},
 		Spec: batchv1.JobSpec{
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						v1beta1constants.LabelNetworkPolicyToDNS:            v1beta1constants.LabelNetworkPolicyAllowed,
-						v1beta1constants.LabelNetworkPolicyToPublicNetworks: v1beta1constants.LabelNetworkPolicyAllowed,
-					},
+					Labels: getLabels(task, true),
 				},
 				Spec: corev1.PodSpec{
 					RestartPolicy: corev1.RestartPolicyOnFailure,
@@ -398,6 +391,19 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 		return nil, fmt.Errorf("could not set owner reference for job %v: %w", kutil.ObjectName(job), err)
 	}
 	return job, nil
+}
+
+func getLabels(task *druidv1alpha1.EtcdCopyBackupsTask, includeNetworkPolicyLabels bool) map[string]string {
+	labels := make(map[string]string)
+	labels[druidv1alpha1.LabelComponentKey] = common.EtcdCopyBackupTaskComponentName
+	labels[druidv1alpha1.LabelPartOfKey] = task.Name
+	labels[druidv1alpha1.LabelManagedByKey] = druidv1alpha1.LabelManagedByValue
+	labels[druidv1alpha1.LabelAppNameKey] = task.GetJobName()
+	if includeNetworkPolicyLabels {
+		labels[v1beta1constants.LabelNetworkPolicyToDNS] = v1beta1constants.LabelNetworkPolicyAllowed
+		labels[v1beta1constants.LabelNetworkPolicyToPublicNetworks] = v1beta1constants.LabelNetworkPolicyAllowed
+	}
+	return labels
 }
 
 func createJobArgs(task *druidv1alpha1.EtcdCopyBackupsTask, sourceObjStoreProvider string, targetObjStoreProvider string) []string {

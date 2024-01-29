@@ -33,27 +33,27 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 	// because currently snapshot lease do not have proper labels on them. In this new code
 	// we will add the labels.
 	// TODO: Once all snapshot leases have a purpose label on them, then we can use List instead of individual Get calls.
-	deltaSnapshotLease, err := r.getLease(ctx,
-		client.ObjectKey{Name: etcd.GetDeltaSnapshotLeaseName(), Namespace: etcd.Namespace})
+	deltaSnapshotObjectKey := client.ObjectKey{Name: etcd.GetDeltaSnapshotLeaseName(), Namespace: etcd.Namespace}
+	deltaSnapshotLease, err := r.getLease(ctx, deltaSnapshotObjectKey)
 	if err != nil {
 		return resourceNames, &druiderr.DruidError{
 			Code:      ErrGetSnapshotLease,
 			Cause:     err,
 			Operation: "GetExistingResourceNames",
-			Message:   fmt.Sprintf("Error getting delta snapshot lease: %s for etcd: %v", etcd.GetDeltaSnapshotLeaseName(), etcd.GetNamespaceName()),
+			Message:   fmt.Sprintf("Error getting delta snapshot lease: %v for etcd: %v", deltaSnapshotObjectKey, etcd.GetNamespaceName()),
 		}
 	}
 	if deltaSnapshotLease != nil {
 		resourceNames = append(resourceNames, deltaSnapshotLease.Name)
 	}
-	fullSnapshotLease, err := r.getLease(ctx,
-		client.ObjectKey{Name: etcd.GetFullSnapshotLeaseName(), Namespace: etcd.Namespace})
+	fullSnapshotObjectKey := client.ObjectKey{Name: etcd.GetFullSnapshotLeaseName(), Namespace: etcd.Namespace}
+	fullSnapshotLease, err := r.getLease(ctx, fullSnapshotObjectKey)
 	if err != nil {
 		return resourceNames, &druiderr.DruidError{
 			Code:      ErrGetSnapshotLease,
 			Cause:     err,
 			Operation: "GetExistingResourceNames",
-			Message:   fmt.Sprintf("Error getting full snapshot lease: %s for etcd: %v", etcd.GetFullSnapshotLeaseName(), etcd.GetNamespaceName()),
+			Message:   fmt.Sprintf("Error getting full snapshot lease: %v for etcd: %v", fullSnapshotObjectKey, etcd.GetNamespaceName()),
 		}
 	}
 	if fullSnapshotLease != nil {
@@ -142,9 +142,9 @@ func (r _resource) doCreateOrUpdate(ctx resource.OperatorContext, etcd *druidv1a
 		return druiderr.WrapError(err,
 			ErrSyncSnapshotLease,
 			"Sync",
-			fmt.Sprintf("Error syncing snapshot lease: %s for etcd: %v", leaseObjectKey.Name, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error syncing snapshot lease: %v for etcd: %v", leaseObjectKey, etcd.GetNamespaceName()))
 	}
-	ctx.Logger.Info("triggered create or update of snapshot lease", "lease", leaseObjectKey, "operationResult", opResult)
+	ctx.Logger.Info("triggered create or update of snapshot lease", "objectKey", leaseObjectKey, "operationResult", opResult)
 
 	return nil
 }

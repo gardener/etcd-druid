@@ -28,34 +28,37 @@ type _resource struct {
 
 func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
+	objectKey := getObjectKey(etcd)
 	pdb := &policyv1.PodDisruptionBudget{}
-	if err := r.client.Get(ctx, getObjectKey(etcd), pdb); err != nil {
+	if err := r.client.Get(ctx, objectKey, pdb); err != nil {
 		if errors.IsNotFound(err) {
 			return resourceNames, nil
 		}
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetPodDisruptionBudget,
 			"GetExistingResourceNames",
-			fmt.Sprintf("Error getting PDB: %s for etcd: %v", pdb.Name, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting PDB: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
 	}
 	resourceNames = append(resourceNames, pdb.Name)
 	return resourceNames, nil
 }
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	pdb := emptyPodDisruptionBudget(getObjectKey(etcd))
+	objectKey := getObjectKey(etcd)
+	pdb := emptyPodDisruptionBudget(objectKey)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, pdb, func() error {
 		buildResource(etcd, pdb)
 		return nil
 	})
-	if err == nil {
-		ctx.Logger.Info("synced", "resource", "pod-disruption-budget", "name", pdb.Name, "result", result)
-		return nil
+	if err != nil {
+		return druiderr.WrapError(err,
+			ErrSyncPodDisruptionBudget,
+			"Sync",
+			fmt.Sprintf("Error during create or update of PDB: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+		)
 	}
-	return druiderr.WrapError(err,
-		ErrSyncPodDisruptionBudget,
-		"Sync",
-		fmt.Sprintf("Error during create or update of PDB: %s for etcd: %v", pdb.Name, etcd.GetNamespaceName()))
+	ctx.Logger.Info("synced", "resource", "pod-disruption-budget", "objectKey", objectKey, "result", result)
+	return nil
 }
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
@@ -65,9 +68,9 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 		return druiderr.WrapError(err,
 			ErrDeletePodDisruptionBudget,
 			"TriggerDelete",
-			fmt.Sprintf("Failed to delete PDB: %s for etcd: %v", pdbObjectKey.Name, etcd.GetNamespaceName()))
+			fmt.Sprintf("Failed to delete PDB: %v for etcd: %v", pdbObjectKey, etcd.GetNamespaceName()))
 	}
-	ctx.Logger.Info("deleted", "resource", "pod-disruption-budget", "name", pdbObjectKey.Name)
+	ctx.Logger.Info("deleted", "resource", "pod-disruption-budget", "objectKey", pdbObjectKey)
 	return nil
 }
 

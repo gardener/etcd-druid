@@ -27,48 +27,55 @@ type _resource struct {
 
 func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
-	roleObjectKey := getObjectKey(etcd)
+	objectKey := getObjectKey(etcd)
 	role := &rbacv1.Role{}
-	if err := r.client.Get(ctx, roleObjectKey, role); err != nil {
+	if err := r.client.Get(ctx, objectKey, role); err != nil {
 		if errors.IsNotFound(err) {
 			return resourceNames, nil
 		}
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetRole,
 			"GetExistingResourceNames",
-			fmt.Sprintf("Error getting role: %s for etcd: %v", roleObjectKey.Name, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting role: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
 	}
 	resourceNames = append(resourceNames, role.Name)
 	return resourceNames, nil
 }
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	role := emptyRole(etcd)
+	objectKey := getObjectKey(etcd)
+	role := emptyRole(objectKey)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, role, func() error {
 		buildResource(etcd, role)
 		return nil
 	})
-	if err == nil {
-		ctx.Logger.Info("synced", "resource", "role", "name", role.Name, "result", result)
+	if err != nil {
+		return druiderr.WrapError(err,
+			ErrSyncRole,
+			"Sync",
+			fmt.Sprintf("Error during create or update of role %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+		)
 	}
-	return druiderr.WrapError(err,
-		ErrSyncRole,
-		"Sync",
-		fmt.Sprintf("Error during create or update of role %s for etcd: %v", etcd.GetRoleName(), etcd.GetNamespaceName()),
-	)
+	ctx.Logger.Info("synced", "resource", "role", "objectKey", objectKey, "result", result)
+	return nil
 }
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	ctx.Logger.Info("Triggering delete of role")
-	err := client.IgnoreNotFound(r.client.Delete(ctx, emptyRole(etcd)))
-	if err == nil {
-		ctx.Logger.Info("deleted", "resource", "role", "name", etcd.GetRoleName())
+	objectKey := getObjectKey(etcd)
+	ctx.Logger.Info("Triggering delete of role", "objectKey", objectKey)
+	if err := r.client.Delete(ctx, emptyRole(objectKey)); err != nil {
+		if errors.IsNotFound(err) {
+			ctx.Logger.Info("No Role found, Deletion is a No-Op", "objectKey", objectKey)
+			return nil
+		}
+		return druiderr.WrapError(err,
+			ErrDeleteRole,
+			"TriggerDelete",
+			fmt.Sprintf("Failed to delete role: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+		)
 	}
-	return druiderr.WrapError(err,
-		ErrDeleteRole,
-		"TriggerDelete",
-		fmt.Sprintf("Failed to delete role: %s for etcd: %v", etcd.GetRoleName(), etcd.GetNamespaceName()),
-	)
+	ctx.Logger.Info("deleted", "resource", "role", "objectKey", objectKey)
+	return nil
 }
 
 func New(client client.Client) resource.Operator {
@@ -81,11 +88,11 @@ func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {
 	return client.ObjectKey{Name: etcd.GetRoleName(), Namespace: etcd.Namespace}
 }
 
-func emptyRole(etcd *druidv1alpha1.Etcd) *rbacv1.Role {
+func emptyRole(objectKey client.ObjectKey) *rbacv1.Role {
 	return &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      etcd.GetRoleName(),
-			Namespace: etcd.Namespace,
+			Name:      objectKey.Name,
+			Namespace: objectKey.Namespace,
 		},
 	}
 }

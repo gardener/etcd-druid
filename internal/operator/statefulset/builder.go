@@ -112,12 +112,12 @@ func (b *stsBuilder) createStatefulSetObjectMeta() {
 	b.sts.ObjectMeta = metav1.ObjectMeta{
 		Name:            b.etcd.Name,
 		Namespace:       b.etcd.Namespace,
-		Labels:          b.getLabels(),
+		Labels:          b.getStatefulSetLabels(),
 		OwnerReferences: []metav1.OwnerReference{b.etcd.GetAsOwnerReference()},
 	}
 }
 
-func (b *stsBuilder) getLabels() map[string]string {
+func (b *stsBuilder) getStatefulSetLabels() map[string]string {
 	stsLabels := map[string]string{
 		druidv1alpha1.LabelComponentKey: common.StatefulSetComponentName,
 		druidv1alpha1.LabelAppNameKey:   b.etcd.Name,
@@ -147,7 +147,7 @@ func (b *stsBuilder) createStatefulSetSpec(ctx resource.OperatorContext) error {
 		ServiceName:          b.etcd.GetPeerServiceName(),
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels:      utils.MergeMaps[string](b.etcd.Spec.Labels, b.etcd.GetDefaultLabels()),
+				Labels:      utils.MergeMaps[string](b.etcd.Spec.Labels, b.getStatefulSetLabels()),
 				Annotations: b.getPodTemplateAnnotations(ctx),
 			},
 			Spec: corev1.PodSpec{
@@ -180,9 +180,9 @@ func (b *stsBuilder) getHostAliases() []corev1.HostAlias {
 }
 
 func (b *stsBuilder) getPodTemplateAnnotations(ctx resource.OperatorContext) map[string]string {
-	if configMapCheckSum, ok := ctx.Data[resource.ConfigMapCheckSumKey]; ok {
+	if configMapCheckSum, ok := ctx.Data[common.ConfigMapCheckSumKey]; ok {
 		return utils.MergeMaps[string](b.etcd.Spec.Annotations, map[string]string{
-			resource.ConfigMapCheckSumKey: configMapCheckSum,
+			common.ConfigMapCheckSumKey: configMapCheckSum,
 		})
 	}
 	return b.etcd.Spec.Annotations
@@ -215,7 +215,7 @@ func (b *stsBuilder) getPodInitContainers() []corev1.Container {
 		return initContainers
 	}
 	initContainers = append(initContainers, corev1.Container{
-		Name:            "change-permissions",
+		Name:            common.ChangePermissionsInitContainerName,
 		Image:           b.initContainerImage,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Command:         []string{"sh", "-c", "--"},
@@ -230,7 +230,7 @@ func (b *stsBuilder) getPodInitContainers() []corev1.Container {
 	if b.etcd.IsBackupStoreEnabled() {
 		if b.provider != nil && *b.provider == utils.Local {
 			initContainers = append(initContainers, corev1.Container{
-				Name:            "change-backup-bucket-permissions",
+				Name:            common.ChangeBackupBucketPermissionsInitContainerName,
 				Image:           b.initContainerImage,
 				ImagePullPolicy: corev1.PullIfNotPresent,
 				Command:         []string{"sh", "-c", "--"},
@@ -283,7 +283,7 @@ func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 			if b.useEtcdWrapper {
 				return &corev1.VolumeMount{
 					Name:      "host-storage",
-					MountPath: "/home/nonroot/" + pointer.StringDeref(b.etcd.Spec.Backup.Store.Container, ""),
+					MountPath: fmt.Sprintf("/home/nonroot/%s", pointer.StringDeref(b.etcd.Spec.Backup.Store.Container, "")),
 				}
 			} else {
 				return &corev1.VolumeMount{
@@ -316,7 +316,7 @@ func (b *stsBuilder) getEtcdDataVolumeMount() corev1.VolumeMount {
 
 func (b *stsBuilder) getEtcdContainer() corev1.Container {
 	return corev1.Container{
-		Name:            "etcd",
+		Name:            common.EtcdContainerName,
 		Image:           b.etcdImage,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Args:            b.getEtcdContainerCommandArgs(),
@@ -345,7 +345,7 @@ func (b *stsBuilder) getBackupRestoreContainer() (corev1.Container, error) {
 		return corev1.Container{}, err
 	}
 	return corev1.Container{
-		Name:            "backup-restore",
+		Name:            common.EtcdBackupRestoreContainerName,
 		Image:           b.etcdBackupRestoreImage,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Args:            b.getBackupRestoreContainerCommandArgs(),
@@ -746,7 +746,7 @@ func (b *stsBuilder) getBackupVolume(ctx resource.OperatorContext) (*corev1.Volu
 	}
 	store := b.etcd.Spec.Backup.Store
 	switch *b.provider {
-	case "Local":
+	case utils.Local:
 		hostPath, err := utils.GetHostMountPathFromSecretRef(ctx, b.client, b.logger, store, b.etcd.GetNamespace())
 		if err != nil {
 			return nil, fmt.Errorf("error getting host mount path for etcd: %v Err: %w", b.etcd.GetNamespaceName(), err)

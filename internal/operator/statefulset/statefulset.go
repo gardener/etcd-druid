@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	ErrGetStatefulSet    druidv1alpha1.ErrorCode = "ERR_GET_STATEFUL_SET"
-	ErrDeleteStatefulSet druidv1alpha1.ErrorCode = "ERR_DELETE_STATEFUL_SET"
-	ErrSyncStatefulSet   druidv1alpha1.ErrorCode = "ERR_SYNC_STATEFUL_SET"
+	ErrGetStatefulSet    druidv1alpha1.ErrorCode = "ERR_GET_STATEFULSET"
+	ErrDeleteStatefulSet druidv1alpha1.ErrorCode = "ERR_DELETE_STATEFULSET"
+	ErrSyncStatefulSet   druidv1alpha1.ErrorCode = "ERR_SYNC_STATEFULSET"
 )
 
 type _resource struct {
@@ -40,12 +40,13 @@ func New(client client.Client, imageVector imagevector.ImageVector, featureGates
 }
 
 func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
-	sts, err := r.getExistingStatefulSet(ctx, etcd)
+	objectKey := getObjectKey(etcd)
+	sts, err := r.getExistingStatefulSet(ctx, objectKey)
 	if err != nil {
 		return nil, druiderr.WrapError(err,
 			ErrGetStatefulSet,
 			"GetExistingResourceNames",
-			fmt.Sprintf("Error getting StatefulSet: %s for etcd: %v", getObjectKey(etcd).Name, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting StatefulSet: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
 	}
 	if sts == nil {
 		return []string{}, nil
@@ -58,18 +59,20 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 		existingSTS *appsv1.StatefulSet
 		err         error
 	)
-	if existingSTS, err = r.getExistingStatefulSet(ctx, etcd); err != nil {
+	objectKey := getObjectKey(etcd)
+	if existingSTS, err = r.getExistingStatefulSet(ctx, objectKey); err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncStatefulSet,
 			"Sync",
-			fmt.Sprintf("Error getting StatefulSet: %s for etcd: %v", getObjectKey(etcd).Name, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting StatefulSet: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
 
 	}
 	// There is no StatefulSet present. Create one.
 	if existingSTS == nil {
 		return r.createOrPatch(ctx, etcd)
 	}
-
+	// StatefulSet exists, check if TLS has been enabled for peer communication, if yes then it is currently a multistep
+	// process to ensure that all members are updated and establish peer TLS communication.
 	if err = r.handlePeerTLSEnabled(ctx, etcd, existingSTS); err != nil {
 		return fmt.Errorf("error handling peer TLS: %w", err)
 	}
@@ -80,12 +83,26 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 }
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	return client.IgnoreNotFound(r.client.Delete(ctx, emptyStatefulSet(getObjectKey(etcd))))
+	objectKey := getObjectKey(etcd)
+	ctx.Logger.Info("Triggering delete of StatefulSet", "objectKey", objectKey)
+	err := r.client.Delete(ctx, emptyStatefulSet(objectKey))
+	if err != nil {
+		if errors.IsNotFound(err) {
+			ctx.Logger.Info("No StatefulSet found, Deletion is a No-Op", "objectKey", objectKey.Name)
+			return nil
+		}
+		return druiderr.WrapError(err,
+			ErrDeleteStatefulSet,
+			"TriggerDelete",
+			fmt.Sprintf("Failed to delete StatefulSet: %v for etcd %v", objectKey, etcd.GetNamespaceName()))
+	}
+	ctx.Logger.Info("deleted", "resource", "statefulset", "objectKey", objectKey)
+	return nil
 }
 
-func (r _resource) getExistingStatefulSet(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSet, error) {
-	sts := emptyStatefulSet(getObjectKey(etcd))
-	if err := r.client.Get(ctx, getObjectKey(etcd), sts); err != nil {
+func (r _resource) getExistingStatefulSet(ctx resource.OperatorContext, objectKey client.ObjectKey) (*appsv1.StatefulSet, error) {
+	sts := emptyStatefulSet(objectKey)
+	if err := r.client.Get(ctx, objectKey, sts); err != nil {
 		if errors.IsNotFound(err) {
 			return nil, nil
 		}
@@ -100,14 +117,20 @@ func (r _resource) createOrPatchWithReplicas(ctx resource.OperatorContext, etcd 
 	desiredStatefulSet := emptyStatefulSet(getObjectKey(etcd))
 	mutatingFn := func() error {
 		if builder, err := newStsBuilder(r.client, ctx.Logger, etcd, replicas, r.useEtcdWrapper, r.imageVector, desiredStatefulSet); err != nil {
-			return err
+			return druiderr.WrapError(err,
+				ErrSyncStatefulSet,
+				"Sync",
+				fmt.Sprintf("Error initializing StatefulSet builder for etcd %v", etcd.GetNamespaceName()))
 		} else {
 			return builder.Build(ctx)
 		}
 	}
 	opResult, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, desiredStatefulSet, mutatingFn)
 	if err != nil {
-		return err
+		return druiderr.WrapError(err,
+			ErrSyncStatefulSet,
+			"Sync",
+			fmt.Sprintf("Error creating or patching StatefulSet: %s for etcd: %v", desiredStatefulSet.Name, etcd.GetNamespaceName()))
 	}
 
 	ctx.Logger.Info("triggered creation of statefulSet", "statefulSet", getObjectKey(etcd), "operationResult", opResult)
@@ -120,7 +143,7 @@ func (r _resource) createOrPatch(ctx resource.OperatorContext, etcd *druidv1alph
 }
 
 func (r _resource) handleImmutableFieldUpdates(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) error {
-	if existingSts.Generation > 1 && hasImmutableFieldChanged(existingSts, etcd) {
+	if existingSts.Generation > 1 && doesEtcdChangesRequireRecreation(existingSts, etcd) {
 		ctx.Logger.Info("Immutable fields have been updated, need to recreate StatefulSet", "etcd")
 
 		if err := r.TriggerDelete(ctx, etcd); err != nil {
@@ -130,10 +153,10 @@ func (r _resource) handleImmutableFieldUpdates(ctx resource.OperatorContext, etc
 	return nil
 }
 
-// hasImmutableFieldChanged checks if any immutable fields have changed in the StatefulSet
-// specification compared to the Etcd object. It returns true if there are changes in the immutable fields.
-// Currently, it checks for changes in the ServiceName and PodManagementPolicy.
-func hasImmutableFieldChanged(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) bool {
+// doesEtcdChangesRequireRecreation checks if changes have been made to certain fields in the etcd spec
+// which will require a recreation of StatefulSet in order to get reflected. Currently, it checks for changes
+// in the ServiceName and PodManagementPolicy.
+func doesEtcdChangesRequireRecreation(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) bool {
 	return sts.Spec.ServiceName != etcd.GetPeerServiceName() || sts.Spec.PodManagementPolicy != appsv1.ParallelPodManagement
 }
 

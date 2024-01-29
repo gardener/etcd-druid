@@ -30,46 +30,52 @@ type _resource struct {
 func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	sa := &corev1.ServiceAccount{}
-	saObjectKey := getObjectKey(etcd)
-	if err := r.client.Get(ctx, saObjectKey, sa); err != nil {
+	objectKey := getObjectKey(etcd)
+	if err := r.client.Get(ctx, objectKey, sa); err != nil {
 		if errors.IsNotFound(err) {
 			return resourceNames, nil
 		}
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetServiceAccount,
 			"GetExistingResourceNames",
-			fmt.Sprintf("Error getting service account: %s for etcd: %v", saObjectKey.Name, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting service account: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
 	}
 	resourceNames = append(resourceNames, sa.Name)
 	return resourceNames, nil
 }
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	sa := emptyServiceAccount(getObjectKey(etcd))
+	objectKey := getObjectKey(etcd)
+	sa := emptyServiceAccount(objectKey)
 	opResult, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, sa, func() error {
 		buildResource(etcd, sa, !r.disableAutoMount)
 		return nil
 	})
-	if err == nil {
-		ctx.Logger.Info("synced", "resource", "service-account", "name", sa.Name, "result", opResult)
-		return nil
+	if err != nil {
+		return druiderr.WrapError(err,
+			ErrSyncServiceAccount,
+			"Sync",
+			fmt.Sprintf("Error during create or update of service account: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+		)
 	}
-	return druiderr.WrapError(err,
-		ErrSyncServiceAccount,
-		"Sync",
-		fmt.Sprintf("Error during create or update of service account: %s for etcd: %v", sa.Name, etcd.GetNamespaceName()))
+	ctx.Logger.Info("synced", "resource", "service-account", "objectKey", objectKey, "result", opResult)
+	return nil
 }
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	ctx.Logger.Info("Triggering delete of service account")
-	saObjectKey := getObjectKey(etcd)
-	if err := client.IgnoreNotFound(r.client.Delete(ctx, emptyServiceAccount(saObjectKey))); err != nil {
+	objectKey := getObjectKey(etcd)
+	if err := r.client.Delete(ctx, emptyServiceAccount(objectKey)); err != nil {
+		if errors.IsNotFound(err) {
+			ctx.Logger.Info("No ServiceAccount found, Deletion is a No-Op", "objectKey", objectKey)
+			return nil
+		}
 		return druiderr.WrapError(err,
 			ErrDeleteServiceAccount,
 			"TriggerDelete",
-			fmt.Sprintf("Failed to delete service account: %s for etcd: %v", saObjectKey.Name, etcd.GetNamespaceName()))
+			fmt.Sprintf("Failed to delete service account: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
 	}
-	ctx.Logger.Info("deleted", "resource", "service-account", "name", saObjectKey.Name)
+	ctx.Logger.Info("deleted", "resource", "service-account", "objectKey", objectKey)
 	return nil
 }
 

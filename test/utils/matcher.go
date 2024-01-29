@@ -12,19 +12,19 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// mapMatcher matches map[string]string and produces a convenient and easy to consume error message which includes
-// the difference between the actual and expected.
-type mapMatcher struct {
+// mapMatcher matches map[string]T and produces a convenient and easy to consume error message which includes
+// the difference between the actual and expected. T is a generic type and accepts any type that is comparable.
+type mapMatcher[T comparable] struct {
 	fieldName string
-	expected  map[string]string
+	expected  map[string]T
 	diff      []string
 }
 
-func (m mapMatcher) Match(actual interface{}) (bool, error) {
+func (m mapMatcher[T]) Match(actual interface{}) (bool, error) {
 	if actual == nil {
 		return false, nil
 	}
-	actualMap, okType := actual.(map[string]string)
+	actualMap, okType := actual.(map[string]T)
 	if !okType {
 		return false, fmt.Errorf("expected a map[string]string. got: %s", format.Object(actual, 1))
 	}
@@ -40,15 +40,15 @@ func (m mapMatcher) Match(actual interface{}) (bool, error) {
 	return len(m.diff) == 0, nil
 }
 
-func (m mapMatcher) FailureMessage(actual interface{}) string {
+func (m mapMatcher[T]) FailureMessage(actual interface{}) string {
 	return m.createMessage(actual, "to be")
 }
 
-func (m mapMatcher) NegatedFailureMessage(actual interface{}) string {
+func (m mapMatcher[T]) NegatedFailureMessage(actual interface{}) string {
 	return m.createMessage(actual, "to not be")
 }
 
-func (m mapMatcher) createMessage(actual interface{}, message string) string {
+func (m mapMatcher[T]) createMessage(actual interface{}, message string) string {
 	msgBuilder := strings.Builder{}
 	msgBuilder.WriteString(format.Message(actual, message, m.expected))
 	if len(m.diff) > 0 {
@@ -60,7 +60,7 @@ func (m mapMatcher) createMessage(actual interface{}, message string) string {
 
 // MatchResourceAnnotations returns a custom gomega matcher which matches annotations set on a resource against the expected annotations.
 func MatchResourceAnnotations(expected map[string]string) gomegatypes.GomegaMatcher {
-	return &mapMatcher{
+	return &mapMatcher[string]{
 		fieldName: "ObjectMeta.Annotations",
 		expected:  expected,
 	}
@@ -68,7 +68,7 @@ func MatchResourceAnnotations(expected map[string]string) gomegatypes.GomegaMatc
 
 // MatchResourceLabels returns a custom gomega matcher which matches labels set on the resource against the expected labels.
 func MatchResourceLabels(expected map[string]string) gomegatypes.GomegaMatcher {
-	return &mapMatcher{
+	return &mapMatcher[string]{
 		fieldName: "ObjectMeta.Labels",
 		expected:  expected,
 	}

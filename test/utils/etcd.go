@@ -80,7 +80,7 @@ func (eb *EtcdBuilder) WithReplicas(replicas int32) *EtcdBuilder {
 	return eb
 }
 
-func (eb *EtcdBuilder) WithTLS() *EtcdBuilder {
+func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
 	}
@@ -98,7 +98,15 @@ func (eb *EtcdBuilder) WithTLS() *EtcdBuilder {
 			Name: "client-url-etcd-server-tls",
 		},
 	}
+	eb.etcd.Spec.Etcd.ClientUrlTLS = clientTLSConfig
+	eb.etcd.Spec.Backup.TLS = clientTLSConfig
+	return eb
+}
 
+func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
 	peerTLSConfig := &druidv1alpha1.TLSConfig{
 		TLSCASecretRef: druidv1alpha1.SecretReference{
 			SecretReference: corev1.SecretReference{
@@ -110,11 +118,7 @@ func (eb *EtcdBuilder) WithTLS() *EtcdBuilder {
 			Name: "peer-url-etcd-server-tls",
 		},
 	}
-
-	eb.etcd.Spec.Etcd.ClientUrlTLS = clientTLSConfig
 	eb.etcd.Spec.Etcd.PeerUrlTLS = peerTLSConfig
-	eb.etcd.Spec.Backup.TLS = clientTLSConfig
-
 	return eb
 }
 
@@ -343,15 +347,18 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 				"role":     "test",
 			},
 			Labels: map[string]string{
-				"app":      "etcd-statefulset",
-				"instance": name,
-				"name":     "etcd",
+				druidv1alpha1.LabelManagedByKey:                  druidv1alpha1.LabelManagedByValue,
+				druidv1alpha1.LabelPartOfKey:                     name,
+				"networking.gardener.cloud/to-dns":               "allowed",
+				"networking.gardener.cloud/to-private-networks":  "allowed",
+				"networking.gardener.cloud/to-public-networks":   "allowed",
+				"networking.gardener.cloud/to-runtime-apiserver": "allowed",
+				"gardener.cloud/role":                            "controlplane",
 			},
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app":      "etcd-statefulset",
-					"instance": name,
-					"name":     "etcd",
+					druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
+					druidv1alpha1.LabelPartOfKey:    name,
 				},
 			},
 			Replicas:            1,
@@ -367,10 +374,6 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 				DefragmentationSchedule: &defragSchedule,
 				EtcdDefragTimeout:       &etcdDefragTimeout,
 				Resources: &corev1.ResourceRequirements{
-					Limits: corev1.ResourceList{
-						"cpu":    ParseQuantity("2500m"),
-						"memory": ParseQuantity("4Gi"),
-					},
 					Requests: corev1.ResourceList{
 						"cpu":    ParseQuantity("500m"),
 						"memory": ParseQuantity("1000Mi"),

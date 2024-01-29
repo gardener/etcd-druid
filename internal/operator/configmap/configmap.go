@@ -2,9 +2,11 @@ package configmap
 
 import (
 	"encoding/json"
+	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
+	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/resource"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
@@ -16,18 +18,30 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	ErrGetConfigMap    druidv1alpha1.ErrorCode = "ERR_GET_CONFIGMAP"
+	ErrDeleteConfigMap druidv1alpha1.ErrorCode = "ERR_DELETE_CONFIGMAP"
+	ErrSyncConfigMap   druidv1alpha1.ErrorCode = "ERR_SYNC_CONFIGMAP"
+)
+
+const etcdConfigKey = "etcd.conf.yaml"
+
 type _resource struct {
 	client client.Client
 }
 
 func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
+	objKey := getObjectKey(etcd)
 	cm := &corev1.ConfigMap{}
-	if err := r.client.Get(ctx, getObjectKey(etcd), cm); err != nil {
+	if err := r.client.Get(ctx, objKey, cm); err != nil {
 		if errors.IsNotFound(err) {
 			return resourceNames, nil
 		}
-		return resourceNames, err
+		return nil, druiderr.WrapError(err,
+			ErrGetConfigMap,
+			"GetExistingResourceNames",
+			fmt.Sprintf("Error getting ConfigMap: %v for etcd: %v", objKey, etcd.GetNamespaceName()))
 	}
 	resourceNames = append(resourceNames, cm.Name)
 	return resourceNames, nil
@@ -35,24 +49,44 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 
 func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	cm := emptyConfigMap(getObjectKey(etcd))
-	_, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, cm, func() error {
+	result, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, cm, func() error {
 		return buildResource(etcd, cm)
 	})
 	if err != nil {
-		return err
+		return druiderr.WrapError(err,
+			ErrSyncConfigMap,
+			"Sync",
+			fmt.Sprintf("Error during create or update of configmap for etcd: %v", etcd.GetNamespaceName()))
 	}
 	checkSum, err := computeCheckSum(cm)
 	if err != nil {
-		return err
+		return druiderr.WrapError(err,
+			ErrSyncConfigMap,
+			"Sync",
+			fmt.Sprintf("Error when computing CheckSum for configmap for etcd: %v", etcd.GetNamespaceName()))
 	}
-	ctx.Data[resource.ConfigMapCheckSumKey] = checkSum
+	ctx.Data[common.ConfigMapCheckSumKey] = checkSum
+	ctx.Logger.Info("synced", "resource", "configmap", "name", cm.Name, "result", result)
 	return nil
 }
 
 func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of ConfigMap", "objectKey", objectKey)
-	return client.IgnoreNotFound(r.client.Delete(ctx, emptyConfigMap(objectKey)))
+	if err := r.client.Delete(ctx, emptyConfigMap(objectKey)); err != nil {
+		if errors.IsNotFound(err) {
+			ctx.Logger.Info("No ConfigMap found, Deletion is a No-Op", "objectKey", objectKey)
+			return nil
+		}
+		return druiderr.WrapError(
+			err,
+			ErrDeleteConfigMap,
+			"TriggerDelete",
+			"Failed to delete configmap",
+		)
+	}
+	ctx.Logger.Info("deleted", "resource", "configmap", "objectKey", objectKey)
+	return nil
 }
 
 func New(client client.Client) resource.Operator {
@@ -71,7 +105,8 @@ func buildResource(etcd *druidv1alpha1.Etcd, cm *corev1.ConfigMap) error {
 	cm.Namespace = etcd.Namespace
 	cm.Labels = getLabels(etcd)
 	cm.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
-	cm.Data = map[string]string{"etcd.conf.yaml": string(cfgYaml)}
+	cm.Data = map[string]string{etcdConfigKey: string(cfgYaml)}
+
 	return nil
 }
 
@@ -102,7 +137,7 @@ func emptyConfigMap(objectKey client.ObjectKey) *corev1.ConfigMap {
 func computeCheckSum(cm *corev1.ConfigMap) (string, error) {
 	jsonData, err := json.Marshal(cm.Data)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	return gardenerutils.ComputeSHA256Hex(jsonData), nil
 }

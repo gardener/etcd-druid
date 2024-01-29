@@ -2,7 +2,6 @@ package serviceaccount
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -17,11 +16,6 @@ import (
 
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
-)
-
-var (
-	internalErr    = errors.New("fake get internal error")
-	apiInternalErr = apierrors.NewInternalError(internalErr)
 )
 
 // ------------------------ GetExistingResourceNames ------------------------
@@ -48,10 +42,10 @@ func TestGetExistingResourceNames(t *testing.T) {
 		{
 			name:     "should return err when client get fails",
 			saExists: true,
-			getErr:   apiInternalErr,
+			getErr:   testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrGetServiceAccount,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "GetExistingResourceNames",
 			},
 		},
@@ -102,10 +96,10 @@ func TestSync(t *testing.T) {
 		},
 		{
 			name:      "should return err when client create fails",
-			createErr: apiInternalErr,
+			createErr: testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncServiceAccount,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "Sync",
 			},
 		},
@@ -152,10 +146,10 @@ func TestTriggerDelete(t *testing.T) {
 		{
 			name:      "returns error when client delete fails",
 			saExists:  true,
-			deleteErr: apiInternalErr,
+			deleteErr: testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrDeleteServiceAccount,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "TriggerDelete",
 			},
 		},

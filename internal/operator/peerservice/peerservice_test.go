@@ -35,11 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var (
-	internalErr    = errors.New("fake get internal error")
-	apiInternalErr = apierrors.NewInternalError(internalErr)
-)
-
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
@@ -64,10 +59,10 @@ func TestGetExistingResourceNames(t *testing.T) {
 		{
 			name:      "should return error when get fails",
 			svcExists: true,
-			getErr:    apiInternalErr,
+			getErr:    testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrGetPeerService,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "GetExistingResourceNames",
 			},
 		},
@@ -113,10 +108,10 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 		},
 		{
 			name:      "returns error when client create fails",
-			createErr: apiInternalErr,
+			createErr: testutils.TestAPIInternalErr,
 			expectedError: &druiderr.DruidError{
 				Code:      ErrSyncPeerService,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "Sync",
 			},
 		},
@@ -162,10 +157,10 @@ func TestSyncWhenServiceExists(t *testing.T) {
 		{
 			name:           "update fails when there is a patch error",
 			updateWithPort: pointer.Int32(2222),
-			patchErr:       apiInternalErr,
+			patchErr:       testutils.TestAPIInternalErr,
 			expectedError: &druiderr.DruidError{
 				Code:      ErrSyncPeerService,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "Sync",
 			},
 		},

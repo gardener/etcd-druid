@@ -2,7 +2,6 @@ package role
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -19,14 +18,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var (
-	internalErr = errors.New("test internal error")
-)
-
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
-	getInternalErr := apierrors.NewInternalError(internalErr)
 	testCases := []struct {
 		name              string
 		roleExists        bool
@@ -48,10 +42,10 @@ func TestGetExistingResourceNames(t *testing.T) {
 		{
 			name:       "should return error when get fails",
 			roleExists: true,
-			getErr:     getInternalErr,
+			getErr:     testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrGetRole,
-				Cause:     getInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "GetExistingResourceNames",
 			},
 		},
@@ -85,7 +79,6 @@ func TestGetExistingResourceNames(t *testing.T) {
 // ----------------------------------- Sync -----------------------------------
 func TestSync(t *testing.T) {
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
-	internalStatusErr := apierrors.NewInternalError(internalErr)
 	testCases := []struct {
 		name        string
 		createErr   *apierrors.StatusError
@@ -96,10 +89,10 @@ func TestSync(t *testing.T) {
 		},
 		{
 			name:      "create role fails when client create fails",
-			createErr: internalStatusErr,
+			createErr: testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncRole,
-				Cause:     internalStatusErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "Sync",
 			},
 		},
@@ -133,7 +126,6 @@ func TestSync(t *testing.T) {
 // ----------------------------- TriggerDelete -------------------------------
 func TestTriggerDelete(t *testing.T) {
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
-	internalStatusErr := apierrors.NewInternalError(internalErr)
 	testCases := []struct {
 		name        string
 		roleExists  bool
@@ -147,10 +139,10 @@ func TestTriggerDelete(t *testing.T) {
 		{
 			name:       "delete fails due to failing client delete",
 			roleExists: true,
-			deleteErr:  internalStatusErr,
+			deleteErr:  testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrDeleteRole,
-				Cause:     internalStatusErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "TriggerDelete",
 			},
 		},
@@ -192,7 +184,7 @@ func TestTriggerDelete(t *testing.T) {
 // ---------------------------- Helper Functions -----------------------------
 
 func newRole(etcd *druidv1alpha1.Etcd) *rbacv1.Role {
-	role := emptyRole(etcd)
+	role := emptyRole(getObjectKey(etcd))
 	buildResource(etcd, role)
 	return role
 }

@@ -2,7 +2,6 @@ package poddistruptionbudget
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -19,11 +18,6 @@ import (
 
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
-)
-
-var (
-	internalErr    = errors.New("fake get internal error")
-	apiInternalErr = apierrors.NewInternalError(internalErr)
 )
 
 // ------------------------ GetExistingResourceNames ------------------------
@@ -50,10 +44,10 @@ func TestGetExistingResourceNames(t *testing.T) {
 		{
 			name:      "should return error when get fails",
 			pdbExists: true,
-			getErr:    apiInternalErr,
+			getErr:    testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrGetPodDisruptionBudget,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "GetExistingResourceNames",
 			},
 		},
@@ -103,10 +97,10 @@ func TestSyncWhenNoPDBExists(t *testing.T) {
 		},
 		{
 			name:      "returns error when client create fails",
-			createErr: apiInternalErr,
+			createErr: testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncPodDisruptionBudget,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "Sync",
 			},
 		},
@@ -156,10 +150,10 @@ func TestSyncWhenPDBExists(t *testing.T) {
 			originalEtcdReplicas:    1,
 			updatedEtcdReplicas:     3,
 			expectedPDBMinAvailable: 0,
-			patchErr:                apiInternalErr,
+			patchErr:                testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncPodDisruptionBudget,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "Sync",
 			},
 		},
@@ -210,10 +204,10 @@ func TestTriggerDelete(t *testing.T) {
 		{
 			name:      "returns error when client delete fails",
 			pdbExists: true,
-			deleteErr: apiInternalErr,
+			deleteErr: testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrDeletePodDisruptionBudget,
-				Cause:     apiInternalErr,
+				Cause:     testutils.TestAPIInternalErr,
 				Operation: "TriggerDelete",
 			},
 		},
