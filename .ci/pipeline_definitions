@@ -2,8 +2,7 @@ etcd-druid:
   base_definition:
     traits:
       version:
-        preprocess:
-          'inject-commit-hash'
+        preprocess: 'inject-commit-hash'
         inject_effective_version: true
       component_descriptor:
         ocm_repository: europe-docker.pkg.dev/gardener-project/snapshots
@@ -30,6 +29,10 @@ etcd-druid:
                 confidentiality_requirement: 'high'
                 integrity_requirement: 'high'
                 availability_requirement: 'low'
+            - name: 'cloud.gardener.cnudie/responsibles'
+              value:
+              - type: 'githubTeam'
+                teamname: 'gardener/etcd-druid-maintainers'
     steps:
       check:
         image: 'golang:1.21.4'
@@ -47,7 +50,7 @@ etcd-druid:
         draft_release: ~
         component_descriptor:
           ocm_repository_mappings:
-            - repository: europe-docker.pkg.dev/gardener-project/releases
+          - repository: europe-docker.pkg.dev/gardener-project/releases
     pull-request:
       traits:
         pull-request: ~
