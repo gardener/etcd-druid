@@ -9,7 +9,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
@@ -89,7 +89,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				}
 			}
 			operator := New(fakeClientBuilder.Build())
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			memberLeaseNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
@@ -175,7 +175,7 @@ func TestSync(t *testing.T) {
 			}
 			// ***************** Setup operator and test *****************
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.Sync(opCtx, updatedEtcd)
 			memberLeasesPostSync := getLatestMemberLeases(g, cl, updatedEtcd)
 			if tc.expectedErr != nil {
@@ -252,7 +252,7 @@ func TestTriggerDelete(t *testing.T) {
 			cl := fakeClientBuilder.Build()
 			// ***************** Setup operator and test *****************
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			memberLeasesBeforeDelete := getLatestMemberLeases(g, cl, etcd)
 			fmt.Println(memberLeasesBeforeDelete)
 			err := operator.TriggerDelete(opCtx, etcd)

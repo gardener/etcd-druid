@@ -7,7 +7,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	gardenerutils "github.com/gardener/gardener/pkg/utils"
@@ -30,7 +30,7 @@ type _resource struct {
 	client client.Client
 }
 
-func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	objKey := getObjectKey(etcd)
 	cm := &corev1.ConfigMap{}
@@ -43,11 +43,13 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 			"GetExistingResourceNames",
 			fmt.Sprintf("Error getting ConfigMap: %v for etcd: %v", objKey, etcd.GetNamespaceName()))
 	}
-	resourceNames = append(resourceNames, cm.Name)
+	if metav1.IsControlledBy(cm, etcd) {
+		resourceNames = append(resourceNames, cm.Name)
+	}
 	return resourceNames, nil
 }
 
-func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	cm := emptyConfigMap(getObjectKey(etcd))
 	result, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, cm, func() error {
 		return buildResource(etcd, cm)
@@ -66,11 +68,11 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 			fmt.Sprintf("Error when computing CheckSum for configmap for etcd: %v", etcd.GetNamespaceName()))
 	}
 	ctx.Data[common.ConfigMapCheckSumKey] = checkSum
-	ctx.Logger.Info("synced", "resource", "configmap", "name", cm.Name, "result", result)
+	ctx.Logger.Info("synced", "component", "configmap", "name", cm.Name, "result", result)
 	return nil
 }
 
-func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of ConfigMap", "objectKey", objectKey)
 	if err := r.client.Delete(ctx, emptyConfigMap(objectKey)); err != nil {
@@ -85,11 +87,11 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 			"Failed to delete configmap",
 		)
 	}
-	ctx.Logger.Info("deleted", "resource", "configmap", "objectKey", objectKey)
+	ctx.Logger.Info("deleted", "component", "configmap", "objectKey", objectKey)
 	return nil
 }
 
-func New(client client.Client) resource.Operator {
+func New(client client.Client) component.Operator {
 	return &_resource{
 		client: client,
 	}

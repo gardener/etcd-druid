@@ -289,6 +289,13 @@ func (eb *EtcdBuilder) WithLabels(labels map[string]string) *EtcdBuilder {
 	return eb
 }
 
+// WithAnnotations merges the existing annotations if any with the annotations passed.
+// Any existing entry will be replaced by the one that is present in the annotations passed to this method.
+func (eb *EtcdBuilder) WithAnnotations(annotations map[string]string) *EtcdBuilder {
+	eb.etcd.Annotations = MergeMaps[string, string](eb.etcd.Annotations, annotations)
+	return eb
+}
+
 // WithDefaultBackup creates a default backup spec and initializes etcd with it.
 func (eb *EtcdBuilder) WithDefaultBackup() *EtcdBuilder {
 	eb.etcd.Spec.Backup = getBackupSpec()

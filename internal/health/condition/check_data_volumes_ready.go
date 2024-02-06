@@ -49,7 +49,7 @@ func (d *dataVolumesReady) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 		return res
 	}
 
-	pvcEvents, err := utils.FetchPVCWarningEventsForStatefulSet(ctx, d.cl, sts)
+	pvcEvents, err := utils.FetchPVCWarningMessageForStatefulSet(ctx, d.cl, sts)
 	if err != nil {
 		res.reason = "UnableToFetchWarningEventsForDataVolumes"
 		res.message = fmt.Sprintf("Unable to fetch warning events for PVCs used by StatefulSet %v: %s", kutil.Key(sts.Name, sts.Namespace), err.Error())

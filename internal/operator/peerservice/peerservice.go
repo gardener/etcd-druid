@@ -6,7 +6,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	corev1 "k8s.io/api/core/v1"
@@ -28,7 +28,7 @@ type _resource struct {
 	client client.Client
 }
 
-func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	svcObjectKey := getObjectKey(etcd)
 	svc := &corev1.Service{}
@@ -41,11 +41,13 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 			"GetExistingResourceNames",
 			fmt.Sprintf("Error getting peer service: %s for etcd: %v", svcObjectKey.Name, etcd.GetNamespaceName()))
 	}
-	resourceNames = append(resourceNames, svc.Name)
+	if metav1.IsControlledBy(svc, etcd) {
+		resourceNames = append(resourceNames, svc.Name)
+	}
 	return resourceNames, nil
 }
 
-func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	svc := emptyPeerService(objectKey)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, svc, func() error {
@@ -59,11 +61,11 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 			fmt.Sprintf("Error during create or update of peer service: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
 		)
 	}
-	ctx.Logger.Info("synced", "resource", "peer-service", "objectKey", objectKey, "result", result)
+	ctx.Logger.Info("synced", "component", "peer-service", "objectKey", objectKey, "result", result)
 	return nil
 }
 
-func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of peer service")
 	err := r.client.Delete(ctx, emptyPeerService(objectKey))
@@ -79,11 +81,11 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 			fmt.Sprintf("Failed to delete peer service: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
 		)
 	}
-	ctx.Logger.Info("deleted", "resource", "peer-service", "objectKey", objectKey)
+	ctx.Logger.Info("deleted", "component", "peer-service", "objectKey", objectKey)
 	return nil
 }
 
-func New(client client.Client) resource.Operator {
+func New(client client.Client) component.Operator {
 	return &_resource{
 		client: client,
 	}

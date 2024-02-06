@@ -6,7 +6,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	corev1 "k8s.io/api/core/v1"
@@ -27,7 +27,7 @@ type _resource struct {
 	disableAutoMount bool
 }
 
-func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	sa := &corev1.ServiceAccount{}
 	objectKey := getObjectKey(etcd)
@@ -40,11 +40,13 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 			"GetExistingResourceNames",
 			fmt.Sprintf("Error getting service account: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
 	}
-	resourceNames = append(resourceNames, sa.Name)
+	if metav1.IsControlledBy(sa, etcd) {
+		resourceNames = append(resourceNames, sa.Name)
+	}
 	return resourceNames, nil
 }
 
-func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	sa := emptyServiceAccount(objectKey)
 	opResult, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, sa, func() error {
@@ -58,11 +60,11 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 			fmt.Sprintf("Error during create or update of service account: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
 		)
 	}
-	ctx.Logger.Info("synced", "resource", "service-account", "objectKey", objectKey, "result", opResult)
+	ctx.Logger.Info("synced", "component", "service-account", "objectKey", objectKey, "result", opResult)
 	return nil
 }
 
-func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	ctx.Logger.Info("Triggering delete of service account")
 	objectKey := getObjectKey(etcd)
 	if err := r.client.Delete(ctx, emptyServiceAccount(objectKey)); err != nil {
@@ -75,11 +77,11 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 			"TriggerDelete",
 			fmt.Sprintf("Failed to delete service account: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
 	}
-	ctx.Logger.Info("deleted", "resource", "service-account", "objectKey", objectKey)
+	ctx.Logger.Info("deleted", "component", "service-account", "objectKey", objectKey)
 	return nil
 }
 
-func New(client client.Client, disableAutomount bool) resource.Operator {
+func New(client client.Client, disableAutomount bool) component.Operator {
 	return &_resource{
 		client:           client,
 		disableAutoMount: disableAutomount,

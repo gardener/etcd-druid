@@ -9,7 +9,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
@@ -64,7 +64,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				fakeClientBuilder.WithObjects(newConfigMap(g, etcd))
 			}
 			operator := New(fakeClientBuilder.Build())
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			cmNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
@@ -79,16 +79,31 @@ func TestGetExistingResourceNames(t *testing.T) {
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenNoConfigMapExists(t *testing.T) {
 	testCases := []struct {
-		name        string
-		createErr   *apierrors.StatusError
-		expectedErr *druiderr.DruidError
+		name             string
+		etcdReplicas     int32
+		createErr        *apierrors.StatusError
+		clientTLSEnabled bool
+		peerTLSEnabled   bool
+		expectedErr      *druiderr.DruidError
 	}{
 		{
-			name: "should create when no configmap exists",
+			name:             "should create when no configmap exists for single node etcd cluster",
+			clientTLSEnabled: true,
+			peerTLSEnabled:   false,
+			etcdReplicas:     1,
 		},
 		{
-			name:      "return error when create client request fails",
-			createErr: testutils.TestAPIInternalErr,
+			name:             "should create when no configmap exists for multi-node etcd cluster",
+			clientTLSEnabled: true,
+			peerTLSEnabled:   true,
+			etcdReplicas:     3,
+		},
+		{
+			name:             "return error when create client request fails",
+			etcdReplicas:     3,
+			clientTLSEnabled: true,
+			peerTLSEnabled:   true,
+			createErr:        testutils.TestAPIInternalErr,
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncConfigMap,
 				Cause:     testutils.TestAPIInternalErr,
@@ -98,12 +113,12 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 	}
 	g := NewWithT(t)
 	t.Parallel()
-	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithClientTLS().WithPeerTLS().Build()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			etcd := buildEtcd(tc.etcdReplicas, tc.clientTLSEnabled, tc.peerTLSEnabled)
 			cl := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).Build()
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.Sync(opCtx, etcd)
 			latestConfigMap, getErr := getLatestConfigMap(cl, etcd)
 			if tc.expectedErr != nil {
@@ -116,6 +131,59 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPrepareInitialCluster(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		peerTLSEnabled         bool
+		etcdReplicas           int32
+		etcdSpecServerPort     *int32
+		expectedInitialCluster string
+	}{
+		{
+			name:                   "should create initial cluster for single node etcd cluster when peer TLS is enabled",
+			etcdReplicas:           1,
+			peerTLSEnabled:         true,
+			etcdSpecServerPort:     pointer.Int32(2222),
+			expectedInitialCluster: "etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2222",
+		},
+		{
+			name:                   "should create initial cluster for single node etcd cluster when peer TLS is disabled",
+			etcdReplicas:           1,
+			peerTLSEnabled:         false,
+			expectedInitialCluster: "etcd-test-0=http://etcd-test-0.etcd-test-peer.test-ns.svc:2380",
+		},
+		{
+			name:                   "should create initial cluster for multi node etcd cluster when peer TLS is enabled",
+			etcdReplicas:           3,
+			peerTLSEnabled:         true,
+			etcdSpecServerPort:     pointer.Int32(2333),
+			expectedInitialCluster: "etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2333,etcd-test-1=https://etcd-test-1.etcd-test-peer.test-ns.svc:2333,etcd-test-2=https://etcd-test-2.etcd-test-peer.test-ns.svc:2333",
+		},
+	}
+	g := NewWithT(t)
+	t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled)
+			etcd.Spec.Etcd.ServerPort = tc.etcdSpecServerPort
+			peerScheme := utils.IfConditionOr[string](etcd.Spec.Etcd.PeerUrlTLS != nil, "https", "http")
+			actualInitialCluster := prepareInitialCluster(etcd, peerScheme)
+			g.Expect(actualInitialCluster).To(Equal(tc.expectedInitialCluster))
+		})
+	}
+}
+
+func buildEtcd(replicas int32, clientTLSEnabled, peerTLSEnabled bool) *druidv1alpha1.Etcd {
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(replicas)
+	if clientTLSEnabled {
+		etcdBuilder.WithClientTLS()
+	}
+	if peerTLSEnabled {
+		etcdBuilder.WithPeerTLS()
+	}
+	return etcdBuilder.Build()
 }
 
 func TestSyncWhenConfigMapExists(t *testing.T) {
@@ -149,7 +217,7 @@ func TestSyncWhenConfigMapExists(t *testing.T) {
 			updatedEtcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithClientTLS().WithPeerTLS().Build()
 			updatedEtcd.UID = originalEtcd.UID
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.Sync(opCtx, updatedEtcd)
 			latestConfigMap, getErr := getLatestConfigMap(cl, updatedEtcd)
 			if tc.expectedErr != nil {
@@ -201,7 +269,7 @@ func TestTriggerDelete(t *testing.T) {
 			// ********************* Setup *********************
 			cl := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr).Build()
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			if tc.cmExists {
 				syncErr := operator.Sync(opCtx, etcd)
 				g.Expect(syncErr).ToNot(HaveOccurred())

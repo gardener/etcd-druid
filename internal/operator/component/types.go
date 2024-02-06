@@ -1,4 +1,4 @@
-package resource
+package component
 
 import (
 	"context"
@@ -38,8 +38,8 @@ type Operator interface {
 	GetExistingResourceNames(ctx OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error)
 	// TriggerDelete triggers the deletion of all resources that this Operator manages.
 	TriggerDelete(ctx OperatorContext, etcd *druidv1alpha1.Etcd) error
-	// Sync synchronizes all resources that this Operator manages. If a resource does not exist then it will
+	// Sync synchronizes all resources that this Operator manages. If a component does not exist then it will
 	// create it. If there are changes in the owning Etcd resource that transpires changes to one or more resources
-	// managed by this Operator then those resource(s) will be either be updated or a deletion is triggered.
+	// managed by this Operator then those component(s) will be either be updated or a deletion is triggered.
 	Sync(ctx OperatorContext, etcd *druidv1alpha1.Etcd) error
 }

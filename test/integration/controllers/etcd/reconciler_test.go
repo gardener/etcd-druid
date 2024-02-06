@@ -82,8 +82,8 @@ var _ = Describe("Etcd Controller", func() {
 			instance = testutils.EtcdBuilderWithDefaults("foo1", namespace).Build()
 
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-			errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
-			Expect(len(errors)).Should(BeZero())
+			errs := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
+			Expect(errs).Should(BeNil())
 			Expect(k8sClient.Create(context.TODO(), instance)).To(Succeed())
 
 			sts = &appsv1.StatefulSet{}
@@ -211,8 +211,8 @@ var _ = Describe("Etcd Controller", func() {
 			if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 				By("create backup-store secrets")
 				storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-				errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
-				Expect(len(errors)).Should(BeZero())
+				errs := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
+				Expect(errs).Should(BeNil())
 			}
 
 			By("create etcd instance and check if it has been created")
@@ -280,8 +280,8 @@ var _ = Describe("Multinode ETCD", func() {
 		BeforeEach(func() {
 			instance = testutils.EtcdBuilderWithDefaults("foo82", namespace).Build()
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-			errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
-			Expect(len(errors)).Should(BeZero())
+			errs := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
+			Expect(errs).Should(BeNil())
 		})
 		It("should create the statefulset based on the replicas in ETCD CR", func() {
 			// First delete existing statefulset if any.
@@ -383,8 +383,8 @@ var _ = Describe("Multinode ETCD", func() {
 
 		if instance.Spec.Backup.Store != nil && instance.Spec.Backup.Store.SecretRef != nil {
 			storeSecret := instance.Spec.Backup.Store.SecretRef.Name
-			errors := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
-			Expect(len(errors)).Should(BeZero())
+			errs := testutils.CreateSecrets(ctx, k8sClient, instance.Namespace, storeSecret)
+			Expect(errs).Should(BeNil())
 		}
 		err = k8sClient.Create(context.TODO(), instance)
 		Expect(err).NotTo(HaveOccurred())

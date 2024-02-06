@@ -6,7 +6,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/hashicorp/go-multierror"
 
@@ -26,7 +26,7 @@ type _resource struct {
 	client client.Client
 }
 
-func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	leaseList := &coordinationv1.LeaseList{}
 	err := r.client.List(ctx,
@@ -40,12 +40,14 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 			fmt.Sprintf("Error listing member leases for etcd: %v", etcd.GetNamespaceName()))
 	}
 	for _, lease := range leaseList.Items {
-		resourceNames = append(resourceNames, lease.Name)
+		if metav1.IsControlledBy(&lease, etcd) {
+			resourceNames = append(resourceNames, lease.Name)
+		}
 	}
 	return resourceNames, nil
 }
 
-func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKeys := getObjectKeys(etcd)
 	createTasks := make([]utils.OperatorTask, len(objectKeys))
 	var errs error
@@ -54,7 +56,7 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 		objKey := objKey // capture the range variable
 		createTasks[i] = utils.OperatorTask{
 			Name: "CreateOrUpdate-" + objKey.String(),
-			Fn: func(ctx resource.OperatorContext) error {
+			Fn: func(ctx component.OperatorContext) error {
 				return r.doCreateOrUpdate(ctx, etcd, objKey)
 			},
 		}
@@ -67,7 +69,7 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 	return errs
 }
 
-func (r _resource) doCreateOrUpdate(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, objKey client.ObjectKey) error {
+func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, objKey client.ObjectKey) error {
 	lease := emptyMemberLease(objKey)
 	opResult, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, lease, func() error {
 		buildResource(etcd, lease)
@@ -83,7 +85,7 @@ func (r _resource) doCreateOrUpdate(ctx resource.OperatorContext, etcd *druidv1a
 	return nil
 }
 
-func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	ctx.Logger.Info("Triggering delete of member leases")
 	if err := r.client.DeleteAllOf(ctx,
 		&coordinationv1.Lease{},
@@ -94,11 +96,11 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 			"TriggerDelete",
 			fmt.Sprintf("Failed to delete member leases for etcd: %v", etcd.GetNamespaceName()))
 	}
-	ctx.Logger.Info("deleted", "resource", "member-leases")
+	ctx.Logger.Info("deleted", "component", "member-leases")
 	return nil
 }
 
-func New(client client.Client) resource.Operator {
+func New(client client.Client) component.Operator {
 	return &_resource{
 		client: client,
 	}

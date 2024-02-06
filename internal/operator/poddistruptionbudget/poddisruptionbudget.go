@@ -6,7 +6,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	policyv1 "k8s.io/api/policy/v1"
@@ -26,7 +26,7 @@ type _resource struct {
 	client client.Client
 }
 
-func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	objectKey := getObjectKey(etcd)
 	pdb := &policyv1.PodDisruptionBudget{}
@@ -39,11 +39,13 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 			"GetExistingResourceNames",
 			fmt.Sprintf("Error getting PDB: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
 	}
-	resourceNames = append(resourceNames, pdb.Name)
+	if metav1.IsControlledBy(pdb, etcd) {
+		resourceNames = append(resourceNames, pdb.Name)
+	}
 	return resourceNames, nil
 }
 
-func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	pdb := emptyPodDisruptionBudget(objectKey)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, pdb, func() error {
@@ -57,11 +59,11 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 			fmt.Sprintf("Error during create or update of PDB: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
 		)
 	}
-	ctx.Logger.Info("synced", "resource", "pod-disruption-budget", "objectKey", objectKey, "result", result)
+	ctx.Logger.Info("synced", "component", "pod-disruption-budget", "objectKey", objectKey, "result", result)
 	return nil
 }
 
-func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	ctx.Logger.Info("Triggering delete of PDB")
 	pdbObjectKey := getObjectKey(etcd)
 	if err := client.IgnoreNotFound(r.client.Delete(ctx, emptyPodDisruptionBudget(pdbObjectKey))); err != nil {
@@ -70,11 +72,11 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 			"TriggerDelete",
 			fmt.Sprintf("Failed to delete PDB: %v for etcd: %v", pdbObjectKey, etcd.GetNamespaceName()))
 	}
-	ctx.Logger.Info("deleted", "resource", "pod-disruption-budget", "objectKey", pdbObjectKey)
+	ctx.Logger.Info("deleted", "component", "pod-disruption-budget", "objectKey", pdbObjectKey)
 	return nil
 }
 
-func New(client client.Client) resource.Operator {
+func New(client client.Client) component.Operator {
 	return &_resource{
 		client: client,
 	}

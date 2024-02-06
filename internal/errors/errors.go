@@ -48,9 +48,10 @@ func MapToLastErrors(errs []error) []druidv1alpha1.LastError {
 	for _, err := range errs {
 		druidErr := &DruidError{}
 		if errors.As(err, &druidErr) {
+			desc := fmt.Sprintf("[Operation: %s, Code: %s] message: %s, cause: %s", druidErr.Operation, druidErr.Code, druidErr.Message, druidErr.Cause.Error())
 			lastErr := druidv1alpha1.LastError{
 				Code:           druidErr.Code,
-				Description:    druidErr.Message,
+				Description:    desc,
 				LastUpdateTime: metav1.NewTime(time.Now().UTC()),
 			}
 			lastErrs = append(lastErrs, lastErr)

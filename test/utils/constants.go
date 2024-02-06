@@ -1,9 +1,9 @@
 package utils
 
 const (
-	TestEtcdName = "test-etcd"
+	TestEtcdName = "etcd-test"
 	// TestNamespace is a test namespace to be used in tests.
-	TestNamespace = "test-namespace"
+	TestNamespace = "test-ns"
 )
 
 // Image vector constants

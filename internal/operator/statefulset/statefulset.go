@@ -9,7 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/component-base/featuregate"
 
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
@@ -31,7 +31,7 @@ type _resource struct {
 	useEtcdWrapper bool
 }
 
-func New(client client.Client, imageVector imagevector.ImageVector, featureGates map[featuregate.Feature]bool) resource.Operator {
+func New(client client.Client, imageVector imagevector.ImageVector, featureGates map[featuregate.Feature]bool) component.Operator {
 	return &_resource{
 		client:         client,
 		imageVector:    imageVector,
@@ -39,7 +39,8 @@ func New(client client.Client, imageVector imagevector.ImageVector, featureGates
 	}
 }
 
-func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+	resourceNames := make([]string, 0, 1)
 	objectKey := getObjectKey(etcd)
 	sts, err := r.getExistingStatefulSet(ctx, objectKey)
 	if err != nil {
@@ -49,12 +50,15 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 			fmt.Sprintf("Error getting StatefulSet: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
 	}
 	if sts == nil {
-		return []string{}, nil
+		return resourceNames, nil
 	}
-	return []string{sts.Name}, nil
+	if metav1.IsControlledBy(sts, etcd) {
+		resourceNames = append(resourceNames, sts.Name)
+	}
+	return resourceNames, nil
 }
 
-func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	var (
 		existingSTS *appsv1.StatefulSet
 		err         error
@@ -73,16 +77,16 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 	}
 	// StatefulSet exists, check if TLS has been enabled for peer communication, if yes then it is currently a multistep
 	// process to ensure that all members are updated and establish peer TLS communication.
-	if err = r.handlePeerTLSEnabled(ctx, etcd, existingSTS); err != nil {
-		return fmt.Errorf("error handling peer TLS: %w", err)
-	}
-	if err = r.handleImmutableFieldUpdates(ctx, etcd, existingSTS); err != nil {
-		return fmt.Errorf("error handling immutable field updates: %w", err)
+	if err = r.handlePeerTLSChanges(ctx, etcd, existingSTS); err != nil {
+		return druiderr.WrapError(err,
+			ErrSyncStatefulSet,
+			"Sync",
+			fmt.Sprintf("Error while handling peer URL TLS change for StatefulSet: %v, etcd: %v", objectKey, etcd.GetNamespaceName()))
 	}
 	return r.createOrPatch(ctx, etcd)
 }
 
-func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of StatefulSet", "objectKey", objectKey)
 	err := r.client.Delete(ctx, emptyStatefulSet(objectKey))
@@ -96,11 +100,11 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 			"TriggerDelete",
 			fmt.Sprintf("Failed to delete StatefulSet: %v for etcd %v", objectKey, etcd.GetNamespaceName()))
 	}
-	ctx.Logger.Info("deleted", "resource", "statefulset", "objectKey", objectKey)
+	ctx.Logger.Info("deleted", "component", "statefulset", "objectKey", objectKey)
 	return nil
 }
 
-func (r _resource) getExistingStatefulSet(ctx resource.OperatorContext, objectKey client.ObjectKey) (*appsv1.StatefulSet, error) {
+func (r _resource) getExistingStatefulSet(ctx component.OperatorContext, objectKey client.ObjectKey) (*appsv1.StatefulSet, error) {
 	sts := emptyStatefulSet(objectKey)
 	if err := r.client.Get(ctx, objectKey, sts); err != nil {
 		if errors.IsNotFound(err) {
@@ -112,8 +116,8 @@ func (r _resource) getExistingStatefulSet(ctx resource.OperatorContext, objectKe
 }
 
 // createOrPatchWithReplicas ensures that the StatefulSet is updated with all changes from passed in etcd but the replicas set on the StatefulSet
-// are taken from the passed in replicas and not from the etcd resource.
-func (r _resource) createOrPatchWithReplicas(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, replicas int32) error {
+// are taken from the passed in replicas and not from the etcd component.
+func (r _resource) createOrPatchWithReplicas(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, replicas int32) error {
 	desiredStatefulSet := emptyStatefulSet(getObjectKey(etcd))
 	mutatingFn := func() error {
 		if builder, err := newStsBuilder(r.client, ctx.Logger, etcd, replicas, r.useEtcdWrapper, r.imageVector, desiredStatefulSet); err != nil {
@@ -137,39 +141,42 @@ func (r _resource) createOrPatchWithReplicas(ctx resource.OperatorContext, etcd 
 	return nil
 }
 
-// createOrPatch updates StatefulSet taking changes from passed in etcd resource.
-func (r _resource) createOrPatch(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+// createOrPatch updates StatefulSet taking changes from passed in etcd component.
+func (r _resource) createOrPatch(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	return r.createOrPatchWithReplicas(ctx, etcd, etcd.Spec.Replicas)
 }
 
-func (r _resource) handleImmutableFieldUpdates(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) error {
-	if existingSts.Generation > 1 && doesEtcdChangesRequireRecreation(existingSts, etcd) {
-		ctx.Logger.Info("Immutable fields have been updated, need to recreate StatefulSet", "etcd")
-
-		if err := r.TriggerDelete(ctx, etcd); err != nil {
-			return fmt.Errorf("error deleting StatefulSet with immutable field updates: %w", err)
-		}
-	}
-	return nil
-}
-
-// doesEtcdChangesRequireRecreation checks if changes have been made to certain fields in the etcd spec
-// which will require a recreation of StatefulSet in order to get reflected. Currently, it checks for changes
-// in the ServiceName and PodManagementPolicy.
-func doesEtcdChangesRequireRecreation(sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd) bool {
-	return sts.Spec.ServiceName != etcd.GetPeerServiceName() || sts.Spec.PodManagementPolicy != appsv1.ParallelPodManagement
-}
-
-func (r _resource) handlePeerTLSEnabled(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) error {
-	peerTLSEnabled, err := utils.IsPeerURLTLSEnabledForAllMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name)
+func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) error {
+	peerTLSEnabledForAllMembers, err := utils.IsPeerURLTLSEnabledForAllMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name)
 	if err != nil {
 		return fmt.Errorf("error checking if peer URL TLS is enabled: %w", err)
 	}
 
-	if isPeerTLSChangedToEnabled(peerTLSEnabled, etcd) {
+	/**
+	Case 1:
+		Scaled from 1 to 3 and peer URL TLS changed enabled or disabled - g/g case
+	Case 2:
+		Scaled from 1 to 3 and no change in peer URL TLS (can be kept as HTTP or HTTPS)
+	Case 3:
+		Peer URL TLS changed but no change in replicas
+	*/
+
+	/**
+	After the changes are made to etcd-wrapper and etcd-backup-restore then we can use the following logic and simplify the handling of peer URL TLS change
+	if peerTLSNotEnabledOnAllMembers {
+		if sts.HasAnnotationValue(etcdGenerationAnnotation) != etcd.Spec.Generation {
+			createOrPathKeepingExistingStsReplicas
+		}
+		if !sts.Ready() {
+			requeue
+		}
+	}
+	*/
+
+	if isPeerTLSChangedToEnabled(peerTLSEnabledForAllMembers, etcd) {
 		ctx.Logger.Info("Attempting to enable TLS for etcd peers", "namespace", etcd.Namespace, "name", etcd.Name)
 
-		// This step ensures that only STS is updated with secret volume mounts which gets added to the etcd resource due to
+		// This step ensures that only STS is updated with secret volume mounts which gets added to the etcd component due to
 		// enabling of TLS for peer communication. It preserves the current STS replicas.
 		if err = r.createOrPatchWithReplicas(ctx, etcd, *existingSts.Spec.Replicas); err != nil {
 			return fmt.Errorf("error creating or patching StatefulSet with TLS enabled: %w", err)
@@ -199,7 +206,7 @@ func isPeerTLSChangedToEnabled(peerTLSEnabledStatusFromMembers bool, etcd *druid
 	return !peerTLSEnabledStatusFromMembers && etcd.Spec.Etcd.PeerUrlTLS != nil
 }
 
-func deleteAllStsPods(ctx resource.OperatorContext, cl client.Client, opName string, sts *appsv1.StatefulSet) error {
+func deleteAllStsPods(ctx component.OperatorContext, cl client.Client, opName string, sts *appsv1.StatefulSet) error {
 	// Get all Pods belonging to the StatefulSet
 	podList := &corev1.PodList{}
 	listOpts := []client.ListOption{

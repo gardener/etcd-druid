@@ -8,7 +8,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/features"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
@@ -65,7 +65,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl, nil, nil)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			actualStsNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
@@ -123,7 +123,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 				features.UseEtcdWrapper: true,
 			})
 			// *************** Test and assert ***************
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			opCtx.Data[common.ConfigMapCheckSumKey] = testutils.TestConfigMapCheckSum
 			syncErr := operator.Sync(opCtx, etcd)
 			latestSTS, getErr := getLatestStatefulSet(cl, etcd)

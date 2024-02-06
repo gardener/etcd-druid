@@ -6,7 +6,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	corev1 "k8s.io/api/core/v1"
@@ -33,7 +33,7 @@ type _resource struct {
 	client client.Client
 }
 
-func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	svc := &corev1.Service{}
 	svcObjectKey := getObjectKey(etcd)
@@ -46,11 +46,13 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 			"GetExistingResourceNames",
 			fmt.Sprintf("Error getting client service: %v for etcd: %v", svcObjectKey, etcd.GetNamespaceName()))
 	}
-	resourceNames = append(resourceNames, svc.Name)
+	if metav1.IsControlledBy(svc, etcd) {
+		resourceNames = append(resourceNames, svc.Name)
+	}
 	return resourceNames, nil
 }
 
-func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	svc := emptyClientService(objectKey)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, svc, func() error {
@@ -64,11 +66,11 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 			fmt.Sprintf("Error during create or update of client service: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
 		)
 	}
-	ctx.Logger.Info("synced", "resource", "client-service", "objectKey", objectKey, "result", result)
+	ctx.Logger.Info("synced", "component", "client-service", "objectKey", objectKey, "result", result)
 	return nil
 }
 
-func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of client service", "objectKey", objectKey)
 	if err := r.client.Delete(ctx, emptyClientService(objectKey)); err != nil {
@@ -83,11 +85,11 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 			"Failed to delete client service",
 		)
 	}
-	ctx.Logger.Info("deleted", "resource", "client-service", "objectKey", objectKey)
+	ctx.Logger.Info("deleted", "component", "client-service", "objectKey", objectKey)
 	return nil
 }
 
-func New(client client.Client) resource.Operator {
+func New(client client.Client) component.Operator {
 	return &_resource{
 		client: client,
 	}

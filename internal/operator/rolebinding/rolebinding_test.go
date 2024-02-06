@@ -6,7 +6,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
@@ -65,7 +65,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				fakeClientBuilder.WithObjects(newRoleBinding(etcd))
 			}
 			operator := New(fakeClientBuilder.Build())
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			roleBindingNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
@@ -106,7 +106,7 @@ func TestSync(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cl := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).Build()
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
 			latestRoleBinding, getErr := getLatestRoleBinding(cl, etcd)
 			if tc.expectedErr != nil {
@@ -165,7 +165,7 @@ func TestTriggerDelete(t *testing.T) {
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.TriggerDelete(opCtx, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)

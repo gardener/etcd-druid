@@ -6,7 +6,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
@@ -63,7 +63,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				fakeClientBuilder.WithObjects(newPodDisruptionBudget(etcd))
 			}
 			operator := New(fakeClientBuilder.Build())
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			pdbNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
@@ -113,7 +113,7 @@ func TestSyncWhenNoPDBExists(t *testing.T) {
 			etcd := etcdBuilder.WithReplicas(tc.etcdReplicas).Build()
 			cl := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).Build()
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
 			latestPDB, getErr := getLatestPodDisruptionBudget(cl, etcd)
 			if tc.expectedErr != nil {
@@ -169,7 +169,7 @@ func TestSyncWhenPDBExists(t *testing.T) {
 				WithObjects(newPodDisruptionBudget(existingEtcd)).
 				Build()
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			updatedEtcd := etcdBuilder.WithReplicas(tc.updatedEtcdReplicas).Build()
 			syncErr := operator.Sync(opCtx, updatedEtcd)
 			latestPDB, getErr := getLatestPodDisruptionBudget(cl, updatedEtcd)
@@ -223,7 +223,7 @@ func TestTriggerDelete(t *testing.T) {
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.TriggerDelete(opCtx, etcd)
 			_, getErr := getLatestPodDisruptionBudget(cl, etcd)
 			if tc.expectedErr != nil {

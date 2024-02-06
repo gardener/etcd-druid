@@ -67,8 +67,9 @@ func GetStatefulSet(ctx context.Context, cl client.Client, etcd *druidv1alpha1.E
 	return nil, nil
 }
 
-// FetchPVCWarningEventsForStatefulSet fetches warning events for PVCs for a statefulset and returns them as an error
-func FetchPVCWarningEventsForStatefulSet(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) (string, error) {
+// FetchPVCWarningMessageForStatefulSet fetches warning message for PVCs for a statefulset, if found concatenates the first 2 warning messages and returns
+// them as string warning message. In case it fails to fetch events, it collects the errors and returns the combined error.
+func FetchPVCWarningMessageForStatefulSet(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) (string, error) {
 	pvcs := &corev1.PersistentVolumeClaimList{}
 	if err := cl.List(ctx, pvcs, client.InNamespace(sts.GetNamespace())); err != nil {
 		return "", fmt.Errorf("unable to list PVCs for sts %s: %v", sts.Name, err)

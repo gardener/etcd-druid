@@ -111,7 +111,7 @@ func (b *defaultBuilder) Build(replicas int32) []druidv1alpha1.Condition {
 			if condition.Status == "" {
 				condition.Status = druidv1alpha1.ConditionUnknown
 			}
-			condition.Reason = ConditionNotChecked
+			condition.Reason = NotChecked
 			condition.Message = "etcd cluster has been scaled down"
 		} else {
 			condition.Status = res.Status()

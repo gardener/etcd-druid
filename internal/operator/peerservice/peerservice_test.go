@@ -21,7 +21,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
@@ -78,7 +78,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				fakeClientBuilder.WithObjects(newPeerService(etcd))
 			}
 			operator := New(fakeClientBuilder.Build())
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			svcNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
@@ -126,7 +126,7 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 			}
 			etcd := etcdBuilder.Build()
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
 			latestPeerService, getErr := getLatestPeerService(cl, etcd)
 			if tc.expectedError != nil {
@@ -174,7 +174,7 @@ func TestSyncWhenServiceExists(t *testing.T) {
 				WithObjects(newPeerService(existingEtcd)).
 				Build()
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			updatedEtcd := etcdBuilder.WithEtcdServerPort(tc.updateWithPort).Build()
 			syncErr := operator.Sync(opCtx, updatedEtcd)
 			latestPeerService, getErr := getLatestPeerService(cl, updatedEtcd)
@@ -230,7 +230,7 @@ func TestPeerServiceTriggerDelete(t *testing.T) {
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.TriggerDelete(opCtx, etcd)
 			_, getErr := getLatestPeerService(cl, etcd)
 			if tc.expectError != nil {

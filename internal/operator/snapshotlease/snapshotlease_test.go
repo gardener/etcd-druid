@@ -8,7 +8,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
@@ -74,7 +74,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				fakeClientBuilder.WithObjects(newDeltaSnapshotLease(etcd), newFullSnapshotLease(etcd))
 			}
 			operator := New(fakeClientBuilder.Build())
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			actualSnapshotLeaseNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
@@ -114,7 +114,7 @@ func TestSyncWhenBackupIsEnabled(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cl := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).Build()
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
 			latestSnapshotLeases, listErr := getLatestSnapshotLeases(cl, etcd)
 			if tc.expectedErr != nil {
@@ -165,7 +165,7 @@ func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
 					newFullSnapshotLease(nonTargetEtcd)).
 				Build()
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, updatedEtcd)
 			latestSnapshotLeases, listErr := getLatestSnapshotLeases(cl, updatedEtcd)
 			g.Expect(listErr).ToNot(HaveOccurred())
@@ -232,7 +232,7 @@ func TestTriggerDelete(t *testing.T) {
 			}
 			cl := fakeClientBuilder.Build()
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd)
 			latestSnapshotLeases, snapshotLeaseListErr := getLatestSnapshotLeases(cl, etcd)
 			if tc.expectedErr != nil {

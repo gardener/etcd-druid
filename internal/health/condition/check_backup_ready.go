@@ -37,8 +37,8 @@ const (
 	BackupFailed string = "BackupFailed"
 	// Unknown is a constant that means that the etcd backup status is currently not known
 	Unknown string = "Unknown"
-	// ConditionNotChecked is a constant that means that the etcd backup status has not been updated or rechecked
-	ConditionNotChecked string = "ConditionNotChecked"
+	// NotChecked is a constant that means that the etcd backup status has not been updated or rechecked
+	NotChecked string = "NotChecked"
 )
 
 func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {

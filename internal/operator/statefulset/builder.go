@@ -7,7 +7,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	druidutils "github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
@@ -100,7 +100,7 @@ func newStsBuilder(client client.Client,
 	}, nil
 }
 
-func (b *stsBuilder) Build(ctx resource.OperatorContext) error {
+func (b *stsBuilder) Build(ctx component.OperatorContext) error {
 	b.createStatefulSetObjectMeta()
 	if err := b.createStatefulSetSpec(ctx); err != nil {
 		return err
@@ -125,7 +125,7 @@ func (b *stsBuilder) getStatefulSetLabels() map[string]string {
 	return utils.MergeMaps[string, string](b.etcd.GetDefaultLabels(), stsLabels)
 }
 
-func (b *stsBuilder) createStatefulSetSpec(ctx resource.OperatorContext) error {
+func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error {
 	podVolumes, err := b.getPodVolumes(ctx)
 	if err != nil {
 		return err
@@ -179,7 +179,7 @@ func (b *stsBuilder) getHostAliases() []corev1.HostAlias {
 	}
 }
 
-func (b *stsBuilder) getPodTemplateAnnotations(ctx resource.OperatorContext) map[string]string {
+func (b *stsBuilder) getPodTemplateAnnotations(ctx component.OperatorContext) map[string]string {
 	if configMapCheckSum, ok := ctx.Data[common.ConfigMapCheckSumKey]; ok {
 		return utils.MergeMaps[string](b.etcd.Spec.Annotations, map[string]string{
 			common.ConfigMapCheckSumKey: configMapCheckSum,
@@ -649,7 +649,7 @@ func (b *stsBuilder) getSecretVolumeMounts() []corev1.VolumeMount {
 }
 
 // getPodVolumes gets volumes that needs to be mounted onto the etcd StatefulSet pods
-func (b *stsBuilder) getPodVolumes(ctx resource.OperatorContext) ([]corev1.Volume, error) {
+func (b *stsBuilder) getPodVolumes(ctx component.OperatorContext) ([]corev1.Volume, error) {
 	volumes := []corev1.Volume{
 		{
 			Name: "etcd-config-file",
@@ -740,7 +740,7 @@ func (b *stsBuilder) getPeerTLSVolumes() []corev1.Volume {
 	}
 }
 
-func (b *stsBuilder) getBackupVolume(ctx resource.OperatorContext) (*corev1.Volume, error) {
+func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Volume, error) {
 	if b.provider == nil {
 		return nil, nil
 	}

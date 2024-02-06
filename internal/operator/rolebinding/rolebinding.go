@@ -2,11 +2,12 @@ package rolebinding
 
 import (
 	"fmt"
+	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -25,7 +26,7 @@ type _resource struct {
 	client client.Client
 }
 
-func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	objectKey := getObjectKey(etcd)
 	rb := &rbacv1.RoleBinding{}
@@ -38,11 +39,13 @@ func (r _resource) GetExistingResourceNames(ctx resource.OperatorContext, etcd *
 			"GetExistingResourceNames",
 			fmt.Sprintf("Error getting role-binding: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
 	}
-	resourceNames = append(resourceNames, rb.Name)
+	if metav1.IsControlledBy(rb, etcd) {
+		resourceNames = append(resourceNames, rb.Name)
+	}
 	return resourceNames, nil
 }
 
-func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of role", "objectKey", objectKey)
 	err := r.client.Delete(ctx, emptyRoleBinding(objectKey))
@@ -57,11 +60,11 @@ func (r _resource) TriggerDelete(ctx resource.OperatorContext, etcd *druidv1alph
 			fmt.Sprintf("Failed to delete role-binding: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
 		)
 	}
-	ctx.Logger.Info("deleted", "resource", "role-binding", "objectKey", objectKey)
+	ctx.Logger.Info("deleted", "component", "role-binding", "objectKey", objectKey)
 	return nil
 }
 
-func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	rb := emptyRoleBinding(objectKey)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, rb, func() error {
@@ -75,11 +78,11 @@ func (r _resource) Sync(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) 
 			fmt.Sprintf("Error during create or update of role-binding %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
 		)
 	}
-	ctx.Logger.Info("synced", "resource", "role", "objectKey", objectKey, "result", result)
+	ctx.Logger.Info("synced", "component", "role", "objectKey", objectKey, "result", result)
 	return nil
 }
 
-func (r _resource) Exists(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd) (bool, error) {
+func (r _resource) Exists(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (bool, error) {
 	rb := &rbacv1.RoleBinding{}
 	if err := r.client.Get(ctx, getObjectKey(etcd), rb); err != nil {
 		if errors.IsNotFound(err) {
@@ -90,7 +93,7 @@ func (r _resource) Exists(ctx resource.OperatorContext, etcd *druidv1alpha1.Etcd
 	return true, nil
 }
 
-func New(client client.Client) resource.Operator {
+func New(client client.Client) component.Operator {
 	return &_resource{
 		client: client,
 	}
@@ -129,7 +132,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, rb *rbacv1.RoleBinding) {
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	roleLabels := map[string]string{
 		druidv1alpha1.LabelComponentKey: common.RoleBindingComponentName,
-		druidv1alpha1.LabelAppNameKey:   etcd.GetRoleBindingName(),
+		druidv1alpha1.LabelAppNameKey:   strings.ReplaceAll(etcd.GetRoleBindingName(), ":", "-"), // role-binding name contains `:` which is not an allowed character as a label value.
 	}
 	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), roleLabels)
 }

@@ -5,7 +5,7 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 )
 
 // OperatorTask is a holder for a named function.
@@ -14,13 +14,13 @@ type OperatorTask struct {
 	Name string
 	// Fn is the function which accepts an operator context and returns an error if there is one.
 	// Implementations of Fn should handle context cancellation properly.
-	Fn func(ctx resource.OperatorContext) error
+	Fn func(ctx component.OperatorContext) error
 }
 
 // RunConcurrently runs tasks concurrently with number of goroutines bounded by bound.
 // If there is a panic executing a single OperatorTask then it will capture the panic and capture it as an error
 // which will then subsequently be returned from this function. It will not propagate the panic causing the app to exit.
-func RunConcurrently(ctx resource.OperatorContext, tasks []OperatorTask) []error {
+func RunConcurrently(ctx component.OperatorContext, tasks []OperatorTask) []error {
 	rg := newRunGroup(len(tasks))
 	for _, task := range tasks {
 		rg.trigger(ctx, task)
@@ -44,7 +44,7 @@ func newRunGroup(numTasks int) *runGroup {
 }
 
 // trigger executes the task in a go-routine.
-func (g *runGroup) trigger(ctx resource.OperatorContext, task OperatorTask) {
+func (g *runGroup) trigger(ctx component.OperatorContext, task OperatorTask) {
 	g.wg.Add(1)
 	go func(task OperatorTask) {
 		defer g.wg.Done()

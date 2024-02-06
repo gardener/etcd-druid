@@ -23,7 +23,7 @@ import (
 	. "github.com/onsi/gomega/gstruct"
 	"k8s.io/utils/pointer"
 
-	"github.com/gardener/etcd-druid/internal/operator/resource"
+	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
@@ -79,7 +79,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				fakeClientBuilder.WithObjects(newClientService(etcd))
 			}
 			operator := New(fakeClientBuilder.Build())
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			svcNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
@@ -127,7 +127,7 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 			cl := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).Build()
 			etcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort)
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.Sync(opCtx, etcd)
 			latestClientSvc, getErr := getLatestClientService(cl, etcd)
 			if tc.expectedErr != nil {
@@ -183,7 +183,7 @@ func TestSyncWhenServiceExists(t *testing.T) {
 				Build()
 			// ********************* test sync with updated ports *********************
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			updatedEtcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort)
 			syncErr := operator.Sync(opCtx, updatedEtcd)
 			latestClientSvc, getErr := getLatestClientService(cl, updatedEtcd)
@@ -236,7 +236,7 @@ func TestTriggerDelete(t *testing.T) {
 			// ********************* Setup *********************
 			cl := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr).Build()
 			operator := New(cl)
-			opCtx := resource.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			if tc.svcExists {
 				syncErr := operator.Sync(opCtx, etcd)
 				g.Expect(syncErr).ToNot(HaveOccurred())
