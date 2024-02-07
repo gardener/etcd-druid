@@ -35,7 +35,7 @@ make deploy-azurite
 make STORAGE_ACCOUNT="devstoreaccount1" \
   STORAGE_KEY="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==" \
   AZURE_STORAGE_API_ENDPOINT="http://localhost:10000" \
-  AZURE_ENABLE_STORAGE_EMULATOR="true" \
+  EMULATOR_ENABLED="true" \
   AZURITE_HOST="azurite-service.default:10000" \
   AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite-service.default:10000/devstoreaccount1;" \
   PROVIDERS="azure" \

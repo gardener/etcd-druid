@@ -1379,14 +1379,14 @@ func validateStoreAzure(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *
 									"Name":  Equal(common.EnvAzureApplicationCredentials),
 									"Value": Equal("/var/etcd-backup"),
 								}),
-								common.EnvAzureEnableAzurite: MatchFields(IgnoreExtras, Fields{
-									"Name": Equal(common.EnvAzureEnableAzurite),
+								common.EnvEmulatorEnabled: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvEmulatorEnabled),
 									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
 										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
 											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
 												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
 											}),
-											"Key":      Equal("enableAzurite"),
+											"Key":      Equal("emulatorEnabled"),
 											"Optional": Equal(pointer.Bool(true)),
 										})),
 									})),

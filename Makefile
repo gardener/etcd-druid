@@ -52,7 +52,7 @@ revendor: set-permissions
 	@make set-permissions
 
 
-kind-up kind-down ci-e2e-kind ci-e2e-kind-azurite deploy-localstack deploy-azurite test-e2e: export KUBECONFIG = $(KUBECONFIG_PATH)
+kind-up kind-down ci-e2e-kind ci-e2e-kind-azure deploy-localstack deploy-azurite test-e2e: export KUBECONFIG = $(KUBECONFIG_PATH)
 
 all: druid
 
@@ -177,6 +177,6 @@ deploy-azurite: $(KUBECTL)
 ci-e2e-kind:
 	BUCKET_NAME=$(BUCKET_NAME) ./hack/ci-e2e-kind.sh
 
-.PHONY: ci-e2e-kind-azurite
-ci-e2e-kind-azurite:
-	BUCKET_NAME=$(BUCKET_NAME) ./hack/ci-e2e-kind-azurite.sh
+.PHONY: ci-e2e-kind-azure
+ci-e2e-kind-azure:
+	BUCKET_NAME=$(BUCKET_NAME) ./hack/ci-e2e-kind-azure.sh
