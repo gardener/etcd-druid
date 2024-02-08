@@ -20,14 +20,13 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	. "github.com/onsi/gomega/gstruct"
-	"k8s.io/utils/pointer"
-
 	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
+	. "github.com/onsi/gomega/gstruct"
+	"k8s.io/utils/pointer"
 
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -49,6 +48,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 		{
 			name:                 "should return the existing service name",
 			svcExists:            true,
+			getErr:               nil,
 			expectedServiceNames: []string{etcd.GetClientServiceName()},
 		},
 		{
@@ -74,11 +74,8 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithGetError(tc.getErr)
-			if tc.svcExists {
-				fakeClientBuilder.WithObjects(newClientService(etcd))
-			}
-			operator := New(fakeClientBuilder.Build())
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, []client.Object{newClientService(etcd)}, client.ObjectKey{Name: etcd.GetClientServiceName(), Namespace: etcd.Namespace})
+			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			svcNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
@@ -124,8 +121,8 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cl := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).Build()
 			etcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort)
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, client.ObjectKey{Name: etcd.GetClientServiceName(), Namespace: etcd.Namespace})
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.Sync(opCtx, etcd)
@@ -177,10 +174,7 @@ func TestSyncWhenServiceExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// ********************* Setup *********************
-			cl := testutils.NewFakeClientBuilder().
-				WithPatchError(tc.patchErr).
-				WithObjects(newClientService(existingEtcd)).
-				Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newClientService(existingEtcd)}, client.ObjectKey{Name: existingEtcd.GetClientServiceName(), Namespace: existingEtcd.Namespace})
 			// ********************* test sync with updated ports *********************
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -234,14 +228,13 @@ func TestTriggerDelete(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// ********************* Setup *********************
-			cl := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr).Build()
+			var existingObjects []client.Object
+			if tc.svcExists {
+				existingObjects = append(existingObjects, newClientService(etcd))
+			}
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, client.ObjectKey{Name: etcd.GetClientServiceName(), Namespace: etcd.Namespace})
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			if tc.svcExists {
-				syncErr := operator.Sync(opCtx, etcd)
-				g.Expect(syncErr).ToNot(HaveOccurred())
-				ensureClientServiceExists(g, cl, etcd)
-			}
 			// ********************* Test trigger delete *********************
 			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd)
 			latestClientService, getErr := getLatestClientService(cl, etcd)
@@ -324,12 +317,6 @@ func newClientService(etcd *druidv1alpha1.Etcd) *corev1.Service {
 	svc := emptyClientService(getObjectKey(etcd))
 	buildResource(etcd, svc)
 	return svc
-}
-
-func ensureClientServiceExists(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd) {
-	svc, err := getLatestClientService(cl, etcd)
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(svc).ToNot(BeNil())
 }
 
 func getLatestClientService(cl client.Client, etcd *druidv1alpha1.Etcd) (*corev1.Service, error) {

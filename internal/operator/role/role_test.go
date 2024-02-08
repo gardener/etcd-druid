@@ -56,14 +56,12 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder()
-			if tc.getErr != nil {
-				fakeClientBuilder.WithGetError(tc.getErr)
-			}
+			var existingObjects []client.Object
 			if tc.roleExists {
-				fakeClientBuilder.WithObjects(newRole(etcd))
+				existingObjects = append(existingObjects, newRole(etcd))
 			}
-			operator := New(fakeClientBuilder.Build())
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd))
+			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			roleNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
@@ -103,9 +101,7 @@ func TestSync(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cl := testutils.NewFakeClientBuilder().
-				WithCreateError(tc.createErr).
-				Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
@@ -157,14 +153,11 @@ func TestTriggerDelete(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder()
-			if tc.deleteErr != nil {
-				fakeClientBuilder.WithDeleteError(tc.deleteErr)
-			}
+			var existingObjects []client.Object
 			if tc.roleExists {
-				fakeClientBuilder.WithObjects(newRole(etcd))
+				existingObjects = append(existingObjects, newRole(etcd))
 			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, getObjectKey(etcd))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			deleteErr := operator.TriggerDelete(opCtx, etcd)

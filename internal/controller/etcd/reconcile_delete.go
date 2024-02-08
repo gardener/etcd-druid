@@ -36,7 +36,7 @@ func (r *Reconciler) deleteEtcdResources(ctx component.OperatorContext, etcdObjK
 		return result
 	}
 	operators := r.operatorRegistry.AllOperators()
-	deleteTasks := make([]utils.OperatorTask, len(operators))
+	deleteTasks := make([]utils.OperatorTask, 0, len(operators))
 	for kind, operator := range operators {
 		operator := operator
 		deleteTasks = append(deleteTasks, utils.OperatorTask{

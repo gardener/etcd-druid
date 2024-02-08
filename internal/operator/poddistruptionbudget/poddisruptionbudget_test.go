@@ -58,11 +58,12 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithGetError(tc.getErr)
+			var existingObjects []client.Object
 			if tc.pdbExists {
-				fakeClientBuilder.WithObjects(newPodDisruptionBudget(etcd))
+				existingObjects = append(existingObjects, newPodDisruptionBudget(etcd))
 			}
-			operator := New(fakeClientBuilder.Build())
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd))
+			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			pdbNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
@@ -111,7 +112,7 @@ func TestSyncWhenNoPDBExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			etcd := etcdBuilder.WithReplicas(tc.etcdReplicas).Build()
-			cl := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
@@ -164,10 +165,7 @@ func TestSyncWhenPDBExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			existingEtcd := etcdBuilder.WithReplicas(tc.originalEtcdReplicas).Build()
-			cl := testutils.NewFakeClientBuilder().
-				WithPatchError(tc.patchErr).
-				WithObjects(newPodDisruptionBudget(existingEtcd)).
-				Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newPodDisruptionBudget(existingEtcd)}, getObjectKey(existingEtcd))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			updatedEtcd := etcdBuilder.WithReplicas(tc.updatedEtcdReplicas).Build()
@@ -217,11 +215,11 @@ func TestTriggerDelete(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr)
+			var existingObjects []client.Object
 			if tc.pdbExists {
-				fakeClientBuilder.WithObjects(newPodDisruptionBudget(etcd))
+				existingObjects = append(existingObjects, newPodDisruptionBudget(etcd))
 			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, getObjectKey(etcd))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.TriggerDelete(opCtx, etcd)

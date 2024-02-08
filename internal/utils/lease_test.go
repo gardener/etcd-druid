@@ -16,6 +16,7 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestIsPeerURLTLSEnabledForAllMembers(t *testing.T) {
@@ -57,11 +58,15 @@ func TestIsPeerURLTLSEnabledForAllMembers(t *testing.T) {
 	logger := logr.Discard()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithListError(tc.listErr)
+			var existingObjects []client.Object
 			for _, l := range createLeases(testutils.TestNamespace, testutils.TestEtcdName, etcdReplicas, tc.numETCDMembersWithTLSEnabled) {
-				fakeClientBuilder.WithObjects(l)
+				existingObjects = append(existingObjects, l)
 			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(nil, tc.listErr, testutils.TestNamespace, map[string]string{
+				druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
+				druidv1alpha1.LabelPartOfKey:    testutils.TestEtcdName,
+				druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
+			}, existingObjects...)
 			tlsEnabled, err := IsPeerURLTLSEnabledForAllMembers(context.Background(), cl, logger, testutils.TestNamespace, testutils.TestEtcdName)
 			if tc.expectedErr != nil {
 				g.Expect(err).To(Equal(tc.expectedErr))

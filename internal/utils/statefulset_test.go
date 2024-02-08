@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -146,16 +147,16 @@ func TestGetStatefulSet(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithListError(tc.listErr)
+			var existingObjects []client.Object
 			if tc.isStsPresent {
 				etcdUID := etcd.UID
 				if !tc.ownedByEtcd {
 					etcdUID = uuid.NewUUID()
 				}
 				sts := testutils.CreateStatefulSet(etcd.Name, etcd.Namespace, etcdUID, etcd.Spec.Replicas)
-				fakeClientBuilder.WithObjects(sts)
+				existingObjects = append(existingObjects, sts)
 			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(nil, tc.listErr, etcd.Namespace, etcd.GetDefaultLabels(), existingObjects...)
 			foundSts, err := GetStatefulSet(context.Background(), cl, etcd)
 			if tc.expectedErr != nil {
 				g.Expect(err).To(HaveOccurred())

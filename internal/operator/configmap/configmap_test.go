@@ -59,11 +59,12 @@ func TestGetExistingResourceNames(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithGetError(tc.getErr)
+			var existingObjects []client.Object
 			if tc.cmExists {
-				fakeClientBuilder.WithObjects(newConfigMap(g, etcd))
+				existingObjects = append(existingObjects, newConfigMap(g, etcd))
 			}
-			operator := New(fakeClientBuilder.Build())
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd))
+			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			cmNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
@@ -116,7 +117,7 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			etcd := buildEtcd(tc.etcdReplicas, tc.clientTLSEnabled, tc.peerTLSEnabled)
-			cl := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.Sync(opCtx, etcd)
@@ -210,10 +211,7 @@ func TestSyncWhenConfigMapExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			originalEtcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithClientTLS().Build()
-			cl := testutils.NewFakeClientBuilder().
-				WithPatchError(tc.patchErr).
-				WithObjects(newConfigMap(g, originalEtcd)).
-				Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newConfigMap(g, originalEtcd)}, getObjectKey(originalEtcd))
 			updatedEtcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithClientTLS().WithPeerTLS().Build()
 			updatedEtcd.UID = originalEtcd.UID
 			operator := New(cl)
@@ -267,14 +265,13 @@ func TestTriggerDelete(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// ********************* Setup *********************
-			cl := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr).Build()
+			var existingObjects []client.Object
+			if tc.cmExists {
+				existingObjects = append(existingObjects, newConfigMap(g, etcd))
+			}
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, getObjectKey(etcd))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			if tc.cmExists {
-				syncErr := operator.Sync(opCtx, etcd)
-				g.Expect(syncErr).ToNot(HaveOccurred())
-				ensureConfigMapExists(g, cl, etcd)
-			}
 			// ********************* Test trigger delete *********************
 			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd)
 			latestConfigMap, getErr := getLatestConfigMap(cl, etcd)
@@ -350,7 +347,8 @@ func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.C
 func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actualETCDConfig map[string]interface{}) {
 	if etcd.Spec.Etcd.ClientUrlTLS != nil {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
-			"listen-client-urls": Equal(fmt.Sprintf("https://0.0.0.0:%d", utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort))),
+			"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort))),
+			"advertise-client-urls": Equal(fmt.Sprintf("https@%s@%s@%d", etcd.GetPeerServiceName(), etcd.Namespace, utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort))),
 			"client-transport-security": MatchKeys(IgnoreExtras, Keys{
 				"cert-file":        Equal("/var/etcd/ssl/client/server/tls.crt"),
 				"key-file":         Equal("/var/etcd/ssl/client/server/tls.key"),
@@ -377,13 +375,11 @@ func matchPeerTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actual
 				"trusted-ca-file":  Equal("/var/etcd/ssl/peer/ca/ca.crt"),
 				"auto-tls":         Equal(false),
 			}),
-			"advertise-client-urls":       Equal(fmt.Sprintf("https@%s@%s@%d", etcd.GetPeerServiceName(), etcd.Namespace, utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort))),
 			"listen-peer-urls":            Equal(fmt.Sprintf("https://0.0.0.0:%d", utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort))),
 			"initial-advertise-peer-urls": Equal(fmt.Sprintf("https@%s@%s@%s", etcd.GetPeerServiceName(), etcd.Namespace, strconv.Itoa(int(pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, defaultServerPort))))),
 		}))
 	} else {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
-			"advertise-client-urls":       Equal(fmt.Sprintf("http@%s@%s@%d", etcd.GetPeerServiceName(), etcd.Namespace, utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort))),
 			"listen-peer-urls":            Equal(fmt.Sprintf("http://0.0.0.0:%d", utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort))),
 			"initial-advertise-peer-urls": Equal(fmt.Sprintf("http@%s@%s@%s", etcd.GetPeerServiceName(), etcd.Namespace, strconv.Itoa(int(pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, defaultServerPort))))),
 		}))

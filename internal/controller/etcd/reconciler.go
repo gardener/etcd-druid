@@ -119,6 +119,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return ctrlutils.ReconcileAfter(r.config.EtcdStatusSyncPeriod, "Periodic Requeue").ReconcileResult()
 }
 
+// GetOperatorRegistry returns the operator registry.
 func (r *Reconciler) GetOperatorRegistry() operator.Registry {
 	return r.operatorRegistry
 }

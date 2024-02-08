@@ -59,11 +59,11 @@ func TestGetExistingResourceNames(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithGetError(tc.getErr)
+			var existingObjects []client.Object
 			if tc.stsExists {
-				fakeClientBuilder.WithObjects(emptyStatefulSet(getObjectKey(etcd)))
+				existingObjects = append(existingObjects, emptyStatefulSet(etcd))
 			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd))
 			operator := New(cl, nil, nil)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			actualStsNames, err := operator.GetExistingResourceNames(opCtx, etcd)
@@ -111,14 +111,11 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// *************** Build test environment ***************
-			cl := testutils.NewFakeClientBuilder().
-				WithCreateError(tc.createErr).
-				WithObjects(buildBackupSecret()).
-				Build()
 			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(tc.replicas).Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd))
 			etcdImage, etcdBRImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv, true)
 			g.Expect(err).ToNot(HaveOccurred())
-			stsMatcher := testutils.NewStatefulSetMatcher(g, cl, etcd, tc.replicas, true, initContainerImage, etcdImage, etcdBRImage, pointer.String(utils.Local))
+			stsMatcher := NewStatefulSetMatcher(g, cl, etcd, tc.replicas, true, initContainerImage, etcdImage, etcdBRImage, pointer.String(utils.Local))
 			operator := New(cl, iv, map[featuregate.Feature]bool{
 				features.UseEtcdWrapper: true,
 			})

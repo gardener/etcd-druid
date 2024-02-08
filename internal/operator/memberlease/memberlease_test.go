@@ -18,7 +18,6 @@ import (
 	. "github.com/onsi/gomega/gstruct"
 	gomegatypes "github.com/onsi/gomega/types"
 	coordinationv1 "k8s.io/api/coordination/v1"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -36,7 +35,6 @@ func TestGetExistingResourceNames(t *testing.T) {
 		name              string
 		etcdReplicas      int32
 		numExistingLeases int
-		getErr            *apierrors.StatusError
 		listErr           *apierrors.StatusError
 		expectedErr       *druiderr.DruidError
 	}{
@@ -57,7 +55,6 @@ func TestGetExistingResourceNames(t *testing.T) {
 		},
 		{
 			name:              "should return an empty slice when no member leases are found",
-			getErr:            apierrors.NewNotFound(corev1.Resource("leases"), ""),
 			etcdReplicas:      3,
 			numExistingLeases: 0,
 		},
@@ -78,17 +75,16 @@ func TestGetExistingResourceNames(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			etcd := etcdBuilder.WithReplicas(tc.etcdReplicas).Build()
-			fakeClientBuilder := testutils.NewFakeClientBuilder().
-				WithGetError(tc.getErr).
-				WithListError(tc.listErr)
+			var existingObjects []client.Object
 			if tc.numExistingLeases > 0 {
 				leases, err := newMemberLeases(etcd, tc.numExistingLeases)
 				g.Expect(err).ToNot(HaveOccurred())
 				for _, lease := range leases {
-					fakeClientBuilder.WithObjects(lease)
+					existingObjects = append(existingObjects, lease)
 				}
 			}
-			operator := New(fakeClientBuilder.Build())
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(nil, tc.listErr, etcd.Namespace, getSelectorLabelsForAllMemberLeases(etcd), existingObjects...)
+			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			memberLeaseNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
@@ -155,15 +151,15 @@ func TestSync(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// *************** set up existing environment *****************
 			etcd := etcdBuilder.WithReplicas(tc.etcdReplicas).Build()
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).WithGetError(tc.getErr)
+			var existingObjects []client.Object
 			if tc.numExistingLeases > 0 {
 				leases, err := newMemberLeases(etcd, tc.numExistingLeases)
 				g.Expect(err).ToNot(HaveOccurred())
 				for _, lease := range leases {
-					fakeClientBuilder.WithObjects(lease)
+					existingObjects = append(existingObjects, lease)
 				}
 			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, tc.createErr, nil, nil, existingObjects, getObjectKeys(etcd)...)
 
 			// ***************** Setup updated etcd to be passed to the Sync method *****************
 			var updatedEtcd *druidv1alpha1.Etcd
@@ -238,18 +234,18 @@ func TestTriggerDelete(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// *************** set up existing environment *****************
 			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(tc.etcdReplicas).Build()
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteAllOfError(tc.deleteAllOfErr)
+			var existingObjects []client.Object
 			if tc.numExistingLeases > 0 {
 				leases, err := newMemberLeases(etcd, tc.numExistingLeases)
 				g.Expect(err).ToNot(HaveOccurred())
 				for _, lease := range leases {
-					fakeClientBuilder.WithObjects(lease)
+					existingObjects = append(existingObjects, lease)
 				}
 			}
 			for _, nonTargetLeaseName := range nonTargetLeaseNames {
-				fakeClientBuilder.WithObjects(testutils.CreateLease(nonTargetLeaseName, nonTargetEtcd.Namespace, nonTargetEtcd.Name, nonTargetEtcd.UID, common.MemberLeaseComponentName))
+				existingObjects = append(existingObjects, testutils.CreateLease(nonTargetLeaseName, nonTargetEtcd.Namespace, nonTargetEtcd.Name, nonTargetEtcd.UID, common.MemberLeaseComponentName))
 			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(tc.deleteAllOfErr, nil, etcd.Namespace, getSelectorLabelsForAllMemberLeases(etcd), existingObjects...)
 			// ***************** Setup operator and test *****************
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())

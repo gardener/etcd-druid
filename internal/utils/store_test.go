@@ -13,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestGetHostMountPathFromSecretRef(t *testing.T) {
@@ -74,12 +75,12 @@ func TestGetHostMountPathFromSecretRef(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithGetError(tc.getErr)
+			var existingObjects []client.Object
 			if tc.secretExists {
 				sec := createSecret(existingSecretName, testutils.TestNamespace, tc.hostPathInSecret)
-				fakeClientBuilder.WithObjects(sec)
+				existingObjects = append(existingObjects, sec)
 			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, client.ObjectKey{Name: existingSecretName, Namespace: testutils.TestNamespace})
 			secretName := IfConditionOr[string](tc.secretExists, existingSecretName, nonExistingSecretName)
 			storeSpec := createStoreSpec(tc.secretRefDefined, secretName, testutils.TestNamespace)
 			actualHostPath, err := GetHostMountPathFromSecretRef(context.Background(), cl, logger, storeSpec, testutils.TestNamespace)

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/operator"
 	"github.com/gardener/etcd-druid/internal/operator/component"
@@ -16,17 +17,33 @@ import (
 	"github.com/gardener/etcd-druid/test/it/setup"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+var (
+	allComponentKinds = []operator.Kind{
+		operator.MemberLeaseKind,
+		operator.SnapshotLeaseKind,
+		operator.ClientServiceKind,
+		operator.PeerServiceKind,
+		operator.ConfigMapKind,
+		operator.PodDisruptionBudgetKind,
+		operator.ServiceAccountKind,
+		operator.RoleKind,
+		operator.RoleBindingKind,
+		operator.StatefulSetKind,
+	}
 )
 
 type componentCreatedAssertionFn func(ctx component.OperatorContext, t *testing.T, opRegistry operator.Registry, etcd *druidv1alpha1.Etcd, timeout, pollInterval time.Duration)
 
 // ReconcilerTestEnv represents the test environment for the etcd reconciler.
 type ReconcilerTestEnv struct {
-	itTestEnv       setup.IntegrationTestEnv
-	itTestEnvCloser setup.IntegrationTestEnvCloser
-	reconciler      *etcd.Reconciler
+	itTestEnv  setup.IntegrationTestEnv
+	reconciler *etcd.Reconciler
 }
 
 func getKindToComponentCreatedAssertionFns() map[operator.Kind]componentCreatedAssertionFn {
@@ -44,17 +61,21 @@ func getKindToComponentCreatedAssertionFns() map[operator.Kind]componentCreatedA
 	}
 }
 
-// assertAllComponentsCreatedSuccessfully asserts that all components of the etcd resource are created successfully eventually.
-func assertAllComponentsCreatedSuccessfully(ctx context.Context, t *testing.T, rtEnv ReconcilerTestEnv, etcd *druidv1alpha1.Etcd, timeout, pollInterval time.Duration) {
+func assertNoComponentsExist(ctx context.Context, t *testing.T, rtEnv ReconcilerTestEnv, etcd *druidv1alpha1.Etcd, timeout, pollInterval time.Duration) {
+	assertComponentsDoNotExist(ctx, t, rtEnv, etcd, allComponentKinds, timeout, pollInterval)
+}
+
+// assertAllComponentsExists asserts that all components of the etcd resource are created successfully eventually.
+func assertAllComponentsExists(ctx context.Context, t *testing.T, rtEnv ReconcilerTestEnv, etcd *druidv1alpha1.Etcd, timeout, pollInterval time.Duration) {
 	kindToAssertionFns := getKindToComponentCreatedAssertionFns()
 	assertFns := make([]componentCreatedAssertionFn, 0, len(kindToAssertionFns))
 	for _, assertFn := range kindToAssertionFns {
 		assertFns = append(assertFns, assertFn)
 	}
-	doAssertComponentsCreatedSuccessfully(ctx, t, rtEnv, etcd, assertFns, timeout, pollInterval)
+	doAssertComponentsExist(ctx, t, rtEnv, etcd, assertFns, timeout, pollInterval)
 }
 
-func assertSelectedComponentsCreatedSuccessfully(ctx context.Context, t *testing.T, rtEnv ReconcilerTestEnv, etcd *druidv1alpha1.Etcd, componentKinds []operator.Kind, timeout, pollInterval time.Duration) {
+func assertSelectedComponentsExists(ctx context.Context, t *testing.T, rtEnv ReconcilerTestEnv, etcd *druidv1alpha1.Etcd, componentKinds []operator.Kind, timeout, pollInterval time.Duration) {
 	g := NewWithT(t)
 	assertFns := make([]componentCreatedAssertionFn, 0, len(componentKinds))
 	for _, kind := range componentKinds {
@@ -62,10 +83,10 @@ func assertSelectedComponentsCreatedSuccessfully(ctx context.Context, t *testing
 		g.Expect(ok).To(BeTrue(), fmt.Sprintf("assertion function for %s not found", kind))
 		assertFns = append(assertFns, assertFn)
 	}
-	doAssertComponentsCreatedSuccessfully(ctx, t, rtEnv, etcd, assertFns, timeout, pollInterval)
+	doAssertComponentsExist(ctx, t, rtEnv, etcd, assertFns, timeout, pollInterval)
 }
 
-func assertComponentsNotCreatedSuccessfully(ctx context.Context, t *testing.T, rtEnv ReconcilerTestEnv, etcd *druidv1alpha1.Etcd, componentKinds []operator.Kind, timeout, pollInterval time.Duration) {
+func assertComponentsDoNotExist(ctx context.Context, t *testing.T, rtEnv ReconcilerTestEnv, etcd *druidv1alpha1.Etcd, componentKinds []operator.Kind, timeout, pollInterval time.Duration) {
 	opRegistry := rtEnv.reconciler.GetOperatorRegistry()
 	opCtx := component.NewOperatorContext(ctx, rtEnv.itTestEnv.GetLogger(), t.Name())
 	for _, kind := range componentKinds {
@@ -73,7 +94,7 @@ func assertComponentsNotCreatedSuccessfully(ctx context.Context, t *testing.T, r
 	}
 }
 
-func doAssertComponentsCreatedSuccessfully(ctx context.Context, t *testing.T, rtEnv ReconcilerTestEnv, etcd *druidv1alpha1.Etcd, assertionFns []componentCreatedAssertionFn, timeout, pollInterval time.Duration) {
+func doAssertComponentsExist(ctx context.Context, t *testing.T, rtEnv ReconcilerTestEnv, etcd *druidv1alpha1.Etcd, assertionFns []componentCreatedAssertionFn, timeout, pollInterval time.Duration) {
 	opRegistry := rtEnv.reconciler.GetOperatorRegistry()
 	opCtx := component.NewOperatorContext(ctx, rtEnv.itTestEnv.GetLogger(), t.Name())
 	wg := sync.WaitGroup{}
@@ -105,8 +126,8 @@ func assertResourceCreation(ctx component.OperatorContext, t *testing.T, opRegis
 			return fmt.Errorf("expected %s: %v, found %v instead", kind, expectedResourceNames, actualResourceNames)
 		}
 		msg := utils.IfConditionOr[string](len(expectedResourceNames) == 0,
-			fmt.Sprintf("%s: %v not created successfully", kind, expectedResourceNames),
-			fmt.Sprintf("%s: %v created successfully", kind, expectedResourceNames))
+			fmt.Sprintf("%s: %v does not exist", kind, expectedResourceNames),
+			fmt.Sprintf("%s: %v exists", kind, expectedResourceNames))
 		t.Log(msg)
 		return nil
 	}
@@ -196,7 +217,7 @@ func assertETCDObservedGeneration(t *testing.T, cl client.Client, etcdObjectKey 
 	t.Logf("observedGeneration correctly set to %s", logPointerTypeToString[int64](expectedObservedGeneration))
 }
 
-func assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, expectedLastOperation druidv1alpha1.LastOperation, expectedLastErrors []druidv1alpha1.LastError, timeout, pollInterval time.Duration) {
+func assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, expectedLastOperation *druidv1alpha1.LastOperation, expectedLastErrors []druidv1alpha1.LastError, timeout, pollInterval time.Duration) {
 	g := NewWithT(t)
 	checkFn := func() error {
 		etcdInstance := &druidv1alpha1.Etcd{}
@@ -204,7 +225,14 @@ func assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t *testing.T, cl cl
 		if err != nil {
 			return err
 		}
-		if etcdInstance.Status.LastOperation.Type != expectedLastOperation.Type &&
+		actualLastOperation := etcdInstance.Status.LastOperation
+		if actualLastOperation == nil {
+			if expectedLastOperation != nil {
+				return fmt.Errorf("expected lastOperation to be %s, found nil", expectedLastOperation)
+			}
+			return nil
+		}
+		if actualLastOperation.Type != expectedLastOperation.Type &&
 			etcdInstance.Status.LastOperation.State != expectedLastOperation.State {
 			return fmt.Errorf("expected lastOperation to be %s, found %s", expectedLastOperation, etcdInstance.Status.LastOperation)
 		}
@@ -224,7 +252,7 @@ func assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t *testing.T, cl cl
 	t.Log("lastOperation and lastErrors updated successfully")
 }
 
-func assertETCDOperationAnnotationRemovedSuccessfully(t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, timeout, pollInterval time.Duration) {
+func assertETCDOperationAnnotation(t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, expectedAnnotationToBePresent bool, timeout, pollInterval time.Duration) {
 	g := NewWithT(t)
 	checkFn := func() error {
 		etcdInstance := &druidv1alpha1.Etcd{}
@@ -232,13 +260,55 @@ func assertETCDOperationAnnotationRemovedSuccessfully(t *testing.T, cl client.Cl
 		if err != nil {
 			return err
 		}
-		if metav1.HasAnnotation(etcdInstance.ObjectMeta, v1beta1constants.GardenerOperation) {
+		if metav1.HasAnnotation(etcdInstance.ObjectMeta, v1beta1constants.GardenerOperation) != expectedAnnotationToBePresent {
 			return fmt.Errorf("expected reconcile operation annotation to be removed, found %v", v1beta1constants.GardenerOperation)
 		}
 		return nil
 	}
 	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).Should(BeNil())
-	t.Log("reconcile operation annotation removed successfully")
+	msg := utils.IfConditionOr[string](expectedAnnotationToBePresent, "reconcile operation annotation present", "reconcile operation annotation removed")
+	t.Log(msg)
+}
+
+func assertReconcileSuspensionEventRecorded(ctx context.Context, t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, timeout, pollInterval time.Duration) {
+	g := NewWithT(t)
+	checkFn := func() error {
+		events := &corev1.EventList{}
+		if err := cl.List(ctx, events, client.InNamespace(etcdObjectKey.Namespace), client.MatchingFields{"involvedObject.name": etcdObjectKey.Name, "type": "Warning"}); err != nil {
+			return err
+		}
+		if len(events.Items) != 1 {
+			return fmt.Errorf("expected 1 event, found %d", len(events.Items))
+		}
+		if events.Items[0].Reason != "SpecReconciliationSkipped" {
+			return fmt.Errorf("expected event reason to be SpecReconciliationSkipped, found %s", events.Items[0].Reason)
+		}
+		return nil
+	}
+	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).Should(BeNil())
+}
+
+func assertETCDFinalizer(t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, expectedFinalizerPresent bool, timeout, pollInterval time.Duration) {
+	g := NewWithT(t)
+	checkFn := func() error {
+		etcdInstance := &druidv1alpha1.Etcd{}
+		if err := cl.Get(context.Background(), etcdObjectKey, etcdInstance); err != nil {
+			if apierrors.IsNotFound(err) {
+				// Once the finalizer is removed, the etcd resource will be removed by k8s very quickly.
+				// If we find that the resource was indeed removed then this check will pass.
+				return nil
+			}
+			return err
+		}
+		finalizerPresent := slices.Contains(etcdInstance.ObjectMeta.Finalizers, common.FinalizerName)
+		if expectedFinalizerPresent != finalizerPresent {
+			return fmt.Errorf("expected finalizer to be %s, found %v", utils.IfConditionOr[string](expectedFinalizerPresent, "present", "removed"), etcdInstance.ObjectMeta.Finalizers)
+		}
+		return nil
+	}
+	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).Should(BeNil())
+	msg := utils.IfConditionOr[string](expectedFinalizerPresent, "finalizer present", "finalizer removed")
+	t.Log(msg)
 }
 
 func getErrorCodesFromLastErrors(lastErrors []druidv1alpha1.LastError) []druidv1alpha1.ErrorCode {

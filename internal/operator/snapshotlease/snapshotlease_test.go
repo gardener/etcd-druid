@@ -69,11 +69,12 @@ func TestGetExistingResourceNames(t *testing.T) {
 				etcdBuilder.WithDefaultBackup()
 			}
 			etcd := etcdBuilder.Build()
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithGetError(tc.getErr)
+			var existingObjects []client.Object
 			if tc.backupEnabled {
-				fakeClientBuilder.WithObjects(newDeltaSnapshotLease(etcd), newFullSnapshotLease(etcd))
+				existingObjects = append(existingObjects, newDeltaSnapshotLease(etcd), newFullSnapshotLease(etcd))
 			}
-			operator := New(fakeClientBuilder.Build())
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKeys(etcd)...)
+			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			actualSnapshotLeaseNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
@@ -112,7 +113,7 @@ func TestSyncWhenBackupIsEnabled(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cl := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKeys(etcd)...)
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
@@ -156,14 +157,13 @@ func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cl := testutils.NewFakeClientBuilder().
-				WithDeleteAllOfError(tc.deleteAllOfErr).
-				WithObjects(
-					newDeltaSnapshotLease(existingEtcd),
-					newFullSnapshotLease(existingEtcd),
-					newDeltaSnapshotLease(nonTargetEtcd),
-					newFullSnapshotLease(nonTargetEtcd)).
-				Build()
+			existingObjects := []client.Object{
+				newDeltaSnapshotLease(existingEtcd),
+				newFullSnapshotLease(existingEtcd),
+				newDeltaSnapshotLease(nonTargetEtcd),
+				newFullSnapshotLease(nonTargetEtcd),
+			}
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(tc.deleteAllOfErr, nil, existingEtcd.Namespace, getSelectorLabelsForAllSnapshotLeases(existingEtcd), existingObjects...)
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, updatedEtcd)
@@ -221,16 +221,11 @@ func TestTriggerDelete(t *testing.T) {
 				etcdBuilder.WithDefaultBackup()
 			}
 			etcd := etcdBuilder.Build()
-			fakeClientBuilder := testutils.NewFakeClientBuilder().
-				WithDeleteAllOfError(tc.deleteAllErr).
-				WithObjects(
-					newDeltaSnapshotLease(nonTargetEtcd),
-					newFullSnapshotLease(nonTargetEtcd),
-				)
+			existingObjects := []client.Object{newDeltaSnapshotLease(nonTargetEtcd), newFullSnapshotLease(nonTargetEtcd)}
 			if tc.backupEnabled {
-				fakeClientBuilder.WithObjects(newDeltaSnapshotLease(etcd), newFullSnapshotLease(etcd))
+				existingObjects = append(existingObjects, newDeltaSnapshotLease(etcd), newFullSnapshotLease(etcd))
 			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(tc.deleteAllErr, nil, etcd.Namespace, getSelectorLabelsForAllSnapshotLeases(etcd), existingObjects...)
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd)

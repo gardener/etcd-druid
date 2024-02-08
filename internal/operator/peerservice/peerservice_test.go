@@ -73,11 +73,12 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithGetError(tc.getErr)
+			var existingObjects []client.Object
 			if tc.svcExists {
-				fakeClientBuilder.WithObjects(newPeerService(etcd))
+				existingObjects = append(existingObjects, newPeerService(etcd))
 			}
-			operator := New(fakeClientBuilder.Build())
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd))
+			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			svcNames, err := operator.GetExistingResourceNames(opCtx, etcd)
 			if tc.expectedErr != nil {
@@ -120,11 +121,11 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cl := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).Build()
 			if tc.createWithPort != nil {
 				etcdBuilder.WithEtcdServerPort(tc.createWithPort)
 			}
 			etcd := etcdBuilder.Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
@@ -170,9 +171,7 @@ func TestSyncWhenServiceExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			existingEtcd := etcdBuilder.Build()
-			cl := testutils.NewFakeClientBuilder().WithPatchError(tc.patchErr).
-				WithObjects(newPeerService(existingEtcd)).
-				Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newPeerService(existingEtcd)}, getObjectKey(existingEtcd))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			updatedEtcd := etcdBuilder.WithEtcdServerPort(tc.updateWithPort).Build()
@@ -224,11 +223,7 @@ func TestPeerServiceTriggerDelete(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr)
-			if tc.svcExists {
-				fakeClientBuilder.WithObjects(newPeerService(etcd))
-			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, []client.Object{newPeerService(etcd)}, getObjectKey(etcd))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.TriggerDelete(opCtx, etcd)

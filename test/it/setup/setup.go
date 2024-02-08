@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -15,6 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -26,7 +28,6 @@ type IntegrationTestEnv interface {
 	RegisterReconciler(addToMgrFn AddToManagerFn)
 	StartManager()
 	GetClient() client.Client
-	GetConfig() *rest.Config
 	CreateTestNamespace(name string)
 	GetLogger() logr.Logger
 }
@@ -42,9 +43,9 @@ type itTestEnv struct {
 	logger   logr.Logger
 }
 
-type IntegrationTestEnvCloser func()
+type IntegrationTestEnvCloser func(t *testing.T)
 
-func NewIntegrationTestEnv(t *testing.T, loggerName string, crdDirectoryPaths []string) (IntegrationTestEnv, IntegrationTestEnvCloser) {
+func NewIntegrationTestEnvWithClientBuilder(t *testing.T, loggerName string, crdDirectoryPaths []string, clientBuilder *testutils.TestClientBuilder) (IntegrationTestEnv, IntegrationTestEnvCloser) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	itEnv := &itTestEnv{
 		ctx:      ctx,
@@ -54,11 +55,16 @@ func NewIntegrationTestEnv(t *testing.T, loggerName string, crdDirectoryPaths []
 	}
 	druidScheme := itEnv.prepareScheme()
 	itEnv.createTestEnvironment(druidScheme, crdDirectoryPaths)
-	itEnv.createManager()
-	return itEnv, func() {
+	itEnv.createManager(druidScheme, clientBuilder)
+	return itEnv, func(t *testing.T) {
 		itEnv.cancelFn()
 		itEnv.g.Expect(itEnv.testEnv.Stop()).To(Succeed())
+		t.Log("stopped test environment")
 	}
+}
+
+func NewIntegrationTestEnv(t *testing.T, loggerName string, crdDirectoryPaths []string) (IntegrationTestEnv, IntegrationTestEnvCloser) {
+	return NewIntegrationTestEnvWithClientBuilder(t, loggerName, crdDirectoryPaths, testutils.NewTestClientBuilder())
 }
 
 func (t *itTestEnv) RegisterReconciler(addToMgrFn AddToManagerFn) {
@@ -73,10 +79,6 @@ func (t *itTestEnv) StartManager() {
 
 func (t *itTestEnv) GetClient() client.Client {
 	return t.client
-}
-
-func (t *itTestEnv) GetConfig() *rest.Config {
-	return t.config
 }
 
 func (t *itTestEnv) CreateTestNamespace(name string) {
@@ -106,22 +108,33 @@ func (t *itTestEnv) createTestEnvironment(scheme *k8sruntime.Scheme, crdDirector
 
 	cfg, err := testEnv.Start()
 	t.g.Expect(err).ToNot(HaveOccurred())
-	cl, err := client.New(cfg, client.Options{Scheme: scheme})
-	t.g.Expect(err).ToNot(HaveOccurred())
 	t.config = cfg
 	t.testEnv = testEnv
-	t.client = cl
 }
 
-func (t *itTestEnv) createManager() {
+func (t *itTestEnv) createManager(scheme *k8sruntime.Scheme, clientBuilder *testutils.TestClientBuilder) {
 	mgr, err := manager.New(t.config, manager.Options{
+		Scheme:             scheme,
 		MetricsBindAddress: "0",
 		ClientDisableCacheFor: []client.Object{
 			&corev1.Event{},
 			&eventsv1beta1.Event{},
 			&eventsv1.Event{},
 		},
+		NewClient: func(cache cache.Cache, config *rest.Config, options client.Options, uncachedObjects ...client.Object) (client.Client, error) {
+			cl, err := client.New(config, options)
+			if err != nil {
+				return nil, err
+			}
+			testCl := clientBuilder.WithClient(cl).Build()
+			return client.NewDelegatingClient(client.NewDelegatingClientInput{
+				CacheReader:     cache,
+				Client:          testCl,
+				UncachedObjects: uncachedObjects,
+			})
+		},
 	})
 	t.g.Expect(err).ToNot(HaveOccurred())
 	t.mgr = mgr
+	t.client = mgr.GetClient()
 }

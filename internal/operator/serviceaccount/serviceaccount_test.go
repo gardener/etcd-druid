@@ -55,11 +55,11 @@ func TestGetExistingResourceNames(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithGetError(tc.getErr)
+			var existingObjects []client.Object
 			if tc.saExists {
-				fakeClientBuilder.WithObjects(newServiceAccount(etcd, false))
+				existingObjects = append(existingObjects, newServiceAccount(etcd, false))
 			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd))
 			operator := New(cl, true)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			saNames, err := operator.GetExistingResourceNames(opCtx, etcd)
@@ -109,8 +109,8 @@ func TestSync(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cl := testutils.NewFakeClientBuilder().WithCreateError(tc.createErr).Build()
 			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd))
 			operator := New(cl, tc.disableAutoMount)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
@@ -160,11 +160,11 @@ func TestTriggerDelete(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
-			fakeClientBuilder := testutils.NewFakeClientBuilder().WithDeleteError(tc.deleteErr)
+			var existingObjects []client.Object
 			if tc.saExists {
-				fakeClientBuilder.WithObjects(newServiceAccount(etcd, false))
+				existingObjects = append(existingObjects, newServiceAccount(etcd, false))
 			}
-			cl := fakeClientBuilder.Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, getObjectKey(etcd))
 			operator := New(cl, false)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd)

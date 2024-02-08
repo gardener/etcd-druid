@@ -42,7 +42,7 @@ func New(client client.Client, imageVector imagevector.ImageVector, featureGates
 func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	objectKey := getObjectKey(etcd)
-	sts, err := r.getExistingStatefulSet(ctx, objectKey)
+	sts, err := r.getExistingStatefulSet(ctx, etcd)
 	if err != nil {
 		return nil, druiderr.WrapError(err,
 			ErrGetStatefulSet,
@@ -64,7 +64,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 		err         error
 	)
 	objectKey := getObjectKey(etcd)
-	if existingSTS, err = r.getExistingStatefulSet(ctx, objectKey); err != nil {
+	if existingSTS, err = r.getExistingStatefulSet(ctx, etcd); err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncStatefulSet,
 			"Sync",
@@ -89,7 +89,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of StatefulSet", "objectKey", objectKey)
-	err := r.client.Delete(ctx, emptyStatefulSet(objectKey))
+	err := r.client.Delete(ctx, emptyStatefulSet(etcd))
 	if err != nil {
 		if errors.IsNotFound(err) {
 			ctx.Logger.Info("No StatefulSet found, Deletion is a No-Op", "objectKey", objectKey.Name)
@@ -104,9 +104,9 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 	return nil
 }
 
-func (r _resource) getExistingStatefulSet(ctx component.OperatorContext, objectKey client.ObjectKey) (*appsv1.StatefulSet, error) {
-	sts := emptyStatefulSet(objectKey)
-	if err := r.client.Get(ctx, objectKey, sts); err != nil {
+func (r _resource) getExistingStatefulSet(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSet, error) {
+	sts := emptyStatefulSet(etcd)
+	if err := r.client.Get(ctx, getObjectKey(etcd), sts); err != nil {
 		if errors.IsNotFound(err) {
 			return nil, nil
 		}
@@ -118,7 +118,7 @@ func (r _resource) getExistingStatefulSet(ctx component.OperatorContext, objectK
 // createOrPatchWithReplicas ensures that the StatefulSet is updated with all changes from passed in etcd but the replicas set on the StatefulSet
 // are taken from the passed in replicas and not from the etcd component.
 func (r _resource) createOrPatchWithReplicas(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, replicas int32) error {
-	desiredStatefulSet := emptyStatefulSet(getObjectKey(etcd))
+	desiredStatefulSet := emptyStatefulSet(etcd)
 	mutatingFn := func() error {
 		if builder, err := newStsBuilder(r.client, ctx.Logger, etcd, replicas, r.useEtcdWrapper, r.imageVector, desiredStatefulSet); err != nil {
 			return druiderr.WrapError(err,
@@ -229,11 +229,12 @@ func deleteAllStsPods(ctx component.OperatorContext, cl client.Client, opName st
 	return nil
 }
 
-func emptyStatefulSet(objectKey client.ObjectKey) *appsv1.StatefulSet {
+func emptyStatefulSet(etcd *druidv1alpha1.Etcd) *appsv1.StatefulSet {
 	return &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      objectKey.Name,
-			Namespace: objectKey.Namespace,
+			Name:            etcd.Name,
+			Namespace:       etcd.Namespace,
+			OwnerReferences: []metav1.OwnerReference{etcd.GetAsOwnerReference()},
 		},
 	}
 }
