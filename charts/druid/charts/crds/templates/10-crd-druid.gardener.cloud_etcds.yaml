@@ -166,6 +166,10 @@ spec:
                     description: FullSnapshotSchedule defines the cron standard schedule
                       for full snapshots.
                     type: string
+                  fullsnapLeaseUpdateRetryInterval:
+                    description: FullsnapLeaseUpdateRetryInterval defines the interval
+                      for retrying to update the full snapshot lease
+                    type: string
                   garbageCollectionPeriod:
                     description: GarbageCollectionPeriod defines the period for garbage
                       collecting old backups

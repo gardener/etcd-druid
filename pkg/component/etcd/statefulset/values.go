@@ -69,8 +69,9 @@ type Values struct {
 	FailBelowRevision       string
 	VolumeClaimTemplateName string
 
-	FullSnapLeaseName  string
-	DeltaSnapLeaseName string
+	FullSnapLeaseName                string
+	DeltaSnapLeaseName               string
+	FullsnapLeaseUpdateRetryInterval *metav1.Duration
 
 	StorageCapacity *resource.Quantity
 	StorageClass    *string

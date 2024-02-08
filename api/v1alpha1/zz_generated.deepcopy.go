@@ -73,6 +73,11 @@ func (in *BackupSpec) DeepCopyInto(out *BackupSpec) {
 		*out = new(int32)
 		**out = **in
 	}
+	if in.FullsnapLeaseUpdateRetryInterval != nil {
+		in, out := &in.FullsnapLeaseUpdateRetryInterval, &out.FullsnapLeaseUpdateRetryInterval
+		*out = new(metav1.Duration)
+		**out = **in
+	}
 	if in.GarbageCollectionPeriod != nil {
 		in, out := &in.GarbageCollectionPeriod, &out.GarbageCollectionPeriod
 		*out = new(metav1.Duration)
