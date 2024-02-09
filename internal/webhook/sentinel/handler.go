@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidutils "github.com/gardener/etcd-druid/internal/utils"
 
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -56,7 +57,7 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		err             error
 	)
 
-	log := h.logger.WithValues("resourceKind", req.Kind.Kind, "name", req.Name, "namespace", req.Namespace, "operation", req.Operation)
+	log := h.logger.WithValues("resourceKind", req.Kind.Kind, "name", req.Name, "namespace", req.Namespace, "operation", req.Operation, "user", req.UserInfo.Username)
 	log.Info("Sentinel webhook invoked")
 
 	if req.Operation == admissionv1.Delete {
@@ -102,16 +103,29 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
-	// allow operations on resources if any etcd operation is currently under processing
-	if etcd.Status.LastOperation != nil && etcd.Status.LastOperation.State == druidv1alpha1.LastOperationStateProcessing {
-		return admission.Allowed(fmt.Sprintf("ongoing processing of etcd %s by etcd-druid requires changes to resources", etcd.Name))
+	// allow changes to resources if etcd spec reconciliation is currently suspended
+	if suspendReconcileAnnotKey := druidutils.GetSuspendEtcdSpecReconcileAnnotationKey(etcd); suspendReconcileAnnotKey != nil && metav1.HasAnnotation(etcd.ObjectMeta, *suspendReconcileAnnotKey) {
+		return admission.Allowed(fmt.Sprintf("spec reconciliation of etcd %s is currently suspended", etcd.Name))
 	}
 
+	// allow changes to resources if etcd has annotation druid.gardener.cloud/resource-protection: false
 	if metav1.HasAnnotation(etcd.ObjectMeta, druidv1alpha1.ResourceProtectionAnnotation) {
 		if etcd.GetAnnotations()[druidv1alpha1.ResourceProtectionAnnotation] == "false" {
 			return admission.Allowed(fmt.Sprintf("changes allowed, since etcd %s has annotation %s: false", etcd.Name, druidv1alpha1.ResourceProtectionAnnotation))
 		}
 	}
+
+	// allow operations on resources if any etcd operation is currently under processing, but only by etcd-druid
+	if etcd.Status.LastOperation != nil &&
+		(etcd.Status.LastOperation.State == druidv1alpha1.LastOperationStateProcessing ||
+			etcd.Status.LastOperation.State == druidv1alpha1.LastOperationStateError) {
+		if req.UserInfo.Username == h.config.ReconcilerServiceAccount {
+			return admission.Allowed(fmt.Sprintf("ongoing processing of etcd %s by etcd-druid requires changes to resources", etcd.Name))
+		}
+		return admission.Denied(fmt.Sprintf("no external intervention allowed during ongoing processing of etcd %s by etcd-druid", etcd.Name))
+	}
+	// TODO: how to make VPA work for sts updates?
+	// TODO: add unit tests for Handle()
 
 	return admission.Denied(fmt.Sprintf("changes disallowed, since no ongoing processing of etcd %s by etcd-druid", etcd.Name))
 }

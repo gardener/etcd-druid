@@ -16,14 +16,12 @@ package etcd
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/controller/utils"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/operator"
 	"github.com/gardener/etcd-druid/internal/operator/component"
+	druidutils "github.com/gardener/etcd-druid/internal/utils"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -55,7 +53,7 @@ func (r *Reconciler) removeOperationAnnotation(ctx component.OperatorContext, et
 		withOpAnnotation := etcd.DeepCopy()
 		delete(etcd.Annotations, v1beta1constants.GardenerOperation)
 		if err := r.client.Patch(ctx, etcd, client.MergeFrom(withOpAnnotation)); err != nil {
-			return utils.ReconcileWithError(err)
+			return ctrlutils.ReconcileWithError(err)
 		}
 	}
 	return ctrlutils.ContinueReconcile()
@@ -69,7 +67,7 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey
 	for _, kind := range resourceOperators {
 		op := r.operatorRegistry.GetOperator(kind)
 		if err := op.Sync(ctx, etcd); err != nil {
-			return utils.ReconcileWithError(err)
+			return ctrlutils.ReconcileWithError(err)
 		}
 	}
 	return ctrlutils.ContinueReconcile()
@@ -123,7 +121,7 @@ func (r *Reconciler) recordIncompleteReconcileOperation(ctx component.OperatorCo
 // - Reconciliation is not initiated if EnableEtcdSpecAutoReconcile is false and none of the relevant annotations are present.
 func (r *Reconciler) canReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
 	// Check if spec reconciliation has been suspended, if yes, then record the event and return false.
-	if suspendReconcileAnnotKey := r.getSuspendEtcdSpecReconcileAnnotationKey(etcd); suspendReconcileAnnotKey != nil {
+	if suspendReconcileAnnotKey := druidutils.GetSuspendEtcdSpecReconcileAnnotationKey(etcd); suspendReconcileAnnotKey != nil {
 		r.recordEtcdSpecReconcileSuspension(etcd, *suspendReconcileAnnotKey)
 		return false
 	}
@@ -145,18 +143,6 @@ func (r *Reconciler) canReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
 
 	// Default case: Do not reconcile.
 	return false
-}
-
-// getSuspendEtcdSpecReconcileAnnotationKey gets the annotation key set on an etcd resource signalling the intent
-// to suspend spec reconciliation for this etcd resource. If no annotation is set then it will return nil.
-func (r *Reconciler) getSuspendEtcdSpecReconcileAnnotationKey(etcd *druidv1alpha1.Etcd) *string {
-	var annotationKey *string
-	if metav1.HasAnnotation(etcd.ObjectMeta, druidv1alpha1.SuspendEtcdSpecReconcileAnnotation) {
-		annotationKey = pointer.String(druidv1alpha1.SuspendEtcdSpecReconcileAnnotation)
-	} else if metav1.HasAnnotation(etcd.ObjectMeta, druidv1alpha1.IgnoreReconciliationAnnotation) {
-		annotationKey = pointer.String(druidv1alpha1.IgnoreReconciliationAnnotation)
-	}
-	return annotationKey
 }
 
 func (r *Reconciler) recordEtcdSpecReconcileSuspension(etcd *druidv1alpha1.Etcd, annotationKey string) {
