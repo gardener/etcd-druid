@@ -13,9 +13,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 set -o errexit
 set -o nounset
 set -o pipefail
+
+# Constants for Azurite credentials and configurations
+STORAGE_ACCOUNT="devstoreaccount1"
+STORAGE_KEY="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
+AZURITE_ENDPOINT="http://localhost:10000"
+AZURITE_HOST="azurite-service.default:10000"
+AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=http;AccountName=${STORAGE_ACCOUNT};AccountKey=${STORAGE_KEY};BlobEndpoint=http://${AZURITE_HOST}/${STORAGE_ACCOUNT};"
 
 make kind-up
 
@@ -25,19 +33,20 @@ trap "
 
 kubectl wait --for=condition=ready node --all
 
+# Setup Azure application credentials
 export AZURE_APPLICATION_CREDENTIALS="/tmp/azuriteCredentials"
+mkdir -p "${AZURE_APPLICATION_CREDENTIALS}"
+echo -n "${STORAGE_ACCOUNT}" > "${AZURE_APPLICATION_CREDENTIALS}/storageAccount"
+echo -n "${STORAGE_KEY}" > "${AZURE_APPLICATION_CREDENTIALS}/storageKey"
 
-mkdir -p /tmp/azuriteCredentials/
-echo -n "devstoreaccount1" > /tmp/azuriteCredentials/storageAccount
-echo -n "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==" > /tmp/azuriteCredentials/storageKey
-
+# Deploy Azurite and run end-to-end tests
 make deploy-azurite
-make STORAGE_ACCOUNT="devstoreaccount1" \
-  STORAGE_KEY="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==" \
-  AZURE_STORAGE_API_ENDPOINT="http://localhost:10000" \
+make STORAGE_ACCOUNT="${STORAGE_ACCOUNT}" \
+  STORAGE_KEY="${STORAGE_KEY}" \
+  AZURE_STORAGE_API_ENDPOINT="${AZURITE_ENDPOINT}" \
   EMULATOR_ENABLED="true" \
-  AZURITE_HOST="azurite-service.default:10000" \
-  AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite-service.default:10000/devstoreaccount1;" \
+  AZURITE_HOST="${AZURITE_HOST}" \
+  AZURE_STORAGE_CONNECTION_STRING="${AZURE_STORAGE_CONNECTION_STRING}" \
   PROVIDERS="azure" \
   TEST_ID="$BUCKET_NAME" \
   STEPS="setup,deploy,test" \
