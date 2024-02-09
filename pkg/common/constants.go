@@ -43,7 +43,7 @@ const (
 	// EnvSourceStorageContainer is the environment variable key for the source storage container.
 	EnvSourceStorageContainer = "SOURCE_STORAGE_CONTAINER"
 
-	// EnvEmulatorEnabled is the environment variable key to enable storage emulators for Azure, GCS.
+	// EnvEmulatorEnabled is the environment variable key that is checked to see if storage emulators like Azurite, fake-gcs-emulator are enabled.
 	EnvEmulatorEnabled = "EMULATOR_ENABLED"
 
 	// EnvAWSApplicationCredentials is the environment variable key for AWS application credentials.

@@ -19,7 +19,6 @@ make kind-up
 
 Export the `KUBECONFIG` file after running the above command.
 
-
 ### Step 2: Deploy `Azurite`
 
 To start up the `Azurite` emulator in a pod in the `kind` cluster, run:
@@ -28,7 +27,7 @@ To start up the `Azurite` emulator in a pod in the `kind` cluster, run:
 make deploy-azurite
 ```
 
-### Step 3: Set up an `ABS Container`
+### Step 3: Set up a `ABS Container`
 
 1. To use the `Azure CLI` with the `Azurite` emulator running as a pod in the `kind` cluster, export the connection string for the `Azure CLI`.
 
@@ -36,7 +35,7 @@ make deploy-azurite
  export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
  ```
 
-2. Create an `Azure Blob Storage Container` in `Azurite`
+1. Create a `Azure Blob Storage Container` in `Azurite`
 
 ``` bash
 az storage container create -n etcd-bucket
@@ -48,7 +47,7 @@ az storage container create -n etcd-bucket
 make deploy
 ```
 
-### Step 5: Configure the `Secret` and the `Etcd` manfiests
+### Step 5: Configure the `Secret` and the `Etcd` manifests
 
 1. Apply the Kubernetes `Secret` manifest through:
 
@@ -56,7 +55,7 @@ make deploy
 kubectl apply -f config/samples/etcd-secret-azurite.yaml
 ```
 
-2. Apply the `Etcd` manifest through:
+1. Apply the `Etcd` manifest through:
 
 ``` bash
 kubectl apply -f config/samples/druid_v1alpha1_etcd_azurite.yaml
