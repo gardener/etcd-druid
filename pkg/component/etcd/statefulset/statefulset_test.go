@@ -1099,8 +1099,8 @@ func expectedBackupArgs(values *Values) Elements {
 	if values.DeltaSnapshotRetentionPeriod != nil {
 		elements[fmt.Sprintf("--delta-snapshot-retention-period=%s", values.DeltaSnapshotRetentionPeriod.Duration.String())] = Equal(fmt.Sprintf("--delta-snapshot-retention-period=%s", values.DeltaSnapshotRetentionPeriod.Duration.String()))
 	}
-	if values.FullsnapLeaseUpdateRetryInterval != nil {
-		elements[fmt.Sprintf("--fullsnap-lease-update-retry-interval=%s", values.FullsnapLeaseUpdateRetryInterval.Duration.String())] = Equal(fmt.Sprintf("--fullsnap-lease-update-retry-interval=%s", values.FullsnapLeaseUpdateRetryInterval.Duration.String()))
+	if values.FullSnapshotLeaseUpdateInterval != nil {
+		elements[fmt.Sprintf("--full-snapshot-lease-update-interval=%s", values.FullSnapshotLeaseUpdateInterval.Duration.String())] = Equal(fmt.Sprintf("--full-snapshot-lease-update-interval=%s", values.FullSnapshotLeaseUpdateInterval.Duration.String()))
 	}
 	return elements
 }
