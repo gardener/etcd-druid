@@ -17,7 +17,6 @@ package etcd
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
@@ -58,21 +57,15 @@ const (
 	IgnoreReconciliationAnnotation = "druid.gardener.cloud/ignore-reconciliation"
 )
 
-var (
-	defaultChartPath = filepath.Join("charts", "etcd")
-)
-
 // Reconciler reconciles Etcd resources.
 type Reconciler struct {
 	client.Client
-	scheme        *runtime.Scheme
-	config        *Config
-	recorder      record.EventRecorder
-	chartBasePath string
-	chart         *chart
-	restConfig    *rest.Config
-	imageVector   imagevector.ImageVector
-	logger        logr.Logger
+	scheme      *runtime.Scheme
+	config      *Config
+	recorder    record.EventRecorder
+	restConfig  *rest.Config
+	imageVector imagevector.ImageVector
+	logger      logr.Logger
 }
 
 // NewReconciler creates a new reconciler for Etcd.
@@ -81,26 +74,20 @@ func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewReconcilerWithImageVector(mgr, config, imageVector, defaultChartPath)
+	return NewReconcilerWithImageVector(mgr, config, imageVector)
 }
 
 // NewReconcilerWithImageVector creates a new reconciler for Etcd with an ImageVector.
 // This constructor will mostly be used by tests.
-func NewReconcilerWithImageVector(mgr manager.Manager, config *Config, imageVector imagevector.ImageVector, chartBasePath string) (*Reconciler, error) {
-	chart, err := newChart(chartBasePath, mgr.GetConfig())
-	if err != nil {
-		return nil, err
-	}
+func NewReconcilerWithImageVector(mgr manager.Manager, config *Config, imageVector imagevector.ImageVector) (*Reconciler, error) {
 	return &Reconciler{
-		Client:        mgr.GetClient(),
-		scheme:        mgr.GetScheme(),
-		config:        config,
-		recorder:      mgr.GetEventRecorderFor(controllerName),
-		chartBasePath: chartBasePath,
-		chart:         chart,
-		restConfig:    mgr.GetConfig(),
-		imageVector:   imageVector,
-		logger:        log.Log.WithName(controllerName),
+		Client:      mgr.GetClient(),
+		scheme:      mgr.GetScheme(),
+		config:      config,
+		recorder:    mgr.GetEventRecorderFor(controllerName),
+		restConfig:  mgr.GetConfig(),
+		imageVector: imageVector,
+		logger:      log.Log.WithName(controllerName),
 	}, nil
 }
 

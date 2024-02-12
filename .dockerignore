@@ -10,7 +10,6 @@
 !controllers/
 !pkg/
 !test/
-!vendor/
 !.golangci.yaml
 !go.mod
 !go.sum
