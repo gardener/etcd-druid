@@ -576,3 +576,33 @@ func (e *Etcd) IsBackupStoreEnabled() bool {
 func (e *Etcd) IsMarkedForDeletion() bool {
 	return !e.DeletionTimestamp.IsZero()
 }
+
+// GetSuspendEtcdSpecReconcileAnnotationKey gets the annotation key set on an etcd resource signalling the intent
+// to suspend spec reconciliation for this etcd resource. If no annotation is set then it will return nil.
+func (e *Etcd) GetSuspendEtcdSpecReconcileAnnotationKey() *string {
+	if metav1.HasAnnotation(e.ObjectMeta, SuspendEtcdSpecReconcileAnnotation) {
+		return pointer.String(SuspendEtcdSpecReconcileAnnotation)
+	}
+	if metav1.HasAnnotation(e.ObjectMeta, IgnoreReconciliationAnnotation) {
+		return pointer.String(IgnoreReconciliationAnnotation)
+	}
+	return nil
+}
+
+func (e *Etcd) IsReconciliationSuspended() bool {
+	suspendReconcileAnnotKey := e.GetSuspendEtcdSpecReconcileAnnotationKey()
+	return suspendReconcileAnnotKey != nil && metav1.HasAnnotation(e.ObjectMeta, *suspendReconcileAnnotKey)
+}
+
+func (e *Etcd) AreManagedResourcesProtected() bool {
+	if metav1.HasAnnotation(e.ObjectMeta, ResourceProtectionAnnotation) {
+		return e.GetAnnotations()[ResourceProtectionAnnotation] != "false"
+	}
+	return true
+}
+
+func (e *Etcd) IsBeingProcessed() bool {
+	return e.Status.LastOperation != nil &&
+		(e.Status.LastOperation.State == LastOperationStateProcessing ||
+			e.Status.LastOperation.State == LastOperationStateError)
+}

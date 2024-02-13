@@ -19,7 +19,6 @@ import (
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/operator"
 	"github.com/gardener/etcd-druid/internal/operator/component"
-	druidutils "github.com/gardener/etcd-druid/internal/utils"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -121,7 +120,7 @@ func (r *Reconciler) recordIncompleteReconcileOperation(ctx component.OperatorCo
 // - Reconciliation is not initiated if EnableEtcdSpecAutoReconcile is false and none of the relevant annotations are present.
 func (r *Reconciler) canReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
 	// Check if spec reconciliation has been suspended, if yes, then record the event and return false.
-	if suspendReconcileAnnotKey := druidutils.GetSuspendEtcdSpecReconcileAnnotationKey(etcd); suspendReconcileAnnotKey != nil {
+	if suspendReconcileAnnotKey := etcd.GetSuspendEtcdSpecReconcileAnnotationKey(); suspendReconcileAnnotKey != nil {
 		r.recordEtcdSpecReconcileSuspension(etcd, *suspendReconcileAnnotKey)
 		return false
 	}

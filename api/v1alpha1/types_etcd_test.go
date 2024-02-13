@@ -108,8 +108,8 @@ var _ = Describe("Etcd", func() {
 	Context("GetDefaultLabels", func() {
 		It("should return the default labels for etcd", func() {
 			expected := map[string]string{
-				"name":     "etcd",
-				"instance": "foo",
+				LabelManagedByKey: LabelManagedByValue,
+				LabelPartOfKey:    "foo",
 			}
 			Expect(created.GetDefaultLabels()).To(Equal(expected))
 		})
@@ -138,6 +138,156 @@ var _ = Describe("Etcd", func() {
 	Context("GetRoleBindingName", func() {
 		It("should return the rolebinding name for the Etcd", func() {
 			Expect(created.GetRoleName()).To(Equal(GroupVersion.Group + ":etcd:foo"))
+		})
+	})
+
+	Context("IsBackupStoreEnabled", func() {
+		Context("when backup is enabled", func() {
+			It("should return true", func() {
+				Expect(created.IsBackupStoreEnabled()).To(Equal(true))
+			})
+		})
+		Context("when backup is not enabled", func() {
+			It("should return false", func() {
+				created.Spec.Backup = BackupSpec{}
+				Expect(created.IsBackupStoreEnabled()).To(Equal(false))
+			})
+		})
+	})
+
+	Context("IsMarkedForDeletion", func() {
+		Context("when deletion timestamp is not set", func() {
+			It("should return false", func() {
+				Expect(created.IsMarkedForDeletion()).To(Equal(false))
+			})
+		})
+		Context("when deletion timestamp is set", func() {
+			It("should return true", func() {
+				created.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+				Expect(created.IsMarkedForDeletion()).To(Equal(true))
+			})
+		})
+	})
+
+	Context("GetSuspendEtcdSpecReconcileAnnotationKey", func() {
+		ignoreReconciliationAnnotation := IgnoreReconciliationAnnotation
+		suspendEtcdSpecReconcileAnnotation := SuspendEtcdSpecReconcileAnnotation
+		Context("when etcd has only annotation druid.gardener.cloud/ignore-reconciliation set", func() {
+			It("should return druid.gardener.cloud/ignore-reconciliation", func() {
+				created.Annotations = map[string]string{
+					IgnoreReconciliationAnnotation: "true",
+				}
+				Expect(created.GetSuspendEtcdSpecReconcileAnnotationKey()).To(Equal(&ignoreReconciliationAnnotation))
+			})
+		})
+		Context("when etcd has only annotation druid.gardener.cloud/suspend-etcd-spec-reconcile set", func() {
+			It("should return druid.gardener.cloud/suspend-etcd-spec-reconcile", func() {
+				created.Annotations = map[string]string{
+					SuspendEtcdSpecReconcileAnnotation: "true",
+				}
+				Expect(created.GetSuspendEtcdSpecReconcileAnnotationKey()).To(Equal(&suspendEtcdSpecReconcileAnnotation))
+			})
+		})
+		Context("when etcd has both annotations druid.gardener.cloud/suspend-etcd-spec-reconcile and druid.gardener.cloud/ignore-reconciliation set", func() {
+			It("should return druid.gardener.cloud/suspend-etcd-spec-reconcile", func() {
+				created.Annotations = map[string]string{
+					SuspendEtcdSpecReconcileAnnotation: "true",
+					IgnoreReconciliationAnnotation:     "true",
+				}
+				Expect(created.GetSuspendEtcdSpecReconcileAnnotationKey()).To(Equal(&suspendEtcdSpecReconcileAnnotation))
+			})
+		})
+		Context("when etcd does not have annotation druid.gardener.cloud/suspend-etcd-spec-reconcile or druid.gardener.cloud/ignore-reconciliation set", func() {
+			It("should return nil string pointer", func() {
+				var nilString *string
+				Expect(created.GetSuspendEtcdSpecReconcileAnnotationKey()).To(Equal(nilString))
+			})
+		})
+	})
+
+	Context("IsReconciliationSuspended", func() {
+		Context("when etcd has only annotation druid.gardener.cloud/suspend-etcd-spec-reconcile set", func() {
+			It("should return true", func() {
+				created.Annotations = map[string]string{
+					SuspendEtcdSpecReconcileAnnotation: "true",
+				}
+				Expect(created.IsReconciliationSuspended()).To(Equal(true))
+			})
+		})
+		Context("when etcd has only annotation druid.gardener.cloud/ignore-reconciliation set", func() {
+			It("should return true", func() {
+				created.Annotations = map[string]string{
+					IgnoreReconciliationAnnotation: "true",
+				}
+				Expect(created.IsReconciliationSuspended()).To(Equal(true))
+			})
+		})
+		Context("when etcd has both annotations druid.gardener.cloud/suspend-etcd-spec-reconcile and druid.gardener.cloud/ignore-reconciliation set", func() {
+			It("should return true", func() {
+				created.Annotations = map[string]string{
+					SuspendEtcdSpecReconcileAnnotation: "true",
+					IgnoreReconciliationAnnotation:     "true",
+				}
+				Expect(created.IsReconciliationSuspended()).To(Equal(true))
+			})
+		})
+		Context("when etcd does not have annotation druid.gardener.cloud/suspend-etcd-spec-reconcile or druid.gardener.cloud/ignore-reconciliation set", func() {
+			It("should return false", func() {
+				Expect(created.IsReconciliationSuspended()).To(Equal(false))
+			})
+		})
+	})
+
+	Context("AreManagedResourcesProtected", func() {
+		Context("when etcd has annotation druid.gardener.cloud/resource-protection: false", func() {
+			It("should return false", func() {
+				created.Annotations = map[string]string{
+					ResourceProtectionAnnotation: "false",
+				}
+				Expect(created.AreManagedResourcesProtected()).To(Equal(false))
+			})
+		})
+		Context("when etcd has annotation druid.gardener.cloud/resource-protection: true", func() {
+			It("should return true", func() {
+				Expect(created.AreManagedResourcesProtected()).To(Equal(true))
+			})
+		})
+		Context("when etcd does not have annotation druid.gardener.cloud/resource-protection set", func() {
+			It("should return true", func() {
+				Expect(created.AreManagedResourcesProtected()).To(Equal(true))
+			})
+		})
+	})
+
+	Context("IsBeingProcessed", func() {
+		Context("when etcd status has lastOperation and its state is Processing", func() {
+			It("should return true", func() {
+				created.Status.LastOperation = &LastOperation{
+					State: LastOperationStateProcessing,
+				}
+				Expect(created.IsBeingProcessed()).To(Equal(true))
+			})
+		})
+		Context("when etcd status has lastOperation and its state is Error", func() {
+			It("should return true", func() {
+				created.Status.LastOperation = &LastOperation{
+					State: LastOperationStateError,
+				}
+				Expect(created.IsBeingProcessed()).To(Equal(true))
+			})
+		})
+		Context("when etcd status has lastOperation and its state is neither Processing or Error", func() {
+			It("should return false", func() {
+				created.Status.LastOperation = &LastOperation{
+					State: LastOperationStateSucceeded,
+				}
+				Expect(created.IsBeingProcessed()).To(Equal(false))
+			})
+		})
+		Context("when etcd status does not have lastOperation populated", func() {
+			It("should return false", func() {
+				Expect(created.IsBeingProcessed()).To(Equal(false))
+			})
 		})
 	})
 })
