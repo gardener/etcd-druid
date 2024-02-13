@@ -166,7 +166,7 @@ make ci-e2e-kind
 
 [Fake-gcs-server](https://github.com/fsouza/fake-gcs-server) is run inside a pod as a [docker image](https://hub.docker.com/r/fsouza/fake-gcs-server) in a KIND cluster.
 
-The user needs to run `make ci-gcs-e2e-kind` to start the e2e tests for druid with GCS emulator as the object storage for etcd backups. The above command internally runs the script `hack/ci-gcs-e2e-kind.sh` which initializes the setup with required steps before going to create a KIND cluster and deploy fakegcs in it and use that emulator to run e2e tests.
+The user needs to run `make ci-e2e-kind-gcs` to start the e2e tests for druid with GCS emulator as the object storage for etcd backups. The above command internally runs the script `hack/ci-e2e-kind-gcs.sh` which initializes the setup with required steps before going to create a KIND cluster and deploy fakegcs in it and use that emulator to run e2e tests.
 
 The `fake-gcs-server` running inside the pod serves HTTP requests at port-8000 and HTTPS requests at port-4443. As the e2e tests runs on the host machine while the emulator runs on KIND, both ports i.e 8000 & 4443 needs to be port-forwarded from the host machine to fake-gcs service running inside the KIND cluster. The port forwardings is defined in the `hack/e2e-test/infrastructure/kind/cluster.yaml` file.
 
@@ -175,5 +175,5 @@ The `fake-gcs-server` running inside the pod serves HTTP requests at port-8000 a
 Run the following `make` command to spin up a KinD cluster, deploy localstack and run the e2e tests with provider `gcp`:
 
 ```bash
-make ci-gcs-e2e-kind
+make ci-e2e-kind-gcs
 ```

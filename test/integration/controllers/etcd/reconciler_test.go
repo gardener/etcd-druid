@@ -1322,14 +1322,14 @@ func validateStoreGCP(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *co
 										})),
 									})),
 								}),
-								common.EnvGoogleEnableGCSEmulator: MatchFields(IgnoreExtras, Fields{
-									"Name": Equal(common.EnvGoogleEnableGCSEmulator),
+								common.EnvEmulatorEnabled: MatchFields(IgnoreExtras, Fields{
+									"Name": Equal(common.EnvEmulatorEnabled),
 									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
 										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
 											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
 												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
 											}),
-											"Key":      Equal("enableGCSEmulator"),
+											"Key":      Equal("emulatorEnabled"),
 											"Optional": Equal(pointer.Bool(true)),
 										})),
 									})),

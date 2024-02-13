@@ -52,7 +52,7 @@ revendor: set-permissions
 	@make set-permissions
 
 
-kind-up kind-down ci-e2e-kind deploy-localstack test-e2e: export KUBECONFIG = $(KUBECONFIG_PATH)
+kind-up kind-down ci-e2e-kind ci-e2e-kind-gcs deploy-localstack deploy-fakegcs test-e2e: export KUBECONFIG = $(KUBECONFIG_PATH)
 
 all: druid
 
@@ -177,6 +177,6 @@ deploy-fakegcs: $(KUBECTL)
 ci-e2e-kind:
 	BUCKET_NAME=$(BUCKET_NAME) ./hack/ci-e2e-kind.sh
 
-.PHONY: ci-gcs-e2e-kind
-ci-gcs-e2e-kind:
-	BUCKET_NAME=$(BUCKET_NAME) KUBECONFIG_PATH=$(KUBECONFIG_PATH) ./hack/ci-gcs-e2e-kind.sh
+.PHONY: ci-e2e-kind-gcs
+ci-e2e-kind-gcs:
+	BUCKET_NAME=$(BUCKET_NAME) KUBECONFIG_PATH=$(KUBECONFIG_PATH) ./hack/ci-e2e-kind-gcs.sh

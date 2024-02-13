@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2023 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+# Copyright (c) 2024 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,15 +25,14 @@ trap "
 
 kubectl wait --for=condition=ready node --all
 export KUBECONFIG=$KUBECONFIG_PATH
-export USE_ETCD_DRUID_FEATURE_GATES=true
-echo "{ \"serviceaccount.json\": \"\", \"storageAPIEndpoint\": \"http://fake-gcs.default:8000/storage/v1/\", \"enableGCSEmulator\": \"True\" }" >/tmp/svc_acc.json
+echo "{ \"serviceaccount.json\": \"\", \"storageAPIEndpoint\": \"http://fake-gcs.default:8000/storage/v1/\", \"emulatorEnabled\": \"true\" }" >/tmp/svc_acc.json
 
 export GOOGLE_STORAGE_API_ENDPOINT="http://localhost:8000/storage/v1/"
 
 make deploy-fakegcs
 make GCP_SERVICEACCOUNT_JSON_PATH="/tmp/svc_acc.json" \
   GCP_PROJECT_ID="e2e-test" \
-  GOOGLE_ENABLE_GCS_EMULATOR="True" \
+  EMULATOR_ENABLED="true" \
   GCS_EMULATOR_HOST="fake-gcs.default:8000" \
   PROVIDERS="gcp" \
   TEST_ID="$BUCKET_NAME" \
