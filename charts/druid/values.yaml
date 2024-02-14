@@ -19,4 +19,6 @@ server:
     tls:
       serverCertDir: /etc/webhook-server-tls
 
-enableSentinelWebhook: true
+sentinelWebhook:
+  enabled: true
+  exemptServiceAccounts: {}

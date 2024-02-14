@@ -54,9 +54,12 @@ spec:
         - --webhook-server-tls-server-cert-dir={{ .Values.server.webhook.tls.serverCertDir }}
         {{- end }}
 
-        {{- if .Values.enableSentinelWebhook }}
-        - --enable-sentinel-webhook={{ .Values.enableSentinelWebhook }}
+        {{- if (.Values.sentinelWebhook).enabled }}
+        - --enable-sentinel-webhook=true
         - --reconciler-service-account=system:serviceaccount:{{ .Release.Namespace }}:etcd-druid
+        {{- if .Values.sentinelWebhook.exemptServiceAccounts }}
+        - --sentinel-exempt-service-accounts={{ join "," .Values.sentinelWebhook.exemptServiceAccounts }}
+        {{- end }}
         {{- end }}
 
         resources:

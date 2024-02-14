@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	druidutils "github.com/gardener/etcd-druid/internal/utils"
 
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -17,7 +16,6 @@ import (
 	policyv1 "k8s.io/api/policy/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -104,28 +102,29 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 	}
 
 	// allow changes to resources if etcd spec reconciliation is currently suspended
-	if suspendReconcileAnnotKey := druidutils.GetSuspendEtcdSpecReconcileAnnotationKey(etcd); suspendReconcileAnnotKey != nil && metav1.HasAnnotation(etcd.ObjectMeta, *suspendReconcileAnnotKey) {
+	if etcd.IsReconciliationSuspended() {
 		return admission.Allowed(fmt.Sprintf("spec reconciliation of etcd %s is currently suspended", etcd.Name))
 	}
 
 	// allow changes to resources if etcd has annotation druid.gardener.cloud/resource-protection: false
-	if metav1.HasAnnotation(etcd.ObjectMeta, druidv1alpha1.ResourceProtectionAnnotation) {
-		if etcd.GetAnnotations()[druidv1alpha1.ResourceProtectionAnnotation] == "false" {
-			return admission.Allowed(fmt.Sprintf("changes allowed, since etcd %s has annotation %s: false", etcd.Name, druidv1alpha1.ResourceProtectionAnnotation))
-		}
+	if !etcd.AreManagedResourcesProtected() {
+		return admission.Allowed(fmt.Sprintf("changes allowed, since etcd %s has annotation %s: false", etcd.Name, druidv1alpha1.ResourceProtectionAnnotation))
 	}
 
-	// allow operations on resources if any etcd operation is currently under processing, but only by etcd-druid
-	if etcd.Status.LastOperation != nil &&
-		(etcd.Status.LastOperation.State == druidv1alpha1.LastOperationStateProcessing ||
-			etcd.Status.LastOperation.State == druidv1alpha1.LastOperationStateError) {
+	// allow operations on resources if any etcd operation is currently under processing, but only by etcd-druid,
+	// and allow exempt service accounts to make changes to resources, but only if etcd is not currently under processing.
+	if etcd.IsBeingProcessed() {
 		if req.UserInfo.Username == h.config.ReconcilerServiceAccount {
 			return admission.Allowed(fmt.Sprintf("ongoing processing of etcd %s by etcd-druid requires changes to resources", etcd.Name))
 		}
 		return admission.Denied(fmt.Sprintf("no external intervention allowed during ongoing processing of etcd %s by etcd-druid", etcd.Name))
+	} else {
+		for _, sa := range h.config.ExemptServiceAccounts {
+			if req.UserInfo.Username == sa {
+				return admission.Allowed(fmt.Sprintf("operations on etcd %s by service account %s is exempt from Sentinel Webhook checks", etcd.Name, sa))
+			}
+		}
 	}
-	// TODO: how to make VPA work for sts updates?
-	// TODO: add unit tests for Handle()
 
 	return admission.Denied(fmt.Sprintf("changes disallowed, since no ongoing processing of etcd %s by etcd-druid", etcd.Name))
 }
