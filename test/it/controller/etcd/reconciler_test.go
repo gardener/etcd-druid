@@ -35,6 +35,7 @@ import (
 const testNamespacePrefix = "etcd-reconciler-test-"
 
 // TestSuiteWithDefaultIntegrationTestEnvironment runs the etcd reconciler tests with the default integration test environment.
+// No auto-reconcile is set, to reconcile one needs to set the GardenerOperation annotation.
 // All tests defined in this suite share the same integration test environment.
 func TestSuiteWithDefaultIntegrationTestEnvironment(t *testing.T) {
 	itTestEnv, itTestEnvCloser := setup.NewIntegrationTestEnv(t, "etcd-reconciler", []string{assets.GetEtcdCrdPath()})
@@ -45,9 +46,9 @@ func TestSuiteWithDefaultIntegrationTestEnvironment(t *testing.T) {
 		name   string
 		testFn func(t *testing.T, reconcilerTestEnv ReconcilerTestEnv)
 	}{
-		{"test spec reconciliation without auto-reconcile", testEtcdReconcileSpecWithoutAutoReconcile},
+		{"test spec reconciliation without auto-reconcile", testEtcdReconcileSpec},
 		{"test deletion of all etcd resources when etcd marked for deletion", testDeletionOfAllEtcdResourcesWhenEtcdMarkedForDeletion},
-		{"test etcd status", testEtcdStatus},
+		{"test etcd status reconciliation", testEtcdStatus},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -57,7 +58,7 @@ func TestSuiteWithDefaultIntegrationTestEnvironment(t *testing.T) {
 }
 
 // ------------------------------ reconcile spec tests ------------------------------
-func testEtcdReconcileSpecWithoutAutoReconcile(t *testing.T, reconcilerTestEnv ReconcilerTestEnv) {
+func testEtcdReconcileSpec(t *testing.T, reconcilerTestEnv ReconcilerTestEnv) {
 	tests := []struct {
 		name string
 		fn   func(t *testing.T, testNamespace string, reconcilerTestEnv ReconcilerTestEnv)
