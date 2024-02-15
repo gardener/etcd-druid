@@ -26,14 +26,19 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 			RateLimiter:             workqueue.NewItemExponentialFailureRateLimiter(10*time.Millisecond, r.config.EtcdStatusSyncPeriod),
 		}).
 		For(&druidv1alpha1.Etcd{}).
-		WithEventFilter(
-			predicate.Or(
-				predicate.And(r.forcedReconcile(), noSpecAndStatusUpdated()),
-				predicate.And(r.reconcilePermitted(), onlySpecUpdated()),
-			),
-		)
+		WithEventFilter(r.buildPredicate())
 
 	return builder.Complete(r)
+}
+
+func (r *Reconciler) buildPredicate() predicate.Predicate {
+	// Since we do etcd status updates in the same reconciliation flow, this will also generate an event which should be ignored. Any changes in the predicates should ensure that this is not violated.
+	return predicate.Or(
+		// If reconcile operation annotation is present but there is no change to spec or status then we should allow reconciliation. Consider a case where the spec reconciliation has failed
+		predicate.And(r.forcedReconcile(), noSpecAndStatusUpdated()),
+		// If the reconciliation is allowed and the spec has changed, we should reconcile.
+		predicate.And(r.reconcilePermitted(), onlySpecUpdated()),
+	)
 }
 
 func onlySpecUpdated() predicate.Predicate {
@@ -57,15 +62,15 @@ func hasSpecChanged(updateEvent event.UpdateEvent) bool {
 }
 
 func hasStatusChanged(updateEvent event.UpdateEvent) bool {
-	return apiequality.Semantic.DeepEqual(accessEtcdStatus(updateEvent.ObjectNew), accessEtcdStatus(updateEvent.ObjectOld))
-}
-
-func accessEtcdStatus(object client.Object) *druidv1alpha1.EtcdStatus {
-	if etcd, ok := object.(*druidv1alpha1.Etcd); !ok {
-		return nil
-	} else {
-		return &etcd.Status
+	oldEtcd, ok := updateEvent.ObjectOld.(*druidv1alpha1.Etcd)
+	if !ok {
+		return false
 	}
+	newEtcd, ok := updateEvent.ObjectNew.(*druidv1alpha1.Etcd)
+	if !ok {
+		return false
+	}
+	return !apiequality.Semantic.DeepEqual(oldEtcd.Status, newEtcd.Status)
 }
 
 // reconcilePermitted

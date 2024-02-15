@@ -2,6 +2,7 @@ package etcd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -17,6 +18,7 @@ import (
 	"github.com/gardener/etcd-druid/test/it/setup"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -217,7 +219,7 @@ func assertETCDObservedGeneration(t *testing.T, cl client.Client, etcdObjectKey 
 	t.Logf("observedGeneration correctly set to %s", logPointerTypeToString[int64](expectedObservedGeneration))
 }
 
-func assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, expectedLastOperation *druidv1alpha1.LastOperation, expectedLastErrors []druidv1alpha1.LastError, timeout, pollInterval time.Duration) {
+func assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, expectedLastOperation *druidv1alpha1.LastOperation, expectedLastErrorCodes []string, timeout, pollInterval time.Duration) {
 	g := NewWithT(t)
 	checkFn := func() error {
 		etcdInstance := &druidv1alpha1.Etcd{}
@@ -238,13 +240,12 @@ func assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t *testing.T, cl cl
 		}
 
 		// For comparing last errors, it is sufficient to compare their length and their error codes.
-		expectedErrorCodes := getErrorCodesFromLastErrors(expectedLastErrors)
-		slices.Sort(expectedErrorCodes)
+		slices.Sort(expectedLastErrorCodes)
 		actualErrorCodes := getErrorCodesFromLastErrors(etcdInstance.Status.LastErrors)
 		slices.Sort(actualErrorCodes)
 
-		if !slices.Equal(expectedErrorCodes, actualErrorCodes) {
-			return fmt.Errorf("expected lastErrors to be %v, found %v", expectedLastErrors, etcdInstance.Status.LastErrors)
+		if !slices.Equal(expectedLastErrorCodes, actualErrorCodes) {
+			return fmt.Errorf("expected lastErrors to be %v, found %v", expectedLastErrorCodes, etcdInstance.Status.LastErrors)
 		}
 		return nil
 	}
@@ -311,10 +312,91 @@ func assertETCDFinalizer(t *testing.T, cl client.Client, etcdObjectKey client.Ob
 	t.Log(msg)
 }
 
-func getErrorCodesFromLastErrors(lastErrors []druidv1alpha1.LastError) []druidv1alpha1.ErrorCode {
-	errorCodes := make([]druidv1alpha1.ErrorCode, 0, len(lastErrors))
+func assertETCDMemberStatuses(t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, expectedMembers []druidv1alpha1.EtcdMemberStatus, timeout, pollInterval time.Duration) {
+	g := NewWithT(t)
+	checkFn := func() error {
+		etcdInstance := &druidv1alpha1.Etcd{}
+		if err := cl.Get(context.Background(), etcdObjectKey, etcdInstance); err != nil {
+			return err
+		}
+		actualMembers := etcdInstance.Status.Members
+		if len(actualMembers) != len(expectedMembers) {
+			return fmt.Errorf("expected %d members, found %d", len(expectedMembers), len(actualMembers))
+		}
+		var memberErr error
+		for _, expectedMember := range expectedMembers {
+			foundMember, err := findMatchingMemberStatus(actualMembers, expectedMember)
+			if err != nil {
+				memberErr = errors.Join(memberErr, err)
+			} else {
+				t.Logf("member with [id:%s, name:%s, role:%s, status:%s] matches expected member", logPointerTypeToString(foundMember.ID), foundMember.Name, logPointerTypeToString(foundMember.Role), foundMember.Status)
+			}
+		}
+		return memberErr
+	}
+	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).Should(BeNil())
+	t.Logf("asserted that etcd member statuses matches expected members: %v", expectedMembers)
+}
+
+func assertETCDStatusConditions(t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, expectedConditions []druidv1alpha1.Condition, timeout, pollInterval time.Duration) {
+	g := NewWithT(t)
+	checkFn := func() error {
+		etcdInstance := &druidv1alpha1.Etcd{}
+		if err := cl.Get(context.Background(), etcdObjectKey, etcdInstance); err != nil {
+			return err
+		}
+		actualConditions := etcdInstance.Status.Conditions
+		var condErr error
+		for _, expectedCondition := range expectedConditions {
+			foundCondition, err := findMatchingCondition(actualConditions, expectedCondition)
+			if err != nil {
+				condErr = errors.Join(condErr, err)
+			} else {
+				t.Logf("found condition with [type:%s, status:%s] matches expected condition", foundCondition.Type, foundCondition.Status)
+			}
+		}
+		if condErr != nil {
+			t.Logf("not all conditions matched: %v. will retry matching all expected conditions", condErr)
+		}
+		return condErr
+	}
+	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).Should(BeNil())
+	t.Logf("asserted that etcd status conditions matches expected conditions: %v", expectedConditions)
+}
+
+func assertETCDStatusFieldsDerivedFromStatefulSet(ctx context.Context, t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, stsObjectKey client.ObjectKey, timeout, pollInterval time.Duration, expectedReadyStatus bool) {
+	g := NewWithT(t)
+	checkFn := func() error {
+		sts := &appsv1.StatefulSet{}
+		if err := cl.Get(ctx, stsObjectKey, sts); err != nil {
+			return err
+		}
+		etcdInstance := &druidv1alpha1.Etcd{}
+		if err := cl.Get(context.Background(), etcdObjectKey, etcdInstance); err != nil {
+			return err
+		}
+		if etcdInstance.Status.ReadyReplicas != sts.Status.ReadyReplicas {
+			return fmt.Errorf("expected readyReplicas to be %d, found %d", sts.Status.ReadyReplicas, etcdInstance.Status.ReadyReplicas)
+		}
+		if etcdInstance.Status.CurrentReplicas != sts.Status.CurrentReplicas {
+			return fmt.Errorf("expected currentReplicas to be %d, found %d", sts.Status.CurrentReplicas, etcdInstance.Status.CurrentReplicas)
+		}
+		if etcdInstance.Status.Replicas != *sts.Spec.Replicas {
+			return fmt.Errorf("expected replicas to be %d, found %d", sts.Spec.Replicas, etcdInstance.Status.Replicas)
+		}
+		if utils.TypeDeref[bool](etcdInstance.Status.Ready, false) != expectedReadyStatus {
+			return fmt.Errorf("expected ready to be %t, found %s", expectedReadyStatus, logPointerTypeToString[bool](etcdInstance.Status.Ready))
+		}
+		return nil
+	}
+	g.Eventually(checkFn).WithContext(ctx).Within(timeout).WithPolling(pollInterval).Should(BeNil())
+	t.Logf("asserted that etcd status fields are correctly derived from statefulset: %s", stsObjectKey.Name)
+}
+
+func getErrorCodesFromLastErrors(lastErrors []druidv1alpha1.LastError) []string {
+	errorCodes := make([]string, 0, len(lastErrors))
 	for _, lastErr := range lastErrors {
-		errorCodes = append(errorCodes, lastErr.Code)
+		errorCodes = append(errorCodes, string(lastErr.Code))
 	}
 	return errorCodes
 }
@@ -324,4 +406,34 @@ func logPointerTypeToString[T any](val *T) string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("%v", *val)
+}
+
+func findMatchingCondition(actualConditions []druidv1alpha1.Condition, conditionToMatch druidv1alpha1.Condition) (*druidv1alpha1.Condition, error) {
+	for _, actualCondition := range actualConditions {
+		if actualCondition.Type == conditionToMatch.Type {
+			if actualCondition.Status != conditionToMatch.Status {
+				return nil, fmt.Errorf("for condition type: %s, expected status to be %s, found %s", conditionToMatch.Type, conditionToMatch.Status, actualCondition.Status)
+			}
+			return &actualCondition, nil
+		}
+	}
+	return nil, fmt.Errorf("condition type: %s not found", conditionToMatch.Type)
+}
+
+func findMatchingMemberStatus(actualMembers []druidv1alpha1.EtcdMemberStatus, memberStatusToMatch druidv1alpha1.EtcdMemberStatus) (*druidv1alpha1.EtcdMemberStatus, error) {
+	for _, actualMember := range actualMembers {
+		if *actualMember.ID == *memberStatusToMatch.ID {
+			if actualMember.Name != memberStatusToMatch.Name {
+				return nil, fmt.Errorf("for member with id: %s, expected name to be %s, found %s", logPointerTypeToString(actualMember.ID), memberStatusToMatch.Name, actualMember.Name)
+			}
+			if *actualMember.Role != *memberStatusToMatch.Role {
+				return nil, fmt.Errorf("for member with id: %s, expected role to be %s, found %s", logPointerTypeToString(actualMember.ID), logPointerTypeToString(memberStatusToMatch.Role), logPointerTypeToString(actualMember.Role))
+			}
+			if actualMember.Status != memberStatusToMatch.Status {
+				return nil, fmt.Errorf("for member with id: %s, expected status to be %s, found %s", logPointerTypeToString(actualMember.ID), memberStatusToMatch.Status, actualMember.Status)
+			}
+			return &actualMember, nil
+		}
+	}
+	return nil, fmt.Errorf("member with id: %s not found", logPointerTypeToString(memberStatusToMatch.ID))
 }

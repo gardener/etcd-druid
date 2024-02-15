@@ -88,6 +88,14 @@ func (r ReconcileStepResult) GetErrors() []error {
 	return r.errs
 }
 
+func (r ReconcileStepResult) GetResult() ctrl.Result {
+	return r.result
+}
+
+func (r ReconcileStepResult) HasErrors() bool {
+	return len(r.errs) > 0
+}
+
 func (r ReconcileStepResult) GetDescription() string {
 	if len(r.errs) > 0 {
 		return fmt.Sprintf("%s %s", r.description, errors.Join(r.errs...).Error())

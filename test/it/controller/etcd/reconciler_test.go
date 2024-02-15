@@ -19,30 +19,45 @@ import (
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+
+	testclock "k8s.io/utils/clock/testing"
 )
 
 const testNamespacePrefix = "etcd-reconciler-test-"
 
-/*
-	status update check:
-		* create etcd resource and let sts be created
-		* assert the etcd status
-		* update sts status and then assert etcd status again
-
-	deletion flow -done
-	spec reconcile flow -done
-*/
-
-// ------------------------------ reconcile spec tests ------------------------------
-func TestEtcdReconcilerSpecWithoutAutoReconcile(t *testing.T) {
+// TestSuiteWithDefaultIntegrationTestEnvironment runs the etcd reconciler tests with the default integration test environment.
+// All tests defined in this suite share the same integration test environment.
+func TestSuiteWithDefaultIntegrationTestEnvironment(t *testing.T) {
 	itTestEnv, itTestEnvCloser := setup.NewIntegrationTestEnv(t, "etcd-reconciler", []string{assets.GetEtcdCrdPath()})
 	defer itTestEnvCloser(t)
 	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, itTestEnv, false)
 
+	tests := []struct {
+		name   string
+		testFn func(t *testing.T, reconcilerTestEnv ReconcilerTestEnv)
+	}{
+		{"test spec reconciliation without auto-reconcile", testEtcdReconcileSpecWithoutAutoReconcile},
+		{"test deletion of all etcd resources when etcd marked for deletion", testDeletionOfAllEtcdResourcesWhenEtcdMarkedForDeletion},
+		{"test etcd status", testEtcdStatus},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.testFn(t, reconcilerTestEnv)
+		})
+	}
+}
+
+// ------------------------------ reconcile spec tests ------------------------------
+func testEtcdReconcileSpecWithoutAutoReconcile(t *testing.T, reconcilerTestEnv ReconcilerTestEnv) {
 	tests := []struct {
 		name string
 		fn   func(t *testing.T, testNamespace string, reconcilerTestEnv ReconcilerTestEnv)
@@ -52,8 +67,6 @@ func TestEtcdReconcilerSpecWithoutAutoReconcile(t *testing.T) {
 		{"should not reconcile spec when reconciliation is suspended", testWhenReconciliationIsSuspended},
 		{"should not reconcile when no reconcile operation annotation is set", testWhenNoReconcileOperationAnnotationIsSet},
 	}
-
-	t.Parallel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			testNs := createTestNamespaceName(t)
@@ -139,12 +152,7 @@ func testFailureToCreateAllResources(t *testing.T, testNs string, reconcilerTest
 		Type:  druidv1alpha1.LastOperationTypeReconcile,
 		State: druidv1alpha1.LastOperationStateError,
 	}
-	expectedLastErrs := []druidv1alpha1.LastError{
-		{
-			Code: "ERR_SYNC_CLIENT_SERVICE",
-		},
-	}
-	assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t, cl, client.ObjectKeyFromObject(etcdInstance), expectedLastOperation, expectedLastErrs, 5*time.Second, 1*time.Second)
+	assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t, cl, client.ObjectKeyFromObject(etcdInstance), expectedLastOperation, []string{"ERR_SYNC_CLIENT_SERVICE"}, 5*time.Second, 1*time.Second)
 }
 
 func testWhenReconciliationIsSuspended(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
@@ -189,15 +197,10 @@ func testWhenNoReconcileOperationAnnotationIsSet(t *testing.T, testNs string, re
 }
 
 // ------------------------------ reconcile deletion tests ------------------------------
-func TestDeletionOfAllEtcdResourcesWhenEtcdMarkedForDeletion(t *testing.T) {
-	// ***************** setup *****************
-	itTestEnv, itTestEnvCloser := setup.NewIntegrationTestEnv(t, "etcd-reconciler", []string{assets.GetEtcdCrdPath()})
-	defer itTestEnvCloser(t)
-	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, itTestEnv, false)
-
+func testDeletionOfAllEtcdResourcesWhenEtcdMarkedForDeletion(t *testing.T, reconcilerTestEnv ReconcilerTestEnv) {
 	// --------------------------- create test namespace ---------------------------
 	testNs := createTestNamespaceName(t)
-	itTestEnv.CreateTestNamespace(testNs)
+	reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)
 	t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
 
 	// ---------------------------- create etcd instance --------------------------
@@ -211,7 +214,7 @@ func TestDeletionOfAllEtcdResourcesWhenEtcdMarkedForDeletion(t *testing.T) {
 		}).Build()
 	ctx := context.Background()
 	cl := reconcilerTestEnv.itTestEnv.GetClient()
-	createEtcdInstanceWithFinalizer(ctx, t, reconcilerTestEnv, etcdInstance)
+	createAndAssertEtcdAndAllManagedResources(ctx, t, reconcilerTestEnv, etcdInstance)
 
 	// ***************** test etcd deletion flow  *****************
 	// mark etcd for deletion
@@ -261,7 +264,7 @@ func TestPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 	g.Expect(testutils.CreateSecrets(ctx, cl, testNs, etcdInstance.Spec.Backup.Store.SecretRef.Name)).To(Succeed())
 	t.Logf("successfully created backup secrets for etcd instance: %s", etcdInstance.Name)
 
-	createEtcdInstanceWithFinalizer(ctx, t, reconcilerTestEnv, etcdInstance)
+	createAndAssertEtcdAndAllManagedResources(ctx, t, reconcilerTestEnv, etcdInstance)
 
 	// ******************************* test etcd deletion flow *******************************
 	// mark etcd for deletion
@@ -283,29 +286,171 @@ func TestPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 		Type:  druidv1alpha1.LastOperationTypeDelete,
 		State: druidv1alpha1.LastOperationStateError,
 	}
-	expectedLastErrors := []druidv1alpha1.LastError{
-		{
-			Code: "ERR_DELETE_CLIENT_SERVICE",
-		},
-		{
-			Code: "ERR_DELETE_SNAPSHOT_LEASE",
-		},
-	}
-	assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t, cl, client.ObjectKeyFromObject(etcdInstance), expectedLastOperation, expectedLastErrors, 2*time.Minute, 2*time.Second)
+	assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t, cl, client.ObjectKeyFromObject(etcdInstance), expectedLastOperation, []string{"ERR_DELETE_CLIENT_SERVICE", "ERR_DELETE_SNAPSHOT_LEASE"}, 2*time.Minute, 2*time.Second)
 	// assert that the finalizer has not been removed as all resources have not been deleted yet.
 	assertETCDFinalizer(t, cl, client.ObjectKeyFromObject(etcdInstance), true, 10*time.Second, 2*time.Second)
 }
 
 // ------------------------------ reconcile status tests ------------------------------
+func testEtcdStatus(t *testing.T, reconcilerTestEnv ReconcilerTestEnv) {
+	tests := []struct {
+		name string
+		fn   func(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv)
+	}{
+		{"check assertions when all member leases are active", testConditionsAndMembersWhenAllMemberLeasesAreActive},
+		{"assert that data volume condition reflects pvc error event", testEtcdStatusReflectsPVCErrorEvent},
+		{"test when all sts replicas are ready", testEtcdStatusIsInSyncWithStatefulSetStatusWhenAllReplicasAreReady},
+		{"test when not all sts replicas are ready", testEtcdStatusIsInSyncWithStatefulSetStatusWhenNotAllReplicasAreReady},
+		{"test when sts current revision is older than update revision", testEtcdStatusIsInSyncWithStatefulSetStatusWhenCurrentRevisionIsOlderThanUpdateRevision},
+		/*
+			Additional tests to check the conditions and member status should be added when we solve https://github.com/gardener/etcd-druid/issues/645
+			Currently only one happy-state test has been added as a template for other tests to follow once the conditions are refactored.
+			Writing additional tests for member status and conditions would be a waste of time as they will have to be modified again.
+		*/
+	}
+
+	ctx := context.Background()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// --------------------------- create test namespace ---------------------------
+			testNs := createTestNamespaceName(t)
+			reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)
+			t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
+			// ---------------------------- create etcd instance --------------------------
+			etcdInstance := testutils.EtcdBuilderWithoutDefaults(testutils.TestEtcdName, testNs).
+				WithClientTLS().
+				WithPeerTLS().
+				WithReplicas(3).
+				WithAnnotations(map[string]string{
+					v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+				}).Build()
+			createAndAssertEtcdAndAllManagedResources(ctx, t, reconcilerTestEnv, etcdInstance)
+			test.fn(t, etcdInstance, reconcilerTestEnv)
+		})
+	}
+}
+
+func testConditionsAndMembersWhenAllMemberLeasesAreActive(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv) {
+	memberLeaseNames := etcd.GetMemberLeaseNames()
+	testNs := etcd.Namespace
+	clock := testclock.NewFakeClock(time.Now().Round(time.Second))
+	mlcs := []etcdMemberLeaseConfig{
+		{name: memberLeaseNames[0], memberID: generateRandomAlphanumericString(t, 8), role: druidv1alpha1.EtcdRoleMember, renewTime: &metav1.MicroTime{Time: clock.Now().Add(-time.Second * 30)}},
+		{name: memberLeaseNames[1], memberID: generateRandomAlphanumericString(t, 8), role: druidv1alpha1.EtcdRoleLeader, renewTime: &metav1.MicroTime{Time: clock.Now()}},
+		{name: memberLeaseNames[2], memberID: generateRandomAlphanumericString(t, 8), role: druidv1alpha1.EtcdRoleMember, renewTime: &metav1.MicroTime{Time: clock.Now().Add(-time.Second * 30)}},
+	}
+	updateMemberLeaseSpec(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
+	// ******************************* test etcd status update flow *******************************
+	expectedConditions := []druidv1alpha1.Condition{
+		{Type: druidv1alpha1.ConditionTypeReady, Status: druidv1alpha1.ConditionTrue},
+		{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionTrue},
+		{Type: druidv1alpha1.ConditionTypeDataVolumesReady, Status: druidv1alpha1.ConditionTrue},
+	}
+	cl := reconcilerTestEnv.itTestEnv.GetClient()
+	assertETCDStatusConditions(t, cl, client.ObjectKeyFromObject(etcd), expectedConditions, 2*time.Minute, 2*time.Second)
+	expectedMemberStatuses := []druidv1alpha1.EtcdMemberStatus{
+		{Name: mlcs[0].name, ID: pointer.String(mlcs[0].memberID), Role: &mlcs[0].role, Status: druidv1alpha1.EtcdMemberStatusReady},
+		{Name: mlcs[1].name, ID: pointer.String(mlcs[1].memberID), Role: &mlcs[1].role, Status: druidv1alpha1.EtcdMemberStatusReady},
+		{Name: mlcs[2].name, ID: pointer.String(mlcs[2].memberID), Role: &mlcs[2].role, Status: druidv1alpha1.EtcdMemberStatusReady},
+	}
+	assertETCDMemberStatuses(t, cl, client.ObjectKeyFromObject(etcd), expectedMemberStatuses, 2*time.Minute, 2*time.Second)
+}
+
+func testEtcdStatusReflectsPVCErrorEvent(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv) {
+	g := NewWithT(t)
+	testNs := etcd.Namespace
+	cl := reconcilerTestEnv.itTestEnv.GetClient()
+	ctx := context.Background()
+	sts := &appsv1.StatefulSet{}
+	g.Expect(cl.Get(ctx, client.ObjectKey{Name: etcd.Name, Namespace: testNs}, sts)).To(Succeed())
+	g.Expect(sts.Spec.VolumeClaimTemplates).To(HaveLen(1))
+	// create the pvcs
+	pvcs := createPVCs(ctx, t, cl, sts)
+	// create the pvc warning event for one of the pvc
+	targetPvc := pvcs[0]
+	targetPVName := fmt.Sprintf("pv-%s", generateRandomAlphanumericString(t, 16))
+	const eventReason = "FailedAttachVolume"
+	eventMessage := fmt.Sprintf("Multi-Attach error for volume %s. Volume is already exclusively attached to one node and can't be attached to another", targetPVName)
+	createPVCWarningEvent(ctx, t, cl, testNs, targetPvc.Name, eventReason, eventMessage)
+	// ******************************* test etcd status update flow *******************************
+	expectedConditions := []druidv1alpha1.Condition{
+		{Type: druidv1alpha1.ConditionTypeDataVolumesReady, Status: druidv1alpha1.ConditionFalse, Reason: eventReason, Message: eventMessage},
+	}
+	assertETCDStatusConditions(t, cl, client.ObjectKeyFromObject(etcd), expectedConditions, 5*time.Minute, 2*time.Second)
+}
+
+func testEtcdStatusIsInSyncWithStatefulSetStatusWhenAllReplicasAreReady(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv) {
+	g := NewWithT(t)
+	cl := reconcilerTestEnv.itTestEnv.GetClient()
+	ctx := reconcilerTestEnv.itTestEnv.GetContext()
+	sts := &appsv1.StatefulSet{}
+	g.Expect(cl.Get(ctx, client.ObjectKey{Name: etcd.Name, Namespace: etcd.Namespace}, sts)).To(Succeed())
+	stsCopy := sts.DeepCopy()
+	stsReplicas := *sts.Spec.Replicas
+	stsCopy.Status.ReadyReplicas = stsReplicas
+	stsCopy.Status.CurrentReplicas = stsReplicas
+	stsCopy.Status.Replicas = stsReplicas
+	stsCopy.Status.ObservedGeneration = stsCopy.Generation
+	stsCopy.Status.CurrentRevision = fmt.Sprintf("%s-%s", sts.Name, generateRandomAlphanumericString(t, 2))
+	stsCopy.Status.UpdateRevision = stsCopy.Status.CurrentRevision
+	stsCopy.Status.UpdatedReplicas = stsReplicas
+	g.Expect(cl.Status().Update(ctx, stsCopy)).To(Succeed())
+	// assert etcd status
+	assertETCDStatusFieldsDerivedFromStatefulSet(ctx, t, cl, client.ObjectKeyFromObject(etcd), client.ObjectKeyFromObject(stsCopy), 2*time.Minute, 2*time.Second, true)
+}
+
+func testEtcdStatusIsInSyncWithStatefulSetStatusWhenNotAllReplicasAreReady(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv) {
+	g := NewWithT(t)
+	cl := reconcilerTestEnv.itTestEnv.GetClient()
+	ctx := reconcilerTestEnv.itTestEnv.GetContext()
+	sts := &appsv1.StatefulSet{}
+	g.Expect(cl.Get(ctx, client.ObjectKey{Name: etcd.Name, Namespace: etcd.Namespace}, sts)).To(Succeed())
+	stsCopy := sts.DeepCopy()
+	stsReplicas := *sts.Spec.Replicas
+	stsCopy.Status.ReadyReplicas = stsReplicas - 1
+	stsCopy.Status.CurrentReplicas = stsReplicas
+	stsCopy.Status.Replicas = stsReplicas
+	stsCopy.Status.ObservedGeneration = stsCopy.Generation
+	stsCopy.Status.CurrentRevision = fmt.Sprintf("%s-%s", sts.Name, generateRandomAlphanumericString(t, 2))
+	stsCopy.Status.UpdateRevision = stsCopy.Status.CurrentRevision
+	stsCopy.Status.UpdatedReplicas = stsReplicas
+	g.Expect(cl.Status().Update(ctx, stsCopy)).To(Succeed())
+	// assert etcd status
+	assertETCDStatusFieldsDerivedFromStatefulSet(ctx, t, cl, client.ObjectKeyFromObject(etcd), client.ObjectKeyFromObject(stsCopy), 2*time.Minute, 2*time.Second, false)
+}
+
+func testEtcdStatusIsInSyncWithStatefulSetStatusWhenCurrentRevisionIsOlderThanUpdateRevision(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv) {
+	g := NewWithT(t)
+	cl := reconcilerTestEnv.itTestEnv.GetClient()
+	ctx := reconcilerTestEnv.itTestEnv.GetContext()
+	sts := &appsv1.StatefulSet{}
+	g.Expect(cl.Get(ctx, client.ObjectKey{Name: etcd.Name, Namespace: etcd.Namespace}, sts)).To(Succeed())
+	stsCopy := sts.DeepCopy()
+	stsReplicas := *sts.Spec.Replicas
+	stsCopy.Status.ReadyReplicas = stsReplicas
+	stsCopy.Status.CurrentReplicas = stsReplicas
+	stsCopy.Status.Replicas = stsReplicas
+	stsCopy.Status.ObservedGeneration = stsCopy.Generation
+	stsCopy.Status.CurrentRevision = fmt.Sprintf("%s-%s", sts.Name, generateRandomAlphanumericString(t, 2))
+	stsCopy.Status.UpdateRevision = fmt.Sprintf("%s-%s", sts.Name, generateRandomAlphanumericString(t, 2))
+	stsCopy.Status.UpdatedReplicas = stsReplicas - 1
+	g.Expect(cl.Status().Update(ctx, stsCopy)).To(Succeed())
+	// assert etcd status
+	assertETCDStatusFieldsDerivedFromStatefulSet(ctx, t, cl, client.ObjectKeyFromObject(etcd), client.ObjectKeyFromObject(stsCopy), 2*time.Minute, 2*time.Second, false)
+}
 
 // -------------------------  Helper functions  -------------------------
 func createTestNamespaceName(t *testing.T) string {
-	b := make([]byte, 4)
+	namespaceSuffix := generateRandomAlphanumericString(t, 4)
+	return fmt.Sprintf("%s-%s", testNamespacePrefix, namespaceSuffix)
+}
+
+func generateRandomAlphanumericString(t *testing.T, length int) string {
+	b := make([]byte, length)
 	_, err := rand.Read(b)
 	g := NewWithT(t)
 	g.Expect(err).ToNot(HaveOccurred())
-	namespaceSuffix := hex.EncodeToString(b)
-	return fmt.Sprintf("%s-%s", testNamespacePrefix, namespaceSuffix)
+	return hex.EncodeToString(b)
 }
 
 func initializeEtcdReconcilerTestEnv(t *testing.T, itTestEnv setup.IntegrationTestEnv, autoReconcile bool) ReconcilerTestEnv {
@@ -324,6 +469,10 @@ func initializeEtcdReconcilerTestEnv(t *testing.T, itTestEnv setup.IntegrationTe
 				FeatureGates: map[featuregate.Feature]bool{
 					features.UseEtcdWrapper: true,
 				},
+				EtcdMember: etcd.EtcdMemberConfig{
+					NotReadyThreshold: 5 * time.Minute,
+					UnknownThreshold:  1 * time.Minute,
+				},
 			}, assets.CreateImageVector(g))
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(reconciler.RegisterWithManager(mgr)).To(Succeed())
@@ -336,22 +485,89 @@ func initializeEtcdReconcilerTestEnv(t *testing.T, itTestEnv setup.IntegrationTe
 	}
 }
 
-func createEtcdInstanceWithFinalizer(ctx context.Context, t *testing.T, reconcilerTestEnv ReconcilerTestEnv, etcdInstance *druidv1alpha1.Etcd) {
+func createAndAssertEtcdAndAllManagedResources(ctx context.Context, t *testing.T, reconcilerTestEnv ReconcilerTestEnv, etcdInstance *druidv1alpha1.Etcd) {
 	g := NewWithT(t)
 	cl := reconcilerTestEnv.itTestEnv.GetClient()
 	// create etcdInstance resource
 	g.Expect(cl.Create(ctx, etcdInstance)).To(Succeed())
-	t.Logf("trigggered creation of etcd instance: %s, waiting for resources to be created...", etcdInstance.Name)
+	t.Logf("trigggered creation of etcd instance: {name: %s, namespace: %s}, waiting for resources to be created...", etcdInstance.Name, etcdInstance.Namespace)
 	// ascertain that all etcd resources are created
 	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 3*time.Minute, 2*time.Second)
-	t.Logf("successfully created all resources for etcd instance: %s", etcdInstance.Name)
+	t.Logf("successfully created all resources for etcd instance: {name: %s, namespace: %s}", etcdInstance.Name, etcdInstance.Namespace)
 	// add finalizer
 	addFinalizer(ctx, g, cl, client.ObjectKeyFromObject(etcdInstance))
-	t.Logf("successfully added finalizer to etcd instance: %s", etcdInstance.Name)
+	t.Logf("successfully added finalizer to etcd instance: {name: %s, namespace: %s}", etcdInstance.Name, etcdInstance.Namespace)
 }
 
 func addFinalizer(ctx context.Context, g *WithT, cl client.Client, etcdObjectKey client.ObjectKey) {
 	etcdInstance := &druidv1alpha1.Etcd{}
 	g.Expect(cl.Get(ctx, etcdObjectKey, etcdInstance)).To(Succeed())
 	g.Expect(controllerutils.AddFinalizers(ctx, cl, etcdInstance, common.FinalizerName)).To(Succeed())
+}
+
+type etcdMemberLeaseConfig struct {
+	name      string
+	memberID  string
+	role      druidv1alpha1.EtcdRole
+	renewTime *metav1.MicroTime
+}
+
+func updateMemberLeaseSpec(ctx context.Context, t *testing.T, cl client.Client, namespace string, memberLeaseConfigs []etcdMemberLeaseConfig) {
+	g := NewWithT(t)
+	for _, config := range memberLeaseConfigs {
+		lease := &coordinationv1.Lease{}
+		g.Expect(cl.Get(ctx, client.ObjectKey{Name: config.name, Namespace: namespace}, lease)).To(Succeed())
+		updatedLease := lease.DeepCopy()
+		updatedLease.Spec.HolderIdentity = pointer.String(fmt.Sprintf("%s:%s", config.memberID, config.role))
+		updatedLease.Spec.RenewTime = config.renewTime
+		g.Expect(cl.Update(ctx, updatedLease)).To(Succeed())
+		t.Logf("successfully updated member lease %s with holderIdentity: %s", config.name, *updatedLease.Spec.HolderIdentity)
+	}
+}
+
+func createPVCs(ctx context.Context, t *testing.T, cl client.Client, sts *appsv1.StatefulSet) []*corev1.PersistentVolumeClaim {
+	g := NewWithT(t)
+	pvcs := make([]*corev1.PersistentVolumeClaim, 0, int(*sts.Spec.Replicas))
+	volClaimName := sts.Spec.VolumeClaimTemplates[0].Name
+	for i := 0; i < int(*sts.Spec.Replicas); i++ {
+		pvc := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-%s-%d", volClaimName, sts.Name, i),
+				Namespace: sts.Namespace,
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("1Gi"),
+					},
+				},
+			},
+		}
+		g.Expect(cl.Create(ctx, pvc)).To(Succeed())
+		pvcs = append(pvcs, pvc)
+		t.Logf("successfully created pvc: %s", pvc.Name)
+	}
+	return pvcs
+}
+
+func createPVCWarningEvent(ctx context.Context, t *testing.T, cl client.Client, namespace, pvcName, reason, message string) {
+	g := NewWithT(t)
+	event := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: fmt.Sprintf("%s-event-", pvcName),
+			Namespace:    namespace,
+		},
+		InvolvedObject: corev1.ObjectReference{
+			Kind:       "PersistentVolumeClaim",
+			Name:       pvcName,
+			Namespace:  namespace,
+			APIVersion: "v1",
+		},
+		Reason:  reason,
+		Message: message,
+		Type:    corev1.EventTypeWarning,
+	}
+	g.Expect(cl.Create(ctx, event)).To(Succeed())
+	t.Logf("successfully created warning event for pvc: %s", pvcName)
 }

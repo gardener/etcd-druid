@@ -103,18 +103,21 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if result := r.getLatestEtcd(ctx, req.NamespacedName, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result.ReconcileResult()
 	}
-	reconcileFns := []reconcileFn{
-		r.reconcileEtcdDeletion,
-		r.reconcileSpec,
-		r.reconcileStatus,
-	}
-	// Execute the reconcile functions.
 	runID := uuid.New().String()
 	operatorCtx := component.NewOperatorContext(ctx, r.logger, runID)
-	for _, fn := range reconcileFns {
-		if result := fn(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
-			return result.ReconcileResult()
-		}
+	if result := r.reconcileEtcdDeletion(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result.ReconcileResult()
+	}
+	var reconcileSpecResult ctrlutils.ReconcileStepResult
+	if result := r.reconcileSpec(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
+		reconcileSpecResult = result
+	}
+
+	if result := r.reconcileStatus(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result.ReconcileResult()
+	}
+	if reconcileSpecResult.HasErrors() {
+		return reconcileSpecResult.ReconcileResult()
 	}
 	return ctrlutils.ReconcileAfter(r.config.EtcdStatusSyncPeriod, "Periodic Requeue").ReconcileResult()
 }

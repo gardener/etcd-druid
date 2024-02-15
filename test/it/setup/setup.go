@@ -30,6 +30,7 @@ type IntegrationTestEnv interface {
 	GetClient() client.Client
 	CreateTestNamespace(name string)
 	GetLogger() logr.Logger
+	GetContext() context.Context
 }
 
 type itTestEnv struct {
@@ -92,6 +93,10 @@ func (t *itTestEnv) CreateTestNamespace(name string) {
 
 func (t *itTestEnv) GetLogger() logr.Logger {
 	return t.logger
+}
+
+func (t *itTestEnv) GetContext() context.Context {
+	return t.ctx
 }
 
 func (t *itTestEnv) prepareScheme() *k8sruntime.Scheme {
