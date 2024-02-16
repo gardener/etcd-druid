@@ -80,6 +80,9 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 	case batchv1.SchemeGroupVersion.WithKind("Job").GroupKind():
 		obj, err = h.decodeJob(req, decodeOldObject)
 	case coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind():
+		if req.Operation == admissionv1.Update {
+			return admission.Allowed("lease resource can be freely updated")
+		}
 		obj, err = h.decodeLease(req, decodeOldObject)
 	default:
 		return admission.Allowed(fmt.Sprintf("unexpected resource type: %s", requestGK))
