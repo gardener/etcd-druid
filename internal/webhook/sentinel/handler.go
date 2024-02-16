@@ -55,7 +55,7 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		err             error
 	)
 
-	log := h.logger.WithValues("resourceKind", req.Kind.Kind, "name", req.Name, "namespace", req.Namespace, "operation", req.Operation, "user", req.UserInfo.Username)
+	log := h.logger.WithValues("resourceGroup", req.Kind.Group, "resourceKind", req.Kind.Kind, "name", req.Name, "namespace", req.Namespace, "operation", req.Operation, "user", req.UserInfo.Username)
 	log.Info("Sentinel webhook invoked")
 
 	if req.Operation == admissionv1.Delete {
@@ -111,13 +111,13 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		return admission.Allowed(fmt.Sprintf("changes allowed, since etcd %s has annotation %s: false", etcd.Name, druidv1alpha1.ResourceProtectionAnnotation))
 	}
 
-	// allow operations on resources if any etcd operation is currently under processing, but only by etcd-druid,
-	// and allow exempt service accounts to make changes to resources, but only if etcd is not currently under processing.
-	if etcd.IsBeingProcessed() {
+	// allow operations on resources if any etcd operation is currently being reconciled, but only by etcd-druid,
+	// and allow exempt service accounts to make changes to resources, but only if etcd is not currently being reconciled.
+	if etcd.IsReconciliationInProgress() {
 		if req.UserInfo.Username == h.config.ReconcilerServiceAccount {
-			return admission.Allowed(fmt.Sprintf("ongoing processing of etcd %s by etcd-druid requires changes to resources", etcd.Name))
+			return admission.Allowed(fmt.Sprintf("ongoing reconciliation of etcd %s by etcd-druid requires changes to resources", etcd.Name))
 		}
-		return admission.Denied(fmt.Sprintf("no external intervention allowed during ongoing processing of etcd %s by etcd-druid", etcd.Name))
+		return admission.Denied(fmt.Sprintf("no external intervention allowed during ongoing reconciliation of etcd %s by etcd-druid", etcd.Name))
 	} else {
 		for _, sa := range h.config.ExemptServiceAccounts {
 			if req.UserInfo.Username == sa {

@@ -589,11 +589,15 @@ func (e *Etcd) GetSuspendEtcdSpecReconcileAnnotationKey() *string {
 	return nil
 }
 
+// IsReconciliationSuspended returns true if the etcd resource has the annotation set to suspend spec reconciliation,
+// else returns false.
 func (e *Etcd) IsReconciliationSuspended() bool {
 	suspendReconcileAnnotKey := e.GetSuspendEtcdSpecReconcileAnnotationKey()
 	return suspendReconcileAnnotKey != nil && metav1.HasAnnotation(e.ObjectMeta, *suspendReconcileAnnotKey)
 }
 
+// AreManagedResourcesProtected returns true if the etcd resource has the resource protection annotation set to true,
+// else returns false.
 func (e *Etcd) AreManagedResourcesProtected() bool {
 	if metav1.HasAnnotation(e.ObjectMeta, ResourceProtectionAnnotation) {
 		return e.GetAnnotations()[ResourceProtectionAnnotation] != "false"
@@ -601,7 +605,8 @@ func (e *Etcd) AreManagedResourcesProtected() bool {
 	return true
 }
 
-func (e *Etcd) IsBeingProcessed() bool {
+// IsReconciliationInProgress returns true if the etcd resource is currently being reconciled, else returns false.
+func (e *Etcd) IsReconciliationInProgress() bool {
 	return e.Status.LastOperation != nil &&
 		(e.Status.LastOperation.State == LastOperationStateProcessing ||
 			e.Status.LastOperation.State == LastOperationStateError)

@@ -233,13 +233,13 @@ var _ = Describe("Etcd", func() {
 		})
 	})
 
-	Context("IsBeingProcessed", func() {
+	Context("IsReconciliationInProgress", func() {
 		Context("when etcd status has lastOperation and its state is Processing", func() {
 			It("should return true", func() {
 				etcd.Status.LastOperation = &LastOperation{
 					State: LastOperationStateProcessing,
 				}
-				Expect(etcd.IsBeingProcessed()).To(Equal(true))
+				Expect(etcd.IsReconciliationInProgress()).To(Equal(true))
 			})
 		})
 		Context("when etcd status has lastOperation and its state is Error", func() {
@@ -247,7 +247,7 @@ var _ = Describe("Etcd", func() {
 				etcd.Status.LastOperation = &LastOperation{
 					State: LastOperationStateError,
 				}
-				Expect(etcd.IsBeingProcessed()).To(Equal(true))
+				Expect(etcd.IsReconciliationInProgress()).To(Equal(true))
 			})
 		})
 		Context("when etcd status has lastOperation and its state is neither Processing or Error", func() {
@@ -255,12 +255,12 @@ var _ = Describe("Etcd", func() {
 				etcd.Status.LastOperation = &LastOperation{
 					State: LastOperationStateSucceeded,
 				}
-				Expect(etcd.IsBeingProcessed()).To(Equal(false))
+				Expect(etcd.IsReconciliationInProgress()).To(Equal(false))
 			})
 		})
 		Context("when etcd status does not have lastOperation populated", func() {
 			It("should return false", func() {
-				Expect(etcd.IsBeingProcessed()).To(Equal(false))
+				Expect(etcd.IsReconciliationInProgress()).To(Equal(false))
 			})
 		})
 	})
