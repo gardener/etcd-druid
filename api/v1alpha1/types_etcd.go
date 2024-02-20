@@ -208,6 +208,9 @@ type EtcdConfig struct {
 	// Quota defines the etcd DB quota.
 	// +optional
 	Quota *resource.Quantity `json:"quota,omitempty"`
+	// SnapshotCount defines the number of committed transactions before a snapshot is created.
+	// +optional
+	SnapshotCount *int `json:"snapshotCount,omitempty"`
 	// DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd.
 	// +optional
 	DefragmentationSchedule *string `json:"defragmentationSchedule,omitempty"`

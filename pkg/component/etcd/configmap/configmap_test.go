@@ -205,7 +205,7 @@ func checkConfigMap(cm *corev1.ConfigMap, values *Values, namespace string) {
 		"name":                Equal(fmt.Sprintf("etcd-%s", values.EtcdUID[:6])),
 		"data-dir":            Equal("/var/etcd/data/new.etcd"),
 		"metrics":             Equal(string(druidv1alpha1.Basic)),
-		"snapshot-count":      Equal(float64(75000)),
+		"snapshot-count":      Equal(float64(*values.SnapshotCount)),
 		"enable-v2":           Equal(false),
 		"quota-backend-bytes": Equal(float64(values.Quota.Value())),
 

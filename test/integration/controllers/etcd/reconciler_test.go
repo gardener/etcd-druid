@@ -63,6 +63,7 @@ var (
 	clientPort              int32 = 2379
 	serverPort              int32 = 2380
 	backupPort              int32 = 8080
+	snapshotCount                 = 75000
 	defaultStorageCapacity        = resource.MustParse("16Gi")
 	deltaSnapShotMemLimit         = resource.MustParse("100Mi")
 	autoCompactionMode            = druidv1alpha1.Periodic
@@ -533,7 +534,7 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 		"name":                        Equal(fmt.Sprintf("etcd-%s", instance.UID[:6])),
 		"data-dir":                    Equal("/var/etcd/data/new.etcd"),
 		"metrics":                     Equal(string(druidv1alpha1.Basic)),
-		"snapshot-count":              Equal(float64(75000)),
+		"snapshot-count":              Equal(float64(snapshotCount)),
 		"enable-v2":                   Equal(false),
 		"quota-backend-bytes":         Equal(float64(8589934592)),
 		"listen-client-urls":          Equal(fmt.Sprintf("http://0.0.0.0:%d", clientPort)),
@@ -869,7 +870,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 		"name":                Equal(fmt.Sprintf("etcd-%s", instance.UID[:6])),
 		"data-dir":            Equal("/var/etcd/data/new.etcd"),
 		"metrics":             Equal(string(*instance.Spec.Etcd.Metrics)),
-		"snapshot-count":      Equal(float64(75000)),
+		"snapshot-count":      Equal(float64(snapshotCount)),
 		"enable-v2":           Equal(false),
 		"quota-backend-bytes": Equal(float64(instance.Spec.Etcd.Quota.Value())),
 

@@ -40,6 +40,7 @@ var (
 	clientPort              int32 = 2379
 	serverPort              int32 = 2380
 	backupPort              int32 = 8080
+	snapshotCount                 = 75000
 	imageEtcd                     = "europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper:v0.1.0"
 	imageBR                       = "europe-docker.pkg.dev/gardener-project/public/gardener/etcdbrctl:v0.25.0"
 	snapshotSchedule              = "0 */24 * * *"
@@ -351,8 +352,9 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 						"memory": ParseQuantity("1000Mi"),
 					},
 				},
-				ClientPort: &clientPort,
-				ServerPort: &serverPort,
+				ClientPort:    &clientPort,
+				ServerPort:    &serverPort,
+				SnapshotCount: &snapshotCount,
 			},
 			Common: druidv1alpha1.SharedConfig{
 				AutoCompactionMode:      &autoCompactionMode,

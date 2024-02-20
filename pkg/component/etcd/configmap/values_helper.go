@@ -31,6 +31,7 @@ func GenerateValues(etcd *druidv1alpha1.Etcd) *Values {
 		EtcdUID:                 etcd.UID,
 		Metrics:                 etcd.Spec.Etcd.Metrics,
 		Quota:                   etcd.Spec.Etcd.Quota,
+		SnapshotCount:           etcd.Spec.Etcd.SnapshotCount,
 		InitialCluster:          initialCluster,
 		ClientUrlTLS:            etcd.Spec.Etcd.ClientUrlTLS,
 		PeerUrlTLS:              etcd.Spec.Etcd.PeerUrlTLS,

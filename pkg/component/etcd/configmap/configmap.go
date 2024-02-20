@@ -86,7 +86,7 @@ func (c *component) syncConfigmap(ctx context.Context, cm *corev1.ConfigMap) err
 		Name:                    fmt.Sprintf("etcd-%s", c.values.EtcdUID[:6]),
 		DataDir:                 "/var/etcd/data/new.etcd",
 		Metrics:                 string(druidv1alpha1.Basic),
-		SnapshotCount:           defaultSnapshotCount,
+		SnapshotCount:           pointer.IntDeref(c.values.SnapshotCount, defaultSnapshotCount),
 		EnableV2:                false,
 		QuotaBackendBytes:       quota,
 		InitialClusterToken:     defaultInitialClusterToken,
