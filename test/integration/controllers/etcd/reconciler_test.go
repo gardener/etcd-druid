@@ -538,9 +538,9 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 		"enable-v2":                   Equal(false),
 		"quota-backend-bytes":         Equal(float64(8589934592)),
 		"listen-client-urls":          Equal(fmt.Sprintf("http://0.0.0.0:%d", clientPort)),
-		"advertise-client-urls":       Equal(fmt.Sprintf("%s@%s@%s@%d", "http", prSvc.Name, instance.Namespace, clientPort)),
+		"advertise-client-urls":       Equal(fmt.Sprintf("%s://%s.%s:%d", "http", prSvc.Name, instance.Namespace, clientPort)),
 		"listen-peer-urls":            Equal(fmt.Sprintf("http://0.0.0.0:%d", serverPort)),
-		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "http", prSvc.Name, instance.Namespace, serverPort)),
+		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s://%s.%s:%d", "http", prSvc.Name, instance.Namespace, serverPort)),
 		"initial-cluster-token":       Equal("etcd-cluster"),
 		"initial-cluster-state":       Equal("new"),
 		"auto-compaction-mode":        Equal(string(druidv1alpha1.Periodic)),
@@ -882,7 +882,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"auto-tls":         Equal(false),
 		}),
 		"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", *instance.Spec.Etcd.ClientPort)),
-		"advertise-client-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "https", prSvc.Name, instance.Namespace, *instance.Spec.Etcd.ClientPort)),
+		"advertise-client-urls": Equal(fmt.Sprintf("%s://%s.%s:%d", "https", prSvc.Name, instance.Namespace, *instance.Spec.Etcd.ClientPort)),
 
 		"peer-transport-security": MatchKeys(IgnoreExtras, Keys{
 			"cert-file":        Equal("/var/etcd/ssl/peer/server/tls.crt"),
@@ -892,7 +892,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"auto-tls":         Equal(false),
 		}),
 		"listen-peer-urls":            Equal(fmt.Sprintf("https://0.0.0.0:%d", *instance.Spec.Etcd.ServerPort)),
-		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "https", prSvc.Name, instance.Namespace, *instance.Spec.Etcd.ServerPort)),
+		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s://%s.%s:%d", "https", prSvc.Name, instance.Namespace, *instance.Spec.Etcd.ServerPort)),
 
 		"initial-cluster-token":     Equal("etcd-cluster"),
 		"initial-cluster-state":     Equal("new"),

@@ -217,7 +217,7 @@ func checkConfigMap(cm *corev1.ConfigMap, values *Values, namespace string) {
 			"auto-tls":         Equal(false),
 		}),
 		"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", *values.ClientPort)),
-		"advertise-client-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "https", values.PeerServiceName, namespace, *values.ClientPort)),
+		"advertise-client-urls": Equal(fmt.Sprintf("%s://%s.%s:%d", "https", values.PeerServiceName, namespace, *values.ClientPort)),
 
 		"peer-transport-security": MatchKeys(IgnoreExtras, Keys{
 			"cert-file":        Equal("/var/etcd/ssl/peer/server/tls.crt"),
@@ -227,7 +227,7 @@ func checkConfigMap(cm *corev1.ConfigMap, values *Values, namespace string) {
 			"auto-tls":         Equal(false),
 		}),
 		"listen-peer-urls":            Equal(fmt.Sprintf("https://0.0.0.0:%d", *values.ServerPort)),
-		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "https", values.PeerServiceName, namespace, *values.ServerPort)),
+		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s://%s.%s:%d", "https", values.PeerServiceName, namespace, *values.ServerPort)),
 
 		"initial-cluster-token":     Equal("etcd-cluster"),
 		"initial-cluster-state":     Equal("new"),

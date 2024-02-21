@@ -97,8 +97,8 @@ func (c *component) syncConfigmap(ctx context.Context, cm *corev1.ConfigMap) err
 
 		ListenPeerUrls:      fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, pointer.Int32Deref(c.values.ServerPort, defaultServerPort)),
 		ListenClientUrls:    fmt.Sprintf("%s://0.0.0.0:%d", clientScheme, pointer.Int32Deref(c.values.ClientPort, defaultClientPort)),
-		AdvertisePeerUrls:   fmt.Sprintf("%s@%s@%s@%d", peerScheme, c.values.PeerServiceName, c.namespace, pointer.Int32Deref(c.values.ServerPort, defaultServerPort)),
-		AdvertiseClientUrls: fmt.Sprintf("%s@%s@%s@%d", clientScheme, c.values.PeerServiceName, c.namespace, pointer.Int32Deref(c.values.ClientPort, defaultClientPort)),
+		AdvertisePeerUrls:   fmt.Sprintf("%s://%s.%s:%d", peerScheme, c.values.PeerServiceName, c.namespace, pointer.Int32Deref(c.values.ServerPort, defaultServerPort)),
+		AdvertiseClientUrls: fmt.Sprintf("%s://%s.%s:%d", clientScheme, c.values.PeerServiceName, c.namespace, pointer.Int32Deref(c.values.ClientPort, defaultClientPort)),
 	}
 
 	if clientSecurity != nil {
