@@ -1,31 +1,25 @@
 #!/usr/bin/env bash
-# Copyright 2023 SAP SE or an SAP affiliate company
+#  SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company and Gardener contributors
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+#  SPDX-License-Identifier: Apache-2.0
 
 
 set -e
 
 echo "> Adding Apache License header to all go files where it is not present"
 
-# Uses the tool https://github.com/google/addlicense
-YEAR=$1
-if [[ -z "$1" ]]; then
-  cat << EOF
-Unspecified 'YEAR' argument.
-Usage: addlicenceheaders.sh <YEAR>
-EOF
-  exit 1
-fi
+# addlicence with a license file (parameter -f) expects no comments in the file.
+# boilerplate.go.txt is however also used also when generating go code.
+# Therefore we remove '//' from boilerplate.go.txt here before passing it to addlicense.
 
-addlicense -v -c "SAP SE or an SAP affiliate company" -y "${YEAR}" -l apache -ignore "vendor/**" -ignore "**/*.md" -ignore "**/*.yaml" -ignore "**/Dockerfile" .
+temp_file=$(mktemp)
+trap "rm -f $temp_file" EXIT
+sed 's|^// *||' hack/boilerplate.go.txt > $temp_file
+
+addlicense \
+  -f $temp_file \
+  -ignore "vendor/**" \
+  -ignore "**/*.md" \
+  -ignore "**/*.yaml" \
+  -ignore "**/Dockerfile" \
+  .
