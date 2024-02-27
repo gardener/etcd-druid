@@ -48,6 +48,11 @@ func New(c client.Client, namespace string, values *Values) gardenercomponent.De
 }
 
 func (c *component) Deploy(ctx context.Context) error {
+	// Fetch and delete the old configmap if it exists
+	oldConfigMap := c.getOldConfigmap()
+	if err := c.deleteConfigmap(ctx, oldConfigMap); err != nil {
+		return err
+	}
 	cm := c.emptyConfigmap()
 	return c.syncConfigmap(ctx, cm)
 }
@@ -143,6 +148,15 @@ func (c *component) emptyConfigmap() *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      c.values.Name,
+			Namespace: c.namespace,
+		},
+	}
+}
+
+func (c *component) getOldConfigmap() *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("etcd-bootstrap-%s", string(c.values.EtcdUID[:6])),
 			Namespace: c.namespace,
 		},
 	}

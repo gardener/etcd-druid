@@ -30,7 +30,7 @@ func ConfigMapIsCorrectlyReconciled(c client.Client, timeout time.Duration, inst
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	req := types.NamespacedName{
-		Name:      fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6])),
+		Name:      fmt.Sprintf("%s-bootstrap-%s", instance.Name, string(instance.UID[:6])),
 		Namespace: instance.Namespace,
 	}
 

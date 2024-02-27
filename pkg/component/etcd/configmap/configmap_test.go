@@ -54,6 +54,7 @@ var _ = Describe("Configmap", func() {
 		metricsLevel            druidv1alpha1.MetricsLevel
 		quota                   resource.Quantity
 		clientPort, serverPort  int32
+		snapshotCount           int
 		autoCompactionMode      druidv1alpha1.CompactionMode
 		autoCompactionRetention string
 		labels                  map[string]string
@@ -76,6 +77,7 @@ var _ = Describe("Configmap", func() {
 		quota = resource.MustParse("8Gi")
 		clientPort = 2222
 		serverPort = 3333
+		snapshotCount = 75000
 		autoCompactionMode = "periodic"
 		autoCompactionRetention = "30m"
 
@@ -122,8 +124,9 @@ var _ = Describe("Configmap", func() {
 							Name: "peer-url-etcd-server-tls",
 						},
 					},
-					ClientPort: &clientPort,
-					ServerPort: &serverPort,
+					ClientPort:    &clientPort,
+					ServerPort:    &serverPort,
+					SnapshotCount: &snapshotCount,
 				},
 				Common: druidv1alpha1.SharedConfig{
 					AutoCompactionMode:      &autoCompactionMode,
@@ -136,7 +139,7 @@ var _ = Describe("Configmap", func() {
 
 		cm = &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("etcd-bootstrap-%s", string(values.EtcdUID[:6])),
+				Name:      fmt.Sprintf("%s-bootstrap-%s", etcd.Name, string(values.EtcdUID[:6])),
 				Namespace: namespace,
 			},
 		}

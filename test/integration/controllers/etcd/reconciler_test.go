@@ -782,7 +782,7 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"ConfigMap": PointTo(MatchFields(IgnoreExtras, Fields{
 									"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-										"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
+										"Name": Equal(fmt.Sprintf("%s-bootstrap-%s", instance.Name, string(instance.UID[:6]))),
 									}),
 									"DefaultMode": PointTo(Equal(int32(0644))),
 									"Items": MatchAllElements(testutils.KeyIterator, Elements{
@@ -847,7 +847,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 
 	Expect(*cm).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
+			"Name":      Equal(fmt.Sprintf("%s-bootstrap-%s", instance.Name, string(instance.UID[:6]))),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
@@ -1190,7 +1190,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"ConfigMap": PointTo(MatchFields(IgnoreExtras, Fields{
 									"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-										"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
+										"Name": Equal(fmt.Sprintf("%s-bootstrap-%s", instance.Name, string(instance.UID[:6]))),
 									}),
 									"DefaultMode": PointTo(Equal(int32(0644))),
 									"Items": MatchAllElements(testutils.KeyIterator, Elements{

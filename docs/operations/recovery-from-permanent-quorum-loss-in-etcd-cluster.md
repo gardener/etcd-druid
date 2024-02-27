@@ -28,7 +28,7 @@ There are two [Etcd clusters](https://github.com/gardener/etcd-druid/tree/master
      Volumes:
       etcd-config-file:
        Type:      ConfigMap (a volume populated by a ConfigMap)
-       Name:      etcd-bootstrap-4785b0
+       Name:      etcd-main-bootstrap-4785b0
        Optional:  false
    ```
 
@@ -63,7 +63,7 @@ There are two [Etcd clusters](https://github.com/gardener/etcd-druid/tree/master
 
       Delete all `etcd-main` member leases.
 
-   6. Edit the `etcd-main` cluster's configmap (ex: `etcd-bootstrap-4785b0`) as follows:
+   6. Edit the `etcd-main` cluster's configmap (ex: `etcd-main-bootstrap-4785b0`) as follows:
 
       Find the `initial-cluster` field in the configmap. It will look like the following:
       ```
