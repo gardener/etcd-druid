@@ -289,7 +289,7 @@ type QuorumLossRecoveryTaskConfig struct {
 2. On demand full/delta snapshots
 
 ```go
-// +kubebuilder:validation:Enum=full;delta
+// snapshotType can be full or delta snapshot
 snapshotType string `json:"snapshotType"`
 
 type OnDemandSnapshotTaskConfig struct {
@@ -302,14 +302,12 @@ type OnDemandSnapshotTaskConfig struct {
 
 ```go
 type OnDemandMaintenanceTaskConfig struct {
-  // MaintenanceType defines the maintenance operations of etcd cluster.
+  // MaintenanceType defines the maintenance operations need to be perform on etcd cluster.
   MaintenanceType maintenanceOps
 }
 
 type maintenanceOps struct {
-  // +kubebuilder:validation:bool
   EtcdCompaction *bool `json:"etcd-compaction,omitempty"`
-  // +kubebuilder:validation:bool
   EtcdDefragmentation *bool `json:"defragmentation,omitempty"`
 }
 ```
