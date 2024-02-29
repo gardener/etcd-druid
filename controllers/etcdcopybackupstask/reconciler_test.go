@@ -621,7 +621,8 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 						Expect(volumeSource).NotTo(BeNil())
 						Expect(volumeSource.Secret).NotTo(BeNil())
 						Expect(*volumeSource.Secret).To(Equal(corev1.SecretVolumeSource{
-							SecretName: store.SecretRef.Name,
+							SecretName:  store.SecretRef.Name,
+							DefaultMode: pointer.Int32(0640),
 						}))
 					})
 
