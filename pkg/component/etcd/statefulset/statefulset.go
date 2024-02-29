@@ -29,7 +29,6 @@ import (
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/flow"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
-	"github.com/gardener/gardener/pkg/utils/retry"
 	gardenerretry "github.com/gardener/gardener/pkg/utils/retry"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -190,12 +189,12 @@ func (c *component) WaitCleanup(ctx context.Context) error {
 		err = c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts)
 		switch {
 		case apierrors.IsNotFound(err):
-			return retry.Ok()
+			return gardenerretry.Ok()
 		case err == nil:
 			// StatefulSet is still available, so we should retry.
 			return false, nil
 		default:
-			return retry.SevereError(err)
+			return gardenerretry.SevereError(err)
 		}
 	})
 }
@@ -537,6 +536,7 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 				RunAsGroup:   pointer.Int64(65532),
 				RunAsNonRoot: pointer.Bool(true),
 				RunAsUser:    pointer.Int64(65532),
+				FSGroup:      pointer.Int64(65532),
 			}
 		}
 
@@ -808,7 +808,7 @@ func getVolumes(ctx context.Context, cl client.Client, logger logr.Logger, val V
 							Path: "etcd.conf.yaml",
 						},
 					},
-					DefaultMode: pointer.Int32(0644),
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		},
@@ -819,7 +819,8 @@ func getVolumes(ctx context.Context, cl client.Client, logger logr.Logger, val V
 			Name: "client-url-ca-etcd",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: val.ClientUrlTLS.TLSCASecretRef.Name,
+					SecretName:  val.ClientUrlTLS.TLSCASecretRef.Name,
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		},
@@ -827,7 +828,8 @@ func getVolumes(ctx context.Context, cl client.Client, logger logr.Logger, val V
 				Name: "client-url-etcd-server-tls",
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
-						SecretName: val.ClientUrlTLS.ServerTLSSecretRef.Name,
+						SecretName:  val.ClientUrlTLS.ServerTLSSecretRef.Name,
+						DefaultMode: pointer.Int32(0640),
 					},
 				},
 			},
@@ -835,7 +837,8 @@ func getVolumes(ctx context.Context, cl client.Client, logger logr.Logger, val V
 				Name: "client-url-etcd-client-tls",
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
-						SecretName: val.ClientUrlTLS.ClientTLSSecretRef.Name,
+						SecretName:  val.ClientUrlTLS.ClientTLSSecretRef.Name,
+						DefaultMode: pointer.Int32(0640),
 					},
 				},
 			})
@@ -846,7 +849,8 @@ func getVolumes(ctx context.Context, cl client.Client, logger logr.Logger, val V
 			Name: "peer-url-ca-etcd",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: val.PeerUrlTLS.TLSCASecretRef.Name,
+					SecretName:  val.PeerUrlTLS.TLSCASecretRef.Name,
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		},
@@ -854,7 +858,8 @@ func getVolumes(ctx context.Context, cl client.Client, logger logr.Logger, val V
 				Name: "peer-url-etcd-server-tls",
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
-						SecretName: val.PeerUrlTLS.ServerTLSSecretRef.Name,
+						SecretName:  val.PeerUrlTLS.ServerTLSSecretRef.Name,
+						DefaultMode: pointer.Int32(0640),
 					},
 				},
 			})
@@ -896,7 +901,8 @@ func getVolumes(ctx context.Context, cl client.Client, logger logr.Logger, val V
 			Name: "etcd-backup",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: storeValues.SecretRef.Name,
+					SecretName:  storeValues.SecretRef.Name,
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		})
