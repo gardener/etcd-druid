@@ -282,6 +282,8 @@ type EtcdOperatorTasksSpec struct {
 
 ```go
 type QuorumLossRecoveryTaskConfig struct {
+  metav1.TypeMeta
+
   // Total number of etcd cluster replicas.
   Replicas int32 `json:"replicas"`
 }
@@ -294,6 +296,8 @@ type QuorumLossRecoveryTaskConfig struct {
 snapshotType string `json:"snapshotType"`
 
 type OnDemandSnapshotTaskConfig struct {
+  metav1.TypeMeta
+
   // Type of on-demand snapshot.
   SnapshotType snapshotType `json:"snapshotType"`
 }
@@ -303,6 +307,8 @@ type OnDemandSnapshotTaskConfig struct {
 
 ```go
 type OnDemandMaintenanceTaskConfig struct {
+  metav1.TypeMeta
+
   // MaintenanceType defines the maintenance operations need to be perform on etcd cluster.
   MaintenanceType maintenanceOps
 }
