@@ -162,6 +162,10 @@ spec:
                     description: EtcdSnapshotTimeout defines the timeout duration
                       for etcd FullSnapshot operation
                     type: string
+                  fullSnapshotLeaseUpdateInterval:
+                    description: FullSnapshotLeaseUpdateInterval defines the interval
+                      for retrying to update the full snapshot lease.
+                    type: string
                   fullSnapshotSchedule:
                     description: FullSnapshotSchedule defines the cron standard schedule
                       for full snapshots.

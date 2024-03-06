@@ -68,8 +68,9 @@ func GenerateValues(
 
 		VolumeClaimTemplateName: volumeClaimTemplateName,
 
-		FullSnapLeaseName:  etcd.GetFullSnapshotLeaseName(),
-		DeltaSnapLeaseName: etcd.GetDeltaSnapshotLeaseName(),
+		FullSnapLeaseName:               etcd.GetFullSnapshotLeaseName(),
+		DeltaSnapLeaseName:              etcd.GetDeltaSnapshotLeaseName(),
+		FullSnapshotLeaseUpdateInterval: etcd.Spec.Backup.FullSnapshotLeaseUpdateInterval,
 
 		StorageCapacity: etcd.Spec.StorageCapacity,
 		StorageClass:    etcd.Spec.StorageClass,
@@ -208,6 +209,9 @@ func getBackupRestoreCommandArgs(val Values) ([]string, error) {
 		command = append(command, "--enable-snapshot-lease-renewal=true")
 		command = append(command, "--delta-snapshot-lease-name="+val.DeltaSnapLeaseName)
 		command = append(command, "--full-snapshot-lease-name="+val.FullSnapLeaseName)
+		if val.FullSnapshotLeaseUpdateInterval != nil {
+			command = append(command, "--full-snapshot-lease-update-interval="+val.FullSnapshotLeaseUpdateInterval.Duration.String())
+		}
 	}
 
 	if val.DefragmentationSchedule != nil {
