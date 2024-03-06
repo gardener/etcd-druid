@@ -44,6 +44,7 @@ var _ = Describe("Configmap", func() {
 		metricsLevel            druidv1alpha1.MetricsLevel
 		quota                   resource.Quantity
 		clientPort, serverPort  int32
+		snapshotCount           int
 		autoCompactionMode      druidv1alpha1.CompactionMode
 		autoCompactionRetention string
 		labels                  map[string]string
@@ -66,6 +67,7 @@ var _ = Describe("Configmap", func() {
 		quota = resource.MustParse("8Gi")
 		clientPort = 2222
 		serverPort = 3333
+		snapshotCount = 75000
 		autoCompactionMode = "periodic"
 		autoCompactionRetention = "30m"
 
@@ -112,8 +114,9 @@ var _ = Describe("Configmap", func() {
 							Name: "peer-url-etcd-server-tls",
 						},
 					},
-					ClientPort: &clientPort,
-					ServerPort: &serverPort,
+					ClientPort:    &clientPort,
+					ServerPort:    &serverPort,
+					SnapshotCount: &snapshotCount,
 				},
 				Common: druidv1alpha1.SharedConfig{
 					AutoCompactionMode:      &autoCompactionMode,
@@ -126,7 +129,7 @@ var _ = Describe("Configmap", func() {
 
 		cm = &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("etcd-bootstrap-%s", string(values.EtcdUID[:6])),
+				Name:      fmt.Sprintf("%s-bootstrap-%s", etcd.Name, string(values.EtcdUID[:6])),
 				Namespace: namespace,
 			},
 		}
@@ -195,7 +198,7 @@ func checkConfigMap(cm *corev1.ConfigMap, values *Values, namespace string) {
 		"name":                Equal(fmt.Sprintf("etcd-%s", values.EtcdUID[:6])),
 		"data-dir":            Equal("/var/etcd/data/new.etcd"),
 		"metrics":             Equal(string(druidv1alpha1.Basic)),
-		"snapshot-count":      Equal(float64(75000)),
+		"snapshot-count":      Equal(float64(*values.SnapshotCount)),
 		"enable-v2":           Equal(false),
 		"quota-backend-bytes": Equal(float64(values.Quota.Value())),
 
@@ -207,7 +210,7 @@ func checkConfigMap(cm *corev1.ConfigMap, values *Values, namespace string) {
 			"auto-tls":         Equal(false),
 		}),
 		"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", *values.ClientPort)),
-		"advertise-client-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "https", values.PeerServiceName, namespace, *values.ClientPort)),
+		"advertise-client-urls": Equal(fmt.Sprintf("%s://%s.%s:%d", "https", values.PeerServiceName, namespace, *values.ClientPort)),
 
 		"peer-transport-security": MatchKeys(IgnoreExtras, Keys{
 			"cert-file":        Equal("/var/etcd/ssl/peer/server/tls.crt"),
@@ -217,7 +220,7 @@ func checkConfigMap(cm *corev1.ConfigMap, values *Values, namespace string) {
 			"auto-tls":         Equal(false),
 		}),
 		"listen-peer-urls":            Equal(fmt.Sprintf("https://0.0.0.0:%d", *values.ServerPort)),
-		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "https", values.PeerServiceName, namespace, *values.ServerPort)),
+		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s://%s.%s:%d", "https", values.PeerServiceName, namespace, *values.ServerPort)),
 
 		"initial-cluster-token":     Equal("etcd-cluster"),
 		"initial-cluster-state":     Equal("new"),

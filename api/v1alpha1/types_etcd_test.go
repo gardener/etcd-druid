@@ -77,7 +77,7 @@ var _ = Describe("Etcd", func() {
 
 	Context("GetConfigmapName", func() {
 		It("should return the correct configmap name", func() {
-			Expect(created.GetConfigmapName()).To(Equal("etcd-bootstrap-123456"))
+			Expect(created.GetConfigmapName()).To(Equal(created.Name + "-bootstrap-123456"))
 		})
 	})
 
@@ -144,10 +144,11 @@ var _ = Describe("Etcd", func() {
 
 func getEtcd(name, namespace string) *Etcd {
 	var (
-		clientPort  int32        = 2379
-		serverPort  int32        = 2380
-		backupPort  int32        = 8080
-		metricLevel MetricsLevel = Basic
+		clientPort    int32        = 2379
+		serverPort    int32        = 2380
+		backupPort    int32        = 8080
+		snapshotCount              = 75000
+		metricLevel   MetricsLevel = Basic
 	)
 
 	garbageCollectionPeriod := metav1.Duration{
@@ -264,10 +265,11 @@ func getEtcd(name, namespace string) *Etcd {
 						"memory": testutils.ParseQuantity("1000Mi"),
 					},
 				},
-				ClientPort:   &clientPort,
-				ServerPort:   &serverPort,
-				ClientUrlTLS: clientTlsConfig,
-				PeerUrlTLS:   peerTlsConfig,
+				ClientPort:    &clientPort,
+				ServerPort:    &serverPort,
+				SnapshotCount: &snapshotCount,
+				ClientUrlTLS:  clientTlsConfig,
+				PeerUrlTLS:    peerTlsConfig,
 			},
 		},
 	}

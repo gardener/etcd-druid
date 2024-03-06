@@ -24,7 +24,7 @@ Now, it is detected whether peer URL was TLS enabled or not for single node etcd
 - If peer URL was not TLS enabled then etcd-druid has to intervene and make sure peer URL should be TLS enabled first for the single node before marking the cluster for scale-up.
 
 ## Action taken by etcd-druid to enable the peerURL TLS
-1. Etcd-druid will update the `etcd-bootstrap` config-map with new config like initial-cluster,initial-advertise-peer-urls etc. Backup-restore will detect this change and update the member lease annotation to `member.etcd.gardener.cloud/tls-enabled: "true"`.
+1. Etcd-druid will update the `{etcd.Name}-bootstrap` config-map with new config like initial-cluster,initial-advertise-peer-urls etc. Backup-restore will detect this change and update the member lease annotation to `member.etcd.gardener.cloud/tls-enabled: "true"`.
 2. In case the peer URL TLS has been changed to `enabled`: Etcd-druid will add tasks to the deployment flow.
     - To ensure that the TLS enablement of peer URL is properly reflected in etcd, the existing etcd StatefulSet pods should be restarted twice. 
     - The first restart pushes a new configuration which contains Peer URL TLS configuration. Backup-restore will update the member peer url. This will result in the change of the peer url in the etcd's database, but it may not reflect in the already running etcd container. Ideally a restart of an etcd container would have been sufficient but currently k8s doesn't expose an API to force restart a single container within a pod. Therefore, we need to restart the StatefulSet pod(s) once again. When the pod(s) is restarted the second time it will now start etcd with the correct peer url which will be TLS enabled.

@@ -53,6 +53,7 @@ var (
 	clientPort              int32 = 2379
 	serverPort              int32 = 2380
 	backupPort              int32 = 8080
+	snapshotCount                 = 75000
 	defaultStorageCapacity        = resource.MustParse("16Gi")
 	deltaSnapShotMemLimit         = resource.MustParse("100Mi")
 	autoCompactionMode            = druidv1alpha1.Periodic
@@ -523,13 +524,13 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 		"name":                        Equal(fmt.Sprintf("etcd-%s", instance.UID[:6])),
 		"data-dir":                    Equal("/var/etcd/data/new.etcd"),
 		"metrics":                     Equal(string(druidv1alpha1.Basic)),
-		"snapshot-count":              Equal(float64(75000)),
+		"snapshot-count":              Equal(float64(snapshotCount)),
 		"enable-v2":                   Equal(false),
 		"quota-backend-bytes":         Equal(float64(8589934592)),
 		"listen-client-urls":          Equal(fmt.Sprintf("http://0.0.0.0:%d", clientPort)),
-		"advertise-client-urls":       Equal(fmt.Sprintf("%s@%s@%s@%d", "http", prSvc.Name, instance.Namespace, clientPort)),
+		"advertise-client-urls":       Equal(fmt.Sprintf("%s://%s.%s:%d", "http", prSvc.Name, instance.Namespace, clientPort)),
 		"listen-peer-urls":            Equal(fmt.Sprintf("http://0.0.0.0:%d", serverPort)),
-		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "http", prSvc.Name, instance.Namespace, serverPort)),
+		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s://%s.%s:%d", "http", prSvc.Name, instance.Namespace, serverPort)),
 		"initial-cluster-token":       Equal("etcd-cluster"),
 		"initial-cluster-state":       Equal("new"),
 		"auto-compaction-mode":        Equal(string(druidv1alpha1.Periodic)),
@@ -771,7 +772,7 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"ConfigMap": PointTo(MatchFields(IgnoreExtras, Fields{
 									"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-										"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
+										"Name": Equal(fmt.Sprintf("%s-bootstrap-%s", instance.Name, string(instance.UID[:6]))),
 									}),
 									"DefaultMode": PointTo(Equal(int32(0644))),
 									"Items": MatchAllElements(testutils.KeyIterator, Elements{
@@ -836,7 +837,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 
 	Expect(*cm).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
+			"Name":      Equal(fmt.Sprintf("%s-bootstrap-%s", instance.Name, string(instance.UID[:6]))),
 			"Namespace": Equal(instance.Namespace),
 			"Labels": MatchAllKeys(Keys{
 				"name":     Equal("etcd"),
@@ -859,7 +860,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 		"name":                Equal(fmt.Sprintf("etcd-%s", instance.UID[:6])),
 		"data-dir":            Equal("/var/etcd/data/new.etcd"),
 		"metrics":             Equal(string(*instance.Spec.Etcd.Metrics)),
-		"snapshot-count":      Equal(float64(75000)),
+		"snapshot-count":      Equal(float64(snapshotCount)),
 		"enable-v2":           Equal(false),
 		"quota-backend-bytes": Equal(float64(instance.Spec.Etcd.Quota.Value())),
 
@@ -871,7 +872,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"auto-tls":         Equal(false),
 		}),
 		"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", *instance.Spec.Etcd.ClientPort)),
-		"advertise-client-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "https", prSvc.Name, instance.Namespace, *instance.Spec.Etcd.ClientPort)),
+		"advertise-client-urls": Equal(fmt.Sprintf("%s://%s.%s:%d", "https", prSvc.Name, instance.Namespace, *instance.Spec.Etcd.ClientPort)),
 
 		"peer-transport-security": MatchKeys(IgnoreExtras, Keys{
 			"cert-file":        Equal("/var/etcd/ssl/peer/server/tls.crt"),
@@ -881,7 +882,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 			"auto-tls":         Equal(false),
 		}),
 		"listen-peer-urls":            Equal(fmt.Sprintf("https://0.0.0.0:%d", *instance.Spec.Etcd.ServerPort)),
-		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s@%s@%s@%d", "https", prSvc.Name, instance.Namespace, *instance.Spec.Etcd.ServerPort)),
+		"initial-advertise-peer-urls": Equal(fmt.Sprintf("%s://%s.%s:%d", "https", prSvc.Name, instance.Namespace, *instance.Spec.Etcd.ServerPort)),
 
 		"initial-cluster-token":     Equal("etcd-cluster"),
 		"initial-cluster-state":     Equal("new"),
@@ -1179,7 +1180,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"ConfigMap": PointTo(MatchFields(IgnoreExtras, Fields{
 									"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-										"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
+										"Name": Equal(fmt.Sprintf("%s-bootstrap-%s", instance.Name, string(instance.UID[:6]))),
 									}),
 									"DefaultMode": PointTo(Equal(int32(0644))),
 									"Items": MatchAllElements(testutils.KeyIterator, Elements{

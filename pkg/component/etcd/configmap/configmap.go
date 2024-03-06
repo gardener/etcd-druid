@@ -38,6 +38,11 @@ func New(c client.Client, namespace string, values *Values) gardenercomponent.De
 }
 
 func (c *component) Deploy(ctx context.Context) error {
+	// Fetch and delete the old configmap if it exists
+	oldConfigMap := c.getOldConfigmap()
+	if err := c.deleteConfigmap(ctx, oldConfigMap); err != nil {
+		return err
+	}
 	cm := c.emptyConfigmap()
 	return c.syncConfigmap(ctx, cm)
 }
@@ -76,7 +81,7 @@ func (c *component) syncConfigmap(ctx context.Context, cm *corev1.ConfigMap) err
 		Name:                    fmt.Sprintf("etcd-%s", c.values.EtcdUID[:6]),
 		DataDir:                 "/var/etcd/data/new.etcd",
 		Metrics:                 string(druidv1alpha1.Basic),
-		SnapshotCount:           defaultSnapshotCount,
+		SnapshotCount:           pointer.IntDeref(c.values.SnapshotCount, defaultSnapshotCount),
 		EnableV2:                false,
 		QuotaBackendBytes:       quota,
 		InitialClusterToken:     defaultInitialClusterToken,
@@ -87,8 +92,8 @@ func (c *component) syncConfigmap(ctx context.Context, cm *corev1.ConfigMap) err
 
 		ListenPeerUrls:      fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, pointer.Int32Deref(c.values.ServerPort, defaultServerPort)),
 		ListenClientUrls:    fmt.Sprintf("%s://0.0.0.0:%d", clientScheme, pointer.Int32Deref(c.values.ClientPort, defaultClientPort)),
-		AdvertisePeerUrls:   fmt.Sprintf("%s@%s@%s@%d", peerScheme, c.values.PeerServiceName, c.namespace, pointer.Int32Deref(c.values.ServerPort, defaultServerPort)),
-		AdvertiseClientUrls: fmt.Sprintf("%s@%s@%s@%d", clientScheme, c.values.PeerServiceName, c.namespace, pointer.Int32Deref(c.values.ClientPort, defaultClientPort)),
+		AdvertisePeerUrls:   fmt.Sprintf("%s://%s.%s:%d", peerScheme, c.values.PeerServiceName, c.namespace, pointer.Int32Deref(c.values.ServerPort, defaultServerPort)),
+		AdvertiseClientUrls: fmt.Sprintf("%s://%s.%s:%d", clientScheme, c.values.PeerServiceName, c.namespace, pointer.Int32Deref(c.values.ClientPort, defaultClientPort)),
 	}
 
 	if clientSecurity != nil {
@@ -133,6 +138,15 @@ func (c *component) emptyConfigmap() *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      c.values.Name,
+			Namespace: c.namespace,
+		},
+	}
+}
+
+func (c *component) getOldConfigmap() *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("etcd-bootstrap-%s", string(c.values.EtcdUID[:6])),
 			Namespace: c.namespace,
 		},
 	}

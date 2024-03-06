@@ -756,7 +756,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"ConfigMap": PointTo(MatchFields(IgnoreExtras, Fields{
 									"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-										"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(values.OwnerReference.UID[:6]))),
+										"Name": Equal(values.ConfigMapName),
 									}),
 									"DefaultMode": PointTo(Equal(int32(0644))),
 									"Items": MatchAllElements(keyIterator, Elements{

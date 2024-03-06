@@ -198,6 +198,9 @@ type EtcdConfig struct {
 	// Quota defines the etcd DB quota.
 	// +optional
 	Quota *resource.Quantity `json:"quota,omitempty"`
+	// SnapshotCount defines the number of committed transactions to trigger a snapshot to disk
+	// +optional
+	SnapshotCount *int `json:"snapshotCount,omitempty"`
 	// DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd.
 	// +optional
 	DefragmentationSchedule *string `json:"defragmentationSchedule,omitempty"`
@@ -433,7 +436,7 @@ func (e *Etcd) GetServiceAccountName() string {
 
 // GetConfigmapName returns the name of the configmap for the Etcd.
 func (e *Etcd) GetConfigmapName() string {
-	return fmt.Sprintf("etcd-bootstrap-%s", string(e.UID[:6]))
+	return fmt.Sprintf("%s-bootstrap-%s", e.Name, (e.UID[:6]))
 }
 
 // GetCompactionJobName returns the compaction job name for the Etcd.

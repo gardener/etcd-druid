@@ -27,6 +27,8 @@ type Values struct {
 	Metrics *druidv1alpha1.MetricsLevel
 	// Quota defines the etcd DB quota.
 	Quota *resource.Quantity
+	// SnapshotCount defines the number of committed transactions to trigger a snapshot to disk
+	SnapshotCount *int
 	// InitialCluster is the initial cluster value to bootstrap ETCD.
 	InitialCluster string
 	// ClientUrlTLS hold the TLS configuration details for Client Communication

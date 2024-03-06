@@ -563,6 +563,10 @@ spec:
                   serverPort:
                     format: int32
                     type: integer
+                  snapshotCount:
+                    description: SnapshotCount defines the number of committed transactions
+                      to trigger a snapshot to disk
+                    type: integer
                 type: object
               labels:
                 additionalProperties:
