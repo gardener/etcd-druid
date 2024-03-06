@@ -513,7 +513,8 @@ func checkBackup(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) {
 		Name: "etcd-backup",
 		VolumeSource: corev1.VolumeSource{
 			Secret: &corev1.SecretVolumeSource{
-				SecretName: etcd.Spec.Backup.Store.SecretRef.Name,
+				SecretName:  etcd.Spec.Backup.Store.SecretRef.Name,
+				DefaultMode: pointer.Int32(0640),
 			},
 		},
 	}))
@@ -758,7 +759,7 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 									"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
 										"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(values.OwnerReference.UID[:6]))),
 									}),
-									"DefaultMode": PointTo(Equal(int32(0644))),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 									"Items": MatchAllElements(keyIterator, Elements{
 										"etcd.conf.yaml": MatchFields(IgnoreExtras, Fields{
 											"Key":  Equal("etcd.conf.yaml"),
@@ -772,7 +773,8 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(values.BackupStore.SecretRef.Name),
+									"SecretName":  Equal(values.BackupStore.SecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
@@ -780,7 +782,8 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 							"Name": Equal("client-url-etcd-server-tls"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(values.ClientUrlTLS.ServerTLSSecretRef.Name),
+									"SecretName":  Equal(values.ClientUrlTLS.ServerTLSSecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
@@ -788,7 +791,8 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 							"Name": Equal("client-url-etcd-client-tls"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(values.ClientUrlTLS.ClientTLSSecretRef.Name),
+									"SecretName":  Equal(values.ClientUrlTLS.ClientTLSSecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
@@ -796,7 +800,8 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 							"Name": Equal("client-url-ca-etcd"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(values.ClientUrlTLS.TLSCASecretRef.Name),
+									"SecretName":  Equal(values.ClientUrlTLS.TLSCASecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
@@ -804,7 +809,8 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 							"Name": Equal("peer-url-etcd-server-tls"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(values.PeerUrlTLS.ServerTLSSecretRef.Name),
+									"SecretName":  Equal(values.PeerUrlTLS.ServerTLSSecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
@@ -812,7 +818,8 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 							"Name": Equal("peer-url-ca-etcd"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(values.PeerUrlTLS.TLSCASecretRef.Name),
+									"SecretName":  Equal(values.PeerUrlTLS.TLSCASecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),

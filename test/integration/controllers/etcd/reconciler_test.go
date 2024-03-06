@@ -773,7 +773,7 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 									"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
 										"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
 									}),
-									"DefaultMode": PointTo(Equal(int32(0644))),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 									"Items": MatchAllElements(testutils.KeyIterator, Elements{
 										"etcd.conf.yaml": MatchFields(IgnoreExtras, Fields{
 											"Key":  Equal("etcd.conf.yaml"),
@@ -1181,7 +1181,7 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 									"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
 										"Name": Equal(fmt.Sprintf("etcd-bootstrap-%s", string(instance.UID[:6]))),
 									}),
-									"DefaultMode": PointTo(Equal(int32(0644))),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 									"Items": MatchAllElements(testutils.KeyIterator, Elements{
 										"etcd.conf.yaml": MatchFields(IgnoreExtras, Fields{
 											"Key":  Equal("etcd.conf.yaml"),
@@ -1195,7 +1195,8 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 							"Name": Equal("client-url-etcd-server-tls"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(instance.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name),
+									"SecretName":  Equal(instance.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
@@ -1203,7 +1204,8 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 							"Name": Equal("client-url-etcd-client-tls"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(instance.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name),
+									"SecretName":  Equal(instance.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
@@ -1211,7 +1213,8 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 							"Name": Equal("client-url-ca-etcd"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(instance.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name),
+									"SecretName":  Equal(instance.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
@@ -1219,7 +1222,8 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 							"Name": Equal("peer-url-etcd-server-tls"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(instance.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name),
+									"SecretName":  Equal(instance.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
@@ -1227,7 +1231,8 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 							"Name": Equal("peer-url-ca-etcd"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(instance.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name),
+									"SecretName":  Equal(instance.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
@@ -1320,7 +1325,8 @@ func validateStoreGCP(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *co
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
+									"SecretName":  Equal(instance.Spec.Backup.Store.SecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
@@ -1377,7 +1383,8 @@ func validateStoreAzure(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
+									"SecretName":  Equal(instance.Spec.Backup.Store.SecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
@@ -1433,7 +1440,8 @@ func validateStoreOpenstack(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet,
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
+									"SecretName":  Equal(instance.Spec.Backup.Store.SecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
@@ -1491,7 +1499,8 @@ func validateStoreAlicloud(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, 
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
+									"SecretName":  Equal(instance.Spec.Backup.Store.SecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
@@ -1549,7 +1558,8 @@ func validateStoreAWS(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, _ *co
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
+									"SecretName":  Equal(instance.Spec.Backup.Store.SecretRef.Name),
+									"DefaultMode": PointTo(Equal(int32(0640))),
 								})),
 							}),
 						}),
