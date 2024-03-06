@@ -33,10 +33,15 @@ const (
 	// EnvSourceStorageContainer is the environment variable key for the source storage container.
 	EnvSourceStorageContainer = "SOURCE_STORAGE_CONTAINER"
 
+	// EnvEmulatorEnabled is the environment variable key that is checked to see if storage emulators like Azurite, fake-gcs-emulator are enabled.
+	EnvEmulatorEnabled = "EMULATOR_ENABLED"
+
 	// EnvAWSApplicationCredentials is the environment variable key for AWS application credentials.
 	EnvAWSApplicationCredentials = "AWS_APPLICATION_CREDENTIALS"
 	// EnvAzureApplicationCredentials is the environment variable key for Azure application credentials.
 	EnvAzureApplicationCredentials = "AZURE_APPLICATION_CREDENTIALS"
+	// EnvAzureStorageAPIEndpoint is the environment variable key for Azure storage API endpoint override.
+	EnvAzureStorageAPIEndpoint = "AZURE_STORAGE_API_ENDPOINT"
 	// EnvGoogleApplicationCredentials is the environment variable key for Google application credentials.
 	EnvGoogleApplicationCredentials = "GOOGLE_APPLICATION_CREDENTIALS"
 	// EnvGoogleStorageAPIEndpoint is the environment variable key for Google storage API endpoint override.
