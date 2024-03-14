@@ -28,6 +28,7 @@ const (
 	defaultServerPort              int32 = 2380
 	defaultClientPort              int32 = 2379
 	defaultWrapperPort             int   = 9095
+	defaultMaxBackupsLimitBasedGC  int32 = 7
 	defaultQuota                   int64 = 8 * 1024 * 1024 * 1024 // 8Gi
 	defaultSnapshotMemoryLimit     int64 = 100 * 1024 * 1024      // 100Mi
 	defaultHeartbeatDuration             = "10s"
@@ -513,7 +514,7 @@ func (b *stsBuilder) getBackupStoreCommandArgs() []string {
 	}
 	commandArgs = append(commandArgs, fmt.Sprintf("--garbage-collection-policy=%s", garbageCollectionPolicy))
 	if garbageCollectionPolicy == "LimitBased" {
-		commandArgs = append(commandArgs, "--max-backups=7")
+		commandArgs = append(commandArgs, fmt.Sprintf("--max-backups=%d", utils.TypeDeref[int32](b.etcd.Spec.Backup.MaxBackupsLimitBasedGC, defaultMaxBackupsLimitBasedGC)))
 	}
 	if b.etcd.Spec.Backup.GarbageCollectionPeriod != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--garbage-collection-period=%s", b.etcd.Spec.Backup.GarbageCollectionPeriod.Duration.String()))
