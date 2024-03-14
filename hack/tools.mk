@@ -18,4 +18,4 @@ export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 #########################################
 
 $(KUSTOMIZE):
-	@test -s $(TOOLS_BIN_DIR)/kustomize || GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/kustomize/kustomize/v4@${KUSTOMIZE_VERSION}
+	@test -s $(TOOLS_BIN_DIR)/kustomize || GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}

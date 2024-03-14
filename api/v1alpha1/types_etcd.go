@@ -477,7 +477,7 @@ type LastError struct {
 	// Description is a human-readable message indicating details of the error.
 	Description string `json:"description"`
 	// ObservedAt is the time the error was observed.
-	ObservedAt metav1.Time `json:"lastUpdateTime"`
+	ObservedAt metav1.Time `json:"observedAt"`
 }
 
 // GetNamespaceName is a convenience function which creates a types.NamespacedName for an etcd resource.
