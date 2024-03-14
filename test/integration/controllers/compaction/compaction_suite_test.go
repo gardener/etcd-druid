@@ -10,7 +10,7 @@ import (
 
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
 
-	"github.com/gardener/etcd-druid/controllers/compaction"
+	"github.com/gardener/etcd-druid/internal/controller/compaction"
 	"github.com/gardener/etcd-druid/test/integration/setup"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

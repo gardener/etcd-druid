@@ -10,8 +10,8 @@ import (
 	"strconv"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/internal/common"
+	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/features"
 	"github.com/gardener/etcd-druid/internal/utils"
 

@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/gardener/etcd-druid/internal/controller"
-	"github.com/gardener/etcd-druid/pkg/version"
+	"github.com/gardener/etcd-druid/internal/version"
 	flag "github.com/spf13/pflag"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"

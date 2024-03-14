@@ -10,7 +10,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	. "github.com/gardener/etcd-druid/internal/health/condition"
-	mockclient "github.com/gardener/etcd-druid/pkg/mock/controller-runtime/client"
+	mockclient "github.com/gardener/etcd-druid/internal/mock/controller-runtime/client"
 
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"

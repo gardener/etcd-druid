@@ -7,7 +7,7 @@ package compaction
 import (
 	"time"
 
-	"github.com/gardener/etcd-druid/controllers/utils"
+	"github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/features"
 
 	flag "github.com/spf13/pflag"

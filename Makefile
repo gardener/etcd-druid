@@ -22,8 +22,8 @@ IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 #########################################
 
 TOOLS_DIR := $(HACK_DIR)/tools
-include $(HACK_DIR)/tools.mk
 include $(GARDENER_HACK_DIR)/tools.mk
+include $(HACK_DIR)/tools.mk
 
 .PHONY: tidy
 tidy:
@@ -67,21 +67,20 @@ deploy: $(SKAFFOLD) $(HELM)
 manifests: $(VGOPATH) $(CONTROLLER_GEN)
 	@GARDENER_HACK_DIR=$(GARDENER_HACK_DIR) VGOPATH=$(VGOPATH) go generate ./config/crd/bases
 	@find "$(REPO_ROOT)/config/crd/bases" -name "*.yaml" -exec cp '{}' "$(REPO_ROOT)/charts/druid/charts/crds/templates/" \;
-	@controller-gen rbac:roleName=manager-role paths="./controllers/..."
+	@controller-gen rbac:roleName=manager-role paths="./internal/controller/..."
 
 # Run go fmt against code
 .PHONY: fmt
 fmt:
 	@env GO111MODULE=on go fmt ./...
 
-.PHONY: clean
 clean:
-	@bash $(GARDENER_HACK_DIR)/clean.sh ./api/... ./controllers/... ./pkg/...
+	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/clean.sh" ./api/... ./internal/...
 
 # Check packages
 .PHONY: check
-check: $(GOLANGCI_LINT) $(GOIMPORTS) fmt manifests
-	@REPO_ROOT=$(REPO_ROOT) bash $(GARDENER_HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
+check: $(GOLANGCI_LINT) $(GOIMPORTS) set-permissions fmt manifests
+	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./api/... ./internal/...
 
 .PHONY: check-generate
 check-generate:
@@ -107,8 +106,15 @@ docker-push:
 
 # Run tests
 .PHONY: test
-test: $(GINKGO) $(SETUP_ENVTEST)
-	@bash $(HACK_DIR)/test.sh ./api/... ./controllers/... ./pkg/...
+test: $(GINKGO)
+	@"$(REPO_ROOT)/hack/test.sh" ./api/... \
+	./internal/controller/etcdcopybackupstask/... \
+	./internal/controller/predicate/... \
+	./internal/controller/secret/... \
+	./internal/controller/utils/... \
+	./internal/health/... \
+	./internal/mapper/... \
+	./internal/metrics/...
 
 .PHONY: test-cov
 test-cov: $(GINKGO) $(SETUP_ENVTEST)

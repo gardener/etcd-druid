@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	. "github.com/gardener/etcd-druid/pkg/health/condition"
+	. "github.com/gardener/etcd-druid/internal/health/condition"
 )
 
 var _ = Describe("Builder", func() {

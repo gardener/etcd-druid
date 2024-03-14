@@ -8,7 +8,7 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	. "github.com/gardener/etcd-druid/pkg/mapper"
+	. "github.com/gardener/etcd-druid/internal/mapper"
 	"github.com/go-logr/logr"
 
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"

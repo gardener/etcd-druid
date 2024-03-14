@@ -8,7 +8,7 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	druidmapper "github.com/gardener/etcd-druid/pkg/mapper"
+	druidmapper "github.com/gardener/etcd-druid/internal/mapper"
 
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	corev1 "k8s.io/api/core/v1"
