@@ -390,6 +390,7 @@ type EtcdStatus struct {
 	// +optional
 	LastErrors []LastError `json:"lastErrors,omitempty"`
 	// LastOperation indicates the last operation performed on this resource.
+	// +optional
 	LastOperation *LastOperation `json:"lastOperation,omitempty"`
 	// Cluster size is the current size of the etcd cluster.
 	// Deprecated: this field will not be populated with any value and will be removed in the future.
@@ -461,7 +462,7 @@ type LastOperation struct {
 	// generated which can be used to correlate all actions done as part of a single reconcile run. Capturing this
 	// as part of LastOperation aids in establishing this correlation. This further helps in also easily filtering
 	// reconcile logs as all structured logs in a reconcile run should have the `runID` referenced.
-	RunID string `json:"rundID"`
+	RunID string `json:"runID"`
 	// LastUpdateTime is the time at which the operation was updated.
 	LastUpdateTime metav1.Time `json:"lastUpdateTime"`
 }
@@ -475,8 +476,8 @@ type LastError struct {
 	Code ErrorCode `json:"code"`
 	// Description is a human-readable message indicating details of the error.
 	Description string `json:"description"`
-	// LastUpdateTime is the time the error was reported.
-	LastUpdateTime metav1.Time `json:"lastUpdateTime"`
+	// ObservedAt is the time the error was observed.
+	ObservedAt metav1.Time `json:"lastUpdateTime"`
 }
 
 // GetNamespaceName is a convenience function which creates a types.NamespacedName for an etcd resource.

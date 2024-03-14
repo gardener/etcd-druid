@@ -69,12 +69,12 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 			ErrSyncStatefulSet,
 			"Sync",
 			fmt.Sprintf("Error getting StatefulSet: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
-
 	}
 	// There is no StatefulSet present. Create one.
 	if existingSTS == nil {
 		return r.createOrPatch(ctx, etcd)
 	}
+
 	// StatefulSet exists, check if TLS has been enabled for peer communication, if yes then it is currently a multistep
 	// process to ensure that all members are updated and establish peer TLS communication.
 	if err = r.handlePeerTLSChanges(ctx, etcd, existingSTS); err != nil {
@@ -152,53 +152,54 @@ func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *dru
 		return fmt.Errorf("error checking if peer URL TLS is enabled: %w", err)
 	}
 
-	/**
-	Case 1:
-		Scaled from 1 to 3 and peer URL TLS changed enabled or disabled - g/g case
-	Case 2:
-		Scaled from 1 to 3 and no change in peer URL TLS (can be kept as HTTP or HTTPS)
-	Case 3:
-		Peer URL TLS changed but no change in replicas
-	*/
-
-	/**
-	After the changes are made to etcd-wrapper and etcd-backup-restore then we can use the following logic and simplify the handling of peer URL TLS change
-	if peerTLSNotEnabledOnAllMembers {
-		if sts.HasAnnotationValue(etcdGenerationAnnotation) != etcd.Spec.Generation {
-			createOrPathKeepingExistingStsReplicas
-		}
-		if !sts.Ready() {
-			requeue
-		}
-	}
-	*/
-
 	if isPeerTLSChangedToEnabled(peerTLSEnabledForAllMembers, etcd) {
-		ctx.Logger.Info("Attempting to enable TLS for etcd peers", "namespace", etcd.Namespace, "name", etcd.Name)
-
-		// This step ensures that only STS is updated with secret volume mounts which gets added to the etcd component due to
-		// enabling of TLS for peer communication. It preserves the current STS replicas.
-		if err = r.createOrPatchWithReplicas(ctx, etcd, *existingSts.Spec.Replicas); err != nil {
-			return fmt.Errorf("error creating or patching StatefulSet with TLS enabled: %w", err)
+		if !isStatefulSetPatchedWithPeerTLSVolMount(existingSts) {
+			// This step ensures that only STS is updated with secret volume mounts which gets added to the etcd component due to
+			// enabling of TLS for peer communication. It preserves the current STS replicas.
+			if err = r.createOrPatchWithReplicas(ctx, etcd, *existingSts.Spec.Replicas); err != nil {
+				return fmt.Errorf("error creating or patching StatefulSet with TLS enabled: %w", err)
+			}
+		} else {
+			ctx.Logger.Info("Secret volume mounts to enable Peer URL TLS have already been mounted. Skipping patching StatefulSet with secret volume mounts.")
+		}
+		// check again if peer TLS has been enabled for all members. If not then force a requeue of the reconcile request.
+		if !peerTLSEnabledForAllMembers {
+			return fmt.Errorf("peer URL TLS not enabled for all members for etcd: %v, requeuing reconcile request", etcd.GetNamespaceName())
 		}
 
-		tlsEnabled, err := utils.IsPeerURLTLSEnabledForAllMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name)
-		if err != nil {
-			return fmt.Errorf("error verifying if TLS is enabled post-patch: %v", err)
-		}
-		// It usually takes time for TLS to be enabled and reflected via the lease. So first time around this will not be true.
-		// So instead of waiting we requeue the request to be re-tried again.
-		if !tlsEnabled {
-			return fmt.Errorf("failed to enable TLS for etcd [name: %s, namespace: %s]", etcd.Name, etcd.Namespace)
-		}
-
-		if err := deleteAllStsPods(ctx, r.client, "Deleting all StatefulSet pods due to TLS enablement", existingSts); err != nil {
-			return fmt.Errorf("error deleting StatefulSet pods after enabling TLS: %v", err)
-		}
-		ctx.Logger.Info("TLS enabled for etcd peers", "namespace", etcd.Namespace, "name", etcd.Name)
+		//ctx.Logger.Info("Attempting to enable TLS for etcd peers", "namespace", etcd.Namespace, "name", etcd.Name)
+		//
+		//tlsEnabled, err := utils.IsPeerURLTLSEnabledForAllMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name)
+		//if err != nil {
+		//	return fmt.Errorf("error verifying if TLS is enabled post-patch: %v", err)
+		//}
+		//// It usually takes time for TLS to be enabled and reflected via the lease. So first time around this will not be true.
+		//// So instead of waiting we requeue the request to be re-tried again.
+		//if !tlsEnabled {
+		//	return fmt.Errorf("failed to enable TLS for etcd [name: %s, namespace: %s]", etcd.Name, etcd.Namespace)
+		//}
+		//
+		//if err := deleteAllStsPods(ctx, r.client, "Deleting all StatefulSet pods due to TLS enablement", existingSts); err != nil {
+		//	return fmt.Errorf("error deleting StatefulSet pods after enabling TLS: %v", err)
+		//}
+		//ctx.Logger.Info("TLS enabled for etcd peers", "namespace", etcd.Namespace, "name", etcd.Name)
 	}
-
+	ctx.Logger.Info("Peer URL TLS has been enabled for all members")
 	return nil
+}
+
+func isStatefulSetPatchedWithPeerTLSVolMount(existingSts *appsv1.StatefulSet) bool {
+	volumes := existingSts.Spec.Template.Spec.Volumes
+	var peerURLCAEtcdVolPresent, peerURLEtcdServerTLSVolPresent bool
+	for _, vol := range volumes {
+		if vol.Name == "peer-url-ca-etcd" {
+			peerURLCAEtcdVolPresent = true
+		}
+		if vol.Name == "peer-url-etcd-server-tls" {
+			peerURLEtcdServerTLSVolPresent = true
+		}
+	}
+	return peerURLCAEtcdVolPresent && peerURLEtcdServerTLSVolPresent
 }
 
 // isPeerTLSChangedToEnabled checks if the Peer TLS setting has changed to enabled

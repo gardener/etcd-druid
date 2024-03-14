@@ -21,6 +21,8 @@ type DruidError struct {
 	Operation string
 	// Message is the custom message providing additional context for the error.
 	Message string
+	// ObservedAt is the time at which the error was observed.
+	ObservedAt time.Time
 }
 
 func (r *DruidError) Error() string {
@@ -34,10 +36,11 @@ func WrapError(err error, code druidv1alpha1.ErrorCode, operation string, messag
 		return nil
 	}
 	return &DruidError{
-		Code:      code,
-		Cause:     err,
-		Operation: operation,
-		Message:   message,
+		Code:       code,
+		Cause:      err,
+		Operation:  operation,
+		Message:    message,
+		ObservedAt: time.Now().UTC(),
 	}
 }
 
@@ -50,9 +53,9 @@ func MapToLastErrors(errs []error) []druidv1alpha1.LastError {
 		if errors.As(err, &druidErr) {
 			desc := fmt.Sprintf("[Operation: %s, Code: %s] message: %s, cause: %s", druidErr.Operation, druidErr.Code, druidErr.Message, druidErr.Cause.Error())
 			lastErr := druidv1alpha1.LastError{
-				Code:           druidErr.Code,
-				Description:    desc,
-				LastUpdateTime: metav1.NewTime(time.Now().UTC()),
+				Code:        druidErr.Code,
+				Description: desc,
+				ObservedAt:  metav1.NewTime(druidErr.ObservedAt),
 			}
 			lastErrs = append(lastErrs, lastErr)
 		}

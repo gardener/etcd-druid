@@ -256,15 +256,14 @@ func (b *stsBuilder) getEtcdContainerVolumeMounts() []corev1.VolumeMount {
 
 func (b *stsBuilder) getBackupRestoreContainerVolumeMounts() []corev1.VolumeMount {
 	brVolumeMounts := make([]corev1.VolumeMount, 0, 8)
-
 	brVolumeMounts = append(brVolumeMounts,
 		b.getEtcdDataVolumeMount(),
 		corev1.VolumeMount{
-			Name:      "etcd-config-file",
-			MountPath: "/var/etcd/config/",
+			Name:      etcdConfigFileName,
+			MountPath: etcdConfigFileMountPath,
 		},
 	)
-	brVolumeMounts = append(brVolumeMounts, b.getSecretVolumeMounts()...)
+	brVolumeMounts = append(brVolumeMounts, b.getBackupRestoreSecretVolumeMounts()...)
 
 	if b.etcd.IsBackupStoreEnabled() {
 		etcdBackupVolumeMount := b.getEtcdBackupVolumeMount()
@@ -274,6 +273,23 @@ func (b *stsBuilder) getBackupRestoreContainerVolumeMounts() []corev1.VolumeMoun
 	}
 
 	return brVolumeMounts
+}
+
+func (b *stsBuilder) getBackupRestoreSecretVolumeMounts() []corev1.VolumeMount {
+	return []corev1.VolumeMount{
+		{
+			Name:      backRestoreCAVolumeName,
+			MountPath: backupRestoreCAVolumeMountPath,
+		},
+		{
+			Name:      backRestoreServerTLSVolumeName,
+			MountPath: backupRestoreServerTLSVolumeMountPath,
+		},
+		{
+			Name:      backRestoreClientTLSVolumeName,
+			MountPath: backupRestoreClientTLSVolumeMountPath,
+		},
+	}
 }
 
 func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
@@ -310,7 +326,7 @@ func (b *stsBuilder) getEtcdDataVolumeMount() corev1.VolumeMount {
 	volumeClaimTemplateName := utils.TypeDeref[string](b.etcd.Spec.VolumeClaimTemplate, b.etcd.Name)
 	return corev1.VolumeMount{
 		Name:      volumeClaimTemplateName,
-		MountPath: "/var/etcd/data",
+		MountPath: etcdDataVolumeMountPath,
 	}
 }
 
@@ -421,8 +437,8 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=http://%s:%d", b.etcd.GetClientServiceName(), b.clientPort))
 	}
 	if b.etcd.Spec.Backup.TLS != nil {
-		commandArgs = append(commandArgs, "--server-cert=/var/etcd/ssl/client/server/tls.crt")
-		commandArgs = append(commandArgs, "--server-key=/var/etcd/ssl/client/server/tls.key")
+		commandArgs = append(commandArgs, fmt.Sprintf("--server-cert=%s/tls.crt", backupRestoreServerTLSVolumeMountPath))
+		commandArgs = append(commandArgs, fmt.Sprintf("--server-key=%s/tls.key", backupRestoreServerTLSVolumeMountPath))
 	}
 
 	// Other misc command line args
@@ -652,7 +668,7 @@ func (b *stsBuilder) getSecretVolumeMounts() []corev1.VolumeMount {
 func (b *stsBuilder) getPodVolumes(ctx component.OperatorContext) ([]corev1.Volume, error) {
 	volumes := []corev1.Volume{
 		{
-			Name: "etcd-config-file",
+			Name: etcdConfigVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{
@@ -660,8 +676,8 @@ func (b *stsBuilder) getPodVolumes(ctx component.OperatorContext) ([]corev1.Volu
 					},
 					Items: []corev1.KeyToPath{
 						{
-							Key:  "etcd.conf.yaml",
-							Path: "etcd.conf.yaml",
+							Key:  etcdConfigFileName,
+							Path: etcdConfigFileName,
 						},
 					},
 					DefaultMode: pointer.Int32(0644),
@@ -675,6 +691,9 @@ func (b *stsBuilder) getPodVolumes(ctx component.OperatorContext) ([]corev1.Volu
 	}
 	if b.etcd.Spec.Etcd.PeerUrlTLS != nil {
 		volumes = append(volumes, b.getPeerTLSVolumes()...)
+	}
+	if b.etcd.Spec.Backup.TLS != nil {
+		volumes = append(volumes, b.getBackupRestoreTLSVolumes()...)
 	}
 	if b.etcd.IsBackupStoreEnabled() {
 		backupVolume, err := b.getBackupVolume(ctx)
@@ -692,7 +711,7 @@ func (b *stsBuilder) getClientTLSVolumes() []corev1.Volume {
 	clientTLSConfig := b.etcd.Spec.Etcd.ClientUrlTLS
 	return []corev1.Volume{
 		{
-			Name: "client-url-ca-etcd",
+			Name: clientCAVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: clientTLSConfig.TLSCASecretRef.Name,
@@ -700,7 +719,7 @@ func (b *stsBuilder) getClientTLSVolumes() []corev1.Volume {
 			},
 		},
 		{
-			Name: "client-url-etcd-server-tls",
+			Name: serverTLSVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: clientTLSConfig.ServerTLSSecretRef.Name,
@@ -708,7 +727,7 @@ func (b *stsBuilder) getClientTLSVolumes() []corev1.Volume {
 			},
 		},
 		{
-			Name: "client-url-etcd-client-tls",
+			Name: clientTLSVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: clientTLSConfig.ClientTLSSecretRef.Name,
@@ -722,7 +741,7 @@ func (b *stsBuilder) getPeerTLSVolumes() []corev1.Volume {
 	peerTLSConfig := b.etcd.Spec.Etcd.PeerUrlTLS
 	return []corev1.Volume{
 		{
-			Name: "peer-url-ca-etcd",
+			Name: peerCAVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: peerTLSConfig.TLSCASecretRef.Name,
@@ -730,10 +749,40 @@ func (b *stsBuilder) getPeerTLSVolumes() []corev1.Volume {
 			},
 		},
 		{
-			Name: "peer-url-etcd-server-tls",
+			Name: peerServerTLSVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: peerTLSConfig.ServerTLSSecretRef.Name,
+				},
+			},
+		},
+	}
+}
+
+func (b *stsBuilder) getBackupRestoreTLSVolumes() []corev1.Volume {
+	tlsConfig := b.etcd.Spec.Backup.TLS
+	return []corev1.Volume{
+		{
+			Name: backRestoreCAVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: tlsConfig.TLSCASecretRef.Name,
+				},
+			},
+		},
+		{
+			Name: backRestoreServerTLSVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: tlsConfig.ServerTLSSecretRef.Name,
+				},
+			},
+		},
+		{
+			Name: backRestoreClientTLSVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: tlsConfig.ClientTLSSecretRef.Name,
 				},
 			},
 		},
