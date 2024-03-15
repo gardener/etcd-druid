@@ -5,7 +5,6 @@ go 1.22
 require (
 	github.com/gardener/etcd-backup-restore v0.26.0
 	github.com/gardener/gardener v1.86.0
-	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v1.2.4
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.3.0
@@ -13,9 +12,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.13.0
 	github.com/onsi/gomega v1.29.0
 	github.com/prometheus/client_golang v1.16.0
-	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/pflag v1.0.5
-	go.uber.org/mock v0.2.0
 	go.uber.org/zap v1.26.0
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	gopkg.in/yaml.v2 v2.4.0
@@ -61,6 +58,7 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gardener/hvpa-controller/api v0.5.0 // indirect
 	github.com/gardener/machine-controller-manager v0.50.0 // indirect
+	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-logr/zapr v1.2.4 // indirect
 	github.com/go-openapi/errors v0.20.3 // indirect
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
@@ -103,12 +101,14 @@ require (
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/afero v1.9.5 // indirect
 	github.com/spf13/cobra v1.7.0 // indirect
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20200910180754-dd1b699fc489 // indirect
 	go.opencensus.io v0.24.0 // indirect
+	go.uber.org/mock v0.2.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/mod v0.12.0 // indirect
