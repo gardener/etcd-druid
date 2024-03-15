@@ -32,7 +32,7 @@ export GOOGLE_STORAGE_API_ENDPOINT="http://localhost:8000/storage/v1/"
 make deploy-fakegcs
 make GCP_SERVICEACCOUNT_JSON_PATH="/tmp/svc_acc.json" \
   GCP_PROJECT_ID="e2e-test" \
-  EMULATOR_ENABLED="true" \
+  GOOGLE_EMULATOR_ENABLED="true" \
   GCS_EMULATOR_HOST="fake-gcs.default:8000" \
   PROVIDERS="gcp" \
   TEST_ID="$BUCKET_NAME" \

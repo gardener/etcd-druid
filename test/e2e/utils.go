@@ -401,7 +401,7 @@ func getProviders() ([]TestProvider, error) {
 						},
 					},
 				}
-				fakegcsenabled := getEnvOrFallback("EMULATOR_ENABLED", "")
+				fakegcsenabled := getEnvOrFallback("GOOGLE_EMULATOR_ENABLED", "")
 				if enable, err := strconv.ParseBool(fakegcsenabled); err == nil && enable {
 					gcsEmulatorURL := getEnvOrFallback("GCS_EMULATOR_HOST", "")
 					provider.Storage.SecretData["storageAPIEndpoint"] = []byte("http://" + gcsEmulatorURL + "/storage/v1/")
