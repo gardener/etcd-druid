@@ -236,7 +236,7 @@ func (s StatefulSetMatcher) matchEtcdContainerVolMounts() gomegatypes.GomegaMatc
 	volMountMatchers := make([]gomegatypes.GomegaMatcher, 0, 6)
 	volMountMatchers = append(volMountMatchers, s.matchEtcdDataVolMount())
 	secretVolMountMatchers := s.getSecretVolMountsMatchers()
-	if secretVolMountMatchers != nil && len(secretVolMountMatchers) > 0 {
+	if len(secretVolMountMatchers) > 0 {
 		volMountMatchers = append(volMountMatchers, secretVolMountMatchers...)
 	}
 	return ConsistOf(volMountMatchers)
@@ -425,7 +425,7 @@ func (s StatefulSetMatcher) matchPodVolumes() gomegatypes.GomegaMatcher {
 	})
 	volMatchers = append(volMatchers, etcdConfigFileVolMountMatcher)
 	secretVolMatchers := s.getPodSecurityVolumeMatchers()
-	if secretVolMatchers != nil && len(secretVolMatchers) > 0 {
+	if len(secretVolMatchers) > 0 {
 		volMatchers = append(volMatchers, secretVolMatchers...)
 	}
 	if s.etcd.IsBackupStoreEnabled() {

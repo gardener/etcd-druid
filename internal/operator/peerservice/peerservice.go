@@ -23,15 +23,26 @@ import (
 const defaultServerPort = 2380
 
 const (
-	ErrGetPeerService    druidv1alpha1.ErrorCode = "ERR_GET_PEER_SERVICE"
+	// ErrGetPeerService indicates an error in getting the peer service resource.
+	ErrGetPeerService druidv1alpha1.ErrorCode = "ERR_GET_PEER_SERVICE"
+	// ErrSyncPeerService indicates an error in syncing the peer service resource.
+	ErrSyncPeerService druidv1alpha1.ErrorCode = "ERR_SYNC_PEER_SERVICE"
+	// ErrDeletePeerService indicates an error in deleting the peer service resource.
 	ErrDeletePeerService druidv1alpha1.ErrorCode = "ERR_DELETE_PEER_SERVICE"
-	ErrSyncPeerService   druidv1alpha1.ErrorCode = "ERR_SYNC_PEER_SERVICE"
 )
 
 type _resource struct {
 	client client.Client
 }
 
+// New returns a new peer service operator.
+func New(client client.Client) component.Operator {
+	return &_resource{
+		client: client,
+	}
+}
+
+// GetExistingResourceNames returns the name of the existing peer service for the given Etcd.
 func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	svcObjectKey := getObjectKey(etcd)
@@ -51,6 +62,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 	return resourceNames, nil
 }
 
+// Sync creates or updates the peer service for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	svc := emptyPeerService(objectKey)
@@ -69,6 +81,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	return nil
 }
 
+// TriggerDelete triggers the deletion of the peer service for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of peer service")
@@ -87,12 +100,6 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 	}
 	ctx.Logger.Info("deleted", "component", "peer-service", "objectKey", objectKey)
 	return nil
-}
-
-func New(client client.Client) component.Operator {
-	return &_resource{
-		client: client,
-	}
 }
 
 func buildResource(etcd *druidv1alpha1.Etcd, svc *corev1.Service) {

@@ -21,15 +21,26 @@ import (
 )
 
 const (
-	ErrListMemberLease   druidv1alpha1.ErrorCode = "ERR_LIST_MEMBER_LEASE"
+	// ErrListMemberLease indicates an error in listing the member lease resources.
+	ErrListMemberLease druidv1alpha1.ErrorCode = "ERR_LIST_MEMBER_LEASE"
+	// ErrSyncMemberLease indicates an error in syncing the member lease resources.
+	ErrSyncMemberLease druidv1alpha1.ErrorCode = "ERR_SYNC_MEMBER_LEASE"
+	// ErrDeleteMemberLease indicates an error in deleting the member lease resources.
 	ErrDeleteMemberLease druidv1alpha1.ErrorCode = "ERR_DELETE_MEMBER_LEASE"
-	ErrSyncMemberLease   druidv1alpha1.ErrorCode = "ERR_SYNC_MEMBER_LEASE"
 )
 
 type _resource struct {
 	client client.Client
 }
 
+// New returns a new member lease operator.
+func New(client client.Client) component.Operator {
+	return &_resource{
+		client: client,
+	}
+}
+
+// GetExistingResourceNames returns the names of the existing member leases for the given Etcd.
 func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	leaseList := &coordinationv1.LeaseList{}
@@ -51,6 +62,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 	return resourceNames, nil
 }
 
+// Sync creates or updates the member leases for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKeys := getObjectKeys(etcd)
 	createTasks := make([]utils.OperatorTask, len(objectKeys))
@@ -89,6 +101,7 @@ func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1
 	return nil
 }
 
+// TriggerDelete deletes the member leases for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	ctx.Logger.Info("Triggering delete of member leases")
 	if err := r.client.DeleteAllOf(ctx,
@@ -102,12 +115,6 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 	}
 	ctx.Logger.Info("deleted", "component", "member-leases")
 	return nil
-}
-
-func New(client client.Client) component.Operator {
-	return &_resource{
-		client: client,
-	}
 }
 
 func buildResource(etcd *druidv1alpha1.Etcd, lease *coordinationv1.Lease) {

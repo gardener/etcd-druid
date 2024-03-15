@@ -32,6 +32,7 @@ func NewOperatorContext(ctx context.Context, logger logr.Logger, runID string) O
 	}
 }
 
+// SetLogger sets the logger for the OperatorContext.
 func (o *OperatorContext) SetLogger(logger logr.Logger) {
 	o.Logger = logger
 }

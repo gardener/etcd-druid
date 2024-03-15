@@ -88,9 +88,9 @@ check-generate:
 
 # Generate code
 .PHONY: generate
-generate: manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
-	@go generate "$(REPO_ROOT)/pkg/..."
-	@bash $(HACK_DIR)/update-codegen.sh
+generate: set-permissions manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
+	@go generate "$(REPO_ROOT)/internal/..."
+	@"$(REPO_ROOT)/hack/update-codegen.sh"
 
 # Build the docker image
 .PHONY: docker-build

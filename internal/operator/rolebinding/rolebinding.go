@@ -21,8 +21,11 @@ import (
 )
 
 const (
-	ErrGetRoleBinding    druidv1alpha1.ErrorCode = "ERR_GET_ROLE_BINDING"
-	ErrSyncRoleBinding   druidv1alpha1.ErrorCode = "ERR_SYNC_ROLE_BINDING"
+	// ErrGetRoleBinding indicates an error in getting the role binding resource.
+	ErrGetRoleBinding druidv1alpha1.ErrorCode = "ERR_GET_ROLE_BINDING"
+	// ErrSyncRoleBinding indicates an error in syncing the role binding resource.
+	ErrSyncRoleBinding druidv1alpha1.ErrorCode = "ERR_SYNC_ROLE_BINDING"
+	// ErrDeleteRoleBinding indicates an error in deleting the role binding resource.
 	ErrDeleteRoleBinding druidv1alpha1.ErrorCode = "ERR_DELETE_ROLE_BINDING"
 )
 
@@ -30,6 +33,14 @@ type _resource struct {
 	client client.Client
 }
 
+// New returns a new role binding operator.
+func New(client client.Client) component.Operator {
+	return &_resource{
+		client: client,
+	}
+}
+
+// GetExistingResourceNames returns the name of the existing role binding for the given Etcd.
 func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	objectKey := getObjectKey(etcd)
@@ -49,25 +60,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 	return resourceNames, nil
 }
 
-func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	objectKey := getObjectKey(etcd)
-	ctx.Logger.Info("Triggering delete of role", "objectKey", objectKey)
-	err := r.client.Delete(ctx, emptyRoleBinding(objectKey))
-	if err != nil {
-		if errors.IsNotFound(err) {
-			ctx.Logger.Info("No RoleBinding found, Deletion is a No-Op", "objectKey", objectKey)
-			return nil
-		}
-		return druiderr.WrapError(err,
-			ErrDeleteRoleBinding,
-			"TriggerDelete",
-			fmt.Sprintf("Failed to delete role-binding: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
-		)
-	}
-	ctx.Logger.Info("deleted", "component", "role-binding", "objectKey", objectKey)
-	return nil
-}
-
+// Sync creates or updates the role binding for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	rb := emptyRoleBinding(objectKey)
@@ -86,6 +79,8 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	return nil
 }
 
+// Exists checks if the role binding exists for the given Etcd.
+// TODO: This method is not used. Remove it if not needed.
 func (r _resource) Exists(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (bool, error) {
 	rb := &rbacv1.RoleBinding{}
 	if err := r.client.Get(ctx, getObjectKey(etcd), rb); err != nil {
@@ -97,10 +92,24 @@ func (r _resource) Exists(ctx component.OperatorContext, etcd *druidv1alpha1.Etc
 	return true, nil
 }
 
-func New(client client.Client) component.Operator {
-	return &_resource{
-		client: client,
+// TriggerDelete triggers the deletion of the role binding for the given Etcd.
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	objectKey := getObjectKey(etcd)
+	ctx.Logger.Info("Triggering delete of role", "objectKey", objectKey)
+	err := r.client.Delete(ctx, emptyRoleBinding(objectKey))
+	if err != nil {
+		if errors.IsNotFound(err) {
+			ctx.Logger.Info("No RoleBinding found, Deletion is a No-Op", "objectKey", objectKey)
+			return nil
+		}
+		return druiderr.WrapError(err,
+			ErrDeleteRoleBinding,
+			"TriggerDelete",
+			fmt.Sprintf("Failed to delete role-binding: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+		)
 	}
+	ctx.Logger.Info("deleted", "component", "role-binding", "objectKey", objectKey)
+	return nil
 }
 
 func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {

@@ -23,9 +23,12 @@ import (
 )
 
 const (
-	ErrGetConfigMap    druidv1alpha1.ErrorCode = "ERR_GET_CONFIGMAP"
+	// ErrGetConfigMap indicates an error in getting the configmap resource.
+	ErrGetConfigMap druidv1alpha1.ErrorCode = "ERR_GET_CONFIGMAP"
+	// ErrSyncConfigMap indicates an error in syncing the configmap resource.
+	ErrSyncConfigMap druidv1alpha1.ErrorCode = "ERR_SYNC_CONFIGMAP"
+	// ErrDeleteConfigMap indicates an error in deleting the configmap resource.
 	ErrDeleteConfigMap druidv1alpha1.ErrorCode = "ERR_DELETE_CONFIGMAP"
-	ErrSyncConfigMap   druidv1alpha1.ErrorCode = "ERR_SYNC_CONFIGMAP"
 )
 
 const etcdConfigKey = "etcd.conf.yaml"
@@ -34,6 +37,14 @@ type _resource struct {
 	client client.Client
 }
 
+// New returns a new configmap operator.
+func New(client client.Client) component.Operator {
+	return &_resource{
+		client: client,
+	}
+}
+
+// GetExistingResourceNames returns the name of the existing configmap for the given Etcd.
 func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	objKey := getObjectKey(etcd)
@@ -53,6 +64,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 	return resourceNames, nil
 }
 
+// Sync creates or updates the configmap for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	cm := emptyConfigMap(getObjectKey(etcd))
 	result, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, cm, func() error {
@@ -76,6 +88,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	return nil
 }
 
+// TriggerDelete triggers the deletion of the configmap for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of ConfigMap", "objectKey", objectKey)
@@ -93,12 +106,6 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 	}
 	ctx.Logger.Info("deleted", "component", "configmap", "objectKey", objectKey)
 	return nil
-}
-
-func New(client client.Client) component.Operator {
-	return &_resource{
-		client: client,
-	}
 }
 
 func buildResource(etcd *druidv1alpha1.Etcd, cm *corev1.ConfigMap) error {

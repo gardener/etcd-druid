@@ -21,8 +21,11 @@ import (
 )
 
 const (
-	ErrGetRole    druidv1alpha1.ErrorCode = "ERR_GET_ROLE"
-	ErrSyncRole   druidv1alpha1.ErrorCode = "ERR_SYNC_ROLE"
+	// ErrGetRole indicates an error in getting the role resource.
+	ErrGetRole druidv1alpha1.ErrorCode = "ERR_GET_ROLE"
+	// ErrSyncRole indicates an error in syncing the role resource.
+	ErrSyncRole druidv1alpha1.ErrorCode = "ERR_SYNC_ROLE"
+	// ErrDeleteRole indicates an error in deleting the role resource.
 	ErrDeleteRole druidv1alpha1.ErrorCode = "ERR_DELETE_ROLE"
 )
 
@@ -30,6 +33,14 @@ type _resource struct {
 	client client.Client
 }
 
+// New returns a new role operator.
+func New(client client.Client) component.Operator {
+	return &_resource{
+		client: client,
+	}
+}
+
+// GetExistingResourceNames returns the name of the existing role for the given Etcd.
 func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	objectKey := getObjectKey(etcd)
@@ -49,6 +60,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 	return resourceNames, nil
 }
 
+// Sync creates or updates the role for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	role := emptyRole(objectKey)
@@ -67,6 +79,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	return nil
 }
 
+// TriggerDelete triggers the deletion of the role for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of role", "objectKey", objectKey)
@@ -83,12 +96,6 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 	}
 	ctx.Logger.Info("deleted", "component", "role", "objectKey", objectKey)
 	return nil
-}
-
-func New(client client.Client) component.Operator {
-	return &_resource{
-		client: client,
-	}
 }
 
 func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {

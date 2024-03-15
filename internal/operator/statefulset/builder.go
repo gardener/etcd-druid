@@ -105,12 +105,10 @@ func newStsBuilder(client client.Client,
 	}, nil
 }
 
+// Build builds the StatefulSet for the given Etcd.
 func (b *stsBuilder) Build(ctx component.OperatorContext) error {
 	b.createStatefulSetObjectMeta()
-	if err := b.createStatefulSetSpec(ctx); err != nil {
-		return err
-	}
-	return nil
+	return b.createStatefulSetSpec(ctx)
 }
 
 func (b *stsBuilder) createStatefulSetObjectMeta() {

@@ -24,9 +24,12 @@ import (
 )
 
 const (
-	ErrGetStatefulSet    druidv1alpha1.ErrorCode = "ERR_GET_STATEFULSET"
+	// ErrGetStatefulSet indicates an error in getting the statefulset resource.
+	ErrGetStatefulSet druidv1alpha1.ErrorCode = "ERR_GET_STATEFULSET"
+	// ErrSyncStatefulSet indicates an error in syncing the statefulset resource.
+	ErrSyncStatefulSet druidv1alpha1.ErrorCode = "ERR_SYNC_STATEFULSET"
+	// ErrDeleteStatefulSet indicates an error in deleting the statefulset resource.
 	ErrDeleteStatefulSet druidv1alpha1.ErrorCode = "ERR_DELETE_STATEFULSET"
-	ErrSyncStatefulSet   druidv1alpha1.ErrorCode = "ERR_SYNC_STATEFULSET"
 )
 
 type _resource struct {
@@ -35,6 +38,7 @@ type _resource struct {
 	useEtcdWrapper bool
 }
 
+// New returns a new statefulset resource.
 func New(client client.Client, imageVector imagevector.ImageVector, featureGates map[featuregate.Feature]bool) component.Operator {
 	return &_resource{
 		client:         client,
@@ -43,6 +47,7 @@ func New(client client.Client, imageVector imagevector.ImageVector, featureGates
 	}
 }
 
+// GetExistingResourceNames returns the name of the existing statefulset for the given Etcd.
 func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	objectKey := getObjectKey(etcd)
@@ -62,6 +67,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 	return resourceNames, nil
 }
 
+// Sync creates or updates the statefulset for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	var (
 		existingSTS *appsv1.StatefulSet
@@ -90,6 +96,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	return r.createOrPatch(ctx, etcd)
 }
 
+// TriggerDelete triggers the deletion of the statefulset for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of StatefulSet", "objectKey", objectKey)
@@ -211,6 +218,7 @@ func isPeerTLSChangedToEnabled(peerTLSEnabledStatusFromMembers bool, etcd *druid
 	return !peerTLSEnabledStatusFromMembers && etcd.Spec.Etcd.PeerUrlTLS != nil
 }
 
+// TODO: this function is not used. Remove it if not needed.
 func deleteAllStsPods(ctx component.OperatorContext, cl client.Client, opName string, sts *appsv1.StatefulSet) error {
 	// Get all Pods belonging to the StatefulSet
 	podList := &corev1.PodList{}
@@ -220,13 +228,13 @@ func deleteAllStsPods(ctx component.OperatorContext, cl client.Client, opName st
 	}
 
 	if err := cl.List(ctx, podList, listOpts...); err != nil {
-		ctx.Logger.Error(err, "Failed to list pods for StatefulSet", "StatefulSet", client.ObjectKeyFromObject(sts))
+		ctx.Logger.Error(err, "Failed to list pods for StatefulSet", "StatefulSet", client.ObjectKeyFromObject(sts), "operation", opName)
 		return err
 	}
 
 	for _, pod := range podList.Items {
 		if err := cl.Delete(ctx, &pod); err != nil {
-			ctx.Logger.Error(err, "Failed to delete pod", "Pod", pod.Name, "Namespace", pod.Namespace)
+			ctx.Logger.Error(err, "Failed to delete pod", "Pod", pod.Name, "Namespace", pod.Namespace, "operation", opName)
 			return err
 		}
 	}

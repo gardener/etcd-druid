@@ -22,6 +22,7 @@ type LastOperationErrorRecorder interface {
 	RecordError(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType, description string, errs ...error) error
 }
 
+// NewLastOperationErrorRecorder returns a new LastOperationErrorRecorder
 func NewLastOperationErrorRecorder(client client.Client, logger logr.Logger) LastOperationErrorRecorder {
 	return &lastOpErrRecorder{
 		client: client,

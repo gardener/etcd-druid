@@ -28,7 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-// Handler handles admission requests and prevents changes to resources created by etcd-druid.
+// Handler is the Sentinel Webhook admission handler.
 type Handler struct {
 	client.Client
 	config  *Config
@@ -51,6 +51,7 @@ func NewHandler(mgr manager.Manager, config *Config) (*Handler, error) {
 	}, nil
 }
 
+// Handle handles admission requests and prevents unintended changes to resources created by etcd-druid.
 func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	var (
 		requestGK       = schema.GroupKind{Group: req.Kind.Group, Kind: req.Kind.Kind}

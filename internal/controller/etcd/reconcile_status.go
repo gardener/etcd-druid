@@ -50,7 +50,7 @@ func (r *Reconciler) mutateETCDStatusWithMemberStatusAndConditions(ctx component
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, logger logr.Logger) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
 	sts, err := utils.GetStatefulSet(ctx, r.client, etcd)
 	if err != nil {
 		return ctrlutils.ReconcileWithError(err)

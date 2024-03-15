@@ -67,11 +67,9 @@ func TypeDeref[T any](val *T, defaultVal T) T {
 	return defaultVal
 }
 
+// IsEmptyString returns true if the string is empty or contains only whitespace characters.
 func IsEmptyString(s string) bool {
-	if len(strings.TrimSpace(s)) == 0 {
-		return true
-	}
-	return false
+	return len(strings.TrimSpace(s)) == 0
 }
 
 // IfConditionOr implements a simple ternary operator, if the passed condition is true then trueVal is returned else falseVal is returned.

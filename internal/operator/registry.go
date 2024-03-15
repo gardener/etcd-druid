@@ -19,6 +19,7 @@ type Registry interface {
 	GetOperator(kind Kind) component.Operator
 }
 
+// Kind represents the kind of component that an operator manages.
 type Kind string
 
 const (

@@ -21,9 +21,12 @@ import (
 )
 
 const (
-	ErrGetServiceAccount    druidv1alpha1.ErrorCode = "ERR_GET_SERVICE_ACCOUNT"
+	// ErrGetServiceAccount indicates an error in getting the service account resource.
+	ErrGetServiceAccount druidv1alpha1.ErrorCode = "ERR_GET_SERVICE_ACCOUNT"
+	// ErrSyncServiceAccount indicates an error in syncing the service account resource.
+	ErrSyncServiceAccount druidv1alpha1.ErrorCode = "ERR_SYNC_SERVICE_ACCOUNT"
+	// ErrDeleteServiceAccount indicates an error in deleting the service account resource.
 	ErrDeleteServiceAccount druidv1alpha1.ErrorCode = "ERR_DELETE_SERVICE_ACCOUNT"
-	ErrSyncServiceAccount   druidv1alpha1.ErrorCode = "ERR_SYNC_SERVICE_ACCOUNT"
 )
 
 type _resource struct {
@@ -31,6 +34,15 @@ type _resource struct {
 	disableAutoMount bool
 }
 
+// New returns a new service account operator.
+func New(client client.Client, disableAutomount bool) component.Operator {
+	return &_resource{
+		client:           client,
+		disableAutoMount: disableAutomount,
+	}
+}
+
+// GetExistingResourceNames returns the name of the existing service account for the given Etcd.
 func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	sa := &corev1.ServiceAccount{}
@@ -50,6 +62,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 	return resourceNames, nil
 }
 
+// Sync creates or updates the service account for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	sa := emptyServiceAccount(objectKey)
@@ -68,6 +81,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	return nil
 }
 
+// TriggerDelete triggers the deletion of the service account for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	ctx.Logger.Info("Triggering delete of service account")
 	objectKey := getObjectKey(etcd)
@@ -83,13 +97,6 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 	}
 	ctx.Logger.Info("deleted", "component", "service-account", "objectKey", objectKey)
 	return nil
-}
-
-func New(client client.Client, disableAutomount bool) component.Operator {
-	return &_resource{
-		client:           client,
-		disableAutoMount: disableAutomount,
-	}
 }
 
 func buildResource(etcd *druidv1alpha1.Etcd, sa *corev1.ServiceAccount, autoMountServiceAccountToken bool) {

@@ -22,15 +22,26 @@ import (
 )
 
 const (
-	ErrGetSnapshotLease    druidv1alpha1.ErrorCode = "ERR_GET_SNAPSHOT_LEASE"
+	// ErrGetSnapshotLease indicates an error in getting the snapshot lease resources.
+	ErrGetSnapshotLease druidv1alpha1.ErrorCode = "ERR_GET_SNAPSHOT_LEASE"
+	// ErrSyncSnapshotLease indicates an error in syncing the snapshot lease resources.
+	ErrSyncSnapshotLease druidv1alpha1.ErrorCode = "ERR_SYNC_SNAPSHOT_LEASE"
+	// ErrDeleteSnapshotLease indicates an error in deleting the snapshot lease resources.
 	ErrDeleteSnapshotLease druidv1alpha1.ErrorCode = "ERR_DELETE_SNAPSHOT_LEASE"
-	ErrSyncSnapshotLease   druidv1alpha1.ErrorCode = "ERR_SYNC_SNAPSHOT_LEASE"
 )
 
 type _resource struct {
 	client client.Client
 }
 
+// New returns a new snapshot lease operator.
+func New(client client.Client) component.Operator {
+	return &_resource{
+		client: client,
+	}
+}
+
+// GetExistingResourceNames returns the names of the existing snapshot leases for the given Etcd.
 func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 2)
 	// We have to get snapshot leases one lease at a time and cannot use label-selector based listing
@@ -66,6 +77,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 	return resourceNames, nil
 }
 
+// Sync creates or updates the snapshot leases for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	if !etcd.IsBackupStoreEnabled() {
 		ctx.Logger.Info("Backup has been disabled. Triggering delete of snapshot leases")
@@ -92,6 +104,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	return errors.Join(utils.RunConcurrently(ctx, syncTasks)...)
 }
 
+// TriggerDelete triggers the deletion of the snapshot leases for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	ctx.Logger.Info("Triggering delete of snapshot leases")
 	if err := r.deleteAllSnapshotLeases(ctx, etcd, func(err error) error {
@@ -114,12 +127,6 @@ func (r _resource) deleteAllSnapshotLeases(ctx component.OperatorContext, etcd *
 		return wrapErrFn(err)
 	}
 	return nil
-}
-
-func New(client client.Client) component.Operator {
-	return &_resource{
-		client: client,
-	}
 }
 
 func (r _resource) getLease(ctx context.Context, objectKey client.ObjectKey) (*coordinationv1.Lease, error) {

@@ -21,15 +21,26 @@ import (
 )
 
 const (
-	ErrGetPodDisruptionBudget    druidv1alpha1.ErrorCode = "ERR_GET_POD_DISRUPTION_BUDGET"
+	// ErrGetPodDisruptionBudget indicates an error in getting the pod disruption budget resource.
+	ErrGetPodDisruptionBudget druidv1alpha1.ErrorCode = "ERR_GET_POD_DISRUPTION_BUDGET"
+	// ErrSyncPodDisruptionBudget indicates an error in syncing the pod disruption budget resource.
+	ErrSyncPodDisruptionBudget druidv1alpha1.ErrorCode = "ERR_SYNC_POD_DISRUPTION_BUDGET"
+	// ErrDeletePodDisruptionBudget indicates an error in deleting the pod disruption budget resource.
 	ErrDeletePodDisruptionBudget druidv1alpha1.ErrorCode = "ERR_DELETE_POD_DISRUPTION_BUDGET"
-	ErrSyncPodDisruptionBudget   druidv1alpha1.ErrorCode = "ERR_SYNC_POD_DISRUPTION_BUDGET"
 )
 
 type _resource struct {
 	client client.Client
 }
 
+// New returns a new pod disruption budget operator.
+func New(client client.Client) component.Operator {
+	return &_resource{
+		client: client,
+	}
+}
+
+// GetExistingResourceNames returns the name of the existing pod disruption budget for the given Etcd.
 func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	objectKey := getObjectKey(etcd)
@@ -49,6 +60,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 	return resourceNames, nil
 }
 
+// Sync creates or updates the pod disruption budget for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	pdb := emptyPodDisruptionBudget(objectKey)
@@ -67,6 +79,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	return nil
 }
 
+// TriggerDelete triggers the deletion of the pod disruption budget for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	ctx.Logger.Info("Triggering delete of PDB")
 	pdbObjectKey := getObjectKey(etcd)
@@ -78,12 +91,6 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 	}
 	ctx.Logger.Info("deleted", "component", "pod-disruption-budget", "objectKey", pdbObjectKey)
 	return nil
-}
-
-func New(client client.Client) component.Operator {
-	return &_resource{
-		client: client,
-	}
 }
 
 func buildResource(etcd *druidv1alpha1.Etcd, pdb *policyv1.PodDisruptionBudget) {

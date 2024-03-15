@@ -28,15 +28,26 @@ const (
 )
 
 const (
-	ErrGetClientService    druidv1alpha1.ErrorCode = "ERR_GET_CLIENT_SERVICE"
+	// ErrGetClientService indicates an error in getting the client service resource.
+	ErrGetClientService druidv1alpha1.ErrorCode = "ERR_GET_CLIENT_SERVICE"
+	// ErrSyncClientService indicates an error in syncing the client service resource.
+	ErrSyncClientService druidv1alpha1.ErrorCode = "ERR_SYNC_CLIENT_SERVICE"
+	// ErrDeleteClientService indicates an error in deleting the client service resource.
 	ErrDeleteClientService druidv1alpha1.ErrorCode = "ERR_DELETE_CLIENT_SERVICE"
-	ErrSyncClientService   druidv1alpha1.ErrorCode = "ERR_SYNC_CLIENT_SERVICE"
 )
 
 type _resource struct {
 	client client.Client
 }
 
+// New returns a new client service operator.
+func New(client client.Client) component.Operator {
+	return &_resource{
+		client: client,
+	}
+}
+
+// GetExistingResourceNames returns the name of the existing client service for the given Etcd.
 func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	svc := &corev1.Service{}
@@ -56,6 +67,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 	return resourceNames, nil
 }
 
+// Sync creates or updates the client service for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	svc := emptyClientService(objectKey)
@@ -74,6 +86,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	return nil
 }
 
+// TriggerDelete triggers the deletion of the client service for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of client service", "objectKey", objectKey)
@@ -91,12 +104,6 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 	}
 	ctx.Logger.Info("deleted", "component", "client-service", "objectKey", objectKey)
 	return nil
-}
-
-func New(client client.Client) component.Operator {
-	return &_resource{
-		client: client,
-	}
 }
 
 func buildResource(etcd *druidv1alpha1.Etcd, svc *corev1.Service) {
