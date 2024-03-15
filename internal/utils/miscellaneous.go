@@ -15,26 +15,9 @@ import (
 // MergeStringMaps merges the content of the newMaps with the oldMap. If a key already exists then
 // it gets overwritten by the last value with the same key.
 func MergeStringMaps(oldMap map[string]string, newMaps ...map[string]string) map[string]string {
-	var out map[string]string
-
-	if oldMap != nil {
-		out = make(map[string]string)
-	}
-	for k, v := range oldMap {
-		out[k] = v
-	}
-
-	for _, newMap := range newMaps {
-		if newMap != nil && out == nil {
-			out = make(map[string]string)
-		}
-
-		for k, v := range newMap {
-			out[k] = v
-		}
-	}
-
-	return out
+	allMaps := []map[string]string{oldMap}
+	allMaps = append(allMaps, newMaps...)
+	return MergeMaps[string, string](allMaps...)
 }
 
 // MergeMaps merges the contents of maps. All maps will be processed in the order
@@ -99,10 +82,7 @@ func IfConditionOr[T any](condition bool, trueVal, falseVal T) T {
 	return falseVal
 }
 
-// IsNilOrEmptyStringPtr returns true if the string pointer is nil or the return value of IsEmptyString(s).
-func IsNilOrEmptyStringPtr(s *string) bool {
-	if s == nil {
-		return true
-	}
-	return IsEmptyString(*s)
+// PointerOf returns a pointer to the given value.
+func PointerOf[T any](val T) *T {
+	return &val
 }

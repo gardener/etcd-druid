@@ -474,7 +474,7 @@ func initializeEtcdReconcilerTestEnv(t *testing.T, itTestEnv setup.IntegrationTe
 				FeatureGates: map[featuregate.Feature]bool{
 					features.UseEtcdWrapper: true,
 				},
-				EtcdMember: etcd.EtcdMemberConfig{
+				EtcdMember: etcd.MemberConfig{
 					NotReadyThreshold: 5 * time.Minute,
 					UnknownThreshold:  1 * time.Minute,
 				},

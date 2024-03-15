@@ -63,11 +63,11 @@ type Config struct {
 	FeatureGates map[featuregate.Feature]bool
 
 	// EtcdMember holds configuration related to etcd members.
-	EtcdMember EtcdMemberConfig
+	EtcdMember MemberConfig
 }
 
-// EtcdMemberConfig holds configuration related to etcd members.
-type EtcdMemberConfig struct {
+// MemberConfig holds configuration related to etcd members.
+type MemberConfig struct {
 	// NotReadyThreshold is the duration after which an etcd member's state is considered `NotReady`.
 	NotReadyThreshold time.Duration
 	// UnknownThreshold is the duration after which an etcd member's state is considered `Unknown`.

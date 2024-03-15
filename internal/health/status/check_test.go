@@ -12,6 +12,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/health/condition"
 	"github.com/gardener/etcd-druid/internal/health/etcdmember"
 	. "github.com/gardener/etcd-druid/internal/health/status"
+	"github.com/gardener/etcd-druid/internal/utils"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -28,9 +29,6 @@ import (
 var _ = Describe("Check", func() {
 	Describe("#Check", func() {
 		It("should correctly execute checks and fill status", func() {
-			memberRoleLeader := druidv1alpha1.EtcdRoleLeader
-			memberRoleMember := druidv1alpha1.EtcdRoleMember
-
 			timeBefore, _ := time.Parse(time.RFC3339, "2021-06-01T00:00:00Z")
 			timeNow := timeBefore.Add(1 * time.Hour)
 
@@ -111,9 +109,9 @@ var _ = Describe("Check", func() {
 			defer test.WithVar(&EtcdMemberChecks, []EtcdMemberCheckFn{
 				func(_ client.Client, _ logr.Logger, _, _ time.Duration) etcdmember.Checker {
 					return createEtcdMemberCheck(
-						etcdMemberResult{pointer.String("1"), "member1", &memberRoleLeader, druidv1alpha1.EtcdMemberStatusUnknown, "Unknown"},
-						etcdMemberResult{pointer.String("2"), "member2", &memberRoleMember, druidv1alpha1.EtcdMemberStatusNotReady, "bar reason"},
-						etcdMemberResult{pointer.String("3"), "member3", &memberRoleMember, druidv1alpha1.EtcdMemberStatusReady, "foobar reason"},
+						etcdMemberResult{pointer.String("1"), "member1", utils.PointerOf[druidv1alpha1.EtcdRole](druidv1alpha1.EtcdRoleLeader), druidv1alpha1.EtcdMemberStatusUnknown, "Unknown"},
+						etcdMemberResult{pointer.String("2"), "member2", utils.PointerOf[druidv1alpha1.EtcdRole](druidv1alpha1.EtcdRoleMember), druidv1alpha1.EtcdMemberStatusNotReady, "bar reason"},
+						etcdMemberResult{pointer.String("3"), "member3", utils.PointerOf[druidv1alpha1.EtcdRole](druidv1alpha1.EtcdRoleMember), druidv1alpha1.EtcdMemberStatusReady, "foobar reason"},
 					)
 				},
 			})()

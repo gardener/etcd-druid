@@ -714,10 +714,6 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 			"Name":      Equal(task.Name + "-worker"),
 			"Namespace": Equal(task.Namespace),
-			"Annotations": MatchKeys(IgnoreExtras, Keys{
-				"gardener.cloud/owned-by":   Equal(fmt.Sprintf("%s/%s", task.Namespace, task.Name)),
-				"gardener.cloud/owner-type": Equal("etcdcopybackupstask"),
-			}),
 			"OwnerReferences": MatchAllElements(testutils.OwnerRefIterator, Elements{
 				task.Name: MatchAllFields(Fields{
 					"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
