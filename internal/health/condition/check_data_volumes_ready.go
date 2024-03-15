@@ -8,11 +8,11 @@ import (
 	"context"
 	"fmt"
 
-	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
-
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/utils"
 
+	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -28,14 +28,13 @@ func (d *dataVolumesReady) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 
 	sts, err := utils.GetStatefulSet(ctx, d.cl, &etcd)
 	if err != nil {
+		if errors.IsNotFound(err) {
+			res.reason = "StatefulSetNotFound"
+			res.message = fmt.Sprintf("StatefulSet %s not found for etcd", etcd.Name)
+			return res
+		}
 		res.reason = "UnableToFetchStatefulSet"
 		res.message = fmt.Sprintf("Unable to fetch StatefulSet for etcd: %s", err.Error())
-		return res
-	}
-
-	if sts == nil {
-		res.reason = "StatefulSetNotFound"
-		res.message = fmt.Sprintf("StatefulSet: %q not found for etcd", etcd.Name)
 		return res
 	}
 
