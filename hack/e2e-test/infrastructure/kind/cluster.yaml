@@ -13,3 +13,13 @@ nodes:
     # optional: set the protocol to one of TCP, UDP, SCTP.
     # TCP is the default
     protocol: TCP
+  # port-forward the 8000 port from host machine to fake-gcs svc running inside the kind cluster
+  - containerPort: 8000
+    hostPort: 8000
+    listenAddress: "127.0.0.1"
+    protocol: TCP
+  # port-forward the 4443 port from host machine to fake-gcs svc running inside the kind cluster
+  - containerPort: 4443
+    hostPort: 4443
+    listenAddress: "127.0.0.1"
+    protocol: TCP

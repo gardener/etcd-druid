@@ -70,6 +70,7 @@ func GetProviderEnvVars(store *druidv1alpha1.StoreSpec) ([]corev1.EnvVar, error)
 	case GCS:
 		envVars = append(envVars, GetEnvVarFromValue(common.EnvGoogleApplicationCredentials, "/var/.gcp/serviceaccount.json"))
 		envVars = append(envVars, GetEnvVarFromSecret(common.EnvGoogleStorageAPIEndpoint, store.SecretRef.Name, "storageAPIEndpoint", true))
+		envVars = append(envVars, GetEnvVarFromSecret(common.EnvEmulatorEnabled, store.SecretRef.Name, "emulatorEnabled", true))
 
 	case Swift:
 		envVars = append(envVars, GetEnvVarFromValue(common.EnvOpenstackApplicationCredentials, credentialsMountPath))

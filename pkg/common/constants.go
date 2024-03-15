@@ -41,6 +41,8 @@ const (
 	EnvGoogleApplicationCredentials = "GOOGLE_APPLICATION_CREDENTIALS"
 	// EnvGoogleStorageAPIEndpoint is the environment variable key for Google storage API endpoint override.
 	EnvGoogleStorageAPIEndpoint = "GOOGLE_STORAGE_API_ENDPOINT"
+	// EnvEmulatorEnabled is the environment variable key for Google storage emulator.
+	EnvEmulatorEnabled = "GOOGLE_EMULATOR_ENABLED"
 	// EnvOpenstackApplicationCredentials is the environment variable key for OpenStack application credentials.
 	EnvOpenstackApplicationCredentials = "OPENSTACK_APPLICATION_CREDENTIALS"
 	// EnvAlicloudApplicationCredentials is the environment variable key for Alicloud application credentials.
