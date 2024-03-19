@@ -174,26 +174,13 @@ func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *dru
 			ctx.Logger.Info("Secret volume mounts to enable Peer URL TLS have already been mounted. Skipping patching StatefulSet with secret volume mounts.")
 		}
 		// check again if peer TLS has been enabled for all members. If not then force a requeue of the reconcile request.
+		peerTLSEnabledForAllMembers, err = utils.IsPeerURLTLSEnabledForAllMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name)
+		if err != nil {
+			return fmt.Errorf("error checking if peer URL TLS is enabled: %w", err)
+		}
 		if !peerTLSEnabledForAllMembers {
 			return fmt.Errorf("peer URL TLS not enabled for all members for etcd: %v, requeuing reconcile request", etcd.GetNamespaceName())
 		}
-
-		//ctx.Logger.Info("Attempting to enable TLS for etcd peers", "namespace", etcd.Namespace, "name", etcd.Name)
-		//
-		//tlsEnabled, err := utils.IsPeerURLTLSEnabledForAllMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name)
-		//if err != nil {
-		//	return fmt.Errorf("error verifying if TLS is enabled post-patch: %v", err)
-		//}
-		//// It usually takes time for TLS to be enabled and reflected via the lease. So first time around this will not be true.
-		//// So instead of waiting we requeue the request to be re-tried again.
-		//if !tlsEnabled {
-		//	return fmt.Errorf("failed to enable TLS for etcd [name: %s, namespace: %s]", etcd.Name, etcd.Namespace)
-		//}
-		//
-		//if err := deleteAllStsPods(ctx, r.client, "Deleting all StatefulSet pods due to TLS enablement", existingSts); err != nil {
-		//	return fmt.Errorf("error deleting StatefulSet pods after enabling TLS: %v", err)
-		//}
-		//ctx.Logger.Info("TLS enabled for etcd peers", "namespace", etcd.Namespace, "name", etcd.Name)
 	}
 	ctx.Logger.Info("Peer URL TLS has been enabled for all members")
 	return nil

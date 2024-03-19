@@ -132,8 +132,9 @@ test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
 	@bash $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
 .PHONY: test-integration
-test-integration: $(GINKGO) $(SETUP_ENVTEST)
-	@bash $(HACK_DIR)/test.sh ./test/integration/...
+test-integration: set-permissions $(GINKGO) $(SETUP_ENVTEST)
+	@"$(REPO_ROOT)/hack/test.sh" ./test/integration/...
+	@go test -v ./test/it/...
 
 .PHONY: update-dependencies
 update-dependencies:
