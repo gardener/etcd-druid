@@ -18,6 +18,8 @@ const (
 	backRestoreServerTLSVolumeName = "back-restore-server-tls"
 	backRestoreClientTLSVolumeName = "back-restore-client-tls"
 	etcdConfigVolumeName           = "etcd-config-file"
+	localBackupVolumeName          = "local-backup"
+	providerBackupVolumeName       = "etcd-backup"
 )
 
 // constants for volume mount paths
@@ -25,6 +27,13 @@ const (
 	backupRestoreCAVolumeMountPath        = "/var/etcdbr/ssl/ca"
 	backupRestoreServerTLSVolumeMountPath = "/var/etcdbr/ssl/server"
 	backupRestoreClientTLSVolumeMountPath = "/var/etcdbr/ssl/client"
+	etcdCAVolumeMountPath                 = "/var/etcd/ssl/ca"
+	etcdServerTLSVolumeMountPath          = "/var/etcd/ssl/server"
+	etcdClientTLSVolumeMountPath          = "/var/etcd/ssl/client"
+	etcdPeerCAVolumeMountPath             = "/var/etcd/ssl/peer/ca"
+	etcdPeerServerTLSVolumeMountPath      = "/var/etcd/ssl/peer/server"
+	gcsBackupVolumeMountPath              = "/var/.gcp/"
+	nonGCSProviderBackupVolumeMountPath   = "/var/etcd-backup/"
 )
 
 const (
@@ -35,4 +44,10 @@ const (
 const (
 	// etcdDataVolumeMountPath is the path on etcd and etcd-backup-restore containers where etcd data directory is hosted.
 	etcdDataVolumeMountPath = "/var/etcd/data"
+)
+
+// constants for container ports
+const (
+	serverPortName = "server"
+	clientPortName = "client"
 )

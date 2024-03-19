@@ -253,12 +253,12 @@ func (b *stsBuilder) getPodInitContainers() []corev1.Container {
 func (b *stsBuilder) getEtcdContainerVolumeMounts() []corev1.VolumeMount {
 	etcdVolumeMounts := make([]corev1.VolumeMount, 0, 6)
 	etcdVolumeMounts = append(etcdVolumeMounts, b.getEtcdDataVolumeMount())
-	etcdVolumeMounts = append(etcdVolumeMounts, b.getSecretVolumeMounts()...)
+	etcdVolumeMounts = append(etcdVolumeMounts, b.getEtcdSecretVolumeMounts()...)
 	return etcdVolumeMounts
 }
 
 func (b *stsBuilder) getBackupRestoreContainerVolumeMounts() []corev1.VolumeMount {
-	brVolumeMounts := make([]corev1.VolumeMount, 0, 8)
+	brVolumeMounts := make([]corev1.VolumeMount, 0, 6)
 	brVolumeMounts = append(brVolumeMounts,
 		b.getEtcdDataVolumeMount(),
 		corev1.VolumeMount{
@@ -271,28 +271,30 @@ func (b *stsBuilder) getBackupRestoreContainerVolumeMounts() []corev1.VolumeMoun
 	if b.etcd.IsBackupStoreEnabled() {
 		etcdBackupVolumeMount := b.getEtcdBackupVolumeMount()
 		if etcdBackupVolumeMount != nil {
-			brVolumeMounts = append(brVolumeMounts, *b.getEtcdBackupVolumeMount())
+			brVolumeMounts = append(brVolumeMounts, *etcdBackupVolumeMount)
 		}
 	}
-
 	return brVolumeMounts
 }
 
 func (b *stsBuilder) getBackupRestoreSecretVolumeMounts() []corev1.VolumeMount {
-	return []corev1.VolumeMount{
-		{
-			Name:      backRestoreCAVolumeName,
-			MountPath: backupRestoreCAVolumeMountPath,
-		},
-		{
-			Name:      backRestoreServerTLSVolumeName,
-			MountPath: backupRestoreServerTLSVolumeMountPath,
-		},
-		{
-			Name:      backRestoreClientTLSVolumeName,
-			MountPath: backupRestoreClientTLSVolumeMountPath,
-		},
+	if b.etcd.Spec.Backup.TLS != nil {
+		return []corev1.VolumeMount{
+			{
+				Name:      backRestoreCAVolumeName,
+				MountPath: backupRestoreCAVolumeMountPath,
+			},
+			{
+				Name:      backRestoreServerTLSVolumeName,
+				MountPath: backupRestoreServerTLSVolumeMountPath,
+			},
+			{
+				Name:      backRestoreClientTLSVolumeName,
+				MountPath: backupRestoreClientTLSVolumeMountPath,
+			},
+		}
 	}
+	return []corev1.VolumeMount{}
 }
 
 func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
@@ -301,25 +303,25 @@ func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 		if b.etcd.Spec.Backup.Store.Container != nil {
 			if b.useEtcdWrapper {
 				return &corev1.VolumeMount{
-					Name:      "host-storage",
+					Name:      localBackupVolumeName,
 					MountPath: fmt.Sprintf("/home/nonroot/%s", pointer.StringDeref(b.etcd.Spec.Backup.Store.Container, "")),
 				}
 			} else {
 				return &corev1.VolumeMount{
-					Name:      "host-storage",
+					Name:      localBackupVolumeName,
 					MountPath: pointer.StringDeref(b.etcd.Spec.Backup.Store.Container, ""),
 				}
 			}
 		}
 	case utils.GCS:
 		return &corev1.VolumeMount{
-			Name:      "etcd-backup",
-			MountPath: "/var/.gcp/",
+			Name:      providerBackupVolumeName,
+			MountPath: gcsBackupVolumeMountPath,
 		}
 	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
 		return &corev1.VolumeMount{
-			Name:      "etcd-backup",
-			MountPath: "/var/etcd-backup/",
+			Name:      providerBackupVolumeName,
+			MountPath: nonGCSProviderBackupVolumeMountPath,
 		}
 	}
 	return nil
@@ -342,12 +344,12 @@ func (b *stsBuilder) getEtcdContainer() corev1.Container {
 		ReadinessProbe:  b.getEtcdContainerReadinessProbe(),
 		Ports: []corev1.ContainerPort{
 			{
-				Name:          "server",
+				Name:          serverPortName,
 				Protocol:      corev1.ProtocolTCP,
 				ContainerPort: b.serverPort,
 			},
 			{
-				Name:          "client",
+				Name:          clientPortName,
 				Protocol:      corev1.ProtocolTCP,
 				ContainerPort: b.clientPort,
 			},
@@ -370,7 +372,7 @@ func (b *stsBuilder) getBackupRestoreContainer() (corev1.Container, error) {
 		Args:            b.getBackupRestoreContainerCommandArgs(),
 		Ports: []corev1.ContainerPort{
 			{
-				Name:          "server",
+				Name:          serverPortName,
 				Protocol:      corev1.ProtocolTCP,
 				ContainerPort: b.backupPort,
 			},
@@ -641,27 +643,27 @@ func (b *stsBuilder) getPodSecurityContext() *corev1.PodSecurityContext {
 	}
 }
 
-func (b *stsBuilder) getSecretVolumeMounts() []corev1.VolumeMount {
+func (b *stsBuilder) getEtcdSecretVolumeMounts() []corev1.VolumeMount {
 	secretVolumeMounts := make([]corev1.VolumeMount, 0, 5)
 	if b.etcd.Spec.Etcd.ClientUrlTLS != nil {
 		secretVolumeMounts = append(secretVolumeMounts, corev1.VolumeMount{
-			Name:      "client-url-ca-etcd",
-			MountPath: "/var/etcd/ssl/client/ca",
+			Name:      clientCAVolumeName,
+			MountPath: etcdCAVolumeMountPath,
 		}, corev1.VolumeMount{
-			Name:      "client-url-etcd-server-tls",
-			MountPath: "/var/etcd/ssl/client/server",
+			Name:      serverTLSVolumeName,
+			MountPath: etcdServerTLSVolumeMountPath,
 		}, corev1.VolumeMount{
-			Name:      "client-url-etcd-client-tls",
-			MountPath: "/var/etcd/ssl/client/client",
+			Name:      clientTLSVolumeName,
+			MountPath: etcdClientTLSVolumeMountPath,
 		})
 	}
 	if b.etcd.Spec.Etcd.PeerUrlTLS != nil {
 		secretVolumeMounts = append(secretVolumeMounts, corev1.VolumeMount{
-			Name:      "peer-url-ca-etcd",
-			MountPath: "/var/etcd/ssl/peer/ca",
+			Name:      peerCAVolumeName,
+			MountPath: etcdPeerCAVolumeMountPath,
 		}, corev1.VolumeMount{
-			Name:      "peer-url-etcd-server-tls",
-			MountPath: "/var/etcd/ssl/peer/server",
+			Name:      peerServerTLSVolumeName,
+			MountPath: etcdPeerServerTLSVolumeMountPath,
 		})
 	}
 	return secretVolumeMounts
@@ -806,7 +808,7 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 
 		hpt := corev1.HostPathDirectory
 		return &corev1.Volume{
-			Name: "host-storage",
+			Name: localBackupVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				HostPath: &corev1.HostPathVolumeSource{
 					Path: hostPath + "/" + pointer.StringDeref(store.Container, ""),
@@ -820,7 +822,7 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 		}
 
 		return &corev1.Volume{
-			Name: "etcd-backup",
+			Name: providerBackupVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: store.SecretRef.Name,
