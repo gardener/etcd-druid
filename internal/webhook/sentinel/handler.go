@@ -20,10 +20,10 @@ import (
 	policyv1 "k8s.io/api/policy/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
@@ -47,53 +47,28 @@ func NewHandler(mgr manager.Manager, config *Config) (*Handler, error) {
 		Client:  mgr.GetClient(),
 		config:  config,
 		decoder: decoder,
-		logger:  log.Log.WithName(handlerName),
+		logger:  mgr.GetLogger().WithName(handlerName),
 	}, nil
 }
 
 // Handle handles admission requests and prevents unintended changes to resources created by etcd-druid.
 func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	var (
-		requestGK       = schema.GroupKind{Group: req.Kind.Group, Kind: req.Kind.Kind}
-		decodeOldObject bool
-		obj             client.Object
-		err             error
-	)
-
-	log := h.logger.WithValues("resourceGroup", req.Kind.Group, "resourceKind", req.Kind.Kind, "name", req.Name, "namespace", req.Namespace, "operation", req.Operation, "user", req.UserInfo.Username)
+	requestGKString := fmt.Sprintf("%s/%s", req.Kind.Group, req.Kind.Kind)
+	log := h.logger.WithValues("name", req.Name, "namespace", req.Namespace, "resourceGroupKind", requestGKString, "operation", req.Operation, "user", req.UserInfo.Username)
 	log.Info("Sentinel webhook invoked")
 
-	if req.Operation == admissionv1.Delete {
-		decodeOldObject = true
+	requestGK := schema.GroupKind{Group: req.Kind.Group, Kind: req.Kind.Kind}
+	if requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() &&
+		req.Operation == admissionv1.Update {
+		return admission.Allowed("lease resource can be freely updated")
 	}
 
-	switch requestGK {
-	case corev1.SchemeGroupVersion.WithKind("ServiceAccount").GroupKind():
-		obj, err = h.decodeServiceAccount(req, decodeOldObject)
-	case corev1.SchemeGroupVersion.WithKind("Service").GroupKind():
-		obj, err = h.decodeService(req, decodeOldObject)
-	case corev1.SchemeGroupVersion.WithKind("ConfigMap").GroupKind():
-		obj, err = h.decodeConfigMap(req, decodeOldObject)
-	case rbacv1.SchemeGroupVersion.WithKind("Role").GroupKind():
-		obj, err = h.decodeRole(req, decodeOldObject)
-	case rbacv1.SchemeGroupVersion.WithKind("RoleBinding").GroupKind():
-		obj, err = h.decodeRoleBinding(req, decodeOldObject)
-	case appsv1.SchemeGroupVersion.WithKind("StatefulSet").GroupKind():
-		obj, err = h.decodeStatefulSet(req, decodeOldObject)
-	case policyv1.SchemeGroupVersion.WithKind("PodDisruptionBudget").GroupKind():
-		obj, err = h.decodePodDisruptionBudget(req, decodeOldObject)
-	case batchv1.SchemeGroupVersion.WithKind("Job").GroupKind():
-		obj, err = h.decodeJob(req, decodeOldObject)
-	case coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind():
-		if req.Operation == admissionv1.Update {
-			return admission.Allowed("lease resource can be freely updated")
-		}
-		obj, err = h.decodeLease(req, decodeOldObject)
-	default:
-		return admission.Allowed(fmt.Sprintf("unexpected resource type: %s", requestGK))
-	}
+	obj, err := h.decodeRequestObject(req, requestGK)
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
+	}
+	if obj == nil {
+		return admission.Allowed(fmt.Sprintf("unexpected resource type: %s", requestGKString))
 	}
 
 	etcdName, hasLabel := obj.GetLabels()[druidv1alpha1.LabelPartOfKey]
@@ -137,128 +112,42 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 	return admission.Denied(fmt.Sprintf("changes disallowed, since no ongoing processing of etcd %s by etcd-druid", etcd.Name))
 }
 
-func (h *Handler) decodeServiceAccount(req admission.Request, decodeOldObject bool) (client.Object, error) {
-	sa := &corev1.ServiceAccount{}
-	if decodeOldObject {
-		if err := h.decoder.DecodeRaw(req.OldObject, sa); err != nil {
-			return nil, err
-		}
-		return sa, nil
+func (h *Handler) decodeRequestObject(req admission.Request, requestGK schema.GroupKind) (client.Object, error) {
+	var (
+		obj client.Object
+		err error
+	)
+	switch requestGK {
+	case
+		corev1.SchemeGroupVersion.WithKind("ServiceAccount").GroupKind(),
+		corev1.SchemeGroupVersion.WithKind("Service").GroupKind(),
+		corev1.SchemeGroupVersion.WithKind("ConfigMap").GroupKind(),
+		rbacv1.SchemeGroupVersion.WithKind("Role").GroupKind(),
+		rbacv1.SchemeGroupVersion.WithKind("RoleBinding").GroupKind(),
+		appsv1.SchemeGroupVersion.WithKind("StatefulSet").GroupKind(),
+		policyv1.SchemeGroupVersion.WithKind("PodDisruptionBudget").GroupKind(),
+		batchv1.SchemeGroupVersion.WithKind("Job").GroupKind(),
+		coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind():
+		obj, err = h.doDecodeRequestObject(req)
 	}
-	if err := h.decoder.Decode(req, sa); err != nil {
-		return nil, err
-	}
-	return sa, nil
+	return obj, err
 }
 
-func (h *Handler) decodeService(req admission.Request, decodeOldObject bool) (client.Object, error) {
-	svc := &corev1.Service{}
-	if decodeOldObject {
-		if err := h.decoder.DecodeRaw(req.OldObject, svc); err != nil {
-			return nil, err
-		}
-		return svc, nil
-	}
-	if err := h.decoder.Decode(req, svc); err != nil {
-		return nil, err
-	}
-	return svc, nil
-}
+func (h *Handler) doDecodeRequestObject(req admission.Request) (client.Object, error) {
+	var (
+		err error
+		obj = &unstructured.Unstructured{}
+	)
 
-func (h *Handler) decodeConfigMap(req admission.Request, decodeOldObject bool) (client.Object, error) {
-	cm := &corev1.ConfigMap{}
-	if decodeOldObject {
-		if err := h.decoder.DecodeRaw(req.OldObject, cm); err != nil {
+	if req.Operation == admissionv1.Delete {
+		if err = h.decoder.DecodeRaw(req.OldObject, obj); err != nil {
 			return nil, err
 		}
-		return cm, nil
+		return obj, nil
 	}
-	if err := h.decoder.Decode(req, cm); err != nil {
-		return nil, err
-	}
-	return cm, nil
-}
 
-func (h *Handler) decodeRole(req admission.Request, decodeOldObject bool) (client.Object, error) {
-	role := &rbacv1.Role{}
-	if decodeOldObject {
-		if err := h.decoder.DecodeRaw(req.OldObject, role); err != nil {
-			return nil, err
-		}
-		return role, nil
-	}
-	if err := h.decoder.Decode(req, role); err != nil {
+	if err = h.decoder.Decode(req, obj); err != nil {
 		return nil, err
 	}
-	return role, nil
-}
-
-func (h *Handler) decodeRoleBinding(req admission.Request, decodeOldObject bool) (client.Object, error) {
-	rb := &rbacv1.RoleBinding{}
-	if decodeOldObject {
-		if err := h.decoder.DecodeRaw(req.OldObject, rb); err != nil {
-			return nil, err
-		}
-		return rb, nil
-	}
-	if err := h.decoder.Decode(req, rb); err != nil {
-		return nil, err
-	}
-	return rb, nil
-}
-
-func (h *Handler) decodeStatefulSet(req admission.Request, decodeOldObject bool) (client.Object, error) {
-	sts := &appsv1.StatefulSet{}
-	if decodeOldObject {
-		if err := h.decoder.DecodeRaw(req.OldObject, sts); err != nil {
-			return nil, err
-		}
-		return sts, nil
-	}
-	if err := h.decoder.Decode(req, sts); err != nil {
-		return nil, err
-	}
-	return sts, nil
-}
-
-func (h *Handler) decodePodDisruptionBudget(req admission.Request, decodeOldObject bool) (client.Object, error) {
-	pdb := &policyv1.PodDisruptionBudget{}
-	if decodeOldObject {
-		if err := h.decoder.DecodeRaw(req.OldObject, pdb); err != nil {
-			return nil, err
-		}
-		return pdb, nil
-	}
-	if err := h.decoder.Decode(req, pdb); err != nil {
-		return nil, err
-	}
-	return pdb, nil
-}
-
-func (h *Handler) decodeJob(req admission.Request, decodeOldObject bool) (client.Object, error) {
-	job := &batchv1.Job{}
-	if decodeOldObject {
-		if err := h.decoder.DecodeRaw(req.OldObject, job); err != nil {
-			return nil, err
-		}
-		return job, nil
-	}
-	if err := h.decoder.Decode(req, job); err != nil {
-		return nil, err
-	}
-	return job, nil
-}
-
-func (h *Handler) decodeLease(req admission.Request, decodeOldObject bool) (client.Object, error) {
-	lease := &coordinationv1.Lease{}
-	if decodeOldObject {
-		if err := h.decoder.DecodeRaw(req.OldObject, lease); err != nil {
-			return nil, err
-		}
-		return lease, nil
-	}
-	if err := h.decoder.Decode(req, lease); err != nil {
-		return nil, err
-	}
-	return lease, nil
+	return obj, nil
 }
