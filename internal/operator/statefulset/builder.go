@@ -262,7 +262,7 @@ func (b *stsBuilder) getBackupRestoreContainerVolumeMounts() []corev1.VolumeMoun
 	brVolumeMounts = append(brVolumeMounts,
 		b.getEtcdDataVolumeMount(),
 		corev1.VolumeMount{
-			Name:      etcdConfigFileName,
+			Name:      etcdConfigVolumeName,
 			MountPath: etcdConfigFileMountPath,
 		},
 	)
