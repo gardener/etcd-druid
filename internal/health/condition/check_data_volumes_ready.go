@@ -27,12 +27,11 @@ func (d *dataVolumesReady) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 	}
 
 	sts, err := utils.GetStatefulSet(ctx, d.cl, &etcd)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			res.reason = "StatefulSetNotFound"
-			res.message = fmt.Sprintf("StatefulSet %s not found for etcd", etcd.Name)
-			return res
-		}
+	if errors.IsNotFound(err) || sts == nil {
+		res.reason = "StatefulSetNotFound"
+		res.message = fmt.Sprintf("StatefulSet %s not found for etcd", etcd.Name)
+		return res
+	} else if err != nil {
 		res.reason = "UnableToFetchStatefulSet"
 		res.message = fmt.Sprintf("Unable to fetch StatefulSet for etcd: %s", err.Error())
 		return res
