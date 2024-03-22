@@ -7,18 +7,23 @@ package utils
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	stsName      = "etcd-test-0"
 	stsNamespace = "test-ns"
+	stsName      = "etcd-test"
+	eventName    = "test-event"
 )
 
 func TestIsStatefulSetReady(t *testing.T) {
@@ -169,6 +174,92 @@ func TestGetStatefulSet(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 				expectedStsToBeFound := tc.isStsPresent && tc.ownedByEtcd
 				g.Expect(foundSts != nil).To(Equal(expectedStsToBeFound))
+			}
+		})
+	}
+}
+
+func TestFetchPVCWarningMessagesForStatefulSet(t *testing.T) {
+	internalErr := errors.New("test internal error")
+	apiInternalErr := apierrors.NewInternalError(internalErr)
+
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(3).Build()
+	sts := testutils.CreateStatefulSet(etcd.Name, etcd.Namespace, etcd.UID, etcd.Spec.Replicas)
+	pvcPending := testutils.CreatePVC(sts, fmt.Sprintf("%s-0", sts.Name), corev1.ClaimPending)
+	pvcBound := testutils.CreatePVC(sts, fmt.Sprintf("%s-1", sts.Name), corev1.ClaimBound)
+	eventWarning := testutils.CreateEvent(eventName, sts.Namespace, "FailedMount", "test pvc warning message", corev1.EventTypeWarning, pvcPending, pvcPending.GroupVersionKind())
+
+	testCases := []struct {
+		name        string
+		sts         *appsv1.StatefulSet
+		pvcList     []client.Object
+		eventList   []client.Object
+		errors      []testutils.ErrorsForGVK
+		expectedErr *apierrors.StatusError
+		expectedMsg string
+	}{
+		{
+			name: "error in listing PVCs",
+			errors: []testutils.ErrorsForGVK{
+				{
+					GVK:     corev1.SchemeGroupVersion.WithKind("PersistentVolumeClaimList"),
+					ListErr: apiInternalErr,
+				},
+			},
+			expectedErr: apiInternalErr,
+		},
+		{
+			name:        "no PVCs found",
+			pvcList:     nil,
+			expectedErr: nil,
+			expectedMsg: "",
+		},
+		{
+			name:    "PVCs found but error in listing events",
+			pvcList: []client.Object{pvcPending},
+			errors: []testutils.ErrorsForGVK{
+				{
+					GVK:     corev1.SchemeGroupVersion.WithKind("EventList"),
+					ListErr: apiInternalErr,
+				},
+			},
+			expectedErr: apiInternalErr,
+			expectedMsg: "",
+		},
+		{
+			name:        "PVCs found with warning events",
+			pvcList:     []client.Object{pvcPending},
+			eventList:   []client.Object{eventWarning},
+			expectedErr: nil,
+			expectedMsg: eventWarning.Message,
+		},
+		{
+			name:        "PVCs found but no warning events",
+			pvcList:     []client.Object{pvcBound},
+			expectedMsg: "",
+		},
+	}
+
+	g := NewWithT(t)
+	t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var existingObjects []client.Object
+			if tc.pvcList != nil {
+				existingObjects = append(existingObjects, tc.pvcList...)
+			}
+			if tc.eventList != nil {
+				existingObjects = append(existingObjects, tc.eventList...)
+			}
+
+			cl := testutils.CreateTestFakeClientForObjectsInNamespaceWithGVK(tc.errors, etcd.Namespace, existingObjects...)
+			messages, err := FetchPVCWarningMessagesForStatefulSet(context.Background(), cl, sts)
+			if tc.expectedErr != nil {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(errors.Is(err, tc.expectedErr)).To(BeTrue())
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(messages).To(Equal(tc.expectedMsg))
 			}
 		})
 	}

@@ -11,7 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -41,7 +43,14 @@ type errorRecord struct {
 	resourceName      string
 	resourceNamespace string
 	labels            labels.Set
+	resourceGVK       schema.GroupVersionKind
 	err               error
+}
+
+type ErrorsForGVK struct {
+	GVK       schema.GroupVersionKind
+	DeleteErr *apierrors.StatusError
+	ListErr   *apierrors.StatusError
 }
 
 // TestClientBuilder builds a client.Client which will also react to the configured errors.
@@ -80,6 +89,23 @@ func CreateTestFakeClientForAllObjectsInNamespace(deleteAllErr, listErr *apierro
 		RecordErrorForObjectsMatchingLabels(ClientMethodList, namespace, matchingLabels, listErr).
 		Build()
 	return cl
+}
+
+// CreateTestFakeClientForObjectsInNamespaceWithGVK is a convenience function which creates a test client which uses a fake client as a delegate and reacts to the configured errors for all objects in the given namespace for the given GroupVersionKinds.
+func CreateTestFakeClientForObjectsInNamespaceWithGVK(errors []ErrorsForGVK, namespace string, existingObjects ...client.Object) client.Client {
+	fakeDelegateClientBuilder := fake.NewClientBuilder()
+	if existingObjects != nil && len(existingObjects) > 0 {
+		fakeDelegateClientBuilder.WithObjects(existingObjects...)
+	}
+	fakeDelegateClient := fakeDelegateClientBuilder.Build()
+
+	cl := NewTestClientBuilder().WithClient(fakeDelegateClient)
+
+	for _, e := range errors {
+		cl.RecordErrorForObjectsWithGVK(ClientMethodDeleteAll, namespace, e.GVK, e.DeleteErr).
+			RecordErrorForObjectsWithGVK(ClientMethodList, namespace, e.GVK, e.ListErr)
+	}
+	return cl.Build()
 }
 
 // NewTestClientBuilder creates a new instance of TestClientBuilder.
@@ -125,6 +151,21 @@ func (b *TestClientBuilder) RecordErrorForObjectsMatchingLabels(method ClientMet
 	return b
 }
 
+// RecordErrorForObjectsWithGVK records an error for a specific client.Client method and objects in a given namespace of a given GroupVersionKind.
+func (b *TestClientBuilder) RecordErrorForObjectsWithGVK(method ClientMethod, namespace string, gvk schema.GroupVersionKind, err *apierrors.StatusError) *TestClientBuilder {
+	// this method records error, so if nil error is passed then there is no need to create any error record.
+	if err == nil {
+		return b
+	}
+	b.errorRecords = append(b.errorRecords, errorRecord{
+		method:            method,
+		resourceGVK:       gvk,
+		resourceNamespace: namespace,
+		err:               err,
+	})
+	return b
+}
+
 // Build creates a new instance of client.Client which will react to the configured errors.
 func (b *TestClientBuilder) Build() client.Client {
 	return &testClient{
@@ -151,7 +192,13 @@ func (c *testClient) Get(ctx context.Context, key client.ObjectKey, obj client.O
 func (c *testClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 	listOpts := client.ListOptions{}
 	listOpts.ApplyOptions(opts)
-	if err := c.getRecordObjectCollectionError(ClientMethodList, listOpts.Namespace, listOpts.LabelSelector); err != nil {
+
+	gvk, err := apiutil.GVKForObject(list, c.delegate.Scheme())
+	if err != nil {
+		return err
+	}
+
+	if err := c.getRecordedObjectCollectionError(ClientMethodList, listOpts.Namespace, listOpts.LabelSelector, gvk); err != nil {
 		return err
 	}
 	return c.delegate.List(ctx, list, opts...)
@@ -174,7 +221,7 @@ func (c *testClient) Delete(ctx context.Context, obj client.Object, opts ...clie
 func (c *testClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
 	deleteOpts := client.DeleteAllOfOptions{}
 	deleteOpts.ApplyOptions(opts)
-	if err := c.getRecordObjectCollectionError(ClientMethodDeleteAll, deleteOpts.Namespace, deleteOpts.LabelSelector); err != nil {
+	if err := c.getRecordedObjectCollectionError(ClientMethodDeleteAll, deleteOpts.Namespace, deleteOpts.LabelSelector, obj.GetObjectKind().GroupVersionKind()); err != nil {
 		return err
 	}
 	return c.delegate.DeleteAllOf(ctx, obj, opts...)
@@ -221,10 +268,12 @@ func (c *testClient) getRecordedObjectError(method ClientMethod, objKey client.O
 	return nil
 }
 
-func (c *testClient) getRecordObjectCollectionError(method ClientMethod, namespace string, labelSelector labels.Selector) error {
+func (c *testClient) getRecordedObjectCollectionError(method ClientMethod, namespace string, labelSelector labels.Selector, objGVK schema.GroupVersionKind) error {
 	for _, errRecord := range c.errorRecords {
-		if errRecord.method == method && errRecord.resourceNamespace == namespace && labelSelector.Matches(errRecord.labels) {
-			return errRecord.err
+		if errRecord.method == method && errRecord.resourceNamespace == namespace {
+			if errRecord.resourceGVK == objGVK || (labelSelector == nil && errRecord.labels == nil) || labelSelector.Matches(errRecord.labels) {
+				return errRecord.err
+			}
 		}
 	}
 	return nil

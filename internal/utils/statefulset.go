@@ -57,12 +57,12 @@ func GetStatefulSet(ctx context.Context, cl client.Client, etcd *druidv1alpha1.E
 	return nil, nil
 }
 
-// FetchPVCWarningMessageForStatefulSet fetches warning message for PVCs for a statefulset, if found concatenates the first 2 warning messages and returns
+// FetchPVCWarningMessagesForStatefulSet fetches warning messages for PVCs for a statefulset, if found concatenates the first 2 warning messages and returns
 // them as string warning message. In case it fails to fetch events, it collects the errors and returns the combined error.
-func FetchPVCWarningMessageForStatefulSet(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) (string, error) {
+func FetchPVCWarningMessagesForStatefulSet(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) (string, error) {
 	pvcs := &corev1.PersistentVolumeClaimList{}
 	if err := cl.List(ctx, pvcs, client.InNamespace(sts.GetNamespace())); err != nil {
-		return "", fmt.Errorf("unable to list PVCs for sts %s: %v", sts.Name, err)
+		return "", fmt.Errorf("unable to list PVCs for sts %s: %w", sts.Name, err)
 	}
 
 	var (
@@ -78,7 +78,7 @@ func FetchPVCWarningMessageForStatefulSet(ctx context.Context, cl client.Client,
 			}
 			messages, err := kutil.FetchEventMessages(ctx, cl.Scheme(), cl, &pvc, corev1.EventTypeWarning, 2)
 			if err != nil {
-				pvcErr = errors.Join(pvcErr, fmt.Errorf("unable to fetch warning events for PVC %s/%s: %v", pvc.Namespace, pvc.Name, err))
+				pvcErr = errors.Join(pvcErr, fmt.Errorf("unable to fetch warning events for PVC %s/%s: %w", pvc.Namespace, pvc.Name, err))
 			}
 			if messages != "" {
 				events = append(events, fmt.Sprintf("Warning for PVC %s/%s: %s", pvc.Namespace, pvc.Name, messages))
