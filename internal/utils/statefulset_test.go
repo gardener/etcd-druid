@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -16,6 +17,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -187,7 +189,7 @@ func TestFetchPVCWarningMessagesForStatefulSet(t *testing.T) {
 	sts := testutils.CreateStatefulSet(etcd.Name, etcd.Namespace, etcd.UID, etcd.Spec.Replicas)
 	pvcPending := testutils.CreatePVC(sts, fmt.Sprintf("%s-0", sts.Name), corev1.ClaimPending)
 	pvcBound := testutils.CreatePVC(sts, fmt.Sprintf("%s-1", sts.Name), corev1.ClaimBound)
-	eventWarning := testutils.CreateEvent(eventName, sts.Namespace, "FailedMount", "test pvc warning message", corev1.EventTypeWarning, pvcPending, pvcPending.GroupVersionKind())
+	eventWarning := testutils.CreateEvent(eventName, sts.Namespace, "FailedMount", "test pvc warning message", corev1.EventTypeWarning, pvcPending, schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolumeClaim"})
 
 	testCases := []struct {
 		name        string
@@ -259,7 +261,7 @@ func TestFetchPVCWarningMessagesForStatefulSet(t *testing.T) {
 				g.Expect(errors.Is(err, tc.expectedErr)).To(BeTrue())
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(messages).To(Equal(tc.expectedMsg))
+				g.Expect(strings.Contains(messages, tc.expectedMsg)).To(BeTrue())
 			}
 		})
 	}

@@ -12,7 +12,6 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
-	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,7 +75,8 @@ func FetchPVCWarningMessagesForStatefulSet(ctx context.Context, cl client.Client
 			if !strings.HasPrefix(pvc.GetName(), pvcPrefix) || pvc.Status.Phase == corev1.ClaimBound {
 				continue
 			}
-			messages, err := kutil.FetchEventMessages(ctx, cl.Scheme(), cl, &pvc, corev1.EventTypeWarning, 2)
+			// TODO (shreyas-s-rao): switch to kutil.FetchEventMessages() once g/g is upgraded to v1.90.0+
+			messages, err := fetchEventMessages(ctx, cl.Scheme(), cl, &pvc, corev1.EventTypeWarning, 2)
 			if err != nil {
 				pvcErr = errors.Join(pvcErr, fmt.Errorf("unable to fetch warning events for PVC %s/%s: %w", pvc.Namespace, pvc.Name, err))
 			}
