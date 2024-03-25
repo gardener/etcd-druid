@@ -331,7 +331,7 @@ func (s StatefulSetMatcher) matchEtcdDataVolMount() gomegatypes.GomegaMatcher {
 func (s StatefulSetMatcher) matchBackupRestoreContainerVolMounts() gomegatypes.GomegaMatcher {
 	volMountMatchers := make([]gomegatypes.GomegaMatcher, 0, 6)
 	volMountMatchers = append(volMountMatchers, s.matchEtcdDataVolMount())
-	volMountMatchers = append(volMountMatchers, matchVolMount(etcdConfigFileName, etcdConfigFileMountPath))
+	volMountMatchers = append(volMountMatchers, matchVolMount(etcdConfigVolumeName, etcdConfigFileMountPath))
 	volMountMatchers = append(volMountMatchers, s.getBackupRestoreSecretVolMountMatchers()...)
 	if s.etcd.IsBackupStoreEnabled() {
 		etcdBackupVolMountMatcher := s.getEtcdBackupVolumeMountMatcher()
