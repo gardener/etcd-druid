@@ -63,6 +63,10 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		return admission.Allowed("lease resource can be freely updated")
 	}
 
+	if req.Operation != admissionv1.Update && req.Operation != admissionv1.Delete {
+		return admission.Allowed(fmt.Sprintf("operation is not %s or %s", admissionv1.Update, admissionv1.Delete))
+	}
+
 	obj, err := h.decodeRequestObject(req, requestGK)
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)

@@ -141,8 +141,21 @@ func (eb *EtcdBuilder) WithReadyStatus() *EtcdBuilder {
 		Conditions: []druidv1alpha1.Condition{
 			{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionTrue},
 		},
+		LastErrors: []druidv1alpha1.LastError{},
+		LastOperation: &druidv1alpha1.LastOperation{
+			Type:           druidv1alpha1.LastOperationTypeReconcile,
+			State:          druidv1alpha1.LastOperationStateSucceeded,
+			Description:    "Reconciliation succeeded",
+			RunID:          "12345",
+			LastUpdateTime: metav1.Now(),
+		},
 	}
 
+	return eb
+}
+
+func (eb *EtcdBuilder) WithLastOperation(operation *druidv1alpha1.LastOperation) *EtcdBuilder {
+	eb.etcd.Status.LastOperation = operation
 	return eb
 }
 

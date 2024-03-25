@@ -76,6 +76,23 @@ func CreateTestFakeClientForObjects(getErr, createErr, patchErr, deleteErr *apie
 	return testClientBuilder.Build()
 }
 
+// CreateTestFakeClientWithSchemeForObjects is a convenience function which creates a test client which uses a fake client with the given scheme as a delegate and reacts to the configured errors for the given object keys.
+func CreateTestFakeClientWithSchemeForObjects(scheme *runtime.Scheme, getErr, createErr, patchErr, deleteErr *apierrors.StatusError, existingObjects []client.Object, objKeys ...client.ObjectKey) client.Client {
+	fakeDelegateClientBuilder := fake.NewClientBuilder().WithScheme(scheme)
+	if existingObjects != nil && len(existingObjects) > 0 {
+		fakeDelegateClientBuilder.WithObjects(existingObjects...)
+	}
+	fakeDelegateClient := fakeDelegateClientBuilder.Build()
+	testClientBuilder := NewTestClientBuilder().WithClient(fakeDelegateClient)
+	for _, objKey := range objKeys {
+		testClientBuilder.RecordErrorForObjects(ClientMethodGet, getErr, objKey).
+			RecordErrorForObjects(ClientMethodCreate, createErr, objKey).
+			RecordErrorForObjects(ClientMethodDelete, deleteErr, objKey).
+			RecordErrorForObjects(ClientMethodPatch, patchErr, objKey)
+	}
+	return testClientBuilder.Build()
+}
+
 // CreateTestFakeClientForAllObjectsInNamespace is a convenience function which creates a test client which uses a fake client as a delegate and reacts to the configured errors for all objects in the given namespace matching the given labels.
 func CreateTestFakeClientForAllObjectsInNamespace(deleteAllErr, listErr *apierrors.StatusError, namespace string, matchingLabels map[string]string, existingObjects ...client.Object) client.Client {
 	fakeDelegateClientBuilder := fake.NewClientBuilder()
