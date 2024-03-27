@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
@@ -27,6 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
+
+var allowedOperations = []admissionv1.Operation{admissionv1.Create, admissionv1.Connect}
 
 // Handler is the Sentinel Webhook admission handler.
 type Handler struct {
@@ -53,6 +56,11 @@ func NewHandler(mgr manager.Manager, config *Config) (*Handler, error) {
 
 // Handle handles admission requests and prevents unintended changes to resources created by etcd-druid.
 func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.Response {
+
+	if slices.Contains(allowedOperations, req.Operation) {
+		return admission.Allowed(fmt.Sprintf("operation %s is allowed", req.Operation))
+	}
+
 	requestGKString := fmt.Sprintf("%s/%s", req.Kind.Group, req.Kind.Kind)
 	log := h.logger.WithValues("name", req.Name, "namespace", req.Namespace, "resourceGroupKind", requestGKString, "operation", req.Operation, "user", req.UserInfo.Username)
 	log.Info("Sentinel webhook invoked")
@@ -61,10 +69,6 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 	if requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() &&
 		req.Operation == admissionv1.Update {
 		return admission.Allowed("lease resource can be freely updated")
-	}
-
-	if req.Operation != admissionv1.Update && req.Operation != admissionv1.Delete {
-		return admission.Allowed(fmt.Sprintf("operation is not %s or %s", admissionv1.Update, admissionv1.Delete))
 	}
 
 	obj, err := h.decodeRequestObject(req, requestGK)
