@@ -640,6 +640,7 @@ func (b *stsBuilder) getPodSecurityContext() *corev1.PodSecurityContext {
 		RunAsGroup:   pointer.Int64(65532),
 		RunAsNonRoot: pointer.Bool(true),
 		RunAsUser:    pointer.Int64(65532),
+		FSGroup:      pointer.Int64(65532),
 	}
 }
 
@@ -685,7 +686,7 @@ func (b *stsBuilder) getPodVolumes(ctx component.OperatorContext) ([]corev1.Volu
 							Path: etcdConfigFileName,
 						},
 					},
-					DefaultMode: pointer.Int32(0644),
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		},
@@ -719,7 +720,8 @@ func (b *stsBuilder) getClientTLSVolumes() []corev1.Volume {
 			Name: clientCAVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: clientTLSConfig.TLSCASecretRef.Name,
+					SecretName:  clientTLSConfig.TLSCASecretRef.Name,
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		},
@@ -727,7 +729,8 @@ func (b *stsBuilder) getClientTLSVolumes() []corev1.Volume {
 			Name: serverTLSVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: clientTLSConfig.ServerTLSSecretRef.Name,
+					SecretName:  clientTLSConfig.ServerTLSSecretRef.Name,
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		},
@@ -735,7 +738,8 @@ func (b *stsBuilder) getClientTLSVolumes() []corev1.Volume {
 			Name: clientTLSVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: clientTLSConfig.ClientTLSSecretRef.Name,
+					SecretName:  clientTLSConfig.ClientTLSSecretRef.Name,
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		},
@@ -749,7 +753,8 @@ func (b *stsBuilder) getPeerTLSVolumes() []corev1.Volume {
 			Name: peerCAVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: peerTLSConfig.TLSCASecretRef.Name,
+					SecretName:  peerTLSConfig.TLSCASecretRef.Name,
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		},
@@ -757,7 +762,8 @@ func (b *stsBuilder) getPeerTLSVolumes() []corev1.Volume {
 			Name: peerServerTLSVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: peerTLSConfig.ServerTLSSecretRef.Name,
+					SecretName:  peerTLSConfig.ServerTLSSecretRef.Name,
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		},
@@ -771,7 +777,8 @@ func (b *stsBuilder) getBackupRestoreTLSVolumes() []corev1.Volume {
 			Name: backRestoreCAVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: tlsConfig.TLSCASecretRef.Name,
+					SecretName:  tlsConfig.TLSCASecretRef.Name,
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		},
@@ -779,7 +786,8 @@ func (b *stsBuilder) getBackupRestoreTLSVolumes() []corev1.Volume {
 			Name: backRestoreServerTLSVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: tlsConfig.ServerTLSSecretRef.Name,
+					SecretName:  tlsConfig.ServerTLSSecretRef.Name,
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		},
@@ -787,7 +795,8 @@ func (b *stsBuilder) getBackupRestoreTLSVolumes() []corev1.Volume {
 			Name: backRestoreClientTLSVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: tlsConfig.ClientTLSSecretRef.Name,
+					SecretName:  tlsConfig.ClientTLSSecretRef.Name,
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		},
@@ -825,7 +834,8 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 			Name: providerBackupVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: store.SecretRef.Name,
+					SecretName:  store.SecretRef.Name,
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		}, nil

@@ -434,7 +434,8 @@ func getCompactionJobVolumes(ctx context.Context, cl client.Client, logger logr.
 			Name: "etcd-backup",
 			VolumeSource: v1.VolumeSource{
 				Secret: &v1.SecretVolumeSource{
-					SecretName: storeValues.SecretRef.Name,
+					SecretName:  storeValues.SecretRef.Name,
+					DefaultMode: pointer.Int32(0640),
 				},
 			},
 		})

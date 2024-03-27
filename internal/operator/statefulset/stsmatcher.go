@@ -409,6 +409,7 @@ func (s StatefulSetMatcher) matchEtcdPodSecurityContext() gomegatypes.GomegaMatc
 		"RunAsGroup":   PointTo(Equal(int64(65532))),
 		"RunAsNonRoot": PointTo(Equal(true)),
 		"RunAsUser":    PointTo(Equal(int64(65532))),
+		"FSGroup":      PointTo(Equal(int64(65532))),
 	}))
 }
 
@@ -425,7 +426,7 @@ func (s StatefulSetMatcher) matchPodVolumes() gomegatypes.GomegaMatcher {
 					"Key":  Equal(etcdConfigFileName),
 					"Path": Equal(etcdConfigFileName),
 				})),
-				"DefaultMode": PointTo(Equal(int32(0644))),
+				"DefaultMode": PointTo(Equal(int32(0640))),
 			})),
 		}),
 	})
@@ -450,7 +451,8 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"Name": Equal(clientCAVolumeName),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-					"SecretName": Equal(s.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name),
+					"SecretName":  Equal(s.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name),
+					"DefaultMode": PointTo(Equal(int32(0640))),
 				})),
 			}),
 		}))
@@ -458,7 +460,8 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"Name": Equal(serverTLSVolumeName),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-					"SecretName": Equal(s.etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name),
+					"SecretName":  Equal(s.etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name),
+					"DefaultMode": PointTo(Equal(int32(0640))),
 				})),
 			}),
 		}))
@@ -466,7 +469,8 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"Name": Equal(clientTLSVolumeName),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-					"SecretName": Equal(s.etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name),
+					"SecretName":  Equal(s.etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name),
+					"DefaultMode": PointTo(Equal(int32(0640))),
 				})),
 			}),
 		}))
@@ -476,7 +480,8 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"Name": Equal(peerCAVolumeName),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-					"SecretName": Equal(s.etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name),
+					"SecretName":  Equal(s.etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name),
+					"DefaultMode": PointTo(Equal(int32(0640))),
 				})),
 			}),
 		}))
@@ -485,7 +490,8 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"Name": Equal(peerServerTLSVolumeName),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-					"SecretName": Equal(s.etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name),
+					"SecretName":  Equal(s.etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name),
+					"DefaultMode": PointTo(Equal(int32(0640))),
 				})),
 			}),
 		}))
@@ -495,7 +501,8 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"Name": Equal(backRestoreCAVolumeName),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-					"SecretName": Equal(s.etcd.Spec.Backup.TLS.TLSCASecretRef.Name),
+					"SecretName":  Equal(s.etcd.Spec.Backup.TLS.TLSCASecretRef.Name),
+					"DefaultMode": PointTo(Equal(int32(0640))),
 				})),
 			}),
 		}))
@@ -504,7 +511,8 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"Name": Equal(backRestoreServerTLSVolumeName),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-					"SecretName": Equal(s.etcd.Spec.Backup.TLS.ServerTLSSecretRef.Name),
+					"SecretName":  Equal(s.etcd.Spec.Backup.TLS.ServerTLSSecretRef.Name),
+					"DefaultMode": PointTo(Equal(int32(0640))),
 				})),
 			}),
 		}))
@@ -513,7 +521,8 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"Name": Equal(backRestoreClientTLSVolumeName),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-					"SecretName": Equal(s.etcd.Spec.Backup.TLS.ClientTLSSecretRef.Name),
+					"SecretName":  Equal(s.etcd.Spec.Backup.TLS.ClientTLSSecretRef.Name),
+					"DefaultMode": PointTo(Equal(int32(0640))),
 				})),
 			}),
 		}))
@@ -545,7 +554,8 @@ func (s StatefulSetMatcher) getBackupVolumeMatcher() gomegatypes.GomegaMatcher {
 			"Name": Equal("etcd-backup"),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-					"SecretName": Equal(s.etcd.Spec.Backup.Store.SecretRef.Name),
+					"SecretName":  Equal(s.etcd.Spec.Backup.Store.SecretRef.Name),
+					"DefaultMode": PointTo(Equal(int32(0640))),
 				})),
 			}),
 		})

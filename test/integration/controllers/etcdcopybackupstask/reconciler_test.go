@@ -350,7 +350,8 @@ func getVolumesElements(volumePrefix string, store *druidv1alpha1.StoreSpec) Ele
 			"Name": Equal(volumePrefix + "etcd-backup"),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-					"SecretName": Equal(store.SecretRef.Name),
+					"SecretName":  Equal(store.SecretRef.Name),
+					"DefaultMode": Equal(pointer.Int32(0640)),
 				})),
 			}),
 		}),

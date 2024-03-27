@@ -611,7 +611,8 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 						Expect(volumeSource).NotTo(BeNil())
 						Expect(volumeSource.Secret).NotTo(BeNil())
 						Expect(*volumeSource.Secret).To(Equal(corev1.SecretVolumeSource{
-							SecretName: store.SecretRef.Name,
+							SecretName:  store.SecretRef.Name,
+							DefaultMode: pointer.Int32(0640),
 						}))
 					})
 
@@ -924,7 +925,8 @@ func getVolumesElements(volumePrefix string, store *druidv1alpha1.StoreSpec) Ele
 			"Name": Equal(volumePrefix + "etcd-backup"),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-					"SecretName": Equal(store.SecretRef.Name),
+					"SecretName":  Equal(store.SecretRef.Name),
+					"DefaultMode": PointTo(Equal(int32(0640))),
 				})),
 			}),
 		}),
