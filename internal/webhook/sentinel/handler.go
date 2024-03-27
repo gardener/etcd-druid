@@ -56,7 +56,6 @@ func NewHandler(mgr manager.Manager, config *Config) (*Handler, error) {
 
 // Handle handles admission requests and prevents unintended changes to resources created by etcd-druid.
 func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.Response {
-
 	if slices.Contains(allowedOperations, req.Operation) {
 		return admission.Allowed(fmt.Sprintf("operation %s is allowed", req.Operation))
 	}

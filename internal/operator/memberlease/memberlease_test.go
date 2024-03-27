@@ -253,8 +253,6 @@ func TestTriggerDelete(t *testing.T) {
 			// ***************** Setup operator and test *****************
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			memberLeasesBeforeDelete := getLatestMemberLeases(g, cl, etcd)
-			fmt.Println(memberLeasesBeforeDelete)
 			err := operator.TriggerDelete(opCtx, etcd)
 			memberLeasesPostDelete := getLatestMemberLeases(g, cl, etcd)
 			if tc.expectedErr != nil {

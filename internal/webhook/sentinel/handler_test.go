@@ -21,11 +21,6 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
-	batchv1 "k8s.io/api/batch/v1"
-	coordinationv1 "k8s.io/api/coordination/v1"
-	corev1 "k8s.io/api/core/v1"
-	policyv1 "k8s.io/api/policy/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -33,57 +28,115 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-var (
-	objectsForUpdate = []runtime.Object{
-		&corev1.ServiceAccount{},
-		&corev1.Service{},
-		&corev1.ConfigMap{},
-		&rbacv1.Role{},
-		&rbacv1.RoleBinding{},
-		&appsv1.StatefulSet{},
-		&policyv1.PodDisruptionBudget{},
-		&batchv1.Job{},
-	}
-	objectsForDelete = append(
-		objectsForUpdate,
-		&coordinationv1.Lease{},
-	)
-)
-
-type testCase struct {
-	name string
-	// ----- handler configuration -----
-	reconcilerServiceAccount string
-	exemptServiceAccounts    []string
-	// ----- request -----
-	userName        string
-	operation       admissionv1.Operation
-	objectKind      *schema.GroupVersionKind
-	objectName      string
-	objectNamespace string
-	objectLabels    map[string]string
-	object          *runtime.RawExtension
-	oldObject       *runtime.RawExtension
-	// ----- etcd configuration -----
-	etcdName                string
-	etcdNamespace           string
-	etcdAnnotations         map[string]string
-	etcdStatusLastOperation *druidv1alpha1.LastOperation
-	etcdGetErr              *apierrors.StatusError
-	// ----- expected -----
-	expectedAllowed bool
-	expectedReason  string
-	expectedMessage string
-	expectedCode    int32
+func getObjectGVK(g *WithT, obj runtime.Object) schema.GroupVersionKind {
+	gvk, err := apiutil.GVKForObject(obj, kubernetes.Scheme)
+	g.Expect(err).ToNot(HaveOccurred())
+	return gvk
 }
 
-// ------------------------ Handle ------------------------
-func TestHandle(t *testing.T) {
+func buildObject(gvk schema.GroupVersionKind, name, namespace string, labels map[string]string) runtime.Object {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+	obj.SetName(name)
+	obj.SetNamespace(namespace)
+	obj.SetLabels(labels)
+	return obj
+}
+
+func TestHandleCreate(t *testing.T) {
 	g := NewWithT(t)
-	t.Parallel()
+
+	testCases := []struct {
+		name            string
+		expectedAllowed bool
+		expectedReason  string
+	}{
+		{
+			name:            "create any resource",
+			expectedAllowed: true,
+			expectedReason:  "operation CREATE is allowed",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cl := fake.NewClientBuilder().Build()
+			decoder, err := admission.NewDecoder(cl.Scheme())
+			if err != nil {
+				g.Expect(err).ToNot(HaveOccurred())
+			}
+
+			handler := &Handler{
+				Client: cl,
+				config: &Config{
+					Enabled: true,
+				},
+				decoder: decoder,
+				logger:  logr.Discard(),
+			}
+
+			resp := handler.Handle(context.Background(), admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+				},
+			})
+
+			g.Expect(resp.Allowed).To(Equal(tc.expectedAllowed))
+			g.Expect(string(resp.Result.Reason)).To(Equal(tc.expectedReason))
+		})
+	}
+}
+
+func TestHandleLeaseUpdate(t *testing.T) {
+	g := NewWithT(t)
+
+	testCases := []struct {
+		name            string
+		gvk             metav1.GroupVersionKind
+		expectedAllowed bool
+		expectedReason  string
+	}{
+		{
+			name:            "update Lease",
+			expectedAllowed: true,
+			expectedReason:  "lease resource can be freely updated",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cl := fake.NewClientBuilder().Build()
+			decoder, err := admission.NewDecoder(cl.Scheme())
+			g.Expect(err).ToNot(HaveOccurred())
+
+			handler := &Handler{
+				Client: cl,
+				config: &Config{
+					Enabled: true,
+				},
+				decoder: decoder,
+				logger:  logr.Discard(),
+			}
+
+			resp := handler.Handle(context.Background(), admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
+					Kind:      metav1.GroupVersionKind{Group: "coordination.k8s.io", Version: "v1", Kind: "Lease"},
+				},
+			})
+
+			g.Expect(resp.Allowed).To(Equal(tc.expectedAllowed))
+			g.Expect(string(resp.Result.Reason)).To(Equal(tc.expectedReason))
+		})
+	}
+}
+
+func TestHandleUpdate(t *testing.T) {
+	g := NewWithT(t)
 
 	var (
 		reconcilerServiceAccount = "etcd-druid-sa"
@@ -98,29 +151,35 @@ func TestHandle(t *testing.T) {
 		apiNotFoundErr = apierrors.NewNotFound(schema.GroupResource{}, "")
 	)
 
-	deploymentGVK, err := apiutil.GVKForObject(&appsv1.Deployment{}, kubernetes.Scheme)
-	g.Expect(err).ToNot(HaveOccurred())
-
-	commonTestCases := []testCase{
-		{
-			name:            "create operation",
-			operation:       admissionv1.Create,
-			expectedAllowed: true,
-			expectedReason:  fmt.Sprintf("operation is not %s or %s", admissionv1.Update, admissionv1.Delete),
-			expectedCode:    http.StatusOK,
-		},
+	testCases := []struct {
+		name string
+		// ----- request -----
+		userName     string
+		objectLabels map[string]string
+		objectRaw    []byte
+		// ----- etcd configuration -----
+		etcdAnnotations         map[string]string
+		etcdStatusLastOperation *druidv1alpha1.LastOperation
+		etcdGetErr              *apierrors.StatusError
+		// ----- handler configuration -----
+		reconcilerServiceAccount string
+		exemptServiceAccounts    []string
+		// ----- expected -----
+		expectedAllowed bool
+		expectedReason  string
+		expectedMessage string
+		expectedCode    int32
+	}{
 		{
 			name:            "empty request object",
-			object:          &runtime.RawExtension{Raw: []byte{}},
-			oldObject:       &runtime.RawExtension{Raw: []byte{}},
+			objectRaw:       []byte{},
 			expectedAllowed: false,
 			expectedMessage: "there is no content to decode",
 			expectedCode:    http.StatusInternalServerError,
 		},
 		{
 			name:            "malformed request object",
-			object:          &runtime.RawExtension{Raw: []byte("foo")},
-			oldObject:       &runtime.RawExtension{Raw: []byte("foo")},
+			objectRaw:       []byte("foo"),
 			expectedAllowed: false,
 			expectedMessage: "invalid character",
 			expectedCode:    http.StatusInternalServerError,
@@ -135,8 +194,6 @@ func TestHandle(t *testing.T) {
 		{
 			name:            "etcd not found",
 			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdName:        testEtcdName,
-			etcdNamespace:   testNamespace,
 			etcdGetErr:      apiNotFoundErr,
 			expectedAllowed: true,
 			expectedReason:  fmt.Sprintf("corresponding etcd %s not found", testEtcdName),
@@ -145,8 +202,6 @@ func TestHandle(t *testing.T) {
 		{
 			name:            "error in getting etcd",
 			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdName:        testEtcdName,
-			etcdNamespace:   testNamespace,
 			etcdGetErr:      apiInternalErr,
 			expectedAllowed: false,
 			expectedMessage: internalErr.Error(),
@@ -155,8 +210,6 @@ func TestHandle(t *testing.T) {
 		{
 			name:            "etcd reconciliation suspended",
 			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdName:        testEtcdName,
-			etcdNamespace:   testNamespace,
 			etcdAnnotations: map[string]string{druidv1alpha1.SuspendEtcdSpecReconcileAnnotation: "true"},
 			expectedAllowed: true,
 			expectedReason:  fmt.Sprintf("spec reconciliation of etcd %s is currently suspended", testEtcdName),
@@ -165,8 +218,6 @@ func TestHandle(t *testing.T) {
 		{
 			name:            "resource protection annotation set to false",
 			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdName:        testEtcdName,
-			etcdNamespace:   testNamespace,
 			etcdAnnotations: map[string]string{druidv1alpha1.ResourceProtectionAnnotation: "false"},
 			expectedAllowed: true,
 			expectedReason:  fmt.Sprintf("changes allowed, since etcd %s has annotation %s: false", testEtcdName, druidv1alpha1.ResourceProtectionAnnotation),
@@ -174,216 +225,277 @@ func TestHandle(t *testing.T) {
 		},
 		{
 			name:                     "etcd is currently being reconciled by druid",
+			userName:                 testUserName,
 			objectLabels:             map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdName:                 testEtcdName,
-			etcdNamespace:            testNamespace,
 			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccount: reconcilerServiceAccount,
-			userName:                 testUserName,
 			expectedAllowed:          false,
 			expectedReason:           fmt.Sprintf("no external intervention allowed during ongoing reconciliation of etcd %s by etcd-druid", testEtcdName),
 			expectedCode:             http.StatusForbidden,
 		},
 		{
 			name:                     "etcd is currently being reconciled by druid, but request is from druid",
+			userName:                 reconcilerServiceAccount,
 			objectLabels:             map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdName:                 testEtcdName,
-			etcdNamespace:            testNamespace,
 			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccount: reconcilerServiceAccount,
-			userName:                 reconcilerServiceAccount,
 			expectedAllowed:          true,
 			expectedReason:           fmt.Sprintf("ongoing reconciliation of etcd %s by etcd-druid requires changes to resources", testEtcdName),
 			expectedCode:             http.StatusOK,
 		},
 		{
 			name:                     "etcd is not currently being reconciled by druid, and request is from exempt service account",
+			userName:                 exemptServiceAccounts[0],
 			objectLabels:             map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdName:                 testEtcdName,
-			etcdNamespace:            testNamespace,
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			exemptServiceAccounts:    exemptServiceAccounts,
-			userName:                 exemptServiceAccounts[0],
 			expectedAllowed:          true,
 			expectedReason:           fmt.Sprintf("operations on etcd %s by service account %s is exempt from Sentinel Webhook checks", testEtcdName, exemptServiceAccounts[0]),
 			expectedCode:             http.StatusOK,
 		},
 		{
 			name:                     "etcd is not currently being reconciled by druid, and request is from non-exempt service account",
+			userName:                 testUserName,
 			objectLabels:             map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdName:                 testEtcdName,
-			etcdNamespace:            testNamespace,
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			exemptServiceAccounts:    exemptServiceAccounts,
-			userName:                 testUserName,
 			expectedAllowed:          false,
 			expectedReason:           fmt.Sprintf("changes disallowed, since no ongoing processing of etcd %s by etcd-druid", testEtcdName),
 			expectedCode:             http.StatusForbidden,
 		},
 	}
 
-	for _, operation := range []admissionv1.Operation{admissionv1.Update, admissionv1.Delete} {
-		objects := objectsForUpdate
-		if operation == admissionv1.Delete {
-			objects = objectsForDelete
-		}
-
-		for _, object := range objects {
-			for _, tc := range commonTestCases {
-				var (
-					obj, oldObj *unstructured.Unstructured
-				)
-
-				if tc.objectName == "" {
-					tc.objectName = testObjectName
-				}
-				if tc.objectNamespace == "" {
-					tc.objectNamespace = testNamespace
-				}
-
-				oldObj = &unstructured.Unstructured{}
-				apiVersion, kind := object.GetObjectKind().GroupVersionKind().ToAPIVersionAndKind()
-				oldObj.SetAPIVersion(apiVersion)
-				oldObj.SetKind(kind)
-				oldObj.SetLabels(tc.objectLabels)
-				oldObj.SetName(tc.objectName)
-				oldObj.SetNamespace(tc.objectNamespace)
-
-				if operation == admissionv1.Update {
-					obj = oldObj.DeepCopy()
-				}
-
-				if tc.object == nil {
-					rawExt, err := getRawExtensionFromUnstructured(obj)
-					g.Expect(err).ToNot(HaveOccurred())
-					tc.object = &rawExt
-				}
-
-				if tc.oldObject == nil {
-					rawExt, err := getRawExtensionFromUnstructured(oldObj)
-					g.Expect(err).ToNot(HaveOccurred())
-					tc.oldObject = &rawExt
-				}
-
-				if tc.objectKind == nil {
-					gvk, err := apiutil.GVKForObject(object, kubernetes.Scheme)
-					g.Expect(err).ToNot(HaveOccurred())
-					tc.objectKind = &gvk
-				}
-
-				if tc.operation == "" {
-					tc.operation = operation
-				}
-
-				gvk, err := apiutil.GVKForObject(object, kubernetes.Scheme)
-				g.Expect(err).ToNot(HaveOccurred())
-
-				t.Run(fmt.Sprintf("%s for %s operation on object GVK %s/%s/%s", tc.name, tc.operation, gvk.Group, gvk.Version, gvk.Kind), func(t *testing.T) {
-					resp, err := runTestCase(tc)
-					g.Expect(err).ToNot(HaveOccurred())
-					assertTestResult(g, tc, resp)
-				})
-			}
-		}
-	}
-
-	specialTestCases := []testCase{
-		{
-			name:            "lease update",
-			operation:       admissionv1.Update,
-			objectKind:      &schema.GroupVersionKind{Group: "coordination.k8s.io", Version: "v1", Kind: "Lease"},
-			expectedAllowed: true,
-			expectedReason:  "lease resource can be freely updated",
-			expectedCode:    http.StatusOK,
-		},
-		{
-			name:            "unknown resource type",
-			operation:       admissionv1.Update,
-			objectKind:      &schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"},
-			expectedAllowed: true,
-			expectedReason:  fmt.Sprintf("unexpected resource type: %s/%s", deploymentGVK.Group, deploymentGVK.Kind),
-			expectedCode:    http.StatusOK,
-		},
-	}
-
-	for _, tc := range specialTestCases {
-		if tc.object == nil {
-			rawExt, err := getRawExtensionFromUnstructured(&unstructured.Unstructured{})
-			g.Expect(err).ToNot(HaveOccurred())
-			tc.object = &rawExt
-		}
-		if tc.oldObject == nil {
-			tc.oldObject = tc.object
-		}
+	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp, err := runTestCase(tc)
+			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).
+				WithAnnotations(tc.etcdAnnotations).
+				WithLastOperation(tc.etcdStatusLastOperation).
+				Build()
+
+			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
+			decoder, err := admission.NewDecoder(cl.Scheme())
 			g.Expect(err).ToNot(HaveOccurred())
-			assertTestResult(g, tc, resp)
+
+			handler := &Handler{
+				Client: cl,
+				config: &Config{
+					Enabled:                  true,
+					ReconcilerServiceAccount: reconcilerServiceAccount,
+					ExemptServiceAccounts:    exemptServiceAccounts,
+				},
+				decoder: decoder,
+				logger:  logr.Discard(),
+			}
+
+			sts := &appsv1.StatefulSet{}
+			obj := runtime.RawExtension{
+				Object: buildObject(getObjectGVK(g, sts), testObjectName, testNamespace, tc.objectLabels),
+				Raw:    tc.objectRaw,
+			}
+			if tc.objectRaw == nil {
+				objRaw, err := json.Marshal(obj.Object)
+				g.Expect(err).ToNot(HaveOccurred())
+				obj.Raw = objRaw
+			}
+
+			response := handler.Handle(context.Background(), admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
+					UserInfo:  authenticationv1.UserInfo{Username: tc.userName},
+					Kind:      metav1.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"},
+					Name:      testObjectName,
+					Namespace: testNamespace,
+					Object:    obj,
+					OldObject: obj,
+				},
+			})
+
+			g.Expect(response.Allowed).To(Equal(tc.expectedAllowed))
+			g.Expect(string(response.Result.Reason)).To(Equal(tc.expectedReason))
+			g.Expect(response.Result.Message).To(ContainSubstring(tc.expectedMessage))
+			g.Expect(response.Result.Code).To(Equal(tc.expectedCode))
 		})
 	}
 }
 
-func runTestCase(tc testCase) (*admission.Response, error) {
-	etcd := testutils.EtcdBuilderWithDefaults(tc.etcdName, tc.etcdNamespace).
-		WithAnnotations(tc.etcdAnnotations).
-		WithLastOperation(tc.etcdStatusLastOperation).
-		Build()
-	existingObjects := []client.Object{etcd}
+func TestHandleDelete(t *testing.T) {
+	g := NewWithT(t)
 
-	cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, existingObjects, client.ObjectKey{Name: tc.etcdName, Namespace: tc.etcdNamespace})
+	var (
+		reconcilerServiceAccount = "etcd-druid-sa"
+		exemptServiceAccounts    = []string{"exempt-sa-1"}
+		testUserName             = "test-user"
+		testObjectName           = "test"
+		testNamespace            = "test-ns"
+		testEtcdName             = "test"
 
-	config := &Config{
-		Enabled:                  true,
-		ReconcilerServiceAccount: tc.reconcilerServiceAccount,
-		ExemptServiceAccounts:    tc.exemptServiceAccounts,
-	}
+		internalErr    = errors.New("test internal error")
+		apiInternalErr = apierrors.NewInternalError(internalErr)
+		apiNotFoundErr = apierrors.NewNotFound(schema.GroupResource{}, "")
+	)
 
-	decoder, err := admission.NewDecoder(cl.Scheme())
-	if err != nil {
-		return nil, err
-	}
-
-	handler := &Handler{
-		Client:  cl,
-		config:  config,
-		decoder: decoder,
-		logger:  logr.Discard(),
-	}
-
-	resp := handler.Handle(context.Background(), admission.Request{
-		AdmissionRequest: admissionv1.AdmissionRequest{
-			Operation: tc.operation,
-			Kind:      metav1.GroupVersionKind{Group: tc.objectKind.Group, Version: tc.objectKind.Version, Kind: tc.objectKind.Kind},
-			Name:      tc.objectName,
-			Namespace: tc.objectNamespace,
-			UserInfo:  authenticationv1.UserInfo{Username: tc.userName},
-			Object:    *tc.object,
-			OldObject: *tc.oldObject,
+	testCases := []struct {
+		name string
+		// ----- request -----
+		userName     string
+		objectLabels map[string]string
+		objectRaw    []byte
+		// ----- etcd configuration -----
+		etcdAnnotations         map[string]string
+		etcdStatusLastOperation *druidv1alpha1.LastOperation
+		etcdGetErr              *apierrors.StatusError
+		// ----- handler configuration -----
+		reconcilerServiceAccount string
+		exemptServiceAccounts    []string
+		// ----- expected -----
+		expectedAllowed bool
+		expectedReason  string
+		expectedMessage string
+		expectedCode    int32
+	}{
+		{
+			name:            "empty request object",
+			objectRaw:       []byte{},
+			expectedAllowed: false,
+			expectedMessage: "there is no content to decode",
+			expectedCode:    http.StatusInternalServerError,
 		},
-	})
-
-	return &resp, nil
-}
-
-func getRawExtensionFromUnstructured(obj *unstructured.Unstructured) (runtime.RawExtension, error) {
-	if obj == nil {
-		return runtime.RawExtension{}, nil
+		{
+			name:            "malformed request object",
+			objectRaw:       []byte("foo"),
+			expectedAllowed: false,
+			expectedMessage: "invalid character",
+			expectedCode:    http.StatusInternalServerError,
+		},
+		{
+			name:            "resource has no part-of label",
+			objectLabels:    map[string]string{},
+			expectedAllowed: true,
+			expectedReason:  fmt.Sprintf("label %s not found on resource", druidv1alpha1.LabelPartOfKey),
+			expectedCode:    http.StatusOK,
+		},
+		{
+			name:            "etcd not found",
+			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdGetErr:      apiNotFoundErr,
+			expectedAllowed: true,
+			expectedReason:  fmt.Sprintf("corresponding etcd %s not found", testEtcdName),
+			expectedCode:    http.StatusOK,
+		},
+		{
+			name:            "error in getting etcd",
+			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdGetErr:      apiInternalErr,
+			expectedAllowed: false,
+			expectedMessage: internalErr.Error(),
+			expectedCode:    http.StatusInternalServerError,
+		},
+		{
+			name:            "etcd reconciliation suspended",
+			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdAnnotations: map[string]string{druidv1alpha1.SuspendEtcdSpecReconcileAnnotation: "true"},
+			expectedAllowed: true,
+			expectedReason:  fmt.Sprintf("spec reconciliation of etcd %s is currently suspended", testEtcdName),
+			expectedCode:    http.StatusOK,
+		},
+		{
+			name:            "resource protection annotation set to false",
+			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdAnnotations: map[string]string{druidv1alpha1.ResourceProtectionAnnotation: "false"},
+			expectedAllowed: true,
+			expectedReason:  fmt.Sprintf("changes allowed, since etcd %s has annotation %s: false", testEtcdName, druidv1alpha1.ResourceProtectionAnnotation),
+			expectedCode:    http.StatusOK,
+		},
+		{
+			name:                     "etcd is currently being reconciled by druid",
+			userName:                 testUserName,
+			objectLabels:             map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{State: druidv1alpha1.LastOperationStateProcessing},
+			reconcilerServiceAccount: reconcilerServiceAccount,
+			expectedAllowed:          false,
+			expectedReason:           fmt.Sprintf("no external intervention allowed during ongoing reconciliation of etcd %s by etcd-druid", testEtcdName),
+			expectedCode:             http.StatusForbidden,
+		},
+		{
+			name:                     "etcd is currently being reconciled by druid, but request is from druid",
+			userName:                 reconcilerServiceAccount,
+			objectLabels:             map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{State: druidv1alpha1.LastOperationStateProcessing},
+			reconcilerServiceAccount: reconcilerServiceAccount,
+			expectedAllowed:          true,
+			expectedReason:           fmt.Sprintf("ongoing reconciliation of etcd %s by etcd-druid requires changes to resources", testEtcdName),
+			expectedCode:             http.StatusOK,
+		},
+		{
+			name:                     "etcd is not currently being reconciled by druid, and request is from exempt service account",
+			userName:                 exemptServiceAccounts[0],
+			objectLabels:             map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
+			reconcilerServiceAccount: reconcilerServiceAccount,
+			exemptServiceAccounts:    exemptServiceAccounts,
+			expectedAllowed:          true,
+			expectedReason:           fmt.Sprintf("operations on etcd %s by service account %s is exempt from Sentinel Webhook checks", testEtcdName, exemptServiceAccounts[0]),
+			expectedCode:             http.StatusOK,
+		},
+		{
+			name:                     "etcd is not currently being reconciled by druid, and request is from non-exempt service account",
+			userName:                 testUserName,
+			objectLabels:             map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
+			reconcilerServiceAccount: reconcilerServiceAccount,
+			exemptServiceAccounts:    exemptServiceAccounts,
+			expectedAllowed:          false,
+			expectedReason:           fmt.Sprintf("changes disallowed, since no ongoing processing of etcd %s by etcd-druid", testEtcdName),
+			expectedCode:             http.StatusForbidden,
+		},
 	}
 
-	ro := runtime.Object(obj)
-	objJSON, err := json.Marshal(ro)
-	if err != nil {
-		return runtime.RawExtension{}, err
-	}
-	return runtime.RawExtension{
-		Object: ro,
-		Raw:    objJSON,
-	}, nil
-}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).
+				WithAnnotations(tc.etcdAnnotations).
+				WithLastOperation(tc.etcdStatusLastOperation).
+				Build()
 
-func assertTestResult(g *WithT, tc testCase, resp *admission.Response) {
-	g.Expect(resp.Allowed).To(Equal(tc.expectedAllowed))
-	g.Expect(string(resp.Result.Reason)).To(Equal(tc.expectedReason))
-	g.Expect(resp.Result.Message).To(ContainSubstring(tc.expectedMessage))
-	g.Expect(resp.Result.Code).To(Equal(tc.expectedCode))
+			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
+			decoder, err := admission.NewDecoder(cl.Scheme())
+			g.Expect(err).ToNot(HaveOccurred())
+
+			handler := &Handler{
+				Client: cl,
+				config: &Config{
+					Enabled:                  true,
+					ReconcilerServiceAccount: reconcilerServiceAccount,
+					ExemptServiceAccounts:    exemptServiceAccounts,
+				},
+				decoder: decoder,
+				logger:  logr.Discard(),
+			}
+
+			sts := &appsv1.StatefulSet{}
+			obj := runtime.RawExtension{
+				Object: buildObject(getObjectGVK(g, sts), testObjectName, testNamespace, tc.objectLabels),
+				Raw:    tc.objectRaw,
+			}
+			if tc.objectRaw == nil {
+				objRaw, err := json.Marshal(obj.Object)
+				g.Expect(err).ToNot(HaveOccurred())
+				obj.Raw = objRaw
+			}
+
+			response := handler.Handle(context.Background(), admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Delete,
+					UserInfo:  authenticationv1.UserInfo{Username: tc.userName},
+					Kind:      metav1.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"},
+					Name:      testObjectName,
+					Namespace: testNamespace,
+					OldObject: obj,
+				},
+			})
+
+			g.Expect(response.Allowed).To(Equal(tc.expectedAllowed))
+			g.Expect(string(response.Result.Reason)).To(Equal(tc.expectedReason))
+			g.Expect(response.Result.Message).To(ContainSubstring(tc.expectedMessage))
+			g.Expect(response.Result.Code).To(Equal(tc.expectedCode))
+		})
+	}
 }
