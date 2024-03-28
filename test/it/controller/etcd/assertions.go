@@ -249,7 +249,7 @@ func assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t *testing.T, cl cl
 		slices.Sort(actualErrorCodes)
 
 		if !slices.Equal(expectedLastErrorCodes, actualErrorCodes) {
-			return fmt.Errorf("expected lastErrors to be %v, found %v", expectedLastErrorCodes, etcdInstance.Status.LastErrors)
+			return fmt.Errorf("expected lastErrors to be %v, found %v", expectedLastErrorCodes, actualErrorCodes)
 		}
 		return nil
 	}

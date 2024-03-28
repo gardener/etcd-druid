@@ -48,9 +48,9 @@ type errorRecord struct {
 }
 
 type ErrorsForGVK struct {
-	GVK       schema.GroupVersionKind
-	DeleteErr *apierrors.StatusError
-	ListErr   *apierrors.StatusError
+	GVK          schema.GroupVersionKind
+	DeleteAllErr *apierrors.StatusError
+	ListErr      *apierrors.StatusError
 }
 
 // TestClientBuilder builds a client.Client which will also react to the configured errors.
@@ -119,7 +119,7 @@ func CreateTestFakeClientForObjectsInNamespaceWithGVK(errors []ErrorsForGVK, nam
 	cl := NewTestClientBuilder().WithClient(fakeDelegateClient)
 
 	for _, e := range errors {
-		cl.RecordErrorForObjectsWithGVK(ClientMethodDeleteAll, namespace, e.GVK, e.DeleteErr).
+		cl.RecordErrorForObjectsWithGVK(ClientMethodDeleteAll, namespace, e.GVK, e.DeleteAllErr).
 			RecordErrorForObjectsWithGVK(ClientMethodList, namespace, e.GVK, e.ListErr)
 	}
 	return cl.Build()
@@ -238,7 +238,13 @@ func (c *testClient) Delete(ctx context.Context, obj client.Object, opts ...clie
 func (c *testClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
 	deleteOpts := client.DeleteAllOfOptions{}
 	deleteOpts.ApplyOptions(opts)
-	if err := c.getRecordedObjectCollectionError(ClientMethodDeleteAll, deleteOpts.Namespace, deleteOpts.LabelSelector, obj.GetObjectKind().GroupVersionKind()); err != nil {
+
+	gvk, err := apiutil.GVKForObject(obj, c.delegate.Scheme())
+	if err != nil {
+		return err
+	}
+
+	if err := c.getRecordedObjectCollectionError(ClientMethodDeleteAll, deleteOpts.Namespace, deleteOpts.LabelSelector, gvk); err != nil {
 		return err
 	}
 	return c.delegate.DeleteAllOf(ctx, obj, opts...)

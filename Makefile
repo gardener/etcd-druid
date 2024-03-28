@@ -134,6 +134,9 @@ test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
 .PHONY: test-integration
 test-integration: set-permissions $(GINKGO) $(SETUP_ENVTEST)
 	@"$(REPO_ROOT)/hack/test.sh" ./test/integration/...
+	@export KUBEBUILDER_ASSETS="$(${SETUP_ENVTEST} --arch=amd64 use --use-env -p path 1.22)"
+	@echo "using envtest tools installed at '${KUBEBUILDER_ASSETS}'"
+	@export KUBEBUILDER_CONTROLPLANE_START_TIMEOUT=2m
 	@go test -v ./test/it/...
 
 .PHONY: update-dependencies

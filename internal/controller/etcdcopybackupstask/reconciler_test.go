@@ -715,6 +715,12 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 			"Name":      Equal(task.Name + "-worker"),
 			"Namespace": Equal(task.Namespace),
+			"Labels": MatchKeys(IgnoreExtras, Keys{
+				druidv1alpha1.LabelComponentKey: Equal(common.EtcdCopyBackupTaskComponentName),
+				druidv1alpha1.LabelPartOfKey:    Equal(task.Name),
+				druidv1alpha1.LabelManagedByKey: Equal(druidv1alpha1.LabelManagedByValue),
+				druidv1alpha1.LabelAppNameKey:   Equal(task.GetJobName()),
+			}),
 			"OwnerReferences": MatchAllElements(testutils.OwnerRefIterator, Elements{
 				task.Name: MatchAllFields(Fields{
 					"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
@@ -730,6 +736,10 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 			"Template": MatchFields(IgnoreExtras, Fields{
 				"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 					"Labels": MatchKeys(IgnoreExtras, Keys{
+						druidv1alpha1.LabelComponentKey:                Equal(common.EtcdCopyBackupTaskComponentName),
+						druidv1alpha1.LabelPartOfKey:                   Equal(task.Name),
+						druidv1alpha1.LabelManagedByKey:                Equal(druidv1alpha1.LabelManagedByValue),
+						druidv1alpha1.LabelAppNameKey:                  Equal(task.GetJobName()),
 						"networking.gardener.cloud/to-dns":             Equal("allowed"),
 						"networking.gardener.cloud/to-public-networks": Equal("allowed"),
 					}),

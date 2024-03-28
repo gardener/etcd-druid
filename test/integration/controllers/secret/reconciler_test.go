@@ -53,8 +53,8 @@ var _ = Describe("Secret Controller", func() {
 			"peer-url-etcd-server-tls",
 			"etcd-backup",
 		}
-		errs := testutils.CreateSecrets(ctx, k8sClient, namespace, secretNames...)
-		Expect(errs).To(BeEmpty())
+		err := testutils.CreateSecrets(ctx, k8sClient, namespace, secretNames...)
+		Expect(err).ToNot(HaveOccurred())
 
 		Expect(k8sClient.Create(ctx, etcd)).To(Succeed())
 
@@ -72,8 +72,8 @@ var _ = Describe("Secret Controller", func() {
 			"peer-url-etcd-server-tls2",
 			"etcd-backup2",
 		}
-		errs = testutils.CreateSecrets(ctx, k8sClient, namespace, newSecretNames...)
-		Expect(errs).To(BeEmpty())
+		err = testutils.CreateSecrets(ctx, k8sClient, namespace, newSecretNames...)
+		Expect(err).ToNot(HaveOccurred())
 
 		patch := client.MergeFrom(etcd.DeepCopy())
 		etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name += "2"
