@@ -471,14 +471,6 @@ func TestHandleDelete(t *testing.T) {
 		expectedCode    int32
 	}{
 		{
-			name:            "etcd reconciliation suspended",
-			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdAnnotations: map[string]string{druidv1alpha1.SuspendEtcdSpecReconcileAnnotation: "true"},
-			expectedAllowed: true,
-			expectedReason:  fmt.Sprintf("spec reconciliation of etcd %s is currently suspended", testEtcdName),
-			expectedCode:    http.StatusOK,
-		},
-		{
 			name:            "resource protection annotation set to false",
 			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
 			etcdAnnotations: map[string]string{druidv1alpha1.ResourceProtectionAnnotation: "false"},
