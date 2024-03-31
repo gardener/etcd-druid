@@ -32,124 +32,160 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-func getObjectGVK(g *WithT, obj runtime.Object) schema.GroupVersionKind {
-	gvk, err := apiutil.GVKForObject(obj, kubernetes.Scheme)
-	g.Expect(err).ToNot(HaveOccurred())
-	return gvk
-}
+const (
+	testUserName   = "test-user"
+	testObjectName = "test"
+	testNamespace  = "test-ns"
+	testEtcdName   = "test"
+)
 
-func buildObject(gvk schema.GroupVersionKind, name, namespace string, labels map[string]string) runtime.Object {
-	obj := &unstructured.Unstructured{}
-	obj.SetGroupVersionKind(gvk)
-	obj.SetName(name)
-	obj.SetNamespace(namespace)
-	obj.SetLabels(labels)
-	return obj
-}
+var (
+	internalErr              = errors.New("test internal error")
+	apiInternalErr           = apierrors.NewInternalError(internalErr)
+	apiNotFoundErr           = apierrors.NewNotFound(schema.GroupResource{}, "")
+	reconcilerServiceAccount = "etcd-druid-sa"
+	exemptServiceAccounts    = []string{"exempt-sa-1"}
 
-func TestHandleCreate(t *testing.T) {
+	statefulSetGVK = metav1.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}
+	leaseGVK       = metav1.GroupVersionKind{Group: "coordination.k8s.io", Version: "v1", Kind: "Lease"}
+)
+
+func TestHandleCreateAndConnect(t *testing.T) {
 	g := NewWithT(t)
 
 	testCases := []struct {
-		name            string
-		expectedAllowed bool
-		expectedReason  string
+		name        string
+		operation   admissionv1.Operation
+		expectedMsg string
 	}{
 		{
-			name:            "create any resource",
-			expectedAllowed: true,
-			expectedReason:  "operation CREATE is allowed",
+			name:        "allow create operation for any resource",
+			operation:   admissionv1.Create,
+			expectedMsg: "operation CREATE is allowed",
 		},
+		{
+			name:        "allow connect operation for any resource",
+			operation:   admissionv1.Connect,
+			expectedMsg: "operation CONNECT is allowed",
+		},
+	}
+
+	cl := testutils.CreateDefaultFakeClient()
+	decoder, err := admission.NewDecoder(cl.Scheme())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	handler := &Handler{
+		Client: cl,
+		config: &Config{
+			Enabled: true,
+		},
+		decoder: decoder,
+		logger:  logr.Discard(),
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cl := fake.NewClientBuilder().Build()
-			decoder, err := admission.NewDecoder(cl.Scheme())
-			if err != nil {
-				g.Expect(err).ToNot(HaveOccurred())
-			}
-
-			handler := &Handler{
-				Client: cl,
-				config: &Config{
-					Enabled: true,
-				},
-				decoder: decoder,
-				logger:  logr.Discard(),
-			}
-
 			resp := handler.Handle(context.Background(), admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Operation: admissionv1.Create,
+					Operation: tc.operation,
+					// Create for all resources are allowed. StatefulSet resource GVK has been taken as an example.
+					Kind: statefulSetGVK,
 				},
 			})
-
-			g.Expect(resp.Allowed).To(Equal(tc.expectedAllowed))
-			g.Expect(string(resp.Result.Reason)).To(Equal(tc.expectedReason))
+			g.Expect(resp.Allowed).To(BeTrue())
+			g.Expect(string(resp.Result.Reason)).To(Equal(tc.expectedMsg))
 		})
 	}
 }
 
 func TestHandleLeaseUpdate(t *testing.T) {
 	g := NewWithT(t)
+	cl := fake.NewClientBuilder().Build()
+	decoder, err := admission.NewDecoder(cl.Scheme())
+	g.Expect(err).ToNot(HaveOccurred())
 
-	testCases := []struct {
-		name            string
-		gvk             metav1.GroupVersionKind
-		expectedAllowed bool
-		expectedReason  string
-	}{
-		{
-			name:            "update Lease",
-			expectedAllowed: true,
-			expectedReason:  "lease resource can be freely updated",
+	handler := &Handler{
+		Client: cl,
+		config: &Config{
+			Enabled: true,
 		},
+		decoder: decoder,
+		logger:  logr.Discard(),
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			cl := fake.NewClientBuilder().Build()
-			decoder, err := admission.NewDecoder(cl.Scheme())
-			g.Expect(err).ToNot(HaveOccurred())
+	resp := handler.Handle(context.Background(), admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			Operation: admissionv1.Update,
+			Kind:      leaseGVK,
+		},
+	})
 
-			handler := &Handler{
-				Client: cl,
-				config: &Config{
-					Enabled: true,
-				},
-				decoder: decoder,
-				logger:  logr.Discard(),
-			}
+	g.Expect(resp.Allowed).To(BeTrue())
+	g.Expect(string(resp.Result.Reason)).To(Equal("lease resource can be freely updated"))
+}
 
-			resp := handler.Handle(context.Background(), admission.Request{
-				AdmissionRequest: admissionv1.AdmissionRequest{
-					Operation: admissionv1.Update,
-					Kind:      metav1.GroupVersionKind{Group: "coordination.k8s.io", Version: "v1", Kind: "Lease"},
-				},
-			})
+func TestUnexpectedResourceType(t *testing.T) {
+	g := NewWithT(t)
 
-			g.Expect(resp.Allowed).To(Equal(tc.expectedAllowed))
-			g.Expect(string(resp.Result.Reason)).To(Equal(tc.expectedReason))
-		})
+	cl := fake.NewClientBuilder().Build()
+	decoder, err := admission.NewDecoder(cl.Scheme())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	handler := &Handler{
+		Client: cl,
+		config: &Config{
+			Enabled: true,
+		},
+		decoder: decoder,
+		logger:  logr.Discard(),
 	}
+
+	resp := handler.Handle(context.Background(), admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			Operation: admissionv1.Update,
+			Kind:      metav1.GroupVersionKind{Group: "coordination.k8s.io", Version: "v1", Kind: "Unknown"},
+		},
+	})
+
+	g.Expect(resp.Allowed).To(BeTrue())
+	g.Expect(string(resp.Result.Reason)).To(Equal(fmt.Sprintf("unexpected resource type: coordination.k8s.io/Unknown")))
+}
+
+func TestMissingResourcePartOfLabel(t *testing.T) {
+	g := NewWithT(t)
+
+	cl := fake.NewClientBuilder().Build()
+	decoder, err := admission.NewDecoder(cl.Scheme())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	handler := &Handler{
+		Client: cl,
+		config: &Config{
+			Enabled: true,
+		},
+		decoder: decoder,
+		logger:  logr.Discard(),
+	}
+
+	obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{})
+	response := handler.Handle(context.Background(), admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			Operation: admissionv1.Update,
+			UserInfo:  authenticationv1.UserInfo{Username: testUserName},
+			Kind:      statefulSetGVK,
+			Name:      testObjectName,
+			Namespace: testNamespace,
+			Object:    obj,
+			OldObject: obj,
+		},
+	})
+
+	g.Expect(response.Allowed).To(Equal(true))
+	g.Expect(string(response.Result.Reason)).To(Equal(fmt.Sprintf("label %s not found on resource", druidv1alpha1.LabelPartOfKey)))
 }
 
 func TestHandleUpdate(t *testing.T) {
 	g := NewWithT(t)
-
-	var (
-		reconcilerServiceAccount = "etcd-druid-sa"
-		exemptServiceAccounts    = []string{"exempt-sa-1"}
-		testUserName             = "test-user"
-		testObjectName           = "test"
-		testNamespace            = "test-ns"
-		testEtcdName             = "test"
-
-		internalErr    = errors.New("test internal error")
-		apiInternalErr = apierrors.NewInternalError(internalErr)
-		apiNotFoundErr = apierrors.NewNotFound(schema.GroupResource{}, "")
-	)
 
 	testCases := []struct {
 		name string
@@ -171,51 +207,6 @@ func TestHandleUpdate(t *testing.T) {
 		expectedCode    int32
 	}{
 		{
-			name:            "empty request object",
-			objectRaw:       []byte{},
-			expectedAllowed: false,
-			expectedMessage: "there is no content to decode",
-			expectedCode:    http.StatusInternalServerError,
-		},
-		{
-			name:            "malformed request object",
-			objectRaw:       []byte("foo"),
-			expectedAllowed: false,
-			expectedMessage: "invalid character",
-			expectedCode:    http.StatusInternalServerError,
-		},
-		{
-			name:            "resource has no part-of label",
-			objectLabels:    map[string]string{},
-			expectedAllowed: true,
-			expectedReason:  fmt.Sprintf("label %s not found on resource", druidv1alpha1.LabelPartOfKey),
-			expectedCode:    http.StatusOK,
-		},
-		{
-			name:            "etcd not found",
-			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdGetErr:      apiNotFoundErr,
-			expectedAllowed: true,
-			expectedReason:  fmt.Sprintf("corresponding etcd %s not found", testEtcdName),
-			expectedCode:    http.StatusOK,
-		},
-		{
-			name:            "error in getting etcd",
-			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdGetErr:      apiInternalErr,
-			expectedAllowed: false,
-			expectedMessage: internalErr.Error(),
-			expectedCode:    http.StatusInternalServerError,
-		},
-		{
-			name:            "etcd reconciliation suspended",
-			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdAnnotations: map[string]string{druidv1alpha1.SuspendEtcdSpecReconcileAnnotation: "true"},
-			expectedAllowed: true,
-			expectedReason:  fmt.Sprintf("spec reconciliation of etcd %s is currently suspended", testEtcdName),
-			expectedCode:    http.StatusOK,
-		},
-		{
 			name:            "resource protection annotation set to false",
 			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
 			etcdAnnotations: map[string]string{druidv1alpha1.ResourceProtectionAnnotation: "false"},
@@ -224,7 +215,7 @@ func TestHandleUpdate(t *testing.T) {
 			expectedCode:    http.StatusOK,
 		},
 		{
-			name:                     "etcd is currently being reconciled by druid",
+			name:                     "operator makes a request when etcd is being reconciled by druid",
 			userName:                 testUserName,
 			objectLabels:             map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
 			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{State: druidv1alpha1.LastOperationStateProcessing},
@@ -234,7 +225,7 @@ func TestHandleUpdate(t *testing.T) {
 			expectedCode:             http.StatusForbidden,
 		},
 		{
-			name:                     "etcd is currently being reconciled by druid, but request is from druid",
+			name:                     "druid makes a request during its reconciliation run",
 			userName:                 reconcilerServiceAccount,
 			objectLabels:             map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
 			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{State: druidv1alpha1.LastOperationStateProcessing},
@@ -265,6 +256,7 @@ func TestHandleUpdate(t *testing.T) {
 		},
 	}
 
+	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).
@@ -287,22 +279,12 @@ func TestHandleUpdate(t *testing.T) {
 				logger:  logr.Discard(),
 			}
 
-			sts := &appsv1.StatefulSet{}
-			obj := runtime.RawExtension{
-				Object: buildObject(getObjectGVK(g, sts), testObjectName, testNamespace, tc.objectLabels),
-				Raw:    tc.objectRaw,
-			}
-			if tc.objectRaw == nil {
-				objRaw, err := json.Marshal(obj.Object)
-				g.Expect(err).ToNot(HaveOccurred())
-				obj.Raw = objRaw
-			}
-
+			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels)
 			response := handler.Handle(context.Background(), admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
 					Operation: admissionv1.Update,
 					UserInfo:  authenticationv1.UserInfo{Username: tc.userName},
-					Kind:      metav1.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"},
+					Kind:      statefulSetGVK,
 					Name:      testObjectName,
 					Namespace: testNamespace,
 					Object:    obj,
@@ -318,21 +300,156 @@ func TestHandleUpdate(t *testing.T) {
 	}
 }
 
+func TestHandleWithInvalidRequestObject(t *testing.T) {
+	g := NewWithT(t)
+	testCases := []struct {
+		name              string
+		operation         admissionv1.Operation
+		objectRaw         []byte
+		expectedAllowed   bool
+		expectedMessage   string
+		expectedErrorCode int32
+	}{
+		{
+			name:              "empty request object",
+			operation:         admissionv1.Update,
+			objectRaw:         []byte{},
+			expectedAllowed:   false,
+			expectedMessage:   "there is no content to decode",
+			expectedErrorCode: http.StatusInternalServerError,
+		},
+		{
+			name:              "malformed request object",
+			operation:         admissionv1.Update,
+			objectRaw:         []byte("foo"),
+			expectedAllowed:   false,
+			expectedMessage:   "invalid character",
+			expectedErrorCode: http.StatusInternalServerError,
+		},
+		{
+			name:              "empty request object",
+			operation:         admissionv1.Delete,
+			objectRaw:         []byte{},
+			expectedAllowed:   false,
+			expectedMessage:   "there is no content to decode",
+			expectedErrorCode: http.StatusInternalServerError,
+		},
+		{
+			name:              "malformed request object",
+			operation:         admissionv1.Delete,
+			objectRaw:         []byte("foo"),
+			expectedAllowed:   false,
+			expectedMessage:   "invalid character",
+			expectedErrorCode: http.StatusInternalServerError,
+		},
+	}
+
+	t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cl := testutils.CreateDefaultFakeClient()
+			decoder, err := admission.NewDecoder(cl.Scheme())
+			g.Expect(err).ToNot(HaveOccurred())
+
+			handler := &Handler{
+				Client: cl,
+				config: &Config{
+					Enabled:                  true,
+					ReconcilerServiceAccount: reconcilerServiceAccount,
+					ExemptServiceAccounts:    exemptServiceAccounts,
+				},
+				decoder: decoder,
+				logger:  logr.Discard(),
+			}
+
+			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, nil)
+
+			response := handler.Handle(context.Background(), admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
+					UserInfo:  authenticationv1.UserInfo{Username: testUserName},
+					Kind:      metav1.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"},
+					Name:      testObjectName,
+					Namespace: testNamespace,
+					Object:    obj,
+					OldObject: obj,
+				},
+			})
+			g.Expect(response.Allowed).To(Equal(tc.expectedAllowed))
+			g.Expect(response.Result.Message).To(ContainSubstring(tc.expectedMessage))
+			g.Expect(response.Result.Code).To(Equal(tc.expectedErrorCode))
+		})
+	}
+}
+
+func TestEtcdGetFailures(t *testing.T) {
+	g := NewWithT(t)
+	testCases := []struct {
+		name            string
+		etcdGetErr      *apierrors.StatusError
+		expectedAllowed bool
+		expectedReason  string
+		expectedMessage string
+		expectedCode    int32
+	}{
+		{
+			name:            "should allow when etcd is not found",
+			etcdGetErr:      apiNotFoundErr,
+			expectedAllowed: true,
+			expectedReason:  fmt.Sprintf("corresponding etcd %s not found", testEtcdName),
+			expectedCode:    http.StatusOK,
+		},
+		{
+			name:            "error in getting etcd",
+			etcdGetErr:      apiInternalErr,
+			expectedAllowed: false,
+			expectedMessage: internalErr.Error(),
+			expectedCode:    http.StatusInternalServerError,
+		},
+	}
+
+	t.Parallel()
+	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).Build()
+	for _, tc := range testCases {
+		t.Run(t.Name(), func(t *testing.T) {
+			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
+			decoder, err := admission.NewDecoder(cl.Scheme())
+			g.Expect(err).ToNot(HaveOccurred())
+
+			handler := &Handler{
+				Client: cl,
+				config: &Config{
+					Enabled:                  true,
+					ReconcilerServiceAccount: reconcilerServiceAccount,
+					ExemptServiceAccounts:    exemptServiceAccounts,
+				},
+				decoder: decoder,
+				logger:  logr.Discard(),
+			}
+
+			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName})
+
+			response := handler.Handle(context.Background(), admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Delete,
+					UserInfo:  authenticationv1.UserInfo{Username: testUserName},
+					Kind:      metav1.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"},
+					Name:      testObjectName,
+					Namespace: testNamespace,
+					OldObject: obj,
+				},
+			})
+
+			g.Expect(response.Allowed).To(Equal(tc.expectedAllowed))
+			g.Expect(string(response.Result.Reason)).To(Equal(tc.expectedReason))
+			g.Expect(response.Result.Message).To(ContainSubstring(tc.expectedMessage))
+			g.Expect(response.Result.Code).To(Equal(tc.expectedCode))
+		})
+	}
+}
+
 func TestHandleDelete(t *testing.T) {
 	g := NewWithT(t)
-
-	var (
-		reconcilerServiceAccount = "etcd-druid-sa"
-		exemptServiceAccounts    = []string{"exempt-sa-1"}
-		testUserName             = "test-user"
-		testObjectName           = "test"
-		testNamespace            = "test-ns"
-		testEtcdName             = "test"
-
-		internalErr    = errors.New("test internal error")
-		apiInternalErr = apierrors.NewInternalError(internalErr)
-		apiNotFoundErr = apierrors.NewNotFound(schema.GroupResource{}, "")
-	)
 
 	testCases := []struct {
 		name string
@@ -353,43 +470,6 @@ func TestHandleDelete(t *testing.T) {
 		expectedMessage string
 		expectedCode    int32
 	}{
-		{
-			name:            "empty request object",
-			objectRaw:       []byte{},
-			expectedAllowed: false,
-			expectedMessage: "there is no content to decode",
-			expectedCode:    http.StatusInternalServerError,
-		},
-		{
-			name:            "malformed request object",
-			objectRaw:       []byte("foo"),
-			expectedAllowed: false,
-			expectedMessage: "invalid character",
-			expectedCode:    http.StatusInternalServerError,
-		},
-		{
-			name:            "resource has no part-of label",
-			objectLabels:    map[string]string{},
-			expectedAllowed: true,
-			expectedReason:  fmt.Sprintf("label %s not found on resource", druidv1alpha1.LabelPartOfKey),
-			expectedCode:    http.StatusOK,
-		},
-		{
-			name:            "etcd not found",
-			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdGetErr:      apiNotFoundErr,
-			expectedAllowed: true,
-			expectedReason:  fmt.Sprintf("corresponding etcd %s not found", testEtcdName),
-			expectedCode:    http.StatusOK,
-		},
-		{
-			name:            "error in getting etcd",
-			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdGetErr:      apiInternalErr,
-			expectedAllowed: false,
-			expectedMessage: internalErr.Error(),
-			expectedCode:    http.StatusInternalServerError,
-		},
 		{
 			name:            "etcd reconciliation suspended",
 			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
@@ -470,16 +550,7 @@ func TestHandleDelete(t *testing.T) {
 				logger:  logr.Discard(),
 			}
 
-			sts := &appsv1.StatefulSet{}
-			obj := runtime.RawExtension{
-				Object: buildObject(getObjectGVK(g, sts), testObjectName, testNamespace, tc.objectLabels),
-				Raw:    tc.objectRaw,
-			}
-			if tc.objectRaw == nil {
-				objRaw, err := json.Marshal(obj.Object)
-				g.Expect(err).ToNot(HaveOccurred())
-				obj.Raw = objRaw
-			}
+			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels)
 
 			response := handler.Handle(context.Background(), admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
@@ -498,4 +569,38 @@ func TestHandleDelete(t *testing.T) {
 			g.Expect(response.Result.Code).To(Equal(tc.expectedCode))
 		})
 	}
+}
+
+// ---------------- Helper functions -------------------
+
+func buildObjRawExtension(g *WithT, emptyObj runtime.Object, objRaw []byte, testObjectName, testNs string, labels map[string]string) runtime.RawExtension {
+	var (
+		rawBytes []byte
+		err      error
+	)
+	rawBytes = objRaw
+	obj := buildObject(getObjectGVK(g, emptyObj), testObjectName, testNs, labels)
+	if objRaw == nil {
+		rawBytes, err = json.Marshal(obj)
+		g.Expect(err).ToNot(HaveOccurred())
+	}
+	return runtime.RawExtension{
+		Object: obj,
+		Raw:    rawBytes,
+	}
+}
+
+func getObjectGVK(g *WithT, obj runtime.Object) schema.GroupVersionKind {
+	gvk, err := apiutil.GVKForObject(obj, kubernetes.Scheme)
+	g.Expect(err).ToNot(HaveOccurred())
+	return gvk
+}
+
+func buildObject(gvk schema.GroupVersionKind, name, namespace string, labels map[string]string) runtime.Object {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+	obj.SetName(name)
+	obj.SetNamespace(namespace)
+	obj.SetLabels(labels)
+	return obj
 }

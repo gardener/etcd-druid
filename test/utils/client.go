@@ -59,6 +59,11 @@ type TestClientBuilder struct {
 	errorRecords     []errorRecord
 }
 
+// CreateDefaultFakeClient returns a default fake client.Client without any configured reactions to errors.
+func CreateDefaultFakeClient() client.Client {
+	return fake.NewClientBuilder().Build()
+}
+
 // CreateTestFakeClientForObjects is a convenience function which creates a test client which uses a fake client as a delegate and reacts to the configured errors for the given object key.
 func CreateTestFakeClientForObjects(getErr, createErr, patchErr, deleteErr *apierrors.StatusError, existingObjects []client.Object, objKeys ...client.ObjectKey) client.Client {
 	fakeDelegateClientBuilder := fake.NewClientBuilder()

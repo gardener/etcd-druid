@@ -56,14 +56,15 @@ func NewHandler(mgr manager.Manager, config *Config) (*Handler, error) {
 
 // Handle handles admission requests and prevents unintended changes to resources created by etcd-druid.
 func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	if slices.Contains(allowedOperations, req.Operation) {
-		return admission.Allowed(fmt.Sprintf("operation %s is allowed", req.Operation))
-	}
-
 	requestGKString := fmt.Sprintf("%s/%s", req.Kind.Group, req.Kind.Kind)
 	log := h.logger.WithValues("name", req.Name, "namespace", req.Namespace, "resourceGroupKind", requestGKString, "operation", req.Operation, "user", req.UserInfo.Username)
 	log.Info("Sentinel webhook invoked")
 
+	if slices.Contains(allowedOperations, req.Operation) {
+		return admission.Allowed(fmt.Sprintf("operation %s is allowed", req.Operation))
+	}
+
+	// Leases (member and snapshot) will be periodically updated by etcd members. Allow updates to leases.
 	requestGK := schema.GroupKind{Group: req.Kind.Group, Kind: req.Kind.Kind}
 	if requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() &&
 		req.Operation == admissionv1.Update {
@@ -84,16 +85,11 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 	}
 
 	etcd := &druidv1alpha1.Etcd{}
-	if err := h.Get(ctx, types.NamespacedName{Name: etcdName, Namespace: req.Namespace}, etcd); err != nil {
+	if err = h.Get(ctx, types.NamespacedName{Name: etcdName, Namespace: req.Namespace}, etcd); err != nil {
 		if apierrors.IsNotFound(err) {
 			return admission.Allowed(fmt.Sprintf("corresponding etcd %s not found", etcdName))
 		}
 		return admission.Errored(http.StatusInternalServerError, err)
-	}
-
-	// allow changes to resources if etcd spec reconciliation is currently suspended
-	if etcd.IsReconciliationSuspended() {
-		return admission.Allowed(fmt.Sprintf("spec reconciliation of etcd %s is currently suspended", etcd.Name))
 	}
 
 	// allow changes to resources if etcd has annotation druid.gardener.cloud/resource-protection: false
