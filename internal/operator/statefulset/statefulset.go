@@ -158,7 +158,7 @@ func (r _resource) createOrPatch(ctx component.OperatorContext, etcd *druidv1alp
 }
 
 func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) error {
-	peerTLSEnabledForAllMembers, err := utils.IsPeerURLTLSEnabledForAllMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name)
+	peerTLSEnabledForAllMembers, err := utils.IsPeerURLTLSEnabledForMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name, int(*existingSts.Spec.Replicas))
 	if err != nil {
 		return fmt.Errorf("error checking if peer URL TLS is enabled: %w", err)
 	}
@@ -174,7 +174,7 @@ func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *dru
 			ctx.Logger.Info("Secret volume mounts to enable Peer URL TLS have already been mounted. Skipping patching StatefulSet with secret volume mounts.")
 		}
 		// check again if peer TLS has been enabled for all members. If not then force a requeue of the reconcile request.
-		peerTLSEnabledForAllMembers, err = utils.IsPeerURLTLSEnabledForAllMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name)
+		peerTLSEnabledForAllMembers, err = utils.IsPeerURLTLSEnabledForMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name, int(*existingSts.Spec.Replicas))
 		if err != nil {
 			return fmt.Errorf("error checking if peer URL TLS is enabled: %w", err)
 		}
@@ -190,10 +190,10 @@ func isStatefulSetPatchedWithPeerTLSVolMount(existingSts *appsv1.StatefulSet) bo
 	volumes := existingSts.Spec.Template.Spec.Volumes
 	var peerURLCAEtcdVolPresent, peerURLEtcdServerTLSVolPresent bool
 	for _, vol := range volumes {
-		if vol.Name == "peer-url-ca-etcd" {
+		if vol.Name == etcdPeerCAVolumeName {
 			peerURLCAEtcdVolPresent = true
 		}
-		if vol.Name == "peer-url-etcd-server-tls" {
+		if vol.Name == etcdPeerServerTLSVolumeName {
 			peerURLEtcdServerTLSVolPresent = true
 		}
 	}

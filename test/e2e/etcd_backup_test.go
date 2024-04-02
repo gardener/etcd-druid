@@ -11,7 +11,6 @@ import (
 
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
 	"github.com/gardener/etcd-druid/api/v1alpha1"
-
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
@@ -222,8 +221,11 @@ func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, e
 		}
 
 		// Ensure the etcd cluster's current generation matches the observed generation
-		if etcd.Status.ObservedGeneration != &etcd.Generation {
-			return fmt.Errorf("etcd '%s' is not at the expected generation (observed: %d, expected: %d)", etcd.Name, etcd.Status.ObservedGeneration, etcd.Generation)
+		if etcd.Status.ObservedGeneration == nil {
+			return fmt.Errorf("etcd %s status observed generation is nil", etcd.Name)
+		}
+		if *etcd.Status.ObservedGeneration != etcd.Generation {
+			return fmt.Errorf("etcd '%s' is not at the expected generation (observed: %d, expected: %d)", etcd.Name, *etcd.Status.ObservedGeneration, etcd.Generation)
 		}
 
 		if etcd.Status.Ready == nil || *etcd.Status.Ready != true {

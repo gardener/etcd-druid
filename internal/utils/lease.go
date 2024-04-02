@@ -6,7 +6,9 @@ package utils
 
 import (
 	"context"
+	"slices"
 	"strconv"
+	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -17,8 +19,8 @@ import (
 
 const peerURLTLSEnabledKey = "member.etcd.gardener.cloud/tls-enabled"
 
-// IsPeerURLTLSEnabledForAllMembers checks if TLS has been enabled for all existing members of an etcd cluster identified by etcdName and in the provided namespace.
-func IsPeerURLTLSEnabledForAllMembers(ctx context.Context, cl client.Client, logger logr.Logger, namespace, etcdName string) (bool, error) {
+// IsPeerURLTLSEnabledForMembers checks if TLS has been enabled for all existing members of an etcd cluster identified by etcdName and in the provided namespace.
+func IsPeerURLTLSEnabledForMembers(ctx context.Context, cl client.Client, logger logr.Logger, namespace, etcdName string, numReplicas int) (bool, error) {
 	leaseList := &coordinationv1.LeaseList{}
 	if err := cl.List(ctx, leaseList, client.InNamespace(namespace), client.MatchingLabels(map[string]string{
 		druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
@@ -28,7 +30,11 @@ func IsPeerURLTLSEnabledForAllMembers(ctx context.Context, cl client.Client, log
 		return false, err
 	}
 	tlsEnabledForAllMembers := true
-	for _, lease := range leaseList.Items {
+	leases := leaseList.DeepCopy().Items
+	slices.SortFunc(leases, func(a, b coordinationv1.Lease) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	for _, lease := range leases[:numReplicas] {
 		tlsEnabled, err := parseAndGetTLSEnabledValue(lease, logger)
 		if err != nil {
 			return false, err

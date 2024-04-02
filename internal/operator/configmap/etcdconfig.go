@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/operator/statefulset"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"k8s.io/utils/pointer"
 )
@@ -18,7 +19,6 @@ import (
 const (
 	defaultDBQuotaBytes            = int64(8 * 1024 * 1024 * 1024) // 8Gi
 	defaultAutoCompactionRetention = "30m"
-	defaultDataDir                 = "/var/etcd/data/new.etcd"
 	defaultInitialClusterToken     = "etcd-cluster"
 	defaultInitialClusterState     = "new"
 	// For more information refer to https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
@@ -27,6 +27,10 @@ const (
 	defaultSnapshotCount = 75000
 	defaultClientPort    = 2379
 	defaultServerPort    = 2380
+)
+
+var (
+	defaultDataDir = fmt.Sprintf("%s/new.etcd", statefulset.EtcdDataVolumeMountPath)
 )
 
 type tlsTarget string
@@ -65,8 +69,8 @@ type securityConfig struct {
 }
 
 func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
-	peerScheme, peerSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.PeerUrlTLS, peerTLS)
-	clientScheme, clientSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.ClientUrlTLS, clientTLS)
+	clientScheme, clientSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.ClientUrlTLS, statefulset.EtcdCAVolumeMountPath, statefulset.EtcdServerTLSVolumeMountPath)
+	peerScheme, peerSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.PeerUrlTLS, statefulset.EtcdPeerCAVolumeMountPath, statefulset.EtcdPeerServerTLSVolumeMountPath)
 
 	cfg := &etcdConfig{
 		Name:                    fmt.Sprintf("etcd-%s", etcd.UID[:6]),
@@ -103,14 +107,14 @@ func getDBQuotaBytes(etcd *druidv1alpha1.Etcd) int64 {
 	return dbQuotaBytes
 }
 
-func getSchemeAndSecurityConfig(tlsConfig *druidv1alpha1.TLSConfig, tlsTarget tlsTarget) (string, *securityConfig) {
+func getSchemeAndSecurityConfig(tlsConfig *druidv1alpha1.TLSConfig, caPath, serverTLSPath string) (string, *securityConfig) {
 	if tlsConfig != nil {
 		const defaultTLSCASecretKey = "ca.crt"
 		return "https", &securityConfig{
-			CertFile:       fmt.Sprintf("/var/etcd/ssl/%s/server/tls.crt", tlsTarget),
-			KeyFile:        fmt.Sprintf("/var/etcd/ssl/%s/server/tls.key", tlsTarget),
+			CertFile:       fmt.Sprintf("%s/tls.crt", serverTLSPath),
+			KeyFile:        fmt.Sprintf("%s/tls.key", serverTLSPath),
 			ClientCertAuth: true,
-			TrustedCAFile:  fmt.Sprintf("/var/etcd/ssl/%s/ca/%s", tlsTarget, utils.TypeDeref[string](tlsConfig.TLSCASecretRef.DataKey, defaultTLSCASecretKey)),
+			TrustedCAFile:  fmt.Sprintf("%s/%s", caPath, utils.TypeDeref[string](tlsConfig.TLSCASecretRef.DataKey, defaultTLSCASecretKey)),
 			AutoTLS:        false,
 		}
 	}

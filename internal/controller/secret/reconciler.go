@@ -57,6 +57,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if needed, etcd := isFinalizerNeeded(secret.Name, etcdList); needed {
+		if hasFinalizer(secret) {
+			return ctrl.Result{}, nil
+		}
 		logger.Info("Adding finalizer for secret since it is referenced by etcd resource",
 			"secretNamespace", secret.Namespace, "secretName", secret.Name, "etcdNamespace", etcd.Namespace, "etcdName", etcd.Name)
 		return ctrl.Result{}, addFinalizer(ctx, logger, r.Client, secret)
@@ -87,6 +90,10 @@ func isFinalizerNeeded(secretName string, etcdList *druidv1alpha1.EtcdList) (boo
 	}
 
 	return false, nil
+}
+
+func hasFinalizer(secret *corev1.Secret) bool {
+	return sets.NewString(secret.Finalizers...).Has(common.FinalizerName)
 }
 
 func addFinalizer(ctx context.Context, logger logr.Logger, k8sClient client.Client, secret *corev1.Secret) error {

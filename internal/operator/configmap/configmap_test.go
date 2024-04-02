@@ -14,8 +14,10 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/component"
+	"github.com/gardener/etcd-druid/internal/operator/statefulset"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
@@ -334,7 +336,7 @@ func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.C
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
 		"name":                      Equal(fmt.Sprintf("etcd-%s", etcd.UID[:6])),
-		"data-dir":                  Equal("/var/etcd/data/new.etcd"),
+		"data-dir":                  Equal(fmt.Sprintf("%s/new.etcd", statefulset.EtcdDataVolumeMountPath)),
 		"metrics":                   Equal(string(druidv1alpha1.Basic)),
 		"snapshot-count":            Equal(int64(75000)),
 		"enable-v2":                 Equal(false),
@@ -354,10 +356,10 @@ func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actu
 			"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort))),
 			"advertise-client-urls": Equal(fmt.Sprintf("https@%s@%s@%d", etcd.GetPeerServiceName(), etcd.Namespace, utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort))),
 			"client-transport-security": MatchKeys(IgnoreExtras, Keys{
-				"cert-file":        Equal("/var/etcd/ssl/client/server/tls.crt"),
-				"key-file":         Equal("/var/etcd/ssl/client/server/tls.key"),
+				"cert-file":        Equal("/var/etcd/ssl/server/tls.crt"),
+				"key-file":         Equal("/var/etcd/ssl/server/tls.key"),
 				"client-cert-auth": Equal(true),
-				"trusted-ca-file":  Equal("/var/etcd/ssl/client/ca/ca.crt"),
+				"trusted-ca-file":  Equal("/var/etcd/ssl/ca/ca.crt"),
 				"auto-tls":         Equal(false),
 			}),
 		}))

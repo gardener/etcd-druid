@@ -71,7 +71,7 @@ func TestIsPeerURLTLSEnabledForAllMembers(t *testing.T) {
 				druidv1alpha1.LabelPartOfKey:    testutils.TestEtcdName,
 				druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
 			}, existingObjects...)
-			tlsEnabled, err := IsPeerURLTLSEnabledForAllMembers(context.Background(), cl, logger, testutils.TestNamespace, testutils.TestEtcdName)
+			tlsEnabled, err := IsPeerURLTLSEnabledForMembers(context.Background(), cl, logger, testutils.TestNamespace, testutils.TestEtcdName, etcdReplicas)
 			if tc.expectedErr != nil {
 				g.Expect(err).To(Equal(tc.expectedErr))
 			} else {
