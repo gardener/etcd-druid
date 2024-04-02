@@ -10,16 +10,15 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/features"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/component-base/featuregate"
-
 	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
+
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/component-base/featuregate"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -175,7 +174,7 @@ func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *dru
 		}
 		return fmt.Errorf("peer URL TLS not enabled for #%d members for etcd: %v, requeuing reconcile request", *existingSts.Spec.Replicas, etcd.GetNamespaceName())
 	}
-	ctx.Logger.Info("Peer URL TLS has been enabled for all members")
+	ctx.Logger.Info("Peer URL TLS has been enabled for all currently running members")
 	return nil
 }
 
@@ -196,30 +195,6 @@ func isStatefulSetPatchedWithPeerTLSVolMount(existingSts *appsv1.StatefulSet) bo
 // isPeerTLSEnablementPending checks if the peer URL TLS has been enabled for the etcd, but it has not yet reflected in all etcd members.
 func isPeerTLSEnablementPending(peerTLSEnabledStatusFromMembers bool, etcd *druidv1alpha1.Etcd) bool {
 	return !peerTLSEnabledStatusFromMembers && etcd.Spec.Etcd.PeerUrlTLS != nil
-}
-
-// TODO: this function is not used. Remove it if not needed.
-func deleteAllStsPods(ctx component.OperatorContext, cl client.Client, opName string, sts *appsv1.StatefulSet) error {
-	// Get all Pods belonging to the StatefulSet
-	podList := &corev1.PodList{}
-	listOpts := []client.ListOption{
-		client.InNamespace(sts.Namespace),
-		client.MatchingLabels(sts.Spec.Selector.MatchLabels),
-	}
-
-	if err := cl.List(ctx, podList, listOpts...); err != nil {
-		ctx.Logger.Error(err, "Failed to list pods for StatefulSet", "StatefulSet", client.ObjectKeyFromObject(sts), "operation", opName)
-		return err
-	}
-
-	for _, pod := range podList.Items {
-		if err := cl.Delete(ctx, &pod); err != nil {
-			ctx.Logger.Error(err, "Failed to delete pod", "Pod", pod.Name, "Namespace", pod.Namespace, "operation", opName)
-			return err
-		}
-	}
-
-	return nil
 }
 
 func emptyStatefulSet(etcd *druidv1alpha1.Etcd) *appsv1.StatefulSet {

@@ -40,8 +40,8 @@ const (
 )
 
 var (
-	internalErr              = errors.New("test internal error")
-	apiInternalErr           = apierrors.NewInternalError(internalErr)
+	errInternal              = errors.New("test internal error")
+	apiInternalErr           = apierrors.NewInternalError(errInternal)
 	apiNotFoundErr           = apierrors.NewNotFound(schema.GroupResource{}, "")
 	reconcilerServiceAccount = "etcd-druid-sa"
 	exemptServiceAccounts    = []string{"exempt-sa-1"}
@@ -148,7 +148,7 @@ func TestUnexpectedResourceType(t *testing.T) {
 	})
 
 	g.Expect(resp.Allowed).To(BeTrue())
-	g.Expect(string(resp.Result.Reason)).To(Equal(fmt.Sprintf("unexpected resource type: coordination.k8s.io/Unknown")))
+	g.Expect(string(resp.Result.Reason)).To(Equal("unexpected resource type: coordination.k8s.io/Unknown"))
 }
 
 func TestMissingResourcePartOfLabel(t *testing.T) {
@@ -403,7 +403,7 @@ func TestEtcdGetFailures(t *testing.T) {
 			name:            "error in getting etcd",
 			etcdGetErr:      apiInternalErr,
 			expectedAllowed: false,
-			expectedMessage: internalErr.Error(),
+			expectedMessage: errInternal.Error(),
 			expectedCode:    http.StatusInternalServerError,
 		},
 	}

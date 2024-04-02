@@ -649,8 +649,7 @@ func (b *stsBuilder) getPodSecurityContext() *corev1.PodSecurityContext {
 		RunAsGroup:   pointer.Int64(65532),
 		RunAsNonRoot: pointer.Bool(true),
 		RunAsUser:    pointer.Int64(65532),
-		// TODO: is this necessary?
-		FSGroup: pointer.Int64(65532),
+		FSGroup:      pointer.Int64(65532),
 	}
 }
 

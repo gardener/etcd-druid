@@ -40,19 +40,6 @@ func CreateImageVector() (imagevector.ImageVector, error) {
 	return imageVector, nil
 }
 
-// ContainsFinalizer checks if an object has a finalizer present on it.
-// TODO: With the controller-runtime version 0.16.x onwards this is provided by controllerutil.ContainsFinalizer.
-// TODO: Remove this function once we move to this version.
-func ContainsFinalizer(o client.Object, finalizer string) bool {
-	finalizers := o.GetFinalizers()
-	for _, f := range finalizers {
-		if f == finalizer {
-			return true
-		}
-	}
-	return false
-}
-
 // GetLatestEtcd returns the latest version of the Etcd object.
 func GetLatestEtcd(ctx context.Context, client client.Client, objectKey client.ObjectKey, etcd *druidv1alpha1.Etcd) ReconcileStepResult {
 	if err := client.Get(ctx, objectKey, etcd); err != nil {

@@ -79,19 +79,6 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	return nil
 }
 
-// Exists checks if the role binding exists for the given Etcd.
-// TODO: This method is not used. Remove it if not needed.
-func (r _resource) Exists(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (bool, error) {
-	rb := &rbacv1.RoleBinding{}
-	if err := r.client.Get(ctx, getObjectKey(etcd), rb); err != nil {
-		if errors.IsNotFound(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
-}
-
 // TriggerDelete triggers the deletion of the role binding for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)

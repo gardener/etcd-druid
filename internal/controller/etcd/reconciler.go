@@ -70,7 +70,6 @@ func NewReconcilerWithImageVector(mgr manager.Manager, config *Config, iv imagev
 
 type reconcileFn func(ctx component.OperatorContext, objectKey client.ObjectKey) ctrlutils.ReconcileStepResult
 
-// TODO: where/how is this being used?
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds/status,verbs=get;create;update;patch
 // +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;create;update;patch;delete;deletecollection
