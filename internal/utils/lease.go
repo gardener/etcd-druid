@@ -20,7 +20,7 @@ import (
 const peerURLTLSEnabledKey = "member.etcd.gardener.cloud/tls-enabled"
 
 // IsPeerURLTLSEnabledForMembers checks if TLS has been enabled for all existing members of an etcd cluster identified by etcdName and in the provided namespace.
-func IsPeerURLTLSEnabledForMembers(ctx context.Context, cl client.Client, logger logr.Logger, namespace, etcdName string, numReplicas int) (bool, error) {
+func IsPeerURLTLSEnabledForMembers(ctx context.Context, cl client.Client, logger logr.Logger, namespace, etcdName string, numReplicas int32) (bool, error) {
 	leaseList := &coordinationv1.LeaseList{}
 	if err := cl.List(ctx, leaseList, client.InNamespace(namespace), client.MatchingLabels(map[string]string{
 		druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,

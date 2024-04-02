@@ -158,12 +158,12 @@ func (r _resource) createOrPatch(ctx component.OperatorContext, etcd *druidv1alp
 }
 
 func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) error {
-	peerTLSEnabledForAllMembers, err := utils.IsPeerURLTLSEnabledForMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name, int(*existingSts.Spec.Replicas))
+	peerTLSEnabledForMembers, err := utils.IsPeerURLTLSEnabledForMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name, *existingSts.Spec.Replicas)
 	if err != nil {
 		return fmt.Errorf("error checking if peer URL TLS is enabled: %w", err)
 	}
 
-	if isPeerTLSChangedToEnabled(peerTLSEnabledForAllMembers, etcd) {
+	if isPeerTLSEnablementPending(peerTLSEnabledForMembers, etcd) {
 		if !isStatefulSetPatchedWithPeerTLSVolMount(existingSts) {
 			// This step ensures that only STS is updated with secret volume mounts which gets added to the etcd component due to
 			// enabling of TLS for peer communication. It preserves the current STS replicas.
@@ -173,14 +173,7 @@ func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *dru
 		} else {
 			ctx.Logger.Info("Secret volume mounts to enable Peer URL TLS have already been mounted. Skipping patching StatefulSet with secret volume mounts.")
 		}
-		// check again if peer TLS has been enabled for all members. If not then force a requeue of the reconcile request.
-		peerTLSEnabledForAllMembers, err = utils.IsPeerURLTLSEnabledForMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name, int(*existingSts.Spec.Replicas))
-		if err != nil {
-			return fmt.Errorf("error checking if peer URL TLS is enabled: %w", err)
-		}
-		if !peerTLSEnabledForAllMembers {
-			return fmt.Errorf("peer URL TLS not enabled for all members for etcd: %v, requeuing reconcile request", etcd.GetNamespaceName())
-		}
+		return fmt.Errorf("peer URL TLS not enabled for #%d members for etcd: %v, requeuing reconcile request", *existingSts.Spec.Replicas, etcd.GetNamespaceName())
 	}
 	ctx.Logger.Info("Peer URL TLS has been enabled for all members")
 	return nil
@@ -200,8 +193,8 @@ func isStatefulSetPatchedWithPeerTLSVolMount(existingSts *appsv1.StatefulSet) bo
 	return peerURLCAEtcdVolPresent && peerURLEtcdServerTLSVolPresent
 }
 
-// isPeerTLSChangedToEnabled checks if the Peer TLS setting has changed to enabled
-func isPeerTLSChangedToEnabled(peerTLSEnabledStatusFromMembers bool, etcd *druidv1alpha1.Etcd) bool {
+// isPeerTLSEnablementPending checks if the peer URL TLS has been enabled for the etcd, but it has not yet reflected in all etcd members.
+func isPeerTLSEnablementPending(peerTLSEnabledStatusFromMembers bool, etcd *druidv1alpha1.Etcd) bool {
 	return !peerTLSEnabledStatusFromMembers && etcd.Spec.Etcd.PeerUrlTLS != nil
 }
 
