@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+#
 # SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company and Gardener contributors
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -29,28 +30,15 @@ if ${SETUP_ENVTEST:-false}; then
   export KUBEBUILDER_CONTROLPLANE_START_TIMEOUT=2m
 fi
 
-if [[ $(uname) == 'Darwin' ]]; then
-  SED_BIN="gsed"
-else
-  SED_BIN="sed"
-fi
-
-export GOMEGA_DEFAULT_EVENTUALLY_TIMEOUT=5s
-export GOMEGA_DEFAULT_EVENTUALLY_POLLING_INTERVAL=200ms
-GINKGO_COMMON_FLAGS="-r -timeout=1h0m0s --randomize-all --randomize-suites --fail-on-pending --show-node-events"
-
-echo "> Ginkgo tests"
+echo "> Go tests"
 
 if ${TEST_COV:-false}; then
   output_dir=test/output
   coverprofile_file=coverprofile.out
   mkdir -p test/output
-  ginkgo $GINKGO_COMMON_FLAGS --coverprofile ${coverprofile_file} -covermode=set -outputdir ${output_dir} $@
-  ${SED_BIN} -i '/mode: set/d' ${output_dir}/${coverprofile_file}
-  {( echo "mode: set"; cat ${output_dir}/${coverprofile_file} )} > ${output_dir}/${coverprofile_file}.temp
-  mv ${output_dir}/${coverprofile_file}.temp ${output_dir}/${coverprofile_file}
-  go tool cover -func ${output_dir}/${coverprofile_file}
+  go test -v -coverprofile=cover.out $@
+  go tool cover -func=cover.out
   exit 0
 fi
 
-ginkgo -trace $GINKGO_COMMON_FLAGS $@
+go test -v $@

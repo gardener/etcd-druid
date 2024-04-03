@@ -107,7 +107,8 @@ docker-push:
 # Run tests
 .PHONY: test
 test: $(GINKGO)
-	# run ginkgo unit tests. These will be ported to golang native tests over a period of time.
+test: $(GINKGO)
+	@# run ginkgo unit tests. These will be ported to golang native tests over a period of time.
 	@"$(REPO_ROOT)/hack/test.sh" ./api/... \
 	./internal/controller/etcdcopybackupstask/... \
 	./internal/controller/predicate/... \
@@ -115,9 +116,8 @@ test: $(GINKGO)
 	./internal/controller/utils/... \
 	./internal/mapper/... \
 	./internal/metrics/...
-	# run the golang native unit tests.
-	@go test -v -coverprofile cover.out ./internal/controller/etcd/... ./internal/operator/... ./internal/utils/... ./internal/webhook/...
-	@go tool cover -func=cover.out
+	@# run the golang native unit tests.
+	@TEST_COV="true" "$(REPO_ROOT)/hack/test-go.sh" ./internal/controller/etcd/... ./internal/operator/... ./internal/utils/... ./internal/webhook/...
 
 .PHONY: test-cov
 test-cov: $(GINKGO) $(SETUP_ENVTEST)
@@ -133,11 +133,8 @@ test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
 
 .PHONY: test-integration
 test-integration: set-permissions $(GINKGO) $(SETUP_ENVTEST)
-	@"$(REPO_ROOT)/hack/test.sh" ./test/integration/...
-	@export KUBEBUILDER_ASSETS="$(${SETUP_ENVTEST} --arch=amd64 use --use-env -p path 1.22)"
-	@echo "using envtest tools installed at '${KUBEBUILDER_ASSETS}'"
-	@export KUBEBUILDER_CONTROLPLANE_START_TIMEOUT=2m
-	@go test -v ./test/it/...
+	@SETUP_ENVTEST="true" "$(REPO_ROOT)/hack/test.sh" ./test/integration/...
+	@SETUP_ENVTEST="true" "$(REPO_ROOT)/hack/test-go.sh" ./test/it/...
 
 .PHONY: update-dependencies
 update-dependencies:
