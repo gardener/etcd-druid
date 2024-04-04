@@ -79,7 +79,10 @@ func StorageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) (str
 	}
 
 	switch *infra {
-	case aws, stackit, S3:
+	case aws, S3:
+		return S3, nil
+	// S3 compatible providers
+	case stackit:
 		return S3, nil
 	case azure, ABS:
 		return ABS, nil
