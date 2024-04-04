@@ -62,7 +62,7 @@ Some examples of an `on-demand/out-of-band` operations:
 * Recover from a permament quorum loss.
 * Trigger an on-demand full/delta snapshot.
 * Trigger an on-demand snapshot compaction.
-* Trigger an on-demand maintenance of etcd cluster.
+* Trigger an on-demand [maintenance of etcd cluster](https://etcd.io/docs/v3.4/op-guide/maintenance/).
 * Copy the backups from one object store to another object store.
 
 ## Goals
