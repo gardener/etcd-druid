@@ -14,7 +14,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/component"
-	"github.com/gardener/etcd-druid/internal/operator/statefulset"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
@@ -336,7 +335,7 @@ func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.C
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
 		"name":                      Equal(fmt.Sprintf("etcd-%s", etcd.UID[:6])),
-		"data-dir":                  Equal(fmt.Sprintf("%s/new.etcd", statefulset.EtcdDataVolumeMountPath)),
+		"data-dir":                  Equal(fmt.Sprintf("%s/new.etcd", common.EtcdDataVolumeMountPath)),
 		"metrics":                   Equal(string(druidv1alpha1.Basic)),
 		"snapshot-count":            Equal(int64(75000)),
 		"enable-v2":                 Equal(false),

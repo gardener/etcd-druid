@@ -6,6 +6,7 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -59,7 +60,7 @@ func GetProviderEnvVars(store *druidv1alpha1.StoreSpec) ([]corev1.EnvVar, error)
 		return nil, fmt.Errorf("storage provider is not recognized while fetching secrets from environment variable")
 	}
 
-	const credentialsMountPath = "/var/etcd-backup"
+	credentialsMountPath := strings.TrimSuffix(common.NonGCSProviderBackupVolumeMountPath, "/")
 	switch provider {
 	case S3:
 		envVars = append(envVars, GetEnvVarFromValue(common.EnvAWSApplicationCredentials, credentialsMountPath))
@@ -68,7 +69,7 @@ func GetProviderEnvVars(store *druidv1alpha1.StoreSpec) ([]corev1.EnvVar, error)
 		envVars = append(envVars, GetEnvVarFromValue(common.EnvAzureApplicationCredentials, credentialsMountPath))
 
 	case GCS:
-		envVars = append(envVars, GetEnvVarFromValue(common.EnvGoogleApplicationCredentials, "/var/.gcp/serviceaccount.json"))
+		envVars = append(envVars, GetEnvVarFromValue(common.EnvGoogleApplicationCredentials, fmt.Sprintf("%sserviceaccount.json", common.GCSBackupVolumeMountPath)))
 		envVars = append(envVars, GetEnvVarFromSecret(common.EnvGoogleStorageAPIEndpoint, store.SecretRef.Name, "storageAPIEndpoint", true))
 
 	case Swift:

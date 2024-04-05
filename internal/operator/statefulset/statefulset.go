@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/features"
 	"github.com/gardener/etcd-druid/internal/operator/component"
@@ -182,10 +183,10 @@ func isStatefulSetPatchedWithPeerTLSVolMount(existingSts *appsv1.StatefulSet) bo
 	volumes := existingSts.Spec.Template.Spec.Volumes
 	var peerURLCAEtcdVolPresent, peerURLEtcdServerTLSVolPresent bool
 	for _, vol := range volumes {
-		if vol.Name == etcdPeerCAVolumeName {
+		if vol.Name == common.EtcdPeerCAVolumeName {
 			peerURLCAEtcdVolPresent = true
 		}
-		if vol.Name == etcdPeerServerTLSVolumeName {
+		if vol.Name == common.EtcdPeerServerTLSVolumeName {
 			peerURLEtcdServerTLSVolPresent = true
 		}
 	}

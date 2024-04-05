@@ -15,7 +15,6 @@ import (
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/features"
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
-	"github.com/gardener/etcd-druid/internal/operator/statefulset"
 	"github.com/gardener/etcd-druid/internal/utils"
 
 	"github.com/gardener/gardener/pkg/utils/imagevector"
@@ -358,7 +357,7 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featu
 	vms := []v1.VolumeMount{
 		{
 			Name:      "etcd-workspace-dir",
-			MountPath: statefulset.EtcdDataVolumeMountPath,
+			MountPath: common.EtcdDataVolumeMountPath,
 		},
 	}
 
@@ -381,13 +380,13 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featu
 		}
 	case utils.GCS:
 		vms = append(vms, v1.VolumeMount{
-			Name:      "etcd-backup",
-			MountPath: statefulset.GCSBackupVolumeMountPath,
+			Name:      common.ProviderBackupSecretVolumeName,
+			MountPath: common.GCSBackupVolumeMountPath,
 		})
 	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
 		vms = append(vms, v1.VolumeMount{
-			Name:      "etcd-backup",
-			MountPath: statefulset.NonGCSProviderBackupVolumeMountPath,
+			Name:      common.ProviderBackupSecretVolumeName,
+			MountPath: common.NonGCSProviderBackupVolumeMountPath,
 		})
 	}
 
@@ -432,7 +431,7 @@ func getCompactionJobVolumes(ctx context.Context, cl client.Client, logger logr.
 		}
 
 		vs = append(vs, v1.Volume{
-			Name: "etcd-backup",
+			Name: common.ProviderBackupSecretVolumeName,
 			VolumeSource: v1.VolumeSource{
 				Secret: &v1.SecretVolumeSource{
 					SecretName: storeValues.SecretRef.Name,

@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/operator/statefulset"
+	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"k8s.io/utils/pointer"
 )
@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	defaultDataDir = fmt.Sprintf("%s/new.etcd", statefulset.EtcdDataVolumeMountPath)
+	defaultDataDir = fmt.Sprintf("%s/new.etcd", common.EtcdDataVolumeMountPath)
 )
 
 type tlsTarget string
@@ -69,8 +69,8 @@ type securityConfig struct {
 }
 
 func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
-	clientScheme, clientSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.ClientUrlTLS, statefulset.EtcdCAVolumeMountPath, statefulset.EtcdServerTLSVolumeMountPath)
-	peerScheme, peerSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.PeerUrlTLS, statefulset.EtcdPeerCAVolumeMountPath, statefulset.EtcdPeerServerTLSVolumeMountPath)
+	clientScheme, clientSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.ClientUrlTLS, common.EtcdCAVolumeMountPath, common.EtcdServerTLSVolumeMountPath)
+	peerScheme, peerSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.PeerUrlTLS, common.EtcdPeerCAVolumeMountPath, common.EtcdPeerServerTLSVolumeMountPath)
 
 	cfg := &etcdConfig{
 		Name:                    fmt.Sprintf("etcd-%s", etcd.UID[:6]),

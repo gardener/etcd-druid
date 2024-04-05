@@ -334,15 +334,15 @@ func getVolumeMountsElements(storeProvider, volumePrefix string) Elements {
 	switch storeProvider {
 	case "GCS":
 		return Elements{
-			volumePrefix + "etcd-backup": MatchFields(IgnoreExtras, Fields{
-				"Name":      Equal(volumePrefix + "etcd-backup"),
+			volumePrefix + common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
+				"Name":      Equal(volumePrefix + common.ProviderBackupSecretVolumeName),
 				"MountPath": Equal(fmt.Sprintf("/var/.%sgcp/", volumePrefix)),
 			}),
 		}
 	default:
 		return Elements{
-			volumePrefix + "etcd-backup": MatchFields(IgnoreExtras, Fields{
-				"Name":      Equal(volumePrefix + "etcd-backup"),
+			volumePrefix + common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
+				"Name":      Equal(volumePrefix + common.ProviderBackupSecretVolumeName),
 				"MountPath": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
@@ -352,8 +352,8 @@ func getVolumeMountsElements(storeProvider, volumePrefix string) Elements {
 func getVolumesElements(volumePrefix string, store *druidv1alpha1.StoreSpec) Elements {
 
 	return Elements{
-		volumePrefix + "etcd-backup": MatchAllFields(Fields{
-			"Name": Equal(volumePrefix + "etcd-backup"),
+		volumePrefix + common.ProviderBackupSecretVolumeName: MatchAllFields(Fields{
+			"Name": Equal(volumePrefix + common.ProviderBackupSecretVolumeName),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(store.SecretRef.Name),

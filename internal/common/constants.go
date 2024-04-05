@@ -103,3 +103,58 @@ const (
 	// ChangeBackupBucketPermissionsInitContainerName is the name of the change backup bucket permissions init container.
 	ChangeBackupBucketPermissionsInitContainerName = "change-backup-bucket-permissions"
 )
+
+// Constants for volume names
+const (
+	// EtcdCAVolumeName is the name of the volume that contains the CA certificate bundle and CA certificate key used to sign certificates for client communication.
+	EtcdCAVolumeName = "etcd-ca"
+	// EtcdServerTLSVolumeName is the name of the volume that contains the server certificate-key pair used to set up the etcd server and etcd-wrapper HTTP server.
+	EtcdServerTLSVolumeName = "etcd-server-tls"
+	// EtcdClientTLSVolumeName is the name of the volume that contains the client certificate-key pair used by the client to communicate to the etcd server and etcd-wrapper HTTP server.
+	EtcdClientTLSVolumeName = "etcd-client-tls"
+	// EtcdPeerCAVolumeName is the name of the volume that contains the CA certificate bundle and CA certificate key used to sign certificates for peer communication.
+	EtcdPeerCAVolumeName = "etcd-peer-ca"
+	// EtcdPeerServerTLSVolumeName is the name of the volume that contains the server certificate-key pair used to set up the peer server.
+	EtcdPeerServerTLSVolumeName = "etcd-peer-server-tls"
+	// BackupRestoreCAVolumeName is the name of the volume that contains the CA certificate bundle and CA certificate key used to sign certificates for backup-restore communication.
+	BackupRestoreCAVolumeName = "backup-restore-ca"
+	// BackupRestoreServerTLSVolumeName is the name of the volume that contains the server certificate-key pair used to set up the backup-restore server.
+	BackupRestoreServerTLSVolumeName = "backup-restore-server-tls"
+	// BackupRestoreClientTLSVolumeName is the name of the volume that contains the client certificate-key pair used by the client to communicate to the backup-restore server.
+	BackupRestoreClientTLSVolumeName = "backup-restore-client-tls"
+
+	// EtcdConfigVolumeName is the name of the volume that contains the etcd configuration file.
+	EtcdConfigVolumeName = "etcd-config-file"
+	// LocalBackupVolumeName is the name of the volume that contains the local backup.
+	LocalBackupVolumeName = "local-backup"
+	// ProviderBackupSecretVolumeName is the name of the volume that contains the provider backup secret.
+	ProviderBackupSecretVolumeName = "etcd-backup-secret"
+)
+
+// constants for volume mount paths
+const (
+	// EtcdCAVolumeMountPath is the path on a container where the CA certificate bundle and CA certificate key used to sign certificates for client communication are mounted.
+	EtcdCAVolumeMountPath = "/var/etcd/ssl/ca"
+	// EtcdServerTLSVolumeMountPath is the path on a container where the server certificate-key pair used to set up the etcd server and etcd-wrapper HTTP server is mounted.
+	EtcdServerTLSVolumeMountPath = "/var/etcd/ssl/server"
+	// EtcdClientTLSVolumeMountPath is the path on a container where the client certificate-key pair used by the client to communicate to the etcd server and etcd-wrapper HTTP server is mounted.
+	EtcdClientTLSVolumeMountPath = "/var/etcd/ssl/client"
+	// EtcdPeerCAVolumeMountPath is the path on a container where the CA certificate bundle and CA certificate key used to sign certificates for peer communication are mounted.
+	EtcdPeerCAVolumeMountPath = "/var/etcd/ssl/peer/ca"
+	// EtcdPeerServerTLSVolumeMountPath is the path on a container where the server certificate-key pair used to set up the peer server is mounted.
+	EtcdPeerServerTLSVolumeMountPath = "/var/etcd/ssl/peer/server"
+	// BackupRestoreCAVolumeMountPath is the path on a container where the CA certificate bundle and CA certificate key used to sign certificates for backup-restore communication are mounted.
+	BackupRestoreCAVolumeMountPath = "/var/etcdbr/ssl/ca"
+	// BackupRestoreServerTLSVolumeMountPath is the path on a container where the server certificate-key pair used to set up the backup-restore server is mounted.
+	BackupRestoreServerTLSVolumeMountPath = "/var/etcdbr/ssl/server"
+	// BackupRestoreClientTLSVolumeMountPath is the path on a container where the client certificate-key pair used by the client to communicate to the backup-restore server is mounted.
+	BackupRestoreClientTLSVolumeMountPath = "/var/etcdbr/ssl/client"
+
+	// GCSBackupVolumeMountPath is the path on a container where the GCS backup secret is mounted.
+	GCSBackupVolumeMountPath = "/var/.gcp/"
+	// NonGCSProviderBackupVolumeMountPath is the path on a container where the non-GCS provider backup secret is mounted.
+	NonGCSProviderBackupVolumeMountPath = "/var/etcd-backup/"
+
+	// EtcdDataVolumeMountPath is the path on a container where the etcd data directory is hosted.
+	EtcdDataVolumeMountPath = "/var/etcd/data"
+)

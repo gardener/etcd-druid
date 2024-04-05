@@ -454,11 +454,11 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 						expectedMountName = volumeMountPrefix + "host-storage"
 						expectedMountPath = *storeSpec.Container
 					case utils.GCS:
-						expectedMountName = volumeMountPrefix + "etcd-backup"
-						expectedMountPath = "/var/." + volumeMountPrefix + "gcp/"
+						expectedMountName = volumeMountPrefix + common.ProviderBackupSecretVolumeName
+						expectedMountPath = getGCSVolumeMountPathWithPrefixAndSuffix(volumeMountPrefix, "/")
 					case utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
-						expectedMountName = volumeMountPrefix + "etcd-backup"
-						expectedMountPath = "/var/" + volumeMountPrefix + "etcd-backup/"
+						expectedMountName = volumeMountPrefix + common.ProviderBackupSecretVolumeName
+						expectedMountPath = getNonGCSVolumeMountPathWithPrefixAndSuffix(volumeMountPrefix, "/")
 					default:
 						Fail(fmt.Sprintf("Unknown provider: %s", provider))
 					}
@@ -604,7 +604,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 						volumes, err := reconciler.createVolumesFromStore(ctx, store, namespace, string(storageProvider), "source-")
 						Expect(err).NotTo(HaveOccurred())
 						Expect(volumes).To(HaveLen(1))
-						Expect(volumes[0].Name).To(Equal("source-etcd-backup"))
+						Expect(volumes[0].Name).To(Equal("source-etcd-backup-secret"))
 
 						// Assert that the volume is created correctly with the expected secret
 						volumeSource := volumes[0].VolumeSource
@@ -690,12 +690,12 @@ func checkEnvVars(envVars []corev1.EnvVar, storeProvider, container, envKeyPrefi
 	case utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
 		expected = append(expected, corev1.EnvVar{
 			Name:  mapToEnvVarKey[storeProvider],
-			Value: "/var/" + volumePrefix + "etcd-backup",
+			Value: getNonGCSVolumeMountPathWithPrefixAndSuffix(volumePrefix, ""),
 		})
 	case utils.GCS:
 		expected = append(expected, corev1.EnvVar{
 			Name:  mapToEnvVarKey[storeProvider],
-			Value: "/var/." + volumePrefix + "gcp/serviceaccount.json",
+			Value: getGCSVolumeMountPathWithPrefixAndSuffix(volumePrefix, "/serviceaccount.json"),
 		})
 	}
 	Expect(envVars).To(Equal(expected))
@@ -881,7 +881,7 @@ func getProviderEnvElements(storeProvider, prefix, volumePrefix string) Elements
 		return Elements{
 			prefix + common.EnvGoogleApplicationCredentials: MatchFields(IgnoreExtras, Fields{
 				"Name":  Equal(prefix + common.EnvGoogleApplicationCredentials),
-				"Value": Equal(fmt.Sprintf("/var/.%sgcp/serviceaccount.json", volumePrefix)),
+				"Value": Equal(getGCSVolumeMountPathWithPrefixAndSuffix(volumePrefix, "/serviceaccount.json")),
 			}),
 		}
 	case "Swift":
@@ -914,15 +914,15 @@ func getVolumeMountsElements(storeProvider, volumePrefix string) Elements {
 	switch storeProvider {
 	case "GCS":
 		return Elements{
-			volumePrefix + "etcd-backup": MatchFields(IgnoreExtras, Fields{
-				"Name":      Equal(volumePrefix + "etcd-backup"),
+			volumePrefix + common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
+				"Name":      Equal(volumePrefix + common.ProviderBackupSecretVolumeName),
 				"MountPath": Equal(fmt.Sprintf("/var/.%sgcp/", volumePrefix)),
 			}),
 		}
 	default:
 		return Elements{
-			volumePrefix + "etcd-backup": MatchFields(IgnoreExtras, Fields{
-				"Name":      Equal(volumePrefix + "etcd-backup"),
+			volumePrefix + common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
+				"Name":      Equal(volumePrefix + common.ProviderBackupSecretVolumeName),
 				"MountPath": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
@@ -931,8 +931,8 @@ func getVolumeMountsElements(storeProvider, volumePrefix string) Elements {
 
 func getVolumesElements(volumePrefix string, store *druidv1alpha1.StoreSpec) Elements {
 	return Elements{
-		volumePrefix + "etcd-backup": MatchAllFields(Fields{
-			"Name": Equal(volumePrefix + "etcd-backup"),
+		volumePrefix + common.ProviderBackupSecretVolumeName: MatchAllFields(Fields{
+			"Name": Equal(volumePrefix + common.ProviderBackupSecretVolumeName),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(store.SecretRef.Name),
