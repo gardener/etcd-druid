@@ -26,6 +26,9 @@ spec:
         - --enable-leader-election=true
         - --ignore-operation-annotation={{ .Values.ignoreOperationAnnotation }}
         - --etcd-workers=3
+        {{- if .Values.etcdStatusSyncPeriod }}
+        - --etcd-status-sync-period={{ .Values.etcdStatusSyncPeriod }}
+        {{- end }}
         {{- if .Values.enableBackupCompaction }}
         - --enable-backup-compaction={{ .Values.enableBackupCompaction }}
         {{- end }}

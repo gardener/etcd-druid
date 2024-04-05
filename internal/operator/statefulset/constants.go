@@ -32,8 +32,8 @@ const (
 	backupRestoreCAVolumeMountPath        = "/var/etcdbr/ssl/ca"
 	backupRestoreServerTLSVolumeMountPath = "/var/etcdbr/ssl/server"
 	backupRestoreClientTLSVolumeMountPath = "/var/etcdbr/ssl/client"
-	gcsBackupVolumeMountPath              = "/var/.gcp/"
-	nonGCSProviderBackupVolumeMountPath   = "/var/etcd-backup/"
+	GCSBackupVolumeMountPath              = "/var/.gcp/"
+	NonGCSProviderBackupVolumeMountPath   = "/var/etcd-backup/"
 )
 
 const (

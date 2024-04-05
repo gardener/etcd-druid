@@ -325,12 +325,12 @@ func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 	case utils.GCS:
 		return &corev1.VolumeMount{
 			Name:      providerBackupVolumeName,
-			MountPath: gcsBackupVolumeMountPath,
+			MountPath: GCSBackupVolumeMountPath,
 		}
 	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
 		return &corev1.VolumeMount{
 			Name:      providerBackupVolumeName,
-			MountPath: nonGCSProviderBackupVolumeMountPath,
+			MountPath: NonGCSProviderBackupVolumeMountPath,
 		}
 	}
 	return nil

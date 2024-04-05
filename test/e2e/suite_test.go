@@ -93,6 +93,12 @@ var _ = BeforeSuite(func() {
 	// deploy TLS secrets
 	certsPath := path.Join(sourcePath, certsBasePath)
 	Expect(buildAndDeployTLSSecrets(ctx, cl, logger, etcdNamespace, certsPath, providers)).To(Succeed())
+
+	// deploy backup secrets
+	storageContainer := getEnvAndExpectNoError(envStorageContainer)
+	for _, provider := range providers {
+		Expect(deployBackupSecret(ctx, cl, logger, provider, etcdNamespace, storageContainer)).To(Succeed())
+	}
 })
 
 var _ = AfterSuite(func() {

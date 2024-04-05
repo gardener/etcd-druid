@@ -10,6 +10,7 @@ import (
 	"time"
 
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
+	"github.com/gardener/etcd-druid/internal/utils"
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -45,17 +46,31 @@ var _ = Describe("Etcd Compaction", func() {
 					Expect(err).ShouldNot(HaveOccurred())
 
 					etcdName = fmt.Sprintf("etcd-%s", provider.Name)
-
 					storageContainer = getEnvAndExpectNoError(envStorageContainer)
+				})
 
+				AfterEach(func() {
+					ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
+					defer cancelFunc()
+
+					By("Delete debug pod")
+					etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
+					debugPod := getDebugPod(etcd)
+					Expect(cl.Delete(ctx, debugPod)).ToNot(HaveOccurred())
+
+					By("Purge etcd")
+					purgeEtcd(ctx, cl, providers)
+
+					By("Purge snapstore")
 					snapstoreProvider := provider.Storage.Provider
-					store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
-					Expect(err).ShouldNot(HaveOccurred())
-
-					// purge any existing backups in bucket
-					Expect(purgeSnapstore(store)).To(Succeed())
-
-					Expect(deployBackupSecret(parentCtx, cl, logger, provider, etcdNamespace, storageContainer))
+					if snapstoreProvider == utils.Local {
+						purgeLocalSnapstoreJob := purgeLocalSnapstore(parentCtx, cl, storageContainer)
+						defer cleanUpTestHelperJob(parentCtx, cl, purgeLocalSnapstoreJob.Name)
+					} else {
+						store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
+						Expect(err).ShouldNot(HaveOccurred())
+						Expect(purgeSnapstore(store)).To(Succeed())
+					}
 				})
 
 				It("should test compaction on backup", func() {
@@ -167,12 +182,6 @@ var _ = Describe("Etcd Compaction", func() {
 					Expect(err).ShouldNot(HaveOccurred())
 
 					Expect(len(latestSnapshotsAfterPopulate.DeltaSnapshots)).Should(BeNumerically(">", 0))
-
-					By("Delete debug pod")
-					Expect(cl.Delete(ctx, debugPod)).ToNot(HaveOccurred())
-
-					By("Delete etcd")
-					deleteAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
 				})
 			})
 		}

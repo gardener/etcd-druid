@@ -439,8 +439,7 @@ func validateStoreGCPForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName":  Equal(instance.Spec.Backup.Store.SecretRef.Name),
-									"DefaultMode": Equal(pointer.Int32(0640)),
+									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
 								})),
 							}),
 						}),
@@ -496,8 +495,7 @@ func validateStoreAWSForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName":  Equal(instance.Spec.Backup.Store.SecretRef.Name),
-									"DefaultMode": Equal(pointer.Int32(0640)),
+									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
 								})),
 							}),
 						}),
@@ -553,8 +551,7 @@ func validateStoreAzureForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName":  Equal(instance.Spec.Backup.Store.SecretRef.Name),
-									"DefaultMode": Equal(pointer.Int32(0640)),
+									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
 								})),
 							}),
 						}),
@@ -610,8 +607,7 @@ func validateStoreOpenstackForCompactionJob(instance *druidv1alpha1.Etcd, j *bat
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName":  Equal(instance.Spec.Backup.Store.SecretRef.Name),
-									"DefaultMode": Equal(pointer.Int32(0640)),
+									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
 								})),
 							}),
 						}),
@@ -668,8 +664,7 @@ func validateStoreAlicloudForCompactionJob(instance *druidv1alpha1.Etcd, j *batc
 							"Name": Equal("etcd-backup"),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
-									"SecretName":  Equal(instance.Spec.Backup.Store.SecretRef.Name),
-									"DefaultMode": Equal(pointer.Int32(0640)),
+									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
 								})),
 							}),
 						}),

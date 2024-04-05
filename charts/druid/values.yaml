@@ -6,6 +6,7 @@ image:
   imagePullPolicy: IfNotPresent
 replicas: 1
 ignoreOperationAnnotation: false
+# etcdStatusSyncPeriod: 15s
 # enableBackupCompaction: true
 # eventsThreshold: 15
 # metricsScrapeWaitDuration: "10s"

@@ -12,7 +12,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/utils"
-	utils2 "github.com/gardener/etcd-druid/test/utils"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
@@ -86,15 +86,15 @@ func (s StatefulSetMatcher) matchSTSObjectMeta() gomegatypes.GomegaMatcher {
 	return MatchFields(IgnoreExtras, Fields{
 		"Name":            Equal(s.etcd.Name),
 		"Namespace":       Equal(s.etcd.Namespace),
-		"OwnerReferences": utils2.MatchEtcdOwnerReference(s.etcd.Name, s.etcd.UID),
-		"Labels":          utils2.MatchResourceLabels(getStatefulSetLabels(s.etcd.Name)),
+		"OwnerReferences": testutils.MatchEtcdOwnerReference(s.etcd.Name, s.etcd.UID),
+		"Labels":          testutils.MatchResourceLabels(getStatefulSetLabels(s.etcd.Name)),
 	})
 }
 
 func (s StatefulSetMatcher) matchSpec() gomegatypes.GomegaMatcher {
 	return MatchFields(IgnoreExtras, Fields{
 		"Replicas":            PointTo(Equal(s.replicas)),
-		"Selector":            utils2.MatchSpecLabelSelector(s.etcd.GetDefaultLabels()),
+		"Selector":            testutils.MatchSpecLabelSelector(s.etcd.GetDefaultLabels()),
 		"PodManagementPolicy": Equal(appsv1.ParallelPodManagement),
 		"UpdateStrategy": MatchFields(IgnoreExtras, Fields{
 			"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
@@ -132,9 +132,9 @@ func (s StatefulSetMatcher) matchPodTemplateSpec() gomegatypes.GomegaMatcher {
 
 func (s StatefulSetMatcher) matchPodObjectMeta() gomegatypes.GomegaMatcher {
 	return MatchFields(IgnoreExtras, Fields{
-		"Labels": utils2.MatchResourceLabels(utils.MergeMaps[string, string](getStatefulSetLabels(s.etcd.Name), s.etcd.Spec.Labels)),
-		"Annotations": utils2.MatchResourceAnnotations(utils.MergeMaps[string, string](s.etcd.Spec.Annotations, map[string]string{
-			"checksum/etcd-configmap": utils2.TestConfigMapCheckSum,
+		"Labels": testutils.MatchResourceLabels(utils.MergeMaps[string, string](getStatefulSetLabels(s.etcd.Name), s.etcd.Spec.Labels)),
+		"Annotations": testutils.MatchResourceAnnotations(utils.MergeMaps[string, string](s.etcd.Spec.Annotations, map[string]string{
+			"checksum/etcd-configmap": testutils.TestConfigMapCheckSum,
 		})),
 	})
 }
@@ -239,7 +239,7 @@ func (s StatefulSetMatcher) matchEtcdContainerVolMounts() gomegatypes.GomegaMatc
 }
 
 func (s StatefulSetMatcher) matchBackupRestoreContainer() gomegatypes.GomegaMatcher {
-	containerResources := utils2.TypeDeref(s.etcd.Spec.Backup.Resources, defaultTestContainerResources)
+	containerResources := testutils.TypeDeref(s.etcd.Spec.Backup.Resources, defaultTestContainerResources)
 	return MatchFields(IgnoreExtras, Fields{
 		"Name":            Equal("backup-restore"),
 		"Image":           Equal(s.etcdBRImage),
@@ -377,9 +377,9 @@ func (s StatefulSetMatcher) getEtcdBackupVolumeMountMatcher() gomegatypes.Gomega
 			}
 		}
 	case utils.GCS:
-		return matchVolMount(providerBackupVolumeName, gcsBackupVolumeMountPath)
+		return matchVolMount(providerBackupVolumeName, GCSBackupVolumeMountPath)
 	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
-		return matchVolMount(providerBackupVolumeName, nonGCSProviderBackupVolumeMountPath)
+		return matchVolMount(providerBackupVolumeName, NonGCSProviderBackupVolumeMountPath)
 	}
 	return nil
 }
