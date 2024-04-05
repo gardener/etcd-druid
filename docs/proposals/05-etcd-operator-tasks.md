@@ -209,7 +209,7 @@ type LastOperation struct {
 
 Task(s) can be created by creating an instance of the `EtcdOperatorTask` custom resource specific to a task.
 
-> Note: In future, either a `kubectl` extension plugin or a `druidctl` will be introduced. Dedicated sub-commands will be created for each `out-of-band` task. This will drastically increase the usability for an operator for such tasks as the CLI extension will automatically created relevant instance of `EtcdOperatorTask` with the provided configuration.
+> Note: In future, either a `kubectl` extension plugin or a `druidctl` will be introduced. Dedicated sub-commands will be created for each `out-of-band` task. This will drastically increase the usability for an operator for such tasks as the CLI extension will automatically create relevant instance of `EtcdOperatorTask` with the provided configuration.
 
 #### Execution
 
