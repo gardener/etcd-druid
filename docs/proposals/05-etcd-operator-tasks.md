@@ -72,6 +72,11 @@ Some examples of an `on-demand/out-of-band` operations:
 * Facilitate the easy addition of new `out-of-band` task(s) through this custom resource.
 * Provide CLI capabilities to operators making it easy to invoke supported `out-of-band` tasks.
 
+## Non-Goals
+* In the current scope, capability to abort/cancel an out-of-band task is not going to be provided. This could be considered as an enhancement based on pull.
+* Ordering (by establishing dependency) of out-of-band tasks submitted for the same etcd cluster is not been considered in the first increment. In a future version based on how operator tasks are used we will enhance this proposal and the implementation.
+
+
 ## Proposal
 
 Authors propose creation of a new single dedicated custom resource to represent an `out-of-band` task. Druid will be enhanced to process the task requests and update its status which can then be tracked/observed.
@@ -133,8 +138,8 @@ type EtcdOperatorTask struct {
 
 The authors propose that the following fields should be specified in the spec (desired state) of the `EtcdOperatorTask` custom resource.
 
-* To capture the type of `out-of-band` operator task to be performed, `taskType` field should be defined in spec. It can have values of all supported "out-of-band" operations/tasks eg. "OnDemandSnaphotTask", "QuorumLossRecoveryTask" etc.
-* To capture the configuration specific to each task, a `.spec.taskConfig` field is defined in spec as type [RawExtension](https://github.com/kubernetes/apimachinery/blob/829ed199f4e0454344a5bc5ef7859a01ef9b8e22/pkg/runtime/types.go#L49-L102) as each task may have different specifications.
+* To capture the type of `out-of-band` operator task to be performed, `spec.Type` field should be defined. It can have values from any supported "out-of-band" operations/tasks eg. "OnDemandSnaphotTask", "QuorumLossRecoveryTask" etc.
+* To capture the configuration specific to each task, a `spec.Config` field is defined of type [RawExtension](https://github.com/kubernetes/apimachinery/blob/829ed199f4e0454344a5bc5ef7859a01ef9b8e22/pkg/runtime/types.go#L49-L102) as each task can have different input configuration.
 
 ```go
 // EtcdOperatorTaskSpec is the spec for a EtcdOperatorTask resource.
@@ -176,8 +181,8 @@ const (
 type EtcdOperatorTaskStatus struct {
   // ObservedGeneration is the most recent generation observed for the resource.
   ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
-  // Status of the task
-  Status TaskState `json:"taskStatus"`
+  // State of the task is the last known state of the task.
+  State TaskState `json:"taskStatus"`
   // Time at which operation has been triggered.
   InitiatedAt metav1.Time `json:"initiatedAt"`
   // LastError represents the errors when processing the task.
