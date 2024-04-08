@@ -753,13 +753,13 @@ func getBackupRestoreVolumeMounts(c *component) []corev1.VolumeMount {
 	return vms
 }
 
-func getStorageReq(val Values) corev1.ResourceRequirements {
+func getStorageReq(val Values) corev1.VolumeResourceRequirements {
 	storageCapacity := defaultStorageCapacity
 	if val.StorageCapacity != nil {
 		storageCapacity = *val.StorageCapacity
 	}
 
-	return corev1.ResourceRequirements{
+	return corev1.VolumeResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceStorage: storageCapacity,
 		},

@@ -20,8 +20,8 @@ IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 #########################################
 
 TOOLS_DIR := hack/tools
+#include $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/tools.mk
 include $(REPO_ROOT)/hack/tools.mk
-include $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/tools.mk
 
 
 .PHONY: set-permissions
@@ -90,9 +90,14 @@ clean: set-permissions
 	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/clean.sh" ./api/... ./controllers/... ./pkg/...
 
 # Check packages
+#.PHONY: check
+#check: $(GOLANGCI_LINT) $(GOIMPORTS) set-permissions fmt manifests
+#	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
+
+
 .PHONY: check
-check: $(GOLANGCI_LINT) $(GOIMPORTS) set-permissions fmt manifests
-	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
+check: $(GOLANGCI_LINT) set-permissions fmt manifests
+	@"$(REPO_ROOT)/hack/check.sh" --golangci-lint-config="$(REPO_ROOT)/.golangci.yaml" ./api/... ./pkg/... ./controllers/...
 
 .PHONY: check-generate
 check-generate: set-permissions
