@@ -20,27 +20,13 @@ IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 #########################################
 
 TOOLS_DIR := hack/tools
-#include $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/tools.mk
 include $(REPO_ROOT)/hack/tools.mk
 
-
-.PHONY: set-permissions
-set-permissions:
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/clean.sh"
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh"
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check-generate.sh"
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/generate-crds.sh"
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/set_dependency_version"
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/component_descriptor"
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/prepare_release"
-
 .PHONY: revendor
-revendor: set-permissions
+revendor:
 	@env GO111MODULE=on go mod tidy
 	@env GO111MODULE=on go mod vendor
-	@"$(REPO_ROOT)/hack/update-github-templates.sh"
-	@make set-permissions
-
+	@hack/update-github-templates.sh
 
 kind-up kind-down ci-e2e-kind deploy-localstack test-e2e: export KUBECONFIG = $(KUBECONFIG_PATH)
 
@@ -86,26 +72,21 @@ fmt:
 	@env GO111MODULE=on go fmt ./...
 
 .PHONY: clean
-clean: set-permissions
-	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/clean.sh" ./api/... ./controllers/... ./pkg/...
-
-# Check packages
-#.PHONY: check
-#check: $(GOLANGCI_LINT) $(GOIMPORTS) set-permissions fmt manifests
-#	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
-
+clean:
+	@hack/clean.sh ./api/... ./controllers/... ./pkg/...
 
 .PHONY: check
-check: $(GOLANGCI_LINT) $(GOIMPORTS)
-	@"$(REPO_ROOT)/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
+check: $(GOLANGCI_LINT) $(GOIMPORTS) $(GO_ADD_LICENSE)
+	@hack/check.sh --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
+	@hack/check-license-header.sh
 
 .PHONY: check-generate
-check-generate: set-permissions
-	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check-generate.sh" "$(REPO_ROOT)"
+check-generate:
+	@hack/check-generate.sh $(REPO_ROOT)
 
 # Generate code
 .PHONY: generate
-generate: set-permissions manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
+generate: manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
 	@go generate "$(REPO_ROOT)/pkg/..."
 	@"$(REPO_ROOT)/hack/update-codegen.sh"
 
@@ -123,23 +104,23 @@ docker-push:
 
 # Run tests
 .PHONY: test
-test: set-permissions $(GINKGO) $(SETUP_ENVTEST)
+test: $(GINKGO) $(SETUP_ENVTEST)
 	@"$(REPO_ROOT)/hack/test.sh" ./api/... ./controllers/... ./pkg/...
 
 .PHONY: test-cov
-test-cov: set-permissions $(GINKGO) $(SETUP_ENVTEST)
+test-cov: $(GINKGO) $(SETUP_ENVTEST)
 	@TEST_COV="true" "$(REPO_ROOT)/hack/test.sh" --skip-package=./test/e2e
 
 .PHONY: test-cov-clean
-test-cov-clean: set-permissions
-	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/test-cover-clean.sh"
+test-cov-clean:
+	@hack/test-cover-clean.sh
 
 .PHONY: test-e2e
-test-e2e: set-permissions $(KUBECTL) $(HELM) $(SKAFFOLD)
+test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD)
 	@"$(REPO_ROOT)/hack/e2e-test/run-e2e-test.sh" $(PROVIDERS)
 
 .PHONY: test-integration
-test-integration: set-permissions $(GINKGO) $(SETUP_ENVTEST)
+test-integration: $(GINKGO) $(SETUP_ENVTEST)
 	@"$(REPO_ROOT)/hack/test.sh" ./test/integration/...
 
 .PHONY: update-dependencies
@@ -147,9 +128,9 @@ update-dependencies:
 	@env GO111MODULE=on go get -u
 	@make revendor
 
-.PHONY: add-license-headers
-add-license-headers: $(GO_ADD_LICENSE)
-	@./hack/addlicenseheaders.sh ${YEAR}
+.PHONY: add-license-header
+add-license-header: $(GO_ADD_LICENSE)
+	@./hack/add-license-header.sh ${YEAR}
 
 .PHONY: kind-up
 kind-up: $(KIND)

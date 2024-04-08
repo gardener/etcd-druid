@@ -12,14 +12,21 @@ echo "> Adding Apache License header to all go files where it is not present"
 # boilerplate.go.txt is however also used also when generating go code.
 # Therefore we remove '//' from boilerplate.go.txt here before passing it to addlicense.
 
+YEAR="$(date +%Y)"
+
 temp_file=$(mktemp)
 trap "rm -f $temp_file" EXIT
-sed 's|^// *||' hack/boilerplate.go.txt > $temp_file
+sed "s/YEAR/${YEAR}/g" hack/license_boilerplate.txt > $temp_file
 
 addlicense \
   -f $temp_file \
-  -ignore "vendor/**" \
+  -ignore ".idea/**" \
+  -ignore ".vscode/**" \
+  -ignore "dev/**" \
   -ignore "**/*.md" \
+  -ignore "**/*.html" \
   -ignore "**/*.yaml" \
   -ignore "**/Dockerfile" \
+  -ignore "pkg/**/*.sh" \
+  -ignore "third_party/gopkg.in/yaml.v2/**" \
   .

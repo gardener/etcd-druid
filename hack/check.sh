@@ -4,7 +4,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-
 set -e
 
 GOLANGCI_LINT_CONFIG_FILE=""
@@ -21,7 +20,7 @@ done
 echo "> Check"
 
 echo "Executing golangci-lint"
-golangci-lint run $GOLANGCI_LINT_CONFIG_FILE --timeout 10m $@
+golangci-lint run $GOLANGCI_LINT_CONFIG_FILE --timeout 10m "$@"
 
 echo "Executing gofmt/goimports"
 folders=()
