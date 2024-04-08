@@ -96,8 +96,8 @@ clean: set-permissions
 
 
 .PHONY: check
-check: $(GOLANGCI_LINT) set-permissions fmt manifests
-	@"$(REPO_ROOT)/hack/check.sh" --golangci-lint-config="$(REPO_ROOT)/.golangci.yaml" ./api/... ./pkg/... ./controllers/...
+check: $(GOLANGCI_LINT) $(GOIMPORTS)
+	@"$(REPO_ROOT)/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
 
 .PHONY: check-generate
 check-generate: set-permissions
