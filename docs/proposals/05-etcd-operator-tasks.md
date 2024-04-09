@@ -54,12 +54,12 @@ This DEP proposes an enhancement to `etcd-druid`'s capabilities to handle [out-o
 
 ## Motivation
 
-Today, [Etcd-druid](https://github.com/gardener/etcd-druid) mainly acts as an etcd cluster provisioner(creation, maintenance and deletion). In future, capabilities of etcd-druid will be enhanced via [etcd-member](https://github.com/gardener/etcd-druid/blob/8ac70d512969c2e12e666d923d7d35fdab1e0f8e/docs/proposals/04-etcd-member-custom-resource.md) proposal by providing it access to a much more detailed information about each etcd cluster member. While we enhance the reconciliation and monitoring capabilities of etcd-druid, it still lacks an ability to provide an easy-to-use hook to trigger `out-of-band` tasks on an existing etcd cluster.
+Today, [etcd-druid](https://github.com/gardener/etcd-druid) mainly acts as an etcd cluster provisioner (creation, maintenance and deletion). In the future, capabilities of etcd-druid will be enhanced via [etcd-member](https://github.com/gardener/etcd-druid/blob/8ac70d512969c2e12e666d923d7d35fdab1e0f8e/docs/proposals/04-etcd-member-custom-resource.md) proposal by providing it access to much more detailed information about each etcd cluster member. While we enhance the reconciliation and monitoring capabilities of etcd-druid, it still lacks the ability to allow users to invoke `out-of-band` operations on an existing etcd cluster.
 
-There are new learnings while operating etcd clusters at scale. It has been observed that we regularly need capabilities to trigger `out-of-band` tasks which are out of the purview of a regular etcd reconciliation run. Many of these tasks are a multi-step process and doing it manually is error-prone even if an operator follows a well-written step-by-step guide. Thus there is a need to automate these tasks to alleviate mistakes.
+There are new learnings while operating etcd clusters at scale. It has been observed that we regularly need capabilities to trigger `out-of-band` tasks which are outside of the purview of a regular etcd reconciliation run. Many of these tasks are multi-step processes, and performing them manually is error-prone, even if an operator follows a well-written step-by-step guide. Thus, there is a need to automate these tasks.
 Some examples of an `on-demand/out-of-band` operations:
 
-* Recover from a permament quorum loss.
+* Recover from a permanent loss of quorum in the etcd cluster.
 * Trigger an on-demand full/delta snapshot.
 * Trigger an on-demand snapshot compaction.
 * Trigger an on-demand [maintenance of etcd cluster](https://etcd.io/docs/v3.4/op-guide/maintenance/).
@@ -67,7 +67,7 @@ Some examples of an `on-demand/out-of-band` operations:
 
 ## Goals
 
-* Establish an unified interface for operator tasks by defining a single dedicated custom resource for `out-of-band` tasks.
+* Establish a unified interface for operator tasks by defining a single dedicated custom resource for `out-of-band` tasks.
 * Define a contract (in terms of prerequisites) which needs to be adhered to by any task.
 * Facilitate the easy addition of new `out-of-band` task(s) through this custom resource.
 * Provide CLI capabilities to operators making it easy to invoke supported `out-of-band` tasks.
