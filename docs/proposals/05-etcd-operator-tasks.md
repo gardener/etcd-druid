@@ -8,19 +8,20 @@ authors:
 - "@unmarshall"
 - "@seshachalam-yv"
 reviewers:
-- "@etcd-druid-maintainers"
+- "etcd-druid-maintainers"
 ---
 
 # DEP-05: Operator Out-Of-Band Tasks
 
 ## Table of Contents
 
-* [DEP-05: Operator out-of-band tasks](#operator-out-of-band-tasks)
+* [DEP-05: Operator out-of-band tasks](#dep-05-operator-out-of-band-tasks)
   * [Table of Contents](#table-of-contents)
   * [Summary](#summary)
   * [Terminology](#terminology)
   * [Motivation](#motivation)
   * [Goals](#goals)
+  * [Non-Goals](#non-goals)
   * [Proposal](#proposal)
     * [API](#api)
     * [Golang API](#golang-api)
@@ -44,25 +45,25 @@ This DEP proposes an enhancement to `etcd-druid`'s capabilities to handle [out-o
 
 ## Terminology
 
-* **druid:** [etcd-druid](https://github.com/gardener/etcd-druid) is an operator to manage the etcd clusters.
+* **etcd-druid:** [etcd-druid](https://github.com/gardener/etcd-druid) is an operator to manage the etcd clusters.
 
 * **backup-sidecar:** It is the etcd-backup-restore sidecar container running in each etcd-member pod of etcd cluster.
 
 * **leading-backup-sidecar:** A backup-sidecar that is associated to an etcd leader of an etcd cluster.
 
-* **out-of-band task:** Any on-demand tasks/operations that can be executed on an etcd cluster without modifying the Etcd resource spec (desired state).
+* **out-of-band task:** Any on-demand tasks/operations that can be executed on an etcd cluster without modifying the [Etcd custom resource spec](https://github.com/gardener/etcd-druid/blob/9c5f8254e3aeb24c1e3e88d17d8d1de336ce981b/api/v1alpha1/types_etcd.go#L272-L273) (desired state).
 
 ## Motivation
 
-Today, [etcd-druid](https://github.com/gardener/etcd-druid) mainly acts as an etcd cluster provisioner (creation, maintenance and deletion). In the future, capabilities of etcd-druid will be enhanced via [etcd-member](https://github.com/gardener/etcd-druid/blob/8ac70d512969c2e12e666d923d7d35fdab1e0f8e/docs/proposals/04-etcd-member-custom-resource.md) proposal by providing it access to much more detailed information about each etcd cluster member. While we enhance the reconciliation and monitoring capabilities of etcd-druid, it still lacks the ability to allow users to invoke `out-of-band` operations on an existing etcd cluster.
+Today, [etcd-druid](https://github.com/gardener/etcd-druid) mainly acts as an etcd cluster provisioner (creation, maintenance and deletion). In future, capabilities of etcd-druid will be enhanced via [etcd-member](https://github.com/gardener/etcd-druid/blob/8ac70d512969c2e12e666d923d7d35fdab1e0f8e/docs/proposals/04-etcd-member-custom-resource.md) proposal by providing it access to much more detailed information about each etcd cluster member. While we enhance the reconciliation and monitoring capabilities of etcd-druid, it still lacks the ability to allow users to invoke `out-of-band` tasks on an existing etcd cluster.
 
 There are new learnings while operating etcd clusters at scale. It has been observed that we regularly need capabilities to trigger `out-of-band` tasks which are outside of the purview of a regular etcd reconciliation run. Many of these tasks are multi-step processes, and performing them manually is error-prone, even if an operator follows a well-written step-by-step guide. Thus, there is a need to automate these tasks.
 Some examples of an `on-demand/out-of-band` operations:
 
-* Recover from a permanent loss of quorum in the etcd cluster.
+* Recover from a permanent quorum loss.
 * Trigger an on-demand full/delta snapshot.
 * Trigger an on-demand snapshot compaction.
-* Trigger an on-demand [maintenance of etcd cluster](https://etcd.io/docs/v3.4/op-guide/maintenance/).
+* Trigger an on-demand maintenance of etcd cluster.
 * Copy the backups from one object store to another object store.
 
 ## Goals
@@ -73,9 +74,9 @@ Some examples of an `on-demand/out-of-band` operations:
 * Provide CLI capabilities to operators, making it easy to invoke supported `out-of-band` tasks.
 
 ## Non-Goals
-* In the current scope, capability to abort/cancel an out-of-band task is not going to be provided. This could be considered as an enhancement based on pull.
-* Ordering (by establishing dependency) of out-of-band tasks submitted for the same etcd cluster is not been considered in the first increment. In a future version based on how operator tasks are used we will enhance this proposal and the implementation.
 
+* In the current scope, capability to abort/suspend an `out-of-band` task is not going to be provided. This could be considered as an enhancement based on pull.
+* Ordering (by establishing dependency) of `out-of-band` tasks submitted for the same etcd cluster is not been considered in the first increment. In a future version based on how operator tasks are used we will enhance this proposal and the implementation.
 
 ## Proposal
 
@@ -174,12 +175,12 @@ type LastOperation struct {
 
 // LastError stores details of the most recent error encountered for the task.
 type LastError struct {
-	// Code is an error code that uniquely identifies an error.
-	Code ErrorCode `json:"code"`
-	// Description is a human-readable message indicating details of the error.
-	Description string `json:"description"`
-	// ObservedAt is the time the error was observed.
-	ObservedAt metav1.Time `json:"observedAt"`
+  // Code is an error code that uniquely identifies an error.
+  Code ErrorCode `json:"code"`
+  // Description is a human-readable message indicating details of the error.
+  Description string `json:"description"`
+  // ObservedAt is the time the error was observed.
+  ObservedAt metav1.Time `json:"observedAt"`
 }
 ```
 
@@ -233,7 +234,7 @@ Task(s) can be created by creating an instance of the `EtcdOperatorTask` custom 
 * Moreover, all tasks have to adhere to some prerequisites(a.k.a `pre-conditions`) which will be necessary to execute the task. Authors propose to define pre-conditions for each task, which must be met for the task to be eligible for execution otherwise that task should be rejected.
 * If multiple tasks are invoked simultaneously or in `pending` state, then they will be executed in a First-In-First-Out (FIFO) manner.
 
-> Note: Dependent ordering among tasks will be addresed later which may enable concurrent execution of tasks.
+> Note: Dependent ordering among tasks will be addressed later which may enable concurrent execution of tasks.
 
 #### Deletion
 
@@ -243,7 +244,7 @@ Task(s) can be created by creating an instance of the `EtcdOperatorTask` custom 
 
 #### Recovery from permanent quorum loss
 
-Currently identification and recovery from permament quorum loss is done manaually. The current proposal keeps the identification as manual, requiring an human operator to intervene and confirm that there is indeed a permanent quorum loss with no auto healing possibility. Once that is established then the next step to recover the cluster is now proposed to be automated. Recovery today is a [multi-step process](https://github.com/gardener/etcd-druid/blob/master/docs/operations/recovery-from-permanent-quorum-loss-in-etcd-cluster.md) and needs to be done carefully. Automation would ensure that we eliminate any errors from an operator.
+Currently, identification and recovery from permanent quorum loss is done manually. The current proposal keeps the identification as manual, requiring a human operator to intervene and confirm that there is indeed a permanent quorum loss with no auto healing possibility. Once that is established then the next step to recover the cluster is now proposed to be automated. Recovery today is a [multi-step process](https://github.com/gardener/etcd-druid/blob/master/docs/operations/recovery-from-permanent-quorum-loss-in-etcd-cluster.md) and needs to be done carefully. Automation would ensure that we eliminate any errors from an operator.
 
 ##### Task Config
 
@@ -256,12 +257,12 @@ We do not need any config for this task. When creating an instance of `EtcdOpera
 
 #### Trigger on-demand snapshot compaction
 
-`etcd-druid` provides a configurable [etcd-events-threshold](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md#druid-flags). If and when this threshold is breached then only a [snapshot compaction](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md) is triggered for etcd cluster. However, there are scenarios where an ad-hoc snapshot compaction is required.
+`etcd-druid` provides a configurable [etcd-events-threshold](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md#druid-flags) flag. If and when this threshold is breached then only a [snapshot compaction](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md) is triggered for etcd cluster. However, there are scenarios where an ad-hoc snapshot compaction is required.
 
 ##### Possible scenarios
 
 * Full snapshot taken via compaction job is better as compared to full snapshot taken directly from etcd cluster as full snapshot taken via snapshot compaction is taken after [defragmentation](https://etcd.io/docs/v3.2/op-guide/maintenance/#defragmentation) which makes it smaller (more compacted) in size.
-* Full snapshot triggered on etcd cluster might cause load on running etcd cluster but full snapshot taken by compaction job is developed separately with zero effect on the running cluster.
+* Full snapshot triggered on etcd cluster might cause load on running etcd cluster but the full snapshot taken by the compaction job is designed to run separately, thereby having no impact on the operational cluster.
 
 ##### Task Config
 
@@ -271,7 +272,7 @@ We do not need any config for this task. When creating an instance of `EtcdOpera
 
 * There should not be a `on-demand snapshot-compaction` task already running for the same etcd cluster.
 
->Note: `on-demand snapshot-compaction` runs as a separate job in a seprate pod, hence it doesn't depends on health of etcd cluster members or any other conditions.
+> Note: `on-demand snapshot-compaction` runs as a separate job in a separate pod, hence it doesn't depend on health of etcd cluster members or any other conditions.
 
 #### Trigger on-demand full/delta snapshot
 
@@ -307,7 +308,7 @@ type OnDemandSnapshotTaskConfig struct {
 
 #### Trigger on-demand maintenance of etcd cluster
 
-Operator can trigger on-demand maintenance of etcd cluster which includes operations like [etcd compaction](https://etcd.io/docs/v3.5/op-guide/maintenance/#history-compaction-v3-api-key-value-database), [etcd defragmentation](https://etcd.io/docs/v3.2/op-guide/maintenance/#defragmentation) etc.
+Operator can trigger on-demand [maintenance of etcd cluster](https://etcd.io/docs/v3.5/op-guide/maintenance) which includes operations like [etcd compaction](https://etcd.io/docs/v3.5/op-guide/maintenance/#history-compaction-v3-api-key-value-database), [etcd defragmentation](https://etcd.io/docs/v3.5/op-guide/maintenance/#defragmentation) etc.
 
 ##### Possible Scenarios
 
