@@ -4,9 +4,9 @@ dep-number: 05
 creation-date: 6th Dec'2023
 status: implementable
 authors:
-- "@ishan" 
-- "@madhav"
-- "@sesha"
+- "@ishan16696" 
+- "@unmarshall"
+- "@seshachalam-yv"
 reviewers:
 - "@etcd-druid-maintainers"
 ---
@@ -68,7 +68,7 @@ Some examples of an `on-demand/out-of-band` operations:
 ## Goals
 
 * Establish a unified interface for operator tasks by defining a single dedicated custom resource for `out-of-band` tasks.
-* Define a contract (in terms of prerequisites) which needs to be adhered to by any task.
+* Define a contract (in terms of prerequisites) which needs to be adhered to by any task implementation.
 * Facilitate the easy addition of new `out-of-band` task(s) through this custom resource.
 * Provide CLI capabilities to operators, making it easy to invoke supported `out-of-band` tasks.
 
@@ -85,40 +85,6 @@ Authors propose creation of a new single dedicated custom resource to represent 
 
 `EtcdOperatorTask` is the new custom resource that will be introduced. This API will be in `v1alpha1` version and will be subject to change. We will be respecting [Kubernetes Deprecation Policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/).
 
-```yaml
-apiVersion: druid.gardener.cloud/v1alpha1
-kind: EtcdOperatorTask
-metadata:
-    name: <name of operator task resource>
-    namespace: <cluster namespace>
-    generation: <specific generation of the desired state>
-spec:
-    taskType: <type/category of supported out-of-band task>
-    ttlSecondsAfterFinished: <time-to-live to garbage collect the custom resource after it has been completed>
-    taskConfig: <task specific configuration>
-status:
-    observedGeneration: <specific observedGeneration of the resource>
-    taskStatus: <overall status of the task>
-    initiatedAt: <time of intiation of this operation>
-    lastErrors:
-      - code: <error-code>
-        description: <description of the error>
-        lastUpdateTime: <time the error was reported>
-    lastOperation:
-      name: <operation-name>
-      state: <task state as seen at the completion of last operation>
-      lastTransitionTime: <time of transition to this state>
-      reason: <reason/message if any>
-    conditions:
-      - type: <type of condition>
-        status: <status of the condition, one of True, False, Unknown>
-        lastTransitionTime: <last time the condition transitioned from one status to another>
-        reason: <programmatic identifier indicating the reason for the condition's last transition>
-        message: <human readable message indicating details about the transition>
-```
-
-> NOTE: The above custom resource YAML serves as a template which will be used to further create a CRD and Golang APIs.
-
 ### Golang API
 
 ```go
@@ -128,9 +94,9 @@ type EtcdOperatorTask struct {
   metav1.ObjectMeta
 
   // Spec is the specification of the task.
-  Spec EtcdOperatorTaskSpec
+  Spec EtcdOperatorTaskSpec `json:"spec"`
   // Status is most recently observed status of the task.
-  Status EtcdOperatorTaskStatus
+  Status EtcdOperatorTaskStatus `json:"status,omitempty"`
 }
 ```
 
@@ -146,10 +112,10 @@ The authors propose that the following fields should be specified in the spec (d
 type EtcdOperatorTaskSpec struct {
   
   // Type specifies the type of out-of-band operator task to be performed. 
-  Type string `json:"taskType"`
+  Type string `json:"type"`
 
   // Config is a task specific configuration.
-  Config *runtime.RawExtension `json:"taskConfig,omitempty"`
+  Config *runtime.RawExtension `json:"config,omitempty"`
 
   // TTLSecondsAfterFinished is the time-to-live after which the task and 
   // related resources will be garbage collected.
@@ -160,40 +126,40 @@ type EtcdOperatorTaskSpec struct {
 
 #### Status
 
-The authors propose that the following fields should be specified in the `Status` (current state) of the EtcdOperatorTask custom resource as the custom resource's `Status` will be used to monitor the progress of the task.
+The authors propose that the following fields should be specified in the `Status` (current state) of the `EtcdOperatorTask` custom resource as the custom resource's `Status` will be used to monitor the progress of the task.
 
-* To capture the Status of a task, a field `taskStatus` is defined in status.
+* To capture the Status of a task, a field `.status.State` is defined in status.
 * If operation involves many stages, so to capture the status of intermediate or any stage, `.status.lastOperation` will be useful.
 
 ```go
-// TaskState represents the state of the task.
-type TaskState string
-
-const (
-  Failed TaskState = "failed"
-  Pending TaskState = "pending"
-  Rejected TaskState = "rejected"
-  Completed TaskState = "completed"
-  InProgress TaskState = "inProgress"
-)
-
 // EtcdOperatorTaskStatus is the status for a EtcdOperatorTask resource.
 type EtcdOperatorTaskStatus struct {
   // ObservedGeneration is the most recent generation observed for the resource.
   ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
   // State of the task is the last known state of the task.
-  State TaskState `json:"taskStatus"`
+  State TaskState `json:"state"`
   // Time at which operation has been triggered.
   InitiatedAt metav1.Time `json:"initiatedAt"`
   // LastError represents the errors when processing the task.
   LastErrors []LastError `json:"lastErrors,omitempty"`
-  // Captures the last operation
+  // Captures the last operation.
   // +optional
   LastOperation *LastOperation `json:"lastOperation,omitempty"`
   // Conditions represents the latest available observations of an object's current state.
   // +optional
   Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
+
+// TaskState represents the state of the task.
+type TaskState string
+
+const (
+  Failed TaskState = "Failed"
+  Pending TaskState = "Pending"
+  Rejected TaskState = "Rejected"
+  Succeeded TaskState = "Succeeded"
+  InProgress TaskState = "InProgress"
+)
 
 type LastOperation struct {
   // Name of the LastOperation.
@@ -206,6 +172,49 @@ type LastOperation struct {
   Reason string `json:"reason"`
 }
 
+// LastError stores details of the most recent error encountered for the task.
+type LastError struct {
+	// Code is an error code that uniquely identifies an error.
+	Code ErrorCode `json:"code"`
+	// Description is a human-readable message indicating details of the error.
+	Description string `json:"description"`
+	// ObservedAt is the time the error was observed.
+	ObservedAt metav1.Time `json:"observedAt"`
+}
+```
+
+### Custom Resource Template
+
+```yaml
+apiVersion: druid.gardener.cloud/v1alpha1
+kind: EtcdOperatorTask
+metadata:
+    name: <name of operator task resource>
+    namespace: <cluster namespace>
+    generation: <specific generation of the desired state>
+spec:
+    type: <type/category of supported out-of-band task>
+    ttlSecondsAfterFinished: <time-to-live to garbage collect the custom resource after it has been completed>
+    config: <task specific configuration>
+status:
+    observedGeneration: <specific observedGeneration of the resource>
+    state: <overall state of the task>
+    initiatedAt: <time of intiation of this operation>
+    lastErrors:
+      - code: <error-code>
+        description: <description of the error>
+        observedAt: <time the error was observed>
+    lastOperation:
+      name: <operation-name>
+      state: <task state as seen at the completion of last operation>
+      lastTransitionTime: <time of transition to this state>
+      reason: <reason/message if any>
+    conditions:
+      - type: <type of condition>
+        status: <status of the condition, one of True, False, Unknown>
+        lastTransitionTime: <last time the condition transitioned from one status to another>
+        reason: <programmatic identifier indicating the reason for the condition's last transition>
+        message: <human readable message indicating details about the transition>
 ```
 
 ### Lifecycle
@@ -218,7 +227,7 @@ Task(s) can be created by creating an instance of the `EtcdOperatorTask` custom 
 
 #### Execution
 
-* Authors propose to introduce a new controller (let's call it `operator-task-controller`) which watches for `EtcdOperatorTask` custom resource specific to a task defined by [.spec.taskType](#spec).
+* Authors propose to introduce a new controller (let's call it `operator-task-controller`) which watches for `EtcdOperatorTask` custom resource.
 * Each `out-of-band` task may have some task specific configuration defined in [.spec.taskConfig](#spec).
 * The controller (`operator-task-controller`) needs to parse this task specific config, which comes as a RawExtension, according to the schema defined for each task.
 * Moreover, all tasks have to adhere to some prerequisites(a.k.a `pre-conditions`) which will be necessary to execute the task. Authors propose to define pre-conditions for each task, which must be met for the task to be eligible for execution otherwise that task should be rejected.
@@ -278,7 +287,7 @@ If operator does not wish to wait for the scheduled full/delta snapshot, he/she 
 ##### Task Config
 
 ```go
-// SnapshotType can be full or delta snapshot
+// SnapshotType can be full or delta snapshot.
 SnapshotType string `json:"snapshotType"`
 const (
   FullSnapshot SnapshotType = "full-snapshot"
