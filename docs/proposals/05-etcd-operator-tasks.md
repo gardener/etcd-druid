@@ -70,7 +70,7 @@ Some examples of an `on-demand/out-of-band` operations:
 * Establish a unified interface for operator tasks by defining a single dedicated custom resource for `out-of-band` tasks.
 * Define a contract (in terms of prerequisites) which needs to be adhered to by any task.
 * Facilitate the easy addition of new `out-of-band` task(s) through this custom resource.
-* Provide CLI capabilities to operators making it easy to invoke supported `out-of-band` tasks.
+* Provide CLI capabilities to operators, making it easy to invoke supported `out-of-band` tasks.
 
 ## Non-Goals
 * In the current scope, capability to abort/cancel an out-of-band task is not going to be provided. This could be considered as an enhancement based on pull.
@@ -83,7 +83,7 @@ Authors propose creation of a new single dedicated custom resource to represent 
 
 ### API
 
-`ETCDOperatorTask` is the new custom resource that will be introduced. This API will be in `v1alpha1` version and will be subject to change. We will be respecting [Kubernetes Deprecation Policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/).
+`EtcdOperatorTask` is the new custom resource that will be introduced. This API will be in `v1alpha1` version and will be subject to change. We will be respecting [Kubernetes Deprecation Policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/).
 
 ```yaml
 apiVersion: druid.gardener.cloud/v1alpha1
@@ -94,11 +94,11 @@ metadata:
     generation: <specific generation of the desired state>
 spec:
     taskType: <type/category of supported out-of-band task>
-    ttlSecondsAfterFinished: <time-to-live to garbage collect the custom resource>
+    ttlSecondsAfterFinished: <time-to-live to garbage collect the custom resource after it has been completed>
     taskConfig: <task specific configuration>
 status:
     observedGeneration: <specific observedGeneration of the resource>
-    taskStatus: < overall status of the task >
+    taskStatus: <overall status of the task>
     initiatedAt: <time of intiation of this operation>
     lastErrors:
       - code: <error-code>
