@@ -15,7 +15,7 @@ reviewers:
 
 ## Table of Contents
 
-* [DEP-05: Operator out-of-band tasks](#operator-out-Of-band-tasks)
+* [DEP-05: Operator out-of-band tasks](#operator-out-of-band-tasks)
   * [Table of Contents](#table-of-contents)
   * [Summary](#summary)
   * [Terminology](#terminology)
@@ -40,7 +40,7 @@ reviewers:
 
 ## Summary
 
-This DEP proposes an enhancement to `etcd-druid`'s capabilities to handle [out-of-band](#terminology) tasks, which are presently performed manually or invoked programmatically via sub-optimal APIs. The document proposes the establishment of an unified interface by defining a well-structured API to harmonize the initiation of any `out-of-band` task, monitor its status, and simplify the process of adding new tasks and managing their lifecycle.
+This DEP proposes an enhancement to `etcd-druid`'s capabilities to handle [out-of-band](#terminology) tasks, which are presently performed manually or invoked programmatically via suboptimal APIs. The document proposes the establishment of a unified interface by defining a well-structured API to harmonize the initiation of any `out-of-band` task, monitor its status, and simplify the process of adding new tasks and managing their lifecycle.
 
 ## Terminology
 
@@ -50,7 +50,7 @@ This DEP proposes an enhancement to `etcd-druid`'s capabilities to handle [out-o
 
 * **leading-backup-sidecar:** A backup-sidecar that is associated to an etcd leader of an etcd cluster.
 
-* **out-of-band task** Any on-demand tasks/operations that can be executed on an etcd cluster without modifying the Etcd custom resource spec (desired state).
+* **out-of-band task:** Any on-demand tasks/operations that can be executed on an etcd cluster without modifying the Etcd resource spec (desired state).
 
 ## Motivation
 
