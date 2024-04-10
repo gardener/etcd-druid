@@ -11,11 +11,11 @@ reviewers:
 - "etcd-druid-maintainers"
 ---
 
-# DEP-05: Operator Out-Of-Band Tasks
+# DEP-05: Operator Out-of-band Tasks
 
 ## Table of Contents
 
-* [DEP-05: Operator out-of-band tasks](#dep-05-operator-out-of-band-tasks)
+* [DEP-05: Operator Out-of-band Tasks](#dep-05-operator-out-of-band-tasks)
   * [Table of Contents](#table-of-contents)
   * [Summary](#summary)
   * [Terminology](#terminology)
@@ -23,10 +23,10 @@ reviewers:
   * [Goals](#goals)
   * [Non-Goals](#non-goals)
   * [Proposal](#proposal)
-    * [API](#api)
-    * [Golang API](#golang-api)
+    * [Custom Resource API](#custom-resource-api)
       * [Spec](#spec)
       * [Status](#status)
+      * [Custom Resource API object](#custom-resource-api-object)
     * [Lifecycle](#lifecycle)
       * [Creation](#creation)
       * [Execution](#execution)
@@ -36,7 +36,7 @@ reviewers:
       * [Trigger on-demand snapshot compaction](#trigger-on-demand-snapshot-compaction)
       * [Trigger on-demand full/delta snapshot](#trigger-on-demand-fulldelta-snapshot)
       * [Trigger on-demand maintenance of etcd cluster](#trigger-on-demand-maintenance-of-etcd-cluster)
-      * [Copy backups from one object store to another object store](#copy-the-backups-from-one-object-store-to-another-object-store)
+      * [Copy Backups Task](#copy-backups-task)
   * [Metrics](#metrics)
 
 ## Summary
@@ -82,11 +82,9 @@ Some examples of an `on-demand/out-of-band` operations:
 
 Authors propose creation of a new single dedicated custom resource to represent an `out-of-band` task. Druid will be enhanced to process the task requests and update its status which can then be tracked/observed.
 
-### API
+### Custom Resource API
 
 `EtcdOperatorTask` is the new custom resource that will be introduced. This API will be in `v1alpha1` version and will be subject to change. We will be respecting [Kubernetes Deprecation Policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/).
-
-### Golang API
 
 ```go
 // EtcdOperatorTask represents an out-of-band operator task.
@@ -130,7 +128,7 @@ type EtcdOperatorTaskSpec struct {
 The authors propose that the following fields should be specified in the `Status` (current state) of the `EtcdOperatorTask` custom resource as the custom resource's `Status` will be used to monitor the progress of the task.
 
 * To capture the Status of a task, a field `.status.State` is defined in status.
-* If operation involves many stages, so to capture the status of intermediate or any stage, `.status.lastOperation` will be useful.
+* If an operation involves many stages, `.status.lastOperation` will be useful in capturing the status of any intermediate stage.
 
 ```go
 // EtcdOperatorTaskStatus is the status for a EtcdOperatorTask resource.
@@ -184,7 +182,7 @@ type LastError struct {
 }
 ```
 
-### Custom Resource Template
+### Custom Resource API object
 
 ```yaml
 apiVersion: druid.gardener.cloud/v1alpha1
@@ -224,7 +222,7 @@ status:
 
 Task(s) can be created by creating an instance of the `EtcdOperatorTask` custom resource specific to a task.
 
-> Note: In future, either a `kubectl` extension plugin or a `druidctl` will be introduced. Dedicated sub-commands will be created for each `out-of-band` task. This will drastically increase the usability for an operator for such tasks as the CLI extension will automatically create relevant instance of `EtcdOperatorTask` with the provided configuration.
+> Note: In future, either a `kubectl` extension plugin or a `druidctl` tool will be introduced. Dedicated sub-commands will be created for each `out-of-band` task. This will drastically increase the usability for an operator for performing such tasks, as the CLI extension will automatically create relevant instance(s) of `EtcdOperatorTask` with the provided configuration.
 
 #### Execution
 
@@ -257,7 +255,7 @@ We do not need any config for this task. When creating an instance of `EtcdOpera
 
 #### Trigger on-demand snapshot compaction
 
-`etcd-druid` provides a configurable [etcd-events-threshold](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md#druid-flags) flag. If and when this threshold is breached then only a [snapshot compaction](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md) is triggered for etcd cluster. However, there are scenarios where an ad-hoc snapshot compaction is required.
+`etcd-druid` provides a configurable [etcd-events-threshold](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md#druid-flags) flag. When this threshold is breached, then a [snapshot compaction](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md) is triggered for the etcd cluster. However, there are scenarios where an ad-hoc snapshot compaction may be required.
 
 ##### Possible scenarios
 
@@ -272,18 +270,20 @@ We do not need any config for this task. When creating an instance of `EtcdOpera
 
 * There should not be a `on-demand snapshot-compaction` task already running for the same etcd cluster.
 
-> Note: `on-demand snapshot-compaction` runs as a separate job in a separate pod, hence it doesn't depend on health of etcd cluster members or any other conditions.
+> Note: `on-demand snapshot-compaction` runs as a separate job in a separate pod, hence it doesn't depend on the health of etcd cluster members or any other conditions.
 
 #### Trigger on-demand full/delta snapshot
 
-`Etcd` custom resource provides an ability to set [FullSnapshotSchedule](https://github.com/gardener/etcd-druid/blob/master/api/v1alpha1/types_etcd.go#L158) which is currently defauled to run once in 24 hrs. [DeltaSnapshotPeriod](https://github.com/gardener/etcd-druid/blob/master/api/v1alpha1/types_etcd.go#L171) is also made configurable which defines the duration after which a delta snapshot will be taken.
-If operator does not wish to wait for the scheduled full/delta snapshot, he/she can trigger an on-demand(out-of-schedule) full/delta snapshot on etcd cluster which will be taken by `leading-backup-restore`.
+`Etcd` custom resource provides an ability to set [FullSnapshotSchedule](https://github.com/gardener/etcd-druid/blob/master/api/v1alpha1/types_etcd.go#L158) which currently defaults to run once in 24 hrs. [DeltaSnapshotPeriod](https://github.com/gardener/etcd-druid/blob/master/api/v1alpha1/types_etcd.go#L171) is also made configurable which defines the duration after which a delta snapshot will be taken.
+If a human operator does not wish to wait for the scheduled full/delta snapshot, they can trigger an on-demand (out-of-schedule) full/delta snapshot on the etcd cluster, which will be taken by the `leading-backup-restore`.
 
 ##### Possible scenarios
 
-* [Shoot hibernation](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_hibernate.md): Every etcd cluster incurs an inherent cost of preserving the volumes even when the shoot is in hibernation state. However it is possible to save costs by invoking this task to take a full snapshot before deleting the volumes.
+* An on-demand full snapshot can be triggered if scheduled snapshot fails due to any reason.
+* [Gardener Shoot Hibernation](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_hibernate.md): Every etcd cluster incurs an inherent cost of preserving the volumes even when a gardener shoot control plane is scaled down, i.e the shoot is in a hibernated state. However, it is possible to save on hyperscaler costs by invoking this task to take a full snapshot before scaling down the etcd cluster, and deleting the etcd data volumes afterwards.
 * [Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md): In [gardener](https://github.com/gardener/gardener) a seed cluster control plane can be moved to another seed cluster. To prevent data loss and faster restoration of the etcd cluster in the target seed, a full snapshot can be triggered for the etcd cluster in the source seed.
-* A on-demand full snapshot can be triggered if scheduled snapshot fails due to any reason.
+
+, a seed cluster control plane can be moved from one seed cluster to another. This process currently requires the etcd data to be replicated on the target cluster, so a full snapshot of the etcd cluster in the source seed before the migration would allow for faster restoration of the etcd cluster in the target seed.
 
 ##### Task Config
 
@@ -333,7 +333,13 @@ type maintenanceOps struct {
 * Etcd cluster should have a quorum.
 * There should not already be a duplicate task running with same `maintenanceType`.
 
-#### Copy the backups from one object store to another object store
+#### Copy Backups Task
+
+Copy the backups(full and delta snapshots) of etcd cluster from one object store(source) to another object store(target).
+
+##### Possible Scenarios
+
+* In [Gardener](https://github.com/gardener/gardener), the [Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md) process utilizes the copy-backups task. This task is responsible for copying backups from one object store to another, typically located in different regions.
 
 ##### Task Config
 
@@ -361,7 +367,7 @@ type EtcdCopyBackupsTaskConfig struct {
 
 * There should not already be a duplicate task running.
 
-> Note: `copy-backup-task` runs as a seprate job, hence it doesn't depends on health of etcd cluster members or any other conditions.
+> Note: `copy-backups-task` runs as a separate job, and it operates only on the backup bucket, hence it doesn't depend on health of etcd cluster members.
 
 > Note: CopyBackupTask has already been implemented and it's currently being used in [Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md) but CopyBackupTask can be harmonize with `EtcdOperatorTask` custom resource.
 
@@ -372,8 +378,8 @@ Authors proposed to introduce the following metrics:
 * `etcd_operator_task_duration_seconds` : Histogram which captures the runtime for each etcd operator task.
   Labels:
   * Key : `type`, Value: task type
-  * Key: `state` Value: One-Of {failed, success, rejected}
+  * Key: `state` Value: One-Of {failed, succeeded, rejected}
 * `etcd_operator_tasks_total`: Counter which counts the number of etcd operator tasks.
   Labels:
   * Key : `type`, Value: task type
-  * Key: `state` Value: One-Of {failed, success, rejected}
+  * Key: `state` Value: One-Of {failed, succeeded, rejected}
