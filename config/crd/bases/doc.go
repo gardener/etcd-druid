@@ -2,6 +2,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//go:generate ../../../vendor/github.com/gardener/gardener/hack/generate-crds.sh "10-crd-" druid.gardener.cloud
+//go:generate ../../../hack/generate-crds.sh -p crd- -l
 
 package bases

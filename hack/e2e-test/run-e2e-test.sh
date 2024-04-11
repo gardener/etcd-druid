@@ -23,7 +23,7 @@ function skaffold_run_or_deploy {
   if [[ -n ${IMAGE_NAME:=""} ]] && [[ -n ${IMAGE_TEST_TAG:=""} ]]; then
     skaffold deploy --images ${IMAGE_NAME}:${IMAGE_TEST_TAG} $@
   else
-    skaffold run $@
+    skaffold run "$@"
   fi
 }
 

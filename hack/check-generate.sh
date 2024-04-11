@@ -1,22 +1,12 @@
 #!/usr/bin/env bash
 #
-# Copyright 2019 SAP SE or an SAP affiliate company. All rights reserved. This file is licensed under the Apache Software License, v. 2 except as noted otherwise in the LICENSE file
+# SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company and Gardener contributors
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-License-Identifier: Apache-2.0
 
 set -e
 
-echo "> Generate / Vendor Check"
+echo "> Generate"
 
 makefile="$1/Makefile"
 check_branch="__check"
@@ -24,14 +14,13 @@ initialized_git=false
 stashed=false
 checked_out=false
 generated=false
-vendored=false
 
 function delete-check-branch {
   git rev-parse --verify "$check_branch" &>/dev/null && git branch -q -D "$check_branch" || :
 }
 
 function cleanup {
-  if [[ "$generated" == true ]] || [[ "$vendored" == true ]]; then
+  if [[ "$generated" == true ]]; then
     if ! clean_err="$(make -f "$makefile" clean && git reset --hard -q && git clean -qdf)"; then
       echo "Could not clean: $clean_err"
     fi
@@ -107,20 +96,35 @@ if which git &>/dev/null; then
     exit 1
   fi
 
-  echo ">> make revendor"
-  vendored=true
-  if ! out=$(make -f "$makefile" revendor 2>&1); then
-    echo "Error during calling make revendor: $out"
-    exit 1
-  fi
-  new_status="$(git status -s)"
+  repo_root="$(git rev-parse --show-toplevel)"
+  if [[ -d "$repo_root/vendor" ]]; then
+    echo ">> make revendor"
+    if ! out=$(make -f "$makefile" revendor 2>&1); then
+      echo "Error during calling make revendor: $out"
+      exit 1
+    fi
+    new_status="$(git status -s)"
 
-  if [[ "$old_status" != "$new_status" ]]; then
-    echo "make revendor needs to be run:"
-    echo "$new_status"
-    exit 1
+    if [[ "$old_status" != "$new_status" ]]; then
+      echo "make revendor needs to be run:"
+      echo "$new_status"
+      exit 1
+    fi
+  else
+    echo ">> make tidy"
+    if ! out=$(make -f "$makefile" tidy 2>&1); then
+      echo "Error during calling make tidy: $out"
+      exit 1
+    fi
+    new_status="$(git status -s)"
+
+    if [[ "$old_status" != "$new_status" ]]; then
+      echo "make tidy needs to be run:"
+      echo "$new_status"
+      exit 1
+    fi
   fi
 else
-  echo "No git detected, cannot run vendor check"
+  echo "No git detected, cannot run make check-generate"
 fi
 exit 0

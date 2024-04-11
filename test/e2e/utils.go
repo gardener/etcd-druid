@@ -877,7 +877,7 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 							"$(curl --cacert /var/etcd/ssl/client/ca/ca.crt --cert /var/etcd/ssl/client/client/tls.crt --key /var/etcd/ssl/client/client/tls.key https://" + etcdSvc + ":2379/health -s -f  -o /dev/null ); " +
 							"if [ $? -gt 0 ] ; then let failed++; echo \"etcd is unhealthy and retrying\"; sleep 1; continue;  fi ; " +
 							"echo \"etcd is healthy\";  touch /tmp/healthy; let failed=0; " +
-							"sleep 1; done;  echo \"etcd is unhealthy\"; exit 1;" +
+							"sleep 2; done;  echo \"etcd is unhealthy\"; exit 1;" +
 							"' > test.sh && sh test.sh",
 					},
 					ReadinessProbe: &corev1.Probe{

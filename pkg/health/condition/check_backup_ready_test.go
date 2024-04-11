@@ -8,9 +8,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"go.uber.org/mock/gomock"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	. "github.com/gardener/etcd-druid/pkg/health/condition"
@@ -85,7 +85,7 @@ var _ = Describe("BackupReadyCheck", func() {
 		Context("With no snapshot leases present", func() {
 			It("Should return Unknown readiness", func() {
 				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease, _ ...client.GetOption) error {
+					func(_ context.Context, _ client.ObjectKey, _ *coordinationv1.Lease, _ ...client.GetOption) error {
 						return &noLeaseError
 					},
 				).AnyTimes()
@@ -231,7 +231,7 @@ var _ = Describe("BackupReadyCheck", func() {
 		Context("With no backup store configured", func() {
 			It("Should return nil condition", func() {
 				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease) error {
+					func(_ context.Context, _ client.ObjectKey, _ *coordinationv1.Lease) error {
 						return &noLeaseError
 					},
 				).AnyTimes()
@@ -251,7 +251,7 @@ var _ = Describe("BackupReadyCheck", func() {
 		Context("With backup store is configured but provider is nil", func() {
 			It("Should return nil condition", func() {
 				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease) error {
+					func(_ context.Context, _ client.ObjectKey, _ *coordinationv1.Lease) error {
 						return &noLeaseError
 					},
 				).AnyTimes()
