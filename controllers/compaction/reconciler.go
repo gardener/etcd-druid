@@ -102,14 +102,12 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 	// Update metrics for currently running compaction job, if any
 	job := &batchv1.Job{}
 	if err := r.Get(ctx, types.NamespacedName{Name: etcd.GetCompactionJobName(), Namespace: etcd.Namespace}, job); err != nil {
-		if errors.IsNotFound(err) {
-			logger.Info("Currently, no compaction job is running in the namespace ", etcd.Namespace)
-		} else {
-			// Error reading the object - requeue the request.
+		if !errors.IsNotFound(err) {
 			return ctrl.Result{
 				RequeueAfter: 10 * time.Second,
 			}, fmt.Errorf("error while fetching compaction job with the name %v, in the namespace %v: %v", etcd.GetCompactionJobName(), etcd.Namespace, err)
 		}
+		logger.Info("Currently, no compaction job is running in the namespace ", etcd.Namespace)
 	}
 
 	if job != nil && job.Name != "" {

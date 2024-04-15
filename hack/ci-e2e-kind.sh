@@ -7,8 +7,6 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-make kind-up
-
 trap "
   ( make kind-down )
 " EXIT

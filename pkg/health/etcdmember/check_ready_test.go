@@ -15,10 +15,10 @@ import (
 
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/test"
-	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gstruct"
+	"go.uber.org/mock/gomock"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -142,7 +142,7 @@ var _ = Describe("ReadyCheck", func() {
 				})()
 
 				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
+					func(_ context.Context, _ client.ObjectKey, _ *corev1.Pod, _ ...client.ListOption) error {
 						return errors.New("foo")
 					},
 				)
@@ -190,7 +190,7 @@ var _ = Describe("ReadyCheck", func() {
 				})()
 
 				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
+					func(_ context.Context, _ client.ObjectKey, _ *corev1.Pod, _ ...client.ListOption) error {
 						return apierrors.NewNotFound(corev1.Resource("pods"), member1Name)
 					},
 				)
@@ -253,7 +253,7 @@ var _ = Describe("ReadyCheck", func() {
 				})()
 
 				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
+					func(_ context.Context, _ client.ObjectKey, _ *corev1.Pod, _ ...client.ListOption) error {
 						return errors.New("foo")
 					},
 				)

@@ -19,7 +19,6 @@ import (
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/flow"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
-	"github.com/gardener/gardener/pkg/utils/retry"
 	gardenerretry "github.com/gardener/gardener/pkg/utils/retry"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -180,12 +179,12 @@ func (c *component) WaitCleanup(ctx context.Context) error {
 		err = c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts)
 		switch {
 		case apierrors.IsNotFound(err):
-			return retry.Ok()
+			return gardenerretry.Ok()
 		case err == nil:
 			// StatefulSet is still available, so we should retry.
 			return false, nil
 		default:
-			return retry.SevereError(err)
+			return gardenerretry.SevereError(err)
 		}
 	})
 }

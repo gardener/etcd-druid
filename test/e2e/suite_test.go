@@ -18,7 +18,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -40,7 +39,6 @@ const (
 
 var (
 	logger         = zap.New(zap.WriteTo(GinkgoWriter))
-	typedClient    *kubernetes.Clientset
 	cl             client.Client
 	sourcePath     string
 	kubeconfigPath string
@@ -76,7 +74,6 @@ var _ = BeforeSuite(func() {
 	cl, err = getKubernetesClient(kubeconfigPath)
 	Expect(err).ShouldNot(HaveOccurred())
 
-	typedClient, err = getKubernetesTypedClient(kubeconfigPath)
 	Expect(err).NotTo(HaveOccurred())
 
 	logger.Info("creating namespace", "namespace", etcdNamespace)
