@@ -52,16 +52,16 @@ var _ = Describe("Etcd", func() {
 
 		storageContainer = getEnvAndExpectNoError(envStorageContainer)
 
-		snapstoreProvider := provider.Storage.Provider
+		snapStoreProvider := provider.Storage.Provider
 
-		if snapstoreProvider == utils.Local {
-			purgeLocalSnapstoreJob := purgeLocalSnapstore(parentCtx, cl, storageContainer)
-			defer cleanUpTestHelperJob(parentCtx, cl, purgeLocalSnapstoreJob.Name)
+		if snapStoreProvider == utils.Local {
+			purgeLocalSnapStoreJob := purgeLocalSnapstore(parentCtx, cl, storageContainer)
+			defer cleanUpTestHelperJob(parentCtx, cl, purgeLocalSnapStoreJob.Name)
 		} else {
-			store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
+			store, err := getSnapStore(string(snapStoreProvider), storageContainer, storePrefix)
 			Expect(err).ShouldNot(HaveOccurred())
 			// purge any existing backups in bucket
-			Expect(purgeSnapstore(store)).To(Succeed())
+			Expect(purgeSnapStore(store)).To(Succeed())
 		}
 
 		Expect(deployBackupSecret(parentCtx, cl, logger, provider, etcdNamespace, storageContainer))
@@ -240,7 +240,7 @@ var _ = Describe("Etcd", func() {
 })
 
 func deleteMemberDir(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName, containerName string) {
-	ExpectWithOffset(1, deleteDir(kubeconfigPath, namespace, podName, containerName, "/var/etcd/data/new.etcd/member")).To(Succeed())
+	ExpectWithOffset(1, deleteDir(ctx, kubeconfigPath, namespace, podName, containerName, "/var/etcd/data/new.etcd/member")).To(Succeed())
 	checkUnreadySts(ctx, cl, logger, etcd)
 }
 
