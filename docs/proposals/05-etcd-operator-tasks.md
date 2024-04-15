@@ -272,7 +272,7 @@ If a human operator does not wish to wait for the scheduled full/delta snapshot,
 
 * An on-demand full snapshot can be triggered if scheduled snapshot fails due to any reason.
 * [Gardener Shoot Hibernation](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_hibernate.md): Every etcd cluster incurs an inherent cost of preserving the volumes even when a gardener shoot control plane is scaled down, i.e the shoot is in a hibernated state. However, it is possible to save on hyperscaler costs by invoking this task to take a full snapshot before scaling down the etcd cluster, and deleting the etcd data volumes afterwards.
-* [Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md): In [gardener](https://github.com/gardener/gardener) a seed cluster control plane can be moved to another seed cluster. To prevent data loss and faster restoration of the etcd cluster in the target seed, a full snapshot can be triggered for the etcd cluster in the source seed.
+* [Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md): In [gardener](https://github.com/gardener/gardener), a seed cluster control plane can be moved from one seed cluster to another. This process currently requires the etcd data to be replicated on the target cluster, so a full snapshot of the etcd cluster in the source seed before the migration would allow for faster restoration of the etcd cluster in the target seed.
 
 , a seed cluster control plane can be moved from one seed cluster to another. This process currently requires the etcd data to be replicated on the target cluster, so a full snapshot of the etcd cluster in the source seed before the migration would allow for faster restoration of the etcd cluster in the target seed.
 
@@ -280,7 +280,7 @@ If a human operator does not wish to wait for the scheduled full/delta snapshot,
 
 ```go
 // SnapshotType can be full or delta snapshot.
-SnapshotType string `json:"snapshotType"`
+type SnapshotType string
 
 const (
   FullSnapshot SnapshotType = "full-snapshot"
@@ -289,7 +289,7 @@ const (
 
 type OnDemandSnapshotTaskConfig struct {
   // Type of on-demand snapshot.
-  SnapshotType snapshotType `json:"snapshotType"`
+  Type SnapshotType `json:"type"`
 }
 ```
 
@@ -315,8 +315,12 @@ type OnDemandMaintenanceTaskConfig struct {
 }
 
 type maintenanceOps struct {
-  EtcdCompaction *bool `json:"etcd-compaction,omitempty"`
-  EtcdDefragmentation *bool `json:"defragmentation,omitempty"`
+  // EtcdCompaction if set to true will trigger an etcd compaction on the target etcd.
+  // +optional
+  EtcdCompaction bool `json:"etcd-compaction,omitempty"`
+  // EtcdDefragmentation if set to true will trigger a defragmentation on the target etcd.
+  // +optional
+  EtcdDefragmentation bool `json:"defragmentation,omitempty"`
 }
 ```
 
@@ -357,7 +361,7 @@ type EtcdCopyBackupsTaskConfig struct {
 
 ##### Pre-Conditions
 
-* There should not already be a duplicate task running.
+* There should not already be a `copy-backups` task running.
 
 > Note: `copy-backups-task` runs as a separate job, and it operates only on the backup bucket, hence it doesn't depend on health of etcd cluster members.
 
@@ -371,7 +375,9 @@ Authors proposed to introduce the following metrics:
   Labels:
   * Key : `type`, Value: task type
   * Key: `state` Value: One-Of {failed, succeeded, rejected}
+  * Key: `etcd` Value: `name of the target etcd`
 * `etcd_operator_tasks_total`: Counter which counts the number of etcd operator tasks.
   Labels:
   * Key : `type`, Value: task type
   * Key: `state` Value: One-Of {failed, succeeded, rejected}
+  * Key: `etcd` Value: `name of the target etcd`
