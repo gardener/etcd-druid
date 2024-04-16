@@ -73,7 +73,7 @@ var _ = Describe("Etcd Compaction", func() {
 
 					By("Check initial snapshot is available")
 
-					latestSnapshotsBeforePopulate, err := getLatestSnapshots(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
+					latestSnapshotsBeforePopulate, err := getLatestSnapshots(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
 					Expect(err).ShouldNot(HaveOccurred())
 					// We don't expect any delta snapshot as the cluster
 					Expect(latestSnapshotsBeforePopulate.DeltaSnapshots).To(HaveLen(0))
@@ -87,16 +87,16 @@ var _ = Describe("Etcd Compaction", func() {
 						"toKey", fmt.Sprintf("%s-10", etcdKeyPrefix), "toValue", fmt.Sprintf("%s-10", etcdValuePrefix))
 
 					// populate 10 keys in etcd, finishing in 10 seconds
-					err = populateEtcd(logger, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, etcdKeyPrefix, etcdValuePrefix, 1, 10, time.Second*1)
+					err = populateEtcd(ctx, logger, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, etcdKeyPrefix, etcdValuePrefix, 1, 10, time.Second*1)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					By("Check snapshot after putting data into etcd")
 
-					latestSnapshotsAfterPopulate, err := getLatestSnapshots(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
+					latestSnapshotsAfterPopulate, err := getLatestSnapshots(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					Eventually(func() int {
-						latestSnapshotsAfterPopulate, err = getLatestSnapshots(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
+						latestSnapshotsAfterPopulate, err = getLatestSnapshots(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
 						Expect(err).NotTo(HaveOccurred())
 						return len(latestSnapshotsAfterPopulate.DeltaSnapshots)
 					}, singleNodeEtcdTimeout, pollingInterval).Should(BeNumerically(">", len(latestSnapshotsBeforePopulate.DeltaSnapshots)))
@@ -114,11 +114,11 @@ var _ = Describe("Etcd Compaction", func() {
 						"fromKey", fmt.Sprintf("%s-11", etcdKeyPrefix), "fromValue", fmt.Sprintf("%s-11", etcdValuePrefix),
 						"toKey", fmt.Sprintf("%s-15", etcdKeyPrefix), "toValue", fmt.Sprintf("%s-15", etcdValuePrefix))
 					// populate 5 keys in etcd, finishing in 5 seconds
-					err = populateEtcd(logger, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, etcdKeyPrefix, etcdValuePrefix, 11, 15, time.Second*1)
+					err = populateEtcd(ctx, logger, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, etcdKeyPrefix, etcdValuePrefix, 11, 15, time.Second*1)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					By("Trigger on-demand delta snapshot")
-					_, err = triggerOnDemandSnapshot(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080, brtypes.SnapshotKindDelta)
+					_, err = triggerOnDemandSnapshot(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080, brtypes.SnapshotKindDelta)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					logger.Info("waiting for compaction job to become successful")
@@ -145,7 +145,7 @@ var _ = Describe("Etcd Compaction", func() {
 					logger.Info("compaction job is successful")
 
 					By("Verify that all the delta snapshots are compacted to full snapshots by compaction triggerred at first 15th revision")
-					latestSnapshotsAfterPopulate, err = getLatestSnapshots(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
+					latestSnapshotsAfterPopulate, err = getLatestSnapshots(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					Expect(len(latestSnapshotsAfterPopulate.DeltaSnapshots)).Should(BeNumerically("==", 0))
@@ -155,15 +155,15 @@ var _ = Describe("Etcd Compaction", func() {
 						"fromKey", fmt.Sprintf("%s-16", etcdKeyPrefix), "fromValue", fmt.Sprintf("%s-16", etcdValuePrefix),
 						"toKey", fmt.Sprintf("%s-20", etcdKeyPrefix), "toValue", fmt.Sprintf("%s-20", etcdValuePrefix))
 					// populate 5 keys in etcd, finishing in 5 seconds
-					err = populateEtcd(logger, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, etcdKeyPrefix, etcdValuePrefix, 16, 20, time.Second*1)
+					err = populateEtcd(ctx, logger, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, etcdKeyPrefix, etcdValuePrefix, 16, 20, time.Second*1)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					By("Trigger on-demand delta snapshot")
-					_, err = triggerOnDemandSnapshot(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080, brtypes.SnapshotKindDelta)
+					_, err = triggerOnDemandSnapshot(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080, brtypes.SnapshotKindDelta)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					By("Verify that there are new delta snapshots as compaction is not triggered yet because delta events have not reached next 15 revision")
-					latestSnapshotsAfterPopulate, err = getLatestSnapshots(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
+					latestSnapshotsAfterPopulate, err = getLatestSnapshots(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					Expect(len(latestSnapshotsAfterPopulate.DeltaSnapshots)).Should(BeNumerically(">", 0))

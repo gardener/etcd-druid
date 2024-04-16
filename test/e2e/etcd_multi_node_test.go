@@ -240,7 +240,7 @@ var _ = Describe("Etcd", func() {
 })
 
 func deleteMemberDir(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName, containerName string) {
-	ExpectWithOffset(1, deleteDir(kubeconfigPath, namespace, podName, containerName, "/var/etcd/data/new.etcd/member")).To(Succeed())
+	ExpectWithOffset(1, deleteDir(ctx, kubeconfigPath, namespace, podName, containerName, "/var/etcd/data/new.etcd/member")).To(Succeed())
 	checkUnreadySts(ctx, cl, logger, etcd)
 }
 
@@ -312,7 +312,19 @@ func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Lo
 		etcd.Spec.Replicas = 0
 		return cl.Update(ctx, etcd)
 	})).ToNot(HaveOccurred())
-	logger.Info("Waiting to hibernate")
+
+	logger.Info("Waiting for statefulset spec to reflect change in replicas to 0")
+	EventuallyWithOffset(1, func() error {
+		sts := &appsv1.StatefulSet{}
+		ExpectWithOffset(2, cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts)).To(Succeed())
+		if sts.Spec.Replicas == nil {
+			return fmt.Errorf("etcd %q replicas is empty", etcd.Name)
+		}
+		if *sts.Spec.Replicas != 0 {
+			return fmt.Errorf("etcd %q replicas is %d, but expected to be 0", etcd.Name, *sts.Spec.Replicas)
+		}
+		return nil
+	}, timeout, pollingInterval).Should(BeNil())
 
 	logger.Info("Checking etcd")
 	EventuallyWithOffset(1, func() error {

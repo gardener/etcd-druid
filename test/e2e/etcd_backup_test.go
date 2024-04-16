@@ -80,7 +80,7 @@ var _ = Describe("Etcd Backup", func() {
 
 					By("Check initial snapshot is available")
 
-					latestSnapshotsBeforePopulate, err := getLatestSnapshots(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
+					latestSnapshotsBeforePopulate, err := getLatestSnapshots(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
 					Expect(err).ShouldNot(HaveOccurred())
 					// We don't expect any delta snapshot as the cluster
 					Expect(latestSnapshotsBeforePopulate.DeltaSnapshots).To(HaveLen(0))
@@ -94,15 +94,15 @@ var _ = Describe("Etcd Backup", func() {
 						"toKey", fmt.Sprintf("%s-10", etcdKeyPrefix), "toValue", fmt.Sprintf("%s-10", etcdValuePrefix))
 
 					// populate 10 keys in etcd, finishing in 10 seconds
-					err = populateEtcd(logger, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, etcdKeyPrefix, etcdValuePrefix, 1, 10, time.Second*1)
+					err = populateEtcd(ctx, logger, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, etcdKeyPrefix, etcdValuePrefix, 1, 10, time.Second*1)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					By("Check snapshot after putting data into etcd")
-					latestSnapshotsAfterPopulate, err := getLatestSnapshots(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
+					latestSnapshotsAfterPopulate, err := getLatestSnapshots(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					Eventually(func() int {
-						latestSnapshotsAfterPopulate, err = getLatestSnapshots(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
+						latestSnapshotsAfterPopulate, err = getLatestSnapshots(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
 						Expect(err).NotTo(HaveOccurred())
 						return len(latestSnapshotsAfterPopulate.DeltaSnapshots)
 					}, singleNodeEtcdTimeout, pollingInterval).Should(BeNumerically(">", len(latestSnapshotsBeforePopulate.DeltaSnapshots)))
@@ -116,7 +116,7 @@ var _ = Describe("Etcd Backup", func() {
 					Expect(latestSnapshotAfterPopulate.CreatedOn.After(latestSnapshotBeforePopulate.CreatedOn)).To(BeTrue())
 
 					By("Trigger on-demand full snapshot")
-					fullSnapshot, err := triggerOnDemandSnapshot(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080, brtypes.SnapshotKindFull)
+					fullSnapshot, err := triggerOnDemandSnapshot(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080, brtypes.SnapshotKindFull)
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(fullSnapshot.LastRevision).To(Equal(10 + latestSnapshotBeforePopulate.LastRevision))
 
@@ -125,15 +125,15 @@ var _ = Describe("Etcd Backup", func() {
 						"fromKey", fmt.Sprintf("%s-11", etcdKeyPrefix), "fromValue", fmt.Sprintf("%s-11", etcdValuePrefix),
 						"toKey", fmt.Sprintf("%s-15", etcdKeyPrefix), "toValue", fmt.Sprintf("%s-15", etcdValuePrefix))
 					// populate 5 keys in etcd, finishing in 5 seconds
-					err = populateEtcd(logger, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, etcdKeyPrefix, etcdValuePrefix, 11, 15, time.Second*1)
+					err = populateEtcd(ctx, logger, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, etcdKeyPrefix, etcdValuePrefix, 11, 15, time.Second*1)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					By("Trigger on-demand delta snapshot")
-					_, err = triggerOnDemandSnapshot(kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080, brtypes.SnapshotKindDelta)
+					_, err = triggerOnDemandSnapshot(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080, brtypes.SnapshotKindDelta)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					By("Test cluster restoration by deleting data directory")
-					Expect(deleteDir(kubeconfigPath, namespace, debugPod.Name, debugPod.Spec.Containers[0].Name, "/var/etcd/data/new.etcd/member")).To(Succeed())
+					Expect(deleteDir(ctx, kubeconfigPath, namespace, debugPod.Name, debugPod.Spec.Containers[0].Name, "/var/etcd/data/new.etcd/member")).To(Succeed())
 
 					logger.Info("waiting for sts to become unready", "statefulSetName", etcdName)
 					Eventually(func() error {
@@ -169,7 +169,7 @@ var _ = Describe("Etcd Backup", func() {
 
 					// verify existence and correctness of keys 1 to 30
 					logger.Info("fetching etcd key-value pairs")
-					keyValueMap, err := getEtcdKeys(logger, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, etcdKeyPrefix, 1, 15)
+					keyValueMap, err := getEtcdKeys(ctx, logger, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, etcdKeyPrefix, 1, 15)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					for i := 1; i <= 15; i++ {
