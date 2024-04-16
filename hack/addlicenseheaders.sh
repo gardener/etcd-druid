@@ -18,7 +18,6 @@ sed 's|^// *||' hack/boilerplate.go.txt > $temp_file
 
 addlicense \
   -f $temp_file \
-  -ignore "vendor/**" \
   -ignore "**/*.md" \
   -ignore "**/*.yaml" \
   -ignore "**/Dockerfile" \

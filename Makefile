@@ -2,16 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Image URL to use all building/pushing image targets
+ENSURE_GARDENER_MOD := $(shell go get github.com/gardener/gardener@$$(go list -m -f "{{.Version}}" github.com/gardener/gardener))
+GARDENER_HACK_DIR   := $(shell go list -m -f "{{.Dir}}" github.com/gardener/gardener)/hack
 VERSION             := $(shell cat VERSION)
 REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
+HACK_DIR            := $(REPO_ROOT)/hack
 REGISTRY            := europe-docker.pkg.dev/gardener-project/snapshots
 IMAGE_REPOSITORY    := $(REGISTRY)/gardener/etcd-druid
 IMAGE_BUILD_TAG     := $(VERSION)
 BUILD_DIR           := build
 PROVIDERS           := ""
 BUCKET_NAME         := "e2e-test"
-KUBECONFIG_PATH     :=$(REPO_ROOT)/hack/e2e-test/infrastructure/kind/kubeconfig
+KUBECONFIG_PATH     := $(HACK_DIR)/e2e-test/infrastructure/kind/kubeconfig
 
 IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 
@@ -19,28 +21,16 @@ IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 # Tools                                 #
 #########################################
 
-TOOLS_DIR := hack/tools
-include $(REPO_ROOT)/hack/tools.mk
-include $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/tools.mk
+TOOLS_DIR := $(HACK_DIR)/tools
+include $(HACK_DIR)/tools.mk
+include $(GARDENER_HACK_DIR)/tools.mk
 
-
-.PHONY: set-permissions
-set-permissions:
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/clean.sh"
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh"
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check-generate.sh"
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/generate-crds.sh"
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/set_dependency_version"
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/component_descriptor"
-	@chmod +x "$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/.ci/prepare_release"
-
-.PHONY: revendor
-revendor: set-permissions
+.PHONY: tidy
+tidy:
 	@env GO111MODULE=on go mod tidy
-	@env GO111MODULE=on go mod vendor
-	@"$(REPO_ROOT)/hack/update-github-templates.sh"
-	@make set-permissions
-
+	@mkdir -p $(REPO_ROOT)/.ci/hack && cp $(GARDENER_HACK_DIR)/.ci/* $(REPO_ROOT)/.ci/hack/ && chmod +xw $(REPO_ROOT)/.ci/hack/*
+	@GARDENER_HACK_DIR=$(GARDENER_HACK_DIR) bash $(HACK_DIR)/update-github-templates.sh
+	@cp $(GARDENER_HACK_DIR)/cherry-pick-pull.sh $(HACK_DIR)/cherry-pick-pull.sh && chmod +xw $(HACK_DIR)/cherry-pick-pull.sh
 
 kind-up kind-down ci-e2e-kind deploy-localstack test-e2e: export KUBECONFIG = $(KUBECONFIG_PATH)
 
@@ -75,8 +65,8 @@ deploy: $(SKAFFOLD) $(HELM)
 
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: manifests
-manifests: $(CONTROLLER_GEN)
-	@go generate ./config/crd/bases
+manifests: $(VGOPATH) $(CONTROLLER_GEN)
+	@GARDENER_HACK_DIR=$(GARDENER_HACK_DIR) VGOPATH=$(VGOPATH) go generate ./config/crd/bases
 	@find "$(REPO_ROOT)/config/crd/bases" -name "*.yaml" -exec cp '{}' "$(REPO_ROOT)/charts/druid/charts/crds/templates/" \;
 	@controller-gen rbac:roleName=manager-role paths="./controllers/..."
 
@@ -86,23 +76,23 @@ fmt:
 	@env GO111MODULE=on go fmt ./...
 
 .PHONY: clean
-clean: set-permissions
-	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/clean.sh" ./api/... ./controllers/... ./pkg/...
+clean:
+	@bash $(GARDENER_HACK_DIR)/clean.sh ./api/... ./controllers/... ./pkg/...
 
 # Check packages
 .PHONY: check
-check: $(GOLANGCI_LINT) $(GOIMPORTS) set-permissions fmt manifests
-	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
+check: $(GOLANGCI_LINT) $(GOIMPORTS) fmt manifests
+	@REPO_ROOT=$(REPO_ROOT) bash $(GARDENER_HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
 
 .PHONY: check-generate
-check-generate: set-permissions
-	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check-generate.sh" "$(REPO_ROOT)"
+check-generate:
+	@bash $(GARDENER_HACK_DIR)/check-generate.sh "$(REPO_ROOT)"
 
 # Generate code
 .PHONY: generate
-generate: set-permissions manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
+generate: manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
 	@go generate "$(REPO_ROOT)/pkg/..."
-	@"$(REPO_ROOT)/hack/update-codegen.sh"
+	@bash $(HACK_DIR)/update-codegen.sh
 
 # Build the docker image
 .PHONY: docker-build
@@ -118,38 +108,38 @@ docker-push:
 
 # Run tests
 .PHONY: test
-test: set-permissions $(GINKGO) $(SETUP_ENVTEST)
-	@"$(REPO_ROOT)/hack/test.sh" ./api/... ./controllers/... ./pkg/...
+test: $(GINKGO) $(SETUP_ENVTEST)
+	@bash $(HACK_DIR)/test.sh ./api/... ./controllers/... ./pkg/...
 
 .PHONY: test-cov
-test-cov: set-permissions $(GINKGO) $(SETUP_ENVTEST)
-	@TEST_COV="true" "$(REPO_ROOT)/hack/test.sh" --skip-package=./test/e2e
+test-cov: $(GINKGO) $(SETUP_ENVTEST)
+	@TEST_COV="true" bash $(HACK_DIR)/test.sh --skip-package=./test/e2e
 
 .PHONY: test-cov-clean
-test-cov-clean: set-permissions
-	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/test-cover-clean.sh"
+test-cov-clean:
+	@bash $(GARDENER_HACK_DIR)/test-cover-clean.sh
 
 .PHONY: test-e2e
-test-e2e: set-permissions $(KUBECTL) $(HELM) $(SKAFFOLD)
-	@"$(REPO_ROOT)/hack/e2e-test/run-e2e-test.sh" $(PROVIDERS)
+test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
+	@bash $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
 .PHONY: test-integration
-test-integration: set-permissions $(GINKGO) $(SETUP_ENVTEST)
-	@"$(REPO_ROOT)/hack/test.sh" ./test/integration/...
+test-integration: $(GINKGO) $(SETUP_ENVTEST)
+	@bash $(HACK_DIR)/test.sh ./test/integration/...
 
 .PHONY: update-dependencies
 update-dependencies:
 	@env GO111MODULE=on go get -u
-	@make revendor
+	@make tidy
 
 .PHONY: add-license-headers
 add-license-headers: $(GO_ADD_LICENSE)
-	@./hack/addlicenseheaders.sh ${YEAR}
+	@bash $(HACK_DIR)/addlicenseheaders.sh ${YEAR}
 
 .PHONY: kind-up
 kind-up: $(KIND)
 	@printf "\n\033[0;33m📌 NOTE: To target the newly created KinD cluster, please run the following command:\n\n    export KUBECONFIG=$(KUBECONFIG_PATH)\n\033[0m\n"
-	./hack/kind-up.sh
+	@GARDENER_HACK_DIR=$(GARDENER_HACK_DIR) bash $(HACK_DIR)/kind-up.sh
 
 .PHONY: kind-down
 kind-down: $(KIND)
@@ -157,8 +147,8 @@ kind-down: $(KIND)
 
 .PHONY: deploy-localstack
 deploy-localstack: $(KUBECTL)
-	./hack/deploy-localstack.sh
+	@bash $(HACK_DIR)/deploy-localstack.sh
 
 .PHONY: ci-e2e-kind
 ci-e2e-kind:
-	BUCKET_NAME=$(BUCKET_NAME) ./hack/ci-e2e-kind.sh
+	@BUCKET_NAME=$(BUCKET_NAME) bash $(HACK_DIR)/ci-e2e-kind.sh

@@ -19,7 +19,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -46,6 +48,7 @@ type AddToManager func(mgr manager.Manager)
 func NewIntegrationTestEnv(namespacePrefix string, loggerName string, crdDirectoryPaths []string) *IntegrationTestEnv {
 	testEnv := &IntegrationTestEnv{ctx: context.Background()}
 	testEnv.Logger = ctrl.Log.WithName(loggerName)
+	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	druidScheme := prepareScheme()
 	testEnv.createTestEnvironment(druidScheme, crdDirectoryPaths)
@@ -122,8 +125,14 @@ func (e *IntegrationTestEnv) createManager() error {
 	}
 
 	mgr, err := manager.New(e.RestConfig, manager.Options{
-		MetricsBindAddress:    "0",
-		ClientDisableCacheFor: uncachedObjects,
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+		Client: client.Options{
+			Cache: &client.CacheOptions{
+				DisableFor: uncachedObjects,
+			},
+		},
 	})
 	if err != nil {
 		return err

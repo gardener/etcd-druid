@@ -8,7 +8,7 @@ KUSTOMIZE                  := $(TOOLS_BIN_DIR)/kustomize
 
 # default tool versions
 SKAFFOLD_VERSION ?= v1.38.0
-KUSTOMIZE_VERSION ?= v5.0.0
+KUSTOMIZE_VERSION ?= v4.5.7
 
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
@@ -18,4 +18,4 @@ export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 #########################################
 
 $(KUSTOMIZE):
-	@test -s $(TOOLS_BIN_DIR)/kustomize || GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}
+	@test -s $(TOOLS_BIN_DIR)/kustomize || GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/kustomize/kustomize/v4@${KUSTOMIZE_VERSION}

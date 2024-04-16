@@ -22,6 +22,7 @@ import (
 	eventsv1beta1 "k8s.io/api/events/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 var (
@@ -61,9 +62,15 @@ func createManager(config *ManagerConfig) (ctrl.Manager, error) {
 	}
 
 	return ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		ClientDisableCacheFor:      uncachedObjects,
-		Scheme:                     kubernetes.Scheme,
-		MetricsBindAddress:         config.MetricsAddr,
+		Client: client.Options{
+			Cache: &client.CacheOptions{
+				DisableFor: uncachedObjects,
+			},
+		},
+		Scheme: kubernetes.Scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: config.MetricsAddr,
+		},
 		LeaderElection:             config.EnableLeaderElection,
 		LeaderElectionID:           config.LeaderElectionID,
 		LeaderElectionResourceLock: config.LeaderElectionResourceLock,
