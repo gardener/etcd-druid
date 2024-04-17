@@ -132,7 +132,7 @@ require (
 	istio.io/api v1.19.2-0.20231011000955-f3015ebb5bd4 // indirect
 	istio.io/client-go v1.19.3 // indirect
 	k8s.io/apiextensions-apiserver v0.28.3 // indirect
-	k8s.io/autoscaler v0.0.0-20190805135949-100e91ba756e // indirect
+	k8s.io/autoscaler/vertical-pod-autoscaler v1.0.0 // indirect
 	k8s.io/code-generator v0.28.3 // indirect
 	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d // indirect
 	k8s.io/helm v2.17.0+incompatible // indirect
