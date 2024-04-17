@@ -915,7 +915,7 @@ func getVolumeMountsElements(storeProvider, volumePrefix string) Elements {
 	case "GCS":
 		return Elements{
 			volumePrefix + common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
-				"Name":      Equal(volumePrefix + common.ProviderBackupSecretVolumeName),
+				"Name":      Equal(getVolumeNamePrefix(volumePrefix) + common.ProviderBackupSecretVolumeName),
 				"MountPath": Equal(fmt.Sprintf("/var/.%sgcp/", volumePrefix)),
 			}),
 		}

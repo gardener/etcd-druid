@@ -493,7 +493,7 @@ func createVolumeMountsFromStore(store *druidv1alpha1.StoreSpec, provider, volum
 	case utils.GCS:
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      getVolumeNamePrefix(volumeMountPrefix) + common.ProviderBackupSecretVolumeName,
-			MountPath: getGCSVolumeMountPathWithPrefixAndSuffix(volumeMountPrefix, "/"),
+			MountPath: getGCSVolumeMountPathWithPrefixAndSuffix(getVolumeNamePrefix(volumeMountPrefix), "/"),
 		})
 	case utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
