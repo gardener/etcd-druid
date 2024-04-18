@@ -145,4 +145,5 @@ func (t *itTestEnv) createManager(scheme *k8sruntime.Scheme, clientBuilder *test
 	t.g.Expect(err).ToNot(HaveOccurred())
 	t.mgr = mgr
 	t.client = mgr.GetClient()
+	ctrl.SetLogger(logr.Discard())
 }
