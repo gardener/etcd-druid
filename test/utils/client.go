@@ -285,6 +285,14 @@ func (c *testClient) RESTMapper() meta.RESTMapper {
 	return c.delegate.RESTMapper()
 }
 
+func (c *testClient) GroupVersionKindFor(obj runtime.Object) (schema.GroupVersionKind, error) {
+	return c.delegate.GroupVersionKindFor(obj)
+}
+
+func (c *testClient) IsObjectNamespaced(obj runtime.Object) (bool, error) {
+	return c.delegate.IsObjectNamespaced(obj)
+}
+
 // ---------------------------------- Helper methods ----------------------------------
 func (c *testClient) getRecordedObjectError(method ClientMethod, objKey client.ObjectKey) error {
 	for _, errRecord := range c.errorRecords {

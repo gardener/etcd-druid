@@ -35,7 +35,7 @@ func GetEtcdChartPath() string {
 
 // CreateImageVector creates an image vector.
 func CreateImageVector(g *WithT) imagevector.ImageVector {
-	imageVectorPath := filepath.Join("..", "..", "..", "..", common.ChartPath, "images.yaml")
+	imageVectorPath := filepath.Join("..", "..", "..", "..", common.DefaultImageVectorFilePath)
 	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(imageVectorPath)
 	g.Expect(err).To(BeNil())
 	return imageVector

@@ -41,11 +41,7 @@ type Handler struct {
 
 // NewHandler creates a new handler for Sentinel Webhook.
 func NewHandler(mgr manager.Manager, config *Config) (*Handler, error) {
-	decoder, err := admission.NewDecoder(mgr.GetScheme())
-	if err != nil {
-		return nil, err
-	}
-
+	decoder := admission.NewDecoder(mgr.GetScheme())
 	return &Handler{
 		Client:  mgr.GetClient(),
 		config:  config,

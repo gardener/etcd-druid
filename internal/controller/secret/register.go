@@ -9,12 +9,12 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druidmapper "github.com/gardener/etcd-druid/internal/mapper"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 const controllerName = "secret-controller"
@@ -34,7 +34,7 @@ func (r *Reconciler) RegisterWithManager(ctx context.Context, mgr ctrl.Manager) 
 	}
 
 	return c.Watch(
-		&source.Kind{Type: &druidv1alpha1.Etcd{}},
+		source.Kind(mgr.GetCache(), &druidv1alpha1.Etcd{}),
 		mapper.EnqueueRequestsFrom(ctx, mgr.GetCache(), druidmapper.EtcdToSecret(), mapper.UpdateWithOldAndNew, c.GetLogger()),
 	)
 }

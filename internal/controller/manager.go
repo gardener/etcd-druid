@@ -14,6 +14,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
 	"github.com/gardener/etcd-druid/internal/webhook/sentinel"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	coordinationv1 "k8s.io/api/coordination/v1"
 	coordinationv1beta1 "k8s.io/api/coordination/v1beta1"
@@ -61,15 +62,17 @@ func createManager(config *ManagerConfig) (ctrl.Manager, error) {
 	}
 
 	return ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		ClientDisableCacheFor:      uncachedObjects,
-		Scheme:                     kubernetes.Scheme,
-		MetricsBindAddress:         config.Server.Metrics.BindAddress,
-		Host:                       config.Server.Webhook.BindAddress,
-		Port:                       config.Server.Webhook.Port,
-		CertDir:                    config.Server.Webhook.TLS.ServerCertDir,
-		LeaderElection:             config.EnableLeaderElection,
-		LeaderElectionID:           config.LeaderElectionID,
-		LeaderElectionResourceLock: config.LeaderElectionResourceLock,
+		Client: client.Options{
+			Cache: &client.CacheOptions{
+				DisableFor: uncachedObjects,
+			},
+		},
+		Scheme: kubernetes.Scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: config.MetricsAddr,
+		},
+		LeaderElection:   config.EnableLeaderElection,
+		LeaderElectionID: config.LeaderElectionID,
 	})
 }
 

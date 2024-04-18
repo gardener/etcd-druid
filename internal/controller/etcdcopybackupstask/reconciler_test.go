@@ -87,7 +87,24 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 		Context("delete EtcdCopyBackupsTask object tests when it exists", func() {
 			BeforeEach(func() {
-				task = ensureEtcdCopyBackupsTaskCreation(ctx, testTaskName, testNamespace, fakeClient)
+				task = testutils.CreateEtcdCopyBackupsTask(testTaskName, testNamespace, "aws", false)
+
+				By("Create fake client with task object")
+				fakeClient = fakeclient.NewClientBuilder().
+					WithScheme(kubernetes.Scheme).
+					WithObjects(task).
+					WithStatusSubresource(task).
+					Build()
+
+				By("Ensure that copy backups task is created")
+				Eventually(func() error {
+					return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)
+				}).Should(Succeed())
+
+				r = &Reconciler{
+					Client: fakeClient,
+					logger: logr.Discard(),
+				}
 			})
 			AfterEach(func() {
 				ensureEtcdCopyBackupsTaskRemoval(ctx, testTaskName, testNamespace, fakeClient)
@@ -103,7 +120,11 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 			It("should remove finalizer for task which does not have a corresponding job", func() {
 				Expect(controllerutils.AddFinalizers(ctx, fakeClient, task, common.FinalizerName)).To(Succeed())
-				Expect(addDeletionTimestampToTask(ctx, task, time.Now(), fakeClient)).To(Succeed())
+				// use fakeClient.Delete() to simply add deletionTimestamp to `task` object,
+				// due to https://github.com/kubernetes-sigs/controller-runtime/pull/2316
+				Expect(fakeClient.Delete(ctx, task)).To(Succeed())
+				// get the updated object after deletionTimestamp has been added by fakeClient.Delete() call
+				Expect(fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)).To(Succeed())
 
 				_, err := r.delete(ctx, task)
 				Expect(err).To(BeNil())
@@ -116,19 +137,15 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				job := testutils.CreateEtcdCopyBackupsJob(testTaskName, testNamespace)
 				Expect(fakeClient.Create(ctx, job)).To(Succeed())
 				Expect(controllerutils.AddFinalizers(ctx, fakeClient, task, common.FinalizerName)).To(Succeed())
-				Expect(addDeletionTimestampToTask(ctx, task, time.Now(), fakeClient)).To(Succeed())
+				Expect(fakeClient.Delete(ctx, task)).To(Succeed())
+				Expect(fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)).To(Succeed())
+
 				_, err := r.delete(ctx, task)
 				Expect(err).To(BeNil())
-				Eventually(func() error {
-					return fakeClient.Get(ctx, client.ObjectKeyFromObject(job), job)
-				}).Should(BeNotFoundError())
-				Eventually(func() error {
-					return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)
-				}).Should(BeNil())
+				Eventually(func() error { return fakeClient.Get(ctx, client.ObjectKeyFromObject(job), job) }).Should(BeNotFoundError())
+				Eventually(func() error { return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task) }).Should(BeNil())
 			})
-
 		})
-
 	})
 
 	Describe("#createJobObject", func() {

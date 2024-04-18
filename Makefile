@@ -75,12 +75,12 @@ fmt:
 	@env GO111MODULE=on go fmt ./...
 
 clean:
-	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/clean.sh" ./api/... ./internal/...
+	@bash $(GARDENER_HACK_DIR)/clean.sh ./api/... ./internal/...
 
 # Check packages
 .PHONY: check
-check: $(GOLANGCI_LINT) $(GOIMPORTS) set-permissions fmt manifests
-	@"$(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/check.sh" --golangci-lint-config=./.golangci.yaml ./api/... ./internal/...
+check: $(GOLANGCI_LINT) $(GOIMPORTS) fmt manifests
+	@REPO_ROOT=$(REPO_ROOT) bash $(GARDENER_HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./api/... ./internal/...
 
 .PHONY: check-generate
 check-generate:
@@ -88,7 +88,7 @@ check-generate:
 
 # Generate code
 .PHONY: generate
-generate: set-permissions manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
+generate: manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
 	@go generate "$(REPO_ROOT)/internal/..."
 	@"$(REPO_ROOT)/hack/update-codegen.sh"
 
@@ -132,7 +132,7 @@ test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
 	@bash $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
 .PHONY: test-integration
-test-integration: set-permissions $(GINKGO) $(SETUP_ENVTEST)
+test-integration: $(GINKGO) $(SETUP_ENVTEST)
 	@SETUP_ENVTEST="true" "$(REPO_ROOT)/hack/test.sh" ./test/integration/...
 	@SETUP_ENVTEST="true" "$(REPO_ROOT)/hack/test-go.sh" ./test/it/...
 

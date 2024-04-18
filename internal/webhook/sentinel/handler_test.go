@@ -71,8 +71,7 @@ func TestHandleCreateAndConnect(t *testing.T) {
 	}
 
 	cl := testutils.CreateDefaultFakeClient()
-	decoder, err := admission.NewDecoder(cl.Scheme())
-	g.Expect(err).ToNot(HaveOccurred())
+	decoder := admission.NewDecoder(cl.Scheme())
 
 	handler := &Handler{
 		Client: cl,
@@ -93,7 +92,7 @@ func TestHandleCreateAndConnect(t *testing.T) {
 				},
 			})
 			g.Expect(resp.Allowed).To(BeTrue())
-			g.Expect(string(resp.Result.Reason)).To(Equal(tc.expectedMsg))
+			g.Expect(resp.Result.Message).To(Equal(tc.expectedMsg))
 		})
 	}
 }
@@ -101,8 +100,7 @@ func TestHandleCreateAndConnect(t *testing.T) {
 func TestHandleLeaseUpdate(t *testing.T) {
 	g := NewWithT(t)
 	cl := fake.NewClientBuilder().Build()
-	decoder, err := admission.NewDecoder(cl.Scheme())
-	g.Expect(err).ToNot(HaveOccurred())
+	decoder := admission.NewDecoder(cl.Scheme())
 
 	handler := &Handler{
 		Client: cl,
@@ -121,15 +119,14 @@ func TestHandleLeaseUpdate(t *testing.T) {
 	})
 
 	g.Expect(resp.Allowed).To(BeTrue())
-	g.Expect(string(resp.Result.Reason)).To(Equal("lease resource can be freely updated"))
+	g.Expect(resp.Result.Message).To(Equal("lease resource can be freely updated"))
 }
 
 func TestUnexpectedResourceType(t *testing.T) {
 	g := NewWithT(t)
 
 	cl := fake.NewClientBuilder().Build()
-	decoder, err := admission.NewDecoder(cl.Scheme())
-	g.Expect(err).ToNot(HaveOccurred())
+	decoder := admission.NewDecoder(cl.Scheme())
 
 	handler := &Handler{
 		Client: cl,
@@ -148,15 +145,14 @@ func TestUnexpectedResourceType(t *testing.T) {
 	})
 
 	g.Expect(resp.Allowed).To(BeTrue())
-	g.Expect(string(resp.Result.Reason)).To(Equal("unexpected resource type: coordination.k8s.io/Unknown"))
+	g.Expect(resp.Result.Message).To(Equal("unexpected resource type: coordination.k8s.io/Unknown"))
 }
 
 func TestMissingResourcePartOfLabel(t *testing.T) {
 	g := NewWithT(t)
 
 	cl := fake.NewClientBuilder().Build()
-	decoder, err := admission.NewDecoder(cl.Scheme())
-	g.Expect(err).ToNot(HaveOccurred())
+	decoder := admission.NewDecoder(cl.Scheme())
 
 	handler := &Handler{
 		Client: cl,
@@ -181,7 +177,7 @@ func TestMissingResourcePartOfLabel(t *testing.T) {
 	})
 
 	g.Expect(response.Allowed).To(Equal(true))
-	g.Expect(string(response.Result.Reason)).To(Equal(fmt.Sprintf("label %s not found on resource", druidv1alpha1.LabelPartOfKey)))
+	g.Expect(response.Result.Message).To(Equal(fmt.Sprintf("label %s not found on resource", druidv1alpha1.LabelPartOfKey)))
 }
 
 func TestHandleUpdate(t *testing.T) {
@@ -202,7 +198,6 @@ func TestHandleUpdate(t *testing.T) {
 		exemptServiceAccounts    []string
 		// ----- expected -----
 		expectedAllowed bool
-		expectedReason  string
 		expectedMessage string
 		expectedCode    int32
 	}{
@@ -211,7 +206,7 @@ func TestHandleUpdate(t *testing.T) {
 			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
 			etcdAnnotations: map[string]string{druidv1alpha1.ResourceProtectionAnnotation: "false"},
 			expectedAllowed: true,
-			expectedReason:  fmt.Sprintf("changes allowed, since etcd %s has annotation %s: false", testEtcdName, druidv1alpha1.ResourceProtectionAnnotation),
+			expectedMessage: fmt.Sprintf("changes allowed, since etcd %s has annotation %s: false", testEtcdName, druidv1alpha1.ResourceProtectionAnnotation),
 			expectedCode:    http.StatusOK,
 		},
 		{
@@ -221,7 +216,7 @@ func TestHandleUpdate(t *testing.T) {
 			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			expectedAllowed:          false,
-			expectedReason:           fmt.Sprintf("no external intervention allowed during ongoing reconciliation of etcd %s by etcd-druid", testEtcdName),
+			expectedMessage:          fmt.Sprintf("no external intervention allowed during ongoing reconciliation of etcd %s by etcd-druid", testEtcdName),
 			expectedCode:             http.StatusForbidden,
 		},
 		{
@@ -231,7 +226,7 @@ func TestHandleUpdate(t *testing.T) {
 			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			expectedAllowed:          true,
-			expectedReason:           fmt.Sprintf("ongoing reconciliation of etcd %s by etcd-druid requires changes to resources", testEtcdName),
+			expectedMessage:          fmt.Sprintf("ongoing reconciliation of etcd %s by etcd-druid requires changes to resources", testEtcdName),
 			expectedCode:             http.StatusOK,
 		},
 		{
@@ -241,7 +236,7 @@ func TestHandleUpdate(t *testing.T) {
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			exemptServiceAccounts:    exemptServiceAccounts,
 			expectedAllowed:          true,
-			expectedReason:           fmt.Sprintf("operations on etcd %s by service account %s is exempt from Sentinel Webhook checks", testEtcdName, exemptServiceAccounts[0]),
+			expectedMessage:          fmt.Sprintf("operations on etcd %s by service account %s is exempt from Sentinel Webhook checks", testEtcdName, exemptServiceAccounts[0]),
 			expectedCode:             http.StatusOK,
 		},
 		{
@@ -251,7 +246,7 @@ func TestHandleUpdate(t *testing.T) {
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			exemptServiceAccounts:    exemptServiceAccounts,
 			expectedAllowed:          false,
-			expectedReason:           fmt.Sprintf("changes disallowed, since no ongoing processing of etcd %s by etcd-druid", testEtcdName),
+			expectedMessage:          fmt.Sprintf("changes disallowed, since no ongoing processing of etcd %s by etcd-druid", testEtcdName),
 			expectedCode:             http.StatusForbidden,
 		},
 	}
@@ -265,8 +260,7 @@ func TestHandleUpdate(t *testing.T) {
 				Build()
 
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			decoder, err := admission.NewDecoder(cl.Scheme())
-			g.Expect(err).ToNot(HaveOccurred())
+			decoder := admission.NewDecoder(cl.Scheme())
 
 			handler := &Handler{
 				Client: cl,
@@ -293,7 +287,6 @@ func TestHandleUpdate(t *testing.T) {
 			})
 
 			g.Expect(response.Allowed).To(Equal(tc.expectedAllowed))
-			g.Expect(string(response.Result.Reason)).To(Equal(tc.expectedReason))
 			g.Expect(response.Result.Message).To(ContainSubstring(tc.expectedMessage))
 			g.Expect(response.Result.Code).To(Equal(tc.expectedCode))
 		})
@@ -348,8 +341,7 @@ func TestHandleWithInvalidRequestObject(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			cl := testutils.CreateDefaultFakeClient()
-			decoder, err := admission.NewDecoder(cl.Scheme())
-			g.Expect(err).ToNot(HaveOccurred())
+			decoder := admission.NewDecoder(cl.Scheme())
 
 			handler := &Handler{
 				Client: cl,
@@ -413,8 +405,7 @@ func TestEtcdGetFailures(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(t.Name(), func(t *testing.T) {
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			decoder, err := admission.NewDecoder(cl.Scheme())
-			g.Expect(err).ToNot(HaveOccurred())
+			decoder := admission.NewDecoder(cl.Scheme())
 
 			handler := &Handler{
 				Client: cl,
@@ -441,7 +432,6 @@ func TestEtcdGetFailures(t *testing.T) {
 			})
 
 			g.Expect(response.Allowed).To(Equal(tc.expectedAllowed))
-			g.Expect(string(response.Result.Reason)).To(Equal(tc.expectedReason))
 			g.Expect(response.Result.Message).To(ContainSubstring(tc.expectedMessage))
 			g.Expect(response.Result.Code).To(Equal(tc.expectedCode))
 		})
@@ -475,7 +465,7 @@ func TestHandleDelete(t *testing.T) {
 			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
 			etcdAnnotations: map[string]string{druidv1alpha1.ResourceProtectionAnnotation: "false"},
 			expectedAllowed: true,
-			expectedReason:  fmt.Sprintf("changes allowed, since etcd %s has annotation %s: false", testEtcdName, druidv1alpha1.ResourceProtectionAnnotation),
+			expectedMessage: fmt.Sprintf("changes allowed, since etcd %s has annotation %s: false", testEtcdName, druidv1alpha1.ResourceProtectionAnnotation),
 			expectedCode:    http.StatusOK,
 		},
 		{
@@ -485,7 +475,8 @@ func TestHandleDelete(t *testing.T) {
 			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			expectedAllowed:          false,
-			expectedReason:           fmt.Sprintf("no external intervention allowed during ongoing reconciliation of etcd %s by etcd-druid", testEtcdName),
+			expectedReason:           "Forbidden",
+			expectedMessage:          fmt.Sprintf("no external intervention allowed during ongoing reconciliation of etcd %s by etcd-druid", testEtcdName),
 			expectedCode:             http.StatusForbidden,
 		},
 		{
@@ -495,7 +486,7 @@ func TestHandleDelete(t *testing.T) {
 			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			expectedAllowed:          true,
-			expectedReason:           fmt.Sprintf("ongoing reconciliation of etcd %s by etcd-druid requires changes to resources", testEtcdName),
+			expectedMessage:          fmt.Sprintf("ongoing reconciliation of etcd %s by etcd-druid requires changes to resources", testEtcdName),
 			expectedCode:             http.StatusOK,
 		},
 		{
@@ -505,7 +496,7 @@ func TestHandleDelete(t *testing.T) {
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			exemptServiceAccounts:    exemptServiceAccounts,
 			expectedAllowed:          true,
-			expectedReason:           fmt.Sprintf("operations on etcd %s by service account %s is exempt from Sentinel Webhook checks", testEtcdName, exemptServiceAccounts[0]),
+			expectedMessage:          fmt.Sprintf("operations on etcd %s by service account %s is exempt from Sentinel Webhook checks", testEtcdName, exemptServiceAccounts[0]),
 			expectedCode:             http.StatusOK,
 		},
 		{
@@ -515,7 +506,8 @@ func TestHandleDelete(t *testing.T) {
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			exemptServiceAccounts:    exemptServiceAccounts,
 			expectedAllowed:          false,
-			expectedReason:           fmt.Sprintf("changes disallowed, since no ongoing processing of etcd %s by etcd-druid", testEtcdName),
+			expectedMessage:          fmt.Sprintf("changes disallowed, since no ongoing processing of etcd %s by etcd-druid", testEtcdName),
+			expectedReason:           "Forbidden",
 			expectedCode:             http.StatusForbidden,
 		},
 	}
@@ -528,8 +520,7 @@ func TestHandleDelete(t *testing.T) {
 				Build()
 
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			decoder, err := admission.NewDecoder(cl.Scheme())
-			g.Expect(err).ToNot(HaveOccurred())
+			decoder := admission.NewDecoder(cl.Scheme())
 
 			handler := &Handler{
 				Client: cl,

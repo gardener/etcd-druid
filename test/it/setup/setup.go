@@ -10,18 +10,18 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+	eventsv1 "k8s.io/api/events/v1"
+	eventsv1beta1 "k8s.io/api/events/v1beta1"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	eventsv1 "k8s.io/api/events/v1"
-	eventsv1beta1 "k8s.io/api/events/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -124,24 +124,22 @@ func (t *itTestEnv) createTestEnvironment(scheme *k8sruntime.Scheme, crdDirector
 
 func (t *itTestEnv) createManager(scheme *k8sruntime.Scheme, clientBuilder *testutils.TestClientBuilder) {
 	mgr, err := manager.New(t.config, manager.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: "0",
-		ClientDisableCacheFor: []client.Object{
-			&corev1.Event{},
-			&eventsv1beta1.Event{},
-			&eventsv1.Event{},
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
 		},
-		NewClient: func(cache cache.Cache, config *rest.Config, options client.Options, uncachedObjects ...client.Object) (client.Client, error) {
+		NewClient: func(config *rest.Config, options client.Options) (client.Client, error) {
+			options.Cache.DisableFor = []client.Object{
+				&corev1.Event{},
+				&eventsv1beta1.Event{},
+				&eventsv1.Event{},
+			}
 			cl, err := client.New(config, options)
 			if err != nil {
 				return nil, err
 			}
 			testCl := clientBuilder.WithClient(cl).Build()
-			return client.NewDelegatingClient(client.NewDelegatingClientInput{
-				CacheReader:     cache,
-				Client:          testCl,
-				UncachedObjects: uncachedObjects,
-			})
+			return testCl, nil
 		},
 	})
 	t.g.Expect(err).ToNot(HaveOccurred())

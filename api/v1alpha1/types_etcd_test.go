@@ -7,8 +7,6 @@ package v1alpha1_test
 import (
 	"time"
 
-	testutils "github.com/gardener/etcd-druid/test/utils"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -356,12 +354,12 @@ func getEtcd(name, namespace string) *Etcd {
 
 				Resources: &corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
-						"cpu":    testutils.ParseQuantity("500m"),
-						"memory": testutils.ParseQuantity("2Gi"),
+						"cpu":    resource.MustParse("500m"),
+						"memory": resource.MustParse("2Gi"),
 					},
 					Requests: corev1.ResourceList{
-						"cpu":    testutils.ParseQuantity("23m"),
-						"memory": testutils.ParseQuantity("128Mi"),
+						"cpu":    resource.MustParse("23m"),
+						"memory": resource.MustParse("128Mi"),
 					},
 				},
 				Store: &StoreSpec{
@@ -380,12 +378,12 @@ func getEtcd(name, namespace string) *Etcd {
 				DefragmentationSchedule: &defragSchedule,
 				Resources: &corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
-						"cpu":    testutils.ParseQuantity("2500m"),
-						"memory": testutils.ParseQuantity("4Gi"),
+						"cpu":    resource.MustParse("2500m"),
+						"memory": resource.MustParse("4Gi"),
 					},
 					Requests: corev1.ResourceList{
-						"cpu":    testutils.ParseQuantity("500m"),
-						"memory": testutils.ParseQuantity("1000Mi"),
+						"cpu":    resource.MustParse("500m"),
+						"memory": resource.MustParse("1000Mi"),
 					},
 				},
 				ClientPort:   &clientPort,

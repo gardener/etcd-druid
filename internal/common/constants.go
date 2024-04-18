@@ -19,8 +19,8 @@ const (
 )
 
 const (
-	// ChartPath is the directory containing the default image vector file.
-	ChartPath = "charts"
+	// DefaultImageVectorFilePath is the path to the default image vector file.
+	DefaultImageVectorFilePath = "charts/images.yaml"
 	// FinalizerName is the name of the etcd finalizer.
 	FinalizerName = "druid.gardener.cloud/etcd-druid"
 )
@@ -153,7 +153,7 @@ const (
 	// GCSBackupVolumeMountPath is the path on a container where the GCS backup secret is mounted.
 	GCSBackupVolumeMountPath = "/var/.gcp/"
 	// NonGCSProviderBackupVolumeMountPath is the path on a container where the non-GCS provider backup secret is mounted.
-	NonGCSProviderBackupVolumeMountPath = "/var/etcd-backup/"
+	NonGCSProviderBackupVolumeMountPath = "/var/etcd-backup"
 
 	// EtcdDataVolumeMountPath is the path on a container where the etcd data directory is hosted.
 	EtcdDataVolumeMountPath = "/var/etcd/data"
