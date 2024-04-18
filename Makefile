@@ -106,8 +106,7 @@ docker-push:
 
 # Run tests
 .PHONY: test
-test: $(GINKGO)
-test: $(GINKGO)
+test: $(GINKGO) $(GOTEST)
 	@# run ginkgo unit tests. These will be ported to golang native tests over a period of time.
 	@"$(REPO_ROOT)/hack/test.sh" ./api/... \
 	./internal/controller/etcdcopybackupstask/... \
@@ -132,7 +131,7 @@ test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
 	@bash $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
 .PHONY: test-integration
-test-integration: $(GINKGO) $(SETUP_ENVTEST)
+test-integration: $(GINKGO) $(SETUP_ENVTEST) $(GOTEST)
 	@SETUP_ENVTEST="true" "$(REPO_ROOT)/hack/test.sh" ./test/integration/...
 	@SETUP_ENVTEST="true" "$(REPO_ROOT)/hack/test-go.sh" ./test/it/...
 

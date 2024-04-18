@@ -36,9 +36,9 @@ if ${TEST_COV:-false}; then
   output_dir=test/output
   coverprofile_file=coverprofile.out
   mkdir -p test/output
-  go test -v -coverprofile=cover.out $@
+  gotest -v -coverprofile=cover.out $@
   go tool cover -func=cover.out
   exit 0
 fi
 
-go test -v $@
+gotest -v $@
