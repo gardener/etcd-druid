@@ -116,10 +116,14 @@ type EtcdOperatorTaskSpec struct {
   // Config is a task specific configuration.
   Config *runtime.RawExtension `json:"config,omitempty"`
 
-  // TTLSecondsAfterFinished is the time-to-live after which the task and 
-  // related resources will be garbage collected.
+  // TTLSecondsAfterFinished is the time-to-live to garbage collect the 
+  // related resource(s) of task once it has been completed.
   // +optional
   TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
+
+  // OwnerEtcdReference refers to the name and namespace of the corresponding 
+  // etcd owner for which the task has been invoked.
+  OwnerEtcdRefrence metav1.ObjectMeta `json:"ownerEtcdRefrence"`
 }
 ```
 
@@ -127,7 +131,7 @@ type EtcdOperatorTaskSpec struct {
 
 The authors propose that the following fields should be specified in the `Status` (current state) of the `EtcdOperatorTask` custom resource as the custom resource's `Status` will be used to monitor the progress of the task.
 
-* To capture the Status of a task, a field `.status.taskState` is defined in status.
+* To capture the current state of a task, a field `.status.taskState` is defined in status.
 * If an operation involves many stages, `.status.lastOperation` will be useful in capturing the status of any intermediate stage.
 
 ```go
@@ -140,7 +144,7 @@ type EtcdOperatorTaskStatus struct {
   ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
   // State of the task is the last known state of the task.
   State TaskState `json:"taskState"`
-  // Time at which operation has been triggered.
+  // Time at which task move to any other state from "pending" state.
   InitiatedAt metav1.Time `json:"initiatedAt"`
   // LastError represents the errors when processing the task.
   LastErrors []LastError `json:"lastErrors,omitempty"`
@@ -192,14 +196,15 @@ spec:
     type: <type/category of supported out-of-band task>
     ttlSecondsAfterFinished: <time-to-live to garbage collect the custom resource after it has been completed>
     config: <task specific configuration>
+    ownerEtcdRefrence: <refer to corresponding etcd owner name and namespace for which task has been invoked>
 status:
     observedGeneration: <specific observedGeneration of the resource>
     taskState: <overall state of the task>
-    initiatedAt: <time of intiation of this operation>
+    initiatedAt: <time at which task move to any other state from "pending" state>
     lastErrors:
-      - code: <error-code>
-        description: <description of the error>
-        observedAt: <time the error was observed>
+    - code: <error-code>
+      description: <description of the error>
+      observedAt: <time the error was observed>
     lastOperation:
       name: <operation-name>
       state: <task state as seen at the completion of last operation>
@@ -220,7 +225,7 @@ Task(s) can be created by creating an instance of the `EtcdOperatorTask` custom 
 * Authors propose to introduce a new controller (let's call it `operator-task-controller`) which watches for `EtcdOperatorTask` custom resource.
 * Each `out-of-band` task may have some task specific configuration defined in [.spec.taskConfig](#spec).
 * The controller (`operator-task-controller`) needs to parse this task specific config, which comes as a RawExtension, according to the schema defined for each task.
-* Moreover, all tasks have to adhere to some prerequisites(a.k.a `pre-conditions`) which will be necessary to execute the task. Authors propose to define pre-conditions for each task, which must be met for the task to be eligible for execution otherwise that task should be rejected.
+* Moreover, all tasks have to adhere to some prerequisites (a.k.a `pre-conditions`) which will be necessary to execute the task. Authors propose to define pre-conditions for each task, which must be met for the task to be eligible for execution otherwise that task should be rejected.
 * If multiple tasks are invoked simultaneously or in `pending` state, then they will be executed in a First-In-First-Out (FIFO) manner.
 
 > Note: Dependent ordering among tasks will be addressed later which may enable concurrent execution of tasks.
@@ -233,7 +238,7 @@ Upon completion of the task, whether it has failed, succeeded, or been rejected,
 
 #### Recovery from permanent quorum loss
 
-Currently, identification and recovery from permanent quorum loss is done manually. The current proposal keeps the identification as manual, requiring a human operator to intervene and confirm that there is indeed a permanent quorum loss with no auto healing possibility. Once that is established then the next step to recover the cluster is now proposed to be automated. Recovery today is a [multi-step process](https://github.com/gardener/etcd-druid/blob/master/docs/operations/recovery-from-permanent-quorum-loss-in-etcd-cluster.md) and needs to be done carefully. Automation would ensure that we eliminate any errors from an operator.
+Recovery from permanent quorum loss involves two phases - identification and recovery - both of which are done manually today. This proposal intends to automate the latter. Recovery today is a [multi-step process](https://github.com/gardener/etcd-druid/blob/master/docs/operations/recovery-from-permanent-quorum-loss-in-etcd-cluster.md) and needs to be performed carefully by a human operator. Automating these steps would be prudent, to make it quicker and error-free. The identification of the permanent quorum loss would remain a manual process, requiring a human operator to investigate and confirm that there is indeed a permanent quorum loss with no possibility of auto-healing.
 
 ##### Task Config
 
@@ -250,8 +255,7 @@ We do not need any config for this task. When creating an instance of `EtcdOpera
 
 ##### Possible scenarios
 
-* Full snapshot taken via compaction job is better as compared to full snapshot taken directly from etcd cluster as full snapshot taken via snapshot compaction is taken after [defragmentation](https://etcd.io/docs/v3.2/op-guide/maintenance/#defragmentation) which makes it smaller (more compacted) in size.
-* Full snapshot triggered on etcd cluster might cause load on running etcd cluster but the full snapshot taken by the compaction job is designed to run separately, thereby having no impact on the operational cluster.
+* If a human operator needs to verify the integrity of etcd cluster backups, particularly in cases of potential backup corruption or re-encryption, they can initiate an `on-demand snapshot compaction` task. The success or failure of this snapshot compaction can offer valuable insights into these scenarios.
 
 ##### Task Config
 
@@ -259,9 +263,9 @@ We do not need any config for this task. When creating an instance of `EtcdOpera
 
 ##### Pre-Conditions
 
-* There should not be a `on-demand snapshot-compaction` task already running for the same etcd cluster.
+* There should not be a `on-demand snapshot compaction` task already running for the same etcd cluster.
 
-> Note: `on-demand snapshot-compaction` runs as a separate job in a separate pod, which interacts with the backup bucket and not the etcd cluster itself, hence it doesn't depend on the health of etcd cluster members.
+> Note: `on-demand snapshot compaction` runs as a separate job in a separate pod, which interacts with the backup bucket and not the etcd cluster itself, hence it doesn't depend on the health of etcd cluster members.
 
 #### Trigger on-demand full/delta snapshot
 
@@ -272,9 +276,7 @@ If a human operator does not wish to wait for the scheduled full/delta snapshot,
 
 * An on-demand full snapshot can be triggered if scheduled snapshot fails due to any reason.
 * [Gardener Shoot Hibernation](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_hibernate.md): Every etcd cluster incurs an inherent cost of preserving the volumes even when a gardener shoot control plane is scaled down, i.e the shoot is in a hibernated state. However, it is possible to save on hyperscaler costs by invoking this task to take a full snapshot before scaling down the etcd cluster, and deleting the etcd data volumes afterwards.
-* [Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md): In [gardener](https://github.com/gardener/gardener), a seed cluster control plane can be moved from one seed cluster to another. This process currently requires the etcd data to be replicated on the target cluster, so a full snapshot of the etcd cluster in the source seed before the migration would allow for faster restoration of the etcd cluster in the target seed.
-
-, a seed cluster control plane can be moved from one seed cluster to another. This process currently requires the etcd data to be replicated on the target cluster, so a full snapshot of the etcd cluster in the source seed before the migration would allow for faster restoration of the etcd cluster in the target seed.
+* [Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md): In [gardener](https://github.com/gardener/gardener), a cluster control plane can be moved from one seed cluster to another. This process currently requires the etcd data to be replicated on the target cluster, so a full snapshot of the etcd cluster in the source seed before the migration would allow for faster restoration of the etcd cluster in the target seed.
 
 ##### Task Config
 
@@ -291,6 +293,15 @@ type OnDemandSnapshotTaskConfig struct {
   // Type of on-demand snapshot.
   Type SnapshotType `json:"type"`
 }
+```
+
+```yaml
+...
+spec:
+  config: {
+    "type": <type of on-demand snapshot>,
+  },
+...
 ```
 
 ##### Pre-Conditions
@@ -311,17 +322,26 @@ Operator can trigger on-demand [maintenance of etcd cluster](https://etcd.io/doc
 ```go
 type OnDemandMaintenanceTaskConfig struct {
   // MaintenanceType defines the maintenance operations need to be performed on etcd cluster.
-  MaintenanceType maintenanceOps
+  MaintenanceType maintenanceOps `json:"maintenanceType`
 }
 
 type maintenanceOps struct {
   // EtcdCompaction if set to true will trigger an etcd compaction on the target etcd.
   // +optional
-  EtcdCompaction bool `json:"etcd-compaction,omitempty"`
-  // EtcdDefragmentation if set to true will trigger a defragmentation on the target etcd.
+  EtcdCompaction bool `json:"etcdCompaction,omitempty"`
+  // EtcdDefragmentation if set to true will trigger a etcd defragmentation on the target etcd.
   // +optional
-  EtcdDefragmentation bool `json:"defragmentation,omitempty"`
+  EtcdDefragmentation bool `json:"etcdDefragmentation,omitempty"`
 }
+```
+
+```yaml
+spec:
+  config: {
+    "maintenanceType": 
+      "etcdCompaction": <true/false>,
+      "etcdDefragmentation": <true/false>,
+  },
 ```
 
 ##### Pre-Conditions
@@ -359,25 +379,40 @@ type EtcdCopyBackupsTaskConfig struct {
 }
 ```
 
+```yaml
+spec:
+  config: {
+    "sourceStore": <source object store specification>,
+    "targetStore": <target object store specification>,
+    "maxBackupAge": <maximum age in days that a backup must have in order to be copied>,
+    "maxBackups": <maximum no. of backups that will be copied>,
+  },
+```
+
+> Note: For detailed object store specification please refer [here](https://github.com/gardener/etcd-druid/blob/9c5f8254e3aeb24c1e3e88d17d8d1de336ce981b/api/v1alpha1/types_common.go#L15-L29)
+
 ##### Pre-Conditions
 
 * There should not already be a `copy-backups` task running.
 
 > Note: `copy-backups-task` runs as a separate job, and it operates only on the backup bucket, hence it doesn't depend on health of etcd cluster members.
 
-> Note: `copy-backups-task` has already been implemented and it's currently being used in [Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md) but `copy-backups-task` can be harmonize with `EtcdOperatorTask` custom resource.
+> Note: `copy-backups-task` has already been implemented and it's currently being used in [Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md) but `copy-backups-task` can be harmonized with `EtcdOperatorTask` custom resource.
 
 ## Metrics
 
 Authors proposed to introduce the following metrics:
 
-* `etcd_operator_task_duration_seconds` : Histogram which captures the runtime for each etcd operator task.
+* `etcddruid_operator_task_duration_seconds` : Histogram which captures the runtime for each etcd operator task.
   Labels:
-  * Key : `type`, Value: task type
-  * Key: `state` Value: One-Of {failed, succeeded, rejected}
-  * Key: `etcd` Value: `name of the target etcd`
-* `etcd_operator_tasks_total`: Counter which counts the number of etcd operator tasks.
+  * Key : `type`, Value: all supported tasks
+  * Key: `state`, Value: One-Of {failed, succeeded, rejected}
+  * Key: `etcd`, Value: name of the target etcd resource
+  * Key: `etcd_namespace`, Value: namespace of the target etcd resource
+
+* `etcddruid_operator_tasks_total`: Counter which counts the number of etcd operator tasks.
   Labels:
-  * Key : `type`, Value: task type
-  * Key: `state` Value: One-Of {failed, succeeded, rejected}
-  * Key: `etcd` Value: `name of the target etcd`
+  * Key : `type`, Value: all supported tasks
+  * Key: `state`, Value: One-Of {failed, succeeded, rejected}
+  * Key: `etcd`, Value: name of the target etcd resource
+  * Key: `etcd_namespace`, Value: namespace of the target etcd resource
