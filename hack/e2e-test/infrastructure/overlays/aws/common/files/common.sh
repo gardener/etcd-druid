@@ -14,9 +14,9 @@ function setup_aws() {
     return
   fi
   echo "Installing awscli..."
-  apt update > /dev/null
-  apt install -y curl > /dev/null
-  apt install -y unzip > /dev/null
+  apt update
+  apt install -y curl
+  apt install -y unzip
   cd $HOME
   curl -Lo "awscliv2.zip" "https://awscli.amazonaws.com/awscli-exe-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m).zip"
   unzip awscliv2.zip > /dev/null
