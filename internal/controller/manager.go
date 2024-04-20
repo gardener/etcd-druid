@@ -14,7 +14,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
 	"github.com/gardener/etcd-druid/internal/webhook/sentinel"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	coordinationv1 "k8s.io/api/coordination/v1"
 	coordinationv1beta1 "k8s.io/api/coordination/v1beta1"
@@ -23,6 +22,8 @@ import (
 	eventsv1beta1 "k8s.io/api/events/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
 var (
@@ -69,10 +70,16 @@ func createManager(config *ManagerConfig) (ctrl.Manager, error) {
 		},
 		Scheme: kubernetes.Scheme,
 		Metrics: metricsserver.Options{
-			BindAddress: config.MetricsAddr,
+			BindAddress: config.Server.Metrics.BindAddress,
 		},
-		LeaderElection:   config.EnableLeaderElection,
-		LeaderElectionID: config.LeaderElectionID,
+		WebhookServer: webhook.NewServer(webhook.Options{
+			Host:    config.Server.Webhook.BindAddress,
+			Port:    config.Server.Webhook.Port,
+			CertDir: config.Server.Webhook.TLS.ServerCertDir,
+		}),
+		LeaderElection:             config.EnableLeaderElection,
+		LeaderElectionID:           config.LeaderElectionID,
+		LeaderElectionResourceLock: config.LeaderElectionResourceLock,
 	})
 }
 

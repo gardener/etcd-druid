@@ -22,4 +22,5 @@ server:
 
 sentinelWebhook:
   enabled: true
-  exemptServiceAccounts: {}
+  exemptServiceAccounts:
+    - system:serviceaccount:kube-system:generic-garbage-collector
