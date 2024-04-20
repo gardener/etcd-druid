@@ -576,7 +576,7 @@ func getRemoteCommandExecutor(kubeconfigPath, namespace, podName, containerName,
 
 // executeRemoteCommand executes a remote shell command on the given pod and container
 // and returns the stdout and stderr logs
-func executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, command string) (string, string, error) {
+func executeRemoteCommand(ctx context.Context, kubeconfigPath, namespace, podName, containerName, command string) (string, string, error) {
 	exec, err := getRemoteCommandExecutor(kubeconfigPath, namespace, podName, containerName, command)
 	if err != nil {
 		return "", "", err
@@ -584,7 +584,7 @@ func executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, com
 
 	buf := &bytes.Buffer{}
 	errBuf := &bytes.Buffer{}
-	err = exec.Stream(remotecommand.StreamOptions{
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdout: buf,
 		Stderr: errBuf,
 	})
@@ -663,7 +663,7 @@ func getPurgeLocalSnapstoreJob(storeContainer string) *batchv1.Job {
 	)
 }
 
-func populateEtcd(logger logr.Logger, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix, valuePrefix string, startKeyNo, endKeyNo int, delay time.Duration) error {
+func populateEtcd(ctx context.Context, logger logr.Logger, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix, valuePrefix string, startKeyNo, endKeyNo int, delay time.Duration) error {
 	var (
 		cmd     string
 		stdout  string
@@ -679,14 +679,14 @@ func populateEtcd(logger logr.Logger, kubeconfigPath, namespace, etcdName, podNa
 		"rm -rf etcd-$ETCD_VERSION-linux-amd64;'" +
 		" > test.sh && sh test.sh"
 
-	stdout, stderr, err = executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, install)
+	stdout, stderr, err = executeRemoteCommand(ctx, kubeconfigPath, namespace, podName, containerName, install)
 	if err != nil {
 		logger.Error(err, fmt.Sprintf("Failed to inatall etcdctl. err: %s, stderr: %s, stdout:%s", err, stderr, stdout))
 	}
 
 	for i := startKeyNo; i <= endKeyNo; {
 		cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-client.shoot.svc:%d --cacert /var/etcd/ssl/ca/ca.crt --cert=/var/etcd/ssl/client/tls.crt --key=/var/etcd/ssl/client/tls.key put %s-%d %s-%d", etcdName, etcdClientPort, keyPrefix, i, valuePrefix, i)
-		stdout, stderr, err = executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
+		stdout, stderr, err = executeRemoteCommand(ctx, kubeconfigPath, namespace, podName, containerName, cmd)
 		if err != nil || stderr != "" || stdout != "OK" {
 			logger.Error(err, fmt.Sprintf("failed to put (%s-%d, %s-%d): stdout: %s; stderr: %s. Retrying", keyPrefix, i, valuePrefix, i, stdout, stderr))
 			retries++
@@ -703,7 +703,7 @@ func populateEtcd(logger logr.Logger, kubeconfigPath, namespace, etcdName, podNa
 	return nil
 }
 
-func getEtcdKey(kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix string, suffix int) (string, string, error) {
+func getEtcdKey(ctx context.Context, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix string, suffix int) (string, string, error) {
 	var (
 		cmd    string
 		stdout string
@@ -712,7 +712,7 @@ func getEtcdKey(kubeconfigPath, namespace, etcdName, podName, containerName, key
 	)
 
 	cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-client.shoot.svc:%d --cacert /var/etcd/ssl/ca/ca.crt --cert=/var/etcd/ssl/client/tls.crt --key=/var/etcd/ssl/client/tls.key get %s-%d", etcdName, etcdClientPort, keyPrefix, suffix)
-	stdout, stderr, err = executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
+	stdout, stderr, err = executeRemoteCommand(ctx, kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stderr != "" {
 		return "", "", fmt.Errorf("failed to get %s-%d: stdout: %s; stderr: %s; err: %v", keyPrefix, suffix, stdout, stderr, err)
 	}
@@ -724,7 +724,7 @@ func getEtcdKey(kubeconfigPath, namespace, etcdName, podName, containerName, key
 	return strings.TrimSpace(splits[0]), strings.TrimSpace(splits[1]), nil
 }
 
-func getEtcdKeys(logger logr.Logger, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix string, start, end int) (map[string]string, error) {
+func getEtcdKeys(ctx context.Context, logger logr.Logger, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix string, start, end int) (map[string]string, error) {
 	var (
 		key         string
 		val         string
@@ -733,7 +733,7 @@ func getEtcdKeys(logger logr.Logger, kubeconfigPath, namespace, etcdName, podNam
 		err         error
 	)
 	for i := start; i <= end; {
-		key, val, err = getEtcdKey(kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix, i)
+		key, val, err = getEtcdKey(ctx, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix, i)
 		if err != nil {
 			logger.Info("failed to get key. Retrying...", "key", fmt.Sprintf("%s-%d", keyPrefix, i))
 			retries++
@@ -751,7 +751,7 @@ func getEtcdKeys(logger logr.Logger, kubeconfigPath, namespace, etcdName, podNam
 	return keyValueMap, nil
 }
 
-func triggerOnDemandSnapshot(kubeconfigPath, namespace, etcdName, podName, containerName string, port int, snapshotKind string) (*brtypes.Snapshot, error) {
+func triggerOnDemandSnapshot(ctx context.Context, kubeconfigPath, namespace, etcdName, podName, containerName string, port int, snapshotKind string) (*brtypes.Snapshot, error) {
 	var (
 		snapshot *brtypes.Snapshot
 		snapKind string
@@ -766,7 +766,7 @@ func triggerOnDemandSnapshot(kubeconfigPath, namespace, etcdName, podName, conta
 		return nil, fmt.Errorf("invalid snapshotKind %s", snapshotKind)
 	}
 	cmd := fmt.Sprintf("curl https://%s-client.shoot.svc:%d/snapshot/%s -k -s", etcdName, port, snapKind)
-	stdout, stderr, err := executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
+	stdout, stderr, err := executeRemoteCommand(ctx, kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stdout == "" {
 		return nil, fmt.Errorf("failed to trigger on-demand %s snapshot for %s: stdout: %s; stderr: %s; err: %v", snapKind, podName, stdout, stderr, err)
 	}
@@ -777,10 +777,10 @@ func triggerOnDemandSnapshot(kubeconfigPath, namespace, etcdName, podName, conta
 	return snapshot, nil
 }
 
-func getLatestSnapshots(kubeconfigPath, namespace, etcdName, podName, containerName string, port int) (*LatestSnapshots, error) {
+func getLatestSnapshots(ctx context.Context, kubeconfigPath, namespace, etcdName, podName, containerName string, port int) (*LatestSnapshots, error) {
 	var latestSnapshots *LatestSnapshots
 	cmd := fmt.Sprintf("curl https://%s-client.shoot.svc:%d/snapshot/latest -k -s", etcdName, port)
-	stdout, stderr, err := executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
+	stdout, stderr, err := executeRemoteCommand(ctx, kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stdout == "" {
 		return nil, fmt.Errorf("failed to fetch latest snapshots taken for %s: stdout: %s; stderr: %s; err: %v", podName, stdout, stderr, err)
 	}
@@ -796,9 +796,9 @@ func getLatestSnapshots(kubeconfigPath, namespace, etcdName, podName, containerN
 	return latestSnapshots, nil
 }
 
-func deleteDir(kubeconfigPath, namespace, podName, containerName string, dirPath string) error {
+func deleteDir(ctx context.Context, kubeconfigPath, namespace, podName, containerName string, dirPath string) error {
 	cmd := fmt.Sprintf("rm -rf %s", dirPath)
-	stdout, stderr, err := executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
+	stdout, stderr, err := executeRemoteCommand(ctx, kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stdout != "" {
 		return fmt.Errorf("failed to delete directory %s for %s: stdout: %s; stderr: %s; err: %v", dirPath, podName, stdout, stderr, err)
 	}
@@ -875,7 +875,7 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 							"failed=0 ; threshold=2 ; " +
 							"while [ $failed -lt $threshold ] ; do  " +
 							"$(curl --cacert /var/etcd/ssl/ca/ca.crt --cert /var/etcd/ssl/client/tls.crt --key /var/etcd/ssl/client/tls.key https://" + etcdSvc + ":2379/health -s -f  -o /dev/null ); " +
-							"if [ $? -gt 0 ] ; then let failed++; echo \"etcd is unhealthy and retrying\"; sleep 1; continue;  fi ; " +
+							"if [ $? -gt 0 ] ; then let failed++; echo \"etcd is unhealthy and retrying\"; sleep 2; continue;  fi ; " +
 							"echo \"etcd is healthy\";  touch /tmp/healthy; let failed=0; " +
 							"sleep 2; done;  echo \"etcd is unhealthy\"; exit 1;" +
 							"' > test.sh && sh test.sh",

@@ -47,6 +47,17 @@ var _ = Describe("Etcd Compaction", func() {
 
 					etcdName = fmt.Sprintf("etcd-%s", provider.Name)
 					storageContainer = getEnvAndExpectNoError(envStorageContainer)
+
+					By("Purge snapstore")
+					snapstoreProvider := provider.Storage.Provider
+					if snapstoreProvider == utils.Local {
+						purgeLocalSnapstoreJob := purgeLocalSnapstore(parentCtx, cl, storageContainer)
+						defer cleanUpTestHelperJob(parentCtx, cl, purgeLocalSnapstoreJob.Name)
+					} else {
+						store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
+						Expect(err).ShouldNot(HaveOccurred())
+						Expect(purgeSnapstore(store)).To(Succeed())
+					}
 				})
 
 				AfterEach(func() {
@@ -60,17 +71,6 @@ var _ = Describe("Etcd Compaction", func() {
 
 					By("Purge etcd")
 					purgeEtcd(ctx, cl, providers)
-
-					By("Purge snapstore")
-					snapstoreProvider := provider.Storage.Provider
-					if snapstoreProvider == utils.Local {
-						purgeLocalSnapstoreJob := purgeLocalSnapstore(parentCtx, cl, storageContainer)
-						defer cleanUpTestHelperJob(parentCtx, cl, purgeLocalSnapstoreJob.Name)
-					} else {
-						store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
-						Expect(err).ShouldNot(HaveOccurred())
-						Expect(purgeSnapstore(store)).To(Succeed())
-					}
 				})
 
 				It("should test compaction on backup", func() {

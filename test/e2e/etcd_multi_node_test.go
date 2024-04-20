@@ -50,11 +50,6 @@ var _ = Describe("Etcd", func() {
 
 		etcdName = fmt.Sprintf("etcd-%s", provider.Name)
 		storageContainer = getEnvAndExpectNoError(envStorageContainer)
-	})
-
-	AfterEach(func() {
-		By("Purge etcd")
-		purgeEtcd(parentCtx, cl, providers)
 
 		By("Purge snapstore")
 		snapstoreProvider := provider.Storage.Provider
@@ -66,6 +61,11 @@ var _ = Describe("Etcd", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(purgeSnapstore(store)).To(Succeed())
 		}
+	})
+
+	AfterEach(func() {
+		By("Purge etcd")
+		purgeEtcd(parentCtx, cl, providers)
 	})
 
 	Context("when multi-node is configured", func() {
