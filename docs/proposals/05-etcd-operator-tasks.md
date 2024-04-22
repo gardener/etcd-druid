@@ -223,7 +223,7 @@ Task(s) can be created by creating an instance of the `EtcdOperatorTask` custom 
 #### Execution
 
 * Authors propose to introduce a new controller (let's call it `operator-task-controller`) which watches for `EtcdOperatorTask` custom resource.
-* Each `out-of-band` task may have some task specific configuration defined in [.spec.taskConfig](#spec).
+* Each `out-of-band` task may have some task specific configuration defined in [.spec.config](#spec).
 * The controller (`operator-task-controller`) needs to parse this task specific config, which comes as a RawExtension, according to the schema defined for each task.
 * Moreover, all tasks have to adhere to some prerequisites (a.k.a `pre-conditions`) which will be necessary to execute the task. Authors propose to define pre-conditions for each task, which must be met for the task to be eligible for execution otherwise that task should be rejected.
 * If multiple tasks are invoked simultaneously or in `pending` state, then they will be executed in a First-In-First-Out (FIFO) manner.
@@ -296,12 +296,10 @@ type OnDemandSnapshotTaskConfig struct {
 ```
 
 ```yaml
-...
 spec:
   config: {
     "type": <type of on-demand snapshot>,
   },
-...
 ```
 
 ##### Pre-Conditions
@@ -315,7 +313,7 @@ Operator can trigger on-demand [maintenance of etcd cluster](https://etcd.io/doc
 
 ##### Possible Scenarios
 
-* If an etcd cluster is heavily loaded, which is causing performance degradation of an etcd cluster, and the operator does not want to wait for the scheduled maintenance window then an on-demand maintenance task can be triggered which will invoke etcd-compaction, etcd-defragmentation etc. on the target etcd cluster. This will make the etcd cluster lean and clean, thus improving cluster performance.
+* If an etcd cluster is heavily loaded, which is causing performance degradation of an etcd cluster, and the operator does not want to wait for the scheduled maintenance window then an `on-demand maintenance` task can be triggered which will invoke etcd-compaction, etcd-defragmentation etc. on the target etcd cluster. This will make the etcd cluster lean and clean, thus improving cluster performance.
 
 ##### Task Config
 
