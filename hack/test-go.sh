@@ -38,4 +38,4 @@ if ${TEST_COV:-false}; then
   exit 0
 fi
 
-gotest -v "$@"
+go test -json "$@" | gotestfmt -hide empty-packages
