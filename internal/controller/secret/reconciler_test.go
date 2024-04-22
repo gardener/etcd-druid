@@ -14,7 +14,6 @@ import (
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -57,7 +56,7 @@ var _ = Describe("SecretController", func() {
 
 		It("should return true if secret is referred to in an Etcd object's Spec.Etcd.ClientUrlTLS section", func() {
 			etcdList.Items[0].Spec.Etcd.ClientUrlTLS = &druidv1alpha1.TLSConfig{
-				ServerTLSSecretRef: v1.SecretReference{
+				ServerTLSSecretRef: corev1.SecretReference{
 					Name:      testSecretName,
 					Namespace: testNamespace,
 				},
@@ -68,7 +67,7 @@ var _ = Describe("SecretController", func() {
 
 		It("should return true if secret is referred to in an Etcd object's Spec.Etcd.PeerUrlTLS section", func() {
 			etcdList.Items[1].Spec.Etcd.PeerUrlTLS = &druidv1alpha1.TLSConfig{
-				ServerTLSSecretRef: v1.SecretReference{
+				ServerTLSSecretRef: corev1.SecretReference{
 					Name:      testSecretName,
 					Namespace: testNamespace,
 				},
@@ -79,7 +78,7 @@ var _ = Describe("SecretController", func() {
 
 		It("should return true if secret is referred to in an Etcd object's Spec.Backup.Store section", func() {
 			etcdList.Items[2].Spec.Backup.Store = &druidv1alpha1.StoreSpec{
-				SecretRef: &v1.SecretReference{
+				SecretRef: &corev1.SecretReference{
 					Name:      testSecretName,
 					Namespace: testNamespace,
 				},

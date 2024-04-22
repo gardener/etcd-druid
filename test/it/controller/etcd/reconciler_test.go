@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -38,31 +39,27 @@ import (
 
 const testNamespacePrefix = "etcd-reconciler-test-"
 
-// TestSuiteWithDefaultIntegrationTestEnvironment runs the etcd reconciler tests with the default integration test environment.
-// No auto-reconcile is set, to reconcile one needs to set the GardenerOperation annotation.
-// All tests defined in this suite share the same integration test environment.
-func TestSuiteWithDefaultIntegrationTestEnvironment(t *testing.T) {
-	itTestEnv, itTestEnvCloser := setup.NewIntegrationTestEnv(t, "etcd-reconciler", []string{assets.GetEtcdCrdPath()})
-	defer itTestEnvCloser(t)
-	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, itTestEnv, false)
+var (
+	sharedITTestEnv setup.IntegrationTestEnv
+)
 
-	tests := []struct {
-		name   string
-		testFn func(t *testing.T, reconcilerTestEnv ReconcilerTestEnv)
-	}{
-		{"test spec reconciliation without auto-reconcile", testEtcdReconcileSpec},
-		{"test deletion of all etcd resources when etcd marked for deletion", testDeletionOfAllEtcdResourcesWhenEtcdMarkedForDeletion},
-		{"test etcd status reconciliation", testEtcdStatus},
+func TestMain(m *testing.M) {
+	var (
+		itTestEnvCloser setup.IntegrationTestEnvCloser
+		err             error
+	)
+	sharedITTestEnv, itTestEnvCloser, err = setup.NewIntegrationTestEnv("etcd-reconciler", []string{assets.GetEtcdCrdPath()})
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to create integration test environment: %v\n", err)
+		os.Exit(1)
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.testFn(t, reconcilerTestEnv)
-		})
-	}
+	defer itTestEnvCloser()
+	os.Exit(m.Run())
 }
 
 // ------------------------------ reconcile spec tests ------------------------------
-func testEtcdReconcileSpec(t *testing.T, reconcilerTestEnv ReconcilerTestEnv) {
+func TestEtcdReconcileSpecWithNoAutoReconcile(t *testing.T) {
+	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, sharedITTestEnv, false, testutils.NewTestClientBuilder())
 	tests := []struct {
 		name string
 		fn   func(t *testing.T, testNamespace string, reconcilerTestEnv ReconcilerTestEnv)
@@ -72,11 +69,12 @@ func testEtcdReconcileSpec(t *testing.T, reconcilerTestEnv ReconcilerTestEnv) {
 		{"should not reconcile spec when reconciliation is suspended", testWhenReconciliationIsSuspended},
 		{"should not reconcile when no reconcile operation annotation is set", testWhenNoReconcileOperationAnnotationIsSet},
 	}
+	g := NewWithT(t)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			testNs := createTestNamespaceName(t)
 			t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
-			reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)
+			g.Expect(reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)).To(Succeed())
 			test.fn(t, testNs, reconcilerTestEnv)
 		})
 	}
@@ -202,14 +200,31 @@ func testWhenNoReconcileOperationAnnotationIsSet(t *testing.T, testNs string, re
 }
 
 // ------------------------------ reconcile deletion tests ------------------------------
-func testDeletionOfAllEtcdResourcesWhenEtcdMarkedForDeletion(t *testing.T, reconcilerTestEnv ReconcilerTestEnv) {
-	// --------------------------- create test namespace ---------------------------
-	testNs := createTestNamespaceName(t)
-	reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)
-	t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
 
-	// ---------------------------- create etcd instance --------------------------
+func TestEtcdDeletion(t *testing.T) {
+	tests := []struct {
+		name string
+		fn   func(t *testing.T, testNamespace string)
+	}{
+		{"test deletion of all etcd resources when etcd marked for deletion", testDeletionOfAllEtcdResourcesWhenEtcdMarkedForDeletion},
+		{"test partial deletion failure of etcd resources when etcd marked for deletion", testPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testNs := createTestNamespaceName(t)
+			test.fn(t, testNs)
+		})
+	}
+}
+
+func testDeletionOfAllEtcdResourcesWhenEtcdMarkedForDeletion(t *testing.T, testNs string) {
 	g := NewWithT(t)
+	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, sharedITTestEnv, false, testutils.NewTestClientBuilder())
+	// ---------------------------- create test namespace ---------------------------
+	t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
+	g.Expect(sharedITTestEnv.CreateTestNamespace(testNs)).To(Succeed())
+	// ---------------------------- create etcd instance --------------------------
 	etcdInstance := testutils.EtcdBuilderWithoutDefaults(testutils.TestEtcdName, testNs).
 		WithClientTLS().
 		WithPeerTLS().
@@ -230,9 +245,8 @@ func testDeletionOfAllEtcdResourcesWhenEtcdMarkedForDeletion(t *testing.T, recon
 	assertETCDFinalizer(t, cl, client.ObjectKeyFromObject(etcdInstance), false, 2*time.Minute, 2*time.Second)
 }
 
-func TestPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testing.T) {
+func testPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testing.T, testNs string) {
 	// ********************************** setup **********************************
-	testNs := createTestNamespaceName(t)
 	etcdInstance := testutils.EtcdBuilderWithoutDefaults(testutils.TestEtcdName, testNs).
 		WithClientTLS().
 		WithPeerTLS().
@@ -250,16 +264,20 @@ func TestPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 			druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
 			druidv1alpha1.LabelPartOfKey:    etcdInstance.Name,
 		}, testutils.TestAPIInternalErr)
-	// create the integration test environment with the test client builder
-	itTestEnv, itTestEnvCloser := setup.NewIntegrationTestEnvWithClientBuilder(t, "etcd-reconciler", []string{assets.GetEtcdCrdPath()}, testClientBuilder)
-	defer itTestEnvCloser(t)
-	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, itTestEnv, false)
-
-	// create test namespace
-	itTestEnv.CreateTestNamespace(testNs)
-	t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
 
 	g := NewWithT(t)
+
+	// A different IT test environment is required due to a different clientBuilder which is used to create the manager.
+	itTestEnv, itTestEnvCloser, err := setup.NewIntegrationTestEnv("etcd-reconciler", []string{assets.GetEtcdCrdPath()})
+	g.Expect(err).ToNot(HaveOccurred())
+	defer itTestEnvCloser()
+	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, itTestEnv, false, testClientBuilder)
+
+	// ---------------------------- create test namespace ---------------------------
+	t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
+	g.Expect(itTestEnv.CreateTestNamespace(testNs)).To(Succeed())
+
+	// ---------------------------- create etcd instance --------------------------
 	ctx := context.Background()
 	cl := itTestEnv.GetClient()
 
@@ -285,6 +303,7 @@ func TestPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 		operator.RoleKind,
 		operator.RoleBindingKind,
 		operator.StatefulSetKind}, 2*time.Minute, 2*time.Second)
+
 	assertSelectedComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, []operator.Kind{operator.ClientServiceKind, operator.SnapshotLeaseKind}, 2*time.Minute, 2*time.Second)
 	// assert that the last operation and last errors are updated correctly.
 	expectedLastOperation := &druidv1alpha1.LastOperation{
@@ -297,7 +316,9 @@ func TestPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 }
 
 // ------------------------------ reconcile status tests ------------------------------
-func testEtcdStatus(t *testing.T, reconcilerTestEnv ReconcilerTestEnv) {
+
+func TestEtcdStatusReconciliation(t *testing.T) {
+	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, sharedITTestEnv, false, testutils.NewTestClientBuilder())
 	tests := []struct {
 		name string
 		fn   func(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv)
@@ -315,11 +336,12 @@ func testEtcdStatus(t *testing.T, reconcilerTestEnv ReconcilerTestEnv) {
 	}
 
 	ctx := context.Background()
+	g := NewWithT(t)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// --------------------------- create test namespace ---------------------------
 			testNs := createTestNamespaceName(t)
-			reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)
+			g.Expect(reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)).To(Succeed())
 			t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
 			// ---------------------------- create etcd instance --------------------------
 			etcdInstance := testutils.EtcdBuilderWithoutDefaults(testutils.TestEtcdName, testNs).
@@ -458,12 +480,13 @@ func generateRandomAlphanumericString(t *testing.T, length int) string {
 	return hex.EncodeToString(b)
 }
 
-func initializeEtcdReconcilerTestEnv(t *testing.T, itTestEnv setup.IntegrationTestEnv, autoReconcile bool) ReconcilerTestEnv {
+func initializeEtcdReconcilerTestEnv(t *testing.T, itTestEnv setup.IntegrationTestEnv, autoReconcile bool, clientBuilder *testutils.TestClientBuilder) ReconcilerTestEnv {
 	g := NewWithT(t)
 	var (
 		reconciler *etcd.Reconciler
 		err        error
 	)
+	g.Expect(itTestEnv.CreateManager(clientBuilder)).To(Succeed())
 	itTestEnv.RegisterReconciler(func(mgr manager.Manager) {
 		reconciler, err = etcd.NewReconcilerWithImageVector(mgr,
 			&etcd.Config{
@@ -482,7 +505,7 @@ func initializeEtcdReconcilerTestEnv(t *testing.T, itTestEnv setup.IntegrationTe
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(reconciler.RegisterWithManager(mgr)).To(Succeed())
 	})
-	itTestEnv.StartManager()
+	g.Expect(itTestEnv.StartManager()).To(Succeed())
 	t.Log("successfully registered etcd reconciler with manager and started manager")
 	return ReconcilerTestEnv{
 		itTestEnv:  itTestEnv,

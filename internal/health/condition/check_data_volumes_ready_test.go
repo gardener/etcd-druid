@@ -18,7 +18,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,18 +30,18 @@ var _ = Describe("DataVolumesReadyCheck", func() {
 			cl       *mockclient.MockClient
 
 			notFoundErr = apierrors.StatusError{
-				ErrStatus: v1.Status{
-					Reason: v1.StatusReasonNotFound,
+				ErrStatus: metav1.Status{
+					Reason: metav1.StatusReasonNotFound,
 				},
 			}
 			internalErr = apierrors.StatusError{
-				ErrStatus: v1.Status{
-					Reason: v1.StatusReasonInternalError,
+				ErrStatus: metav1.Status{
+					Reason: metav1.StatusReasonInternalError,
 				},
 			}
 
 			etcd = druidv1alpha1.Etcd{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: "default",
 				},
@@ -51,7 +50,7 @@ var _ = Describe("DataVolumesReadyCheck", func() {
 				},
 			}
 			sts = &appsv1.StatefulSet{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:            "test",
 					Namespace:       "default",
 					OwnerReferences: []metav1.OwnerReference{etcd.GetAsOwnerReference()},
@@ -60,7 +59,7 @@ var _ = Describe("DataVolumesReadyCheck", func() {
 					Replicas: pointer.Int32(1),
 					VolumeClaimTemplates: []corev1.PersistentVolumeClaim{
 						{
-							ObjectMeta: v1.ObjectMeta{
+							ObjectMeta: metav1.ObjectMeta{
 								Name: "test",
 							},
 						},
@@ -72,7 +71,7 @@ var _ = Describe("DataVolumesReadyCheck", func() {
 				},
 			}
 			pvc = &corev1.PersistentVolumeClaim{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-test-0",
 					Namespace: "default",
 				},
@@ -81,7 +80,7 @@ var _ = Describe("DataVolumesReadyCheck", func() {
 				},
 			}
 			event = &corev1.Event{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-event",
 					Namespace: "default",
 				},

@@ -13,7 +13,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
-	druidutils "github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -80,7 +79,7 @@ func newStsBuilder(client client.Client,
 	useEtcdWrapper bool,
 	imageVector imagevector.ImageVector,
 	sts *appsv1.StatefulSet) (*stsBuilder, error) {
-	etcdImage, etcdBackupRestoreImage, initContainerImage, err := druidutils.GetEtcdImages(etcd, imageVector, useEtcdWrapper)
+	etcdImage, etcdBackupRestoreImage, initContainerImage, err := utils.GetEtcdImages(etcd, imageVector, useEtcdWrapper)
 	if err != nil {
 		return nil, err
 	}

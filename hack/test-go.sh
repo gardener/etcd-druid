@@ -12,8 +12,8 @@ ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION:-"1.22"}
 
 if ${SETUP_ENVTEST:-false}; then
   echo "> Installing envtest tools@${ENVTEST_K8S_VERSION} with setup-envtest"
-  if ! command -v setup-envtest &> /dev/null ; then
-    >&2 echo "setup-envtest not available"
+  if ! command -v setup-envtest &>/dev/null; then
+    echo >&2 "setup-envtest not available"
     exit 1
   fi
 
@@ -33,12 +33,9 @@ fi
 echo "> Go tests"
 
 if ${TEST_COV:-false}; then
-  output_dir=test/output
-  coverprofile_file=coverprofile.out
   mkdir -p test/output
-  gotest -v -coverprofile=cover.out $@
-  go tool cover -func=cover.out
+  go test -json -cover "$@" | gotestfmt -hide empty-packages
   exit 0
 fi
 
-gotest -v $@
+gotest -v "$@"
