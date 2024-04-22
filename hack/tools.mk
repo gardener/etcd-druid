@@ -9,7 +9,7 @@ GOTESTFMT 	   	 		   := $(TOOLS_BIN_DIR)/gotestfmt
 
 # default tool versions
 SKAFFOLD_VERSION ?= v1.38.0
-KUSTOMIZE_VERSION ?= v4.5.7
+KUSTOMIZE_VERSION ?= v5.3.0
 GOTESTFMT_VERSION ?= v2.5.0
 
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
