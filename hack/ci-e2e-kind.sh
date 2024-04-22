@@ -9,9 +9,10 @@ set -o pipefail
 
 make kind-up
 
-trap "
-  ( make kind-down )
-" EXIT
+trap '{
+  kind export logs "${ARTIFACTS:-}/etcd-druid-e2e" --name etcd-druid-e2e || true
+  make kind-down
+}' EXIT
 
 kubectl wait --for=condition=ready node --all
 export AWS_APPLICATION_CREDENTIALS_JSON="/tmp/aws.json"
