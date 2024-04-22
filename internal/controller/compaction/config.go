@@ -58,9 +58,9 @@ func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 	fs.Int64Var(&cfg.EventsThreshold, eventsThresholdFlagName, defaultEventsThreshold,
 		"Total number of etcd events that can be allowed before a backup compaction job is triggered.")
 	fs.DurationVar(&cfg.ActiveDeadlineDuration, activeDeadlineDurationFlagName, defaultActiveDeadlineDuration,
-		"Duration after which a running backup compaction job will be killed (Ex: \"300ms\", \"20s\" or \"2h45m\").\").")
+		"Duration after which a running backup compaction job will be terminated.")
 	fs.DurationVar(&cfg.MetricsScrapeWaitDuration, metricsScrapeWaitDurationFlagname, defaultMetricsScrapeWaitDuration,
-		"Duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped (Ex: \"300ms\", \"60s\" or \"2h45m\").\").")
+		"Duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped.")
 }
 
 // Validate validates the config.

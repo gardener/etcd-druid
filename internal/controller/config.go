@@ -125,7 +125,7 @@ func (cfg *ManagerConfig) InitFromFlags(fs *flag.FlagSet) error {
 	flag.BoolVar(&cfg.EnableLeaderElection, enableLeaderElectionFlagName, defaultEnableLeaderElection,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&cfg.LeaderElectionID, leaderElectionIDFlagName, defaultLeaderElectionID,
-		"Name of the resource that leader election will use for holding the leader lock")
+		"Name of the resource that leader election will use for holding the leader lock.")
 	flag.StringVar(&cfg.LeaderElectionResourceLock, leaderElectionResourceLockFlagName, defaultLeaderElectionResourceLock,
 		"Specifies which resource type to use for leader election. Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'.")
 	flag.BoolVar(&cfg.DisableLeaseCache, disableLeaseCacheFlagName, defaultDisableLeaseCache,
