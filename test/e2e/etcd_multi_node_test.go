@@ -129,7 +129,7 @@ var _ = Describe("Etcd", func() {
 			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
 			By("Delete debug pod")
-			Expect(cl.Delete(ctx, debugPod)).ToNot(HaveOccurred())
+			Expect(client.IgnoreNotFound(cl.Delete(ctx, debugPod))).ToNot(HaveOccurred())
 
 			By("Delete etcd")
 			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)

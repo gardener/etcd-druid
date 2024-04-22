@@ -73,7 +73,7 @@ var _ = Describe("Etcd Backup", func() {
 					By("Delete debug pod")
 					etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
 					debugPod := getDebugPod(etcd)
-					Expect(cl.Delete(ctx, debugPod)).ToNot(HaveOccurred())
+					Expect(client.IgnoreNotFound(cl.Delete(ctx, debugPod))).ToNot(HaveOccurred())
 
 					By("Purge etcd")
 					purgeEtcd(ctx, cl, providers)
