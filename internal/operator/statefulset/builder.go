@@ -388,13 +388,6 @@ func (b *stsBuilder) getBackupRestoreContainer() (corev1.Container, error) {
 		Env:          env,
 		Resources:    utils.TypeDeref[corev1.ResourceRequirements](b.etcd.Spec.Backup.Resources, defaultResourceRequirements),
 		VolumeMounts: b.getBackupRestoreContainerVolumeMounts(),
-		SecurityContext: &corev1.SecurityContext{
-			Capabilities: &corev1.Capabilities{
-				Add: []corev1.Capability{
-					"SYS_PTRACE",
-				},
-			},
-		},
 	}, nil
 }
 

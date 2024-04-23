@@ -255,11 +255,6 @@ func (s StatefulSetMatcher) matchBackupRestoreContainer() gomegatypes.GomegaMatc
 		),
 		"Resources":    Equal(containerResources),
 		"VolumeMounts": s.matchBackupRestoreContainerVolMounts(),
-		"SecurityContext": PointTo(MatchFields(IgnoreExtras|IgnoreMissing, Fields{
-			"Capabilities": PointTo(MatchFields(IgnoreExtras, Fields{
-				"Add": ConsistOf(corev1.Capability("SYS_PTRACE")),
-			})),
-		})),
 	})
 }
 
