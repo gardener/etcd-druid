@@ -21,9 +21,6 @@ import (
 
 // fetchEventMessages gets events for the given object of the given `eventType` and returns them as a formatted output.
 // The function expects that the given `involvedObj` is specified with a proper `metav1.TypeMeta`.
-// This is a temporary re-implementation of the `FetchEventMessages()` function from github.com/gardener/gardener/pkg/utils/kubernetes package, which was required to circumvent the issue of the fake client from controller-runtime v0.14.6 not supporting listing objects by multiple field selectors, which was added in controller-runtime v0.17.0 by https://github.com/kubernetes-sigs/controller-runtime/pull/2512.
-// Updating controller-runtime in etcd-druid is not straight-forward due to the dependency on gardener/gardener, which forces the vendor directory to be removed in etcd-druid, which is a large change in itself, and will be addressed by a different PR https://github.com/gardener/etcd-druid/pull/748.
-// Once gardener/gardener dependency is updated to v1.90.0+, this function will be removed in favour of the original implementation.
 func fetchEventMessages(ctx context.Context, scheme *runtime.Scheme, cl client.Client, involvedObj client.Object, eventType string, eventsLimit int) (string, error) {
 	events, err := listEvents(ctx, cl, involvedObj.GetNamespace())
 	if err != nil {

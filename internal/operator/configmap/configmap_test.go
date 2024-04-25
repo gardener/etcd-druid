@@ -63,7 +63,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			var existingObjects []client.Object
 			if tc.cmExists {
 				existingObjects = append(existingObjects, newConfigMap(g, etcd))
@@ -120,7 +120,7 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			etcd := buildEtcd(tc.etcdReplicas, tc.clientTLSEnabled, tc.peerTLSEnabled)
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd))
 			operator := New(cl)
@@ -171,7 +171,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled)
 			etcd.Spec.Etcd.ServerPort = tc.etcdSpecServerPort
 			peerScheme := utils.IfConditionOr[string](etcd.Spec.Etcd.PeerUrlTLS != nil, "https", "http")
@@ -214,7 +214,7 @@ func TestSyncWhenConfigMapExists(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			originalEtcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithClientTLS().Build()
 			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newConfigMap(g, originalEtcd)}, getObjectKey(originalEtcd))
 			updatedEtcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithClientTLS().WithPeerTLS().Build()
@@ -268,7 +268,7 @@ func TestTriggerDelete(t *testing.T) {
 
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			// ********************* Setup *********************
 			var existingObjects []client.Object
 			if tc.cmExists {

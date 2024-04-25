@@ -63,7 +63,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, []client.Object{newClientService(etcd)}, client.ObjectKey{Name: etcd.GetClientServiceName(), Namespace: etcd.Namespace})
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -110,7 +110,7 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			etcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort)
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, client.ObjectKey{Name: etcd.GetClientServiceName(), Namespace: etcd.Namespace})
 			operator := New(cl)
@@ -162,7 +162,7 @@ func TestSyncWhenServiceExists(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			// ********************* Setup *********************
 			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newClientService(existingEtcd)}, client.ObjectKey{Name: existingEtcd.GetClientServiceName(), Namespace: existingEtcd.Namespace})
 			// ********************* test sync with updated ports *********************
@@ -216,7 +216,7 @@ func TestTriggerDelete(t *testing.T) {
 
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			// ********************* Setup *********************
 			var existingObjects []client.Object
 			if tc.svcExists {

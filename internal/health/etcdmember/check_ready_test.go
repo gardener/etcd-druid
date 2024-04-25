@@ -142,7 +142,7 @@ var _ = Describe("ReadyCheck", func() {
 				})()
 
 				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
+					func(_ context.Context, _ client.ObjectKey, _ *corev1.Pod, _ ...client.ListOption) error {
 						return errors.New("foo")
 					},
 				)
@@ -190,7 +190,7 @@ var _ = Describe("ReadyCheck", func() {
 				})()
 
 				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
+					func(_ context.Context, _ client.ObjectKey, _ *corev1.Pod, _ ...client.ListOption) error {
 						return apierrors.NewNotFound(corev1.Resource("pods"), member1Name)
 					},
 				)
@@ -253,7 +253,7 @@ var _ = Describe("ReadyCheck", func() {
 				})()
 
 				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
+					func(_ context.Context, _ client.ObjectKey, _ *corev1.Pod, _ ...client.ListOption) error {
 						return errors.New("foo")
 					},
 				)

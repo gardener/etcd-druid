@@ -83,7 +83,7 @@ func TestHandleCreateAndConnect(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			resp := handler.Handle(context.Background(), admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
 					Operation: tc.operation,
@@ -253,7 +253,7 @@ func TestHandleUpdate(t *testing.T) {
 
 	t.Parallel()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).
 				WithAnnotations(tc.etcdAnnotations).
 				WithLastOperation(tc.etcdStatusLastOperation).
@@ -339,7 +339,7 @@ func TestHandleWithInvalidRequestObject(t *testing.T) {
 
 	t.Parallel()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			cl := testutils.CreateDefaultFakeClient()
 			decoder := admission.NewDecoder(cl.Scheme())
 
@@ -403,7 +403,7 @@ func TestEtcdGetFailures(t *testing.T) {
 	t.Parallel()
 	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).Build()
 	for _, tc := range testCases {
-		t.Run(t.Name(), func(t *testing.T) {
+		t.Run(t.Name(), func(_ *testing.T) {
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
 			decoder := admission.NewDecoder(cl.Scheme())
 
@@ -513,7 +513,7 @@ func TestHandleDelete(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).
 				WithAnnotations(tc.etcdAnnotations).
 				WithLastOperation(tc.etcdStatusLastOperation).

@@ -68,7 +68,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			if tc.backupEnabled {
 				etcdBuilder.WithDefaultBackup()
 			}
@@ -116,7 +116,7 @@ func TestSyncWhenBackupIsEnabled(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKeys(etcd)...)
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -160,7 +160,7 @@ func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			existingObjects := []client.Object{
 				newDeltaSnapshotLease(existingEtcd),
 				newFullSnapshotLease(existingEtcd),
@@ -220,7 +220,7 @@ func TestTriggerDelete(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			if tc.backupEnabled {
 				etcdBuilder.WithDefaultBackup()
 			}

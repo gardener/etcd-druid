@@ -75,7 +75,6 @@ func FetchPVCWarningMessagesForStatefulSet(ctx context.Context, cl client.Client
 			if !strings.HasPrefix(pvc.GetName(), pvcPrefix) || pvc.Status.Phase == corev1.ClaimBound {
 				continue
 			}
-			// TODO (shreyas-s-rao): switch to kutil.FetchEventMessages() once g/g is upgraded to v1.90.0+
 			messages, err := fetchEventMessages(ctx, cl.Scheme(), cl, &pvc, corev1.EventTypeWarning, 2)
 			if err != nil {
 				pvcErr = errors.Join(pvcErr, fmt.Errorf("unable to fetch warning events for PVC %s/%s: %w", pvc.Namespace, pvc.Name, err))

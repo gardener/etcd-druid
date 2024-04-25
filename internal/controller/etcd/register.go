@@ -87,20 +87,20 @@ func (r *Reconciler) hasReconcileAnnotation() predicate.Predicate {
 		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
 			return updateEvent.ObjectNew.GetAnnotations()[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationReconcile
 		},
-		CreateFunc:  func(createEvent event.CreateEvent) bool { return true },
-		DeleteFunc:  func(deleteEvent event.DeleteEvent) bool { return true },
-		GenericFunc: func(genericEvent event.GenericEvent) bool { return false },
+		CreateFunc:  func(_ event.CreateEvent) bool { return true },
+		DeleteFunc:  func(_ event.DeleteEvent) bool { return true },
+		GenericFunc: func(_ event.GenericEvent) bool { return false },
 	}
 }
 
 func (r *Reconciler) autoReconcileEnabled() predicate.Predicate {
 	return predicate.Funcs{
-		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
+		UpdateFunc: func(_ event.UpdateEvent) bool {
 			return r.config.EnableEtcdSpecAutoReconcile || r.config.IgnoreOperationAnnotation
 		},
-		CreateFunc:  func(createEvent event.CreateEvent) bool { return true },
-		DeleteFunc:  func(deleteEvent event.DeleteEvent) bool { return true },
-		GenericFunc: func(genericEvent event.GenericEvent) bool { return false },
+		CreateFunc:  func(_ event.CreateEvent) bool { return true },
+		DeleteFunc:  func(_ event.DeleteEvent) bool { return true },
+		GenericFunc: func(_ event.GenericEvent) bool { return false },
 	}
 }
 
@@ -109,9 +109,9 @@ func specUpdated() predicate.Predicate {
 		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
 			return hasSpecChanged(updateEvent)
 		},
-		CreateFunc:  func(createEvent event.CreateEvent) bool { return true },
-		DeleteFunc:  func(deleteEvent event.DeleteEvent) bool { return true },
-		GenericFunc: func(genericEvent event.GenericEvent) bool { return false },
+		CreateFunc:  func(_ event.CreateEvent) bool { return true },
+		DeleteFunc:  func(_ event.DeleteEvent) bool { return true },
+		GenericFunc: func(_ event.GenericEvent) bool { return false },
 	}
 }
 
@@ -120,9 +120,9 @@ func noSpecAndStatusUpdated() predicate.Predicate {
 		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
 			return !hasSpecChanged(updateEvent) && !hasStatusChanged(updateEvent)
 		},
-		GenericFunc: func(genericEvent event.GenericEvent) bool { return false },
-		CreateFunc:  func(createEvent event.CreateEvent) bool { return true },
-		DeleteFunc:  func(deleteEvent event.DeleteEvent) bool { return true },
+		GenericFunc: func(_ event.GenericEvent) bool { return false },
+		CreateFunc:  func(_ event.CreateEvent) bool { return true },
+		DeleteFunc:  func(_ event.DeleteEvent) bool { return true },
 	}
 }
 
