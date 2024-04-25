@@ -41,7 +41,7 @@ reviewers:
 
 ## Summary
 
-This DEP proposes an enhancement to `etcd-druid`'s capabilities to handle [out-of-band](#terminology) tasks, which are presently performed manually or invoked programmatically via suboptimal APIs. The document proposes the establishment of a unified interface by defining a well-structured API to harmonize the initiation of any `out-of-band` task, monitor its status, and simplify the process of adding new tasks and managing their lifecycle.
+This DEP proposes an enhancement to `etcd-druid`'s capabilities to handle [out-of-band](#terminology) tasks, which are presently performed manually or invoked programmatically via suboptimal APIs. The document proposes the establishment of a unified interface by defining a well-structured API to harmonize the initiation of any `out-of-band` task, monitor its status, and simplify the process of adding new tasks and managing their lifecycles.
 
 ## Terminology
 
@@ -76,7 +76,7 @@ Some examples of an `on-demand/out-of-band` tasks:
 ## Non-Goals
 
 * In the current scope, capability to abort/suspend an `out-of-band` task is not going to be provided. This could be considered as an enhancement based on pull.
-* Ordering (by establishing dependency) of `out-of-band` tasks submitted for the same etcd cluster is not been considered in the first increment. In a future version based on how operator tasks are used we will enhance this proposal and the implementation.
+* Ordering (by establishing dependency) of `out-of-band` tasks submitted for the same etcd cluster has not been considered in the first increment. In a future version based on how operator tasks are used, we will enhance this proposal and the implementation.
 
 ## Proposal
 
@@ -122,8 +122,8 @@ type EtcdOperatorTaskSpec struct {
   TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
 
   // OwnerEtcdReference refers to the name and namespace of the corresponding 
-  // etcd owner for which the task has been invoked.
-  OwnerEtcdRefrence metav1.ObjectMeta `json:"ownerEtcdRefrence"`
+  // Etcd owner for which the task has been invoked.
+  OwnerEtcdRefrence types.NamespacedName `json:"ownerEtcdRefrence"`
 }
 ```
 
@@ -224,7 +224,7 @@ Task(s) can be created by creating an instance of the `EtcdOperatorTask` custom 
 
 * Authors propose to introduce a new controller (let's call it `operator-task-controller`) which watches for `EtcdOperatorTask` custom resource.
 * Each `out-of-band` task may have some task specific configuration defined in [.spec.config](#spec).
-* The controller (`operator-task-controller`) needs to parse this task specific config, which comes as a RawExtension, according to the schema defined for each task.
+* The controller (`operator-task-controller`) needs to parse this task specific config, which comes as a [runtime.RawExtension](#spec), according to the schema defined for each task.
 * Moreover, all tasks have to adhere to some prerequisites (a.k.a `pre-conditions`) which will be necessary to execute the task. Authors propose to define pre-conditions for each task, which must be met for the task to be eligible for execution otherwise that task should be rejected.
 * If multiple tasks are invoked simultaneously or in `pending` state, then they will be executed in a First-In-First-Out (FIFO) manner.
 
@@ -403,14 +403,14 @@ Authors proposed to introduce the following metrics:
 
 * `etcddruid_operator_task_duration_seconds` : Histogram which captures the runtime for each etcd operator task.
   Labels:
-  * Key : `type`, Value: all supported tasks
+  * Key: `type`, Value: all supported tasks
   * Key: `state`, Value: One-Of {failed, succeeded, rejected}
   * Key: `etcd`, Value: name of the target etcd resource
   * Key: `etcd_namespace`, Value: namespace of the target etcd resource
 
 * `etcddruid_operator_tasks_total`: Counter which counts the number of etcd operator tasks.
   Labels:
-  * Key : `type`, Value: all supported tasks
+  * Key: `type`, Value: all supported tasks
   * Key: `state`, Value: One-Of {failed, succeeded, rejected}
   * Key: `etcd`, Value: name of the target etcd resource
   * Key: `etcd_namespace`, Value: namespace of the target etcd resource
