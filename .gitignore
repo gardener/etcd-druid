@@ -6,6 +6,8 @@
 /dev
 /vendor
 *.test
+default.etcd*
+default.bkp*
 
 *.coverprofile
 /cover.out
