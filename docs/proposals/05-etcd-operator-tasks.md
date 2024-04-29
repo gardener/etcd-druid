@@ -144,7 +144,7 @@ type EtcdOperatorTaskStatus struct {
   ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
   // State of the task is the last known state of the task.
   State TaskState `json:"taskState"`
-  // Time at which task move to any other state from "pending" state.
+  // Time at which the task has moved from "pending" state to any other state.
   InitiatedAt metav1.Time `json:"initiatedAt"`
   // LastError represents the errors when processing the task.
   LastErrors []LastError `json:"lastErrors,omitempty"`
@@ -166,7 +166,7 @@ type LastOperation struct {
   Name opsName `json:"name"`
   // Status of the last operation, one of pending, progress, completed, failed.
   State OperationState `json:"state"`
-  // Last time the operation state transitioned from one to another.
+  // LastTransitionTime is the time at which the operation state last transitioned from one state to another.
   LastTransitionTime metav1.Time `json:"lastTransitionTime"`
   // A human readable message indicating details about the last operation.
   Reason string `json:"reason"`
@@ -178,7 +178,7 @@ type LastError struct {
   Code ErrorCode `json:"code"`
   // Description is a human-readable message indicating details of the error.
   Description string `json:"description"`
-  // ObservedAt is the time the error was observed.
+  // ObservedAt is the time at which the error was observed.
   ObservedAt metav1.Time `json:"observedAt"`
 }
 ```
@@ -256,6 +256,7 @@ We do not need any config for this task. When creating an instance of `EtcdOpera
 ##### Possible scenarios
 
 * If a human operator needs to verify the integrity of etcd cluster backups, particularly in cases of potential backup corruption or re-encryption, they can initiate an `on-demand snapshot compaction` task. The success or failure of this snapshot compaction can offer valuable insights into these scenarios.
+* If an operator anticipates a scenario of permanent quorum loss, they can trigger an `on-demand snapshot compaction` to create a compacted full-snapshot. This can potentially reduce the recovery time from a permanent quorum loss.
 
 ##### Task Config
 
