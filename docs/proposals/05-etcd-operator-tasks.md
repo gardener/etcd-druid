@@ -131,7 +131,7 @@ type EtcdOperatorTaskSpec struct {
 
 The authors propose that the following fields should be specified in the `Status` (current state) of the `EtcdOperatorTask` custom resource as the custom resource's `Status` will be used to monitor the progress of the task.
 
-* To capture the current state of a task, a field `.status.taskState` is defined in status.
+* To capture the current state of a task, a field `.status.currentState` is defined in status.
 * If an operation involves many stages, `.status.lastOperation` will be useful in capturing the status of any intermediate stage.
 
 ```go
@@ -142,8 +142,8 @@ type TaskState string
 type EtcdOperatorTaskStatus struct {
   // ObservedGeneration is the most recent generation observed for the resource.
   ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
-  // State of the task is the last known state of the task.
-  State TaskState `json:"taskState"`
+  // CurrentState is the last known state of the task.
+  CurrentState TaskState `json:"currentState"`
   // Time at which the task has moved from "pending" state to any other state.
   InitiatedAt metav1.Time `json:"initiatedAt"`
   // LastError represents the errors when processing the task.
@@ -199,7 +199,7 @@ spec:
     ownerEtcdRefrence: <refer to corresponding etcd owner name and namespace for which task has been invoked>
 status:
     observedGeneration: <specific observedGeneration of the resource>
-    taskState: <overall state of the task>
+    currentState: <last known state of the task>
     initiatedAt: <time at which task move to any other state from "pending" state>
     lastErrors:
     - code: <error-code>
@@ -291,6 +291,7 @@ const (
 )
 
 type OnDemandSnapshotTaskConfig struct {
+  metav1.TypeMeta   `json:",inline"`
   // Type of on-demand snapshot.
   Type SnapshotType `json:"type"`
 }
@@ -298,9 +299,10 @@ type OnDemandSnapshotTaskConfig struct {
 
 ```yaml
 spec:
-  config: {
-    "type": <type of on-demand snapshot>,
-  },
+  config:
+    apiversion: druid.gardener.cloud/v1alpha1
+    kind: OnDemandSnapshotTask
+    type: <type of on-demand snapshot>
 ```
 
 ##### Pre-Conditions
@@ -320,6 +322,7 @@ Operator can trigger on-demand [maintenance of etcd cluster](https://etcd.io/doc
 
 ```go
 type OnDemandMaintenanceTaskConfig struct {
+  metav1.TypeMeta   `json:",inline"`
   // MaintenanceType defines the maintenance operations need to be performed on etcd cluster.
   MaintenanceType maintenanceOps `json:"maintenanceType`
 }
@@ -336,11 +339,12 @@ type maintenanceOps struct {
 
 ```yaml
 spec:
-  config: {
-    "maintenanceType": 
-      "etcdCompaction": <true/false>,
-      "etcdDefragmentation": <true/false>,
-  },
+  config:
+    apiversion: druid.gardener.cloud/v1alpha1
+    kind: OnDemandMaintenanceTask
+    maintenanceType: 
+      etcdCompaction: <true/false>
+      etcdDefragmentation: <true/false>
 ```
 
 ##### Pre-Conditions
@@ -361,6 +365,7 @@ Copy the backups(full and delta snapshots) of etcd cluster from one object store
 ```go
 // EtcdCopyBackupsTaskConfig defines the parameters for the copy backups task.
 type EtcdCopyBackupsTaskConfig struct {
+  metav1.TypeMeta   `json:",inline"`
   // SourceStore defines the specification of the source object store provider.
   SourceStore StoreSpec `json:"sourceStore"`
 
@@ -380,12 +385,13 @@ type EtcdCopyBackupsTaskConfig struct {
 
 ```yaml
 spec:
-  config: {
-    "sourceStore": <source object store specification>,
-    "targetStore": <target object store specification>,
-    "maxBackupAge": <maximum age in days that a backup must have in order to be copied>,
-    "maxBackups": <maximum no. of backups that will be copied>,
-  },
+  config:
+    apiversion: druid.gardener.cloud/v1alpha1
+    kind: EtcdCopyBackupsTask
+    sourceStore: <source object store specification>
+    targetStore: <target object store specification>
+    maxBackupAge: <maximum age in days that a backup must have in order to be copied>
+    maxBackups: <maximum no. of backups that will be copied>
 ```
 
 > Note: For detailed object store specification please refer [here](https://github.com/gardener/etcd-druid/blob/9c5f8254e3aeb24c1e3e88d17d8d1de336ce981b/api/v1alpha1/types_common.go#L15-L29)
