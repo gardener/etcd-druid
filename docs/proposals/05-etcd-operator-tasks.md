@@ -104,7 +104,7 @@ type EtcdOperatorTask struct {
 The authors propose that the following fields should be specified in the spec (desired state) of the `EtcdOperatorTask` custom resource.
 
 * To capture the type of `out-of-band` operator task to be performed, `.spec.type` field should be defined. It can have values from all supported `out-of-band` tasks eg. "OnDemandSnaphotTask", "QuorumLossRecoveryTask" etc.
-* To capture the configuration specific to each task, a `.spec.config` field should be defined of type [RawExtension](https://github.com/kubernetes/apimachinery/blob/829ed199f4e0454344a5bc5ef7859a01ef9b8e22/pkg/runtime/types.go#L49-L102) as each task can have different input configuration.
+* To capture the configuration specific to each task, a `.spec.config` field should be defined of type `string` as each task can have different input configuration.
 
 ```go
 // EtcdOperatorTaskSpec is the spec for a EtcdOperatorTask resource.
@@ -114,7 +114,7 @@ type EtcdOperatorTaskSpec struct {
   Type string `json:"type"`
 
   // Config is a task specific configuration.
-  Config *runtime.RawExtension `json:"config,omitempty"`
+  Config string `json:"config,omitempty"`
 
   // TTLSecondsAfterFinished is the time-to-live to garbage collect the 
   // related resource(s) of task once it has been completed.
@@ -142,8 +142,8 @@ type TaskState string
 type EtcdOperatorTaskStatus struct {
   // ObservedGeneration is the most recent generation observed for the resource.
   ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
-  // CurrentState is the last known state of the task.
-  CurrentState TaskState `json:"currentState"`
+  // State is the last known state of the task.
+  State TaskState `json:"state"`
   // Time at which the task has moved from "pending" state to any other state.
   InitiatedAt metav1.Time `json:"initiatedAt"`
   // LastError represents the errors when processing the task.
@@ -199,7 +199,7 @@ spec:
     ownerEtcdRefrence: <refer to corresponding etcd owner name and namespace for which task has been invoked>
 status:
     observedGeneration: <specific observedGeneration of the resource>
-    currentState: <last known state of the task>
+    state: <last known current state of the out-of-band task>
     initiatedAt: <time at which task move to any other state from "pending" state>
     lastErrors:
     - code: <error-code>
@@ -224,7 +224,7 @@ Task(s) can be created by creating an instance of the `EtcdOperatorTask` custom 
 
 * Authors propose to introduce a new controller (let's call it `operator-task-controller`) which watches for `EtcdOperatorTask` custom resource.
 * Each `out-of-band` task may have some task specific configuration defined in [.spec.config](#spec).
-* The controller (`operator-task-controller`) needs to parse this task specific config, which comes as a [runtime.RawExtension](#spec), according to the schema defined for each task.
+* The controller (`operator-task-controller`) needs to parse this task specific config, which comes as a [string](#spec), according to the schema defined for each task.
 * Moreover, all tasks have to adhere to some prerequisites (a.k.a `pre-conditions`) which will be necessary to execute the task. Authors propose to define pre-conditions for each task, which must be met for the task to be eligible for execution otherwise that task should be rejected.
 * If multiple tasks are invoked simultaneously or in `pending` state, then they will be executed in a First-In-First-Out (FIFO) manner.
 
@@ -255,8 +255,8 @@ We do not need any config for this task. When creating an instance of `EtcdOpera
 
 ##### Possible scenarios
 
-* If a human operator needs to verify the integrity of etcd cluster backups, particularly in cases of potential backup corruption or re-encryption, they can initiate an `on-demand snapshot compaction` task. The success or failure of this snapshot compaction can offer valuable insights into these scenarios.
 * If an operator anticipates a scenario of permanent quorum loss, they can trigger an `on-demand snapshot compaction` to create a compacted full-snapshot. This can potentially reduce the recovery time from a permanent quorum loss.
+* As an additional benefit, a human operator can leverage the current implementation of [snapshot compaction](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md), which internally triggers `restoration`. Hence, by initiating an `on-demand snapshot compaction` task, the operator can verify the integrity of etcd cluster backups, particularly in cases of potential backup corruption or re-encryption. The success or failure of this snapshot compaction can offer valuable insights into these scenarios.
 
 ##### Task Config
 
@@ -291,7 +291,6 @@ const (
 )
 
 type OnDemandSnapshotTaskConfig struct {
-  metav1.TypeMeta   `json:",inline"`
   // Type of on-demand snapshot.
   Type SnapshotType `json:"type"`
 }
@@ -299,9 +298,7 @@ type OnDemandSnapshotTaskConfig struct {
 
 ```yaml
 spec:
-  config:
-    apiversion: druid.gardener.cloud/v1alpha1
-    kind: OnDemandSnapshotTask
+  config: |
     type: <type of on-demand snapshot>
 ```
 
@@ -322,7 +319,6 @@ Operator can trigger on-demand [maintenance of etcd cluster](https://etcd.io/doc
 
 ```go
 type OnDemandMaintenanceTaskConfig struct {
-  metav1.TypeMeta   `json:",inline"`
   // MaintenanceType defines the maintenance operations need to be performed on etcd cluster.
   MaintenanceType maintenanceOps `json:"maintenanceType`
 }
@@ -339,10 +335,8 @@ type maintenanceOps struct {
 
 ```yaml
 spec:
-  config:
-    apiversion: druid.gardener.cloud/v1alpha1
-    kind: OnDemandMaintenanceTask
-    maintenanceType: 
+  config: |
+    maintenanceType:
       etcdCompaction: <true/false>
       etcdDefragmentation: <true/false>
 ```
@@ -365,7 +359,6 @@ Copy the backups(full and delta snapshots) of etcd cluster from one object store
 ```go
 // EtcdCopyBackupsTaskConfig defines the parameters for the copy backups task.
 type EtcdCopyBackupsTaskConfig struct {
-  metav1.TypeMeta   `json:",inline"`
   // SourceStore defines the specification of the source object store provider.
   SourceStore StoreSpec `json:"sourceStore"`
 
@@ -385,9 +378,7 @@ type EtcdCopyBackupsTaskConfig struct {
 
 ```yaml
 spec:
-  config:
-    apiversion: druid.gardener.cloud/v1alpha1
-    kind: EtcdCopyBackupsTask
+  config: |
     sourceStore: <source object store specification>
     targetStore: <target object store specification>
     maxBackupAge: <maximum age in days that a backup must have in order to be copied>
