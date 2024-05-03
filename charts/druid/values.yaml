@@ -1,26 +1,56 @@
-crds:
-  enabled: true
 image:
   repository: europe-docker.pkg.dev/gardener-project/public/gardener/etcd-druid
   tag: latest
   imagePullPolicy: IfNotPresent
 replicas: 1
-ignoreOperationAnnotation: false
-# etcdStatusSyncPeriod: 15s
-# enableBackupCompaction: true
-# eventsThreshold: 15
-# metricsScrapeWaitDuration: "10s"
-# featureGates:
-#   UseEtcdWrapper: true
+resources:
+  limits:
+    cpu: 300m
+    memory: 512Mi
+  requests:
+    cpu: 50m
+    memory: 128Mi
 
-server:
-  webhook:
-    bindAddress: ""
-    port: 9443
-    tls:
-      serverCertDir: /etc/webhook-server-tls
+featureGates:
+  UseEtcdWrapper: true
 
-sentinelWebhook:
-  enabled: true
-  exemptServiceAccounts:
-    - system:serviceaccount:kube-system:generic-garbage-collector
+controllerManager:
+  server:
+    metrics:
+      bindAddress: ""
+      port: 8080
+    webhook:
+      bindAddress: ""
+      port: 9443
+      tls:
+        serverCertDir: /etc/webhook-server-tls
+  leaderElection:
+    enabled: true
+    id: druid-leader-election
+  disableLeaseCache: true
+
+controllers:
+  etcd:
+    workers: 3
+    enableEtcdSpecAutoReconcile: false
+    disableEtcdServiceAccountAutomount: false
+    etcdStatusSyncPeriod: 15s
+    etcdMemberNotReadyThreshold: 5m
+    etcdMemberUnknownThreshold: 1m
+  compaction:
+    enabled: true
+    workers: 3
+    etcdEventsThreshold: 1000000
+    activeDeadlineDuration: 3h
+    metricsScrapeWaitDuration: 0s
+  etcdCopyBackupsTask:
+    workers: 3
+  secret:
+    workers: 10
+
+webhooks:
+  sentinel:
+    enabled: true
+    # reconciler-service-account: system:serviceaccount:{{ .Release.Namespace }}:etcd-druid
+    exemptServiceAccounts:
+      - system:serviceaccount:kube-system:generic-garbage-collector

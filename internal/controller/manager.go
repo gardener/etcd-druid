@@ -6,6 +6,9 @@ package controller
 
 import (
 	"context"
+	"net"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
@@ -60,6 +63,11 @@ func createManager(config *ManagerConfig) (ctrl.Manager, error) {
 
 	if config.DisableLeaseCache {
 		uncachedObjects = append(uncachedObjects, &coordinationv1.Lease{}, &coordinationv1beta1.Lease{})
+	}
+
+	// TODO: remove this once `--metrics-addr` flag is removed
+	if !strings.Contains(config.Server.Metrics.BindAddress, ":") {
+		config.Server.Metrics.BindAddress = net.JoinHostPort(config.Server.Metrics.BindAddress, strconv.Itoa(config.Server.Metrics.Port))
 	}
 
 	return ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{

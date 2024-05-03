@@ -2,20 +2,24 @@
 apiVersion: v1
 kind: Service
 metadata:
-  labels:
-    gardener.cloud/role: etcd-druid
   name: etcd-druid
   namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: etcd-druid
 spec:
   type: ClusterIP
   selector:
-    gardener.cloud/role: etcd-druid
+    app.kubernetes.io/name: etcd-druid
   ports:
+    {{- if (((.Values.controllerManager).server).metrics).port }}
     - name: metrics
-      port: 8080
+      port: {{ .Values.controllerManager.server.metrics.port }}
       protocol: TCP
-      targetPort: 8080
+      targetPort: {{ .Values.controllerManager.server.metrics.port }}
+    {{- end }}
+    {{- if (((.Values.controllerManager).server).webhook).port }}
     - name: webhooks
-      port: 9443
+      port: {{ .Values.controllerManager.server.webhook.port }}
       protocol: TCP
-      targetPort: 9443
+      targetPort: {{ .Values.controllerManager.server.webhook.port }}
+    {{- end }}

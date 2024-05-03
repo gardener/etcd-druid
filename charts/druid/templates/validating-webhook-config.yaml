@@ -5,8 +5,9 @@ metadata:
   name: etcd-druid
   namespace: {{ .Release.Namespace }}
   labels:
-    gardener.cloud/role: etcd-druid
+    app.kubernetes.io/name: etcd-druid
 webhooks:
+  {{- if ((.Values.webhooks).sentinel).enabled }}
   - admissionReviewVersions:
       - v1beta1
       - v1
@@ -16,7 +17,7 @@ webhooks:
         name: etcd-druid
         namespace: {{ .Release.Namespace }}
         path: /webhooks/sentinel
-        port: 9443
+        port: {{ .Values.controllerManager.server.webhook.port }}
     failurePolicy: Fail
     matchPolicy: Exact
     name: sentinel.webhooks.druid.gardener.cloud
@@ -89,3 +90,4 @@ webhooks:
         scope: '*'
     sideEffects: None
     timeoutSeconds: 10
+  {{- end }}

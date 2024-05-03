@@ -193,7 +193,7 @@ type BackupSpec struct {
 	LeaderElection *LeaderElectionSpec `json:"leaderElection,omitempty"`
 }
 
-// EtcdConfig defines parameters associated etcd deployed
+// EtcdConfig defines the configuration for the etcd cluster to be deployed.
 type EtcdConfig struct {
 	// Quota defines the etcd DB quota.
 	// +optional
@@ -250,7 +250,7 @@ type SharedConfig struct {
 	// AutoCompactionMode defines the auto-compaction-mode:'periodic' mode or 'revision' mode for etcd and embedded-Etcd of backup-restore sidecar.
 	// +optional
 	AutoCompactionMode *CompactionMode `json:"autoCompactionMode,omitempty"`
-	//AutoCompactionRetention defines the auto-compaction-retention length for etcd as well as for embedded-Etcd of backup-restore sidecar.
+	// AutoCompactionRetention defines the auto-compaction-retention length for etcd as well as for embedded-etcd of backup-restore sidecar.
 	// +optional
 	AutoCompactionRetention *string `json:"autoCompactionRetention,omitempty"`
 }
@@ -332,11 +332,11 @@ const (
 type EtcdMemberConditionStatus string
 
 const (
-	// EtcdMemberStatusReady means a etcd member is ready.
+	// EtcdMemberStatusReady indicates that the etcd member is ready.
 	EtcdMemberStatusReady EtcdMemberConditionStatus = "Ready"
-	// EtcdMemberStatusNotReady means a etcd member is not ready.
+	// EtcdMemberStatusNotReady indicates that the etcd member is not ready.
 	EtcdMemberStatusNotReady EtcdMemberConditionStatus = "NotReady"
-	// EtcdMemberStatusUnknown means the status of an etcd member is unknown.
+	// EtcdMemberStatusUnknown indicates that the status of the etcd member is unknown.
 	EtcdMemberStatusUnknown EtcdMemberConditionStatus = "Unknown"
 )
 
@@ -350,7 +350,7 @@ const (
 	EtcdRoleMember EtcdRole = "Member"
 )
 
-// EtcdMemberStatus holds information about a etcd cluster membership.
+// EtcdMemberStatus holds information about etcd cluster membership.
 type EtcdMemberStatus struct {
 	// Name is the name of the etcd member. It is the name of the backing `Pod`.
 	Name string `json:"name"`
@@ -399,7 +399,7 @@ type EtcdStatus struct {
 	// CurrentReplicas is the current replica count for the etcd cluster.
 	// +optional
 	CurrentReplicas int32 `json:"currentReplicas,omitempty"`
-	// Replicas is the replica count of the etcd resource.
+	// Replicas is the replica count of the etcd cluster.
 	// +optional
 	Replicas int32 `json:"replicas,omitempty"`
 	// ReadyReplicas is the count of replicas being ready in the etcd cluster.
@@ -429,11 +429,11 @@ type EtcdStatus struct {
 type LastOperationType string
 
 const (
-	// LastOperationTypeCreate indicates that the last operation was a creation of a new etcd resource.
+	// LastOperationTypeCreate indicates that the last operation was a creation of a new Etcd resource.
 	LastOperationTypeCreate LastOperationType = "Create"
-	// LastOperationTypeReconcile indicates that the last operation was a reconciliation of the spec of an etcd resource.
+	// LastOperationTypeReconcile indicates that the last operation was a reconciliation of the spec of an Etcd resource.
 	LastOperationTypeReconcile LastOperationType = "Reconcile"
-	// LastOperationTypeDelete indicates that the last operation was a deletion of an existing etcd resource.
+	// LastOperationTypeDelete indicates that the last operation was a deletion of an existing Etcd resource.
 	LastOperationTypeDelete LastOperationType = "Delete"
 )
 
@@ -458,10 +458,10 @@ type LastOperation struct {
 	// Description describes the last operation.
 	Description string `json:"description"`
 	// RunID correlates an operation with a reconciliation run.
-	// Every time an etcd resource is reconciled (barring status reconciliation which is periodic), a unique ID is
+	// Every time an Etcd resource is reconciled (barring status reconciliation which is periodic), a unique ID is
 	// generated which can be used to correlate all actions done as part of a single reconcile run. Capturing this
 	// as part of LastOperation aids in establishing this correlation. This further helps in also easily filtering
-	// reconcile logs as all structured logs in a reconcile run should have the `runID` referenced.
+	// reconcile logs as all structured logs in a reconciliation run should have the `runID` referenced.
 	RunID string `json:"runID"`
 	// LastUpdateTime is the time at which the operation was updated.
 	LastUpdateTime metav1.Time `json:"lastUpdateTime"`
@@ -480,7 +480,7 @@ type LastError struct {
 	ObservedAt metav1.Time `json:"observedAt"`
 }
 
-// GetNamespaceName is a convenience function which creates a types.NamespacedName for an etcd resource.
+// GetNamespaceName is a convenience function which creates a types.NamespacedName for an Etcd resource.
 func (e *Etcd) GetNamespaceName() types.NamespacedName {
 	return types.NamespacedName{
 		Namespace: e.Namespace,
@@ -568,7 +568,7 @@ func (e *Etcd) GetRoleBindingName() string {
 	return fmt.Sprintf("%s:etcd:%s", GroupVersion.Group, e.Name)
 }
 
-// IsBackupStoreEnabled returns true if backup store has been enabled for this etcd, else returns false.
+// IsBackupStoreEnabled returns true if backup store has been enabled for the Etcd resource, else returns false.
 func (e *Etcd) IsBackupStoreEnabled() bool {
 	return e.Spec.Backup.Store != nil
 }
@@ -578,8 +578,8 @@ func (e *Etcd) IsMarkedForDeletion() bool {
 	return !e.DeletionTimestamp.IsZero()
 }
 
-// GetSuspendEtcdSpecReconcileAnnotationKey gets the annotation key set on an etcd resource signalling the intent
-// to suspend spec reconciliation for this etcd resource. If no annotation is set then it will return nil.
+// GetSuspendEtcdSpecReconcileAnnotationKey gets the annotation key set on an Etcd resource signalling the intent
+// to suspend spec reconciliation for this Etcd resource. If no annotation is set then it will return nil.
 func (e *Etcd) GetSuspendEtcdSpecReconcileAnnotationKey() *string {
 	if metav1.HasAnnotation(e.ObjectMeta, SuspendEtcdSpecReconcileAnnotation) {
 		return pointer.String(SuspendEtcdSpecReconcileAnnotation)
@@ -590,14 +590,14 @@ func (e *Etcd) GetSuspendEtcdSpecReconcileAnnotationKey() *string {
 	return nil
 }
 
-// IsReconciliationSuspended returns true if the etcd resource has the annotation set to suspend spec reconciliation,
+// IsReconciliationSuspended returns true if the Etcd resource has the annotation set to suspend spec reconciliation,
 // else returns false.
 func (e *Etcd) IsReconciliationSuspended() bool {
 	suspendReconcileAnnotKey := e.GetSuspendEtcdSpecReconcileAnnotationKey()
 	return suspendReconcileAnnotKey != nil && metav1.HasAnnotation(e.ObjectMeta, *suspendReconcileAnnotKey)
 }
 
-// AreManagedResourcesProtected returns true if the etcd resource has the resource protection annotation set to true,
+// AreManagedResourcesProtected returns true if the Etcd resource has the resource protection annotation set to true,
 // else returns false.
 func (e *Etcd) AreManagedResourcesProtected() bool {
 	if metav1.HasAnnotation(e.ObjectMeta, ResourceProtectionAnnotation) {
@@ -606,7 +606,7 @@ func (e *Etcd) AreManagedResourcesProtected() bool {
 	return true
 }
 
-// IsReconciliationInProgress returns true if the etcd resource is currently being reconciled, else returns false.
+// IsReconciliationInProgress returns true if the Etcd resource is currently being reconciled, else returns false.
 func (e *Etcd) IsReconciliationInProgress() bool {
 	return e.Status.LastOperation != nil &&
 		(e.Status.LastOperation.State == LastOperationStateProcessing ||

@@ -22,6 +22,8 @@ import (
 
 const (
 	metricsAddrFlagName                = "metrics-addr"
+	metricsBindAddressFlagName         = "metrics-bind-address"
+	metricsPortFlagName                = "metrics-port"
 	webhookServerBindAddressFlagName   = "webhook-server-bind-address"
 	webhookServerPortFlagName          = "webhook-server-port"
 	webhookServerTLSServerCertDir      = "webhook-server-tls-server-cert-dir"
@@ -30,7 +32,9 @@ const (
 	leaderElectionResourceLockFlagName = "leader-election-resource-lock"
 	disableLeaseCacheFlagName          = "disable-lease-cache"
 
-	defaultMetricsAddr                = ":8080"
+	defaultMetricsAddr                = ""
+	defaultMetricsBindAddress         = ""
+	defaultMetricsPort                = 8080
 	defaultWebhookServerBindAddress   = ""
 	defaultWebhookServerPort          = 9443
 	defaultWebhookServerTLSServerCert = "/etc/webhook-server-tls"
@@ -114,8 +118,12 @@ func (cfg *ManagerConfig) InitFromFlags(fs *flag.FlagSet) error {
 	cfg.Server.Webhook = HTTPSServer{}
 	cfg.Server.Webhook.Server = Server{}
 
+	flag.StringVar(&cfg.Server.Metrics.BindAddress, metricsBindAddressFlagName, defaultMetricsBindAddress,
+		"The IP address that the metrics endpoint binds to.")
+	flag.IntVar(&cfg.Server.Metrics.Port, metricsPortFlagName, defaultMetricsPort,
+		"The port used for the metrics endpoint.")
 	flag.StringVar(&cfg.Server.Metrics.BindAddress, metricsAddrFlagName, defaultMetricsAddr,
-		"The address the metric endpoint binds to.")
+		fmt.Sprintf("The fully qualified address:port that the metrics endpoint binds to. Deprecated: this field will be eventually removed. Please use %s and %s instead.", metricsBindAddressFlagName, metricsPortFlagName))
 	flag.StringVar(&cfg.Server.Webhook.Server.BindAddress, webhookServerBindAddressFlagName, defaultWebhookServerBindAddress,
 		"The IP address on which to listen for the HTTPS webhook server.")
 	flag.IntVar(&cfg.Server.Webhook.Server.Port, webhookServerPortFlagName, defaultWebhookServerPort,
@@ -127,7 +135,7 @@ func (cfg *ManagerConfig) InitFromFlags(fs *flag.FlagSet) error {
 	flag.StringVar(&cfg.LeaderElectionID, leaderElectionIDFlagName, defaultLeaderElectionID,
 		"Name of the resource that leader election will use for holding the leader lock.")
 	flag.StringVar(&cfg.LeaderElectionResourceLock, leaderElectionResourceLockFlagName, defaultLeaderElectionResourceLock,
-		"Specifies which resource type to use for leader election. Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'.")
+		"Specifies which resource type to use for leader election. Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'. Deprecated: will be removed in the future in favour of using only `leases` as the leader election resource lock for the controller manager.")
 	flag.BoolVar(&cfg.DisableLeaseCache, disableLeaseCacheFlagName, defaultDisableLeaseCache,
 		"Disable cache for lease.coordination.k8s.io resources.")
 

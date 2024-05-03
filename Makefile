@@ -107,7 +107,7 @@ docker-push:
 # Run tests
 .PHONY: test
 test: $(GINKGO) $(GOTESTFMT)
-	@# run ginkgo unit tests. These will be ported to golang native tests over a period of time.
+	# run ginkgo unit tests. These will be ported to golang native tests over a period of time.
 	@"$(REPO_ROOT)/hack/test.sh" ./api/... \
 	./internal/controller/etcdcopybackupstask/... \
 	./internal/controller/predicate/... \
@@ -115,7 +115,7 @@ test: $(GINKGO) $(GOTESTFMT)
 	./internal/controller/utils/... \
 	./internal/mapper/... \
 	./internal/metrics/...
-	@# run the golang native unit tests.
+	# run the golang native unit tests.
 	@TEST_COV="true" "$(REPO_ROOT)/hack/test-go.sh" ./internal/controller/etcd/... ./internal/operator/... ./internal/utils/... ./internal/webhook/...
 
 .PHONY: test-cov

@@ -8,7 +8,7 @@ All controllers that are a part of etcd-druid reside in package `internal/contro
 
 etcd-druid currently consists of 5 controllers, each having its own responsibility:
 
-- *etcd* : responsible for the reconciliation of the  `Etcd` CR spec, which allows users to run etcd clusters within the specified Kubernetes cluster, and also responsible for periodically updating the `Etcd` CR status with the up-to-date state of the managed etcd cluster.
+- *etcd* : responsible for the reconciliation of the `Etcd` CR spec, which allows users to run etcd clusters within the specified Kubernetes cluster, and also responsible for periodically updating the `Etcd` CR status with the up-to-date state of the managed etcd cluster.
 - *compaction* : responsible for [snapshot compaction](/docs/proposals/02-snapshot-compaction.md).
 - *etcdcopybackupstask* : responsible for the reconciliation of the `EtcdCopyBackupsTask` CR, which helps perform the job of copying snapshot backups from one object store to another.
 - *secret* : responsible in making sure `Secret`s being referenced by `Etcd` resources are not deleted while in use.
@@ -44,13 +44,13 @@ The logic relevant to the controller manager like the creation of the controller
 
 The *etcd controller* is responsible for the reconciliation of the `Etcd` resource spec and status. It handles the provisioning and management of the etcd cluster. Different components that are required for the functioning of the cluster like `Leases`, `ConfigMap`s, and the `Statefulset` for the etcd cluster are all deployed and managed by the *etcd controller*.
 
-Additionally, *etcd controller* also periodically updates the `Etcd` resource status with latest available information from the etcd cluster, as well as results and errors from the recentmost reconciliation of the `Etcd` resource spec.
+Additionally, *etcd controller* also periodically updates the `Etcd` resource status with the latest available information from the etcd cluster, as well as results and errors from the recent-most reconciliation of the `Etcd` resource spec.
 
 The *etcd controller* is essential to the functioning of the etcd cluster and etcd-druid, thus the minimum number of worker threads is 1 (default being 3).
 
 ### `Etcd` Spec Reconciliation
 
-While building the controller, an event filter is set such that the behavior of the controller depends on the `gardener.cloud/operation: reconcile` *annotation*. This is controlled by the `--enable-etcd-spec-auto-reconcile` CLI flag, which if set to `false`, tells the controller to perform reconciliation only when this annotation is present. If the flag is set to `true`, the controller will reconcile the etcd cluster anytime the `Etcd` spec, and thus `generation`, changes, and the next queued event for it is triggered.  
+While building the controller, an event filter is set such that the behavior of the controller depends on the `gardener.cloud/operation: reconcile` *annotation*. This is controlled by the `--enable-etcd-spec-auto-reconcile` CLI flag, which, if set to `false`, tells the controller to perform reconciliation only when this annotation is present. If the flag is set to `true`, the controller will reconcile the etcd cluster anytime the `Etcd` spec, and thus `generation`, changes, and the next queued event for it is triggered.  
 
 The reason this filter is present is that any disruption in the `Etcd` resource due to reconciliation (due to changes in the `Etcd` spec, for example) while workloads are being run would cause unwanted downtimes to the etcd cluster. Hence, any user who wishes to avoid such disruptions, can choose to set the `--enable-etcd-spec-auto-reconcile` CLI flag to `false`. An example of this is Gardener's [gardenlet](https://github.com/gardener/gardener/blob/master/docs/concepts/gardenlet.md), which reconciles the `Etcd` resource only during a shoot cluster's [*maintenance window*](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_maintenance.md).
 
@@ -63,7 +63,7 @@ The `Etcd` resource status is updated periodically by `etcd controller`, the int
 Status fields of the `Etcd` resource such as `LastOperation`, `LastErrors` and `ObservedGeneration`, are updated to reflect the result of the recent reconciliation of the `Etcd` resource spec.
 
 - `LastOperation` holds information about the last operation performed on the etcd cluster, indicated by fields `Type`, `State`, `Description` and `LastUpdateTime`. Additionally, a field `RunID` indicates the unique ID assigned to the specific reconciliation run, to allow for better debugging of issues.
-- `LastErrors` is a slice of errors encountered by the last reconciliation run. Each error consists of fields `Code` to indicate the custom druid error code for the error, a human-readable `Description`, and the `ObservedAt`  time when the error was seen.
+- `LastErrors` is a slice of errors encountered by the last reconciliation run. Each error consists of fields `Code` to indicate the custom druid error code for the error, a human-readable `Description`, and the `ObservedAt` time when the error was seen.
 - `ObservedGeneration` indicates the latest `generation` of the `Etcd` resource that druid has "observed" and consequently reconciled. It helps identify whether a change in the `Etcd` resource spec was acted upon by druid or not.
 
 Status fields of the `Etcd` resource which correspond to the `StatefulSet` like `CurrentReplicas`, `ReadyReplicas` and `Replicas` are updated to reflect those of the `StatefulSet` by the controller.
@@ -75,8 +75,8 @@ Status fields related to the etcd cluster itself, such as `Members`, `PeerUrlTLS
 `Etcd` resource conditions are indicated by status field `Conditions`.  The condition checks that are currently performed are:
 
 - `AllMembersReady`: indicates readiness of all members of the etcd cluster.
-- `Ready`: indicates overall readiness of the etcd cluster in serving traffic. 
-- `BackupReady`: indicates health of the etcd backups, ie, whether etcd backups are being taken regularly as per schedule. This condition is applicable only when backups are enabled for the etcd cluster.
+- `Ready`: indicates overall readiness of the etcd cluster in serving traffic.
+- `BackupReady`: indicates health of the etcd backups, i.e., whether etcd backups are being taken regularly as per schedule. This condition is applicable only when backups are enabled for the etcd cluster.
 - `DataVolumesReady`: indicates health of the persistent volumes containing the etcd data.
 
 ## Compaction Controller

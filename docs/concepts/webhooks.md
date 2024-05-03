@@ -19,7 +19,7 @@ internal/webhook/sentinel
 - `register.go`: contains the logic for registering the webhook with the etcd-druid controller manager.
 - `handler.go`: contains the webhook admission handler logic.
 
-Each webhook package may also contains auxiliary files which are relevant to that specific webhook.
+Each webhook package may also contain auxiliary files which are relevant to that specific webhook.
 
 ## Sentinel Webhook
 

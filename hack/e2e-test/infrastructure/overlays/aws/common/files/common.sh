@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company and Gardener contributors
 #
 # SPDX-License-Identifier: Apache-2.0
-set -xe
+set -e
 
 if [[ -n "${LOCALSTACK_HOST}" ]]; then
   export AWS_ENDPOINT_URL_S3="http://${LOCALSTACK_HOST}"
