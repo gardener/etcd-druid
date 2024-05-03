@@ -135,9 +135,6 @@ The authors propose that the following fields should be specified in the `Status
 * If an operation involves many stages, `.status.lastOperation` will be useful in capturing the status of any intermediate stage.
 
 ```go
-// TaskState represents the state of the task.
-type TaskState string
-
 // EtcdOperatorTaskStatus is the status for a EtcdOperatorTask resource.
 type EtcdOperatorTaskStatus struct {
   // ObservedGeneration is the most recent generation observed for the resource.
@@ -152,14 +149,6 @@ type EtcdOperatorTaskStatus struct {
   // +optional
   LastOperation *LastOperation `json:"lastOperation,omitempty"`
 }
-
-const (
-  Failed TaskState = "Failed"
-  Pending TaskState = "Pending"
-  Rejected TaskState = "Rejected"
-  Succeeded TaskState = "Succeeded"
-  InProgress TaskState = "InProgress"
-)
 
 type LastOperation struct {
   // Name of the LastOperation.
@@ -181,6 +170,27 @@ type LastError struct {
   // ObservedAt is the time at which the error was observed.
   ObservedAt metav1.Time `json:"observedAt"`
 }
+
+// TaskState represents the state of the task.
+type TaskState string
+
+const (
+  Failed TaskState = "Failed"
+  Pending TaskState = "Pending"
+  Rejected TaskState = "Rejected"
+  Succeeded TaskState = "Succeeded"
+  InProgress TaskState = "InProgress"
+)
+
+// OperationState represents the state of last operation.
+type OperationState string
+
+const (
+  Failed OperationState = "OperationStateFailed"
+  Pending OperationState = "OperationStatePending"
+  Completed OperationState = "OperationStateCompleted"
+  InProgress OperationState = "OperationStateInProgress"
+)
 ```
 
 ### Custom Resource API object
