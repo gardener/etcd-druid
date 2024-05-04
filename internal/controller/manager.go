@@ -65,7 +65,7 @@ func createManager(config *ManagerConfig) (ctrl.Manager, error) {
 		uncachedObjects = append(uncachedObjects, &coordinationv1.Lease{}, &coordinationv1beta1.Lease{})
 	}
 
-	// TODO: remove this once `--metrics-addr` flag is removed
+	// TODO: remove this check once `--metrics-addr` flag is removed, and directly compute the address:port when setting managerOptions.Metrics.BindAddress
 	if !strings.Contains(config.Server.Metrics.BindAddress, ":") {
 		config.Server.Metrics.BindAddress = net.JoinHostPort(config.Server.Metrics.BindAddress, strconv.Itoa(config.Server.Metrics.Port))
 	}

@@ -15,9 +15,9 @@ cd etcd-druid
 
 > **Note:**
 >
->- Etcd-druid uses [kind](https://kind.sigs.k8s.io/) as it's local Kubernetes engine. The local setup is configured for kind due to it's convenience but any other kubernetes setup would also work.
->- To setup Etcd-Druid with backups enabled on a [LocalStack](https://github.com/localstack/localstack) provider, refer [this document](getting-started-locally-localstack.md)
->- In the section [Annotate Etcd CR with the reconcile annotation](#annotate-etcd-cr-with-the-reconcile-annotation), the flag `ignore-operation-annotation` is set to false, which means a special annotation is required  on the Etcd CR, for etcd-druid to reconcile it. To disable this behavior and allow auto-reconciliation of the Etcd CR for any change in the Etcd spec, set the `ignoreOperationAnnotation` flag to `true` in the `values.yaml` located at [`charts/druid/values.yaml`](../../charts/druid/values.yaml). Or if etcd-druid is being run as a process, then while starting the process, set the CLI flag `--ignore-operation-annotation=true` for it.
+>- Etcd-druid uses [kind](https://kind.sigs.k8s.io/) as it's local Kubernetes engine. The local setup is configured for kind due to its convenience but any other kubernetes setup would also work.
+>- To set up etcd-druid with backups enabled on a [LocalStack](https://github.com/localstack/localstack) provider, refer [this document](getting-started-locally-localstack.md)
+>- In the section [Annotate Etcd CR with the reconcile annotation](#annotate-etcd-cr-with-the-reconcile-annotation), the flag `--enable-etcd-spec-auto-reconcile` is set to `false`, which means a special annotation is required on the Etcd CR, for etcd-druid to reconcile it. To disable this behavior and allow auto-reconciliation of the Etcd CR for any change in the Etcd spec, set the `controllers.etcd.enableEtcdSpecAutoReconcile` value to `true` in the `values.yaml` located at [`charts/druid/values.yaml`](../../charts/druid/values.yaml). Or if etcd-druid is being run as a process, then while starting the process, set the CLI flag `--enable-etcd-spec-auto-reconcile=true` for it.
 
 ## Setting up the kind cluster
 
@@ -104,9 +104,9 @@ kubectl apply -f config/samples/druid_v1alpha1_etcd.yaml
 
 ### Annotate Etcd CR with the reconcile annotation
 
-> **Note :** If the `ignore-operation-annotation` flag is set to `true`, this step is not required
+> **Note :** If the `--enable-etcd-spec-auto-reconcile` flag is set to `true`, this step is not required.
 
-The above step creates an Etcd resource, however etcd-druid won't pick it up for reconciliation without an annotation. To get etcd-druid to reconcile the etcd CR, annotate it with the following `gardener.cloud/operation:reconcile`.
+The above step creates an Etcd resource, however etcd-druid won't pick it up for reconciliation without an annotation. To get etcd-druid to reconcile the etcd CR, annotate it with the following `gardener.cloud/operation: reconcile`.
 
 ```sh
 # Annotate etcd-test CR to reconcile
