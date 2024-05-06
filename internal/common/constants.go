@@ -150,10 +150,10 @@ const (
 	// BackupRestoreClientTLSVolumeMountPath is the path on a container where the client certificate-key pair used by the client to communicate to the backup-restore server is mounted.
 	BackupRestoreClientTLSVolumeMountPath = "/var/etcdbr/ssl/client"
 
-	// GCSBackupVolumeMountPath is the path on a container where the GCS backup secret is mounted.
-	GCSBackupVolumeMountPath = "/var/.gcp/"
-	// NonGCSProviderBackupVolumeMountPath is the path on a container where the non-GCS provider backup secret is mounted.
-	NonGCSProviderBackupVolumeMountPath = "/var/etcd-backup"
+	// GCSBackupSecretVolumeMountPath is the path on a container where the GCS backup secret is mounted.
+	GCSBackupSecretVolumeMountPath = "/var/.gcp/"
+	// NonGCSProviderBackupSecretVolumeMountPath is the path on a container where the non-GCS provider backup secret is mounted.
+	NonGCSProviderBackupSecretVolumeMountPath = "/var/etcd-backup"
 
 	// EtcdDataVolumeMountPath is the path on a container where the etcd data directory is hosted.
 	EtcdDataVolumeMountPath = "/var/etcd/data"

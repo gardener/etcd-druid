@@ -42,6 +42,7 @@ func (r *Reconciler) removeOperationAnnotation(ctx component.OperatorContext, et
 		withOpAnnotation := etcd.DeepCopy()
 		delete(etcd.Annotations, v1beta1constants.GardenerOperation)
 		if err := r.client.Patch(ctx, etcd, client.MergeFrom(withOpAnnotation)); err != nil {
+			ctx.Logger.Error(err, "failed to remove operation annotation")
 			return ctrlutils.ReconcileWithError(err)
 		}
 	}
@@ -56,6 +57,7 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey
 	for _, kind := range resourceOperators {
 		op := r.operatorRegistry.GetOperator(kind)
 		if err := op.Sync(ctx, etcd); err != nil {
+			ctx.Logger.Error(err, "failed to sync etcd resource", "kind", kind)
 			return ctrlutils.ReconcileWithError(err)
 		}
 	}
@@ -70,6 +72,7 @@ func (r *Reconciler) updateObservedGeneration(ctx component.OperatorContext, etc
 	originalEtcd := etcd.DeepCopy()
 	etcd.Status.ObservedGeneration = &etcd.Generation
 	if err := r.client.Status().Patch(ctx, etcd, client.MergeFrom(originalEtcd)); err != nil {
+		ctx.Logger.Error(err, "failed to patch status.ObservedGeneration")
 		return ctrlutils.ReconcileWithError(err)
 	}
 	ctx.Logger.Info("patched status.ObservedGeneration", "ObservedGeneration", etcd.Generation)

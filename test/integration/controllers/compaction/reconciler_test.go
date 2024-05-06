@@ -391,7 +391,7 @@ func validateStoreGCPForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 							"VolumeMounts": MatchElements(testutils.VolumeMountIterator, IgnoreExtras, Elements{
 								common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
 									"Name":      Equal(common.ProviderBackupSecretVolumeName),
-									"MountPath": Equal(common.GCSBackupVolumeMountPath),
+									"MountPath": Equal(common.GCSBackupSecretVolumeMountPath),
 								}),
 							}),
 							"Env": MatchAllElements(testutils.EnvIterator, Elements{
@@ -485,7 +485,7 @@ func validateStoreAWSForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 								}),
 								common.EnvAWSApplicationCredentials: MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal(common.EnvAWSApplicationCredentials),
-									"Value": Equal(common.NonGCSProviderBackupVolumeMountPath),
+									"Value": Equal(common.NonGCSProviderBackupSecretVolumeMountPath),
 								}),
 							}),
 						}),
@@ -541,7 +541,7 @@ func validateStoreAzureForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1
 								}),
 								common.EnvAzureApplicationCredentials: MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal(common.EnvAzureApplicationCredentials),
-									"Value": Equal(common.NonGCSProviderBackupVolumeMountPath),
+									"Value": Equal(common.NonGCSProviderBackupSecretVolumeMountPath),
 								}),
 							}),
 						}),
@@ -597,7 +597,7 @@ func validateStoreOpenstackForCompactionJob(instance *druidv1alpha1.Etcd, j *bat
 								}),
 								common.EnvOpenstackApplicationCredentials: MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal(common.EnvOpenstackApplicationCredentials),
-									"Value": Equal(common.NonGCSProviderBackupVolumeMountPath),
+									"Value": Equal(common.NonGCSProviderBackupSecretVolumeMountPath),
 								}),
 							}),
 						}),
@@ -654,7 +654,7 @@ func validateStoreAlicloudForCompactionJob(instance *druidv1alpha1.Etcd, j *batc
 								}),
 								common.EnvAlicloudApplicationCredentials: MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal(common.EnvAlicloudApplicationCredentials),
-									"Value": Equal(common.NonGCSProviderBackupVolumeMountPath),
+									"Value": Equal(common.NonGCSProviderBackupSecretVolumeMountPath),
 								}),
 							}),
 						}),

@@ -493,26 +493,26 @@ func createVolumeMountsFromStore(store *druidv1alpha1.StoreSpec, provider, volum
 	case utils.GCS:
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      getVolumeNamePrefix(volumeMountPrefix) + common.ProviderBackupSecretVolumeName,
-			MountPath: getGCSVolumeMountPathWithPrefixAndSuffix(getVolumeNamePrefix(volumeMountPrefix), "/"),
+			MountPath: getGCSSecretVolumeMountPathWithPrefixAndSuffix(getVolumeNamePrefix(volumeMountPrefix), "/"),
 		})
 	case utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      getVolumeNamePrefix(volumeMountPrefix) + common.ProviderBackupSecretVolumeName,
-			MountPath: getNonGCSVolumeMountPathWithPrefixAndSuffix(volumeMountPrefix, "/"),
+			MountPath: getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumeMountPrefix, "/"),
 		})
 	}
 	return
 }
 
-func getNonGCSVolumeMountPathWithPrefixAndSuffix(volumePrefix, suffix string) string {
+func getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, suffix string) string {
 	// "/var/<volumePrefix>etcd-backup<suffix>"
-	tokens := strings.Split(strings.Trim(common.NonGCSProviderBackupVolumeMountPath, "/"), "/")
+	tokens := strings.Split(strings.Trim(common.NonGCSProviderBackupSecretVolumeMountPath, "/"), "/")
 	return fmt.Sprintf("/%s/%s%s%s", tokens[0], volumePrefix, tokens[1], suffix)
 }
 
-func getGCSVolumeMountPathWithPrefixAndSuffix(volumePrefix, suffix string) string {
+func getGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, suffix string) string {
 	// "/var/.<volumePrefix>gcp<suffix>"
-	tokens := strings.Split(strings.TrimSuffix(common.GCSBackupVolumeMountPath, "/"), ".")
+	tokens := strings.Split(strings.TrimSuffix(common.GCSBackupSecretVolumeMountPath, "/"), ".")
 	return fmt.Sprintf("%s.%s%s%s", tokens[0], volumePrefix, tokens[1], suffix)
 }
 
@@ -524,17 +524,17 @@ func createEnvVarsFromStore(store *druidv1alpha1.StoreSpec, storeProvider, envKe
 	envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvStorageContainer, *store.Container))
 	switch storeProvider {
 	case utils.S3:
-		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvAWSApplicationCredentials, getNonGCSVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
+		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvAWSApplicationCredentials, getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
 	case utils.ABS:
-		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvAzureApplicationCredentials, getNonGCSVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
+		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvAzureApplicationCredentials, getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
 	case utils.GCS:
-		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvGoogleApplicationCredentials, getGCSVolumeMountPathWithPrefixAndSuffix(volumePrefix, "/serviceaccount.json")))
+		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvGoogleApplicationCredentials, getGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "/serviceaccount.json")))
 	case utils.Swift:
-		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvOpenstackApplicationCredentials, getNonGCSVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
+		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvOpenstackApplicationCredentials, getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
 	case utils.OCS:
-		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvOpenshiftApplicationCredentials, getNonGCSVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
+		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvOpenshiftApplicationCredentials, getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
 	case utils.OSS:
-		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvAlicloudApplicationCredentials, getNonGCSVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
+		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvAlicloudApplicationCredentials, getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
 	}
 	return envVars
 }

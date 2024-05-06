@@ -372,9 +372,9 @@ func (s StatefulSetMatcher) getEtcdBackupVolumeMountMatcher() gomegatypes.Gomega
 			}
 		}
 	case utils.GCS:
-		return matchVolMount(common.ProviderBackupSecretVolumeName, common.GCSBackupVolumeMountPath)
+		return matchVolMount(common.ProviderBackupSecretVolumeName, common.GCSBackupSecretVolumeMountPath)
 	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
-		return matchVolMount(common.ProviderBackupSecretVolumeName, common.NonGCSProviderBackupVolumeMountPath)
+		return matchVolMount(common.ProviderBackupSecretVolumeName, common.NonGCSProviderBackupSecretVolumeMountPath)
 	}
 	return nil
 }

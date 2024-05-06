@@ -85,9 +85,9 @@ func createManager(config *ManagerConfig) (ctrl.Manager, error) {
 			Port:    config.Server.Webhook.Port,
 			CertDir: config.Server.Webhook.TLS.ServerCertDir,
 		}),
-		LeaderElection:             config.EnableLeaderElection,
-		LeaderElectionID:           config.LeaderElectionID,
-		LeaderElectionResourceLock: config.LeaderElectionResourceLock,
+		LeaderElection:             config.LeaderElection.Enabled,
+		LeaderElectionID:           config.LeaderElection.ID,
+		LeaderElectionResourceLock: config.LeaderElection.ResourceLock,
 	})
 }
 

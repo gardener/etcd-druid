@@ -77,14 +77,14 @@ type Server struct {
 
 // LeaderElectionConfig defines the configuration for the leader election for the controller manager.
 type LeaderElectionConfig struct {
-	// EnableLeaderElection specifies whether to enable leader election for controller manager.
-	EnableLeaderElection bool
-	// LeaderElectionID is the name of the resource that leader election will use for holding the leader lock.
-	LeaderElectionID string
-	// LeaderElectionResourceLock specifies which resource type to use for leader election.
+	// Enabled specifies whether to enable leader election for controller manager.
+	Enabled bool
+	// ID is the name of the resource that leader election will use for holding the leader lock.
+	ID string
+	// ResourceLock specifies which resource type to use for leader election.
 	// Deprecated: K8S Leases will be used for leader election. No other resource type would be permitted.
 	// This configuration option will be removed eventually. It is advisable to not use this option any longer.
-	LeaderElectionResourceLock string
+	ResourceLock string
 }
 
 // ManagerConfig defines the configuration for the controller manager.
@@ -93,8 +93,8 @@ type ManagerConfig struct {
 	// Deprecated: This field will be eventually removed. Please use Server.Metrics.BindAddress instead.
 	MetricsAddr string
 	// Server is the configuration for the HTTP server.
-	Server *ServerConfig
-	LeaderElectionConfig
+	Server         *ServerConfig
+	LeaderElection LeaderElectionConfig
 	// DisableLeaseCache specifies whether to disable cache for lease.coordination.k8s.io resources.
 	DisableLeaseCache bool
 	// FeatureGates contains the feature gates to be used by etcd-druid.
@@ -130,11 +130,11 @@ func (cfg *ManagerConfig) InitFromFlags(fs *flag.FlagSet) error {
 		"The port on which to listen for the HTTPS webhook server.")
 	flag.StringVar(&cfg.Server.Webhook.TLS.ServerCertDir, webhookServerTLSServerCertDir, defaultWebhookServerTLSServerCert,
 		"The path to a directory containing the server's TLS certificate and key (the files must be named tls.crt and tls.key respectively).")
-	flag.BoolVar(&cfg.EnableLeaderElection, enableLeaderElectionFlagName, defaultEnableLeaderElection,
+	flag.BoolVar(&cfg.LeaderElection.Enabled, enableLeaderElectionFlagName, defaultEnableLeaderElection,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&cfg.LeaderElectionID, leaderElectionIDFlagName, defaultLeaderElectionID,
+	flag.StringVar(&cfg.LeaderElection.ID, leaderElectionIDFlagName, defaultLeaderElectionID,
 		"Name of the resource that leader election will use for holding the leader lock.")
-	flag.StringVar(&cfg.LeaderElectionResourceLock, leaderElectionResourceLockFlagName, defaultLeaderElectionResourceLock,
+	flag.StringVar(&cfg.LeaderElection.ResourceLock, leaderElectionResourceLockFlagName, defaultLeaderElectionResourceLock,
 		"Specifies which resource type to use for leader election. Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'. Deprecated: will be removed in the future in favour of using only `leases` as the leader election resource lock for the controller manager.")
 	flag.BoolVar(&cfg.DisableLeaseCache, disableLeaseCacheFlagName, defaultDisableLeaseCache,
 		"Disable cache for lease.coordination.k8s.io resources.")
@@ -190,7 +190,7 @@ func (cfg *ManagerConfig) populateControllersFeatureGates() {
 
 // Validate validates the controller manager config.
 func (cfg *ManagerConfig) Validate() error {
-	if err := utils.ShouldBeOneOfAllowedValues("LeaderElectionResourceLock", getAllowedLeaderElectionResourceLocks(), cfg.LeaderElectionResourceLock); err != nil {
+	if err := utils.ShouldBeOneOfAllowedValues("ResourceLock", getAllowedLeaderElectionResourceLocks(), cfg.LeaderElection.ResourceLock); err != nil {
 		return err
 	}
 

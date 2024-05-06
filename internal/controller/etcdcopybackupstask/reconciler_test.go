@@ -472,10 +472,10 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 						expectedMountPath = *storeSpec.Container
 					case utils.GCS:
 						expectedMountName = volumeMountPrefix + common.ProviderBackupSecretVolumeName
-						expectedMountPath = getGCSVolumeMountPathWithPrefixAndSuffix(volumeMountPrefix, "/")
+						expectedMountPath = getGCSSecretVolumeMountPathWithPrefixAndSuffix(volumeMountPrefix, "/")
 					case utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
 						expectedMountName = volumeMountPrefix + common.ProviderBackupSecretVolumeName
-						expectedMountPath = getNonGCSVolumeMountPathWithPrefixAndSuffix(volumeMountPrefix, "/")
+						expectedMountPath = getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumeMountPrefix, "/")
 					default:
 						Fail(fmt.Sprintf("Unknown provider: %s", provider))
 					}
@@ -707,12 +707,12 @@ func checkEnvVars(envVars []corev1.EnvVar, storeProvider, container, envKeyPrefi
 	case utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
 		expected = append(expected, corev1.EnvVar{
 			Name:  mapToEnvVarKey[storeProvider],
-			Value: getNonGCSVolumeMountPathWithPrefixAndSuffix(volumePrefix, ""),
+			Value: getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, ""),
 		})
 	case utils.GCS:
 		expected = append(expected, corev1.EnvVar{
 			Name:  mapToEnvVarKey[storeProvider],
-			Value: getGCSVolumeMountPathWithPrefixAndSuffix(volumePrefix, "/serviceaccount.json"),
+			Value: getGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "/serviceaccount.json"),
 		})
 	}
 	Expect(envVars).To(Equal(expected))
@@ -898,7 +898,7 @@ func getProviderEnvElements(storeProvider, prefix, volumePrefix string) Elements
 		return Elements{
 			prefix + common.EnvGoogleApplicationCredentials: MatchFields(IgnoreExtras, Fields{
 				"Name":  Equal(prefix + common.EnvGoogleApplicationCredentials),
-				"Value": Equal(getGCSVolumeMountPathWithPrefixAndSuffix(volumePrefix, "/serviceaccount.json")),
+				"Value": Equal(getGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "/serviceaccount.json")),
 			}),
 		}
 	case "Swift":

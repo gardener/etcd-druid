@@ -380,12 +380,12 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featu
 	case utils.GCS:
 		vms = append(vms, v1.VolumeMount{
 			Name:      common.ProviderBackupSecretVolumeName,
-			MountPath: common.GCSBackupVolumeMountPath,
+			MountPath: common.GCSBackupSecretVolumeMountPath,
 		})
 	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
 		vms = append(vms, v1.VolumeMount{
 			Name:      common.ProviderBackupSecretVolumeName,
-			MountPath: common.NonGCSProviderBackupVolumeMountPath,
+			MountPath: common.NonGCSProviderBackupSecretVolumeMountPath,
 		})
 	}
 

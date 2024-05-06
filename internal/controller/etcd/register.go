@@ -34,11 +34,11 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 	return builder.Complete(r)
 }
 
-// buildPredicate returns a predicate that filters out events that are not relevant for the Etcd controller.
+// buildPredicate returns a predicate that filters events that are relevant for the Etcd controller.
 // NOTE:
 // For all conditions the following is applicable:
-// 1. create and delete events are always reconciled.
-// 2. generic events are not reconciled. If there is a need in future to react to generic events then this should be changed.
+// 1. create and delete events are always reconciled irrespective of whether reconcile annotation is present or auto-reconcile has been enabled.
+// 2. generic events are never reconciled. If there is a need in future to react to generic events then this should be changed.
 // Conditions for reconciliation:
 // Scenario 1: {Auto-Reconcile: false, Reconcile-Annotation-Present: false, Spec-Updated: false/true, Status-Updated: false/true, update-event-reconciled: false}
 // Scenario 2: {Auto-Reconcile: false, Reconcile-Annotation-Present: true, Spec-Updated: false, Status-Updated: false, update-event-reconciled: true}
@@ -55,19 +55,15 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 // Scenario 13: {Auto-Reconcile: true, Reconcile-Annotation-Present: true, Spec-Updated: false, Status-Updated: true, update-event-reconciled: false}
 // Scenario 14: {Auto-Reconcile: true, Reconcile-Annotation-Present: true, Spec-Updated: true, Status-Updated: true, update-event-reconciled: true}
 func (r *Reconciler) buildPredicate() predicate.Predicate {
-	/*
-		If there is no change to spec and status then no reconciliation would happen. This is also true when auto-reconcile
-		has been enabled. If an operator wishes to force a reconcile especially when no change (spec/status) has been done to the etcd resource
-		then the only way is to explicitly add the reconcile annotation to the etcd resource.
-	*/
+	// If there is no change to spec and status then no reconciliation would happen. This is also true when auto-reconcile
+	// has been enabled. If an operator wishes to force a reconcile especially when no change (spec/status) has been done to the etcd resource
+	// then the only way is to explicitly add the reconcile annotation to the etcd resource.
 	forceReconcilePredicate := predicate.And(
 		r.hasReconcileAnnotation(),
 		noSpecAndStatusUpdated(),
 	)
-	/*
-		If there is a spec change (irrespective of status change) and if there is an update event then it will trigger a reconcile only when either
-		auto-reconcile has been enabled or an operator has added the reconcile annotation to the etcd resource.
-	*/
+	// If there is a spec change (irrespective of status change) and if there is an update event then it will trigger a reconcile only when either
+	// auto-reconcile has been enabled or an operator has added the reconcile annotation to the etcd resource.
 	onSpecChangePredicate := predicate.And(
 		predicate.Or(
 			r.hasReconcileAnnotation(),
