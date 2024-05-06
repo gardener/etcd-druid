@@ -175,21 +175,21 @@ type LastError struct {
 type TaskState string
 
 const (
-  Failed TaskState = "Failed"
-  Pending TaskState = "Pending"
-  Rejected TaskState = "Rejected"
-  Succeeded TaskState = "Succeeded"
-  InProgress TaskState = "InProgress"
+  TaskStateFailed TaskState = "Failed"
+  TaskStatePending TaskState = "Pending"
+  TaskStateRejected TaskState = "Rejected"
+  TaskStateSucceeded TaskState = "Succeeded"
+  TaskStateInProgress TaskState = "InProgress"
 )
 
 // OperationState represents the state of last operation.
 type OperationState string
 
 const (
-  Failed OperationState = "OperationStateFailed"
-  Pending OperationState = "OperationStatePending"
-  Completed OperationState = "OperationStateCompleted"
-  InProgress OperationState = "OperationStateInProgress"
+  OperationStateFailed OperationState = "Failed"
+  OperationStatePending OperationState = "Pending"
+  OperationStateCompleted OperationState = "Completed"
+  OperationStateInProgress OperationState = "InProgress"
 )
 ```
 
@@ -232,17 +232,17 @@ Task(s) can be created by creating an instance of the `EtcdOperatorTask` custom 
 
 #### Execution
 
-* Authors propose to introduce a new controller (let's call it `operator-task-controller`) which watches for `EtcdOperatorTask` custom resource.
+* Authors propose to introduce a new controller which watches for `EtcdOperatorTask` custom resource.
 * Each `out-of-band` task may have some task specific configuration defined in [.spec.config](#spec).
-* The controller (`operator-task-controller`) needs to parse this task specific config, which comes as a [string](#spec), according to the schema defined for each task.
+* The controller needs to parse this task specific config, which comes as a [string](#spec), according to the schema defined for each task.
 * Moreover, all tasks have to adhere to some prerequisites (a.k.a `pre-conditions`) which will be necessary to execute the task. Authors propose to define pre-conditions for each task, which must be met for the task to be eligible for execution otherwise that task should be rejected.
 * If multiple tasks are invoked simultaneously or in `pending` state, then they will be executed in a First-In-First-Out (FIFO) manner.
 
-> Note: Dependent ordering among tasks will be addressed later which may enable concurrent execution of tasks.
+> Note: Dependent ordering among tasks will be addressed later which will enable concurrent execution of tasks when possible.
 
 #### Deletion
 
-Upon completion of the task, whether it has failed, succeeded, or been rejected, Etcd-druid will ensure the garbage collection of the custom resources and any other Kubernetes resources created to execute the task. This will be done according to the `.spec.ttlSecondsAfterFinished` if defined in the [spec](#spec), or a default expiry time will be assumed.
+Upon completion of the task, irrespective of its final state, `Etcd-druid` will ensure the garbage collection of the task custom resource and any other Kubernetes resources created to execute the task. This will be done according to the `.spec.ttlSecondsAfterFinished` if defined in the [spec](#spec), or a default expiry time will be assumed.
 
 ### Use Cases
 
@@ -287,7 +287,7 @@ If a human operator does not wish to wait for the scheduled full/delta snapshot,
 
 * An on-demand full snapshot can be triggered if scheduled snapshot fails due to any reason.
 * [Gardener Shoot Hibernation](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_hibernate.md): Every etcd cluster incurs an inherent cost of preserving the volumes even when a gardener shoot control plane is scaled down, i.e the shoot is in a hibernated state. However, it is possible to save on hyperscaler costs by invoking this task to take a full snapshot before scaling down the etcd cluster, and deleting the etcd data volumes afterwards.
-* [Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md): In [gardener](https://github.com/gardener/gardener), a cluster control plane can be moved from one seed cluster to another. This process currently requires the etcd data to be replicated on the target cluster, so a full snapshot of the etcd cluster in the source seed before the migration would allow for faster restoration of the etcd cluster in the target seed.
+* [Gardener Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md): In [gardener](https://github.com/gardener/gardener), a cluster control plane can be moved from one seed cluster to another. This process currently requires the etcd data to be replicated on the target cluster, so a full snapshot of the etcd cluster in the source seed before the migration would allow for faster restoration of the etcd cluster in the target seed.
 
 ##### Task Config
 
@@ -296,8 +296,8 @@ If a human operator does not wish to wait for the scheduled full/delta snapshot,
 type SnapshotType string
 
 const (
-  FullSnapshot SnapshotType = "full-snapshot"
-  DeltaSnapshot SnapshotType = "delta-snapshot"
+  SnapshotTypeFull SnapshotType = "full"
+  SnapshotTypeDelta SnapshotType = "delta"
 )
 
 type OnDemandSnapshotTaskConfig struct {
@@ -403,7 +403,7 @@ spec:
 
 > Note: `copy-backups-task` runs as a separate job, and it operates only on the backup bucket, hence it doesn't depend on health of etcd cluster members.
 
-> Note: `copy-backups-task` has already been implemented and it's currently being used in [Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md) but `copy-backups-task` can be harmonized with `EtcdOperatorTask` custom resource.
+> Note: `copy-backups-task` has already been implemented and it's currently being used in [Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md) but `copy-backups-task` will be harmonized with `EtcdOperatorTask` custom resource.
 
 ## Metrics
 
