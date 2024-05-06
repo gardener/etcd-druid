@@ -23,10 +23,10 @@ reviewers:
   * [Goals](#goals)
   * [Non-Goals](#non-goals)
   * [Proposal](#proposal)
-    * [Custom Resource API](#custom-resource-api)
+    * [Custom Resource Golang API](#custom-resource-golang-api)
       * [Spec](#spec)
       * [Status](#status)
-      * [Custom Resource API object](#custom-resource-api-object)
+    * [Custom Resource YAML API](#custom-resource-yaml-api)
     * [Lifecycle](#lifecycle)
       * [Creation](#creation)
       * [Execution](#execution)
@@ -82,7 +82,7 @@ Some examples of an `on-demand/out-of-band` tasks:
 
 Authors propose creation of a new single dedicated custom resource to represent an `out-of-band` task. Etcd-druid will be enhanced to process the task requests and update its status which can then be tracked/observed.
 
-### Custom Resource API
+### Custom Resource Golang API
 
 `EtcdOperatorTask` is the new custom resource that will be introduced. This API will be in `v1alpha1` version and will be subject to change. We will be respecting [Kubernetes Deprecation Policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/).
 
@@ -129,10 +129,7 @@ type EtcdOperatorTaskSpec struct {
 
 #### Status
 
-The authors propose that the following fields should be specified in the `Status` (current state) of the `EtcdOperatorTask` custom resource as the custom resource's `Status` will be used to monitor the progress of the task.
-
-* To capture the current state of a task, a field `.status.currentState` is defined in status.
-* If an operation involves many stages, `.status.lastOperation` will be useful in capturing the status of any intermediate stage.
+The authors propose the following fields for the Status (current state) of the `EtcdOperatorTask` custom resource to monitor the progress of the task.
 
 ```go
 // EtcdOperatorTaskStatus is the status for a EtcdOperatorTask resource.
@@ -144,8 +141,9 @@ type EtcdOperatorTaskStatus struct {
   // Time at which the task has moved from "pending" state to any other state.
   InitiatedAt metav1.Time `json:"initiatedAt"`
   // LastError represents the errors when processing the task.
+  // +optional
   LastErrors []LastError `json:"lastErrors,omitempty"`
-  // Captures the last operation.
+  // Captures the last operation status if task involves many stages.
   // +optional
   LastOperation *LastOperation `json:"lastOperation,omitempty"`
 }
@@ -193,7 +191,7 @@ const (
 )
 ```
 
-### Custom Resource API object
+### Custom Resource YAML API
 
 ```yaml
 apiVersion: druid.gardener.cloud/v1alpha1
@@ -235,7 +233,7 @@ Task(s) can be created by creating an instance of the `EtcdOperatorTask` custom 
 * Authors propose to introduce a new controller which watches for `EtcdOperatorTask` custom resource.
 * Each `out-of-band` task may have some task specific configuration defined in [.spec.config](#spec).
 * The controller needs to parse this task specific config, which comes as a [string](#spec), according to the schema defined for each task.
-* Moreover, all tasks have to adhere to some prerequisites (a.k.a `pre-conditions`) which will be necessary to execute the task. Authors propose to define pre-conditions for each task, which must be met for the task to be eligible for execution otherwise that task should be rejected.
+* For every `out-of-band` task, a set of `pre-conditions` can be defined. These pre-conditions are evaluated against the current state of the target etcd cluster. Based on the evaluation result (boolean), the task is permitted or denied execution.
 * If multiple tasks are invoked simultaneously or in `pending` state, then they will be executed in a First-In-First-Out (FIFO) manner.
 
 > Note: Dependent ordering among tasks will be addressed later which will enable concurrent execution of tasks when possible.
