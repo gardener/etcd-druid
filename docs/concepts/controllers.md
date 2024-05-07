@@ -6,7 +6,7 @@ etcd-druid uses Kubebuilder to define the `Etcd` CR and its corresponding contro
 
 All controllers that are a part of etcd-druid reside in package `internal/controller`, as sub-packages.
 
-etcd-druid currently consists of 5 controllers, each having its own responsibility:
+etcd-druid currently consists of the following controllers, each having its own responsibility:
 
 - *etcd* : responsible for the reconciliation of the `Etcd` CR spec, which allows users to run etcd clusters within the specified Kubernetes cluster, and also responsible for periodically updating the `Etcd` CR status with the up-to-date state of the managed etcd cluster.
 - *compaction* : responsible for [snapshot compaction](/docs/proposals/02-snapshot-compaction.md).
@@ -81,7 +81,7 @@ Status fields related to the etcd cluster itself, such as `Members`, `PeerUrlTLS
 
 ## Compaction Controller
 
-The *compaction controller* deploys the snapshot compaction job whenever required.
+The *compaction controller* deploys the snapshot compaction job whenever required. To understand the rationale behind this controller, please read [snapshot-compaction.md](../proposals/02-snapshot-compaction.md).
 The controller watches the number of events accumulated as part of delta snapshots in the etcd cluster's backups, and triggers a snapshot compaction when the number of delta events crosses the set threshold, which is configurable through the `--etcd-events-threshold` CLI flag (1M events by default).
 
 The controller watches for changes in *snapshot* `Leases` associated with `Etcd` resources.
