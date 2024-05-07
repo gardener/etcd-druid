@@ -25,6 +25,6 @@ const (
 	IgnoreReconciliationAnnotation = "druid.gardener.cloud/ignore-reconciliation"
 	// SuspendEtcdSpecReconcileAnnotation is an annotation set by an operator to temporarily suspend any etcd spec reconciliation.
 	SuspendEtcdSpecReconcileAnnotation = "druid.gardener.cloud/suspend-etcd-spec-reconcile"
-	// ResourceProtectionAnnotation is an annotation set by an operator to enable or disable protection of resources created by etcd-druid.
-	ResourceProtectionAnnotation = "druid.gardener.cloud/resource-protection"
+	// DisableResourceProtectionAnnotation is an annotation set by an operator to disable protection of resources managed by etcd-druid.
+	DisableResourceProtectionAnnotation = "druid.gardener.cloud/disable-resource-protection"
 )

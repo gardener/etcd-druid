@@ -202,11 +202,11 @@ func TestHandleUpdate(t *testing.T) {
 		expectedCode    int32
 	}{
 		{
-			name:            "resource protection annotation set to false",
+			name:            "disable resource protection annotation set",
 			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdAnnotations: map[string]string{druidv1alpha1.ResourceProtectionAnnotation: "false"},
+			etcdAnnotations: map[string]string{druidv1alpha1.DisableResourceProtectionAnnotation: ""},
 			expectedAllowed: true,
-			expectedMessage: fmt.Sprintf("changes allowed, since etcd %s has annotation %s: false", testEtcdName, druidv1alpha1.ResourceProtectionAnnotation),
+			expectedMessage: fmt.Sprintf("changes allowed, since etcd %s has annotation %s", testEtcdName, druidv1alpha1.DisableResourceProtectionAnnotation),
 			expectedCode:    http.StatusOK,
 		},
 		{
@@ -461,11 +461,11 @@ func TestHandleDelete(t *testing.T) {
 		expectedCode    int32
 	}{
 		{
-			name:            "resource protection annotation set to false",
+			name:            "disable resource protection annotation set",
 			objectLabels:    map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdAnnotations: map[string]string{druidv1alpha1.ResourceProtectionAnnotation: "false"},
+			etcdAnnotations: map[string]string{druidv1alpha1.DisableResourceProtectionAnnotation: ""},
 			expectedAllowed: true,
-			expectedMessage: fmt.Sprintf("changes allowed, since etcd %s has annotation %s: false", testEtcdName, druidv1alpha1.ResourceProtectionAnnotation),
+			expectedMessage: fmt.Sprintf("changes allowed, since etcd %s has annotation %s", testEtcdName, druidv1alpha1.DisableResourceProtectionAnnotation),
 			expectedCode:    http.StatusOK,
 		},
 		{

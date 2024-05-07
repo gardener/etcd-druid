@@ -597,13 +597,10 @@ func (e *Etcd) IsReconciliationSuspended() bool {
 	return suspendReconcileAnnotKey != nil && metav1.HasAnnotation(e.ObjectMeta, *suspendReconcileAnnotKey)
 }
 
-// AreManagedResourcesProtected returns true if the Etcd resource has the resource protection annotation set to true,
-// else returns false.
+// AreManagedResourcesProtected returns true if the Etcd resource has the disable-resource-protection annotation set,
+// else returns false
 func (e *Etcd) AreManagedResourcesProtected() bool {
-	if metav1.HasAnnotation(e.ObjectMeta, ResourceProtectionAnnotation) {
-		return e.GetAnnotations()[ResourceProtectionAnnotation] != "false"
-	}
-	return true
+	return !metav1.HasAnnotation(e.ObjectMeta, DisableResourceProtectionAnnotation)
 }
 
 // IsReconciliationInProgress returns true if the Etcd resource is currently being reconciled, else returns false.

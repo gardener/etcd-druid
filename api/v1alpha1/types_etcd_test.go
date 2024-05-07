@@ -211,20 +211,15 @@ var _ = Describe("Etcd", func() {
 	})
 
 	Context("AreManagedResourcesProtected", func() {
-		Context("when etcd has annotation druid.gardener.cloud/resource-protection: false", func() {
+		Context("when etcd has annotation druid.gardener.cloud/disable-resource-protection", func() {
 			It("should return false", func() {
 				etcd.Annotations = map[string]string{
-					ResourceProtectionAnnotation: "false",
+					DisableResourceProtectionAnnotation: "",
 				}
 				Expect(etcd.AreManagedResourcesProtected()).To(Equal(false))
 			})
 		})
-		Context("when etcd has annotation druid.gardener.cloud/resource-protection: true", func() {
-			It("should return true", func() {
-				Expect(etcd.AreManagedResourcesProtected()).To(Equal(true))
-			})
-		})
-		Context("when etcd does not have annotation druid.gardener.cloud/resource-protection set", func() {
+		Context("when etcd does not have annotation druid.gardener.cloud/disable-resource-protection set", func() {
 			It("should return true", func() {
 				Expect(etcd.AreManagedResourcesProtected()).To(Equal(true))
 			})

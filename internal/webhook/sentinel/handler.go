@@ -90,7 +90,7 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 
 	// allow changes to resources if etcd has annotation druid.gardener.cloud/resource-protection: false
 	if !etcd.AreManagedResourcesProtected() {
-		return admission.Allowed(fmt.Sprintf("changes allowed, since etcd %s has annotation %s: false", etcd.Name, druidv1alpha1.ResourceProtectionAnnotation))
+		return admission.Allowed(fmt.Sprintf("changes allowed, since etcd %s has annotation %s", etcd.Name, druidv1alpha1.DisableResourceProtectionAnnotation))
 	}
 
 	// allow operations on resources if any etcd operation is currently being reconciled, but only by etcd-druid,
