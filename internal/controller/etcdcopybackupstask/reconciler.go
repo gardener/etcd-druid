@@ -464,7 +464,7 @@ func (r *Reconciler) createVolumesFromStore(ctx context.Context, store *druidv1a
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  store.SecretRef.Name,
-					DefaultMode: pointer.Int32(0640),
+					DefaultMode: pointer.Int32(common.OwnerReadWriteGroupReadPermissions),
 				},
 			},
 		})

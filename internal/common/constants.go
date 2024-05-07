@@ -131,6 +131,9 @@ const (
 	ProviderBackupSecretVolumeName = "etcd-backup-secret"
 )
 
+// OwnerReadWriteGroupReadPermissions is the file permissions used for volumes
+const OwnerReadWriteGroupReadPermissions int32 = 0640
+
 // constants for volume mount paths
 const (
 	// EtcdCAVolumeMountPath is the path on a container where the CA certificate bundle and CA certificate key used to sign certificates for client communication are mounted.

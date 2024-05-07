@@ -421,7 +421,7 @@ func (s StatefulSetMatcher) matchPodVolumes() gomegatypes.GomegaMatcher {
 					"Key":  Equal(etcdConfigFileName),
 					"Path": Equal(etcdConfigFileName),
 				})),
-				"DefaultMode": PointTo(Equal(int32(0640))),
+				"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
 			})),
 		}),
 	})
@@ -447,7 +447,7 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name),
-					"DefaultMode": PointTo(Equal(int32(0640))),
+					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
 				})),
 			}),
 		}))
@@ -456,7 +456,7 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name),
-					"DefaultMode": PointTo(Equal(int32(0640))),
+					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
 				})),
 			}),
 		}))
@@ -465,7 +465,7 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name),
-					"DefaultMode": PointTo(Equal(int32(0640))),
+					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
 				})),
 			}),
 		}))
@@ -476,7 +476,7 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name),
-					"DefaultMode": PointTo(Equal(int32(0640))),
+					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
 				})),
 			}),
 		}))
@@ -486,7 +486,7 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name),
-					"DefaultMode": PointTo(Equal(int32(0640))),
+					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
 				})),
 			}),
 		}))
@@ -497,7 +497,7 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Backup.TLS.TLSCASecretRef.Name),
-					"DefaultMode": PointTo(Equal(int32(0640))),
+					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
 				})),
 			}),
 		}))
@@ -507,7 +507,7 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Backup.TLS.ServerTLSSecretRef.Name),
-					"DefaultMode": PointTo(Equal(int32(0640))),
+					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
 				})),
 			}),
 		}))
@@ -517,7 +517,7 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Backup.TLS.ClientTLSSecretRef.Name),
-					"DefaultMode": PointTo(Equal(int32(0640))),
+					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
 				})),
 			}),
 		}))
@@ -550,7 +550,7 @@ func (s StatefulSetMatcher) getBackupVolumeMatcher() gomegatypes.GomegaMatcher {
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Backup.Store.SecretRef.Name),
-					"DefaultMode": PointTo(Equal(int32(0640))),
+					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
 				})),
 			}),
 		})

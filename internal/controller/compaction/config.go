@@ -24,7 +24,7 @@ const (
 	workersFlagName                   = "compaction-workers"
 	eventsThresholdFlagName           = "etcd-events-threshold"
 	activeDeadlineDurationFlagName    = "active-deadline-duration"
-	metricsScrapeWaitDurationFlagname = "metrics-scrape-wait-duration"
+	metricsScrapeWaitDurationFlagName = "metrics-scrape-wait-duration"
 
 	defaultEnableBackupCompaction    = false
 	defaultCompactionWorkers         = 3
@@ -59,7 +59,7 @@ func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 		"Total number of etcd events that can be allowed before a backup compaction job is triggered.")
 	fs.DurationVar(&cfg.ActiveDeadlineDuration, activeDeadlineDurationFlagName, defaultActiveDeadlineDuration,
 		"Duration after which a running backup compaction job will be terminated.")
-	fs.DurationVar(&cfg.MetricsScrapeWaitDuration, metricsScrapeWaitDurationFlagname, defaultMetricsScrapeWaitDuration,
+	fs.DurationVar(&cfg.MetricsScrapeWaitDuration, metricsScrapeWaitDurationFlagName, defaultMetricsScrapeWaitDuration,
 		"Duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped.")
 }
 
