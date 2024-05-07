@@ -88,7 +88,7 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
-	// allow changes to resources if etcd has annotation druid.gardener.cloud/resource-protection: false
+	// allow changes to resources if etcd has annotation druid.gardener.cloud/disable-resource-protection is set
 	if !etcd.AreManagedResourcesProtected() {
 		return admission.Allowed(fmt.Sprintf("changes allowed, since etcd %s has annotation %s", etcd.Name, druidv1alpha1.DisableResourceProtectionAnnotation))
 	}

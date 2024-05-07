@@ -21,9 +21,9 @@ If etcd-druid and etcd-backup-restore is being used with gardener, then
 Target the control plane of affected shoot cluster via `kubectl`. Alternatively, you can use [gardenctl](https://github.com/gardener/gardenctl-v2) to target the control plane of the affected shoot cluster. You can get the details to target the control plane from the Access tile in the shoot cluster details page on the Gardener dashboard. Ensure that you are targeting the correct namespace.
 
 1. Add the following annotations to the `Etcd` resource `etcd-main`:
-    1. `kubectl annotate etcd etcd-main druid.gardener.cloud/suspend-etcd-spec-reconcile='true'`
+    1. `kubectl annotate etcd etcd-main druid.gardener.cloud/suspend-etcd-spec-reconcile=`
     
-    2. `kubectl annotate etcd etcd-main druid.gardener.cloud/resource-protection='false'`
+    2. `kubectl annotate etcd etcd-main druid.gardener.cloud/resource-protection=`
     
 2. Note down the configmap name that is attached to the `etcd-main` statefulset. If you describe the statefulset with `kubectl describe sts etcd-main`, look for the lines similar to following lines to identify attached configmap name. It will be needed at later stages:
 

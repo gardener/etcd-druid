@@ -339,7 +339,8 @@ spec:
                     type: object
                 type: object
               etcd:
-                description: EtcdConfig defines parameters associated etcd deployed
+                description: EtcdConfig defines the configuration for the etcd cluster
+                  to be deployed.
                 properties:
                   authSecretRef:
                     description: SecretReference represents a Secret Reference. It
@@ -1694,7 +1695,7 @@ spec:
                     type: string
                   autoCompactionRetention:
                     description: AutoCompactionRetention defines the auto-compaction-retention
-                      length for etcd as well as for embedded-Etcd of backup-restore
+                      length for etcd as well as for embedded-etcd of backup-restore
                       sidecar.
                     type: string
                 type: object
@@ -1876,13 +1877,13 @@ spec:
                     type: string
                   runID:
                     description: RunID correlates an operation with a reconciliation
-                      run. Every time an etcd resource is reconciled (barring status
+                      run. Every time an Etcd resource is reconciled (barring status
                       reconciliation which is periodic), a unique ID is generated
                       which can be used to correlate all actions done as part of a
                       single reconcile run. Capturing this as part of LastOperation
                       aids in establishing this correlation. This further helps in
                       also easily filtering reconcile logs as all structured logs
-                      in a reconcile run should have the `runID` referenced.
+                      in a reconciliation run should have the `runID` referenced.
                     type: string
                   state:
                     description: State is the state of the last operation.
@@ -1900,7 +1901,7 @@ spec:
               members:
                 description: Members represents the members of the etcd cluster
                 items:
-                  description: EtcdMemberStatus holds information about a etcd cluster
+                  description: EtcdMemberStatus holds information about etcd cluster
                     membership.
                   properties:
                     id:
@@ -1950,7 +1951,7 @@ spec:
                 format: int32
                 type: integer
               replicas:
-                description: Replicas is the replica count of the etcd resource.
+                description: Replicas is the replica count of the etcd cluster.
                 format: int32
                 type: integer
               serviceName:
