@@ -697,8 +697,8 @@ func (b *stsBuilder) getPodVolumes(ctx component.OperatorContext) ([]corev1.Volu
 					},
 					Items: []corev1.KeyToPath{
 						{
-							Key:  etcdConfigFileName,
-							Path: etcdConfigFileName,
+							Key:  etcdConfigFileName, // etcd.conf.yaml key in the configmap, which contains the config for the etcd as yaml
+							Path: etcdConfigFileName, // sub-path under the volume mount path, to store the contents of configmap key etcd.conf.yaml
 						},
 					},
 					DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),

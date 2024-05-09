@@ -73,7 +73,7 @@ func GetHostMountPathFromSecretRef(ctx context.Context, client client.Client, lo
 
 // StorageProviderFromInfraProvider converts infra to object store provider.
 func StorageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) (string, error) {
-	if infra == nil || len(*infra) == 0 {
+	if infra == nil {
 		return "", nil
 	}
 
@@ -95,6 +95,6 @@ func StorageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) (str
 	case Local, druidv1alpha1.StorageProvider(strings.ToLower(Local)):
 		return Local, nil
 	default:
-		return "", fmt.Errorf("unsupported storage provider: %v", *infra)
+		return "", fmt.Errorf("unsupported storage provider: '%v'", *infra)
 	}
 }

@@ -27,6 +27,9 @@ deploy:
           compaction:
             etcdEventsThreshold: 15
             metricsScrapeWaitDuration: 30s
+        webhooks:
+          sentinel:
+            enabled: true
 profiles:
 - name: e2e-test
   activation:

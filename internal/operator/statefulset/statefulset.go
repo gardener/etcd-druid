@@ -114,6 +114,8 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 	return nil
 }
 
+// getExistingStatefulSet gets the existing statefulset if it exists.
+// If it is not found, it simply returns nil. Any other errors are returned as is.
 func (r _resource) getExistingStatefulSet(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSet, error) {
 	sts := emptyStatefulSet(etcd)
 	if err := r.client.Get(ctx, getObjectKey(etcd), sts); err != nil {
