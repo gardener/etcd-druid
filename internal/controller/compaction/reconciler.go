@@ -344,7 +344,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	jobLabels := map[string]string{
 		druidv1alpha1.LabelAppNameKey:                   etcd.GetCompactionJobName(),
-		druidv1alpha1.LabelComponentKey:                 common.CompactionJobComponentName,
+		druidv1alpha1.LabelComponentKey:                 common.ComponentNameCompactionJob,
 		"networking.gardener.cloud/to-dns":              "allowed",
 		"networking.gardener.cloud/to-private-networks": "allowed",
 		"networking.gardener.cloud/to-public-networks":  "allowed",
@@ -356,7 +356,7 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featu
 	vms := []v1.VolumeMount{
 		{
 			Name:      "etcd-workspace-dir",
-			MountPath: common.EtcdDataVolumeMountPath,
+			MountPath: common.VolumeMountPathEtcdData,
 		},
 	}
 
@@ -379,13 +379,13 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featu
 		}
 	case utils.GCS:
 		vms = append(vms, v1.VolumeMount{
-			Name:      common.ProviderBackupSecretVolumeName,
-			MountPath: common.GCSBackupSecretVolumeMountPath,
+			Name:      common.VolumeNameProviderBackupSecret,
+			MountPath: common.VolumeMountPathGCSBackupSecret,
 		})
 	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
 		vms = append(vms, v1.VolumeMount{
-			Name:      common.ProviderBackupSecretVolumeName,
-			MountPath: common.NonGCSProviderBackupSecretVolumeMountPath,
+			Name:      common.VolumeNameProviderBackupSecret,
+			MountPath: common.VolumeMountPathNonGCSProviderBackupSecret,
 		})
 	}
 
@@ -430,7 +430,7 @@ func getCompactionJobVolumes(ctx context.Context, cl client.Client, logger logr.
 		}
 
 		vs = append(vs, v1.Volume{
-			Name: common.ProviderBackupSecretVolumeName,
+			Name: common.VolumeNameProviderBackupSecret,
 			VolumeSource: v1.VolumeSource{
 				Secret: &v1.SecretVolumeSource{
 					SecretName: storeValues.SecretRef.Name,

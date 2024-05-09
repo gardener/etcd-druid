@@ -107,7 +107,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, sa *corev1.ServiceAccount, autoMoun
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	roleLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: common.ServiceAccountComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameServiceAccount,
 		druidv1alpha1.LabelAppNameKey:   etcd.GetServiceAccountName(),
 	}
 	return utils.MergeMaps(etcd.GetDefaultLabels(), roleLabels)

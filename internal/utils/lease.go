@@ -23,7 +23,7 @@ const peerURLTLSEnabledKey = "member.etcd.gardener.cloud/tls-enabled"
 func IsPeerURLTLSEnabledForMembers(ctx context.Context, cl client.Client, logger logr.Logger, namespace, etcdName string, numReplicas int32) (bool, error) {
 	leaseList := &coordinationv1.LeaseList{}
 	if err := cl.List(ctx, leaseList, client.InNamespace(namespace), client.MatchingLabels(map[string]string{
-		druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
 		druidv1alpha1.LabelPartOfKey:    etcdName,
 		druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
 	})); err != nil {

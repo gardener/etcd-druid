@@ -135,7 +135,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, role *rbacv1.Role) {
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	roleLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: common.RoleComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameRole,
 		druidv1alpha1.LabelAppNameKey:   strings.ReplaceAll(etcd.GetRoleName(), ":", "-"), // role name contains `:` which is not an allowed character as a label value.
 	}
 	return utils.MergeMaps(etcd.GetDefaultLabels(), roleLabels)

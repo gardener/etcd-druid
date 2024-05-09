@@ -267,7 +267,7 @@ func buildLease(etcd *druidv1alpha1.Etcd, leaseName string) *coordinationv1.Leas
 			Name:      leaseName,
 			Namespace: etcd.Namespace,
 			Labels: utils.MergeMaps(etcd.GetDefaultLabels(), map[string]string{
-				druidv1alpha1.LabelComponentKey: common.SnapshotLeaseComponentName,
+				druidv1alpha1.LabelComponentKey: common.ComponentNameSnapshotLease,
 				druidv1alpha1.LabelAppNameKey:   leaseName,
 			}),
 			OwnerReferences: []metav1.OwnerReference{etcd.GetAsOwnerReference()},
@@ -277,7 +277,7 @@ func buildLease(etcd *druidv1alpha1.Etcd, leaseName string) *coordinationv1.Leas
 
 func matchLease(leaseName string, etcd *druidv1alpha1.Etcd) gomegatypes.GomegaMatcher {
 	expectedLabels := utils.MergeMaps(etcd.GetDefaultLabels(), map[string]string{
-		druidv1alpha1.LabelComponentKey: common.SnapshotLeaseComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameSnapshotLease,
 		druidv1alpha1.LabelAppNameKey:   leaseName,
 	})
 	return MatchFields(IgnoreExtras, Fields{
@@ -294,7 +294,7 @@ func getLatestSnapshotLeases(cl client.Client, etcd *druidv1alpha1.Etcd) ([]coor
 	return doGetLatestLeases(cl,
 		etcd,
 		utils.MergeMaps(map[string]string{
-			druidv1alpha1.LabelComponentKey: common.SnapshotLeaseComponentName,
+			druidv1alpha1.LabelComponentKey: common.ComponentNameSnapshotLease,
 		}, etcd.GetDefaultLabels()))
 }
 

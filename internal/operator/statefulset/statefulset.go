@@ -182,10 +182,10 @@ func isStatefulSetPatchedWithPeerTLSVolMount(existingSts *appsv1.StatefulSet) bo
 	volumes := existingSts.Spec.Template.Spec.Volumes
 	var peerURLCAEtcdVolPresent, peerURLEtcdServerTLSVolPresent bool
 	for _, vol := range volumes {
-		if vol.Name == common.EtcdPeerCAVolumeName {
+		if vol.Name == common.VolumeNameEtcdPeerCA {
 			peerURLCAEtcdVolPresent = true
 		}
-		if vol.Name == common.EtcdPeerServerTLSVolumeName {
+		if vol.Name == common.VolumeNameEtcdPeerServerTLS {
 			peerURLEtcdServerTLSVolPresent = true
 		}
 	}

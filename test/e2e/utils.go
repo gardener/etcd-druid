@@ -840,7 +840,7 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName:  tls.TLSCASecretRef.Name,
-							DefaultMode: pointer.Int32(common.OwnerReadWriteGroupReadPermissions),
+							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},
@@ -849,7 +849,7 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName:  tls.ServerTLSSecretRef.Name,
-							DefaultMode: pointer.Int32(common.OwnerReadWriteGroupReadPermissions),
+							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},
@@ -858,7 +858,7 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName:  tls.ClientTLSSecretRef.Name,
-							DefaultMode: pointer.Int32(common.OwnerReadWriteGroupReadPermissions),
+							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},
@@ -972,7 +972,7 @@ func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName:  etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name,
-							DefaultMode: pointer.Int32(common.OwnerReadWriteGroupReadPermissions),
+							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},
@@ -981,7 +981,7 @@ func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName:  etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name,
-							DefaultMode: pointer.Int32(common.OwnerReadWriteGroupReadPermissions),
+							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},
@@ -990,7 +990,7 @@ func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName:  etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name,
-							DefaultMode: pointer.Int32(common.OwnerReadWriteGroupReadPermissions),
+							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},

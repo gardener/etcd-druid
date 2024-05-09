@@ -67,7 +67,7 @@ func TestIsPeerURLTLSEnabledForAllMembers(t *testing.T) {
 				existingObjects = append(existingObjects, l)
 			}
 			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(nil, tc.listErr, testutils.TestNamespace, map[string]string{
-				druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
+				druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
 				druidv1alpha1.LabelPartOfKey:    testutils.TestEtcdName,
 				druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
 			}, existingObjects...)
@@ -84,7 +84,7 @@ func TestIsPeerURLTLSEnabledForAllMembers(t *testing.T) {
 func createLeases(namespace, etcdName string, numLease, withTLSEnabled int) []*coordinationv1.Lease {
 	leases := make([]*coordinationv1.Lease, 0, numLease)
 	labels := map[string]string{
-		druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
 		druidv1alpha1.LabelPartOfKey:    etcdName,
 		druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
 	}

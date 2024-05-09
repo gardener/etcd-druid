@@ -52,7 +52,7 @@ func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32
 			Labels: map[string]string{
 				druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
 				druidv1alpha1.LabelPartOfKey:    name,
-				druidv1alpha1.LabelComponentKey: common.StatefulSetComponentName,
+				druidv1alpha1.LabelComponentKey: common.ComponentNameStatefulSet,
 				druidv1alpha1.LabelAppNameKey:   name,
 			},
 			Annotations: nil,
@@ -80,7 +80,7 @@ func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32
 					Labels: map[string]string{
 						druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
 						druidv1alpha1.LabelPartOfKey:    name,
-						druidv1alpha1.LabelComponentKey: common.StatefulSetComponentName,
+						druidv1alpha1.LabelComponentKey: common.ComponentNameStatefulSet,
 						druidv1alpha1.LabelAppNameKey:   name,
 					},
 				},

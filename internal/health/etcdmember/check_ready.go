@@ -37,7 +37,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 
 	leases := &coordinationv1.LeaseList{}
 	if err := r.cl.List(ctx, leases, client.InNamespace(etcd.Namespace), client.MatchingLabels{
-		druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
 		druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
 		druidv1alpha1.LabelPartOfKey:    etcd.Name,
 	}); err != nil {

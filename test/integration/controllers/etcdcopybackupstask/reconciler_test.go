@@ -127,16 +127,16 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 	targetProvider, err := utils.StorageProviderFromInfraProvider(task.Spec.TargetStore.Provider)
 	Expect(err).NotTo(HaveOccurred())
 
-	images, err := imagevector.FindImages(imageVector, []string{common.BackupRestore})
+	images, err := imagevector.FindImages(imageVector, []string{common.ImageKeyEtcdBackupRestore})
 	Expect(err).NotTo(HaveOccurred())
-	backupRestoreImage := images[common.BackupRestore]
+	backupRestoreImage := images[common.ImageKeyEtcdBackupRestore]
 
 	matcher := MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 			"Name":      Equal(task.Name + "-worker"),
 			"Namespace": Equal(task.Namespace),
 			"Labels": MatchKeys(IgnoreExtras, Keys{
-				druidv1alpha1.LabelComponentKey: Equal(common.EtcdCopyBackupTaskComponentName),
+				druidv1alpha1.LabelComponentKey: Equal(common.ComponentNameEtcdCopyBackupsTask),
 				druidv1alpha1.LabelPartOfKey:    Equal(task.Name),
 				druidv1alpha1.LabelManagedByKey: Equal(druidv1alpha1.LabelManagedByValue),
 				druidv1alpha1.LabelAppNameKey:   Equal(task.GetJobName()),
@@ -156,7 +156,7 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 			"Template": MatchFields(IgnoreExtras, Fields{
 				"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 					"Labels": MatchKeys(IgnoreExtras, Keys{
-						druidv1alpha1.LabelComponentKey:                Equal(common.EtcdCopyBackupTaskComponentName),
+						druidv1alpha1.LabelComponentKey:                Equal(common.ComponentNameEtcdCopyBackupsTask),
 						druidv1alpha1.LabelPartOfKey:                   Equal(task.Name),
 						druidv1alpha1.LabelManagedByKey:                Equal(druidv1alpha1.LabelManagedByValue),
 						druidv1alpha1.LabelAppNameKey:                  Equal(task.GetJobName()),
@@ -334,15 +334,15 @@ func getVolumeMountsElements(storeProvider, volumePrefix string) Elements {
 	switch storeProvider {
 	case "GCS":
 		return Elements{
-			volumePrefix + common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
-				"Name":      Equal(volumePrefix + common.ProviderBackupSecretVolumeName),
+			volumePrefix + common.VolumeNameProviderBackupSecret: MatchFields(IgnoreExtras, Fields{
+				"Name":      Equal(volumePrefix + common.VolumeNameProviderBackupSecret),
 				"MountPath": Equal(fmt.Sprintf("/var/.%sgcp/", volumePrefix)),
 			}),
 		}
 	default:
 		return Elements{
-			volumePrefix + common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
-				"Name":      Equal(volumePrefix + common.ProviderBackupSecretVolumeName),
+			volumePrefix + common.VolumeNameProviderBackupSecret: MatchFields(IgnoreExtras, Fields{
+				"Name":      Equal(volumePrefix + common.VolumeNameProviderBackupSecret),
 				"MountPath": Equal(fmt.Sprintf("/var/%setcd-backup", volumePrefix)),
 			}),
 		}
@@ -352,12 +352,12 @@ func getVolumeMountsElements(storeProvider, volumePrefix string) Elements {
 func getVolumesElements(volumePrefix string, store *druidv1alpha1.StoreSpec) Elements {
 
 	return Elements{
-		volumePrefix + common.ProviderBackupSecretVolumeName: MatchAllFields(Fields{
-			"Name": Equal(volumePrefix + common.ProviderBackupSecretVolumeName),
+		volumePrefix + common.VolumeNameProviderBackupSecret: MatchAllFields(Fields{
+			"Name": Equal(volumePrefix + common.VolumeNameProviderBackupSecret),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(store.SecretRef.Name),
-					"DefaultMode": Equal(pointer.Int32(common.OwnerReadWriteGroupReadPermissions)),
+					"DefaultMode": Equal(pointer.Int32(common.ModeOwnerReadWriteGroupRead)),
 				})),
 			}),
 		}),

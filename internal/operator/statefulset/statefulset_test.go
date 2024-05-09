@@ -125,7 +125,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			})
 			// *************** Test and assert ***************
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			opCtx.Data[common.ConfigMapCheckSumKey] = testutils.TestConfigMapCheckSum
+			opCtx.Data[common.CheckSumKeyConfigMap] = testutils.TestConfigMapCheckSum
 			syncErr := operator.Sync(opCtx, etcd)
 			latestSTS, getErr := getLatestStatefulSet(cl, etcd)
 			if tc.expectedErr != nil {

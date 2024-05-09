@@ -107,7 +107,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, pdb *policyv1.PodDisruptionBudget) 
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	pdbLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: common.PodDisruptionBudgetComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNamePodDisruptionBudget,
 		druidv1alpha1.LabelAppNameKey:   etcd.Name,
 	}
 	return utils.MergeMaps(etcd.GetDefaultLabels(), pdbLabels)

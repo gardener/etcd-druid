@@ -4,25 +4,53 @@
 
 package common
 
-// Constants for image keys
-const (
-	// Etcd is the key for the etcd image in the image vector.
-	Etcd = "etcd"
-	// BackupRestore is the key for the etcd-backup-restore image in the image vector.
-	BackupRestore = "etcd-backup-restore"
-	// EtcdWrapper is the key for the etcd image in the image vector.
-	EtcdWrapper = "etcd-wrapper"
-	// BackupRestoreDistroless is the key for the etcd-backup-restore image in the image vector.
-	BackupRestoreDistroless = "etcd-backup-restore-distroless"
-	// Alpine is the key for the alpine image in the image vector.
-	Alpine = "alpine"
-)
-
 const (
 	// DefaultImageVectorFilePath is the path to the default image vector file.
 	DefaultImageVectorFilePath = "charts/images.yaml"
 	// FinalizerName is the name of the etcd finalizer.
 	FinalizerName = "druid.gardener.cloud/etcd-druid"
+	// CheckSumKeyConfigMap is the key that is set by a configmap operator and used by StatefulSet operator to
+	// place an annotation on the StatefulSet pods. The value contains the check-sum of the latest configmap that
+	// should be reflected on the pods.
+	CheckSumKeyConfigMap = "checksum/etcd-configmap"
+)
+
+// Constants for image keys
+const (
+	// ImageKeyEtcd is the key for the etcd image in the image vector.
+	ImageKeyEtcd = "etcd"
+	// ImageKeyEtcdBackupRestore is the key for the etcd-backup-restore image in the image vector.
+	ImageKeyEtcdBackupRestore = "etcd-backup-restore"
+	// ImageKeyEtcdWrapper is the key for the etcd image in the image vector.
+	ImageKeyEtcdWrapper = "etcd-wrapper"
+	// ImageKeyEtcdBackupRestoreDistroless is the key for the etcd-backup-restore image in the image vector.
+	ImageKeyEtcdBackupRestoreDistroless = "etcd-backup-restore-distroless"
+	// ImageKeyAlpine is the key for the alpine image in the image vector.
+	ImageKeyAlpine = "alpine"
+)
+
+// Constants for container names
+const (
+	// ContainerNameEtcd is the name of the etcd container.
+	ContainerNameEtcd = "etcd"
+	// ContainerNameEtcdBackupRestore is the name of the backup-restore container.
+	ContainerNameEtcdBackupRestore = "backup-restore"
+	// InitContainerNameChangePermissions is the name of the change permissions init container.
+	InitContainerNameChangePermissions = "change-permissions"
+	// InitContainerNameChangeBackupBucketPermissions is the name of the change backup bucket permissions init container.
+	InitContainerNameChangeBackupBucketPermissions = "change-backup-bucket-permissions"
+)
+
+// Constants for ports
+const (
+	// DefaultPortEtcdPeer is the default port for the etcd server used for peer communication.
+	DefaultPortEtcdPeer int32 = 2380
+	// DefaultPortEtcdClient is the default port for the etcd client.
+	DefaultPortEtcdClient int32 = 2379
+	// DefaultPortEtcdWrapper is the default port for the etcd-wrapper HTTP server.
+	DefaultPortEtcdWrapper int32 = 9095
+	// DefaultPortEtcdBackupRestore is the default port for the HTTP server in the etcd-backup-restore container.
+	DefaultPortEtcdBackupRestore int32 = 8080
 )
 
 // Constants for environment variables
@@ -59,116 +87,86 @@ const (
 
 // Constants for values to be set against druidv1alpha1.LabelComponentKey
 const (
-	// ClientServiceComponentName is the component name for client service resource.
-	ClientServiceComponentName = "etcd-client-service"
-	// ConfigMapComponentName is the component  name for config map resource.
-	ConfigMapComponentName = "etcd-config"
-	// MemberLeaseComponentName is the component name for member lease resource.
-	MemberLeaseComponentName = "etcd-member-lease"
-	// SnapshotLeaseComponentName is the component name for snapshot lease resource.
-	SnapshotLeaseComponentName = "etcd-snapshot-lease"
-	// PeerServiceComponentName is the component name for peer service resource.
-	PeerServiceComponentName = "etcd-peer-service"
-	// PodDisruptionBudgetComponentName is the component name for pod disruption budget resource.
-	PodDisruptionBudgetComponentName = "etcd-pdb"
-	// RoleComponentName is the component name for role resource.
-	RoleComponentName = "etcd-druid-role"
-	// RoleBindingComponentName is the component name for role binding resource.
-	RoleBindingComponentName = "druid-role-binding"
-	// ServiceAccountComponentName is the component name for service account resource.
-	ServiceAccountComponentName = "druid-service-account"
-	// StatefulSetComponentName is the component name for statefulset resource.
-	StatefulSetComponentName = "etcd-sts"
-	// CompactionJobComponentName is the component name for compaction job resource.
-	CompactionJobComponentName = "etcd-compaction-job"
-	// EtcdCopyBackupTaskComponentName is the component name for copy-backup task resource.
-	EtcdCopyBackupTaskComponentName = "etcd-copy-backup-task"
-)
-
-const (
-	// ConfigMapCheckSumKey is the key that is set by a configmap operator and used by StatefulSet operator to
-	// place an annotation on the StatefulSet pods. The value contains the check-sum of the latest configmap that
-	// should be reflected on the pods.
-	ConfigMapCheckSumKey = "checksum/etcd-configmap"
-)
-
-// Constants for container names
-const (
-	// EtcdContainerName is the name of the etcd container.
-	EtcdContainerName = "etcd"
-	// EtcdBackupRestoreContainerName is the name of the backup-restore container.
-	EtcdBackupRestoreContainerName = "backup-restore"
-	// ChangePermissionsInitContainerName is the name of the change permissions init container.
-	ChangePermissionsInitContainerName = "change-permissions"
-	// ChangeBackupBucketPermissionsInitContainerName is the name of the change backup bucket permissions init container.
-	ChangeBackupBucketPermissionsInitContainerName = "change-backup-bucket-permissions"
+	// ComponentNameClientService is the component name for client service resource.
+	ComponentNameClientService = "etcd-client-service"
+	// ComponentNameConfigMap is the component  name for config map resource.
+	ComponentNameConfigMap = "etcd-config"
+	// ComponentNameMemberLease is the component name for member lease resource.
+	ComponentNameMemberLease = "etcd-member-lease"
+	// ComponentNameSnapshotLease is the component name for snapshot lease resource.
+	ComponentNameSnapshotLease = "etcd-snapshot-lease"
+	// ComponentNamePeerService is the component name for peer service resource.
+	ComponentNamePeerService = "etcd-peer-service"
+	// ComponentNamePodDisruptionBudget is the component name for pod disruption budget resource.
+	ComponentNamePodDisruptionBudget = "etcd-pdb"
+	// ComponentNameRole is the component name for role resource.
+	ComponentNameRole = "etcd-druid-role"
+	// ComponentNameRoleBinding is the component name for role binding resource.
+	ComponentNameRoleBinding = "druid-role-binding"
+	// ComponentNameServiceAccount is the component name for service account resource.
+	ComponentNameServiceAccount = "druid-service-account"
+	// ComponentNameStatefulSet is the component name for statefulset resource.
+	ComponentNameStatefulSet = "etcd-sts"
+	// ComponentNameCompactionJob is the component name for compaction job resource.
+	ComponentNameCompactionJob = "etcd-compaction-job"
+	// ComponentNameEtcdCopyBackupsTask is the component name for copy-backup task resource.
+	ComponentNameEtcdCopyBackupsTask = "etcd-copy-backup-task"
 )
 
 // Constants for volume names
 const (
-	// EtcdCAVolumeName is the name of the volume that contains the CA certificate bundle and CA certificate key used to sign certificates for client communication.
-	EtcdCAVolumeName = "etcd-ca"
-	// EtcdServerTLSVolumeName is the name of the volume that contains the server certificate-key pair used to set up the etcd server and etcd-wrapper HTTP server.
-	EtcdServerTLSVolumeName = "etcd-server-tls"
-	// EtcdClientTLSVolumeName is the name of the volume that contains the client certificate-key pair used by the client to communicate to the etcd server and etcd-wrapper HTTP server.
-	EtcdClientTLSVolumeName = "etcd-client-tls"
-	// EtcdPeerCAVolumeName is the name of the volume that contains the CA certificate bundle and CA certificate key used to sign certificates for peer communication.
-	EtcdPeerCAVolumeName = "etcd-peer-ca"
-	// EtcdPeerServerTLSVolumeName is the name of the volume that contains the server certificate-key pair used to set up the peer server.
-	EtcdPeerServerTLSVolumeName = "etcd-peer-server-tls"
-	// BackupRestoreCAVolumeName is the name of the volume that contains the CA certificate bundle and CA certificate key used to sign certificates for backup-restore communication.
-	BackupRestoreCAVolumeName = "backup-restore-ca"
-	// BackupRestoreServerTLSVolumeName is the name of the volume that contains the server certificate-key pair used to set up the backup-restore server.
-	BackupRestoreServerTLSVolumeName = "backup-restore-server-tls"
-	// BackupRestoreClientTLSVolumeName is the name of the volume that contains the client certificate-key pair used by the client to communicate to the backup-restore server.
-	BackupRestoreClientTLSVolumeName = "backup-restore-client-tls"
+	// VolumeNameEtcdCA is the name of the volume that contains the CA certificate bundle and CA certificate key used to sign certificates for client communication.
+	VolumeNameEtcdCA = "etcd-ca"
+	// VolumeNameEtcdServerTLS is the name of the volume that contains the server certificate-key pair used to set up the etcd server and etcd-wrapper HTTP server.
+	VolumeNameEtcdServerTLS = "etcd-server-tls"
+	// VolumeNameEtcdClientTLS is the name of the volume that contains the client certificate-key pair used by the client to communicate to the etcd server and etcd-wrapper HTTP server.
+	VolumeNameEtcdClientTLS = "etcd-client-tls"
+	// VolumeNameEtcdPeerCA is the name of the volume that contains the CA certificate bundle and CA certificate key used to sign certificates for peer communication.
+	VolumeNameEtcdPeerCA = "etcd-peer-ca"
+	// VolumeNameEtcdPeerServerTLS is the name of the volume that contains the server certificate-key pair used to set up the peer server.
+	VolumeNameEtcdPeerServerTLS = "etcd-peer-server-tls"
+	// VolumeNameBackupRestoreCA is the name of the volume that contains the CA certificate bundle and CA certificate key used to sign certificates for backup-restore communication.
+	VolumeNameBackupRestoreCA = "backup-restore-ca"
+	// VolumeNameBackupRestoreServerTLS is the name of the volume that contains the server certificate-key pair used to set up the backup-restore server.
+	VolumeNameBackupRestoreServerTLS = "backup-restore-server-tls"
+	// VolumeNameBackupRestoreClientTLS is the name of the volume that contains the client certificate-key pair used by the client to communicate to the backup-restore server.
+	VolumeNameBackupRestoreClientTLS = "backup-restore-client-tls"
 
-	// EtcdConfigVolumeName is the name of the volume that contains the etcd configuration file.
-	EtcdConfigVolumeName = "etcd-config-file"
-	// LocalBackupVolumeName is the name of the volume that contains the local backup.
-	LocalBackupVolumeName = "local-backup"
-	// ProviderBackupSecretVolumeName is the name of the volume that contains the provider backup secret.
-	ProviderBackupSecretVolumeName = "etcd-backup-secret"
+	// VolumeNameEtcdConfig is the name of the volume that contains the etcd configuration file.
+	VolumeNameEtcdConfig = "etcd-config-file"
+	// VolumeNameLocalBackup is the name of the volume that contains the local backup.
+	VolumeNameLocalBackup = "local-backup"
+	// VolumeNameProviderBackupSecret is the name of the volume that contains the provider backup secret.
+	VolumeNameProviderBackupSecret = "etcd-backup-secret"
 )
 
-// OwnerReadWriteGroupReadPermissions is the file permissions used for volumes
-const OwnerReadWriteGroupReadPermissions int32 = 0640
+// ModeOwnerReadWriteGroupRead is the file permissions used for volumes
+const ModeOwnerReadWriteGroupRead int32 = 0640
 
 // constants for volume mount paths
 const (
-	// EtcdCAVolumeMountPath is the path on a container where the CA certificate bundle and CA certificate key used to sign certificates for client communication are mounted.
-	EtcdCAVolumeMountPath = "/var/etcd/ssl/ca"
-	// EtcdServerTLSVolumeMountPath is the path on a container where the server certificate-key pair used to set up the etcd server and etcd-wrapper HTTP server is mounted.
-	EtcdServerTLSVolumeMountPath = "/var/etcd/ssl/server"
-	// EtcdClientTLSVolumeMountPath is the path on a container where the client certificate-key pair used by the client to communicate to the etcd server and etcd-wrapper HTTP server is mounted.
-	EtcdClientTLSVolumeMountPath = "/var/etcd/ssl/client"
-	// EtcdPeerCAVolumeMountPath is the path on a container where the CA certificate bundle and CA certificate key used to sign certificates for peer communication are mounted.
-	EtcdPeerCAVolumeMountPath = "/var/etcd/ssl/peer/ca"
-	// EtcdPeerServerTLSVolumeMountPath is the path on a container where the server certificate-key pair used to set up the peer server is mounted.
-	EtcdPeerServerTLSVolumeMountPath = "/var/etcd/ssl/peer/server"
-	// BackupRestoreCAVolumeMountPath is the path on a container where the CA certificate bundle and CA certificate key used to sign certificates for backup-restore communication are mounted.
-	BackupRestoreCAVolumeMountPath = "/var/etcdbr/ssl/ca"
-	// BackupRestoreServerTLSVolumeMountPath is the path on a container where the server certificate-key pair used to set up the backup-restore server is mounted.
-	BackupRestoreServerTLSVolumeMountPath = "/var/etcdbr/ssl/server"
-	// BackupRestoreClientTLSVolumeMountPath is the path on a container where the client certificate-key pair used by the client to communicate to the backup-restore server is mounted.
-	BackupRestoreClientTLSVolumeMountPath = "/var/etcdbr/ssl/client"
+	// VolumeMountPathEtcdCA is the path on a container where the CA certificate bundle and CA certificate key used to sign certificates for client communication are mounted.
+	VolumeMountPathEtcdCA = "/var/etcd/ssl/ca"
+	// VolumeMountPathEtcdServerTLS is the path on a container where the server certificate-key pair used to set up the etcd server and etcd-wrapper HTTP server is mounted.
+	VolumeMountPathEtcdServerTLS = "/var/etcd/ssl/server"
+	// VolumeMountPathEtcdClientTLS is the path on a container where the client certificate-key pair used by the client to communicate to the etcd server and etcd-wrapper HTTP server is mounted.
+	VolumeMountPathEtcdClientTLS = "/var/etcd/ssl/client"
+	// VolumeMountPathEtcdPeerCA is the path on a container where the CA certificate bundle and CA certificate key used to sign certificates for peer communication are mounted.
+	VolumeMountPathEtcdPeerCA = "/var/etcd/ssl/peer/ca"
+	// VolumeMountPathEtcdPeerServerTLS is the path on a container where the server certificate-key pair used to set up the peer server is mounted.
+	VolumeMountPathEtcdPeerServerTLS = "/var/etcd/ssl/peer/server"
+	// VolumeMountPathBackupRestoreCA is the path on a container where the CA certificate bundle and CA certificate key used to sign certificates for backup-restore communication are mounted.
+	VolumeMountPathBackupRestoreCA = "/var/etcdbr/ssl/ca"
+	// VolumeMountPathBackupRestoreServerTLS is the path on a container where the server certificate-key pair used to set up the backup-restore server is mounted.
+	VolumeMountPathBackupRestoreServerTLS = "/var/etcdbr/ssl/server"
+	// VolumeMountPathBackupRestoreClientTLS is the path on a container where the client certificate-key pair used by the client to communicate to the backup-restore server is mounted.
+	VolumeMountPathBackupRestoreClientTLS = "/var/etcdbr/ssl/client"
 
-	// GCSBackupSecretVolumeMountPath is the path on a container where the GCS backup secret is mounted.
-	GCSBackupSecretVolumeMountPath = "/var/.gcp/"
-	// NonGCSProviderBackupSecretVolumeMountPath is the path on a container where the non-GCS provider backup secret is mounted.
-	NonGCSProviderBackupSecretVolumeMountPath = "/var/etcd-backup"
+	// VolumeMountPathGCSBackupSecret is the path on a container where the GCS backup secret is mounted.
+	VolumeMountPathGCSBackupSecret = "/var/.gcp/"
+	// VolumeMountPathNonGCSProviderBackupSecret is the path on a container where the non-GCS provider backup secret is mounted.
+	VolumeMountPathNonGCSProviderBackupSecret = "/var/etcd-backup"
 
-	// EtcdDataVolumeMountPath is the path on a container where the etcd data directory is hosted.
-	EtcdDataVolumeMountPath = "/var/etcd/data"
-)
-
-const (
-	// DefaultBackupPort is the default port for the HTTP server in the etcd-backup-restore container.
-	DefaultBackupPort int32 = 8080
-	// DefaultServerPort is the default port for the etcd server used for peer communication.
-	DefaultServerPort int32 = 2380
-	// DefaultClientPort is the default port for the etcd client.
-	DefaultClientPort int32 = 2379
-	// DefaultWrapperPort is the default port for the etcd-wrapper HTTP server.
-	DefaultWrapperPort int = 9095
+	// VolumeMountPathEtcdData is the path on a container where the etcd data directory is hosted.
+	VolumeMountPathEtcdData = "/var/etcd/data"
 )

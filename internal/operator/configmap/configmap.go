@@ -83,7 +83,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 			"Sync",
 			fmt.Sprintf("Error when computing CheckSum for configmap for etcd: %v", etcd.GetNamespaceName()))
 	}
-	ctx.Data[common.ConfigMapCheckSumKey] = checkSum
+	ctx.Data[common.CheckSumKeyConfigMap] = checkSum
 	ctx.Logger.Info("synced", "component", "configmap", "name", cm.Name, "result", result)
 	return nil
 }
@@ -125,7 +125,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, cm *corev1.ConfigMap) error {
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	cmLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: common.ConfigMapComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameConfigMap,
 		druidv1alpha1.LabelAppNameKey:   etcd.GetConfigMapName(),
 	}
 	return utils.MergeMaps(etcd.GetDefaultLabels(), cmLabels)

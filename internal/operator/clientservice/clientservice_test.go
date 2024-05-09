@@ -257,9 +257,9 @@ func buildEtcd(clientPort, peerPort, backupPort *int32) *druidv1alpha1.Etcd {
 }
 
 func matchClientService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Service) {
-	clientPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, common.DefaultClientPort)
-	backupPort := utils.TypeDeref[int32](etcd.Spec.Backup.Port, common.DefaultBackupPort)
-	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultServerPort)
+	clientPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
+	backupPort := utils.TypeDeref[int32](etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore)
+	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 
 	expectedLabels := etcd.GetDefaultLabels()
 	var expectedAnnotations map[string]string

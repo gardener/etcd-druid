@@ -164,14 +164,14 @@ func buildResource(etcd *druidv1alpha1.Etcd, lease *coordinationv1.Lease) {
 
 func getSelectorLabelsForAllSnapshotLeases(etcd *druidv1alpha1.Etcd) map[string]string {
 	leaseMatchingLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: common.SnapshotLeaseComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameSnapshotLease,
 	}
 	return utils.MergeMaps(etcd.GetDefaultLabels(), leaseMatchingLabels)
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd, leaseName string) map[string]string {
 	leaseLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: common.SnapshotLeaseComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameSnapshotLease,
 		druidv1alpha1.LabelAppNameKey:   leaseName,
 	}
 	return utils.MergeMaps(leaseLabels, etcd.GetDefaultLabels())

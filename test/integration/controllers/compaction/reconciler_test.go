@@ -389,9 +389,9 @@ func validateStoreGCPForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
 							}),
 							"VolumeMounts": MatchElements(testutils.VolumeMountIterator, IgnoreExtras, Elements{
-								common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
-									"Name":      Equal(common.ProviderBackupSecretVolumeName),
-									"MountPath": Equal(common.GCSBackupSecretVolumeMountPath),
+								common.VolumeNameProviderBackupSecret: MatchFields(IgnoreExtras, Fields{
+									"Name":      Equal(common.VolumeNameProviderBackupSecret),
+									"MountPath": Equal(common.VolumeMountPathGCSBackupSecret),
 								}),
 							}),
 							"Env": MatchAllElements(testutils.EnvIterator, Elements{
@@ -435,8 +435,8 @@ func validateStoreGCPForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 						}),
 					}),
 					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
-						common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
-							"Name": Equal(common.ProviderBackupSecretVolumeName),
+						common.VolumeNameProviderBackupSecret: MatchFields(IgnoreExtras, Fields{
+							"Name": Equal(common.VolumeNameProviderBackupSecret),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
@@ -485,14 +485,14 @@ func validateStoreAWSForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 								}),
 								common.EnvAWSApplicationCredentials: MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal(common.EnvAWSApplicationCredentials),
-									"Value": Equal(common.NonGCSProviderBackupSecretVolumeMountPath),
+									"Value": Equal(common.VolumeMountPathNonGCSProviderBackupSecret),
 								}),
 							}),
 						}),
 					}),
 					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
-						common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
-							"Name": Equal(common.ProviderBackupSecretVolumeName),
+						common.VolumeNameProviderBackupSecret: MatchFields(IgnoreExtras, Fields{
+							"Name": Equal(common.VolumeNameProviderBackupSecret),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
@@ -541,14 +541,14 @@ func validateStoreAzureForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1
 								}),
 								common.EnvAzureApplicationCredentials: MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal(common.EnvAzureApplicationCredentials),
-									"Value": Equal(common.NonGCSProviderBackupSecretVolumeMountPath),
+									"Value": Equal(common.VolumeMountPathNonGCSProviderBackupSecret),
 								}),
 							}),
 						}),
 					}),
 					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
-						common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
-							"Name": Equal(common.ProviderBackupSecretVolumeName),
+						common.VolumeNameProviderBackupSecret: MatchFields(IgnoreExtras, Fields{
+							"Name": Equal(common.VolumeNameProviderBackupSecret),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
@@ -597,14 +597,14 @@ func validateStoreOpenstackForCompactionJob(instance *druidv1alpha1.Etcd, j *bat
 								}),
 								common.EnvOpenstackApplicationCredentials: MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal(common.EnvOpenstackApplicationCredentials),
-									"Value": Equal(common.NonGCSProviderBackupSecretVolumeMountPath),
+									"Value": Equal(common.VolumeMountPathNonGCSProviderBackupSecret),
 								}),
 							}),
 						}),
 					}),
 					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
-						common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
-							"Name": Equal(common.ProviderBackupSecretVolumeName),
+						common.VolumeNameProviderBackupSecret: MatchFields(IgnoreExtras, Fields{
+							"Name": Equal(common.VolumeNameProviderBackupSecret),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
@@ -654,14 +654,14 @@ func validateStoreAlicloudForCompactionJob(instance *druidv1alpha1.Etcd, j *batc
 								}),
 								common.EnvAlicloudApplicationCredentials: MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal(common.EnvAlicloudApplicationCredentials),
-									"Value": Equal(common.NonGCSProviderBackupSecretVolumeMountPath),
+									"Value": Equal(common.VolumeMountPathNonGCSProviderBackupSecret),
 								}),
 							}),
 						}),
 					}),
 					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
-						common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
-							"Name": Equal(common.ProviderBackupSecretVolumeName),
+						common.VolumeNameProviderBackupSecret: MatchFields(IgnoreExtras, Fields{
+							"Name": Equal(common.VolumeNameProviderBackupSecret),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),

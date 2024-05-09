@@ -15,14 +15,14 @@ func CreateImageVector(withEtcdImage, withBackupRestoreImage, withEtcdWrapperIma
 	var imageSources []*imagevector.ImageSource
 	if withEtcdImage {
 		imageSources = append(imageSources, &imagevector.ImageSource{
-			Name:       common.Etcd,
+			Name:       common.ImageKeyEtcd,
 			Repository: TestImageRepo,
 			Tag:        pointer.String(ETCDImageSourceTag),
 		})
 	}
 	if withBackupRestoreImage {
 		imageSources = append(imageSources, &imagevector.ImageSource{
-			Name:       common.BackupRestore,
+			Name:       common.ImageKeyEtcdBackupRestore,
 			Repository: TestImageRepo,
 			Tag:        pointer.String(ETCDBRImageTag),
 		})
@@ -30,20 +30,20 @@ func CreateImageVector(withEtcdImage, withBackupRestoreImage, withEtcdWrapperIma
 	}
 	if withEtcdWrapperImage {
 		imageSources = append(imageSources, &imagevector.ImageSource{
-			Name:       common.EtcdWrapper,
+			Name:       common.ImageKeyEtcdWrapper,
 			Repository: TestImageRepo,
 			Tag:        pointer.String(ETCDWrapperImageTag),
 		})
 	}
 	if withBackupRestoreDistrolessImage {
 		imageSources = append(imageSources, &imagevector.ImageSource{
-			Name:       common.BackupRestoreDistroless,
+			Name:       common.ImageKeyEtcdBackupRestoreDistroless,
 			Repository: TestImageRepo,
 			Tag:        pointer.String(ETCDBRDistrolessImageTag),
 		})
 	}
 	imageSources = append(imageSources, &imagevector.ImageSource{
-		Name:       common.Alpine,
+		Name:       common.ImageKeyAlpine,
 		Repository: TestImageRepo,
 		Tag:        pointer.String(InitContainerTag),
 	})

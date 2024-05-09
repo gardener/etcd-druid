@@ -112,7 +112,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, svc *corev1.Service) {
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	svcLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: common.PeerServiceComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNamePeerService,
 		druidv1alpha1.LabelAppNameKey:   etcd.GetPeerServiceName(),
 	}
 	return utils.MergeMaps(etcd.GetDefaultLabels(), svcLabels)
@@ -132,7 +132,7 @@ func emptyPeerService(objectKey client.ObjectKey) *corev1.Service {
 }
 
 func getPorts(etcd *druidv1alpha1.Etcd) []corev1.ServicePort {
-	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultServerPort)
+	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 	return []corev1.ServicePort{
 		{
 			Name:       "peer",

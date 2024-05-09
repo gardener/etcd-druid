@@ -387,7 +387,7 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 
 func getLabels(task *druidv1alpha1.EtcdCopyBackupsTask, includeNetworkPolicyLabels bool) map[string]string {
 	labels := make(map[string]string)
-	labels[druidv1alpha1.LabelComponentKey] = common.EtcdCopyBackupTaskComponentName
+	labels[druidv1alpha1.LabelComponentKey] = common.ComponentNameEtcdCopyBackupsTask
 	labels[druidv1alpha1.LabelPartOfKey] = task.Name
 	labels[druidv1alpha1.LabelManagedByKey] = druidv1alpha1.LabelManagedByValue
 	labels[druidv1alpha1.LabelAppNameKey] = task.GetJobName()
@@ -460,11 +460,11 @@ func (r *Reconciler) createVolumesFromStore(ctx context.Context, store *druidv1a
 			return
 		}
 		volumes = append(volumes, corev1.Volume{
-			Name: getVolumeNamePrefix(prefix) + common.ProviderBackupSecretVolumeName,
+			Name: getVolumeNamePrefix(prefix) + common.VolumeNameProviderBackupSecret,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  store.SecretRef.Name,
-					DefaultMode: pointer.Int32(common.OwnerReadWriteGroupReadPermissions),
+					DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
 				},
 			},
 		})
@@ -492,12 +492,12 @@ func createVolumeMountsFromStore(store *druidv1alpha1.StoreSpec, provider, volum
 		}
 	case utils.GCS:
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      getVolumeNamePrefix(volumeMountPrefix) + common.ProviderBackupSecretVolumeName,
+			Name:      getVolumeNamePrefix(volumeMountPrefix) + common.VolumeNameProviderBackupSecret,
 			MountPath: getGCSSecretVolumeMountPathWithPrefixAndSuffix(getVolumeNamePrefix(volumeMountPrefix), "/"),
 		})
 	case utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      getVolumeNamePrefix(volumeMountPrefix) + common.ProviderBackupSecretVolumeName,
+			Name:      getVolumeNamePrefix(volumeMountPrefix) + common.VolumeNameProviderBackupSecret,
 			MountPath: getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumeMountPrefix, "/"),
 		})
 	}
@@ -506,13 +506,13 @@ func createVolumeMountsFromStore(store *druidv1alpha1.StoreSpec, provider, volum
 
 func getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, suffix string) string {
 	// "/var/<volumePrefix>etcd-backup<suffix>"
-	tokens := strings.Split(strings.Trim(common.NonGCSProviderBackupSecretVolumeMountPath, "/"), "/")
+	tokens := strings.Split(strings.Trim(common.VolumeMountPathNonGCSProviderBackupSecret, "/"), "/")
 	return fmt.Sprintf("/%s/%s%s%s", tokens[0], volumePrefix, tokens[1], suffix)
 }
 
 func getGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, suffix string) string {
 	// "/var/.<volumePrefix>gcp<suffix>"
-	tokens := strings.Split(strings.TrimSuffix(common.GCSBackupSecretVolumeMountPath, "/"), ".")
+	tokens := strings.Split(strings.TrimSuffix(common.VolumeMountPathGCSBackupSecret, "/"), ".")
 	return fmt.Sprintf("%s.%s%s%s", tokens[0], volumePrefix, tokens[1], suffix)
 }
 

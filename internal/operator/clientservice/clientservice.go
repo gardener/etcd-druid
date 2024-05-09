@@ -119,7 +119,7 @@ func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	clientSvcLabels := map[string]string{
 		druidv1alpha1.LabelAppNameKey:   etcd.GetClientServiceName(),
-		druidv1alpha1.LabelComponentKey: common.ClientServiceComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameClientService,
 	}
 	// Add any client service labels as defined in the etcd resource
 	specClientSvcLabels := map[string]string{}
@@ -146,9 +146,9 @@ func emptyClientService(objectKey client.ObjectKey) *corev1.Service {
 }
 
 func getPorts(etcd *druidv1alpha1.Etcd) []corev1.ServicePort {
-	backupPort := utils.TypeDeref[int32](etcd.Spec.Backup.Port, common.DefaultBackupPort)
-	clientPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, common.DefaultClientPort)
-	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultServerPort)
+	backupPort := utils.TypeDeref[int32](etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore)
+	clientPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
+	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 
 	return []corev1.ServicePort{
 		{

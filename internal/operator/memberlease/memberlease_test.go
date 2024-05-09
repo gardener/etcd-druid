@@ -247,7 +247,7 @@ func TestTriggerDelete(t *testing.T) {
 				}
 			}
 			for _, nonTargetLeaseName := range nonTargetLeaseNames {
-				existingObjects = append(existingObjects, testutils.CreateLease(nonTargetLeaseName, nonTargetEtcd.Namespace, nonTargetEtcd.Name, nonTargetEtcd.UID, common.MemberLeaseComponentName))
+				existingObjects = append(existingObjects, testutils.CreateLease(nonTargetLeaseName, nonTargetEtcd.Namespace, nonTargetEtcd.Name, nonTargetEtcd.UID, common.ComponentNameMemberLease))
 			}
 			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(tc.deleteAllOfErr, nil, etcd.Namespace, getSelectorLabelsForAllMemberLeases(etcd), existingObjects...)
 			// ***************** Setup operator and test *****************
@@ -274,7 +274,7 @@ func getLatestMemberLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd)
 		cl,
 		etcd,
 		utils.MergeMaps(map[string]string{
-			druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
+			druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
 		}, etcd.GetDefaultLabels()))
 }
 

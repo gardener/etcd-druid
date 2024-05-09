@@ -260,7 +260,7 @@ func testPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 	testClientBuilder := testutils.NewTestClientBuilder().
 		RecordErrorForObjects(testutils.ClientMethodDelete, testutils.TestAPIInternalErr, client.ObjectKey{Name: etcdInstance.GetClientServiceName(), Namespace: etcdInstance.Namespace}).
 		RecordErrorForObjectsMatchingLabels(testutils.ClientMethodDeleteAll, etcdInstance.Namespace, map[string]string{
-			druidv1alpha1.LabelComponentKey: common.SnapshotLeaseComponentName,
+			druidv1alpha1.LabelComponentKey: common.ComponentNameSnapshotLease,
 			druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
 			druidv1alpha1.LabelPartOfKey:    etcdInstance.Name,
 		}, testutils.TestAPIInternalErr)

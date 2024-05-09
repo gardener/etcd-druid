@@ -397,8 +397,8 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 						"memory": ParseQuantity("1000Mi"),
 					},
 				},
-				ClientPort: pointer.Int32(common.DefaultClientPort),
-				ServerPort: pointer.Int32(common.DefaultServerPort),
+				ClientPort: pointer.Int32(common.DefaultPortEtcdClient),
+				ServerPort: pointer.Int32(common.DefaultPortEtcdPeer),
 			},
 			Common: druidv1alpha1.SharedConfig{
 				AutoCompactionMode:      &autoCompactionMode,
@@ -411,7 +411,7 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 func getBackupSpec() druidv1alpha1.BackupSpec {
 	return druidv1alpha1.BackupSpec{
 		Image:                    &imageBR,
-		Port:                     pointer.Int32(common.DefaultBackupPort),
+		Port:                     pointer.Int32(common.DefaultPortEtcdBackupRestore),
 		FullSnapshotSchedule:     &snapshotSchedule,
 		GarbageCollectionPolicy:  &garbageCollectionPolicy,
 		GarbageCollectionPeriod:  &garbageCollectionPeriod,

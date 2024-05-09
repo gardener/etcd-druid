@@ -61,20 +61,20 @@ func GetProviderEnvVars(store *druidv1alpha1.StoreSpec) ([]corev1.EnvVar, error)
 
 	switch provider {
 	case S3:
-		envVars = append(envVars, GetEnvVarFromValue(common.EnvAWSApplicationCredentials, common.NonGCSProviderBackupSecretVolumeMountPath))
+		envVars = append(envVars, GetEnvVarFromValue(common.EnvAWSApplicationCredentials, common.VolumeMountPathNonGCSProviderBackupSecret))
 
 	case ABS:
-		envVars = append(envVars, GetEnvVarFromValue(common.EnvAzureApplicationCredentials, common.NonGCSProviderBackupSecretVolumeMountPath))
+		envVars = append(envVars, GetEnvVarFromValue(common.EnvAzureApplicationCredentials, common.VolumeMountPathNonGCSProviderBackupSecret))
 
 	case GCS:
-		envVars = append(envVars, GetEnvVarFromValue(common.EnvGoogleApplicationCredentials, fmt.Sprintf("%sserviceaccount.json", common.GCSBackupSecretVolumeMountPath)))
+		envVars = append(envVars, GetEnvVarFromValue(common.EnvGoogleApplicationCredentials, fmt.Sprintf("%sserviceaccount.json", common.VolumeMountPathGCSBackupSecret)))
 		envVars = append(envVars, GetEnvVarFromSecret(common.EnvGoogleStorageAPIEndpoint, store.SecretRef.Name, "storageAPIEndpoint", true))
 
 	case Swift:
-		envVars = append(envVars, GetEnvVarFromValue(common.EnvOpenstackApplicationCredentials, common.NonGCSProviderBackupSecretVolumeMountPath))
+		envVars = append(envVars, GetEnvVarFromValue(common.EnvOpenstackApplicationCredentials, common.VolumeMountPathNonGCSProviderBackupSecret))
 
 	case OSS:
-		envVars = append(envVars, GetEnvVarFromValue(common.EnvAlicloudApplicationCredentials, common.NonGCSProviderBackupSecretVolumeMountPath))
+		envVars = append(envVars, GetEnvVarFromValue(common.EnvAlicloudApplicationCredentials, common.VolumeMountPathNonGCSProviderBackupSecret))
 
 	case ECS:
 		if store.SecretRef == nil {
@@ -85,7 +85,7 @@ func GetProviderEnvVars(store *druidv1alpha1.StoreSpec) ([]corev1.EnvVar, error)
 		envVars = append(envVars, GetEnvVarFromSecret(common.EnvECSSecretAccessKey, store.SecretRef.Name, "secretAccessKey", false))
 
 	case OCS:
-		envVars = append(envVars, GetEnvVarFromValue(common.EnvOpenshiftApplicationCredentials, common.NonGCSProviderBackupSecretVolumeMountPath))
+		envVars = append(envVars, GetEnvVarFromValue(common.EnvOpenshiftApplicationCredentials, common.VolumeMountPathNonGCSProviderBackupSecret))
 	}
 
 	return envVars, nil

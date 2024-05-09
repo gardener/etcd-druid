@@ -35,13 +35,13 @@ func GetEtcdImages(etcd *druidv1alpha1.Etcd, iv imagevector.ImageVector, useEtcd
 }
 
 func getEtcdImageKeys(useEtcdWrapper bool) (etcdImageKey string, etcdBRImageKey string, alpine string) {
-	alpine = common.Alpine
+	alpine = common.ImageKeyAlpine
 	if useEtcdWrapper {
-		etcdImageKey = common.EtcdWrapper
-		etcdBRImageKey = common.BackupRestoreDistroless
+		etcdImageKey = common.ImageKeyEtcdWrapper
+		etcdBRImageKey = common.ImageKeyEtcdBackupRestoreDistroless
 	} else {
-		etcdImageKey = common.Etcd
-		etcdBRImageKey = common.BackupRestore
+		etcdImageKey = common.ImageKeyEtcd
+		etcdBRImageKey = common.ImageKeyEtcdBackupRestore
 	}
 	return
 }
@@ -68,5 +68,5 @@ func GetEtcdBackupRestoreImage(iv imagevector.ImageVector, useEtcdWrapper bool) 
 
 // GetInitContainerImage returns the image for init container from the given image vector.
 func GetInitContainerImage(iv imagevector.ImageVector) (*string, error) {
-	return chooseImage(common.Alpine, nil, iv)
+	return chooseImage(common.ImageKeyAlpine, nil, iv)
 }

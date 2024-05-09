@@ -28,7 +28,7 @@ const (
 )
 
 var (
-	defaultDataDir = fmt.Sprintf("%s/new.etcd", common.EtcdDataVolumeMountPath)
+	defaultDataDir = fmt.Sprintf("%s/new.etcd", common.VolumeMountPathEtcdData)
 )
 
 type tlsTarget string
@@ -67,8 +67,8 @@ type securityConfig struct {
 }
 
 func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
-	clientScheme, clientSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.ClientUrlTLS, common.EtcdCAVolumeMountPath, common.EtcdServerTLSVolumeMountPath)
-	peerScheme, peerSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.PeerUrlTLS, common.EtcdPeerCAVolumeMountPath, common.EtcdPeerServerTLSVolumeMountPath)
+	clientScheme, clientSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.ClientUrlTLS, common.VolumeMountPathEtcdCA, common.VolumeMountPathEtcdServerTLS)
+	peerScheme, peerSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.PeerUrlTLS, common.VolumeMountPathEtcdPeerCA, common.VolumeMountPathEtcdPeerServerTLS)
 
 	cfg := &etcdConfig{
 		Name:                    fmt.Sprintf("etcd-%s", etcd.UID[:6]),
@@ -82,10 +82,10 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		InitialCluster:          prepareInitialCluster(etcd, peerScheme),
 		AutoCompactionMode:      utils.TypeDeref[druidv1alpha1.CompactionMode](etcd.Spec.Common.AutoCompactionMode, druidv1alpha1.Periodic),
 		AutoCompactionRetention: utils.TypeDeref[string](etcd.Spec.Common.AutoCompactionRetention, defaultAutoCompactionRetention),
-		ListenPeerUrls:          fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultServerPort)),
-		ListenClientUrls:        fmt.Sprintf("%s://0.0.0.0:%d", clientScheme, utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, common.DefaultClientPort)),
-		AdvertisePeerUrls:       fmt.Sprintf("%s@%s@%s@%d", peerScheme, etcd.GetPeerServiceName(), etcd.Namespace, utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultServerPort)),
-		AdvertiseClientUrls:     fmt.Sprintf("%s@%s@%s@%d", clientScheme, etcd.GetPeerServiceName(), etcd.Namespace, utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, common.DefaultClientPort)),
+		ListenPeerUrls:          fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)),
+		ListenClientUrls:        fmt.Sprintf("%s://0.0.0.0:%d", clientScheme, utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)),
+		AdvertisePeerUrls:       fmt.Sprintf("%s@%s@%s@%d", peerScheme, etcd.GetPeerServiceName(), etcd.Namespace, utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)),
+		AdvertiseClientUrls:     fmt.Sprintf("%s@%s@%s@%d", clientScheme, etcd.GetPeerServiceName(), etcd.Namespace, utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)),
 	}
 	if peerSecurityConfig != nil {
 		cfg.PeerSecurity = *peerSecurityConfig
@@ -121,7 +121,7 @@ func getSchemeAndSecurityConfig(tlsConfig *druidv1alpha1.TLSConfig, caPath, serv
 
 func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 	domainName := fmt.Sprintf("%s.%s.%s", etcd.GetPeerServiceName(), etcd.Namespace, "svc")
-	serverPort := strconv.Itoa(int(pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, common.DefaultServerPort)))
+	serverPort := strconv.Itoa(int(pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)))
 	builder := strings.Builder{}
 	for i := 0; i < int(etcd.Spec.Replicas); i++ {
 		podName := etcd.GetOrdinalPodName(i)

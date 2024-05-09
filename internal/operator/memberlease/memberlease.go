@@ -133,14 +133,14 @@ func getObjectKeys(etcd *druidv1alpha1.Etcd) []client.ObjectKey {
 
 func getSelectorLabelsForAllMemberLeases(etcd *druidv1alpha1.Etcd) map[string]string {
 	leaseMatchingLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
 	}
 	return utils.MergeMaps(etcd.GetDefaultLabels(), leaseMatchingLabels)
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd, leaseName string) map[string]string {
 	leaseLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
 		druidv1alpha1.LabelAppNameKey:   leaseName,
 	}
 	return utils.MergeMaps(leaseLabels, etcd.GetDefaultLabels())

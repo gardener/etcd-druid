@@ -166,7 +166,7 @@ func (s StatefulSetMatcher) matchPodInitContainers() gomegatypes.GomegaMatcher {
 	}
 	initContainerMatcherElements := make(map[string]gomegatypes.GomegaMatcher)
 	changePermissionsInitContainerMatcher := MatchFields(IgnoreExtras, Fields{
-		"Name":            Equal(common.ChangePermissionsInitContainerName),
+		"Name":            Equal(common.InitContainerNameChangePermissions),
 		"Image":           Equal(s.initContainerImage),
 		"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
 		"Command":         HaveExactElements("sh", "-c", "--"),
@@ -174,10 +174,10 @@ func (s StatefulSetMatcher) matchPodInitContainers() gomegatypes.GomegaMatcher {
 		"VolumeMounts":    ConsistOf(s.matchEtcdDataVolMount()),
 		"SecurityContext": matchPodInitContainerSecurityContext(),
 	})
-	initContainerMatcherElements[common.ChangePermissionsInitContainerName] = changePermissionsInitContainerMatcher
+	initContainerMatcherElements[common.InitContainerNameChangePermissions] = changePermissionsInitContainerMatcher
 	if s.etcd.IsBackupStoreEnabled() && s.provider != nil && *s.provider == utils.Local {
 		changeBackupBucketPermissionsMatcher := MatchFields(IgnoreExtras, Fields{
-			"Name":            Equal(common.ChangeBackupBucketPermissionsInitContainerName),
+			"Name":            Equal(common.InitContainerNameChangeBackupBucketPermissions),
 			"Image":           Equal(s.initContainerImage),
 			"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
 			"Command":         HaveExactElements("sh", "-c", "--"),
@@ -185,15 +185,15 @@ func (s StatefulSetMatcher) matchPodInitContainers() gomegatypes.GomegaMatcher {
 			"VolumeMounts":    ConsistOf(s.getEtcdBackupVolumeMountMatcher()),
 			"SecurityContext": matchPodInitContainerSecurityContext(),
 		})
-		initContainerMatcherElements[common.ChangeBackupBucketPermissionsInitContainerName] = changeBackupBucketPermissionsMatcher
+		initContainerMatcherElements[common.InitContainerNameChangeBackupBucketPermissions] = changeBackupBucketPermissionsMatcher
 	}
 	return MatchAllElements(containerIdentifier, initContainerMatcherElements)
 }
 
 func (s StatefulSetMatcher) matchContainers() gomegatypes.GomegaMatcher {
 	return MatchAllElements(containerIdentifier, Elements{
-		common.EtcdContainerName:              s.matchEtcdContainer(),
-		common.EtcdBackupRestoreContainerName: s.matchBackupRestoreContainer(),
+		common.ContainerNameEtcd:              s.matchEtcdContainer(),
+		common.ContainerNameEtcdBackupRestore: s.matchBackupRestoreContainer(),
 	})
 }
 
@@ -320,13 +320,13 @@ func (s StatefulSetMatcher) matchEtcdContainerCmdArgs() gomegatypes.GomegaMatche
 
 func (s StatefulSetMatcher) matchEtcdDataVolMount() gomegatypes.GomegaMatcher {
 	volumeClaimTemplateName := utils.TypeDeref[string](s.etcd.Spec.VolumeClaimTemplate, s.etcd.Name)
-	return matchVolMount(volumeClaimTemplateName, common.EtcdDataVolumeMountPath)
+	return matchVolMount(volumeClaimTemplateName, common.VolumeMountPathEtcdData)
 }
 
 func (s StatefulSetMatcher) matchBackupRestoreContainerVolMounts() gomegatypes.GomegaMatcher {
 	volMountMatchers := make([]gomegatypes.GomegaMatcher, 0, 6)
 	volMountMatchers = append(volMountMatchers, s.matchEtcdDataVolMount())
-	volMountMatchers = append(volMountMatchers, matchVolMount(common.EtcdConfigVolumeName, etcdConfigFileMountPath))
+	volMountMatchers = append(volMountMatchers, matchVolMount(common.VolumeNameEtcdConfig, etcdConfigFileMountPath))
 	volMountMatchers = append(volMountMatchers, s.getBackupRestoreSecretVolMountMatchers()...)
 	if s.etcd.IsBackupStoreEnabled() {
 		etcdBackupVolMountMatcher := s.getEtcdBackupVolumeMountMatcher()
@@ -340,9 +340,9 @@ func (s StatefulSetMatcher) matchBackupRestoreContainerVolMounts() gomegatypes.G
 func (s StatefulSetMatcher) getBackupRestoreSecretVolMountMatchers() []gomegatypes.GomegaMatcher {
 	secretVolMountMatchers := make([]gomegatypes.GomegaMatcher, 0, 3)
 	if s.etcd.Spec.Backup.TLS != nil {
-		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.BackupRestoreCAVolumeName, common.BackupRestoreCAVolumeMountPath))
-		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.BackupRestoreServerTLSVolumeName, common.BackupRestoreServerTLSVolumeMountPath))
-		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.BackupRestoreClientTLSVolumeName, common.BackupRestoreClientTLSVolumeMountPath))
+		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.VolumeNameBackupRestoreCA, common.VolumeMountPathBackupRestoreCA))
+		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.VolumeNameBackupRestoreServerTLS, common.VolumeMountPathBackupRestoreServerTLS))
+		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.VolumeNameBackupRestoreClientTLS, common.VolumeMountPathBackupRestoreClientTLS))
 	}
 	return secretVolMountMatchers
 }
@@ -350,13 +350,13 @@ func (s StatefulSetMatcher) getBackupRestoreSecretVolMountMatchers() []gomegatyp
 func (s StatefulSetMatcher) getEtcdSecretVolMountsMatchers() []gomegatypes.GomegaMatcher {
 	secretVolMountMatchers := make([]gomegatypes.GomegaMatcher, 0, 5)
 	if s.etcd.Spec.Etcd.ClientUrlTLS != nil {
-		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.EtcdCAVolumeName, common.EtcdCAVolumeMountPath))
-		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.EtcdServerTLSVolumeName, common.EtcdServerTLSVolumeMountPath))
-		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.EtcdClientTLSVolumeName, common.EtcdClientTLSVolumeMountPath))
+		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.VolumeNameEtcdCA, common.VolumeMountPathEtcdCA))
+		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.VolumeNameEtcdServerTLS, common.VolumeMountPathEtcdServerTLS))
+		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.VolumeNameEtcdClientTLS, common.VolumeMountPathEtcdClientTLS))
 	}
 	if s.etcd.Spec.Etcd.PeerUrlTLS != nil {
-		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.EtcdPeerCAVolumeName, common.EtcdPeerCAVolumeMountPath))
-		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.EtcdPeerServerTLSVolumeName, common.EtcdPeerServerTLSVolumeMountPath))
+		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.VolumeNameEtcdPeerCA, common.VolumeMountPathEtcdPeerCA))
+		secretVolMountMatchers = append(secretVolMountMatchers, matchVolMount(common.VolumeNameEtcdPeerServerTLS, common.VolumeMountPathEtcdPeerServerTLS))
 	}
 	return secretVolMountMatchers
 }
@@ -366,15 +366,15 @@ func (s StatefulSetMatcher) getEtcdBackupVolumeMountMatcher() gomegatypes.Gomega
 	case utils.Local:
 		if s.etcd.Spec.Backup.Store.Container != nil {
 			if s.useEtcdWrapper {
-				return matchVolMount(common.LocalBackupVolumeName, fmt.Sprintf("/home/nonroot/%s", pointer.StringDeref(s.etcd.Spec.Backup.Store.Container, "")))
+				return matchVolMount(common.VolumeNameLocalBackup, fmt.Sprintf("/home/nonroot/%s", pointer.StringDeref(s.etcd.Spec.Backup.Store.Container, "")))
 			} else {
-				return matchVolMount(common.LocalBackupVolumeName, pointer.StringDeref(s.etcd.Spec.Backup.Store.Container, ""))
+				return matchVolMount(common.VolumeNameLocalBackup, pointer.StringDeref(s.etcd.Spec.Backup.Store.Container, ""))
 			}
 		}
 	case utils.GCS:
-		return matchVolMount(common.ProviderBackupSecretVolumeName, common.GCSBackupSecretVolumeMountPath)
+		return matchVolMount(common.VolumeNameProviderBackupSecret, common.VolumeMountPathGCSBackupSecret)
 	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
-		return matchVolMount(common.ProviderBackupSecretVolumeName, common.NonGCSProviderBackupSecretVolumeMountPath)
+		return matchVolMount(common.VolumeNameProviderBackupSecret, common.VolumeMountPathNonGCSProviderBackupSecret)
 	}
 	return nil
 }
@@ -411,7 +411,7 @@ func (s StatefulSetMatcher) matchEtcdPodSecurityContext() gomegatypes.GomegaMatc
 func (s StatefulSetMatcher) matchPodVolumes() gomegatypes.GomegaMatcher {
 	volMatchers := make([]gomegatypes.GomegaMatcher, 0, 7)
 	etcdConfigFileVolMountMatcher := MatchFields(IgnoreExtras, Fields{
-		"Name": Equal(common.EtcdConfigVolumeName),
+		"Name": Equal(common.VolumeNameEtcdConfig),
 		"VolumeSource": MatchFields(IgnoreExtras|IgnoreMissing, Fields{
 			"ConfigMap": PointTo(MatchFields(IgnoreExtras, Fields{
 				"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
@@ -421,7 +421,7 @@ func (s StatefulSetMatcher) matchPodVolumes() gomegatypes.GomegaMatcher {
 					"Key":  Equal(etcdConfigFileName),
 					"Path": Equal(etcdConfigFileName),
 				})),
-				"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
+				"DefaultMode": PointTo(Equal(common.ModeOwnerReadWriteGroupRead)),
 			})),
 		}),
 	})
@@ -443,81 +443,81 @@ func (s StatefulSetMatcher) getPodSecurityVolumeMatchers() []gomegatypes.GomegaM
 	volMatchers := make([]gomegatypes.GomegaMatcher, 0, 5)
 	if s.etcd.Spec.Etcd.ClientUrlTLS != nil {
 		volMatchers = append(volMatchers, MatchFields(IgnoreExtras, Fields{
-			"Name": Equal(common.EtcdCAVolumeName),
+			"Name": Equal(common.VolumeNameEtcdCA),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name),
-					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
+					"DefaultMode": PointTo(Equal(common.ModeOwnerReadWriteGroupRead)),
 				})),
 			}),
 		}))
 		volMatchers = append(volMatchers, MatchFields(IgnoreExtras, Fields{
-			"Name": Equal(common.EtcdServerTLSVolumeName),
+			"Name": Equal(common.VolumeNameEtcdServerTLS),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name),
-					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
+					"DefaultMode": PointTo(Equal(common.ModeOwnerReadWriteGroupRead)),
 				})),
 			}),
 		}))
 		volMatchers = append(volMatchers, MatchFields(IgnoreExtras, Fields{
-			"Name": Equal(common.EtcdClientTLSVolumeName),
+			"Name": Equal(common.VolumeNameEtcdClientTLS),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name),
-					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
+					"DefaultMode": PointTo(Equal(common.ModeOwnerReadWriteGroupRead)),
 				})),
 			}),
 		}))
 	}
 	if s.etcd.Spec.Etcd.PeerUrlTLS != nil {
 		volMatchers = append(volMatchers, MatchFields(IgnoreExtras, Fields{
-			"Name": Equal(common.EtcdPeerCAVolumeName),
+			"Name": Equal(common.VolumeNameEtcdPeerCA),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name),
-					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
+					"DefaultMode": PointTo(Equal(common.ModeOwnerReadWriteGroupRead)),
 				})),
 			}),
 		}))
 
 		volMatchers = append(volMatchers, MatchFields(IgnoreExtras, Fields{
-			"Name": Equal(common.EtcdPeerServerTLSVolumeName),
+			"Name": Equal(common.VolumeNameEtcdPeerServerTLS),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name),
-					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
+					"DefaultMode": PointTo(Equal(common.ModeOwnerReadWriteGroupRead)),
 				})),
 			}),
 		}))
 	}
 	if s.etcd.Spec.Backup.TLS != nil {
 		volMatchers = append(volMatchers, MatchFields(IgnoreExtras, Fields{
-			"Name": Equal(common.BackupRestoreCAVolumeName),
+			"Name": Equal(common.VolumeNameBackupRestoreCA),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Backup.TLS.TLSCASecretRef.Name),
-					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
+					"DefaultMode": PointTo(Equal(common.ModeOwnerReadWriteGroupRead)),
 				})),
 			}),
 		}))
 
 		volMatchers = append(volMatchers, MatchFields(IgnoreExtras, Fields{
-			"Name": Equal(common.BackupRestoreServerTLSVolumeName),
+			"Name": Equal(common.VolumeNameBackupRestoreServerTLS),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Backup.TLS.ServerTLSSecretRef.Name),
-					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
+					"DefaultMode": PointTo(Equal(common.ModeOwnerReadWriteGroupRead)),
 				})),
 			}),
 		}))
 
 		volMatchers = append(volMatchers, MatchFields(IgnoreExtras, Fields{
-			"Name": Equal(common.BackupRestoreClientTLSVolumeName),
+			"Name": Equal(common.VolumeNameBackupRestoreClientTLS),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Backup.TLS.ClientTLSSecretRef.Name),
-					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
+					"DefaultMode": PointTo(Equal(common.ModeOwnerReadWriteGroupRead)),
 				})),
 			}),
 		}))
@@ -534,7 +534,7 @@ func (s StatefulSetMatcher) getBackupVolumeMatcher() gomegatypes.GomegaMatcher {
 		hostPath, err := utils.GetHostMountPathFromSecretRef(context.Background(), s.cl, logr.Discard(), s.etcd.Spec.Backup.Store, s.etcd.Namespace)
 		s.g.Expect(err).ToNot(HaveOccurred())
 		return MatchFields(IgnoreExtras, Fields{
-			"Name": Equal(common.LocalBackupVolumeName),
+			"Name": Equal(common.VolumeNameLocalBackup),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"HostPath": PointTo(MatchFields(IgnoreExtras, Fields{
 					"Path": Equal(fmt.Sprintf("%s/%s", hostPath, pointer.StringDeref(s.etcd.Spec.Backup.Store.Container, ""))),
@@ -546,11 +546,11 @@ func (s StatefulSetMatcher) getBackupVolumeMatcher() gomegatypes.GomegaMatcher {
 	case utils.GCS, utils.S3, utils.OSS, utils.ABS, utils.Swift, utils.OCS:
 		s.g.Expect(s.etcd.Spec.Backup.Store.SecretRef).ToNot(BeNil())
 		return MatchFields(IgnoreExtras, Fields{
-			"Name": Equal(common.ProviderBackupSecretVolumeName),
+			"Name": Equal(common.VolumeNameProviderBackupSecret),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(s.etcd.Spec.Backup.Store.SecretRef.Name),
-					"DefaultMode": PointTo(Equal(common.OwnerReadWriteGroupReadPermissions)),
+					"DefaultMode": PointTo(Equal(common.ModeOwnerReadWriteGroupRead)),
 				})),
 			}),
 		})
@@ -575,7 +575,7 @@ func matchPodInitContainerSecurityContext() gomegatypes.GomegaMatcher {
 
 func getStatefulSetLabels(etcdName string) map[string]string {
 	return map[string]string{
-		druidv1alpha1.LabelComponentKey: common.StatefulSetComponentName,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameStatefulSet,
 		druidv1alpha1.LabelAppNameKey:   etcdName,
 		druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
 		druidv1alpha1.LabelPartOfKey:    etcdName,

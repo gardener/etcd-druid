@@ -76,7 +76,7 @@ var _ = Describe("ReadyCheck", func() {
 		JustBeforeEach(func() {
 			cl.EXPECT().List(ctx, gomock.AssignableToTypeOf(&coordinationv1.LeaseList{}), client.InNamespace(etcd.Namespace),
 				client.MatchingLabels{
-					druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
+					druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
 					druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
 					druidv1alpha1.LabelPartOfKey:    etcd.Name,
 				}).
