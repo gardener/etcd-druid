@@ -25,13 +25,10 @@ Now, it is detected whether peer URL was TLS enabled or not for single node etcd
 
 ## Action taken by etcd-druid to enable the peerURL TLS
 1. Etcd-druid will update the `etcd-bootstrap` config-map with new config like initial-cluster,initial-advertise-peer-urls etc. Backup-restore will detect this change and update the member lease annotation to `member.etcd.gardener.cloud/tls-enabled: "true"`.
-2. In case the peer URL TLS has been changed to `enabled`: Etcd-druid will add tasks to the deployment flow.
-    - To ensure that the TLS enablement of peer URL is properly reflected in etcd, the existing etcd StatefulSet pods should be restarted twice. 
-    - The first restart pushes a new configuration which contains Peer URL TLS configuration. Backup-restore will update the member peer url. This will result in the change of the peer url in the etcd's database, but it may not reflect in the already running etcd container. Ideally a restart of an etcd container would have been sufficient but currently k8s doesn't expose an API to force restart a single container within a pod. Therefore, we need to restart the StatefulSet pod(s) once again. When the pod(s) is restarted the second time it will now start etcd with the correct peer url which will be TLS enabled.
-    - To achieve 2 restarts following is done:
-        * An update is made to the spec mounting the peer URL TLS secrets. This will cause a rolling update of the existing pod.
-        * Once the update is successfully completed, then we delete StatefulSet pods, causing a restart by the StatefulSet controller.
-
+2. In case the peer URL TLS has been changed to `enabled`: Etcd-druid will add tasks to the deployment flow:
+    - Check if peer TLS has been enabled for existing StatefulSet pods, by checking the member leases for the annotation `member.etcd.gardener.cloud/tls-enabled`.
+    - If peer TLS enablement is pending for any of the members, then check and patch the StatefulSet with the peer TLS volume mounts, if not already patched. This will cause a rolling update of the existing StatefulSet pods, which allows etcd-backup-restore to update the member peer URL in the etcd cluster. 
+    - Requeue this reconciliation flow until peer TLS has been enabled for all the existing etcd members.
 
 ## After PeerURL is TLS enabled
 After peer URL TLS enablement for single node etcd cluster, now etcd-druid adds a scale-up annotation: `gardener.cloud/scaled-to-multi-node` to the etcd statefulset and etcd-druid will patch the statefulsets `.spec.replicas` to `3`(for example). The statefulset controller will then bring up new pods(etcd with backup-restore as a sidecar). Now etcd's sidecar i.e backup-restore will check whether this member is already a part of a cluster or not and incase it is unable to check (may be due to some network issues) then backup-restore checks presence of this annotation: `gardener.cloud/scaled-to-multi-node` in etcd statefulset to detect scale-up. If it finds out it is the scale-up case then backup-restore adds new etcd member as a [learner](https://etcd.io/docs/v3.3/learning/learner/) first and then starts the etcd learner by providing the correct configuration. Once learner gets in sync with the etcd cluster leader, it will get promoted to a voting member.

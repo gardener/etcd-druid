@@ -90,7 +90,7 @@ check-generate:
 .PHONY: generate
 generate: manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
 	@go generate "$(REPO_ROOT)/internal/..."
-	@"$(REPO_ROOT)/hack/update-codegen.sh"
+	@"$(HACK_DIR)/update-codegen.sh"
 
 # Build the docker image
 .PHONY: docker-build
@@ -108,7 +108,7 @@ docker-push:
 .PHONY: test
 test: $(GINKGO) $(GOTESTFMT)
 	# run ginkgo unit tests. These will be ported to golang native tests over a period of time.
-	@"$(REPO_ROOT)/hack/test.sh" ./api/... \
+	@"$(HACK_DIR)/test.sh" ./api/... \
 	./internal/controller/etcdcopybackupstask/... \
 	./internal/controller/predicate/... \
 	./internal/controller/secret/... \
@@ -116,7 +116,7 @@ test: $(GINKGO) $(GOTESTFMT)
 	./internal/mapper/... \
 	./internal/metrics/...
 	# run the golang native unit tests.
-	@TEST_COV="true" "$(REPO_ROOT)/hack/test-go.sh" ./internal/controller/etcd/... ./internal/operator/... ./internal/utils/... ./internal/webhook/...
+	@TEST_COV="true" "$(HACK_DIR)/test-go.sh" ./internal/controller/etcd/... ./internal/operator/... ./internal/utils/... ./internal/webhook/...
 
 .PHONY: test-cov
 test-cov: $(GINKGO) $(SETUP_ENVTEST)
@@ -132,8 +132,8 @@ test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
 
 .PHONY: test-integration
 test-integration: $(GINKGO) $(SETUP_ENVTEST) $(GOTESTFMT)
-	@SETUP_ENVTEST="true" "$(REPO_ROOT)/hack/test.sh" ./test/integration/...
-	@SETUP_ENVTEST="true" "$(REPO_ROOT)/hack/test-go.sh" ./test/it/...
+	@SETUP_ENVTEST="true" "$(HACK_DIR)/test.sh" ./test/integration/...
+	@SETUP_ENVTEST="true" "$(HACK_DIR)/test-go.sh" ./test/it/...
 
 .PHONY: update-dependencies
 update-dependencies:

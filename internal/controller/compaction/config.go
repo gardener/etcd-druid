@@ -54,7 +54,7 @@ func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 	fs.BoolVar(&cfg.EnableBackupCompaction, enableBackupCompactionFlagName, defaultEnableBackupCompaction,
 		"Enable automatic compaction of etcd backups.")
 	fs.IntVar(&cfg.Workers, workersFlagName, defaultCompactionWorkers,
-		"Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. Setting this flag to 0 disables the controller.")
+		"Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. If compaction is enabled, the value for this flag must be greater than zero.")
 	fs.Int64Var(&cfg.EventsThreshold, eventsThresholdFlagName, defaultEventsThreshold,
 		"Total number of etcd events that can be allowed before a backup compaction job is triggered.")
 	fs.DurationVar(&cfg.ActiveDeadlineDuration, activeDeadlineDurationFlagName, defaultActiveDeadlineDuration,
@@ -65,7 +65,11 @@ func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 
 // Validate validates the config.
 func (cfg *Config) Validate() error {
-	if err := utils.MustBeGreaterThanOrEqualTo(workersFlagName, 0, cfg.Workers); err != nil {
+	minWorkers := 0
+	if cfg.EnableBackupCompaction {
+		minWorkers = 1
+	}
+	if err := utils.MustBeGreaterThanOrEqualTo(workersFlagName, minWorkers, cfg.Workers); err != nil {
 		return err
 	}
 	if err := utils.MustBeGreaterThan(eventsThresholdFlagName, 0, cfg.EventsThreshold); err != nil {

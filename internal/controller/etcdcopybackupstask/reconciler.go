@@ -504,16 +504,16 @@ func createVolumeMountsFromStore(store *druidv1alpha1.StoreSpec, provider, volum
 	return
 }
 
-func getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, suffix string) string {
-	// "/var/<volumePrefix>etcd-backup<suffix>"
+func getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, volumeSuffix string) string {
+	// "/var/<volumePrefix>etcd-backup<volumeSuffix>"
 	tokens := strings.Split(strings.Trim(common.VolumeMountPathNonGCSProviderBackupSecret, "/"), "/")
-	return fmt.Sprintf("/%s/%s%s%s", tokens[0], volumePrefix, tokens[1], suffix)
+	return fmt.Sprintf("/%s/%s%s%s", tokens[0], volumePrefix, tokens[1], volumeSuffix)
 }
 
-func getGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, suffix string) string {
-	// "/var/.<volumePrefix>gcp<suffix>"
+func getGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, volumeSuffix string) string {
+	// "/var/.<volumePrefix>gcp<volumeSuffix>"
 	tokens := strings.Split(strings.TrimSuffix(common.VolumeMountPathGCSBackupSecret, "/"), ".")
-	return fmt.Sprintf("%s.%s%s%s", tokens[0], volumePrefix, tokens[1], suffix)
+	return fmt.Sprintf("%s.%s%s%s", tokens[0], volumePrefix, tokens[1], volumeSuffix)
 }
 
 // createEnvVarsFromStore generates a slice of environment variables for an EtcdCopyBackups job based on the given StoreSpec,

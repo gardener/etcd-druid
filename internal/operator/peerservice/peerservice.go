@@ -82,7 +82,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 // TriggerDelete triggers the deletion of the peer service for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
-	ctx.Logger.Info("Triggering delete of peer service")
+	ctx.Logger.Info("Triggering deletion of peer service")
 	if err := r.client.Delete(ctx, emptyPeerService(objectKey)); err != nil {
 		if errors.IsNotFound(err) {
 			ctx.Logger.Info("No Peer Service found, Deletion is a No-Op", "objectKey", objectKey)

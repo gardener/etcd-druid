@@ -167,6 +167,6 @@ const (
 	// VolumeMountPathNonGCSProviderBackupSecret is the path on a container where the non-GCS provider backup secret is mounted.
 	VolumeMountPathNonGCSProviderBackupSecret = "/var/etcd-backup"
 
-	// VolumeMountPathEtcdData is the path on a container where the etcd data directory is hosted.
+	// VolumeMountPathEtcdData is the path on a container where the etcd data directory is mounted.
 	VolumeMountPathEtcdData = "/var/etcd/data"
 )

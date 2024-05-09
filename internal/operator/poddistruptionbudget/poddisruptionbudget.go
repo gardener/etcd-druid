@@ -81,7 +81,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 
 // TriggerDelete triggers the deletion of the pod disruption budget for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	ctx.Logger.Info("Triggering delete of PDB")
+	ctx.Logger.Info("Triggering deletion of PDB")
 	pdbObjectKey := getObjectKey(etcd)
 	if err := client.IgnoreNotFound(r.client.Delete(ctx, emptyPodDisruptionBudget(pdbObjectKey))); err != nil {
 		return druiderr.WrapError(err,

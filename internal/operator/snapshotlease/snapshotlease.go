@@ -80,7 +80,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 // Sync creates or updates the snapshot leases for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	if !etcd.IsBackupStoreEnabled() {
-		ctx.Logger.Info("Backup has been disabled. Triggering delete of snapshot leases")
+		ctx.Logger.Info("Backup has been disabled. Triggering deletion of snapshot leases")
 		return r.deleteAllSnapshotLeases(ctx, etcd, func(err error) error {
 			return druiderr.WrapError(err,
 				ErrSyncSnapshotLease,
@@ -106,7 +106,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 
 // TriggerDelete triggers the deletion of the snapshot leases for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	ctx.Logger.Info("Triggering delete of snapshot leases")
+	ctx.Logger.Info("Triggering deletion of snapshot leases")
 	if err := r.deleteAllSnapshotLeases(ctx, etcd, func(err error) error {
 		return druiderr.WrapError(err,
 			ErrDeleteSnapshotLease,

@@ -4,7 +4,7 @@
 
 package v1alpha1
 
-// Common label keys to be placed on all druid managed resources
+// Common label keys to be placed on all druid-managed resources
 const (
 	// LabelAppNameKey is a label which sets the name of the resource provisioned for an etcd cluster.
 	LabelAppNameKey = "app.kubernetes.io/name"
@@ -18,7 +18,7 @@ const (
 	LabelComponentKey = "app.kubernetes.io/component"
 )
 
-// Annotation keys that can be placed on an etcd custom resource.
+// Annotation keys that can be placed on an Etcd custom resource.
 const (
 	// IgnoreReconciliationAnnotation is an annotation set by an operator in order to stop reconciliation.
 	// Deprecated: Please use SuspendEtcdSpecReconcileAnnotation instead

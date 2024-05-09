@@ -83,7 +83,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 
 // TriggerDelete triggers the deletion of the service account for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	ctx.Logger.Info("Triggering delete of service account")
+	ctx.Logger.Info("Triggering deletion of service account")
 	objectKey := getObjectKey(etcd)
 	if err := r.client.Delete(ctx, emptyServiceAccount(objectKey)); err != nil {
 		if errors.IsNotFound(err) {

@@ -32,12 +32,13 @@ To help with the problem mentioned earlier, our proposal is to introduce `compac
 ### How the solution works
 The newly introduced compact command does not disturb the running Etcd while compacting the backup snapshots. The command is designed to run potentially separately (from the main Etcd process/container/pod). Etcd Druid can be configured to run the newly introduced compact command as a separate job (scheduled periodically) based on total number of Etcd events accumulated after the most recent full snapshot.
 
-### Druid flags:
-Etcd druid introduced following flags to configure the compaction job:
-- `--enable-backup-compaction` (default `false`): Set this flag to `true` to enable the automatic compaction of etcd backups when `etcd-events-threshold` is exceeded.
-- `--compaction-workers` (default `3`): If this flag is set to zero, no compaction job will be running. If it's set to any value greater than zero, druid controller will have that many threads to kickstart the compaction job.
-- `--etcd-events-threshold` (default `1000000`): Set this flag with the value which will signify the number of Etcd events allowed after the most recent full snapshot. Once the number of Etcd events crosses the value mentioned in this flag, compaction job will be kickstarted. 
-- `--active-deadline-duration` (default `3h`): This flag signifies the maximum duration till which a compaction job won't be garbage-collected.
+### Etcd-druid flags:
+Etcd-druid introduces the following flags to configure the compaction job:
+- `--enable-backup-compaction` (default `false`): Set this flag to `true` to enable the automatic compaction of etcd backups when the threshold value denoted by CLI flag `--etcd-events-threshold` is exceeded.
+- `--compaction-workers` (default `3`): Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. If compaction is enabled, the value for this flag must be greater than zero.
+- `--etcd-events-threshold` (default `1000000`): Total number of etcd events that can be allowed before a backup compaction job is triggered.
+- `--active-deadline-duration` (default `3h`): Duration after which a running backup compaction job will be terminated.
+- `--metrics-scrape-wait-duration` (default `0s`): Duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped.
 
 ### **Points to take care while saving the compacted snapshot:**
 As compacted snapshot and the existing periodic full snapshots are taken by different processes running in different pods but accessing same store to save the snapshots, some problems may arise:

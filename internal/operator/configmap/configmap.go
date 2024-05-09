@@ -91,7 +91,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 // TriggerDelete triggers the deletion of the configmap for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
-	ctx.Logger.Info("Triggering delete of ConfigMap", "objectKey", objectKey)
+	ctx.Logger.Info("Triggering deletion of ConfigMap", "objectKey", objectKey)
 	if err := r.client.Delete(ctx, emptyConfigMap(objectKey)); err != nil {
 		if errors.IsNotFound(err) {
 			ctx.Logger.Info("No ConfigMap found, Deletion is a No-Op", "objectKey", objectKey)

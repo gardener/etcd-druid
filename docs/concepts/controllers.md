@@ -6,7 +6,7 @@ etcd-druid uses Kubebuilder to define the `Etcd` CR and its corresponding contro
 
 All controllers that are a part of etcd-druid reside in package `internal/controller`, as sub-packages.
 
-etcd-druid currently consists of the following controllers, each having its own responsibility:
+Etcd-druid currently consists of the following controllers, each having its own responsibility:
 
 - *etcd* : responsible for the reconciliation of the `Etcd` CR spec, which allows users to run etcd clusters within the specified Kubernetes cluster, and also responsible for periodically updating the `Etcd` CR status with the up-to-date state of the managed etcd cluster.
 - *compaction* : responsible for [snapshot compaction](/docs/proposals/02-snapshot-compaction.md).
@@ -54,7 +54,7 @@ While building the controller, an event filter is set such that the behavior of 
 
 The reason this filter is present is that any disruption in the `Etcd` resource due to reconciliation (due to changes in the `Etcd` spec, for example) while workloads are being run would cause unwanted downtimes to the etcd cluster. Hence, any user who wishes to avoid such disruptions, can choose to set the `--enable-etcd-spec-auto-reconcile` CLI flag to `false`. An example of this is Gardener's [gardenlet](https://github.com/gardener/gardener/blob/master/docs/concepts/gardenlet.md), which reconciles the `Etcd` resource only during a shoot cluster's [*maintenance window*](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_maintenance.md).
 
-The controller adds a finalizer to the `Etcd` resource in order to ensure that it does not get deleted until all dependent resources managed by druid, aka managed components, are properly cleaned up. Only the *etcd controller* can delete a resource once it adds finalizers to it. This ensures that the proper deletion flow steps are followed while deleting the resource. During deletion flow, managed components are deleted in parallel.
+The controller adds a finalizer to the `Etcd` resource in order to ensure that it does not get deleted until all dependent resources managed by etcd-druid, aka managed components, are properly cleaned up. Only the *etcd controller* can delete a resource once it adds finalizers to it. This ensures that the proper deletion flow steps are followed while deleting the resource. During deletion flow, managed components are deleted in parallel.
 
 ### `Etcd` Status Updates
 
@@ -63,8 +63,8 @@ The `Etcd` resource status is updated periodically by `etcd controller`, the int
 Status fields of the `Etcd` resource such as `LastOperation`, `LastErrors` and `ObservedGeneration`, are updated to reflect the result of the recent reconciliation of the `Etcd` resource spec.
 
 - `LastOperation` holds information about the last operation performed on the etcd cluster, indicated by fields `Type`, `State`, `Description` and `LastUpdateTime`. Additionally, a field `RunID` indicates the unique ID assigned to the specific reconciliation run, to allow for better debugging of issues.
-- `LastErrors` is a slice of errors encountered by the last reconciliation run. Each error consists of fields `Code` to indicate the custom druid error code for the error, a human-readable `Description`, and the `ObservedAt` time when the error was seen.
-- `ObservedGeneration` indicates the latest `generation` of the `Etcd` resource that druid has "observed" and consequently reconciled. It helps identify whether a change in the `Etcd` resource spec was acted upon by druid or not.
+- `LastErrors` is a slice of errors encountered by the last reconciliation run. Each error consists of fields `Code` to indicate the custom etcd-druid error code for the error, a human-readable `Description`, and the `ObservedAt` time when the error was seen.
+- `ObservedGeneration` indicates the latest `generation` of the `Etcd` resource that etcd-druid has "observed" and consequently reconciled. It helps identify whether a change in the `Etcd` resource spec was acted upon by druid or not.
 
 Status fields of the `Etcd` resource which correspond to the `StatefulSet` like `CurrentReplicas`, `ReadyReplicas` and `Replicas` are updated to reflect those of the `StatefulSet` by the controller.
 

@@ -177,13 +177,13 @@ var _ = Describe("Etcd", func() {
 		})
 	})
 
-	Context("IsReconciliationSuspended", func() {
+	Context("IsSpecReconciliationSuspended", func() {
 		Context("when etcd has only annotation druid.gardener.cloud/suspend-etcd-spec-reconcile set", func() {
 			It("should return true", func() {
 				etcd.Annotations = map[string]string{
 					SuspendEtcdSpecReconcileAnnotation: "true",
 				}
-				Expect(etcd.IsReconciliationSuspended()).To(Equal(true))
+				Expect(etcd.IsSpecReconciliationSuspended()).To(Equal(true))
 			})
 		})
 		Context("when etcd has only annotation druid.gardener.cloud/ignore-reconciliation set", func() {
@@ -191,7 +191,7 @@ var _ = Describe("Etcd", func() {
 				etcd.Annotations = map[string]string{
 					IgnoreReconciliationAnnotation: "true",
 				}
-				Expect(etcd.IsReconciliationSuspended()).To(Equal(true))
+				Expect(etcd.IsSpecReconciliationSuspended()).To(Equal(true))
 			})
 		})
 		Context("when etcd has both annotations druid.gardener.cloud/suspend-etcd-spec-reconcile and druid.gardener.cloud/ignore-reconciliation set", func() {
@@ -200,12 +200,12 @@ var _ = Describe("Etcd", func() {
 					SuspendEtcdSpecReconcileAnnotation: "true",
 					IgnoreReconciliationAnnotation:     "true",
 				}
-				Expect(etcd.IsReconciliationSuspended()).To(Equal(true))
+				Expect(etcd.IsSpecReconciliationSuspended()).To(Equal(true))
 			})
 		})
 		Context("when etcd does not have annotation druid.gardener.cloud/suspend-etcd-spec-reconcile or druid.gardener.cloud/ignore-reconciliation set", func() {
 			It("should return false", func() {
-				Expect(etcd.IsReconciliationSuspended()).To(Equal(false))
+				Expect(etcd.IsSpecReconciliationSuspended()).To(Equal(false))
 			})
 		})
 	})

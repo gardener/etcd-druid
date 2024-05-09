@@ -56,12 +56,12 @@ type ServerConfig struct {
 type HTTPSServer struct {
 	// Server is the configuration for the bind address and the port.
 	Server
-	// TLSServer contains information about the TLS configuration for an HTTPS server.
-	TLS TLSServer
+	// TLSConfig contains information about the TLS configuration for an HTTPS server.
+	TLSConfig TLSServerConfig
 }
 
-// TLSServer contains information about the TLS configuration for an HTTPS server.
-type TLSServer struct {
+// TLSServerConfig contains information about the TLS configuration for an HTTPS server.
+type TLSServerConfig struct {
 	// ServerCertDir is the path to a directory containing the server's TLS certificate and key (the files must be
 	// named tls.crt and tls.key respectively).
 	ServerCertDir string
@@ -128,7 +128,7 @@ func (cfg *ManagerConfig) InitFromFlags(fs *flag.FlagSet) error {
 		"The IP address on which to listen for the HTTPS webhook server.")
 	flag.IntVar(&cfg.Server.Webhook.Server.Port, webhookServerPortFlagName, defaultWebhookServerPort,
 		"The port on which to listen for the HTTPS webhook server.")
-	flag.StringVar(&cfg.Server.Webhook.TLS.ServerCertDir, webhookServerTLSServerCertDir, defaultWebhookServerTLSServerCert,
+	flag.StringVar(&cfg.Server.Webhook.TLSConfig.ServerCertDir, webhookServerTLSServerCertDir, defaultWebhookServerTLSServerCert,
 		"The path to a directory containing the server's TLS certificate and key (the files must be named tls.crt and tls.key respectively).")
 	flag.BoolVar(&cfg.LeaderElection.Enabled, enableLeaderElectionFlagName, defaultEnableLeaderElection,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
@@ -198,7 +198,7 @@ func (cfg *ManagerConfig) Validate() error {
 		if cfg.Server.Webhook.Port == 0 {
 			return fmt.Errorf("webhook port cannot be 0")
 		}
-		if cfg.Server.Webhook.TLS.ServerCertDir == "" {
+		if cfg.Server.Webhook.TLSConfig.ServerCertDir == "" {
 			return fmt.Errorf("webhook server cert dir cannot be empty")
 		}
 	}

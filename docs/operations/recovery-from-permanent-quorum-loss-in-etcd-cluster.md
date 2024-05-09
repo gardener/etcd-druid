@@ -23,7 +23,7 @@ Target the control plane of affected shoot cluster via `kubectl`. Alternatively,
 1. Add the following annotations to the `Etcd` resource `etcd-main`:
     1. `kubectl annotate etcd etcd-main druid.gardener.cloud/suspend-etcd-spec-reconcile=`
     
-    2. `kubectl annotate etcd etcd-main druid.gardener.cloud/resource-protection=`
+    2. `kubectl annotate etcd etcd-main druid.gardener.cloud/disable-resource-protection=`
     
 2. Note down the configmap name that is attached to the `etcd-main` statefulset. If you describe the statefulset with `kubectl describe sts etcd-main`, look for the lines similar to following lines to identify attached configmap name. It will be needed at later stages:
 
@@ -70,7 +70,7 @@ Target the control plane of affected shoot cluster via `kubectl`. Alternatively,
 
 6. Edit the `etcd-main` cluster's configmap (ex: `etcd-bootstrap-4785b0`) as follows:
 
-    Find the `initial-cluster` field in the configmap. It will look like the following:
+    Find the `initial-cluster` field in the configmap. It should look similar to the following:
     ```
     # Initial cluster
       initial-cluster: etcd-main-0=https://etcd-main-0.etcd-main-peer.default.svc:2380,etcd-main-1=https://etcd-main-1.etcd-main-peer.default.svc:2380,etcd-main-2=https://etcd-main-2.etcd-main-peer.default.svc:2380
@@ -99,7 +99,7 @@ Target the control plane of affected shoot cluster via `kubectl`. Alternatively,
 
     1. `kubectl annotate etcd etcd-main druid.gardener.cloud/suspend-etcd-spec-reconcile-`
 
-    2. `kubectl annotate etcd etcd-main druid.gardener.cloud/resource-protection-`
+    2. `kubectl annotate etcd etcd-main druid.gardener.cloud/disable-resource-protection-`
 
 10. Finally, add the following annotation to the `Etcd` resource `etcd-main`:
 

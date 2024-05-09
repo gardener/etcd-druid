@@ -33,8 +33,8 @@ var (
 	defaultTimeout = time.Minute
 )
 
-// CreateManagerWithControllers creates a controller manager and adds all the controllers to the controller-manager using the passed in ManagerConfig.
-func CreateManagerWithControllers(config *ManagerConfig) (ctrl.Manager, error) {
+// CreateManagerWithControllersAndWebhooks creates a controller manager and adds all the controllers to the controller-manager using the passed in ManagerConfig.
+func CreateManagerWithControllersAndWebhooks(config *ManagerConfig) (ctrl.Manager, error) {
 	var (
 		err error
 		mgr ctrl.Manager
@@ -45,7 +45,7 @@ func CreateManagerWithControllers(config *ManagerConfig) (ctrl.Manager, error) {
 	if mgr, err = createManager(config); err != nil {
 		return nil, err
 	}
-	if err = registerControllersWithManager(mgr, config); err != nil {
+	if err = registerControllersAndWebhooksWithManager(mgr, config); err != nil {
 		return nil, err
 	}
 
@@ -83,7 +83,7 @@ func createManager(config *ManagerConfig) (ctrl.Manager, error) {
 		WebhookServer: webhook.NewServer(webhook.Options{
 			Host:    config.Server.Webhook.BindAddress,
 			Port:    config.Server.Webhook.Port,
-			CertDir: config.Server.Webhook.TLS.ServerCertDir,
+			CertDir: config.Server.Webhook.TLSConfig.ServerCertDir,
 		}),
 		LeaderElection:             config.LeaderElection.Enabled,
 		LeaderElectionID:           config.LeaderElection.ID,
@@ -91,7 +91,7 @@ func createManager(config *ManagerConfig) (ctrl.Manager, error) {
 	})
 }
 
-func registerControllersWithManager(mgr ctrl.Manager, config *ManagerConfig) error {
+func registerControllersAndWebhooksWithManager(mgr ctrl.Manager, config *ManagerConfig) error {
 	var err error
 
 	// Add etcd reconciler to the manager

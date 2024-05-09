@@ -1872,7 +1872,7 @@ spec:
                     type: string
                   lastUpdateTime:
                     description: LastUpdateTime is the time at which the operation
-                      was updated.
+                      was last updated.
                     format: date-time
                     type: string
                   runID:

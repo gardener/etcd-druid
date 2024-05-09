@@ -449,7 +449,7 @@ const (
 	LastOperationStateError LastOperationState = "Error"
 )
 
-// LastOperation holds the information on the last operation done on this resource.
+// LastOperation holds the information on the last operation done on the Etcd resource.
 type LastOperation struct {
 	// Type is the type of last operation.
 	Type LastOperationType `json:"type"`
@@ -463,7 +463,7 @@ type LastOperation struct {
 	// as part of LastOperation aids in establishing this correlation. This further helps in also easily filtering
 	// reconcile logs as all structured logs in a reconciliation run should have the `runID` referenced.
 	RunID string `json:"runID"`
-	// LastUpdateTime is the time at which the operation was updated.
+	// LastUpdateTime is the time at which the operation was last updated.
 	LastUpdateTime metav1.Time `json:"lastUpdateTime"`
 }
 
@@ -590,9 +590,9 @@ func (e *Etcd) GetSuspendEtcdSpecReconcileAnnotationKey() *string {
 	return nil
 }
 
-// IsReconciliationSuspended returns true if the Etcd resource has the annotation set to suspend spec reconciliation,
+// IsSpecReconciliationSuspended returns true if the Etcd resource has the annotation set to suspend spec reconciliation,
 // else returns false.
-func (e *Etcd) IsReconciliationSuspended() bool {
+func (e *Etcd) IsSpecReconciliationSuspended() bool {
 	suspendReconcileAnnotKey := e.GetSuspendEtcdSpecReconcileAnnotationKey()
 	return suspendReconcileAnnotKey != nil && metav1.HasAnnotation(e.ObjectMeta, *suspendReconcileAnnotKey)
 }
