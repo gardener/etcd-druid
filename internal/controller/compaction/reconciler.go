@@ -350,8 +350,9 @@ func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 		"networking.gardener.cloud/to-private-networks": "allowed",
 		"networking.gardener.cloud/to-public-networks":  "allowed",
 	}
-	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), jobLabels)
+	return utils.MergeMaps(etcd.GetDefaultLabels(), jobLabels)
 }
+
 func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featuregate.Feature]bool) ([]v1.VolumeMount, error) {
 	vms := []v1.VolumeMount{
 		{

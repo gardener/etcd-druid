@@ -133,7 +133,7 @@ func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	if etcd.Spec.Etcd.ClientService != nil && etcd.Spec.Etcd.ClientService.Labels != nil {
 		specClientSvcLabels = etcd.Spec.Etcd.ClientService.Labels
 	}
-	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), clientSvcLabels, specClientSvcLabels)
+	return utils.MergeMaps(etcd.GetDefaultLabels(), clientSvcLabels, specClientSvcLabels)
 }
 
 func getAnnotations(etcd *druidv1alpha1.Etcd) map[string]string {

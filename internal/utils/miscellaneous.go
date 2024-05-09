@@ -17,7 +17,7 @@ import (
 func MergeStringMaps(oldMap map[string]string, newMaps ...map[string]string) map[string]string {
 	allMaps := []map[string]string{oldMap}
 	allMaps = append(allMaps, newMaps...)
-	return MergeMaps[string, string](allMaps...)
+	return MergeMaps(allMaps...)
 }
 
 // MergeMaps merges the contents of maps. All maps will be processed in the order

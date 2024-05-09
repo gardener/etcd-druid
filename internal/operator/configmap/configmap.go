@@ -128,7 +128,7 @@ func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 		druidv1alpha1.LabelComponentKey: common.ConfigMapComponentName,
 		druidv1alpha1.LabelAppNameKey:   etcd.GetConfigMapName(),
 	}
-	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), cmLabels)
+	return utils.MergeMaps(etcd.GetDefaultLabels(), cmLabels)
 }
 
 func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {

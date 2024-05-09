@@ -273,7 +273,7 @@ func getLatestMemberLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd)
 	return doGetLatestLeases(g,
 		cl,
 		etcd,
-		utils.MergeMaps[string, string](map[string]string{
+		utils.MergeMaps(map[string]string{
 			druidv1alpha1.LabelComponentKey: common.MemberLeaseComponentName,
 		}, etcd.GetDefaultLabels()))
 }

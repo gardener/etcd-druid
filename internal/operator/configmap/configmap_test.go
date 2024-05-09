@@ -313,7 +313,7 @@ func getLatestConfigMap(cl client.Client, etcd *druidv1alpha1.Etcd) (*corev1.Con
 }
 
 func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.ConfigMap) {
-	expectedLabels := utils.MergeMaps[string, string](etcd.GetDefaultLabels(), map[string]string{
+	expectedLabels := utils.MergeMaps(etcd.GetDefaultLabels(), map[string]string{
 		druidv1alpha1.LabelComponentKey: common.ConfigMapComponentName,
 		druidv1alpha1.LabelAppNameKey:   etcd.GetConfigMapName(),
 	})

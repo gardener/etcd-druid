@@ -124,7 +124,7 @@ func (b *stsBuilder) getStatefulSetLabels() map[string]string {
 		druidv1alpha1.LabelComponentKey: common.StatefulSetComponentName,
 		druidv1alpha1.LabelAppNameKey:   b.etcd.Name,
 	}
-	return utils.MergeMaps[string, string](b.etcd.GetDefaultLabels(), stsLabels)
+	return utils.MergeMaps(b.etcd.GetDefaultLabels(), stsLabels)
 }
 
 func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error {
@@ -149,7 +149,7 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 		ServiceName:          b.etcd.GetPeerServiceName(),
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels:      utils.MergeMaps[string](b.etcd.Spec.Labels, b.getStatefulSetLabels()),
+				Labels:      utils.MergeMaps(b.etcd.Spec.Labels, b.getStatefulSetLabels()),
 				Annotations: b.getPodTemplateAnnotations(ctx),
 			},
 			Spec: corev1.PodSpec{
@@ -183,7 +183,7 @@ func (b *stsBuilder) getHostAliases() []corev1.HostAlias {
 
 func (b *stsBuilder) getPodTemplateAnnotations(ctx component.OperatorContext) map[string]string {
 	if configMapCheckSum, ok := ctx.Data[common.ConfigMapCheckSumKey]; ok {
-		return utils.MergeMaps[string](b.etcd.Spec.Annotations, map[string]string{
+		return utils.MergeMaps(b.etcd.Spec.Annotations, map[string]string{
 			common.ConfigMapCheckSumKey: configMapCheckSum,
 		})
 	}

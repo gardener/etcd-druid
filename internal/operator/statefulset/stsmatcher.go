@@ -132,8 +132,8 @@ func (s StatefulSetMatcher) matchPodTemplateSpec() gomegatypes.GomegaMatcher {
 
 func (s StatefulSetMatcher) matchPodObjectMeta() gomegatypes.GomegaMatcher {
 	return MatchFields(IgnoreExtras, Fields{
-		"Labels": testutils.MatchResourceLabels(utils.MergeMaps[string, string](getStatefulSetLabels(s.etcd.Name), s.etcd.Spec.Labels)),
-		"Annotations": testutils.MatchResourceAnnotations(utils.MergeMaps[string, string](s.etcd.Spec.Annotations, map[string]string{
+		"Labels": testutils.MatchResourceLabels(utils.MergeMaps(getStatefulSetLabels(s.etcd.Name), s.etcd.Spec.Labels)),
+		"Annotations": testutils.MatchResourceAnnotations(utils.MergeMaps(s.etcd.Spec.Annotations, map[string]string{
 			"checksum/etcd-configmap": testutils.TestConfigMapCheckSum,
 		})),
 	})

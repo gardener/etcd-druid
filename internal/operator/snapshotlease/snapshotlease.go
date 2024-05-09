@@ -166,7 +166,7 @@ func getSelectorLabelsForAllSnapshotLeases(etcd *druidv1alpha1.Etcd) map[string]
 	leaseMatchingLabels := map[string]string{
 		druidv1alpha1.LabelComponentKey: common.SnapshotLeaseComponentName,
 	}
-	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), leaseMatchingLabels)
+	return utils.MergeMaps(etcd.GetDefaultLabels(), leaseMatchingLabels)
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd, leaseName string) map[string]string {
@@ -174,7 +174,7 @@ func getLabels(etcd *druidv1alpha1.Etcd, leaseName string) map[string]string {
 		druidv1alpha1.LabelComponentKey: common.SnapshotLeaseComponentName,
 		druidv1alpha1.LabelAppNameKey:   leaseName,
 	}
-	return utils.MergeMaps[string, string](leaseLabels, etcd.GetDefaultLabels())
+	return utils.MergeMaps(leaseLabels, etcd.GetDefaultLabels())
 }
 
 func getObjectKeys(etcd *druidv1alpha1.Etcd) []client.ObjectKey {

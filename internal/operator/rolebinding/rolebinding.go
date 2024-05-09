@@ -134,5 +134,5 @@ func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 		druidv1alpha1.LabelComponentKey: common.RoleBindingComponentName,
 		druidv1alpha1.LabelAppNameKey:   strings.ReplaceAll(etcd.GetRoleBindingName(), ":", "-"), // role-binding name contains `:` which is not an allowed character as a label value.
 	}
-	return utils.MergeMaps[string, string](etcd.GetDefaultLabels(), roleLabels)
+	return utils.MergeMaps(etcd.GetDefaultLabels(), roleLabels)
 }

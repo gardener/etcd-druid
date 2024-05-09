@@ -264,7 +264,7 @@ func matchClientService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Ser
 	var expectedAnnotations map[string]string
 	if etcd.Spec.Etcd.ClientService != nil {
 		expectedAnnotations = etcd.Spec.Etcd.ClientService.Annotations
-		expectedLabels = utils.MergeMaps[string](etcd.Spec.Etcd.ClientService.Labels, etcd.GetDefaultLabels())
+		expectedLabels = utils.MergeMaps(etcd.Spec.Etcd.ClientService.Labels, etcd.GetDefaultLabels())
 	}
 
 	g.Expect(actualSvc).To(MatchFields(IgnoreExtras, Fields{
