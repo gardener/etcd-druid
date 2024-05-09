@@ -61,8 +61,7 @@ func (g *runGroup) trigger(ctx component.OperatorContext, task OperatorTask) {
 				g.errCh <- panicErr
 			}
 		}()
-		err := task.Fn(ctx)
-		if err != nil {
+		if err := task.Fn(ctx); err != nil {
 			g.errCh <- err
 		}
 	}(task)

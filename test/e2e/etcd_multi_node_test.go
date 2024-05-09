@@ -258,8 +258,7 @@ func checkForUnreadyEtcdMembers(ctx context.Context, cl client.Client, logger lo
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 		defer cancelFunc()
 
-		err := cl.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: namespace}, etcd)
-		if err != nil {
+		if err := cl.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: namespace}, etcd); err != nil {
 			return err
 		}
 
@@ -335,8 +334,7 @@ func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Lo
 	logger.Info("Checking etcd")
 	EventuallyWithOffset(1, func() error {
 		etcd := getEmptyEtcd(etcd.Name, namespace)
-		err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)
-		if err != nil {
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
 			return err
 		}
 
@@ -503,8 +501,7 @@ func getPodLogs(ctx context.Context, PodKey *types.NamespacedName, opts *corev1.
 	defer podLogs.Close()
 
 	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, podLogs)
-	if err != nil {
+	if _, err = io.Copy(buf, podLogs); err != nil {
 		return "", err
 	}
 	return buf.String(), nil

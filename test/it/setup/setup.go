@@ -70,8 +70,7 @@ func NewIntegrationTestEnv(loggerName string, crdDirectoryPaths []string) (Integ
 	}
 	return itEnv, func() {
 		itEnv.cancelFn()
-		err := itEnv.testEnv.Stop()
-		if err != nil {
+		if err := itEnv.testEnv.Stop(); err != nil {
 			logger.Error(err, "failed to stop test environment")
 		}
 		logger.Info("stopped test environment")

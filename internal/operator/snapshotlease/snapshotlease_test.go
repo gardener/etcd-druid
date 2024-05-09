@@ -300,11 +300,11 @@ func getLatestSnapshotLeases(cl client.Client, etcd *druidv1alpha1.Etcd) ([]coor
 
 func doGetLatestLeases(cl client.Client, etcd *druidv1alpha1.Etcd, matchingLabels map[string]string) ([]coordinationv1.Lease, error) {
 	leases := &coordinationv1.LeaseList{}
-	err := cl.List(context.Background(),
+	if err := cl.List(context.Background(),
 		leases,
 		client.InNamespace(etcd.Namespace),
-		client.MatchingLabels(matchingLabels))
-	if err != nil {
+		client.MatchingLabels(matchingLabels),
+	); err != nil {
 		return nil, err
 	}
 	return leases.Items, nil

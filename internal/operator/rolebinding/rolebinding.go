@@ -83,8 +83,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd)
 	ctx.Logger.Info("Triggering delete of role", "objectKey", objectKey)
-	err := r.client.Delete(ctx, emptyRoleBinding(objectKey))
-	if err != nil {
+	if err := r.client.Delete(ctx, emptyRoleBinding(objectKey)); err != nil {
 		if errors.IsNotFound(err) {
 			ctx.Logger.Info("No RoleBinding found, Deletion is a No-Op", "objectKey", objectKey)
 			return nil

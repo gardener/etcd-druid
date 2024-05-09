@@ -585,11 +585,10 @@ func executeRemoteCommand(ctx context.Context, kubeconfigPath, namespace, podNam
 
 	buf := &bytes.Buffer{}
 	errBuf := &bytes.Buffer{}
-	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+	if err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdout: buf,
 		Stderr: errBuf,
-	})
-	if err != nil {
+	}); err != nil {
 		return "", "", err
 	}
 
@@ -617,8 +616,7 @@ func purgeSnapstore(store brtypes.SnapStore) error {
 	}
 
 	for _, snap := range snapList {
-		err = store.Delete(*snap)
-		if err != nil {
+		if err = store.Delete(*snap); err != nil {
 			return err
 		}
 	}

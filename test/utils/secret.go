@@ -27,11 +27,10 @@ func CreateSecrets(ctx context.Context, c client.Client, namespace string, secre
 				"test": []byte("test"),
 			},
 		}
-		err := c.Create(ctx, &secret)
-		if apierrors.IsAlreadyExists(err) {
-			continue
-		}
-		if err != nil {
+		if err := c.Create(ctx, &secret); err != nil {
+			if apierrors.IsAlreadyExists(err) {
+				continue
+			}
 			createErrs = errors.Join(createErrs, err)
 		}
 	}

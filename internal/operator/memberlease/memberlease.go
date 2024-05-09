@@ -44,11 +44,11 @@ func New(client client.Client) component.Operator {
 func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 	leaseList := &coordinationv1.LeaseList{}
-	err := r.client.List(ctx,
+	if err := r.client.List(ctx,
 		leaseList,
 		client.InNamespace(etcd.Namespace),
-		client.MatchingLabels(getSelectorLabelsForAllMemberLeases(etcd)))
-	if err != nil {
+		client.MatchingLabels(getSelectorLabelsForAllMemberLeases(etcd)),
+	); err != nil {
 		return resourceNames, druiderr.WrapError(err,
 			ErrListMemberLease,
 			"GetExistingResourceNames",

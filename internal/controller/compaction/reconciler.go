@@ -148,8 +148,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 			if job.Status.StartTime != nil {
 				metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse, druidmetrics.EtcdNamespace: etcd.Namespace}).Observe(time.Since(job.Status.StartTime.Time).Seconds())
 			}
-			err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground))
-			if err != nil {
+			if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 				return ctrl.Result{
 					RequeueAfter: 10 * time.Second,
 				}, fmt.Errorf("error while deleting failed compaction job: %v", err)

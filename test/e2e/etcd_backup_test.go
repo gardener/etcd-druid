@@ -224,8 +224,7 @@ func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, e
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 		defer cancelFunc()
 
-		err := cl.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: namespace}, etcd)
-		if err != nil {
+		if err := cl.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: namespace}, etcd); err != nil {
 			return err
 		}
 
