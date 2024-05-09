@@ -20,8 +20,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const defaultServerPort = 2380
-
 const (
 	// ErrGetPeerService indicates an error in getting the peer service resource.
 	ErrGetPeerService druidv1alpha1.ErrorCode = "ERR_GET_PEER_SERVICE"
@@ -135,7 +133,7 @@ func emptyPeerService(objectKey client.ObjectKey) *corev1.Service {
 }
 
 func getPorts(etcd *druidv1alpha1.Etcd) []corev1.ServicePort {
-	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)
+	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultServerPort)
 	return []corev1.ServicePort{
 		{
 			Name:       "peer",

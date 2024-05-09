@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -238,7 +239,7 @@ func newPeerService(etcd *druidv1alpha1.Etcd) *corev1.Service {
 }
 
 func matchPeerService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Service) {
-	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)
+	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultServerPort)
 	g.Expect(actualSvc).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 			"Name":            Equal(etcd.GetPeerServiceName()),

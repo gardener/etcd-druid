@@ -25,8 +25,6 @@ const (
 	// TODO: Ideally this should be made configurable via Etcd resource as this has a direct impact on the memory requirements for etcd container.
 	// which in turn is influenced by the size of objects that are getting stored in etcd.
 	defaultSnapshotCount = 75000
-	defaultClientPort    = 2379
-	defaultServerPort    = 2380
 )
 
 var (
@@ -84,10 +82,10 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		InitialCluster:          prepareInitialCluster(etcd, peerScheme),
 		AutoCompactionMode:      utils.TypeDeref[druidv1alpha1.CompactionMode](etcd.Spec.Common.AutoCompactionMode, druidv1alpha1.Periodic),
 		AutoCompactionRetention: utils.TypeDeref[string](etcd.Spec.Common.AutoCompactionRetention, defaultAutoCompactionRetention),
-		ListenPeerUrls:          fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)),
-		ListenClientUrls:        fmt.Sprintf("%s://0.0.0.0:%d", clientScheme, utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort)),
-		AdvertisePeerUrls:       fmt.Sprintf("%s@%s@%s@%d", peerScheme, etcd.GetPeerServiceName(), etcd.Namespace, utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)),
-		AdvertiseClientUrls:     fmt.Sprintf("%s@%s@%s@%d", clientScheme, etcd.GetPeerServiceName(), etcd.Namespace, utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort)),
+		ListenPeerUrls:          fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultServerPort)),
+		ListenClientUrls:        fmt.Sprintf("%s://0.0.0.0:%d", clientScheme, utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, common.DefaultClientPort)),
+		AdvertisePeerUrls:       fmt.Sprintf("%s@%s@%s@%d", peerScheme, etcd.GetPeerServiceName(), etcd.Namespace, utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultServerPort)),
+		AdvertiseClientUrls:     fmt.Sprintf("%s@%s@%s@%d", clientScheme, etcd.GetPeerServiceName(), etcd.Namespace, utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, common.DefaultClientPort)),
 	}
 	if peerSecurityConfig != nil {
 		cfg.PeerSecurity = *peerSecurityConfig
@@ -123,7 +121,7 @@ func getSchemeAndSecurityConfig(tlsConfig *druidv1alpha1.TLSConfig, caPath, serv
 
 func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 	domainName := fmt.Sprintf("%s.%s.%s", etcd.GetPeerServiceName(), etcd.Namespace, "svc")
-	serverPort := strconv.Itoa(int(pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, defaultServerPort)))
+	serverPort := strconv.Itoa(int(pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, common.DefaultServerPort)))
 	builder := strings.Builder{}
 	for i := 0; i < int(etcd.Spec.Replicas); i++ {
 		podName := etcd.GetOrdinalPodName(i)

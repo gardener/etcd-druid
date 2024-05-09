@@ -27,9 +27,6 @@ import (
 // defaults
 // -----------------------------------------------------------------------------------------
 const (
-	defaultBackupPort              int32 = 8080
-	defaultServerPort              int32 = 2380
-	defaultClientPort              int32 = 2379
 	defaultWrapperPort             int   = 9095
 	defaultMaxBackupsLimitBasedGC  int32 = 7
 	defaultQuota                   int64 = 8 * 1024 * 1024 * 1024 // 8Gi
@@ -42,6 +39,7 @@ const (
 	defaultAutoCompactionMode            = "periodic"
 	defaultEtcdConnectionTimeout         = "5m"
 	defaultPodManagementPolicy           = appsv1.ParallelPodManagement
+	nonRootUser                          = int64(65532)
 )
 
 var (
@@ -98,9 +96,9 @@ func newStsBuilder(client client.Client,
 		etcdBackupRestoreImage: etcdBackupRestoreImage,
 		initContainerImage:     initContainerImage,
 		sts:                    sts,
-		clientPort:             pointer.Int32Deref(etcd.Spec.Etcd.ClientPort, defaultClientPort),
-		serverPort:             pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, defaultServerPort),
-		backupPort:             pointer.Int32Deref(etcd.Spec.Backup.Port, defaultBackupPort),
+		clientPort:             pointer.Int32Deref(etcd.Spec.Etcd.ClientPort, common.DefaultClientPort),
+		serverPort:             pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, common.DefaultServerPort),
+		backupPort:             pointer.Int32Deref(etcd.Spec.Backup.Port, common.DefaultBackupPort),
 	}, nil
 }
 
@@ -221,7 +219,7 @@ func (b *stsBuilder) getPodInitContainers() []corev1.Container {
 		Image:           b.initContainerImage,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Command:         []string{"sh", "-c", "--"},
-		Args:            []string{fmt.Sprintf("chown -R 65532:65532 %s", common.EtcdDataVolumeMountPath)},
+		Args:            []string{fmt.Sprintf("chown -R %d:%d %s", nonRootUser, nonRootUser, common.EtcdDataVolumeMountPath)},
 		VolumeMounts:    []corev1.VolumeMount{b.getEtcdDataVolumeMount()},
 		SecurityContext: &corev1.SecurityContext{
 			RunAsGroup:   pointer.Int64(0),
@@ -238,7 +236,7 @@ func (b *stsBuilder) getPodInitContainers() []corev1.Container {
 					Image:           b.initContainerImage,
 					ImagePullPolicy: corev1.PullIfNotPresent,
 					Command:         []string{"sh", "-c", "--"},
-					Args:            []string{fmt.Sprintf("chown -R 65532:65532 /home/nonroot/%s", *b.etcd.Spec.Backup.Store.Container)},
+					Args:            []string{fmt.Sprintf("chown -R %d:%d /home/nonroot/%s", nonRootUser, nonRootUser, *b.etcd.Spec.Backup.Store.Container)},
 					VolumeMounts:    []corev1.VolumeMount{*etcdBackupVolumeMount},
 					SecurityContext: &corev1.SecurityContext{
 						RunAsGroup:   pointer.Int64(0),
@@ -565,7 +563,7 @@ func (b *stsBuilder) getEtcdContainerReadinessHandler() corev1.ProbeHandler {
 	}
 	scheme := utils.IfConditionOr[corev1.URIScheme](b.etcd.Spec.Backup.TLS == nil, corev1.URISchemeHTTP, corev1.URISchemeHTTPS)
 	path := utils.IfConditionOr[string](multiNodeCluster, "/readyz", "/healthz")
-	port := utils.IfConditionOr[int](multiNodeCluster, defaultWrapperPort, int(defaultBackupPort))
+	port := utils.IfConditionOr[int](multiNodeCluster, defaultWrapperPort, int(common.DefaultBackupPort))
 
 	return corev1.ProbeHandler{
 		HTTPGet: &corev1.HTTPGetAction{
@@ -638,10 +636,10 @@ func (b *stsBuilder) getPodSecurityContext() *corev1.PodSecurityContext {
 		return nil
 	}
 	return &corev1.PodSecurityContext{
-		RunAsGroup:   pointer.Int64(65532),
+		RunAsGroup:   pointer.Int64(nonRootUser),
 		RunAsNonRoot: pointer.Bool(true),
-		RunAsUser:    pointer.Int64(65532),
-		FSGroup:      pointer.Int64(65532),
+		RunAsUser:    pointer.Int64(nonRootUser),
+		FSGroup:      pointer.Int64(nonRootUser),
 	}
 }
 

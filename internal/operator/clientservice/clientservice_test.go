@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -256,9 +257,9 @@ func buildEtcd(clientPort, peerPort, backupPort *int32) *druidv1alpha1.Etcd {
 }
 
 func matchClientService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Service) {
-	clientPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort)
-	backupPort := utils.TypeDeref[int32](etcd.Spec.Backup.Port, defaultBackupPort)
-	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)
+	clientPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, common.DefaultClientPort)
+	backupPort := utils.TypeDeref[int32](etcd.Spec.Backup.Port, common.DefaultBackupPort)
+	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultServerPort)
 
 	expectedLabels := etcd.GetDefaultLabels()
 	var expectedAnnotations map[string]string

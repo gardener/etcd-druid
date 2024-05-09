@@ -161,3 +161,14 @@ const (
 	// EtcdDataVolumeMountPath is the path on a container where the etcd data directory is hosted.
 	EtcdDataVolumeMountPath = "/var/etcd/data"
 )
+
+const (
+	// DefaultBackupPort is the default port for the HTTP server in the etcd-backup-restore container.
+	DefaultBackupPort int32 = 8080
+	// DefaultServerPort is the default port for the etcd server used for peer communication.
+	DefaultServerPort int32 = 2380
+	// DefaultClientPort is the default port for the etcd client.
+	DefaultClientPort int32 = 2379
+	// DefaultWrapperPort is the default port for the etcd-wrapper HTTP server.
+	DefaultWrapperPort int = 9095
+)

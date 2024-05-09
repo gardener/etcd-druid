@@ -10,6 +10,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -28,27 +29,24 @@ var (
 	garbageCollectionPeriod = metav1.Duration{
 		Duration: 43200 * time.Second,
 	}
-	clientPort              int32 = 2379
-	serverPort              int32 = 2380
-	backupPort              int32 = 8080
-	imageEtcd                     = "eu.gcr.io/gardener-project/gardener/etcd-wrapper:v0.1.0"
-	imageBR                       = "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.25.0"
-	snapshotSchedule              = "0 */24 * * *"
-	defragSchedule                = "0 */24 * * *"
-	container                     = "default.bkp"
-	storageCapacity               = resource.MustParse("5Gi")
-	storageClass                  = "default"
-	priorityClassName             = "class_priority"
-	deltaSnapShotMemLimit         = resource.MustParse("100Mi")
-	autoCompactionMode            = druidv1alpha1.Periodic
-	autoCompactionRetention       = "2m"
-	quota                         = resource.MustParse("8Gi")
-	localProvider                 = druidv1alpha1.StorageProvider("Local")
-	prefix                        = "/tmp"
-	volumeClaimTemplateName       = "etcd-main"
-	garbageCollectionPolicy       = druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
-	metricsBasic                  = druidv1alpha1.Basic
-	etcdSnapshotTimeout           = metav1.Duration{
+	imageEtcd               = "eu.gcr.io/gardener-project/gardener/etcd-wrapper:v0.1.0"
+	imageBR                 = "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.25.0"
+	snapshotSchedule        = "0 */24 * * *"
+	defragSchedule          = "0 */24 * * *"
+	container               = "default.bkp"
+	storageCapacity         = resource.MustParse("5Gi")
+	storageClass            = "default"
+	priorityClassName       = "class_priority"
+	deltaSnapShotMemLimit   = resource.MustParse("100Mi")
+	autoCompactionMode      = druidv1alpha1.Periodic
+	autoCompactionRetention = "2m"
+	quota                   = resource.MustParse("8Gi")
+	localProvider           = druidv1alpha1.StorageProvider("Local")
+	prefix                  = "/tmp"
+	volumeClaimTemplateName = "etcd-main"
+	garbageCollectionPolicy = druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
+	metricsBasic            = druidv1alpha1.Basic
+	etcdSnapshotTimeout     = metav1.Duration{
 		Duration: 10 * time.Minute,
 	}
 	etcdDefragTimeout = metav1.Duration{
@@ -399,8 +397,8 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 						"memory": ParseQuantity("1000Mi"),
 					},
 				},
-				ClientPort: &clientPort,
-				ServerPort: &serverPort,
+				ClientPort: pointer.Int32(common.DefaultClientPort),
+				ServerPort: pointer.Int32(common.DefaultServerPort),
 			},
 			Common: druidv1alpha1.SharedConfig{
 				AutoCompactionMode:      &autoCompactionMode,
@@ -413,7 +411,7 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 func getBackupSpec() druidv1alpha1.BackupSpec {
 	return druidv1alpha1.BackupSpec{
 		Image:                    &imageBR,
-		Port:                     &backupPort,
+		Port:                     pointer.Int32(common.DefaultBackupPort),
 		FullSnapshotSchedule:     &snapshotSchedule,
 		GarbageCollectionPolicy:  &garbageCollectionPolicy,
 		GarbageCollectionPeriod:  &garbageCollectionPeriod,

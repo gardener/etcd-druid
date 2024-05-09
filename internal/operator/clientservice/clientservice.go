@@ -20,13 +20,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// default values
-const (
-	defaultBackupPort = 8080
-	defaultClientPort = 2379
-	defaultServerPort = 2380
-)
-
 const (
 	// ErrGetClientService indicates an error in getting the client service resource.
 	ErrGetClientService druidv1alpha1.ErrorCode = "ERR_GET_CLIENT_SERVICE"
@@ -153,9 +146,9 @@ func emptyClientService(objectKey client.ObjectKey) *corev1.Service {
 }
 
 func getPorts(etcd *druidv1alpha1.Etcd) []corev1.ServicePort {
-	backupPort := utils.TypeDeref[int32](etcd.Spec.Backup.Port, defaultBackupPort)
-	clientPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, defaultClientPort)
-	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, defaultServerPort)
+	backupPort := utils.TypeDeref[int32](etcd.Spec.Backup.Port, common.DefaultBackupPort)
+	clientPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, common.DefaultClientPort)
+	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultServerPort)
 
 	return []corev1.ServicePort{
 		{
