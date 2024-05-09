@@ -131,7 +131,7 @@ func assertResourceCreation(ctx component.OperatorContext, t *testing.T, opRegis
 		if !slices.Equal(actualResourceNames, expectedResourceNames) {
 			return fmt.Errorf("expected %s: %v, found %v instead", kind, expectedResourceNames, actualResourceNames)
 		}
-		msg := utils.IfConditionOr[string](len(expectedResourceNames) == 0,
+		msg := utils.IfConditionOr(len(expectedResourceNames) == 0,
 			fmt.Sprintf("%s: %v does not exist", kind, expectedResourceNames),
 			fmt.Sprintf("%s: %v exists", kind, expectedResourceNames))
 		t.Log(msg)
@@ -271,7 +271,7 @@ func assertETCDOperationAnnotation(t *testing.T, cl client.Client, etcdObjectKey
 		return nil
 	}
 	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).Should(BeNil())
-	msg := utils.IfConditionOr[string](expectedAnnotationToBePresent, "reconcile operation annotation present", "reconcile operation annotation removed")
+	msg := utils.IfConditionOr(expectedAnnotationToBePresent, "reconcile operation annotation present", "reconcile operation annotation removed")
 	t.Log(msg)
 }
 
@@ -307,12 +307,12 @@ func assertETCDFinalizer(t *testing.T, cl client.Client, etcdObjectKey client.Ob
 		}
 		finalizerPresent := slices.Contains(etcdInstance.ObjectMeta.Finalizers, common.FinalizerName)
 		if expectedFinalizerPresent != finalizerPresent {
-			return fmt.Errorf("expected finalizer to be %s, found %v", utils.IfConditionOr[string](expectedFinalizerPresent, "present", "removed"), etcdInstance.ObjectMeta.Finalizers)
+			return fmt.Errorf("expected finalizer to be %s, found %v", utils.IfConditionOr(expectedFinalizerPresent, "present", "removed"), etcdInstance.ObjectMeta.Finalizers)
 		}
 		return nil
 	}
 	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).Should(BeNil())
-	msg := utils.IfConditionOr[string](expectedFinalizerPresent, "finalizer present", "finalizer removed")
+	msg := utils.IfConditionOr(expectedFinalizerPresent, "finalizer present", "finalizer removed")
 	t.Log(msg)
 }
 
@@ -388,7 +388,7 @@ func assertETCDStatusFieldsDerivedFromStatefulSet(ctx context.Context, t *testin
 		if etcdInstance.Status.Replicas != *sts.Spec.Replicas {
 			return fmt.Errorf("expected replicas to be %d, found %d", sts.Spec.Replicas, etcdInstance.Status.Replicas)
 		}
-		if utils.TypeDeref[bool](etcdInstance.Status.Ready, false) != expectedReadyStatus {
+		if utils.TypeDeref(etcdInstance.Status.Ready, false) != expectedReadyStatus {
 			return fmt.Errorf("expected ready to be %t, found %s", expectedReadyStatus, logPointerTypeToString[bool](etcdInstance.Status.Ready))
 		}
 		return nil

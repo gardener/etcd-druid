@@ -163,7 +163,7 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 				Affinity:                  b.etcd.Spec.SchedulingConstraints.Affinity,
 				TopologySpreadConstraints: b.etcd.Spec.SchedulingConstraints.TopologySpreadConstraints,
 				Volumes:                   podVolumes,
-				PriorityClassName:         utils.TypeDeref[string](b.etcd.Spec.PriorityClassName, ""),
+				PriorityClassName:         utils.TypeDeref(b.etcd.Spec.PriorityClassName, ""),
 			},
 		},
 	}
@@ -192,7 +192,7 @@ func (b *stsBuilder) getVolumeClaimTemplates() []corev1.PersistentVolumeClaim {
 	return []corev1.PersistentVolumeClaim{
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: utils.TypeDeref[string](b.etcd.Spec.VolumeClaimTemplate, b.etcd.Name),
+				Name: utils.TypeDeref(b.etcd.Spec.VolumeClaimTemplate, b.etcd.Name),
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
 				AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -200,7 +200,7 @@ func (b *stsBuilder) getVolumeClaimTemplates() []corev1.PersistentVolumeClaim {
 				},
 				Resources: corev1.ResourceRequirements{
 					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: utils.TypeDeref[apiresource.Quantity](b.etcd.Spec.StorageCapacity, defaultStorageCapacity),
+						corev1.ResourceStorage: utils.TypeDeref(b.etcd.Spec.StorageCapacity, defaultStorageCapacity),
 					},
 				},
 				StorageClassName: b.etcd.Spec.StorageClass,
@@ -334,7 +334,7 @@ func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 }
 
 func (b *stsBuilder) getEtcdDataVolumeMount() corev1.VolumeMount {
-	volumeClaimTemplateName := utils.TypeDeref[string](b.etcd.Spec.VolumeClaimTemplate, b.etcd.Name)
+	volumeClaimTemplateName := utils.TypeDeref(b.etcd.Spec.VolumeClaimTemplate, b.etcd.Name)
 	return corev1.VolumeMount{
 		Name:      volumeClaimTemplateName,
 		MountPath: common.VolumeMountPathEtcdData,
@@ -360,7 +360,7 @@ func (b *stsBuilder) getEtcdContainer() corev1.Container {
 				ContainerPort: b.clientPort,
 			},
 		},
-		Resources:    utils.TypeDeref[corev1.ResourceRequirements](b.etcd.Spec.Etcd.Resources, defaultResourceRequirements),
+		Resources:    utils.TypeDeref(b.etcd.Spec.Etcd.Resources, defaultResourceRequirements),
 		Env:          b.getEtcdContainerEnvVars(),
 		VolumeMounts: b.getEtcdContainerVolumeMounts(),
 	}
@@ -384,7 +384,7 @@ func (b *stsBuilder) getBackupRestoreContainer() (corev1.Container, error) {
 			},
 		},
 		Env:          env,
-		Resources:    utils.TypeDeref[corev1.ResourceRequirements](b.etcd.Spec.Backup.Resources, defaultResourceRequirements),
+		Resources:    utils.TypeDeref(b.etcd.Spec.Backup.Resources, defaultResourceRequirements),
 		VolumeMounts: b.getBackupRestoreContainerVolumeMounts(),
 	}, nil
 }
@@ -458,7 +458,7 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 		quota = b.etcd.Spec.Etcd.Quota.Value()
 	}
 	commandArgs = append(commandArgs, fmt.Sprintf("--embedded-etcd-quota-bytes=%d", quota))
-	if utils.TypeDeref[bool](b.etcd.Spec.Backup.EnableProfiling, false) {
+	if utils.TypeDeref(b.etcd.Spec.Backup.EnableProfiling, false) {
 		commandArgs = append(commandArgs, "--enable-profiling=true")
 	}
 
@@ -517,7 +517,7 @@ func (b *stsBuilder) getBackupStoreCommandArgs() []string {
 	}
 	commandArgs = append(commandArgs, fmt.Sprintf("--garbage-collection-policy=%s", garbageCollectionPolicy))
 	if garbageCollectionPolicy == "LimitBased" {
-		commandArgs = append(commandArgs, fmt.Sprintf("--max-backups=%d", utils.TypeDeref[int32](b.etcd.Spec.Backup.MaxBackupsLimitBasedGC, defaultMaxBackupsLimitBasedGC)))
+		commandArgs = append(commandArgs, fmt.Sprintf("--max-backups=%d", utils.TypeDeref(b.etcd.Spec.Backup.MaxBackupsLimitBasedGC, defaultMaxBackupsLimitBasedGC)))
 	}
 	if b.etcd.Spec.Backup.GarbageCollectionPeriod != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--garbage-collection-period=%s", b.etcd.Spec.Backup.GarbageCollectionPeriod.Duration.String()))
@@ -526,7 +526,7 @@ func (b *stsBuilder) getBackupStoreCommandArgs() []string {
 	// Snapshot compression and timeout command line args
 	// -----------------------------------------------------------------------------------------------------------------
 	if b.etcd.Spec.Backup.SnapshotCompression != nil {
-		if utils.TypeDeref[bool](b.etcd.Spec.Backup.SnapshotCompression.Enabled, false) {
+		if utils.TypeDeref(b.etcd.Spec.Backup.SnapshotCompression.Enabled, false) {
 			commandArgs = append(commandArgs, fmt.Sprintf("--compress-snapshots=%t", *b.etcd.Spec.Backup.SnapshotCompression.Enabled))
 		}
 		if b.etcd.Spec.Backup.SnapshotCompression.Policy != nil {
@@ -561,9 +561,9 @@ func (b *stsBuilder) getEtcdContainerReadinessHandler() corev1.ProbeHandler {
 			},
 		}
 	}
-	scheme := utils.IfConditionOr[corev1.URIScheme](b.etcd.Spec.Backup.TLS == nil, corev1.URISchemeHTTP, corev1.URISchemeHTTPS)
-	path := utils.IfConditionOr[string](multiNodeCluster, "/readyz", "/healthz")
-	port := utils.IfConditionOr[int32](multiNodeCluster, common.DefaultPortEtcdWrapper, common.DefaultPortEtcdBackupRestore)
+	scheme := utils.IfConditionOr(b.etcd.Spec.Backup.TLS == nil, corev1.URISchemeHTTP, corev1.URISchemeHTTPS)
+	path := utils.IfConditionOr(multiNodeCluster, "/readyz", "/healthz")
+	port := utils.IfConditionOr(multiNodeCluster, common.DefaultPortEtcdWrapper, common.DefaultPortEtcdBackupRestore)
 
 	return corev1.ProbeHandler{
 		HTTPGet: &corev1.HTTPGetAction{
@@ -623,7 +623,7 @@ func (b *stsBuilder) getEtcdContainerEnvVars() []corev1.EnvVar {
 		return []corev1.EnvVar{}
 	}
 	backTLSEnabled := b.etcd.Spec.Backup.TLS != nil
-	scheme := utils.IfConditionOr[string](backTLSEnabled, "https", "http")
+	scheme := utils.IfConditionOr(backTLSEnabled, "https", "http")
 	endpoint := fmt.Sprintf("%s://%s-local:%d", scheme, b.etcd.Name, b.backupPort)
 
 	return []corev1.EnvVar{

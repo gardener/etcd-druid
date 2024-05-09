@@ -260,7 +260,7 @@ func (eb *EtcdBuilder) WithEtcdClientServiceLabels(labels map[string]string) *Et
 		eb.etcd.Spec.Etcd.ClientService = &druidv1alpha1.ClientService{}
 	}
 
-	eb.etcd.Spec.Etcd.ClientService.Labels = MergeMaps[string](eb.etcd.Spec.Etcd.ClientService.Labels, labels)
+	eb.etcd.Spec.Etcd.ClientService.Labels = MergeMaps(eb.etcd.Spec.Etcd.ClientService.Labels, labels)
 	return eb
 }
 
@@ -273,7 +273,7 @@ func (eb *EtcdBuilder) WithEtcdClientServiceAnnotations(annotations map[string]s
 		eb.etcd.Spec.Etcd.ClientService = &druidv1alpha1.ClientService{}
 	}
 
-	eb.etcd.Spec.Etcd.ClientService.Annotations = MergeMaps[string](eb.etcd.Spec.Etcd.ClientService.Annotations, annotations)
+	eb.etcd.Spec.Etcd.ClientService.Annotations = MergeMaps(eb.etcd.Spec.Etcd.ClientService.Annotations, annotations)
 	return eb
 }
 
@@ -296,14 +296,14 @@ func (eb *EtcdBuilder) WithBackupPort(port *int32) *EtcdBuilder {
 // WithLabels merges the labels that already exists with the ones that are passed to this method. If an entry is
 // already present in the existing labels then it gets overwritten with the new value present in the passed in labels.
 func (eb *EtcdBuilder) WithLabels(labels map[string]string) *EtcdBuilder {
-	MergeMaps[string, string](eb.etcd.Labels, labels)
+	MergeMaps(eb.etcd.Labels, labels)
 	return eb
 }
 
 // WithAnnotations merges the existing annotations if any with the annotations passed.
 // Any existing entry will be replaced by the one that is present in the annotations passed to this method.
 func (eb *EtcdBuilder) WithAnnotations(annotations map[string]string) *EtcdBuilder {
-	eb.etcd.Annotations = MergeMaps[string, string](eb.etcd.Annotations, annotations)
+	eb.etcd.Annotations = MergeMaps(eb.etcd.Annotations, annotations)
 	return eb
 }
 

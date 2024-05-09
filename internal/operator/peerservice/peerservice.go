@@ -132,7 +132,7 @@ func emptyPeerService(objectKey client.ObjectKey) *corev1.Service {
 }
 
 func getPorts(etcd *druidv1alpha1.Etcd) []corev1.ServicePort {
-	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
+	peerPort := utils.TypeDeref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 	return []corev1.ServicePort{
 		{
 			Name:       "peer",

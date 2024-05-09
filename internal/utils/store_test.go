@@ -85,7 +85,7 @@ func TestGetHostMountPathFromSecretRef(t *testing.T) {
 				existingObjects = append(existingObjects, sec)
 			}
 			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, client.ObjectKey{Name: existingSecretName, Namespace: testutils.TestNamespace})
-			secretName := IfConditionOr[string](tc.secretExists, existingSecretName, nonExistingSecretName)
+			secretName := IfConditionOr(tc.secretExists, existingSecretName, nonExistingSecretName)
 			storeSpec := createStoreSpec(tc.secretRefDefined, secretName, testutils.TestNamespace)
 			actualHostPath, err := GetHostMountPathFromSecretRef(context.Background(), cl, logger, storeSpec, testutils.TestNamespace)
 			if tc.expectedErr != nil {

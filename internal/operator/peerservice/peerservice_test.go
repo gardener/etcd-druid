@@ -239,7 +239,7 @@ func newPeerService(etcd *druidv1alpha1.Etcd) *corev1.Service {
 }
 
 func matchPeerService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Service) {
-	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
+	peerPort := utils.TypeDeref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 	g.Expect(actualSvc).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 			"Name":            Equal(etcd.GetPeerServiceName()),

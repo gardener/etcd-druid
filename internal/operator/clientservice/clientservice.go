@@ -146,9 +146,9 @@ func emptyClientService(objectKey client.ObjectKey) *corev1.Service {
 }
 
 func getPorts(etcd *druidv1alpha1.Etcd) []corev1.ServicePort {
-	backupPort := utils.TypeDeref[int32](etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore)
-	clientPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
-	peerPort := utils.TypeDeref[int32](etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
+	backupPort := utils.TypeDeref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore)
+	clientPort := utils.TypeDeref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
+	peerPort := utils.TypeDeref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 
 	return []corev1.ServicePort{
 		{
