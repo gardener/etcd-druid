@@ -594,7 +594,7 @@ func (e *Etcd) GetSuspendEtcdSpecReconcileAnnotationKey() *string {
 // else returns false.
 func (e *Etcd) IsSpecReconciliationSuspended() bool {
 	suspendReconcileAnnotKey := e.GetSuspendEtcdSpecReconcileAnnotationKey()
-	return suspendReconcileAnnotKey != nil && metav1.HasAnnotation(e.ObjectMeta, *suspendReconcileAnnotKey)
+	return suspendReconcileAnnotKey != nil
 }
 
 // AreManagedResourcesProtected returns false if the Etcd resource has the disable-resource-protection annotation set,
