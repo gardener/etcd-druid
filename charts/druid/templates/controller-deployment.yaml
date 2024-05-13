@@ -10,11 +10,12 @@ spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: etcd-druid
+      gardener.cloud/role: etcd-druid
   template:
     metadata:
       labels:
         app.kubernetes.io/name: etcd-druid
+        gardener.cloud/role: etcd-druid
     spec:
       serviceAccountName: etcd-druid
       containers:
