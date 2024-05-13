@@ -90,7 +90,7 @@ const (
 	// ComponentNameClientService is the component name for client service resource.
 	ComponentNameClientService = "etcd-client-service"
 	// ComponentNameConfigMap is the component  name for config map resource.
-	ComponentNameConfigMap = "etcd-config"
+	ComponentNameConfigMap = "etcd-configmap"
 	// ComponentNameMemberLease is the component name for member lease resource.
 	ComponentNameMemberLease = "etcd-member-lease"
 	// ComponentNameSnapshotLease is the component name for snapshot lease resource.
@@ -100,17 +100,17 @@ const (
 	// ComponentNamePodDisruptionBudget is the component name for pod disruption budget resource.
 	ComponentNamePodDisruptionBudget = "etcd-pdb"
 	// ComponentNameRole is the component name for role resource.
-	ComponentNameRole = "etcd-druid-role"
+	ComponentNameRole = "etcd-role"
 	// ComponentNameRoleBinding is the component name for role binding resource.
-	ComponentNameRoleBinding = "druid-role-binding"
+	ComponentNameRoleBinding = "etcd-role-binding"
 	// ComponentNameServiceAccount is the component name for service account resource.
-	ComponentNameServiceAccount = "druid-service-account"
+	ComponentNameServiceAccount = "etcd-service-account"
 	// ComponentNameStatefulSet is the component name for statefulset resource.
 	ComponentNameStatefulSet = "etcd-sts"
 	// ComponentNameCompactionJob is the component name for compaction job resource.
 	ComponentNameCompactionJob = "etcd-compaction-job"
-	// ComponentNameEtcdCopyBackupsTask is the component name for copy-backup task resource.
-	ComponentNameEtcdCopyBackupsTask = "etcd-copy-backup-task"
+	// ComponentNameEtcdCopyBackupsJob is the component name for copy-backup task resource.
+	ComponentNameEtcdCopyBackupsJob = "etcd-copy-backups-job"
 )
 
 // Constants for volume names

@@ -733,7 +733,7 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 			"Name":      Equal(task.Name + "-worker"),
 			"Namespace": Equal(task.Namespace),
 			"Labels": MatchKeys(IgnoreExtras, Keys{
-				druidv1alpha1.LabelComponentKey: Equal(common.ComponentNameEtcdCopyBackupsTask),
+				druidv1alpha1.LabelComponentKey: Equal(common.ComponentNameEtcdCopyBackupsJob),
 				druidv1alpha1.LabelPartOfKey:    Equal(task.Name),
 				druidv1alpha1.LabelManagedByKey: Equal(druidv1alpha1.LabelManagedByValue),
 				druidv1alpha1.LabelAppNameKey:   Equal(task.GetJobName()),
@@ -753,7 +753,7 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 			"Template": MatchFields(IgnoreExtras, Fields{
 				"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 					"Labels": MatchKeys(IgnoreExtras, Keys{
-						druidv1alpha1.LabelComponentKey:                Equal(common.ComponentNameEtcdCopyBackupsTask),
+						druidv1alpha1.LabelComponentKey:                Equal(common.ComponentNameEtcdCopyBackupsJob),
 						druidv1alpha1.LabelPartOfKey:                   Equal(task.Name),
 						druidv1alpha1.LabelManagedByKey:                Equal(druidv1alpha1.LabelManagedByValue),
 						druidv1alpha1.LabelAppNameKey:                  Equal(task.GetJobName()),

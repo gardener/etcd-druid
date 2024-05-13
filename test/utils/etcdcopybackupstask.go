@@ -110,7 +110,7 @@ func getLabels(taskName, jobName string, includeNetworkPolicyLabels bool) map[st
 	labels := map[string]string{
 		druidv1alpha1.LabelPartOfKey:    taskName,
 		druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
-		druidv1alpha1.LabelComponentKey: common.ComponentNameEtcdCopyBackupsTask,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameEtcdCopyBackupsJob,
 		druidv1alpha1.LabelAppNameKey:   jobName,
 	}
 	if includeNetworkPolicyLabels {

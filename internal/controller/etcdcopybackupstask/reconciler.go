@@ -387,7 +387,7 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 
 func getLabels(task *druidv1alpha1.EtcdCopyBackupsTask, includeNetworkPolicyLabels bool) map[string]string {
 	labels := make(map[string]string)
-	labels[druidv1alpha1.LabelComponentKey] = common.ComponentNameEtcdCopyBackupsTask
+	labels[druidv1alpha1.LabelComponentKey] = common.ComponentNameEtcdCopyBackupsJob
 	labels[druidv1alpha1.LabelPartOfKey] = task.Name
 	labels[druidv1alpha1.LabelManagedByKey] = druidv1alpha1.LabelManagedByValue
 	labels[druidv1alpha1.LabelAppNameKey] = task.GetJobName()

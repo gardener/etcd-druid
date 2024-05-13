@@ -1687,7 +1687,7 @@ spec:
                 properties:
                   autoCompactionMode:
                     description: AutoCompactionMode defines the auto-compaction-mode:'periodic'
-                      mode or 'revision' mode for etcd and embedded-Etcd of backup-restore
+                      mode or 'revision' mode for etcd and embedded-etcd of backup-restore
                       sidecar.
                     enum:
                     - periodic
