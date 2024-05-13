@@ -17,7 +17,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
 	"github.com/gardener/etcd-druid/internal/webhook/sentinel"
-
 	coordinationv1 "k8s.io/api/coordination/v1"
 	coordinationv1beta1 "k8s.io/api/coordination/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -33,26 +32,26 @@ var (
 	defaultTimeout = time.Minute
 )
 
-// CreateManagerWithControllersAndWebhooks creates a controller manager and adds all the controllers to the controller-manager using the passed in ManagerConfig.
-func CreateManagerWithControllersAndWebhooks(config *ManagerConfig) (ctrl.Manager, error) {
+// InitializeManager creates a controller manager and adds all the controllers and webhooks to the controller-manager using the passed in Config.
+func InitializeManager(config *Config) (ctrl.Manager, error) {
 	var (
 		err error
 		mgr ctrl.Manager
 	)
-
 	config.populateControllersFeatureGates()
-
 	if mgr, err = createManager(config); err != nil {
 		return nil, err
 	}
-	if err = registerControllersAndWebhooksWithManager(mgr, config); err != nil {
+	if err = registerControllers(mgr, config); err != nil {
 		return nil, err
 	}
-
+	if err = registerWebhooks(mgr, config); err != nil {
+		return nil, err
+	}
 	return mgr, nil
 }
 
-func createManager(config *ManagerConfig) (ctrl.Manager, error) {
+func createManager(config *Config) (ctrl.Manager, error) {
 	// TODO: this can be removed once we have an improved informer, see https://github.com/gardener/etcd-druid/issues/215
 	// list of objects which should not be cached.
 	uncachedObjects := []client.Object{
@@ -91,7 +90,7 @@ func createManager(config *ManagerConfig) (ctrl.Manager, error) {
 	})
 }
 
-func registerControllersAndWebhooksWithManager(mgr ctrl.Manager, config *ManagerConfig) error {
+func registerControllers(mgr ctrl.Manager, config *Config) error {
 	var err error
 
 	// Add etcd reconciler to the manager
@@ -126,24 +125,23 @@ func registerControllersAndWebhooksWithManager(mgr ctrl.Manager, config *Manager
 	// Add secret reconciler to the manager
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
-	if err = secret.NewReconciler(
+	return secret.NewReconciler(
 		mgr,
 		config.SecretControllerConfig,
-	).RegisterWithManager(ctx, mgr); err != nil {
-		return err
-	}
+	).RegisterWithManager(ctx, mgr)
+}
 
+func registerWebhooks(mgr ctrl.Manager, config *Config) error {
 	// Add sentinel webhook to the manager
 	if config.SentinelWebhookConfig.Enabled {
-		var sentinelWebhook *sentinel.Handler
-		if sentinelWebhook, err = sentinel.NewHandler(
+		sentinelWebhook, err := sentinel.NewHandler(
 			mgr,
 			config.SentinelWebhookConfig,
-		); err != nil {
+		)
+		if err != nil {
 			return err
 		}
 		return sentinelWebhook.RegisterWithManager(mgr)
 	}
-
 	return nil
 }

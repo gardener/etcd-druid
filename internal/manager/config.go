@@ -87,8 +87,8 @@ type LeaderElectionConfig struct {
 	ResourceLock string
 }
 
-// ManagerConfig defines the configuration for the controller manager.
-type ManagerConfig struct {
+// Config defines the configuration for the controller manager.
+type Config struct {
 	// MetricsAddr is the address the metric endpoint binds to.
 	// Deprecated: This field will be eventually removed. Please use Server.Metrics.BindAddress instead.
 	MetricsAddr string
@@ -112,7 +112,7 @@ type ManagerConfig struct {
 }
 
 // InitFromFlags initializes the controller manager config from the provided CLI flag set.
-func (cfg *ManagerConfig) InitFromFlags(fs *flag.FlagSet) error {
+func (cfg *Config) InitFromFlags(fs *flag.FlagSet) error {
 	cfg.Server = &ServerConfig{}
 	cfg.Server.Metrics = &Server{}
 	cfg.Server.Webhook = HTTPSServer{}
@@ -162,7 +162,7 @@ func (cfg *ManagerConfig) InitFromFlags(fs *flag.FlagSet) error {
 }
 
 // initFeatureGates initializes feature gates from the provided CLI flag set.
-func (cfg *ManagerConfig) initFeatureGates(fs *flag.FlagSet) error {
+func (cfg *Config) initFeatureGates(fs *flag.FlagSet) error {
 	featureGates := featuregate.NewFeatureGate()
 	if err := featureGates.Add(features.GetDefaultFeatures()); err != nil {
 		return fmt.Errorf("error adding features to the featuregate: %v", err)
@@ -175,7 +175,7 @@ func (cfg *ManagerConfig) initFeatureGates(fs *flag.FlagSet) error {
 }
 
 // populateControllersFeatureGates adds relevant feature gates to every controller configuration
-func (cfg *ManagerConfig) populateControllersFeatureGates() {
+func (cfg *Config) populateControllersFeatureGates() {
 	// Feature gates populated only for controllers that use feature gates
 
 	// Add etcd controller feature gates
@@ -189,7 +189,7 @@ func (cfg *ManagerConfig) populateControllersFeatureGates() {
 }
 
 // Validate validates the controller manager config.
-func (cfg *ManagerConfig) Validate() error {
+func (cfg *Config) Validate() error {
 	if err := utils.ShouldBeOneOfAllowedValues("ResourceLock", getAllowedLeaderElectionResourceLocks(), cfg.LeaderElection.ResourceLock); err != nil {
 		return err
 	}

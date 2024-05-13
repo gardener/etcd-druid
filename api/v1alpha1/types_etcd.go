@@ -247,7 +247,7 @@ type ClientService struct {
 
 // SharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.
 type SharedConfig struct {
-	// AutoCompactionMode defines the auto-compaction-mode:'periodic' mode or 'revision' mode for etcd and embedded-Etcd of backup-restore sidecar.
+	// AutoCompactionMode defines the auto-compaction-mode:'periodic' mode or 'revision' mode for etcd and embedded-etcd of backup-restore sidecar.
 	// +optional
 	AutoCompactionMode *CompactionMode `json:"autoCompactionMode,omitempty"`
 	// AutoCompactionRetention defines the auto-compaction-retention length for etcd as well as for embedded-etcd of backup-restore sidecar.
@@ -597,8 +597,8 @@ func (e *Etcd) IsSpecReconciliationSuspended() bool {
 	return suspendReconcileAnnotKey != nil && metav1.HasAnnotation(e.ObjectMeta, *suspendReconcileAnnotKey)
 }
 
-// AreManagedResourcesProtected returns true if the Etcd resource has the disable-resource-protection annotation set,
-// else returns false
+// AreManagedResourcesProtected returns false if the Etcd resource has the disable-resource-protection annotation set,
+// else returns true.
 func (e *Etcd) AreManagedResourcesProtected() bool {
 	return !metav1.HasAnnotation(e.ObjectMeta, DisableResourceProtectionAnnotation)
 }
