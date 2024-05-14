@@ -83,32 +83,32 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 	etcd := &druidv1alpha1.Etcd{}
 	if err = h.Get(ctx, types.NamespacedName{Name: etcdName, Namespace: req.Namespace}, etcd); err != nil {
 		if apierrors.IsNotFound(err) {
-			return admission.Allowed(fmt.Sprintf("corresponding etcd %s not found", etcdName))
+			return admission.Allowed(fmt.Sprintf("corresponding Etcd %s not found", etcdName))
 		}
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
 	// allow changes to resources if Etcd has annotation druid.gardener.cloud/disable-resource-protection is set
 	if !etcd.AreManagedResourcesProtected() {
-		return admission.Allowed(fmt.Sprintf("changes allowed, since etcd %s has annotation %s", etcd.Name, druidv1alpha1.DisableResourceProtectionAnnotation))
+		return admission.Allowed(fmt.Sprintf("changes allowed, since Etcd %s has annotation %s", etcd.Name, druidv1alpha1.DisableResourceProtectionAnnotation))
 	}
 
 	// allow operations on resources if the Etcd is currently being reconciled, but only by etcd-druid,
 	// and allow exempt service accounts to make changes to resources, but only if the Etcd is not currently being reconciled.
 	if etcd.IsReconciliationInProgress() {
 		if req.UserInfo.Username == h.config.ReconcilerServiceAccount {
-			return admission.Allowed(fmt.Sprintf("ongoing reconciliation of etcd %s by etcd-druid requires changes to resources", etcd.Name))
+			return admission.Allowed(fmt.Sprintf("ongoing reconciliation of Etcd %s by etcd-druid requires changes to resources", etcd.Name))
 		}
-		return admission.Denied(fmt.Sprintf("no external intervention allowed during ongoing reconciliation of etcd %s by etcd-druid", etcd.Name))
+		return admission.Denied(fmt.Sprintf("no external intervention allowed during ongoing reconciliation of Etcd %s by etcd-druid", etcd.Name))
 	} else {
 		for _, sa := range h.config.ExemptServiceAccounts {
 			if req.UserInfo.Username == sa {
-				return admission.Allowed(fmt.Sprintf("operations on etcd %s by service account %s is exempt from Sentinel Webhook checks", etcd.Name, sa))
+				return admission.Allowed(fmt.Sprintf("operations on Etcd %s by service account %s is exempt from Sentinel Webhook checks", etcd.Name, sa))
 			}
 		}
 	}
 
-	return admission.Denied(fmt.Sprintf("changes disallowed, since no ongoing processing of etcd %s by etcd-druid", etcd.Name))
+	return admission.Denied(fmt.Sprintf("changes disallowed, since no ongoing processing of Etcd %s by etcd-druid", etcd.Name))
 }
 
 func (h *Handler) decodeRequestObject(req admission.Request, requestGK schema.GroupKind) (client.Object, error) {
