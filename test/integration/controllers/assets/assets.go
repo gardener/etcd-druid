@@ -7,7 +7,7 @@ package assets
 import (
 	"path/filepath"
 
-	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/gardener/etcd-druid/internal/images"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 
 	. "github.com/onsi/gomega"
@@ -25,8 +25,7 @@ func GetEtcdCopyBackupsTaskCrdPath() string {
 
 // CreateImageVector creates an image vector.
 func CreateImageVector() imagevector.ImageVector {
-	imageVectorPath := filepath.Join("..", "..", "..", "..", common.DefaultImageVectorFilePath)
-	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(imageVectorPath)
+	imageVector, err := images.CreateImageVector()
 	Expect(err).To(BeNil())
 	return imageVector
 }
