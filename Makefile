@@ -62,6 +62,18 @@ deploy-via-kustomize: manifests $(KUSTOMIZE)
 deploy: $(SKAFFOLD) $(HELM)
 	$(SKAFFOLD) run -m etcd-druid --kubeconfig=$(KUBECONFIG_PATH)
 
+.PHONY: deploy-dev
+deploy-dev: $(SKAFFOLD) $(HELM)
+	$(SKAFFOLD) dev -m etcd-druid --kubeconfig=$(KUBECONFIG_PATH)
+
+.PHONY: deploy-debug
+deploy-debug: $(SKAFFOLD) $(HELM)
+	$(SKAFFOLD) debug -m etcd-druid --kubeconfig=$(KUBECONFIG_PATH)
+
+.PHONY: undeploy
+undeploy: $(SKAFFOLD) $(HELM)
+	$(SKAFFOLD) delete -m etcd-druid --kubeconfig=$(KUBECONFIG_PATH)
+
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: manifests
 manifests: $(VGOPATH) $(CONTROLLER_GEN)

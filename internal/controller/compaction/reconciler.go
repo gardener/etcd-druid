@@ -12,8 +12,8 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
-	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/features"
+	"github.com/gardener/etcd-druid/internal/images"
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
 	"github.com/gardener/etcd-druid/internal/utils"
 
@@ -50,7 +50,7 @@ type Reconciler struct {
 
 // NewReconciler creates a new reconciler for Compaction
 func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
-	imageVector, err := ctrlutils.CreateImageVector()
+	imageVector, err := images.CreateImageVector()
 	if err != nil {
 		return nil, err
 	}

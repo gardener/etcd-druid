@@ -22,9 +22,7 @@ spec:
       - name: etcd-druid
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         imagePullPolicy: {{ .Values.image.imagePullPolicy }}
-        command:
-        - /etcd-druid
-
+        args:
         {{- if .Values.featureGates }}
         {{- $featuregates := "" }}
         {{- range $feature, $value := $.Values.featureGates }}

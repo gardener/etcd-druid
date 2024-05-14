@@ -1,154 +1,158 @@
 ---
-apiVersion: skaffold/v2beta25
+apiVersion: skaffold/v4beta10
 kind: Config
 metadata:
   name: etcd-druid
 build:
-  local:
-    useBuildkit: true
+  local: { }
   artifacts:
-  - image: europe-docker.pkg.dev/gardener-project/public/gardener/etcd-druid
-    docker:
-      dockerfile: Dockerfile
-      target: druid
+    - image: europe-docker.pkg.dev/gardener-project/public/gardener/etcd-druid
+      ko:
+        fromImage: gcr.io/distroless/static-debian11:nonroot
+        dependencies:
+          paths:
+            - api
+            - internal
+            - go.mod
+            - VERSION
+        flags:
+          - -v
 deploy:
   helm:
     releases:
-    - name: etcd-druid
-      chartPath: charts/druid
-      namespace: default
-      artifactOverrides:
-        image: europe-docker.pkg.dev/gardener-project/public/gardener/etcd-druid
-      imageStrategy:
-        helm: {}
-      skipBuildDependencies: true
-      setValues:
-        controllers:
-          compaction:
-            etcdEventsThreshold: 15
-            metricsScrapeWaitDuration: 30s
-        webhooks:
-          sentinel:
-            enabled: true
+      - name: etcd-druid
+        chartPath: charts/druid
+        namespace: default
+        skipBuildDependencies: true
+        setValues:
+          controllers:
+            compaction:
+              etcdEventsThreshold: 15
+              metricsScrapeWaitDuration: 30s
+          webhooks:
+            sentinel:
+              enabled: true
 profiles:
-- name: e2e-test
-  activation:
-  - env: "DRUID_E2E_TEST=true"
-  patches:
-  - op: add
-    path: /deploy/helm/releases/0/setValues/controllers
-    value:
-      etcd:
-        etcdStatusSyncPeriod: 5s
-- name: do-not-use-feature-gates
-  activation:
-  - env: "USE_ETCD_DRUID_FEATURE_GATES=false"
-  patches:
-  - op: add
-    path: /deploy/helm/releases/0/setValues/featureGates
-    value:
-      UseEtcdWrapper: false
+  - name: e2e-test
+    activation:
+      - env: "DRUID_E2E_TEST=true"
+    patches:
+      - op: add
+        path: /deploy/helm/releases/0/setValues/controllers
+        value:
+          etcd:
+            etcdStatusSyncPeriod: 5s
+  - name: do-not-use-feature-gates
+    activation:
+      - env: "USE_ETCD_DRUID_FEATURE_GATES=false"
+    patches:
+      - op: add
+        path: /deploy/helm/releases/0/setValues/featureGates
+        value:
+          UseEtcdWrapper: false
 ---
-apiVersion: skaffold/v2beta25
+apiVersion: skaffold/v4beta10
 kind: Config
 metadata:
   name: druid-e2e
 deploy:
-  kustomize:
+  kubectl:
     hooks:
       before:
-      - host:
-          command:
-          - sh
-          - -c
-          - |
-            echo "Deleting previous job"
-            namespace_flag=${SKAFFOLD_NAMESPACES:-""}
-            if [ -n "$namespace_flag" ]; then
-              namespace_flag="-n ${namespace_flag}"
-            fi
-            kubectl delete job -l role=infra-job --ignore-not-found=true $namespace_flag
+        - host:
+            command:
+              - sh
+              - -c
+              - |
+                echo "Deleting previous job"
+                namespace_flag=${SKAFFOLD_NAMESPACES:-""}
+                if [ -n "$namespace_flag" ]; then
+                  namespace_flag="-n ${namespace_flag}"
+                fi
+                kubectl delete job -l role=infra-job --ignore-not-found=true $namespace_flag
       after:
-      - host:
-          command:
-          - sh
-          - -c
-          - |
-            echo "Wait until job is ready"
-            namespace_flag=${SKAFFOLD_NAMESPACES:-""}
-            if [ -n "$namespace_flag" ]; then
-              namespace_flag="-n ${namespace_flag}"
-            fi
-            kubectl wait --for=condition=Complete job -l role=infra-job --timeout=5m $namespace_flag
-          os: [ darwin, linux ]
+        - host:
+            command:
+              - sh
+              - -c
+              - |
+                echo "Wait until job is ready"
+                namespace_flag=${SKAFFOLD_NAMESPACES:-""}
+                if [ -n "$namespace_flag" ]; then
+                  namespace_flag="-n ${namespace_flag}"
+                fi
+                kubectl wait --for=condition=Complete job -l role=infra-job --timeout=5m $namespace_flag
+            os: [ darwin, linux ]
+manifests:
+  kustomize: { }
 profiles:
-# Profile to create the required S3 backup bucket for an e2e test.
-- name: aws-setup
-  patches:
-  - op: add
-    path: /deploy/kustomize/paths
-    value: [hack/e2e-test/infrastructure/overlays/aws/setup]
-# Profile to delete the S3 backup bucket from an e2e test.
-- name: aws-cleanup
-  patches:
-  - op: add
-    path: /deploy/kustomize/paths
-    value: [hack/e2e-test/infrastructure/overlays/aws/cleanup]
-# Profile to create the required Azure storage container for an e2e test.
-- name: azure-setup
-  patches:
-  - op: add
-    path: /deploy/kustomize/paths
-    value: [hack/e2e-test/infrastructure/overlays/azure/setup]
-# Profile to delete the Azure storage container from an e2e test.
-- name: azure-cleanup
-  patches:
-  - op: add
-    path: /deploy/kustomize/paths
-    value: [hack/e2e-test/infrastructure/overlays/azure/cleanup]
-# Profile to create the required GCP backup bucket for an e2e test.
-- name: gcp-setup
-  patches:
-  - op: add
-    path: /deploy/kustomize/paths
-    value: [hack/e2e-test/infrastructure/overlays/gcp/setup]
-  - op: add
-    path: /deploy/kustomize/hooks/before/-
-    value: {
-      "host": {
-        "command": [sh, -c, '
+  # Profile to create the required S3 backup bucket for an e2e test.
+  - name: aws-setup
+    patches:
+      - op: add
+        path: /manifests/kustomize/paths
+        value: [ hack/e2e-test/infrastructure/overlays/aws/setup ]
+  # Profile to delete the S3 backup bucket from an e2e test.
+  - name: aws-cleanup
+    patches:
+      - op: add
+        path: /manifests/kustomize/paths
+        value: [ hack/e2e-test/infrastructure/overlays/aws/cleanup ]
+  # Profile to create the required Azure storage container for an e2e test.
+  - name: azure-setup
+    patches:
+      - op: add
+        path: /manifests/kustomize/paths
+        value: [ hack/e2e-test/infrastructure/overlays/azure/setup ]
+  # Profile to delete the Azure storage container from an e2e test.
+  - name: azure-cleanup
+    patches:
+      - op: add
+        path: /manifests/kustomize/paths
+        value: [ hack/e2e-test/infrastructure/overlays/azure/cleanup ]
+  # Profile to create the required GCP backup bucket for an e2e test.
+  - name: gcp-setup
+    patches:
+      - op: add
+        path: /manifests/kustomize/paths
+        value: [ hack/e2e-test/infrastructure/overlays/gcp/setup ]
+      - op: add
+        path: /manifests/kustomize/hooks/before/-
+        value: {
+          "host": {
+            "command": [ sh, -c, '
       echo "Copying GCP service account json" &&
       touch "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json" &&
-      cp "$GCP_SERVICEACCOUNT_JSON_PATH" "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json"'],
-        "os": [darwin, linux]
-      }
-    }
-# Profile to delete the GCP backup bucket from an e2e test.
-- name: gcp-cleanup
-  patches:
-  - op: add
-    path: /deploy/kustomize/paths
-    value: [hack/e2e-test/infrastructure/overlays/gcp/cleanup]
-  - op: add
-    path: /deploy/kustomize/hooks/before/-
-    value: {
-      "host": {
-        "command": [sh, -c, '
+      cp "$GCP_SERVICEACCOUNT_JSON_PATH" "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json"' ],
+            "os": [ darwin, linux ]
+          }
+        }
+  # Profile to delete the GCP backup bucket from an e2e test.
+  - name: gcp-cleanup
+    patches:
+      - op: add
+        path: /manifests/kustomize/paths
+        value: [ hack/e2e-test/infrastructure/overlays/gcp/cleanup ]
+      - op: add
+        path: /manifests/kustomize/hooks/before/-
+        value: {
+          "host": {
+            "command": [ sh, -c, '
       echo "Copying GCP service account json" &&
       touch "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json" &&
-      cp "$GCP_SERVICEACCOUNT_JSON_PATH" "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json"'],
-        "os": [darwin, linux]
-      }
-    }
-# Profile to create the required Local storage container for an e2e test.
-- name: local-setup
-  patches:
-    - op: add
-      path: /deploy/kustomize/paths
-      value: [hack/e2e-test/infrastructure/overlays/local/setup]
-# Profile to delete the Local storage container from an e2e test.
-- name: local-cleanup
-  patches:
-    - op: add
-      path: /deploy/kustomize/paths
-      value: [hack/e2e-test/infrastructure/overlays/local/cleanup]
+      cp "$GCP_SERVICEACCOUNT_JSON_PATH" "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json"' ],
+            "os": [ darwin, linux ]
+          }
+        }
+  # Profile to create the required Local storage container for an e2e test.
+  - name: local-setup
+    patches:
+      - op: add
+        path: /manifests/kustomize/paths
+        value: [ hack/e2e-test/infrastructure/overlays/local/setup ]
+  # Profile to delete the Local storage container from an e2e test.
+  - name: local-cleanup
+    patches:
+      - op: add
+        path: /manifests/kustomize/paths
+        value: [ hack/e2e-test/infrastructure/overlays/local/cleanup ]

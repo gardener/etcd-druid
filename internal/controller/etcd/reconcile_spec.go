@@ -133,6 +133,11 @@ func (r *Reconciler) canReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
 		return true
 	}
 
+	// If the observed generation is nil then it indicates that the Etcd is new and therefore spec reconciliation should be allowed.
+	if etcd.Status.ObservedGeneration == nil {
+		return true
+	}
+
 	// Default case: Do not reconcile.
 	return false
 }

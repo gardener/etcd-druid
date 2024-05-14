@@ -6,26 +6,16 @@ package utils
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
-	"github.com/gardener/gardener/pkg/utils/imagevector"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-// CreateImageVector creates an image vector from the default images.yaml file or the images-wrapper.yaml file.
-func CreateImageVector() (imagevector.ImageVector, error) {
-	imageVector, err := imagevector.ReadGlobalImageVectorWithEnvOverride(common.DefaultImageVectorFilePath)
-	if err != nil {
-		return nil, err
-	}
-	return imageVector, nil
-}
 
 // GetLatestEtcd returns the latest version of the Etcd object.
 func GetLatestEtcd(ctx context.Context, client client.Client, objectKey client.ObjectKey, etcd *druidv1alpha1.Etcd) ReconcileStepResult {
