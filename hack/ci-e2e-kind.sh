@@ -25,5 +25,6 @@ make LOCALSTACK_HOST="localstack.default:4566" \
   AWS_REGION="us-east-2" \
   PROVIDERS="aws" \
   TEST_ID="$BUCKET_NAME" \
+  DRUID_ENABLE_SENTINEL_WEBHOOK=true \
   STEPS="setup,deploy,test" \
   test-e2e
