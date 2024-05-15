@@ -53,8 +53,11 @@ func TestMain(m *testing.M) {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to create integration test environment: %v\n", err)
 		os.Exit(1)
 	}
-	defer itTestEnvCloser()
-	os.Exit(m.Run())
+
+	// os.Exit() does not respect defer statements
+	exitCode := m.Run()
+	itTestEnvCloser()
+	os.Exit(exitCode)
 }
 
 // ------------------------------ reconcile spec tests ------------------------------
@@ -67,7 +70,8 @@ func TestEtcdReconcileSpecWithNoAutoReconcile(t *testing.T) {
 		{"should create all managed resources when etcd resource is created", testAllManagedResourcesAreCreated},
 		{"should succeed only in creation of some resources and not all and should record error in lastErrors and lastOperation", testFailureToCreateAllResources},
 		{"should not reconcile spec when reconciliation is suspended", testWhenReconciliationIsSuspended},
-		{"should not reconcile when no reconcile operation annotation is set", testWhenNoReconcileOperationAnnotationIsSet},
+		{"should not reconcile upon etcd spec updation when no reconcile operation annotation is set", testEtcdSpecUpdateWhenNoReconcileOperationAnnotationIsSet},
+		{"should reconcile upon etcd spec updation when reconcile operation annotation is set", testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet},
 	}
 	g := NewWithT(t)
 	for _, test := range tests {
@@ -91,7 +95,6 @@ func testAllManagedResourcesAreCreated(t *testing.T, testNs string, reconcilerTe
 		WithClientTLS().
 		WithPeerTLS().
 		WithReplicas(3).
-		WithAnnotations(map[string]string{v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile}).
 		Build()
 	g.Expect(etcdInstance.Spec.Backup.Store).ToNot(BeNil())
 	g.Expect(etcdInstance.Spec.Backup.Store.SecretRef).ToNot(BeNil())
@@ -167,7 +170,7 @@ func testWhenReconciliationIsSuspended(t *testing.T, testNs string, reconcilerTe
 		WithReplicas(3).
 		WithAnnotations(map[string]string{
 			v1beta1constants.GardenerOperation:               v1beta1constants.GardenerOperationReconcile,
-			druidv1alpha1.SuspendEtcdSpecReconcileAnnotation: "true",
+			druidv1alpha1.SuspendEtcdSpecReconcileAnnotation: "",
 		}).Build()
 	ctx := context.Background()
 	cl := reconcilerTestEnv.itTestEnv.GetClient()
@@ -181,7 +184,7 @@ func testWhenReconciliationIsSuspended(t *testing.T, testNs string, reconcilerTe
 	assertETCDOperationAnnotation(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), true, 5*time.Second, 1*time.Second)
 }
 
-func testWhenNoReconcileOperationAnnotationIsSet(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
+func testEtcdSpecUpdateWhenNoReconcileOperationAnnotationIsSet(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
 	// ***************** setup *****************
 	g := NewWithT(t)
 	etcdInstance := testutils.EtcdBuilderWithoutDefaults(testutils.TestEtcdName, testNs).
@@ -191,12 +194,57 @@ func testWhenNoReconcileOperationAnnotationIsSet(t *testing.T, testNs string, re
 		Build()
 	ctx := context.Background()
 	cl := reconcilerTestEnv.itTestEnv.GetClient()
-	// create etcdInstance resource
-	g.Expect(cl.Create(ctx, etcdInstance)).To(Succeed())
+	// create etcdInstance resource and assert successful reconciliation, and ensure that sts generation is 1
+	createAndAssertEtcdReconciliation(ctx, t, reconcilerTestEnv, etcdInstance)
+	assertStatefulSetGeneration(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 1, 30*time.Second, 2*time.Second)
+	// get updated version of etcdInstance
+	g.Expect(cl.Get(ctx, etcdInstance.GetNamespaceName(), etcdInstance)).To(Succeed())
+	// update etcdInstance spec without reconcile operation annotation set
+	metricsLevelExtensive := druidv1alpha1.Extensive
+	etcdInstance.Spec.Etcd = druidv1alpha1.EtcdConfig{Metrics: &metricsLevelExtensive}
+	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+
 	// ***************** test etcd spec reconciliation  *****************
-	assertNoComponentsExist(ctx, t, reconcilerTestEnv, etcdInstance, 10*time.Second, 2*time.Second)
-	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), nil, 5*time.Second, 1*time.Second)
-	assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t, cl, client.ObjectKeyFromObject(etcdInstance), nil, nil, 5*time.Second, 1*time.Second)
+	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 2*time.Second, 2*time.Second)
+	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), pointer.Int64(1), 5*time.Second, 1*time.Second)
+	// ensure that sts generation does not change, ie, it should remain 1, as sts is not updated after etcd spec change without reconcile operation annotation
+	assertStatefulSetGeneration(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 1, 30*time.Second, 2*time.Second)
+}
+
+func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
+	// ***************** setup *****************
+	g := NewWithT(t)
+	etcdInstance := testutils.EtcdBuilderWithoutDefaults(testutils.TestEtcdName, testNs).
+		WithClientTLS().
+		WithPeerTLS().
+		WithReplicas(3).
+		Build()
+	ctx := context.Background()
+	cl := reconcilerTestEnv.itTestEnv.GetClient()
+	// create etcdInstance resource and assert successful reconciliation, and ensure that sts generation is 1
+	createAndAssertEtcdReconciliation(ctx, t, reconcilerTestEnv, etcdInstance)
+	assertStatefulSetGeneration(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 1, 30*time.Second, 2*time.Second)
+	// get latest version of etcdInstance
+	g.Expect(cl.Get(ctx, etcdInstance.GetNamespaceName(), etcdInstance)).To(Succeed())
+	// update etcdInstance spec with reconcile operation annotation also set
+	metricsLevelExtensive := druidv1alpha1.Extensive
+	etcdInstance.Spec.Etcd = druidv1alpha1.EtcdConfig{Metrics: &metricsLevelExtensive}
+	etcdInstance.Annotations = map[string]string{
+		v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+	}
+	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+
+	// ***************** test etcd spec reconciliation  *****************
+	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 30*time.Second, 2*time.Second)
+	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), pointer.Int64(2), 30*time.Second, 1*time.Second)
+	expectedLastOperation := &druidv1alpha1.LastOperation{
+		Type:  druidv1alpha1.LastOperationTypeReconcile,
+		State: druidv1alpha1.LastOperationStateSucceeded,
+	}
+	assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), expectedLastOperation, nil, 5*time.Second, 1*time.Second)
+	assertETCDOperationAnnotation(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), false, 5*time.Second, 1*time.Second)
+	// ensure that sts generation is updated to 2, since reconciliation of the etcd spec change causes an update of the sts spec
+	assertStatefulSetGeneration(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 2, 30*time.Second, 2*time.Second)
 }
 
 // ------------------------------ reconcile deletion tests ------------------------------
@@ -525,6 +573,21 @@ func createAndAssertEtcdAndAllManagedResources(ctx context.Context, t *testing.T
 	// add finalizer
 	addFinalizer(ctx, g, cl, client.ObjectKeyFromObject(etcdInstance))
 	t.Logf("successfully added finalizer to etcd instance: {name: %s, namespace: %s}", etcdInstance.Name, etcdInstance.Namespace)
+}
+
+func createAndAssertEtcdReconciliation(ctx context.Context, t *testing.T, reconcilerTestEnv ReconcilerTestEnv, etcdInstance *druidv1alpha1.Etcd) {
+	// create etcd and assert etcd spec reconciliation
+	createAndAssertEtcdAndAllManagedResources(ctx, t, reconcilerTestEnv, etcdInstance)
+
+	// assert etcd status reconciliation
+	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), pointer.Int64(1), 5*time.Second, 1*time.Second)
+	expectedLastOperation := &druidv1alpha1.LastOperation{
+		Type:  druidv1alpha1.LastOperationTypeReconcile,
+		State: druidv1alpha1.LastOperationStateSucceeded,
+	}
+	assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), expectedLastOperation, nil, 5*time.Second, 1*time.Second)
+	assertETCDOperationAnnotation(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), false, 5*time.Second, 1*time.Second)
+	t.Logf("successfully reconciled status of etcd instance: {name: %s, namespace: %s}", etcdInstance.Name, etcdInstance.Namespace)
 }
 
 func addFinalizer(ctx context.Context, g *WithT, cl client.Client, etcdObjectKey client.ObjectKey) {

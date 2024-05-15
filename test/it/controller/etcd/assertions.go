@@ -196,6 +196,21 @@ func assertStatefulSetCreated(ctx component.OperatorContext, t *testing.T, opReg
 	assertResourceCreation(ctx, t, opRegistry, operator.StatefulSetKind, etcd, expectedSTSNames, timeout, pollInterval)
 }
 
+func assertStatefulSetGeneration(ctx context.Context, t *testing.T, cl client.Client, stsObjectKey client.ObjectKey, expectedGeneration int64, timeout, pollInterval time.Duration) {
+	g := NewWithT(t)
+	checkFn := func() error {
+		sts := &appsv1.StatefulSet{}
+		if err := cl.Get(ctx, stsObjectKey, sts); err != nil {
+			return err
+		}
+		if sts.Generation != expectedGeneration {
+			return fmt.Errorf("expected sts generation to be %d, got %d", expectedGeneration, sts.Generation)
+		}
+		return nil
+	}
+	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).WithContext(ctx).Should(BeNil())
+}
+
 func assertETCDObservedGeneration(t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, expectedObservedGeneration *int64, timeout, pollInterval time.Duration) {
 	g := NewWithT(t)
 	checkFn := func() error {
