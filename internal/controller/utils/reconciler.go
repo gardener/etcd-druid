@@ -6,7 +6,6 @@ package utils
 
 import (
 	"context"
-	_ "embed"
 	"errors"
 	"fmt"
 	"time"
