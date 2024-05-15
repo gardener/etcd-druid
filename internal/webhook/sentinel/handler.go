@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/scale/scheme/autoscalingv1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -60,8 +61,9 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		return admission.Allowed(fmt.Sprintf("operation %s is allowed", req.Operation))
 	}
 
-	// Leases (member and snapshot) will be periodically updated by etcd members. Allow updates to leases.
 	requestGK := schema.GroupKind{Group: req.Kind.Group, Kind: req.Kind.Kind}
+
+	// Leases (member and snapshot) will be periodically updated by etcd members. Allow updates to leases.
 	if requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() &&
 		req.Operation == admissionv1.Update {
 		return admission.Allowed("lease resource can be freely updated")
@@ -73,6 +75,26 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 	}
 	if obj == nil {
 		return admission.Allowed(fmt.Sprintf("unexpected resource type: %s", requestGKString))
+	}
+
+	// If admission request is for statefulsets/scale subresource, then check labels on the parent statefulset object
+	// and allow the request if it doesn't contain label `app.kubernetes.io/managed-by: etcd-druid`.
+	// This special handling is required for statefulsets/scale subresource, since it does not work when
+	// an objectSelector is specified for it in the ValidatingWebhookConfiguration.
+	// More information can be found at https://github.com/kubernetes/kubernetes/issues/113594#issuecomment-1332573990
+	requestResourceGK := schema.GroupResource{Group: req.Resource.Group, Resource: req.Resource.Resource}
+	if requestGK == autoscalingv1.SchemeGroupVersion.WithKind("Scale").GroupKind() &&
+		requestResourceGK == appsv1.SchemeGroupVersion.WithResource("statefulsets").GroupResource() {
+		sts, err := h.fetchStatefulSet(ctx, req.Name, req.Namespace)
+		if err != nil {
+			return admission.Errored(http.StatusInternalServerError, err)
+		}
+		managedBy, hasLabel := sts.GetLabels()[druidv1alpha1.LabelManagedByKey]
+		if !hasLabel || managedBy != druidv1alpha1.LabelManagedByValue {
+			return admission.Allowed(fmt.Sprintf("label %s not found on resource", druidv1alpha1.LabelPartOfKey))
+		}
+		// replicate sts labels to the /scale subresource object, used for subsequent checks
+		obj.SetLabels(sts.GetLabels())
 	}
 
 	etcdName, hasLabel := obj.GetLabels()[druidv1alpha1.LabelPartOfKey]
@@ -124,6 +146,7 @@ func (h *Handler) decodeRequestObject(req admission.Request, requestGK schema.Gr
 		rbacv1.SchemeGroupVersion.WithKind("Role").GroupKind(),
 		rbacv1.SchemeGroupVersion.WithKind("RoleBinding").GroupKind(),
 		appsv1.SchemeGroupVersion.WithKind("StatefulSet").GroupKind(),
+		autoscalingv1.SchemeGroupVersion.WithKind("Scale").GroupKind(), // for statefulsets' /scale subresource
 		policyv1.SchemeGroupVersion.WithKind("PodDisruptionBudget").GroupKind(),
 		batchv1.SchemeGroupVersion.WithKind("Job").GroupKind(),
 		coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind():
@@ -149,4 +172,16 @@ func (h *Handler) doDecodeRequestObject(req admission.Request) (client.Object, e
 		return nil, err
 	}
 	return obj, nil
+}
+
+func (h *Handler) fetchStatefulSet(ctx context.Context, name, namespace string) (*appsv1.StatefulSet, error) {
+	var (
+		err error
+		sts = &appsv1.StatefulSet{}
+	)
+
+	if err = h.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, sts); err != nil {
+		return nil, err
+	}
+	return sts, nil
 }
