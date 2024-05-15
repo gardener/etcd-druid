@@ -1,7 +1,7 @@
 # Recovery from Permanent Quorum Loss in an Etcd Cluster
 
 ## Quorum loss in Etcd Cluster
-[Quorum loss](https://etcd.io/docs/v3.4/op-guide/recovery/) means when the majority of Etcd pods(greater than or equal to n/2 + 1) are down simultaneously for some reason.
+[Quorum loss](https://etcd.io/docs/v3.4/op-guide/recovery/) means when the majority of Etcd pods (greater than or equal to n/2 + 1) are down simultaneously for some reason.
 
 There are two types of quorum loss that can happen to [Etcd multinode cluster](https://github.com/gardener/etcd-druid/tree/master/docs/proposals/multi-node) :
 

@@ -78,6 +78,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 }
 
 // Sync creates or updates the snapshot leases for the given Etcd.
+// If backups are disabled for the Etcd resource, any existing snapshot leases are deleted.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	if !etcd.IsBackupStoreEnabled() {
 		ctx.Logger.Info("Backup has been disabled. Triggering deletion of snapshot leases")

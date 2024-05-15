@@ -46,7 +46,7 @@ The *etcd controller* is responsible for the reconciliation of the `Etcd` resour
 
 Additionally, *etcd controller* also periodically updates the `Etcd` resource status with the latest available information from the etcd cluster, as well as results and errors from the recent-most reconciliation of the `Etcd` resource spec.
 
-The *etcd controller* is essential to the functioning of the etcd cluster and etcd-druid, thus the minimum number of worker threads is 1 (default being 3).
+The *etcd controller* is essential to the functioning of the etcd cluster and etcd-druid, thus the minimum number of worker threads is 1 (default being 3), controlled by the CLI flag `--etcd-workers`.
 
 ### `Etcd` Spec Reconciliation
 
@@ -87,7 +87,7 @@ The controller watches the number of events accumulated as part of delta snapsho
 The controller watches for changes in *snapshot* `Leases` associated with `Etcd` resources.
 It checks the full and delta snapshot `Leases` and calculates the difference in events between the latest delta snapshot and the previous full snapshot, and initiates the compaction job if the event threshold is crossed.
 
-The number of worker threads for the *compaction controller* needs to be greater than or equal to 0 (default 3).
+The number of worker threads for the *compaction controller* needs to be greater than or equal to 0 (default 3), controlled by the CLI flag `--compaction-workers`.
 This is unlike other controllers which need at least one worker thread for the proper functioning of etcd-druid as snapshot compaction is not a core functionality for the etcd clusters to be deployed.
 The compaction controller should be explicitly enabled by the user, through the `--enable-backup-compaction` CLI flag.
 
@@ -96,7 +96,7 @@ The compaction controller should be explicitly enabled by the user, through the 
 The *etcdcopybackupstask controller* is responsible for deploying the [`etcdbrctl copy`](https://github.com/gardener/etcd-backup-restore/blob/master/cmd/copy.go) command as a job.
 This controller reacts to create/update events arising from EtcdCopyBackupsTask resources, and deploys the `EtcdCopyBackupsTask` job with source and target backup storage providers as arguments, which are derived from source and target bucket secrets referenced by the `EtcdCopyBackupsTask` resource.
 
-The number of worker threads for the *etcdcopybackupstask controller* needs to be greater than or equal to 0 (default being 3).
+The number of worker threads for the *etcdcopybackupstask controller* needs to be greater than or equal to 0 (default being 3), controlled by the CLI flag `--etcd-copy-backups-task-workers`.
 This is unlike other controllers who need at least one worker thread for the proper functioning of etcd-druid as `EtcdCopyBackupsTask` is not a core functionality for the etcd clusters to be deployed.
 
 ## Secret Controller
@@ -107,4 +107,4 @@ This finalizer is added to ensure that `Secret`s which are referenced by the `Et
 
 Events arising from the `Etcd` resource are mapped to a list of `Secret`s such as backup and TLS secrets that are referenced by the `Etcd` resource, and are enqueued into the request queue, which the reconciler then acts on.
 
-The number of worker threads for the secret controller must be at least 1 (default being 10) for this core controller, since the referenced TLS and infrastructure access secrets are essential to the proper functioning of the etcd cluster.
+The number of worker threads for the secret controller must be at least 1 (default being 10) for this core controller, controlled by the CLI flag `--secret-workers`, since the referenced TLS and infrastructure access secrets are essential to the proper functioning of the etcd cluster.
