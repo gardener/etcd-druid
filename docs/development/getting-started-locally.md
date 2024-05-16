@@ -36,11 +36,24 @@ export KUBECONFIG=$PWD/hack/e2e-test/infrastructure/kind/kubeconfig
 
 ## Setting up etcd-druid
 
-```sh
-make deploy
-```
+Either one of these commands may be used to deploy etcd-druid to the configured k8s cluster.
 
-This generates the `Etcd` CRD and deploys an etcd-druid pod into the cluster
+1. The following command deploys etcd-druid to the configured k8s cluster:
+    ```sh
+    make deploy
+    ```
+
+2. The following command deploys etcd-druid to the configured k8s cluster using Skaffold `dev` mode, such that changes in the etcd-druid code are automatically picked up and applied to the deployment. This helps with local development and quick iterative changes:
+    ```sh
+    make deploy-dev
+    ```
+
+3. The following command deploys etcd-druid to the configured k8s cluster using Skaffold `debug` mode, so that a debugger can be attached to the running etcd-druid deployment. Please refer to [this guide](https://skaffold.dev/docs/workflows/debug/) for more information on Skaffold-based debugging:
+    ```sh
+    make deploy-debug
+    ```
+
+This generates the `Etcd` and `EtcdCopyBackupsTask` CRDs and deploys an etcd-druid pod into the cluster.
 
 ### Prepare the Etcd CR
 
@@ -50,7 +63,7 @@ The Etcd CR can be found at this location `$PWD/config/samples/druid_v1alpha1_et
 
 - **Without Backups enabled**
 
-    To setup Etcd-druid without backups enabled, make sure the `spec.backup.store` section of the Etcd CR is commented out.
+    To set up etcd-druid without backups enabled, make sure the `spec.backup.store` section of the Etcd CR is commented out.
 
 - **With Backups enabled (On Cloud Provider Object Stores)**
 
@@ -102,19 +115,6 @@ Create the Etcd CR (Custom Resource) by applying the Etcd yaml to the cluster
 kubectl apply -f config/samples/druid_v1alpha1_etcd.yaml
 ```
 
-### Annotate Etcd CR with the reconcile annotation
-
-> **Note :** If the `--enable-etcd-spec-auto-reconcile` flag is set to `true`, this step is not required.
-
-The above step creates an Etcd resource, however etcd-druid won't pick it up for reconciliation without an annotation. To get etcd-druid to reconcile the etcd CR, annotate it with the following `gardener.cloud/operation: reconcile`.
-
-```sh
-# Annotate etcd-test CR to reconcile
-kubectl annotate etcd etcd-test gardener.cloud/operation="reconcile"
-```
-
-This starts creating the etcd cluster
-
 ### Verify the Etcd cluster
 
 To obtain information regarding the newly instantiated etcd cluster, perform the following step, which gives details such as the cluster size, readiness status of its members, and various other attributes.
@@ -149,6 +149,16 @@ For a multi-node etcd cluster, insert the key-value pair from the `etcd` contain
 #### View Etcd Database File
 
 The Etcd database file is located at `var/etcd/data/new.etcd/snap/db` inside the `backup-restore` container. In versions with an `alpine` base image, you can exec directly into the container. However, in recent versions where the `backup-restore` docker image started using a distroless image, a debug container is required to communicate with it, as mentioned in the previous section.
+
+### Updating the Etcd CR
+
+The `Etcd` spec can be updated with new changes, such as etcd cluster configuration or backup-restore configuration, and etcd-druid will reconcile these changes as expected, under certain conditions:
+1. If the `--enable-etcd-spec-auto-reconcile` flag is set to `true`, the spec change is automatically picked up and reconciled by etcd-druid.
+2. If the `--enable-etcd-spec-auto-reconcile` flag is unset, or set to `false`, then etcd-druid will expect an additional annotation `gardener.cloud/operation: reconcile` on the `Etcd` resource in order to pick it up for reconciliation. Upon successful reconciliation, this annotation is removed by etcd-druid. The annotation can be added as follows:
+    ```sh
+    # Annotate etcd-test CR to reconcile
+    kubectl annotate etcd etcd-test gardener.cloud/operation="reconcile"
+    ```
 
 ## Cleaning the setup
 

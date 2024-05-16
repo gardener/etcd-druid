@@ -50,7 +50,9 @@ The *etcd controller* is essential to the functioning of the etcd cluster and et
 
 ### `Etcd` Spec Reconciliation
 
-While building the controller, an event filter is set such that the behavior of the controller depends on the `gardener.cloud/operation: reconcile` *annotation*. This is controlled by the `--enable-etcd-spec-auto-reconcile` CLI flag, which, if set to `false`, tells the controller to perform reconciliation only when this annotation is present. If the flag is set to `true`, the controller will reconcile the etcd cluster anytime the `Etcd` spec, and thus `generation`, changes, and the next queued event for it is triggered.  
+While building the controller, an event filter is set such that the behavior of the controller, specifically for `Etcd` update operations, depends on the `gardener.cloud/operation: reconcile` *annotation*. This is controlled by the `--enable-etcd-spec-auto-reconcile` CLI flag, which, if set to `false`, tells the controller to perform reconciliation only when this annotation is present. If the flag is set to `true`, the controller will reconcile the etcd cluster anytime the `Etcd` spec, and thus `generation`, changes, and the next queued event for it is triggered.
+
+> **Note:** Creation and deletion of `Etcd` resources are not affected by the above flag or annotation.
 
 The reason this filter is present is that any disruption in the `Etcd` resource due to reconciliation (due to changes in the `Etcd` spec, for example) while workloads are being run would cause unwanted downtimes to the etcd cluster. Hence, any user who wishes to avoid such disruptions, can choose to set the `--enable-etcd-spec-auto-reconcile` CLI flag to `false`. An example of this is Gardener's [gardenlet](https://github.com/gardener/gardener/blob/master/docs/concepts/gardenlet.md), which reconciles the `Etcd` resource only during a shoot cluster's [*maintenance window*](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_maintenance.md).
 
