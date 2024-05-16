@@ -1,3 +1,9 @@
+{{- $shouldCreateVWC := false }}
+{{- range $webhookName, $webhookConfig := .Values.webhooks }}
+{{- $webhookEnabled := ($webhookConfig).enabled | default false }}
+{{- $shouldCreateVWC = or $shouldCreateVWC $webhookEnabled }}
+{{- end }}
+{{- if $shouldCreateVWC }}
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -118,3 +124,4 @@ webhooks:
     sideEffects: None
     timeoutSeconds: 10
   {{- end }}
+{{- end }}
