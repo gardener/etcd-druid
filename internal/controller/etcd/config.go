@@ -6,10 +6,12 @@ package etcd
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/features"
+	gardenerconstants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	flag "github.com/spf13/pflag"
 	"k8s.io/component-base/featuregate"
 )
@@ -79,9 +81,9 @@ func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
 	fs.IntVar(&cfg.Workers, workersFlagName, defaultWorkers,
 		"Number of workers spawned for concurrent reconciles of etcd spec and status changes. If not specified then default of 3 is assumed.")
 	flag.BoolVar(&cfg.IgnoreOperationAnnotation, ignoreOperationAnnotationFlagName, defaultIgnoreOperationAnnotation,
-		"Specifies whether to ignore or honour the operation annotation on resources to be reconciled.")
+		fmt.Sprintf("Specifies whether to ignore or honour the annotation `%s: %s` on resources to be reconciled. Deprecated: please use `--%s` instead.", gardenerconstants.GardenerOperation, gardenerconstants.GardenerOperationReconcile, enableEtcdSpecAutoReconcileFlagName))
 	flag.BoolVar(&cfg.EnableEtcdSpecAutoReconcile, enableEtcdSpecAutoReconcileFlagName, defaultEnableEtcdSpecAutoReconcile,
-		"If true then automatically reconciles Etcd Spec. If false waits for explicit annotation to be placed on the Etcd resource to trigger reconcile.")
+		fmt.Sprintf("If true then automatically reconciles Etcd Spec. If false, waits for explicit annotation `%s: %s` to be placed on the Etcd resource to trigger reconcile.", gardenerconstants.GardenerOperation, gardenerconstants.GardenerOperationReconcile))
 	fs.BoolVar(&cfg.DisableEtcdServiceAccountAutomount, disableEtcdServiceAccountAutomountFlagName, defaultDisableEtcdServiceAccountAutomount,
 		"If true then .automountServiceAccountToken will be set to false for the ServiceAccount created for etcd StatefulSets.")
 	fs.DurationVar(&cfg.EtcdStatusSyncPeriod, etcdStatusSyncPeriodFlagName, defaultEtcdStatusSyncPeriod,

@@ -17,8 +17,11 @@ import (
 
 // LastOperationErrorRecorder records etcd.Status.LastOperation and etcd.Status.LastErrors
 type LastOperationErrorRecorder interface {
+	// RecordStart records the start of an operation in the Etcd status
 	RecordStart(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType) error
+	// RecordSuccess records the success of an operation in the Etcd status
 	RecordSuccess(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType) error
+	// RecordError records an error encountered in the last operation in the Etcd status
 	RecordError(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType, description string, errs ...error) error
 }
 

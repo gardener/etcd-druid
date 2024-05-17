@@ -597,7 +597,7 @@ func (e *Etcd) IsSpecReconciliationSuspended() bool {
 	return suspendReconcileAnnotKey != nil
 }
 
-// AreManagedResourcesProtected returns false if the Etcd resource has the disable-resource-protection annotation set,
+// AreManagedResourcesProtected returns false if the Etcd resource has the `druid.gardener.cloud/disable-resource-protection` annotation set,
 // else returns true.
 func (e *Etcd) AreManagedResourcesProtected() bool {
 	return !metav1.HasAnnotation(e.ObjectMeta, DisableResourceProtectionAnnotation)
