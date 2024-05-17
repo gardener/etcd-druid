@@ -21,11 +21,14 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -46,8 +49,10 @@ var (
 	reconcilerServiceAccount = "etcd-druid-sa"
 	exemptServiceAccounts    = []string{"exempt-sa-1"}
 
-	statefulSetGVK = metav1.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}
-	leaseGVK       = metav1.GroupVersionKind{Group: "coordination.k8s.io", Version: "v1", Kind: "Lease"}
+	statefulSetGVK      = metav1.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}
+	statefulSetGVR      = metav1.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}
+	scaleSubresourceGVK = metav1.GroupVersionKind{Group: "autoscaling", Version: "v1", Kind: "Scale"}
+	leaseGVK            = metav1.GroupVersionKind{Group: "coordination.k8s.io", Version: "v1", Kind: "Lease"}
 )
 
 func TestHandleCreateAndConnect(t *testing.T) {
@@ -99,7 +104,81 @@ func TestHandleCreateAndConnect(t *testing.T) {
 
 func TestHandleLeaseUpdate(t *testing.T) {
 	g := NewWithT(t)
-	cl := fake.NewClientBuilder().Build()
+
+	testCases := []struct {
+		name                  string
+		useEtcdServiceAccount bool
+		expectedAllowed       bool
+		expectedMessage       string
+		expectedCode          int32
+	}{
+		{
+			name:                  "request is from Etcd service account",
+			useEtcdServiceAccount: true,
+			expectedAllowed:       true,
+			expectedMessage:       "lease resource can be freely updated by etcd members",
+			expectedCode:          http.StatusOK,
+		},
+		{
+			name:                  "request is not from Etcd service account",
+			useEtcdServiceAccount: false,
+			expectedAllowed:       false,
+			expectedMessage:       fmt.Sprintf("changes disallowed, since no ongoing processing of Etcd %s by etcd-druid", testEtcdName),
+			expectedCode:          http.StatusForbidden,
+		},
+	}
+
+	t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).Build()
+			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, nil, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
+			decoder := admission.NewDecoder(cl.Scheme())
+
+			handler := &Handler{
+				Client: cl,
+				config: &Config{
+					Enabled: true,
+				},
+				decoder: decoder,
+				logger:  logr.Discard(),
+			}
+
+			obj := buildObjRawExtension(g, &coordinationv1.Lease{}, nil, testObjectName, testNamespace,
+				map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName})
+
+			username := testUserName
+			if tc.useEtcdServiceAccount {
+				username = fmt.Sprintf("system:serviceaccount:%s:%s", testNamespace, etcd.GetServiceAccountName())
+			}
+
+			response := handler.Handle(context.Background(), admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
+					UserInfo:  authenticationv1.UserInfo{Username: username},
+					Kind:      leaseGVK,
+					Name:      testObjectName,
+					Namespace: testNamespace,
+					Object:    obj,
+					OldObject: obj,
+				},
+			})
+
+			g.Expect(response.Allowed).To(Equal(tc.expectedAllowed))
+			g.Expect(response.Result.Message).To(ContainSubstring(tc.expectedMessage))
+			g.Expect(response.Result.Code).To(Equal(tc.expectedCode))
+		})
+	}
+}
+
+func TestHandleStatefulSetScaleSubresourceUpdate(t *testing.T) {
+	g := NewWithT(t)
+
+	// create sts without managed-by label
+	sts := testutils.CreateStatefulSet(testEtcdName, testNamespace, uuid.NewUUID(), 1)
+	delete(sts.Labels, druidv1alpha1.LabelManagedByKey)
+
+	cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, nil, nil, nil, nil, []client.Object{sts}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
 	decoder := admission.NewDecoder(cl.Scheme())
 
 	handler := &Handler{
@@ -111,15 +190,24 @@ func TestHandleLeaseUpdate(t *testing.T) {
 		logger:  logr.Discard(),
 	}
 
-	resp := handler.Handle(context.Background(), admission.Request{
+	obj := buildObjRawExtension(g, &autoscalingv1.Scale{}, nil, testObjectName, testNamespace, nil)
+
+	response := handler.Handle(context.Background(), admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
-			Operation: admissionv1.Update,
-			Kind:      leaseGVK,
+			Operation:   admissionv1.Update,
+			Kind:        scaleSubresourceGVK,
+			Resource:    statefulSetGVR,
+			SubResource: "Scale",
+			Name:        testObjectName,
+			Namespace:   testNamespace,
+			Object:      obj,
+			OldObject:   obj,
 		},
 	})
 
-	g.Expect(resp.Allowed).To(BeTrue())
-	g.Expect(resp.Result.Message).To(Equal("lease resource can be freely updated"))
+	g.Expect(response.Allowed).To(BeTrue())
+	g.Expect(response.Result.Message).To(Equal("statefulset not managed by etcd-druid"))
+	g.Expect(response.Result.Code).To(Equal(int32(http.StatusOK)))
 }
 
 func TestUnexpectedResourceType(t *testing.T) {

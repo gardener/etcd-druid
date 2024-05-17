@@ -79,14 +79,15 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 	// More information can be found at https://github.com/kubernetes/kubernetes/issues/113594#issuecomment-1332573990
 	requestResourceGK := schema.GroupResource{Group: req.Resource.Group, Resource: req.Resource.Resource}
 	if requestGK == autoscalingv1.SchemeGroupVersion.WithKind("Scale").GroupKind() &&
-		requestResourceGK == appsv1.SchemeGroupVersion.WithResource("statefulsets").GroupResource() {
+		requestResourceGK == appsv1.SchemeGroupVersion.WithResource("statefulsets").GroupResource() &&
+		req.SubResource == "Scale" {
 		sts, err := h.fetchStatefulSet(ctx, req.Name, req.Namespace)
 		if err != nil {
 			return admission.Errored(http.StatusInternalServerError, err)
 		}
 		managedBy, hasLabel := sts.GetLabels()[druidv1alpha1.LabelManagedByKey]
 		if !hasLabel || managedBy != druidv1alpha1.LabelManagedByValue {
-			return admission.Allowed(fmt.Sprintf("label %s not found on resource", druidv1alpha1.LabelPartOfKey))
+			return admission.Allowed("statefulset not managed by etcd-druid")
 		}
 		// replicate sts labels to the /scale subresource object, used for subsequent checks
 		obj.SetLabels(sts.GetLabels())
