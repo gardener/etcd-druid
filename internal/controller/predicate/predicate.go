@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+// Package predicate contains helper functions used for building predicates for
+// event filtering for etcd-druid controllers.
 package predicate
 
 import (
