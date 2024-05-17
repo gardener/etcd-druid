@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
@@ -63,12 +64,6 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 
 	requestGK := schema.GroupKind{Group: req.Kind.Group, Kind: req.Kind.Kind}
 
-	// Leases (member and snapshot) will be periodically updated by etcd members. Allow updates to leases.
-	if requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() &&
-		req.Operation == admissionv1.Update {
-		return admission.Allowed("lease resource can be freely updated")
-	}
-
 	obj, err := h.decodeRequestObject(req, requestGK)
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
@@ -110,29 +105,42 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
+	// Leases (member and snapshot) will be periodically updated by etcd members.
+	// Allow updates to such leases, but only by etcd members, which would use the serviceaccount deployed by druid for them.
+	if requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() &&
+		req.Operation == admissionv1.Update {
+		saTokens := strings.Split(req.UserInfo.Username, ":")
+		saName := saTokens[len(saTokens)-1] // last element of sa name which looks like `system:serviceaccount:<namespace>:<name>`
+		if saName == etcd.GetServiceAccountName() {
+			return admission.Allowed("lease resource can be freely updated by etcd members")
+		}
+	}
+
 	// allow changes to resources if Etcd has annotation druid.gardener.cloud/disable-resource-protection is set
 	if !etcd.AreManagedResourcesProtected() {
 		return admission.Allowed(fmt.Sprintf("changes allowed, since Etcd %s has annotation %s", etcd.Name, druidv1alpha1.DisableResourceProtectionAnnotation))
 	}
 
 	// allow operations on resources if the Etcd is currently being reconciled, but only by etcd-druid,
-	// and allow exempt service accounts to make changes to resources, but only if the Etcd is not currently being reconciled.
 	if etcd.IsReconciliationInProgress() {
 		if req.UserInfo.Username == h.config.ReconcilerServiceAccount {
 			return admission.Allowed(fmt.Sprintf("ongoing reconciliation of Etcd %s by etcd-druid requires changes to resources", etcd.Name))
 		}
 		return admission.Denied(fmt.Sprintf("no external intervention allowed during ongoing reconciliation of Etcd %s by etcd-druid", etcd.Name))
-	} else {
-		for _, sa := range h.config.ExemptServiceAccounts {
-			if req.UserInfo.Username == sa {
-				return admission.Allowed(fmt.Sprintf("operations on Etcd %s by service account %s is exempt from Sentinel Webhook checks", etcd.Name, sa))
-			}
+	}
+
+	// allow exempt service accounts to make changes to resources, but only if the Etcd is not currently being reconciled.
+	for _, sa := range h.config.ExemptServiceAccounts {
+		if req.UserInfo.Username == sa {
+			return admission.Allowed(fmt.Sprintf("operations on Etcd %s by service account %s is exempt from Sentinel Webhook checks", etcd.Name, sa))
 		}
 	}
 
 	return admission.Denied(fmt.Sprintf("changes disallowed, since no ongoing processing of Etcd %s by etcd-druid", etcd.Name))
 }
 
+// decodeRequestObject decodes the relevant object from the admission request and returns it.
+// If it encounters an unexpected resource type, it returns a nil object.
 func (h *Handler) decodeRequestObject(req admission.Request, requestGK schema.GroupKind) (client.Object, error) {
 	var (
 		obj client.Object
