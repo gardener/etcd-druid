@@ -6,9 +6,8 @@ package etcd
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
-	"github.com/gardener/etcd-druid/internal/operator"
-	"github.com/gardener/etcd-druid/internal/operator/component"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -96,7 +95,7 @@ func (r *Reconciler) recordReconcileSuccessOperation(ctx component.OperatorConte
 }
 
 func (r *Reconciler) recordIncompleteReconcileOperation(ctx component.OperatorContext, etcdObjKey client.ObjectKey, exitReconcileStepResult ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {
-	if err := r.lastOpErrRecorder.RecordError(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeReconcile, exitReconcileStepResult.GetDescription(), exitReconcileStepResult.GetErrors()...); err != nil {
+	if err := r.lastOpErrRecorder.RecordErrors(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeReconcile, exitReconcileStepResult.GetDescription(), exitReconcileStepResult.GetErrors()...); err != nil {
 		ctx.Logger.Error(err, "failed to record last operation and last errors for etcd reconciliation")
 		return ctrlutils.ReconcileWithError(err)
 	}
@@ -154,18 +153,18 @@ func (r *Reconciler) recordEtcdSpecReconcileSuspension(etcd *druidv1alpha1.Etcd,
 	)
 }
 
-func (r *Reconciler) getOrderedOperatorsForSync() []operator.Kind {
-	return []operator.Kind{
-		operator.MemberLeaseKind,
-		operator.SnapshotLeaseKind,
-		operator.ClientServiceKind,
-		operator.PeerServiceKind,
-		operator.ConfigMapKind,
-		operator.PodDisruptionBudgetKind,
-		operator.ServiceAccountKind,
-		operator.RoleKind,
-		operator.RoleBindingKind,
-		operator.StatefulSetKind,
+func (r *Reconciler) getOrderedOperatorsForSync() []component.Kind {
+	return []component.Kind{
+		component.MemberLeaseKind,
+		component.SnapshotLeaseKind,
+		component.ClientServiceKind,
+		component.PeerServiceKind,
+		component.ConfigMapKind,
+		component.PodDisruptionBudgetKind,
+		component.ServiceAccountKind,
+		component.RoleKind,
+		component.RoleBindingKind,
+		component.StatefulSetKind,
 	}
 }
 

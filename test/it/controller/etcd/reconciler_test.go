@@ -15,9 +15,9 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/features"
-	"github.com/gardener/etcd-druid/internal/operator"
 	"github.com/gardener/etcd-druid/test/it/controller/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -139,18 +139,18 @@ func testFailureToCreateAllResources(t *testing.T, testNs string, reconcilerTest
 	// create etcdInstance resource
 	g.Expect(cl.Create(ctx, etcdInstance)).To(Succeed())
 	// ***************** test etcd spec reconciliation  *****************
-	componentKindCreated := []operator.Kind{operator.MemberLeaseKind}
+	componentKindCreated := []component.Kind{component.MemberLeaseKind}
 	assertSelectedComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, componentKindCreated, timeout, pollingInterval)
-	componentKindNotCreated := []operator.Kind{
-		operator.SnapshotLeaseKind, // no backup store has been set
-		operator.ClientServiceKind,
-		operator.PeerServiceKind,
-		operator.ConfigMapKind,
-		operator.PodDisruptionBudgetKind,
-		operator.ServiceAccountKind,
-		operator.RoleKind,
-		operator.RoleBindingKind,
-		operator.StatefulSetKind,
+	componentKindNotCreated := []component.Kind{
+		component.SnapshotLeaseKind, // no backup store has been set
+		component.ClientServiceKind,
+		component.PeerServiceKind,
+		component.ConfigMapKind,
+		component.PodDisruptionBudgetKind,
+		component.ServiceAccountKind,
+		component.RoleKind,
+		component.RoleBindingKind,
+		component.StatefulSetKind,
 	}
 	assertComponentsDoNotExist(ctx, t, reconcilerTestEnv, etcdInstance, componentKindNotCreated, timeout, pollingInterval)
 	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), nil, 5*time.Second, 1*time.Second)
@@ -342,17 +342,17 @@ func testPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 	g.Expect(cl.Delete(ctx, etcdInstance)).To(Succeed())
 	t.Logf("successfully marked etcd instance for deletion: %s, waiting for resources to be removed...", etcdInstance.Name)
 	// assert removal of all components except client service and snapshot lease.
-	assertComponentsDoNotExist(ctx, t, reconcilerTestEnv, etcdInstance, []operator.Kind{
-		operator.MemberLeaseKind,
-		operator.PeerServiceKind,
-		operator.ConfigMapKind,
-		operator.PodDisruptionBudgetKind,
-		operator.ServiceAccountKind,
-		operator.RoleKind,
-		operator.RoleBindingKind,
-		operator.StatefulSetKind}, 2*time.Minute, 2*time.Second)
+	assertComponentsDoNotExist(ctx, t, reconcilerTestEnv, etcdInstance, []component.Kind{
+		component.MemberLeaseKind,
+		component.PeerServiceKind,
+		component.ConfigMapKind,
+		component.PodDisruptionBudgetKind,
+		component.ServiceAccountKind,
+		component.RoleKind,
+		component.RoleBindingKind,
+		component.StatefulSetKind}, 2*time.Minute, 2*time.Second)
 
-	assertSelectedComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, []operator.Kind{operator.ClientServiceKind, operator.SnapshotLeaseKind}, 2*time.Minute, 2*time.Second)
+	assertSelectedComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, []component.Kind{component.ClientServiceKind, component.SnapshotLeaseKind}, 2*time.Minute, 2*time.Second)
 	// assert that the last operation and last errors are updated correctly.
 	expectedLastOperation := &druidv1alpha1.LastOperation{
 		Type:  druidv1alpha1.LastOperationTypeDelete,

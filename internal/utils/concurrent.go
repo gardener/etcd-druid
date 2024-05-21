@@ -9,14 +9,14 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"github.com/gardener/etcd-druid/internal/operator/component"
+	"github.com/gardener/etcd-druid/internal/component"
 )
 
 // OperatorTask is a holder for a named function.
 type OperatorTask struct {
 	// Name is the name of the task
 	Name string
-	// Fn is the function which accepts an operator context and returns an error if there is one.
+	// Fn is the function which accepts a component operator context and returns an error if there is one.
 	// Implementations of Fn should handle context cancellation properly.
 	Fn func(ctx component.OperatorContext) error
 }

@@ -8,25 +8,25 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// LastOperationErrorRecorder records etcd.Status.LastOperation and etcd.Status.LastErrors
-type LastOperationErrorRecorder interface {
-	// RecordStart records the start of an operation in the Etcd status
+// LastOperationAndLastErrorsRecorder records etcd.Status.LastOperation and etcd.Status.LastErrors.
+type LastOperationAndLastErrorsRecorder interface {
+	// RecordStart records the start of an operation in the Etcd status.
 	RecordStart(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType) error
-	// RecordSuccess records the success of an operation in the Etcd status
+	// RecordSuccess records the success of an operation in the Etcd status.
 	RecordSuccess(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType) error
-	// RecordError records an error encountered in the last operation in the Etcd status
-	RecordError(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType, description string, errs ...error) error
+	// RecordErrors records errors encountered in the last operation in the Etcd status.
+	RecordErrors(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType, description string, errs ...error) error
 }
 
-// NewLastOperationErrorRecorder returns a new LastOperationErrorRecorder
-func NewLastOperationErrorRecorder(client client.Client, logger logr.Logger) LastOperationErrorRecorder {
+// NewLastOperationAndLastErrorsRecorder returns a new LastOperationAndLastErrorsRecorder.
+func NewLastOperationAndLastErrorsRecorder(client client.Client, logger logr.Logger) LastOperationAndLastErrorsRecorder {
 	return &lastOpErrRecorder{
 		client: client,
 		logger: logger,
@@ -69,7 +69,7 @@ func (l *lastOpErrRecorder) RecordSuccess(ctx component.OperatorContext, etcdObj
 	return l.recordLastOperationAndErrors(ctx, etcdObjectKey, operationType, druidv1alpha1.LastOperationStateSucceeded, description)
 }
 
-func (l *lastOpErrRecorder) RecordError(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType, description string, errs ...error) error {
+func (l *lastOpErrRecorder) RecordErrors(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType, description string, errs ...error) error {
 	description += " Operation will be retried."
 	lastErrors := druiderr.MapToLastErrors(errs)
 	return l.recordLastOperationAndErrors(ctx, etcdObjectKey, operationType, druidv1alpha1.LastOperationStateError, description, lastErrors...)

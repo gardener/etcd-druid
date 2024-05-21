@@ -8,20 +8,19 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/component"
+	"github.com/gardener/etcd-druid/internal/component/clientservice"
+	"github.com/gardener/etcd-druid/internal/component/configmap"
+	"github.com/gardener/etcd-druid/internal/component/memberlease"
+	"github.com/gardener/etcd-druid/internal/component/peerservice"
+	"github.com/gardener/etcd-druid/internal/component/poddistruptionbudget"
+	"github.com/gardener/etcd-druid/internal/component/role"
+	"github.com/gardener/etcd-druid/internal/component/rolebinding"
+	"github.com/gardener/etcd-druid/internal/component/serviceaccount"
+	"github.com/gardener/etcd-druid/internal/component/snapshotlease"
+	"github.com/gardener/etcd-druid/internal/component/statefulset"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/images"
-	"github.com/gardener/etcd-druid/internal/operator"
-	"github.com/gardener/etcd-druid/internal/operator/clientservice"
-	"github.com/gardener/etcd-druid/internal/operator/component"
-	"github.com/gardener/etcd-druid/internal/operator/configmap"
-	"github.com/gardener/etcd-druid/internal/operator/memberlease"
-	"github.com/gardener/etcd-druid/internal/operator/peerservice"
-	"github.com/gardener/etcd-druid/internal/operator/poddistruptionbudget"
-	"github.com/gardener/etcd-druid/internal/operator/role"
-	"github.com/gardener/etcd-druid/internal/operator/rolebinding"
-	"github.com/gardener/etcd-druid/internal/operator/serviceaccount"
-	"github.com/gardener/etcd-druid/internal/operator/snapshotlease"
-	"github.com/gardener/etcd-druid/internal/operator/statefulset"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
@@ -39,8 +38,8 @@ type Reconciler struct {
 	config            *Config
 	recorder          record.EventRecorder
 	imageVector       imagevector.ImageVector
-	operatorRegistry  operator.Registry
-	lastOpErrRecorder ctrlutils.LastOperationErrorRecorder
+	operatorRegistry  component.Registry
+	lastOpErrRecorder ctrlutils.LastOperationAndLastErrorsRecorder
 	logger            logr.Logger
 }
 
@@ -57,7 +56,7 @@ func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 func NewReconcilerWithImageVector(mgr manager.Manager, config *Config, iv imagevector.ImageVector) (*Reconciler, error) {
 	logger := log.Log.WithName(controllerName)
 	operatorReg := createAndInitializeOperatorRegistry(mgr.GetClient(), config, iv)
-	lastOpErrRecorder := ctrlutils.NewLastOperationErrorRecorder(mgr.GetClient(), logger)
+	lastOpErrRecorder := ctrlutils.NewLastOperationAndLastErrorsRecorder(mgr.GetClient(), logger)
 	return &Reconciler{
 		client:            mgr.GetClient(),
 		config:            config,
@@ -114,23 +113,23 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return ctrlutils.ReconcileAfter(r.config.EtcdStatusSyncPeriod, "Periodic Requeue").ReconcileResult()
 }
 
-// GetOperatorRegistry returns the operator registry.
-func (r *Reconciler) GetOperatorRegistry() operator.Registry {
+// GetOperatorRegistry returns the component registry.
+func (r *Reconciler) GetOperatorRegistry() component.Registry {
 	return r.operatorRegistry
 }
 
-func createAndInitializeOperatorRegistry(client client.Client, config *Config, imageVector imagevector.ImageVector) operator.Registry {
-	reg := operator.NewRegistry()
-	reg.Register(operator.ConfigMapKind, configmap.New(client))
-	reg.Register(operator.ServiceAccountKind, serviceaccount.New(client, config.DisableEtcdServiceAccountAutomount))
-	reg.Register(operator.MemberLeaseKind, memberlease.New(client))
-	reg.Register(operator.SnapshotLeaseKind, snapshotlease.New(client))
-	reg.Register(operator.ClientServiceKind, clientservice.New(client))
-	reg.Register(operator.PeerServiceKind, peerservice.New(client))
-	reg.Register(operator.PodDisruptionBudgetKind, poddistruptionbudget.New(client))
-	reg.Register(operator.RoleKind, role.New(client))
-	reg.Register(operator.RoleBindingKind, rolebinding.New(client))
-	reg.Register(operator.StatefulSetKind, statefulset.New(client, imageVector, config.FeatureGates))
+func createAndInitializeOperatorRegistry(client client.Client, config *Config, imageVector imagevector.ImageVector) component.Registry {
+	reg := component.NewRegistry()
+	reg.Register(component.ConfigMapKind, configmap.New(client))
+	reg.Register(component.ServiceAccountKind, serviceaccount.New(client, config.DisableEtcdServiceAccountAutomount))
+	reg.Register(component.MemberLeaseKind, memberlease.New(client))
+	reg.Register(component.SnapshotLeaseKind, snapshotlease.New(client))
+	reg.Register(component.ClientServiceKind, clientservice.New(client))
+	reg.Register(component.PeerServiceKind, peerservice.New(client))
+	reg.Register(component.PodDisruptionBudgetKind, poddistruptionbudget.New(client))
+	reg.Register(component.RoleKind, role.New(client))
+	reg.Register(component.RoleBindingKind, rolebinding.New(client))
+	reg.Register(component.StatefulSetKind, statefulset.New(client, imageVector, config.FeatureGates))
 	return reg
 }
 

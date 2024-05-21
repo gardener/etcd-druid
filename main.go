@@ -8,12 +8,11 @@ import (
 	"os"
 	"runtime"
 
+	druidmgr "github.com/gardener/etcd-druid/internal/manager"
+	"github.com/gardener/etcd-druid/internal/version"
 	"github.com/go-logr/logr"
 	"go.uber.org/zap/zapcore"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	druidmgr "github.com/gardener/etcd-druid/internal/manager"
-	"github.com/gardener/etcd-druid/internal/version"
 
 	flag "github.com/spf13/pflag"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"

@@ -7,6 +7,7 @@ package controller
 import (
 	"context"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
 	"github.com/gardener/etcd-druid/internal/webhook/sentinel"
+	"golang.org/x/exp/slog"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	coordinationv1beta1 "k8s.io/api/coordination/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -42,10 +44,15 @@ func InitializeManager(config *Config) (ctrl.Manager, error) {
 	if mgr, err = createManager(config); err != nil {
 		return nil, err
 	}
+	slog.Info("registering controllers and webhooks with manager")
+	time.Sleep(10 * time.Second)
 	if err = registerControllers(mgr, config); err != nil {
 		return nil, err
 	}
 	if err = registerWebhooks(mgr, config); err != nil {
+		return nil, err
+	}
+	if err = registerHealthAndReadyEndpoints(mgr, config); err != nil {
 		return nil, err
 	}
 	return mgr, nil
@@ -94,7 +101,7 @@ func registerControllers(mgr ctrl.Manager, config *Config) error {
 	var err error
 
 	// Add etcd reconciler to the manager
-	etcdReconciler, err := etcd.NewReconciler(mgr, config.EtcdControllerConfig)
+	etcdReconciler, err := etcd.NewReconciler(mgr, config.Controllers.Etcd)
 	if err != nil {
 		return err
 	}
@@ -103,8 +110,8 @@ func registerControllers(mgr ctrl.Manager, config *Config) error {
 	}
 
 	// Add compaction reconciler to the manager if the CLI flag enable-backup-compaction is true.
-	if config.CompactionControllerConfig.EnableBackupCompaction {
-		compactionReconciler, err := compaction.NewReconciler(mgr, config.CompactionControllerConfig)
+	if config.Controllers.Compaction.EnableBackupCompaction {
+		compactionReconciler, err := compaction.NewReconciler(mgr, config.Controllers.Compaction)
 		if err != nil {
 			return err
 		}
@@ -114,7 +121,7 @@ func registerControllers(mgr ctrl.Manager, config *Config) error {
 	}
 
 	// Add etcd-copy-backups-task reconciler to the manager
-	etcdCopyBackupsTaskReconciler, err := etcdcopybackupstask.NewReconciler(mgr, config.EtcdCopyBackupsTaskControllerConfig)
+	etcdCopyBackupsTaskReconciler, err := etcdcopybackupstask.NewReconciler(mgr, config.Controllers.EtcdCopyBackupsTask)
 	if err != nil {
 		return err
 	}
@@ -127,21 +134,36 @@ func registerControllers(mgr ctrl.Manager, config *Config) error {
 	defer cancel()
 	return secret.NewReconciler(
 		mgr,
-		config.SecretControllerConfig,
+		config.Controllers.Secret,
 	).RegisterWithManager(ctx, mgr)
 }
 
 func registerWebhooks(mgr ctrl.Manager, config *Config) error {
 	// Add sentinel webhook to the manager
-	if config.SentinelWebhookConfig.Enabled {
+	if config.Webhooks.Sentinel.Enabled {
 		sentinelWebhook, err := sentinel.NewHandler(
 			mgr,
-			config.SentinelWebhookConfig,
+			config.Webhooks.Sentinel,
 		)
 		if err != nil {
 			return err
 		}
+		slog.Info("Registering Sentinel Webhook with manager")
 		return sentinelWebhook.RegisterWithManager(mgr)
+	}
+	return nil
+}
+
+func registerHealthAndReadyEndpoints(mgr ctrl.Manager, config *Config) error {
+	slog.Info("Registering ping health check endpoint")
+	if err := mgr.AddHealthzCheck("ping", func(req *http.Request) error { return nil }); err != nil {
+		return err
+	}
+	if config.Webhooks.AtLeaseOneEnabled() {
+		slog.Info("Registering webhook-server readiness check endpoint")
+		if err := mgr.AddReadyzCheck("webhook-server", mgr.GetWebhookServer().StartedChecker()); err != nil {
+			return err
+		}
 	}
 	return nil
 }

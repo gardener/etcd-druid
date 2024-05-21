@@ -99,16 +99,34 @@ type Config struct {
 	DisableLeaseCache bool
 	// FeatureGates contains the feature gates to be used by etcd-druid.
 	FeatureGates featuregate.MutableFeatureGate
-	// EtcdControllerConfig is the configuration required for etcd controller.
-	EtcdControllerConfig *etcd.Config
-	// CompactionControllerConfig is the configuration required for compaction controller.
-	CompactionControllerConfig *compaction.Config
-	// EtcdCopyBackupsTaskControllerConfig is the configuration required for etcd-copy-backup-tasks controller.
-	EtcdCopyBackupsTaskControllerConfig *etcdcopybackupstask.Config
-	// SecretControllerConfig is the configuration required for secret controller.
-	SecretControllerConfig *secret.Config
-	// SentinelWebhookConfig is the configuration required for sentinel webhook.
-	SentinelWebhookConfig *sentinel.Config
+	// Controllers defines the configuration for etcd-druid controllers.
+	Controllers Controllers
+	// Webhooks defines the configuration for etcd-druid webhooks.
+	Webhooks Webhooks
+}
+
+// Controllers defines the configuration for etcd druid controllers.
+type Controllers struct {
+	// Etcd is the configuration required for etcd controller.
+	Etcd *etcd.Config
+	// Compaction is the configuration required for compaction controller.
+	Compaction *compaction.Config
+	// EtcdCopyBackupsTask is the configuration required for etcd-copy-backup-tasks controller.
+	EtcdCopyBackupsTask *etcdcopybackupstask.Config
+	// Secret is the configuration required for secret controller.
+	Secret *secret.Config
+}
+
+// Webhooks defines the configuration for etcd-druid webhooks.
+type Webhooks struct {
+	// Sentinel is the configuration required for sentinel webhook.
+	Sentinel *sentinel.Config
+}
+
+// AtLeaseOneEnabled returns true if at least one webhook is enabled.
+// NOTE for contributors: For every new webhook, add a disjunction condition with the webhook's AtLeaseOneEnabled field.
+func (w Webhooks) AtLeaseOneEnabled() bool {
+	return w.Sentinel.Enabled
 }
 
 // InitFromFlags initializes the controller manager config from the provided CLI flag set.
@@ -143,20 +161,20 @@ func (cfg *Config) InitFromFlags(fs *flag.FlagSet) error {
 		return err
 	}
 
-	cfg.EtcdControllerConfig = &etcd.Config{}
-	etcd.InitFromFlags(fs, cfg.EtcdControllerConfig)
+	cfg.Controllers.Etcd = &etcd.Config{}
+	etcd.InitFromFlags(fs, cfg.Controllers.Etcd)
 
-	cfg.CompactionControllerConfig = &compaction.Config{}
-	compaction.InitFromFlags(fs, cfg.CompactionControllerConfig)
+	cfg.Controllers.Compaction = &compaction.Config{}
+	compaction.InitFromFlags(fs, cfg.Controllers.Compaction)
 
-	cfg.EtcdCopyBackupsTaskControllerConfig = &etcdcopybackupstask.Config{}
-	etcdcopybackupstask.InitFromFlags(fs, cfg.EtcdCopyBackupsTaskControllerConfig)
+	cfg.Controllers.EtcdCopyBackupsTask = &etcdcopybackupstask.Config{}
+	etcdcopybackupstask.InitFromFlags(fs, cfg.Controllers.EtcdCopyBackupsTask)
 
-	cfg.SecretControllerConfig = &secret.Config{}
-	secret.InitFromFlags(fs, cfg.SecretControllerConfig)
+	cfg.Controllers.Secret = &secret.Config{}
+	secret.InitFromFlags(fs, cfg.Controllers.Secret)
 
-	cfg.SentinelWebhookConfig = &sentinel.Config{}
-	sentinel.InitFromFlags(fs, cfg.SentinelWebhookConfig)
+	cfg.Webhooks.Sentinel = &sentinel.Config{}
+	sentinel.InitFromFlags(fs, cfg.Webhooks.Sentinel)
 
 	return nil
 }
@@ -179,13 +197,13 @@ func (cfg *Config) populateControllersFeatureGates() {
 	// Feature gates populated only for controllers that use feature gates
 
 	// Add etcd controller feature gates
-	cfg.EtcdControllerConfig.CaptureFeatureActivations(cfg.FeatureGates)
+	cfg.Controllers.Etcd.CaptureFeatureActivations(cfg.FeatureGates)
 
 	// Add compaction controller feature gates
-	cfg.CompactionControllerConfig.CaptureFeatureActivations(cfg.FeatureGates)
+	cfg.Controllers.Compaction.CaptureFeatureActivations(cfg.FeatureGates)
 
 	// Add etcd-copy-backups-task controller feature gates
-	cfg.EtcdCopyBackupsTaskControllerConfig.CaptureFeatureActivations(cfg.FeatureGates)
+	cfg.Controllers.EtcdCopyBackupsTask.CaptureFeatureActivations(cfg.FeatureGates)
 }
 
 // Validate validates the controller manager config.
@@ -194,7 +212,7 @@ func (cfg *Config) Validate() error {
 		return err
 	}
 
-	if cfg.SentinelWebhookConfig.Enabled {
+	if cfg.Webhooks.Sentinel.Enabled {
 		if cfg.Server.Webhook.Port == 0 {
 			return fmt.Errorf("webhook port cannot be 0")
 		}
@@ -203,19 +221,19 @@ func (cfg *Config) Validate() error {
 		}
 	}
 
-	if err := cfg.EtcdControllerConfig.Validate(); err != nil {
+	if err := cfg.Controllers.Etcd.Validate(); err != nil {
 		return err
 	}
 
-	if err := cfg.CompactionControllerConfig.Validate(); err != nil {
+	if err := cfg.Controllers.Compaction.Validate(); err != nil {
 		return err
 	}
 
-	if err := cfg.EtcdCopyBackupsTaskControllerConfig.Validate(); err != nil {
+	if err := cfg.Controllers.EtcdCopyBackupsTask.Validate(); err != nil {
 		return err
 	}
 
-	return cfg.SecretControllerConfig.Validate()
+	return cfg.Controllers.Secret.Validate()
 }
 
 // getAllowedLeaderElectionResourceLocks returns the allowed resource type to be used for leader election.

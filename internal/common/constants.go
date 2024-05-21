@@ -9,7 +9,7 @@ const (
 	DefaultImageVectorFilePath = "charts/images.yaml"
 	// FinalizerName is the name of the etcd finalizer.
 	FinalizerName = "druid.gardener.cloud/etcd-druid"
-	// CheckSumKeyConfigMap is the key that is set by a configmap operator and used by StatefulSet operator to
+	// CheckSumKeyConfigMap is the key that is set by a configmap component and used by StatefulSet component to
 	// place an annotation on the StatefulSet pods. The value contains the check-sum of the latest configmap that
 	// should be reflected on the pods.
 	CheckSumKeyConfigMap = "checksum/etcd-configmap"

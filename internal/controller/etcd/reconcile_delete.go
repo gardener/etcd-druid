@@ -10,8 +10,8 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
-	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/go-logr/logr"
@@ -45,7 +45,7 @@ func (r *Reconciler) deleteEtcdResources(ctx component.OperatorContext, etcdObjK
 		// TODO: once we move to go 1.22 (https://go.dev/blog/loopvar-preview)
 		operator := operator
 		deleteTasks = append(deleteTasks, utils.OperatorTask{
-			Name: fmt.Sprintf("triggerDeletionFlow-%s-operator", kind),
+			Name: fmt.Sprintf("triggerDeletionFlow-%s-component", kind),
 			Fn: func(ctx component.OperatorContext) error {
 				return operator.TriggerDelete(ctx, etcd)
 			},
@@ -109,7 +109,7 @@ func (r *Reconciler) recordIncompleteDeletionOperation(ctx component.OperatorCon
 	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
-	if err := r.lastOpErrRecorder.RecordError(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeDelete, exitReconcileStepResult.GetDescription(), exitReconcileStepResult.GetErrors()...); err != nil {
+	if err := r.lastOpErrRecorder.RecordErrors(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeDelete, exitReconcileStepResult.GetDescription(), exitReconcileStepResult.GetErrors()...); err != nil {
 		logger.Error(err, "failed to record last operation and last errors for etcd deletion")
 		return ctrlutils.ReconcileWithError(err)
 	}

@@ -6,17 +6,17 @@ package etcd
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/health/status"
-	"github.com/gardener/etcd-druid/internal/operator/component"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/go-logr/logr"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// mutateEtcdFn is a function which mutates the status of the passed etcd object
-type mutateEtcdFn func(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, logger logr.Logger) ctrlutils.ReconcileStepResult
+// mutateEtcdStatusFn is a function which mutates the status of the passed etcd object
+type mutateEtcdStatusFn func(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, logger logr.Logger) ctrlutils.ReconcileStepResult
 
 func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
 	etcd := &druidv1alpha1.Etcd{}
@@ -25,11 +25,11 @@ func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcdObjectKe
 	}
 	sLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileStatus").WithValues("runID", ctx.RunID)
 	originalEtcd := etcd.DeepCopy()
-	mutateETCDStepFns := []mutateEtcdFn{
+	mutateETCDStatusStepFns := []mutateEtcdStatusFn{
 		r.mutateETCDStatusWithMemberStatusAndConditions,
 		r.inspectStatefulSetAndMutateETCDStatus,
 	}
-	for _, fn := range mutateETCDStepFns {
+	for _, fn := range mutateETCDStatusStepFns {
 		if stepResult := fn(ctx, etcd, sLog); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
 			return stepResult
 		}
