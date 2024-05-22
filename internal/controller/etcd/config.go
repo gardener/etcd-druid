@@ -11,6 +11,7 @@ import (
 
 	"github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/features"
+
 	gardenerconstants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	flag "github.com/spf13/pflag"
 	"k8s.io/component-base/featuregate"
@@ -77,7 +78,7 @@ type MemberConfig struct {
 }
 
 // InitFromFlags initializes the config from the provided CLI flag set.
-func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
+func (cfg *Config) InitFromFlags(fs *flag.FlagSet) {
 	fs.IntVar(&cfg.Workers, workersFlagName, defaultWorkers,
 		"Number of workers spawned for concurrent reconciles of etcd spec and status changes. If not specified then default of 3 is assumed.")
 	flag.BoolVar(&cfg.IgnoreOperationAnnotation, ignoreOperationAnnotationFlagName, defaultIgnoreOperationAnnotation,

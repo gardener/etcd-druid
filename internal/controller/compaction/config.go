@@ -50,7 +50,7 @@ type Config struct {
 }
 
 // InitFromFlags initializes the compaction controller config from the provided CLI flag set.
-func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
+func (cfg *Config) InitFromFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&cfg.EnableBackupCompaction, enableBackupCompactionFlagName, defaultEnableBackupCompaction,
 		"Enable automatic compaction of etcd backups.")
 	fs.IntVar(&cfg.Workers, workersFlagName, defaultCompactionWorkers,

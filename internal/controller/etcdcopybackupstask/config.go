@@ -32,7 +32,7 @@ type Config struct {
 }
 
 // InitFromFlags initializes the config from the provided CLI flag set.
-func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
+func (cfg *Config) InitFromFlags(fs *flag.FlagSet) {
 	fs.IntVar(&cfg.Workers, workersFlagName, defaultWorkers,
 		"Number of worker threads for the etcdcopybackupstask controller.")
 }
