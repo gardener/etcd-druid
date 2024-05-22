@@ -177,39 +177,6 @@ var _ = Describe("Etcd", func() {
 		})
 	})
 
-	Context("IsSpecReconciliationSuspended", func() {
-		Context("when etcd has only suspend-etcd-spec-reconcile annotation set", func() {
-			It("should return true", func() {
-				etcd.Annotations = map[string]string{
-					SuspendEtcdSpecReconcileAnnotation: "",
-				}
-				Expect(etcd.IsSpecReconciliationSuspended()).To(Equal(true))
-			})
-		})
-		Context("when etcd has only ignore-reconcile annotation set", func() {
-			It("should return true", func() {
-				etcd.Annotations = map[string]string{
-					IgnoreReconciliationAnnotation: "true",
-				}
-				Expect(etcd.IsSpecReconciliationSuspended()).To(Equal(true))
-			})
-		})
-		Context("when etcd has both suspend-etcd-spec-reconcile and ignore-reconcile annotations set", func() {
-			It("should return true", func() {
-				etcd.Annotations = map[string]string{
-					SuspendEtcdSpecReconcileAnnotation: "",
-					IgnoreReconciliationAnnotation:     "",
-				}
-				Expect(etcd.IsSpecReconciliationSuspended()).To(Equal(true))
-			})
-		})
-		Context("when etcd does not have suspend-etcd-spec-reconcile or annotation druid.gardener.cloud/suspend-etcd-spec-reconcile or druid.gardener.cloud/ignore-reconciliation set", func() {
-			It("should return false", func() {
-				Expect(etcd.IsSpecReconciliationSuspended()).To(Equal(false))
-			})
-		})
-	})
-
 	Context("AreManagedResourcesProtected", func() {
 		Context("when etcd has annotation druid.gardener.cloud/disable-resource-protection", func() {
 			It("should return false", func() {

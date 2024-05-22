@@ -590,13 +590,6 @@ func (e *Etcd) GetSuspendEtcdSpecReconcileAnnotationKey() *string {
 	return nil
 }
 
-// IsSpecReconciliationSuspended returns true if the Etcd resource has the annotation set to suspend spec reconciliation,
-// else returns false.
-func (e *Etcd) IsSpecReconciliationSuspended() bool {
-	suspendReconcileAnnotKey := e.GetSuspendEtcdSpecReconcileAnnotationKey()
-	return suspendReconcileAnnotKey != nil
-}
-
 // AreManagedResourcesProtected returns false if the Etcd resource has the `druid.gardener.cloud/disable-resource-protection` annotation set,
 // else returns true.
 func (e *Etcd) AreManagedResourcesProtected() bool {
