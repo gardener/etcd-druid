@@ -194,26 +194,37 @@ var _ = Describe("Etcd", func() {
 	})
 
 	Context("IsReconciliationInProgress", func() {
-		Context("when etcd status has lastOperation and its state is Processing", func() {
+		Context("when etcd status has lastOperation, its type is Reconcile and its state is Processing", func() {
 			It("should return true", func() {
 				etcd.Status.LastOperation = &LastOperation{
+					Type:  LastOperationTypeReconcile,
 					State: LastOperationStateProcessing,
 				}
 				Expect(etcd.IsReconciliationInProgress()).To(Equal(true))
 			})
 		})
-		Context("when etcd status has lastOperation and its state is Error", func() {
+		Context("when etcd status has lastOperation, its type is Reconcile and its state is Error", func() {
 			It("should return true", func() {
 				etcd.Status.LastOperation = &LastOperation{
+					Type:  LastOperationTypeReconcile,
 					State: LastOperationStateError,
 				}
 				Expect(etcd.IsReconciliationInProgress()).To(Equal(true))
 			})
 		})
-		Context("when etcd status has lastOperation and its state is neither Processing or Error", func() {
+		Context("when etcd status has lastOperation, its type is Reconcile and its state is neither Processing or Error", func() {
 			It("should return false", func() {
 				etcd.Status.LastOperation = &LastOperation{
+					Type:  LastOperationTypeReconcile,
 					State: LastOperationStateSucceeded,
+				}
+				Expect(etcd.IsReconciliationInProgress()).To(Equal(false))
+			})
+		})
+		Context("when etcd status has lastOperation, and its type is not Reconcile", func() {
+			It("should return false", func() {
+				etcd.Status.LastOperation = &LastOperation{
+					Type: LastOperationTypeCreate,
 				}
 				Expect(etcd.IsReconciliationInProgress()).To(Equal(false))
 			})
@@ -221,6 +232,49 @@ var _ = Describe("Etcd", func() {
 		Context("when etcd status does not have lastOperation populated", func() {
 			It("should return false", func() {
 				Expect(etcd.IsReconciliationInProgress()).To(Equal(false))
+			})
+		})
+	})
+
+	Context("IsDeletionInProgress", func() {
+		Context("when etcd status has lastOperation, its type is Delete and its state is Processing", func() {
+			It("should return true", func() {
+				etcd.Status.LastOperation = &LastOperation{
+					Type:  LastOperationTypeDelete,
+					State: LastOperationStateProcessing,
+				}
+				Expect(etcd.IsDeletionInProgress()).To(Equal(true))
+			})
+		})
+		Context("when etcd status has lastOperation, its type is Delete and its state is Error", func() {
+			It("should return true", func() {
+				etcd.Status.LastOperation = &LastOperation{
+					Type:  LastOperationTypeDelete,
+					State: LastOperationStateError,
+				}
+				Expect(etcd.IsDeletionInProgress()).To(Equal(true))
+			})
+		})
+		Context("when etcd status has lastOperation, its type is Delete and its state is neither Processing or Error", func() {
+			It("should return false", func() {
+				etcd.Status.LastOperation = &LastOperation{
+					Type:  LastOperationTypeDelete,
+					State: LastOperationStateSucceeded,
+				}
+				Expect(etcd.IsDeletionInProgress()).To(Equal(false))
+			})
+		})
+		Context("when etcd status has lastOperation, and its type is not Delete", func() {
+			It("should return false", func() {
+				etcd.Status.LastOperation = &LastOperation{
+					Type: LastOperationTypeCreate,
+				}
+				Expect(etcd.IsDeletionInProgress()).To(Equal(false))
+			})
+		})
+		Context("when etcd status does not have lastOperation populated", func() {
+			It("should return false", func() {
+				Expect(etcd.IsDeletionInProgress()).To(Equal(false))
 			})
 		})
 	})

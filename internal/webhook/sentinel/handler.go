@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
@@ -25,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apiserver/pkg/authentication/serviceaccount"
 	"k8s.io/client-go/scale/scheme/autoscalingv1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -62,67 +62,40 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		return admission.Allowed(fmt.Sprintf("operation %s is allowed", req.Operation))
 	}
 
-	requestGK := schema.GroupKind{Group: req.Kind.Group, Kind: req.Kind.Kind}
-
-	obj, err := h.decodeRequestObject(req, requestGK)
+	etcd, allowedMessage, err := h.getEtcdForRequest(ctx, req)
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
-	if obj == nil {
-		return admission.Allowed(fmt.Sprintf("unexpected resource type: %s", requestGKString))
+	if allowedMessage != "" {
+		return admission.Allowed(allowedMessage)
 	}
 
-	// If admission request is for statefulsets/scale subresource, then check labels on the parent statefulset object
-	// and allow the request if it doesn't contain label `app.kubernetes.io/managed-by: etcd-druid`.
-	// This special handling is required for statefulsets/scale subresource, since it does not work when
-	// an objectSelector is specified for it in the ValidatingWebhookConfiguration.
-	// More information can be found at https://github.com/kubernetes/kubernetes/issues/113594#issuecomment-1332573990
-	requestResourceGK := schema.GroupResource{Group: req.Resource.Group, Resource: req.Resource.Resource}
-	if requestGK == autoscalingv1.SchemeGroupVersion.WithKind("Scale").GroupKind() &&
-		requestResourceGK == appsv1.SchemeGroupVersion.WithResource("statefulsets").GroupResource() &&
-		req.SubResource == "Scale" {
-		sts, err := h.fetchStatefulSet(ctx, req.Name, req.Namespace)
-		if err != nil {
-			return admission.Errored(http.StatusInternalServerError, err)
+	// allow deletion operation on resources if the Etcd is currently being deleted, but only by etcd-druid and exempt service accounts.
+	if req.Operation == admissionv1.Delete && etcd.IsDeletionInProgress() {
+		if req.UserInfo.Username == h.config.ReconcilerServiceAccount {
+			return admission.Allowed(fmt.Sprintf("deletion of resource by etcd-druid is allowed during deletion of Etcd %s", etcd.Name))
 		}
-		managedBy, hasLabel := sts.GetLabels()[druidv1alpha1.LabelManagedByKey]
-		if !hasLabel || managedBy != druidv1alpha1.LabelManagedByValue {
-			return admission.Allowed("statefulset not managed by etcd-druid")
+		if slices.Contains(h.config.ExemptServiceAccounts, req.UserInfo.Username) {
+			return admission.Allowed(fmt.Sprintf("deletion of resource by exempt SA %s is allowed during deletion of Etcd %s", req.UserInfo.Username, etcd.Name))
 		}
-		// replicate sts labels to the /scale subresource object, used for subsequent checks
-		obj.SetLabels(sts.GetLabels())
-	}
-
-	etcdName, hasLabel := obj.GetLabels()[druidv1alpha1.LabelPartOfKey]
-	if !hasLabel {
-		return admission.Allowed(fmt.Sprintf("label %s not found on resource", druidv1alpha1.LabelPartOfKey))
-	}
-
-	etcd := &druidv1alpha1.Etcd{}
-	if err = h.Get(ctx, types.NamespacedName{Name: etcdName, Namespace: req.Namespace}, etcd); err != nil {
-		if apierrors.IsNotFound(err) {
-			return admission.Allowed(fmt.Sprintf("corresponding Etcd %s not found", etcdName))
-		}
-		return admission.Errored(http.StatusInternalServerError, err)
+		return admission.Denied(fmt.Sprintf("no external intervention allowed during ongoing deletion of Etcd %s by etcd-druid", etcd.Name))
 	}
 
 	// Leases (member and snapshot) will be periodically updated by etcd members.
 	// Allow updates to such leases, but only by etcd members, which would use the serviceaccount deployed by druid for them.
-	if requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() &&
-		req.Operation == admissionv1.Update {
-		saTokens := strings.Split(req.UserInfo.Username, ":")
-		saName := saTokens[len(saTokens)-1] // last element of sa name which looks like `system:serviceaccount:<namespace>:<name>`
-		if saName == etcd.GetServiceAccountName() {
+	requestGK := schema.GroupKind{Group: req.Kind.Group, Kind: req.Kind.Kind}
+	if requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() && req.Operation == admissionv1.Update {
+		if serviceaccount.MatchesUsername(etcd.GetNamespace(), etcd.GetServiceAccountName(), req.UserInfo.Username) {
 			return admission.Allowed("lease resource can be freely updated by etcd members")
 		}
 	}
 
-	// allow changes to resources if Etcd has annotation druid.gardener.cloud/disable-resource-protection is set
+	// allow changes to resources if Etcd has annotation druid.gardener.cloud/disable-resource-protection is set.
 	if !etcd.AreManagedResourcesProtected() {
 		return admission.Allowed(fmt.Sprintf("changes allowed, since Etcd %s has annotation %s", etcd.Name, druidv1alpha1.DisableResourceProtectionAnnotation))
 	}
 
-	// allow operations on resources if the Etcd is currently being reconciled, but only by etcd-druid,
+	// allow operations on resources if the Etcd is currently being reconciled, but only by etcd-druid.
 	if etcd.IsReconciliationInProgress() {
 		if req.UserInfo.Username == h.config.ReconcilerServiceAccount {
 			return admission.Allowed(fmt.Sprintf("ongoing reconciliation of Etcd %s by etcd-druid requires changes to resources", etcd.Name))
@@ -140,12 +113,48 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 	return admission.Denied(fmt.Sprintf("changes disallowed, since no ongoing processing of Etcd %s by etcd-druid", etcd.Name))
 }
 
+// getEtcdForRequest returns the Etcd resource corresponding to the object in the admission request.
+// It also returns admission response message and error, if any.
+func (h *Handler) getEtcdForRequest(ctx context.Context, req admission.Request) (*druidv1alpha1.Etcd, string, error) {
+	obj, err := h.decodeRequestObject(ctx, req)
+	if err != nil {
+		return nil, "", err
+	}
+	if obj == nil {
+		return nil, fmt.Sprintf("unexpected resource type: %s/%s", req.Kind.Group, req.Kind.Kind), nil
+	}
+
+	// allow changes for resources not managed by etcd-druid
+	managedBy, hasLabel := obj.GetLabels()[druidv1alpha1.LabelManagedByKey]
+	if !hasLabel || managedBy != druidv1alpha1.LabelManagedByValue {
+		return nil, fmt.Sprintf("resource is not managed by etcd-druid, as label %s is missing", druidv1alpha1.LabelManagedByKey), nil
+	}
+
+	// get the name of the Etcd that the resource is part of
+	etcdName, hasLabel := obj.GetLabels()[druidv1alpha1.LabelPartOfKey]
+	if !hasLabel {
+		return nil, fmt.Sprintf("label %s not found on resource", druidv1alpha1.LabelPartOfKey), nil
+	}
+
+	etcd := &druidv1alpha1.Etcd{}
+	if err = h.Get(ctx, types.NamespacedName{Name: etcdName, Namespace: req.Namespace}, etcd); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, fmt.Sprintf("corresponding Etcd %s not found", etcdName), nil
+		}
+		return nil, "", err
+	}
+
+	return etcd, "", nil
+
+}
+
 // decodeRequestObject decodes the relevant object from the admission request and returns it.
 // If it encounters an unexpected resource type, it returns a nil object.
-func (h *Handler) decodeRequestObject(req admission.Request, requestGK schema.GroupKind) (client.Object, error) {
+func (h *Handler) decodeRequestObject(ctx context.Context, req admission.Request) (client.Object, error) {
 	var (
-		obj client.Object
-		err error
+		requestGK = schema.GroupKind{Group: req.Kind.Group, Kind: req.Kind.Kind}
+		obj       client.Object
+		err       error
 	)
 	switch requestGK {
 	case
@@ -155,12 +164,19 @@ func (h *Handler) decodeRequestObject(req admission.Request, requestGK schema.Gr
 		rbacv1.SchemeGroupVersion.WithKind("Role").GroupKind(),
 		rbacv1.SchemeGroupVersion.WithKind("RoleBinding").GroupKind(),
 		appsv1.SchemeGroupVersion.WithKind("StatefulSet").GroupKind(),
-		autoscalingv1.SchemeGroupVersion.WithKind("Scale").GroupKind(), // for statefulsets' /scale subresource
 		policyv1.SchemeGroupVersion.WithKind("PodDisruptionBudget").GroupKind(),
 		batchv1.SchemeGroupVersion.WithKind("Job").GroupKind(),
 		coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind():
 		obj, err = h.doDecodeRequestObject(req)
+
+	// if admission request is for statefulsets/scale subresource, then fetch and return the parent statefulset object instead.
+	case autoscalingv1.SchemeGroupVersion.WithKind("Scale").GroupKind():
+		requestResourceGK := schema.GroupResource{Group: req.Resource.Group, Resource: req.Resource.Resource}
+		if requestResourceGK == appsv1.SchemeGroupVersion.WithResource("statefulsets").GroupResource() {
+			obj, err = h.fetchStatefulSet(ctx, req.Name, req.Namespace)
+		}
 	}
+
 	return obj, err
 }
 

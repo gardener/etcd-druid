@@ -599,6 +599,15 @@ func (e *Etcd) AreManagedResourcesProtected() bool {
 // IsReconciliationInProgress returns true if the Etcd resource is currently being reconciled, else returns false.
 func (e *Etcd) IsReconciliationInProgress() bool {
 	return e.Status.LastOperation != nil &&
+		e.Status.LastOperation.Type == LastOperationTypeReconcile &&
+		(e.Status.LastOperation.State == LastOperationStateProcessing ||
+			e.Status.LastOperation.State == LastOperationStateError)
+}
+
+// IsDeletionInProgress returns true if the Etcd resource is currently being reconciled, else returns false.
+func (e *Etcd) IsDeletionInProgress() bool {
+	return e.Status.LastOperation != nil &&
+		e.Status.LastOperation.Type == LastOperationTypeDelete &&
 		(e.Status.LastOperation.State == LastOperationStateProcessing ||
 			e.Status.LastOperation.State == LastOperationStateError)
 }

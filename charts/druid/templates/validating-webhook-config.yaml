@@ -90,12 +90,17 @@ webhooks:
         apiVersions:
           - v1
         operations:
+          - UPDATE
           - DELETE
         resources:
           - leases
         scope: '*'
     sideEffects: None
     timeoutSeconds: 10
+
+{{/* This webhook is required for specially handling statefulsets/scale subresource, */}}
+{{/* because an `objectSelector` does not work for subresources. */}}
+{{/* Refer https://github.com/kubernetes/kubernetes/issues/113594#issuecomment-1332573990. */}}
   - admissionReviewVersions:
       - v1beta1
       - v1

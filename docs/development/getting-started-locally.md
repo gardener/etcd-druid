@@ -55,6 +55,11 @@ Either one of these commands may be used to deploy etcd-druid to the configured 
 
 This generates the `Etcd` and `EtcdCopyBackupsTask` CRDs and deploys an etcd-druid pod into the cluster.
 
+> **Note:** Before calling any of the `make deploy*` commands, certain environment variables may be set in order to enable/disable certain functionalities of etcd-druid. These are:
+> - `DRUID_ENABLE_SENTINEL_WEBHOOK=true` : enables the [sentinel webhook](../concepts/webhooks.md#sentinel-webhook)
+> - `DRUID_E2E_TEST=true` : sets specific configuration for etcd-druid for optimal e2e test runs, like a lower sync period for the etcd controller.
+> - `USE_ETCD_DRUID_FEATURE_GATES=false` : enables etcd-druid feature gates.
+
 ### Prepare the Etcd CR
 
 Etcd CR can be configured in 2 ways. Either to take backups to the store or disable them. Follow the appropriate section below based on the requirement.

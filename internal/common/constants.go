@@ -106,7 +106,7 @@ const (
 	// ComponentNameServiceAccount is the component name for service account resource.
 	ComponentNameServiceAccount = "etcd-service-account"
 	// ComponentNameStatefulSet is the component name for statefulset resource.
-	ComponentNameStatefulSet = "etcd-sts"
+	ComponentNameStatefulSet = "etcd-statefulset"
 	// ComponentNameCompactionJob is the component name for compaction job resource.
 	ComponentNameCompactionJob = "etcd-compaction-job"
 	// ComponentNameEtcdCopyBackupsJob is the component name for copy-backup task resource.

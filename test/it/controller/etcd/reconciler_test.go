@@ -200,9 +200,10 @@ func testEtcdSpecUpdateWhenNoReconcileOperationAnnotationIsSet(t *testing.T, tes
 	// get updated version of etcdInstance
 	g.Expect(cl.Get(ctx, etcdInstance.GetNamespaceName(), etcdInstance)).To(Succeed())
 	// update etcdInstance spec without reconcile operation annotation set
+	originalEtcdInstance := etcdInstance.DeepCopy()
 	metricsLevelExtensive := druidv1alpha1.Extensive
 	etcdInstance.Spec.Etcd = druidv1alpha1.EtcdConfig{Metrics: &metricsLevelExtensive}
-	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+	g.Expect(cl.Patch(ctx, etcdInstance, client.MergeFrom(originalEtcdInstance))).To(Succeed())
 
 	// ***************** test etcd spec reconciliation  *****************
 	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 2*time.Second, 2*time.Second)
@@ -227,12 +228,13 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 	// get latest version of etcdInstance
 	g.Expect(cl.Get(ctx, etcdInstance.GetNamespaceName(), etcdInstance)).To(Succeed())
 	// update etcdInstance spec with reconcile operation annotation also set
+	originalEtcdInstance := etcdInstance.DeepCopy()
 	metricsLevelExtensive := druidv1alpha1.Extensive
 	etcdInstance.Spec.Etcd = druidv1alpha1.EtcdConfig{Metrics: &metricsLevelExtensive}
 	etcdInstance.Annotations = map[string]string{
 		v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
 	}
-	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+	g.Expect(cl.Patch(ctx, etcdInstance, client.MergeFrom(originalEtcdInstance))).To(Succeed())
 
 	// ***************** test etcd spec reconciliation  *****************
 	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 30*time.Second, 2*time.Second)

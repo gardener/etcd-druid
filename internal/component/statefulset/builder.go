@@ -602,7 +602,6 @@ func (b *stsBuilder) getEtcdContainerCommandArgs() []string {
 		return []string{}
 	}
 	commandArgs := []string{"start-etcd"}
-	// TODO
 	commandArgs = append(commandArgs, fmt.Sprintf("--backup-restore-host-port=%s-local:%d", b.etcd.Name, common.DefaultPortEtcdBackupRestore))
 	commandArgs = append(commandArgs, fmt.Sprintf("--etcd-server-name=%s-local", b.etcd.Name))
 
