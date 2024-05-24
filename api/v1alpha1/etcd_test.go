@@ -57,6 +57,7 @@ func TestIsReconciliationInProgress(t *testing.T) {
 		{
 			name: "when etcd status has lastOperation set and its state is Processing",
 			lastOp: &LastOperation{
+				Type:  LastOperationTypeReconcile,
 				State: LastOperationStateProcessing,
 			},
 			expected: true,
@@ -64,6 +65,7 @@ func TestIsReconciliationInProgress(t *testing.T) {
 		{
 			name: "when etcd status has lastOperation set and its state is Error",
 			lastOp: &LastOperation{
+				Type:  LastOperationTypeReconcile,
 				State: LastOperationStateError,
 			},
 			expected: true,
@@ -71,7 +73,24 @@ func TestIsReconciliationInProgress(t *testing.T) {
 		{
 			name: "when etcd status has lastOperation set and its state is Succeeded",
 			lastOp: &LastOperation{
+				Type:  LastOperationTypeReconcile,
 				State: LastOperationStateSucceeded,
+			},
+			expected: false,
+		},
+		{
+			name: "when etcd status has lastOperation set and its type is delete",
+			lastOp: &LastOperation{
+				Type:  LastOperationTypeDelete,
+				State: LastOperationStateError,
+			},
+			expected: false,
+		},
+		{
+			name: "when etcd status has lastOperation set and its type is create",
+			lastOp: &LastOperation{
+				Type:  LastOperationTypeCreate,
+				State: LastOperationStateProcessing,
 			},
 			expected: false,
 		},
