@@ -102,7 +102,12 @@ func registerHealthAndReadyEndpoints(mgr ctrl.Manager, config *Config) error {
 	if err := mgr.AddHealthzCheck("ping", func(req *http.Request) error { return nil }); err != nil {
 		return err
 	}
+
 	// Add a readiness check which will pass only when all informers have synced.
+	// Typically one would call `HasSync` but that is not exposed out of controller-runtime `cache.Informers`. Instead,
+	// give it a context with a very short timeout so that it causes the call to ` cache.WaitForCacheSync` to get executed once.
+	// We do not wish to wait longer as the readiness checks should be fast. Once all the cache informers have synced then the
+	// readiness check would succeed.
 	if err := mgr.AddReadyzCheck("informer-sync", func(req *http.Request) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 		defer cancel()
@@ -113,6 +118,7 @@ func registerHealthAndReadyEndpoints(mgr ctrl.Manager, config *Config) error {
 	}); err != nil {
 		return err
 	}
+
 	// Add a readiness check for the webhook server
 	if config.Webhooks.AtLeaseOneEnabled() {
 		slog.Info("Registering webhook-server readiness check endpoint")
