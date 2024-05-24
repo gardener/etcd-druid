@@ -35,13 +35,13 @@ func TestGetExistingResourceNames(t *testing.T) {
 		{
 			name:            "should return empty slice, when no service account exists",
 			saExists:        false,
-			getErr:          apierrors.NewNotFound(corev1.Resource("serviceaccounts"), etcd.GetServiceAccountName()),
+			getErr:          apierrors.NewNotFound(corev1.Resource("serviceaccounts"), druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta)),
 			expectedSANames: []string{},
 		},
 		{
 			name:            "should return existing service account name",
 			saExists:        true,
-			expectedSANames: []string{etcd.GetServiceAccountName()},
+			expectedSANames: []string{druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta)},
 		},
 		{
 			name:     "should return err when client get fails",
@@ -63,10 +63,10 @@ func TestGetExistingResourceNames(t *testing.T) {
 			if tc.saExists {
 				existingObjects = append(existingObjects, newServiceAccount(etcd, false))
 			}
-			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl, true)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			saNames, err := operator.GetExistingResourceNames(opCtx, etcd)
+			saNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
@@ -114,7 +114,7 @@ func TestSync(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
-			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl, tc.disableAutoMount)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
@@ -168,10 +168,10 @@ func TestTriggerDelete(t *testing.T) {
 			if tc.saExists {
 				existingObjects = append(existingObjects, newServiceAccount(etcd, false))
 			}
-			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl, false)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd)
+			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd.ObjectMeta)
 			latestSA, getErr := getLatestServiceAccount(cl, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, triggerDeleteErr)
@@ -187,23 +187,23 @@ func TestTriggerDelete(t *testing.T) {
 
 // ---------------------------- Helper Functions -----------------------------
 func newServiceAccount(etcd *druidv1alpha1.Etcd, disableAutomount bool) *corev1.ServiceAccount {
-	sa := emptyServiceAccount(getObjectKey(etcd))
+	sa := emptyServiceAccount(getObjectKey(etcd.ObjectMeta))
 	buildResource(etcd, sa, !disableAutomount)
 	return sa
 }
 
 func getLatestServiceAccount(cl client.Client, etcd *druidv1alpha1.Etcd) (*corev1.ServiceAccount, error) {
 	sa := &corev1.ServiceAccount{}
-	err := cl.Get(context.Background(), client.ObjectKey{Name: etcd.GetServiceAccountName(), Namespace: etcd.Namespace}, sa)
+	err := cl.Get(context.Background(), client.ObjectKey{Name: druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta), Namespace: etcd.Namespace}, sa)
 	return sa, err
 }
 
 func matchServiceAccount(g *WithT, etcd *druidv1alpha1.Etcd, actualSA corev1.ServiceAccount, disableAutoMount bool) {
 	g.Expect(actualSA).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":            Equal(etcd.GetServiceAccountName()),
+			"Name":            Equal(druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta)),
 			"Namespace":       Equal(etcd.Namespace),
-			"Labels":          testutils.MatchResourceLabels(etcd.GetDefaultLabels()),
+			"Labels":          testutils.MatchResourceLabels(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)),
 			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcd.Name, etcd.UID),
 		}),
 		"AutomountServiceAccountToken": PointTo(Equal(!disableAutoMount)),

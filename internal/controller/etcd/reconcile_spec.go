@@ -10,6 +10,7 @@ import (
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -32,24 +33,33 @@ func (r *Reconciler) triggerReconcileSpecFlow(ctx component.OperatorContext, etc
 }
 
 func (r *Reconciler) removeOperationAnnotation(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcd := &druidv1alpha1.Etcd{}
-	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+	etcdPartialObjMeta := ctrlutils.EmptyEtcdPartialObjectMetadata()
+	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjKey, etcdPartialObjMeta); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
-	if _, ok := etcd.Annotations[v1beta1constants.GardenerOperation]; ok {
+	if metav1.HasAnnotation(etcdPartialObjMeta.ObjectMeta, v1beta1constants.GardenerOperation) {
 		ctx.Logger.Info("Removing operation annotation")
-		withOpAnnotation := etcd.DeepCopy()
-		delete(etcd.Annotations, v1beta1constants.GardenerOperation)
-		if err := r.client.Patch(ctx, etcd, client.MergeFrom(withOpAnnotation)); err != nil {
+		withOpAnnotation := etcdPartialObjMeta.DeepCopy()
+		delete(etcdPartialObjMeta.Annotations, v1beta1constants.GardenerOperation)
+		if err := r.client.Patch(ctx, etcdPartialObjMeta, client.MergeFrom(withOpAnnotation)); err != nil {
 			ctx.Logger.Error(err, "failed to remove operation annotation")
 			return ctrlutils.ReconcileWithError(err)
 		}
 	}
+	//if _, ok := etcd.Annotations[v1beta1constants.GardenerOperation]; ok {
+	//	ctx.Logger.Info("Removing operation annotation")
+	//	withOpAnnotation := etcd.DeepCopy()
+	//	delete(etcd.Annotations, v1beta1constants.GardenerOperation)
+	//	if err := r.client.Patch(ctx, etcd, client.MergeFrom(withOpAnnotation)); err != nil {
+	//		ctx.Logger.Error(err, "failed to remove operation annotation")
+	//		return ctrlutils.ReconcileWithError(err)
+	//	}
+	//}
 	return ctrlutils.ContinueReconcile()
 }
 func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
 	etcd := &druidv1alpha1.Etcd{}
-	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
 	resourceOperators := r.getOrderedOperatorsForSync()
@@ -65,7 +75,7 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey
 
 func (r *Reconciler) updateObservedGeneration(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
 	etcd := &druidv1alpha1.Etcd{}
-	if result := r.getLatestEtcd(ctx, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
 	originalEtcd := etcd.DeepCopy()
@@ -112,7 +122,7 @@ func (r *Reconciler) recordIncompleteReconcileOperation(ctx component.OperatorCo
 // - Reconciliation is not initiated if EnableEtcdSpecAutoReconcile is false and none of the relevant annotations are present.
 func (r *Reconciler) canReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
 	// Check if spec reconciliation has been suspended, if yes, then record the event and return false.
-	if suspendReconcileAnnotKey := etcd.GetSuspendEtcdSpecReconcileAnnotationKey(); suspendReconcileAnnotKey != nil {
+	if suspendReconcileAnnotKey := druidv1alpha1.GetSuspendEtcdSpecReconcileAnnotationKey(etcd.ObjectMeta); suspendReconcileAnnotKey != nil {
 		r.recordEtcdSpecReconcileSuspension(etcd, *suspendReconcileAnnotKey)
 		return false
 	}

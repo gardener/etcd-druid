@@ -31,6 +31,7 @@ const (
 	defaultEventsThreshold           = 1000000
 	defaultActiveDeadlineDuration    = 3 * time.Hour
 	defaultMetricsScrapeWaitDuration = 0
+	defaultMinWorkers                = 1
 )
 
 // Config contains configuration for the Compaction Controller.
@@ -65,11 +66,7 @@ func (cfg *Config) InitFromFlags(fs *flag.FlagSet) {
 
 // Validate validates the config.
 func (cfg *Config) Validate() error {
-	minWorkers := 0
-	if cfg.EnableBackupCompaction {
-		minWorkers = 1
-	}
-	if err := utils.MustBeGreaterThanOrEqualTo(workersFlagName, minWorkers, cfg.Workers); err != nil {
+	if err := utils.MustBeGreaterThanOrEqualTo(workersFlagName, defaultMinWorkers, cfg.Workers); err != nil {
 		return err
 	}
 	if err := utils.MustBeGreaterThan(eventsThresholdFlagName, 0, cfg.EventsThreshold); err != nil {

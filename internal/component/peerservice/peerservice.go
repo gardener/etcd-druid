@@ -41,9 +41,9 @@ func New(client client.Client) component.Operator {
 }
 
 // GetExistingResourceNames returns the name of the existing peer service for the given Etcd.
-func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
-	svcObjectKey := getObjectKey(etcd)
+	svcObjectKey := getObjectKey(etcdObjMeta)
 	objMeta := &metav1.PartialObjectMetadata{}
 	objMeta.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Service"))
 	if err := r.client.Get(ctx, svcObjectKey, objMeta); err != nil {
@@ -53,9 +53,9 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetPeerService,
 			"GetExistingResourceNames",
-			fmt.Sprintf("Error getting peer service: %s for etcd: %v", svcObjectKey.Name, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting peer service: %s for etcd: %v", svcObjectKey.Name, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
-	if metav1.IsControlledBy(objMeta, etcd) {
+	if metav1.IsControlledBy(objMeta, &etcdObjMeta) {
 		resourceNames = append(resourceNames, objMeta.Name)
 	}
 	return resourceNames, nil
@@ -63,7 +63,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 
 // Sync creates or updates the peer service for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	objectKey := getObjectKey(etcd)
+	objectKey := getObjectKey(etcd.ObjectMeta)
 	svc := emptyPeerService(objectKey)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, svc, func() error {
 		buildResource(etcd, svc)
@@ -73,7 +73,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 		return druiderr.WrapError(err,
 			ErrSyncPeerService,
 			"Sync",
-			fmt.Sprintf("Error during create or update of peer service: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+			fmt.Sprintf("Error during create or update of peer service: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)),
 		)
 	}
 	ctx.Logger.Info("synced", "component", "peer-service", "objectKey", objectKey, "result", result)
@@ -81,8 +81,8 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 }
 
 // TriggerDelete triggers the deletion of the peer service for the given Etcd.
-func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	objectKey := getObjectKey(etcd)
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) error {
+	objectKey := getObjectKey(etcdObjMeta)
 	ctx.Logger.Info("Triggering deletion of peer service")
 	if err := r.client.Delete(ctx, emptyPeerService(objectKey)); err != nil {
 		if errors.IsNotFound(err) {
@@ -93,7 +93,7 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 			err,
 			ErrDeletePeerService,
 			"TriggerDelete",
-			fmt.Sprintf("Failed to delete peer service: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+			fmt.Sprintf("Failed to delete peer service: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)),
 		)
 	}
 	ctx.Logger.Info("deleted", "component", "peer-service", "objectKey", objectKey)
@@ -102,11 +102,11 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 
 func buildResource(etcd *druidv1alpha1.Etcd, svc *corev1.Service) {
 	svc.Labels = getLabels(etcd)
-	svc.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+	svc.OwnerReferences = []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)}
 	svc.Spec.Type = corev1.ServiceTypeClusterIP
 	svc.Spec.ClusterIP = corev1.ClusterIPNone
 	svc.Spec.SessionAffinity = corev1.ServiceAffinityNone
-	svc.Spec.Selector = etcd.GetDefaultLabels()
+	svc.Spec.Selector = druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)
 	svc.Spec.PublishNotReadyAddresses = true
 	svc.Spec.Ports = getPorts(etcd)
 }
@@ -114,13 +114,13 @@ func buildResource(etcd *druidv1alpha1.Etcd, svc *corev1.Service) {
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	svcLabels := map[string]string{
 		druidv1alpha1.LabelComponentKey: common.ComponentNamePeerService,
-		druidv1alpha1.LabelAppNameKey:   etcd.GetPeerServiceName(),
+		druidv1alpha1.LabelAppNameKey:   druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta),
 	}
-	return utils.MergeMaps(etcd.GetDefaultLabels(), svcLabels)
+	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), svcLabels)
 }
 
-func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {
-	return client.ObjectKey{Name: etcd.GetPeerServiceName(), Namespace: etcd.Namespace}
+func getObjectKey(obj metav1.ObjectMeta) client.ObjectKey {
+	return client.ObjectKey{Name: druidv1alpha1.GetPeerServiceName(obj), Namespace: obj.Namespace}
 }
 
 func emptyPeerService(objectKey client.ObjectKey) *corev1.Service {

@@ -42,36 +42,36 @@ func New(client client.Client) component.Operator {
 }
 
 // GetExistingResourceNames returns the names of the existing snapshot leases for the given Etcd.
-func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) ([]string, error) {
 	resourceNames := make([]string, 0, 2)
 	// We have to get snapshot leases one lease at a time and cannot use label-selector based listing
 	// because currently snapshot lease do not have proper labels on them. In this new code
 	// we will add the labels.
 	// TODO: Once all snapshot leases have a purpose label on them, then we can use List instead of individual Get calls.
-	deltaSnapshotObjectKey := client.ObjectKey{Name: etcd.GetDeltaSnapshotLeaseName(), Namespace: etcd.Namespace}
+	deltaSnapshotObjectKey := client.ObjectKey{Name: druidv1alpha1.GetDeltaSnapshotLeaseName(etcdObjMeta), Namespace: etcdObjMeta.Namespace}
 	deltaSnapshotLease, err := r.getLeasePartialObjectMetadata(ctx, deltaSnapshotObjectKey)
 	if err != nil {
 		return resourceNames, &druiderr.DruidError{
 			Code:      ErrGetSnapshotLease,
 			Cause:     err,
 			Operation: "GetExistingResourceNames",
-			Message:   fmt.Sprintf("Error getting delta snapshot lease: %v for etcd: %v", deltaSnapshotObjectKey, etcd.GetNamespaceName()),
+			Message:   fmt.Sprintf("Error getting delta snapshot lease: %v for etcd: %v", deltaSnapshotObjectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)),
 		}
 	}
-	if deltaSnapshotLease != nil && metav1.IsControlledBy(deltaSnapshotLease, etcd) {
+	if deltaSnapshotLease != nil && metav1.IsControlledBy(deltaSnapshotLease, &etcdObjMeta) {
 		resourceNames = append(resourceNames, deltaSnapshotLease.Name)
 	}
-	fullSnapshotObjectKey := client.ObjectKey{Name: etcd.GetFullSnapshotLeaseName(), Namespace: etcd.Namespace}
+	fullSnapshotObjectKey := client.ObjectKey{Name: druidv1alpha1.GetFullSnapshotLeaseName(etcdObjMeta), Namespace: etcdObjMeta.Namespace}
 	fullSnapshotLease, err := r.getLeasePartialObjectMetadata(ctx, fullSnapshotObjectKey)
 	if err != nil {
 		return resourceNames, &druiderr.DruidError{
 			Code:      ErrGetSnapshotLease,
 			Cause:     err,
 			Operation: "GetExistingResourceNames",
-			Message:   fmt.Sprintf("Error getting full snapshot lease: %v for etcd: %v", fullSnapshotObjectKey, etcd.GetNamespaceName()),
+			Message:   fmt.Sprintf("Error getting full snapshot lease: %v for etcd: %v", fullSnapshotObjectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)),
 		}
 	}
-	if fullSnapshotLease != nil && metav1.IsControlledBy(fullSnapshotLease, etcd) {
+	if fullSnapshotLease != nil && metav1.IsControlledBy(fullSnapshotLease, &etcdObjMeta) {
 		resourceNames = append(resourceNames, fullSnapshotLease.Name)
 	}
 	return resourceNames, nil
@@ -82,11 +82,11 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	if !etcd.IsBackupStoreEnabled() {
 		ctx.Logger.Info("Backup has been disabled. Triggering deletion of snapshot leases")
-		return r.deleteAllSnapshotLeases(ctx, etcd, func(err error) error {
+		return r.deleteAllSnapshotLeases(ctx, etcd.ObjectMeta, func(err error) error {
 			return druiderr.WrapError(err,
 				ErrSyncSnapshotLease,
 				"Sync",
-				fmt.Sprintf("Failed to delete existing snapshot leases due to backup being disabled for etcd: %v", etcd.GetNamespaceName()))
+				fmt.Sprintf("Failed to delete existing snapshot leases due to backup being disabled for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 		})
 	}
 
@@ -106,13 +106,13 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 }
 
 // TriggerDelete triggers the deletion of the snapshot leases for the given Etcd.
-func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) error {
 	ctx.Logger.Info("Triggering deletion of snapshot leases")
-	if err := r.deleteAllSnapshotLeases(ctx, etcd, func(err error) error {
+	if err := r.deleteAllSnapshotLeases(ctx, etcdObjMeta, func(err error) error {
 		return druiderr.WrapError(err,
 			ErrDeleteSnapshotLease,
 			"TriggerDelete",
-			fmt.Sprintf("Failed to delete snapshot leases for etcd: %v", etcd.GetNamespaceName()))
+			fmt.Sprintf("Failed to delete snapshot leases for etcd: %v", druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}); err != nil {
 		return err
 	}
@@ -120,11 +120,11 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 	return nil
 }
 
-func (r _resource) deleteAllSnapshotLeases(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, wrapErrFn func(error) error) error {
+func (r _resource) deleteAllSnapshotLeases(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta, wrapErrFn func(error) error) error {
 	if err := r.client.DeleteAllOf(ctx,
 		&coordinationv1.Lease{},
-		client.InNamespace(etcd.Namespace),
-		client.MatchingLabels(getSelectorLabelsForAllSnapshotLeases(etcd))); err != nil {
+		client.InNamespace(etcdObjMeta.Namespace),
+		client.MatchingLabels(getSelectorLabelsForAllSnapshotLeases(etcdObjMeta))); err != nil {
 		return wrapErrFn(err)
 	}
 	return nil
@@ -152,7 +152,7 @@ func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1
 		return druiderr.WrapError(err,
 			ErrSyncSnapshotLease,
 			"Sync",
-			fmt.Sprintf("Error syncing snapshot lease: %v for etcd: %v", leaseObjectKey, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error syncing snapshot lease: %v for etcd: %v", leaseObjectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	ctx.Logger.Info("triggered create or update of snapshot lease", "objectKey", leaseObjectKey, "operationResult", opResult)
 
@@ -161,14 +161,14 @@ func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1
 
 func buildResource(etcd *druidv1alpha1.Etcd, lease *coordinationv1.Lease) {
 	lease.Labels = getLabels(etcd, lease.Name)
-	lease.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+	lease.OwnerReferences = []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)}
 }
 
-func getSelectorLabelsForAllSnapshotLeases(etcd *druidv1alpha1.Etcd) map[string]string {
+func getSelectorLabelsForAllSnapshotLeases(etcdObjMeta metav1.ObjectMeta) map[string]string {
 	leaseMatchingLabels := map[string]string{
 		druidv1alpha1.LabelComponentKey: common.ComponentNameSnapshotLease,
 	}
-	return utils.MergeMaps(etcd.GetDefaultLabels(), leaseMatchingLabels)
+	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcdObjMeta), leaseMatchingLabels)
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd, leaseName string) map[string]string {
@@ -176,17 +176,17 @@ func getLabels(etcd *druidv1alpha1.Etcd, leaseName string) map[string]string {
 		druidv1alpha1.LabelComponentKey: common.ComponentNameSnapshotLease,
 		druidv1alpha1.LabelAppNameKey:   leaseName,
 	}
-	return utils.MergeMaps(leaseLabels, etcd.GetDefaultLabels())
+	return utils.MergeMaps(leaseLabels, druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta))
 }
 
 func getObjectKeys(etcd *druidv1alpha1.Etcd) []client.ObjectKey {
 	return []client.ObjectKey{
 		{
-			Name:      etcd.GetDeltaSnapshotLeaseName(),
+			Name:      druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta),
 			Namespace: etcd.Namespace,
 		},
 		{
-			Name:      etcd.GetFullSnapshotLeaseName(),
+			Name:      druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta),
 			Namespace: etcd.Namespace,
 		},
 	}

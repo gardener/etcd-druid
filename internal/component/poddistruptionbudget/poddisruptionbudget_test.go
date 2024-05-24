@@ -42,7 +42,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 		{
 			name:             "should return empty slice when PDB is not found",
 			pdbExists:        false,
-			getErr:           apierrors.NewNotFound(corev1.Resource("services"), etcd.GetClientServiceName()),
+			getErr:           apierrors.NewNotFound(corev1.Resource("poddisruptionbudgets"), druidv1alpha1.GetPodDisruptionBudgetName(etcd.ObjectMeta)),
 			expectedPDBNames: []string{},
 		},
 		{
@@ -66,10 +66,10 @@ func TestGetExistingResourceNames(t *testing.T) {
 			if tc.pdbExists {
 				existingObjects = append(existingObjects, newPodDisruptionBudget(etcd))
 			}
-			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			pdbNames, err := operator.GetExistingResourceNames(opCtx, etcd)
+			pdbNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
@@ -116,7 +116,7 @@ func TestSyncWhenNoPDBExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			etcd := etcdBuilder.WithReplicas(tc.etcdReplicas).Build()
-			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
@@ -169,7 +169,7 @@ func TestSyncWhenPDBExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			existingEtcd := etcdBuilder.WithReplicas(tc.originalEtcdReplicas).Build()
-			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newPodDisruptionBudget(existingEtcd)}, getObjectKey(existingEtcd))
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newPodDisruptionBudget(existingEtcd)}, getObjectKey(existingEtcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			updatedEtcd := etcdBuilder.WithReplicas(tc.updatedEtcdReplicas).Build()
@@ -223,10 +223,10 @@ func TestTriggerDelete(t *testing.T) {
 			if tc.pdbExists {
 				existingObjects = append(existingObjects, newPodDisruptionBudget(etcd))
 			}
-			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			syncErr := operator.TriggerDelete(opCtx, etcd)
+			syncErr := operator.TriggerDelete(opCtx, etcd.ObjectMeta)
 			_, getErr := getLatestPodDisruptionBudget(cl, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, syncErr)
@@ -242,7 +242,7 @@ func TestTriggerDelete(t *testing.T) {
 // ---------------------------- Helper Functions -----------------------------
 
 func newPodDisruptionBudget(etcd *druidv1alpha1.Etcd) *policyv1.PodDisruptionBudget {
-	pdb := emptyPodDisruptionBudget(getObjectKey(etcd))
+	pdb := emptyPodDisruptionBudget(getObjectKey(etcd.ObjectMeta))
 	buildResource(etcd, pdb)
 	return pdb
 }
@@ -256,13 +256,13 @@ func getLatestPodDisruptionBudget(cl client.Client, etcd *druidv1alpha1.Etcd) (*
 func matchPodDisruptionBudget(g *WithT, etcd *druidv1alpha1.Etcd, actualPDB policyv1.PodDisruptionBudget, expectedPDBMinAvailable int32) {
 	g.Expect(actualPDB).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":            Equal(etcd.Name),
+			"Name":            Equal(druidv1alpha1.GetPodDisruptionBudgetName(etcd.ObjectMeta)),
 			"Namespace":       Equal(etcd.Namespace),
-			"Labels":          testutils.MatchResourceLabels(etcd.GetDefaultLabels()),
+			"Labels":          testutils.MatchResourceLabels(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)),
 			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcd.Name, etcd.UID),
 		}),
 		"Spec": MatchFields(IgnoreExtras, Fields{
-			"Selector": testutils.MatchSpecLabelSelector(etcd.GetDefaultLabels()),
+			"Selector": testutils.MatchSpecLabelSelector(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)),
 			"MinAvailable": PointTo(MatchFields(IgnoreExtras, Fields{
 				"Type":   Equal(intstr.Int),
 				"IntVal": Equal(expectedPDBMinAvailable),

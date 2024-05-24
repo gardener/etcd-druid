@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	. "github.com/onsi/gomega"
@@ -167,7 +168,7 @@ func TestGetStatefulSet(t *testing.T) {
 				sts := testutils.CreateStatefulSet(etcd.Name, etcd.Namespace, etcdUID, etcd.Spec.Replicas)
 				existingObjects = append(existingObjects, sts)
 			}
-			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(nil, tc.listErr, etcd.Namespace, etcd.GetDefaultLabels(), existingObjects...)
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(nil, tc.listErr, etcd.Namespace, druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), existingObjects...)
 			foundSts, err := GetStatefulSet(context.Background(), cl, etcd)
 			if tc.expectedErr != nil {
 				g.Expect(err).To(HaveOccurred())

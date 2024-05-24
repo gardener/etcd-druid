@@ -40,12 +40,12 @@ func TestGetExistingResourceNames(t *testing.T) {
 			name:                 "should return the existing service name",
 			svcExists:            true,
 			getErr:               nil,
-			expectedServiceNames: []string{etcd.GetClientServiceName()},
+			expectedServiceNames: []string{druidv1alpha1.GetClientServiceName(etcd.ObjectMeta)},
 		},
 		{
 			name:                 "should return empty slice when service is not found",
 			svcExists:            false,
-			getErr:               apierrors.NewNotFound(corev1.Resource("services"), etcd.GetClientServiceName()),
+			getErr:               apierrors.NewNotFound(corev1.Resource("services"), druidv1alpha1.GetClientServiceName(etcd.ObjectMeta)),
 			expectedServiceNames: []string{},
 		},
 		{
@@ -65,10 +65,10 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, []client.Object{newClientService(etcd)}, client.ObjectKey{Name: etcd.GetClientServiceName(), Namespace: etcd.Namespace})
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, []client.Object{newClientService(etcd)}, client.ObjectKey{Name: druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), Namespace: etcd.Namespace})
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			svcNames, err := operator.GetExistingResourceNames(opCtx, etcd)
+			svcNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
@@ -113,7 +113,7 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			etcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort)
-			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, client.ObjectKey{Name: etcd.GetClientServiceName(), Namespace: etcd.Namespace})
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, client.ObjectKey{Name: druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), Namespace: etcd.Namespace})
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			err := operator.Sync(opCtx, etcd)
@@ -165,7 +165,7 @@ func TestSyncWhenServiceExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// ********************* Setup *********************
-			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newClientService(existingEtcd)}, client.ObjectKey{Name: existingEtcd.GetClientServiceName(), Namespace: existingEtcd.Namespace})
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newClientService(existingEtcd)}, client.ObjectKey{Name: druidv1alpha1.GetClientServiceName(existingEtcd.ObjectMeta), Namespace: existingEtcd.Namespace})
 			// ********************* test sync with updated ports *********************
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -223,11 +223,11 @@ func TestTriggerDelete(t *testing.T) {
 			if tc.svcExists {
 				existingObjects = append(existingObjects, newClientService(etcd))
 			}
-			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, client.ObjectKey{Name: etcd.GetClientServiceName(), Namespace: etcd.Namespace})
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, client.ObjectKey{Name: druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), Namespace: etcd.Namespace})
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			// ********************* Test trigger delete *********************
-			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd)
+			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd.ObjectMeta)
 			latestClientService, getErr := getLatestClientService(cl, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, triggerDeleteErr)
@@ -260,17 +260,17 @@ func matchClientService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Ser
 	clientPort := utils.TypeDeref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
 	backupPort := utils.TypeDeref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore)
 	peerPort := utils.TypeDeref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
-
-	expectedLabels := etcd.GetDefaultLabels()
+	etcdObjMeta := etcd.ObjectMeta
+	expectedLabels := druidv1alpha1.GetDefaultLabels(etcdObjMeta)
 	var expectedAnnotations map[string]string
 	if etcd.Spec.Etcd.ClientService != nil {
 		expectedAnnotations = etcd.Spec.Etcd.ClientService.Annotations
-		expectedLabels = utils.MergeMaps(etcd.Spec.Etcd.ClientService.Labels, etcd.GetDefaultLabels())
+		expectedLabels = utils.MergeMaps(etcd.Spec.Etcd.ClientService.Labels, druidv1alpha1.GetDefaultLabels(etcdObjMeta))
 	}
 
 	g.Expect(actualSvc).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":            Equal(etcd.GetClientServiceName()),
+			"Name":            Equal(druidv1alpha1.GetClientServiceName(etcd.ObjectMeta)),
 			"Namespace":       Equal(etcd.Namespace),
 			"Annotations":     testutils.MatchResourceAnnotations(expectedAnnotations),
 			"Labels":          testutils.MatchResourceLabels(expectedLabels),
@@ -279,7 +279,7 @@ func matchClientService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Ser
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Type":            Equal(corev1.ServiceTypeClusterIP),
 			"SessionAffinity": Equal(corev1.ServiceAffinityNone),
-			"Selector":        Equal(etcd.GetDefaultLabels()),
+			"Selector":        Equal(druidv1alpha1.GetDefaultLabels(etcdObjMeta)),
 			"Ports": ConsistOf(
 				Equal(corev1.ServicePort{
 					Name:       "client",
@@ -305,13 +305,13 @@ func matchClientService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Ser
 }
 
 func newClientService(etcd *druidv1alpha1.Etcd) *corev1.Service {
-	svc := emptyClientService(getObjectKey(etcd))
+	svc := emptyClientService(getObjectKey(etcd.ObjectMeta))
 	buildResource(etcd, svc)
 	return svc
 }
 
 func getLatestClientService(cl client.Client, etcd *druidv1alpha1.Etcd) (*corev1.Service, error) {
 	svc := &corev1.Service{}
-	err := cl.Get(context.Background(), client.ObjectKey{Name: etcd.GetClientServiceName(), Namespace: etcd.Namespace}, svc)
+	err := cl.Get(context.Background(), client.ObjectKey{Name: druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), Namespace: etcd.Namespace}, svc)
 	return svc, err
 }

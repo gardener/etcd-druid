@@ -5,6 +5,8 @@
 package controller
 
 import (
+	"context"
+	"errors"
 	"net"
 	"net/http"
 	"strconv"
@@ -96,9 +98,22 @@ func createManager(config *Config) (ctrl.Manager, error) {
 
 func registerHealthAndReadyEndpoints(mgr ctrl.Manager, config *Config) error {
 	slog.Info("Registering ping health check endpoint")
+	// Add a health check which always returns true when it is checked
 	if err := mgr.AddHealthzCheck("ping", func(req *http.Request) error { return nil }); err != nil {
 		return err
 	}
+	// Add a readiness check which will pass only when all informers have synced.
+	if err := mgr.AddReadyzCheck("informer-sync", func(req *http.Request) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+		defer cancel()
+		if !mgr.GetCache().WaitForCacheSync(ctx) {
+			return errors.New("informers not synced yet")
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	// Add a readiness check for the webhook server
 	if config.Webhooks.AtLeaseOneEnabled() {
 		slog.Info("Registering webhook-server readiness check endpoint")
 		if err := mgr.AddReadyzCheck("webhook-server", mgr.GetWebhookServer().StartedChecker()); err != nil {

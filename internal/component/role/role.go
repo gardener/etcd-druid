@@ -41,9 +41,9 @@ func New(client client.Client) component.Operator {
 }
 
 // GetExistingResourceNames returns the name of the existing role for the given Etcd.
-func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
-	objectKey := getObjectKey(etcd)
+	objectKey := getObjectKey(etcdObjMeta)
 	objMeta := &metav1.PartialObjectMetadata{}
 	objMeta.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("Role"))
 	if err := r.client.Get(ctx, objectKey, objMeta); err != nil {
@@ -53,9 +53,9 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetRole,
 			"GetExistingResourceNames",
-			fmt.Sprintf("Error getting role: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting role: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
-	if metav1.IsControlledBy(objMeta, etcd) {
+	if metav1.IsControlledBy(objMeta, &etcdObjMeta) {
 		resourceNames = append(resourceNames, objMeta.Name)
 	}
 	return resourceNames, nil
@@ -63,7 +63,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 
 // Sync creates or updates the role for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	objectKey := getObjectKey(etcd)
+	objectKey := getObjectKey(etcd.ObjectMeta)
 	role := emptyRole(objectKey)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, role, func() error {
 		buildResource(etcd, role)
@@ -73,7 +73,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 		return druiderr.WrapError(err,
 			ErrSyncRole,
 			"Sync",
-			fmt.Sprintf("Error during create or update of role %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+			fmt.Sprintf("Error during create or update of role %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)),
 		)
 	}
 	ctx.Logger.Info("synced", "component", "role", "objectKey", objectKey, "result", result)
@@ -81,8 +81,8 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 }
 
 // TriggerDelete triggers the deletion of the role for the given Etcd.
-func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	objectKey := getObjectKey(etcd)
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) error {
+	objectKey := getObjectKey(etcdObjMeta)
 	ctx.Logger.Info("Triggering deletion of role", "objectKey", objectKey)
 	if err := r.client.Delete(ctx, emptyRole(objectKey)); err != nil {
 		if errors.IsNotFound(err) {
@@ -92,15 +92,15 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 		return druiderr.WrapError(err,
 			ErrDeleteRole,
 			"TriggerDelete",
-			fmt.Sprintf("Failed to delete role: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+			fmt.Sprintf("Failed to delete role: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)),
 		)
 	}
 	ctx.Logger.Info("deleted", "component", "role", "objectKey", objectKey)
 	return nil
 }
 
-func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {
-	return client.ObjectKey{Name: etcd.GetRoleName(), Namespace: etcd.Namespace}
+func getObjectKey(obj metav1.ObjectMeta) client.ObjectKey {
+	return client.ObjectKey{Name: druidv1alpha1.GetRoleName(obj), Namespace: obj.Namespace}
 }
 
 func emptyRole(objectKey client.ObjectKey) *rbacv1.Role {
@@ -114,7 +114,7 @@ func emptyRole(objectKey client.ObjectKey) *rbacv1.Role {
 
 func buildResource(etcd *druidv1alpha1.Etcd, role *rbacv1.Role) {
 	role.Labels = getLabels(etcd)
-	role.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+	role.OwnerReferences = []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)}
 	role.Rules = []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{"coordination.k8s.io"},
@@ -137,7 +137,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, role *rbacv1.Role) {
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	roleLabels := map[string]string{
 		druidv1alpha1.LabelComponentKey: common.ComponentNameRole,
-		druidv1alpha1.LabelAppNameKey:   strings.ReplaceAll(etcd.GetRoleName(), ":", "-"), // role name contains `:` which is not an allowed character as a label value.
+		druidv1alpha1.LabelAppNameKey:   strings.ReplaceAll(druidv1alpha1.GetRoleName(etcd.ObjectMeta), ":", "-"), // role name contains `:` which is not an allowed character as a label value.
 	}
-	return utils.MergeMaps(etcd.GetDefaultLabels(), roleLabels)
+	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), roleLabels)
 }

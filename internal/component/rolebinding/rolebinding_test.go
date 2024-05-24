@@ -36,12 +36,12 @@ func TestGetExistingResourceNames(t *testing.T) {
 		{
 			name:                     "should return the existing role binding name",
 			roleBindingExists:        true,
-			expectedRoleBindingNames: []string{etcd.GetRoleBindingName()},
+			expectedRoleBindingNames: []string{druidv1alpha1.GetRoleBindingName(etcd.ObjectMeta)},
 		},
 		{
 			name:                     "should return empty slice when role binding is not found",
 			roleBindingExists:        false,
-			getErr:                   apierrors.NewNotFound(corev1.Resource("roles"), etcd.GetRoleBindingName()),
+			getErr:                   apierrors.NewNotFound(corev1.Resource("roles"), druidv1alpha1.GetRoleBindingName(etcd.ObjectMeta)),
 			expectedRoleBindingNames: []string{},
 		},
 		{
@@ -65,10 +65,10 @@ func TestGetExistingResourceNames(t *testing.T) {
 			if tc.roleBindingExists {
 				existingObjects = append(existingObjects, newRoleBinding(etcd))
 			}
-			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			roleBindingNames, err := operator.GetExistingResourceNames(opCtx, etcd)
+			roleBindingNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
@@ -106,7 +106,7 @@ func TestSync(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
@@ -162,16 +162,16 @@ func TestTriggerDelete(t *testing.T) {
 			if tc.roleBindingExists {
 				existingObjects = append(existingObjects, newRoleBinding(etcd))
 			}
-			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			err := operator.TriggerDelete(opCtx, etcd)
+			err := operator.TriggerDelete(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 				existingRoleBinding := rbacv1.RoleBinding{}
-				err = cl.Get(context.Background(), client.ObjectKey{Name: etcd.GetRoleBindingName(), Namespace: etcd.Namespace}, &existingRoleBinding)
+				err = cl.Get(context.Background(), client.ObjectKey{Name: druidv1alpha1.GetRoleBindingName(etcd.ObjectMeta), Namespace: etcd.Namespace}, &existingRoleBinding)
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
 			}
@@ -182,34 +182,34 @@ func TestTriggerDelete(t *testing.T) {
 // ---------------------------- Helper Functions -----------------------------
 
 func newRoleBinding(etcd *druidv1alpha1.Etcd) *rbacv1.RoleBinding {
-	rb := emptyRoleBinding(getObjectKey(etcd))
+	rb := emptyRoleBinding(getObjectKey(etcd.ObjectMeta))
 	buildResource(etcd, rb)
 	return rb
 }
 
 func getLatestRoleBinding(cl client.Client, etcd *druidv1alpha1.Etcd) (*rbacv1.RoleBinding, error) {
 	rb := &rbacv1.RoleBinding{}
-	err := cl.Get(context.Background(), client.ObjectKey{Name: etcd.GetRoleBindingName(), Namespace: etcd.Namespace}, rb)
+	err := cl.Get(context.Background(), client.ObjectKey{Name: druidv1alpha1.GetRoleBindingName(etcd.ObjectMeta), Namespace: etcd.Namespace}, rb)
 	return rb, err
 }
 
 func matchRoleBinding(g *WithT, etcd *druidv1alpha1.Etcd, actualRoleBinding rbacv1.RoleBinding) {
 	g.Expect(actualRoleBinding).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":            Equal(etcd.GetRoleBindingName()),
+			"Name":            Equal(druidv1alpha1.GetRoleBindingName(etcd.ObjectMeta)),
 			"Namespace":       Equal(etcd.Namespace),
-			"Labels":          testutils.MatchResourceLabels(etcd.GetDefaultLabels()),
+			"Labels":          testutils.MatchResourceLabels(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)),
 			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcd.Name, etcd.UID),
 		}),
 		"RoleRef": Equal(rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "Role",
-			Name:     etcd.GetRoleName(),
+			Name:     druidv1alpha1.GetRoleName(etcd.ObjectMeta),
 		}),
 		"Subjects": ConsistOf(
 			rbacv1.Subject{
 				Kind:      "ServiceAccount",
-				Name:      etcd.GetServiceAccountName(),
+				Name:      druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta),
 				Namespace: etcd.Namespace,
 			},
 		),

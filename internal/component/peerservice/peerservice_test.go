@@ -39,7 +39,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 		{
 			name:                 "should return the existing service name",
 			svcExists:            true,
-			expectedServiceNames: []string{etcd.GetPeerServiceName()},
+			expectedServiceNames: []string{druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta)},
 		},
 		{
 			name:                 "should return empty slice when service is not found",
@@ -68,10 +68,10 @@ func TestGetExistingResourceNames(t *testing.T) {
 			if tc.svcExists {
 				existingObjects = append(existingObjects, newPeerService(etcd))
 			}
-			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			svcNames, err := operator.GetExistingResourceNames(opCtx, etcd)
+			svcNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
@@ -116,7 +116,7 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 				etcdBuilder.WithEtcdServerPort(tc.createWithPort)
 			}
 			etcd := etcdBuilder.Build()
-			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
@@ -162,7 +162,7 @@ func TestSyncWhenServiceExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			existingEtcd := etcdBuilder.Build()
-			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newPeerService(existingEtcd)}, getObjectKey(existingEtcd))
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newPeerService(existingEtcd)}, getObjectKey(existingEtcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			updatedEtcd := etcdBuilder.WithEtcdServerPort(tc.updateWithPort).Build()
@@ -214,10 +214,10 @@ func TestPeerServiceTriggerDelete(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, []client.Object{newPeerService(etcd)}, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, []client.Object{newPeerService(etcd)}, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			syncErr := operator.TriggerDelete(opCtx, etcd)
+			syncErr := operator.TriggerDelete(opCtx, etcd.ObjectMeta)
 			_, getErr := getLatestPeerService(cl, etcd)
 			if tc.expectError != nil {
 				testutils.CheckDruidError(g, tc.expectError, syncErr)
@@ -233,25 +233,26 @@ func TestPeerServiceTriggerDelete(t *testing.T) {
 // ---------------------------- Helper Functions -----------------------------
 
 func newPeerService(etcd *druidv1alpha1.Etcd) *corev1.Service {
-	svc := emptyPeerService(getObjectKey(etcd))
+	svc := emptyPeerService(getObjectKey(etcd.ObjectMeta))
 	buildResource(etcd, svc)
 	return svc
 }
 
 func matchPeerService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Service) {
 	peerPort := utils.TypeDeref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
+	etcdObjMeta := etcd.ObjectMeta
 	g.Expect(actualSvc).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":            Equal(etcd.GetPeerServiceName()),
+			"Name":            Equal(druidv1alpha1.GetPeerServiceName(etcdObjMeta)),
 			"Namespace":       Equal(etcd.Namespace),
-			"Labels":          testutils.MatchResourceLabels(etcd.GetDefaultLabels()),
+			"Labels":          testutils.MatchResourceLabels(druidv1alpha1.GetDefaultLabels(etcdObjMeta)),
 			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcd.Name, etcd.UID),
 		}),
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Type":            Equal(corev1.ServiceTypeClusterIP),
 			"ClusterIP":       Equal(corev1.ClusterIPNone),
 			"SessionAffinity": Equal(corev1.ServiceAffinityNone),
-			"Selector":        Equal(etcd.GetDefaultLabels()),
+			"Selector":        Equal(druidv1alpha1.GetDefaultLabels(etcdObjMeta)),
 			"Ports": ConsistOf(
 				Equal(corev1.ServicePort{
 					Name:       "peer",
@@ -266,6 +267,6 @@ func matchPeerService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Servi
 
 func getLatestPeerService(cl client.Client, etcd *druidv1alpha1.Etcd) (*corev1.Service, error) {
 	svc := &corev1.Service{}
-	err := cl.Get(context.Background(), client.ObjectKey{Name: etcd.GetPeerServiceName(), Namespace: etcd.Namespace}, svc)
+	err := cl.Get(context.Background(), client.ObjectKey{Name: druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), Namespace: etcd.Namespace}, svc)
 	return svc, err
 }

@@ -43,7 +43,7 @@ func IsStatefulSetReady(etcdReplicas int32, statefulSet *appsv1.StatefulSet) (bo
 // GetStatefulSet fetches StatefulSet created for the etcd.
 func GetStatefulSet(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSet, error) {
 	statefulSets := &appsv1.StatefulSetList{}
-	if err := cl.List(ctx, statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: labels.Set(etcd.GetDefaultLabels()).AsSelector()}); err != nil {
+	if err := cl.List(ctx, statefulSets, client.InNamespace(etcd.Namespace), client.MatchingLabelsSelector{Selector: labels.Set(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)).AsSelector()}); err != nil {
 		return nil, err
 	}
 

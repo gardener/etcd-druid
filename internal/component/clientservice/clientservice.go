@@ -41,9 +41,9 @@ func New(client client.Client) component.Operator {
 }
 
 // GetExistingResourceNames returns the name of the existing client service for the given Etcd.
-func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
-	svcObjectKey := getObjectKey(etcd)
+	svcObjectKey := getObjectKey(etcdObjMeta)
 	objMeta := &metav1.PartialObjectMetadata{}
 	objMeta.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Service"))
 	if err := r.client.Get(ctx, svcObjectKey, objMeta); err != nil {
@@ -53,9 +53,9 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetClientService,
 			"GetExistingResourceNames",
-			fmt.Sprintf("Error getting client service: %v for etcd: %v", svcObjectKey, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting client service: %v for etcd: %v", svcObjectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
-	if metav1.IsControlledBy(objMeta, etcd) {
+	if metav1.IsControlledBy(objMeta, &etcdObjMeta) {
 		resourceNames = append(resourceNames, objMeta.Name)
 	}
 	return resourceNames, nil
@@ -63,7 +63,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 
 // Sync creates or updates the client service for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	objectKey := getObjectKey(etcd)
+	objectKey := getObjectKey(etcd.ObjectMeta)
 	svc := emptyClientService(objectKey)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, svc, func() error {
 		buildResource(etcd, svc)
@@ -73,7 +73,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 		return druiderr.WrapError(err,
 			ErrSyncClientService,
 			"Sync",
-			fmt.Sprintf("Error during create or update of client service: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+			fmt.Sprintf("Error during create or update of client service: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)),
 		)
 	}
 	ctx.Logger.Info("synced", "component", "client-service", "objectKey", objectKey, "result", result)
@@ -81,8 +81,8 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 }
 
 // TriggerDelete triggers the deletion of the client service for the given Etcd.
-func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	objectKey := getObjectKey(etcd)
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) error {
+	objectKey := getObjectKey(etcdObjMeta)
 	ctx.Logger.Info("Triggering deletion of client service", "objectKey", objectKey)
 	if err := r.client.Delete(ctx, emptyClientService(objectKey)); err != nil {
 		if errors.IsNotFound(err) {
@@ -103,23 +103,23 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 func buildResource(etcd *druidv1alpha1.Etcd, svc *corev1.Service) {
 	svc.Labels = getLabels(etcd)
 	svc.Annotations = getAnnotations(etcd)
-	svc.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+	svc.OwnerReferences = []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)}
 	svc.Spec.Type = corev1.ServiceTypeClusterIP
 	svc.Spec.SessionAffinity = corev1.ServiceAffinityNone
-	svc.Spec.Selector = etcd.GetDefaultLabels()
+	svc.Spec.Selector = druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)
 	svc.Spec.Ports = getPorts(etcd)
 }
 
-func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {
+func getObjectKey(obj metav1.ObjectMeta) client.ObjectKey {
 	return client.ObjectKey{
-		Name:      etcd.GetClientServiceName(),
-		Namespace: etcd.Namespace,
+		Name:      druidv1alpha1.GetClientServiceName(obj),
+		Namespace: obj.Namespace,
 	}
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	clientSvcLabels := map[string]string{
-		druidv1alpha1.LabelAppNameKey:   etcd.GetClientServiceName(),
+		druidv1alpha1.LabelAppNameKey:   druidv1alpha1.GetClientServiceName(etcd.ObjectMeta),
 		druidv1alpha1.LabelComponentKey: common.ComponentNameClientService,
 	}
 	// Add any client service labels as defined in the etcd resource
@@ -127,7 +127,7 @@ func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	if etcd.Spec.Etcd.ClientService != nil && etcd.Spec.Etcd.ClientService.Labels != nil {
 		specClientSvcLabels = etcd.Spec.Etcd.ClientService.Labels
 	}
-	return utils.MergeMaps(etcd.GetDefaultLabels(), clientSvcLabels, specClientSvcLabels)
+	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), clientSvcLabels, specClientSvcLabels)
 }
 
 func getAnnotations(etcd *druidv1alpha1.Etcd) map[string]string {

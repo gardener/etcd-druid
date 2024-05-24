@@ -35,12 +35,12 @@ func TestGetExistingResourceNames(t *testing.T) {
 		{
 			name:              "should return the existing role name",
 			roleExists:        true,
-			expectedRoleNames: []string{etcd.GetRoleName()},
+			expectedRoleNames: []string{druidv1alpha1.GetRoleName(etcd.ObjectMeta)},
 		},
 		{
 			name:              "should return empty slice when role is not found",
 			roleExists:        false,
-			getErr:            apierrors.NewNotFound(corev1.Resource("roles"), etcd.GetRoleName()),
+			getErr:            apierrors.NewNotFound(corev1.Resource("roles"), druidv1alpha1.GetRoleName(etcd.ObjectMeta)),
 			expectedRoleNames: []string{},
 		},
 		{
@@ -64,10 +64,10 @@ func TestGetExistingResourceNames(t *testing.T) {
 			if tc.roleExists {
 				existingObjects = append(existingObjects, newRole(etcd))
 			}
-			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			roleNames, err := operator.GetExistingResourceNames(opCtx, etcd)
+			roleNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
@@ -105,7 +105,7 @@ func TestSync(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, etcd)
@@ -161,10 +161,10 @@ func TestTriggerDelete(t *testing.T) {
 			if tc.roleExists {
 				existingObjects = append(existingObjects, newRole(etcd))
 			}
-			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, existingObjects, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			deleteErr := operator.TriggerDelete(opCtx, etcd)
+			deleteErr := operator.TriggerDelete(opCtx, etcd.ObjectMeta)
 			latestRole, getErr := getLatestRole(cl, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, deleteErr)
@@ -181,23 +181,23 @@ func TestTriggerDelete(t *testing.T) {
 // ---------------------------- Helper Functions -----------------------------
 
 func newRole(etcd *druidv1alpha1.Etcd) *rbacv1.Role {
-	role := emptyRole(getObjectKey(etcd))
+	role := emptyRole(getObjectKey(etcd.ObjectMeta))
 	buildResource(etcd, role)
 	return role
 }
 
 func getLatestRole(cl client.Client, etcd *druidv1alpha1.Etcd) (*rbacv1.Role, error) {
 	role := &rbacv1.Role{}
-	err := cl.Get(context.Background(), client.ObjectKey{Name: etcd.GetRoleName(), Namespace: etcd.Namespace}, role)
+	err := cl.Get(context.Background(), client.ObjectKey{Name: druidv1alpha1.GetRoleName(etcd.ObjectMeta), Namespace: etcd.Namespace}, role)
 	return role, err
 }
 
 func matchRole(g *WithT, etcd *druidv1alpha1.Etcd, actualRole rbacv1.Role) {
 	g.Expect(actualRole).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":            Equal(etcd.GetRoleName()),
+			"Name":            Equal(druidv1alpha1.GetRoleName(etcd.ObjectMeta)),
 			"Namespace":       Equal(etcd.Namespace),
-			"Labels":          testutils.MatchResourceLabels(etcd.GetDefaultLabels()),
+			"Labels":          testutils.MatchResourceLabels(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)),
 			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcd.Name, etcd.UID),
 		}),
 		"Rules": ConsistOf(

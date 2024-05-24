@@ -20,7 +20,7 @@ type mutateEtcdStatusFn func(ctx component.OperatorContext, etcd *druidv1alpha1.
 
 func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
 	etcd := &druidv1alpha1.Etcd{}
-	if result := r.getLatestEtcd(ctx, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
 	sLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileStatus").WithValues("runID", ctx.RunID)

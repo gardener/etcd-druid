@@ -12,13 +12,32 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// EmptyEtcdPartialObjectMetadata creates an empty PartialObjectMetadata for an Etcd object.
+func EmptyEtcdPartialObjectMetadata() *metav1.PartialObjectMetadata {
+	etcdObjMetadata := &metav1.PartialObjectMetadata{}
+	etcdObjMetadata.SetGroupVersionKind(druidv1alpha1.SchemeGroupVersion.WithKind("Etcd"))
+	return etcdObjMetadata
+}
+
 // GetLatestEtcd returns the latest version of the Etcd object.
 func GetLatestEtcd(ctx context.Context, client client.Client, objectKey client.ObjectKey, etcd *druidv1alpha1.Etcd) ReconcileStepResult {
 	if err := client.Get(ctx, objectKey, etcd); err != nil {
+		if apierrors.IsNotFound(err) {
+			return DoNotRequeue()
+		}
+		return ReconcileWithError(err)
+	}
+	return ContinueReconcile()
+}
+
+// GetLatestEtcdPartialObjectMeta returns the latest version of the Etcd object metadata.
+func GetLatestEtcdPartialObjectMeta(ctx context.Context, client client.Client, objectKey client.ObjectKey, etcdObjMetadata *metav1.PartialObjectMetadata) ReconcileStepResult {
+	if err := client.Get(ctx, objectKey, etcdObjMetadata); err != nil {
 		if apierrors.IsNotFound(err) {
 			return DoNotRequeue()
 		}

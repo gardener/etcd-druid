@@ -80,7 +80,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKeys(etcd)...)
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			actualSnapshotLeaseNames, err := operator.GetExistingResourceNames(opCtx, etcd)
+			actualSnapshotLeaseNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
@@ -128,7 +128,7 @@ func TestSyncWhenBackupIsEnabled(t *testing.T) {
 				g.Expect(latestSnapshotLeases).To(BeEmpty())
 			} else {
 				g.Expect(listErr).ToNot(HaveOccurred())
-				g.Expect(latestSnapshotLeases).To(ConsistOf(matchLease(etcd.GetDeltaSnapshotLeaseName(), etcd), matchLease(etcd.GetFullSnapshotLeaseName(), etcd)))
+				g.Expect(latestSnapshotLeases).To(ConsistOf(matchLease(druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta), etcd), matchLease(druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta), etcd)))
 			}
 		})
 	}
@@ -167,7 +167,7 @@ func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
 				newDeltaSnapshotLease(nonTargetEtcd),
 				newFullSnapshotLease(nonTargetEtcd),
 			}
-			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(tc.deleteAllOfErr, nil, existingEtcd.Namespace, getSelectorLabelsForAllSnapshotLeases(existingEtcd), existingObjects...)
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(tc.deleteAllOfErr, nil, existingEtcd.Namespace, getSelectorLabelsForAllSnapshotLeases(existingEtcd.ObjectMeta), existingObjects...)
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			syncErr := operator.Sync(opCtx, updatedEtcd)
@@ -229,10 +229,10 @@ func TestTriggerDelete(t *testing.T) {
 			if tc.backupEnabled {
 				existingObjects = append(existingObjects, newDeltaSnapshotLease(etcd), newFullSnapshotLease(etcd))
 			}
-			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(tc.deleteAllErr, nil, etcd.Namespace, getSelectorLabelsForAllSnapshotLeases(etcd), existingObjects...)
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(tc.deleteAllErr, nil, etcd.Namespace, getSelectorLabelsForAllSnapshotLeases(etcd.ObjectMeta), existingObjects...)
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd)
+			triggerDeleteErr := operator.TriggerDelete(opCtx, etcd.ObjectMeta)
 			latestSnapshotLeases, snapshotLeaseListErr := getLatestSnapshotLeases(cl, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, triggerDeleteErr)
@@ -252,12 +252,12 @@ func TestTriggerDelete(t *testing.T) {
 
 // ---------------------------- Helper Functions -----------------------------
 func newDeltaSnapshotLease(etcd *druidv1alpha1.Etcd) *coordinationv1.Lease {
-	leaseName := etcd.GetDeltaSnapshotLeaseName()
+	leaseName := druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta)
 	return buildLease(etcd, leaseName)
 }
 
 func newFullSnapshotLease(etcd *druidv1alpha1.Etcd) *coordinationv1.Lease {
-	leaseName := etcd.GetFullSnapshotLeaseName()
+	leaseName := druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta)
 	return buildLease(etcd, leaseName)
 }
 
@@ -266,17 +266,17 @@ func buildLease(etcd *druidv1alpha1.Etcd, leaseName string) *coordinationv1.Leas
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      leaseName,
 			Namespace: etcd.Namespace,
-			Labels: utils.MergeMaps(etcd.GetDefaultLabels(), map[string]string{
+			Labels: utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), map[string]string{
 				druidv1alpha1.LabelComponentKey: common.ComponentNameSnapshotLease,
 				druidv1alpha1.LabelAppNameKey:   leaseName,
 			}),
-			OwnerReferences: []metav1.OwnerReference{etcd.GetAsOwnerReference()},
+			OwnerReferences: []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)},
 		},
 	}
 }
 
 func matchLease(leaseName string, etcd *druidv1alpha1.Etcd) gomegatypes.GomegaMatcher {
-	expectedLabels := utils.MergeMaps(etcd.GetDefaultLabels(), map[string]string{
+	expectedLabels := utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), map[string]string{
 		druidv1alpha1.LabelComponentKey: common.ComponentNameSnapshotLease,
 		druidv1alpha1.LabelAppNameKey:   leaseName,
 	})
@@ -295,7 +295,7 @@ func getLatestSnapshotLeases(cl client.Client, etcd *druidv1alpha1.Etcd) ([]coor
 		etcd,
 		utils.MergeMaps(map[string]string{
 			druidv1alpha1.LabelComponentKey: common.ComponentNameSnapshotLease,
-		}, etcd.GetDefaultLabels()))
+		}, druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)))
 }
 
 func doGetLatestLeases(cl client.Client, etcd *druidv1alpha1.Etcd, matchingLabels map[string]string) ([]coordinationv1.Lease, error) {

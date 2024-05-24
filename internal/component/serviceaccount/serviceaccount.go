@@ -43,9 +43,9 @@ func New(client client.Client, disableAutomount bool) component.Operator {
 }
 
 // GetExistingResourceNames returns the name of the existing service account for the given Etcd.
-func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
-	objectKey := getObjectKey(etcd)
+	objectKey := getObjectKey(etcdObjMeta)
 	objMeta := &metav1.PartialObjectMetadata{}
 	objMeta.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ServiceAccount"))
 	if err := r.client.Get(ctx, objectKey, objMeta); err != nil {
@@ -55,9 +55,9 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetServiceAccount,
 			"GetExistingResourceNames",
-			fmt.Sprintf("Error getting service account: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting service account: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
-	if metav1.IsControlledBy(objMeta, etcd) {
+	if metav1.IsControlledBy(objMeta, &etcdObjMeta) {
 		resourceNames = append(resourceNames, objMeta.Name)
 	}
 	return resourceNames, nil
@@ -65,7 +65,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 
 // Sync creates or updates the service account for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	objectKey := getObjectKey(etcd)
+	objectKey := getObjectKey(etcd.ObjectMeta)
 	sa := emptyServiceAccount(objectKey)
 	opResult, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, sa, func() error {
 		buildResource(etcd, sa, !r.disableAutoMount)
@@ -75,7 +75,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 		return druiderr.WrapError(err,
 			ErrSyncServiceAccount,
 			"Sync",
-			fmt.Sprintf("Error during create or update of service account: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+			fmt.Sprintf("Error during create or update of service account: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)),
 		)
 	}
 	ctx.Logger.Info("synced", "component", "service-account", "objectKey", objectKey, "result", opResult)
@@ -83,9 +83,9 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 }
 
 // TriggerDelete triggers the deletion of the service account for the given Etcd.
-func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) error {
 	ctx.Logger.Info("Triggering deletion of service account")
-	objectKey := getObjectKey(etcd)
+	objectKey := getObjectKey(etcdObjMeta)
 	if err := r.client.Delete(ctx, emptyServiceAccount(objectKey)); err != nil {
 		if errors.IsNotFound(err) {
 			ctx.Logger.Info("No ServiceAccount found, Deletion is a No-Op", "objectKey", objectKey)
@@ -94,7 +94,7 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 		return druiderr.WrapError(err,
 			ErrDeleteServiceAccount,
 			"TriggerDelete",
-			fmt.Sprintf("Failed to delete service account: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
+			fmt.Sprintf("Failed to delete service account: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	ctx.Logger.Info("deleted", "component", "service-account", "objectKey", objectKey)
 	return nil
@@ -102,20 +102,20 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 
 func buildResource(etcd *druidv1alpha1.Etcd, sa *corev1.ServiceAccount, autoMountServiceAccountToken bool) {
 	sa.Labels = getLabels(etcd)
-	sa.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+	sa.OwnerReferences = []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)}
 	sa.AutomountServiceAccountToken = pointer.Bool(autoMountServiceAccountToken)
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	roleLabels := map[string]string{
 		druidv1alpha1.LabelComponentKey: common.ComponentNameServiceAccount,
-		druidv1alpha1.LabelAppNameKey:   etcd.GetServiceAccountName(),
+		druidv1alpha1.LabelAppNameKey:   druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta),
 	}
-	return utils.MergeMaps(etcd.GetDefaultLabels(), roleLabels)
+	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), roleLabels)
 }
 
-func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {
-	return client.ObjectKey{Name: etcd.GetServiceAccountName(), Namespace: etcd.Namespace}
+func getObjectKey(obj metav1.ObjectMeta) client.ObjectKey {
+	return client.ObjectKey{Name: druidv1alpha1.GetServiceAccountName(obj), Namespace: obj.Namespace}
 }
 
 func emptyServiceAccount(objectKey client.ObjectKey) *corev1.ServiceAccount {

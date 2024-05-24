@@ -87,15 +87,15 @@ func TestGetExistingResourceNames(t *testing.T) {
 					existingObjects = append(existingObjects, lease)
 				}
 			}
-			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(nil, tc.listErr, etcd.Namespace, getSelectorLabelsForAllMemberLeases(etcd), existingObjects...)
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(nil, tc.listErr, etcd.Namespace, getSelectorLabelsForAllMemberLeases(etcd.ObjectMeta), existingObjects...)
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			memberLeaseNames, err := operator.GetExistingResourceNames(opCtx, etcd)
+			memberLeaseNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).To(BeNil())
-				expectedLeaseNames := etcd.GetMemberLeaseNames()[:tc.numExistingLeases]
+				expectedLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, int(etcd.Spec.Replicas))[:tc.numExistingLeases]
 				g.Expect(memberLeaseNames).To(Equal(expectedLeaseNames))
 			}
 		})
@@ -249,11 +249,11 @@ func TestTriggerDelete(t *testing.T) {
 			for _, nonTargetLeaseName := range nonTargetLeaseNames {
 				existingObjects = append(existingObjects, testutils.CreateLease(nonTargetLeaseName, nonTargetEtcd.Namespace, nonTargetEtcd.Name, nonTargetEtcd.UID, common.ComponentNameMemberLease))
 			}
-			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(tc.deleteAllOfErr, nil, etcd.Namespace, getSelectorLabelsForAllMemberLeases(etcd), existingObjects...)
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(tc.deleteAllOfErr, nil, etcd.Namespace, getSelectorLabelsForAllMemberLeases(etcd.ObjectMeta), existingObjects...)
 			// ***************** Setup component operator and test *****************
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			err := operator.TriggerDelete(opCtx, etcd)
+			err := operator.TriggerDelete(opCtx, etcd.ObjectMeta)
 			memberLeasesPostDelete := getLatestMemberLeases(g, cl, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
@@ -275,7 +275,7 @@ func getLatestMemberLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd)
 		etcd,
 		utils.MergeMaps(map[string]string{
 			druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
-		}, etcd.GetDefaultLabels()))
+		}, druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)))
 }
 
 func doGetLatestLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd, matchingLabels map[string]string) []coordinationv1.Lease {
@@ -309,7 +309,7 @@ func newMemberLeases(etcd *druidv1alpha1.Etcd, numLeases int) ([]*coordinationv1
 	if numLeases > int(etcd.Spec.Replicas) {
 		return nil, errors.New("number of requested leases is greater than the etcd replicas")
 	}
-	memberLeaseNames := etcd.GetMemberLeaseNames()
+	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, int(etcd.Spec.Replicas))
 	leases := make([]*coordinationv1.Lease, 0, numLeases)
 	for i := 0; i < numLeases; i++ {
 		lease := &coordinationv1.Lease{
@@ -317,7 +317,7 @@ func newMemberLeases(etcd *druidv1alpha1.Etcd, numLeases int) ([]*coordinationv1
 				Name:            memberLeaseNames[i],
 				Namespace:       etcd.Namespace,
 				Labels:          getLabels(etcd, memberLeaseNames[i]),
-				OwnerReferences: []metav1.OwnerReference{etcd.GetAsOwnerReference()},
+				OwnerReferences: []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)},
 			},
 		}
 		leases = append(leases, lease)

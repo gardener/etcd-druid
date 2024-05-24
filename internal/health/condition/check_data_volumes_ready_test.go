@@ -53,7 +53,7 @@ var _ = Describe("DataVolumesReadyCheck", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            "test",
 					Namespace:       "default",
-					OwnerReferences: []metav1.OwnerReference{etcd.GetAsOwnerReference()},
+					OwnerReferences: []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)},
 				},
 				Spec: appsv1.StatefulSetSpec{
 					Replicas: pointer.Int32(1),

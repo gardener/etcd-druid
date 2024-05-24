@@ -23,11 +23,10 @@ import (
 	"github.com/gardener/etcd-druid/internal/images"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
-	"github.com/google/uuid"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
@@ -90,11 +89,7 @@ type reconcileFn func(ctx component.OperatorContext, objectKey client.ObjectKey)
 //  3. Status Reconciliation: Always update the status of the Etcd component to reflect its current state.
 //  4. Scheduled Requeue: Requeue the reconciliation request after a defined period (EtcdStatusSyncPeriod) to maintain sync.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	etcd := &druidv1alpha1.Etcd{}
-	if result := r.getLatestEtcd(ctx, req.NamespacedName, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result.ReconcileResult()
-	}
-	runID := uuid.New().String()
+	runID := string(controller.ReconcileIDFromContext(ctx))
 	operatorCtx := component.NewOperatorContext(ctx, r.logger, runID)
 	if result := r.reconcileEtcdDeletion(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result.ReconcileResult()
@@ -134,11 +129,11 @@ func createAndInitializeOperatorRegistry(client client.Client, config *Config, i
 }
 
 func (r *Reconciler) reconcileEtcdDeletion(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcd := &druidv1alpha1.Etcd{}
-	if result := r.getLatestEtcd(ctx, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+	etcdPartialObjMetadata := ctrlutils.EmptyEtcdPartialObjectMetadata()
+	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjectKey, etcdPartialObjMetadata); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
-	if etcd.IsMarkedForDeletion() {
+	if druidv1alpha1.IsEtcdMarkedForDeletion(etcdPartialObjMetadata.ObjectMeta) {
 		dLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "delete").WithValues("runId", ctx.RunID)
 		ctx.SetLogger(dLog)
 		return r.triggerDeletionFlow(ctx, dLog, etcdObjectKey)
@@ -148,23 +143,13 @@ func (r *Reconciler) reconcileEtcdDeletion(ctx component.OperatorContext, etcdOb
 
 func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
 	etcd := &druidv1alpha1.Etcd{}
-	if result := r.getLatestEtcd(ctx, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
 	if r.canReconcileSpec(etcd) {
 		rLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileSpec").WithValues("runID", ctx.RunID)
 		ctx.SetLogger(rLog)
 		return r.triggerReconcileSpecFlow(ctx, etcdObjectKey)
-	}
-	return ctrlutils.ContinueReconcile()
-}
-
-func (r *Reconciler) getLatestEtcd(ctx context.Context, objectKey client.ObjectKey, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
-	if err := r.client.Get(ctx, objectKey, etcd); err != nil {
-		if apierrors.IsNotFound(err) {
-			return ctrlutils.DoNotRequeue()
-		}
-		return ctrlutils.ReconcileWithError(err)
 	}
 	return ctrlutils.ContinueReconcile()
 }

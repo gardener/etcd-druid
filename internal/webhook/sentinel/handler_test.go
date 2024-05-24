@@ -149,7 +149,7 @@ func TestHandleLeaseUpdate(t *testing.T) {
 
 			username := testUserName
 			if tc.useEtcdServiceAccount {
-				username = fmt.Sprintf("system:serviceaccount:%s:%s", testNamespace, etcd.GetServiceAccountName())
+				username = fmt.Sprintf("system:serviceaccount:%s:%s", testNamespace, druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta))
 			}
 
 			response := handler.Handle(context.Background(), admission.Request{

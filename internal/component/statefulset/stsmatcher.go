@@ -94,13 +94,13 @@ func (s StatefulSetMatcher) matchSTSObjectMeta() gomegatypes.GomegaMatcher {
 func (s StatefulSetMatcher) matchSpec() gomegatypes.GomegaMatcher {
 	return MatchFields(IgnoreExtras, Fields{
 		"Replicas":            PointTo(Equal(s.replicas)),
-		"Selector":            testutils.MatchSpecLabelSelector(s.etcd.GetDefaultLabels()),
+		"Selector":            testutils.MatchSpecLabelSelector(druidv1alpha1.GetDefaultLabels(s.etcd.ObjectMeta)),
 		"PodManagementPolicy": Equal(appsv1.ParallelPodManagement),
 		"UpdateStrategy": MatchFields(IgnoreExtras, Fields{
 			"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 		}),
 		"VolumeClaimTemplates": s.matchVolumeClaimTemplates(),
-		"ServiceName":          Equal(s.etcd.GetPeerServiceName()),
+		"ServiceName":          Equal(druidv1alpha1.GetPeerServiceName(s.etcd.ObjectMeta)),
 		"Template":             s.matchPodTemplateSpec(),
 	})
 }
@@ -143,7 +143,7 @@ func (s StatefulSetMatcher) matchPodSpec() gomegatypes.GomegaMatcher {
 	// NOTE: currently this matcher does not check affinity and TSC since these are seldom used. If these are used in future then this matcher should be enhanced.
 	return MatchFields(IgnoreExtras, Fields{
 		"HostAliases":           s.matchPodHostAliases(),
-		"ServiceAccountName":    Equal(s.etcd.GetServiceAccountName()),
+		"ServiceAccountName":    Equal(druidv1alpha1.GetServiceAccountName(s.etcd.ObjectMeta)),
 		"ShareProcessNamespace": PointTo(Equal(true)),
 		"InitContainers":        s.matchPodInitContainers(),
 		"Containers":            s.matchContainers(),
@@ -415,7 +415,7 @@ func (s StatefulSetMatcher) matchPodVolumes() gomegatypes.GomegaMatcher {
 		"VolumeSource": MatchFields(IgnoreExtras|IgnoreMissing, Fields{
 			"ConfigMap": PointTo(MatchFields(IgnoreExtras, Fields{
 				"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-					"Name": Equal(s.etcd.GetConfigMapName()),
+					"Name": Equal(druidv1alpha1.GetConfigMapName(s.etcd.ObjectMeta)),
 				}),
 				"Items": HaveExactElements(MatchFields(IgnoreExtras|IgnoreMissing, Fields{
 					"Key":  Equal(etcdConfigFileName),

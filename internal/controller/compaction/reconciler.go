@@ -102,12 +102,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	// Update metrics for currently running compaction job, if any
 	job := &batchv1.Job{}
-	if err := r.Get(ctx, types.NamespacedName{Name: etcd.GetCompactionJobName(), Namespace: etcd.Namespace}, job); err != nil {
+	compactionJobName := druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta)
+	if err := r.Get(ctx, types.NamespacedName{Name: compactionJobName, Namespace: etcd.Namespace}, job); err != nil {
 		if !errors.IsNotFound(err) {
 			// Error reading the object - requeue the request.
 			return ctrl.Result{
 				RequeueAfter: 10 * time.Second,
-			}, fmt.Errorf("error while fetching compaction job with the name %v, in the namespace %v: %v", etcd.GetCompactionJobName(), etcd.Namespace, err)
+			}, fmt.Errorf("error while fetching compaction job with the name %v, in the namespace %v: %v", compactionJobName, etcd.Namespace, err)
 		}
 		logger.Info("No compaction job currently running", "namespace", etcd.Namespace)
 	}
@@ -134,7 +135,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 				metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue, druidmetrics.EtcdNamespace: etcd.Namespace}).Observe(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds())
 			}
 			if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
-				logger.Error(err, "Couldn't delete the successful job", "namespace", etcd.Namespace, "name", etcd.GetCompactionJobName())
+				logger.Error(err, "Couldn't delete the successful job", "namespace", etcd.Namespace, "name", compactionJobName)
 				return ctrl.Result{
 					RequeueAfter: 10 * time.Second,
 				}, fmt.Errorf("error while deleting successful compaction job: %v", err)
@@ -162,17 +163,18 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 	// Get full and delta snapshot lease to check the HolderIdentity value to take decision on compaction job
 	fullLease := &coordinationv1.Lease{}
-
-	if err := r.Get(ctx, kutil.Key(etcd.Namespace, etcd.GetFullSnapshotLeaseName()), fullLease); err != nil {
-		logger.Error(err, "Couldn't fetch full snap lease", "namespace", etcd.Namespace, "name", etcd.GetFullSnapshotLeaseName())
+	fullSnapshotLeaseName := druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta)
+	if err := r.Get(ctx, kutil.Key(etcd.Namespace, fullSnapshotLeaseName), fullLease); err != nil {
+		logger.Error(err, "Couldn't fetch full snap lease", "namespace", etcd.Namespace, "name", fullSnapshotLeaseName)
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,
 		}, err
 	}
 
 	deltaLease := &coordinationv1.Lease{}
-	if err := r.Get(ctx, kutil.Key(etcd.Namespace, etcd.GetDeltaSnapshotLeaseName()), deltaLease); err != nil {
-		logger.Error(err, "Couldn't fetch delta snap lease", "namespace", etcd.Namespace, "name", etcd.GetDeltaSnapshotLeaseName())
+	deltaSnapshotLeaseName := druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta)
+	if err := r.Get(ctx, kutil.Key(etcd.Namespace, deltaSnapshotLeaseName), deltaLease); err != nil {
+		logger.Error(err, "Couldn't fetch delta snap lease", "namespace", etcd.Namespace, "name", deltaSnapshotLeaseName)
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,
 		}, err
@@ -207,7 +209,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 	// Reconcile job only when number of accumulated revisions over the last full snapshot is more than the configured threshold value via 'events-threshold' flag
 	if diff >= r.config.EventsThreshold {
-		logger.Info("Creating etcd compaction job", "namespace", etcd.Namespace, "name", etcd.GetCompactionJobName())
+		logger.Info("Creating etcd compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
 		job, err = r.createCompactionJob(ctx, logger, etcd)
 		if err != nil {
 			metricJobsTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse, druidmetrics.EtcdNamespace: etcd.Namespace}).Inc()
@@ -228,7 +230,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	job := &batchv1.Job{}
-	err := r.Get(ctx, types.NamespacedName{Name: etcd.GetCompactionJobName(), Namespace: etcd.Namespace}, job)
+	err := r.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta), Namespace: etcd.Namespace}, job)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, fmt.Errorf("error while fetching compaction job: %v", err)
@@ -261,7 +263,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      etcd.GetCompactionJobName(),
+			Name:      druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta),
 			Namespace: etcd.Namespace,
 			Labels:    getLabels(etcd),
 			OwnerReferences: []metav1.OwnerReference{
@@ -287,7 +289,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 				},
 				Spec: v1.PodSpec{
 					ActiveDeadlineSeconds: pointer.Int64(int64(activeDeadlineSeconds)),
-					ServiceAccountName:    etcd.GetServiceAccountName(),
+					ServiceAccountName:    druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta),
 					RestartPolicy:         v1.RestartPolicyNever,
 					Containers: []v1.Container{{
 						Name:            "compact-backup",
@@ -343,13 +345,13 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	jobLabels := map[string]string{
-		druidv1alpha1.LabelAppNameKey:                   etcd.GetCompactionJobName(),
+		druidv1alpha1.LabelAppNameKey:                   druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta),
 		druidv1alpha1.LabelComponentKey:                 common.ComponentNameCompactionJob,
 		"networking.gardener.cloud/to-dns":              "allowed",
 		"networking.gardener.cloud/to-private-networks": "allowed",
 		"networking.gardener.cloud/to-public-networks":  "allowed",
 	}
-	return utils.MergeMaps(etcd.GetDefaultLabels(), jobLabels)
+	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), jobLabels)
 }
 
 func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featuregate.Feature]bool) ([]v1.VolumeMount, error) {
@@ -449,8 +451,8 @@ func getCompactionJobArgs(etcd *druidv1alpha1.Etcd, metricsScrapeWaitDuration st
 	command = append(command, "--snapstore-temp-directory=/var/etcd/data/tmp")
 	command = append(command, "--metrics-scrape-wait-duration="+metricsScrapeWaitDuration)
 	command = append(command, "--enable-snapshot-lease-renewal=true")
-	command = append(command, "--full-snapshot-lease-name="+etcd.GetFullSnapshotLeaseName())
-	command = append(command, "--delta-snapshot-lease-name="+etcd.GetDeltaSnapshotLeaseName())
+	command = append(command, "--full-snapshot-lease-name="+druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta))
+	command = append(command, "--delta-snapshot-lease-name="+druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta))
 
 	var quota int64 = DefaultETCDQuota
 	if etcd.Spec.Etcd.Quota != nil {

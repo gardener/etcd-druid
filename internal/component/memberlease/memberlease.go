@@ -40,23 +40,23 @@ func New(client client.Client) component.Operator {
 }
 
 // GetExistingResourceNames returns the names of the existing member leases for the given Etcd.
-func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
 
 	objMetaList := &metav1.PartialObjectMetadataList{}
 	objMetaList.SetGroupVersionKind(coordinationv1.SchemeGroupVersion.WithKind("Lease"))
 	if err := r.client.List(ctx,
 		objMetaList,
-		client.InNamespace(etcd.Namespace),
-		client.MatchingLabels(getSelectorLabelsForAllMemberLeases(etcd)),
+		client.InNamespace(etcdObjMeta.Namespace),
+		client.MatchingLabels(getSelectorLabelsForAllMemberLeases(etcdObjMeta)),
 	); err != nil {
 		return resourceNames, druiderr.WrapError(err,
 			ErrListMemberLease,
 			"GetExistingResourceNames",
-			fmt.Sprintf("Error listing member leases for etcd: %v", etcd.GetNamespaceName()))
+			fmt.Sprintf("Error listing member leases for etcd: %v", druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	for _, lease := range objMetaList.Items {
-		if metav1.IsControlledBy(&lease, etcd) {
+		if metav1.IsControlledBy(&lease, &etcdObjMeta) {
 			resourceNames = append(resourceNames, lease.Name)
 		}
 	}
@@ -96,23 +96,23 @@ func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1
 		return druiderr.WrapError(err,
 			ErrSyncMemberLease,
 			"Sync",
-			fmt.Sprintf("Error syncing member lease: %v for etcd: %v", objKey, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error syncing member lease: %v for etcd: %v", objKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	ctx.Logger.Info("triggered create or update of member lease", "objectKey", objKey, "operationResult", opResult)
 	return nil
 }
 
 // TriggerDelete deletes the member leases for the given Etcd.
-func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) error {
 	ctx.Logger.Info("Triggering deletion of member leases")
 	if err := r.client.DeleteAllOf(ctx,
 		&coordinationv1.Lease{},
-		client.InNamespace(etcd.Namespace),
-		client.MatchingLabels(getSelectorLabelsForAllMemberLeases(etcd))); err != nil {
+		client.InNamespace(etcdObjMeta.Namespace),
+		client.MatchingLabels(getSelectorLabelsForAllMemberLeases(etcdObjMeta))); err != nil {
 		return druiderr.WrapError(err,
 			ErrDeleteMemberLease,
 			"TriggerDelete",
-			fmt.Sprintf("Failed to delete member leases for etcd: %v", etcd.GetNamespaceName()))
+			fmt.Sprintf("Failed to delete member leases for etcd: %v", druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	ctx.Logger.Info("deleted", "component", "member-leases")
 	return nil
@@ -120,11 +120,11 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 
 func buildResource(etcd *druidv1alpha1.Etcd, lease *coordinationv1.Lease) {
 	lease.Labels = getLabels(etcd, lease.Name)
-	lease.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+	lease.OwnerReferences = []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)}
 }
 
 func getObjectKeys(etcd *druidv1alpha1.Etcd) []client.ObjectKey {
-	leaseNames := etcd.GetMemberLeaseNames()
+	leaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, int(etcd.Spec.Replicas))
 	objectKeys := make([]client.ObjectKey, 0, len(leaseNames))
 	for _, leaseName := range leaseNames {
 		objectKeys = append(objectKeys, client.ObjectKey{Name: leaseName, Namespace: etcd.Namespace})
@@ -132,11 +132,11 @@ func getObjectKeys(etcd *druidv1alpha1.Etcd) []client.ObjectKey {
 	return objectKeys
 }
 
-func getSelectorLabelsForAllMemberLeases(etcd *druidv1alpha1.Etcd) map[string]string {
+func getSelectorLabelsForAllMemberLeases(etcdObjMeta metav1.ObjectMeta) map[string]string {
 	leaseMatchingLabels := map[string]string{
 		druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
 	}
-	return utils.MergeMaps(etcd.GetDefaultLabels(), leaseMatchingLabels)
+	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcdObjMeta), leaseMatchingLabels)
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd, leaseName string) map[string]string {
@@ -144,7 +144,7 @@ func getLabels(etcd *druidv1alpha1.Etcd, leaseName string) map[string]string {
 		druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
 		druidv1alpha1.LabelAppNameKey:   leaseName,
 	}
-	return utils.MergeMaps(leaseLabels, etcd.GetDefaultLabels())
+	return utils.MergeMaps(leaseLabels, druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta))
 }
 
 func emptyMemberLease(objectKey client.ObjectKey) *coordinationv1.Lease {

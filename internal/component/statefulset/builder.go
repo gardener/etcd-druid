@@ -113,7 +113,7 @@ func (b *stsBuilder) createStatefulSetObjectMeta() {
 		Name:            b.etcd.Name,
 		Namespace:       b.etcd.Namespace,
 		Labels:          b.getStatefulSetLabels(),
-		OwnerReferences: []metav1.OwnerReference{b.etcd.GetAsOwnerReference()},
+		OwnerReferences: []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(b.etcd.ObjectMeta)},
 	}
 }
 
@@ -122,7 +122,7 @@ func (b *stsBuilder) getStatefulSetLabels() map[string]string {
 		druidv1alpha1.LabelComponentKey: common.ComponentNameStatefulSet,
 		druidv1alpha1.LabelAppNameKey:   b.etcd.Name,
 	}
-	return utils.MergeMaps(b.etcd.GetDefaultLabels(), stsLabels)
+	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(b.etcd.ObjectMeta), stsLabels)
 }
 
 func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error {
@@ -139,12 +139,12 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 	b.sts.Spec = appsv1.StatefulSetSpec{
 		Replicas: pointer.Int32(b.replicas),
 		Selector: &metav1.LabelSelector{
-			MatchLabels: b.etcd.GetDefaultLabels(),
+			MatchLabels: druidv1alpha1.GetDefaultLabels(b.etcd.ObjectMeta),
 		},
 		PodManagementPolicy:  defaultPodManagementPolicy,
 		UpdateStrategy:       defaultUpdateStrategy,
 		VolumeClaimTemplates: b.getVolumeClaimTemplates(),
-		ServiceName:          b.etcd.GetPeerServiceName(),
+		ServiceName:          druidv1alpha1.GetPeerServiceName(b.etcd.ObjectMeta),
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels:      utils.MergeMaps(b.etcd.Spec.Labels, b.getStatefulSetLabels()),
@@ -152,7 +152,7 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 			},
 			Spec: corev1.PodSpec{
 				HostAliases:           b.getHostAliases(),
-				ServiceAccountName:    b.etcd.GetServiceAccountName(),
+				ServiceAccountName:    druidv1alpha1.GetServiceAccountName(b.etcd.ObjectMeta),
 				ShareProcessNamespace: pointer.Bool(true),
 				InitContainers:        b.getPodInitContainers(),
 				Containers: []corev1.Container{
@@ -433,12 +433,12 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 		commandArgs = append(commandArgs, "--insecure-transport=false")
 		commandArgs = append(commandArgs, "--insecure-skip-tls-verify=false")
 		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=https://%s-local:%d", b.etcd.Name, b.clientPort))
-		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=https://%s:%d", b.etcd.GetClientServiceName(), b.clientPort))
+		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=https://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
 	} else {
 		commandArgs = append(commandArgs, "--insecure-transport=true")
 		commandArgs = append(commandArgs, "--insecure-skip-tls-verify=true")
 		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=http://%s-local:%d", b.etcd.Name, b.clientPort))
-		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=http://%s:%d", b.etcd.GetClientServiceName(), b.clientPort))
+		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=http://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
 	}
 	if b.etcd.Spec.Backup.TLS != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--server-cert=%s/tls.crt", common.VolumeMountPathBackupRestoreServerTLS))
@@ -489,14 +489,14 @@ func (b *stsBuilder) getBackupStoreCommandArgs() []string {
 
 	// Full snapshot command line args
 	// -----------------------------------------------------------------------------------------------------------------
-	commandArgs = append(commandArgs, fmt.Sprintf("--full-snapshot-lease-name=%s", b.etcd.GetFullSnapshotLeaseName()))
+	commandArgs = append(commandArgs, fmt.Sprintf("--full-snapshot-lease-name=%s", druidv1alpha1.GetFullSnapshotLeaseName(b.etcd.ObjectMeta)))
 	if b.etcd.Spec.Backup.FullSnapshotSchedule != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--schedule=%s", *b.etcd.Spec.Backup.FullSnapshotSchedule))
 	}
 
 	// Delta snapshot command line args
 	// -----------------------------------------------------------------------------------------------------------------
-	commandArgs = append(commandArgs, fmt.Sprintf("--delta-snapshot-lease-name=%s", b.etcd.GetDeltaSnapshotLeaseName()))
+	commandArgs = append(commandArgs, fmt.Sprintf("--delta-snapshot-lease-name=%s", druidv1alpha1.GetDeltaSnapshotLeaseName(b.etcd.ObjectMeta)))
 	if b.etcd.Spec.Backup.DeltaSnapshotPeriod != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--delta-snapshot-period=%s", b.etcd.Spec.Backup.DeltaSnapshotPeriod.Duration.String()))
 	}
@@ -692,7 +692,7 @@ func (b *stsBuilder) getPodVolumes(ctx component.OperatorContext) ([]corev1.Volu
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: b.etcd.GetConfigMapName(),
+						Name: druidv1alpha1.GetConfigMapName(b.etcd.ObjectMeta),
 					},
 					Items: []corev1.KeyToPath{
 						{
@@ -826,7 +826,7 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 	case utils.Local:
 		hostPath, err := utils.GetHostMountPathFromSecretRef(ctx, b.client, b.logger, store, b.etcd.GetNamespace())
 		if err != nil {
-			return nil, fmt.Errorf("error getting host mount path for etcd: %v Err: %w", b.etcd.GetNamespaceName(), err)
+			return nil, fmt.Errorf("error getting host mount path for etcd: %v Err: %w", druidv1alpha1.GetNamespaceName(b.etcd.ObjectMeta), err)
 		}
 
 		hpt := corev1.HostPathDirectory
@@ -841,7 +841,7 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 		}, nil
 	case utils.GCS, utils.S3, utils.OSS, utils.ABS, utils.Swift, utils.OCS:
 		if store.SecretRef == nil {
-			return nil, fmt.Errorf("etcd: %v, no secretRef configured for backup store", b.etcd.GetNamespaceName())
+			return nil, fmt.Errorf("etcd: %v, no secretRef configured for backup store", druidv1alpha1.GetNamespaceName(b.etcd.ObjectMeta))
 		}
 
 		return &corev1.Volume{

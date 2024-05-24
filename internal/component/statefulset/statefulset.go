@@ -47,9 +47,9 @@ func New(client client.Client, imageVector imagevector.ImageVector, featureGates
 }
 
 // GetExistingResourceNames returns the name of the existing statefulset for the given Etcd.
-func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
-	objectKey := getObjectKey(etcd)
+	objectKey := getObjectKey(etcdObjMeta)
 	objMeta := &metav1.PartialObjectMetadata{}
 	objMeta.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind("StatefulSet"))
 	if err := r.client.Get(ctx, objectKey, objMeta); err != nil {
@@ -59,9 +59,9 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 		return nil, druiderr.WrapError(err,
 			ErrGetStatefulSet,
 			"GetExistingResourceNames",
-			fmt.Sprintf("Error getting StatefulSet: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting StatefulSet: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
-	if metav1.IsControlledBy(objMeta, etcd) {
+	if metav1.IsControlledBy(objMeta, &etcdObjMeta) {
 		resourceNames = append(resourceNames, objMeta.Name)
 	}
 	return resourceNames, nil
@@ -73,12 +73,12 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 		existingSTS *appsv1.StatefulSet
 		err         error
 	)
-	objectKey := getObjectKey(etcd)
-	if existingSTS, err = r.getExistingStatefulSet(ctx, etcd); err != nil {
+	objectKey := getObjectKey(etcd.ObjectMeta)
+	if existingSTS, err = r.getExistingStatefulSet(ctx, etcd.ObjectMeta); err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncStatefulSet,
 			"Sync",
-			fmt.Sprintf("Error getting StatefulSet: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting StatefulSet: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	// There is no StatefulSet present. Create one.
 	if existingSTS == nil {
@@ -91,16 +91,16 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 		return druiderr.WrapError(err,
 			ErrSyncStatefulSet,
 			"Sync",
-			fmt.Sprintf("Error while handling peer URL TLS change for StatefulSet: %v, etcd: %v", objectKey, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error while handling peer URL TLS change for StatefulSet: %v, etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	return r.createOrPatch(ctx, etcd)
 }
 
 // TriggerDelete triggers the deletion of the statefulset for the given Etcd.
-func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	objectKey := getObjectKey(etcd)
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) error {
+	objectKey := getObjectKey(etcdObjMeta)
 	ctx.Logger.Info("Triggering deletion of StatefulSet", "objectKey", objectKey)
-	if err := r.client.Delete(ctx, emptyStatefulSet(etcd)); err != nil {
+	if err := r.client.Delete(ctx, emptyStatefulSet(etcdObjMeta)); err != nil {
 		if apierrors.IsNotFound(err) {
 			ctx.Logger.Info("No StatefulSet found, Deletion is a No-Op", "objectKey", objectKey.Name)
 			return nil
@@ -108,7 +108,7 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 		return druiderr.WrapError(err,
 			ErrDeleteStatefulSet,
 			"TriggerDelete",
-			fmt.Sprintf("Failed to delete StatefulSet: %v for etcd %v", objectKey, etcd.GetNamespaceName()))
+			fmt.Sprintf("Failed to delete StatefulSet: %v for etcd %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	ctx.Logger.Info("deleted", "component", "statefulset", "objectKey", objectKey)
 	return nil
@@ -116,9 +116,9 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 
 // getExistingStatefulSet gets the existing statefulset if it exists.
 // If it is not found, it simply returns nil. Any other errors are returned as is.
-func (r _resource) getExistingStatefulSet(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSet, error) {
-	sts := emptyStatefulSet(etcd)
-	if err := r.client.Get(ctx, getObjectKey(etcd), sts); err != nil {
+func (r _resource) getExistingStatefulSet(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) (*appsv1.StatefulSet, error) {
+	sts := emptyStatefulSet(etcdObjMeta)
+	if err := r.client.Get(ctx, getObjectKey(etcdObjMeta), sts); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
 		}
@@ -130,13 +130,13 @@ func (r _resource) getExistingStatefulSet(ctx component.OperatorContext, etcd *d
 // createOrPatchWithReplicas ensures that the StatefulSet is updated with all changes from passed in etcd but the replicas set on the StatefulSet
 // are taken from the passed in replicas and not from the etcd component.
 func (r _resource) createOrPatchWithReplicas(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, replicas int32) error {
-	desiredStatefulSet := emptyStatefulSet(etcd)
+	desiredStatefulSet := emptyStatefulSet(etcd.ObjectMeta)
 	mutatingFn := func() error {
 		if builder, err := newStsBuilder(r.client, ctx.Logger, etcd, replicas, r.useEtcdWrapper, r.imageVector, desiredStatefulSet); err != nil {
 			return druiderr.WrapError(err,
 				ErrSyncStatefulSet,
 				"Sync",
-				fmt.Sprintf("Error initializing StatefulSet builder for etcd %v", etcd.GetNamespaceName()))
+				fmt.Sprintf("Error initializing StatefulSet builder for etcd %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 		} else {
 			return builder.Build(ctx)
 		}
@@ -146,10 +146,10 @@ func (r _resource) createOrPatchWithReplicas(ctx component.OperatorContext, etcd
 		return druiderr.WrapError(err,
 			ErrSyncStatefulSet,
 			"Sync",
-			fmt.Sprintf("Error creating or patching StatefulSet: %s for etcd: %v", desiredStatefulSet.Name, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error creating or patching StatefulSet: %s for etcd: %v", desiredStatefulSet.Name, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 
-	ctx.Logger.Info("triggered creation of statefulSet", "statefulSet", getObjectKey(etcd), "operationResult", opResult)
+	ctx.Logger.Info("triggered creation of statefulSet", "statefulSet", getObjectKey(etcd.ObjectMeta), "operationResult", opResult)
 	return nil
 }
 
@@ -174,7 +174,7 @@ func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *dru
 		} else {
 			ctx.Logger.Info("Secret volume mounts to enable Peer URL TLS have already been mounted. Skipping patching StatefulSet with secret volume mounts.")
 		}
-		return fmt.Errorf("peer URL TLS not enabled for #%d members for etcd: %v, requeuing reconcile request", *existingSts.Spec.Replicas, etcd.GetNamespaceName())
+		return fmt.Errorf("peer URL TLS not enabled for #%d members for etcd: %v, requeuing reconcile request", *existingSts.Spec.Replicas, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta))
 	}
 	ctx.Logger.Info("Peer URL TLS has been enabled for all currently running members")
 	return nil
@@ -199,19 +199,19 @@ func isPeerTLSEnablementPending(peerTLSEnabledStatusFromMembers bool, etcd *drui
 	return !peerTLSEnabledStatusFromMembers && etcd.Spec.Etcd.PeerUrlTLS != nil
 }
 
-func emptyStatefulSet(etcd *druidv1alpha1.Etcd) *appsv1.StatefulSet {
+func emptyStatefulSet(obj metav1.ObjectMeta) *appsv1.StatefulSet {
 	return &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            etcd.Name,
-			Namespace:       etcd.Namespace,
-			OwnerReferences: []metav1.OwnerReference{etcd.GetAsOwnerReference()},
+			Name:            obj.Name,
+			Namespace:       obj.Namespace,
+			OwnerReferences: []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(obj)},
 		},
 	}
 }
 
-func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {
+func getObjectKey(obj metav1.ObjectMeta) client.ObjectKey {
 	return client.ObjectKey{
-		Name:      etcd.Name,
-		Namespace: etcd.Namespace,
+		Name:      obj.Name,
+		Namespace: obj.Namespace,
 	}
 }

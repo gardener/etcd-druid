@@ -45,9 +45,9 @@ func New(client client.Client) component.Operator {
 }
 
 // GetExistingResourceNames returns the name of the existing configmap for the given Etcd.
-func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
-	objKey := getObjectKey(etcd)
+	objKey := getObjectKey(etcdObjMeta)
 	objMeta := &metav1.PartialObjectMetadata{}
 	objMeta.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
 	if err := r.client.Get(ctx, objKey, objMeta); err != nil {
@@ -57,9 +57,9 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 		return nil, druiderr.WrapError(err,
 			ErrGetConfigMap,
 			"GetExistingResourceNames",
-			fmt.Sprintf("Error getting ConfigMap: %v for etcd: %v", objKey, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting ConfigMap: %v for etcd: %v", objKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
-	if metav1.IsControlledBy(objMeta, etcd) {
+	if metav1.IsControlledBy(objMeta, &etcdObjMeta) {
 		resourceNames = append(resourceNames, objMeta.Name)
 	}
 	return resourceNames, nil
@@ -67,7 +67,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 
 // Sync creates or updates the configmap for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	cm := emptyConfigMap(getObjectKey(etcd))
+	cm := emptyConfigMap(getObjectKey(etcd.ObjectMeta))
 	result, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, cm, func() error {
 		return buildResource(etcd, cm)
 	})
@@ -75,14 +75,14 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 		return druiderr.WrapError(err,
 			ErrSyncConfigMap,
 			"Sync",
-			fmt.Sprintf("Error during create or update of configmap for etcd: %v", etcd.GetNamespaceName()))
+			fmt.Sprintf("Error during create or update of configmap for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	checkSum, err := computeCheckSum(cm)
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncConfigMap,
 			"Sync",
-			fmt.Sprintf("Error when computing CheckSum for configmap for etcd: %v", etcd.GetNamespaceName()))
+			fmt.Sprintf("Error when computing CheckSum for configmap for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	ctx.Data[common.CheckSumKeyConfigMap] = checkSum
 	ctx.Logger.Info("synced", "component", "configmap", "name", cm.Name, "result", result)
@@ -90,8 +90,8 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 }
 
 // TriggerDelete triggers the deletion of the configmap for the given Etcd.
-func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	objectKey := getObjectKey(etcd)
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) error {
+	objectKey := getObjectKey(etcdObjMeta)
 	ctx.Logger.Info("Triggering deletion of ConfigMap", "objectKey", objectKey)
 	if err := r.client.Delete(ctx, emptyConfigMap(objectKey)); err != nil {
 		if errors.IsNotFound(err) {
@@ -115,10 +115,10 @@ func buildResource(etcd *druidv1alpha1.Etcd, cm *corev1.ConfigMap) error {
 	if err != nil {
 		return err
 	}
-	cm.Name = etcd.GetConfigMapName()
+	cm.Name = druidv1alpha1.GetConfigMapName(etcd.ObjectMeta)
 	cm.Namespace = etcd.Namespace
 	cm.Labels = getLabels(etcd)
-	cm.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+	cm.OwnerReferences = []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)}
 	cm.Data = map[string]string{etcdConfigKey: string(cfgYaml)}
 
 	return nil
@@ -127,15 +127,15 @@ func buildResource(etcd *druidv1alpha1.Etcd, cm *corev1.ConfigMap) error {
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	cmLabels := map[string]string{
 		druidv1alpha1.LabelComponentKey: common.ComponentNameConfigMap,
-		druidv1alpha1.LabelAppNameKey:   etcd.GetConfigMapName(),
+		druidv1alpha1.LabelAppNameKey:   druidv1alpha1.GetConfigMapName(etcd.ObjectMeta),
 	}
-	return utils.MergeMaps(etcd.GetDefaultLabels(), cmLabels)
+	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), cmLabels)
 }
 
-func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {
+func getObjectKey(obj metav1.ObjectMeta) client.ObjectKey {
 	return client.ObjectKey{
-		Name:      etcd.GetConfigMapName(),
-		Namespace: etcd.Namespace,
+		Name:      druidv1alpha1.GetConfigMapName(obj),
+		Namespace: obj.Namespace,
 	}
 }
 

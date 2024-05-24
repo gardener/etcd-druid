@@ -41,9 +41,9 @@ func New(client client.Client) component.Operator {
 }
 
 // GetExistingResourceNames returns the name of the existing pod disruption budget for the given Etcd.
-func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]string, error) {
+func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) ([]string, error) {
 	resourceNames := make([]string, 0, 1)
-	objectKey := getObjectKey(etcd)
+	objectKey := getObjectKey(etcdObjMeta)
 	objMeta := &metav1.PartialObjectMetadata{}
 	objMeta.SetGroupVersionKind(policyv1.SchemeGroupVersion.WithKind("PodDisruptionBudget"))
 	if err := r.client.Get(ctx, objectKey, objMeta); err != nil {
@@ -53,9 +53,9 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetPodDisruptionBudget,
 			"GetExistingResourceNames",
-			fmt.Sprintf("Error getting PDB: %v for etcd: %v", objectKey, etcd.GetNamespaceName()))
+			fmt.Sprintf("Error getting PDB: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
-	if metav1.IsControlledBy(objMeta, etcd) {
+	if metav1.IsControlledBy(objMeta, &etcdObjMeta) {
 		resourceNames = append(resourceNames, objMeta.Name)
 	}
 	return resourceNames, nil
@@ -63,7 +63,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcd 
 
 // Sync creates or updates the pod disruption budget for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	objectKey := getObjectKey(etcd)
+	objectKey := getObjectKey(etcd.ObjectMeta)
 	pdb := emptyPodDisruptionBudget(objectKey)
 	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, pdb, func() error {
 		buildResource(etcd, pdb)
@@ -73,7 +73,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 		return druiderr.WrapError(err,
 			ErrSyncPodDisruptionBudget,
 			"Sync",
-			fmt.Sprintf("Error during create or update of PDB: %v for etcd: %v", objectKey, etcd.GetNamespaceName()),
+			fmt.Sprintf("Error during create or update of PDB: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)),
 		)
 	}
 	ctx.Logger.Info("synced", "component", "pod-disruption-budget", "objectKey", objectKey, "result", result)
@@ -81,14 +81,14 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 }
 
 // TriggerDelete triggers the deletion of the pod disruption budget for the given Etcd.
-func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) error {
 	ctx.Logger.Info("Triggering deletion of PDB")
-	pdbObjectKey := getObjectKey(etcd)
+	pdbObjectKey := getObjectKey(etcdObjMeta)
 	if err := client.IgnoreNotFound(r.client.Delete(ctx, emptyPodDisruptionBudget(pdbObjectKey))); err != nil {
 		return druiderr.WrapError(err,
 			ErrDeletePodDisruptionBudget,
 			"TriggerDelete",
-			fmt.Sprintf("Failed to delete PDB: %v for etcd: %v", pdbObjectKey, etcd.GetNamespaceName()))
+			fmt.Sprintf("Failed to delete PDB: %v for etcd: %v", pdbObjectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	ctx.Logger.Info("deleted", "component", "pod-disruption-budget", "objectKey", pdbObjectKey)
 	return nil
@@ -96,13 +96,13 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcd *druidv1alp
 
 func buildResource(etcd *druidv1alpha1.Etcd, pdb *policyv1.PodDisruptionBudget) {
 	pdb.Labels = getLabels(etcd)
-	pdb.OwnerReferences = []metav1.OwnerReference{etcd.GetAsOwnerReference()}
+	pdb.OwnerReferences = []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)}
 	pdb.Spec.MinAvailable = &intstr.IntOrString{
 		IntVal: computePDBMinAvailable(int(etcd.Spec.Replicas)),
 		Type:   intstr.Int,
 	}
 	pdb.Spec.Selector = &metav1.LabelSelector{
-		MatchLabels: etcd.GetDefaultLabels(),
+		MatchLabels: druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta),
 	}
 }
 
@@ -111,11 +111,11 @@ func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 		druidv1alpha1.LabelComponentKey: common.ComponentNamePodDisruptionBudget,
 		druidv1alpha1.LabelAppNameKey:   etcd.Name,
 	}
-	return utils.MergeMaps(etcd.GetDefaultLabels(), pdbLabels)
+	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), pdbLabels)
 }
 
-func getObjectKey(etcd *druidv1alpha1.Etcd) client.ObjectKey {
-	return client.ObjectKey{Name: etcd.Name, Namespace: etcd.Namespace}
+func getObjectKey(obj metav1.ObjectMeta) client.ObjectKey {
+	return client.ObjectKey{Name: druidv1alpha1.GetPodDisruptionBudgetName(obj), Namespace: obj.Namespace}
 }
 
 func emptyPodDisruptionBudget(objectKey client.ObjectKey) *policyv1.PodDisruptionBudget {

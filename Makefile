@@ -79,15 +79,14 @@ generate: manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
 .PHONY: test
 test: $(GINKGO) $(GOTESTFMT)
 	# run ginkgo unit tests. These will be ported to golang native tests over a period of time.
-	@"$(HACK_DIR)/test.sh" ./api/... \
-	./internal/controller/etcdcopybackupstask/... \
+	@"$(HACK_DIR)/test.sh" ./internal/controller/etcdcopybackupstask/... \
 	./internal/controller/predicate/... \
 	./internal/controller/secret/... \
 	./internal/controller/utils/... \
 	./internal/mapper/... \
 	./internal/metrics/...
 	# run the golang native unit tests.
-	@TEST_COV="true" "$(HACK_DIR)/test-go.sh" ./internal/controller/etcd/... ./internal/component/... ./internal/utils/... ./internal/webhook/...
+	@TEST_COV="true" "$(HACK_DIR)/test-go.sh" ./api/... ./internal/controller/etcd/... ./internal/component/... ./internal/utils/... ./internal/webhook/...
 
 .PHONY: test-integration
 test-integration: $(GINKGO) $(SETUP_ENVTEST) $(GOTESTFMT)

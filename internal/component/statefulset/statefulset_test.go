@@ -65,12 +65,12 @@ func TestGetExistingResourceNames(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var existingObjects []client.Object
 			if tc.stsExists {
-				existingObjects = append(existingObjects, emptyStatefulSet(etcd))
+				existingObjects = append(existingObjects, emptyStatefulSet(etcd.ObjectMeta))
 			}
-			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl, nil, nil)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			actualStsNames, err := operator.GetExistingResourceNames(opCtx, etcd)
+			actualStsNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
@@ -116,7 +116,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// *************** Build test environment ***************
 			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(tc.replicas).Build()
-			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd))
+			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))
 			etcdImage, etcdBRImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv, true)
 			g.Expect(err).ToNot(HaveOccurred())
 			stsMatcher := NewStatefulSetMatcher(g, cl, etcd, tc.replicas, true, initContainerImage, etcdImage, etcdBRImage, pointer.String(utils.Local))

@@ -5,13 +5,9 @@
 package v1alpha1
 
 import (
-	"fmt"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
 )
 
 const (
@@ -480,120 +476,9 @@ type LastError struct {
 	ObservedAt metav1.Time `json:"observedAt"`
 }
 
-// GetNamespaceName is a convenience function which creates a types.NamespacedName for an Etcd resource.
-func (e *Etcd) GetNamespaceName() types.NamespacedName {
-	return types.NamespacedName{
-		Namespace: e.Namespace,
-		Name:      e.Name,
-	}
-}
-
-// GetPeerServiceName returns the peer service name for the Etcd cluster reachable by members within the Etcd cluster.
-func (e *Etcd) GetPeerServiceName() string {
-	return fmt.Sprintf("%s-peer", e.Name)
-}
-
-// GetClientServiceName returns the client service name for the Etcd cluster reachable by external clients.
-func (e *Etcd) GetClientServiceName() string {
-	return fmt.Sprintf("%s-client", e.Name)
-}
-
-// GetServiceAccountName returns the service account name for the Etcd.
-func (e *Etcd) GetServiceAccountName() string {
-	return e.Name
-}
-
-// GetConfigMapName returns the name of the configmap for the Etcd.
-func (e *Etcd) GetConfigMapName() string {
-	return fmt.Sprintf("etcd-bootstrap-%s", string(e.UID[:6]))
-}
-
-// GetCompactionJobName returns the compaction job name for the Etcd.
-func (e *Etcd) GetCompactionJobName() string {
-	return fmt.Sprintf("%s-compactor", e.Name)
-}
-
-// GetOrdinalPodName returns the Etcd pod name based on the ordinal.
-func (e *Etcd) GetOrdinalPodName(ordinal int) string {
-	return fmt.Sprintf("%s-%d", e.Name, ordinal)
-}
-
-// GetDeltaSnapshotLeaseName returns the name of the delta snapshot lease for the Etcd.
-func (e *Etcd) GetDeltaSnapshotLeaseName() string {
-	return fmt.Sprintf("%s-delta-snap", e.Name)
-}
-
-// GetFullSnapshotLeaseName returns the name of the full snapshot lease for the Etcd.
-func (e *Etcd) GetFullSnapshotLeaseName() string {
-	return fmt.Sprintf("%s-full-snap", e.Name)
-}
-
-// GetMemberLeaseNames returns the name of member leases for the Etcd.
-func (e *Etcd) GetMemberLeaseNames() []string {
-	numReplicas := int(e.Spec.Replicas)
-	leaseNames := make([]string, 0, numReplicas)
-	for i := 0; i < numReplicas; i++ {
-		leaseNames = append(leaseNames, fmt.Sprintf("%s-%d", e.Name, i))
-	}
-	return leaseNames
-}
-
-// GetDefaultLabels returns the default labels for etcd.
-func (e *Etcd) GetDefaultLabels() map[string]string {
-	return map[string]string{
-		LabelManagedByKey: LabelManagedByValue,
-		LabelPartOfKey:    e.Name,
-	}
-}
-
-// GetAsOwnerReference returns an OwnerReference object that represents the current Etcd instance.
-func (e *Etcd) GetAsOwnerReference() metav1.OwnerReference {
-	return metav1.OwnerReference{
-		APIVersion:         GroupVersion.String(),
-		Kind:               "Etcd",
-		Name:               e.Name,
-		UID:                e.UID,
-		Controller:         pointer.Bool(true),
-		BlockOwnerDeletion: pointer.Bool(true),
-	}
-}
-
-// GetRoleName returns the role name for the Etcd
-func (e *Etcd) GetRoleName() string {
-	return fmt.Sprintf("%s:etcd:%s", GroupVersion.Group, e.Name)
-}
-
-// GetRoleBindingName returns the rolebinding name for the Etcd
-func (e *Etcd) GetRoleBindingName() string {
-	return fmt.Sprintf("%s:etcd:%s", GroupVersion.Group, e.Name)
-}
-
 // IsBackupStoreEnabled returns true if backup store has been enabled for the Etcd resource, else returns false.
 func (e *Etcd) IsBackupStoreEnabled() bool {
 	return e.Spec.Backup.Store != nil
-}
-
-// IsMarkedForDeletion returns true if a deletion timestamp has been set and false otherwise.
-func (e *Etcd) IsMarkedForDeletion() bool {
-	return !e.DeletionTimestamp.IsZero()
-}
-
-// GetSuspendEtcdSpecReconcileAnnotationKey gets the annotation key set on an Etcd resource signalling the intent
-// to suspend spec reconciliation for this Etcd resource. If no annotation is set then it will return nil.
-func (e *Etcd) GetSuspendEtcdSpecReconcileAnnotationKey() *string {
-	if metav1.HasAnnotation(e.ObjectMeta, SuspendEtcdSpecReconcileAnnotation) {
-		return pointer.String(SuspendEtcdSpecReconcileAnnotation)
-	}
-	if metav1.HasAnnotation(e.ObjectMeta, IgnoreReconciliationAnnotation) {
-		return pointer.String(IgnoreReconciliationAnnotation)
-	}
-	return nil
-}
-
-// AreManagedResourcesProtected returns false if the Etcd resource has the `druid.gardener.cloud/disable-resource-protection` annotation set,
-// else returns true.
-func (e *Etcd) AreManagedResourcesProtected() bool {
-	return !metav1.HasAnnotation(e.ObjectMeta, DisableResourceProtectionAnnotation)
 }
 
 // IsReconciliationInProgress returns true if the Etcd resource is currently being reconciled, else returns false.

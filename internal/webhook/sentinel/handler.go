@@ -83,15 +83,28 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 
 	// Leases (member and snapshot) will be periodically updated by etcd members.
 	// Allow updates to such leases, but only by etcd members, which would use the serviceaccount deployed by druid for them.
+<<<<<<< Updated upstream
 	requestGK := schema.GroupKind{Group: req.Kind.Group, Kind: req.Kind.Kind}
 	if requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() && req.Operation == admissionv1.Update {
 		if serviceaccount.MatchesUsername(etcd.GetNamespace(), etcd.GetServiceAccountName(), req.UserInfo.Username) {
+=======
+	if requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() &&
+		req.Operation == admissionv1.Update {
+		saTokens := strings.Split(req.UserInfo.Username, ":")
+		saName := saTokens[len(saTokens)-1] // last element of sa name which looks like `system:serviceaccount:<namespace>:<name>`
+		if saName == druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta) {
+>>>>>>> Stashed changes
 			return admission.Allowed("lease resource can be freely updated by etcd members")
 		}
 	}
 
+<<<<<<< Updated upstream
 	// allow changes to resources if Etcd has annotation druid.gardener.cloud/disable-resource-protection is set.
 	if !etcd.AreManagedResourcesProtected() {
+=======
+	// allow changes to resources if Etcd has annotation druid.gardener.cloud/disable-resource-protection is set
+	if !druidv1alpha1.AreManagedResourcesProtected(etcd.ObjectMeta) {
+>>>>>>> Stashed changes
 		return admission.Allowed(fmt.Sprintf("changes allowed, since Etcd %s has annotation %s", etcd.Name, druidv1alpha1.DisableResourceProtectionAnnotation))
 	}
 
