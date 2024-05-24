@@ -9,8 +9,8 @@
 package v1alpha1
 
 import (
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -39,12 +39,12 @@ func (in *BackupSpec) DeepCopyInto(out *BackupSpec) {
 	}
 	if in.Resources != nil {
 		in, out := &in.Resources, &out.Resources
-		*out = new(v1.ResourceRequirements)
+		*out = new(corev1.ResourceRequirements)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.CompactionResources != nil {
 		in, out := &in.CompactionResources, &out.CompactionResources
-		*out = new(v1.ResourceRequirements)
+		*out = new(corev1.ResourceRequirements)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.FullSnapshotSchedule != nil {
@@ -64,12 +64,12 @@ func (in *BackupSpec) DeepCopyInto(out *BackupSpec) {
 	}
 	if in.GarbageCollectionPeriod != nil {
 		in, out := &in.GarbageCollectionPeriod, &out.GarbageCollectionPeriod
-		*out = new(metav1.Duration)
+		*out = new(v1.Duration)
 		**out = **in
 	}
 	if in.DeltaSnapshotPeriod != nil {
 		in, out := &in.DeltaSnapshotPeriod, &out.DeltaSnapshotPeriod
-		*out = new(metav1.Duration)
+		*out = new(v1.Duration)
 		**out = **in
 	}
 	if in.DeltaSnapshotMemoryLimit != nil {
@@ -79,7 +79,7 @@ func (in *BackupSpec) DeepCopyInto(out *BackupSpec) {
 	}
 	if in.DeltaSnapshotRetentionPeriod != nil {
 		in, out := &in.DeltaSnapshotRetentionPeriod, &out.DeltaSnapshotRetentionPeriod
-		*out = new(metav1.Duration)
+		*out = new(v1.Duration)
 		**out = **in
 	}
 	if in.SnapshotCompression != nil {
@@ -94,7 +94,7 @@ func (in *BackupSpec) DeepCopyInto(out *BackupSpec) {
 	}
 	if in.EtcdSnapshotTimeout != nil {
 		in, out := &in.EtcdSnapshotTimeout, &out.EtcdSnapshotTimeout
-		*out = new(metav1.Duration)
+		*out = new(v1.Duration)
 		**out = **in
 	}
 	if in.LeaderElection != nil {
@@ -257,7 +257,7 @@ func (in *EtcdConfig) DeepCopyInto(out *EtcdConfig) {
 	}
 	if in.AuthSecretRef != nil {
 		in, out := &in.AuthSecretRef, &out.AuthSecretRef
-		*out = new(v1.SecretReference)
+		*out = new(corev1.SecretReference)
 		**out = **in
 	}
 	if in.Metrics != nil {
@@ -267,7 +267,7 @@ func (in *EtcdConfig) DeepCopyInto(out *EtcdConfig) {
 	}
 	if in.Resources != nil {
 		in, out := &in.Resources, &out.Resources
-		*out = new(v1.ResourceRequirements)
+		*out = new(corev1.ResourceRequirements)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.ClientUrlTLS != nil {
@@ -282,12 +282,12 @@ func (in *EtcdConfig) DeepCopyInto(out *EtcdConfig) {
 	}
 	if in.EtcdDefragTimeout != nil {
 		in, out := &in.EtcdDefragTimeout, &out.EtcdDefragTimeout
-		*out = new(metav1.Duration)
+		*out = new(v1.Duration)
 		**out = **in
 	}
 	if in.HeartbeatDuration != nil {
 		in, out := &in.HeartbeatDuration, &out.HeartbeatDuration
-		*out = new(metav1.Duration)
+		*out = new(v1.Duration)
 		**out = **in
 	}
 	if in.ClientService != nil {
@@ -493,7 +493,7 @@ func (in *EtcdSpec) DeepCopyInto(out *EtcdSpec) {
 	*out = *in
 	if in.Selector != nil {
 		in, out := &in.Selector, &out.Selector
-		*out = new(metav1.LabelSelector)
+		*out = new(v1.LabelSelector)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Labels != nil {
@@ -600,7 +600,7 @@ func (in *EtcdStatus) DeepCopyInto(out *EtcdStatus) {
 	}
 	if in.LabelSelector != nil {
 		in, out := &in.LabelSelector, &out.LabelSelector
-		*out = new(metav1.LabelSelector)
+		*out = new(v1.LabelSelector)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Members != nil {
@@ -664,12 +664,12 @@ func (in *LeaderElectionSpec) DeepCopyInto(out *LeaderElectionSpec) {
 	*out = *in
 	if in.ReelectionPeriod != nil {
 		in, out := &in.ReelectionPeriod, &out.ReelectionPeriod
-		*out = new(metav1.Duration)
+		*out = new(v1.Duration)
 		**out = **in
 	}
 	if in.EtcdConnectionTimeout != nil {
 		in, out := &in.EtcdConnectionTimeout, &out.EtcdConnectionTimeout
-		*out = new(metav1.Duration)
+		*out = new(v1.Duration)
 		**out = **in
 	}
 }
@@ -689,12 +689,12 @@ func (in *SchedulingConstraints) DeepCopyInto(out *SchedulingConstraints) {
 	*out = *in
 	if in.Affinity != nil {
 		in, out := &in.Affinity, &out.Affinity
-		*out = new(v1.Affinity)
+		*out = new(corev1.Affinity)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.TopologySpreadConstraints != nil {
 		in, out := &in.TopologySpreadConstraints, &out.TopologySpreadConstraints
-		*out = make([]v1.TopologySpreadConstraint, len(*in))
+		*out = make([]corev1.TopologySpreadConstraint, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
@@ -772,7 +772,7 @@ func (in *StoreSpec) DeepCopyInto(out *StoreSpec) {
 	}
 	if in.SecretRef != nil {
 		in, out := &in.SecretRef, &out.SecretRef
-		*out = new(v1.SecretReference)
+		*out = new(corev1.SecretReference)
 		**out = **in
 	}
 }
@@ -810,7 +810,7 @@ func (in *WaitForFinalSnapshotSpec) DeepCopyInto(out *WaitForFinalSnapshotSpec) 
 	*out = *in
 	if in.Timeout != nil {
 		in, out := &in.Timeout, &out.Timeout
-		*out = new(metav1.Duration)
+		*out = new(v1.Duration)
 		**out = **in
 	}
 }
