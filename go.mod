@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/gardener/etcd-backup-restore v0.26.0
-	github.com/gardener/gardener v1.86.0
+	github.com/gardener/gardener v1.86.4
 	github.com/go-logr/logr v1.2.4
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.3.0
