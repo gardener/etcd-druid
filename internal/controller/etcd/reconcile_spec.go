@@ -6,17 +6,22 @@ package etcd
 
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
+
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	"github.com/gardener/gardener/pkg/controllerutils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 func (r *Reconciler) triggerReconcileSpecFlow(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
 	reconcileStepFns := []reconcileFn{
 		r.recordReconcileStartOperation,
+		r.ensureFinalizer,
 		r.syncEtcdResources,
 		r.updateObservedGeneration,
 		r.recordReconcileSuccessOperation,
@@ -46,17 +51,24 @@ func (r *Reconciler) removeOperationAnnotation(ctx component.OperatorContext, et
 			return ctrlutils.ReconcileWithError(err)
 		}
 	}
-	//if _, ok := etcd.Annotations[v1beta1constants.GardenerOperation]; ok {
-	//	ctx.Logger.Info("Removing operation annotation")
-	//	withOpAnnotation := etcd.DeepCopy()
-	//	delete(etcd.Annotations, v1beta1constants.GardenerOperation)
-	//	if err := r.client.Patch(ctx, etcd, client.MergeFrom(withOpAnnotation)); err != nil {
-	//		ctx.Logger.Error(err, "failed to remove operation annotation")
-	//		return ctrlutils.ReconcileWithError(err)
-	//	}
-	//}
 	return ctrlutils.ContinueReconcile()
 }
+
+func (r *Reconciler) ensureFinalizer(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+	etcdPartialObjMeta := ctrlutils.EmptyEtcdPartialObjectMetadata()
+	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjKey, etcdPartialObjMeta); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result
+	}
+	if !controllerutil.ContainsFinalizer(etcdPartialObjMeta, common.FinalizerName) {
+		r.logger.Info("Adding finalizer", "finalizerName", common.FinalizerName)
+		if err := controllerutils.AddFinalizers(ctx, r.client, etcdPartialObjMeta, common.FinalizerName); err != nil {
+			ctx.Logger.Error(err, "failed to add finalizer")
+			return ctrlutils.ReconcileWithError(err)
+		}
+	}
+	return ctrlutils.ContinueReconcile()
+}
+
 func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
 	etcd := &druidv1alpha1.Etcd{}
 	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {

@@ -67,6 +67,7 @@ func TestEtcdReconcileSpecWithNoAutoReconcile(t *testing.T) {
 		name string
 		fn   func(t *testing.T, testNamespace string, reconcilerTestEnv ReconcilerTestEnv)
 	}{
+		{"should add finalizer to etcd when etcd resource is created", testAddFinalizerToEtcd},
 		{"should create all managed resources when etcd resource is created", testAllManagedResourcesAreCreated},
 		{"should succeed only in creation of some resources and not all and should record error in lastErrors and lastOperation", testFailureToCreateAllResources},
 		{"should not reconcile spec when reconciliation is suspended", testWhenReconciliationIsSuspended},
@@ -82,6 +83,25 @@ func TestEtcdReconcileSpecWithNoAutoReconcile(t *testing.T) {
 			test.fn(t, testNs, reconcilerTestEnv)
 		})
 	}
+}
+
+func testAddFinalizerToEtcd(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
+	const (
+		timeout         = time.Minute * 2
+		pollingInterval = time.Second * 2
+	)
+	// ***************** setup *****************
+	g := NewWithT(t)
+	etcdInstance := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testNs).
+		WithReplicas(3).
+		Build()
+	etcdInstance.Spec.Backup.Store = &druidv1alpha1.StoreSpec{} // empty store spec since backups are not required for this test
+	cl := reconcilerTestEnv.itTestEnv.GetClient()
+	ctx := context.Background()
+	// create etcdInstance resource
+	g.Expect(cl.Create(ctx, etcdInstance)).To(Succeed())
+	// ***************** test etcd spec reconciliation  *****************
+	assertETCDFinalizer(t, cl, client.ObjectKeyFromObject(etcdInstance), true, timeout, pollingInterval)
 }
 
 func testAllManagedResourcesAreCreated(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {

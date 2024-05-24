@@ -312,9 +312,10 @@ func assertETCDFinalizer(t *testing.T, cl client.Client, etcdObjectKey client.Ob
 	checkFn := func() error {
 		etcdInstance := &druidv1alpha1.Etcd{}
 		if err := cl.Get(context.Background(), etcdObjectKey, etcdInstance); err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) && !expectedFinalizerPresent {
 				// Once the finalizer is removed, the etcd resource will be removed by k8s very quickly.
-				// If we find that the resource was indeed removed then this check will pass.
+				// If we find that the resource was indeed removed, and if we also expect the finalizer
+				// to be absent, then this check will pass.
 				return nil
 			}
 			return err

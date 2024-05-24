@@ -13,6 +13,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/utils"
+
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -85,10 +86,6 @@ func (r *Reconciler) removeFinalizer(ctx component.OperatorContext, etcdObjKey c
 	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjKey, etcdPartialObjMeta); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
-	//etcd := &druidv1alpha1.Etcd{}
-	//if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
-	//	return result
-	//}
 	ctx.Logger.Info("Removing finalizer", "finalizerName", common.FinalizerName)
 	if err := controllerutils.RemoveFinalizers(ctx, r.client, etcdPartialObjMeta, common.FinalizerName); client.IgnoreNotFound(err) != nil {
 		return ctrlutils.ReconcileWithError(err)

@@ -162,6 +162,7 @@ deploy: $(SKAFFOLD) $(HELM)
 .PHONY: deploy-dev
 deploy-dev: $(SKAFFOLD) $(HELM)
 	$(SKAFFOLD) dev -m etcd-druid --trigger='manual'
+
 .PHONY: deploy-debug
 deploy-debug: $(SKAFFOLD) $(HELM)
 	$(SKAFFOLD) debug -m etcd-druid
