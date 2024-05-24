@@ -60,7 +60,7 @@ func (r *Reconciler) ensureFinalizer(ctx component.OperatorContext, etcdObjKey c
 		return result
 	}
 	if !controllerutil.ContainsFinalizer(etcdPartialObjMeta, common.FinalizerName) {
-		r.logger.Info("Adding finalizer", "finalizerName", common.FinalizerName)
+		ctx.Logger.Info("Adding finalizer", "finalizerName", common.FinalizerName)
 		if err := controllerutils.AddFinalizers(ctx, r.client, etcdPartialObjMeta, common.FinalizerName); err != nil {
 			ctx.Logger.Error(err, "failed to add finalizer")
 			return ctrlutils.ReconcileWithError(err)

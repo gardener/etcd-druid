@@ -20,8 +20,8 @@ func GetEnvVarFromValue(name, value string) corev1.EnvVar {
 	}
 }
 
-// GetEnvVarFromFieldPath returns environment variable object with provided name and value from field path
-func GetEnvVarFromFieldPath(name, fieldPath string) corev1.EnvVar {
+// getEnvVarFromFieldPath returns environment variable object with provided name and value from field path
+func getEnvVarFromFieldPath(name, fieldPath string) corev1.EnvVar {
 	return corev1.EnvVar{
 		Name: name,
 		ValueFrom: &corev1.EnvVarSource{
@@ -52,8 +52,8 @@ func GetEnvVarFromSecret(name, secretName, secretKey string, optional bool) core
 func GetBackupRestoreContainerEnvVars(store *druidv1alpha1.StoreSpec) ([]corev1.EnvVar, error) {
 	var envVars []corev1.EnvVar
 
-	envVars = append(envVars, GetEnvVarFromFieldPath(common.EnvPodName, "metadata.name"))
-	envVars = append(envVars, GetEnvVarFromFieldPath(common.EnvPodNamespace, "metadata.namespace"))
+	envVars = append(envVars, getEnvVarFromFieldPath(common.EnvPodName, "metadata.name"))
+	envVars = append(envVars, getEnvVarFromFieldPath(common.EnvPodNamespace, "metadata.namespace"))
 
 	if store == nil {
 		return envVars, nil

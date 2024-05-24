@@ -86,7 +86,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 			return druiderr.WrapError(err,
 				ErrSyncSnapshotLease,
 				"Sync",
-				fmt.Sprintf("Failed to delete existing snapshot leases due to backup being disabled for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
+				fmt.Sprintf("Failed to delete existing snapshot leases (due to backup being disabled for etcd) due to reason: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 		})
 	}
 

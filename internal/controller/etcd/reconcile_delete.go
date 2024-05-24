@@ -52,7 +52,7 @@ func (r *Reconciler) deleteEtcdResources(ctx component.OperatorContext, etcdObjK
 			},
 		})
 	}
-	ctx.Logger.Info("triggering triggerDeletionFlow operators for all resources")
+	ctx.Logger.Info("triggering triggerDeletionFlow operators for all druid-managed resources")
 	if errs := utils.RunConcurrently(ctx, deleteTasks); len(errs) > 0 {
 		return ctrlutils.ReconcileWithError(errs...)
 	}
