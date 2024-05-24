@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
@@ -71,7 +71,7 @@ func validateStore(store *v1alpha1.StoreSpec, name, namespace string, path *fiel
 	}
 
 	if store.Provider != nil && *store.Provider != "" {
-		if _, err := utils.StorageProviderFromInfraProvider(store.Provider); err != nil {
+		if _, err := druidstore.StorageProviderFromInfraProvider(store.Provider); err != nil {
 			allErrs = append(allErrs, field.Invalid(path.Child("provider"), store.Provider, err.Error()))
 		}
 	}

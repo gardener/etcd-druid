@@ -5,8 +5,6 @@
 package utils
 
 import (
-	"fmt"
-
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 
@@ -50,48 +48,7 @@ func GetEnvVarFromSecret(name, secretName, secretKey string, optional bool) core
 	}
 }
 
-// GetProviderEnvVars returns provider-specific environment variables for the given store
-func GetProviderEnvVars(store *druidv1alpha1.StoreSpec) ([]corev1.EnvVar, error) {
-	var envVars []corev1.EnvVar
-
-	provider, err := StorageProviderFromInfraProvider(store.Provider)
-	if err != nil {
-		return nil, fmt.Errorf("storage provider is not recognized while fetching secrets from environment variable")
-	}
-
-	switch provider {
-	case S3:
-		envVars = append(envVars, GetEnvVarFromValue(common.EnvAWSApplicationCredentials, common.VolumeMountPathNonGCSProviderBackupSecret))
-
-	case ABS:
-		envVars = append(envVars, GetEnvVarFromValue(common.EnvAzureApplicationCredentials, common.VolumeMountPathNonGCSProviderBackupSecret))
-
-	case GCS:
-		envVars = append(envVars, GetEnvVarFromValue(common.EnvGoogleApplicationCredentials, fmt.Sprintf("%sserviceaccount.json", common.VolumeMountPathGCSBackupSecret)))
-		envVars = append(envVars, GetEnvVarFromSecret(common.EnvGoogleStorageAPIEndpoint, store.SecretRef.Name, "storageAPIEndpoint", true))
-
-	case Swift:
-		envVars = append(envVars, GetEnvVarFromValue(common.EnvOpenstackApplicationCredentials, common.VolumeMountPathNonGCSProviderBackupSecret))
-
-	case OSS:
-		envVars = append(envVars, GetEnvVarFromValue(common.EnvAlicloudApplicationCredentials, common.VolumeMountPathNonGCSProviderBackupSecret))
-
-	case ECS:
-		if store.SecretRef == nil {
-			return nil, fmt.Errorf("no secretRef could be configured for backup store of ECS")
-		}
-		envVars = append(envVars, GetEnvVarFromSecret(common.EnvECSEndpoint, store.SecretRef.Name, "endpoint", false))
-		envVars = append(envVars, GetEnvVarFromSecret(common.EnvECSAccessKeyID, store.SecretRef.Name, "accessKeyID", false))
-		envVars = append(envVars, GetEnvVarFromSecret(common.EnvECSSecretAccessKey, store.SecretRef.Name, "secretAccessKey", false))
-
-	case OCS:
-		envVars = append(envVars, GetEnvVarFromValue(common.EnvOpenshiftApplicationCredentials, common.VolumeMountPathNonGCSProviderBackupSecret))
-	}
-
-	return envVars, nil
-}
-
-// GetBackupRestoreContainerEnvVars returns backup-restore container environment variables for the given store
+// GetBackupRestoreContainerEnvVars returns non-provider-specific environment variables for the backup-restore container.
 func GetBackupRestoreContainerEnvVars(store *druidv1alpha1.StoreSpec) ([]corev1.EnvVar, error) {
 	var envVars []corev1.EnvVar
 
@@ -104,12 +61,6 @@ func GetBackupRestoreContainerEnvVars(store *druidv1alpha1.StoreSpec) ([]corev1.
 
 	storageContainer := pointer.StringDeref(store.Container, "")
 	envVars = append(envVars, GetEnvVarFromValue(common.EnvStorageContainer, storageContainer))
-
-	providerEnvVars, err := GetProviderEnvVars(store)
-	if err != nil {
-		return nil, err
-	}
-	envVars = append(envVars, providerEnvVars...)
 
 	return envVars, nil
 }

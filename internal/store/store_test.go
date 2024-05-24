@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package utils
+package store
 
 import (
 	"context"
@@ -10,7 +10,9 @@ import (
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -85,7 +87,7 @@ func TestGetHostMountPathFromSecretRef(t *testing.T) {
 				existingObjects = append(existingObjects, sec)
 			}
 			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, client.ObjectKey{Name: existingSecretName, Namespace: testutils.TestNamespace})
-			secretName := IfConditionOr(tc.secretExists, existingSecretName, nonExistingSecretName)
+			secretName := utils.IfConditionOr(tc.secretExists, existingSecretName, nonExistingSecretName)
 			storeSpec := createStoreSpec(tc.secretRefDefined, secretName, testutils.TestNamespace)
 			actualHostPath, err := GetHostMountPathFromSecretRef(context.Background(), cl, logger, storeSpec, testutils.TestNamespace)
 			if tc.expectedErr != nil {

@@ -11,8 +11,10 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
@@ -175,7 +177,7 @@ func (s StatefulSetMatcher) matchPodInitContainers() gomegatypes.GomegaMatcher {
 		"SecurityContext": matchPodInitContainerSecurityContext(),
 	})
 	initContainerMatcherElements[common.InitContainerNameChangePermissions] = changePermissionsInitContainerMatcher
-	if s.etcd.IsBackupStoreEnabled() && s.provider != nil && *s.provider == utils.Local {
+	if s.etcd.IsBackupStoreEnabled() && s.provider != nil && *s.provider == druidstore.Local {
 		changeBackupBucketPermissionsMatcher := MatchFields(IgnoreExtras, Fields{
 			"Name":            Equal(common.InitContainerNameChangeBackupBucketPermissions),
 			"Image":           Equal(s.initContainerImage),
@@ -363,7 +365,7 @@ func (s StatefulSetMatcher) getEtcdSecretVolMountsMatchers() []gomegatypes.Gomeg
 
 func (s StatefulSetMatcher) getEtcdBackupVolumeMountMatcher() gomegatypes.GomegaMatcher {
 	switch *s.provider {
-	case utils.Local:
+	case druidstore.Local:
 		if s.etcd.Spec.Backup.Store.Container != nil {
 			if s.useEtcdWrapper {
 				return matchVolMount(common.VolumeNameLocalBackup, fmt.Sprintf("/home/nonroot/%s", pointer.StringDeref(s.etcd.Spec.Backup.Store.Container, "")))
@@ -371,9 +373,9 @@ func (s StatefulSetMatcher) getEtcdBackupVolumeMountMatcher() gomegatypes.Gomega
 				return matchVolMount(common.VolumeNameLocalBackup, pointer.StringDeref(s.etcd.Spec.Backup.Store.Container, ""))
 			}
 		}
-	case utils.GCS:
+	case druidstore.GCS:
 		return matchVolMount(common.VolumeNameProviderBackupSecret, common.VolumeMountPathGCSBackupSecret)
-	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
+	case druidstore.S3, druidstore.ABS, druidstore.OSS, druidstore.Swift, druidstore.OCS:
 		return matchVolMount(common.VolumeNameProviderBackupSecret, common.VolumeMountPathNonGCSProviderBackupSecret)
 	}
 	return nil
@@ -530,8 +532,8 @@ func (s StatefulSetMatcher) getBackupVolumeMatcher() gomegatypes.GomegaMatcher {
 		return nil
 	}
 	switch *s.provider {
-	case utils.Local:
-		hostPath, err := utils.GetHostMountPathFromSecretRef(context.Background(), s.cl, logr.Discard(), s.etcd.Spec.Backup.Store, s.etcd.Namespace)
+	case druidstore.Local:
+		hostPath, err := druidstore.GetHostMountPathFromSecretRef(context.Background(), s.cl, logr.Discard(), s.etcd.Spec.Backup.Store, s.etcd.Namespace)
 		s.g.Expect(err).ToNot(HaveOccurred())
 		return MatchFields(IgnoreExtras, Fields{
 			"Name": Equal(common.VolumeNameLocalBackup),
@@ -543,7 +545,7 @@ func (s StatefulSetMatcher) getBackupVolumeMatcher() gomegatypes.GomegaMatcher {
 			}),
 		})
 
-	case utils.GCS, utils.S3, utils.OSS, utils.ABS, utils.Swift, utils.OCS:
+	case druidstore.GCS, druidstore.S3, druidstore.OSS, druidstore.ABS, druidstore.Swift, druidstore.OCS:
 		s.g.Expect(s.etcd.Spec.Backup.Store.SecretRef).ToNot(BeNil())
 		return MatchFields(IgnoreExtras, Fields{
 			"Name": Equal(common.VolumeNameProviderBackupSecret),

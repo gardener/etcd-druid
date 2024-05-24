@@ -9,13 +9,12 @@ import (
 	"fmt"
 	"time"
 
-	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
 	"github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
+
+	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,6 +22,9 @@ import (
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Etcd Backup", func() {
@@ -56,7 +58,7 @@ var _ = Describe("Etcd Backup", func() {
 
 					By("Purge snapstore")
 					snapstoreProvider := provider.Storage.Provider
-					if snapstoreProvider == utils.Local {
+					if snapstoreProvider == druidstore.Local {
 						purgeLocalSnapstoreJob := purgeLocalSnapstore(parentCtx, cl, storageContainer)
 						defer cleanUpTestHelperJob(parentCtx, cl, purgeLocalSnapstoreJob.Name)
 					} else {

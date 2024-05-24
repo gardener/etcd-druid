@@ -14,6 +14,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/features"
 	"github.com/gardener/etcd-druid/internal/images"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
 	"github.com/gardener/etcd-druid/internal/utils"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
@@ -287,13 +288,13 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 	}
 
 	targetStore := task.Spec.TargetStore
-	targetProvider, err := utils.StorageProviderFromInfraProvider(targetStore.Provider)
+	targetProvider, err := druidstore.StorageProviderFromInfraProvider(targetStore.Provider)
 	if err != nil {
 		return nil, err
 	}
 
 	sourceStore := task.Spec.SourceStore
-	sourceProvider, err := utils.StorageProviderFromInfraProvider(sourceStore.Provider)
+	sourceProvider, err := druidstore.StorageProviderFromInfraProvider(sourceStore.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -353,7 +354,7 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 	}
 
 	if r.Config.FeatureGates[features.UseEtcdWrapper] {
-		if targetProvider == utils.Local {
+		if targetProvider == druidstore.Local {
 			// init container to change file permissions of the folders used as store to 65532 (nonroot)
 			// used only with local provider
 			job.Spec.Template.Spec.InitContainers = []corev1.Container{
@@ -439,9 +440,9 @@ func getVolumeNamePrefix(prefix string) string {
 // This function creates the necessary Volume configurations for various storage providers.
 func (r *Reconciler) createVolumesFromStore(ctx context.Context, store *druidv1alpha1.StoreSpec, namespace, provider, prefix string) (volumes []corev1.Volume, err error) {
 	switch provider {
-	case utils.Local:
+	case druidstore.Local:
 		hostPathDirectory := corev1.HostPathDirectory
-		hostPathPrefix, err := utils.GetHostMountPathFromSecretRef(ctx, r.Client, r.logger, store, namespace)
+		hostPathPrefix, err := druidstore.GetHostMountPathFromSecretRef(ctx, r.Client, r.logger, store, namespace)
 		if err != nil {
 			return nil, err
 		}
@@ -454,7 +455,7 @@ func (r *Reconciler) createVolumesFromStore(ctx context.Context, store *druidv1a
 				},
 			},
 		})
-	case utils.GCS, utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
+	case druidstore.GCS, druidstore.S3, druidstore.ABS, druidstore.Swift, druidstore.OCS, druidstore.OSS:
 		if store.SecretRef == nil {
 			err = fmt.Errorf("no secretRef is configured for backup %sstore", prefix)
 			return
@@ -478,7 +479,7 @@ func (r *Reconciler) createVolumesFromStore(ctx context.Context, store *druidv1a
 // This function creates the necessary Volume configurations for various storage providers and returns any errors encountered.
 func createVolumeMountsFromStore(store *druidv1alpha1.StoreSpec, provider, volumeMountPrefix string, useEtcdWrapper bool) (volumeMounts []corev1.VolumeMount) {
 	switch provider {
-	case utils.Local:
+	case druidstore.Local:
 		if useEtcdWrapper {
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
 				Name:      volumeMountPrefix + "host-storage",
@@ -490,12 +491,12 @@ func createVolumeMountsFromStore(store *druidv1alpha1.StoreSpec, provider, volum
 				MountPath: *store.Container,
 			})
 		}
-	case utils.GCS:
+	case druidstore.GCS:
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      getVolumeNamePrefix(volumeMountPrefix) + common.VolumeNameProviderBackupSecret,
 			MountPath: getGCSSecretVolumeMountPathWithPrefixAndSuffix(getVolumeNamePrefix(volumeMountPrefix), "/"),
 		})
-	case utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
+	case druidstore.S3, druidstore.ABS, druidstore.Swift, druidstore.OCS, druidstore.OSS:
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      getVolumeNamePrefix(volumeMountPrefix) + common.VolumeNameProviderBackupSecret,
 			MountPath: getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumeMountPrefix, "/"),
@@ -523,17 +524,17 @@ func getGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, volumeSuffix s
 func createEnvVarsFromStore(store *druidv1alpha1.StoreSpec, storeProvider, envKeyPrefix, volumePrefix string) (envVars []corev1.EnvVar) {
 	envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvStorageContainer, *store.Container))
 	switch storeProvider {
-	case utils.S3:
+	case druidstore.S3:
 		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvAWSApplicationCredentials, getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
-	case utils.ABS:
+	case druidstore.ABS:
 		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvAzureApplicationCredentials, getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
-	case utils.GCS:
+	case druidstore.GCS:
 		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvGoogleApplicationCredentials, getGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "/serviceaccount.json")))
-	case utils.Swift:
+	case druidstore.Swift:
 		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvOpenstackApplicationCredentials, getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
-	case utils.OCS:
+	case druidstore.OCS:
 		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvOpenshiftApplicationCredentials, getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
-	case utils.OSS:
+	case druidstore.OSS:
 		envVars = append(envVars, utils.GetEnvVarFromValue(envKeyPrefix+common.EnvAlicloudApplicationCredentials, getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "")))
 	}
 	return envVars

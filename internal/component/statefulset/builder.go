@@ -12,8 +12,10 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
+
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -228,7 +230,7 @@ func (b *stsBuilder) getPodInitContainers() []corev1.Container {
 		},
 	})
 	if b.etcd.IsBackupStoreEnabled() {
-		if b.provider != nil && *b.provider == utils.Local {
+		if b.provider != nil && *b.provider == druidstore.Local {
 			etcdBackupVolumeMount := b.getEtcdBackupVolumeMount()
 			if etcdBackupVolumeMount != nil {
 				initContainers = append(initContainers, corev1.Container{
@@ -305,7 +307,7 @@ func (b *stsBuilder) getBackupRestoreContainerSecretVolumeMounts() []corev1.Volu
 
 func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 	switch *b.provider {
-	case utils.Local:
+	case druidstore.Local:
 		if b.etcd.Spec.Backup.Store.Container != nil {
 			if b.useEtcdWrapper {
 				return &corev1.VolumeMount{
@@ -319,12 +321,12 @@ func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 				}
 			}
 		}
-	case utils.GCS:
+	case druidstore.GCS:
 		return &corev1.VolumeMount{
 			Name:      common.VolumeNameProviderBackupSecret,
 			MountPath: common.VolumeMountPathGCSBackupSecret,
 		}
-	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
+	case druidstore.S3, druidstore.ABS, druidstore.OSS, druidstore.Swift, druidstore.OCS:
 		return &corev1.VolumeMount{
 			Name:      common.VolumeNameProviderBackupSecret,
 			MountPath: common.VolumeMountPathNonGCSProviderBackupSecret,
@@ -371,6 +373,12 @@ func (b *stsBuilder) getBackupRestoreContainer() (corev1.Container, error) {
 	if err != nil {
 		return corev1.Container{}, err
 	}
+	providerEnv, err := druidstore.GetProviderEnvVars(b.etcd.Spec.Backup.Store)
+	if err != nil {
+		return corev1.Container{}, err
+	}
+	env = append(env, providerEnv...)
+
 	return corev1.Container{
 		Name:            common.ContainerNameEtcdBackupRestore,
 		Image:           b.etcdBackupRestoreImage,
@@ -823,8 +831,8 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 	}
 	store := b.etcd.Spec.Backup.Store
 	switch *b.provider {
-	case utils.Local:
-		hostPath, err := utils.GetHostMountPathFromSecretRef(ctx, b.client, b.logger, store, b.etcd.GetNamespace())
+	case druidstore.Local:
+		hostPath, err := druidstore.GetHostMountPathFromSecretRef(ctx, b.client, b.logger, store, b.etcd.GetNamespace())
 		if err != nil {
 			return nil, fmt.Errorf("error getting host mount path for etcd: %v Err: %w", druidv1alpha1.GetNamespaceName(b.etcd.ObjectMeta), err)
 		}
@@ -839,7 +847,7 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 				},
 			},
 		}, nil
-	case utils.GCS, utils.S3, utils.OSS, utils.ABS, utils.Swift, utils.OCS:
+	case druidstore.GCS, druidstore.S3, druidstore.OSS, druidstore.ABS, druidstore.Swift, druidstore.OCS:
 		if store.SecretRef == nil {
 			return nil, fmt.Errorf("etcd: %v, no secretRef configured for backup store", druidv1alpha1.GetNamespaceName(b.etcd.ObjectMeta))
 		}
@@ -861,7 +869,7 @@ func getBackupStoreProvider(etcd *druidv1alpha1.Etcd) (*string, error) {
 	if !etcd.IsBackupStoreEnabled() {
 		return nil, nil
 	}
-	provider, err := utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
+	provider, err := druidstore.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
 	if err != nil {
 		return nil, err
 	}

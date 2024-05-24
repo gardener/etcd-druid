@@ -11,7 +11,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
-	"github.com/gardener/etcd-druid/internal/utils"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/gardener/gardener/pkg/controllerutils"
@@ -122,9 +122,9 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 })
 
 func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.ImageVector) gomegatypes.GomegaMatcher {
-	sourceProvider, err := utils.StorageProviderFromInfraProvider(task.Spec.SourceStore.Provider)
+	sourceProvider, err := druidstore.StorageProviderFromInfraProvider(task.Spec.SourceStore.Provider)
 	Expect(err).NotTo(HaveOccurred())
-	targetProvider, err := utils.StorageProviderFromInfraProvider(task.Spec.TargetStore.Provider)
+	targetProvider, err := druidstore.StorageProviderFromInfraProvider(task.Spec.TargetStore.Provider)
 	Expect(err).NotTo(HaveOccurred())
 
 	images, err := imagevector.FindImages(imageVector, []string{common.ImageKeyEtcdBackupRestore})

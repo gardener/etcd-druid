@@ -11,8 +11,9 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
-	"github.com/gardener/etcd-druid/internal/utils"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
@@ -278,7 +279,7 @@ var _ = Describe("Compaction Controller", func() {
 })
 
 func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) {
-	store, err := utils.StorageProviderFromInfraProvider(instance.Spec.Backup.Store.Provider)
+	store, err := druidstore.StorageProviderFromInfraProvider(instance.Spec.Backup.Store.Provider)
 	Expect(err).NotTo(HaveOccurred())
 
 	Expect(*j).To(MatchFields(IgnoreExtras, Fields{

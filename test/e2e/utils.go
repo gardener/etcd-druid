@@ -16,7 +16,7 @@ import (
 
 	"github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
-	"github.com/gardener/etcd-druid/internal/utils"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
 
 	"github.com/gardener/etcd-backup-restore/pkg/snapstore"
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
@@ -343,7 +343,7 @@ func getProviders() ([]TestProvider, error) {
 					Name:   "aws",
 					Suffix: "aws",
 					Storage: &Storage{
-						Provider: utils.S3,
+						Provider: druidstore.S3,
 						SecretData: map[string][]byte{
 							"accessKeyID":     []byte(s3AccessKeyID),
 							"secretAccessKey": []byte(s3SecretAccessKey),
@@ -365,7 +365,7 @@ func getProviders() ([]TestProvider, error) {
 					Name:   "az",
 					Suffix: "az",
 					Storage: &Storage{
-						Provider: utils.ABS,
+						Provider: druidstore.ABS,
 						SecretData: map[string][]byte{
 							"storageAccount": []byte(absStorageAccount),
 							"storageKey":     []byte(absStorageKey),
@@ -385,7 +385,7 @@ func getProviders() ([]TestProvider, error) {
 					Name:   "gcp",
 					Suffix: "gcp",
 					Storage: &Storage{
-						Provider: utils.GCS,
+						Provider: druidstore.GCS,
 						SecretData: map[string][]byte{
 							"serviceaccount.json": gcsSA,
 						},
@@ -397,7 +397,7 @@ func getProviders() ([]TestProvider, error) {
 				Name:   "local",
 				Suffix: "local",
 				Storage: &Storage{
-					Provider:   utils.Local,
+					Provider:   druidstore.Local,
 					SecretData: map[string][]byte{},
 				},
 			}

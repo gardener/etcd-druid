@@ -12,7 +12,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/common"
-	"github.com/gardener/etcd-druid/internal/utils"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/gardener/gardener/pkg/controllerutils"
@@ -314,8 +314,8 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 	Describe("#createJobArguments", func() {
 		var (
-			providerLocal = druidv1alpha1.StorageProvider(utils.Local)
-			providerS3    = druidv1alpha1.StorageProvider(utils.S3)
+			providerLocal = druidv1alpha1.StorageProvider(druidstore.Local)
+			providerS3    = druidv1alpha1.StorageProvider(druidstore.S3)
 			task          *druidv1alpha1.EtcdCopyBackupsTask
 			expected      = []string{
 				"copy",
@@ -350,19 +350,19 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 		})
 
 		It("should create the correct arguments", func() {
-			arguments := createJobArgs(task, utils.Local, utils.S3)
+			arguments := createJobArgs(task, druidstore.Local, druidstore.S3)
 			Expect(arguments).To(Equal(expected))
 		})
 
 		It("should include the max backup age in the arguments", func() {
 			task.Spec.MaxBackupAge = pointer.Uint32(10)
-			arguments := createJobArgs(task, utils.Local, utils.S3)
+			arguments := createJobArgs(task, druidstore.Local, druidstore.S3)
 			Expect(arguments).To(Equal(append(expected, "--max-backup-age=10")))
 		})
 
 		It("should include the max number of backups in the arguments", func() {
 			task.Spec.MaxBackups = pointer.Uint32(5)
-			arguments := createJobArgs(task, utils.Local, utils.S3)
+			arguments := createJobArgs(task, druidstore.Local, druidstore.S3)
 			Expect(arguments).To(Equal(append(expected, "--max-backups-to-copy=5")))
 		})
 
@@ -370,7 +370,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			task.Spec.WaitForFinalSnapshot = &druidv1alpha1.WaitForFinalSnapshotSpec{
 				Enabled: true,
 			}
-			arguments := createJobArgs(task, utils.Local, utils.S3)
+			arguments := createJobArgs(task, druidstore.Local, druidstore.S3)
 			Expect(arguments).To(Equal(append(expected, "--wait-for-final-snapshot=true")))
 		})
 
@@ -379,7 +379,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Enabled: true,
 				Timeout: &metav1.Duration{Duration: time.Minute},
 			}
-			arguments := createJobArgs(task, utils.Local, utils.S3)
+			arguments := createJobArgs(task, druidstore.Local, druidstore.S3)
 			Expect(arguments).To(Equal(append(expected, "--wait-for-final-snapshot=true", "--wait-for-final-snapshot-timeout=1m0s")))
 		})
 	})
@@ -393,12 +393,12 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 		)
 		// Loop through different storage providers to test with
 		for _, p := range []string{
-			utils.ABS,
-			utils.GCS,
-			utils.S3,
-			utils.Swift,
-			utils.OSS,
-			utils.OCS,
+			druidstore.ABS,
+			druidstore.GCS,
+			druidstore.S3,
+			druidstore.Swift,
+			druidstore.OSS,
+			druidstore.OCS,
 		} {
 			Context(fmt.Sprintf("with provider #%s", p), func() {
 				provider := p
@@ -419,7 +419,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 		}
 		Context("with provider #Local", func() {
 			BeforeEach(func() {
-				storageProvider := druidv1alpha1.StorageProvider(utils.Local)
+				storageProvider := druidv1alpha1.StorageProvider(druidstore.Local)
 				storeSpec = &druidv1alpha1.StoreSpec{
 					Container: &container,
 					Provider:  &storageProvider,
@@ -427,8 +427,8 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			})
 
 			It("should create the correct env vars", func() {
-				envVars := createEnvVarsFromStore(storeSpec, utils.Local, envKeyPrefix, volumePrefix)
-				checkEnvVars(envVars, utils.Local, container, envKeyPrefix, volumePrefix)
+				envVars := createEnvVarsFromStore(storeSpec, druidstore.Local, envKeyPrefix, volumePrefix)
+				checkEnvVars(envVars, druidstore.Local, container, envKeyPrefix, volumePrefix)
 
 			})
 		})
@@ -441,13 +441,13 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 		)
 		// Loop through different storage providers to test with
 		for _, p := range []string{
-			utils.Local,
-			utils.ABS,
-			utils.GCS,
-			utils.S3,
-			utils.Swift,
-			utils.OSS,
-			utils.OCS,
+			druidstore.Local,
+			druidstore.ABS,
+			druidstore.GCS,
+			druidstore.S3,
+			druidstore.Swift,
+			druidstore.OSS,
+			druidstore.OCS,
 		} {
 			Context(fmt.Sprintf("with provider #%s", p), func() {
 				provider := p
@@ -467,13 +467,13 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 					expectedMountName := ""
 
 					switch provider {
-					case utils.Local:
+					case druidstore.Local:
 						expectedMountName = volumeMountPrefix + "host-storage"
 						expectedMountPath = *storeSpec.Container
-					case utils.GCS:
+					case druidstore.GCS:
 						expectedMountName = volumeMountPrefix + common.VolumeNameProviderBackupSecret
 						expectedMountPath = getGCSSecretVolumeMountPathWithPrefixAndSuffix(volumeMountPrefix, "/")
-					case utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
+					case druidstore.S3, druidstore.ABS, druidstore.Swift, druidstore.OCS, druidstore.OSS:
 						expectedMountName = volumeMountPrefix + common.VolumeNameProviderBackupSecret
 						expectedMountPath = getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumeMountPrefix, "/")
 					default:
@@ -522,7 +522,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 			It("should create the correct volumes when secret data hostPath is set", func() {
 				secret.Data = map[string][]byte{
-					utils.EtcdBackupSecretHostPath: []byte("/test/hostPath"),
+					druidstore.EtcdBackupSecretHostPath: []byte("/test/hostPath"),
 				}
 				Expect(fakeClient.Create(ctx, secret)).To(Succeed())
 
@@ -549,7 +549,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 				hostPathVolumeSource := volumes[0].VolumeSource.HostPath
 				Expect(hostPathVolumeSource).NotTo(BeNil())
-				Expect(hostPathVolumeSource.Path).To(Equal(utils.LocalProviderDefaultMountPath + "/" + *store.Container))
+				Expect(hostPathVolumeSource.Path).To(Equal(druidstore.LocalProviderDefaultMountPath + "/" + *store.Container))
 				Expect(*hostPathVolumeSource.Type).To(Equal(corev1.HostPathDirectory))
 			})
 
@@ -564,7 +564,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 				hostPathVolumeSource := volumes[0].VolumeSource.HostPath
 				Expect(hostPathVolumeSource).NotTo(BeNil())
-				Expect(hostPathVolumeSource.Path).To(Equal(utils.LocalProviderDefaultMountPath + "/" + *store.Container))
+				Expect(hostPathVolumeSource.Path).To(Equal(druidstore.LocalProviderDefaultMountPath + "/" + *store.Container))
 				Expect(*hostPathVolumeSource.Type).To(Equal(corev1.HostPathDirectory))
 			})
 		})
@@ -585,12 +585,12 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 			// Loop through different storage providers to test with
 			for _, p := range []string{
-				utils.ABS,
-				utils.GCS,
-				utils.S3,
-				utils.Swift,
-				utils.OSS,
-				utils.OCS,
+				druidstore.ABS,
+				druidstore.GCS,
+				druidstore.S3,
+				druidstore.Swift,
+				druidstore.OSS,
+				druidstore.OCS,
 			} {
 				Context(fmt.Sprintf("#%s", p), func() {
 					BeforeEach(func() {
@@ -696,20 +696,20 @@ func checkEnvVars(envVars []corev1.EnvVar, storeProvider, container, envKeyPrefi
 			Value: container,
 		}}
 	mapToEnvVarKey := map[string]string{
-		utils.S3:    envKeyPrefix + common.EnvAWSApplicationCredentials,
-		utils.ABS:   envKeyPrefix + common.EnvAzureApplicationCredentials,
-		utils.GCS:   envKeyPrefix + common.EnvGoogleApplicationCredentials,
-		utils.Swift: envKeyPrefix + common.EnvOpenstackApplicationCredentials,
-		utils.OCS:   envKeyPrefix + common.EnvOpenshiftApplicationCredentials,
-		utils.OSS:   envKeyPrefix + common.EnvAlicloudApplicationCredentials,
+		druidstore.S3:    envKeyPrefix + common.EnvAWSApplicationCredentials,
+		druidstore.ABS:   envKeyPrefix + common.EnvAzureApplicationCredentials,
+		druidstore.GCS:   envKeyPrefix + common.EnvGoogleApplicationCredentials,
+		druidstore.Swift: envKeyPrefix + common.EnvOpenstackApplicationCredentials,
+		druidstore.OCS:   envKeyPrefix + common.EnvOpenshiftApplicationCredentials,
+		druidstore.OSS:   envKeyPrefix + common.EnvAlicloudApplicationCredentials,
 	}
 	switch storeProvider {
-	case utils.S3, utils.ABS, utils.Swift, utils.OCS, utils.OSS:
+	case druidstore.S3, druidstore.ABS, druidstore.Swift, druidstore.OCS, druidstore.OSS:
 		expected = append(expected, corev1.EnvVar{
 			Name:  mapToEnvVarKey[storeProvider],
 			Value: getNonGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, ""),
 		})
-	case utils.GCS:
+	case druidstore.GCS:
 		expected = append(expected, corev1.EnvVar{
 			Name:  mapToEnvVarKey[storeProvider],
 			Value: getGCSSecretVolumeMountPathWithPrefixAndSuffix(volumePrefix, "/serviceaccount.json"),
@@ -719,9 +719,9 @@ func checkEnvVars(envVars []corev1.EnvVar, storeProvider, container, envKeyPrefi
 }
 
 func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.ImageVector) gomegatypes.GomegaMatcher {
-	sourceProvider, err := utils.StorageProviderFromInfraProvider(task.Spec.SourceStore.Provider)
+	sourceProvider, err := druidstore.StorageProviderFromInfraProvider(task.Spec.SourceStore.Provider)
 	Expect(err).NotTo(HaveOccurred())
-	targetProvider, err := utils.StorageProviderFromInfraProvider(task.Spec.TargetStore.Provider)
+	targetProvider, err := druidstore.StorageProviderFromInfraProvider(task.Spec.TargetStore.Provider)
 	Expect(err).NotTo(HaveOccurred())
 
 	images, err := imagevector.FindImages(imageVector, []string{common.ImageKeyEtcdBackupRestore})

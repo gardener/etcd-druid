@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -53,7 +53,7 @@ var _ = Describe("Etcd", func() {
 
 		By("Purge snapstore")
 		snapstoreProvider := provider.Storage.Provider
-		if snapstoreProvider == utils.Local {
+		if snapstoreProvider == druidstore.Local {
 			purgeLocalSnapstoreJob := purgeLocalSnapstore(parentCtx, cl, storageContainer)
 			defer cleanUpTestHelperJob(parentCtx, cl, purgeLocalSnapstoreJob.Name)
 		} else {

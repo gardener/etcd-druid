@@ -15,6 +15,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/features"
 	"github.com/gardener/etcd-druid/internal/images"
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
 	"github.com/gardener/etcd-druid/internal/utils"
 
 	"github.com/gardener/gardener/pkg/utils/imagevector"
@@ -311,14 +312,21 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 		job.Spec.Template.Spec.Containers[0].VolumeMounts = vms
 	}
 
-	if env, err := utils.GetBackupRestoreContainerEnvVars(etcd.Spec.Backup.Store); err != nil {
-		return nil, fmt.Errorf("error while creating compaction job in %v for %v : %v",
+	env, err := utils.GetBackupRestoreContainerEnvVars(etcd.Spec.Backup.Store)
+	if err != nil {
+		return nil, fmt.Errorf("error while creating compaction job in %v for %v : unable to get backup-restore container environment variables : %v",
 			etcd.Namespace,
 			etcd.Name,
 			err)
-	} else {
-		job.Spec.Template.Spec.Containers[0].Env = env
 	}
+	providerEnv, err := druidstore.GetProviderEnvVars(etcd.Spec.Backup.Store)
+	if err != nil {
+		return nil, fmt.Errorf("error while creating compaction job in %v for %v : unable to get provider-specific environment variables : %v",
+			etcd.Namespace,
+			etcd.Name,
+			err)
+	}
+	job.Spec.Template.Spec.Containers[0].Env = append(env, providerEnv...)
 
 	if vm, err := getCompactionJobVolumes(ctx, r.Client, r.logger, etcd); err != nil {
 		return nil, fmt.Errorf("error creating compaction job in %v for %v : %v",
@@ -362,12 +370,12 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featu
 		},
 	}
 
-	provider, err := utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
+	provider, err := druidstore.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
 	if err != nil {
 		return vms, fmt.Errorf("storage provider is not recognized while fetching volume mounts")
 	}
 	switch provider {
-	case utils.Local:
+	case druidstore.Local:
 		if featureMap[features.UseEtcdWrapper] {
 			vms = append(vms, v1.VolumeMount{
 				Name:      "host-storage",
@@ -379,12 +387,12 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featu
 				MountPath: pointer.StringDeref(etcd.Spec.Backup.Store.Container, ""),
 			})
 		}
-	case utils.GCS:
+	case druidstore.GCS:
 		vms = append(vms, v1.VolumeMount{
 			Name:      common.VolumeNameProviderBackupSecret,
 			MountPath: common.VolumeMountPathGCSBackupSecret,
 		})
-	case utils.S3, utils.ABS, utils.OSS, utils.Swift, utils.OCS:
+	case druidstore.S3, druidstore.ABS, druidstore.OSS, druidstore.Swift, druidstore.OCS:
 		vms = append(vms, v1.VolumeMount{
 			Name:      common.VolumeNameProviderBackupSecret,
 			MountPath: common.VolumeMountPathNonGCSProviderBackupSecret,
@@ -405,13 +413,13 @@ func getCompactionJobVolumes(ctx context.Context, cl client.Client, logger logr.
 	}
 
 	storeValues := etcd.Spec.Backup.Store
-	provider, err := utils.StorageProviderFromInfraProvider(storeValues.Provider)
+	provider, err := druidstore.StorageProviderFromInfraProvider(storeValues.Provider)
 	if err != nil {
 		return vs, fmt.Errorf("could not recognize storage provider while fetching volumes")
 	}
 	switch provider {
 	case "Local":
-		hostPath, err := utils.GetHostMountPathFromSecretRef(ctx, cl, logger, storeValues, etcd.Namespace)
+		hostPath, err := druidstore.GetHostMountPathFromSecretRef(ctx, cl, logger, storeValues, etcd.Namespace)
 		if err != nil {
 			return vs, fmt.Errorf("could not determine host mount path for local provider")
 		}
@@ -426,7 +434,7 @@ func getCompactionJobVolumes(ctx context.Context, cl client.Client, logger logr.
 				},
 			},
 		})
-	case utils.GCS, utils.S3, utils.OSS, utils.ABS, utils.Swift, utils.OCS:
+	case druidstore.GCS, druidstore.S3, druidstore.OSS, druidstore.ABS, druidstore.Swift, druidstore.OCS:
 		if storeValues.SecretRef == nil {
 			return vs, fmt.Errorf("could not configure secretRef for backup store %v", provider)
 		}
@@ -470,7 +478,7 @@ func getCompactionJobArgs(etcd *druidv1alpha1.Etcd, metricsScrapeWaitDuration st
 	}
 	storeValues := etcd.Spec.Backup.Store
 	if storeValues != nil {
-		provider, err := utils.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
+		provider, err := druidstore.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
 		if err == nil {
 			command = append(command, "--storage-provider="+provider)
 		}

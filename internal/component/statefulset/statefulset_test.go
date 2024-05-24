@@ -13,8 +13,10 @@ import (
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/features"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
@@ -119,7 +121,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))
 			etcdImage, etcdBRImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv, true)
 			g.Expect(err).ToNot(HaveOccurred())
-			stsMatcher := NewStatefulSetMatcher(g, cl, etcd, tc.replicas, true, initContainerImage, etcdImage, etcdBRImage, pointer.String(utils.Local))
+			stsMatcher := NewStatefulSetMatcher(g, cl, etcd, tc.replicas, true, initContainerImage, etcdImage, etcdBRImage, pointer.String(druidstore.Local))
 			operator := New(cl, iv, map[featuregate.Feature]bool{
 				features.UseEtcdWrapper: true,
 			})

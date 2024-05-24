@@ -7,15 +7,16 @@ package e2e
 import (
 	"context"
 	"fmt"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"time"
 
-	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
-	"github.com/gardener/etcd-druid/internal/utils"
-	batchv1 "k8s.io/api/batch/v1"
-	"k8s.io/apimachinery/pkg/types"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
 
+	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	batchv1 "k8s.io/api/batch/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -50,7 +51,7 @@ var _ = Describe("Etcd Compaction", func() {
 
 					By("Purge snapstore")
 					snapstoreProvider := provider.Storage.Provider
-					if snapstoreProvider == utils.Local {
+					if snapstoreProvider == druidstore.Local {
 						purgeLocalSnapstoreJob := purgeLocalSnapstore(parentCtx, cl, storageContainer)
 						defer cleanUpTestHelperJob(parentCtx, cl, purgeLocalSnapstoreJob.Name)
 					} else {
@@ -142,7 +143,7 @@ var _ = Describe("Etcd Compaction", func() {
 						defer cancelFunc()
 
 						req := types.NamespacedName{
-							Name:      etcd.GetCompactionJobName(),
+							Name:      druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta),
 							Namespace: etcd.Namespace,
 						}
 
