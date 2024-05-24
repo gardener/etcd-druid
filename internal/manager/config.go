@@ -159,7 +159,6 @@ func (cfg *Config) initFeatureGates(fs *flag.FlagSet) error {
 // captureFeatureActivations captures feature gate activations for etcd-druid controllers and webhooks.
 func (cfg *Config) captureFeatureActivations() {
 	cfg.Controllers.CaptureFeatureActivations(cfg.FeatureGates)
-	cfg.Webhooks.CaptureFeatureActivations(cfg.FeatureGates)
 }
 
 // Validate validates the controller manager config.
@@ -176,12 +175,7 @@ func (cfg *Config) Validate() error {
 			return fmt.Errorf("webhook server cert dir cannot be empty")
 		}
 	}
-
-	if err := cfg.Controllers.Validate(); err != nil {
-		return err
-	}
-
-	return cfg.Webhooks.Validate()
+	return cfg.Controllers.Validate()
 }
 
 // getAllowedLeaderElectionResourceLocks returns the allowed resource type to be used for leader election.
