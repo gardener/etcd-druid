@@ -118,7 +118,7 @@ func assertResourceCreation(ctx component.OperatorContext, t *testing.T, opRegis
 	g := NewWithT(t)
 	op := opRegistry.GetOperator(kind)
 	checkFn := func() error {
-		actualResourceNames, err := op.GetExistingResourceNames(ctx, etcd)
+		actualResourceNames, err := op.GetExistingResourceNames(ctx, etcd.ObjectMeta)
 		if err != nil {
 			return err
 		}
@@ -150,23 +150,23 @@ func assertMemberLeasesCreated(ctx component.OperatorContext, t *testing.T, opRe
 func assertSnapshotLeasesCreated(ctx component.OperatorContext, t *testing.T, opRegistry component.Registry, etcd *druidv1alpha1.Etcd, timeout, pollInterval time.Duration) {
 	expectedSnapshotLeaseNames := make([]string, 0, 2)
 	if etcd.IsBackupStoreEnabled() {
-		expectedSnapshotLeaseNames = []string{etcd.GetDeltaSnapshotLeaseName(), etcd.GetFullSnapshotLeaseName()}
+		expectedSnapshotLeaseNames = []string{druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta), druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta)}
 	}
 	assertResourceCreation(ctx, t, opRegistry, component.SnapshotLeaseKind, etcd, expectedSnapshotLeaseNames, timeout, pollInterval)
 }
 
 func assertClientServiceCreated(ctx component.OperatorContext, t *testing.T, opRegistry component.Registry, etcd *druidv1alpha1.Etcd, timeout, pollInterval time.Duration) {
-	expectedClientServiceNames := []string{etcd.GetClientServiceName()}
+	expectedClientServiceNames := []string{druidv1alpha1.GetClientServiceName(etcd.ObjectMeta)}
 	assertResourceCreation(ctx, t, opRegistry, component.ClientServiceKind, etcd, expectedClientServiceNames, timeout, pollInterval)
 }
 
 func assertPeerServiceCreated(ctx component.OperatorContext, t *testing.T, opRegistry component.Registry, etcd *druidv1alpha1.Etcd, timeout, pollInterval time.Duration) {
-	expectedPeerServiceNames := []string{etcd.GetPeerServiceName()}
+	expectedPeerServiceNames := []string{druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta)}
 	assertResourceCreation(ctx, t, opRegistry, component.PeerServiceKind, etcd, expectedPeerServiceNames, timeout, pollInterval)
 }
 
 func assertConfigMapCreated(ctx component.OperatorContext, t *testing.T, opRegistry component.Registry, etcd *druidv1alpha1.Etcd, timeout, pollInterval time.Duration) {
-	expectedConfigMapNames := []string{etcd.GetConfigMapName()}
+	expectedConfigMapNames := []string{druidv1alpha1.GetConfigMapName(etcd.ObjectMeta)}
 	assertResourceCreation(ctx, t, opRegistry, component.ConfigMapKind, etcd, expectedConfigMapNames, timeout, pollInterval)
 }
 
@@ -176,17 +176,17 @@ func assertPDBCreated(ctx component.OperatorContext, t *testing.T, opRegistry co
 }
 
 func assertServiceAccountCreated(ctx component.OperatorContext, t *testing.T, opRegistry component.Registry, etcd *druidv1alpha1.Etcd, timeout, pollInterval time.Duration) {
-	expectedServiceAccountNames := []string{etcd.GetServiceAccountName()}
+	expectedServiceAccountNames := []string{druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta)}
 	assertResourceCreation(ctx, t, opRegistry, component.ServiceAccountKind, etcd, expectedServiceAccountNames, timeout, pollInterval)
 }
 
 func assertRoleCreated(ctx component.OperatorContext, t *testing.T, opRegistry component.Registry, etcd *druidv1alpha1.Etcd, timeout, pollInterval time.Duration) {
-	expectedRoleNames := []string{etcd.GetRoleName()}
+	expectedRoleNames := []string{druidv1alpha1.GetRoleName(etcd.ObjectMeta)}
 	assertResourceCreation(ctx, t, opRegistry, component.RoleKind, etcd, expectedRoleNames, timeout, pollInterval)
 }
 
 func assertRoleBindingCreated(ctx component.OperatorContext, t *testing.T, opRegistry component.Registry, etcd *druidv1alpha1.Etcd, timeout, pollInterval time.Duration) {
-	expectedRoleBindingNames := []string{etcd.GetRoleBindingName()}
+	expectedRoleBindingNames := []string{druidv1alpha1.GetRoleBindingName(etcd.ObjectMeta)}
 	assertResourceCreation(ctx, t, opRegistry, component.RoleBindingKind, etcd, expectedRoleBindingNames, timeout, pollInterval)
 }
 

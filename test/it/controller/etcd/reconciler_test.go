@@ -198,7 +198,7 @@ func testEtcdSpecUpdateWhenNoReconcileOperationAnnotationIsSet(t *testing.T, tes
 	createAndAssertEtcdReconciliation(ctx, t, reconcilerTestEnv, etcdInstance)
 	assertStatefulSetGeneration(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 1, 30*time.Second, 2*time.Second)
 	// get updated version of etcdInstance
-	g.Expect(cl.Get(ctx, etcdInstance.GetNamespaceName(), etcdInstance)).To(Succeed())
+	g.Expect(cl.Get(ctx, druidv1alpha1.GetNamespaceName(etcdInstance.ObjectMeta), etcdInstance)).To(Succeed())
 	// update etcdInstance spec without reconcile operation annotation set
 	originalEtcdInstance := etcdInstance.DeepCopy()
 	metricsLevelExtensive := druidv1alpha1.Extensive
@@ -226,7 +226,7 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 	createAndAssertEtcdReconciliation(ctx, t, reconcilerTestEnv, etcdInstance)
 	assertStatefulSetGeneration(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 1, 30*time.Second, 2*time.Second)
 	// get latest version of etcdInstance
-	g.Expect(cl.Get(ctx, etcdInstance.GetNamespaceName(), etcdInstance)).To(Succeed())
+	g.Expect(cl.Get(ctx, druidv1alpha1.GetNamespaceName(etcdInstance.ObjectMeta), etcdInstance)).To(Succeed())
 	// update etcdInstance spec with reconcile operation annotation also set
 	originalEtcdInstance := etcdInstance.DeepCopy()
 	metricsLevelExtensive := druidv1alpha1.Extensive
@@ -308,7 +308,7 @@ func testPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 		Build()
 	// create the test client builder and record errors for delete operations for client service and snapshot lease.
 	testClientBuilder := testutils.NewTestClientBuilder().
-		RecordErrorForObjects(testutils.ClientMethodDelete, testutils.TestAPIInternalErr, client.ObjectKey{Name: etcdInstance.GetClientServiceName(), Namespace: etcdInstance.Namespace}).
+		RecordErrorForObjects(testutils.ClientMethodDelete, testutils.TestAPIInternalErr, client.ObjectKey{Name: druidv1alpha1.GetClientServiceName(etcdInstance.ObjectMeta), Namespace: etcdInstance.Namespace}).
 		RecordErrorForObjectsMatchingLabels(testutils.ClientMethodDeleteAll, etcdInstance.Namespace, map[string]string{
 			druidv1alpha1.LabelComponentKey: common.ComponentNameSnapshotLease,
 			druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
@@ -408,7 +408,7 @@ func TestEtcdStatusReconciliation(t *testing.T) {
 }
 
 func testConditionsAndMembersWhenAllMemberLeasesAreActive(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv) {
-	memberLeaseNames := etcd.GetMemberLeaseNames()
+	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, int(etcd.Spec.Replicas))
 	testNs := etcd.Namespace
 	clock := testclock.NewFakeClock(time.Now().Round(time.Second))
 	mlcs := []etcdMemberLeaseConfig{

@@ -13,7 +13,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
-
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
@@ -284,7 +283,7 @@ func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) 
 
 	Expect(*j).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name":      Equal(instance.GetCompactionJobName()),
+			"Name":      Equal(druidv1alpha1.GetCompactionJobName(instance.ObjectMeta)),
 			"Namespace": Equal(instance.Namespace),
 			"OwnerReferences": MatchElements(testutils.OwnerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
@@ -305,19 +304,19 @@ func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) 
 					"Containers": MatchElements(testutils.ContainerIterator, IgnoreExtras, Elements{
 						"compact-backup": MatchFields(IgnoreExtras, Fields{
 							"Args": MatchElements(testutils.CmdIterator, IgnoreExtras, Elements{
-								"--data-dir=/var/etcd/data/compaction.etcd":                                                                 Equal("--data-dir=/var/etcd/data/compaction.etcd"),
-								"--restoration-temp-snapshots-dir=/var/etcd/data/compaction.restoration.temp":                               Equal("--restoration-temp-snapshots-dir=/var/etcd/data/compaction.restoration.temp"),
-								"--snapstore-temp-directory=/var/etcd/data/tmp":                                                             Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
-								"--metrics-scrape-wait-duration=1m0s":                                                                       Equal("--metrics-scrape-wait-duration=1m0s"),
-								"--enable-snapshot-lease-renewal=true":                                                                      Equal("--enable-snapshot-lease-renewal=true"),
-								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", instance.GetFullSnapshotLeaseName()):                     Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", instance.GetFullSnapshotLeaseName())),
-								fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", instance.GetDeltaSnapshotLeaseName()):                   Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", instance.GetDeltaSnapshotLeaseName())),
-								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):                                   Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
-								fmt.Sprintf("%s=%s", "--storage-provider", store):                                                           Equal(fmt.Sprintf("%s=%s", "--storage-provider", store)),
-								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container):                            Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
-								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", instance.Spec.Etcd.Quota.Value()):                             Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", instance.Spec.Etcd.Quota.Value())),
-								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String()): Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String())),
-								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String()):       Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String())),
+								"--data-dir=/var/etcd/data/compaction.etcd":                                                                       Equal("--data-dir=/var/etcd/data/compaction.etcd"),
+								"--restoration-temp-snapshots-dir=/var/etcd/data/compaction.restoration.temp":                                     Equal("--restoration-temp-snapshots-dir=/var/etcd/data/compaction.restoration.temp"),
+								"--snapstore-temp-directory=/var/etcd/data/tmp":                                                                   Equal("--snapstore-temp-directory=/var/etcd/data/tmp"),
+								"--metrics-scrape-wait-duration=1m0s":                                                                             Equal("--metrics-scrape-wait-duration=1m0s"),
+								"--enable-snapshot-lease-renewal=true":                                                                            Equal("--enable-snapshot-lease-renewal=true"),
+								fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", druidv1alpha1.GetFullSnapshotLeaseName(instance.ObjectMeta)):   Equal(fmt.Sprintf("%s=%s", "--full-snapshot-lease-name", druidv1alpha1.GetFullSnapshotLeaseName(instance.ObjectMeta))),
+								fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", druidv1alpha1.GetDeltaSnapshotLeaseName(instance.ObjectMeta)): Equal(fmt.Sprintf("%s=%s", "--delta-snapshot-lease-name", druidv1alpha1.GetDeltaSnapshotLeaseName(instance.ObjectMeta))),
+								fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix):                                         Equal(fmt.Sprintf("%s=%s", "--store-prefix", instance.Spec.Backup.Store.Prefix)),
+								fmt.Sprintf("%s=%s", "--storage-provider", store):                                                                 Equal(fmt.Sprintf("%s=%s", "--storage-provider", store)),
+								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container):                                  Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
+								fmt.Sprintf("--embedded-etcd-quota-bytes=%d", instance.Spec.Etcd.Quota.Value()):                                   Equal(fmt.Sprintf("--embedded-etcd-quota-bytes=%d", instance.Spec.Etcd.Quota.Value())),
+								fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String()):       Equal(fmt.Sprintf("%s=%s", "--etcd-snapshot-timeout", instance.Spec.Backup.EtcdSnapshotTimeout.Duration.String())),
+								fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String()):             Equal(fmt.Sprintf("%s=%s", "--etcd-defrag-timeout", instance.Spec.Etcd.EtcdDefragTimeout.Duration.String())),
 							}),
 							"Image":           Equal(*instance.Spec.Backup.Image),
 							"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
@@ -680,7 +679,7 @@ func jobIsCorrectlyReconciled(c client.Client, instance *druidv1alpha1.Etcd, job
 	defer cancel()
 
 	req := types.NamespacedName{
-		Name:      instance.GetCompactionJobName(),
+		Name:      druidv1alpha1.GetCompactionJobName(instance.ObjectMeta),
 		Namespace: instance.Namespace,
 	}
 
@@ -731,11 +730,11 @@ func deleteEtcdAndWait(c client.Client, etcd *druidv1alpha1.Etcd) {
 
 func createEtcdSnapshotLeasesAndWait(c client.Client, etcd *druidv1alpha1.Etcd) (*coordinationv1.Lease, *coordinationv1.Lease) {
 	By("create full snapshot lease")
-	fullSnapLease := testutils.CreateLease(etcd.GetFullSnapshotLeaseName(), etcd.Namespace, etcd.Name, etcd.UID, "etcd-snapshot-lease")
+	fullSnapLease := testutils.CreateLease(druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta), etcd.Namespace, etcd.Name, etcd.UID, "etcd-snapshot-lease")
 	Expect(c.Create(context.TODO(), fullSnapLease)).To(Succeed())
 
 	By("create delta snapshot lease")
-	deltaSnapLease := testutils.CreateLease(etcd.GetDeltaSnapshotLeaseName(), etcd.Namespace, etcd.Name, etcd.UID, "etcd-snapshot-lease")
+	deltaSnapLease := testutils.CreateLease(druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta), etcd.Namespace, etcd.Name, etcd.UID, "etcd-snapshot-lease")
 	Expect(c.Create(context.TODO(), deltaSnapLease)).To(Succeed())
 
 	// wait for full snapshot lease to be created
@@ -751,7 +750,7 @@ func deleteEtcdSnapshotLeasesAndWait(c client.Client, etcd *druidv1alpha1.Etcd) 
 	By("delete full snapshot lease")
 	fullSnapLease := &coordinationv1.Lease{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      etcd.GetFullSnapshotLeaseName(),
+			Name:      druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta),
 			Namespace: etcd.Namespace,
 		},
 	}
@@ -760,7 +759,7 @@ func deleteEtcdSnapshotLeasesAndWait(c client.Client, etcd *druidv1alpha1.Etcd) 
 	By("delete delta snapshot lease")
 	deltaSnapLease := &coordinationv1.Lease{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      etcd.GetDeltaSnapshotLeaseName(),
+			Name:      druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta),
 			Namespace: etcd.Namespace,
 		},
 	}
