@@ -66,13 +66,18 @@ func (cfg *Config) InitFromFlags(fs *flag.FlagSet) {
 
 // Validate validates the config.
 func (cfg *Config) Validate() error {
-	if err := utils.MustBeGreaterThanOrEqualTo(workersFlagName, defaultMinWorkers, cfg.Workers); err != nil {
-		return err
+	if cfg.EnableBackupCompaction {
+		if err := utils.MustBeGreaterThanOrEqualTo(workersFlagName, defaultMinWorkers, cfg.Workers); err != nil {
+			return err
+		}
+		if err := utils.MustBeGreaterThan(eventsThresholdFlagName, 0, cfg.EventsThreshold); err != nil {
+			return err
+		}
+		if err := utils.MustBeGreaterThan(activeDeadlineDurationFlagName, 0, cfg.ActiveDeadlineDuration.Seconds()); err != nil {
+			return err
+		}
 	}
-	if err := utils.MustBeGreaterThan(eventsThresholdFlagName, 0, cfg.EventsThreshold); err != nil {
-		return err
-	}
-	return utils.MustBeGreaterThan(activeDeadlineDurationFlagName, 0, cfg.ActiveDeadlineDuration.Seconds())
+	return nil
 }
 
 // CaptureFeatureActivations captures all feature gates required by the controller into controller config
