@@ -63,6 +63,9 @@ function generate_crds() {
   fi
 }
 
+# setup virtual GOPATH
+source $(dirname $0)/vgopath-setup.sh
+
 export GO111MODULE=off
 echo "Generating CRDs for druid.gardener.cloud"
 check_prerequisites
