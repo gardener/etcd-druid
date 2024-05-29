@@ -25,12 +25,12 @@ func (r *Reconciler) triggerReconcileSpecFlow(ctx component.OperatorContext, etc
 		r.syncEtcdResources,
 		r.updateObservedGeneration,
 		r.recordReconcileSuccessOperation,
-		// Removing the operation annotation after last operation recording is counter-intuitive.
+		// Removing the operation annotation after last operation recording seems counter-intuitive.
 		// If we reverse the order where we first remove the operation annotation and then record the last operation then
 		// in case the operation annotation removal succeeds but the last operation recording fails, then the control
-		// will never enter this flow again and the last operation will never be recorded. Reason is that in
-		// there is a predicate check done in reconciler.canReconcile prior to entering this flow. That check will no longer
-		// succeed.
+		// will never enter this flow again and the last operation will never be recorded.
+		// Reason: there is a predicate check done in `reconciler.canReconcile` prior to entering this flow.
+		// That check will no longer succeed once the reconcile operation annotation has been removed.
 		r.removeOperationAnnotation,
 	}
 
