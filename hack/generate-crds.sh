@@ -9,7 +9,6 @@ set -o nounset
 set -o pipefail
 
 CRD_FILENAME_PREFIX=""
-REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 function create_usage() {
   usage=$(printf '%s\n' "
@@ -55,11 +54,13 @@ function generate_crds() {
   controller-gen crd paths="github.com/gardener/etcd-druid/api/v1alpha1" output:crd:dir="${output_dir}" output:stdout
 
   # rename files adding prefix if any specified
-  find "${output_dir}" -maxdepth 1 -name "druid.gardener.cloud*" -type f -print0 |
-    while IFS= read -r -d '' crd_file; do
-      crd_out_file="${output_dir}/${CRD_FILENAME_PREFIX}$(basename "$crd_file")"
-      mv "${crd_file}" "${crd_out_file}"
-    done
+  if [ -n "${CRD_FILENAME_PREFIX}" ]; then
+    find "${output_dir}" -maxdepth 1 -name "druid.gardener.cloud*" -type f -print0 |
+      while IFS= read -r -d '' crd_file; do
+        crd_out_file="${output_dir}/${CRD_FILENAME_PREFIX}$(basename "$crd_file")"
+        mv "${crd_file}" "${crd_out_file}"
+      done
+  fi
 }
 
 export GO111MODULE=off

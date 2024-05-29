@@ -2,6 +2,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//go:generate $HACK_DIR/generate-crds.sh -p 10-crd-
+//go:generate $HACK_DIR/generate-crds.sh -p crd-
 
 package bases
