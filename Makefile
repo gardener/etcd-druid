@@ -65,7 +65,7 @@ check-generate:
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: manifests
 manifests: $(VGOPATH) $(CONTROLLER_GEN)
-	@GARDENER_HACK_DIR=$(GARDENER_HACK_DIR) VGOPATH=$(VGOPATH) go generate ./config/crd/bases
+	@HACK_DIR=$(HACK_DIR) VGOPATH=$(VGOPATH) go generate ./config/crd/bases
 	@find "$(REPO_ROOT)/config/crd/bases" -name "*.yaml" -exec cp '{}' "$(REPO_ROOT)/charts/druid/charts/crds/templates/" \;
 	@controller-gen rbac:roleName=manager-role paths="./internal/controller/..."
 
