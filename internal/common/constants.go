@@ -5,8 +5,6 @@
 package common
 
 const (
-	// DefaultImageVectorFilePath is the path to the default image vector file.
-	DefaultImageVectorFilePath = "charts/images.yaml"
 	// FinalizerName is the name of the etcd finalizer.
 	FinalizerName = "druid.gardener.cloud/etcd-druid"
 	// CheckSumKeyConfigMap is the key that is set by a configmap component and used by StatefulSet component to
@@ -107,8 +105,8 @@ const (
 	ComponentNameServiceAccount = "etcd-service-account"
 	// ComponentNameStatefulSet is the component name for statefulset resource.
 	ComponentNameStatefulSet = "etcd-statefulset"
-	// ComponentNameCompactionJob is the component name for compaction job resource.
-	ComponentNameCompactionJob = "etcd-compaction-job"
+	// ComponentNameSnapshotCompactionJob is the component name for snapshot compaction job resource.
+	ComponentNameSnapshotCompactionJob = "etcd-snapshot-compaction-job"
 	// ComponentNameEtcdCopyBackupsJob is the component name for copy-backup task resource.
 	ComponentNameEtcdCopyBackupsJob = "etcd-copy-backups-job"
 )

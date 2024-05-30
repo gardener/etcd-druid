@@ -354,7 +354,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	jobLabels := map[string]string{
 		druidv1alpha1.LabelAppNameKey:                   druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta),
-		druidv1alpha1.LabelComponentKey:                 common.ComponentNameCompactionJob,
+		druidv1alpha1.LabelComponentKey:                 common.ComponentNameSnapshotCompactionJob,
 		"networking.gardener.cloud/to-dns":              "allowed",
 		"networking.gardener.cloud/to-private-networks": "allowed",
 		"networking.gardener.cloud/to-public-networks":  "allowed",
