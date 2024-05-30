@@ -5,7 +5,6 @@
 package statefulset
 
 const (
-	etcdConfigFileName      = "etcd.conf.yaml"
 	etcdConfigFileMountPath = "/var/etcd/config/"
 )
 

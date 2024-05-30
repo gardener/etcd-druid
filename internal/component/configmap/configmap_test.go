@@ -330,7 +330,7 @@ func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.C
 		}),
 	}))
 	// Validate the etcd config data
-	actualETCDConfigYAML := actualConfigMap.Data[etcdConfigKey]
+	actualETCDConfigYAML := actualConfigMap.Data[common.EtcdConfigFileName]
 	actualETCDConfig := make(map[string]interface{})
 	err := yaml.Unmarshal([]byte(actualETCDConfigYAML), &actualETCDConfig)
 	g.Expect(err).ToNot(HaveOccurred())

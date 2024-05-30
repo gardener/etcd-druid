@@ -138,6 +138,9 @@ const (
 	VolumeNameProviderBackupSecret = "etcd-backup-secret"
 )
 
+// EtcdConfigFileName is the name of the etcd configuration file.
+const EtcdConfigFileName = "etcd.conf.yaml"
+
 // ModeOwnerReadWriteGroupRead is the file permissions used for volumes
 const ModeOwnerReadWriteGroupRead int32 = 0640
 

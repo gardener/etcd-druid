@@ -420,8 +420,8 @@ func (s StatefulSetMatcher) matchPodVolumes() gomegatypes.GomegaMatcher {
 					"Name": Equal(druidv1alpha1.GetConfigMapName(s.etcd.ObjectMeta)),
 				}),
 				"Items": HaveExactElements(MatchFields(IgnoreExtras|IgnoreMissing, Fields{
-					"Key":  Equal(etcdConfigFileName),
-					"Path": Equal(etcdConfigFileName),
+					"Key":  Equal(common.EtcdConfigFileName),
+					"Path": Equal(common.EtcdConfigFileName),
 				})),
 				"DefaultMode": PointTo(Equal(common.ModeOwnerReadWriteGroupRead)),
 			})),

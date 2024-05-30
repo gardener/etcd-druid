@@ -31,8 +31,6 @@ const (
 	ErrDeleteConfigMap druidv1alpha1.ErrorCode = "ERR_DELETE_CONFIGMAP"
 )
 
-const etcdConfigKey = "etcd.conf.yaml"
-
 type _resource struct {
 	client client.Client
 }
@@ -119,7 +117,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, cm *corev1.ConfigMap) error {
 	cm.Namespace = etcd.Namespace
 	cm.Labels = getLabels(etcd)
 	cm.OwnerReferences = []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)}
-	cm.Data = map[string]string{etcdConfigKey: string(cfgYaml)}
+	cm.Data = map[string]string{common.EtcdConfigFileName: string(cfgYaml)}
 
 	return nil
 }
