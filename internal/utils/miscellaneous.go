@@ -12,14 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// MergeStringMaps merges the content of the newMaps with the oldMap. If a key already exists then
-// it gets overwritten by the last value with the same key.
-func MergeStringMaps(oldMap map[string]string, newMaps ...map[string]string) map[string]string {
-	allMaps := []map[string]string{oldMap}
-	allMaps = append(allMaps, newMaps...)
-	return MergeMaps(allMaps...)
-}
-
 // MergeMaps merges the contents of maps. All maps will be processed in the order
 // in which they are sent. For overlapping keys across source maps, value in the merged map
 // for this key will be from the last occurrence of the key-value.

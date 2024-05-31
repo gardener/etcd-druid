@@ -51,12 +51,11 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 	deltaSnapshotObjectKey := client.ObjectKey{Name: druidv1alpha1.GetDeltaSnapshotLeaseName(etcdObjMeta), Namespace: etcdObjMeta.Namespace}
 	deltaSnapshotLease, err := r.getLeasePartialObjectMetadata(ctx, deltaSnapshotObjectKey)
 	if err != nil {
-		return resourceNames, &druiderr.DruidError{
-			Code:      ErrGetSnapshotLease,
-			Cause:     err,
-			Operation: "GetExistingResourceNames",
-			Message:   fmt.Sprintf("Error getting delta snapshot lease: %v for etcd: %v", deltaSnapshotObjectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)),
-		}
+		return resourceNames, druiderr.WrapError(err,
+			ErrGetSnapshotLease,
+			"GetExistingResourceNames",
+			fmt.Sprintf("Error getting delta snapshot lease: %v for etcd: %v", deltaSnapshotObjectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)),
+		)
 	}
 	if deltaSnapshotLease != nil && metav1.IsControlledBy(deltaSnapshotLease, &etcdObjMeta) {
 		resourceNames = append(resourceNames, deltaSnapshotLease.Name)
@@ -64,18 +63,20 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 	fullSnapshotObjectKey := client.ObjectKey{Name: druidv1alpha1.GetFullSnapshotLeaseName(etcdObjMeta), Namespace: etcdObjMeta.Namespace}
 	fullSnapshotLease, err := r.getLeasePartialObjectMetadata(ctx, fullSnapshotObjectKey)
 	if err != nil {
-		return resourceNames, &druiderr.DruidError{
-			Code:      ErrGetSnapshotLease,
-			Cause:     err,
-			Operation: "GetExistingResourceNames",
-			Message:   fmt.Sprintf("Error getting full snapshot lease: %v for etcd: %v", fullSnapshotObjectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)),
-		}
+		return resourceNames, druiderr.WrapError(err,
+			ErrGetSnapshotLease,
+			"GetExistingResourceNames",
+			fmt.Sprintf("Error getting full snapshot lease: %v for etcd: %v", fullSnapshotObjectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)),
+		)
 	}
 	if fullSnapshotLease != nil && metav1.IsControlledBy(fullSnapshotLease, &etcdObjMeta) {
 		resourceNames = append(resourceNames, fullSnapshotLease.Name)
 	}
 	return resourceNames, nil
 }
+
+// PreSync is a no-op for the snapshot lease component.
+func (r _resource) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error { return nil }
 
 // Sync creates or updates the snapshot leases for the given Etcd.
 // If backups are disabled for the Etcd resource, any existing snapshot leases are deleted.

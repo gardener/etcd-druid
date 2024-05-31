@@ -63,6 +63,9 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 	return resourceNames, nil
 }
 
+// PreSync is a no-op for the configmap component.
+func (r _resource) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error { return nil }
+
 // Sync creates or updates the configmap for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	cm := emptyConfigMap(getObjectKey(etcd.ObjectMeta))

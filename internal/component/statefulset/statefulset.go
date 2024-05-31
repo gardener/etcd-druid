@@ -13,11 +13,14 @@ import (
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/features"
 	"github.com/gardener/etcd-druid/internal/utils"
+
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/component-base/featuregate"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -25,6 +28,8 @@ import (
 const (
 	// ErrGetStatefulSet indicates an error in getting the statefulset resource.
 	ErrGetStatefulSet druidv1alpha1.ErrorCode = "ERR_GET_STATEFULSET"
+	// ErrPreSyncStatefulSet indicates an error in pre-sync operations for the statefulset resource.
+	ErrPreSyncStatefulSet druidv1alpha1.ErrorCode = "ERR_PRESYNC_STATEFULSET"
 	// ErrSyncStatefulSet indicates an error in syncing the statefulset resource.
 	ErrSyncStatefulSet druidv1alpha1.ErrorCode = "ERR_SYNC_STATEFULSET"
 	// ErrDeleteStatefulSet indicates an error in deleting the statefulset resource.
@@ -65,6 +70,58 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 		resourceNames = append(resourceNames, objMeta.Name)
 	}
 	return resourceNames, nil
+}
+
+// PreSync recreates the statefulset for the given Etcd, if label selector for the existing statefulset
+// is different from the label selector required to be applied on it. This is because the statefulset's
+// spec.selector field is immutable and cannot be updated on the existing statefulset.
+func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	sts, err := r.getExistingStatefulSet(ctx, etcd.ObjectMeta)
+	if err != nil {
+		return druiderr.WrapError(err,
+			ErrPreSyncStatefulSet,
+			"PreSync",
+			fmt.Sprintf("Error getting StatefulSet: %v for etcd: %v", getObjectKey(etcd.ObjectMeta), druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
+	}
+	// if no sts exists, this method is a no-op.
+	if sts == nil {
+		return nil
+	}
+
+	// patch sts with new pod labels.
+	if err = r.checkAndPatchStsPodLabelsOnMismatch(ctx, etcd, sts); err != nil {
+		return druiderr.WrapError(err,
+			ErrPreSyncStatefulSet,
+			"PreSync",
+			fmt.Sprintf("Error checking and patching StatefulSet pods with new labels for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
+	}
+
+	// check if pods have been updated with new labels and become ready.
+	podsUpdatedAndReady, err := r.areStatefulSetPodsUpdatedAndReady(ctx, sts)
+	if err != nil {
+		return druiderr.WrapError(err,
+			ErrPreSyncStatefulSet,
+			"PreSync",
+			fmt.Sprintf("Error checking if StatefulSet pods are updated for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
+	}
+	if !podsUpdatedAndReady {
+		errMessage := fmt.Sprintf("StatefulSet pods are not yet updated with new pod labels and ready, for StatefulSet: %v for etcd: %v", getObjectKey(sts.ObjectMeta), druidv1alpha1.GetNamespaceName(etcd.ObjectMeta))
+		return druiderr.WrapError(fmt.Errorf(errMessage),
+			druiderr.ErrRetriable,
+			"PreSync",
+			errMessage,
+		)
+	}
+
+	// if sts label selector needs to be changed, then delete the statefulset, but keeping the pods intact.
+	if err = r.checkAndDeleteStsWithOrphansOnLabelSelectorMismatch(ctx, etcd, sts); err != nil {
+		return druiderr.WrapError(err,
+			ErrPreSyncStatefulSet,
+			"PreSync",
+			fmt.Sprintf("Error checking and deleting StatefulSet with orphans for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
+	}
+
+	return nil
 }
 
 // Sync creates or updates the statefulset for the given Etcd.
@@ -180,8 +237,8 @@ func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *dru
 	return nil
 }
 
-func isStatefulSetPatchedWithPeerTLSVolMount(existingSts *appsv1.StatefulSet) bool {
-	volumes := existingSts.Spec.Template.Spec.Volumes
+func isStatefulSetPatchedWithPeerTLSVolMount(sts *appsv1.StatefulSet) bool {
+	volumes := sts.Spec.Template.Spec.Volumes
 	var peerURLCAEtcdVolPresent, peerURLEtcdServerTLSVolPresent bool
 	for _, vol := range volumes {
 		if vol.Name == common.VolumeNameEtcdPeerCA {
@@ -197,6 +254,51 @@ func isStatefulSetPatchedWithPeerTLSVolMount(existingSts *appsv1.StatefulSet) bo
 // isPeerTLSEnablementPending checks if the peer URL TLS has been enabled for the etcd, but it has not yet reflected in all etcd members.
 func isPeerTLSEnablementPending(peerTLSEnabledStatusFromMembers bool, etcd *druidv1alpha1.Etcd) bool {
 	return !peerTLSEnabledStatusFromMembers && etcd.Spec.Etcd.PeerUrlTLS != nil
+}
+
+func (r _resource) checkAndPatchStsPodLabelsOnMismatch(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {
+	desiredPodLabels := utils.MergeMaps(etcd.Spec.Labels, getStatefulSetLabels(etcd.Name))
+	if !utils.ContainsAllDesiredLabels(sts.Spec.Template.Labels, desiredPodLabels) {
+		ctx.Logger.Info("Patching StatefulSet with new pod labels", "objectKey", getObjectKey(etcd.ObjectMeta))
+		originalSts := sts.DeepCopy()
+		sts.Spec.Template.Labels = utils.MergeMaps(sts.Spec.Template.Labels, desiredPodLabels)
+		if err := r.client.Patch(ctx, sts, client.MergeFrom(originalSts)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r _resource) areStatefulSetPodsUpdatedAndReady(ctx component.OperatorContext, sts *appsv1.StatefulSet) (bool, error) {
+	if sts.Status.UpdatedReplicas != *sts.Spec.Replicas {
+		return false, nil
+	}
+	podList := &corev1.PodList{}
+	if err := r.client.List(ctx, podList, client.InNamespace(sts.Namespace), client.MatchingLabels(sts.Spec.Template.Labels)); err != nil {
+		return false, err
+	}
+	if len(podList.Items) != int(*sts.Spec.Replicas) {
+		return false, nil
+	}
+	for _, pod := range podList.Items {
+		if !utils.ContainsLabel(pod.Labels, appsv1.StatefulSetRevisionLabel, sts.Status.UpdateRevision) {
+			return false, nil
+		}
+		if !utils.HasPodReadyConditionTrue(&pod) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func (r _resource) checkAndDeleteStsWithOrphansOnLabelSelectorMismatch(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {
+	if !labels.Equals(sts.Spec.Selector.MatchLabels, druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)) {
+		ctx.Logger.Info("Deleting StatefulSet for recreation later, as label selector has changed", "objectKey", getObjectKey(etcd.ObjectMeta))
+		if err := r.client.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationOrphan)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func emptyStatefulSet(obj metav1.ObjectMeta) *appsv1.StatefulSet {

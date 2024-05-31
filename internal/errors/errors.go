@@ -13,6 +13,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// ErrRetriable is a special error code that indicates that the current step should be retried,
+// as some conditions during reconciliation are not met. This should not be used in case
+// there is an actual error during reconciliation.
+const ErrRetriable = "ERR_RETRIABLE"
+
 // DruidError is a custom error that should be used throughout druid which encapsulates
 // the underline error (cause) along with error code and contextual information captured
 // as operation during which an error occurred and any custom message.
@@ -29,8 +34,17 @@ type DruidError struct {
 	ObservedAt time.Time
 }
 
-func (r *DruidError) Error() string {
-	return fmt.Sprintf("[Operation: %s, Code: %s] %s", r.Operation, r.Code, r.Cause.Error())
+func (e *DruidError) Error() string {
+	return fmt.Sprintf("[Operation: %s, Code: %s] %s", e.Operation, e.Code, e.Cause.Error())
+}
+
+// IsRetriable checks if the given error is of type DruidError and has the given error code.
+func IsRetriable(err error) bool {
+	druidErr := &DruidError{}
+	if errors.As(err, &druidErr) {
+		return druidErr.Code == ErrRetriable
+	}
+	return false
 }
 
 // WrapError wraps an error and contextual information like code, operation and message to create a DruidError

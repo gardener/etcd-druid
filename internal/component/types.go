@@ -48,4 +48,8 @@ type Operator interface {
 	// create it. If there are changes in the owning Etcd resource that transpires changes to one or more resources
 	// managed by this Operator then those component(s) will be either be updated or a deletion is triggered.
 	Sync(ctx OperatorContext, etcd *druidv1alpha1.Etcd) error
+	// PreSync performs any preparatory operations that are required before the actual sync operation is performed,
+	// to bring the component to a sync-ready state. If the sync-ready state is already satisfied,
+	// then this method will be a no-op.
+	PreSync(ctx OperatorContext, etcd *druidv1alpha1.Etcd) error
 }

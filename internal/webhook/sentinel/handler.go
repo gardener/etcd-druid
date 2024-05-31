@@ -56,7 +56,7 @@ func NewHandler(mgr manager.Manager, config *Config) (*Handler, error) {
 func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	requestGKString := fmt.Sprintf("%s/%s", req.Kind.Group, req.Kind.Kind)
 	log := h.logger.WithValues("name", req.Name, "namespace", req.Namespace, "resourceGroupKind", requestGKString, "operation", req.Operation, "user", req.UserInfo.Username)
-	log.Info("Sentinel webhook invoked")
+	log.V(1).Info("Sentinel webhook invoked")
 
 	if slices.Contains(allowedOperations, req.Operation) {
 		return admission.Allowed(fmt.Sprintf("operation %s is allowed", req.Operation))

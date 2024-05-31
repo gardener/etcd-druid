@@ -5,10 +5,14 @@
 package etcd
 
 import (
+	"fmt"
+	"time"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
+	druiderr "github.com/gardener/etcd-druid/internal/errors"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
@@ -18,10 +22,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
+const retryInterval = 1 * time.Second
+
 func (r *Reconciler) triggerReconcileSpecFlow(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
 	reconcileStepFns := []reconcileFn{
 		r.recordReconcileStartOperation,
 		r.ensureFinalizer,
+		r.preSyncEtcdResources,
 		r.syncEtcdResources,
 		r.updateObservedGeneration,
 		r.recordReconcileSuccessOperation,
@@ -69,6 +76,26 @@ func (r *Reconciler) ensureFinalizer(ctx component.OperatorContext, etcdObjKey c
 		ctx.Logger.Info("Adding finalizer", "finalizerName", common.FinalizerName)
 		if err := controllerutils.AddFinalizers(ctx, r.client, etcdPartialObjMeta, common.FinalizerName); err != nil {
 			ctx.Logger.Error(err, "failed to add finalizer")
+			return ctrlutils.ReconcileWithError(err)
+		}
+	}
+	return ctrlutils.ContinueReconcile()
+}
+
+func (r *Reconciler) preSyncEtcdResources(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+	etcd := &druidv1alpha1.Etcd{}
+	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result
+	}
+	resourceOperators := r.getOrderedOperatorsForPreSync()
+	for _, kind := range resourceOperators {
+		op := r.operatorRegistry.GetOperator(kind)
+		if err := op.PreSync(ctx, etcd); err != nil {
+			if druiderr.IsRetriable(err) {
+				ctx.Logger.Info("retrying pre-sync of component", "kind", kind, "retryInterval", retryInterval.String())
+				return ctrlutils.ReconcileAfter(retryInterval, fmt.Sprintf("retrying pre-sync of component %s after %s", kind, retryInterval.String()))
+			}
+			ctx.Logger.Error(err, "failed to sync etcd resource", "kind", kind)
 			return ctrlutils.ReconcileWithError(err)
 		}
 	}
@@ -179,6 +206,12 @@ func (r *Reconciler) recordEtcdSpecReconcileSuspension(etcd *druidv1alpha1.Etcd,
 		etcd.Name,
 		annotationKey,
 	)
+}
+
+func (r *Reconciler) getOrderedOperatorsForPreSync() []component.Kind {
+	return []component.Kind{
+		component.StatefulSetKind,
+	}
 }
 
 func (r *Reconciler) getOrderedOperatorsForSync() []component.Kind {
