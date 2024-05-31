@@ -69,7 +69,10 @@ func MapToLastErrors(errs []error) []druidv1alpha1.LastError {
 	for _, err := range errs {
 		druidErr := &DruidError{}
 		if errors.As(err, &druidErr) {
-			desc := fmt.Sprintf("[Operation: %s, Code: %s] message: %s, cause: %s", druidErr.Operation, druidErr.Code, druidErr.Message, druidErr.Cause.Error())
+			desc := fmt.Sprintf("[Operation: %s, Code: %s] message: %s", druidErr.Operation, druidErr.Code, druidErr.Message)
+			if druidErr.Cause != nil {
+				desc += fmt.Sprintf(", cause: %s", druidErr.Cause.Error())
+			}
 			lastErr := druidv1alpha1.LastError{
 				Code:        druidErr.Code,
 				Description: desc,
