@@ -118,10 +118,16 @@ var _ = Describe("Etcd Controller", func() {
 		It("should create and adopt statefulset", func() {
 			ctx := context.TODO()
 
+			testutils.SetStatefulSetPodsUpdated(sts)
 			testutils.SetStatefulSetReady(sts)
 			err = k8sClient.Status().Update(ctx, sts)
-			Eventually(func() (bool, error) { return testutils.IsStatefulSetCorrectlyReconciled(ctx, k8sClient, instance, sts) }, timeout, pollingInterval).Should(BeTrue())
 			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(func() (bool, error) {
+				return testutils.IsStatefulSetCorrectlyReconciled(ctx, k8sClient, instance, sts)
+			}, timeout, pollingInterval).Should(BeTrue())
+			Expect(err).NotTo(HaveOccurred())
+
 			Eventually(func() (*bool, error) {
 				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(instance), instance); err != nil {
 					return nil, err
@@ -639,9 +645,13 @@ func validateDefaultValuesForEtcd(instance *druidv1alpha1.Etcd, s *appsv1.Statef
 						"instance": Equal(instance.Name),
 					}),
 					"Labels": MatchAllKeys(Keys{
-						"app":      Equal("etcd-statefulset"),
-						"name":     Equal("etcd"),
-						"instance": Equal(instance.Name),
+						"app":                          Equal("etcd-statefulset"),
+						"name":                         Equal("etcd"),
+						"instance":                     Equal(instance.Name),
+						"app.kubernetes.io/component":  Equal("etcd-statefulset"),
+						"app.kubernetes.io/name":       Equal(instance.Name),
+						"app.kubernetes.io/managed-by": Equal("etcd-druid"),
+						"app.kubernetes.io/part-of":    Equal(instance.Name),
 					}),
 				}),
 				"Spec": MatchFields(IgnoreExtras, Fields{
@@ -993,9 +1003,13 @@ func validateEtcd(instance *druidv1alpha1.Etcd, s *appsv1.StatefulSet, cm *corev
 						"instance": Equal(instance.Name),
 					}),
 					"Labels": MatchAllKeys(Keys{
-						"app":      Equal("etcd-statefulset"),
-						"name":     Equal("etcd"),
-						"instance": Equal(instance.Name),
+						"app":                          Equal("etcd-statefulset"),
+						"name":                         Equal("etcd"),
+						"instance":                     Equal(instance.Name),
+						"app.kubernetes.io/component":  Equal("etcd-statefulset"),
+						"app.kubernetes.io/name":       Equal(instance.Name),
+						"app.kubernetes.io/managed-by": Equal("etcd-druid"),
+						"app.kubernetes.io/part-of":    Equal(instance.Name),
 					}),
 				}),
 				//s.Spec.Template.Spec.HostAliases

@@ -48,6 +48,8 @@ type Interface interface {
 	gardenercomponent.DeployWaiter
 	// Get gets the etcd StatefulSet.
 	Get(context.Context) (*appsv1.StatefulSet, error)
+	// PreDeploy performs operations prior to the deployment of the StatefulSet component.
+	PreDeploy(ctx context.Context) error
 }
 
 type component struct {
@@ -73,6 +75,18 @@ func New(c client.Client, logger logr.Logger, values Values, featureGates map[fe
 func (c *component) Destroy(ctx context.Context) error {
 	sts := c.emptyStatefulset()
 	return client.IgnoreNotFound(c.client.Delete(ctx, sts))
+}
+
+// PreDeploy performs operations prior to the deployment of the StatefulSet component.
+func (c *component) PreDeploy(ctx context.Context) error {
+	preDeployFlow, err := c.createPreDeployFlow(ctx)
+	if err != nil {
+		return err
+	}
+	if preDeployFlow == nil {
+		return nil
+	}
+	return preDeployFlow.Run(ctx, flow.Opts{})
 }
 
 // Deploy executes a deploy-flow to ensure that the StatefulSet is synchronized correctly
@@ -198,6 +212,107 @@ func (c *component) WaitCleanup(ctx context.Context) error {
 			return retry.SevereError(err)
 		}
 	})
+}
+
+// createPreDeployFlow gets the existing statefulset. If it exists, then it patches the statefulset
+// with additional new labels, and wait for all pods to be updated. Then, if the statefulset
+// label selector is not as expected, it deletes the statefulset with orphan cascade option.
+// If the statefulset doesn't exist, createPreDeployFlow is a no-op.
+func (c *component) createPreDeployFlow(ctx context.Context) (*flow.Flow, error) {
+	var (
+		existingSts *appsv1.StatefulSet
+		err         error
+	)
+	existingSts, err = c.getExistingSts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if existingSts == nil {
+		return nil, nil
+	}
+
+	flowName := fmt.Sprintf("(etcd: %s) Pre-Deploy Flow for StatefulSet %s for Namespace: %s", getOwnerReferenceNameWithUID(c.values.OwnerReference), c.values.Name, c.values.Namespace)
+	g := flow.NewGraph(flowName)
+
+	c.addTasksForLabelsAndSelectorUpdation(g, existingSts)
+
+	return g.Compile(), nil
+}
+
+func (c *component) addTasksForLabelsAndSelectorUpdation(g *flow.Graph, sts *appsv1.StatefulSet) {
+	// If the labels are not as expected, then patch the labels.
+	patchLabelsOpName := "(patch-labels): Patching labels"
+	patchLabelsTaskID := g.Add(flow.Task{
+		Name: patchLabelsOpName,
+		Fn: func(ctx context.Context) error {
+			return c.patchPodTemplateLabels(ctx, sts)
+		},
+		Dependencies: nil,
+	})
+	c.logger.Info("adding task to pre-deploy flow", "name", patchLabelsOpName, "ID", patchLabelsTaskID)
+
+	// Wait for pods to be updated with expected labels as well as expected updateRevision.
+	waitPodsOpName := "(wait-sts-pods-sync): Waiting for pods to be up-to-date with sts spec"
+	waitPodsTaskID := g.Add(flow.Task{
+		Name: waitPodsOpName,
+		Fn: func(ctx context.Context) error {
+			return c.waitUntilPodsUpdatedAndReady(ctx, sts, defaultInterval, defaultTimeout*2)
+		},
+		Dependencies: flow.NewTaskIDs(patchLabelsTaskID),
+	})
+	c.logger.Info("adding task to pre-deploy flow", "name", waitPodsOpName, "ID", waitPodsTaskID)
+
+	// If the selector is not as expected, then delete the StatefulSet.
+	deleteStsOpName := "(delete-sts-with-orphans): Deleting StatefulSet by orphaning pods"
+	deleteStsTaskID := g.Add(flow.Task{
+		Name: deleteStsOpName,
+		Fn: func(ctx context.Context) error {
+			return c.deleteWithOrphanCascade(ctx, sts)
+		},
+		Dependencies: flow.NewTaskIDs(waitPodsTaskID),
+	})
+	c.logger.Info("adding task to pre-deploy flow", "name", deleteStsOpName, "ID", deleteStsTaskID)
+}
+
+func (c *component) patchPodTemplateLabels(ctx context.Context, sts *appsv1.StatefulSet) error {
+	if !utils.ContainsAllDesiredLabels(sts.Spec.Template.Labels, c.values.PodLabels) {
+		c.logger.Info("Patching StatefulSet pod template labels", "namespace", c.values.Namespace, "name", c.values.Name, "podTemplateLabels", utils.MergeStringMaps(c.values.PodLabels, c.values.AdditionalPodLabels))
+		patch := client.MergeFrom(sts.DeepCopy())
+		sts.Spec.Template.Labels = utils.MergeStringMaps(c.values.PodLabels, c.values.AdditionalPodLabels)
+		return c.client.Patch(ctx, sts, patch)
+	}
+	return nil
+}
+
+func (c *component) waitUntilPodsUpdatedAndReady(ctx context.Context, sts *appsv1.StatefulSet, interval, timeout time.Duration) error {
+	return gardenerretry.UntilTimeout(ctx, interval, timeout, func(ctx context.Context) (bool, error) {
+		c.logger.Info("Waiting for StatefulSet pods to be updated", "namespace", c.values.Namespace, "name", c.values.Name)
+		if err := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
+			return gardenerretry.MinorError(fmt.Errorf("failed to fetch sts %s: %v", sts.Name, err))
+		}
+
+		if sts.Status.ObservedGeneration < sts.Generation {
+			return gardenerretry.MinorError(fmt.Errorf("StatefulSet spec change has not yet been picked up for reconciliation by statefulset-controller"))
+		}
+		if sts.Status.UpdateRevision != sts.Status.CurrentRevision {
+			return gardenerretry.MinorError(fmt.Errorf("StatefulSet update revision %s does not match current revision %s", sts.Status.UpdateRevision, sts.Status.CurrentRevision))
+		}
+		if sts.Status.UpdatedReplicas < *sts.Spec.Replicas {
+			return gardenerretry.MinorError(fmt.Errorf("only %d out of %d replicas are updated", sts.Status.UpdatedReplicas, *sts.Spec.Replicas))
+		}
+		if sts.Status.ReadyReplicas < *sts.Spec.Replicas {
+			return gardenerretry.MinorError(fmt.Errorf("only %d out of %d replicas are ready", sts.Status.ReadyReplicas, sts.Spec.Replicas))
+		}
+		return gardenerretry.Ok()
+	})
+}
+
+func (c *component) deleteWithOrphanCascade(ctx context.Context, sts *appsv1.StatefulSet) error {
+	if !utils.ContainsAllDesiredLabels(sts.Spec.Selector.MatchLabels, c.values.SelectorLabels) {
+		c.logger.Info("Deleting StatefulSet with orphan cascade", "namespace", c.values.Namespace, "name", c.values.Name)
+		return c.client.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationOrphan))
+	}
+	return nil
 }
 
 func (c *component) createDeployFlow(ctx context.Context) (*flow.Flow, error) {
@@ -415,12 +530,12 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 			Replicas:    &replicas,
 			ServiceName: c.values.PeerServiceName,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: c.values.Labels,
+				MatchLabels: c.values.SelectorLabels,
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: c.values.Annotations,
-					Labels:      utils.MergeStringMaps(make(map[string]string), c.values.AdditionalPodLabels, c.values.Labels),
+					Labels:      utils.MergeStringMaps(make(map[string]string), c.values.AdditionalPodLabels, c.values.PodLabels),
 				},
 				Spec: corev1.PodSpec{
 					HostAliases: []corev1.HostAlias{

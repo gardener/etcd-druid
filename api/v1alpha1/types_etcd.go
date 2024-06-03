@@ -462,6 +462,15 @@ func (e *Etcd) GetFullSnapshotLeaseName() string {
 	return fmt.Sprintf("%s-full-snap", e.Name)
 }
 
+// GetMemberLeaseNames returns the name of member leases for the Etcd.
+func (e *Etcd) GetMemberLeaseNames() []string {
+	leaseNames := make([]string, 0, e.Spec.Replicas)
+	for i := 0; i < int(e.Spec.Replicas); i++ {
+		leaseNames = append(leaseNames, fmt.Sprintf("%s-%d", e.Name, i))
+	}
+	return leaseNames
+}
+
 // GetDefaultLabels returns the default labels for etcd.
 func (e *Etcd) GetDefaultLabels() map[string]string {
 	return map[string]string{

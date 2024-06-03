@@ -188,13 +188,12 @@ func (r *Reconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd) (c
 		}, err
 	}
 
-	if err = r.removeOperationAnnotation(ctx, logger, etcd); err != nil {
-		if apierrors.IsNotFound(err) {
-			return ctrl.Result{}, nil
-		}
+	preReconcileResult := r.preReconcileEtcd(ctx, logger, etcd)
+	if preReconcileResult.err != nil {
+		logger.Error(err, "Error during pre-reconciling ETCD")
 		return ctrl.Result{
 			Requeue: true,
-		}, err
+		}, preReconcileResult.err
 	}
 
 	result := r.reconcileEtcd(ctx, logger, etcd)
@@ -209,7 +208,17 @@ func (r *Reconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd) (c
 			Requeue: true,
 		}, result.err
 	}
-	if err := r.updateEtcdStatus(ctx, etcd, result); err != nil {
+
+	if err = r.updateEtcdStatus(ctx, etcd, result); err != nil {
+		return ctrl.Result{
+			Requeue: true,
+		}, err
+	}
+
+	if err = r.removeOperationAnnotation(ctx, logger, etcd); err != nil {
+		if apierrors.IsNotFound(err) {
+			return ctrl.Result{}, nil
+		}
 		return ctrl.Result{
 			Requeue: true,
 		}, err
@@ -292,6 +301,15 @@ func (r *Reconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl
 	}
 	logger.Info("Deleted etcd successfully", "namespace", etcd.Namespace, "name", etcd.Name)
 	return ctrl.Result{}, nil
+}
+
+func (r *Reconciler) preReconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) reconcileResult {
+	statefulSetValues := componentsts.GeneratePreDeployValues(etcd)
+	stsDeployer := componentsts.New(r.Client, logger, *statefulSetValues, r.config.FeatureGates)
+	if err := stsDeployer.PreDeploy(ctx); err != nil {
+		return reconcileResult{err: err}
+	}
+	return reconcileResult{}
 }
 
 func (r *Reconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) reconcileResult {
