@@ -78,6 +78,11 @@ func GetFullSnapshotLeaseName(etcdObjMeta metav1.ObjectMeta) string {
 	return fmt.Sprintf("%s-full-snap", etcdObjMeta.Name)
 }
 
+// GetStatefulSetName returns the name of the StatefulSet for the Etcd.
+func GetStatefulSetName(etcdObjMeta metav1.ObjectMeta) string {
+	return etcdObjMeta.Name
+}
+
 // --------------- Miscellaneous helper functions ---------------
 
 // GetNamespaceName is a convenience function which creates a types.NamespacedName for an Etcd resource.

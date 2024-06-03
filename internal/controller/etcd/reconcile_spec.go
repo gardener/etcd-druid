@@ -91,7 +91,7 @@ func (r *Reconciler) preSyncEtcdResources(ctx component.OperatorContext, etcdObj
 	for _, kind := range resourceOperators {
 		op := r.operatorRegistry.GetOperator(kind)
 		if err := op.PreSync(ctx, etcd); err != nil {
-			if druiderr.IsRetriable(err) {
+			if druiderr.IsRequeueAfterError(err) {
 				ctx.Logger.Info("retrying pre-sync of component", "kind", kind, "retryInterval", retryInterval.String())
 				return ctrlutils.ReconcileAfter(retryInterval, fmt.Sprintf("retrying pre-sync of component %s after %s", kind, retryInterval.String()))
 			}
@@ -111,6 +111,10 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey
 	for _, kind := range resourceOperators {
 		op := r.operatorRegistry.GetOperator(kind)
 		if err := op.Sync(ctx, etcd); err != nil {
+			if druiderr.IsRequeueAfterError(err) {
+				ctx.Logger.Info("retrying sync of component", "kind", kind, "retryInterval", retryInterval.String())
+				return ctrlutils.ReconcileAfter(retryInterval, fmt.Sprintf("retrying sync of component %s after %s", kind, retryInterval.String()))
+			}
 			ctx.Logger.Error(err, "failed to sync etcd resource", "kind", kind)
 			return ctrlutils.ReconcileWithError(err)
 		}

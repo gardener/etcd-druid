@@ -13,10 +13,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ErrRetriable is a special error code that indicates that the current step should be retried,
+// ErrRequeueAfter is a special error code that indicates that the current step should be re-queued after a certain time,
 // as some conditions during reconciliation are not met. This should not be used in case
 // there is an actual error during reconciliation.
-const ErrRetriable = "ERR_RETRIABLE"
+const ErrRequeueAfter = "ERR_REQUEUE_AFTER"
 
 // DruidError is a custom error that should be used throughout druid which encapsulates
 // the underline error (cause) along with error code and contextual information captured
@@ -38,11 +38,11 @@ func (e *DruidError) Error() string {
 	return fmt.Sprintf("[Operation: %s, Code: %s] %s", e.Operation, e.Code, e.Cause.Error())
 }
 
-// IsRetriable checks if the given error is of type DruidError and has the given error code.
-func IsRetriable(err error) bool {
+// IsRequeueAfterError checks if the given error is of type DruidError and has the given error code.
+func IsRequeueAfterError(err error) bool {
 	druidErr := &DruidError{}
 	if errors.As(err, &druidErr) {
-		return druidErr.Code == ErrRetriable
+		return druidErr.Code == ErrRequeueAfter
 	}
 	return false
 }

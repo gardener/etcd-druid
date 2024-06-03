@@ -107,7 +107,7 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 	if !podsUpdatedAndReady {
 		errMessage := fmt.Sprintf("StatefulSet pods are not yet updated with new pod labels and ready, for StatefulSet: %v for etcd: %v", getObjectKey(sts.ObjectMeta), druidv1alpha1.GetNamespaceName(etcd.ObjectMeta))
 		return druiderr.WrapError(fmt.Errorf(errMessage),
-			druiderr.ErrRetriable,
+			druiderr.ErrRequeueAfter,
 			"PreSync",
 			errMessage,
 		)
@@ -145,10 +145,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	// StatefulSet exists, check if TLS has been enabled for peer communication, if yes then it is currently a multistep
 	// process to ensure that all members are updated and establish peer TLS communication.
 	if err = r.handlePeerTLSChanges(ctx, etcd, existingSTS); err != nil {
-		return druiderr.WrapError(err,
-			ErrSyncStatefulSet,
-			"Sync",
-			fmt.Sprintf("Error while handling peer URL TLS change for StatefulSet: %v, etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
+		return err
 	}
 	return r.createOrPatch(ctx, etcd)
 }
@@ -218,7 +215,10 @@ func (r _resource) createOrPatch(ctx component.OperatorContext, etcd *druidv1alp
 func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) error {
 	peerTLSEnabledForMembers, err := utils.IsPeerURLTLSEnabledForMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name, *existingSts.Spec.Replicas)
 	if err != nil {
-		return fmt.Errorf("error checking if peer URL TLS is enabled: %w", err)
+		return druiderr.WrapError(err,
+			ErrSyncStatefulSet,
+			"Sync",
+			fmt.Sprintf("Error checking if peer TLS is enabled for statefulset: %v, etcd: %v", client.ObjectKeyFromObject(existingSts), client.ObjectKeyFromObject(etcd)))
 	}
 
 	if isPeerTLSEnablementPending(peerTLSEnabledForMembers, etcd) {
@@ -226,12 +226,18 @@ func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *dru
 			// This step ensures that only STS is updated with secret volume mounts which gets added to the etcd component due to
 			// enabling of TLS for peer communication. It preserves the current STS replicas.
 			if err = r.createOrPatchWithReplicas(ctx, etcd, *existingSts.Spec.Replicas); err != nil {
-				return fmt.Errorf("error creating or patching StatefulSet with TLS enabled: %w", err)
+				return druiderr.WrapError(err,
+					ErrSyncStatefulSet,
+					"Sync",
+					fmt.Sprintf("Error creating or patching StatefulSet with TLS enabled for StatefulSet: %v, etcd: %v", client.ObjectKeyFromObject(existingSts), client.ObjectKeyFromObject(etcd)))
 			}
 		} else {
 			ctx.Logger.Info("Secret volume mounts to enable Peer URL TLS have already been mounted. Skipping patching StatefulSet with secret volume mounts.")
 		}
-		return fmt.Errorf("peer URL TLS not enabled for #%d members for etcd: %v, requeuing reconcile request", *existingSts.Spec.Replicas, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta))
+		return druiderr.WrapError(err,
+			druiderr.ErrRequeueAfter,
+			"Sync",
+			fmt.Sprintf("Peer URL TLS not enabled for #%d members for etcd: %v, requeuing reconcile request", existingSts.Spec.Replicas, client.ObjectKeyFromObject(etcd)))
 	}
 	ctx.Logger.Info("Peer URL TLS has been enabled for all currently running members")
 	return nil
@@ -304,7 +310,7 @@ func (r _resource) checkAndDeleteStsWithOrphansOnLabelSelectorMismatch(ctx compo
 func emptyStatefulSet(obj metav1.ObjectMeta) *appsv1.StatefulSet {
 	return &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            obj.Name,
+			Name:            druidv1alpha1.GetStatefulSetName(obj),
 			Namespace:       obj.Namespace,
 			OwnerReferences: []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(obj)},
 		},
