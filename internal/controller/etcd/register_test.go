@@ -161,7 +161,7 @@ func TestBuildPredicateWithNoAutoReconcileButReconcileAnnotPresent(t *testing.T)
 			shouldAllowCreateEvent:  true,
 			shouldAllowDeleteEvent:  true,
 			shouldAllowGenericEvent: false,
-			shouldAllowUpdateEvent:  false,
+			shouldAllowUpdateEvent:  true,
 		},
 		{
 			name:                    "both spec and status have changed",
@@ -220,7 +220,7 @@ func TestBuildPredicateWithAutoReconcileAndReconcileAnnotSet(t *testing.T) {
 			shouldAllowCreateEvent:  true,
 			shouldAllowDeleteEvent:  true,
 			shouldAllowGenericEvent: false,
-			shouldAllowUpdateEvent:  false,
+			shouldAllowUpdateEvent:  true,
 		},
 		{
 			name:                    "both spec and status have changed",
