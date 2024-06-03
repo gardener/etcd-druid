@@ -15,11 +15,9 @@ import (
 	. "github.com/onsi/gomega"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/features"
 	testutils "github.com/gardener/etcd-druid/test/utils"
-	"github.com/gardener/gardener/pkg/controllerutils"
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -97,10 +95,6 @@ func createAndAssertEtcdAndAllManagedResources(ctx context.Context, t *testing.T
 	t.Logf("successfully updated sts revision for etcd instance: {name: %s, namespace: %s}", etcdInstance.Name, etcdInstance.Namespace)
 	createStsPods(ctx, t, cl, etcdInstance.ObjectMeta, stsUpdateRevision)
 	t.Logf("successfully created pods for statefulset of etcd instance: {name: %s, namespace: %s}", etcdInstance.Name, etcdInstance.Namespace)
-
-	//// add finalizer
-	//addFinalizer(ctx, g, cl, client.ObjectKeyFromObject(etcdInstance))
-	//t.Logf("successfully added finalizer to etcd instance: {name: %s, namespace: %s}", etcdInstance.Name, etcdInstance.Namespace)
 }
 
 func updateAndGetStsRevision(ctx context.Context, t *testing.T, cl client.Client, etcdInstance *druidv1alpha1.Etcd) string {
@@ -179,12 +173,6 @@ func createAndAssertEtcdReconciliation(ctx context.Context, t *testing.T, reconc
 	assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), expectedLastOperation, nil, 5*time.Second, 1*time.Second)
 	assertETCDOperationAnnotation(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), false, 5*time.Second, 1*time.Second)
 	t.Logf("successfully reconciled status of etcd instance: {name: %s, namespace: %s}", etcdInstance.Name, etcdInstance.Namespace)
-}
-
-func addFinalizer(ctx context.Context, g *WithT, cl client.Client, etcdObjectKey client.ObjectKey) {
-	etcdInstance := &druidv1alpha1.Etcd{}
-	g.Expect(cl.Get(ctx, etcdObjectKey, etcdInstance)).To(Succeed())
-	g.Expect(controllerutils.AddFinalizers(ctx, cl, etcdInstance, common.FinalizerName)).To(Succeed())
 }
 
 type etcdMemberLeaseConfig struct {
