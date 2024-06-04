@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	. "github.com/onsi/gomega"
@@ -128,7 +128,7 @@ func TestGetStatefulSet(t *testing.T) {
 		name         string
 		isStsPresent bool
 		ownedByEtcd  bool
-		listErr      *apierrors.StatusError
+		getErr       *apierrors.StatusError
 		expectedErr  *apierrors.StatusError
 	}{
 		{
@@ -147,10 +147,10 @@ func TestGetStatefulSet(t *testing.T) {
 			ownedByEtcd:  true,
 		},
 		{
-			name:         "returns error when client list fails",
+			name:         "returns error when client get fails",
 			isStsPresent: true,
 			ownedByEtcd:  true,
-			listErr:      apiInternalErr,
+			getErr:       apiInternalErr,
 			expectedErr:  apiInternalErr,
 		},
 	}
@@ -168,7 +168,7 @@ func TestGetStatefulSet(t *testing.T) {
 				sts := testutils.CreateStatefulSet(etcd.Name, etcd.Namespace, etcdUID, etcd.Spec.Replicas)
 				existingObjects = append(existingObjects, sts)
 			}
-			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(nil, tc.listErr, etcd.Namespace, druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), existingObjects...)
+			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.getErr, nil, nil, nil, existingObjects, client.ObjectKey{Name: testutils.TestEtcdName, Namespace: testutils.TestNamespace})
 			foundSts, err := GetStatefulSet(context.Background(), cl, etcd)
 			if tc.expectedErr != nil {
 				g.Expect(err).To(HaveOccurred())
