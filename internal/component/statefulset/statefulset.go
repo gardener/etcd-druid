@@ -76,6 +76,8 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 // is different from the label selector required to be applied on it. This is because the statefulset's
 // spec.selector field is immutable and cannot be updated on the existing statefulset.
 func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	ctx.Logger.Info("Running pre-sync for StatefulSet", "name", druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta), "namespace", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta))
+
 	sts, err := r.getExistingStatefulSet(ctx, etcd.ObjectMeta)
 	if err != nil {
 		return druiderr.WrapError(err,
