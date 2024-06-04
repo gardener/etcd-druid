@@ -64,6 +64,11 @@ func (r ReconcileStepResult) GetErrors() []error {
 	return r.errs
 }
 
+// GetCombinedError returns the combined error from the reconcile step.
+func (r ReconcileStepResult) GetCombinedError() error {
+	return errors.Join(r.errs...)
+}
+
 // GetResult returns the result from the reconcile step.
 func (r ReconcileStepResult) GetResult() ctrl.Result {
 	return r.result
