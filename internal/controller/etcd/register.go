@@ -39,20 +39,14 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 // 1. create and delete events are always reconciled irrespective of whether reconcile annotation is present or auto-reconcile has been enabled.
 // 2. generic events are never reconciled. If there is a need in future to react to generic events then this should be changed.
 // Conditions for reconciliation:
-// Scenario 1: {Auto-Reconcile: false, Reconcile-Annotation-Present: false, Spec-Updated: false/true, Status-Updated: false/true, update-event-reconciled: false}
-// Scenario 2: {Auto-Reconcile: false, Reconcile-Annotation-Present: true, Spec-Updated: false, Status-Updated: false, update-event-reconciled: true}
-// Scenario 3: {Auto-Reconcile: false, Reconcile-Annotation-Present: true, Spec-Updated: false, Status-Updated: true, update-event-reconciled: true}
-// Scenario 4: {Auto-Reconcile: false, Reconcile-Annotation-Present: true, Spec-Updated: true, Status-Updated: false, update-event-reconciled: true}
-// Scenario 5: {Auto-Reconcile: false, Reconcile-Annotation-Present: true, Spec-Updated: true, Status-Updated: true, update-event-reconciled: true}
-// Scenario 6: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: false, Status-Updated: false, update-event-reconciled: NA}, This condition cannot happen. In case of a controller restart there will only be a CreateEvent.
-// Scenario 7: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: true, Status-Updated: false, update-event-reconciled: true}
-// Scenario 8: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: false, Status-Updated: true, update-event-reconciled: false}
-// Scenario 9: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: true, Status-Updated: true, update-event-reconciled: true}
-// Scenario 10: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: false, Status-Updated: false, update-event-reconciled: false}
-// Scenario 11: {Auto-Reconcile: true, Reconcile-Annotation-Present: true, Spec-Updated: false, Status-Updated: false, update-event-reconciled: true}
-// Scenario 12: {Auto-Reconcile: true, Reconcile-Annotation-Present: true, Spec-Updated: true, Status-Updated: false, update-event-reconciled: true}
-// Scenario 13: {Auto-Reconcile: true, Reconcile-Annotation-Present: true, Spec-Updated: false, Status-Updated: true, update-event-reconciled: true}
-// Scenario 14: {Auto-Reconcile: true, Reconcile-Annotation-Present: true, Spec-Updated: true, Status-Updated: true, update-event-reconciled: true}
+// Scenario 1: {Auto-Reconcile: false, Reconcile-Annotation-Present: false, Spec-Updated: true/false, Status-Updated: true/false, update-event-reconciled: false}
+// Scenario 2: {Auto-Reconcile: false, Reconcile-Annotation-Present: true, Spec-Updated: true/false, Status-Updated: true/false, update-event-reconciled: true}
+// Scenario 3: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: false, Status-Updated: false, update-event-reconciled: NA}, This condition cannot happen. In case of a controller restart there will only be a CreateEvent.
+// Scenario 4: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: true, Status-Updated: false, update-event-reconciled: true}
+// Scenario 5: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: false, Status-Updated: true, update-event-reconciled: false}
+// Scenario 6: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: true, Status-Updated: true, update-event-reconciled: true}
+// Scenario 7: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: false, Status-Updated: false, update-event-reconciled: false}
+// Scenario 8: {Auto-Reconcile: true, Reconcile-Annotation-Present: true, Spec-Updated: true/false, Status-Updated: true/false, update-event-reconciled: true}
 func (r *Reconciler) buildPredicate() predicate.Predicate {
 	// If there is a spec change (irrespective of status change) and if there is an update event then it will trigger a reconcile only when either
 	// auto-reconcile has been enabled or an operator has added the reconcile annotation to the etcd resource.
