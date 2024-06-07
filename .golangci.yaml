@@ -1,9 +1,6 @@
 run:
   concurrency: 4
-  deadline: 10m
-
-  skip-files:
-    - "zz_generated\\..*\\.go$"
+  timeout: 10m
 
 linters:
   disable:
@@ -32,3 +29,16 @@ issues:
     - linters:
         - staticcheck
       text: "SA1019:" # Excludes messages where deprecated variables are used
+
+  exclude-files:
+    - "zz_generated\\..*\\.go$"
+
+linters-settings:
+  revive:
+    rules:
+      - name: duplicated-imports
+      - name: unused-parameter
+      - name: unreachable-code
+      - name: context-as-argument
+      - name: early-return
+      - name: exported

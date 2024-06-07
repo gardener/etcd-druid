@@ -6,6 +6,7 @@ package utils
 
 import (
 	"context"
+	"errors"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -14,8 +15,8 @@ import (
 )
 
 // CreateSecrets creates all the given secrets
-func CreateSecrets(ctx context.Context, c client.Client, namespace string, secrets ...string) []error {
-	var errors []error
+func CreateSecrets(ctx context.Context, c client.Client, namespace string, secrets ...string) error {
+	var createErrs error
 	for _, name := range secrets {
 		secret := corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -31,8 +32,8 @@ func CreateSecrets(ctx context.Context, c client.Client, namespace string, secre
 			continue
 		}
 		if err != nil {
-			errors = append(errors, err)
+			createErrs = errors.Join(createErrs, err)
 		}
 	}
-	return errors
+	return createErrs
 }

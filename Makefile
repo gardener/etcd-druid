@@ -22,8 +22,8 @@ IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 #########################################
 
 TOOLS_DIR := $(HACK_DIR)/tools
-include $(HACK_DIR)/tools.mk
 include $(GARDENER_HACK_DIR)/tools.mk
+include $(HACK_DIR)/tools.mk
 
 .PHONY: tidy
 tidy:
@@ -42,7 +42,7 @@ druid: fmt check
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 .PHONY: run
-run: fmt check
+run:
 	go run ./main.go
 
 # Install CRDs into a cluster
@@ -67,21 +67,20 @@ deploy: $(SKAFFOLD) $(HELM)
 manifests: $(VGOPATH) $(CONTROLLER_GEN)
 	@GARDENER_HACK_DIR=$(GARDENER_HACK_DIR) VGOPATH=$(VGOPATH) go generate ./config/crd/bases
 	@find "$(REPO_ROOT)/config/crd/bases" -name "*.yaml" -exec cp '{}' "$(REPO_ROOT)/charts/druid/charts/crds/templates/" \;
-	@controller-gen rbac:roleName=manager-role paths="./controllers/..."
+	@controller-gen rbac:roleName=manager-role paths="./internal/controller/..."
 
 # Run go fmt against code
 .PHONY: fmt
 fmt:
 	@env GO111MODULE=on go fmt ./...
 
-.PHONY: clean
 clean:
-	@bash $(GARDENER_HACK_DIR)/clean.sh ./api/... ./controllers/... ./pkg/...
+	@bash $(GARDENER_HACK_DIR)/clean.sh ./api/... ./internal/...
 
 # Check packages
 .PHONY: check
 check: $(GOLANGCI_LINT) $(GOIMPORTS) fmt manifests
-	@REPO_ROOT=$(REPO_ROOT) bash $(GARDENER_HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./api/... ./pkg/... ./controllers/...
+	@REPO_ROOT=$(REPO_ROOT) bash $(GARDENER_HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./api/... ./internal/...
 
 .PHONY: check-generate
 check-generate:
@@ -90,8 +89,8 @@ check-generate:
 # Generate code
 .PHONY: generate
 generate: manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
-	@go generate "$(REPO_ROOT)/pkg/..."
-	@bash $(HACK_DIR)/update-codegen.sh
+	@go generate "$(REPO_ROOT)/internal/..."
+	@"$(REPO_ROOT)/hack/update-codegen.sh"
 
 # Build the docker image
 .PHONY: docker-build
@@ -107,8 +106,17 @@ docker-push:
 
 # Run tests
 .PHONY: test
-test: $(GINKGO) $(SETUP_ENVTEST)
-	@bash $(HACK_DIR)/test.sh ./api/... ./controllers/... ./pkg/...
+test: $(GINKGO) $(GOTESTFMT)
+	@# run ginkgo unit tests. These will be ported to golang native tests over a period of time.
+	@"$(REPO_ROOT)/hack/test.sh" ./api/... \
+	./internal/controller/etcdcopybackupstask/... \
+	./internal/controller/predicate/... \
+	./internal/controller/secret/... \
+	./internal/controller/utils/... \
+	./internal/mapper/... \
+	./internal/metrics/...
+	@# run the golang native unit tests.
+	@TEST_COV="true" "$(REPO_ROOT)/hack/test-go.sh" ./internal/controller/etcd/... ./internal/operator/... ./internal/utils/... ./internal/webhook/...
 
 .PHONY: test-cov
 test-cov: $(GINKGO) $(SETUP_ENVTEST)
@@ -123,8 +131,9 @@ test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
 	@bash $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
 .PHONY: test-integration
-test-integration: $(GINKGO) $(SETUP_ENVTEST)
-	@bash $(HACK_DIR)/test.sh ./test/integration/...
+test-integration: $(GINKGO) $(SETUP_ENVTEST) $(GOTESTFMT)
+	@SETUP_ENVTEST="true" "$(REPO_ROOT)/hack/test.sh" ./test/integration/...
+	@SETUP_ENVTEST="true" "$(REPO_ROOT)/hack/test-go.sh" ./test/it/...
 
 .PHONY: update-dependencies
 update-dependencies:

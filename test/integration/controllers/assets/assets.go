@@ -7,7 +7,7 @@ package assets
 import (
 	"path/filepath"
 
-	"github.com/gardener/etcd-druid/pkg/common"
+	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 
 	. "github.com/onsi/gomega"

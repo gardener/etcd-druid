@@ -27,6 +27,13 @@ deploy:
         eventsThreshold: 15
         metricsScrapeWaitDuration: "30s"
 profiles:
+- name: e2e-test
+  activation:
+  - env: "DRUID_E2E_TEST=true"
+  patches:
+  - op: add
+    path: /deploy/helm/releases/0/setValues/etcdStatusSyncPeriod
+    value: "5s"
 - name: do-not-use-feature-gates
   activation:
   - env: "USE_ETCD_DRUID_FEATURE_GATES=false"

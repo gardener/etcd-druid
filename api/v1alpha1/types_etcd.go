@@ -10,10 +10,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 )
 
-// TODO Remove unused constants
 const (
 	// GarbageCollectionPolicyExponential defines the exponential policy for garbage collecting old backups
 	GarbageCollectionPolicyExponential = "Exponential"
@@ -33,7 +33,7 @@ const (
 	ZlibCompression CompressionPolicy = "zlib"
 
 	// DefaultCompression is constant for default compression policy(only if compression is enabled).
-	DefaultCompression CompressionPolicy = GzipCompression
+	DefaultCompression = GzipCompression
 	// DefaultCompressionEnabled is constant to define whether to compress the snapshots or not.
 	DefaultCompressionEnabled = false
 
@@ -324,6 +324,8 @@ const (
 	ConditionTypeAllMembersReady ConditionType = "AllMembersReady"
 	// ConditionTypeBackupReady is a constant for a condition type indicating that the etcd backup is ready.
 	ConditionTypeBackupReady ConditionType = "BackupReady"
+	// ConditionTypeDataVolumesReady is a constant for a condition type indicating that the etcd data volumes are ready.
+	ConditionTypeDataVolumesReady ConditionType = "DataVolumesReady"
 )
 
 // EtcdMemberConditionStatus is the status of an etcd cluster member.
@@ -381,8 +383,15 @@ type EtcdStatus struct {
 	// +optional
 	ServiceName *string `json:"serviceName,omitempty"`
 	// LastError represents the last occurred error.
+	// Deprecated: Use LastErrors instead.
 	// +optional
 	LastError *string `json:"lastError,omitempty"`
+	// LastErrors captures errors that occurred during the last operation.
+	// +optional
+	LastErrors []LastError `json:"lastErrors,omitempty"`
+	// LastOperation indicates the last operation performed on this resource.
+	// +optional
+	LastOperation *LastOperation `json:"lastOperation,omitempty"`
 	// Cluster size is the current size of the etcd cluster.
 	// Deprecated: this field will not be populated with any value and will be removed in the future.
 	// +optional
@@ -416,6 +425,69 @@ type EtcdStatus struct {
 	PeerUrlTLSEnabled *bool `json:"peerUrlTLSEnabled,omitempty"`
 }
 
+// LastOperationType is a string alias representing type of the last operation.
+type LastOperationType string
+
+const (
+	// LastOperationTypeCreate indicates that the last operation was a creation of a new etcd resource.
+	LastOperationTypeCreate LastOperationType = "Create"
+	// LastOperationTypeReconcile indicates that the last operation was a reconciliation of the spec of an etcd resource.
+	LastOperationTypeReconcile LastOperationType = "Reconcile"
+	// LastOperationTypeDelete indicates that the last operation was a deletion of an existing etcd resource.
+	LastOperationTypeDelete LastOperationType = "Delete"
+)
+
+// LastOperationState is a string alias representing the state of the last operation.
+type LastOperationState string
+
+const (
+	// LastOperationStateProcessing indicates that an operation is in progress.
+	LastOperationStateProcessing LastOperationState = "Processing"
+	// LastOperationStateSucceeded indicates that an operation has completed successfully.
+	LastOperationStateSucceeded LastOperationState = "Succeeded"
+	// LastOperationStateError indicates that an operation is completed with errors and will be retried.
+	LastOperationStateError LastOperationState = "Error"
+)
+
+// LastOperation holds the information on the last operation done on this resource.
+type LastOperation struct {
+	// Type is the type of last operation.
+	Type LastOperationType `json:"type"`
+	// State is the state of the last operation.
+	State LastOperationState `json:"state"`
+	// Description describes the last operation.
+	Description string `json:"description"`
+	// RunID correlates an operation with a reconciliation run.
+	// Every time an etcd resource is reconciled (barring status reconciliation which is periodic), a unique ID is
+	// generated which can be used to correlate all actions done as part of a single reconcile run. Capturing this
+	// as part of LastOperation aids in establishing this correlation. This further helps in also easily filtering
+	// reconcile logs as all structured logs in a reconcile run should have the `runID` referenced.
+	RunID string `json:"runID"`
+	// LastUpdateTime is the time at which the operation was updated.
+	LastUpdateTime metav1.Time `json:"lastUpdateTime"`
+}
+
+// ErrorCode is a string alias representing an error code that identifies an error.
+type ErrorCode string
+
+// LastError stores details of the most recent error encountered for a resource.
+type LastError struct {
+	// Code is an error code that uniquely identifies an error.
+	Code ErrorCode `json:"code"`
+	// Description is a human-readable message indicating details of the error.
+	Description string `json:"description"`
+	// ObservedAt is the time the error was observed.
+	ObservedAt metav1.Time `json:"observedAt"`
+}
+
+// GetNamespaceName is a convenience function which creates a types.NamespacedName for an etcd resource.
+func (e *Etcd) GetNamespaceName() types.NamespacedName {
+	return types.NamespacedName{
+		Namespace: e.Namespace,
+		Name:      e.Name,
+	}
+}
+
 // GetPeerServiceName returns the peer service name for the Etcd cluster reachable by members within the Etcd cluster.
 func (e *Etcd) GetPeerServiceName() string {
 	return fmt.Sprintf("%s-peer", e.Name)
@@ -431,8 +503,8 @@ func (e *Etcd) GetServiceAccountName() string {
 	return e.Name
 }
 
-// GetConfigmapName returns the name of the configmap for the Etcd.
-func (e *Etcd) GetConfigmapName() string {
+// GetConfigMapName returns the name of the configmap for the Etcd.
+func (e *Etcd) GetConfigMapName() string {
 	return fmt.Sprintf("etcd-bootstrap-%s", string(e.UID[:6]))
 }
 
@@ -456,11 +528,21 @@ func (e *Etcd) GetFullSnapshotLeaseName() string {
 	return fmt.Sprintf("%s-full-snap", e.Name)
 }
 
+// GetMemberLeaseNames returns the name of member leases for the Etcd.
+func (e *Etcd) GetMemberLeaseNames() []string {
+	numReplicas := int(e.Spec.Replicas)
+	leaseNames := make([]string, 0, numReplicas)
+	for i := 0; i < numReplicas; i++ {
+		leaseNames = append(leaseNames, fmt.Sprintf("%s-%d", e.Name, i))
+	}
+	return leaseNames
+}
+
 // GetDefaultLabels returns the default labels for etcd.
 func (e *Etcd) GetDefaultLabels() map[string]string {
 	return map[string]string{
-		"name":     "etcd",
-		"instance": e.Name,
+		LabelManagedByKey: LabelManagedByValue,
+		LabelPartOfKey:    e.Name,
 	}
 }
 
@@ -484,4 +566,49 @@ func (e *Etcd) GetRoleName() string {
 // GetRoleBindingName returns the rolebinding name for the Etcd
 func (e *Etcd) GetRoleBindingName() string {
 	return fmt.Sprintf("%s:etcd:%s", GroupVersion.Group, e.Name)
+}
+
+// IsBackupStoreEnabled returns true if backup store has been enabled for this etcd, else returns false.
+func (e *Etcd) IsBackupStoreEnabled() bool {
+	return e.Spec.Backup.Store != nil
+}
+
+// IsMarkedForDeletion returns true if a deletion timestamp has been set and false otherwise.
+func (e *Etcd) IsMarkedForDeletion() bool {
+	return !e.DeletionTimestamp.IsZero()
+}
+
+// GetSuspendEtcdSpecReconcileAnnotationKey gets the annotation key set on an etcd resource signalling the intent
+// to suspend spec reconciliation for this etcd resource. If no annotation is set then it will return nil.
+func (e *Etcd) GetSuspendEtcdSpecReconcileAnnotationKey() *string {
+	if metav1.HasAnnotation(e.ObjectMeta, SuspendEtcdSpecReconcileAnnotation) {
+		return pointer.String(SuspendEtcdSpecReconcileAnnotation)
+	}
+	if metav1.HasAnnotation(e.ObjectMeta, IgnoreReconciliationAnnotation) {
+		return pointer.String(IgnoreReconciliationAnnotation)
+	}
+	return nil
+}
+
+// IsReconciliationSuspended returns true if the etcd resource has the annotation set to suspend spec reconciliation,
+// else returns false.
+func (e *Etcd) IsReconciliationSuspended() bool {
+	suspendReconcileAnnotKey := e.GetSuspendEtcdSpecReconcileAnnotationKey()
+	return suspendReconcileAnnotKey != nil && metav1.HasAnnotation(e.ObjectMeta, *suspendReconcileAnnotKey)
+}
+
+// AreManagedResourcesProtected returns true if the etcd resource has the resource protection annotation set to true,
+// else returns false.
+func (e *Etcd) AreManagedResourcesProtected() bool {
+	if metav1.HasAnnotation(e.ObjectMeta, ResourceProtectionAnnotation) {
+		return e.GetAnnotations()[ResourceProtectionAnnotation] != "false"
+	}
+	return true
+}
+
+// IsReconciliationInProgress returns true if the etcd resource is currently being reconciled, else returns false.
+func (e *Etcd) IsReconciliationInProgress() bool {
+	return e.Status.LastOperation != nil &&
+		(e.Status.LastOperation.State == LastOperationStateProcessing ||
+			e.Status.LastOperation.State == LastOperationStateError)
 }

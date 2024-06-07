@@ -9,8 +9,8 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/common"
-	"github.com/gardener/etcd-druid/test/utils"
+	"github.com/gardener/etcd-druid/internal/common"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
@@ -32,7 +32,7 @@ var _ = Describe("Secret Controller", func() {
 	)
 
 	BeforeEach(func() {
-		etcd = utils.EtcdBuilderWithDefaults("etcd", namespace).WithTLS().Build()
+		etcd = testutils.EtcdBuilderWithDefaults("etcd", namespace).WithClientTLS().WithPeerTLS().Build()
 	})
 
 	It("should reconcile the finalizers for the referenced secrets", func() {
@@ -53,8 +53,8 @@ var _ = Describe("Secret Controller", func() {
 			"peer-url-etcd-server-tls",
 			"etcd-backup",
 		}
-		errs := utils.CreateSecrets(ctx, k8sClient, namespace, secretNames...)
-		Expect(errs).To(BeEmpty())
+		err := testutils.CreateSecrets(ctx, k8sClient, namespace, secretNames...)
+		Expect(err).ToNot(HaveOccurred())
 
 		Expect(k8sClient.Create(ctx, etcd)).To(Succeed())
 
@@ -72,8 +72,8 @@ var _ = Describe("Secret Controller", func() {
 			"peer-url-etcd-server-tls2",
 			"etcd-backup2",
 		}
-		errs = utils.CreateSecrets(ctx, k8sClient, namespace, newSecretNames...)
-		Expect(errs).To(BeEmpty())
+		err = testutils.CreateSecrets(ctx, k8sClient, namespace, newSecretNames...)
+		Expect(err).ToNot(HaveOccurred())
 
 		patch := client.MergeFrom(etcd.DeepCopy())
 		etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name += "2"

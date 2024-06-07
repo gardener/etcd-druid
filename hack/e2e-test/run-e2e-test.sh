@@ -93,6 +93,7 @@ function deploy {
         echo "-------------------"
         echo "Deploying Druid"
         echo "-------------------"
+        export DRUID_E2E_TEST=true
         skaffold_run_or_deploy -m etcd-druid -n $TEST_ID
         deployed="true"
       fi

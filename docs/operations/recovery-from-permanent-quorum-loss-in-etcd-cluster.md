@@ -20,9 +20,12 @@ There are two [Etcd clusters](https://github.com/gardener/etcd-druid/tree/master
 
    Target the control plane of affected shoot cluster via `kubectl`. Alternatively, you can use [gardenctl](https://github.com/gardener/gardenctl-v2) to target the control plane of the affected shoot cluster. You can get the details to target the control plane from the Access tile in the shoot cluster details page on the Gardener dashboard. Ensure that you are targeting the correct namespace.
 
-   1. Add the following annotation to the `Etcd` resource `kubectl annotate etcd etcd-main druid.gardener.cloud/ignore-reconciliation="true"`
-
-   2. Note down the configmap name that is attached to the `etcd-main` statefulset. If you describe the statefulset with `kubectl describe sts etcd-main`, look for the lines similar to following lines to identify attached configmap name. It will be needed at later stages:
+      1. Add the following annotations to the `Etcd` resource `etcd-main`:
+            1. `kubectl annotate etcd etcd-main druid.gardener.cloud/suspend-etcd-spec-reconcile="true"`
+    
+            2. `kubectl annotate etcd etcd-main druid.gardener.cloud/resource-protection="false"`
+    
+      2. Note down the configmap name that is attached to the `etcd-main` statefulset. If you describe the statefulset with `kubectl describe sts etcd-main`, look for the lines similar to following lines to identify attached configmap name. It will be needed at later stages:
 
    ```
      Volumes:
@@ -50,8 +53,8 @@ There are two [Etcd clusters](https://github.com/gardener/etcd-druid/tree/master
       `kubectl delete pvc -l instance=etcd-main`
 
    5. Check the etcd's member leases. There should be leases starting with `etcd-main` as many as `etcd-main` replicas.
-   One of those leases will have holder identity as `<etcd-member-id>:Leader` and rest of etcd member leases have holder identities as `<etcd-member-id>:Member`.
-   Please ignore the snapshot leases i.e those leases which have suffix `snap`.
+      One of those leases will have holder identity as `<etcd-member-id>:Leader` and rest of etcd member leases have holder identities as `<etcd-member-id>:Member`.
+      Please ignore the snapshot leases i.e those leases which have suffix `snap`.
 
    etcd-main member leases:
       ```
@@ -90,7 +93,11 @@ There are two [Etcd clusters](https://github.com/gardener/etcd-druid/tree/master
       etcd-main-0   2/2     Running   0          1m
       ```
 
-   9. Remove the following annotation from the `Etcd` resource `etcd-main`: `kubectl annotate etcd etcd-main druid.gardener.cloud/ignore-reconciliation-`
+   9. Remove the following annotations from the `Etcd` resource `etcd-main`:
+
+         1. `kubectl annotate etcd etcd-main druid.gardener.cloud/suspend-etcd-spec-reconcile-`
+
+         2. `kubectl annotate etcd etcd-main druid.gardener.cloud/resource-protection-`
 
    10. Finally add the following annotation to the `Etcd` resource `etcd-main`: `kubectl annotate etcd etcd-main gardener.cloud/operation="reconcile"`
 

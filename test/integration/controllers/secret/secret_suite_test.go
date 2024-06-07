@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gardener/etcd-druid/controllers/secret"
+	"github.com/gardener/etcd-druid/internal/controller/secret"
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
 	"github.com/gardener/etcd-druid/test/integration/setup"
 	. "github.com/onsi/ginkgo/v2"

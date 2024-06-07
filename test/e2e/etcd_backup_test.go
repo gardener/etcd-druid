@@ -11,7 +11,7 @@ import (
 
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
 	"github.com/gardener/etcd-druid/api/v1alpha1"
-
+	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
@@ -52,17 +52,31 @@ var _ = Describe("Etcd Backup", func() {
 					Expect(err).ShouldNot(HaveOccurred())
 
 					etcdName = fmt.Sprintf("etcd-%s", provider.Name)
-
 					storageContainer = getEnvAndExpectNoError(envStorageContainer)
 
+					By("Purge snapstore")
 					snapstoreProvider := provider.Storage.Provider
-					store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
-					Expect(err).ShouldNot(HaveOccurred())
+					if snapstoreProvider == utils.Local {
+						purgeLocalSnapstoreJob := purgeLocalSnapstore(parentCtx, cl, storageContainer)
+						defer cleanUpTestHelperJob(parentCtx, cl, purgeLocalSnapstoreJob.Name)
+					} else {
+						store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
+						Expect(err).ShouldNot(HaveOccurred())
+						Expect(purgeSnapstore(store)).To(Succeed())
+					}
+				})
 
-					// purge any existing backups in bucket
-					Expect(purgeSnapstore(store)).To(Succeed())
+				AfterEach(func() {
+					ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
+					defer cancelFunc()
 
-					Expect(deployBackupSecret(parentCtx, cl, logger, provider, etcdNamespace, storageContainer))
+					By("Delete debug pod")
+					etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
+					debugPod := getDebugPod(etcd)
+					Expect(client.IgnoreNotFound(cl.Delete(ctx, debugPod))).ToNot(HaveOccurred())
+
+					By("Purge etcd")
+					purgeEtcd(ctx, cl, providers)
 				})
 
 				It("Should create, test backup and delete etcd with backup", func() {
@@ -175,12 +189,6 @@ var _ = Describe("Etcd Backup", func() {
 					for i := 1; i <= 15; i++ {
 						Expect(keyValueMap[fmt.Sprintf("%s-%d", etcdKeyPrefix, i)]).To(Equal(fmt.Sprintf("%s-%d", etcdValuePrefix, i)))
 					}
-
-					By("Delete debug pod")
-					Expect(cl.Delete(ctx, debugPod)).ToNot(HaveOccurred())
-
-					By("Delete etcd")
-					deleteAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
 				})
 			})
 		}
@@ -219,6 +227,14 @@ func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, e
 		err := cl.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: namespace}, etcd)
 		if err != nil {
 			return err
+		}
+
+		// Ensure the etcd cluster's current generation matches the observed generation
+		if etcd.Status.ObservedGeneration == nil {
+			return fmt.Errorf("etcd %s status observed generation is nil", etcd.Name)
+		}
+		if *etcd.Status.ObservedGeneration != etcd.Generation {
+			return fmt.Errorf("etcd '%s' is not at the expected generation (observed: %d, expected: %d)", etcd.Name, *etcd.Status.ObservedGeneration, etcd.Generation)
 		}
 
 		if etcd.Status.Ready == nil || *etcd.Status.Ready != true {
@@ -303,14 +319,19 @@ func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 }
 
 func purgeEtcdPVCs(ctx context.Context, cl client.Client, etcdName string) {
-	r, _ := k8s_labels.NewRequirement("instance", selection.Equals, []string{etcdName})
+	r1, err := k8s_labels.NewRequirement(v1alpha1.LabelPartOfKey, selection.Equals, []string{etcdName})
+	ExpectWithOffset(1, err).ShouldNot(HaveOccurred())
+	r2, err := k8s_labels.NewRequirement(v1alpha1.LabelManagedByKey, selection.Equals, []string{v1alpha1.LabelManagedByValue})
+	ExpectWithOffset(1, err).ShouldNot(HaveOccurred())
+
 	pvc := &corev1.PersistentVolumeClaim{}
 	delOptions := client.DeleteOptions{}
 	delOptions.ApplyOptions([]client.DeleteOption{client.PropagationPolicy(metav1.DeletePropagationForeground)})
+	logger.Info("Deleting PVCs")
 	ExpectWithOffset(1, client.IgnoreNotFound(cl.DeleteAllOf(ctx, pvc, &client.DeleteAllOfOptions{
 		ListOptions: client.ListOptions{
 			Namespace:     namespace,
-			LabelSelector: k8s_labels.NewSelector().Add(*r),
+			LabelSelector: k8s_labels.NewSelector().Add(*r1, *r2),
 		},
 		DeleteOptions: delOptions,
 	}))).ShouldNot(HaveOccurred())

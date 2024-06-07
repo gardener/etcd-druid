@@ -12,7 +12,8 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 echo "> Update Code Generation"
 
-cd "$PROJECT_DIR/api" && controller-gen "object:headerFile=$SCRIPT_DIR/boilerplate.go.txt" paths=./...
+YEAR="$(date +%Y)"
+cd "$PROJECT_DIR/api" && controller-gen "object:headerFile=$SCRIPT_DIR/boilerplate.go.txt,year=${YEAR}" paths=./...
 
 # needed as long as https://github.com/kubernetes-sigs/controller-tools/issues/559 is not fixed
 find "$PROJECT_DIR/api" -type f -name "zz_*.go" -exec goimports -w '{}' \;

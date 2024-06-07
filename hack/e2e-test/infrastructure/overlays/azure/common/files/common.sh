@@ -9,8 +9,8 @@ function setup_azcli() {
     return
   fi
   echo "Installing azure-cli..."
-  apt update > /dev/null
-  apt install -y curl > /dev/null
+  apt update
+  apt install -y curl
   curl -sL https://aka.ms/InstallAzureCLIDeb | bash
   echo "Successfully installed azure-cli."
 }

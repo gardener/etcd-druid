@@ -10,8 +10,8 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/common"
-	"github.com/gardener/etcd-druid/pkg/utils"
+	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/gardener/gardener/pkg/controllerutils"
@@ -47,7 +47,7 @@ var _ = Describe("Compaction Controller", func() {
 				j              *batchv1.Job
 			)
 
-			instance = testutils.EtcdBuilderWithDefaults(name, namespace).WithTLS().WithStorageProvider(provider).Build()
+			instance = testutils.EtcdBuilderWithDefaults(name, namespace).WithPeerTLS().WithClientTLS().WithStorageProvider(provider).Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
@@ -389,9 +389,9 @@ func validateStoreGCPForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 								fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container): Equal(fmt.Sprintf("%s=%s", "--store-container", *instance.Spec.Backup.Store.Container)),
 							}),
 							"VolumeMounts": MatchElements(testutils.VolumeMountIterator, IgnoreExtras, Elements{
-								"etcd-backup": MatchFields(IgnoreExtras, Fields{
-									"Name":      Equal("etcd-backup"),
-									"MountPath": Equal("/var/.gcp/"),
+								common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
+									"Name":      Equal(common.ProviderBackupSecretVolumeName),
+									"MountPath": Equal(common.GCSBackupVolumeMountPath),
 								}),
 							}),
 							"Env": MatchAllElements(testutils.EnvIterator, Elements{
@@ -435,8 +435,8 @@ func validateStoreGCPForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 						}),
 					}),
 					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
-						"etcd-backup": MatchFields(IgnoreExtras, Fields{
-							"Name": Equal("etcd-backup"),
+						common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
+							"Name": Equal(common.ProviderBackupSecretVolumeName),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
@@ -485,14 +485,14 @@ func validateStoreAWSForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 								}),
 								common.EnvAWSApplicationCredentials: MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal(common.EnvAWSApplicationCredentials),
-									"Value": Equal("/var/etcd-backup"),
+									"Value": Equal(common.NonGCSProviderBackupVolumeMountPath),
 								}),
 							}),
 						}),
 					}),
 					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
-						"etcd-backup": MatchFields(IgnoreExtras, Fields{
-							"Name": Equal("etcd-backup"),
+						common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
+							"Name": Equal(common.ProviderBackupSecretVolumeName),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
@@ -541,14 +541,14 @@ func validateStoreAzureForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1
 								}),
 								common.EnvAzureApplicationCredentials: MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal(common.EnvAzureApplicationCredentials),
-									"Value": Equal("/var/etcd-backup"),
+									"Value": Equal(common.NonGCSProviderBackupVolumeMountPath),
 								}),
 							}),
 						}),
 					}),
 					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
-						"etcd-backup": MatchFields(IgnoreExtras, Fields{
-							"Name": Equal("etcd-backup"),
+						common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
+							"Name": Equal(common.ProviderBackupSecretVolumeName),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
@@ -597,14 +597,14 @@ func validateStoreOpenstackForCompactionJob(instance *druidv1alpha1.Etcd, j *bat
 								}),
 								common.EnvOpenstackApplicationCredentials: MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal(common.EnvOpenstackApplicationCredentials),
-									"Value": Equal("/var/etcd-backup"),
+									"Value": Equal(common.NonGCSProviderBackupVolumeMountPath),
 								}),
 							}),
 						}),
 					}),
 					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
-						"etcd-backup": MatchFields(IgnoreExtras, Fields{
-							"Name": Equal("etcd-backup"),
+						common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
+							"Name": Equal(common.ProviderBackupSecretVolumeName),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
@@ -654,14 +654,14 @@ func validateStoreAlicloudForCompactionJob(instance *druidv1alpha1.Etcd, j *batc
 								}),
 								common.EnvAlicloudApplicationCredentials: MatchFields(IgnoreExtras, Fields{
 									"Name":  Equal(common.EnvAlicloudApplicationCredentials),
-									"Value": Equal("/var/etcd-backup"),
+									"Value": Equal(common.NonGCSProviderBackupVolumeMountPath),
 								}),
 							}),
 						}),
 					}),
 					"Volumes": MatchElements(testutils.VolumeIterator, IgnoreExtras, Elements{
-						"etcd-backup": MatchFields(IgnoreExtras, Fields{
-							"Name": Equal("etcd-backup"),
+						common.ProviderBackupSecretVolumeName: MatchFields(IgnoreExtras, Fields{
+							"Name": Equal(common.ProviderBackupSecretVolumeName),
 							"VolumeSource": MatchFields(IgnoreExtras, Fields{
 								"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 									"SecretName": Equal(instance.Spec.Backup.Store.SecretRef.Name),
@@ -703,7 +703,7 @@ func etcdSnapshotLeaseIsCorrectlyReconciled(c client.Client, instance *druidv1al
 		return err
 	}
 
-	if !testutils.CheckEtcdOwnerReference(lease.GetOwnerReferences(), instance) {
+	if !testutils.CheckEtcdOwnerReference(lease.GetOwnerReferences(), instance.UID) {
 		return fmt.Errorf("ownerReference does not exists for lease")
 	}
 	return nil
@@ -731,11 +731,11 @@ func deleteEtcdAndWait(c client.Client, etcd *druidv1alpha1.Etcd) {
 
 func createEtcdSnapshotLeasesAndWait(c client.Client, etcd *druidv1alpha1.Etcd) (*coordinationv1.Lease, *coordinationv1.Lease) {
 	By("create full snapshot lease")
-	fullSnapLease := testutils.CreateLease(etcd.GetFullSnapshotLeaseName(), etcd.Namespace, etcd.Name, etcd.UID)
+	fullSnapLease := testutils.CreateLease(etcd.GetFullSnapshotLeaseName(), etcd.Namespace, etcd.Name, etcd.UID, "etcd-snapshot-lease")
 	Expect(c.Create(context.TODO(), fullSnapLease)).To(Succeed())
 
 	By("create delta snapshot lease")
-	deltaSnapLease := testutils.CreateLease(etcd.GetDeltaSnapshotLeaseName(), etcd.Namespace, etcd.Name, etcd.UID)
+	deltaSnapLease := testutils.CreateLease(etcd.GetDeltaSnapshotLeaseName(), etcd.Namespace, etcd.Name, etcd.UID, "etcd-snapshot-lease")
 	Expect(c.Create(context.TODO(), deltaSnapLease)).To(Succeed())
 
 	// wait for full snapshot lease to be created
