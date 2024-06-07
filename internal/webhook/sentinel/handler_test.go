@@ -15,7 +15,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	testutils "github.com/gardener/etcd-druid/test/utils"
-
 	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -76,16 +75,7 @@ func TestHandleCreateAndConnect(t *testing.T) {
 	}
 
 	cl := testutils.CreateDefaultFakeClient()
-	decoder := admission.NewDecoder(cl.Scheme())
-
-	handler := &Handler{
-		Client: cl,
-		config: &Config{
-			Enabled: true,
-		},
-		decoder: decoder,
-		logger:  logr.Discard(),
-	}
+	handler := createHandler(g, cl, Config{Enabled: true})
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -133,16 +123,7 @@ func TestHandleLeaseUpdate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).Build()
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, nil, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			decoder := admission.NewDecoder(cl.Scheme())
-
-			handler := &Handler{
-				Client: cl,
-				config: &Config{
-					Enabled: true,
-				},
-				decoder: decoder,
-				logger:  logr.Discard(),
-			}
+			handler := createHandler(g, cl, Config{Enabled: true})
 
 			obj := buildObjRawExtension(g, &coordinationv1.Lease{}, nil, testObjectName, testNamespace,
 				map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName})
@@ -171,7 +152,7 @@ func TestHandleLeaseUpdate(t *testing.T) {
 	}
 }
 
-func TestHandleStatefulSetScaleSubresourceUpdate(t *testing.T) {
+func TestHandleUnmanagedStatefulSetScaleSubresourceUpdate(t *testing.T) {
 	g := NewWithT(t)
 
 	// create sts without managed-by label
@@ -179,16 +160,7 @@ func TestHandleStatefulSetScaleSubresourceUpdate(t *testing.T) {
 	delete(sts.Labels, druidv1alpha1.LabelManagedByKey)
 
 	cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, nil, nil, nil, nil, []client.Object{sts}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-	decoder := admission.NewDecoder(cl.Scheme())
-
-	handler := &Handler{
-		Client: cl,
-		config: &Config{
-			Enabled: true,
-		},
-		decoder: decoder,
-		logger:  logr.Discard(),
-	}
+	handler := createHandler(g, cl, Config{Enabled: true})
 
 	obj := buildObjRawExtension(g, &autoscalingv1.Scale{}, nil, testObjectName, testNamespace, nil)
 
@@ -206,7 +178,7 @@ func TestHandleStatefulSetScaleSubresourceUpdate(t *testing.T) {
 	})
 
 	g.Expect(response.Allowed).To(BeTrue())
-	g.Expect(response.Result.Message).To(Equal(fmt.Sprintf("resource is not managed by etcd-druid, as label %s is missing", druidv1alpha1.LabelManagedByKey)))
+	g.Expect(response.Result.Message).To(Equal(fmt.Sprintf("resource: %v is not managed by druid, skipping validations", client.ObjectKeyFromObject(sts))))
 	g.Expect(response.Result.Code).To(Equal(int32(http.StatusOK)))
 }
 
@@ -214,16 +186,7 @@ func TestUnexpectedResourceType(t *testing.T) {
 	g := NewWithT(t)
 
 	cl := fake.NewClientBuilder().Build()
-	decoder := admission.NewDecoder(cl.Scheme())
-
-	handler := &Handler{
-		Client: cl,
-		config: &Config{
-			Enabled: true,
-		},
-		decoder: decoder,
-		logger:  logr.Discard(),
-	}
+	handler := createHandler(g, cl, Config{Enabled: true})
 
 	resp := handler.Handle(context.Background(), admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
@@ -233,23 +196,14 @@ func TestUnexpectedResourceType(t *testing.T) {
 	})
 
 	g.Expect(resp.Allowed).To(BeTrue())
-	g.Expect(resp.Result.Message).To(Equal("unexpected resource type: coordination.k8s.io/Unknown"))
+	g.Expect(resp.Result.Message).To(Equal("resource: coordination.k8s.io/Unknown is not supported by Sentinel webhook"))
 }
 
 func TestMissingManagedByLabel(t *testing.T) {
 	g := NewWithT(t)
 
 	cl := fake.NewClientBuilder().Build()
-	decoder := admission.NewDecoder(cl.Scheme())
-
-	handler := &Handler{
-		Client: cl,
-		config: &Config{
-			Enabled: true,
-		},
-		decoder: decoder,
-		logger:  logr.Discard(),
-	}
+	handler := createHandler(g, cl, Config{Enabled: true})
 
 	obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName})
 	response := handler.Handle(context.Background(), admission.Request{
@@ -265,23 +219,14 @@ func TestMissingManagedByLabel(t *testing.T) {
 	})
 
 	g.Expect(response.Allowed).To(Equal(true))
-	g.Expect(response.Result.Message).To(Equal(fmt.Sprintf("resource is not managed by etcd-druid, as label %s is missing", druidv1alpha1.LabelManagedByKey)))
+	g.Expect(response.Result.Message).To(Equal(fmt.Sprintf("resource: %v is not managed by druid, skipping validations", client.ObjectKey{Name: testObjectName, Namespace: testNamespace})))
 }
 
 func TestMissingResourcePartOfLabel(t *testing.T) {
 	g := NewWithT(t)
 
 	cl := fake.NewClientBuilder().Build()
-	decoder := admission.NewDecoder(cl.Scheme())
-
-	handler := &Handler{
-		Client: cl,
-		config: &Config{
-			Enabled: true,
-		},
-		decoder: decoder,
-		logger:  logr.Discard(),
-	}
+	handler := createHandler(g, cl, Config{Enabled: true})
 
 	obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue})
 	response := handler.Handle(context.Background(), admission.Request{
@@ -297,7 +242,7 @@ func TestMissingResourcePartOfLabel(t *testing.T) {
 	})
 
 	g.Expect(response.Allowed).To(Equal(true))
-	g.Expect(response.Result.Message).To(Equal(fmt.Sprintf("label %s not found on resource", druidv1alpha1.LabelPartOfKey)))
+	g.Expect(response.Result.Message).To(Equal(fmt.Sprintf("resource: %v  is not part of any Etcd, skipping validations", client.ObjectKey{Name: testObjectName, Namespace: testNamespace})))
 }
 
 func TestHandleUpdate(t *testing.T) {
@@ -380,18 +325,11 @@ func TestHandleUpdate(t *testing.T) {
 				Build()
 
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			decoder := admission.NewDecoder(cl.Scheme())
-
-			handler := &Handler{
-				Client: cl,
-				config: &Config{
-					Enabled:                  true,
-					ReconcilerServiceAccount: reconcilerServiceAccount,
-					ExemptServiceAccounts:    exemptServiceAccounts,
-				},
-				decoder: decoder,
-				logger:  logr.Discard(),
-			}
+			handler := createHandler(g, cl, Config{
+				Enabled:                  true,
+				ReconcilerServiceAccount: reconcilerServiceAccount,
+				ExemptServiceAccounts:    exemptServiceAccounts,
+			})
 
 			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels)
 			response := handler.Handle(context.Background(), admission.Request{
@@ -429,7 +367,7 @@ func TestHandleWithInvalidRequestObject(t *testing.T) {
 			objectRaw:         []byte{},
 			expectedAllowed:   false,
 			expectedMessage:   "there is no content to decode",
-			expectedErrorCode: http.StatusInternalServerError,
+			expectedErrorCode: http.StatusBadRequest,
 		},
 		{
 			name:              "malformed request object",
@@ -437,7 +375,7 @@ func TestHandleWithInvalidRequestObject(t *testing.T) {
 			objectRaw:         []byte("foo"),
 			expectedAllowed:   false,
 			expectedMessage:   "invalid character",
-			expectedErrorCode: http.StatusInternalServerError,
+			expectedErrorCode: http.StatusBadRequest,
 		},
 		{
 			name:              "empty request object",
@@ -445,7 +383,7 @@ func TestHandleWithInvalidRequestObject(t *testing.T) {
 			objectRaw:         []byte{},
 			expectedAllowed:   false,
 			expectedMessage:   "there is no content to decode",
-			expectedErrorCode: http.StatusInternalServerError,
+			expectedErrorCode: http.StatusBadRequest,
 		},
 		{
 			name:              "malformed request object",
@@ -453,7 +391,7 @@ func TestHandleWithInvalidRequestObject(t *testing.T) {
 			objectRaw:         []byte("foo"),
 			expectedAllowed:   false,
 			expectedMessage:   "invalid character",
-			expectedErrorCode: http.StatusInternalServerError,
+			expectedErrorCode: http.StatusBadRequest,
 		},
 	}
 
@@ -461,18 +399,11 @@ func TestHandleWithInvalidRequestObject(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			cl := testutils.CreateDefaultFakeClient()
-			decoder := admission.NewDecoder(cl.Scheme())
-
-			handler := &Handler{
-				Client: cl,
-				config: &Config{
-					Enabled:                  true,
-					ReconcilerServiceAccount: reconcilerServiceAccount,
-					ExemptServiceAccounts:    exemptServiceAccounts,
-				},
-				decoder: decoder,
-				logger:  logr.Discard(),
-			}
+			handler := createHandler(g, cl, Config{
+				Enabled:                  true,
+				ReconcilerServiceAccount: reconcilerServiceAccount,
+				ExemptServiceAccounts:    exemptServiceAccounts,
+			})
 
 			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, nil)
 
@@ -525,18 +456,11 @@ func TestEtcdGetFailures(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(t.Name(), func(t *testing.T) {
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			decoder := admission.NewDecoder(cl.Scheme())
-
-			handler := &Handler{
-				Client: cl,
-				config: &Config{
-					Enabled:                  true,
-					ReconcilerServiceAccount: reconcilerServiceAccount,
-					ExemptServiceAccounts:    exemptServiceAccounts,
-				},
-				decoder: decoder,
-				logger:  logr.Discard(),
-			}
+			handler := createHandler(g, cl, Config{
+				Enabled:                  true,
+				ReconcilerServiceAccount: reconcilerServiceAccount,
+				ExemptServiceAccounts:    exemptServiceAccounts,
+			})
 
 			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{
 				druidv1alpha1.LabelPartOfKey:    testEtcdName,
@@ -687,18 +611,11 @@ func TestHandleDelete(t *testing.T) {
 				Build()
 
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			decoder := admission.NewDecoder(cl.Scheme())
-
-			handler := &Handler{
-				Client: cl,
-				config: &Config{
-					Enabled:                  true,
-					ReconcilerServiceAccount: reconcilerServiceAccount,
-					ExemptServiceAccounts:    exemptServiceAccounts,
-				},
-				decoder: decoder,
-				logger:  logr.Discard(),
-			}
+			handler := createHandler(g, cl, Config{
+				Enabled:                  true,
+				ReconcilerServiceAccount: reconcilerServiceAccount,
+				ExemptServiceAccounts:    exemptServiceAccounts,
+			})
 
 			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels)
 
@@ -722,6 +639,18 @@ func TestHandleDelete(t *testing.T) {
 }
 
 // ---------------- Helper functions -------------------
+
+func createHandler(g *WithT, cl client.Client, cfg Config) *Handler {
+	mgr := &testutils.FakeManager{
+		Client: cl,
+		Scheme: cl.Scheme(),
+		Logger: logr.Discard(),
+	}
+
+	h, err := NewHandler(mgr, &cfg)
+	g.Expect(err).ToNot(HaveOccurred())
+	return h
+}
 
 func buildObjRawExtension(g *WithT, emptyObj runtime.Object, objRaw []byte, testObjectName, testNs string, labels map[string]string) runtime.RawExtension {
 	var (

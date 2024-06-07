@@ -43,6 +43,7 @@ webhooks:
           - serviceaccounts
           - services
           - configmaps
+          - persistentvolumeclaims
         scope: '*'
       - apiGroups:
           - rbac.authorization.k8s.io
