@@ -100,7 +100,7 @@ func (d *RequestDecoder) getStatefulSetPartialObjMetaFromScaleSubResource(ctx co
 		objMeta.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind("StatefulSet"))
 		objKey := client.ObjectKey{Name: req.Name, Namespace: req.Namespace}
 		if err := d.client.Get(ctx, objKey, objMeta); err != nil {
-			return nil, druiderr.WrapError(err, ErrGetStatefulSet, "FetchStatefulSetByObjectKey", fmt.Sprintf("failed to fetch StatefulSet for objectKey: %v", objKey))
+			return nil, druiderr.WrapError(err, ErrGetStatefulSet, "GetStatefulSetPartialObjectMetaFromScaleSubResource", fmt.Sprintf("failed to fetch StatefulSet for scale subresource: %v", objKey))
 		}
 		return objMeta, nil
 	}
@@ -114,20 +114,27 @@ func (d *RequestDecoder) getStatefulSetPartialObjMetaFromPVC(ctx context.Context
 	}
 	labels := obj.GetLabels()
 	if len(labels) == 0 {
-		return nil, fmt.Errorf("resource %s/%s does not have any labels", req.Namespace, req.Name)
+		return nil, &druiderr.DruidError{
+			Code:      ErrGetStatefulSet,
+			Operation: "GetStatefulSetPartialObjMetaFromPVC",
+			Message:   fmt.Sprintf("resource %s/%s does not have any labels", req.Namespace, req.Name),
+		}
 	}
 
 	objMetaList := &metav1.PartialObjectMetadataList{}
 	objMetaList.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind("StatefulSet"))
 	if err = d.client.List(ctx, objMetaList, client.InNamespace(req.Namespace), client.MatchingLabels(labels)); err != nil {
-		return nil, druiderr.WrapError(err, ErrGetStatefulSet, "FetchStatefulSetByLabels", fmt.Sprintf("failed to fetch StatefulSet for labels: %v", labels))
+		return nil, druiderr.WrapError(err, ErrGetStatefulSet, "GetStatefulSetPartialObjMetaFromPVC", fmt.Sprintf("failed to fetch StatefulSet for labels: %v", labels))
 	}
-	if len(objMetaList.Items) == 1 {
+	if len(objMetaList.Items) > 1 {
 		return nil, &druiderr.DruidError{
 			Code:      ErrTooManyMatchingStatefulSets,
 			Operation: "FetchStatefulSetByLabels",
 			Message:   fmt.Sprintf("found more than one StatefulSet for labels: %v", labels),
 		}
+	}
+	if len(objMetaList.Items) == 0 {
+		return nil, nil
 	}
 	return &objMetaList.Items[0], nil
 }

@@ -1,8 +1,11 @@
 package util
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 
+	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -25,4 +28,15 @@ func CreateObjectKey(partialObjMeta *metav1.PartialObjectMetadata) client.Object
 		Namespace: partialObjMeta.Namespace,
 		Name:      partialObjMeta.Name,
 	}
+}
+
+// DetermineStatusCode determines the HTTP status code based on the given error.
+func DetermineStatusCode(err error) int32 {
+	var druidErr *druiderr.DruidError
+	if errors.As(err, &druidErr) {
+		if druidErr.Code == ErrDecodeRequestObject {
+			return http.StatusBadRequest
+		}
+	}
+	return http.StatusInternalServerError
 }

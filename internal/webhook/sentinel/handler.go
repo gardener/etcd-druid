@@ -17,7 +17,6 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/authentication/serviceaccount"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,7 +56,7 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 
 	partialObjMeta, err := h.decoder.DecodeRequestObjectAsPartialObjectMetadata(ctx, req)
 	if err != nil {
-		return admission.Errored(http.StatusBadRequest, err)
+		return admission.Errored(util.DetermineStatusCode(err), err)
 	}
 	if partialObjMeta == nil {
 		return admission.Allowed(fmt.Sprintf("resource: %v is not supported by Sentinel webhook", requestGKString))
@@ -89,9 +88,10 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 }
 
 func (h *Handler) handleUpdate(req admission.Request, etcd *druidv1alpha1.Etcd) admission.Response {
+	requestGK := util.GetGroupKindFromRequest(req)
+
 	// Leases (member and snapshot) will be periodically updated by etcd members.
 	// Allow updates to such leases, but only by etcd members, which would use the serviceaccount deployed by druid for them.
-	requestGK := schema.GroupKind{Group: req.Kind.Group, Kind: req.Kind.Kind}
 	if requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() {
 		if serviceaccount.MatchesUsername(etcd.GetNamespace(), druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta), req.UserInfo.Username) {
 			return admission.Allowed("lease resource can be freely updated by etcd members")

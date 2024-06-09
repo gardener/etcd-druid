@@ -43,6 +43,14 @@ webhooks:
           - serviceaccounts
           - services
           - configmaps
+        scope: '*'
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - DELETE
+        resources:
           - persistentvolumeclaims
         scope: '*'
       - apiGroups:

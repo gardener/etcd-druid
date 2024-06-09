@@ -35,7 +35,13 @@ type DruidError struct {
 }
 
 func (e *DruidError) Error() string {
-	return fmt.Sprintf("[Operation: %s, Code: %s] %s", e.Operation, e.Code, e.Cause.Error())
+	var msg string
+	if e.Cause != nil {
+		msg = e.Cause.Error()
+	} else {
+		msg = e.Message
+	}
+	return fmt.Sprintf("[Operation: %s, Code: %s] %s", e.Operation, e.Code, msg)
 }
 
 // IsRequeueAfterError checks if the given error is of type DruidError and has the given error code.
