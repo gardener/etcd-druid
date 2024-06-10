@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/scale/scheme/autoscalingv1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -63,7 +64,7 @@ func (d *RequestDecoder) DecodeRequestObjectAsPartialObjectMetadata(ctx context.
 		policyv1.SchemeGroupVersion.WithKind("PodDisruptionBudget").GroupKind(),
 		batchv1.SchemeGroupVersion.WithKind("Job").GroupKind(),
 		coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind():
-		return d.decodeRequestObjAsPartialObjectMeta(req)
+		return d.doDecodeRequestObjAsPartialObjectMeta(req)
 	case autoscalingv1.SchemeGroupVersion.WithKind("Scale").GroupKind():
 		return d.getStatefulSetPartialObjMetaFromScaleSubResource(ctx, req)
 	case corev1.SchemeGroupVersion.WithKind("PersistentVolumeClaim").GroupKind():
@@ -72,25 +73,49 @@ func (d *RequestDecoder) DecodeRequestObjectAsPartialObjectMetadata(ctx context.
 	return partialObjMeta, err
 }
 
-func (d *RequestDecoder) decodeRequestObjAsPartialObjectMeta(req admission.Request) (*metav1.PartialObjectMetadata, error) {
-	var (
-		err             error
-		unstructuredObj = &unstructured.Unstructured{}
-	)
+func (d *RequestDecoder) doDecodeRequestObjAsPartialObjectMeta(req admission.Request) (*metav1.PartialObjectMetadata, error) {
+	oldObj, newObj, err := d.doDecodeRequestObjects(req)
+	if err != nil {
+		return nil, err
+	}
 	if req.Operation == admissionv1.Delete {
+		return meta.AsPartialObjectMetadata(oldObj), err
+	}
+	return meta.AsPartialObjectMetadata(newObj), err
+}
+
+func (d *RequestDecoder) doDecodeRequestObjects(req admission.Request) (oldObj, newObj *unstructured.Unstructured, err error) {
+	gk := GetGroupKindFromRequest(req)
+	switch req.Operation {
+	case admissionv1.Connect:
+		return
+	case admissionv1.Create:
+		newObj, err = d.decodeObjectAsUnstructured(gk, req.Object)
+		return
+	case admissionv1.Delete:
 		// OldObject contains the object being deleted
 		//https://github.com/kubernetes/kubernetes/pull/76346
-		err = d.decoder.DecodeRaw(req.OldObject, unstructuredObj)
-	} else {
-		err = d.decoder.Decode(req, unstructuredObj)
+		oldObj, err = d.decodeObjectAsUnstructured(gk, req.OldObject)
+		return
+	case admissionv1.Update:
+		if newObj, err = d.decodeObjectAsUnstructured(gk, req.Object); err != nil {
+			return
+		}
+		if oldObj, err = d.decodeObjectAsUnstructured(gk, req.OldObject); err != nil {
+			return
+		}
+	default:
+		err = druiderr.WrapError(fmt.Errorf("unsupported operation %s", req.Operation), ErrDecodeRequestObject, "doDecodeRequestObjects", "unsupported operation")
 	}
-	if err != nil {
-		return nil, druiderr.WrapError(err,
-			ErrDecodeRequestObject,
-			"decodeRequestObjectAsPartialObjectMeta",
-			fmt.Sprintf("failed to decode request object: %v", GetGroupKindFromRequest(req)))
+	return
+}
+
+func (d *RequestDecoder) decodeObjectAsUnstructured(gk schema.GroupKind, rawObj runtime.RawExtension) (*unstructured.Unstructured, error) {
+	obj := &unstructured.Unstructured{}
+	if err := d.decoder.DecodeRaw(rawObj, obj); err != nil {
+		return nil, druiderr.WrapError(err, ErrDecodeRequestObject, "decodeObjectAsUnstructured", fmt.Sprintf("failed to decode object: %v", gk))
 	}
-	return meta.AsPartialObjectMetadata(unstructuredObj), nil
+	return obj, nil
 }
 
 func (d *RequestDecoder) getStatefulSetPartialObjMetaFromScaleSubResource(ctx context.Context, req admission.Request) (*metav1.PartialObjectMetadata, error) {
@@ -108,7 +133,7 @@ func (d *RequestDecoder) getStatefulSetPartialObjMetaFromScaleSubResource(ctx co
 }
 
 func (d *RequestDecoder) getStatefulSetPartialObjMetaFromPVC(ctx context.Context, req admission.Request) (*metav1.PartialObjectMetadata, error) {
-	obj, err := d.decodeRequestObjAsPartialObjectMeta(req)
+	obj, err := d.doDecodeRequestObjAsPartialObjectMeta(req)
 	if err != nil {
 		return nil, err
 	}

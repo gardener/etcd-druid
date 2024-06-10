@@ -44,6 +44,14 @@ func NewHandler(mgr manager.Manager, config *Config) (*Handler, error) {
 	}, nil
 }
 
+/*
+	handler.Handle ->
+	1. check if operation is handled
+	2. get object or partial object metadata
+    3. pre-checks on object before handling operation
+    4. handle operation
+*/
+
 // Handle handles admission requests and prevents unintended changes to resources created by etcd-druid.
 func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	requestGKString := util.GetGroupKindAsStringFromRequest(req)

@@ -44,6 +44,12 @@ func (e *DruidError) Error() string {
 	return fmt.Sprintf("[Operation: %s, Code: %s] %s", e.Operation, e.Code, msg)
 }
 
+// WithCause sets the underline error and returns the DruidError.
+func (e *DruidError) WithCause(err error) error {
+	e.Cause = err
+	return e
+}
+
 // IsRequeueAfterError checks if the given error is of type DruidError and has the given error code.
 func IsRequeueAfterError(err error) bool {
 	druidErr := &DruidError{}
