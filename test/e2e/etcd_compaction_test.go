@@ -34,7 +34,6 @@ var _ = Describe("Etcd Compaction", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		var (
-			cl               client.Client
 			etcdName         string
 			storageContainer string
 		)

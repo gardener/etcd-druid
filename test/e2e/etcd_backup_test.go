@@ -41,7 +41,6 @@ var _ = Describe("Etcd Backup", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		var (
-			cl               client.Client
 			etcdName         string
 			storageContainer string
 		)
