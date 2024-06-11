@@ -108,7 +108,7 @@ func GetSuspendEtcdSpecReconcileAnnotationKey(etcdObjMeta metav1.ObjectMeta) *st
 // AreManagedResourcesProtected returns false if the Etcd resource has the `druid.gardener.cloud/disable-resource-protection` annotation set,
 // else returns true.
 func AreManagedResourcesProtected(etcdObjMeta metav1.ObjectMeta) bool {
-	return !metav1.HasAnnotation(etcdObjMeta, DisableResourceProtectionAnnotation)
+	return !metav1.HasAnnotation(etcdObjMeta, DisableEtcdComponentProtectionAnnotation)
 }
 
 // GetDefaultLabels returns the default labels for etcd.

@@ -158,13 +158,13 @@ func TestAreManagedResourcesProtected(t *testing.T) {
 		expectedResourceProtection bool
 	}{
 		{
-			name:                       "No DisableResourceProtectionAnnotation annotation is set",
+			name:                       "No DisableEtcdComponentProtectionAnnotation annotation is set",
 			annotations:                nil,
 			expectedResourceProtection: true,
 		},
 		{
-			name:                       "DisableResourceProtectionAnnotation is set",
-			annotations:                map[string]string{DisableResourceProtectionAnnotation: ""},
+			name:                       "DisableEtcdComponentProtectionAnnotation is set",
+			annotations:                map[string]string{DisableEtcdComponentProtectionAnnotation: ""},
 			expectedResourceProtection: false,
 		},
 	}

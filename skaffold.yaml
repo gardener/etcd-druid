@@ -39,14 +39,14 @@ profiles:
         value:
           etcd:
             etcdStatusSyncPeriod: 5s
-  - name: enable-sentinel-webhook
+  - name: enable-etcdcomponents-webhook
     activation:
-      - env: "DRUID_ENABLE_SENTINEL_WEBHOOK=true"
+      - env: "DRUID_ENABLE_ETCD_COMPONENTS_WEBHOOK=true"
     patches:
       - op: add
         path: /deploy/helm/releases/0/setValues/webhooks
         value:
-          sentinel:
+          etcdcomponents:
             enabled: true
   - name: do-not-use-feature-gates
     activation:

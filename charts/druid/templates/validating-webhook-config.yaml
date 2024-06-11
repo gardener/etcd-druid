@@ -13,7 +13,7 @@ metadata:
   labels:
     app.kubernetes.io/name: etcd-druid
 webhooks:
-  {{- if ((.Values.webhooks).sentinel).enabled }}
+  {{- if ((.Values.webhooks).etcdcomponents).enabled }}
   - admissionReviewVersions:
       - v1beta1
       - v1
@@ -22,11 +22,11 @@ webhooks:
       service:
         name: etcd-druid
         namespace: {{ .Release.Namespace }}
-        path: /webhooks/sentinel
+        path: /webhooks/etcdcomponents
         port: {{ .Values.controllerManager.server.webhook.port }}
     failurePolicy: Fail
     matchPolicy: Exact
-    name: sentinel.webhooks.druid.gardener.cloud
+    name: etcdcomponents.webhooks.druid.gardener.cloud
     namespaceSelector: {}
     objectSelector:
       matchLabels:
@@ -118,11 +118,11 @@ webhooks:
       service:
         name: etcd-druid
         namespace: {{ .Release.Namespace }}
-        path: /webhooks/sentinel
+        path: /webhooks/etcdcomponents
         port: {{ .Values.controllerManager.server.webhook.port }}
     failurePolicy: Fail
     matchPolicy: Exact
-    name: stsscale.sentinel.webhooks.druid.gardener.cloud
+    name: stsscale.etcdcomponents.webhooks.druid.gardener.cloud
     namespaceSelector: {}
     rules:
       - apiGroups:

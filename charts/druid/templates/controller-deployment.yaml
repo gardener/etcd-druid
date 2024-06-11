@@ -82,11 +82,11 @@ spec:
         - --secret-workers={{ .Values.controllers.secret.workers }}
         {{- end }}
 
-        {{- if ((.Values.webhooks).sentinel).enabled }}
-        - --enable-sentinel-webhook=true
+        {{- if ((.Values.webhooks).etcdcomponents).enabled }}
+        - --enable-etcd-components-webhook=true
         - --reconciler-service-account=system:serviceaccount:{{ .Release.Namespace }}:etcd-druid
-        {{- if .Values.webhooks.sentinel.exemptServiceAccounts }}
-        - --sentinel-exempt-service-accounts={{ join "," .Values.webhooks.sentinel.exemptServiceAccounts }}
+        {{- if .Values.webhooks.etcdcomponents.exemptServiceAccounts }}
+        - --etcd-components-webhook-exempt-service-accounts={{ join "," .Values.webhooks.etcdcomponents.exemptServiceAccounts }}
         {{- end }}
         {{- end }}
 

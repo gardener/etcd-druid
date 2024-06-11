@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package sentinel
+package etcdcomponents
 
 import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -11,9 +11,9 @@ import (
 
 const (
 	// handlerName is the name of the webhook handler.
-	handlerName = "sentinel-webhook"
+	handlerName = "etcd-components-webhook"
 	// WebhookPath is the path at which the handler should be registered.
-	webhookPath = "/webhooks/sentinel"
+	webhookPath = "/webhooks/etcdcomponents"
 )
 
 // RegisterWithManager registers Handler to the given manager.

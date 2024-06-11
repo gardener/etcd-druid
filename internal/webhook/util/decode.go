@@ -7,7 +7,6 @@ import (
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -62,7 +61,6 @@ func (d *RequestDecoder) DecodeRequestObjectAsPartialObjectMetadata(ctx context.
 		rbacv1.SchemeGroupVersion.WithKind("RoleBinding").GroupKind(),
 		appsv1.SchemeGroupVersion.WithKind("StatefulSet").GroupKind(),
 		policyv1.SchemeGroupVersion.WithKind("PodDisruptionBudget").GroupKind(),
-		batchv1.SchemeGroupVersion.WithKind("Job").GroupKind(),
 		coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind():
 		return d.doDecodeRequestObjAsPartialObjectMeta(req)
 	case autoscalingv1.SchemeGroupVersion.WithKind("Scale").GroupKind():

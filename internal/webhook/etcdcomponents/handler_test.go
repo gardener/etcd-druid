@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package sentinel
+package etcdcomponents
 
 import (
 	"context"
@@ -196,7 +196,7 @@ func TestUnexpectedResourceType(t *testing.T) {
 	})
 
 	g.Expect(resp.Allowed).To(BeTrue())
-	g.Expect(resp.Result.Message).To(Equal("resource: coordination.k8s.io/Unknown is not supported by Sentinel webhook"))
+	g.Expect(resp.Result.Message).To(Equal("resource: coordination.k8s.io/Unknown is not supported by EtcdComponents webhook"))
 }
 
 func TestMissingManagedByLabel(t *testing.T) {
@@ -269,9 +269,9 @@ func TestHandleUpdate(t *testing.T) {
 		{
 			name:            "disable resource protection annotation set",
 			objectLabels:    map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdAnnotations: map[string]string{druidv1alpha1.DisableResourceProtectionAnnotation: ""},
+			etcdAnnotations: map[string]string{druidv1alpha1.DisableEtcdComponentProtectionAnnotation: ""},
 			expectedAllowed: true,
-			expectedMessage: fmt.Sprintf("changes allowed, since Etcd %s has annotation %s", testEtcdName, druidv1alpha1.DisableResourceProtectionAnnotation),
+			expectedMessage: fmt.Sprintf("changes allowed, since Etcd %s has annotation %s", testEtcdName, druidv1alpha1.DisableEtcdComponentProtectionAnnotation),
 			expectedCode:    http.StatusOK,
 		},
 		{
@@ -301,7 +301,7 @@ func TestHandleUpdate(t *testing.T) {
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			exemptServiceAccounts:    exemptServiceAccounts,
 			expectedAllowed:          true,
-			expectedMessage:          fmt.Sprintf("operations on Etcd %s by service account %s is exempt from Sentinel Webhook checks", testEtcdName, exemptServiceAccounts[0]),
+			expectedMessage:          fmt.Sprintf("operations on Etcd %s by service account %s is exempt from EtcdComponents Webhook checks", testEtcdName, exemptServiceAccounts[0]),
 			expectedCode:             http.StatusOK,
 		},
 		{
@@ -510,9 +510,9 @@ func TestHandleDelete(t *testing.T) {
 		{
 			name:            "disable resource protection annotation set",
 			objectLabels:    map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdAnnotations: map[string]string{druidv1alpha1.DisableResourceProtectionAnnotation: ""},
+			etcdAnnotations: map[string]string{druidv1alpha1.DisableEtcdComponentProtectionAnnotation: ""},
 			expectedAllowed: true,
-			expectedMessage: fmt.Sprintf("changes allowed, since Etcd %s has annotation %s", testEtcdName, druidv1alpha1.DisableResourceProtectionAnnotation),
+			expectedMessage: fmt.Sprintf("changes allowed, since Etcd %s has annotation %s", testEtcdName, druidv1alpha1.DisableEtcdComponentProtectionAnnotation),
 			expectedCode:    http.StatusOK,
 		},
 		{
@@ -555,7 +555,7 @@ func TestHandleDelete(t *testing.T) {
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			exemptServiceAccounts:    exemptServiceAccounts,
 			expectedAllowed:          true,
-			expectedMessage:          fmt.Sprintf("operations on Etcd %s by service account %s is exempt from Sentinel Webhook checks", testEtcdName, exemptServiceAccounts[0]),
+			expectedMessage:          fmt.Sprintf("operations on Etcd %s by service account %s is exempt from EtcdComponents Webhook checks", testEtcdName, exemptServiceAccounts[0]),
 			expectedCode:             http.StatusOK,
 		},
 		{

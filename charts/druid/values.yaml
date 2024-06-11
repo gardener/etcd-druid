@@ -49,7 +49,7 @@ controllers:
     workers: 10
 
 webhooks:
-  sentinel:
+  etcdcomponents:
     enabled: false
     # reconciler-service-account: system:serviceaccount:{{ .Release.Namespace }}:etcd-druid
     exemptServiceAccounts:

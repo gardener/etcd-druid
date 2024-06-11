@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package sentinel
+package etcdcomponents
 
 import (
 	"encoding/base64"
@@ -16,44 +16,36 @@ import (
 )
 
 const (
-	enableSentinelWebhookFlagName    = "enable-sentinel-webhook"
-	reconcilerServiceAccountFlagName = "reconciler-service-account"
-	exemptServiceAccountsFlagName    = "sentinel-exempt-service-accounts"
-
-	defaultEnableSentinelWebhook    = false
-	defaultReconcilerServiceAccount = "system:serviceaccount:default:etcd-druid"
-
-	reconcilerServiceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	enableEtcdComponentsWebhookFlagName                = "enable-etcd-components-webhook"
+	reconcilerServiceAccountFlagName                   = "reconciler-service-account"
+	etcdComponentsWebhookExemptServiceAccountsFlagName = "etcd-components-webhook-exempt-service-accounts"
+	defaultEnableWebhook                               = false
+	defaultReconcilerServiceAccount                    = "system:serviceaccount:default:etcd-druid"
+	reconcilerServiceAccountTokenPath                  = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 )
 
-var (
-	defaultExemptServiceAccounts []string
-)
-
-// Config defines the configuration for the Sentinel Webhook.
+// Config defines the configuration for the EtcdComponents Webhook.
 type Config struct {
-	// Enabled indicates whether the Sentinel Webhook is enabled.
+	// Enabled indicates whether the Etcd Components Webhook is enabled.
 	Enabled bool
 	// ReconcilerServiceAccount is the name of the service account used by etcd-druid for reconciling etcd resources.
 	ReconcilerServiceAccount string
-	// ExemptServiceAccounts is a list of service accounts that are exempt from Sentinel Webhook checks.
+	// ExemptServiceAccounts is a list of service accounts that are exempt from Etcd Components Webhook checks.
 	ExemptServiceAccounts []string
 }
 
 // InitFromFlags initializes the config from the provided CLI flag set.
 func InitFromFlags(fs *flag.FlagSet, cfg *Config) {
-	fs.BoolVar(&cfg.Enabled, enableSentinelWebhookFlagName, defaultEnableSentinelWebhook,
-		"Enable Sentinel Webhook to prevent unintended changes to resources managed by etcd-druid.")
-
+	fs.BoolVar(&cfg.Enabled, enableEtcdComponentsWebhookFlagName, defaultEnableWebhook,
+		"Enable Etcd-Components-Webhook to prevent unintended changes to resources managed by etcd-druid.")
 	reconcilerServiceAccount, err := getReconcilerServiceAccountName()
 	if err != nil {
 		reconcilerServiceAccount = defaultReconcilerServiceAccount
 	}
 	fs.StringVar(&cfg.ReconcilerServiceAccount, reconcilerServiceAccountFlagName, reconcilerServiceAccount,
 		fmt.Sprintf("The fully qualified name of the service account used by etcd-druid for reconciling etcd resources. Default: %s", defaultReconcilerServiceAccount))
-
-	fs.StringSliceVar(&cfg.ExemptServiceAccounts, exemptServiceAccountsFlagName, defaultExemptServiceAccounts,
-		"The comma-separated list of fully qualified names of service accounts that are exempt from Sentinel Webhook checks.")
+	fs.StringSliceVar(&cfg.ExemptServiceAccounts, etcdComponentsWebhookExemptServiceAccountsFlagName, []string{},
+		"The comma-separated list of fully qualified names of service accounts that are exempt from Etcd-Components-Webhook checks.")
 }
 
 func getReconcilerServiceAccountName() (string, error) {

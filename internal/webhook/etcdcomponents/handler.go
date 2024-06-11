@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package sentinel
+package etcdcomponents
 
 import (
 	"context"
@@ -26,7 +26,9 @@ import (
 
 var allowedOperations = []admissionv1.Operation{admissionv1.Create, admissionv1.Connect}
 
-// Handler is the Sentinel Webhook admission handler.
+// Handler is the Etcd Components protection Webhook admission handler.
+// All resources that are provisioned by druid as part of etcd cluster provisioning are protected from
+// unintended modification or deletion by this admission handler.
 type Handler struct {
 	client  client.Client
 	config  *Config
@@ -34,7 +36,7 @@ type Handler struct {
 	logger  logr.Logger
 }
 
-// NewHandler creates a new handler for Sentinel Webhook.
+// NewHandler creates a new handler for Etcd Components Webhook.
 func NewHandler(mgr manager.Manager, config *Config) (*Handler, error) {
 	return &Handler{
 		client:  mgr.GetClient(),
@@ -44,19 +46,11 @@ func NewHandler(mgr manager.Manager, config *Config) (*Handler, error) {
 	}, nil
 }
 
-/*
-	handler.Handle ->
-	1. check if operation is handled
-	2. get object or partial object metadata
-    3. pre-checks on object before handling operation
-    4. handle operation
-*/
-
 // Handle handles admission requests and prevents unintended changes to resources created by etcd-druid.
 func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	requestGKString := util.GetGroupKindAsStringFromRequest(req)
 	log := h.logger.WithValues("name", req.Name, "namespace", req.Namespace, "resourceGroupKind", requestGKString, "operation", req.Operation, "user", req.UserInfo.Username)
-	log.V(1).Info("Sentinel webhook invoked")
+	log.V(1).Info("EtcdComponents webhook invoked")
 
 	if ok, response := h.skipValidationForOperations(req.Operation); ok {
 		return *response
@@ -67,7 +61,7 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		return admission.Errored(util.DetermineStatusCode(err), err)
 	}
 	if partialObjMeta == nil {
-		return admission.Allowed(fmt.Sprintf("resource: %v is not supported by Sentinel webhook", requestGKString))
+		return admission.Allowed(fmt.Sprintf("resource: %v is not supported by EtcdComponents webhook", requestGKString))
 	}
 
 	if !isObjManagedByDruid(partialObjMeta.ObjectMeta) {
@@ -84,7 +78,7 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 
 	// allow changes to resources if Etcd has annotation druid.gardener.cloud/disable-resource-protection is set.
 	if !druidv1alpha1.AreManagedResourcesProtected(etcd.ObjectMeta) {
-		return admission.Allowed(fmt.Sprintf("changes allowed, since Etcd %s has annotation %s", etcd.Name, druidv1alpha1.DisableResourceProtectionAnnotation))
+		return admission.Allowed(fmt.Sprintf("changes allowed, since Etcd %s has annotation %s", etcd.Name, druidv1alpha1.DisableEtcdComponentProtectionAnnotation))
 	}
 
 	// allow deletion operation on resources if the Etcd is currently being deleted, but only by etcd-druid and exempt service accounts.
@@ -117,7 +111,7 @@ func (h *Handler) handleUpdate(req admission.Request, etcd *druidv1alpha1.Etcd) 
 	// allow exempt service accounts to make changes to resources, but only if the Etcd is not currently being reconciled.
 	for _, sa := range h.config.ExemptServiceAccounts {
 		if req.UserInfo.Username == sa {
-			return admission.Allowed(fmt.Sprintf("operations on Etcd %s by service account %s is exempt from Sentinel Webhook checks", etcd.Name, sa))
+			return admission.Allowed(fmt.Sprintf("operations on Etcd %s by service account %s is exempt from EtcdComponents Webhook checks", etcd.Name, sa))
 		}
 	}
 
