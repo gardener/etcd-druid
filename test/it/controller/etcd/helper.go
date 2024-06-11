@@ -106,10 +106,13 @@ func updateAndGetStsRevision(ctx context.Context, t *testing.T, cl client.Client
 	sts := &appsv1.StatefulSet{}
 	g.Expect(cl.Get(ctx, client.ObjectKey{Name: druidv1alpha1.GetStatefulSetName(etcdInstance.ObjectMeta), Namespace: etcdInstance.Namespace}, sts)).To(Succeed())
 	originalSts := sts.DeepCopy()
+	sts.Status.ObservedGeneration = sts.Generation
 	sts.Status.Replicas = etcdInstance.Spec.Replicas
 	sts.Status.ReadyReplicas = etcdInstance.Spec.Replicas
 	sts.Status.UpdatedReplicas = etcdInstance.Spec.Replicas
-	sts.Status.UpdateRevision = fmt.Sprintf("%s-%s", sts.Name, generateRandomAlphanumericString(t, 4))
+	revision := fmt.Sprintf("%s-%s", sts.Name, generateRandomAlphanumericString(t, 4))
+	sts.Status.CurrentRevision = revision
+	sts.Status.UpdateRevision = revision
 	g.Expect(cl.Status().Patch(ctx, sts, client.MergeFrom(originalSts))).To(Succeed())
 	return sts.Status.UpdateRevision
 }
@@ -122,9 +125,9 @@ func createStsPods(ctx context.Context, t *testing.T, cl client.Client, etcdObje
 	for i := 0; i < int(stsReplicas); i++ {
 		podName := fmt.Sprintf("%s-%d", sts.Name, i)
 		podLabels := utils.MergeMaps(sts.Spec.Template.Labels, etcdObjectMeta.Labels, map[string]string{
-			"apps.kubernetes.io/pod-index":       strconv.Itoa(i),
-			"statefulset.kubernetes.io/pod-name": podName,
-			"controller-revision-hash":           stsUpdateRevision,
+			appsv1.PodIndexLabel:            strconv.Itoa(i),
+			appsv1.StatefulSetPodNameLabel:  podName,
+			appsv1.StatefulSetRevisionLabel: stsUpdateRevision,
 		})
 		pod := &corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{

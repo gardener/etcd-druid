@@ -210,11 +210,12 @@ func testEtcdSpecUpdateWhenNoReconcileOperationAnnotationIsSet(t *testing.T, tes
 	// update etcdInstance spec without reconcile operation annotation set
 	originalEtcdInstance := etcdInstance.DeepCopy()
 	metricsLevelExtensive := druidv1alpha1.Extensive
-	etcdInstance.Spec.Etcd = druidv1alpha1.EtcdConfig{Metrics: &metricsLevelExtensive}
+	etcdInstance.Spec.Etcd.Metrics = &metricsLevelExtensive
 	g.Expect(cl.Patch(ctx, etcdInstance, client.MergeFrom(originalEtcdInstance))).To(Succeed())
 
 	// ***************** test etcd spec reconciliation  *****************
 	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 2*time.Second, 2*time.Second)
+	_ = updateAndGetStsRevision(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), etcdInstance)
 	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), pointer.Int64(1), 5*time.Second, 1*time.Second)
 	// ensure that sts generation does not change, ie, it should remain 1, as sts is not updated after etcd spec change without reconcile operation annotation
 	assertStatefulSetGeneration(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 1, 30*time.Second, 2*time.Second)
@@ -238,7 +239,7 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 	// update etcdInstance spec with reconcile operation annotation also set
 	originalEtcdInstance := etcdInstance.DeepCopy()
 	metricsLevelExtensive := druidv1alpha1.Extensive
-	etcdInstance.Spec.Etcd = druidv1alpha1.EtcdConfig{Metrics: &metricsLevelExtensive}
+	etcdInstance.Spec.Etcd.Metrics = &metricsLevelExtensive
 	etcdInstance.Annotations = map[string]string{
 		v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
 	}
@@ -246,6 +247,7 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 
 	// ***************** test etcd spec reconciliation  *****************
 	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 30*time.Minute, 2*time.Second)
+	_ = updateAndGetStsRevision(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), etcdInstance)
 	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), pointer.Int64(2), 2*time.Minute, 1*time.Second)
 	expectedLastOperation := &druidv1alpha1.LastOperation{
 		Type:  druidv1alpha1.LastOperationTypeReconcile,
