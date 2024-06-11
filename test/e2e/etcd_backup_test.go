@@ -50,9 +50,6 @@ var _ = Describe("Etcd Backup", func() {
 			provider := p
 			Context(fmt.Sprintf("with provider %s", provider.Name), func() {
 				BeforeEach(func() {
-					cl, err = getKubernetesClient(kubeconfigPath)
-					Expect(err).ShouldNot(HaveOccurred())
-
 					etcdName = fmt.Sprintf("etcd-%s", provider.Name)
 					storageContainer = getEnvAndExpectNoError(envStorageContainer)
 

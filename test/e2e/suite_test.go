@@ -53,7 +53,6 @@ var (
 	etcdValuePrefix = "bar"
 
 	providers []TestProvider
-	err       error
 )
 
 func TestIntegration(t *testing.T) {
@@ -62,6 +61,7 @@ func TestIntegration(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	var err error
 	ctx := context.Background()
 
 	providers, err = getProviders()

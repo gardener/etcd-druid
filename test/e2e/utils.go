@@ -20,7 +20,6 @@ import (
 
 	"github.com/gardener/etcd-backup-restore/pkg/snapstore"
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -85,9 +84,6 @@ var (
 		"app":                     "etcd-statefulset",
 		"garden.sapcloud.io/role": "controlplane",
 		roleLabelKey:              defaultRoleLabelValue,
-	}
-	annotations = map[string]string{
-		v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
 	}
 
 	stsLabels = map[string]string{
@@ -166,7 +162,6 @@ func getEmptyEtcd(name, namespace string) *v1alpha1.Etcd {
 func getDefaultEtcd(name, namespace, container, prefix string, provider TestProvider) *v1alpha1.Etcd {
 	etcd := getEmptyEtcd(name, namespace)
 
-	etcd.Annotations = annotations
 	etcd.Spec.Annotations = stsAnnotations
 
 	labelsCopy := make(map[string]string)
