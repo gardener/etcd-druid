@@ -308,7 +308,7 @@ func (c *component) waitUntilPodsUpdatedAndReady(ctx context.Context, sts *appsv
 }
 
 func (c *component) deleteWithOrphanCascade(ctx context.Context, sts *appsv1.StatefulSet) error {
-	if !utils.ContainsAllDesiredLabels(sts.Spec.Selector.MatchLabels, c.values.SelectorLabels) {
+	if !utils.ExactlyMatchesLabels(sts.Spec.Selector.MatchLabels, c.values.SelectorLabels) {
 		c.logger.Info("Deleting StatefulSet with orphan cascade", "namespace", c.values.Namespace, "name", c.values.Name)
 		return c.client.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationOrphan))
 	}

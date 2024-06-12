@@ -24,3 +24,11 @@ func ContainsAllDesiredLabels(actual, desired map[string]string) bool {
 	}
 	return true
 }
+
+// ExactlyMatchesLabels checks if the actual map exactly matches the desired labels.
+func ExactlyMatchesLabels(actual, desired map[string]string) bool {
+	if len(actual) != len(desired) {
+		return false
+	}
+	return ContainsAllDesiredLabels(actual, desired)
+}
