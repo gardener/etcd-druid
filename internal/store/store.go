@@ -33,6 +33,7 @@ const (
 	openstack = "openstack"
 	dell      = "dell"
 	openshift = "openshift"
+	stackit   = "stackit"
 )
 
 const (
@@ -62,6 +63,9 @@ func StorageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) (str
 
 	switch *infra {
 	case aws, S3:
+		return S3, nil
+	// S3-compatible providers
+	case stackit:
 		return S3, nil
 	case azure, ABS:
 		return ABS, nil
