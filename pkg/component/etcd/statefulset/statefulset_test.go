@@ -620,9 +620,13 @@ func checkStatefulset(sts *appsv1.StatefulSet, values Values) {
 						"instance": Equal(values.Name),
 					}),
 					"Labels": MatchAllKeys(Keys{
-						"foo":      Equal("bar"),
-						"name":     Equal("etcd"),
-						"instance": Equal(values.Name),
+						"foo":                          Equal("bar"),
+						"name":                         Equal("etcd"),
+						"instance":                     Equal(values.Name),
+						"app.kubernetes.io/component":  Equal("etcd-statefulset"),
+						"app.kubernetes.io/name":       Equal(values.Name),
+						"app.kubernetes.io/managed-by": Equal("etcd-druid"),
+						"app.kubernetes.io/part-of":    Equal(values.Name),
 					}),
 				}),
 				//s.Spec.Template.Spec.HostAliases

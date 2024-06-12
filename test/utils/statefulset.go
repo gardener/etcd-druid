@@ -51,6 +51,19 @@ func SetStatefulSetReady(s *appsv1.StatefulSet) {
 	s.Status.ReadyReplicas = replicas
 }
 
+// SetStatefulSetPodsUpdated updates the status sub-resource of the passed in StatefulSet with UpdatedReplicas, UpdateRevision and CurrentRevision
+func SetStatefulSetPodsUpdated(s *appsv1.StatefulSet) {
+	replicas := int32(1)
+	if s.Spec.Replicas != nil {
+		replicas = *s.Spec.Replicas
+	}
+	s.Status.UpdatedReplicas = replicas
+	s.Status.CurrentReplicas = replicas
+
+	s.Status.UpdateRevision = "123456"
+	s.Status.CurrentRevision = "123456"
+}
+
 // CreateStatefulSet creates a statefulset with its owner reference set to etcd.
 func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32) *appsv1.StatefulSet {
 	return &appsv1.StatefulSet{
