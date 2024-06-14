@@ -103,7 +103,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.logger.Error(result.GetCombinedError(), "Failed to reconcile status")
 		return result.ReconcileResult()
 	}
-	if reconcileSpecResult.HasErrors() {
+	if reconcileSpecResult.NeedsRequeue() {
 		return reconcileSpecResult.ReconcileResult()
 	}
 	return ctrlutils.ReconcileAfter(r.config.EtcdStatusSyncPeriod, "Periodic Requeue").ReconcileResult()

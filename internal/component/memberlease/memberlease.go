@@ -127,7 +127,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, lease *coordinationv1.Lease) {
 }
 
 func getObjectKeys(etcd *druidv1alpha1.Etcd) []client.ObjectKey {
-	leaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, int(etcd.Spec.Replicas))
+	leaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
 	objectKeys := make([]client.ObjectKey, 0, len(leaseNames))
 	for _, leaseName := range leaseNames {
 		objectKeys = append(objectKeys, client.ObjectKey{Name: leaseName, Namespace: etcd.Namespace})

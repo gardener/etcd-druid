@@ -79,6 +79,10 @@ func (r ReconcileStepResult) HasErrors() bool {
 	return len(r.errs) > 0
 }
 
+func (r ReconcileStepResult) NeedsRequeue() bool {
+	return r.HasErrors() || r.result.Requeue || r.result.RequeueAfter > 0
+}
+
 // GetDescription returns the description of the reconcile step.
 func (r ReconcileStepResult) GetDescription() string {
 	if len(r.errs) > 0 {

@@ -22,7 +22,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const retryInterval = 1 * time.Second
+// syncRetryInterval will be used by both sync and preSync stages for a component and should be used when there is a need to requeue for retrying after a specific interval.
+const syncRetryInterval = 10 * time.Second
 
 func (r *Reconciler) triggerReconcileSpecFlow(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
 	reconcileStepFns := []reconcileFn{
@@ -92,8 +93,8 @@ func (r *Reconciler) preSyncEtcdResources(ctx component.OperatorContext, etcdObj
 		op := r.operatorRegistry.GetOperator(kind)
 		if err := op.PreSync(ctx, etcd); err != nil {
 			if druiderr.IsRequeueAfterError(err) {
-				ctx.Logger.Info("retrying pre-sync of component", "kind", kind, "retryInterval", retryInterval.String())
-				return ctrlutils.ReconcileAfter(retryInterval, fmt.Sprintf("retrying pre-sync of component %s after %s", kind, retryInterval.String()))
+				ctx.Logger.Info("retrying pre-sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String())
+				return ctrlutils.ReconcileAfter(syncRetryInterval, fmt.Sprintf("requeueing pre-sync of component %s to be retried after %s", kind, syncRetryInterval.String()))
 			}
 			ctx.Logger.Error(err, "failed to sync etcd resource", "kind", kind)
 			return ctrlutils.ReconcileWithError(err)
@@ -112,8 +113,8 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey
 		op := r.operatorRegistry.GetOperator(kind)
 		if err := op.Sync(ctx, etcd); err != nil {
 			if druiderr.IsRequeueAfterError(err) {
-				ctx.Logger.Info("retrying sync of component", "kind", kind, "retryInterval", retryInterval.String())
-				return ctrlutils.ReconcileAfter(retryInterval, fmt.Sprintf("retrying sync of component %s after %s", kind, retryInterval.String()))
+				ctx.Logger.Info("retrying sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String())
+				return ctrlutils.ReconcileAfter(syncRetryInterval, fmt.Sprintf("retrying sync of component %s after %s", kind, syncRetryInterval.String()))
 			}
 			ctx.Logger.Error(err, "failed to sync etcd resource", "kind", kind)
 			return ctrlutils.ReconcileWithError(err)

@@ -418,7 +418,7 @@ func TestEtcdStatusReconciliation(t *testing.T) {
 }
 
 func testConditionsAndMembersWhenAllMemberLeasesAreActive(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv) {
-	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, int(etcd.Spec.Replicas))
+	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
 	testNs := etcd.Namespace
 	clock := testclock.NewFakeClock(time.Now().Round(time.Second))
 	mlcs := []etcdMemberLeaseConfig{

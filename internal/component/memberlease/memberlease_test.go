@@ -95,7 +95,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).To(BeNil())
-				expectedLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, int(etcd.Spec.Replicas))[:tc.numExistingLeases]
+				expectedLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)[:tc.numExistingLeases]
 				g.Expect(memberLeaseNames).To(Equal(expectedLeaseNames))
 			}
 		})
@@ -309,7 +309,7 @@ func newMemberLeases(etcd *druidv1alpha1.Etcd, numLeases int) ([]*coordinationv1
 	if numLeases > int(etcd.Spec.Replicas) {
 		return nil, errors.New("number of requested leases is greater than the etcd replicas")
 	}
-	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, int(etcd.Spec.Replicas))
+	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
 	leases := make([]*coordinationv1.Lease, 0, numLeases)
 	for i := 0; i < numLeases; i++ {
 		lease := &coordinationv1.Lease{

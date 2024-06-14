@@ -6,11 +6,11 @@ package etcdmember
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -35,16 +35,22 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		checkTime = TimeNow().UTC()
 	)
 
-	leases := &coordinationv1.LeaseList{}
-	if err := r.cl.List(ctx, leases, client.InNamespace(etcd.Namespace), client.MatchingLabels{
-		druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
-		druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
-		druidv1alpha1.LabelPartOfKey:    etcd.Name,
-	}); err != nil {
-		r.logger.Error(err, "failed to get leases for etcd member readiness check")
+	leaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
+	leases := make([]*coordinationv1.Lease, 0, len(leaseNames))
+	for _, leaseName := range leaseNames {
+		lease := &coordinationv1.Lease{}
+		if err := r.cl.Get(ctx, kutil.Key(etcd.Namespace, leaseName), lease); err != nil {
+			if apierrors.IsNotFound(err) {
+				r.logger.Error(fmt.Errorf("lease not found"), "name", leaseName)
+				continue
+			}
+			r.logger.Error(err, "failed to get lease", "name", leaseName)
+			continue
+		}
+		leases = append(leases, lease)
 	}
 
-	for _, lease := range leases.Items {
+	for _, lease := range leases {
 		var (
 			id, role = separateIdFromRole(lease.Spec.HolderIdentity)
 			res      = &result{

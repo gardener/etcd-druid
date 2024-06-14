@@ -45,9 +45,9 @@ func GetOrdinalPodName(etcdObjMeta metav1.ObjectMeta, ordinal int) string {
 }
 
 // GetMemberLeaseNames returns the name of member leases for the Etcd.
-func GetMemberLeaseNames(etcdObjMeta metav1.ObjectMeta, replicas int) []string {
+func GetMemberLeaseNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
 	leaseNames := make([]string, 0, replicas)
-	for i := 0; i < replicas; i++ {
+	for i := 0; i < int(replicas); i++ {
 		leaseNames = append(leaseNames, fmt.Sprintf("%s-%d", etcdObjMeta.Name, i))
 	}
 	return leaseNames

@@ -98,7 +98,7 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 	}
 
 	// check if pods have been updated with new labels and become ready.
-	podsUpdatedAndReady, err := r.areStatefulSetPodsUpdatedAndReady(ctx, sts)
+	podsUpdatedAndReady, err := r.areStatefulSetPodsUpdatedAndReady(ctx, etcd, sts)
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrPreSyncStatefulSet,
@@ -112,6 +112,8 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 			"PreSync",
 			errMessage,
 		)
+	} else {
+		ctx.Logger.Info("StatefulSet pods are updated with new pod labels and ready", "objectKey", getObjectKey(etcd.ObjectMeta))
 	}
 
 	// if sts label selector needs to be changed, then delete the statefulset, but keeping the pods intact.
@@ -264,11 +266,11 @@ func isPeerTLSEnablementPending(peerTLSEnabledStatusFromMembers bool, etcd *drui
 }
 
 func (r _resource) checkAndPatchStsPodLabelsOnMismatch(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {
-	desiredPodLabels := utils.MergeMaps(etcd.Spec.Labels, getStatefulSetLabels(etcd.Name))
-	if !utils.ContainsAllDesiredLabels(sts.Spec.Template.Labels, desiredPodLabels) {
+	desiredPodTemplateLabels := getDesiredPodTemplateLabels(etcd)
+	if !utils.ContainsAllDesiredLabels(sts.Spec.Template.Labels, desiredPodTemplateLabels) {
 		ctx.Logger.Info("Patching StatefulSet with new pod labels", "objectKey", getObjectKey(etcd.ObjectMeta))
 		originalSts := sts.DeepCopy()
-		sts.Spec.Template.Labels = utils.MergeMaps(sts.Spec.Template.Labels, desiredPodLabels)
+		sts.Spec.Template.Labels = utils.MergeMaps(sts.Spec.Template.Labels, desiredPodTemplateLabels)
 		if err := r.client.Patch(ctx, sts, client.MergeFrom(originalSts)); err != nil {
 			return err
 		}
@@ -276,9 +278,17 @@ func (r _resource) checkAndPatchStsPodLabelsOnMismatch(ctx component.OperatorCon
 	return nil
 }
 
-func (r _resource) areStatefulSetPodsUpdatedAndReady(ctx component.OperatorContext, sts *appsv1.StatefulSet) (bool, error) {
+func getDesiredPodTemplateLabels(etcd *druidv1alpha1.Etcd) map[string]string {
+	return utils.MergeMaps(etcd.Spec.Labels, getStatefulSetLabels(etcd.Name))
+}
+
+func (r _resource) areStatefulSetPodsUpdatedAndReady(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) (bool, error) {
 	if err := r.client.Get(ctx, getObjectKey(sts.ObjectMeta), sts); err != nil {
 		return false, err
+	}
+	desiredPodTemplateLabels := getDesiredPodTemplateLabels(etcd)
+	if !utils.ContainsAllDesiredLabels(sts.Spec.Template.Labels, desiredPodTemplateLabels) {
+		return false, nil
 	}
 	if sts.Status.ObservedGeneration < sts.Generation {
 		return false, nil
