@@ -41,7 +41,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		lease := &coordinationv1.Lease{}
 		if err := r.cl.Get(ctx, kutil.Key(etcd.Namespace, leaseName), lease); err != nil {
 			if apierrors.IsNotFound(err) {
-				r.logger.Error(fmt.Errorf("lease not found"), "name", leaseName)
+				r.logger.Error(fmt.Errorf("lease not found"), "lease not found", "name", leaseName)
 				continue
 			}
 			r.logger.Error(err, "failed to get lease", "name", leaseName)

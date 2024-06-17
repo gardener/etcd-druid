@@ -9,6 +9,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	mockmanager "github.com/gardener/etcd-druid/internal/mock/controller-runtime/manager"
+	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	. "github.com/onsi/gomega"
@@ -18,20 +19,42 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 )
 
+type predicateTestCase struct {
+	name               string
+	etcdSpecChanged    bool
+	etcdStatusChanged  bool
+	lastOperationState *druidv1alpha1.LastOperationState
+	// expected behavior for different event types
+	shouldAllowCreateEvent  bool
+	shouldAllowDeleteEvent  bool
+	shouldAllowGenericEvent bool
+	shouldAllowUpdateEvent  bool
+}
+
 func TestBuildPredicateWithOnlyAutoReconcileEnabled(t *testing.T) {
-	testCases := []struct {
-		name              string
-		etcdSpecChanged   bool
-		etcdStatusChanged bool
-		// expected behavior for different event types
-		shouldAllowCreateEvent  bool
-		shouldAllowDeleteEvent  bool
-		shouldAllowGenericEvent bool
-		shouldAllowUpdateEvent  bool
-	}{
+	testCases := []predicateTestCase{
 		{
-			name:                    "only spec has changed",
+			name:                    "only spec has changed and previous reconciliation is in progress",
 			etcdSpecChanged:         true,
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateProcessing),
+			shouldAllowCreateEvent:  true,
+			shouldAllowDeleteEvent:  true,
+			shouldAllowGenericEvent: false,
+			shouldAllowUpdateEvent:  true,
+		},
+		{
+			name:                    "only spec has changed and previous reconciliation has completed",
+			etcdSpecChanged:         true,
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateSucceeded),
+			shouldAllowCreateEvent:  true,
+			shouldAllowDeleteEvent:  true,
+			shouldAllowGenericEvent: false,
+			shouldAllowUpdateEvent:  true,
+		},
+		{
+			name:                    "only spec has changed and previous reconciliation has errored",
+			etcdSpecChanged:         true,
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateError),
 			shouldAllowCreateEvent:  true,
 			shouldAllowDeleteEvent:  true,
 			shouldAllowGenericEvent: false,
@@ -46,9 +69,10 @@ func TestBuildPredicateWithOnlyAutoReconcileEnabled(t *testing.T) {
 			shouldAllowUpdateEvent:  false,
 		},
 		{
-			name:                    "both spec and status have changed",
+			name:                    "both spec and status have changed and previous reconciliation is in progress",
 			etcdSpecChanged:         true,
 			etcdStatusChanged:       true,
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateProcessing),
 			shouldAllowCreateEvent:  true,
 			shouldAllowDeleteEvent:  true,
 			shouldAllowGenericEvent: false,
@@ -68,7 +92,7 @@ func TestBuildPredicateWithOnlyAutoReconcileEnabled(t *testing.T) {
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			updatedEtcd := updateEtcd(etcd, tc.etcdSpecChanged, tc.etcdStatusChanged, false)
+			updatedEtcd := updateEtcd(etcd, tc.etcdSpecChanged, tc.etcdStatusChanged, tc.lastOperationState, false)
 			g.Expect(predicate.Create(event.CreateEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowCreateEvent))
 			g.Expect(predicate.Delete(event.DeleteEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowDeleteEvent))
 			g.Expect(predicate.Generic(event.GenericEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowGenericEvent))
@@ -78,16 +102,7 @@ func TestBuildPredicateWithOnlyAutoReconcileEnabled(t *testing.T) {
 }
 
 func TestBuildPredicateWithNoAutoReconcileAndNoReconcileAnnot(t *testing.T) {
-	testCases := []struct {
-		name              string
-		etcdSpecChanged   bool
-		etcdStatusChanged bool
-		// expected behavior for different event types
-		shouldAllowCreateEvent  bool
-		shouldAllowDeleteEvent  bool
-		shouldAllowGenericEvent bool
-		shouldAllowUpdateEvent  bool
-	}{
+	testCases := []predicateTestCase{
 		{
 			name:                    "only spec has changed",
 			etcdSpecChanged:         true,
@@ -127,7 +142,7 @@ func TestBuildPredicateWithNoAutoReconcileAndNoReconcileAnnot(t *testing.T) {
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			updatedEtcd := updateEtcd(etcd, tc.etcdSpecChanged, tc.etcdStatusChanged, false)
+			updatedEtcd := updateEtcd(etcd, tc.etcdSpecChanged, tc.etcdStatusChanged, tc.lastOperationState, false)
 			g.Expect(predicate.Create(event.CreateEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowCreateEvent))
 			g.Expect(predicate.Delete(event.DeleteEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowDeleteEvent))
 			g.Expect(predicate.Generic(event.GenericEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowGenericEvent))
@@ -137,27 +152,38 @@ func TestBuildPredicateWithNoAutoReconcileAndNoReconcileAnnot(t *testing.T) {
 }
 
 func TestBuildPredicateWithNoAutoReconcileButReconcileAnnotPresent(t *testing.T) {
-	testCases := []struct {
-		name              string
-		etcdSpecChanged   bool
-		etcdStatusChanged bool
-		// expected behavior for different event types
-		shouldAllowCreateEvent  bool
-		shouldAllowDeleteEvent  bool
-		shouldAllowGenericEvent bool
-		shouldAllowUpdateEvent  bool
-	}{
+	testCases := []predicateTestCase{
 		{
-			name:                    "only spec has changed",
+			name:                    "only spec has changed and previous reconciliation is in progress",
 			etcdSpecChanged:         true,
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateProcessing),
 			shouldAllowCreateEvent:  true,
 			shouldAllowDeleteEvent:  true,
 			shouldAllowGenericEvent: false,
 			shouldAllowUpdateEvent:  true,
 		},
 		{
-			name:                    "only status has changed",
+			name:                    "only spec has changed and previous reconciliation is completed",
+			etcdSpecChanged:         true,
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateSucceeded),
+			shouldAllowCreateEvent:  true,
+			shouldAllowDeleteEvent:  true,
+			shouldAllowGenericEvent: false,
+			shouldAllowUpdateEvent:  true,
+		},
+		{
+			name:                    "only status has changed and previous reconciliation is in progress",
 			etcdStatusChanged:       true,
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateProcessing),
+			shouldAllowCreateEvent:  true,
+			shouldAllowDeleteEvent:  true,
+			shouldAllowGenericEvent: false,
+			shouldAllowUpdateEvent:  false,
+		},
+		{
+			name:                    "only status has changed and previous reconciliation is completed",
+			etcdStatusChanged:       true,
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateSucceeded),
 			shouldAllowCreateEvent:  true,
 			shouldAllowDeleteEvent:  true,
 			shouldAllowGenericEvent: false,
@@ -173,7 +199,16 @@ func TestBuildPredicateWithNoAutoReconcileButReconcileAnnotPresent(t *testing.T)
 			shouldAllowUpdateEvent:  true,
 		},
 		{
-			name:                    "neither spec nor status has changed",
+			name:                    "neither spec nor status has changed and previous reconciliation is in error",
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateError),
+			shouldAllowCreateEvent:  true,
+			shouldAllowDeleteEvent:  true,
+			shouldAllowGenericEvent: false,
+			shouldAllowUpdateEvent:  false,
+		},
+		{
+			name:                    "neither spec nor status has changed and previous reconciliation is completed",
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateSucceeded),
 			shouldAllowCreateEvent:  true,
 			shouldAllowDeleteEvent:  true,
 			shouldAllowGenericEvent: false,
@@ -186,7 +221,7 @@ func TestBuildPredicateWithNoAutoReconcileButReconcileAnnotPresent(t *testing.T)
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			updatedEtcd := updateEtcd(etcd, tc.etcdSpecChanged, tc.etcdStatusChanged, true)
+			updatedEtcd := updateEtcd(etcd, tc.etcdSpecChanged, tc.etcdStatusChanged, tc.lastOperationState, true)
 			g.Expect(predicate.Create(event.CreateEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowCreateEvent))
 			g.Expect(predicate.Delete(event.DeleteEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowDeleteEvent))
 			g.Expect(predicate.Generic(event.GenericEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowGenericEvent))
@@ -196,16 +231,7 @@ func TestBuildPredicateWithNoAutoReconcileButReconcileAnnotPresent(t *testing.T)
 }
 
 func TestBuildPredicateWithAutoReconcileAndReconcileAnnotSet(t *testing.T) {
-	testCases := []struct {
-		name              string
-		etcdSpecChanged   bool
-		etcdStatusChanged bool
-		// expected behavior for different event types
-		shouldAllowCreateEvent  bool
-		shouldAllowDeleteEvent  bool
-		shouldAllowGenericEvent bool
-		shouldAllowUpdateEvent  bool
-	}{
+	testCases := []predicateTestCase{
 		{
 			name:                    "only spec has changed",
 			etcdSpecChanged:         true,
@@ -215,8 +241,18 @@ func TestBuildPredicateWithAutoReconcileAndReconcileAnnotSet(t *testing.T) {
 			shouldAllowUpdateEvent:  true,
 		},
 		{
-			name:                    "only status has changed",
+			name:                    "only status has changed and previous reconciliation is in progress",
 			etcdStatusChanged:       true,
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateProcessing),
+			shouldAllowCreateEvent:  true,
+			shouldAllowDeleteEvent:  true,
+			shouldAllowGenericEvent: false,
+			shouldAllowUpdateEvent:  false,
+		},
+		{
+			name:                    "only status has changed and previous reconciliation is completed",
+			etcdStatusChanged:       true,
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateSucceeded),
 			shouldAllowCreateEvent:  true,
 			shouldAllowDeleteEvent:  true,
 			shouldAllowGenericEvent: false,
@@ -232,7 +268,24 @@ func TestBuildPredicateWithAutoReconcileAndReconcileAnnotSet(t *testing.T) {
 			shouldAllowUpdateEvent:  true,
 		},
 		{
-			name:                    "neither spec nor status has changed",
+			name:                    "neither spec nor status has changed and previous reconciliation is in error",
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateError),
+			shouldAllowCreateEvent:  true,
+			shouldAllowDeleteEvent:  true,
+			shouldAllowGenericEvent: false,
+			shouldAllowUpdateEvent:  false,
+		},
+		{
+			name:                    "neither spec nor status has changed and previous reconciliation is in progress",
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateProcessing),
+			shouldAllowCreateEvent:  true,
+			shouldAllowDeleteEvent:  true,
+			shouldAllowGenericEvent: false,
+			shouldAllowUpdateEvent:  false,
+		},
+		{
+			name:                    "neither spec nor status has changed and previous reconciliation is completed",
+			lastOperationState:      utils.PointerOf(druidv1alpha1.LastOperationStateSucceeded),
 			shouldAllowCreateEvent:  true,
 			shouldAllowDeleteEvent:  true,
 			shouldAllowGenericEvent: false,
@@ -245,7 +298,7 @@ func TestBuildPredicateWithAutoReconcileAndReconcileAnnotSet(t *testing.T) {
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			updatedEtcd := updateEtcd(etcd, tc.etcdSpecChanged, tc.etcdStatusChanged, true)
+			updatedEtcd := updateEtcd(etcd, tc.etcdSpecChanged, tc.etcdStatusChanged, tc.lastOperationState, true)
 			g.Expect(predicate.Create(event.CreateEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowCreateEvent))
 			g.Expect(predicate.Delete(event.DeleteEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowDeleteEvent))
 			g.Expect(predicate.Generic(event.GenericEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowGenericEvent))
@@ -271,7 +324,7 @@ func createEtcd() *druidv1alpha1.Etcd {
 	return etcd
 }
 
-func updateEtcd(originalEtcd *druidv1alpha1.Etcd, specChanged, statusChanged, reconcileAnnotPresent bool) *druidv1alpha1.Etcd {
+func updateEtcd(originalEtcd *druidv1alpha1.Etcd, specChanged, statusChanged bool, lastOpState *druidv1alpha1.LastOperationState, reconcileAnnotPresent bool) *druidv1alpha1.Etcd {
 	newEtcd := originalEtcd.DeepCopy()
 	annotations := make(map[string]string)
 	if reconcileAnnotPresent {
@@ -287,6 +340,12 @@ func updateEtcd(originalEtcd *druidv1alpha1.Etcd, specChanged, statusChanged, re
 		// made a single change to the status
 		newEtcd.Status.ReadyReplicas = 2
 		newEtcd.Status.Ready = pointer.Bool(false)
+	}
+	if lastOpState != nil {
+		newEtcd.Status.LastOperation = &druidv1alpha1.LastOperation{
+			Type:  druidv1alpha1.LastOperationTypeReconcile,
+			State: *lastOpState,
+		}
 	}
 	return newEtcd
 }

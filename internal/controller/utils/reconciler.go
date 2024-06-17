@@ -79,6 +79,7 @@ func (r ReconcileStepResult) HasErrors() bool {
 	return len(r.errs) > 0
 }
 
+// NeedsRequeue returns true if reconciler should requeue the request.
 func (r ReconcileStepResult) NeedsRequeue() bool {
 	return r.HasErrors() || r.result.Requeue || r.result.RequeueAfter > 0
 }

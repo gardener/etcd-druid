@@ -296,10 +296,10 @@ func (r _resource) areStatefulSetPodsUpdatedAndReady(ctx component.OperatorConte
 	if sts.Status.UpdateRevision != sts.Status.CurrentRevision {
 		return false, nil
 	}
-	if sts.Status.UpdatedReplicas != *sts.Spec.Replicas {
+	if sts.Spec.Replicas != nil && sts.Status.UpdatedReplicas != *sts.Spec.Replicas {
 		return false, nil
 	}
-	if sts.Status.ReadyReplicas < *sts.Spec.Replicas {
+	if sts.Spec.Replicas != nil && sts.Status.ReadyReplicas < *sts.Spec.Replicas {
 		return false, nil
 	}
 	return true, nil

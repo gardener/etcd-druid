@@ -40,27 +40,36 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 // 2. generic events are never reconciled. If there is a need in future to react to generic events then this should be changed.
 // Conditions for reconciliation:
 // Scenario 1: {Auto-Reconcile: false, Reconcile-Annotation-Present: false, Spec-Updated: true/false, Status-Updated: true/false, update-event-reconciled: false}
-// Scenario 2: {Auto-Reconcile: false, Reconcile-Annotation-Present: true, Spec-Updated: true/false, Status-Updated: true/false, update-event-reconciled: true}
-// Scenario 3: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: false, Status-Updated: false, update-event-reconciled: NA}, This condition cannot happen. In case of a controller restart there will only be a CreateEvent.
-// Scenario 4: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: true, Status-Updated: false, update-event-reconciled: true}
-// Scenario 5: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: false, Status-Updated: true, update-event-reconciled: false}
-// Scenario 6: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: true, Status-Updated: true, update-event-reconciled: true}
-// Scenario 7: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: false, Status-Updated: false, update-event-reconciled: false}
-// Scenario 8: {Auto-Reconcile: true, Reconcile-Annotation-Present: true, Spec-Updated: true/false, Status-Updated: true/false, update-event-reconciled: true}
+// Scenario 2: {Auto-Reconcile: false, Reconcile-Annotation-Present: true, Spec-Updated: true, Last-Reconcile-Succeeded: true/false, Status-Updated: true/false, update-event-reconciled: true}
+// Scenario 3: {Auto-Reconcile: false, Reconcile-Annotation-Present: true, Spec-Updated: false, Last-Reconcile-Succeeded: true, Status-Updated: true/false, update-event-reconciled: true}
+// Scenario 4: {Auto-Reconcile: false, Reconcile-Annotation-Present: true, Spec-Updated: false, Last-Reconcile-Succeeded: false, Status-Updated: true/false, update-event-reconciled: false}
+// Scenario 5: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: false, Status-Updated: false, update-event-reconciled: NA}, This condition cannot happen. In case of a controller restart there will only be a CreateEvent.
+// Scenario 6: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: true, Status-Updated: true/false, update-event-reconciled: true}
+// Scenario 7: {Auto-Reconcile: true, Reconcile-Annotation-Present: false, Spec-Updated: false, Status-Updated: true/false, update-event-reconciled: false}
+// Scenario 8: {Auto-Reconcile: true, Reconcile-Annotation-Present: true, Spec-Updated: true, Status-Updated: true/false, update-event-reconciled: true}
+// Scenario 9: {Auto-Reconcile: true, Reconcile-Annotation-Present: true, Spec-Updated: false, Last-Reconcile-Succeeded: true, Status-Updated: true/false, update-event-reconciled: true}
+// Scenario 9: {Auto-Reconcile: true, Reconcile-Annotation-Present: true, Spec-Updated: false, Last-Reconcile-Succeeded: false, Status-Updated: true/false, update-event-reconciled: false}
 func (r *Reconciler) buildPredicate() predicate.Predicate {
-	// If there is a spec change (irrespective of status change) and if there is an update event then it will trigger a reconcile only when either
-	// auto-reconcile has been enabled or an operator has added the reconcile annotation to the etcd resource.
-	onSpecChangePredicate := predicate.And(
-		predicate.Or(
-			r.hasReconcileAnnotation(),
-			r.autoReconcileEnabled(),
-		),
+	// If the reconcile annotation is set then only allow reconciliation if one of the conditions is true:
+	// 1. There has been a spec update.
+	// 2. The last reconcile operation has finished.
+	// It is possible that during the previous reconcile one of the steps errored out. This gets captured in etcd.Status.LastOperation.
+	// Update of status will generate an event. This event should not trigger a reconcile especially when the reconcile annotation has still
+	// not been removed (since the last reconcile is not yet successfully completed).
+	onReconcileAnnotationSetPredicate := predicate.And(
+		r.hasReconcileAnnotation(),
+		predicate.Or(lastReconcileHasFinished(), specUpdated()),
+	)
+
+	// If auto-reconcile has been enabled then it should allow reconciliation only on spec change.
+	autoReconcileOnSpecChangePredicate := predicate.And(
+		r.autoReconcileEnabled(),
 		specUpdated(),
 	)
 
 	return predicate.Or(
-		r.hasReconcileAnnotation(),
-		onSpecChangePredicate,
+		onReconcileAnnotationSetPredicate,
+		autoReconcileOnSpecChangePredicate,
 	)
 }
 
@@ -109,4 +118,28 @@ func specUpdated() predicate.Predicate {
 
 func hasSpecChanged(updateEvent event.UpdateEvent) bool {
 	return updateEvent.ObjectNew.GetGeneration() != updateEvent.ObjectOld.GetGeneration()
+}
+
+func lastReconcileHasFinished() predicate.Predicate {
+	return predicate.Funcs{
+		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
+			return hasLastReconcileFinished(updateEvent)
+		},
+		CreateFunc:  func(createEvent event.CreateEvent) bool { return false },
+		DeleteFunc:  func(deleteEvent event.DeleteEvent) bool { return false },
+		GenericFunc: func(genericEvent event.GenericEvent) bool { return false },
+	}
+}
+
+func hasLastReconcileFinished(updateEvent event.UpdateEvent) bool {
+	newEtcd, ok := updateEvent.ObjectNew.(*druidv1alpha1.Etcd)
+	// return false if either the object is not an etcd resource or it has not been reconciled yet.
+	if !ok || newEtcd.Status.LastOperation == nil {
+		return false
+	}
+	lastOpType := newEtcd.Status.LastOperation.Type
+	lastOpState := newEtcd.Status.LastOperation.State
+
+	return lastOpType == druidv1alpha1.LastOperationTypeReconcile &&
+		lastOpState == druidv1alpha1.LastOperationStateSucceeded
 }
