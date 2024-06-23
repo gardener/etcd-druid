@@ -24,11 +24,8 @@ deploy:
         chartPath: charts/druid
         namespace: default
         skipBuildDependencies: true
-        setValues:
-          controllers:
-            compaction:
-              etcdEventsThreshold: 15
-              metricsScrapeWaitDuration: 30s
+        setValues: # empty `setValues` value is not allowed
+          foo: bar
 profiles:
   - name: e2e-test
     activation:
@@ -39,6 +36,9 @@ profiles:
         value:
           etcd:
             etcdStatusSyncPeriod: 5s
+          compaction:
+            etcdEventsThreshold: 15
+            metricsScrapeWaitDuration: 30s
   - name: enable-etcdcomponents-webhook
     activation:
       - env: "DRUID_ENABLE_ETCD_COMPONENTS_WEBHOOK=true"

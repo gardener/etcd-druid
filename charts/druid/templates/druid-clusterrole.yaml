@@ -147,3 +147,4 @@ rules:
   - create
   - patch
   - update
+  - delete

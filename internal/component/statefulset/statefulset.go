@@ -206,7 +206,7 @@ func (r _resource) createOrPatchWithReplicas(ctx component.OperatorContext, etcd
 			fmt.Sprintf("Error creating or patching StatefulSet: %s for etcd: %v", desiredStatefulSet.Name, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 
-	ctx.Logger.Info("triggered creation of statefulSet", "statefulSet", getObjectKey(etcd.ObjectMeta), "operationResult", opResult)
+	ctx.Logger.Info("triggered create/patch of statefulSet", "statefulSet", getObjectKey(etcd.ObjectMeta), "operationResult", opResult)
 	return nil
 }
 

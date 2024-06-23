@@ -23,16 +23,17 @@ func (a *allMembersReady) Check(_ context.Context, etcd druidv1alpha1.Etcd) Resu
 		}
 	}
 
-	result := &result{
+	res := &result{
 		conType: druidv1alpha1.ConditionTypeAllMembersReady,
 		status:  druidv1alpha1.ConditionFalse,
 		reason:  "NotAllMembersReady",
 		message: "At least one member is not ready",
 	}
 
-	if int32(len(etcd.Status.Members)) < etcd.Spec.Replicas {
+	if int32(len(etcd.Status.Members)) < etcd.Spec.Replicas &&
+		etcd.Status.ObservedGeneration != nil && *etcd.Status.ObservedGeneration == etcd.Generation {
 		// not all members are registered yet
-		return result
+		return res
 	}
 
 	// If we are here this means that all members have registered. Check if any member
@@ -45,12 +46,12 @@ func (a *allMembersReady) Check(_ context.Context, etcd druidv1alpha1.Etcd) Resu
 		}
 	}
 	if ready {
-		result.status = druidv1alpha1.ConditionTrue
-		result.reason = "AllMembersReady"
-		result.message = "All members are ready"
+		res.status = druidv1alpha1.ConditionTrue
+		res.reason = "AllMembersReady"
+		res.message = "All members are ready"
 	}
 
-	return result
+	return res
 }
 
 // AllMembersReadyCheck returns a check for the "AllMembersReady" condition.

@@ -61,7 +61,12 @@ func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.Operato
 			Kind:       sts.Kind,
 			Name:       sts.Name,
 		}
-		ready, _ := utils.IsStatefulSetReady(etcd.Spec.Replicas, sts)
+		expectedReplicas := etcd.Spec.Replicas
+		// if the latest Etcd spec has not yet been reconciled by druid, then check sts readiness against sts.spec.replicas instead
+		if etcd.Status.ObservedGeneration == nil || *etcd.Status.ObservedGeneration != etcd.Generation {
+			expectedReplicas = *sts.Spec.Replicas
+		}
+		ready, _ := utils.IsStatefulSetReady(expectedReplicas, sts)
 		etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
 		etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
 		etcd.Status.UpdatedReplicas = sts.Status.UpdatedReplicas

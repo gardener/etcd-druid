@@ -40,11 +40,16 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 	for _, leaseName := range leaseNames {
 		lease := &coordinationv1.Lease{}
 		if err := r.cl.Get(ctx, kutil.Key(etcd.Namespace, leaseName), lease); err != nil {
-			if apierrors.IsNotFound(err) {
-				r.logger.Error(fmt.Errorf("lease not found"), "lease not found", "name", leaseName)
-				continue
+			if !apierrors.IsNotFound(err) {
+				r.logger.Error(err, "failed to get lease", "name", leaseName)
 			}
-			r.logger.Error(err, "failed to get lease", "name", leaseName)
+			// If latest Etcd spec has been reconciled, then all expected leases should have been created by now.
+			// An error is logged for such not-found member leases.
+			if etcd.Status.ObservedGeneration != nil && *etcd.Status.ObservedGeneration == etcd.Generation {
+				r.logger.Error(fmt.Errorf("lease not found"), "lease not found", "name", leaseName)
+			}
+			// In cases where Etcd.spec.replicas has increased, but the latest Etcd spec has not been reconciled by druid,
+			// the leases for new etcd members may not have been created yet. Such not-found member leases are ignored.
 			continue
 		}
 		leases = append(leases, lease)
