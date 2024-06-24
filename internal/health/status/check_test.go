@@ -51,12 +51,20 @@ var _ = Describe("Check", func() {
 						Message:            "bar message",
 					},
 					{
-						Type:               druidv1alpha1.ConditionTypeBackupReady,
+						Type:               druidv1alpha1.ConditionTypeFullSnapshotBackupReady,
 						Status:             druidv1alpha1.ConditionUnknown,
 						LastTransitionTime: metav1.NewTime(timeBefore),
 						LastUpdateTime:     metav1.NewTime(timeBefore),
-						Reason:             "foobar reason",
-						Message:            "foobar message",
+						Reason:             "full foobar reason",
+						Message:            "full foobar message",
+					},
+					{
+						Type:               druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady,
+						Status:             druidv1alpha1.ConditionUnknown,
+						LastTransitionTime: metav1.NewTime(timeBefore),
+						LastUpdateTime:     metav1.NewTime(timeBefore),
+						Reason:             "delta foobar reason",
+						Message:            "delta foobar message",
 					},
 				},
 				Members: []druidv1alpha1.EtcdMemberStatus{
@@ -99,7 +107,10 @@ var _ = Describe("Check", func() {
 					return createConditionCheck(druidv1alpha1.ConditionTypeAllMembersReady, druidv1alpha1.ConditionTrue, "bar reason", "bar message")
 				},
 				func(client.Client) condition.Checker {
-					return createConditionCheck(druidv1alpha1.ConditionTypeBackupReady, druidv1alpha1.ConditionUnknown, "foobar reason", "foobar message")
+					return createConditionCheck(druidv1alpha1.ConditionTypeFullSnapshotBackupReady, druidv1alpha1.ConditionUnknown, "full foobar reason", "full foobar message")
+				},
+				func(client.Client) condition.Checker {
+					return createConditionCheck(druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady, druidv1alpha1.ConditionUnknown, "delta foobar reason", "delta foobar message")
 				},
 				func(client.Client) condition.Checker {
 					return createConditionCheck(druidv1alpha1.ConditionTypeDataVolumesReady, druidv1alpha1.ConditionUnknown, "foobar reason", "foobar message")
@@ -141,12 +152,20 @@ var _ = Describe("Check", func() {
 					"Message":            Equal("bar message"),
 				}),
 				MatchFields(IgnoreExtras, Fields{
-					"Type":               Equal(druidv1alpha1.ConditionTypeBackupReady),
+					"Type":               Equal(druidv1alpha1.ConditionTypeFullSnapshotBackupReady),
 					"Status":             Equal(druidv1alpha1.ConditionUnknown),
 					"LastTransitionTime": Equal(metav1.NewTime(timeBefore)),
 					"LastUpdateTime":     Equal(metav1.NewTime(timeNow)),
-					"Reason":             Equal("foobar reason"),
-					"Message":            Equal("foobar message"),
+					"Reason":             Equal("full foobar reason"),
+					"Message":            Equal("full foobar message"),
+				}),
+				MatchFields(IgnoreExtras, Fields{
+					"Type":               Equal(druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady),
+					"Status":             Equal(druidv1alpha1.ConditionUnknown),
+					"LastTransitionTime": Equal(metav1.NewTime(timeBefore)),
+					"LastUpdateTime":     Equal(metav1.NewTime(timeNow)),
+					"Reason":             Equal("delta foobar reason"),
+					"Message":            Equal("delta foobar message"),
 				}),
 			))
 

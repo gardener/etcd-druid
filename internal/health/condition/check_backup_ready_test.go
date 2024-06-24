@@ -80,7 +80,7 @@ var _ = Describe("BackupReadyCheck", func() {
 		})
 
 		Context("With no snapshot leases present", func() {
-			It("Should return Unknown rediness", func() {
+			It("Should return Unknown readiness", func() {
 				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease, _ ...client.GetOption) error {
 						return &noLeaseError

@@ -37,7 +37,8 @@ var (
 	ConditionChecks = []ConditionCheckFn{
 		condition.AllMembersReadyCheck,
 		condition.ReadyCheck,
-		condition.BackupReadyCheck,
+		condition.FullSnapshotBackupReadyCheck,
+		condition.DeltaSnapshotBackupReadyCheck,
 		condition.DataVolumesReadyCheck,
 	}
 	// EtcdMemberChecks are the etcd member checks.

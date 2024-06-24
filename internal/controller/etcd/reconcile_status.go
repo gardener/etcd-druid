@@ -69,13 +69,11 @@ func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.Operato
 		ready, _ := utils.IsStatefulSetReady(expectedReplicas, sts)
 		etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
 		etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
-		etcd.Status.UpdatedReplicas = sts.Status.UpdatedReplicas
 		etcd.Status.Replicas = sts.Status.CurrentReplicas
 		etcd.Status.Ready = &ready
 	} else {
 		etcd.Status.CurrentReplicas = 0
 		etcd.Status.ReadyReplicas = 0
-		etcd.Status.UpdatedReplicas = 0
 		etcd.Status.Ready = pointer.Bool(false)
 	}
 	return ctrlutils.ContinueReconcile()
