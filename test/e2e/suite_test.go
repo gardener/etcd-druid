@@ -13,6 +13,7 @@ import (
 	"github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 
+	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -21,6 +22,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
@@ -51,7 +53,6 @@ var (
 	etcdValuePrefix = "bar"
 
 	providers []TestProvider
-	err       error
 )
 
 func TestIntegration(t *testing.T) {
@@ -60,6 +61,7 @@ func TestIntegration(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	var err error
 	ctx := context.Background()
 
 	providers, err = getProviders()
@@ -73,6 +75,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	logger.V(1).Info("setting up k8s client", "KUBECONFIG", kubeconfigPath)
+	log.SetLogger(logr.Discard())
 	cl, err = getKubernetesClient(kubeconfigPath)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -93,6 +96,12 @@ var _ = BeforeSuite(func() {
 	// deploy TLS secrets
 	certsPath := path.Join(sourcePath, certsBasePath)
 	Expect(buildAndDeployTLSSecrets(ctx, cl, logger, etcdNamespace, certsPath, providers)).To(Succeed())
+
+	// deploy backup secrets
+	storageContainer := getEnvAndExpectNoError(envStorageContainer)
+	for _, provider := range providers {
+		Expect(deployBackupSecret(ctx, cl, logger, provider, etcdNamespace, storageContainer)).To(Succeed())
+	}
 })
 
 var _ = AfterSuite(func() {

@@ -23,7 +23,7 @@ function skaffold_run_or_deploy {
   if [[ -n ${IMAGE_NAME:=""} ]] && [[ -n ${IMAGE_TEST_TAG:=""} ]]; then
     skaffold deploy --images ${IMAGE_NAME}:${IMAGE_TEST_TAG} $@
   else
-    skaffold run $@
+    skaffold run "$@"
   fi
 }
 
@@ -54,53 +54,55 @@ function teardown_trap {
 }
 
 function cleanup {
-  if containsElement $STEPS "cleanup" && [[ $profile_setup != "" ]]; then
+  if containsElement "$STEPS" "cleanup" && [[ $profile_setup != "" ]]; then
     echo "-------------------"
     echo "Tearing down environment"
     echo "-------------------"
 
     create_namespace
-    skaffold_run_or_deploy -p ${profile_cleanup} -m druid-e2e -n $TEST_ID --status-check=false
+    skaffold_run_or_deploy -p "${profile_cleanup}" -m druid-e2e -n "$TEST_ID" --status-check=false
   fi
   cleanup_done="true"
 }
 
 function undeploy {
-    if containsElement $STEPS "undeploy"; then
-      skaffold delete -m etcd-druid -n $TEST_ID
+    if containsElement "$STEPS" "undeploy"; then
+      skaffold delete -m etcd-druid -n "$TEST_ID"
       delete_namespace
     fi
     undeploy_done="true"
 }
 
 function setup_e2e {
+  # shellcheck disable=SC2223
   : ${profile_setup:=""}
 
   trap teardown_trap INT TERM
 
-  if containsElement $STEPS "setup" && [[ $profile_setup != "" ]]; then
+  if containsElement "$STEPS" "setup" && [[ $profile_setup != "" ]]; then
     echo "-------------------"
     echo "Setting up environment"
     echo "-------------------"
     create_namespace
-    skaffold_run_or_deploy -p ${profile_setup} -m druid-e2e -n $TEST_ID --status-check=false
+    skaffold_run_or_deploy -p ${profile_setup} -m druid-e2e -n "$TEST_ID" --status-check=false
   fi
 }
 
 function deploy {
-    if containsElement $STEPS "deploy"; then
+    if containsElement "$STEPS" "deploy"; then
       if [[ ${deployed:="false"} != "true" ]] || true; then
         echo "-------------------"
         echo "Deploying Druid"
         echo "-------------------"
-        skaffold_run_or_deploy -m etcd-druid -n $TEST_ID
+        export DRUID_E2E_TEST=true
+        skaffold_run_or_deploy -m etcd-druid -n "$TEST_ID"
         deployed="true"
       fi
     fi
 }
 
 function test_e2e {
-    if containsElement $STEPS "test"; then
+    if containsElement "$STEPS" "test"; then
       echo "-------------------"
       echo "Running e2e tests"
       echo "-------------------"
@@ -148,6 +150,7 @@ EOM
 }
 
 function setup_azure_e2e {
+  # shellcheck disable=SC2235
   ( [[ -z ${STORAGE_ACCOUNT:-""} ]] || [[ -z ${STORAGE_KEY:=""} ]] || [[ -z ${TEST_ID:=""} ]] ) && usage_azure
 
   profile_setup="azure-setup"
@@ -172,6 +175,7 @@ EOM
 function setup_gcp_e2e {
   ( [[ -z ${GCP_SERVICEACCOUNT_JSON_PATH:-""} ]] || [[ -z ${GCP_PROJECT_ID:=""} ]]  || [[ -z ${TEST_ID:=""} ]] ) && usage_gcp
 
+  # shellcheck disable=SC2031
   export GOOGLE_APPLICATION_CREDENTIALS=$GCP_SERVICEACCOUNT_JSON_PATH
   profile_setup="gcp-setup"
   profile_cleanup="gcp-cleanup"

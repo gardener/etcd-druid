@@ -10,14 +10,16 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/google/uuid"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
 )
 
 var (
@@ -27,28 +29,24 @@ var (
 	garbageCollectionPeriod = metav1.Duration{
 		Duration: 43200 * time.Second,
 	}
-	clientPort              int32 = 2379
-	serverPort              int32 = 2380
-	backupPort              int32 = 8080
-	imageEtcd                     = "europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper:v0.1.0"
-	imageBR                       = "europe-docker.pkg.dev/gardener-project/public/gardener/etcdbrctl:v0.25.0"
-	snapshotSchedule              = "0 */24 * * *"
-	defragSchedule                = "0 */24 * * *"
-	container                     = "default.bkp"
-	storageCapacity               = resource.MustParse("5Gi")
-	storageClass                  = "default"
-	priorityClassName             = "class_priority"
-	deltaSnapShotMemLimit         = resource.MustParse("100Mi")
-	autoCompactionMode            = druidv1alpha1.Periodic
-	autoCompactionRetention       = "2m"
-	quota                         = resource.MustParse("8Gi")
-	localProvider                 = druidv1alpha1.StorageProvider("Local")
-	prefix                        = "/tmp"
-	uid                           = "a9b8c7d6e5f4"
-	volumeClaimTemplateName       = "etcd-main"
-	garbageCollectionPolicy       = druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
-	metricsBasic                  = druidv1alpha1.Basic
-	etcdSnapshotTimeout           = metav1.Duration{
+	imageEtcd               = "eu.gcr.io/gardener-project/gardener/etcd-wrapper:v0.1.0"
+	imageBR                 = "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.25.0"
+	snapshotSchedule        = "0 */24 * * *"
+	defragSchedule          = "0 */24 * * *"
+	container               = "default.bkp"
+	storageCapacity         = resource.MustParse("5Gi")
+	storageClass            = "default"
+	priorityClassName       = "class_priority"
+	deltaSnapShotMemLimit   = resource.MustParse("100Mi")
+	autoCompactionMode      = druidv1alpha1.Periodic
+	autoCompactionRetention = "2m"
+	quota                   = resource.MustParse("8Gi")
+	localProvider           = druidv1alpha1.StorageProvider("Local")
+	prefix                  = "/tmp"
+	volumeClaimTemplateName = "etcd-main"
+	garbageCollectionPolicy = druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
+	metricsBasic            = druidv1alpha1.Basic
+	etcdSnapshotTimeout     = metav1.Duration{
 		Duration: 10 * time.Minute,
 	}
 	etcdDefragTimeout = metav1.Duration{
@@ -80,7 +78,7 @@ func (eb *EtcdBuilder) WithReplicas(replicas int32) *EtcdBuilder {
 	return eb
 }
 
-func (eb *EtcdBuilder) WithTLS() *EtcdBuilder {
+func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
 	}
@@ -98,7 +96,15 @@ func (eb *EtcdBuilder) WithTLS() *EtcdBuilder {
 			Name: "client-url-etcd-server-tls",
 		},
 	}
+	eb.etcd.Spec.Etcd.ClientUrlTLS = clientTLSConfig
+	eb.etcd.Spec.Backup.TLS = clientTLSConfig
+	return eb
+}
 
+func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
 	peerTLSConfig := &druidv1alpha1.TLSConfig{
 		TLSCASecretRef: druidv1alpha1.SecretReference{
 			SecretReference: corev1.SecretReference{
@@ -110,11 +116,7 @@ func (eb *EtcdBuilder) WithTLS() *EtcdBuilder {
 			Name: "peer-url-etcd-server-tls",
 		},
 	}
-
-	eb.etcd.Spec.Etcd.ClientUrlTLS = clientTLSConfig
 	eb.etcd.Spec.Etcd.PeerUrlTLS = peerTLSConfig
-	eb.etcd.Spec.Backup.TLS = clientTLSConfig
-
 	return eb
 }
 
@@ -137,8 +139,21 @@ func (eb *EtcdBuilder) WithReadyStatus() *EtcdBuilder {
 		Conditions: []druidv1alpha1.Condition{
 			{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionTrue},
 		},
+		LastErrors: []druidv1alpha1.LastError{},
+		LastOperation: &druidv1alpha1.LastOperation{
+			Type:           druidv1alpha1.LastOperationTypeReconcile,
+			State:          druidv1alpha1.LastOperationStateSucceeded,
+			Description:    "Reconciliation succeeded",
+			RunID:          "12345",
+			LastUpdateTime: metav1.Now(),
+		},
 	}
 
+	return eb
+}
+
+func (eb *EtcdBuilder) WithLastOperation(operation *druidv1alpha1.LastOperation) *EtcdBuilder {
+	eb.etcd.Status.LastOperation = operation
 	return eb
 }
 
@@ -228,6 +243,76 @@ func (eb *EtcdBuilder) WithProviderLocal() *EtcdBuilder {
 	return eb
 }
 
+func (eb *EtcdBuilder) WithEtcdClientPort(clientPort *int32) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Etcd.ClientPort = clientPort
+	return eb
+}
+
+func (eb *EtcdBuilder) WithEtcdClientServiceLabels(labels map[string]string) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+
+	if eb.etcd.Spec.Etcd.ClientService == nil {
+		eb.etcd.Spec.Etcd.ClientService = &druidv1alpha1.ClientService{}
+	}
+
+	eb.etcd.Spec.Etcd.ClientService.Labels = MergeMaps(eb.etcd.Spec.Etcd.ClientService.Labels, labels)
+	return eb
+}
+
+func (eb *EtcdBuilder) WithEtcdClientServiceAnnotations(annotations map[string]string) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+
+	if eb.etcd.Spec.Etcd.ClientService == nil {
+		eb.etcd.Spec.Etcd.ClientService = &druidv1alpha1.ClientService{}
+	}
+
+	eb.etcd.Spec.Etcd.ClientService.Annotations = MergeMaps(eb.etcd.Spec.Etcd.ClientService.Annotations, annotations)
+	return eb
+}
+
+func (eb *EtcdBuilder) WithEtcdServerPort(serverPort *int32) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Etcd.ServerPort = serverPort
+	return eb
+}
+
+func (eb *EtcdBuilder) WithBackupPort(port *int32) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Backup.Port = port
+	return eb
+}
+
+// WithLabels merges the labels that already exists with the ones that are passed to this method. If an entry is
+// already present in the existing labels then it gets overwritten with the new value present in the passed in labels.
+func (eb *EtcdBuilder) WithLabels(labels map[string]string) *EtcdBuilder {
+	MergeMaps(eb.etcd.Labels, labels)
+	return eb
+}
+
+// WithAnnotations merges the existing annotations if any with the annotations passed.
+// Any existing entry will be replaced by the one that is present in the annotations passed to this method.
+func (eb *EtcdBuilder) WithAnnotations(annotations map[string]string) *EtcdBuilder {
+	eb.etcd.Annotations = MergeMaps(eb.etcd.Annotations, annotations)
+	return eb
+}
+
+// WithDefaultBackup creates a default backup spec and initializes etcd with it.
+func (eb *EtcdBuilder) WithDefaultBackup() *EtcdBuilder {
+	eb.etcd.Spec.Backup = getBackupSpec()
+	return eb
+}
+
 func (eb *EtcdBuilder) Build() *druidv1alpha1.Etcd {
 	return eb.etcd
 }
@@ -270,7 +355,7 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
-			UID:       types.UID(uid),
+			UID:       types.UID(uuid.NewString()),
 		},
 		Spec: druidv1alpha1.EtcdSpec{
 			Annotations: map[string]string{
@@ -280,15 +365,18 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 				"role":     "test",
 			},
 			Labels: map[string]string{
-				"app":      "etcd-statefulset",
-				"instance": name,
-				"name":     "etcd",
+				druidv1alpha1.LabelManagedByKey:                  druidv1alpha1.LabelManagedByValue,
+				druidv1alpha1.LabelPartOfKey:                     name,
+				"networking.gardener.cloud/to-dns":               "allowed",
+				"networking.gardener.cloud/to-private-networks":  "allowed",
+				"networking.gardener.cloud/to-public-networks":   "allowed",
+				"networking.gardener.cloud/to-runtime-apiserver": "allowed",
+				"gardener.cloud/role":                            "controlplane",
 			},
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app":      "etcd-statefulset",
-					"instance": name,
-					"name":     "etcd",
+					druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
+					druidv1alpha1.LabelPartOfKey:    name,
 				},
 			},
 			Replicas:            1,
@@ -296,35 +384,7 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 			StorageClass:        &storageClass,
 			PriorityClassName:   &priorityClassName,
 			VolumeClaimTemplate: &volumeClaimTemplateName,
-			Backup: druidv1alpha1.BackupSpec{
-				Image:                    &imageBR,
-				Port:                     &backupPort,
-				FullSnapshotSchedule:     &snapshotSchedule,
-				GarbageCollectionPolicy:  &garbageCollectionPolicy,
-				GarbageCollectionPeriod:  &garbageCollectionPeriod,
-				DeltaSnapshotPeriod:      &deltaSnapshotPeriod,
-				DeltaSnapshotMemoryLimit: &deltaSnapShotMemLimit,
-				EtcdSnapshotTimeout:      &etcdSnapshotTimeout,
-
-				Resources: &corev1.ResourceRequirements{
-					Limits: corev1.ResourceList{
-						"cpu":    ParseQuantity("500m"),
-						"memory": ParseQuantity("2Gi"),
-					},
-					Requests: corev1.ResourceList{
-						"cpu":    ParseQuantity("23m"),
-						"memory": ParseQuantity("128Mi"),
-					},
-				},
-				Store: &druidv1alpha1.StoreSpec{
-					SecretRef: &corev1.SecretReference{
-						Name: "etcd-backup",
-					},
-					Container: &container,
-					Provider:  &localProvider,
-					Prefix:    prefix,
-				},
-			},
+			Backup:              getBackupSpec(),
 			Etcd: druidv1alpha1.EtcdConfig{
 				Quota:                   &quota,
 				Metrics:                 &metricsBasic,
@@ -332,22 +392,50 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 				DefragmentationSchedule: &defragSchedule,
 				EtcdDefragTimeout:       &etcdDefragTimeout,
 				Resources: &corev1.ResourceRequirements{
-					Limits: corev1.ResourceList{
-						"cpu":    ParseQuantity("2500m"),
-						"memory": ParseQuantity("4Gi"),
-					},
 					Requests: corev1.ResourceList{
 						"cpu":    ParseQuantity("500m"),
 						"memory": ParseQuantity("1000Mi"),
 					},
 				},
-				ClientPort: &clientPort,
-				ServerPort: &serverPort,
+				ClientPort: pointer.Int32(common.DefaultPortEtcdClient),
+				ServerPort: pointer.Int32(common.DefaultPortEtcdPeer),
 			},
 			Common: druidv1alpha1.SharedConfig{
 				AutoCompactionMode:      &autoCompactionMode,
 				AutoCompactionRetention: &autoCompactionRetention,
 			},
+		},
+	}
+}
+
+func getBackupSpec() druidv1alpha1.BackupSpec {
+	return druidv1alpha1.BackupSpec{
+		Image:                    &imageBR,
+		Port:                     pointer.Int32(common.DefaultPortEtcdBackupRestore),
+		FullSnapshotSchedule:     &snapshotSchedule,
+		GarbageCollectionPolicy:  &garbageCollectionPolicy,
+		GarbageCollectionPeriod:  &garbageCollectionPeriod,
+		DeltaSnapshotPeriod:      &deltaSnapshotPeriod,
+		DeltaSnapshotMemoryLimit: &deltaSnapShotMemLimit,
+		EtcdSnapshotTimeout:      &etcdSnapshotTimeout,
+
+		Resources: &corev1.ResourceRequirements{
+			Limits: corev1.ResourceList{
+				"cpu":    ParseQuantity("500m"),
+				"memory": ParseQuantity("2Gi"),
+			},
+			Requests: corev1.ResourceList{
+				"cpu":    ParseQuantity("23m"),
+				"memory": ParseQuantity("128Mi"),
+			},
+		},
+		Store: &druidv1alpha1.StoreSpec{
+			SecretRef: &corev1.SecretReference{
+				Name: "etcd-backup",
+			},
+			Container: &container,
+			Provider:  &localProvider,
+			Prefix:    prefix,
 		},
 	}
 }
@@ -372,9 +460,10 @@ func getBackupStoreForLocal(name string) *druidv1alpha1.StoreSpec {
 	}
 }
 
-func CheckEtcdOwnerReference(refs []metav1.OwnerReference, etcd *druidv1alpha1.Etcd) bool {
+// CheckEtcdOwnerReference checks if one of the owner references points to etcd owner UID.
+func CheckEtcdOwnerReference(refs []metav1.OwnerReference, etcdOwnerUID types.UID) bool {
 	for _, ownerRef := range refs {
-		if ownerRef.UID == etcd.UID {
+		if ownerRef.UID == etcdOwnerUID {
 			return true
 		}
 	}

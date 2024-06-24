@@ -19,14 +19,16 @@ import (
 )
 
 // CreateLease creates a lease with its owner reference set to etcd.
-func CreateLease(name, namespace, etcdName string, etcdUID types.UID) *coordinationv1.Lease {
+func CreateLease(name, namespace, etcdName string, etcdUID types.UID, componentName string) *coordinationv1.Lease {
 	return &coordinationv1.Lease{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"instance": etcdName,
-				"name":     "etcd",
+				druidv1alpha1.LabelPartOfKey:    etcdName,
+				druidv1alpha1.LabelComponentKey: componentName,
+				druidv1alpha1.LabelAppNameKey:   name,
+				druidv1alpha1.LabelManagedByKey: "etcd-druid",
 			},
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion:         druidv1alpha1.GroupVersion.String(),
@@ -37,7 +39,6 @@ func CreateLease(name, namespace, etcdName string, etcdUID types.UID) *coordinat
 				BlockOwnerDeletion: pointer.Bool(true),
 			}},
 		},
-		Spec: coordinationv1.LeaseSpec{},
 	}
 }
 

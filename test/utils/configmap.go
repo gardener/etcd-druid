@@ -28,7 +28,7 @@ func ConfigMapIsCorrectlyReconciled(c client.Client, timeout time.Duration, inst
 		return err
 	}
 
-	if !CheckEtcdOwnerReference(cm.GetOwnerReferences(), instance) {
+	if !CheckEtcdOwnerReference(cm.GetOwnerReferences(), instance.UID) {
 		return fmt.Errorf("ownerReference does not exists")
 	}
 	return nil

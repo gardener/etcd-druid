@@ -9,9 +9,10 @@ set -o pipefail
 
 make kind-up
 
-trap "
-  ( make kind-down )
-" EXIT
+trap '{
+  kind export logs "${ARTIFACTS:-/tmp}/etcd-druid-e2e" --name etcd-druid-e2e || true
+  make kind-down
+}' EXIT
 
 kubectl wait --for=condition=ready node --all
 export AWS_APPLICATION_CREDENTIALS_JSON="/tmp/aws.json"
@@ -24,5 +25,6 @@ make LOCALSTACK_HOST="localstack.default:4566" \
   AWS_REGION="us-east-2" \
   PROVIDERS="aws" \
   TEST_ID="$BUCKET_NAME" \
+  DRUID_ENABLE_ETCD_COMPONENTS_WEBHOOK=true \
   STEPS="setup,deploy,test" \
   test-e2e

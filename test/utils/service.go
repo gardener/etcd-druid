@@ -28,7 +28,7 @@ func ClientServiceIsCorrectlyReconciled(c client.Client, timeout time.Duration, 
 		return err
 	}
 
-	if !CheckEtcdOwnerReference(svc.GetOwnerReferences(), instance) {
+	if !CheckEtcdOwnerReference(svc.GetOwnerReferences(), instance.UID) {
 		return fmt.Errorf("ownerReference does not exists")
 	}
 	return nil
@@ -46,7 +46,7 @@ func PeerServiceIsCorrectlyReconciled(c client.Client, timeout time.Duration, in
 		return err
 	}
 
-	if !CheckEtcdOwnerReference(svc.GetOwnerReferences(), instance) {
+	if !CheckEtcdOwnerReference(svc.GetOwnerReferences(), instance.UID) {
 		return fmt.Errorf("ownerReference does not exists")
 	}
 	return nil

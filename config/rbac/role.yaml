@@ -17,17 +17,6 @@ rules:
   - list
   - patch
   - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - endpoints
-  verbs:
-  - get
-  - list
-  - patch
-  - update
-  - watch
 - apiGroups:
   - ""
   resources:
@@ -36,9 +25,6 @@ rules:
   - create
   - get
   - list
-  - patch
-  - update
-  - watch
 - apiGroups:
   - ""
   resources:
@@ -77,6 +63,12 @@ rules:
   - list
   - patch
   - update
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets/status
+  verbs:
+  - get
   - watch
 - apiGroups:
   - batch
@@ -131,21 +123,11 @@ rules:
   - etcds
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
   - update
   - watch
-- apiGroups:
-  - druid.gardener.cloud
-  resources:
-  - etcds/finalizers
-  verbs:
-  - create
-  - get
-  - patch
-  - update
 - apiGroups:
   - druid.gardener.cloud
   resources:
@@ -166,7 +148,6 @@ rules:
   - list
   - patch
   - update
-  - watch
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
@@ -178,7 +159,6 @@ rules:
   - list
   - patch
   - update
-  - watch
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
@@ -190,4 +170,3 @@ rules:
   - list
   - patch
   - update
-  - watch

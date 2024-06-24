@@ -8,14 +8,13 @@ import (
 	"os"
 	"runtime"
 
+	druidmgr "github.com/gardener/etcd-druid/internal/manager"
+	"github.com/gardener/etcd-druid/internal/version"
 	"github.com/go-logr/logr"
 	"go.uber.org/zap/zapcore"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/gardener/etcd-druid/controllers"
-	"github.com/gardener/etcd-druid/pkg/version"
 	flag "github.com/spf13/pflag"
-
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	// +kubebuilder:scaffold:imports
@@ -30,7 +29,7 @@ func main() {
 
 	printVersionInfo()
 
-	mgrConfig := controllers.ManagerConfig{}
+	mgrConfig := druidmgr.Config{}
 	if err := mgrConfig.InitFromFlags(flag.CommandLine); err != nil {
 		logger.Error(err, "failed to initialize from flags")
 		os.Exit(1)
@@ -45,7 +44,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	mgr, err := controllers.CreateManagerWithControllers(&mgrConfig)
+	mgr, err := druidmgr.InitializeManager(&mgrConfig)
 	if err != nil {
 		logger.Error(err, "failed to create druid controller manager")
 		os.Exit(1)

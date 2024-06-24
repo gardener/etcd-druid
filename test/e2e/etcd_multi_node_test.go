@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/utils"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -49,27 +49,22 @@ var _ = Describe("Etcd", func() {
 		provider = providers[0]
 
 		etcdName = fmt.Sprintf("etcd-%s", provider.Name)
-
 		storageContainer = getEnvAndExpectNoError(envStorageContainer)
 
+		By("Purge snapstore")
 		snapstoreProvider := provider.Storage.Provider
-
-		if snapstoreProvider == utils.Local {
+		if snapstoreProvider == druidstore.Local {
 			purgeLocalSnapstoreJob := purgeLocalSnapstore(parentCtx, cl, storageContainer)
 			defer cleanUpTestHelperJob(parentCtx, cl, purgeLocalSnapstoreJob.Name)
 		} else {
 			store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
 			Expect(err).ShouldNot(HaveOccurred())
-			// purge any existing backups in bucket
 			Expect(purgeSnapstore(store)).To(Succeed())
 		}
-
-		Expect(deployBackupSecret(parentCtx, cl, logger, provider, etcdNamespace, storageContainer))
-
 	})
 
 	AfterEach(func() {
-		// remove etcd objects if any old etcd objects exists.
+		By("Purge etcd")
 		purgeEtcd(parentCtx, cl, providers)
 	})
 
@@ -93,11 +88,12 @@ var _ = Describe("Etcd", func() {
 			etcd.Spec.Replicas = multiNodeEtcdReplicas
 			updateAndCheckEtcd(ctx, cl, logger, etcd, multiNodeEtcdTimeout)
 
-			By("Zero downtime rolling updates")
+			By("Deploy etcd zero downtime validator job")
 			job := startEtcdZeroDownTimeValidatorJob(ctx, cl, etcd, "rolling-update")
 			// this defer ensures to remove the job.
 			defer cleanUpTestHelperJob(ctx, cl, job.Name)
 
+			By("Zero downtime rolling updates")
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			// trigger rolling update by updating etcd quota
 			etcd.Spec.Etcd.Quota.Add(*resource.NewMilliQuantity(int64(10), resource.DecimalSI))
@@ -121,6 +117,7 @@ var _ = Describe("Etcd", func() {
 			By("Member restart with data-dir/pvc intact")
 			objLogger.Info("Delete one member pod")
 			deletePod(ctx, cl, objLogger, etcd, fmt.Sprintf("%s-2", etcdName))
+			checkForUnreadyEtcdMembers(ctx, cl, objLogger, etcd, 30*time.Second)
 			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
 			By("Single member restoration")
@@ -128,10 +125,11 @@ var _ = Describe("Etcd", func() {
 			debugPod := createDebugPod(ctx, etcd)
 			objLogger.Info("Delete member dir of one member pod")
 			deleteMemberDir(ctx, cl, objLogger, etcd, debugPod.Name, debugPod.Spec.Containers[0].Name)
+			checkForUnreadyEtcdMembers(ctx, cl, objLogger, etcd, 30*time.Second)
 			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
 			By("Delete debug pod")
-			Expect(cl.Delete(ctx, debugPod)).ToNot(HaveOccurred())
+			Expect(client.IgnoreNotFound(cl.Delete(ctx, debugPod))).ToNot(HaveOccurred())
 
 			By("Delete etcd")
 			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
@@ -153,9 +151,6 @@ var _ = Describe("Etcd", func() {
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = 3
 			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
-
-			By("Deleting etcd")
-			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
 
 		It("should scale a single-node etcd (TLS not enabled for peerUrl) to a multi-node etcd cluster (TLS enabled for peerUrl)", func() {
@@ -173,9 +168,6 @@ var _ = Describe("Etcd", func() {
 			etcd.Spec.Replicas = 3
 			etcd.Spec.Etcd.PeerUrlTLS = getPeerTls(provider.Suffix)
 			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
-
-			By("Deleting the single-node etcd")
-			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
 
 		It("should scale down a single-node etcd to 0, then scale up from 0->1 replicas and then from 1->3 replicas", func() {
@@ -202,9 +194,6 @@ var _ = Describe("Etcd", func() {
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = 3
 			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
-
-			By("Deleting the single-node etcd")
-			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
 
 		It("should scale down a single-node etcd to 0 replica, then scale up from 0->1 replica and then from 1->3 replicas with TLS enabled for cluster peerUrl", func() {
@@ -232,9 +221,6 @@ var _ = Describe("Etcd", func() {
 			etcd.Spec.Replicas = 3
 			etcd.Spec.Etcd.PeerUrlTLS = getPeerTls(provider.Suffix)
 			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
-
-			By("Deleting the single-node etcd")
-			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
 	})
 })
@@ -264,6 +250,25 @@ func checkUnreadySts(ctx context.Context, cl client.Client, logger logr.Logger, 
 		return nil
 	}, multiNodeEtcdTimeout, pollingInterval).Should(BeNil())
 	logger.Info("sts is unready")
+}
+
+func checkForUnreadyEtcdMembers(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
+	logger.Info("Waiting for at least one etcd member to become unready")
+	EventuallyWithOffset(1, func() error {
+		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
+		defer cancelFunc()
+
+		if err := cl.Get(ctx, types.NamespacedName{Name: etcd.Name, Namespace: namespace}, etcd); err != nil {
+			return err
+		}
+
+		if etcd.Status.ReadyReplicas == etcd.Spec.Replicas {
+			return fmt.Errorf("etcd ready replicas is still same as spec replicas")
+		}
+
+		return nil
+	}, timeout, pollingInterval).Should(BeNil())
+	logger.Info("at least one etcd member is unready")
 }
 
 // checkEventuallyEtcdRollingUpdateDone is a helper function, uses Gomega Eventually.
@@ -329,8 +334,7 @@ func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Lo
 	logger.Info("Checking etcd")
 	EventuallyWithOffset(1, func() error {
 		etcd := getEmptyEtcd(etcd.Name, namespace)
-		err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)
-		if err != nil {
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
 			return err
 		}
 
@@ -497,8 +501,7 @@ func getPodLogs(ctx context.Context, PodKey *types.NamespacedName, opts *corev1.
 	defer podLogs.Close()
 
 	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, podLogs)
-	if err != nil {
+	if _, err = io.Copy(buf, podLogs); err != nil {
 		return "", err
 	}
 	return buf.String(), nil

@@ -3,6 +3,7 @@
 # SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company and Gardener contributors
 #
 # SPDX-License-Identifier: Apache-2.0
+set -e
 
 if [[ -n "${LOCALSTACK_HOST}" ]]; then
   export AWS_ENDPOINT_URL_S3="http://${LOCALSTACK_HOST}"
@@ -14,9 +15,9 @@ function setup_aws() {
     return
   fi
   echo "Installing awscli..."
-  apt update > /dev/null
-  apt install -y curl > /dev/null
-  apt install -y unzip > /dev/null
+  apt update
+  apt install -y curl
+  apt install -y unzip
   cd $HOME
   curl -Lo "awscliv2.zip" "https://awscli.amazonaws.com/awscli-exe-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m).zip"
   unzip awscliv2.zip > /dev/null

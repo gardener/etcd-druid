@@ -5,7 +5,7 @@ metadata:
   name: gardener.cloud:system:etcd-druid
   namespace: {{ .Release.Namespace }}
   labels:
-    gardener.cloud/role: etcd-druid
+    app.kubernetes.io/name: etcd-druid
 rules:
 - apiGroups:
   - ""
@@ -147,3 +147,4 @@ rules:
   - create
   - patch
   - update
+  - delete

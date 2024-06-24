@@ -10,9 +10,9 @@ function setup_gcloud() {
   fi
   echo "Installing gcloud..."
   cd $HOME
-  apt update > /dev/null
-  apt install -y curl > /dev/null
-  apt install -y python3 > /dev/null
+  apt update
+  apt install -y curl
+  apt install -y python3
   curl -Lo "google-cloud-sdk.tar.gz" https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-441.0.0-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/aarch64/arm/').tar.gz
   tar -xzf google-cloud-sdk.tar.gz
   ./google-cloud-sdk/install.sh -q

@@ -5,11 +5,11 @@
 package utils
 
 import (
-	"fmt"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/common"
+	"github.com/gardener/etcd-druid/internal/common"
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,8 +23,8 @@ func CreateEtcdCopyBackupsTask(name, namespace string, provider druidv1alpha1.St
 		waitForFinalSnapshot     *druidv1alpha1.WaitForFinalSnapshotSpec
 	)
 	if withOptionalFields {
-		maxBackupAge = uint32Ptr(7)
-		maxBackups = uint32Ptr(42)
+		maxBackupAge = pointer.Uint32(7)
+		maxBackups = pointer.Uint32(42)
 		waitForFinalSnapshot = &druidv1alpha1.WaitForFinalSnapshotSpec{
 			Enabled: true,
 			Timeout: &metav1.Duration{Duration: 10 * time.Minute},
@@ -64,16 +64,15 @@ func CreateEtcdCopyBackupsTask(name, namespace string, provider druidv1alpha1.St
 		},
 	}
 }
-func uint32Ptr(v uint32) *uint32 { return &v }
 
 // CreateEtcdCopyBackupsJob creates an instance of a Job owned by a EtcdCopyBackupsTask with the given name.
 func CreateEtcdCopyBackupsJob(taskName, namespace string) *batchv1.Job {
+	jobName := taskName + "-worker"
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        taskName + "-worker",
-			Namespace:   namespace,
-			Labels:      nil,
-			Annotations: createJobAnnotations(taskName, namespace),
+			Name:      jobName,
+			Namespace: namespace,
+			Labels:    getLabels(taskName, jobName, false),
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         druidv1alpha1.GroupVersion.String(),
@@ -87,6 +86,9 @@ func CreateEtcdCopyBackupsJob(taskName, namespace string) *batchv1.Job {
 		},
 		Spec: batchv1.JobSpec{
 			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: getLabels(taskName, jobName, true),
+				},
 				Spec: corev1.PodSpec{
 					Volumes: nil,
 					Containers: []corev1.Container{
@@ -104,9 +106,16 @@ func CreateEtcdCopyBackupsJob(taskName, namespace string) *batchv1.Job {
 	}
 }
 
-func createJobAnnotations(taskName, namespace string) map[string]string {
-	annotations := make(map[string]string, 2)
-	annotations[common.GardenerOwnedBy] = fmt.Sprintf("%s/%s", namespace, taskName)
-	annotations[common.GardenerOwnerType] = "etcdcopybackupstask"
-	return annotations
+func getLabels(taskName, jobName string, includeNetworkPolicyLabels bool) map[string]string {
+	labels := map[string]string{
+		druidv1alpha1.LabelPartOfKey:    taskName,
+		druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
+		druidv1alpha1.LabelComponentKey: common.ComponentNameEtcdCopyBackupsJob,
+		druidv1alpha1.LabelAppNameKey:   jobName,
+	}
+	if includeNetworkPolicyLabels {
+		labels[v1beta1constants.LabelNetworkPolicyToDNS] = v1beta1constants.LabelNetworkPolicyAllowed
+		labels[v1beta1constants.LabelNetworkPolicyToPublicNetworks] = v1beta1constants.LabelNetworkPolicyAllowed
+	}
+	return labels
 }

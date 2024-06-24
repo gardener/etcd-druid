@@ -9,6 +9,8 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -48,9 +50,10 @@ func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32
 			Name:      name,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app":      "etcd-statefulset",
-				"instance": name,
-				"name":     "etcd",
+				druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
+				druidv1alpha1.LabelPartOfKey:    name,
+				druidv1alpha1.LabelComponentKey: common.ComponentNameStatefulSet,
+				druidv1alpha1.LabelAppNameKey:   name,
 			},
 			Annotations: nil,
 			OwnerReferences: []metav1.OwnerReference{{
@@ -68,17 +71,17 @@ func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32
 			Replicas: pointer.Int32(replicas),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app":      "etcd-statefulset",
-					"instance": name,
-					"name":     "etcd",
+					druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
+					druidv1alpha1.LabelPartOfKey:    name,
 				},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app":      "etcd-statefulset",
-						"instance": name,
-						"name":     "etcd",
+						druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
+						druidv1alpha1.LabelPartOfKey:    name,
+						druidv1alpha1.LabelComponentKey: common.ComponentNameStatefulSet,
+						druidv1alpha1.LabelAppNameKey:   name,
 					},
 				},
 			},

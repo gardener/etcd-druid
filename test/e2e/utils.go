@@ -15,11 +15,11 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/utils"
+	"github.com/gardener/etcd-druid/internal/common"
+	druidstore "github.com/gardener/etcd-druid/internal/store"
 
 	"github.com/gardener/etcd-backup-restore/pkg/snapstore"
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -84,9 +84,6 @@ var (
 		"app":                     "etcd-statefulset",
 		"garden.sapcloud.io/role": "controlplane",
 		roleLabelKey:              defaultRoleLabelValue,
-	}
-	annotations = map[string]string{
-		v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
 	}
 
 	stsLabels = map[string]string{
@@ -165,7 +162,6 @@ func getEmptyEtcd(name, namespace string) *v1alpha1.Etcd {
 func getDefaultEtcd(name, namespace, container, prefix string, provider TestProvider) *v1alpha1.Etcd {
 	etcd := getEmptyEtcd(name, namespace)
 
-	etcd.Annotations = annotations
 	etcd.Spec.Annotations = stsAnnotations
 
 	labelsCopy := make(map[string]string)
@@ -342,7 +338,7 @@ func getProviders() ([]TestProvider, error) {
 					Name:   "aws",
 					Suffix: "aws",
 					Storage: &Storage{
-						Provider: utils.S3,
+						Provider: druidstore.S3,
 						SecretData: map[string][]byte{
 							"accessKeyID":     []byte(s3AccessKeyID),
 							"secretAccessKey": []byte(s3SecretAccessKey),
@@ -364,7 +360,7 @@ func getProviders() ([]TestProvider, error) {
 					Name:   "az",
 					Suffix: "az",
 					Storage: &Storage{
-						Provider: utils.ABS,
+						Provider: druidstore.ABS,
 						SecretData: map[string][]byte{
 							"storageAccount": []byte(absStorageAccount),
 							"storageKey":     []byte(absStorageKey),
@@ -384,7 +380,7 @@ func getProviders() ([]TestProvider, error) {
 					Name:   "gcp",
 					Suffix: "gcp",
 					Storage: &Storage{
-						Provider: utils.GCS,
+						Provider: druidstore.GCS,
 						SecretData: map[string][]byte{
 							"serviceaccount.json": gcsSA,
 						},
@@ -396,7 +392,7 @@ func getProviders() ([]TestProvider, error) {
 				Name:   "local",
 				Suffix: "local",
 				Storage: &Storage{
-					Provider:   utils.Local,
+					Provider:   druidstore.Local,
 					SecretData: map[string][]byte{},
 				},
 			}
@@ -584,11 +580,10 @@ func executeRemoteCommand(ctx context.Context, kubeconfigPath, namespace, podNam
 
 	buf := &bytes.Buffer{}
 	errBuf := &bytes.Buffer{}
-	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+	if err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdout: buf,
 		Stderr: errBuf,
-	})
-	if err != nil {
+	}); err != nil {
 		return "", "", err
 	}
 
@@ -616,8 +611,7 @@ func purgeSnapstore(store brtypes.SnapStore) error {
 	}
 
 	for _, snap := range snapList {
-		err = store.Delete(*snap)
-		if err != nil {
+		if err = store.Delete(*snap); err != nil {
 			return err
 		}
 	}
@@ -685,7 +679,7 @@ func populateEtcd(ctx context.Context, logger logr.Logger, kubeconfigPath, names
 	}
 
 	for i := startKeyNo; i <= endKeyNo; {
-		cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-client.shoot.svc:%d --cacert /var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key put %s-%d %s-%d", etcdName, etcdClientPort, keyPrefix, i, valuePrefix, i)
+		cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-client.shoot.svc:%d --cacert /var/etcd/ssl/ca/ca.crt --cert=/var/etcd/ssl/client/tls.crt --key=/var/etcd/ssl/client/tls.key put %s-%d %s-%d", etcdName, etcdClientPort, keyPrefix, i, valuePrefix, i)
 		stdout, stderr, err = executeRemoteCommand(ctx, kubeconfigPath, namespace, podName, containerName, cmd)
 		if err != nil || stderr != "" || stdout != "OK" {
 			logger.Error(err, fmt.Sprintf("failed to put (%s-%d, %s-%d): stdout: %s; stderr: %s. Retrying", keyPrefix, i, valuePrefix, i, stdout, stderr))
@@ -711,7 +705,7 @@ func getEtcdKey(ctx context.Context, kubeconfigPath, namespace, etcdName, podNam
 		err    error
 	)
 
-	cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-client.shoot.svc:%d --cacert /var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key get %s-%d", etcdName, etcdClientPort, keyPrefix, suffix)
+	cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-client.shoot.svc:%d --cacert /var/etcd/ssl/ca/ca.crt --cert=/var/etcd/ssl/client/tls.crt --key=/var/etcd/ssl/client/tls.key get %s-%d", etcdName, etcdClientPort, keyPrefix, suffix)
 	stdout, stderr, err = executeRemoteCommand(ctx, kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stderr != "" {
 		return "", "", fmt.Errorf("failed to get %s-%d: stdout: %s; stderr: %s; err: %v", keyPrefix, suffix, stdout, stderr, err)
@@ -841,7 +835,7 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName:  tls.TLSCASecretRef.Name,
-							DefaultMode: pointer.Int32(420),
+							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},
@@ -849,8 +843,8 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 					Name: "client-url-etcd-server-tls",
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
-							SecretName:  tls.ClientTLSSecretRef.Name,
-							DefaultMode: pointer.Int32(420),
+							SecretName:  tls.ServerTLSSecretRef.Name,
+							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},
@@ -858,8 +852,8 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 					Name: "client-url-etcd-client-tls",
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
-							SecretName:  tls.ServerTLSSecretRef.Name,
-							DefaultMode: pointer.Int32(420),
+							SecretName:  tls.ClientTLSSecretRef.Name,
+							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},
@@ -874,10 +868,10 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 						"echo '" +
 							"failed=0 ; threshold=2 ; " +
 							"while [ $failed -lt $threshold ] ; do  " +
-							"$(curl --cacert /var/etcd/ssl/client/ca/ca.crt --cert /var/etcd/ssl/client/client/tls.crt --key /var/etcd/ssl/client/client/tls.key https://" + etcdSvc + ":2379/health -s -f  -o /dev/null ); " +
-							"if [ $? -gt 0 ] ; then let failed++; echo \"etcd is unhealthy and retrying\"; sleep 1; continue;  fi ; " +
+							"$(curl --cacert /var/etcd/ssl/ca/ca.crt --cert /var/etcd/ssl/client/tls.crt --key /var/etcd/ssl/client/tls.key https://" + etcdSvc + ":2379/health -s -f  -o /dev/null ); " +
+							"if [ $? -gt 0 ] ; then let failed++; echo \"etcd is unhealthy and retrying\"; sleep 2; continue;  fi ; " +
 							"echo \"etcd is healthy\";  touch /tmp/healthy; let failed=0; " +
-							"sleep 1; done;  echo \"etcd is unhealthy\"; exit 1;" +
+							"sleep 2; done;  echo \"etcd is unhealthy\"; exit 1;" +
 							"' > test.sh && sh test.sh",
 					},
 					ReadinessProbe: &corev1.Probe{
@@ -909,15 +903,15 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 					},
 					VolumeMounts: []corev1.VolumeMount{
 						{
-							MountPath: "/var/etcd/ssl/client/ca",
+							MountPath: "/var/etcd/ssl/ca",
 							Name:      "client-url-ca-etcd",
 						},
 						{
-							MountPath: "/var/etcd/ssl/client/server",
+							MountPath: "/var/etcd/ssl/server",
 							Name:      "client-url-etcd-server-tls",
 						},
 						{
-							MountPath: "/var/etcd/ssl/client/client",
+							MountPath: "/var/etcd/ssl/client",
 							Name:      "client-url-etcd-client-tls",
 							ReadOnly:  true,
 						},
@@ -948,15 +942,15 @@ func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
 					Image: "nginx",
 					VolumeMounts: []corev1.VolumeMount{
 						{
-							MountPath: "/var/etcd/ssl/client/ca",
+							MountPath: "/var/etcd/ssl/ca",
 							Name:      "client-url-ca-etcd",
 						},
 						{
-							MountPath: "/var/etcd/ssl/client/server",
+							MountPath: "/var/etcd/ssl/server",
 							Name:      "client-url-etcd-server-tls",
 						},
 						{
-							MountPath: "/var/etcd/ssl/client/client",
+							MountPath: "/var/etcd/ssl/client",
 							Name:      "client-url-etcd-client-tls",
 							ReadOnly:  true,
 						},
@@ -973,7 +967,7 @@ func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName:  etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name,
-							DefaultMode: pointer.Int32(420),
+							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},
@@ -981,8 +975,8 @@ func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
 					Name: "client-url-etcd-server-tls",
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
-							SecretName:  etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name,
-							DefaultMode: pointer.Int32(420),
+							SecretName:  etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name,
+							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},
@@ -990,8 +984,8 @@ func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
 					Name: "client-url-etcd-client-tls",
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
-							SecretName:  etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name,
-							DefaultMode: pointer.Int32(420),
+							SecretName:  etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name,
+							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},

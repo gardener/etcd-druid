@@ -9,24 +9,25 @@ set -o pipefail
 
 ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION:-"1.22"}
 
-echo "> Installing envtest tools@${ENVTEST_K8S_VERSION} with setup-envtest if necessary"
-if ! command -v setup-envtest &> /dev/null ; then
-  >&2 echo "setup-envtest not available"
-  exit 1
+if ${SETUP_ENVTEST:-false}; then
+  echo "> Installing envtest tools@${ENVTEST_K8S_VERSION} with setup-envtest"
+  if ! command -v setup-envtest &> /dev/null ; then
+    >&2 echo "setup-envtest not available"
+    exit 1
+  fi
+
+  ARCH=
+  # if using M1 macbook, use amd64 architecture build, as suggested in
+  # https://github.com/kubernetes-sigs/controller-runtime/issues/1657#issuecomment-988484517
+  if [[ $(uname) == 'Darwin' && $(uname -m) == 'arm64' ]]; then
+    ARCH='--arch=amd64'
+  fi
+
+  # --use-env allows overwriting the envtest tools path via the KUBEBUILDER_ASSETS env var just like it was before
+  export KUBEBUILDER_ASSETS="$(setup-envtest ${ARCH} use --use-env -p path ${ENVTEST_K8S_VERSION})"
+  echo "using envtest tools installed at '$KUBEBUILDER_ASSETS'"
+  export KUBEBUILDER_CONTROLPLANE_START_TIMEOUT=2m
 fi
-
-ARCH=
-# if using M1 macbook, use amd64 architecture build, as suggested in
-# https://github.com/kubernetes-sigs/controller-runtime/issues/1657#issuecomment-988484517
-if [[ $(uname) == 'Darwin' && $(uname -m) == 'arm64' ]]; then
-  ARCH='--arch=amd64'
-fi
-
-# --use-env allows overwriting the envtest tools path via the KUBEBUILDER_ASSETS env var just like it was before
-export KUBEBUILDER_ASSETS="$(setup-envtest ${ARCH} use --use-env -p path ${ENVTEST_K8S_VERSION})"
-echo "using envtest tools installed at '$KUBEBUILDER_ASSETS'"
-
-echo "> Tests"
 
 if [[ $(uname) == 'Darwin' ]]; then
   SED_BIN="gsed"
@@ -34,10 +35,11 @@ else
   SED_BIN="sed"
 fi
 
-export KUBEBUILDER_CONTROLPLANE_START_TIMEOUT=2m
 export GOMEGA_DEFAULT_EVENTUALLY_TIMEOUT=5s
 export GOMEGA_DEFAULT_EVENTUALLY_POLLING_INTERVAL=200ms
 GINKGO_COMMON_FLAGS="-r -timeout=1h0m0s --randomize-all --randomize-suites --fail-on-pending --show-node-events"
+
+echo "> Ginkgo tests"
 
 if ${TEST_COV:-false}; then
   output_dir=test/output
