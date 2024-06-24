@@ -115,10 +115,11 @@ func TestIsReconciliationInProgress(t *testing.T) {
 
 func createEtcd(name, namespace string) *Etcd {
 	var (
-		clientPort  int32 = 2379
-		serverPort  int32 = 2380
-		backupPort  int32 = 8080
-		metricLevel       = Basic
+		clientPort    int32 = 2379
+		serverPort    int32 = 2380
+		backupPort    int32 = 8080
+		metricLevel         = Basic
+		snapshotCount       = 75000
 	)
 
 	garbageCollectionPeriod := metav1.Duration{
@@ -235,10 +236,11 @@ func createEtcd(name, namespace string) *Etcd {
 						"memory": resource.MustParse("1000Mi"),
 					},
 				},
-				ClientPort:   &clientPort,
-				ServerPort:   &serverPort,
-				ClientUrlTLS: clientTlsConfig,
-				PeerUrlTLS:   peerTlsConfig,
+				ClientPort:    &clientPort,
+				ServerPort:    &serverPort,
+				SnapshotCount: &snapshotCount,
+				ClientUrlTLS:  clientTlsConfig,
+				PeerUrlTLS:    peerTlsConfig,
 			},
 		},
 	}

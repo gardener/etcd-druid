@@ -109,8 +109,9 @@ var (
 			"memory": resource.MustParse("1Gi"),
 		},
 	}
-	etcdClientPort = int32(2379)
-	etcdServerPort = int32(2380)
+	etcdClientPort    = int32(2379)
+	etcdServerPort    = int32(2380)
+	etcdSnapshotCount = 75000
 
 	backupPort                 = int32(8080)
 	backupFullSnapshotSchedule = "0 */1 * * *"
@@ -190,6 +191,7 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 		Resources:               &etcdResources,
 		ClientPort:              &etcdClientPort,
 		ServerPort:              &etcdServerPort,
+		SnapshotCount:           &etcdSnapshotCount,
 		ClientUrlTLS:            &etcdTLS,
 	}
 

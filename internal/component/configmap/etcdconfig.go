@@ -74,7 +74,7 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		Name:                    fmt.Sprintf("etcd-%s", etcd.UID[:6]),
 		DataDir:                 defaultDataDir,
 		Metrics:                 utils.TypeDeref(etcd.Spec.Etcd.Metrics, druidv1alpha1.Basic),
-		SnapshotCount:           defaultSnapshotCount,
+		SnapshotCount:           getSnapshotCount(etcd),
 		EnableV2:                false,
 		QuotaBackendBytes:       getDBQuotaBytes(etcd),
 		InitialClusterToken:     defaultInitialClusterToken,
@@ -84,8 +84,8 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		AutoCompactionRetention: utils.TypeDeref(etcd.Spec.Common.AutoCompactionRetention, defaultAutoCompactionRetention),
 		ListenPeerUrls:          fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, utils.TypeDeref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)),
 		ListenClientUrls:        fmt.Sprintf("%s://0.0.0.0:%d", clientScheme, utils.TypeDeref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)),
-		AdvertisePeerUrls:       fmt.Sprintf("%s@%s@%s@%d", peerScheme, peerSvcName, etcd.Namespace, utils.TypeDeref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)),
-		AdvertiseClientUrls:     fmt.Sprintf("%s@%s@%s@%d", clientScheme, peerSvcName, etcd.Namespace, utils.TypeDeref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)),
+		AdvertisePeerUrls:       fmt.Sprintf("%s://%s.%s:%d", peerScheme, peerSvcName, etcd.Namespace, utils.TypeDeref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)),
+		AdvertiseClientUrls:     fmt.Sprintf("%s://%s.%s:%d", clientScheme, peerSvcName, etcd.Namespace, utils.TypeDeref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)),
 	}
 	if peerSecurityConfig != nil {
 		cfg.PeerSecurity = *peerSecurityConfig
@@ -95,6 +95,14 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 	}
 
 	return cfg
+}
+
+func getSnapshotCount(etcd *druidv1alpha1.Etcd) int {
+	snapshotCount := defaultSnapshotCount
+	if etcd.Spec.Etcd.SnapshotCount != nil {
+		snapshotCount = *etcd.Spec.Etcd.SnapshotCount
+	}
+	return snapshotCount
 }
 
 func getDBQuotaBytes(etcd *druidv1alpha1.Etcd) int64 {

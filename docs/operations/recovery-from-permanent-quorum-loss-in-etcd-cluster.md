@@ -31,7 +31,7 @@ Target the control plane of affected shoot cluster via `kubectl`. Alternatively,
     Volumes:
       etcd-config-file:
         Type:      ConfigMap (a volume populated by a ConfigMap)
-        Name:      etcd-bootstrap-4785b0
+        Name:      etcd-main-config-4785b0
         Optional:  false
     ```
 
@@ -68,7 +68,7 @@ Target the control plane of affected shoot cluster via `kubectl`. Alternatively,
 
     Delete all `etcd-main` member leases.
 
-6. Edit the `etcd-main` cluster's configmap (ex: `etcd-bootstrap-4785b0`) as follows:
+6. Edit the `etcd-main` cluster's configmap (ex: `etcd-main-config-4785b0`) as follows:
 
     Find the `initial-cluster` field in the configmap. It should look similar to the following:
     ```

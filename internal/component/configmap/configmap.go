@@ -64,7 +64,24 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 }
 
 // PreSync is a no-op for the configmap component.
-func (r _resource) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error { return nil }
+func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	// Fetch and delete the old configmap if it exists.
+	// TODO: @anveshreddy18 remove this block of code after few releases when we are sure that all the old configmaps are deleted from the shoot clusters.
+	oldcm := oldConfigMap(etcd)
+	if err := r.client.Delete(ctx, oldcm); err != nil {
+		if errors.IsNotFound(err) {
+			ctx.Logger.Info("No old ConfigMap found, Deletion is a No-Op", "objectKey", getObjectKey(etcd.ObjectMeta))
+		} else {
+			return druiderr.WrapError(
+				err,
+				ErrDeleteConfigMap,
+				"PreSync",
+				"Failed to delete old configmap",
+			)
+		}
+	}
+	return nil
+}
 
 // Sync creates or updates the configmap for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
@@ -137,6 +154,15 @@ func getObjectKey(obj metav1.ObjectMeta) client.ObjectKey {
 	return client.ObjectKey{
 		Name:      druidv1alpha1.GetConfigMapName(obj),
 		Namespace: obj.Namespace,
+	}
+}
+
+func oldConfigMap(etcd *druidv1alpha1.Etcd) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      druidv1alpha1.GetOldConfigMapName(etcd.ObjectMeta),
+			Namespace: etcd.Namespace,
+		},
 	}
 }
 

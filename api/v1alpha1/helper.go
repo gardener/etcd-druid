@@ -31,6 +31,10 @@ func GetServiceAccountName(etcdObjMeta metav1.ObjectMeta) string {
 
 // GetConfigMapName returns the name of the configmap for the Etcd.
 func GetConfigMapName(etcdObjMeta metav1.ObjectMeta) string {
+	return fmt.Sprintf("%s-config-%s", etcdObjMeta.Name, (etcdObjMeta.UID[:6]))
+}
+
+func GetOldConfigMapName(etcdObjMeta metav1.ObjectMeta) string {
 	return fmt.Sprintf("etcd-bootstrap-%s", string(etcdObjMeta.UID[:6]))
 }
 
