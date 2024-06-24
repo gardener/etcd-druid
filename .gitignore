@@ -4,7 +4,10 @@
 /.kube-secrets
 /tmp/*
 /dev
+/vendor
 *.test
+default.etcd*
+default.bkp*
 
 *.coverprofile
 /cover.out
@@ -13,6 +16,7 @@
 .vscode
 .idea
 .DS_Store
+.ignore
 *~
 
 ./etcd-druid
@@ -23,6 +27,7 @@ config.img
 config.vmdk
 
 hack/e2e-test/infrastructure/overlays/gcp/common/assets
+hack/e2e-test/infrastructure/kind/kubeconfig
 
 /test/integration/resources/charts/*
 /test/integration/resources/repository/cache
@@ -34,6 +39,3 @@ hack/e2e-test/infrastructure/overlays/gcp/common/assets
 
 .cache_ggshield
 .gitguardian.yaml
-
-hack/e2e-test/infrastructure/kind/kubeconfig
-
