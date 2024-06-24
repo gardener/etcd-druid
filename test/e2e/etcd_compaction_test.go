@@ -7,15 +7,16 @@ package e2e
 import (
 	"context"
 	"fmt"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -133,34 +134,49 @@ var _ = Describe("Etcd Compaction", func() {
 					_, err = triggerOnDemandSnapshot(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080, brtypes.SnapshotKindDelta)
 					Expect(err).ShouldNot(HaveOccurred())
 
+					latestSnapshotsAfterPopulate, err = getLatestSnapshots(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
+					Expect(err).ShouldNot(HaveOccurred())
+					latestSnapshotAfterPopulate = latestSnapshotsAfterPopulate.FullSnapshot
+					if numDeltas := len(latestSnapshotsAfterPopulate.DeltaSnapshots); numDeltas > 0 {
+						latestSnapshotAfterPopulate = latestSnapshotsAfterPopulate.DeltaSnapshots[numDeltas-1]
+					}
+
 					logger.Info("waiting for compaction job to become successful")
+					// Cannot check job status since it immediately gets deleted by compaction controller
+					// after successful completion. Hence, we check the snapshots before checking the compaction job status.
 					Eventually(func() error {
 						ctx, cancelFunc := context.WithTimeout(context.Background(), singleNodeEtcdTimeout)
 						defer cancelFunc()
+
+						latestSnapshotsAfterCompaction, err := getLatestSnapshots(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
+						if err != nil {
+							return fmt.Errorf("failed to get latest snapshots: %w", err)
+						}
+						if len(latestSnapshotsAfterCompaction.DeltaSnapshots) != 0 {
+							return fmt.Errorf("latest delta snapshot count is not 0")
+						}
+						if !latestSnapshotsAfterCompaction.FullSnapshot.CreatedOn.After(latestSnapshotAfterPopulate.CreatedOn) ||
+							latestSnapshotsAfterCompaction.FullSnapshot.LastRevision != latestSnapshotAfterPopulate.LastRevision {
+							return fmt.Errorf("compaction is not yet successful")
+						}
 
 						req := types.NamespacedName{
 							Name:      druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta),
 							Namespace: etcd.Namespace,
 						}
-
 						j := &batchv1.Job{}
 						if err := cl.Get(ctx, req, j); err != nil {
+							if apierrors.IsNotFound(err) {
+								return nil
+							}
 							return err
 						}
-
 						if j.Status.Succeeded < 1 {
 							return fmt.Errorf("compaction job started but not yet successful")
 						}
-
 						return nil
 					}, singleNodeEtcdTimeout, pollingInterval).Should(BeNil())
 					logger.Info("compaction job is successful")
-
-					By("Verify that all the delta snapshots are compacted to full snapshots by compaction triggerred at first 15th revision")
-					latestSnapshotsAfterPopulate, err = getLatestSnapshots(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080)
-					Expect(err).ShouldNot(HaveOccurred())
-
-					Expect(len(latestSnapshotsAfterPopulate.DeltaSnapshots)).Should(BeNumerically("==", 0))
 
 					By("Put additional data into etcd")
 					logger.Info("populating etcd with sequential key-value pairs",
@@ -170,7 +186,7 @@ var _ = Describe("Etcd Compaction", func() {
 					err = populateEtcd(ctx, logger, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, etcdKeyPrefix, etcdValuePrefix, 16, 20, time.Second*1)
 					Expect(err).ShouldNot(HaveOccurred())
 
-					By("Trigger on-demand delta snapshot")
+					By("Trigger next on-demand delta snapshot")
 					_, err = triggerOnDemandSnapshot(ctx, kubeconfigPath, namespace, etcdName, debugPod.Name, debugPod.Spec.Containers[0].Name, 8080, brtypes.SnapshotKindDelta)
 					Expect(err).ShouldNot(HaveOccurred())
 
