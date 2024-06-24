@@ -501,6 +501,9 @@ func (b *stsBuilder) getBackupStoreCommandArgs() []string {
 	if b.etcd.Spec.Backup.FullSnapshotSchedule != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--schedule=%s", *b.etcd.Spec.Backup.FullSnapshotSchedule))
 	}
+	if b.etcd.Spec.Backup.FullSnapshotLeaseUpdateInterval != nil {
+		commandArgs = append(commandArgs, fmt.Sprintf("--full-snapshot-lease-update-interval=%s", b.etcd.Spec.Backup.FullSnapshotLeaseUpdateInterval.Duration.String()))
+	}
 
 	// Delta snapshot command line args
 	// -----------------------------------------------------------------------------------------------------------------

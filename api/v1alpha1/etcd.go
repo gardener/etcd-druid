@@ -159,6 +159,9 @@ type BackupSpec struct {
 	// All full snapshots beyond this limit will be garbage collected.
 	// +optional
 	MaxBackupsLimitBasedGC *int32 `json:"maxBackupsLimitBasedGC,omitempty"`
+	// FullSnapshotLeaseUpdateInterval defines the interval for retrying to update the full snapshot lease.
+	// +optional
+	FullSnapshotLeaseUpdateInterval *metav1.Duration `json:"fullSnapshotLeaseUpdateInterval,omitempty"`
 	// GarbageCollectionPeriod defines the period for garbage collecting old backups
 	// +optional
 	GarbageCollectionPeriod *metav1.Duration `json:"garbageCollectionPeriod,omitempty"`

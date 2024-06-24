@@ -62,6 +62,11 @@ func (in *BackupSpec) DeepCopyInto(out *BackupSpec) {
 		*out = new(int32)
 		**out = **in
 	}
+	if in.FullSnapshotLeaseUpdateInterval != nil {
+		in, out := &in.FullSnapshotLeaseUpdateInterval, &out.FullSnapshotLeaseUpdateInterval
+		*out = new(v1.Duration)
+		**out = **in
+	}
 	if in.GarbageCollectionPeriod != nil {
 		in, out := &in.GarbageCollectionPeriod, &out.GarbageCollectionPeriod
 		*out = new(v1.Duration)
