@@ -69,9 +69,7 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 	// TODO: @anveshreddy18 remove this block of code after few releases when we are sure that all the old configmaps are deleted from the shoot clusters.
 	oldcm := oldConfigMap(etcd)
 	if err := r.client.Delete(ctx, oldcm); err != nil {
-		if errors.IsNotFound(err) {
-			ctx.Logger.Info("No old ConfigMap found, Deletion is a No-Op", "objectKey", getObjectKey(etcd.ObjectMeta))
-		} else {
+		if !errors.IsNotFound(err) {
 			return druiderr.WrapError(
 				err,
 				ErrDeleteConfigMap,
@@ -79,6 +77,7 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 				"Failed to delete old configmap",
 			)
 		}
+		ctx.Logger.Info("No old ConfigMap found, Deletion is a No-Op", "objectKey", getObjectKey(etcd.ObjectMeta))
 	}
 	return nil
 }
