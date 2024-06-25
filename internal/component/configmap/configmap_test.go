@@ -338,7 +338,7 @@ func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.C
 		"name":                      Equal(fmt.Sprintf("etcd-%s", etcd.UID[:6])),
 		"data-dir":                  Equal(fmt.Sprintf("%s/new.etcd", common.VolumeMountPathEtcdData)),
 		"metrics":                   Equal(string(druidv1alpha1.Basic)),
-		"snapshot-count":            Equal(pointer.IntDeref(etcd.Spec.Etcd.SnapshotCount, druidv1alpha1.DefaultSnapshotCount)),
+		"snapshot-count":            Equal(pointer.Int64Deref(etcd.Spec.Etcd.SnapshotCount, druidv1alpha1.DefaultSnapshotCount)),
 		"enable-v2":                 Equal(false),
 		"quota-backend-bytes":       Equal(etcd.Spec.Etcd.Quota.Value()),
 		"initial-cluster-token":     Equal("etcd-cluster"),

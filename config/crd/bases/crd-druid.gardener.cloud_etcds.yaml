@@ -569,6 +569,7 @@ spec:
                   snapshotCount:
                     description: SnapshotCount defines the number of applied Raft
                       entries to hold in-memory before compaction.
+                    format: int64
                     type: integer
                 type: object
               labels:

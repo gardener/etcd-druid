@@ -24,7 +24,7 @@ const (
 	// For more information refer to https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
 	// TODO: Ideally this should be made configurable via Etcd resource as this has a direct impact on the memory requirements for etcd container.
 	// which in turn is influenced by the size of objects that are getting stored in etcd.
-	defaultSnapshotCount = 75000
+	defaultSnapshotCount = int64(75000)
 )
 
 var (
@@ -42,7 +42,7 @@ type etcdConfig struct {
 	Name                    string                       `yaml:"name"`
 	DataDir                 string                       `yaml:"data-dir"`
 	Metrics                 druidv1alpha1.MetricsLevel   `yaml:"metrics"`
-	SnapshotCount           int                          `yaml:"snapshot-count"`
+	SnapshotCount           int64                        `yaml:"snapshot-count"`
 	EnableV2                bool                         `yaml:"enable-v2"`
 	QuotaBackendBytes       int64                        `yaml:"quota-backend-bytes"`
 	InitialClusterToken     string                       `yaml:"initial-cluster-token"`
@@ -97,7 +97,7 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 	return cfg
 }
 
-func getSnapshotCount(etcd *druidv1alpha1.Etcd) int {
+func getSnapshotCount(etcd *druidv1alpha1.Etcd) int64 {
 	snapshotCount := defaultSnapshotCount
 	if etcd.Spec.Etcd.SnapshotCount != nil {
 		snapshotCount = *etcd.Spec.Etcd.SnapshotCount

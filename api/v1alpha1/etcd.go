@@ -199,7 +199,7 @@ type EtcdConfig struct {
 	Quota *resource.Quantity `json:"quota,omitempty"`
 	// SnapshotCount defines the number of applied Raft entries to hold in-memory before compaction.
 	// +optional
-	SnapshotCount *int `json:"snapshotCount,omitempty"`
+	SnapshotCount *int64 `json:"snapshotCount,omitempty"`
 	// DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd.
 	// +optional
 	DefragmentationSchedule *string `json:"defragmentationSchedule,omitempty"`
