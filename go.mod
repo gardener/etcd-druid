@@ -23,7 +23,7 @@ require (
 	k8s.io/apiserver v0.28.3
 	k8s.io/client-go v0.28.3
 	k8s.io/component-base v0.28.3
-	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2
+	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
 	sigs.k8s.io/controller-runtime v0.16.3
 	sigs.k8s.io/controller-tools v0.13.0
 )

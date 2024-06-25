@@ -23,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -191,7 +192,8 @@ func (b *stsBuilder) getPodTemplateAnnotations(ctx component.OperatorContext) ma
 }
 
 func (b *stsBuilder) getVolumeClaimTemplates() []corev1.PersistentVolumeClaim {
-	return []corev1.PersistentVolumeClaim{
+	storageClassName := ptr.Deref(b.etcd.Spec.StorageClass, "")
+	pvcClaim := []corev1.PersistentVolumeClaim{
 		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: utils.TypeDeref(b.etcd.Spec.VolumeClaimTemplate, b.etcd.Name),
@@ -205,10 +207,15 @@ func (b *stsBuilder) getVolumeClaimTemplates() []corev1.PersistentVolumeClaim {
 						corev1.ResourceStorage: utils.TypeDeref(b.etcd.Spec.StorageCapacity, defaultStorageCapacity),
 					},
 				},
-				StorageClassName: b.etcd.Spec.StorageClass,
 			},
 		},
 	}
+
+	if storageClassName != "" {
+		pvcClaim[0].Spec.StorageClassName = &storageClassName
+	}
+
+	return pvcClaim
 }
 
 func (b *stsBuilder) getPodInitContainers() []corev1.Container {
