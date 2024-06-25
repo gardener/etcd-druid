@@ -2,7 +2,7 @@
 
 <image src="logo/etcd-druid-logo.png" style="width:300px"></image>
 
-[![REUSE status](https://api.reuse.software/badge/github.com/gardener/etcd-druid)](https://api.reuse.software/info/github.com/gardener/etcd-druid)
+[![REUSE status](https://api.reuse.software/badge/github.com/unmarshall/etcd-druid)](https://api.reuse.software/info/github.com/unmarshall/etcd-druid)
 [![CI Build status](https://concourse.ci.gardener.cloud/api/v1/teams/gardener/pipelines/etcd-druid-master/jobs/master-head-update-job/badge)](https://concourse.ci.gardener.cloud/teams/gardener/pipelines/etcd-druid-master/jobs/master-head-update-job)
 [![Go Report Card](https://goreportcard.com/badge/github.com/gardener/gardener)](https://goreportcard.com/report/github.com/gardener/etcd-druid)
 
