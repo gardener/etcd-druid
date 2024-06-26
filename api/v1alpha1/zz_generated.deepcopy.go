@@ -235,6 +235,11 @@ func (in *EtcdConfig) DeepCopyInto(out *EtcdConfig) {
 		x := (*in).DeepCopy()
 		*out = &x
 	}
+	if in.SnapshotCount != nil {
+		in, out := &in.SnapshotCount, &out.SnapshotCount
+		*out = new(int64)
+		**out = **in
+	}
 	if in.DefragmentationSchedule != nil {
 		in, out := &in.DefragmentationSchedule, &out.DefragmentationSchedule
 		*out = new(string)

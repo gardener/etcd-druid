@@ -338,7 +338,7 @@ func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.C
 		"name":                      Equal(fmt.Sprintf("etcd-%s", etcd.UID[:6])),
 		"data-dir":                  Equal(fmt.Sprintf("%s/new.etcd", common.VolumeMountPathEtcdData)),
 		"metrics":                   Equal(string(druidv1alpha1.Basic)),
-		"snapshot-count":            Equal(int64(75000)),
+		"snapshot-count":            Equal(pointer.Int64Deref(etcd.Spec.Etcd.SnapshotCount, druidv1alpha1.DefaultSnapshotCount)),
 		"enable-v2":                 Equal(false),
 		"quota-backend-bytes":       Equal(etcd.Spec.Etcd.Quota.Value()),
 		"initial-cluster-token":     Equal("etcd-cluster"),
@@ -354,7 +354,7 @@ func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actu
 	if etcd.Spec.Etcd.ClientUrlTLS != nil {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
 			"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", utils.TypeDeref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient))),
-			"advertise-client-urls": Equal(fmt.Sprintf("https@%s@%s@%d", druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, utils.TypeDeref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient))),
+			"advertise-client-urls": Equal(fmt.Sprintf("https://%s.%s:%d", druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, utils.TypeDeref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient))),
 			"client-transport-security": MatchKeys(IgnoreExtras, Keys{
 				"cert-file":        Equal("/var/etcd/ssl/server/tls.crt"),
 				"key-file":         Equal("/var/etcd/ssl/server/tls.key"),
@@ -383,12 +383,12 @@ func matchPeerTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actual
 				"auto-tls":         Equal(false),
 			}),
 			"listen-peer-urls":            Equal(fmt.Sprintf("https://0.0.0.0:%d", utils.TypeDeref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))),
-			"initial-advertise-peer-urls": Equal(fmt.Sprintf("https@%s@%s@%s", peerSvcName, etcd.Namespace, strconv.Itoa(int(pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))))),
+			"initial-advertise-peer-urls": Equal(fmt.Sprintf("https://%s.%s:%s", peerSvcName, etcd.Namespace, strconv.Itoa(int(pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))))),
 		}))
 	} else {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
 			"listen-peer-urls":            Equal(fmt.Sprintf("http://0.0.0.0:%d", utils.TypeDeref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))),
-			"initial-advertise-peer-urls": Equal(fmt.Sprintf("http@%s@%s@%s", peerSvcName, etcd.Namespace, strconv.Itoa(int(pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))))),
+			"initial-advertise-peer-urls": Equal(fmt.Sprintf("http://%s.%s:%s", peerSvcName, etcd.Namespace, strconv.Itoa(int(pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))))),
 		}))
 		g.Expect(actualETCDConfig).ToNot(HaveKey("peer-transport-security"))
 	}
