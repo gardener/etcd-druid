@@ -59,22 +59,33 @@ func (f *fullSnapshotBackupReadyCheck) Check(ctx context.Context, etcd druidv1al
 	)
 	fullSnapErr = f.cl.Get(ctx, types.NamespacedName{Name: getFullSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, fullSnapLease)
 	fullLeaseRenewTime := fullSnapLease.Spec.RenewTime
+	fullLeaseCreationTime := fullSnapLease.ObjectMeta.CreationTimestamp
 
-	//Set status to Unknown if errors in fetching snapshot leases or lease never renewed
-	if fullSnapErr != nil || fullLeaseRenewTime == nil {
+	//Set status to Unknown if errors in fetching full snapshot lease
+	if fullSnapErr != nil {
 		return result
 	}
-
-	if time.Since(fullLeaseRenewTime.Time) < 24*time.Hour {
-		result.status = druidv1alpha1.ConditionTrue
-		result.reason = SnapshotUploadedOnSchedule
-		result.message = fmt.Sprintf("Full snapshot uploaded successfully %v ago", time.Since(fullLeaseRenewTime.Time))
-		return result
+	if fullLeaseRenewTime == nil {
+		if time.Since(fullLeaseCreationTime.Time) < 24*time.Hour {
+			return result
+		} else {
+			result.status = druidv1alpha1.ConditionFalse
+			result.reason = SnapshotMissedSchedule
+			result.message = "Full snapshot missed schedule. Backup is not healthy"
+			return result
+		}
 	} else {
-		result.status = druidv1alpha1.ConditionFalse
-		result.reason = SnapshotMissedSchedule
-		result.message = fmt.Sprintf("Full snapshot missed schedule, last full snapshot was taken %v ago", time.Since(fullLeaseRenewTime.Time))
-		return result
+		if time.Since(fullLeaseRenewTime.Time) < 24*time.Hour {
+			result.status = druidv1alpha1.ConditionTrue
+			result.reason = SnapshotUploadedOnSchedule
+			result.message = fmt.Sprintf("Full snapshot uploaded successfully %v ago", time.Since(fullLeaseRenewTime.Time))
+			return result
+		} else {
+			result.status = druidv1alpha1.ConditionFalse
+			result.reason = SnapshotMissedSchedule
+			result.message = fmt.Sprintf("Full snapshot missed schedule, last full snapshot was taken %v ago", time.Since(fullLeaseRenewTime.Time))
+			return result
+		}
 	}
 }
 
@@ -101,7 +112,7 @@ func (d *deltaSnapshotBackupReadyCheck) Check(ctx context.Context, etcd druidv1a
 	deltaSnapshotPeriod := etcd.Spec.Backup.DeltaSnapshotPeriod.Duration
 	deltaLeaseCreationTime := deltaSnapLease.ObjectMeta.CreationTimestamp
 
-	//Set status to Unknown if error in fetching delta snapshot lease or lease never renewed
+	//Set status to Unknown if error in fetching delta snapshot lease
 	if incrSnapErr != nil {
 		return result
 	}
@@ -110,35 +121,30 @@ func (d *deltaSnapshotBackupReadyCheck) Check(ctx context.Context, etcd druidv1a
 		if time.Since(deltaLeaseCreationTime.Time) < deltaSnapshotPeriod {
 			result.status = druidv1alpha1.ConditionTrue
 			result.reason = SnapshotProcessNotStarted
-			result.message = fmt.Sprintf("Delta snapshotting has not been triggered yet")
+			result.message = "Delta snapshotting has not been triggered yet"
 			return result
 		} else if time.Since(deltaLeaseCreationTime.Time) < 3*deltaSnapshotPeriod {
 			result.status = druidv1alpha1.ConditionUnknown
 			result.reason = Unknown
-			result.message = fmt.Sprintf("Periodic delta snapshotting has not started yet")
+			result.message = "Periodic delta snapshotting has not started yet"
 			return result
-		} else {
-			result.status = druidv1alpha1.ConditionFalse
-			result.reason = SnapshotMissedSchedule
-			result.message = fmt.Sprintf("The Delta snapshot lease has not been renewed even once since its inception")
 		}
 	} else {
-		if time.Since(deltaLeaseCreationTime.Time) < deltaSnapshotPeriod {
+		if time.Since(deltaLeaseRenewTime.Time) < deltaSnapshotPeriod {
 			result.status = druidv1alpha1.ConditionTrue
 			result.reason = SnapshotUploadedOnSchedule
 			result.message = fmt.Sprintf("Delta snapshot uploaded successfully %v ago", time.Since(deltaLeaseRenewTime.Time))
 			return result
-		} else if time.Since(deltaLeaseCreationTime.Time) < 3*deltaSnapshotPeriod {
+		} else if time.Since(deltaLeaseRenewTime.Time) < 3*deltaSnapshotPeriod {
 			result.status = druidv1alpha1.ConditionUnknown
 			result.reason = Unknown
-			result.message = fmt.Sprintf("One or more delta snapshots seems to have missed their scheduled times, likely due to a transient issue with updating the lease")
+			result.message = "One or more delta snapshots seems to have missed their scheduled times, likely due to a transient issue with updating the lease"
 			return result
 		}
 	}
 
-	//Cases where delta snapshot lease is not updated for a long time
+	//Cases where delta snapshot lease is not renewed at all or not updated for a long time
 	//If delta snapshot lease is present and not updated, it is safe to assume that backup is not healthy
-
 	if etcd.Status.Conditions != nil {
 		var prevDeltaSnapshotBackupReadyStatus druidv1alpha1.Condition
 		for _, prevDeltaSnapshotBackupReadyStatus = range etcd.Status.Conditions {
@@ -146,13 +152,12 @@ func (d *deltaSnapshotBackupReadyCheck) Check(ctx context.Context, etcd druidv1a
 				break
 			}
 		}
-
 		// Transition to "False" state only if present state is "Unknown" or "False"
-		if deltaLeaseRenewTime != nil && (prevDeltaSnapshotBackupReadyStatus.Status == druidv1alpha1.ConditionUnknown || prevDeltaSnapshotBackupReadyStatus.Status == druidv1alpha1.ConditionFalse) {
-			if time.Since(deltaLeaseRenewTime.Time) > 3*deltaSnapshotPeriod {
+		if prevDeltaSnapshotBackupReadyStatus.Status == druidv1alpha1.ConditionUnknown || prevDeltaSnapshotBackupReadyStatus.Status == druidv1alpha1.ConditionFalse {
+			if deltaLeaseRenewTime == nil || time.Since(deltaLeaseRenewTime.Time) > 3*deltaSnapshotPeriod {
 				result.status = druidv1alpha1.ConditionFalse
 				result.reason = SnapshotMissedSchedule
-				result.message = fmt.Sprintf("Delta snapshot missed schedule, last delta snapshot was taken %v ago", time.Since(deltaLeaseRenewTime.Time))
+				result.message = "Stale snapshot lease. Not updated for a long time. Backup is not healthy"
 				return result
 			}
 		}
