@@ -10,6 +10,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/utils"
 	coordinationv1 "k8s.io/api/coordination/v1"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -54,19 +55,26 @@ func (f *fullSnapshotBackupReadyCheck) Check(ctx context.Context, etcd druidv1al
 
 	//Fetch snapshot leases
 	var (
-		fullSnapErr   error
-		fullSnapLease = &coordinationv1.Lease{}
+		fullSnapErr          error
+		fullSnapLease        = &coordinationv1.Lease{}
+		fullSnapshotInterval = 24 * time.Hour
+		err                  error
 	)
 	fullSnapErr = f.cl.Get(ctx, types.NamespacedName{Name: getFullSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, fullSnapLease)
 	fullLeaseRenewTime := fullSnapLease.Spec.RenewTime
 	fullLeaseCreationTime := fullSnapLease.ObjectMeta.CreationTimestamp
 
+	if etcd.Spec.Backup.FullSnapshotSchedule != nil {
+		if fullSnapshotInterval, err = utils.ComputeScheduleInterval(*etcd.Spec.Backup.FullSnapshotSchedule); err != nil {
+			return result
+		}
+	}
 	//Set status to Unknown if errors in fetching full snapshot lease
 	if fullSnapErr != nil {
 		return result
 	}
 	if fullLeaseRenewTime == nil {
-		if time.Since(fullLeaseCreationTime.Time) < 24*time.Hour {
+		if time.Since(fullLeaseCreationTime.Time) < fullSnapshotInterval {
 			return result
 		} else {
 			result.status = druidv1alpha1.ConditionFalse
@@ -75,7 +83,7 @@ func (f *fullSnapshotBackupReadyCheck) Check(ctx context.Context, etcd druidv1al
 			return result
 		}
 	} else {
-		if time.Since(fullLeaseRenewTime.Time) < 24*time.Hour {
+		if time.Since(fullLeaseRenewTime.Time) < fullSnapshotInterval {
 			result.status = druidv1alpha1.ConditionTrue
 			result.reason = SnapshotUploadedOnSchedule
 			result.message = fmt.Sprintf("Full snapshot uploaded successfully %v ago", time.Since(fullLeaseRenewTime.Time))
