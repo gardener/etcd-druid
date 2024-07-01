@@ -55,9 +55,13 @@ type ErrorsForGVK struct {
 
 // TestClientBuilder builds a client.Client which will also react to the configured errors.
 type TestClientBuilder struct {
-	delegatingClient client.Client
-	errorRecords     []errorRecord
+	delegatingClientBuilder *fake.ClientBuilder
+	delegatingClient        client.Client
+	scheme                  *runtime.Scheme
+	errorRecords            []errorRecord
 }
+
+// ---------------------- Convenience functions for creating test clients ----------------------
 
 // CreateDefaultFakeClient returns a default fake client.Client without any configured reactions to errors.
 func CreateDefaultFakeClient() client.Client {
@@ -66,12 +70,10 @@ func CreateDefaultFakeClient() client.Client {
 
 // CreateTestFakeClientForObjects is a convenience function which creates a test client which uses a fake client as a delegate and reacts to the configured errors for the given object key.
 func CreateTestFakeClientForObjects(getErr, createErr, patchErr, deleteErr *apierrors.StatusError, existingObjects []client.Object, objKeys ...client.ObjectKey) client.Client {
-	fakeDelegateClientBuilder := fake.NewClientBuilder()
+	testClientBuilder := NewTestClientBuilder()
 	if existingObjects != nil && len(existingObjects) > 0 {
-		fakeDelegateClientBuilder.WithObjects(existingObjects...)
+		testClientBuilder.WithObjects(existingObjects...)
 	}
-	fakeDelegateClient := fakeDelegateClientBuilder.Build()
-	testClientBuilder := NewTestClientBuilder().WithClient(fakeDelegateClient)
 	for _, objKey := range objKeys {
 		testClientBuilder.RecordErrorForObjects(ClientMethodGet, getErr, objKey).
 			RecordErrorForObjects(ClientMethodCreate, createErr, objKey).
@@ -83,12 +85,10 @@ func CreateTestFakeClientForObjects(getErr, createErr, patchErr, deleteErr *apie
 
 // CreateTestFakeClientWithSchemeForObjects is a convenience function which creates a test client which uses a fake client with the given scheme as a delegate and reacts to the configured errors for the given object keys.
 func CreateTestFakeClientWithSchemeForObjects(scheme *runtime.Scheme, getErr, createErr, patchErr, deleteErr *apierrors.StatusError, existingObjects []client.Object, objKeys ...client.ObjectKey) client.Client {
-	fakeDelegateClientBuilder := fake.NewClientBuilder().WithScheme(scheme)
+	testClientBuilder := NewTestClientBuilder().WithScheme(scheme)
 	if existingObjects != nil && len(existingObjects) > 0 {
-		fakeDelegateClientBuilder.WithObjects(existingObjects...)
+		testClientBuilder.WithObjects(existingObjects...)
 	}
-	fakeDelegateClient := fakeDelegateClientBuilder.Build()
-	testClientBuilder := NewTestClientBuilder().WithClient(fakeDelegateClient)
 	for _, objKey := range objKeys {
 		testClientBuilder.RecordErrorForObjects(ClientMethodGet, getErr, objKey).
 			RecordErrorForObjects(ClientMethodCreate, createErr, objKey).
@@ -100,13 +100,11 @@ func CreateTestFakeClientWithSchemeForObjects(scheme *runtime.Scheme, getErr, cr
 
 // CreateTestFakeClientForAllObjectsInNamespace is a convenience function which creates a test client which uses a fake client as a delegate and reacts to the configured errors for all objects in the given namespace matching the given labels.
 func CreateTestFakeClientForAllObjectsInNamespace(deleteAllErr, listErr *apierrors.StatusError, namespace string, matchingLabels map[string]string, existingObjects ...client.Object) client.Client {
-	fakeDelegateClientBuilder := fake.NewClientBuilder()
+	testClientBuilder := NewTestClientBuilder()
 	if existingObjects != nil && len(existingObjects) > 0 {
-		fakeDelegateClientBuilder.WithObjects(existingObjects...)
+		testClientBuilder.WithObjects(existingObjects...)
 	}
-	fakeDelegateClient := fakeDelegateClientBuilder.Build()
-	cl := NewTestClientBuilder().
-		WithClient(fakeDelegateClient).
+	cl := testClientBuilder.
 		RecordErrorForObjectsMatchingLabels(ClientMethodDeleteAll, namespace, matchingLabels, deleteAllErr).
 		RecordErrorForObjectsMatchingLabels(ClientMethodList, namespace, matchingLabels, listErr).
 		Build()
@@ -115,29 +113,44 @@ func CreateTestFakeClientForAllObjectsInNamespace(deleteAllErr, listErr *apierro
 
 // CreateTestFakeClientForObjectsInNamespaceWithGVK is a convenience function which creates a test client which uses a fake client as a delegate and reacts to the configured errors for all objects in the given namespace for the given GroupVersionKinds.
 func CreateTestFakeClientForObjectsInNamespaceWithGVK(errors []ErrorsForGVK, namespace string, existingObjects ...client.Object) client.Client {
-	fakeDelegateClientBuilder := fake.NewClientBuilder()
+	testClientBuilder := NewTestClientBuilder()
 	if existingObjects != nil && len(existingObjects) > 0 {
-		fakeDelegateClientBuilder.WithObjects(existingObjects...)
+		testClientBuilder.WithObjects(existingObjects...)
 	}
-	fakeDelegateClient := fakeDelegateClientBuilder.Build()
-
-	cl := NewTestClientBuilder().WithClient(fakeDelegateClient)
-
 	for _, e := range errors {
-		cl.RecordErrorForObjectsWithGVK(ClientMethodDeleteAll, namespace, e.GVK, e.DeleteAllErr).
+		testClientBuilder.
+			RecordErrorForObjectsWithGVK(ClientMethodDeleteAll, namespace, e.GVK, e.DeleteAllErr).
 			RecordErrorForObjectsWithGVK(ClientMethodList, namespace, e.GVK, e.ListErr)
 	}
-	return cl.Build()
+	return testClientBuilder.Build()
 }
+
+// ------------------- Functions to explicitly create and configure a test client builder -------------------
 
 // NewTestClientBuilder creates a new instance of TestClientBuilder.
 func NewTestClientBuilder() *TestClientBuilder {
-	return &TestClientBuilder{}
+	return &TestClientBuilder{
+		delegatingClientBuilder: fake.NewClientBuilder(),
+	}
 }
 
-// WithClient sets the client.Client to be used as a delegate for the test client.
-func (b *TestClientBuilder) WithClient(client client.Client) *TestClientBuilder {
-	b.delegatingClient = client
+// WithScheme initializes the delegating fake client builder with the given scheme.
+func (b *TestClientBuilder) WithScheme(scheme *runtime.Scheme) *TestClientBuilder {
+	b.scheme = scheme
+	return b
+}
+
+// WithObjects initializes the delegating fake client builder with objects.
+func (b *TestClientBuilder) WithObjects(objects ...client.Object) *TestClientBuilder {
+	if len(objects) > 0 {
+		b.delegatingClientBuilder.WithObjects(objects...)
+	}
+	return b
+}
+
+// WithClient initializes the delegating fake client builder with the given client.
+func (b *TestClientBuilder) WithClient(cl client.Client) *TestClientBuilder {
+	b.delegatingClient = cl
 	return b
 }
 
@@ -191,9 +204,22 @@ func (b *TestClientBuilder) RecordErrorForObjectsWithGVK(method ClientMethod, na
 // Build creates a new instance of client.Client which will react to the configured errors.
 func (b *TestClientBuilder) Build() client.Client {
 	return &testClient{
-		delegate:     b.delegatingClient,
+		delegate:     b.getClient(),
 		errorRecords: b.errorRecords,
 	}
+}
+
+func (b *TestClientBuilder) getClient() client.Client {
+	var cl client.Client
+	if b.delegatingClient != nil {
+		cl = b.delegatingClient
+	} else {
+		if b.scheme != nil {
+			b.delegatingClientBuilder.WithScheme(b.scheme)
+		}
+		cl = b.delegatingClientBuilder.Build()
+	}
+	return cl
 }
 
 // testClient is a client.Client implementation which reacts to the configured errors.

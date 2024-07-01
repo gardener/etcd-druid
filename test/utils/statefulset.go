@@ -5,7 +5,6 @@
 package utils
 
 import (
-	"context"
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -17,31 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-func IsStatefulSetCorrectlyReconciled(ctx context.Context, c client.Client, instance *druidv1alpha1.Etcd, ss *appsv1.StatefulSet) (bool, error) {
-	if err := c.Get(ctx, client.ObjectKeyFromObject(instance), ss); err != nil {
-		return false, err
-	}
-	if metav1.IsControlledBy(ss, instance) {
-		return true, nil
-	}
-	return false, nil
-}
-
-// SetStatefulSetReady updates the status sub-resource of the passed in StatefulSet with ObservedGeneration, Replicas and ReadyReplicas
-// ensuring that the StatefulSet ready check will succeed.
-func SetStatefulSetReady(s *appsv1.StatefulSet) {
-	s.Status.ObservedGeneration = s.Generation
-
-	replicas := int32(1)
-	if s.Spec.Replicas != nil {
-		replicas = *s.Spec.Replicas
-	}
-	s.Status.Replicas = replicas
-	s.Status.ReadyReplicas = replicas
-}
 
 // CreateStatefulSet creates a statefulset with its owner reference set to etcd.
 func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32) *appsv1.StatefulSet {
