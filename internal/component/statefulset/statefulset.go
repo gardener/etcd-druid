@@ -17,6 +17,7 @@ import (
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -97,23 +98,23 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 			fmt.Sprintf("Error checking and patching StatefulSet pods with new labels for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 
-	// check if pods have been updated with new labels and become ready.
-	podsUpdatedAndReady, err := r.areStatefulSetPodsUpdatedAndReady(ctx, etcd, sts)
+	// check if pods have been updated with new labels.
+	podsHaveDesiredLabels, err := r.doStatefulSetPodsHaveDesiredLabels(ctx, etcd, sts)
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrPreSyncStatefulSet,
 			"PreSync",
 			fmt.Sprintf("Error checking if StatefulSet pods are updated for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
-	if !podsUpdatedAndReady {
-		errMessage := fmt.Sprintf("StatefulSet pods are not yet updated with new pod labels and ready, for StatefulSet: %v for etcd: %v", getObjectKey(sts.ObjectMeta), druidv1alpha1.GetNamespaceName(etcd.ObjectMeta))
+	if !podsHaveDesiredLabels {
+		errMessage := fmt.Sprintf("StatefulSet pods are not yet updated with new labels, for StatefulSet: %v for etcd: %v", getObjectKey(sts.ObjectMeta), druidv1alpha1.GetNamespaceName(etcd.ObjectMeta))
 		return druiderr.WrapError(fmt.Errorf(errMessage),
 			druiderr.ErrRequeueAfter,
 			"PreSync",
 			errMessage,
 		)
 	} else {
-		ctx.Logger.Info("StatefulSet pods are updated with new pod labels and ready", "objectKey", getObjectKey(etcd.ObjectMeta))
+		ctx.Logger.Info("StatefulSet pods are updated with new labels", "objectKey", getObjectKey(etcd.ObjectMeta))
 	}
 
 	// if sts label selector needs to be changed, then delete the statefulset, but keeping the pods intact.
@@ -282,25 +283,18 @@ func getDesiredPodTemplateLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	return utils.MergeMaps(etcd.Spec.Labels, getStatefulSetLabels(etcd.Name))
 }
 
-func (r _resource) areStatefulSetPodsUpdatedAndReady(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) (bool, error) {
-	if err := r.client.Get(ctx, getObjectKey(sts.ObjectMeta), sts); err != nil {
-		return false, err
-	}
-	desiredPodTemplateLabels := getDesiredPodTemplateLabels(etcd)
-	if !utils.ContainsAllDesiredLabels(sts.Spec.Template.Labels, desiredPodTemplateLabels) {
-		return false, nil
-	}
-	if sts.Status.ObservedGeneration < sts.Generation {
-		return false, nil
-	}
-	if sts.Status.UpdateRevision != sts.Status.CurrentRevision {
-		return false, nil
-	}
-	if sts.Spec.Replicas != nil && sts.Status.UpdatedReplicas != *sts.Spec.Replicas {
-		return false, nil
-	}
-	if sts.Spec.Replicas != nil && sts.Status.ReadyReplicas < *sts.Spec.Replicas {
-		return false, nil
+func (r _resource) doStatefulSetPodsHaveDesiredLabels(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) (bool, error) {
+	// sts.spec.replicas is more accurate than Etcd.spec.replicas, specifically when
+	// Etcd.spec.replicas is updated but not yet reflected in the etcd cluster
+	podNames := druidv1alpha1.GetAllPodNames(etcd.ObjectMeta, *sts.Spec.Replicas)
+	for _, podName := range podNames {
+		pod := &corev1.Pod{}
+		if err := r.client.Get(ctx, client.ObjectKey{Name: podName, Namespace: etcd.Namespace}, pod); err != nil {
+			return false, err
+		}
+		if !utils.ContainsAllDesiredLabels(pod.Labels, getDesiredPodTemplateLabels(etcd)) {
+			return false, nil
+		}
 	}
 	return true, nil
 }
