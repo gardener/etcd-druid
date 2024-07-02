@@ -3,20 +3,20 @@
 ## Quorum loss in Etcd Cluster
 [Quorum loss](https://etcd.io/docs/v3.4/op-guide/recovery/) means when the majority of Etcd pods (greater than or equal to n/2 + 1) are down simultaneously for some reason.
 
-There are two types of quorum loss that can happen to [Etcd multinode cluster](https://github.com/gardener/etcd-druid/tree/master/docs/proposals/multi-node) :
+There are two types of quorum loss that can happen to an [Etcd multinode cluster](../proposals/01-multi-node-etcd-clusters.md):
 
-1. **Transient quorum loss** - A quorum loss is called transient when the majority of Etcd pods are down simultaneously for some time. The pods may be down due to network unavailability, high resource usages etc. When the pods come back after some time, they can re-join the cluster and quorum is recovered automatically without any manual intervention. There should not be a permanent failure for the majority of etcd pods due to hardware failure or disk corruption.
+1. **Transient quorum loss** - A quorum loss is called transient when the majority of Etcd pods are down simultaneously for some time. The pods may be down due to network unavailability, high resource usages, etc. When the pods come back after some time, they can re-join the cluster and quorum is recovered automatically without any manual intervention. There should not be a permanent failure for the majority of etcd pods due to hardware failure or disk corruption.
 
-2. **Permanent quorum loss** - A quorum loss is called permanent when the majority of Etcd cluster members experience permanent failure, whether due to hardware failure or disk corruption etc. then the etcd cluster is not going to recover automatically from the quorum loss. A human operator will now need to intervene and execute the following steps to recover the multi-node Etcd cluster.
+2. **Permanent quorum loss** - A quorum loss is called permanent when the majority of Etcd cluster members experience permanent failure, whether due to hardware failure or disk corruption, etc. In that case, the etcd cluster is not going to recover automatically from the quorum loss. A human operator will now need to intervene and execute the following steps to recover the multi-node Etcd cluster.
 
-If permanent quorum loss occurs to a multinode Etcd cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs, etc. related to that Etcd cluster and work on those resources only. Following steps guide a human operator to recover from permanent quorum loss of an etcd cluster. We assume the name of the Etcd CR for the Etcd cluster is `etcd-main`.
+If permanent quorum loss occurs to a multinode Etcd cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs, etc. related to that Etcd cluster and work on those resources only. The following steps guide a human operator to recover from permanent quorum loss of an etcd cluster. We assume the name of the Etcd CR for the Etcd cluster is `etcd-main`.
 
 **Etcd cluster in shoot control plane of gardener deployment:**
-There are two [Etcd clusters](https://github.com/gardener/etcd-druid/tree/master/docs/proposals/multi-node) running in shoot control plane. One is named as `etcd-events` and another is named `etcd-main`. The operator needs to take care of permanent quorum loss to a specific cluster. If permanent quorum loss occurs to `etcd-events` cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs, etc. related to `etcd-events` cluster and work on those resources only.
+There are two [Etcd clusters](../proposals/01-multi-node-etcd-clusters.md) running in the shoot control plane. One is named `etcd-events` and another is named `etcd-main`. The operator needs to take care of permanent quorum loss to a specific cluster. If permanent quorum loss occurs to `etcd-events` cluster, the operator needs to note down the PVCs, configmaps, statefulsets, CRs, etc. related to the `etcd-events` cluster and work on those resources only.
 
 :warning: **Note:** Please note that manually restoring etcd can result in data loss. This guide is the last resort to bring an Etcd cluster up and running again.
 
-If etcd-druid and etcd-backup-restore is being used with gardener, then
+If etcd-druid and etcd-backup-restore is being used with gardener, then:
 
 Target the control plane of affected shoot cluster via `kubectl`. Alternatively, you can use [gardenctl](https://github.com/gardener/gardenctl-v2) to target the control plane of the affected shoot cluster. You can get the details to target the control plane from the Access tile in the shoot cluster details page on the Gardener dashboard. Ensure that you are targeting the correct namespace.
 
@@ -43,7 +43,7 @@ Target the control plane of affected shoot cluster via `kubectl`. Alternatively,
 
     `kubectl scale sts etcd-main --replicas=0`
 
-4. The PVCs will look like the following on listing them with the command `kubectl get pvc` :
+4. The PVCs will look like the following on listing them with the command `kubectl get pvc`:
 
     ```
     main-etcd-etcd-main-0        Bound    pv-shoot--garden--aws-ha-dcb51848-49fa-4501-b2f2-f8d8f1fad111   80Gi       RWO            gardener.cloud-fast   13d
@@ -56,7 +56,7 @@ Target the control plane of affected shoot cluster via `kubectl`. Alternatively,
 
 5. Check the etcd's member leases. There should be leases starting with `etcd-main` as many as `etcd-main` replicas.
     One of those leases will have holder identity as `<etcd-member-id>:Leader` and rest of etcd member leases have holder identities as `<etcd-member-id>:Member`.
-    Please ignore the snapshot leases i.e. those leases which have suffix `snap`.
+    Please ignore the snapshot leases, i.e., those leases which have the suffix `snap`.
 
     etcd-main member leases:
       ```
@@ -83,7 +83,7 @@ Target the control plane of affected shoot cluster via `kubectl`. Alternatively,
       initial-cluster: etcd-main-0=https://etcd-main-0.etcd-main-peer.default.svc:2380
     ```
 
-7. Scale up the `etcd-main` statefulset replicas to `1`
+7. Scale up the `etcd-main` statefulset replicas to `1`:
 
     `kubectl scale sts etcd-main --replicas=1`
 
@@ -114,7 +114,7 @@ Target the control plane of affected shoot cluster via `kubectl`. Alternatively,
     etcd-main-1   2/2     Running   0          1m
     etcd-main-2   2/2     Running   0          1m
     ```
-    Additionally, check if the Etcd CR is ready with `kubectl get etcd etcd-main` :
+    Additionally, check if the Etcd CR is ready with `kubectl get etcd etcd-main`:
     ```
     NAME        READY   AGE
     etcd-main   true    13d

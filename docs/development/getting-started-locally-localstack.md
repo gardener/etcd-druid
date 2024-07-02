@@ -11,7 +11,7 @@ This guide provides step-by-step instructions on how to set up etcd-druid with [
 
 ### Step 1: Provision the Kind Cluster
 
-Execute the command below to provision a `kind` cluster. This command also forwards port `4566` from the [kind cluster](hack/e2e-test/infrastructure/kind/cluster.yaml) to your local machine, enabling LocalStack access:
+Execute the command below to provision a `kind` cluster. This command also forwards port `4566` from the [kind cluster](.././../hack/e2e-test/infrastructure/kind/cluster.yaml) to your local machine, enabling LocalStack access:
 
 ```bash
 make kind-up

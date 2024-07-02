@@ -15,29 +15,43 @@ reviewers:
 
 ## Table of Contents
 
-* [DEP-05: Operator Out-of-band Tasks](#dep-05-operator-out-of-band-tasks)
-  * [Table of Contents](#table-of-contents)
-  * [Summary](#summary)
-  * [Terminology](#terminology)
-  * [Motivation](#motivation)
-  * [Goals](#goals)
-  * [Non-Goals](#non-goals)
-  * [Proposal](#proposal)
-    * [Custom Resource Golang API](#custom-resource-golang-api)
-      * [Spec](#spec)
-      * [Status](#status)
-    * [Custom Resource YAML API](#custom-resource-yaml-api)
-    * [Lifecycle](#lifecycle)
-      * [Creation](#creation)
-      * [Execution](#execution)
-      * [Deletion](#deletion)
-    * [Use cases](#use-cases)
-      * [Recovery from permanent quorum loss](#recovery-from-permanent-quorum-loss)
-      * [Trigger on-demand snapshot compaction](#trigger-on-demand-snapshot-compaction)
-      * [Trigger on-demand full/delta snapshot](#trigger-on-demand-fulldelta-snapshot)
-      * [Trigger on-demand maintenance of etcd cluster](#trigger-on-demand-maintenance-of-etcd-cluster)
-      * [Copy Backups Task](#copy-backups-task)
-  * [Metrics](#metrics)
+- [DEP-05: Operator Out-of-band Tasks](#dep-05-operator-out-of-band-tasks)
+  - [Table of Contents](#table-of-contents)
+  - [Summary](#summary)
+  - [Terminology](#terminology)
+  - [Motivation](#motivation)
+  - [Goals](#goals)
+  - [Non-Goals](#non-goals)
+  - [Proposal](#proposal)
+    - [Custom Resource Golang API](#custom-resource-golang-api)
+      - [Spec](#spec)
+      - [Status](#status)
+    - [Custom Resource YAML API](#custom-resource-yaml-api)
+    - [Lifecycle](#lifecycle)
+      - [Creation](#creation)
+      - [Execution](#execution)
+      - [Deletion](#deletion)
+    - [Use Cases](#use-cases)
+      - [Recovery from permanent quorum loss](#recovery-from-permanent-quorum-loss)
+        - [Task Config](#task-config)
+        - [Pre-Conditions](#pre-conditions)
+      - [Trigger on-demand snapshot compaction](#trigger-on-demand-snapshot-compaction)
+        - [Possible scenarios](#possible-scenarios)
+        - [Task Config](#task-config-1)
+        - [Pre-Conditions](#pre-conditions-1)
+      - [Trigger on-demand full/delta snapshot](#trigger-on-demand-fulldelta-snapshot)
+        - [Possible scenarios](#possible-scenarios-1)
+        - [Task Config](#task-config-2)
+        - [Pre-Conditions](#pre-conditions-2)
+      - [Trigger on-demand maintenance of etcd cluster](#trigger-on-demand-maintenance-of-etcd-cluster)
+        - [Possible Scenarios](#possible-scenarios-2)
+        - [Task Config](#task-config-3)
+        - [Pre-Conditions](#pre-conditions-3)
+      - [Copy Backups Task](#copy-backups-task)
+        - [Possible Scenarios](#possible-scenarios-3)
+        - [Task Config](#task-config-4)
+        - [Pre-Conditions](#pre-conditions-4)
+  - [Metrics](#metrics)
 
 ## Summary
 
@@ -278,7 +292,7 @@ We do not need any config for this task. When creating an instance of `EtcdOpera
 
 #### Trigger on-demand full/delta snapshot
 
-`Etcd` custom resource provides an ability to set [FullSnapshotSchedule](https://github.com/gardener/etcd-druid/blob/master/api/v1alpha1/types_etcd.go#L158) which currently defaults to run once in 24 hrs. [DeltaSnapshotPeriod](https://github.com/gardener/etcd-druid/blob/master/api/v1alpha1/types_etcd.go#L171) is also made configurable which defines the duration after which a delta snapshot will be taken.
+`Etcd` custom resource provides an ability to set [FullSnapshotSchedule](https://github.com/gardener/etcd-druid/blob/master/api/v1alpha1/etcd.go#L158) which currently defaults to run once in 24 hrs. [DeltaSnapshotPeriod](https://github.com/gardener/etcd-druid/blob/master/api/v1alpha1/types_etcd.go#L171) is also made configurable which defines the duration after which a delta snapshot will be taken.
 If a human operator does not wish to wait for the scheduled full/delta snapshot, they can trigger an on-demand (out-of-schedule) full/delta snapshot on the etcd cluster, which will be taken by the `leading-backup-restore`.
 
 ##### Possible scenarios
