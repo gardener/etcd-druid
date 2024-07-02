@@ -90,6 +90,7 @@ test: $(GINKGO) $(GOTESTFMT)
 	./internal/controller/etcd/... \
 	./internal/controller/compaction/... \
 	./internal/component/... \
+	./internal/errors/... \
 	./internal/store/... \
 	./internal/utils/... \
 	./internal/webhook/...
