@@ -59,7 +59,7 @@ func TestEtcdReconcileSpecWithNoAutoReconcile(t *testing.T) {
 		{"should create all managed resources when etcd resource is created", testAllManagedResourcesAreCreated},
 		{"should succeed only in creation of some resources and not all and should record error in lastErrors and lastOperation", testFailureToCreateAllResources},
 		{"should not reconcile spec when reconciliation is suspended", testWhenReconciliationIsSuspended},
-		{"should not reconcile upon etcd spec updation when no reconcile operation annotation is set", testEtcdSpecUpdateWhenNoReconcileOperationAnnotationIsSet},
+		{"should not reconcile upon etcd spec update when no reconcile operation annotation is set", testEtcdSpecUpdateWhenNoReconcileOperationAnnotationIsSet},
 		{"should reconcile upon etcd spec update when reconcile operation annotation is set", testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet},
 	}
 	g := NewWithT(t)
@@ -421,10 +421,11 @@ func testConditionsAndMembersWhenAllMemberLeasesAreActive(t *testing.T, etcd *dr
 	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
 	testNs := etcd.Namespace
 	clock := testclock.NewFakeClock(time.Now().Round(time.Second))
+	g := NewWithT(t)
 	mlcs := []etcdMemberLeaseConfig{
-		{name: memberLeaseNames[0], memberID: generateRandomAlphanumericString(t, 8), role: druidv1alpha1.EtcdRoleMember, renewTime: &metav1.MicroTime{Time: clock.Now().Add(-time.Second * 30)}},
-		{name: memberLeaseNames[1], memberID: generateRandomAlphanumericString(t, 8), role: druidv1alpha1.EtcdRoleLeader, renewTime: &metav1.MicroTime{Time: clock.Now()}},
-		{name: memberLeaseNames[2], memberID: generateRandomAlphanumericString(t, 8), role: druidv1alpha1.EtcdRoleMember, renewTime: &metav1.MicroTime{Time: clock.Now().Add(-time.Second * 30)}},
+		{name: memberLeaseNames[0], memberID: testutils.GenerateRandomAlphanumericString(g, 8), role: druidv1alpha1.EtcdRoleMember, renewTime: &metav1.MicroTime{Time: clock.Now().Add(-time.Second * 30)}},
+		{name: memberLeaseNames[1], memberID: testutils.GenerateRandomAlphanumericString(g, 8), role: druidv1alpha1.EtcdRoleLeader, renewTime: &metav1.MicroTime{Time: clock.Now()}},
+		{name: memberLeaseNames[2], memberID: testutils.GenerateRandomAlphanumericString(g, 8), role: druidv1alpha1.EtcdRoleMember, renewTime: &metav1.MicroTime{Time: clock.Now().Add(-time.Second * 30)}},
 	}
 	updateMemberLeaseSpec(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
 	// ******************************* test etcd status update flow *******************************
@@ -455,7 +456,7 @@ func testEtcdStatusReflectsPVCErrorEvent(t *testing.T, etcd *druidv1alpha1.Etcd,
 	pvcs := createPVCs(ctx, t, cl, sts)
 	// create the pvc warning event for one of the pvc
 	targetPvc := pvcs[0]
-	targetPVName := fmt.Sprintf("pv-%s", generateRandomAlphanumericString(t, 16))
+	targetPVName := fmt.Sprintf("pv-%s", testutils.GenerateRandomAlphanumericString(g, 16))
 	const eventReason = "FailedAttachVolume"
 	eventMessage := fmt.Sprintf("Multi-Attach error for volume %s. Volume is already exclusively attached to one node and can't be attached to another", targetPVName)
 	createPVCWarningEvent(ctx, t, cl, testNs, targetPvc.Name, eventReason, eventMessage)
@@ -478,7 +479,7 @@ func testEtcdStatusIsInSyncWithStatefulSetStatusWhenAllReplicasAreReady(t *testi
 	stsCopy.Status.CurrentReplicas = stsReplicas
 	stsCopy.Status.Replicas = stsReplicas
 	stsCopy.Status.ObservedGeneration = stsCopy.Generation
-	stsCopy.Status.CurrentRevision = fmt.Sprintf("%s-%s", sts.Name, generateRandomAlphanumericString(t, 2))
+	stsCopy.Status.CurrentRevision = fmt.Sprintf("%s-%s", sts.Name, testutils.GenerateRandomAlphanumericString(g, 2))
 	stsCopy.Status.UpdateRevision = stsCopy.Status.CurrentRevision
 	stsCopy.Status.UpdatedReplicas = stsReplicas
 	g.Expect(cl.Status().Update(ctx, stsCopy)).To(Succeed())
@@ -498,7 +499,7 @@ func testEtcdStatusIsInSyncWithStatefulSetStatusWhenNotAllReplicasAreReady(t *te
 	stsCopy.Status.CurrentReplicas = stsReplicas
 	stsCopy.Status.Replicas = stsReplicas
 	stsCopy.Status.ObservedGeneration = stsCopy.Generation
-	stsCopy.Status.CurrentRevision = fmt.Sprintf("%s-%s", sts.Name, generateRandomAlphanumericString(t, 2))
+	stsCopy.Status.CurrentRevision = fmt.Sprintf("%s-%s", sts.Name, testutils.GenerateRandomAlphanumericString(g, 2))
 	stsCopy.Status.UpdateRevision = stsCopy.Status.CurrentRevision
 	stsCopy.Status.UpdatedReplicas = stsReplicas
 	g.Expect(cl.Status().Update(ctx, stsCopy)).To(Succeed())
@@ -518,8 +519,8 @@ func testEtcdStatusIsInSyncWithStatefulSetStatusWhenCurrentRevisionIsOlderThanUp
 	stsCopy.Status.CurrentReplicas = stsReplicas
 	stsCopy.Status.Replicas = stsReplicas
 	stsCopy.Status.ObservedGeneration = stsCopy.Generation
-	stsCopy.Status.CurrentRevision = fmt.Sprintf("%s-%s", sts.Name, generateRandomAlphanumericString(t, 2))
-	stsCopy.Status.UpdateRevision = fmt.Sprintf("%s-%s", sts.Name, generateRandomAlphanumericString(t, 2))
+	stsCopy.Status.CurrentRevision = fmt.Sprintf("%s-%s", sts.Name, testutils.GenerateRandomAlphanumericString(g, 2))
+	stsCopy.Status.UpdateRevision = fmt.Sprintf("%s-%s", sts.Name, testutils.GenerateRandomAlphanumericString(g, 2))
 	stsCopy.Status.UpdatedReplicas = stsReplicas - 1
 	g.Expect(cl.Status().Update(ctx, stsCopy)).To(Succeed())
 	// assert etcd status

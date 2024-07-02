@@ -58,6 +58,14 @@ var _ = Describe("Check", func() {
 						Reason:             "foobar reason",
 						Message:            "foobar message",
 					},
+					{
+						Type:               druidv1alpha1.ConditionTypeDataVolumesReady,
+						Status:             druidv1alpha1.ConditionUnknown,
+						LastTransitionTime: metav1.NewTime(timeBefore),
+						LastUpdateTime:     metav1.NewTime(timeBefore),
+						Reason:             "foobar reason",
+						Message:            "foobar message",
+					},
 				},
 				Members: []druidv1alpha1.EtcdMemberStatus{
 					{
@@ -142,6 +150,14 @@ var _ = Describe("Check", func() {
 				}),
 				MatchFields(IgnoreExtras, Fields{
 					"Type":               Equal(druidv1alpha1.ConditionTypeBackupReady),
+					"Status":             Equal(druidv1alpha1.ConditionUnknown),
+					"LastTransitionTime": Equal(metav1.NewTime(timeBefore)),
+					"LastUpdateTime":     Equal(metav1.NewTime(timeNow)),
+					"Reason":             Equal("foobar reason"),
+					"Message":            Equal("foobar message"),
+				}),
+				MatchFields(IgnoreExtras, Fields{
+					"Type":               Equal(druidv1alpha1.ConditionTypeDataVolumesReady),
 					"Status":             Equal(druidv1alpha1.ConditionUnknown),
 					"LastTransitionTime": Equal(metav1.NewTime(timeBefore)),
 					"LastUpdateTime":     Equal(metav1.NewTime(timeNow)),

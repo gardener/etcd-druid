@@ -15,7 +15,6 @@ import (
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
 	"k8s.io/utils/pointer"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 )
 
@@ -354,8 +353,7 @@ func createReconciler(t *testing.T, enableEtcdSpecAutoReconcile bool) *Reconcile
 	g := NewWithT(t)
 	mockCtrl := gomock.NewController(t)
 	mgr := mockmanager.NewMockManager(mockCtrl)
-	fakeClient := fake.NewClientBuilder().Build()
-	mgr.EXPECT().GetClient().AnyTimes().Return(testutils.NewTestClientBuilder().WithClient(fakeClient).Build())
+	mgr.EXPECT().GetClient().AnyTimes().Return(testutils.NewTestClientBuilder().Build())
 	mgr.EXPECT().GetEventRecorderFor(gomock.Any()).AnyTimes().Return(nil)
 	etcdConfig := Config{
 		EnableEtcdSpecAutoReconcile: enableEtcdSpecAutoReconcile,

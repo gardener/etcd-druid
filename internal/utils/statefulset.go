@@ -40,7 +40,9 @@ func IsStatefulSetReady(etcdReplicas int32, statefulSet *appsv1.StatefulSet) (bo
 	return true, ""
 }
 
-// GetStatefulSet fetches StatefulSet created for the etcd.
+// GetStatefulSet fetches StatefulSet created for the etcd. Nil will be returned if one of these conditions are met:
+// - StatefulSet is not found
+// - StatefulSet is not controlled by the etcd
 func GetStatefulSet(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSet, error) {
 	sts := &appsv1.StatefulSet{}
 	if err := cl.Get(ctx, client.ObjectKey{Name: druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta), Namespace: etcd.Namespace}, sts); err != nil {

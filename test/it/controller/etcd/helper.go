@@ -6,8 +6,6 @@ package etcd
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"strconv"
 	"testing"
@@ -36,16 +34,9 @@ import (
 const testNamespacePrefix = "etcd-reconciler-test-"
 
 func createTestNamespaceName(t *testing.T) string {
-	namespaceSuffix := generateRandomAlphanumericString(t, 4)
-	return fmt.Sprintf("%s-%s", testNamespacePrefix, namespaceSuffix)
-}
-
-func generateRandomAlphanumericString(t *testing.T, length int) string {
-	b := make([]byte, length)
-	_, err := rand.Read(b)
 	g := NewWithT(t)
-	g.Expect(err).ToNot(HaveOccurred())
-	return hex.EncodeToString(b)
+	namespaceSuffix := testutils.GenerateRandomAlphanumericString(g, 4)
+	return fmt.Sprintf("%s-%s", testNamespacePrefix, namespaceSuffix)
 }
 
 func initializeEtcdReconcilerTestEnv(t *testing.T, itTestEnv setup.IntegrationTestEnv, autoReconcile bool, clientBuilder *testutils.TestClientBuilder) ReconcilerTestEnv {
@@ -110,7 +101,7 @@ func updateAndGetStsRevision(ctx context.Context, t *testing.T, cl client.Client
 	sts.Status.Replicas = etcdInstance.Spec.Replicas
 	sts.Status.ReadyReplicas = etcdInstance.Spec.Replicas
 	sts.Status.UpdatedReplicas = etcdInstance.Spec.Replicas
-	revision := fmt.Sprintf("%s-%s", sts.Name, generateRandomAlphanumericString(t, 4))
+	revision := fmt.Sprintf("%s-%s", sts.Name, testutils.GenerateRandomAlphanumericString(g, 4))
 	sts.Status.CurrentRevision = revision
 	sts.Status.UpdateRevision = revision
 	g.Expect(cl.Status().Patch(ctx, sts, client.MergeFrom(originalSts))).To(Succeed())

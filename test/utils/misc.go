@@ -5,10 +5,12 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"maps"
-	"os"
 
 	. "github.com/onsi/gomega"
+
 	. "github.com/onsi/gomega/gstruct"
 	gomegatypes "github.com/onsi/gomega/types"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -33,24 +35,6 @@ func ParseQuantity(q string) resource.Quantity {
 	return val
 }
 
-// SwitchDirectory sets the working directory and returns a function to revert to the previous one.
-func SwitchDirectory(path string) func() {
-	oldPath, err := os.Getwd()
-	if err != nil {
-		Expect(err).NotTo(HaveOccurred())
-	}
-
-	if err := os.Chdir(path); err != nil {
-		Expect(err).NotTo(HaveOccurred())
-	}
-
-	return func() {
-		if err := os.Chdir(oldPath); err != nil {
-			Expect(err).NotTo(HaveOccurred())
-		}
-	}
-}
-
 // MergeMaps merges the contents of maps. All maps will be processed in the order
 // in which they are sent. For overlapping keys across source maps, value in the merged map
 // for this key will be from the last occurrence of the key-value.
@@ -71,4 +55,12 @@ func TypeDeref[T any](val *T, defaultVal T) T {
 		return *val
 	}
 	return defaultVal
+}
+
+// GenerateRandomAlphanumericString generates a random alphanumeric string of the given length.
+func GenerateRandomAlphanumericString(g *WithT, length int) string {
+	b := make([]byte, length)
+	_, err := rand.Read(b)
+	g.Expect(err).ToNot(HaveOccurred())
+	return hex.EncodeToString(b)
 }

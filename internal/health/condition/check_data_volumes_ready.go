@@ -12,7 +12,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils"
 
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -27,7 +26,7 @@ func (d *dataVolumesReady) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 	}
 
 	sts, err := utils.GetStatefulSet(ctx, d.cl, &etcd)
-	if errors.IsNotFound(err) || sts == nil {
+	if sts == nil && err == nil {
 		res.reason = "StatefulSetNotFound"
 		res.message = fmt.Sprintf("StatefulSet %s not found for etcd", etcd.Name)
 		return res

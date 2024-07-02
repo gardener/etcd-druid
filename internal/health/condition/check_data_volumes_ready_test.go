@@ -9,16 +9,13 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/health/condition"
-	mockclient "github.com/gardener/etcd-druid/internal/mock/controller-runtime/client"
-	"go.uber.org/mock/gomock"
-
+	testutils "github.com/gardener/etcd-druid/test/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -26,9 +23,6 @@ import (
 var _ = Describe("DataVolumesReadyCheck", func() {
 	Describe("#Check", func() {
 		var (
-			mockCtrl *gomock.Controller
-			cl       *mockclient.MockClient
-
 			notFoundErr = apierrors.StatusError{
 				ErrStatus: metav1.Status{
 					Reason: metav1.StatusReasonNotFound,
@@ -85,9 +79,10 @@ var _ = Describe("DataVolumesReadyCheck", func() {
 					Namespace: "default",
 				},
 				InvolvedObject: corev1.ObjectReference{
-					Kind:      "PersistentVolumeClaim",
-					Name:      "test-pvc",
-					Namespace: "default",
+					APIVersion: "v1",
+					Kind:       "PersistentVolumeClaim",
+					Name:       "test-test-0",
+					Namespace:  "default",
 				},
 				Reason:  "FailedMount",
 				Message: "MountVolume.SetUp failed for volume \"test-pvc\" : kubernetes.io/csi: mounter.SetUpAt failed to get CSI client: driver name csi.gardener.cloud not found in the list of registered CSI drivers",
@@ -95,25 +90,9 @@ var _ = Describe("DataVolumesReadyCheck", func() {
 			}
 		)
 
-		BeforeEach(func() {
-			mockCtrl = gomock.NewController(GinkgoT())
-			cl = mockclient.NewMockClient(mockCtrl)
-		})
-
-		AfterEach(func() {
-			mockCtrl.Finish()
-		})
-
 		Context("when error in fetching statefulset", func() {
 			It("should return that the condition is unknown", func() {
-				cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any()).DoAndReturn(
-					func(_ context.Context, stsList *appsv1.StatefulSetList, _ ...client.ListOption) error {
-						*stsList = appsv1.StatefulSetList{
-							Items: []appsv1.StatefulSet{},
-						}
-						return &internalErr
-					}).AnyTimes()
-
+				cl := testutils.CreateTestFakeClientForObjects(&internalErr, nil, nil, nil, []client.Object{sts}, client.ObjectKeyFromObject(sts))
 				check := condition.DataVolumesReadyCheck(cl)
 				result := check.Check(context.Background(), etcd)
 
@@ -125,14 +104,7 @@ var _ = Describe("DataVolumesReadyCheck", func() {
 
 		Context("when statefulset not found", func() {
 			It("should return that the condition is unknown", func() {
-				cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any()).DoAndReturn(
-					func(_ context.Context, stsList *appsv1.StatefulSetList, _ ...client.ListOption) error {
-						*stsList = appsv1.StatefulSetList{
-							Items: []appsv1.StatefulSet{},
-						}
-						return &notFoundErr
-					}).AnyTimes()
-
+				cl := testutils.CreateTestFakeClientForObjects(&notFoundErr, nil, nil, nil, nil, client.ObjectKeyFromObject(sts))
 				check := condition.DataVolumesReadyCheck(cl)
 				result := check.Check(context.Background(), etcd)
 
@@ -144,18 +116,10 @@ var _ = Describe("DataVolumesReadyCheck", func() {
 
 		Context("when error in fetching warning events for PVCs", func() {
 			It("should return that the condition is unknown", func() {
-				cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any()).DoAndReturn(
-					func(_ context.Context, stsList *appsv1.StatefulSetList, _ ...client.ListOption) error {
-						*stsList = appsv1.StatefulSetList{
-							Items: []appsv1.StatefulSet{*sts},
-						}
-						return nil
-					}).AnyTimes()
-
-				cl.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectList, _ ...client.ListOption) error {
-						return &internalErr
-					}).AnyTimes()
+				cl := testutils.NewTestClientBuilder().
+					WithObjects(sts, pvc).
+					RecordErrorForObjectsWithGVK(testutils.ClientMethodList, etcd.Namespace, corev1.SchemeGroupVersion.WithKind("EventList"), &internalErr).
+					Build()
 
 				check := condition.DataVolumesReadyCheck(cl)
 				result := check.Check(context.Background(), etcd)
@@ -168,34 +132,7 @@ var _ = Describe("DataVolumesReadyCheck", func() {
 
 		Context("when warning events found for PVCs", func() {
 			It("should return that the condition is false", func() {
-				cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any()).DoAndReturn(
-					func(_ context.Context, stsList *appsv1.StatefulSetList, _ ...client.ListOption) error {
-						*stsList = appsv1.StatefulSetList{
-							Items: []appsv1.StatefulSet{*sts},
-						}
-						return nil
-					}).AnyTimes()
-
-				cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PersistentVolumeClaimList{}), gomock.Any()).DoAndReturn(
-					func(_ context.Context, pvcs *corev1.PersistentVolumeClaimList, _ ...client.ListOption) error {
-						*pvcs = corev1.PersistentVolumeClaimList{
-							Items: []corev1.PersistentVolumeClaim{*pvc},
-						}
-						return nil
-					}).AnyTimes()
-
-				scheme := runtime.NewScheme()
-				Expect(corev1.AddToScheme(scheme)).To(Succeed())
-				cl.EXPECT().Scheme().Return(scheme).AnyTimes()
-
-				cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.EventList{}), gomock.Any()).DoAndReturn(
-					func(_ context.Context, eventsList *corev1.EventList, _ ...client.ListOption) error {
-						*eventsList = corev1.EventList{
-							Items: []corev1.Event{*event},
-						}
-						return nil
-					}).AnyTimes()
-
+				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, []client.Object{sts, pvc, event}, client.ObjectKeyFromObject(sts), client.ObjectKeyFromObject(pvc), client.ObjectKeyFromObject(event))
 				check := condition.DataVolumesReadyCheck(cl)
 				result := check.Check(context.Background(), etcd)
 
@@ -207,34 +144,7 @@ var _ = Describe("DataVolumesReadyCheck", func() {
 
 		Context("when no warning events found for PVCs", func() {
 			It("should return that the condition is true", func() {
-				cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any()).DoAndReturn(
-					func(_ context.Context, stsList *appsv1.StatefulSetList, _ ...client.ListOption) error {
-						*stsList = appsv1.StatefulSetList{
-							Items: []appsv1.StatefulSet{*sts},
-						}
-						return nil
-					}).AnyTimes()
-
-				cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PersistentVolumeClaimList{}), gomock.Any()).DoAndReturn(
-					func(_ context.Context, pvcs *corev1.PersistentVolumeClaimList, _ ...client.ListOption) error {
-						*pvcs = corev1.PersistentVolumeClaimList{
-							Items: []corev1.PersistentVolumeClaim{*pvc},
-						}
-						return nil
-					}).AnyTimes()
-
-				scheme := runtime.NewScheme()
-				Expect(corev1.AddToScheme(scheme)).To(Succeed())
-				cl.EXPECT().Scheme().Return(scheme).AnyTimes()
-
-				cl.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.EventList{}), gomock.Any()).DoAndReturn(
-					func(_ context.Context, eventsList *corev1.EventList, _ ...client.ListOption) error {
-						*eventsList = corev1.EventList{
-							Items: []corev1.Event{},
-						}
-						return nil
-					}).AnyTimes()
-
+				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, []client.Object{sts, pvc}, client.ObjectKeyFromObject(sts), client.ObjectKeyFromObject(pvc))
 				check := condition.DataVolumesReadyCheck(cl)
 				result := check.Check(context.Background(), etcd)
 
