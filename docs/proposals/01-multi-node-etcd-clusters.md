@@ -174,7 +174,7 @@ It is simpler to setup and manage a single-node etcd cluster.
 
 The disadvantages of using single-node etcd clusters are given below.
 
-- The [database verification](https://github.com/gardener/etcd-backup-restore/blob/master/doc/proposals/design.md#workflow) step by `etcd-backup-restore` can introduce additional delays whenever etcd container/pod restarts (in total ~`20-25s`).
+- The [database verification](https://github.com/gardener/etcd-backup-restore/blob/master/docs/proposals/design.md#workflow) step by `etcd-backup-restore` can introduce additional delays whenever etcd container/pod restarts (in total ~`20-25s`).
 This can be much longer if a database restoration is required.
 Especially, if there are incremental snapshots that need to be replayed (this can be mitigated by [compacting the incremental snapshots in the background](https://github.com/gardener/etcd-druid/issues/88)).
 - Kubernetes control-plane components can go into `CrashloopBackoff` if etcd is down for some time. This is mitigated by the [dependency-watchdog](https://github.com/gardener/gardener/blob/9e4a809008fb122a6d02045adc08b9c98b5cd564/charts/seed-bootstrap/charts/dependency-watchdog/templates/endpoint-configmap.yaml#L29-L41).
