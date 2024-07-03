@@ -73,7 +73,6 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	var errs error
 
 	for i, objKey := range objectKeys {
-		objKey := objKey // capture the range variable
 		createTasks[i] = utils.OperatorTask{
 			Name: "CreateOrUpdate-" + objKey.String(),
 			Fn: func(ctx component.OperatorContext) error {

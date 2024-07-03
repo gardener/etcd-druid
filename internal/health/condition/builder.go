@@ -56,11 +56,11 @@ func (b *defaultBuilder) WithOldConditions(conditions []druidv1alpha1.Condition)
 
 // WithResults adds the results.
 func (b *defaultBuilder) WithResults(results []Result) Builder {
-	for _, result := range results {
-		if result == nil {
+	for _, r := range results {
+		if r == nil {
 			continue
 		}
-		b.results[result.ConditionType()] = result
+		b.results[r.ConditionType()] = r
 	}
 
 	return b
