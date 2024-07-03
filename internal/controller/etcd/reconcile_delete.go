@@ -43,8 +43,6 @@ func (r *Reconciler) deleteEtcdResources(ctx component.OperatorContext, etcdObjK
 	operators := r.operatorRegistry.AllOperators()
 	deleteTasks := make([]utils.OperatorTask, 0, len(operators))
 	for kind, operator := range operators {
-		// TODO: once we move to go 1.22 (https://go.dev/blog/loopvar-preview)
-		operator := operator
 		deleteTasks = append(deleteTasks, utils.OperatorTask{
 			Name: fmt.Sprintf("triggerDeletionFlow-%s-component", kind),
 			Fn: func(ctx component.OperatorContext) error {
