@@ -306,7 +306,7 @@ func (r *Reconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (ctrl
 func (r *Reconciler) preReconcileEtcd(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) reconcileResult {
 	statefulSetValues := componentsts.GeneratePreDeployValues(etcd)
 	stsDeployer := componentsts.New(r.Client, logger, *statefulSetValues, r.config.FeatureGates)
-	if err := stsDeployer.PreDeploy(ctx); err != nil {
+	if err := stsDeployer.PreDeploy(ctx, etcd); err != nil {
 		return reconcileResult{err: err}
 	}
 	return reconcileResult{}

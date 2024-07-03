@@ -49,7 +49,7 @@ type Interface interface {
 	// Get gets the etcd StatefulSet.
 	Get(context.Context) (*appsv1.StatefulSet, error)
 	// PreDeploy performs operations prior to the deployment of the StatefulSet component.
-	PreDeploy(ctx context.Context) error
+	PreDeploy(ctx context.Context, etcd *druidv1alpha1.Etcd) error
 }
 
 type component struct {
@@ -78,8 +78,8 @@ func (c *component) Destroy(ctx context.Context) error {
 }
 
 // PreDeploy performs operations prior to the deployment of the StatefulSet component.
-func (c *component) PreDeploy(ctx context.Context) error {
-	preDeployFlow, err := c.createPreDeployFlow(ctx)
+func (c *component) PreDeploy(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+	preDeployFlow, err := c.createPreDeployFlow(ctx, etcd)
 	if err != nil {
 		return err
 	}
@@ -218,7 +218,7 @@ func (c *component) WaitCleanup(ctx context.Context) error {
 // with additional new labels, and wait for all pods to be updated. Then, if the statefulset
 // label selector is not as expected, it deletes the statefulset with orphan cascade option.
 // If the statefulset doesn't exist, createPreDeployFlow is a no-op.
-func (c *component) createPreDeployFlow(ctx context.Context) (*flow.Flow, error) {
+func (c *component) createPreDeployFlow(ctx context.Context, etcd *druidv1alpha1.Etcd) (*flow.Flow, error) {
 	var (
 		existingSts *appsv1.StatefulSet
 		err         error
@@ -234,12 +234,12 @@ func (c *component) createPreDeployFlow(ctx context.Context) (*flow.Flow, error)
 	flowName := fmt.Sprintf("(etcd: %s) Pre-Deploy Flow for StatefulSet %s for Namespace: %s", getOwnerReferenceNameWithUID(c.values.OwnerReference), c.values.Name, c.values.Namespace)
 	g := flow.NewGraph(flowName)
 
-	c.addTasksForLabelsAndSelectorUpdation(g, existingSts)
+	c.addTasksForLabelsAndSelectorUpdation(g, etcd, existingSts)
 
 	return g.Compile(), nil
 }
 
-func (c *component) addTasksForLabelsAndSelectorUpdation(g *flow.Graph, sts *appsv1.StatefulSet) {
+func (c *component) addTasksForLabelsAndSelectorUpdation(g *flow.Graph, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) {
 	// If the labels are not as expected, then patch the labels.
 	patchLabelsOpName := "(patch-labels): Patching labels"
 	patchLabelsTaskID := g.Add(flow.Task{
@@ -252,11 +252,11 @@ func (c *component) addTasksForLabelsAndSelectorUpdation(g *flow.Graph, sts *app
 	c.logger.Info("adding task to pre-deploy flow", "name", patchLabelsOpName, "ID", patchLabelsTaskID)
 
 	// Wait for pods to be updated with expected labels as well as expected updateRevision.
-	waitPodsOpName := "(wait-sts-pods-sync): Waiting for pods to be up-to-date with sts spec"
+	waitPodsOpName := "(wait-sts-pods-sync): Waiting for pods to have desired labels"
 	waitPodsTaskID := g.Add(flow.Task{
 		Name: waitPodsOpName,
 		Fn: func(ctx context.Context) error {
-			return c.waitUntilPodsUpdatedAndReady(ctx, sts, defaultInterval, defaultTimeout*2)
+			return c.waitUntilPodsHaveDesiredLabels(ctx, etcd, sts, defaultInterval, defaultTimeout*2)
 		},
 		Dependencies: flow.NewTaskIDs(patchLabelsTaskID),
 	})
@@ -284,24 +284,20 @@ func (c *component) patchPodTemplateLabels(ctx context.Context, sts *appsv1.Stat
 	return nil
 }
 
-func (c *component) waitUntilPodsUpdatedAndReady(ctx context.Context, sts *appsv1.StatefulSet, interval, timeout time.Duration) error {
+func (c *component) waitUntilPodsHaveDesiredLabels(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, interval, timeout time.Duration) error {
 	return gardenerretry.UntilTimeout(ctx, interval, timeout, func(ctx context.Context) (bool, error) {
-		c.logger.Info("Waiting for StatefulSet pods to be updated", "namespace", c.values.Namespace, "name", c.values.Name)
-		if err := c.client.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil {
-			return gardenerretry.MinorError(fmt.Errorf("failed to fetch sts %s: %v", sts.Name, err))
-		}
-
-		if sts.Status.ObservedGeneration < sts.Generation {
-			return gardenerretry.MinorError(fmt.Errorf("StatefulSet spec change has not yet been picked up for reconciliation by statefulset-controller"))
-		}
-		if sts.Status.UpdateRevision != sts.Status.CurrentRevision {
-			return gardenerretry.MinorError(fmt.Errorf("StatefulSet update revision %s does not match current revision %s", sts.Status.UpdateRevision, sts.Status.CurrentRevision))
-		}
-		if sts.Status.UpdatedReplicas < *sts.Spec.Replicas {
-			return gardenerretry.MinorError(fmt.Errorf("only %d out of %d replicas are updated", sts.Status.UpdatedReplicas, *sts.Spec.Replicas))
-		}
-		if sts.Status.ReadyReplicas < *sts.Spec.Replicas {
-			return gardenerretry.MinorError(fmt.Errorf("only %d out of %d replicas are ready", sts.Status.ReadyReplicas, sts.Spec.Replicas))
+		c.logger.Info("Waiting for StatefulSet pods to have desired labels", "namespace", c.values.Namespace, "name", c.values.Name)
+		// sts.spec.replicas is more accurate than Etcd.spec.replicas, specifically when
+		// Etcd.spec.replicas is updated but not yet reflected in the etcd cluster
+		podNames := etcd.GetAllPodNames(*sts.Spec.Replicas)
+		for _, podName := range podNames {
+			pod := &corev1.Pod{}
+			if err := c.client.Get(ctx, client.ObjectKey{Name: podName, Namespace: etcd.Namespace}, pod); err != nil {
+				return false, err
+			}
+			if !utils.ContainsAllDesiredLabels(pod.Labels, utils.MergeStringMaps(c.values.PodLabels, c.values.AdditionalPodLabels)) {
+				return false, nil
+			}
 		}
 		return gardenerretry.Ok()
 	})

@@ -447,6 +447,15 @@ func (e *Etcd) GetCompactionJobName() string {
 	return fmt.Sprintf("%s-compactor", e.Name)
 }
 
+// GetAllPodNames returns the names of all pods for the Etcd.
+func (e *Etcd) GetAllPodNames(replicas int32) []string {
+	podNames := make([]string, 0, replicas)
+	for i := 0; i < int(replicas); i++ {
+		podNames = append(podNames, e.GetOrdinalPodName(i))
+	}
+	return podNames
+}
+
 // GetOrdinalPodName returns the Etcd pod name based on the ordinal.
 func (e *Etcd) GetOrdinalPodName(ordinal int) string {
 	return fmt.Sprintf("%s-%d", e.Name, ordinal)
