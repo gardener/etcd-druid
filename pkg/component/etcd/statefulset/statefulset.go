@@ -215,9 +215,11 @@ func (c *component) WaitCleanup(ctx context.Context) error {
 }
 
 // createPreDeployFlow gets the existing statefulset. If it exists, then it patches the statefulset
-// with additional new labels, and wait for all pods to be updated. Then, if the statefulset
+// with additional new pod template labels, and wait for all pods to be updated. Then, if the statefulset
 // label selector is not as expected, it deletes the statefulset with orphan cascade option.
 // If the statefulset doesn't exist, createPreDeployFlow is a no-op.
+// This flow is required to ensure that downgrade of druid from the next version (v0.23.0+) to the
+// previous version (v0.22.1+) is handled correctly.
 func (c *component) createPreDeployFlow(ctx context.Context, etcd *druidv1alpha1.Etcd) (*flow.Flow, error) {
 	var (
 		existingSts *appsv1.StatefulSet
@@ -274,6 +276,7 @@ func (c *component) addTasksForLabelsAndSelectorUpdation(g *flow.Graph, etcd *dr
 	c.logger.Info("adding task to pre-deploy flow", "name", deleteStsOpName, "ID", deleteStsTaskID)
 }
 
+// patchPodTemplateLabels patches the StatefulSet pod template labels with new labels.
 func (c *component) patchPodTemplateLabels(ctx context.Context, sts *appsv1.StatefulSet) error {
 	if !utils.ContainsAllDesiredLabels(sts.Spec.Template.Labels, c.values.PodLabels) {
 		c.logger.Info("Patching StatefulSet pod template labels", "namespace", c.values.Namespace, "name", c.values.Name, "podTemplateLabels", utils.MergeStringMaps(c.values.PodLabels, c.values.AdditionalPodLabels))
@@ -284,6 +287,7 @@ func (c *component) patchPodTemplateLabels(ctx context.Context, sts *appsv1.Stat
 	return nil
 }
 
+// waitUntilPodsHaveDesiredLabels waits until all pods of the StatefulSet have the desired labels.
 func (c *component) waitUntilPodsHaveDesiredLabels(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, interval, timeout time.Duration) error {
 	return gardenerretry.UntilTimeout(ctx, interval, timeout, func(ctx context.Context) (bool, error) {
 		c.logger.Info("Waiting for StatefulSet pods to have desired labels", "namespace", c.values.Namespace, "name", c.values.Name)
@@ -303,6 +307,8 @@ func (c *component) waitUntilPodsHaveDesiredLabels(ctx context.Context, etcd *dr
 	})
 }
 
+// deleteWithOrphanCascade deletes the StatefulSet with orphan cascade option if the selector labels are not as expected.
+// During the subsequent Statefulset Deploy flow, the StatefulSet will be recreated with the correct selector labels.
 func (c *component) deleteWithOrphanCascade(ctx context.Context, sts *appsv1.StatefulSet) error {
 	if !utils.ExactlyMatchesLabels(sts.Spec.Selector.MatchLabels, c.values.SelectorLabels) {
 		c.logger.Info("Deleting StatefulSet with orphan cascade", "namespace", c.values.Namespace, "name", c.values.Name)
