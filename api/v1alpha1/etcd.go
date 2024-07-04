@@ -37,6 +37,9 @@ const (
 	Periodic CompactionMode = "periodic"
 	// Revision is a constant to set auto-compaction-mode 'revision' for revision number based retention.
 	Revision CompactionMode = "revision"
+
+	// DefaultSnapshotCount is the default number of applied Raft entries to hold in-memory before compaction.
+	DefaultSnapshotCount = 75000
 )
 
 // +genclient
@@ -194,6 +197,9 @@ type EtcdConfig struct {
 	// Quota defines the etcd DB quota.
 	// +optional
 	Quota *resource.Quantity `json:"quota,omitempty"`
+	// SnapshotCount defines the number of applied Raft entries to hold in-memory before compaction.
+	// +optional
+	SnapshotCount *int64 `json:"snapshotCount,omitempty"`
 	// DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd.
 	// +optional
 	DefragmentationSchedule *string `json:"defragmentationSchedule,omitempty"`
