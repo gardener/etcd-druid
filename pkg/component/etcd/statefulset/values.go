@@ -39,8 +39,12 @@ type Values struct {
 
 	// Annotations is the annotation provided in ETCD spec.
 	Annotations map[string]string
-	// Labels is the labels of StatefulSet..
+	// Labels defines the labels used for the statefulset.
 	Labels map[string]string
+	// SelectorLabels defines the selector's matchLabels for the statefulset.
+	SelectorLabels map[string]string
+	// PodLabels represents the labels to be applied to the statefulset pods.
+	PodLabels map[string]string
 	// AdditionalPodLabels represents additional labels to be applied to the StatefulSet pods.
 	AdditionalPodLabels map[string]string
 	// BackupImage is the backup restore image.

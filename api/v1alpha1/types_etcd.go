@@ -447,6 +447,15 @@ func (e *Etcd) GetCompactionJobName() string {
 	return fmt.Sprintf("%s-compactor", e.Name)
 }
 
+// GetAllPodNames returns the names of all pods for the Etcd.
+func (e *Etcd) GetAllPodNames(replicas int32) []string {
+	podNames := make([]string, 0, replicas)
+	for i := 0; i < int(replicas); i++ {
+		podNames = append(podNames, e.GetOrdinalPodName(i))
+	}
+	return podNames
+}
+
 // GetOrdinalPodName returns the Etcd pod name based on the ordinal.
 func (e *Etcd) GetOrdinalPodName(ordinal int) string {
 	return fmt.Sprintf("%s-%d", e.Name, ordinal)
@@ -460,6 +469,15 @@ func (e *Etcd) GetDeltaSnapshotLeaseName() string {
 // GetFullSnapshotLeaseName returns the name of the full snapshot lease for the Etcd.
 func (e *Etcd) GetFullSnapshotLeaseName() string {
 	return fmt.Sprintf("%s-full-snap", e.Name)
+}
+
+// GetMemberLeaseNames returns the name of member leases for the Etcd.
+func (e *Etcd) GetMemberLeaseNames() []string {
+	leaseNames := make([]string, 0, e.Spec.Replicas)
+	for i := 0; i < int(e.Spec.Replicas); i++ {
+		leaseNames = append(leaseNames, fmt.Sprintf("%s-%d", e.Name, i))
+	}
+	return leaseNames
 }
 
 // GetDefaultLabels returns the default labels for etcd.

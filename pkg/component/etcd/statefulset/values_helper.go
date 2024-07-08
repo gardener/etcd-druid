@@ -24,6 +24,23 @@ import (
 	"k8s.io/utils/pointer"
 )
 
+// Standard label keys to be placed on the statefulset, required for backward compatibility with
+// druid:v0.23.0, which removes old, non-standard labels via PR https://github.com/gardener/etcd-druid/pull/777.
+const (
+	// labelAppNameKey is a label which sets the name of the resource provisioned for an etcd cluster.
+	labelAppNameKey = "app.kubernetes.io/name"
+	// labelManagedByKey is a key of a label which sets druid as a manager for resources provisioned for an etcd cluster.
+	labelManagedByKey = "app.kubernetes.io/managed-by"
+	// labelManagedByValue is the value for labelManagedByKey.
+	labelManagedByValue = "etcd-druid"
+	// labelPartOfKey is a key of a label which establishes that a provisioned resource belongs to a parent etcd cluster.
+	labelPartOfKey = "app.kubernetes.io/part-of"
+	// labelComponentKey is a key for a label that sets the component type on resources provisioned for an etcd cluster.
+	labelComponentKey = "app.kubernetes.io/component"
+	// labelAppNameValueStatefulSet is the component name for statefulset resource.
+	labelAppNameValueStatefulSet = "etcd-statefulset"
+)
+
 const (
 	defaultBackupPort              int32 = 8080
 	defaultServerPort              int32 = 2380
@@ -63,6 +80,8 @@ func GenerateValues(
 		StatusReplicas:            etcd.Status.Replicas,
 		Annotations:               utils.MergeStringMaps(checksumAnnotations, etcd.Spec.Annotations),
 		Labels:                    etcd.GetDefaultLabels(),
+		SelectorLabels:            etcd.GetDefaultLabels(),
+		PodLabels:                 utils.MergeStringMaps(getNewPodLabels(etcd), etcd.GetDefaultLabels()),
 		AdditionalPodLabels:       etcd.Spec.Labels,
 		EtcdImage:                 etcdImage,
 		BackupImage:               backupImage,
@@ -138,6 +157,27 @@ func GenerateValues(
 	values.EtcdBackupRestoreCommandArgs = etcdBackupRestoreCommandArgs
 
 	return &values, nil
+}
+
+// GeneratePreDeployValues generates `statefulset.Values` for the statefulset component with the given parameters,
+// used specifically for the PreDeploy method.
+func GeneratePreDeployValues(etcd *druidv1alpha1.Etcd) *Values {
+	return &Values{
+		Name:                etcd.Name,
+		Namespace:           etcd.Namespace,
+		SelectorLabels:      etcd.GetDefaultLabels(),
+		PodLabels:           utils.MergeStringMaps(getNewPodLabels(etcd), etcd.GetDefaultLabels()),
+		AdditionalPodLabels: etcd.Spec.Labels,
+	}
+}
+
+func getNewPodLabels(etcd *druidv1alpha1.Etcd) map[string]string {
+	return map[string]string{
+		labelComponentKey: labelAppNameValueStatefulSet,
+		labelAppNameKey:   etcd.Name,
+		labelManagedByKey: labelManagedByValue,
+		labelPartOfKey:    etcd.Name,
+	}
 }
 
 func getEtcdCommandArgs(val Values) []string {

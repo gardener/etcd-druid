@@ -20,11 +20,9 @@ import (
 	"fmt"
 	"time"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	"github.com/go-logr/logr"
-
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/test"
+	"github.com/go-logr/logr"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -38,10 +36,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/common"
 	. "github.com/gardener/etcd-druid/pkg/health/etcdmember"
 	mockclient "github.com/gardener/etcd-druid/pkg/mock/controller-runtime/client"
-	"github.com/gardener/etcd-druid/pkg/utils"
 )
 
 var _ = Describe("ReadyCheck", func() {
@@ -56,10 +52,17 @@ var _ = Describe("ReadyCheck", func() {
 			check                               Checker
 			logger                              logr.Logger
 
-			member1Name string
-			member1ID   *string
-			etcd        druidv1alpha1.Etcd
-			leasesList  *coordinationv1.LeaseList
+			etcdName      = "test"
+			etcdNamespace = "test"
+			member0Name   = fmt.Sprintf("%s-%d", etcdName, 0)
+			member0ID     = pointer.String("0")
+			member1Name   = fmt.Sprintf("%s-%d", etcdName, 1)
+			member1ID     = pointer.String("1")
+			member2Name   = fmt.Sprintf("%s-%d", etcdName, 2)
+			member2ID     = pointer.String("2")
+
+			etcd       druidv1alpha1.Etcd
+			leasesList *coordinationv1.LeaseList
 		)
 
 		BeforeEach(func() {
@@ -72,13 +75,10 @@ var _ = Describe("ReadyCheck", func() {
 			logger = log.Log.WithName("Test")
 			check = ReadyCheck(cl, logger, notReadyThreshold, unknownThreshold)
 
-			member1ID = pointer.String("1")
-			member1Name = "member1"
-
 			etcd = druidv1alpha1.Etcd{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "etcd",
-					Namespace: "etcd-test",
+					Name:      etcdName,
+					Namespace: etcdNamespace,
 				},
 			}
 		})
@@ -88,27 +88,30 @@ var _ = Describe("ReadyCheck", func() {
 		})
 
 		JustBeforeEach(func() {
-			cl.EXPECT().List(ctx, gomock.AssignableToTypeOf(&coordinationv1.LeaseList{}), client.InNamespace(etcd.Namespace),
-				client.MatchingLabels{common.GardenerOwnedBy: etcd.Name, v1beta1constants.GardenerPurpose: utils.PurposeMemberLease}).
-				DoAndReturn(
-					func(_ context.Context, leases *coordinationv1.LeaseList, _ ...client.ListOption) error {
-						*leases = *leasesList
-						return nil
-					})
+			for _, lease := range leasesList.Items {
+				lease := lease
+				cl.EXPECT().Get(ctx, kutil.Key(lease.Namespace, lease.Name), gomock.AssignableToTypeOf(&coordinationv1.Lease{})).
+					DoAndReturn(
+						func(_ context.Context, _ client.ObjectKey, l *coordinationv1.Lease, _ ...client.GetOption) error {
+							*l = lease
+							return nil
+						})
+			}
 		})
 
 		Context("when just expired", func() {
 			BeforeEach(func() {
 				renewTime := metav1.NewMicroTime(now.Add(-1 * unknownThreshold).Add(-1 * time.Second))
+				etcd.Spec.Replicas = 1
 				leasesList = &coordinationv1.LeaseList{
 					Items: []coordinationv1.Lease{
 						{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:      member1Name,
+								Name:      member0Name,
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
+								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member0ID, druidv1alpha1.EtcdRoleLeader)),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &renewTime,
 							},
@@ -122,7 +125,7 @@ var _ = Describe("ReadyCheck", func() {
 					return now
 				})()
 
-				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
+				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member0Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
 					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
 						*pod = corev1.Pod{
 							Status: corev1.PodStatus{
@@ -142,7 +145,7 @@ var _ = Describe("ReadyCheck", func() {
 
 				Expect(results).To(HaveLen(1))
 				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemberStatusUnknown))
-				Expect(results[0].ID()).To(Equal(member1ID))
+				Expect(results[0].ID()).To(Equal(member0ID))
 				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
 			})
 
@@ -151,7 +154,7 @@ var _ = Describe("ReadyCheck", func() {
 					return now
 				})()
 
-				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
+				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member0Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
 					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
 						return errors.New("foo")
 					},
@@ -161,7 +164,7 @@ var _ = Describe("ReadyCheck", func() {
 
 				Expect(results).To(HaveLen(1))
 				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemberStatusUnknown))
-				Expect(results[0].ID()).To(Equal(member1ID))
+				Expect(results[0].ID()).To(Equal(member0ID))
 				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
 			})
 
@@ -170,7 +173,7 @@ var _ = Describe("ReadyCheck", func() {
 					return now
 				})()
 
-				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
+				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member0Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
 					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
 						*pod = corev1.Pod{
 							Status: corev1.PodStatus{
@@ -190,7 +193,7 @@ var _ = Describe("ReadyCheck", func() {
 
 				Expect(results).To(HaveLen(1))
 				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemberStatusNotReady))
-				Expect(results[0].ID()).To(Equal(member1ID))
+				Expect(results[0].ID()).To(Equal(member0ID))
 				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
 			})
 
@@ -199,9 +202,9 @@ var _ = Describe("ReadyCheck", func() {
 					return now
 				})()
 
-				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
+				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member0Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
 					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
-						return apierrors.NewNotFound(corev1.Resource("pods"), member1Name)
+						return apierrors.NewNotFound(corev1.Resource("pods"), member0Name)
 					},
 				)
 
@@ -209,46 +212,40 @@ var _ = Describe("ReadyCheck", func() {
 
 				Expect(results).To(HaveLen(1))
 				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemberStatusNotReady))
-				Expect(results[0].ID()).To(Equal(member1ID))
+				Expect(results[0].ID()).To(Equal(member0ID))
 				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
 			})
 		})
 
 		Context("when expired a while ago", func() {
-			var (
-				member2Name string
-				member2ID   *string
-			)
-
 			BeforeEach(func() {
-				member2Name = "member2"
-				member2ID = pointer.String("2")
 
 				var (
 					shortExpirationTime = metav1.NewMicroTime(now.Add(-1 * unknownThreshold).Add(-1 * time.Second))
 					longExpirationTime  = metav1.NewMicroTime(now.Add(-1 * unknownThreshold).Add(-1 * time.Second).Add(-1 * notReadyThreshold))
 				)
 
+				etcd.Spec.Replicas = 2
 				leasesList = &coordinationv1.LeaseList{
 					Items: []coordinationv1.Lease{
 						{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:      member1Name,
+								Name:      member0Name,
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
+								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member0ID, druidv1alpha1.EtcdRoleLeader)),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &shortExpirationTime,
 							},
 						},
 						{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:      member2Name,
+								Name:      member1Name,
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member2ID, druidv1alpha1.EtcdRoleMember)),
+								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleMember)),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &longExpirationTime,
 							},
@@ -262,7 +259,7 @@ var _ = Describe("ReadyCheck", func() {
 					return now
 				})()
 
-				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
+				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member0Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
 					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod, _ ...client.ListOption) error {
 						return errors.New("foo")
 					},
@@ -272,35 +269,38 @@ var _ = Describe("ReadyCheck", func() {
 
 				Expect(results).To(HaveLen(2))
 				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemberStatusUnknown))
-				Expect(results[0].ID()).To(Equal(member1ID))
+				Expect(results[0].ID()).To(Equal(member0ID))
 				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
 				Expect(results[1].Status()).To(Equal(druidv1alpha1.EtcdMemberStatusNotReady))
-				Expect(results[1].ID()).To(Equal(member2ID))
+				Expect(results[1].ID()).To(Equal(member1ID))
 				Expect(results[1].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleMember)))
 			})
 		})
 
 		Context("when lease is up-to-date", func() {
-			var (
-				member2Name, member3Name string
-				member2ID, member3ID     *string
-			)
-
 			BeforeEach(func() {
-				member2Name = "member2"
-				member2ID = pointer.String("2")
-				member3Name = "member3"
-				member3ID = pointer.String("3")
 				renewTime := metav1.NewMicroTime(now.Add(-1 * unknownThreshold))
+				etcd.Spec.Replicas = 3
 				leasesList = &coordinationv1.LeaseList{
 					Items: []coordinationv1.Lease{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      member0Name,
+								Namespace: etcd.Namespace,
+							},
+							Spec: coordinationv1.LeaseSpec{
+								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member0ID, druidv1alpha1.EtcdRoleLeader)),
+								LeaseDurationSeconds: leaseDurationSeconds,
+								RenewTime:            &renewTime,
+							},
+						},
 						{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      member1Name,
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
+								HolderIdentity:       member1ID,
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &renewTime,
 							},
@@ -311,18 +311,7 @@ var _ = Describe("ReadyCheck", func() {
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       member2ID,
-								LeaseDurationSeconds: leaseDurationSeconds,
-								RenewTime:            &renewTime,
-							},
-						},
-						{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      member3Name,
-								Namespace: etcd.Namespace,
-							},
-							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member3ID, "foo")),
+								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member2ID, "foo")),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &renewTime,
 							},
@@ -340,41 +329,37 @@ var _ = Describe("ReadyCheck", func() {
 
 				Expect(results).To(HaveLen(3))
 				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemberStatusReady))
-				Expect(results[0].ID()).To(Equal(member1ID))
+				Expect(results[0].ID()).To(Equal(member0ID))
 				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
 				Expect(results[1].Status()).To(Equal(druidv1alpha1.EtcdMemberStatusReady))
-				Expect(results[1].ID()).To(Equal(member2ID))
+				Expect(results[1].ID()).To(Equal(member1ID))
 				Expect(results[1].Role()).To(BeNil())
 				Expect(results[2].Status()).To(Equal(druidv1alpha1.EtcdMemberStatusReady))
-				Expect(results[2].ID()).To(Equal(member3ID))
+				Expect(results[2].ID()).To(Equal(member2ID))
 				Expect(results[2].Role()).To(BeNil())
 			})
 		})
 
 		Context("when lease has not been acquired", func() {
-			var (
-				member2Name string
-			)
-
 			BeforeEach(func() {
-				member2Name = "member2"
 				renewTime := metav1.NewMicroTime(now.Add(-1 * unknownThreshold))
+				etcd.Spec.Replicas = 2
 				leasesList = &coordinationv1.LeaseList{
 					Items: []coordinationv1.Lease{
 						{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:      member1Name,
+								Name:      member0Name,
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
+								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member0ID, druidv1alpha1.EtcdRoleLeader)),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &renewTime,
 							},
 						},
 						{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:      member2Name,
+								Name:      member1Name,
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
@@ -395,7 +380,7 @@ var _ = Describe("ReadyCheck", func() {
 
 				Expect(results).To(HaveLen(1))
 				Expect(results[0].Status()).To(Equal(druidv1alpha1.EtcdMemberStatusReady))
-				Expect(results[0].ID()).To(Equal(member1ID))
+				Expect(results[0].ID()).To(Equal(member0ID))
 				Expect(results[0].Role()).To(gstruct.PointTo(Equal(druidv1alpha1.EtcdRoleLeader)))
 			})
 		})
