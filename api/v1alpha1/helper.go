@@ -47,7 +47,7 @@ func GetOrdinalPodName(etcdObjMeta metav1.ObjectMeta, ordinal int) string {
 // GetAllPodNames returns the names of all pods for the Etcd.
 func GetAllPodNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
 	podNames := make([]string, 0, replicas)
-	for i := 0; i < int(replicas); i++ {
+	for i := range int(replicas) {
 		podNames = append(podNames, GetOrdinalPodName(etcdObjMeta, i))
 	}
 	return podNames

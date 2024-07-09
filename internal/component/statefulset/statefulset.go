@@ -286,13 +286,17 @@ func getDesiredPodTemplateLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 func (r _resource) doStatefulSetPodsHaveDesiredLabels(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) (bool, error) {
 	// sts.spec.replicas is more accurate than Etcd.spec.replicas, specifically when
 	// Etcd.spec.replicas is updated but not yet reflected in the etcd cluster
+	if sts.Spec.Replicas == nil {
+		return false, fmt.Errorf("statefulset %s does not have a replicas count defined", sts.Name)
+	}
 	podNames := druidv1alpha1.GetAllPodNames(etcd.ObjectMeta, *sts.Spec.Replicas)
+	desiredLabels := getDesiredPodTemplateLabels(etcd)
 	for _, podName := range podNames {
 		pod := &corev1.Pod{}
 		if err := r.client.Get(ctx, client.ObjectKey{Name: podName, Namespace: etcd.Namespace}, pod); err != nil {
 			return false, err
 		}
-		if !utils.ContainsAllDesiredLabels(pod.Labels, getDesiredPodTemplateLabels(etcd)) {
+		if !utils.ContainsAllDesiredLabels(pod.Labels, desiredLabels) {
 			return false, nil
 		}
 	}
