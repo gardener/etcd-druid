@@ -24,16 +24,9 @@ spec:
     - jsonPath: .status.conditions[?(@.type=="AllMembersReady")].status
       name: All Members Ready
       type: string
-    - jsonPath: .status.conditions[?(@.type=="BackupReady")].status
-      name: Backup Ready
-      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
-    - jsonPath: .spec.replicas
-      name: Cluster Size
-      priority: 1
-      type: integer
     - jsonPath: .status.currentReplicas
       name: Current Replicas
       priority: 1
@@ -42,6 +35,12 @@ spec:
       name: Ready Replicas
       priority: 1
       type: integer
+    - jsonPath: .status.conditions[?(@.type=="FullSnapshotBackupReady")].status
+      name: Full Backup Ready
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="DeltaSnapshotBackupReady")].status
+      name: Delta Backup Ready
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:

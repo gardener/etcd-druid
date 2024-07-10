@@ -122,7 +122,7 @@ kubectl apply -f config/samples/druid_v1alpha1_etcd.yaml
 
 ### Verify the Etcd cluster
 
-To obtain information regarding the newly instantiated etcd cluster, perform the following step, which gives details such as the cluster size, readiness status of its members, and various other attributes.
+To obtain information regarding the newly instantiated etcd cluster, perform the following step, which gives details such as the current & ready replicas, readiness status of its members, Full and Delta backup status and various other attributes.
 
 ```sh
 kubectl get etcd -o=wide
