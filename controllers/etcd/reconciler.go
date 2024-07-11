@@ -414,6 +414,10 @@ func isPeerTLSChangedToEnabled(peerTLSEnabledStatusFromMembers bool, configMapVa
 }
 
 func (r *Reconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, result reconcileResult) error {
+	if err := r.Get(ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+		return err
+	}
+
 	lastErrStr := result.err.Error()
 	etcd.Status.LastError = &lastErrStr
 	etcd.Status.ObservedGeneration = &etcd.Generation
@@ -427,6 +431,10 @@ func (r *Reconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alp
 }
 
 func (r *Reconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, result reconcileResult) error {
+	if err := r.Get(ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+		return err
+	}
+
 	if result.sts != nil {
 		ready, _ := druidutils.IsStatefulSetReady(etcd.Spec.Replicas, result.sts)
 		etcd.Status.Ready = &ready
@@ -450,6 +458,10 @@ func (r *Reconciler) removeOperationAnnotation(ctx context.Context, logger logr.
 }
 
 func (r *Reconciler) updateEtcdStatusAsNotReady(ctx context.Context, etcd *druidv1alpha1.Etcd) (*druidv1alpha1.Etcd, error) {
+	if err := r.Get(ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+		return nil, err
+	}
+
 	etcd.Status.Ready = nil
 	etcd.Status.ReadyReplicas = 0
 
