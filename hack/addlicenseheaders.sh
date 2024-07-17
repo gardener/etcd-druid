@@ -3,7 +3,6 @@
 #
 #  SPDX-License-Identifier: Apache-2.0
 
-
 set -e
 
 echo "> Adding Apache License header to all go files where it is not present"
