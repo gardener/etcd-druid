@@ -35,6 +35,9 @@ spec:
       name: Ready Replicas
       priority: 1
       type: integer
+    - jsonPath: .status.conditions[?(@.type=="BackupReady")].status
+      name: Backup Ready
+      type: string
     - jsonPath: .status.conditions[?(@.type=="FullSnapshotBackupReady")].status
       name: Full Backup Ready
       type: string

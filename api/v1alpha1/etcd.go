@@ -51,6 +51,7 @@ const (
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:printcolumn:name="Current Replicas",type=integer,JSONPath=`.status.currentReplicas`,priority=1
 // +kubebuilder:printcolumn:name="Ready Replicas",type=integer,JSONPath=`.status.readyReplicas`,priority=1
+// +kubebuilder:printcolumn:name="Backup Ready",type=string,JSONPath=`.status.conditions[?(@.type=="BackupReady")].status`
 // +kubebuilder:printcolumn:name="Full Backup Ready",type=string,JSONPath=`.status.conditions[?(@.type=="FullSnapshotBackupReady")].status`
 // +kubebuilder:printcolumn:name="Delta Backup Ready",type=string,JSONPath=`.status.conditions[?(@.type=="DeltaSnapshotBackupReady")].status`
 
@@ -318,6 +319,8 @@ const (
 	ConditionTypeReady ConditionType = "Ready"
 	// ConditionTypeAllMembersReady is a constant for a condition type indicating that all members of the etcd cluster are ready.
 	ConditionTypeAllMembersReady ConditionType = "AllMembersReady"
+	// ConditionTypeBackupReady is a constant for a condition type indicating that the etcd backup is ready.
+	ConditionTypeBackupReady ConditionType = "BackupReady"
 	// ConditionTypeFullSnapshotBackupReady is a constant for a condition type indicating that the full snapshot backup is ready.
 	ConditionTypeFullSnapshotBackupReady ConditionType = "FullSnapshotBackupReady"
 	// ConditionTypeDeltaSnapshotBackupReady is a constant for a condition type indicating that the delta snapshot backup is ready.

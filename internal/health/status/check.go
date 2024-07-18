@@ -92,10 +92,11 @@ func (c *Checker) executeConditionChecks(ctx context.Context, etcd *druidv1alpha
 		wg.Wait()
 	})()
 
-	results := make([]condition.Result, 0, len(ConditionChecks))
+	results := make([]condition.Result, 0, len(ConditionChecks)+1)
 	for r := range resultCh {
 		results = append(results, r)
 	}
+	results = append(results, condition.BackupReadyCheck(results))
 
 	conditions := c.conditionBuilderFn().
 		WithNowFunc(func() metav1.Time { return metav1.NewTime(TimeNow()) }).

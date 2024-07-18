@@ -60,6 +60,14 @@ var _ = Describe("Builder", func() {
 						Message:            "bar message",
 					},
 					{
+						Type:               druidv1alpha1.ConditionTypeBackupReady,
+						LastUpdateTime:     metav1.NewTime(oldConditionTime),
+						LastTransitionTime: metav1.NewTime(oldConditionTime),
+						Status:             druidv1alpha1.ConditionFalse,
+						Reason:             "foobar reason",
+						Message:            "foobar message",
+					},
+					{
 						Type:               druidv1alpha1.ConditionTypeFullSnapshotBackupReady,
 						LastUpdateTime:     metav1.NewTime(oldConditionTime),
 						LastTransitionTime: metav1.NewTime(oldConditionTime),

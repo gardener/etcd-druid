@@ -407,4 +407,74 @@ var _ = Describe("BackupsReadyCheck", func() {
 			})
 		})
 	})
+	Describe("#BackupReadyCheck", func() {
+		var results []Result
+		BeforeEach(func() {
+			results = []Result{
+				&result{
+					ConType:   druidv1alpha1.ConditionTypeFullSnapshotBackupReady,
+					ConStatus: druidv1alpha1.ConditionTrue,
+				},
+				&result{
+					ConType:   druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady,
+					ConStatus: druidv1alpha1.ConditionTrue,
+				},
+				&result{
+					ConType:   druidv1alpha1.ConditionTypeAllMembersReady,
+					ConStatus: druidv1alpha1.ConditionTrue,
+				},
+				&result{
+					ConType:   druidv1alpha1.ConditionTypeReady,
+					ConStatus: druidv1alpha1.ConditionTrue,
+				},
+				&result{
+					ConType:   druidv1alpha1.ConditionTypeDataVolumesReady,
+					ConStatus: druidv1alpha1.ConditionTrue,
+				},
+			}
+		})
+		Context("With at least one of Full or Delta snapshot backup condition check is nil", func() {
+			It("Should return nil condition", func() {
+				results = append(results[:1], results[2:]...)
+				result := BackupReadyCheck(results)
+				Expect(result).To(BeNil())
+
+				results = append(results[:], results[1:]...)
+				result = BackupReadyCheck(results)
+				Expect(result).To(BeNil())
+			})
+		})
+
+		Context("With at least one of Full or Delta snapshot backup condition check is False", func() {
+			It("Should return False readiness", func() {
+				results[0].(*result).ConStatus = druidv1alpha1.ConditionFalse
+				result := BackupReadyCheck(results)
+				Expect(result).ToNot(BeNil())
+				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
+				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
+				Expect(result.Reason()).To(Equal(BackupFailed))
+			})
+		})
+
+		Context("With at least one of Full or Delta snapshot backup condition check is Unknown", func() {
+			It("Should return Unknown readiness", func() {
+				results[1].(*result).ConStatus = druidv1alpha1.ConditionUnknown
+				result := BackupReadyCheck(results)
+				Expect(result).ToNot(BeNil())
+				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
+				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
+				Expect(result.Reason()).To(Equal(Unknown))
+			})
+		})
+
+		Context("With both Full and Delta snapshot backup condition checks are True", func() {
+			It("Should return True readiness", func() {
+				result := BackupReadyCheck(results)
+				Expect(result).ToNot(BeNil())
+				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
+				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
+				Expect(result.Reason()).To(Equal(BackupSucceeded))
+			})
+		})
+	})
 })

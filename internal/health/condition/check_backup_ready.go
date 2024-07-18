@@ -26,6 +26,10 @@ type deltaSnapshotBackupReadyCheck struct {
 }
 
 const (
+	// BackupSucceeded is a constant that means that etcd backup has been successfully taken
+	BackupSucceeded string = "BackupSucceeded"
+	// BackupFailed is a constant that means that etcd backup has failed
+	BackupFailed string = "BackupFailed"
 	// SnapshotUploadedOnSchedule is a constant that means that the etcd backup has been uploaded on schedule
 	SnapshotUploadedOnSchedule string = "SnapshotUploadedOnSchedule"
 	// SnapshotMissedSchedule is a constant that means that the etcd backup has missed the schedule
@@ -37,6 +41,52 @@ const (
 	// NotChecked is a constant that means that the etcd backup status has not been updated or rechecked
 	NotChecked string = "NotChecked"
 )
+
+func BackupReadyCheck(results []Result) Result {
+	result := &result{
+		conType: druidv1alpha1.ConditionTypeBackupReady,
+		status:  druidv1alpha1.ConditionUnknown,
+		reason:  Unknown,
+		message: "Cannot determine backup upload status",
+	}
+
+	var FullSnapshotBackupReadyCheckResult, DeltaSnapshotBackupReadyCheckResult Result = nil, nil
+	for _, result := range results {
+		if result.ConditionType() == druidv1alpha1.ConditionTypeFullSnapshotBackupReady {
+			FullSnapshotBackupReadyCheckResult = result
+			continue
+		}
+		if result.ConditionType() == druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady {
+			DeltaSnapshotBackupReadyCheckResult = result
+			continue
+		}
+	}
+	if FullSnapshotBackupReadyCheckResult == nil || DeltaSnapshotBackupReadyCheckResult == nil {
+		return nil
+	}
+	var (
+		fullSnapshotBackupMissedSchedule  = FullSnapshotBackupReadyCheckResult.Status() == druidv1alpha1.ConditionFalse
+		fullSnapshotBackupSucceeded       = FullSnapshotBackupReadyCheckResult.Status() == druidv1alpha1.ConditionTrue
+		deltaSnapshotBackupMissedSchedule = DeltaSnapshotBackupReadyCheckResult.Status() == druidv1alpha1.ConditionFalse
+		deltaSnapshotBackupSucceeded      = DeltaSnapshotBackupReadyCheckResult.Status() == druidv1alpha1.ConditionTrue
+	)
+	// False case
+	if fullSnapshotBackupMissedSchedule || deltaSnapshotBackupMissedSchedule {
+		result.status = druidv1alpha1.ConditionFalse
+		result.reason = BackupFailed
+		result.message = backupFailureMessage(fullSnapshotBackupMissedSchedule, deltaSnapshotBackupMissedSchedule)
+		return result
+	}
+	// True case
+	if fullSnapshotBackupSucceeded && deltaSnapshotBackupSucceeded {
+		result.status = druidv1alpha1.ConditionTrue
+		result.reason = BackupSucceeded
+		result.message = "Snapshot backup succeeded"
+		return result
+	}
+	// Unknown case
+	return result
+}
 
 func (f *fullSnapshotBackupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
 	//Default case
@@ -79,7 +129,7 @@ func (f *fullSnapshotBackupReadyCheck) Check(ctx context.Context, etcd druidv1al
 		} else {
 			result.status = druidv1alpha1.ConditionFalse
 			result.reason = SnapshotMissedSchedule
-			result.message = "Full snapshot missed schedule. Backup is not healthy"
+			result.message = "Full snapshot missed schedule. Backup is unhealthy"
 			return result
 		}
 	} else {
@@ -165,7 +215,7 @@ func (d *deltaSnapshotBackupReadyCheck) Check(ctx context.Context, etcd druidv1a
 			if deltaLeaseRenewTime == nil || time.Since(deltaLeaseRenewTime.Time) > 3*deltaSnapshotPeriod {
 				result.status = druidv1alpha1.ConditionFalse
 				result.reason = SnapshotMissedSchedule
-				result.message = "Stale snapshot lease. Not updated for a long time. Backup is not healthy"
+				result.message = "Stale snapshot lease. Not updated for a long time. Backup is unhealthy"
 				return result
 			}
 		}
@@ -194,6 +244,16 @@ func DeltaSnapshotBackupReadyCheck(cl client.Client) Checker {
 	return &deltaSnapshotBackupReadyCheck{
 		cl: cl,
 	}
+}
+
+func backupFailureMessage(fullSnapshotBackupMissedSchedule, deltaSnapshotBackupMissedSchedule bool) string {
+	if fullSnapshotBackupMissedSchedule && deltaSnapshotBackupMissedSchedule {
+		return "Both Full & Delta snapshot backups missed their schedule"
+	}
+	if fullSnapshotBackupMissedSchedule {
+		return "Full snapshot backup missed schedule"
+	}
+	return "Delta snapshot backup missed schedule"
 }
 
 func isBackupConfigured(etcd *druidv1alpha1.Etcd) bool {

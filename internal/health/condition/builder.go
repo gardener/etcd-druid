@@ -17,6 +17,7 @@ import (
 var skipMergeConditions = map[druidv1alpha1.ConditionType]struct{}{
 	druidv1alpha1.ConditionTypeReady:                    {},
 	druidv1alpha1.ConditionTypeAllMembersReady:          {},
+	druidv1alpha1.ConditionTypeBackupReady:              {},
 	druidv1alpha1.ConditionTypeFullSnapshotBackupReady:  {},
 	druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady: {},
 }
