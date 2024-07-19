@@ -42,6 +42,7 @@ const (
 	NotChecked string = "NotChecked"
 )
 
+// BackupReadyCheck returns a result for the "BackupReady" condition check
 func BackupReadyCheck(results []Result) Result {
 	result := &result{
 		conType: druidv1alpha1.ConditionTypeBackupReady,
@@ -52,6 +53,9 @@ func BackupReadyCheck(results []Result) Result {
 
 	var FullSnapshotBackupReadyCheckResult, DeltaSnapshotBackupReadyCheckResult Result = nil, nil
 	for _, result := range results {
+		if result == nil {
+			continue
+		}
 		if result.ConditionType() == druidv1alpha1.ConditionTypeFullSnapshotBackupReady {
 			FullSnapshotBackupReadyCheckResult = result
 			continue
