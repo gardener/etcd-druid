@@ -5,7 +5,7 @@ This guide provides step-by-step instructions on how to set up etcd-druid with [
 ## Prerequisites
 
 - Docker (installed and running)
-- [gsutil](https://cloud.google.com/storage/docs/gsutil) 
+- [gsutil](https://cloud.google.com/storage/docs/gsutil)
 
 ## Environment Setup
 
@@ -41,27 +41,12 @@ make deploy
 
 ### Step 5: Configure etcd with FakeGCS object store
 
-To configure `FakeGCS` to be used as backup store for etcd, Uncomment the `spec.backup.store` section of the etcd yaml in `config/samples/druid_v1alpha1_etcd.yaml` and replace it with the following:
-
-```yaml
-    store:
-      secretRef:
-        name: etcd-backup-gcp
-      container: etcd-bucket
-      provider: gcp
-      prefix: etcd-test
-```
-
-Now, apply the required Kubernetes manifests to create an etcd custom resource (CR) and a secret for GCP credentials, facilitating FakeGCS access:
-
-
+Apply the required Kubernetes manifests to create an etcd custom resource (CR) and a secret for GCP credentials, facilitating FakeGCS access:
 
 ```bash
 export KUBECONFIG=hack/e2e-test/infrastructure/kind/kubeconfig
-kubectl apply -f config/samples/etcd-secret-fakegcs.yaml -f config/samples/druid_v1alpha1_etcd.yaml
+kubectl apply -f config/samples/etcd-secret-fakegcs.yaml -f config/samples/druid_v1alpha1_etcd_fakegcs.yaml
 ```
-
-
 
 To validate the buckets, execute the following command:
 
@@ -75,5 +60,4 @@ To clean the setup, execute the following commands:
 
 ```bash
 make kind-down
-unset USE_ETCD_DRUID_FEATURE_GATES=true
 ```

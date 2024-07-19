@@ -25,7 +25,7 @@ as described in this document.
 It's expected that especially the `deploy` step is run against a Kubernetes cluster which doesn't contain an Druid deployment or any left-overs like `druid.gardener.cloud` CRDs.
 The `deploy` step will likely fail in such scenarios.
 
-> Tip: Create a fresh [KinD](https://kind.sigs.k8s.io/) cluster or a similar one with a small footprint before executing the tests. 
+> Tip: Create a fresh [KinD](https://kind.sigs.k8s.io/) cluster or a similar one with a small footprint before executing the tests.
 
 ## Providers
 
@@ -140,9 +140,9 @@ make \
 test-e2e
 ```
 
-## e2e test with local storage emulators [AWS, GCP]
+## e2e test with local storage emulators [AWS, GCP, AZURE]
 
-The above-mentioned e2e tests need storage from real cloud providers to be setup. But there are tools named [localstack](https://docs.localstack.cloud/user-guide/aws/s3/) & [fake-gcs-server](https://github.com/fsouza/fake-gcs-server) that enables to run e2e test with mock AWS storage & mock GCS storage respectively. We can also provision KIND cluster for e2e tests. So, together with local emulators and KIND cluster, we don't need to depend on any actual cloud provider infrastructure to be setup to run e2e tests.
+The above-mentioned e2e tests need storage from real cloud providers to be setup. But there are tools named [localstack](https://docs.localstack.cloud/user-guide/aws/s3/), [fake-gcs-server](https://github.com/fsouza/fake-gcs-server) and [azurite](https://github.com/Azure/Azurite) that enables to run e2e test with mock AWS storage, mock GCS storage and mock AZURE storage respectively. We can also provision KIND cluster for e2e tests. So, together with local emulators and KIND cluster, we don't need to depend on any actual cloud provider infrastructure to be setup to run e2e tests.
 
 ### How are the KIND cluster and local emulators set up
 
@@ -164,16 +164,32 @@ make ci-e2e-kind
 
 #### Fake-GCS-Server setup
 
-[Fake-gcs-server](https://github.com/fsouza/fake-gcs-server) is run inside a pod as a [docker image](https://hub.docker.com/r/fsouza/fake-gcs-server) in a KIND cluster.
+[Fake-gcs-server](https://github.com/fsouza/fake-gcs-server) is run inside a pod using this [docker image](https://hub.docker.com/r/fsouza/fake-gcs-server) in a KIND cluster.
 
-The user needs to run `make ci-e2e-kind-gcs` to start the e2e tests for druid with GCS emulator as the object storage for etcd backups. The above command internally runs the script `hack/ci-e2e-kind-gcs.sh` which initializes the setup with required steps before going to create a KIND cluster and deploy fakegcs in it and use that emulator to run e2e tests.
+The user needs to run `make ci-e2e-kind-gcs` to start the e2e tests for druid with GCS emulator as the object storage for etcd backups. The above command internally runs the script `hack/ci-e2e-kind-gcs.sh` which initializes the setup with required steps before going on to create a KIND cluster and deploy fakegcs in it and use that emulator to run e2e tests.
 
 The `fake-gcs-server` running inside the pod serves HTTP requests at port-8000 and HTTPS requests at port-4443. As the e2e tests runs on the host machine while the emulator runs on KIND, both ports i.e 8000 & 4443 needs to be port-forwarded from the host machine to fake-gcs service running inside the KIND cluster. The port forwardings is defined in the `hack/e2e-test/infrastructure/kind/cluster.yaml` file.
 
 ##### How to execute e2e tests with fake-gcs-server and KIND cluster
 
-Run the following `make` command to spin up a KinD cluster, deploy localstack and run the e2e tests with provider `gcp`:
+Run the following `make` command to spin up a KinD cluster, deploy fakegcs and run the e2e tests with provider `gcp`:
 
 ```bash
 make ci-e2e-kind-gcs
+```
+
+#### Azurite setup
+
+[Azurite](https://github.com/Azure/Azurite) is run inside a pod using this [docker image](mcr.microsoft.com/azure-storage/azurite:latest) in a KIND cluster.
+
+The user needs to run `make ci-e2e-kind-azure` to start the e2e tests for druid with Azurite as the object storage for etcd backups. The above command internally runs the script `hack/ci-e2e-kind-azure.sh` which initializes the setup with required steps before going on to create a KIND cluster and deploy Azurite in it and use that emulator to run e2e tests.
+
+The `azurite` running inside the pod serves HTTP requests at port-10000. As the e2e tests runs on the host machine while the emulator runs on KIND cluster, the port 10000 needs to be port-forwarded from the host machine to azurite service running inside the KIND cluster. The port forwardings is defined in the `hack/e2e-test/infrastructure/kind/cluster.yaml` file.
+
+##### How to execute e2e tests with Azurite and KIND cluster
+
+Run the following `make` command to spin up a KinD cluster, deploy Azurite and run the e2e tests with provider `azure`:
+
+```bash
+make ci-e2e-kind-azure
 ```
