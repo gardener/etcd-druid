@@ -15,6 +15,7 @@ GINKGO                     := $(TOOLS_BIN_DIR)/ginkgo
 MOCKGEN                    := $(TOOLS_BIN_DIR)/mockgen
 SETUP_ENVTEST              := $(TOOLS_BIN_DIR)/setup-envtest
 KIND                       := $(TOOLS_BIN_DIR)/kind
+KUBECTL                    := $(TOOLS_BIN_DIR)/kubectl
 HELM                       := $(TOOLS_BIN_DIR)/helm
 KUBECTL                    := $(TOOLS_BIN_DIR)/kubectl
 VGOPATH                    := $(TOOLS_BIN_DIR)/vgopath
@@ -92,5 +93,10 @@ $(VGOPATH):
 $(GO_ADD_LICENSE):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/google/addlicense@$(GO_ADD_LICENSE_VERSION)
 
+$(KUBECTL):
+	curl -Lo $(KUBECTL) https://dl.k8s.io/release/$(KUBECTL_VERSION)/bin/$(SYSTEM_NAME)/$(SYSTEM_ARCH)/kubectl
+	chmod +x $(KUBECTL)
+
 $(GOTESTFMT):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt@$(GOTESTFMT_VERSION)
+
