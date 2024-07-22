@@ -76,9 +76,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logger := r.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
 
 	if ctrlutils.HasOperationAnnotation(etcd) {
-		logger.Info("Skipping custodian-reconcile as etcd still has a reconcile annotation set on it.")
+		logger.Info("Skipping custodian-reconcile as etcd still has a reconcile annotation set on it. Will retry after 10s.")
 		return ctrl.Result{
-			RequeueAfter: 5 * time.Second,
+			RequeueAfter: 10 * time.Second,
 		}, nil
 	}
 
