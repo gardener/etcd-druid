@@ -65,6 +65,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var existingObjects []client.Object
 			if tc.stsExists {
 				existingObjects = append(existingObjects, emptyStatefulSet(etcd.ObjectMeta))
@@ -116,6 +117,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 	iv := testutils.CreateImageVector(false, false, true, true)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// *************** Build test environment ***************
 			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(tc.replicas).Build()
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))

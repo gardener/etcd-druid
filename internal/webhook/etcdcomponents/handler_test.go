@@ -79,6 +79,7 @@ func TestHandleCreateAndConnect(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			resp := handler.Handle(context.Background(), admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
 					Operation: tc.operation,
@@ -121,6 +122,7 @@ func TestHandleLeaseUpdate(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).Build()
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, nil, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
 			handler := createHandler(g, cl, Config{Enabled: true})
@@ -319,6 +321,7 @@ func TestHandleUpdate(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).
 				WithAnnotations(tc.etcdAnnotations).
 				WithLastOperation(tc.etcdStatusLastOperation).
@@ -398,6 +401,7 @@ func TestHandleWithInvalidRequestObject(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			cl := testutils.CreateDefaultFakeClient()
 			handler := createHandler(g, cl, Config{
 				Enabled:                  true,
@@ -455,6 +459,7 @@ func TestEtcdGetFailures(t *testing.T) {
 	etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).Build()
 	for _, tc := range testCases {
 		t.Run(t.Name(), func(t *testing.T) {
+			t.Parallel()
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
 			handler := createHandler(g, cl, Config{
 				Enabled:                  true,
@@ -605,6 +610,7 @@ func TestHandleDelete(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).
 				WithAnnotations(tc.etcdAnnotations).
 				WithLastOperation(tc.etcdStatusLastOperation).

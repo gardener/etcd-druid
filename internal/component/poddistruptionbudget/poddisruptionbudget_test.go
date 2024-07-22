@@ -62,6 +62,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var existingObjects []client.Object
 			if tc.pdbExists {
 				existingObjects = append(existingObjects, newPodDisruptionBudget(etcd))
@@ -82,7 +83,6 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenNoPDBExists(t *testing.T) {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 	testCases := []struct {
 		name                    string
 		etcdReplicas            int32
@@ -115,6 +115,8 @@ func TestSyncWhenNoPDBExists(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 			etcd := etcdBuilder.WithReplicas(tc.etcdReplicas).Build()
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
@@ -135,7 +137,6 @@ func TestSyncWhenNoPDBExists(t *testing.T) {
 }
 
 func TestSyncWhenPDBExists(t *testing.T) {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 	testCases := []struct {
 		name                    string
 		originalEtcdReplicas    int32
@@ -168,6 +169,8 @@ func TestSyncWhenPDBExists(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 			existingEtcd := etcdBuilder.WithReplicas(tc.originalEtcdReplicas).Build()
 			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newPodDisruptionBudget(existingEtcd)}, getObjectKey(existingEtcd.ObjectMeta))
 			operator := New(cl)
@@ -219,6 +222,7 @@ func TestTriggerDelete(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var existingObjects []client.Object
 			if tc.pdbExists {
 				existingObjects = append(existingObjects, newPodDisruptionBudget(etcd))

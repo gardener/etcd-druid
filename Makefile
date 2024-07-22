@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-ENSURE_GARDENER_MOD := $(shell go get github.com/gardener/gardener@$$(go list -m -f "{{.Version}}" github.com/gardener/gardener))
-GARDENER_HACK_DIR   := $(shell go list -m -f "{{.Dir}}" github.com/gardener/gardener)/hack
 VERSION             := $(shell cat VERSION)
 REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
 HACK_DIR            := $(REPO_ROOT)/hack
@@ -22,7 +20,6 @@ IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 #########################################
 
 TOOLS_DIR := $(HACK_DIR)/tools
-include $(GARDENER_HACK_DIR)/tools.mk
 include $(HACK_DIR)/tools.mk
 
 #####################################################################
@@ -32,12 +29,10 @@ include $(HACK_DIR)/tools.mk
 .PHONY: tidy
 tidy:
 	@env GO111MODULE=on go mod tidy
-	@GARDENER_HACK_DIR=$(GARDENER_HACK_DIR) bash $(HACK_DIR)/update-github-templates.sh
-	@cp $(GARDENER_HACK_DIR)/cherry-pick-pull.sh $(HACK_DIR)/cherry-pick-pull.sh && chmod +xw $(HACK_DIR)/cherry-pick-pull.sh
 
 .PHONY: clean
 clean:
-	@bash $(GARDENER_HACK_DIR)/clean.sh ./api/... ./internal/...
+	@$(HACK_DIR)/clean.sh ./api/... ./internal/...
 
 .PHONY: update-dependencies
 update-dependencies:
@@ -56,11 +51,11 @@ fmt:
 # Check packages
 .PHONY: check
 check: $(GOLANGCI_LINT) $(GOIMPORTS) fmt manifests
-	@REPO_ROOT=$(REPO_ROOT) bash $(GARDENER_HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./api/... ./internal/...
+	@$(HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./api/... ./internal/...
 
 .PHONY: check-generate
 check-generate:
-	@bash $(GARDENER_HACK_DIR)/check-generate.sh "$(REPO_ROOT)"
+	@$(HACK_DIR)/check-generate.sh "$(REPO_ROOT)"
 
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: manifests
@@ -106,7 +101,7 @@ test-cov: $(GINKGO) $(SETUP_ENVTEST)
 
 .PHONY: test-cov-clean
 test-cov-clean:
-	@bash $(GARDENER_HACK_DIR)/test-cover-clean.sh
+	@$(HACK_DIR)/test-cover-clean.sh
 
 #################################################################
 # Rules related to binary build, Docker image build and release #
@@ -138,7 +133,7 @@ kind-up kind-down ci-e2e-kind ci-e2e-kind-azure deploy-localstack deploy-azurite
 .PHONY: kind-up
 kind-up: $(KIND)
 	@printf "\n\033[0;33m📌 NOTE: To target the newly created KinD cluster, please run the following command:\n\n    export KUBECONFIG=$(KUBECONFIG_PATH)\n\033[0m\n"
-	@GARDENER_HACK_DIR=$(GARDENER_HACK_DIR) bash $(HACK_DIR)/kind-up.sh
+	@$(HACK_DIR)/kind-up.sh
 
 .PHONY: kind-down
 kind-down: $(KIND)

@@ -64,6 +64,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var existingObjects []client.Object
 			if tc.cmExists {
 				existingObjects = append(existingObjects, newConfigMap(g, etcd))
@@ -121,6 +122,7 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			etcd := buildEtcd(tc.etcdReplicas, tc.clientTLSEnabled, tc.peerTLSEnabled)
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
@@ -172,6 +174,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled)
 			etcd.Spec.Etcd.ServerPort = tc.etcdSpecServerPort
 			peerScheme := utils.IfConditionOr(etcd.Spec.Etcd.PeerUrlTLS != nil, "https", "http")
@@ -215,6 +218,7 @@ func TestSyncWhenConfigMapExists(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			originalEtcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithClientTLS().Build()
 			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newConfigMap(g, originalEtcd)}, getObjectKey(originalEtcd.ObjectMeta))
 			updatedEtcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithClientTLS().WithPeerTLS().Build()
@@ -269,6 +273,7 @@ func TestTriggerDelete(t *testing.T) {
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// ********************* Setup *********************
 			var existingObjects []client.Object
 			if tc.cmExists {

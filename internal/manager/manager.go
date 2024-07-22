@@ -99,7 +99,7 @@ func createManager(config *Config) (ctrl.Manager, error) {
 func registerHealthAndReadyEndpoints(mgr ctrl.Manager, config *Config) error {
 	slog.Info("Registering ping health check endpoint")
 	// Add a health check which always returns true when it is checked
-	if err := mgr.AddHealthzCheck("ping", func(req *http.Request) error { return nil }); err != nil {
+	if err := mgr.AddHealthzCheck("ping", func(_ *http.Request) error { return nil }); err != nil {
 		return err
 	}
 
@@ -108,7 +108,7 @@ func registerHealthAndReadyEndpoints(mgr ctrl.Manager, config *Config) error {
 	// give it a context with a very short timeout so that it causes the call to ` cache.WaitForCacheSync` to get executed once.
 	// We do not wish to wait longer as the readiness checks should be fast. Once all the cache informers have synced then the
 	// readiness check would succeed.
-	if err := mgr.AddReadyzCheck("informer-sync", func(req *http.Request) error {
+	if err := mgr.AddReadyzCheck("informer-sync", func(_ *http.Request) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 		defer cancel()
 		if !mgr.GetCache().WaitForCacheSync(ctx) {

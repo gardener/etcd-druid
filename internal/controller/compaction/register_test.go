@@ -76,6 +76,7 @@ func TestSnapshotRevisionChangedForCreateEvents(t *testing.T) {
 	predicate := snapshotRevisionChanged()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			obj, _ := createObjectsForSnapshotLeasePredicate(g, test.objectName, test.isObjectLease, true, test.isHolderIdentitySet, false)
 			g.Expect(predicate.Create(event.CreateEvent{Object: obj})).To(Equal(test.shouldAllowCreateEvent))
 		})
@@ -137,6 +138,7 @@ func TestSnapshotRevisionChangedForUpdateEvents(t *testing.T) {
 	predicate := snapshotRevisionChanged()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			obj, oldObj := createObjectsForSnapshotLeasePredicate(g, test.objectName, test.isObjectLease, false, true, test.isHolderIdentityChanged)
 			g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: oldObj, ObjectNew: obj})).To(Equal(test.shouldAllowUpdateEvent))
 		})
@@ -190,6 +192,7 @@ func TestJobStatusChangedForUpdateEvents(t *testing.T) {
 	predicate := jobStatusChanged()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			obj, oldObj := createObjectsForJobStatusChangedPredicate(g, "etcd-test-compaction-job", test.isObjectJob, test.isStatusChanged)
 			g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: oldObj, ObjectNew: obj})).To(Equal(test.shouldAllowUpdateEvent))
 		})

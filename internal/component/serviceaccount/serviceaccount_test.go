@@ -59,6 +59,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var existingObjects []client.Object
 			if tc.saExists {
 				existingObjects = append(existingObjects, newServiceAccount(etcd, false))
@@ -113,6 +114,7 @@ func TestSync(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl, tc.disableAutoMount)
@@ -163,6 +165,7 @@ func TestTriggerDelete(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 			var existingObjects []client.Object
 			if tc.saExists {

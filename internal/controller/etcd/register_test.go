@@ -91,6 +91,7 @@ func TestBuildPredicateWithOnlyAutoReconcileEnabled(t *testing.T) {
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			updatedEtcd := updateEtcd(etcd, tc.etcdSpecChanged, tc.etcdStatusChanged, tc.lastOperationState, false)
 			g.Expect(predicate.Create(event.CreateEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowCreateEvent))
 			g.Expect(predicate.Delete(event.DeleteEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowDeleteEvent))
@@ -141,6 +142,7 @@ func TestBuildPredicateWithNoAutoReconcileAndNoReconcileAnnot(t *testing.T) {
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			updatedEtcd := updateEtcd(etcd, tc.etcdSpecChanged, tc.etcdStatusChanged, tc.lastOperationState, false)
 			g.Expect(predicate.Create(event.CreateEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowCreateEvent))
 			g.Expect(predicate.Delete(event.DeleteEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowDeleteEvent))
@@ -220,6 +222,7 @@ func TestBuildPredicateWithNoAutoReconcileButReconcileAnnotPresent(t *testing.T)
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			updatedEtcd := updateEtcd(etcd, tc.etcdSpecChanged, tc.etcdStatusChanged, tc.lastOperationState, true)
 			g.Expect(predicate.Create(event.CreateEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowCreateEvent))
 			g.Expect(predicate.Delete(event.DeleteEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowDeleteEvent))
@@ -297,6 +300,7 @@ func TestBuildPredicateWithAutoReconcileAndReconcileAnnotSet(t *testing.T) {
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			updatedEtcd := updateEtcd(etcd, tc.etcdSpecChanged, tc.etcdStatusChanged, tc.lastOperationState, true)
 			g.Expect(predicate.Create(event.CreateEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowCreateEvent))
 			g.Expect(predicate.Delete(event.DeleteEvent{Object: updatedEtcd})).To(Equal(tc.shouldAllowDeleteEvent))
