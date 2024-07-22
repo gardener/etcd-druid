@@ -20,6 +20,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
+	ctrlutils "github.com/gardener/etcd-druid/controllers/utils"
 	"github.com/gardener/etcd-druid/pkg/health/status"
 	"github.com/gardener/etcd-druid/pkg/utils"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -73,6 +74,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	logger := r.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
+
+	if ctrlutils.HasOperationAnnotation(etcd) {
+		logger.Info("Skipping custodian-reconcile as etcd still has a reconcile annotation set on it.")
+		return ctrl.Result{
+			RequeueAfter: 5 * time.Second,
+		}, nil
+	}
 
 	if etcd.Status.LastError != nil && *etcd.Status.LastError != "" {
 		logger.Info("Requeue item because of last error", "namespace", etcd.Namespace, "name", etcd.Name, "lastError", *etcd.Status.LastError)

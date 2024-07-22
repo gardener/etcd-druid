@@ -17,6 +17,9 @@ package utils
 import (
 	"path/filepath"
 
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/gardener/etcd-druid/pkg/common"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 )
@@ -40,4 +43,9 @@ func CreateImageVector() (imagevector.ImageVector, error) {
 		return nil, err
 	}
 	return imageVector, nil
+}
+
+// HasOperationAnnotation checks if the given object has the operation annotation and its value is set to Reconcile.
+func HasOperationAnnotation(obj client.Object) bool {
+	return obj.GetAnnotations()[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationReconcile
 }
