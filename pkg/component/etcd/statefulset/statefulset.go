@@ -299,7 +299,7 @@ func (c *component) waitUntilPodsHaveDesiredLabels(ctx context.Context, etcd *dr
 			if err := c.client.Get(ctx, client.ObjectKey{Name: podName, Namespace: etcd.Namespace}, pod); err != nil {
 				return false, err
 			}
-			if !utils.ContainsAllDesiredLabels(pod.Labels, utils.MergeStringMaps(c.values.PodLabels, c.values.AdditionalPodLabels)) {
+			if !utils.ContainsAllDesiredLabels(pod.Labels, c.values.PodLabels) {
 				return false, nil
 			}
 		}

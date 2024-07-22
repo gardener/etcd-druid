@@ -18,7 +18,8 @@ import (
 	"reflect"
 	"strings"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	"github.com/gardener/etcd-druid/controllers/utils"
+
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -31,21 +32,17 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 )
 
-func hasOperationAnnotation(obj client.Object) bool {
-	return obj.GetAnnotations()[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationReconcile
-}
-
 // HasOperationAnnotation is a predicate for the operation annotation.
 func HasOperationAnnotation() predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(event event.CreateEvent) bool {
-			return hasOperationAnnotation(event.Object)
+			return utils.HasOperationAnnotation(event.Object)
 		},
 		UpdateFunc: func(event event.UpdateEvent) bool {
-			return hasOperationAnnotation(event.ObjectNew)
+			return utils.HasOperationAnnotation(event.ObjectNew)
 		},
 		GenericFunc: func(event event.GenericEvent) bool {
-			return hasOperationAnnotation(event.Object)
+			return utils.HasOperationAnnotation(event.Object)
 		},
 		DeleteFunc: func(event event.DeleteEvent) bool {
 			return true
@@ -127,7 +124,7 @@ func EtcdReconciliationFinished(ignoreOperationAnnotation bool) predicate.Predic
 		condition := *etcd.Status.ObservedGeneration == etcd.Generation
 
 		if !ignoreOperationAnnotation {
-			condition = condition && !hasOperationAnnotation(etcd)
+			condition = condition && !utils.HasOperationAnnotation(etcd)
 		}
 
 		return condition
