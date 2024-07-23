@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -121,9 +120,9 @@ var _ = Describe("Etcd Controller", func() {
 
 			testutils.SetStatefulSetPodsUpdated(sts)
 			testutils.SetStatefulSetReady(sts)
-			createStsPods(ctx, k8sClient, sts)
+			testutils.CreateStsPods(ctx, k8sClient, sts)
 			DeferCleanup(func() {
-				deleteStsPods(ctx, k8sClient, sts)
+				testutils.DeleteStsPods(ctx, k8sClient, sts)
 			})
 
 			err = k8sClient.Status().Update(ctx, sts)
@@ -1677,65 +1676,3 @@ var _ = Describe("buildPredicate", func() {
 		)
 	})
 })
-
-func createStsPods(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) {
-	stsReplicas := *sts.Spec.Replicas
-	for i := 0; i < int(stsReplicas); i++ {
-		podName := fmt.Sprintf("%s-%d", sts.Name, i)
-
-		podLabels := utils.MergeStringMaps(sts.Spec.Template.Labels, map[string]string{
-			"apps.kubernetes.io/pod-index":       strconv.Itoa(i),
-			"statefulset.kubernetes.io/pod-name": podName,
-			"controller-revision-hash":           sts.Status.UpdateRevision,
-		})
-
-		pod := &corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      podName,
-				Namespace: sts.Namespace,
-				Labels:    podLabels,
-				OwnerReferences: []metav1.OwnerReference{
-					{
-						APIVersion:         appsv1.SchemeGroupVersion.Version,
-						Kind:               "StatefulSet",
-						BlockOwnerDeletion: pointer.Bool(true),
-						Name:               sts.Name,
-						UID:                sts.UID,
-					},
-				},
-			},
-			Spec: corev1.PodSpec{
-				Containers: []corev1.Container{
-					{
-						Name:  "etcd",
-						Image: "etcd-wrapper:latest",
-					},
-				},
-			},
-		}
-
-		ExpectWithOffset(1, cl.Create(ctx, pod)).To(Succeed())
-		// Update pod status and set ready condition to true
-		pod.Status.Conditions = []corev1.PodCondition{
-			{
-				Type:   corev1.PodReady,
-				Status: corev1.ConditionTrue,
-			},
-		}
-		ExpectWithOffset(1, cl.Status().Update(ctx, pod)).To(Succeed())
-	}
-}
-
-func deleteStsPods(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) {
-	stsReplicas := *sts.Spec.Replicas
-	for i := 0; i < int(stsReplicas); i++ {
-		podName := fmt.Sprintf("%s-%d", sts.Name, i)
-		pod := &corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      podName,
-				Namespace: sts.Namespace,
-			},
-		}
-		ExpectWithOffset(1, cl.Delete(ctx, pod)).To(Succeed())
-	}
-}
