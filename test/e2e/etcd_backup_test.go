@@ -243,8 +243,8 @@ func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, e
 		}
 
 		for _, c := range etcd.Status.Conditions {
-			// skip BackupReady status check if etcd.Spec.Backup.Store is not configured.
-			if etcd.Spec.Backup.Store == nil && c.Type == v1alpha1.ConditionTypeBackupReady {
+			// skip BackupReady, FullSnapshotBackupReady & DeltaSnapshotBackupReady status checks if etcd.Spec.Backup.Store is not configured.
+			if etcd.Spec.Backup.Store == nil && (c.Type == v1alpha1.ConditionTypeBackupReady || c.Type == v1alpha1.ConditionTypeFullSnapshotBackupReady || c.Type == v1alpha1.ConditionTypeDeltaSnapshotBackupReady) {
 				continue
 			}
 			if c.Status != v1alpha1.ConditionTrue {

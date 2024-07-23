@@ -79,6 +79,8 @@ Status fields related to the etcd cluster itself, such as `Members`, `PeerUrlTLS
 - `AllMembersReady`: indicates readiness of all members of the etcd cluster.
 - `Ready`: indicates overall readiness of the etcd cluster in serving traffic.
 - `BackupReady`: indicates health of the etcd backups, i.e., whether etcd backups are being taken regularly as per schedule. This condition is applicable only when backups are enabled for the etcd cluster.
+- `FullSnapshotBackupReady`: indicates health of the full snapshot backups, i.e whether full snapshot backups are being taken regularly as per schedule. This condition is applicable only when backups are enabled for the etcd cluster.
+- `DeltaSnapshotBackupReady`: indicates health of the delta snapshot backups, i.e whether delta snapshot backups are being taken regularly as per schedule. This condition is applicable only when backups are enabled for the etcd cluster.
 - `DataVolumesReady`: indicates health of the persistent volumes containing the etcd data.
 
 ## Compaction Controller

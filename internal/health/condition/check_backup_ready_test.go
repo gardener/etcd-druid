@@ -24,8 +24,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
-var _ = Describe("BackupReadyCheck", func() {
-	Describe("#Check", func() {
+var _ = Describe("BackupsReadyCheck", func() {
+	Describe("#SnapshotsBackupReadyCheck", func() {
 		var (
 			storageProvider druidv1alpha1.StorageProvider = "testStorageProvider"
 			mockCtrl        *gomock.Controller
@@ -78,146 +78,376 @@ var _ = Describe("BackupReadyCheck", func() {
 		AfterEach(func() {
 			mockCtrl.Finish()
 		})
+		Describe("#DeltaSnapshotBackupReadyCheck", func() {
 
-		Context("With no snapshot leases present", func() {
-			It("Should return Unknown rediness", func() {
-				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease, _ ...client.GetOption) error {
-						return &noLeaseError
-					},
-				).AnyTimes()
+			Context("With no delta snapshot lease present", func() {
+				It("Should return Unknown readiness", func() {
+					cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+						func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease, _ ...client.GetOption) error {
+							return &noLeaseError
+						},
+					).AnyTimes()
 
-				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
+					check := DeltaSnapshotBackupReadyCheck(cl)
+					result := check.Check(context.TODO(), etcd)
+					Expect(result).ToNot(BeNil())
+					Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady))
+					Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
+					Expect(result.Reason()).To(Equal(Unknown))
+				})
+			})
 
-				Expect(result).ToNot(BeNil())
-				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
-				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
-				Expect(result.Reason()).To(Equal(Unknown))
+			Context("With delta snapshot lease present", func() {
+
+				Context("With lease not renewed even once", func() {
+					It("Should set status to True if lease has not been renewed within the deltaSnapshotPeriod duration of lease creation", func() {
+						cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-delta-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
+							func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
+								*le = lease
+								le.Spec.RenewTime = nil
+								le.Spec.HolderIdentity = nil
+								le.ObjectMeta.CreationTimestamp = v1.Now()
+								return nil
+							},
+						).AnyTimes()
+
+						check := DeltaSnapshotBackupReadyCheck(cl)
+						result := check.Check(context.TODO(), etcd)
+
+						Expect(result).ToNot(BeNil())
+						Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady))
+						Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
+						Expect(result.Reason()).To(Equal(SnapshotProcessNotStarted))
+					})
+
+					It("Should set status to Unknown if lease has not been renewed until 3*deltaSnapshotPeriod duration of lease creation", func() {
+						cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-delta-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
+							func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
+								*le = lease
+								le.Spec.RenewTime = nil
+								le.Spec.HolderIdentity = nil
+								le.ObjectMeta.CreationTimestamp = v1.Time{Time: time.Now().Add(-2 * deltaSnapshotDuration)}
+								return nil
+							},
+						).AnyTimes()
+
+						check := DeltaSnapshotBackupReadyCheck(cl)
+						result := check.Check(context.TODO(), etcd)
+
+						Expect(result).ToNot(BeNil())
+						Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady))
+						Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
+						Expect(result.Reason()).To(Equal(Unknown))
+					})
+
+					It("Should set status to False if lease has not been renewed even after 3*deltaSnapshotPeriod duration of lease creation", func() {
+						cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-delta-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
+							func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
+								*le = lease
+								le.Spec.RenewTime = nil
+								le.Spec.HolderIdentity = nil
+								le.ObjectMeta.CreationTimestamp = v1.Time{Time: time.Now().Add(-4 * deltaSnapshotDuration)}
+								return nil
+							},
+						).AnyTimes()
+
+						etcd.Status.Conditions = []druidv1alpha1.Condition{
+							{
+								Type:    druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady,
+								Status:  druidv1alpha1.ConditionUnknown,
+								Message: "Unknown",
+							},
+						}
+
+						check := DeltaSnapshotBackupReadyCheck(cl)
+						result := check.Check(context.TODO(), etcd)
+
+						Expect(result).ToNot(BeNil())
+						Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady))
+						Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
+						Expect(result.Reason()).To(Equal(SnapshotMissedSchedule))
+					})
+				})
+
+				Context("With lease renewed at least once", func() {
+					It("Should set status to True if lease has been renewed within the deltaSnapshotPeriod duration", func() {
+						cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-delta-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
+							func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
+								*le = lease
+								le.Spec.RenewTime = &v1.MicroTime{Time: time.Now()}
+								return nil
+							},
+						).AnyTimes()
+
+						check := DeltaSnapshotBackupReadyCheck(cl)
+						result := check.Check(context.TODO(), etcd)
+
+						Expect(result).ToNot(BeNil())
+						Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady))
+						Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
+						Expect(result.Reason()).To(Equal(SnapshotUploadedOnSchedule))
+					})
+
+					It("Should set status to Unknown if lease has not been renewed within the 3*deltaSnapshotPeriod duration", func() {
+						cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-delta-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
+							func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
+								*le = lease
+								le.Spec.RenewTime = &v1.MicroTime{Time: time.Now().Add(-2 * deltaSnapshotDuration)}
+								return nil
+							},
+						).AnyTimes()
+
+						check := DeltaSnapshotBackupReadyCheck(cl)
+						result := check.Check(context.TODO(), etcd)
+
+						Expect(result).ToNot(BeNil())
+						Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady))
+						Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
+						Expect(result.Reason()).To(Equal(Unknown))
+					})
+
+					It("Should set status to False if lease has not been renewed even after 3*deltaSnapshotPeriod duration", func() {
+						cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-delta-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
+							func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
+								*le = lease
+								le.Spec.RenewTime = &v1.MicroTime{Time: time.Now().Add(-4 * deltaSnapshotDuration)}
+								return nil
+							},
+						).AnyTimes()
+
+						etcd.Status.Conditions = []druidv1alpha1.Condition{
+							{
+								Type:    druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady,
+								Status:  druidv1alpha1.ConditionUnknown,
+								Message: "Unknown",
+							},
+						}
+
+						check := DeltaSnapshotBackupReadyCheck(cl)
+						result := check.Check(context.TODO(), etcd)
+
+						Expect(result).ToNot(BeNil())
+						Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady))
+						Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
+						Expect(result.Reason()).To(Equal(SnapshotMissedSchedule))
+					})
+				})
+			})
+
+			Context("With no backup store configured", func() {
+				It("Should return nil condition", func() {
+					cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
+						func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease) error {
+							return &noLeaseError
+						},
+					).AnyTimes()
+
+					etcd.Spec.Backup.Store = nil
+					check := DeltaSnapshotBackupReadyCheck(cl)
+					result := check.Check(context.TODO(), etcd)
+
+					Expect(result).To(BeNil())
+					etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
+						Prefix:   "test-prefix",
+						Provider: &storageProvider,
+					}
+				})
+			})
+
+			Context("With backup store is configured but provider is nil", func() {
+				It("Should return nil condition", func() {
+					cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
+						func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease) error {
+							return &noLeaseError
+						},
+					).AnyTimes()
+
+					etcd.Spec.Backup.Store.Provider = nil
+					check := DeltaSnapshotBackupReadyCheck(cl)
+					result := check.Check(context.TODO(), etcd)
+
+					Expect(result).To(BeNil())
+					etcd.Spec.Backup.Store.Provider = &storageProvider
+				})
+			})
+		})
+		Describe("#FullSnapshotBackupReadyCheck", func() {
+			Context("With no full snapshot lease present", func() {
+				It("Should return Unknown readiness", func() {
+					cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+						func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease, _ ...client.GetOption) error {
+							return &noLeaseError
+						},
+					).AnyTimes()
+
+					check := FullSnapshotBackupReadyCheck(cl)
+					result := check.Check(context.TODO(), etcd)
+					Expect(result).ToNot(BeNil())
+					Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeFullSnapshotBackupReady))
+					Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
+					Expect(result.Reason()).To(Equal(Unknown))
+				})
+			})
+
+			Context("With full snapshot lease present", func() {
+				Context("With lease not renewed even once", func() {
+					It("Should set status to Unknown if lease has not been renewed at all within the first 24 hours of lease creation", func() {
+						cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-full-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
+							func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
+								*le = lease
+								le.Spec.RenewTime = nil
+								le.Spec.HolderIdentity = nil
+								le.ObjectMeta.CreationTimestamp = v1.Now()
+								return nil
+							},
+						).AnyTimes()
+
+						check := FullSnapshotBackupReadyCheck(cl)
+						result := check.Check(context.TODO(), etcd)
+
+						Expect(result).ToNot(BeNil())
+						Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeFullSnapshotBackupReady))
+						Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
+						Expect(result.Reason()).To(Equal(Unknown))
+					})
+
+					It("Should set status to False if lease has not been renewed at all even after 24 hours of lease creation", func() {
+						cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-full-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
+							func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
+								*le = lease
+								le.Spec.RenewTime = nil
+								le.Spec.HolderIdentity = nil
+								le.ObjectMeta.CreationTimestamp = v1.Time{Time: time.Now().Add(-25 * time.Hour)}
+								return nil
+							},
+						).AnyTimes()
+
+						check := FullSnapshotBackupReadyCheck(cl)
+						result := check.Check(context.TODO(), etcd)
+
+						Expect(result).ToNot(BeNil())
+						Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeFullSnapshotBackupReady))
+						Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
+						Expect(result.Reason()).To(Equal(SnapshotMissedSchedule))
+					})
+				})
+
+				Context("With lease renewed at least once", func() {
+					It("Should set status to True if lease has been renewed within the last 24 hours", func() {
+						cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-full-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
+							func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
+								*le = lease
+								le.Spec.RenewTime = &v1.MicroTime{Time: time.Now()}
+								return nil
+							},
+						).AnyTimes()
+
+						check := FullSnapshotBackupReadyCheck(cl)
+						result := check.Check(context.TODO(), etcd)
+
+						Expect(result).ToNot(BeNil())
+						Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeFullSnapshotBackupReady))
+						Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
+						Expect(result.Reason()).To(Equal(SnapshotUploadedOnSchedule))
+					})
+
+					It("Should set status to False if lease has not been renewed within the last 24 hours", func() {
+						cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-full-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
+							func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
+								*le = lease
+								le.Spec.RenewTime = &v1.MicroTime{Time: time.Now().Add(-25 * time.Hour)}
+								return nil
+							},
+						).AnyTimes()
+
+						check := FullSnapshotBackupReadyCheck(cl)
+						result := check.Check(context.TODO(), etcd)
+
+						Expect(result).ToNot(BeNil())
+						Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeFullSnapshotBackupReady))
+						Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
+						Expect(result.Reason()).To(Equal(SnapshotMissedSchedule))
+					})
+				})
+			})
+
+			Context("With no backup store configured", func() {
+				It("Should return nil condition", func() {
+					cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
+						func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease) error {
+							return &noLeaseError
+						},
+					).AnyTimes()
+
+					etcd.Spec.Backup.Store = nil
+					check := FullSnapshotBackupReadyCheck(cl)
+					result := check.Check(context.TODO(), etcd)
+
+					Expect(result).To(BeNil())
+					etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
+						Prefix:   "test-prefix",
+						Provider: &storageProvider,
+					}
+				})
+			})
+
+			Context("With backup store is configured but provider is nil", func() {
+				It("Should return nil condition", func() {
+					cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
+						func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease) error {
+							return &noLeaseError
+						},
+					).AnyTimes()
+
+					etcd.Spec.Backup.Store.Provider = nil
+					check := FullSnapshotBackupReadyCheck(cl)
+					result := check.Check(context.TODO(), etcd)
+
+					Expect(result).To(BeNil())
+					etcd.Spec.Backup.Store.Provider = &storageProvider
+				})
+			})
+		})
+	})
+	Describe("#BackupReadyCheck", func() {
+		var results []Result
+		BeforeEach(func() {
+			results = []Result{
+				&result{
+					ConType:   druidv1alpha1.ConditionTypeFullSnapshotBackupReady,
+					ConStatus: druidv1alpha1.ConditionTrue,
+				},
+				&result{
+					ConType:   druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady,
+					ConStatus: druidv1alpha1.ConditionTrue,
+				},
+				nil,
+				&result{
+					ConType:   druidv1alpha1.ConditionTypeReady,
+					ConStatus: druidv1alpha1.ConditionTrue,
+				},
+				&result{
+					ConType:   druidv1alpha1.ConditionTypeDataVolumesReady,
+					ConStatus: druidv1alpha1.ConditionTrue,
+				},
+			}
+		})
+		Context("With at least one of Full or Delta snapshot backup condition check is nil", func() {
+			It("Should return nil condition", func() {
+				results = append(results[:1], results[2:]...)
+				result := BackupReadyCheck(results)
+				Expect(result).To(BeNil())
+
+				results = append(results[:], results[1:]...)
+				result = BackupReadyCheck(results)
+				Expect(result).To(BeNil())
 			})
 		})
 
-		Context("With both snapshot leases present", func() {
-			It("Should set status to BackupSucceeded if both leases are recently renewed", func() {
-				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
-						*le = lease
-						return nil
-					},
-				).AnyTimes()
-
-				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
-
-				Expect(result).ToNot(BeNil())
-				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
-				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
-				Expect(result.Reason()).To(Equal(BackupSucceeded))
-			})
-
-			It("Should set status to BackupSucceeded if delta snap lease is recently created and empty full snap lease has been created in the last 24h", func() {
-				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-full-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
-						*le = lease
-						le.Spec.RenewTime = nil
-						le.Spec.HolderIdentity = nil
-						le.ObjectMeta.CreationTimestamp = v1.Now()
-						return nil
-					},
-				).AnyTimes()
-				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-delta-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
-						*le = lease
-						return nil
-					},
-				).AnyTimes()
-
-				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
-
-				Expect(result).ToNot(BeNil())
-				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
-				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
-				Expect(result.Reason()).To(Equal(BackupSucceeded))
-			})
-
-			It("Should set status to Unknown if empty delta snap lease is present but full snap lease is renewed recently", func() {
-				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-full-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
-						*le = lease
-						le.Spec.RenewTime = &v1.MicroTime{Time: lease.Spec.RenewTime.Time.Add(-5 * deltaSnapshotDuration)}
-						return nil
-					},
-				).AnyTimes()
-				cl.EXPECT().Get(context.TODO(), types.NamespacedName{Name: "test-etcd-delta-snap", Namespace: "default"}, gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
-						*le = lease
-						le.Spec.RenewTime = nil
-						le.Spec.HolderIdentity = nil
-						return nil
-					},
-				).AnyTimes()
-
-				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
-
-				Expect(result).ToNot(BeNil())
-				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
-				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
-				Expect(result.Reason()).To(Equal(Unknown))
-				Expect(result.Message()).To(Equal("Periodic delta snapshots not started yet"))
-			})
-
-			It("Should set status to Unknown if both leases are stale", func() {
-				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
-						*le = lease
-						le.Spec.RenewTime = &v1.MicroTime{
-							Time: time.Now().Add(-10 * time.Minute),
-						}
-						return nil
-					},
-				).AnyTimes()
-
-				etcd.Status.Conditions = []druidv1alpha1.Condition{
-					{
-						Type:    druidv1alpha1.ConditionTypeBackupReady,
-						Status:  druidv1alpha1.ConditionTrue,
-						Message: "True",
-					},
-				}
-
-				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
-
-				Expect(result).ToNot(BeNil())
-				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
-				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
-				Expect(result.Reason()).To(Equal(Unknown))
-			})
-
-			It("Should set status to BackupFailed if both leases are stale and current condition is Unknown", func() {
-				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, le *coordinationv1.Lease, _ ...client.GetOption) error {
-						*le = lease
-						le.Spec.RenewTime = &v1.MicroTime{
-							Time: time.Now().Add(-10 * time.Minute),
-						}
-						return nil
-					},
-				).AnyTimes()
-
-				etcd.Status.Conditions = []druidv1alpha1.Condition{
-					{
-						Type:    druidv1alpha1.ConditionTypeBackupReady,
-						Status:  druidv1alpha1.ConditionUnknown,
-						Message: "Unknown",
-					},
-				}
-
-				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
-
+		Context("With at least one of Full or Delta snapshot backup condition check is False", func() {
+			It("Should return False readiness", func() {
+				results[0].(*result).ConStatus = druidv1alpha1.ConditionFalse
+				result := BackupReadyCheck(results)
 				Expect(result).ToNot(BeNil())
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
@@ -225,40 +455,24 @@ var _ = Describe("BackupReadyCheck", func() {
 			})
 		})
 
-		Context("With no backup store configured", func() {
-			It("Should return nil condition", func() {
-				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease) error {
-						return &noLeaseError
-					},
-				).AnyTimes()
-
-				etcd.Spec.Backup.Store = nil
-				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
-
-				Expect(result).To(BeNil())
-				etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
-					Prefix:   "test-prefix",
-					Provider: &storageProvider,
-				}
+		Context("With at least one of Full or Delta snapshot backup condition check is Unknown", func() {
+			It("Should return Unknown readiness", func() {
+				results[1].(*result).ConStatus = druidv1alpha1.ConditionUnknown
+				result := BackupReadyCheck(results)
+				Expect(result).ToNot(BeNil())
+				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
+				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
+				Expect(result.Reason()).To(Equal(Unknown))
 			})
 		})
 
-		Context("With backup store is configured but provider is nil", func() {
-			It("Should return nil condition", func() {
-				cl.EXPECT().Get(context.TODO(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ client.ObjectKey, er *coordinationv1.Lease) error {
-						return &noLeaseError
-					},
-				).AnyTimes()
-
-				etcd.Spec.Backup.Store.Provider = nil
-				check := BackupReadyCheck(cl)
-				result := check.Check(context.TODO(), etcd)
-
-				Expect(result).To(BeNil())
-				etcd.Spec.Backup.Store.Provider = &storageProvider
+		Context("With both Full and Delta snapshot backup condition checks are True", func() {
+			It("Should return True readiness", func() {
+				result := BackupReadyCheck(results)
+				Expect(result).ToNot(BeNil())
+				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBackupReady))
+				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
+				Expect(result.Reason()).To(Equal(BackupSucceeded))
 			})
 		})
 	})
