@@ -120,6 +120,11 @@ var _ = Describe("Etcd Controller", func() {
 
 			testutils.SetStatefulSetPodsUpdated(sts)
 			testutils.SetStatefulSetReady(sts)
+			testutils.CreateStsPods(ctx, k8sClient, sts)
+			DeferCleanup(func() {
+				testutils.DeleteStsPods(ctx, k8sClient, sts)
+			})
+
 			err = k8sClient.Status().Update(ctx, sts)
 			Expect(err).NotTo(HaveOccurred())
 
