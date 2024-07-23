@@ -15,11 +15,12 @@
 package utils
 
 import (
+	"os"
+
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	gomegatypes "github.com/onsi/gomega/types"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"os"
 )
 
 func MatchFinalizer(finalizer string) gomegatypes.GomegaMatcher {
@@ -57,4 +58,29 @@ func SwitchDirectory(path string) func() {
 			Expect(err).NotTo(HaveOccurred())
 		}
 	}
+}
+
+// mergeStringMaps merges the content of the newMaps with the oldMap. If a key already exists then
+// it gets overwritten by the last value with the same key.
+func mergeStringMaps(oldMap map[string]string, newMaps ...map[string]string) map[string]string {
+	var out map[string]string
+
+	if oldMap != nil {
+		out = make(map[string]string)
+	}
+	for k, v := range oldMap {
+		out[k] = v
+	}
+
+	for _, newMap := range newMaps {
+		if newMap != nil && out == nil {
+			out = make(map[string]string)
+		}
+
+		for k, v := range newMap {
+			out[k] = v
+		}
+	}
+
+	return out
 }

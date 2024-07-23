@@ -20,7 +20,6 @@ import (
 	"strconv"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/utils"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -137,7 +136,7 @@ func CreateStsPods(ctx context.Context, cl client.Client, sts *appsv1.StatefulSe
 	for i := 0; i < int(stsReplicas); i++ {
 		podName := fmt.Sprintf("%s-%d", sts.Name, i)
 
-		podLabels := utils.MergeStringMaps(sts.Spec.Template.Labels, map[string]string{
+		podLabels := mergeStringMaps(sts.Spec.Template.Labels, map[string]string{
 			"apps.kubernetes.io/pod-index":       strconv.Itoa(i),
 			"statefulset.kubernetes.io/pod-name": podName,
 			"controller-revision-hash":           sts.Status.UpdateRevision,
