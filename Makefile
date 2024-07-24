@@ -41,7 +41,7 @@ update-dependencies:
 
 .PHONY: add-license-headers
 add-license-headers: $(GO_ADD_LICENSE)
-	@bash $(HACK_DIR)/addlicenseheaders.sh ${YEAR}
+	@$(HACK_DIR)/addlicenseheaders.sh ${YEAR}
 
 # Run go fmt against code
 .PHONY: fmt
@@ -97,7 +97,7 @@ test-integration: $(GINKGO) $(SETUP_ENVTEST) $(GOTESTFMT)
 
 .PHONY: test-cov
 test-cov: $(GINKGO) $(SETUP_ENVTEST)
-	@TEST_COV="true" bash $(HACK_DIR)/test.sh --skip-package=./test/e2e
+	@TEST_COV="true" $(HACK_DIR)/test.sh --skip-package=./test/e2e
 
 .PHONY: test-cov-clean
 test-cov-clean:
@@ -175,7 +175,7 @@ undeploy: $(SKAFFOLD) $(HELM)
 
 .PHONY: deploy-localstack
 deploy-localstack: $(KUBECTL)
-	@bash $(HACK_DIR)/deploy-localstack.sh
+	@$(HACK_DIR)/deploy-localstack.sh
 
 .PHONY: deploy-azurite
 deploy-azurite: $(KUBECTL)
@@ -183,7 +183,7 @@ deploy-azurite: $(KUBECTL)
 
 .PHONY: test-e2e
 test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
-	@bash $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
+	@$(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
 .PHONY: ci-e2e-kind
 ci-e2e-kind:
