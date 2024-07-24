@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-VERSION             := $(shell cat VERSION)
 REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
 HACK_DIR            := $(REPO_ROOT)/hack
+VERSION             := $(shell $(HACK_DIR)/get-version.sh)
+GIT_SHA             := $(shell git rev-parse --short HEAD || echo "GitNotFound")
 REGISTRY            := europe-docker.pkg.dev/gardener-project/snapshots
 IMAGE_REPOSITORY    := $(REGISTRY)/gardener/etcd-druid
 IMAGE_BUILD_TAG     := $(VERSION)

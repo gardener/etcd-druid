@@ -33,5 +33,5 @@ GIT_SHA="${GIT_SHA:-$(git rev-parse --short HEAD || echo "GitNotFound")}"
 CGO_ENABLED=0 GO111MODULE=on go build \
   -v \
   -o "${BINARY_PATH}"/etcd-druid \
-  -ldflags "-w -X ${REPOSITORY}/pkg/version.Version=${VERSION} -X ${REPOSITORY}/pkg/version.GitSHA=${GIT_SHA}" \
+  -ldflags "-w -X ${REPOSITORY}/internal/version.Version=${VERSION} -X ${REPOSITORY}/internal/version.GitSHA=${GIT_SHA}" \
   main.go
