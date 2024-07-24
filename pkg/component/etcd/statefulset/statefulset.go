@@ -242,12 +242,14 @@ func (c *component) createPreDeployFlow(ctx context.Context, etcd *druidv1alpha1
 }
 
 func (c *component) addTasksForLabelsAndSelectorUpdation(g *flow.Graph, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) {
+	var labelsPatched bool
+
 	// If the labels are not as expected, then patch the labels.
 	patchLabelsOpName := "(patch-labels): Patching labels"
 	patchLabelsTaskID := g.Add(flow.Task{
 		Name: patchLabelsOpName,
 		Fn: func(ctx context.Context) error {
-			return c.patchPodTemplateLabels(ctx, sts)
+			return c.patchPodTemplateLabels(ctx, sts, &labelsPatched)
 		},
 		Dependencies: nil,
 	})
@@ -258,7 +260,7 @@ func (c *component) addTasksForLabelsAndSelectorUpdation(g *flow.Graph, etcd *dr
 	waitPodsTaskID := g.Add(flow.Task{
 		Name: waitPodsOpName,
 		Fn: func(ctx context.Context) error {
-			return c.waitUntilPodsHaveDesiredLabels(ctx, etcd, sts, defaultInterval, defaultTimeout*2)
+			return c.waitUntilPodsHaveDesiredLabels(ctx, etcd, sts, &labelsPatched, defaultInterval, defaultTimeout*2)
 		},
 		Dependencies: flow.NewTaskIDs(patchLabelsTaskID),
 	})
@@ -277,18 +279,22 @@ func (c *component) addTasksForLabelsAndSelectorUpdation(g *flow.Graph, etcd *dr
 }
 
 // patchPodTemplateLabels patches the StatefulSet pod template labels with new labels.
-func (c *component) patchPodTemplateLabels(ctx context.Context, sts *appsv1.StatefulSet) error {
+func (c *component) patchPodTemplateLabels(ctx context.Context, sts *appsv1.StatefulSet, patched *bool) error {
 	if !utils.ContainsAllDesiredLabels(sts.Spec.Template.Labels, c.values.PodLabels) {
 		c.logger.Info("Patching StatefulSet pod template labels", "namespace", c.values.Namespace, "name", c.values.Name, "podTemplateLabels", utils.MergeStringMaps(c.values.PodLabels, c.values.AdditionalPodLabels))
 		patch := client.MergeFrom(sts.DeepCopy())
 		sts.Spec.Template.Labels = utils.MergeStringMaps(c.values.PodLabels, c.values.AdditionalPodLabels)
-		return c.client.Patch(ctx, sts, patch)
+		if err := c.client.Patch(ctx, sts, patch); err != nil {
+			return err
+		}
+		*patched = true
+		return nil
 	}
 	return nil
 }
 
 // waitUntilPodsHaveDesiredLabels waits until all pods of the StatefulSet have the desired labels.
-func (c *component) waitUntilPodsHaveDesiredLabels(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, interval, timeout time.Duration) error {
+func (c *component) waitUntilPodsHaveDesiredLabels(ctx context.Context, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, labelsPatched *bool, interval, timeout time.Duration) error {
 	return gardenerretry.UntilTimeout(ctx, interval, timeout, func(ctx context.Context) (bool, error) {
 		c.logger.Info("Waiting for StatefulSet pods to have desired labels", "namespace", c.values.Namespace, "name", c.values.Name)
 		// sts.spec.replicas is more accurate than Etcd.spec.replicas, specifically when
@@ -302,9 +308,23 @@ func (c *component) waitUntilPodsHaveDesiredLabels(ctx context.Context, etcd *dr
 			if !utils.ContainsAllDesiredLabels(pod.Labels, c.values.PodLabels) {
 				return false, nil
 			}
+			// If labels were patched in the current pre-deploy flow, then wait for all pods to be ready.
+			// This is to ensure that the double rolling of the sts pods does not lead to transient quorum loss.
+			if *labelsPatched && !isPodReady(pod) {
+				return false, nil
+			}
 		}
 		return gardenerretry.Ok()
 	})
+}
+
+func isPodReady(pod *corev1.Pod) bool {
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type == corev1.PodReady {
+			return cond.Status == corev1.ConditionTrue
+		}
+	}
+	return false
 }
 
 // deleteWithOrphanCascade deletes the StatefulSet with orphan cascade option if the selector labels are not as expected.
