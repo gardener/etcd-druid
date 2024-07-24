@@ -9,10 +9,8 @@
 package tools
 
 import (
-	_ "github.com/gardener/gardener/.github"
-	_ "github.com/gardener/gardener/hack"
-	_ "github.com/gardener/gardener/hack/.ci"
+	_ "github.com/ironcore-dev/vgopath"
 	_ "github.com/onsi/ginkgo/v2/ginkgo"
-	_ "github.com/rakyll/gotest"
+	_ "sigs.k8s.io/controller-runtime/tools/setup-envtest"
 	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
 )

@@ -64,6 +64,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var existingObjects []client.Object
 			if tc.svcExists {
 				existingObjects = append(existingObjects, newPeerService(etcd))
@@ -84,7 +85,6 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenNoServiceExists(t *testing.T) {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 	testCases := []struct {
 		name           string
 		createWithPort *int32
@@ -112,6 +112,8 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 			if tc.createWithPort != nil {
 				etcdBuilder.WithEtcdServerPort(tc.createWithPort)
 			}
@@ -135,7 +137,6 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 }
 
 func TestSyncWhenServiceExists(t *testing.T) {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 	testCases := []struct {
 		name           string
 		updateWithPort *int32
@@ -161,6 +162,8 @@ func TestSyncWhenServiceExists(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 			existingEtcd := etcdBuilder.Build()
 			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newPeerService(existingEtcd)}, getObjectKey(existingEtcd.ObjectMeta))
 			operator := New(cl)
@@ -214,6 +217,7 @@ func TestPeerServiceTriggerDelete(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, tc.deleteErr, []client.Object{newPeerService(etcd)}, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())

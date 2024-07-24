@@ -34,7 +34,6 @@ const (
 
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 	testCases := []struct {
 		name              string
 		etcdReplicas      int32
@@ -78,6 +77,8 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 			etcd := etcdBuilder.WithReplicas(tc.etcdReplicas).Build()
 			var existingObjects []client.Object
 			if tc.numExistingLeases > 0 {
@@ -104,7 +105,6 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestSync(t *testing.T) {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 	testCases := []struct {
 		name              string
 		etcdReplicas      int32 // original replicas
@@ -153,7 +153,9 @@ func TestSync(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// *************** set up existing environment *****************
+			etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 			etcd := etcdBuilder.WithReplicas(tc.etcdReplicas).Build()
 			var existingObjects []client.Object
 			if tc.numExistingLeases > 0 {
@@ -236,6 +238,7 @@ func TestTriggerDelete(t *testing.T) {
 	nonTargetLeaseNames := []string{"another-etcd-0", "another-etcd-1"}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// *************** set up existing environment *****************
 			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(tc.etcdReplicas).Build()
 			var existingObjects []client.Object

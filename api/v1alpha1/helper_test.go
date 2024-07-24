@@ -144,6 +144,7 @@ func TestGetSuspendEtcdSpecReconcileAnnotationKey(t *testing.T) {
 	t.Parallel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), test.annotations, nil, false)
 			annotationKey := GetSuspendEtcdSpecReconcileAnnotationKey(etcdObjMeta)
 			g.Expect(annotationKey).To(Equal(test.expectedAnnotationKey))
@@ -172,6 +173,7 @@ func TestAreManagedResourcesProtected(t *testing.T) {
 	t.Parallel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), test.annotations, nil, false)
 			resourceProtection := AreManagedResourcesProtected(etcdObjMeta)
 			g.Expect(resourceProtection).To(Equal(test.expectedResourceProtection))
@@ -225,6 +227,7 @@ func TestIsEtcdMarkedForDeletion(t *testing.T) {
 	t.Parallel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, test.markedForDeletion)
 			isMarkedForDeletion := IsEtcdMarkedForDeletion(etcdObjMeta)
 			g.Expect(isMarkedForDeletion).To(Equal(test.expectedIsMarkedForDeletion))
