@@ -146,7 +146,7 @@ require (
 	istio.io/api v1.22.2 // indirect
 	istio.io/client-go v1.22.0 // indirect
 	k8s.io/apiextensions-apiserver v0.29.6 // indirect
-	k8s.io/autoscaler v0.0.0-20190805135949-100e91ba756e // indirect
+	k8s.io/autoscaler/vertical-pod-autoscaler v1.1.2 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-aggregator v0.29.6 // indirect
 	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect
