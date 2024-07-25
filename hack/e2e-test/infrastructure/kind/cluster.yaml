@@ -8,19 +8,19 @@ nodes:
   - containerPort: 4566
     hostPort: 4566
     # Optional: Sets the bind address on the host.
-+   # "127.0.0.1" is specified to bind to the localhost.
+    # "127.0.0.1" is specified to bind to the localhost.
     listenAddress: "127.0.0.1"
     # Optional: Specifies the protocol. Valid options are TCP, UDP, SCTP.
-+   # TCP is set as the default protocol.
+    # TCP is set as the default protocol.
     protocol: TCP
   # Port forwarding: Maps port 10000 on the host to the azurite-service running inside the kind cluster.
   - containerPort: 10000
     hostPort: 10000
     # Optional: Sets the bind address on the host.
-+   # "127.0.0.1" is specified for binding to the localhost.
+    # "127.0.0.1" is specified for binding to the localhost.
     listenAddress: "127.0.0.1"
     # Optional: Specifies the protocol. Valid options are TCP, UDP, SCTP.
-+   # TCP is set as the default protocol.
+    # TCP is set as the default protocol.
     protocol: TCP
   # Port forwarding: Maps port 8000 on the host to the fake-gcs service running inside the kind cluster.
   - containerPort: 8000
