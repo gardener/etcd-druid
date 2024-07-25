@@ -160,15 +160,15 @@ deploy-via-kustomize: manifests $(KUSTOMIZE)
 # Modify the Helm template located at charts/druid/templates if any changes are required
 .PHONY: deploy
 deploy: $(SKAFFOLD) $(HELM)
-	$(SKAFFOLD) run -m etcd-druid
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) run -m etcd-druid
 
 .PHONY: deploy-dev
 deploy-dev: $(SKAFFOLD) $(HELM)
-	$(SKAFFOLD) dev --cleanup=false -m etcd-druid --trigger='manual'
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) dev --cleanup=false -m etcd-druid --trigger='manual'
 
 .PHONY: deploy-debug
 deploy-debug: $(SKAFFOLD) $(HELM)
-	$(SKAFFOLD) debug --cleanup=false -m etcd-druid
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) debug --cleanup=false -m etcd-druid
 
 .PHONY: undeploy
 undeploy: $(SKAFFOLD) $(HELM)
@@ -184,7 +184,7 @@ deploy-azurite: $(KUBECTL)
 
 .PHONY: test-e2e
 test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
-	@$(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
 .PHONY: ci-e2e-kind
 ci-e2e-kind:
