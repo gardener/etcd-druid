@@ -6,8 +6,10 @@ REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))
 HACK_DIR            := $(REPO_ROOT)/hack
 VERSION             := $(shell $(HACK_DIR)/get-version.sh)
 GIT_SHA             := $(shell git rev-parse --short HEAD || echo "GitNotFound")
-REGISTRY            := europe-docker.pkg.dev/gardener-project/snapshots
-IMAGE_REPOSITORY    := $(REGISTRY)/gardener/etcd-druid
+REGISTRY_ROOT	    := europe-docker.pkg.dev/gardener-project
+REGISTRY            := $(REGISTRY)/snapshots
+IMAGE_NAME          := gardener/etcd-druid
+IMAGE_REPOSITORY    := $(REGISTRY)/$(IMAGE_NAME)
 IMAGE_BUILD_TAG     := $(VERSION)
 BUILD_DIR           := build
 PROVIDERS           := ""
@@ -34,6 +36,11 @@ tidy:
 .PHONY: clean
 clean:
 	@$(HACK_DIR)/clean.sh ./api/... ./internal/...
+
+# Clean go mod cache
+.PHONY: clean-mod-cache
+clean-mod-cache:
+	@go clean -modcache
 
 .PHONY: update-dependencies
 update-dependencies:
@@ -113,6 +120,11 @@ test-cov-clean:
 druid: fmt check
 	@env GO111MODULE=on go build -o bin/druid main.go
 
+# Clean go build cache
+.PHONY: clean-build-cache
+clean-build-cache:
+	@go clean -cache
+
 # Build the docker image
 .PHONY: docker-build
 docker-build:
@@ -124,6 +136,11 @@ docker-build:
 .PHONY: docker-push
 docker-push:
 	docker push ${IMG}
+
+# Clean up all docker images for etcd-druid
+.PHONY: docker-clean
+docker-clean:
+	docker images | grep -e "$(REGISTRY_ROOT)/.*/$(IMAGE_NAME)" | awk '{print $$3}' | xargs docker rmi -f
 
 #####################################################################
 # Rules for local environment                                       #
