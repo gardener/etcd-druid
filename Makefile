@@ -2,11 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-VERSION             := $(shell cat VERSION)
 REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
 HACK_DIR            := $(REPO_ROOT)/hack
-REGISTRY            := europe-docker.pkg.dev/gardener-project/snapshots
-IMAGE_REPOSITORY    := $(REGISTRY)/gardener/etcd-druid
+VERSION             := $(shell $(HACK_DIR)/get-version.sh)
+GIT_SHA             := $(shell git rev-parse --short HEAD || echo "GitNotFound")
+REGISTRY_ROOT	    := europe-docker.pkg.dev/gardener-project
+REGISTRY            := $(REGISTRY)/snapshots
+IMAGE_NAME          := gardener/etcd-druid
+IMAGE_REPOSITORY    := $(REGISTRY)/$(IMAGE_NAME)
 IMAGE_BUILD_TAG     := $(VERSION)
 BUILD_DIR           := build
 PROVIDERS           := ""
@@ -33,6 +36,11 @@ tidy:
 .PHONY: clean
 clean:
 	@$(HACK_DIR)/clean.sh ./api/... ./internal/...
+
+# Clean go mod cache
+.PHONY: clean-mod-cache
+clean-mod-cache:
+	@go clean -modcache
 
 .PHONY: update-dependencies
 update-dependencies:
@@ -112,6 +120,11 @@ test-cov-clean:
 druid: fmt check
 	@env GO111MODULE=on go build -o bin/druid main.go
 
+# Clean go build cache
+.PHONY: clean-build-cache
+clean-build-cache:
+	@go clean -cache
+
 # Build the docker image
 .PHONY: docker-build
 docker-build:
@@ -123,6 +136,11 @@ docker-build:
 .PHONY: docker-push
 docker-push:
 	docker push ${IMG}
+
+# Clean up all docker images for etcd-druid
+.PHONY: docker-clean
+docker-clean:
+	docker images | grep -e "$(REGISTRY_ROOT)/.*/$(IMAGE_NAME)" | awk '{print $$3}' | xargs docker rmi -f
 
 #####################################################################
 # Rules for local environment                                       #
@@ -159,15 +177,15 @@ deploy-via-kustomize: manifests $(KUSTOMIZE)
 # Modify the Helm template located at charts/druid/templates if any changes are required
 .PHONY: deploy
 deploy: $(SKAFFOLD) $(HELM)
-	$(SKAFFOLD) run -m etcd-druid
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) run -m etcd-druid
 
 .PHONY: deploy-dev
 deploy-dev: $(SKAFFOLD) $(HELM)
-	$(SKAFFOLD) dev --cleanup=false -m etcd-druid --trigger='manual'
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) dev --cleanup=false -m etcd-druid --trigger='manual'
 
 .PHONY: deploy-debug
 deploy-debug: $(SKAFFOLD) $(HELM)
-	$(SKAFFOLD) debug --cleanup=false -m etcd-druid
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) debug --cleanup=false -m etcd-druid
 
 .PHONY: undeploy
 undeploy: $(SKAFFOLD) $(HELM)
@@ -183,7 +201,7 @@ deploy-azurite: $(KUBECTL)
 
 .PHONY: test-e2e
 test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
-	@$(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
 .PHONY: ci-e2e-kind
 ci-e2e-kind:
