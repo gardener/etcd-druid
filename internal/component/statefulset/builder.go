@@ -202,7 +202,7 @@ func (b *stsBuilder) getVolumeClaimTemplates() []corev1.PersistentVolumeClaim {
 				AccessModes: []corev1.PersistentVolumeAccessMode{
 					corev1.ReadWriteOnce,
 				},
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: utils.TypeDeref(b.etcd.Spec.StorageCapacity, defaultStorageCapacity),
 					},

@@ -103,7 +103,7 @@ func TestIsStatefulSetReady(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			sts := testutils.CreateStatefulSet(stsName, stsNamespace, uuid.NewUUID(), 2)
 			sts.Generation = tc.specGeneration
 			sts.Status.ObservedGeneration = tc.statusObservedGeneration
@@ -159,6 +159,7 @@ func TestGetStatefulSet(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var existingObjects []client.Object
 			if tc.isStsPresent {
 				etcdUID := etcd.UID
@@ -247,6 +248,7 @@ func TestFetchPVCWarningMessagesForStatefulSet(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var existingObjects []client.Object
 			if tc.pvcList != nil {
 				existingObjects = append(existingObjects, tc.pvcList...)

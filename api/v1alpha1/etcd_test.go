@@ -41,6 +41,7 @@ func TestIsBackupStoreEnabled(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			etcd.Spec.Backup = test.backup
 			g.Expect(etcd.IsBackupStoreEnabled()).To(Equal(test.expected))
 		})
@@ -106,6 +107,7 @@ func TestIsReconciliationInProgress(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			etcd := createEtcd("foo", "default")
 			etcd.Status.LastOperation = test.lastOp
 			g.Expect(etcd.IsReconciliationInProgress()).To(Equal(test.expected))

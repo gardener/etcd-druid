@@ -20,7 +20,6 @@ import (
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
-	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -88,7 +87,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 func (r *Reconciler) reconcile(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask) (result ctrl.Result, err error) {
-	logger := r.logger.WithValues("etcdCopyBackupsTask", kutil.ObjectName(task), "operation", "reconcile")
+	logger := r.logger.WithValues("etcdCopyBackupsTask", client.ObjectKeyFromObject(task), "operation", "reconcile")
 
 	// Ensure finalizer
 	if !controllerutil.ContainsFinalizer(task, common.FinalizerName) {
@@ -142,14 +141,14 @@ func (r *Reconciler) doReconcile(ctx context.Context, task *druidv1alpha1.EtcdCo
 	// Create job
 	logger.Info("Creating job", "namespace", job.Namespace, "name", job.Name)
 	if err := r.Create(ctx, job); err != nil {
-		return status, fmt.Errorf("could not create job %s: %w", kutil.ObjectName(job), err)
+		return status, fmt.Errorf("could not create job %s: %w", client.ObjectKeyFromObject(job), err)
 	}
 
 	return status, nil
 }
 
 func (r *Reconciler) delete(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask) (result ctrl.Result, err error) {
-	logger := r.logger.WithValues("task", kutil.ObjectName(task), "operation", "delete")
+	logger := r.logger.WithValues("task", client.ObjectKeyFromObject(task), "operation", "delete")
 
 	// Check finalizer
 	if !controllerutil.ContainsFinalizer(task, common.FinalizerName) {
@@ -208,7 +207,7 @@ func (r *Reconciler) doDelete(ctx context.Context, task *druidv1alpha1.EtcdCopyB
 	if job.DeletionTimestamp == nil {
 		logger.Info("Deleting job", "namespace", job.Namespace, "name", job.Name)
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); client.IgnoreNotFound(err) != nil {
-			return status, false, fmt.Errorf("could not delete job %s: %w", kutil.ObjectName(job), err)
+			return status, false, fmt.Errorf("could not delete job %s: %w", client.ObjectKeyFromObject(job), err)
 		}
 	}
 
@@ -217,7 +216,7 @@ func (r *Reconciler) doDelete(ctx context.Context, task *druidv1alpha1.EtcdCopyB
 
 func (r *Reconciler) getJob(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask) (*batchv1.Job, error) {
 	job := &batchv1.Job{}
-	if err := r.Get(ctx, kutil.Key(task.Namespace, task.GetJobName()), job); err != nil {
+	if err := r.Get(ctx, client.ObjectKey{Namespace: task.Namespace, Name: task.GetJobName()}, job); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
 		}
@@ -381,7 +380,7 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 	}
 
 	if err := controllerutil.SetControllerReference(task, job, r.Scheme()); err != nil {
-		return nil, fmt.Errorf("could not set owner reference for job %v: %w", kutil.ObjectName(job), err)
+		return nil, fmt.Errorf("could not set owner reference for job %v: %w", client.ObjectKeyFromObject(job), err)
 	}
 	return job, nil
 }

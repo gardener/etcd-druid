@@ -81,6 +81,7 @@ func TestGetHostMountPathFromSecretRef(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var existingObjects []client.Object
 			if tc.secretExists {
 				sec := createSecret(existingSecretName, testutils.TestNamespace, tc.hostPathInSecret)

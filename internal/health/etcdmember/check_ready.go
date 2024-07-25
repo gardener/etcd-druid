@@ -11,7 +11,6 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -39,7 +38,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 	leases := make([]*coordinationv1.Lease, 0, len(leaseNames))
 	for _, leaseName := range leaseNames {
 		lease := &coordinationv1.Lease{}
-		if err := r.cl.Get(ctx, kutil.Key(etcd.Namespace, leaseName), lease); err != nil {
+		if err := r.cl.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: leaseName}, lease); err != nil {
 			if !apierrors.IsNotFound(err) {
 				r.logger.Error(err, "failed to get lease", "name", leaseName)
 			}
@@ -133,7 +132,7 @@ func separateIdFromRole(holderIdentity *string) (*string, *druidv1alpha1.EtcdRol
 
 func (r *readyCheck) checkContainersAreReady(ctx context.Context, namespace string, name string) (bool, error) {
 	pod := &corev1.Pod{}
-	if err := r.cl.Get(ctx, kutil.Key(namespace, name), pod); err != nil {
+	if err := r.cl.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, pod); err != nil {
 		return false, err
 	}
 

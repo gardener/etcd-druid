@@ -11,7 +11,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/utils"
 
-	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -39,7 +38,7 @@ func (d *dataVolumesReady) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 	pvcEvents, err := utils.FetchPVCWarningMessagesForStatefulSet(ctx, d.cl, sts)
 	if err != nil {
 		res.reason = "UnableToFetchWarningEventsForDataVolumes"
-		res.message = fmt.Sprintf("Unable to fetch warning events for PVCs used by StatefulSet %v: %s", kutil.Key(sts.Name, sts.Namespace), err.Error())
+		res.message = fmt.Sprintf("Unable to fetch warning events for PVCs used by StatefulSet %v: %s", client.ObjectKey{Name: sts.Name, Namespace: sts.Namespace}, err.Error())
 		return res
 	}
 
@@ -51,7 +50,7 @@ func (d *dataVolumesReady) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 	}
 
 	res.reason = "NoWarningsFoundForDataVolumes"
-	res.message = fmt.Sprintf("No warning events found for PVCs used by StatefulSet %v", kutil.Key(sts.Name, sts.Namespace))
+	res.message = fmt.Sprintf("No warning events found for PVCs used by StatefulSet %v", client.ObjectKey{Name: sts.Name, Namespace: sts.Namespace})
 	res.status = druidv1alpha1.ConditionTrue
 	return res
 }

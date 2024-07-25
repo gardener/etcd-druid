@@ -96,6 +96,7 @@ func TestContainsAllDesiredLabels(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g.Expect(ContainsAllDesiredLabels(tc.actual, tc.desired)).To(Equal(tc.expected))
 		})
 	}
@@ -152,6 +153,7 @@ func TestContainsLabel(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g.Expect(ContainsLabel(tc.labels, tc.key, tc.value)).To(Equal(tc.expected))
 		})
 	}

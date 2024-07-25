@@ -65,6 +65,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, []client.Object{newClientService(etcd)}, client.ObjectKey{Name: druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), Namespace: etcd.Namespace})
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -112,6 +113,7 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			etcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort)
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, client.ObjectKey{Name: druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), Namespace: etcd.Namespace})
 			operator := New(cl)
@@ -164,6 +166,7 @@ func TestSyncWhenServiceExists(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// ********************* Setup *********************
 			cl := testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{newClientService(existingEtcd)}, client.ObjectKey{Name: druidv1alpha1.GetClientServiceName(existingEtcd.ObjectMeta), Namespace: existingEtcd.Namespace})
 			// ********************* test sync with updated ports *********************
@@ -218,6 +221,7 @@ func TestTriggerDelete(t *testing.T) {
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// ********************* Setup *********************
 			var existingObjects []client.Object
 			if tc.svcExists {

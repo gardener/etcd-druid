@@ -46,6 +46,7 @@ func TestIsRequeueAfterError(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			err := &DruidError{
 				Code:       tc.code,
 				ObservedAt: time.Now().UTC(),

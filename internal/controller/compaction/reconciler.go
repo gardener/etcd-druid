@@ -19,7 +19,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils"
 
 	"github.com/gardener/gardener/pkg/utils/imagevector"
-	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	batchv1 "k8s.io/api/batch/v1"
@@ -95,7 +94,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.delete(ctx, r.logger, etcd)
 	}
 
-	logger := r.logger.WithValues("etcd", kutil.Key(etcd.Namespace, etcd.Name).String())
+	logger := r.logger.WithValues("etcd", client.ObjectKeyFromObject(etcd).String())
 
 	return r.reconcileJob(ctx, logger, etcd)
 }
@@ -165,7 +164,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 	// Get full and delta snapshot lease to check the HolderIdentity value to take decision on compaction job
 	fullLease := &coordinationv1.Lease{}
 	fullSnapshotLeaseName := druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta)
-	if err := r.Get(ctx, kutil.Key(etcd.Namespace, fullSnapshotLeaseName), fullLease); err != nil {
+	if err := r.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: fullSnapshotLeaseName}, fullLease); err != nil {
 		logger.Error(err, "Couldn't fetch full snap lease", "namespace", etcd.Namespace, "name", fullSnapshotLeaseName)
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,
@@ -174,7 +173,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 	deltaLease := &coordinationv1.Lease{}
 	deltaSnapshotLeaseName := druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta)
-	if err := r.Get(ctx, kutil.Key(etcd.Namespace, deltaSnapshotLeaseName), deltaLease); err != nil {
+	if err := r.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: deltaSnapshotLeaseName}, deltaLease); err != nil {
 		logger.Error(err, "Couldn't fetch delta snap lease", "namespace", etcd.Namespace, "name", deltaSnapshotLeaseName)
 		return ctrl.Result{
 			RequeueAfter: 10 * time.Second,

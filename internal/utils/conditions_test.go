@@ -75,6 +75,7 @@ func TestMatchPodConditions(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g.Expect(MatchPodConditions(tc.conditions, tc.condType, tc.condStatus)).To(Equal(tc.expected))
 		})
 	}
@@ -135,6 +136,7 @@ func TestHasPodReadyConditionTrue(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g.Expect(HasPodReadyConditionTrue(tc.pod)).To(Equal(tc.expected))
 		})
 	}

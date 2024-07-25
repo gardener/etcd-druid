@@ -62,6 +62,7 @@ func TestIsPeerURLTLSEnabledForAllMembers(t *testing.T) {
 	logger := logr.Discard()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var existingObjects []client.Object
 			for _, l := range createLeases(testutils.TestNamespace, testutils.TestEtcdName, etcdReplicas, tc.numETCDMembersWithTLSEnabled) {
 				existingObjects = append(existingObjects, l)
