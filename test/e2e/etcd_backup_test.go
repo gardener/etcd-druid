@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/api/v1alpha1"
-	druidstore "github.com/gardener/etcd-druid/internal/store"
 
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
@@ -49,32 +48,11 @@ var _ = Describe("Etcd Backup", func() {
 			provider := p
 			Context(fmt.Sprintf("with provider %s", provider.Name), func() {
 				BeforeEach(func() {
-					etcdName = fmt.Sprintf("etcd-%s", provider.Name)
+					etcdName = fmt.Sprintf("etcd-single-node-%s", provider.Name)
+					storePrefix = etcdName
 					storageContainer = getEnvAndExpectNoError(envStorageContainer)
 
-					By("Purge snapstore")
-					snapstoreProvider := provider.Storage.Provider
-					if snapstoreProvider == druidstore.Local {
-						purgeLocalSnapstoreJob := purgeLocalSnapstore(parentCtx, cl, storageContainer)
-						defer cleanUpTestHelperJob(parentCtx, cl, purgeLocalSnapstoreJob.Name)
-					} else {
-						store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
-						Expect(err).ShouldNot(HaveOccurred())
-						Expect(purgeSnapstore(store)).To(Succeed())
-					}
-				})
-
-				AfterEach(func() {
-					ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
-					defer cancelFunc()
-
-					By("Delete debug pod")
-					etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
-					debugPod := getDebugPod(etcd)
-					Expect(client.IgnoreNotFound(cl.Delete(ctx, debugPod))).ToNot(HaveOccurred())
-
-					By("Purge etcd")
-					purgeEtcd(ctx, cl, providers)
+					purgeSnapstoreIfNeeded(parentCtx, cl, provider, storageContainer, etcdName)
 				})
 
 				It("Should create, test backup and delete etcd with backup", func() {
@@ -187,6 +165,12 @@ var _ = Describe("Etcd Backup", func() {
 					for i := 1; i <= 15; i++ {
 						Expect(keyValueMap[fmt.Sprintf("%s-%d", etcdKeyPrefix, i)]).To(Equal(fmt.Sprintf("%s-%d", etcdValuePrefix, i)))
 					}
+
+					By("Deleting debug pod")
+					Expect(client.IgnoreNotFound(cl.Delete(ctx, debugPod))).ToNot(HaveOccurred())
+
+					By("Deleting etcd")
+					deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 				})
 			})
 		}
