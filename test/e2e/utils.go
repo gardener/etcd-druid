@@ -23,6 +23,7 @@ import (
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -100,13 +101,9 @@ var (
 	etcdDefragmentationSchedule = "0 */24 * * *"
 	etcdQuota                   = resource.MustParse("2Gi")
 	etcdResources               = corev1.ResourceRequirements{
-		Limits: corev1.ResourceList{
-			"cpu":    resource.MustParse("1000m"),
-			"memory": resource.MustParse("2Gi"),
-		},
 		Requests: corev1.ResourceList{
-			"cpu":    resource.MustParse("500m"),
-			"memory": resource.MustParse("1Gi"),
+			"cpu":    resource.MustParse("100m"),
+			"memory": resource.MustParse("256Mi"),
 		},
 	}
 	etcdClientPort = int32(2379)
@@ -115,10 +112,6 @@ var (
 	backupPort                 = int32(8080)
 	backupFullSnapshotSchedule = "0 */1 * * *"
 	backupResources            = corev1.ResourceRequirements{
-		Limits: corev1.ResourceList{
-			"cpu":    resource.MustParse("500m"),
-			"memory": resource.MustParse("1Gi"),
-		},
 		Requests: corev1.ResourceList{
 			"cpu":    resource.MustParse("100m"),
 			"memory": resource.MustParse("256Mi"),
@@ -431,15 +424,30 @@ func getKubernetesClient(kubeconfigPath string) (client.Client, error) {
 }
 
 func deploySecret(ctx context.Context, cl client.Client, logger logr.Logger, name, namespace string, labels map[string]string, secretType corev1.SecretType, secretData map[string][]byte) error {
-	secret := corev1.Secret{}
-	secret.Name = name
-	secret.Namespace = namespace
-	secret.Labels = labels
-	secret.Type = secretType
-	secret.Data = secretData
+	secret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    labels,
+		},
+		Type: secretType,
+		Data: secretData,
+	}
 
-	logger.Info("creating secret", "secret", client.ObjectKeyFromObject(&secret))
-	return cl.Create(ctx, &secret)
+	logger.Info("checking if secret exists", "secret", client.ObjectKeyFromObject(&secret))
+
+	if err := cl.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, &secret); err != nil {
+		if errors.IsNotFound(err) {
+			logger.Info("secret does not exist, creating new secret", "secret", name)
+			return cl.Create(ctx, &secret)
+		}
+		logger.Error(err, "unable to check if secret exists")
+		return err
+	}
+
+	logger.Info("secret already exists, updating existing secret", "secret", name)
+	secret.Data = secretData // Update the data field in case it has changed
+	return cl.Update(ctx, &secret)
 }
 
 func buildAndDeployTLSSecrets(ctx context.Context, cl client.Client, logger logr.Logger, namespace, certsPath string, providers []TestProvider) error {
@@ -515,25 +523,40 @@ func buildAndDeployTLSSecrets(ctx context.Context, cl client.Client, logger logr
 }
 
 func deployBackupSecret(ctx context.Context, cl client.Client, logger logr.Logger, provider TestProvider, namespace, storageContainer string) error {
-
 	if provider.Storage == nil || provider.Storage.SecretData == nil {
-		return nil
+		logger.Info("no secret data provided, skipping secret deployment")
+		return nil // or return an error if this situation should not occur
 	}
 	secretData := provider.Storage.SecretData
 	providerSuffix := provider.Suffix
 	secretName := fmt.Sprintf("%s-%s", etcdBackupSecretPrefix, providerSuffix)
 
-	etcdBackupSecret := corev1.Secret{}
-	etcdBackupSecret.Name = secretName
-	etcdBackupSecret.Namespace = namespace
-	etcdBackupSecret.Labels = labels
-	etcdBackupSecret.Type = corev1.SecretTypeOpaque
-	etcdBackupSecret.Data = secretData
+	etcdBackupSecret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: namespace,
+			Labels:    labels, // Ensure labels is defined and valid
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: secretData,
+	}
 	etcdBackupSecret.Data["bucketName"] = []byte(storageContainer)
 
-	logger.Info("creating secret", "secret", client.ObjectKeyFromObject(&etcdBackupSecret))
+	logger.Info("checking if secret exists", "secret", client.ObjectKeyFromObject(&etcdBackupSecret))
 
-	return cl.Create(ctx, &etcdBackupSecret)
+	if err := cl.Get(ctx, client.ObjectKey{Name: secretName, Namespace: namespace}, &etcdBackupSecret); err != nil {
+		if errors.IsNotFound(err) {
+			logger.Info("secret does not exist, creating new secret", "secret", secretName)
+			return cl.Create(ctx, &etcdBackupSecret)
+		}
+		logger.Error(err, "unable to check if secret exists")
+		return err
+	}
+
+	logger.Info("secret already exists, updating existing secret", "secret", secretName)
+	etcdBackupSecret.Data = secretData                             // Update the data field in case it has changed
+	etcdBackupSecret.Data["bucketName"] = []byte(storageContainer) // Ensure this is always up-to-date
+	return cl.Update(ctx, &etcdBackupSecret)
 }
 
 // getRemoteCommandExecutor builds and returns a remote command Executor from the given command on the specified container
@@ -624,7 +647,7 @@ func purgeSnapstore(store brtypes.SnapStore) error {
 	return nil
 }
 
-func getPurgeLocalSnapstoreJob(storeContainer string) *batchv1.Job {
+func getPurgeLocalSnapstoreJob(storeContainer, storePrefix string) *batchv1.Job {
 	directory := corev1.HostPathDirectory
 
 	return newTestHelperJob(
@@ -647,7 +670,7 @@ func getPurgeLocalSnapstoreJob(storeContainer string) *batchv1.Job {
 					Image:   "ubuntu:23.10",
 					Command: []string{"/bin/bash"},
 					Args: []string{"-c",
-						fmt.Sprintf("rm -rf /host-dir-etc/gardener/local-backupbuckets/%s/*", storeContainer),
+						fmt.Sprintf("rm -rf /host-dir-etc/gardener/local-backupbuckets/%s/%s/*", storeContainer, storePrefix),
 					},
 					VolumeMounts: []corev1.VolumeMount{
 						{
@@ -827,104 +850,86 @@ func newTestHelperJob(jobName string, podSpec *corev1.PodSpec) *batchv1.Job {
 	}
 }
 
-// etcdZeroDownTimeValidatorJob returns k8s job which ensures
-// Etcd cluster(size>1) zero down time by continuously checking etcd cluster health.
-// This job fails once health check fails and associated pod results in error status.
+// etcdZeroDownTimeValidatorJob creates a Kubernetes job that validates the zero downtime of an
+// Etcd cluster by continuously checking the cluster's health. The job fails if a health check fails,
+// resulting in the associated pod entering an error state.
 func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSConfig) *batchv1.Job {
 	return newTestHelperJob(
-		"etcd-zero-down-time-validator-"+testName,
+		fmt.Sprintf("etcd-zero-down-time-validator-%s", testName),
 		&corev1.PodSpec{
 			Volumes: []corev1.Volume{
-				{
-					Name: "client-url-ca-etcd",
-					VolumeSource: corev1.VolumeSource{
-						Secret: &corev1.SecretVolumeSource{
-							SecretName:  tls.TLSCASecretRef.Name,
-							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
-						},
-					},
-				},
-				{
-					Name: "client-url-etcd-server-tls",
-					VolumeSource: corev1.VolumeSource{
-						Secret: &corev1.SecretVolumeSource{
-							SecretName:  tls.ServerTLSSecretRef.Name,
-							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
-						},
-					},
-				},
-				{
-					Name: "client-url-etcd-client-tls",
-					VolumeSource: corev1.VolumeSource{
-						Secret: &corev1.SecretVolumeSource{
-							SecretName:  tls.ClientTLSSecretRef.Name,
-							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
-						},
-					},
-				},
+				createTLSVolume("client-url-ca-etcd", tls.TLSCASecretRef.Name),
+				createTLSVolume("client-url-etcd-server-tls", tls.ServerTLSSecretRef.Name),
+				createTLSVolume("client-url-etcd-client-tls", tls.ClientTLSSecretRef.Name),
 			},
 			Containers: []corev1.Container{
 				{
-					Name:    "etcd-zero-down-time-validator-" + testName,
+					Name:    fmt.Sprintf("etcd-zero-down-time-validator-%s", testName),
 					Image:   "alpine/curl",
-					Command: []string{"/bin/sh"},
-					//To avoid flakiness, consider downtime when curl fails consecutively back-to-back.
-					Args: []string{"-ec",
-						"echo '" +
-							"failed=0 ; threshold=2 ; " +
-							"while [ $failed -lt $threshold ] ; do  " +
-							"$(curl --cacert /var/etcd/ssl/ca/ca.crt --cert /var/etcd/ssl/client/tls.crt --key /var/etcd/ssl/client/tls.key https://" + etcdSvc + ":2379/health -s -f  -o /dev/null ); " +
-							"if [ $? -gt 0 ] ; then let failed++; echo \"etcd is unhealthy and retrying\"; sleep 2; continue;  fi ; " +
-							"echo \"etcd is healthy\";  touch /tmp/healthy; let failed=0; " +
-							"sleep 2; done;  echo \"etcd is unhealthy\"; exit 1;" +
-							"' > test.sh && sh test.sh",
-					},
-					ReadinessProbe: &corev1.Probe{
-						InitialDelaySeconds: int32(5),
-						FailureThreshold:    int32(1),
-						PeriodSeconds:       int32(1),
-						SuccessThreshold:    int32(3),
-						ProbeHandler: corev1.ProbeHandler{
-							Exec: &corev1.ExecAction{
-								Command: []string{
-									"cat",
-									"/tmp/healthy",
-								},
-							},
-						},
-					},
-					LivenessProbe: &corev1.Probe{
-						InitialDelaySeconds: int32(5),
-						FailureThreshold:    int32(1),
-						PeriodSeconds:       int32(1),
-						ProbeHandler: corev1.ProbeHandler{
-							Exec: &corev1.ExecAction{
-								Command: []string{
-									"cat",
-									"/tmp/healthy",
-								},
-							},
-						},
-					},
+					Command: []string{"/bin/sh", "-c"},
+					Args:    []string{generateHealthCheckScript(etcdSvc)},
 					VolumeMounts: []corev1.VolumeMount{
-						{
-							MountPath: "/var/etcd/ssl/ca",
-							Name:      "client-url-ca-etcd",
-						},
-						{
-							MountPath: "/var/etcd/ssl/server",
-							Name:      "client-url-etcd-server-tls",
-						},
-						{
-							MountPath: "/var/etcd/ssl/client",
-							Name:      "client-url-etcd-client-tls",
-							ReadOnly:  true,
-						},
+						{MountPath: "/var/etcd/ssl/ca", Name: "client-url-ca-etcd"},
+						{MountPath: "/var/etcd/ssl/server", Name: "client-url-etcd-server-tls"},
+						{MountPath: "/var/etcd/ssl/client", Name: "client-url-etcd-client-tls", ReadOnly: true},
 					},
+					ReadinessProbe: createProbe("/tmp/healthy"),
+					LivenessProbe:  createProbe("/tmp/healthy"),
 				},
 			},
 			RestartPolicy: corev1.RestartPolicyNever,
-		})
+		},
+	)
+}
+
+// createTLSVolume simplifies creation of TLS volumes for the job.
+func createTLSVolume(name, secretName string) corev1.Volume {
+	return corev1.Volume{
+		Name: name,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName:  secretName,
+				DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+			},
+		},
+	}
+}
+
+// generateHealthCheckScript generates the shell script used to check Etcd health.
+func generateHealthCheckScript(etcdSvc string) string {
+	return fmt.Sprintf(`failed=0; threshold=2;
+    while true; do
+        if ! curl --cacert /var/etcd/ssl/ca/ca.crt --cert /var/etcd/ssl/client/tls.crt --key /var/etcd/ssl/client/tls.key https://%s:2379/health -s -f -o /dev/null; then
+            echo "etcd is unhealthy, retrying"
+            failed=$((failed + 1))
+            if [ "$failed" -ge "$threshold" ]; then
+                echo "etcd health check failed too many times"
+                rm -f /tmp/healthy
+                exit 1
+            fi
+            sleep 2
+        else
+            echo "etcd is healthy"
+            touch /tmp/healthy
+            failed=0
+            sleep 2
+        fi
+    done`, etcdSvc)
+}
+
+// createProbe creates a probe with specified file path for readiness and liveness checks.
+func createProbe(filePath string) *corev1.Probe {
+	return &corev1.Probe{
+		InitialDelaySeconds: 5,
+		FailureThreshold:    1,
+		PeriodSeconds:       1,
+		SuccessThreshold:    1,
+		ProbeHandler: corev1.ProbeHandler{
+			Exec: &corev1.ExecAction{
+				Command: []string{"cat", filePath},
+			},
+		},
+	}
 }
 
 func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
@@ -937,7 +942,7 @@ func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
 
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      debugPodName,
+			Name:      debugPodName + "-" + etcd.Name,
 			Namespace: namespace,
 		},
 		Spec: corev1.PodSpec{
