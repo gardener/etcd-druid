@@ -108,7 +108,7 @@ function test_e2e {
       echo "-------------------"
 
       SOURCE_PATH=$PWD \
-      go test -timeout=0 ./test/e2e --v -args -ginkgo.v -ginkgo.show-node-events
+      ginkgo -v -procs=5 -r -timeout=30m0s --randomize-all --randomize-suites --fail-on-pending ./test/e2e
     fi
 }
 
