@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gardener/etcd-druid/internal/utils"
 	. "github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -197,6 +198,20 @@ func TestJobStatusChangedForUpdateEvents(t *testing.T) {
 			g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: oldObj, ObjectNew: obj})).To(Equal(test.shouldAllowUpdateEvent))
 		})
 	}
+}
+
+func TestEtcdCompactionAnnotation(t *testing.T) {
+	test1EtcdAnnotation := map[string]string{
+		"dummy-annotation": "dummy",
+	}
+
+	test2EtcdAnnotation := map[string]string{
+		SafeToEvictKey: "false",
+	}
+
+	g := NewWithT(t)
+	compactionAnnotation := getEtcdCompactionAnnotations(utils.MergeMaps(test1EtcdAnnotation, test2EtcdAnnotation))
+	g.Expect(compactionAnnotation).To(Equal(test1EtcdAnnotation))
 }
 
 func createObjectsForJobStatusChangedPredicate(g *WithT, name string, isJobObj, isStatusChanged bool) (obj client.Object, oldObj client.Object) {
