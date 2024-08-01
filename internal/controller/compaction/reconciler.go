@@ -502,7 +502,7 @@ func getEtcdCompactionAnnotations(etcdAnnotations map[string]string) map[string]
 
 	for key, value := range etcdAnnotations {
 		// Do not add annotation: `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` to compaction job's pod template.
-		if key == SafeToEvictKey && value == etcdAnnotations[SafeToEvictKey] {
+		if key == SafeToEvictKey && value == "false" {
 			continue
 		}
 		etcdCompactionAnnotations[key] = value
