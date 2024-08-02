@@ -47,6 +47,10 @@ import (
 const (
 	// DefaultETCDQuota is the default etcd quota.
 	DefaultETCDQuota = 8 * 1024 * 1024 * 1024 // 8Gi
+
+	// SafeToEvictKey - annotation that ignores constraints to evict a pod like not being replicated, being on
+	// kube-system namespace or having a local storage if set to "false".
+	SafeToEvictKey = "cluster-autoscaler.kubernetes.io/safe-to-evict"
 )
 
 // Reconciler reconciles compaction jobs for Etcd resources.
@@ -293,7 +297,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 			BackoffLimit:          pointer.Int32(0),
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Annotations: etcd.Spec.Annotations,
+					Annotations: getEtcdCompactionAnnotations(etcd.Spec.Annotations),
 					Labels:      getLabels(etcd),
 				},
 				Spec: v1.PodSpec{
@@ -493,4 +497,17 @@ func getCompactionJobArgs(etcd *druidv1alpha1.Etcd, metricsScrapeWaitDuration st
 	}
 
 	return command
+}
+
+func getEtcdCompactionAnnotations(etcdAnnotations map[string]string) map[string]string {
+	etcdCompactionAnnotations := make(map[string]string)
+
+	for key, value := range etcdAnnotations {
+		// Do not add annotation: `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` to compaction job's pod template.
+		if key == SafeToEvictKey && value == "false" {
+			continue
+		}
+		etcdCompactionAnnotations[key] = value
+	}
+	return etcdCompactionAnnotations
 }
