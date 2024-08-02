@@ -39,7 +39,8 @@ const (
 	// DefaultETCDQuota is the default etcd quota.
 	DefaultETCDQuota = 8 * 1024 * 1024 * 1024 // 8Gi
 
-	// SafeToEvictKey - annotation that ignores constraints to evict a pod if set to "false".
+	// SafeToEvictKey - annotation that ignores constraints to evict a pod like not being replicated, being on
+	// kube-system namespace or having a local storage if set to "false".
 	SafeToEvictKey = "cluster-autoscaler.kubernetes.io/safe-to-evict"
 )
 
