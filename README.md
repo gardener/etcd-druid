@@ -28,15 +28,11 @@ In every etcd cluster managed by `etcd-druid`, each etcd member is a two contain
 
 ## Start using or developing `etcd-druid` locally
 
-If you are looking to try out druid then you can use a [Kind](https://kind.sigs.k8s.io/) cluster based setup. 
+If you are looking to try out druid then you can use a [Kind](https://kind.sigs.k8s.io/) cluster based setup.  
 
 ![Deploy an etcd cluster](docs/assets/etcd-druid-demo.gif)
 
 For detailed documentation, see our `/docs` folder. Please find the [index](docs/README.md) here.
-
-## Roadmap
-
-Upcoming enhancements are captured as druid-enhancement-proposal [a.k.a DEP] [here](https://github.com/gardener/etcd-druid/tree/4e9971aba3c3880a4cb6583d05843eabb8ca1409/docs/proposals).
 
 ## Contributions
 
