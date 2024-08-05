@@ -21,8 +21,10 @@ In every etcd cluster managed by `etcd-druid`, each etcd member is a two contain
 
 - Facilitates declarative scale-out of [etcd](https://github.com/etcd-io/etcd) clusters.
 - Provides protection against accidental deletion/mutation of resources provisioned as part of an etcd cluster.
-- Monitors the integrity of backups.
-- Minimizes recovery times by regularly [compacting and defragmenting](https://etcd.io/docs/v3.4/op-guide/maintenance/) backups.
+- Offers an asynchronous and threshold based capability to process backed up snapshots to:
+  - Potentially minimize recovery times by leveraging [compaction and defragmentation](https://etcd.io/docs/v3.4/op-guide/maintenance/). 
+  - Indirectly assert integrity of the backed up snaphots.
+
 - Allows seamless copy of backups between any two object store buckets.
 
 ## Start using or developing `etcd-druid` locally
