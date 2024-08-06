@@ -31,7 +31,7 @@ In every etcd cluster managed by `etcd-druid`, each etcd member is a two contain
 
 If you are looking to try out druid then you can use a [Kind](https://kind.sigs.k8s.io/) cluster based setup.  
 
-![Deploy an etcd cluster](docs/assets/etcd-druid-demo.gif)
+https://github.com/user-attachments/assets/ca477e85-20ea-4fe6-8175-16f9fa47de1e
 
 For detailed documentation, see our `/docs` folder. Please find the [index](docs/README.md) here.
 
