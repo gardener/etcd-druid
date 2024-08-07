@@ -1,132 +1,47 @@
-# ETCD Druid
+# etcd-druid
 
 <image src="logo/etcd-druid-logo.png" style="width:300px"></image>
 
-[![REUSE status](https://api.reuse.software/badge/github.com/gardener/etcd-druid)](https://api.reuse.software/info/github.com/gardener/etcd-druid)
-[![CI Build status](https://concourse.ci.gardener.cloud/api/v1/teams/gardener/pipelines/etcd-druid-master/jobs/master-head-update-job/badge)](https://concourse.ci.gardener.cloud/teams/gardener/pipelines/etcd-druid-master/jobs/master-head-update-job)
-[![Go Report Card](https://goreportcard.com/badge/github.com/gardener/etcd-druid)](https://goreportcard.com/report/github.com/gardener/etcd-druid)
-[![Go Reference](https://pkg.go.dev/badge/github.com/gardener/etcd-druid.svg)](https://pkg.go.dev/github.com/gardener/etcd-druid)
+[![REUSE status](https://api.reuse.software/badge/github.com/gardener/etcd-druid)](https://api.reuse.software/info/github.com/gardener/etcd-druid) [![CI Build status](https://concourse.ci.gardener.cloud/api/v1/teams/gardener/pipelines/etcd-druid-master/jobs/master-head-update-job/badge)](https://concourse.ci.gardener.cloud/teams/gardener/pipelines/etcd-druid-master/jobs/master-head-update-job) [![Go Report Card](https://goreportcard.com/badge/github.com/gardener/etcd-druid)](https://goreportcard.com/report/github.com/gardener/etcd-druid) [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/gardener/etcd-druid.svg?style=flat)](https://github.com/gardener/etcd-druid) [![Go Reference](https://pkg.go.dev/badge/github.com/gardener/etcd-druid.svg)](https://pkg.go.dev/github.com/gardener/etcd-druid)
 
-## Background
+`etcd-druid` is an [etcd](https://github.com/etcd-io/etcd) [operator](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/) which makes it easy to configure, provision, reconcile and monitor etcd clusters. It enables management of an etcd cluster through [declarative Kubernetes API model](config/crd/bases/crd-druid.gardener.cloud_etcds.yaml). 
 
-[Etcd](https://github.com/etcd-io/etcd) in the control plane of Kubernetes clusters which are managed by Gardener is deployed as a StatefulSet. The statefulset has replica of a pod containing two containers namely, etcd and [backup-restore](https://github.com/gardener/etcd-backup-restore). The etcd container calls components in etcd-backup-restore via REST api to perform data validation before etcd is started. If this validation fails etcd data is restored from the latest snapshot stored in the cloud-provider's object store. Once etcd has started, the etcd-backup-restore periodically creates full and delta snapshots. It also performs defragmentation of etcd data periodically.
+In every etcd cluster managed by `etcd-druid`, each etcd member is a two container `Pod` which consists of:
 
-The etcd-backup-restore needs as input the cloud-provider information comprising security credentials to access the object store, the object store bucket name and prefix for the directory used to store snapshots. Currently, for operations like migration and validation, the bash script has to be updated to initiate the operation.
+- [etcd-wrapper](https://github.com/gardener/etcd-wrapper) which manages the lifecycle (validation & initialization) of an etcd.
+- [etcd-backup-restore](https://github.com/gardener/etcd-backup-restore) sidecar which currently provides the following capabilities (the list is not comprehensive):
+  - [etcd](https://github.com/etcd-io/etcd) DB validation.
+  - Scheduled [etcd](https://github.com/etcd-io/etcd) DB defragmentation.
+  - Backup - [etcd](https://github.com/etcd-io/etcd) DB snapshots are taken regularly and backed in an object store if one is configured.
+  - Restoration - In case of a DB corruption for a single-member cluster it helps in restoring from latest set of snapshots (full & delta).
+  - Member control operations.
 
-## Goals
+`etcd-druid` additional provides the following capabilities:
 
-* Deploy etcd and etcd-backup-restore using an etcd CRD.
-* Support more than one etcd replica.
-* Perform scheduled snapshots.
-* Support operations such as restores, defragmentation and scaling with zero-downtime.
-* Handle cloud-provider specific operation logic.
-* Trigger a full backup on request before volume deletion.
-* Offline compaction of full and delta snapshots stored in object store.
+- Facilitates declarative scale-out of [etcd](https://github.com/etcd-io/etcd) clusters.
+- Provides protection against accidental deletion/mutation of resources provisioned as part of an etcd cluster.
+- Offers an asynchronous and threshold based capability to process backed up snapshots to:
+  - Potentially minimize the recovery time by leveraging restoration from backups followed by [etcd's compaction and defragmentation](https://etcd.io/docs/v3.4/op-guide/maintenance/). 
+  - Indirectly assert integrity of the backed up snaphots.
 
-## Proposal
+- Allows seamless copy of backups between any two object store buckets.
 
-The existing method of deploying etcd and backup-sidecar as a StatefulSet alleviates the pain of ensuring the pods are live and ready after node crashes. However, deploying etcd as a Statefulset introduces a plethora of challenges. The etcd controller should be smart enough to handle etcd statefulsets taking into account limitations imposed by statefulsets. The controller shall update the status regarding how to target the K8s objects it has created. This field in the status can be leveraged by `HVPA` to scale etcd resources eventually.
+## Start using or developing `etcd-druid` locally
 
-## CRD specification
+If you are looking to try out druid then you can use a [Kind](https://kind.sigs.k8s.io/) cluster based setup.  
 
-The etcd CRD should contain the information required to create the etcd and backup-restore sidecar in a pod/statefulset.
+https://github.com/user-attachments/assets/cfe0d891-f709-4d7f-b975-4300c6de67e4
 
-```yaml
-apiVersion: druid.gardener.cloud/v1alpha1
-kind: Etcd
-metadata:
-  finalizers:
-  - druid.gardener.cloud/etcd
-  name: test
-  namespace: demo
-spec:
-  annotations:
-    app: etcd-statefulset
-    gardener.cloud/role: controlplane
-    networking.gardener.cloud/to-dns: allowed
-    networking.gardener.cloud/to-private-networks: allowed
-    networking.gardener.cloud/to-public-networks: allowed
-    role: test
-  backup:
-    deltaSnapshotMemoryLimit: 1Gi
-    deltaSnapshotPeriod: 300s
-    fullSnapshotSchedule: 0 */24 * * *
-    garbageCollectionPeriod: 43200s
-    garbageCollectionPolicy: Exponential
-    imageRepository: europe-docker.pkg.dev/gardener-project/public/gardener/etcdbrctl
-    imageVersion: v0.25.0
-    port: 8080
-    resources:
-      limits:
-        cpu: 500m
-        memory: 2Gi
-      requests:
-        cpu: 23m
-        memory: 128Mi
-    snapstoreTempDir: /var/etcd/data/temp
-  etcd:
-    Quota: 8Gi
-    clientPort: 2379
-    defragmentationSchedule: 0 */24 * * *
-    enableTLS: false
-    imageRepository: europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper
-    imageVersion: v0.1.0
-    initialClusterState: new
-    initialClusterToken: new
-    metrics: basic
-    pullPolicy: IfNotPresent
-    resources:
-      limits:
-        cpu: 2500m
-        memory: 4Gi
-      requests:
-        cpu: 500m
-        memory: 1000Mi
-    serverPort: 2380
-    storageCapacity: 80Gi
-    storageClass: gardener.cloud-fast
-  sharedConfig:
-    autoCompactionMode: periodic
-    autoCompactionRetention: 30m
-  labels:
-    app: etcd-statefulset
-    gardener.cloud/role: controlplane
-    networking.gardener.cloud/to-dns: allowed
-    networking.gardener.cloud/to-private-networks: allowed
-    networking.gardener.cloud/to-public-networks: allowed
-    role: test
-  pvcRetentionPolicy: DeleteAll
-  replicas: 1
-  storageCapacity: 80Gi
-  storageClass: gardener.cloud-fast
-  store:
-    storageContainer: test
-    storageProvider: S3
-    storePrefix: etcd-test
-    storeSecret: etcd-backup
-  tlsClientSecret: etcd-client-tls
-  tlsServerSecret: etcd-server-tls
-status:
-  etcd:
-    apiVersion: apps/v1
-    kind: StatefulSet
-    name: etcd-test
-```
+For detailed documentation, see our `/docs` folder. Please find the [index](docs/README.md) here.
 
-## Implementation Agenda
+## Contributions
 
-As first step implement defragmentation during maintenance windows. Subsequently, we will add zero-downtime upgrades and defragmentation.
+If you wish to contribute then please see our [guidelines](https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/CONTRIBUTING.md).
 
-## Workflow
+## Feedback and Support
 
-### Deployment workflow
+We always look forward to active community engagement. Please report bugs or suggestions on how we can enhance `etcd-druid` on [GitHub Issues](https://github.com/gardener/etcd-druid/issues).
 
-![controller-diagram](./docs/images/controller.png)
+## License
 
-### Defragmentation workflow
-
-![defrag-diagram](./docs/images/defrag.png)
-
-## Local Setup
-
-To set up Etcd-druid locally as a pod running inside a [kind](https://kind.sigs.k8s.io/) cluster, follow this [document](docs/development/getting-started-locally.md)
+Release under [Apache-2.0](https://github.com/gardener/etcd-druid/blob/master/LICENSE) license.
