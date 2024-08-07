@@ -14,6 +14,7 @@
 # and the timestamp till which you want the playback to be sped up be H2:M2:S2,
 # and the speed multiplier be SPEED,
 # and the end time of the video be END.
+# See the instructions in the .tape commands to identify parts
 
 # Run:
 # $ cp etcd-druid-demo-realtime.mp4 input.mp4
@@ -43,6 +44,8 @@ Set WindowBar Colorful
 Set CursorBlink true
 Set TypingSpeed 75ms
 Set WaitTimeout 30s
+
+# Begin part 1
 
 Type "# Target any kubernetes cluster."
 Sleep 130ms
@@ -136,8 +139,15 @@ Type o
 Show
 
 # pane 1
+
+# End part 1
   Enter
+
+# Begin part 2
   Sleep 210s
+# End part 2
+
+# Begin part 3
 
   Type "# The etcd cluster is now ready."
   Sleep 130ms
@@ -180,3 +190,5 @@ Type "tmux kill-session"
 Sleep 130ms
 Enter
 Show
+
+# End part 3
