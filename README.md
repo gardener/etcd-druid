@@ -16,7 +16,6 @@ In every etcd cluster managed by `etcd-druid`, each etcd member is a two contain
   - Restoration - In case of a DB corruption for a single-member cluster it helps in restoring from latest set of snapshots (full & delta).
   - Member control operations.
 
-
 `etcd-druid` additional provides the following capabilities:
 
 - Facilitates declarative scale-out of [etcd](https://github.com/etcd-io/etcd) clusters.
@@ -31,7 +30,7 @@ In every etcd cluster managed by `etcd-druid`, each etcd member is a two contain
 
 If you are looking to try out druid then you can use a [Kind](https://kind.sigs.k8s.io/) cluster based setup.  
 
-https://github.com/user-attachments/assets/ca477e85-20ea-4fe6-8175-16f9fa47de1e
+https://github.com/user-attachments/assets/cfe0d891-f709-4d7f-b975-4300c6de67e4
 
 For detailed documentation, see our `/docs` folder. Please find the [index](docs/README.md) here.
 
