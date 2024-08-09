@@ -114,8 +114,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, pdb *policyv1.PodDisruptionBudget) 
 		MatchLabels: druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta),
 	}
 	if metav1.HasAnnotation(etcd.ObjectMeta, annotationAllowUnhealthyPodEviction) {
-		alwaysAllow := policyv1.AlwaysAllow
-		pdb.Spec.UnhealthyPodEvictionPolicy = &alwaysAllow
+		pdb.Spec.UnhealthyPodEvictionPolicy = utils.PointerOf(policyv1.AlwaysAllow)
 	} else {
 		pdb.Spec.UnhealthyPodEvictionPolicy = nil
 	}
