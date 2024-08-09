@@ -112,7 +112,9 @@ var _ = BeforeSuite(func() {
 	}
 })
 
-var _ = AfterSuite(func() {
+var _ = SynchronizedAfterSuite(func() {
+
+}, func() {
 	ctx := context.Background()
 
 	// Ensure that the KUBECONFIG path is properly set

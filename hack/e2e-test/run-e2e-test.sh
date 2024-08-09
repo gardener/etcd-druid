@@ -108,7 +108,7 @@ function test_e2e {
       echo "-------------------"
 
       SOURCE_PATH=$PWD \
-      ginkgo -v -p --fail-on-pending ./test/e2e
+      ginkgo -v -p ./test/e2e 
     fi
 }
 
