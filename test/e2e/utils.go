@@ -23,7 +23,6 @@ import (
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -424,30 +423,15 @@ func getKubernetesClient(kubeconfigPath string) (client.Client, error) {
 }
 
 func deploySecret(ctx context.Context, cl client.Client, logger logr.Logger, name, namespace string, labels map[string]string, secretType corev1.SecretType, secretData map[string][]byte) error {
-	secret := corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    labels,
-		},
-		Type: secretType,
-		Data: secretData,
-	}
+	secret := corev1.Secret{}
+	secret.Name = name
+	secret.Namespace = namespace
+	secret.Labels = labels
+	secret.Type = secretType
+	secret.Data = secretData
 
-	logger.Info("checking if secret exists", "secret", client.ObjectKeyFromObject(&secret))
-
-	if err := cl.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, &secret); err != nil {
-		if errors.IsNotFound(err) {
-			logger.Info("secret does not exist, creating new secret", "secret", name)
-			return cl.Create(ctx, &secret)
-		}
-		logger.Error(err, "unable to check if secret exists")
-		return err
-	}
-
-	logger.Info("secret already exists, updating existing secret", "secret", name)
-	secret.Data = secretData // Update the data field in case it has changed
-	return cl.Update(ctx, &secret)
+	logger.Info("creating secret", "secret", client.ObjectKeyFromObject(&secret))
+	return cl.Create(ctx, &secret)
 }
 
 func buildAndDeployTLSSecrets(ctx context.Context, cl client.Client, logger logr.Logger, namespace, certsPath string, providers []TestProvider) error {
@@ -523,40 +507,25 @@ func buildAndDeployTLSSecrets(ctx context.Context, cl client.Client, logger logr
 }
 
 func deployBackupSecret(ctx context.Context, cl client.Client, logger logr.Logger, provider TestProvider, namespace, storageContainer string) error {
+
 	if provider.Storage == nil || provider.Storage.SecretData == nil {
-		logger.Info("no secret data provided, skipping secret deployment")
-		return nil // or return an error if this situation should not occur
+		return nil
 	}
 	secretData := provider.Storage.SecretData
 	providerSuffix := provider.Suffix
 	secretName := fmt.Sprintf("%s-%s", etcdBackupSecretPrefix, providerSuffix)
 
-	etcdBackupSecret := corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: namespace,
-			Labels:    labels, // Ensure labels is defined and valid
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: secretData,
-	}
+	etcdBackupSecret := corev1.Secret{}
+	etcdBackupSecret.Name = secretName
+	etcdBackupSecret.Namespace = namespace
+	etcdBackupSecret.Labels = labels
+	etcdBackupSecret.Type = corev1.SecretTypeOpaque
+	etcdBackupSecret.Data = secretData
 	etcdBackupSecret.Data["bucketName"] = []byte(storageContainer)
 
-	logger.Info("checking if secret exists", "secret", client.ObjectKeyFromObject(&etcdBackupSecret))
+	logger.Info("creating secret", "secret", client.ObjectKeyFromObject(&etcdBackupSecret))
 
-	if err := cl.Get(ctx, client.ObjectKey{Name: secretName, Namespace: namespace}, &etcdBackupSecret); err != nil {
-		if errors.IsNotFound(err) {
-			logger.Info("secret does not exist, creating new secret", "secret", secretName)
-			return cl.Create(ctx, &etcdBackupSecret)
-		}
-		logger.Error(err, "unable to check if secret exists")
-		return err
-	}
-
-	logger.Info("secret already exists, updating existing secret", "secret", secretName)
-	etcdBackupSecret.Data = secretData                             // Update the data field in case it has changed
-	etcdBackupSecret.Data["bucketName"] = []byte(storageContainer) // Ensure this is always up-to-date
-	return cl.Update(ctx, &etcdBackupSecret)
+	return cl.Create(ctx, &etcdBackupSecret)
 }
 
 // getRemoteCommandExecutor builds and returns a remote command Executor from the given command on the specified container
