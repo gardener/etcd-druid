@@ -108,7 +108,7 @@ function test_e2e {
       echo "-------------------"
 
       SOURCE_PATH=$PWD \
-      ginkgo -v -procs=4 -r -timeout=30m0s --randomize-all --randomize-suites --fail-on-pending ./test/e2e
+      ginkgo -v -p ./test/e2e 
     fi
 }
 

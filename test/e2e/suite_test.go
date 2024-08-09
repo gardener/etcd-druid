@@ -90,32 +90,31 @@ var _ = BeforeSuite(func() {
 			Name: etcdNamespace,
 		},
 	})
+
 	if apierrors.IsAlreadyExists(err) {
 		err = nil
 	}
 	Expect(err).NotTo(HaveOccurred())
 
-	// sync.Once to ensure that secrets are deployed only once.
-	once.Do(func() {
-		// Deploy TLS secrets
-		certsPath := path.Join(sourcePath, certsBasePath)
-		err := buildAndDeployTLSSecrets(ctx, cl, logger, etcdNamespace, certsPath, providers)
+	certsPath := path.Join(sourcePath, certsBasePath)
+	err = buildAndDeployTLSSecrets(ctx, cl, logger, etcdNamespace, certsPath, providers)
+	if !apierrors.IsAlreadyExists(err) {
+		Expect(err).To(Succeed())
+	}
+
+	// Deploy backup secrets
+	storageContainer := getEnvAndExpectNoError(envStorageContainer)
+	for _, provider := range providers {
+		err = deployBackupSecret(ctx, cl, logger, provider, etcdNamespace, storageContainer)
 		if !apierrors.IsAlreadyExists(err) {
 			Expect(err).To(Succeed())
 		}
-
-		// Deploy backup secrets
-		storageContainer := getEnvAndExpectNoError(envStorageContainer)
-		for _, provider := range providers {
-			err = deployBackupSecret(ctx, cl, logger, provider, etcdNamespace, storageContainer)
-			if !apierrors.IsAlreadyExists(err) {
-				Expect(err).To(Succeed())
-			}
-		}
-	})
+	}
 })
 
-var _ = AfterSuite(func() {
+var _ = SynchronizedAfterSuite(func() {
+
+}, func() {
 	ctx := context.Background()
 
 	// Ensure that the KUBECONFIG path is properly set
