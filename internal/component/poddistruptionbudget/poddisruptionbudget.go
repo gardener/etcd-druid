@@ -29,6 +29,12 @@ const (
 	ErrDeletePodDisruptionBudget druidv1alpha1.ErrorCode = "ERR_DELETE_POD_DISRUPTION_BUDGET"
 )
 
+const (
+	// annotationAllowUnhealthyPodEviction is an annotation that can be set on the Etcd resource, to allow unhealthy pod eviction.
+	// WARNING: this annotation may be removed at any point of time, and is NOT meant to be generally used.
+	annotationAllowUnhealthyPodEviction = "resources.druid.gardener.cloud/allow-unhealthy-pod-eviction"
+)
+
 type _resource struct {
 	client client.Client
 }
@@ -106,6 +112,11 @@ func buildResource(etcd *druidv1alpha1.Etcd, pdb *policyv1.PodDisruptionBudget) 
 	}
 	pdb.Spec.Selector = &metav1.LabelSelector{
 		MatchLabels: druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta),
+	}
+	if metav1.HasAnnotation(etcd.ObjectMeta, annotationAllowUnhealthyPodEviction) {
+		pdb.Spec.UnhealthyPodEvictionPolicy = utils.PointerOf(policyv1.AlwaysAllow)
+	} else {
+		pdb.Spec.UnhealthyPodEvictionPolicy = nil
 	}
 }
 
