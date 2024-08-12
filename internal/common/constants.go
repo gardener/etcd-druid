@@ -67,12 +67,8 @@ const (
 	EnvAzureApplicationCredentials = "AZURE_APPLICATION_CREDENTIALS"
 	// EnvAzureEmulatorEnabled is the environment variable key that is checked to see if the Azure storage emulator Azurite is enabled.
 	EnvAzureEmulatorEnabled = "AZURE_EMULATOR_ENABLED"
-	// EnvAzureStorageAPIEndpoint is the environment variable key for Azure storage API endpoint override.
-	EnvAzureStorageAPIEndpoint = "AZURE_STORAGE_API_ENDPOINT"
 	// EnvGoogleApplicationCredentials is the environment variable key for Google application credentials.
 	EnvGoogleApplicationCredentials = "GOOGLE_APPLICATION_CREDENTIALS"
-	// EnvGoogleStorageAPIEndpoint is the environment variable key for Google storage API endpoint override.
-	EnvGoogleStorageAPIEndpoint = "GOOGLE_STORAGE_API_ENDPOINT"
 	// EnvOpenstackApplicationCredentials is the environment variable key for OpenStack application credentials.
 	EnvOpenstackApplicationCredentials = "OPENSTACK_APPLICATION_CREDENTIALS"
 	// EnvAlicloudApplicationCredentials is the environment variable key for Alicloud application credentials.

@@ -420,18 +420,6 @@ func validateStoreGCPForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 									"Name":  Equal(common.EnvGoogleApplicationCredentials),
 									"Value": Equal("/var/.gcp/serviceaccount.json"),
 								}),
-								common.EnvGoogleStorageAPIEndpoint: MatchFields(IgnoreExtras, Fields{
-									"Name": Equal(common.EnvGoogleStorageAPIEndpoint),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key":      Equal("storageAPIEndpoint"),
-											"Optional": Equal(ptr.To(true)),
-										})),
-									})),
-								}),
 							}),
 						}),
 					}),
@@ -552,18 +540,6 @@ func validateStoreAzureForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1
 												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
 											}),
 											"Key":      Equal("emulatorEnabled"),
-											"Optional": Equal(ptr.To(true)),
-										})),
-									})),
-								}),
-								common.EnvAzureStorageAPIEndpoint: MatchFields(IgnoreExtras, Fields{
-									"Name": Equal(common.EnvAzureStorageAPIEndpoint),
-									"ValueFrom": PointTo(MatchFields(IgnoreExtras, Fields{
-										"SecretKeyRef": PointTo(MatchFields(IgnoreExtras, Fields{
-											"LocalObjectReference": MatchFields(IgnoreExtras, Fields{
-												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
-											}),
-											"Key":      Equal("storageAPIEndpoint"),
 											"Optional": Equal(ptr.To(true)),
 										})),
 									})),
