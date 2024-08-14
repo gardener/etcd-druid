@@ -15,8 +15,8 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	"github.com/go-logr/logr"
-	. "github.com/onsi/gomega"
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -32,6 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	. "github.com/onsi/gomega"
 )
 
 const (

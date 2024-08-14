@@ -14,16 +14,17 @@ import (
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
-	. "github.com/onsi/gomega/gstruct"
-	"k8s.io/utils/pointer"
-
-	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 )
 
 // ------------------------ GetExistingResourceNames ------------------------

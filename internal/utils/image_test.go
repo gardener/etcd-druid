@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	. "github.com/onsi/gomega"
-
 	"github.com/gardener/etcd-druid/internal/common"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
+	. "github.com/onsi/gomega"
 )
 
 // ************************** GetEtcdImages **************************

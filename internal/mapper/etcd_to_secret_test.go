@@ -8,17 +8,18 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	. "github.com/gardener/etcd-druid/internal/mapper"
-	"github.com/go-logr/logr"
 
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	. "github.com/gardener/etcd-druid/internal/mapper"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("EtcdToSecret", func() {

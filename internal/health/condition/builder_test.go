@@ -7,13 +7,14 @@ package condition_test
 import (
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	. "github.com/gardener/etcd-druid/internal/health/condition"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	. "github.com/gardener/etcd-druid/internal/health/condition"
 )
 
 var _ = Describe("Builder", func() {

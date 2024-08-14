@@ -11,11 +11,12 @@ import (
 	"github.com/gardener/etcd-druid/internal/controller/secret"
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
 	"github.com/gardener/etcd-druid/test/integration/setup"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var (

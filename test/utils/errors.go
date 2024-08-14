@@ -8,8 +8,10 @@ import (
 	"errors"
 
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	. "github.com/onsi/gomega"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
+	. "github.com/onsi/gomega"
 )
 
 var (

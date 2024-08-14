@@ -12,7 +12,7 @@ ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION:-"1.30"}
 if ${SETUP_ENVTEST:-false}; then
   echo "> Installing envtest tools@${ENVTEST_K8S_VERSION} with setup-envtest"
   if ! command -v setup-envtest &> /dev/null ; then
-    >&2 echo "setup-envtest not available"
+    >&2 echo "setup-envtest is not available"
     exit 1
   fi
 

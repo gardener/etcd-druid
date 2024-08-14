@@ -9,11 +9,13 @@ import (
 	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	. "github.com/onsi/gomega"
+
 	"github.com/onsi/gomega/format"
-	. "github.com/onsi/gomega/gstruct"
 	gomegatypes "github.com/onsi/gomega/types"
 	"k8s.io/apimachinery/pkg/types"
+
+	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 )
 
 // mapMatcher matches map[string]T and produces a convenient and easy to consume error message which includes

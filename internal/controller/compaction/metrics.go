@@ -8,6 +8,7 @@ import (
 	"time"
 
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )

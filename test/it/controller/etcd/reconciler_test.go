@@ -19,24 +19,25 @@ import (
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	testclock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	. "github.com/onsi/gomega"
 )
 
 var (
-	sharedITTestEnv setup.IntegrationTestEnv
+	sharedITTestEnv setup.DruidTestEnvironment
 )
 
 func TestMain(m *testing.M) {
 	var (
-		itTestEnvCloser setup.IntegrationTestEnvCloser
+		itTestEnvCloser setup.DruidTestEnvCloser
 		err             error
 	)
-	sharedITTestEnv, itTestEnvCloser, err = setup.NewIntegrationTestEnv("etcd-reconciler", []string{assets.GetEtcdCrdPath()})
+	sharedITTestEnv, itTestEnvCloser, err = setup.NewDruidTestEnvironment("etcd-reconciler", []string{assets.GetEtcdCrdPath()})
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to create integration test environment: %v\n", err)
 		os.Exit(1)
@@ -328,7 +329,7 @@ func testPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 	g := NewWithT(t)
 
 	// A different IT test environment is required due to a different clientBuilder which is used to create the manager.
-	itTestEnv, itTestEnvCloser, err := setup.NewIntegrationTestEnv("etcd-reconciler", []string{assets.GetEtcdCrdPath()})
+	itTestEnv, itTestEnvCloser, err := setup.NewDruidTestEnvironment("etcd-reconciler", []string{assets.GetEtcdCrdPath()})
 	g.Expect(err).ToNot(HaveOccurred())
 	defer itTestEnvCloser()
 	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, itTestEnv, false, testClientBuilder)

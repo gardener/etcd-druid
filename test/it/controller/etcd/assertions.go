@@ -19,13 +19,15 @@ import (
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/test/it/setup"
+
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	. "github.com/onsi/gomega"
 )
 
 var (
@@ -47,7 +49,7 @@ type componentCreatedAssertionFn func(ctx component.OperatorContext, t *testing.
 
 // ReconcilerTestEnv represents the test environment for the etcd reconciler.
 type ReconcilerTestEnv struct {
-	itTestEnv  setup.IntegrationTestEnv
+	itTestEnv  setup.DruidTestEnvironment
 	reconciler *etcd.Reconciler
 }
 

@@ -7,11 +7,11 @@ package condition_test
 import (
 	"context"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+
+	. "github.com/gardener/etcd-druid/internal/health/condition"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	. "github.com/gardener/etcd-druid/internal/health/condition"
 )
 
 var _ = Describe("AllMembersReadyCheck", func() {

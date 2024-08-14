@@ -18,17 +18,32 @@ KUBECONFIG_PATH     := $(HACK_DIR)/e2e-test/infrastructure/kind/kubeconfig
 
 IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 
-#########################################
-# Tools                                 #
-#########################################
-
+# Tools
+# -------------------------------------------------------------------------
 TOOLS_DIR := $(HACK_DIR)/tools
 include $(HACK_DIR)/tools.mk
 
-#####################################################################
-# Rules for verification, formatting, linting, testing and cleaning #
-#####################################################################
+# Rules for generation (code and manifests)
+# -------------------------------------------------------------------------
+.PHONY: check-generate
+check-generate:
+	@$(HACK_DIR)/check-generate.sh "$(REPO_ROOT)"
 
+# Generate manifests e.g. CRD, RBAC etc.
+.PHONY: manifests
+manifests: $(VGOPATH) $(CONTROLLER_GEN)
+	@HACK_DIR=$(HACK_DIR) VGOPATH=$(VGOPATH) go generate ./config/crd/bases
+	@find "$(REPO_ROOT)/config/crd/bases" -name "*.yaml" -exec cp '{}' "$(REPO_ROOT)/charts/druid/charts/crds/templates/" \;
+	@controller-gen rbac:roleName=manager-role paths="./internal/controller/..."
+
+# Generate code
+.PHONY: generate
+generate: manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
+	@go generate "$(REPO_ROOT)/internal/..."
+	@"$(HACK_DIR)/update-codegen.sh"
+
+# Rules for verification, formatting, linting and cleaning
+# -------------------------------------------------------------------------
 .PHONY: tidy
 tidy:
 	@env GO111MODULE=on go mod tidy
@@ -51,36 +66,26 @@ update-dependencies:
 add-license-headers: $(GO_ADD_LICENSE)
 	@$(HACK_DIR)/addlicenseheaders.sh ${YEAR}
 
-# Run go fmt against code
-.PHONY: fmt
-fmt:
-	@env GO111MODULE=on go fmt ./...
+# Format code and arrange imports.
+.PHONY: format
+format: $(GOIMPORTS_REVISER)
+	@$(HACK_DIR)/format.sh ./api/ ./internal/ ./test/
 
 # Check packages
 .PHONY: check
-check: $(GOLANGCI_LINT) $(GOIMPORTS) fmt manifests
+check: $(GOLANGCI_LINT) $(GOIMPORTS) format manifests
 	@$(HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./api/... ./internal/...
 
-.PHONY: check-generate
-check-generate:
-	@$(HACK_DIR)/check-generate.sh "$(REPO_ROOT)"
+.PHONY: check-apidiff
+check-apidiff: $(GO_APIDIFF)
+	@$(HACK_DIR)/check-apidiff.sh
 
-# Generate manifests e.g. CRD, RBAC etc.
-.PHONY: manifests
-manifests: $(VGOPATH) $(CONTROLLER_GEN)
-	@HACK_DIR=$(HACK_DIR) VGOPATH=$(VGOPATH) go generate ./config/crd/bases
-	@find "$(REPO_ROOT)/config/crd/bases" -name "*.yaml" -exec cp '{}' "$(REPO_ROOT)/charts/druid/charts/crds/templates/" \;
-	@controller-gen rbac:roleName=manager-role paths="./internal/controller/..."
 
-# Generate code
-.PHONY: generate
-generate: manifests $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
-	@go generate "$(REPO_ROOT)/internal/..."
-	@"$(HACK_DIR)/update-codegen.sh"
-
+# Rules for testing (unit, integration and end-2-end)
+# -------------------------------------------------------------------------
 # Run tests
-.PHONY: test
-test: $(GINKGO) $(GOTESTFMT)
+.PHONY: test-unit
+test-unit: $(GINKGO) $(GOTESTFMT)
 	# run ginkgo unit tests. These will be ported to golang native tests over a period of time.
 	@"$(HACK_DIR)/test.sh" ./internal/controller/etcdcopybackupstask/... \
 	./internal/controller/secret/... \
@@ -103,6 +108,11 @@ test-integration: $(GINKGO) $(SETUP_ENVTEST) $(GOTESTFMT)
 	@SETUP_ENVTEST="true" "$(HACK_DIR)/test.sh" ./test/integration/...
 	@SETUP_ENVTEST="true" "$(HACK_DIR)/test-go.sh" ./test/it/...
 
+# Starts a stand alone envtest which you can leverage to test an individual integration-test.
+.PHONE: start-envtest
+start-envtest: $(SETUP_ENVTEST)
+	@$(HACK_DIR)/start-envtest.sh
+
 .PHONY: test-cov
 test-cov: $(GINKGO) $(SETUP_ENVTEST)
 	@TEST_COV="true" $(HACK_DIR)/test.sh --skip-package=./test/e2e
@@ -111,13 +121,23 @@ test-cov: $(GINKGO) $(SETUP_ENVTEST)
 test-cov-clean:
 	@$(HACK_DIR)/test-cover-clean.sh
 
-#################################################################
-# Rules related to binary build, Docker image build and release #
-#################################################################
+.PHONY: test-e2e
+test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
+.PHONY: ci-e2e-kind
+ci-e2e-kind: $(GINKGO)
+	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind.sh
+
+.PHONY: ci-e2e-kind-azure
+ci-e2e-kind-azure: $(GINKGO)
+	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind-azure.sh
+
+# Rules related to binary build, Docker image build and release
+# -------------------------------------------------------------------------
 # Build manager binary
 .PHONY: druid
-druid: fmt check
+druid: check
 	@env GO111MODULE=on go build -o bin/druid main.go
 
 # Clean go build cache
@@ -142,10 +162,8 @@ docker-push:
 docker-clean:
 	docker images | grep -e "$(REGISTRY_ROOT)/.*/$(IMAGE_NAME)" | awk '{print $$3}' | xargs docker rmi -f
 
-#####################################################################
-# Rules for local environment                                       #
-#####################################################################
-
+# Rules for locale/remote environment
+# -------------------------------------------------------------------------
 kind-up kind-down ci-e2e-kind ci-e2e-kind-azure deploy-localstack deploy-azurite test-e2e deploy deploy-dev deploy-debug undeploy: export KUBECONFIG = $(KUBECONFIG_PATH)
 
 .PHONY: kind-up
@@ -161,11 +179,6 @@ kind-down: $(KIND)
 .PHONY: install
 install: manifests
 	kubectl apply -f config/crd/bases
-
-# Run against the configured Kubernetes cluster in ~/.kube/config or specified by environment variable KUBECONFIG
-.PHONY: run
-run:
-	go run ./main.go
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 .PHONY: deploy-via-kustomize
@@ -198,15 +211,3 @@ deploy-localstack: $(KUBECTL)
 .PHONY: deploy-azurite
 deploy-azurite: $(KUBECTL)
 	./hack/deploy-azurite.sh
-
-.PHONY: test-e2e
-test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
-
-.PHONY: ci-e2e-kind
-ci-e2e-kind: $(GINKGO)
-	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind.sh
-
-.PHONY: ci-e2e-kind-azure
-ci-e2e-kind-azure: $(GINKGO)
-	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind-azure.sh
