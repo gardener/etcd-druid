@@ -7,6 +7,7 @@ package e2e
 import (
 	"context"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,6 +41,7 @@ const (
 	envStorageContainer = "TEST_ID"
 )
 
+var once sync.Once
 var (
 	logger         = zap.New(zap.WriteTo(GinkgoWriter))
 	typedClient    *kubernetes.Clientset
@@ -88,44 +90,68 @@ var _ = BeforeSuite(func() {
 			Name: etcdNamespace,
 		},
 	})
+
 	if apierrors.IsAlreadyExists(err) {
 		err = nil
 	}
 	Expect(err).NotTo(HaveOccurred())
 
-	// deploy TLS secrets
 	certsPath := path.Join(sourcePath, certsBasePath)
-	Expect(buildAndDeployTLSSecrets(ctx, cl, logger, etcdNamespace, certsPath, providers)).To(Succeed())
+	err = buildAndDeployTLSSecrets(ctx, cl, logger, etcdNamespace, certsPath, providers)
+	if !apierrors.IsAlreadyExists(err) {
+		Expect(err).To(Succeed())
+	}
 
-	// deploy backup secrets
+	// Deploy backup secrets
 	storageContainer := getEnvAndExpectNoError(envStorageContainer)
 	for _, provider := range providers {
-		Expect(deployBackupSecret(ctx, cl, logger, provider, etcdNamespace, storageContainer)).To(Succeed())
+		err = deployBackupSecret(ctx, cl, logger, provider, etcdNamespace, storageContainer)
+		if !apierrors.IsAlreadyExists(err) {
+			Expect(err).To(Succeed())
+		}
 	}
 })
 
-var _ = AfterSuite(func() {
+var _ = SynchronizedAfterSuite(func() {
+
+}, func() {
 	ctx := context.Background()
 
+	// Ensure that the KUBECONFIG path is properly set
 	kubeconfigPath, err := getEnvOrError(envKubeconfigPath)
-	Expect(err).NotTo(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred(), "Failed to get KUBECONFIG path")
 
-	logger.V(1).Info("setting up k8s client using", " KUBECONFIG", kubeconfigPath)
+	logger.V(1).Info("Setting up Kubernetes client", "KUBECONFIG", kubeconfigPath)
 	cl, err := getKubernetesClient(kubeconfigPath)
-	Expect(err).ShouldNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred(), "Failed to set up Kubernetes client")
 
 	namespaceLogger := logger.WithValues("namespace", etcdNamespace)
+	namespaceLogger.Info("Checking for Etcd resources before deleting namespace", "namespace", etcdNamespace)
 
-	namespaceLogger.Info("deleting namespace", "namespace", etcdNamespace)
+	var etcds v1alpha1.EtcdList
+	// List all Etcd resources in the specified namespace
+	err = cl.List(ctx, &etcds, client.InNamespace(etcdNamespace))
+	Expect(err).NotTo(HaveOccurred(), "Failed to list Etcd resources")
+
+	// Skip namespace deletion if there are still Etcd resources present
+	if len(etcds.Items) > 0 {
+		namespaceLogger.Info("Skipping namespace deletion; Etcd resources still present", "count", len(etcds.Items))
+		return
+	}
+
+	// Proceed with namespace deletion if no Etcd resources are found
+	namespaceLogger.Info("No Etcd resources found; proceeding with namespace deletion", "namespace", etcdNamespace)
 	err = cl.Delete(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: etcdNamespace,
 		},
 	})
 	err = client.IgnoreNotFound(err)
-	Expect(err).NotTo(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred(), "Failed to delete namespace")
 
+	// Verify that the namespace is indeed deleted
 	Eventually(func() error {
-		return cl.Get(ctx, client.ObjectKey{Name: etcdNamespace}, &corev1.Namespace{})
-	}, time.Minute*2, pollingInterval).Should(matchers.BeNotFoundError())
+		var ns corev1.Namespace
+		return cl.Get(ctx, client.ObjectKey{Name: etcdNamespace}, &ns)
+	}, 2*time.Minute, pollingInterval).Should(matchers.BeNotFoundError(), "Namespace still exists after deletion attempt")
 })

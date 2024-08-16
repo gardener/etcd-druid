@@ -204,9 +204,9 @@ test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
 	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
 .PHONY: ci-e2e-kind
-ci-e2e-kind:
+ci-e2e-kind: $(GINKGO)
 	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind.sh
 
 .PHONY: ci-e2e-kind-azure
-ci-e2e-kind-azure:
+ci-e2e-kind-azure: $(GINKGO)
 	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind-azure.sh

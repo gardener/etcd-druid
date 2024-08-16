@@ -13,11 +13,10 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -27,6 +26,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8s_labels "k8s.io/apimachinery/pkg/labels"
+
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,194 +38,239 @@ import (
 
 var _ = Describe("Etcd", func() {
 	var (
-		etcdName         string
 		storageContainer string
-		parentCtx        context.Context
 		provider         TestProvider
 	)
 
 	BeforeEach(func() {
-		parentCtx = context.Background()
 		// take first provider
 		provider = providers[0]
-
-		etcdName = fmt.Sprintf("etcd-%s", provider.Name)
 		storageContainer = getEnvAndExpectNoError(envStorageContainer)
-
-		By("Purge snapstore")
-		snapstoreProvider := provider.Storage.Provider
-		if snapstoreProvider == druidstore.Local {
-			purgeLocalSnapstoreJob := purgeLocalSnapstore(parentCtx, cl, storageContainer)
-			defer cleanUpTestHelperJob(parentCtx, cl, purgeLocalSnapstoreJob.Name)
-		} else {
-			store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(purgeSnapstore(store)).To(Succeed())
-		}
-	})
-
-	AfterEach(func() {
-		By("Purge etcd")
-		purgeEtcd(parentCtx, cl, providers)
 	})
 
 	Context("when multi-node is configured", func() {
-		It("should perform etcd operations", func() {
-			ctx, cancelFunc := context.WithTimeout(parentCtx, 15*time.Minute)
-			defer cancelFunc()
+		It("should perform etcd operations excluding zero downtime maintenance", func() {
+			etcdName := "multi-node-etcd"
+			storePrefix := etcdName
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+			defer cancel()
+
+			purgeSnapstoreIfNeeded(ctx, cl, provider, storageContainer, etcdName)
 
 			etcd := getDefaultMultiNodeEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
-			objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
+			objLogger := logger.WithValues("etcd", client.ObjectKeyFromObject(etcd))
 
-			By("Create etcd")
+			By("Creating etcd")
 			createAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			By("Hibernate etcd (Scale down from 3 replicas to 0)")
+			By("Hibernating etcd (Scaling down from 3 replicas to 0)")
 			hibernateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			By("Wakeup etcd (Scale up from 0->3 replicas)")
-			// scale up etcd replicas to 3 and ensures etcd cluster with 3 replicas is ready.
+			By("Waking up etcd (Scaling up from 0 to 3 replicas)")
 			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 			etcd.Spec.Replicas = multiNodeEtcdReplicas
-			updateAndCheckEtcd(ctx, cl, logger, etcd, multiNodeEtcdTimeout)
-
-			By("Deploy etcd zero downtime validator job")
-			job := startEtcdZeroDownTimeValidatorJob(ctx, cl, etcd, "rolling-update")
-			// this defer ensures to remove the job.
-			defer cleanUpTestHelperJob(ctx, cl, job.Name)
-
-			By("Zero downtime rolling updates")
-			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
-			// trigger rolling update by updating etcd quota
-			etcd.Spec.Etcd.Quota.Add(*resource.NewMilliQuantity(int64(10), resource.DecimalSI))
 			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
-			checkEtcdZeroDownTimeValidatorJob(ctx, cl, client.ObjectKeyFromObject(job), objLogger)
-
-			By("Zero downtime maintenance operation: defragmentation")
-			objLogger.Info("Configure defragmentation schedule for every 1 minute")
-			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
-			*etcd.Spec.Etcd.DefragmentationSchedule = "*/1 * * * *"
-			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
-			// check any downtime due to rolling update.
-			checkEtcdZeroDownTimeValidatorJob(ctx, cl, client.ObjectKeyFromObject(job), objLogger)
-			checkDefragmentationFinished(ctx, cl, etcd, objLogger)
-
-			objLogger.Info("Checking any Etcd downtime")
-			// Checking Etcd cluster is healthy and there is no downtime while defragmentation.
-			// K8s job zeroDownTimeValidator will fail, if there is any downtime in Etcd cluster health.
-			checkEtcdZeroDownTimeValidatorJob(ctx, cl, client.ObjectKeyFromObject(job), objLogger)
 
 			By("Member restart with data-dir/pvc intact")
-			objLogger.Info("Delete one member pod")
+			objLogger.Info("Deleting one member pod")
 			deletePod(ctx, cl, objLogger, etcd, fmt.Sprintf("%s-2", etcdName))
 			checkForUnreadyEtcdMembers(ctx, cl, objLogger, etcd, 30*time.Second)
 			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
 			By("Single member restoration")
-			objLogger.Info("Create debug pod")
+			objLogger.Info("Creating debug pod")
 			debugPod := createDebugPod(ctx, etcd)
-			objLogger.Info("Delete member dir of one member pod")
+			objLogger.Info("Deleting member directory of one member pod")
 			deleteMemberDir(ctx, cl, objLogger, etcd, debugPod.Name, debugPod.Spec.Containers[0].Name)
 			checkForUnreadyEtcdMembers(ctx, cl, objLogger, etcd, 30*time.Second)
 			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			By("Delete debug pod")
+			By("Deleting debug pod")
 			Expect(client.IgnoreNotFound(cl.Delete(ctx, debugPod))).ToNot(HaveOccurred())
 
-			By("Delete etcd")
+			By("Deleting etcd")
+			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+		})
+
+		It("should perform zero downtime maintenance operation: defragmentation", func() {
+			etcdName := "defrag-zero-downtime-etcd"
+			storePrefix := etcdName
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+			defer cancel()
+
+			purgeSnapstoreIfNeeded(ctx, cl, provider, storageContainer, etcdName)
+
+			etcd := getDefaultMultiNodeEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
+			objLogger := logger.WithValues("etcd", client.ObjectKeyFromObject(etcd))
+
+			By("Creating etcd")
+			createAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+			By("Deploying etcd zero downtime validator job")
+			job := startEtcdZeroDownTimeValidatorJob(ctx, cl, etcd, "rolling-update")
+			defer cleanUpTestHelperJob(ctx, cl, job.Name)
+
+			By("Conducting zero downtime rolling updates")
+			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+			etcd.Spec.Etcd.Quota.Add(*resource.NewMilliQuantity(int64(10), resource.DecimalSI))
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+			checkEtcdZeroDownTimeValidatorJob(ctx, cl, client.ObjectKeyFromObject(job), objLogger)
+
+			By("Performing zero downtime maintenance operation: defragmentation")
+			objLogger.Info("Configuring defragmentation schedule for every 1 minute")
+			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+			*etcd.Spec.Etcd.DefragmentationSchedule = "*/1 * * * *"
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+			checkEtcdZeroDownTimeValidatorJob(ctx, cl, client.ObjectKeyFromObject(job), objLogger)
+			checkDefragmentationFinished(ctx, cl, etcd, objLogger)
+
+			objLogger.Info("Checking for any Etcd downtime")
+			checkEtcdZeroDownTimeValidatorJob(ctx, cl, client.ObjectKeyFromObject(job), objLogger)
+
+			By("Deleting etcd")
 			deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 		})
 	})
 
-	Context("when a single-node is configured", func() {
-		It("should scale a single-node etcd (TLS not enabled for peerUrl) to a multi-node etcd cluster (TLS not enabled for peerUrl)", func() {
-			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
-			defer cancelFunc()
+	Describe("Single-node etcd configuration", func() {
 
-			etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
-			objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
+		Context("Scaling up from single-node to multi-node without TLS", func() {
 
-			By("Creating a single-node etcd")
-			createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
+			It("should scale a single-node etcd (TLS not enabled for peerUrl) to a multi-node etcd cluster (TLS not enabled for peerUrl)", func() {
+				ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Minute)
+				defer cancelFunc()
+				etcdName := "scale-up-non-tls"
+				storePrefix = etcdName
 
-			By("Scaling up a healthy cluster (from 1 to 3 replicas)")
-			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
-			etcd.Spec.Replicas = 3
-			etcd.Spec.Labels["multi-node"] = "true"
-			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+				purgeSnapstoreIfNeeded(ctx, cl, provider, storageContainer, etcdName)
+				etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
+				objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
+
+				By("Creating a single-node etcd")
+				createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
+
+				By("Scaling up a healthy cluster (from 1 to 3 replicas)")
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+				etcd.Spec.Replicas = 3
+				etcd.Spec.Labels["multi-node"] = "true"
+				updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+				By("Deleting etcd")
+				deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+			})
 		})
 
-		It("should scale a single-node etcd (TLS not enabled for peerUrl) to a multi-node etcd cluster (TLS enabled for peerUrl)", func() {
-			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
-			defer cancelFunc()
+		Context("Scaling up from single-node to multi-node with TLS", func() {
 
-			etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
-			objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
+			It("executes scaling up with TLS", func() {
+				ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Minute)
+				defer cancelFunc()
+				etcdName := "scale-up-tls"
+				storePrefix = etcdName
 
-			By("Creating a single-node etcd")
-			createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
+				purgeSnapstoreIfNeeded(ctx, cl, provider, storageContainer, etcdName)
+				etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
+				objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
 
-			By("Scaling up a healthy cluster (from 1 to 3 replicas) with TLS enabled for peerUrl")
-			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
-			etcd.Spec.Replicas = 3
-			etcd.Spec.Etcd.PeerUrlTLS = getPeerTls(provider.Suffix)
-			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+				By("Creating a single-node etcd")
+				createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
+
+				By("Scaling up a healthy cluster (from 1 to 3 replicas) with TLS enabled for peerUrl")
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+				etcd.Spec.Replicas = 3
+				etcd.Spec.Etcd.PeerUrlTLS = getPeerTls(provider.Suffix)
+				updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+				By("Deleting etcd")
+				deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+			})
 		})
 
-		It("should scale down a single-node etcd to 0, then scale up from 0->1 replicas and then from 1->3 replicas", func() {
-			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
-			defer cancelFunc()
+		Context("Scaling down from single-node to zero and back up without TLS", func() {
 
-			etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
-			objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
+			It("executes scaling down to 0 and back up to 3 replicas without TLS", func() {
+				ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Minute)
+				defer cancelFunc()
+				etcdName := "scale-down-and-up-non-tls"
+				storePrefix = etcdName
 
-			By("Creating a single-node etcd")
-			createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
+				purgeSnapstoreIfNeeded(ctx, cl, provider, storageContainer, etcdName)
+				etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
+				objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
 
-			By("Scaling down a healthy cluster (from 1 to 0 replica)")
-			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
-			etcd.Spec.Replicas = 0
-			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+				By("Creating a single-node etcd")
+				createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
 
-			By("Scaling up cluster (from 0 to 1 replica)")
-			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
-			etcd.Spec.Replicas = 1
-			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+				By("Scaling down a healthy cluster (from 1 to 0 replica)")
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+				etcd.Spec.Replicas = 0
+				updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			By("Scaling up a healthy cluster (from 1 to 3 replica)")
-			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
-			etcd.Spec.Replicas = 3
-			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+				By("Scaling up cluster (from 0 to 1 replica)")
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+				etcd.Spec.Replicas = 1
+				updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+				By("Scaling up a healthy cluster (from 1 to 3 replica)")
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+				etcd.Spec.Replicas = 3
+				updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+				By("Deleting etcd")
+				deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+			})
 		})
 
-		It("should scale down a single-node etcd to 0 replica, then scale up from 0->1 replica and then from 1->3 replicas with TLS enabled for cluster peerUrl", func() {
-			ctx, cancelFunc := context.WithTimeout(parentCtx, 10*time.Minute)
-			defer cancelFunc()
+		Context("Scaling down from single-node to zero and back up with TLS", func() {
 
-			etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
-			objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
+			It("should scale down a single-node etcd to 0 replica, then scale up from 0->1 replica and then from 1->3 replicas with TLS enabled for cluster peerUrl", func() {
+				ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Minute)
+				defer cancelFunc()
+				etcdName := "scale-down-and-up-tls"
+				storePrefix = etcdName
 
-			By("Creating a single-node etcd")
-			createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
+				purgeSnapstoreIfNeeded(ctx, cl, provider, storageContainer, etcdName)
+				etcd := getDefaultEtcd(etcdName, namespace, storageContainer, storePrefix, provider)
+				objLogger := logger.WithValues("etcd-multi-node", client.ObjectKeyFromObject(etcd))
 
-			By("Scaling down a healthy cluster (from 1 to 0 replica)")
-			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
-			etcd.Spec.Replicas = 0
-			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+				By("Creating a single-node etcd")
+				createAndCheckEtcd(ctx, cl, objLogger, etcd, singleNodeEtcdTimeout)
 
-			By("Scaling up cluster (from 0 to 1 replica)")
-			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
-			etcd.Spec.Replicas = 1
-			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+				By("Scaling down a healthy cluster (from 1 to 0 replica)")
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+				etcd.Spec.Replicas = 0
+				updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
-			By("Scaling up a healthy cluster (from 1 to 3 replica) with TLS enabled for peerUrl")
-			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
-			etcd.Spec.Replicas = 3
-			etcd.Spec.Etcd.PeerUrlTLS = getPeerTls(provider.Suffix)
-			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+				By("Scaling up cluster (from 0 to 1 replica)")
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+				etcd.Spec.Replicas = 1
+				updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+				By("Scaling up a healthy cluster (from 1 to 3 replica) with TLS enabled for peerUrl")
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+				etcd.Spec.Replicas = 3
+				etcd.Spec.Etcd.PeerUrlTLS = getPeerTls(provider.Suffix)
+				updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+				By("Deleting etcd")
+				deleteAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+			})
 		})
 	})
 })
+
+// purgeSnapstoreIfNeeded purges the snapstore based on the provider settings.
+func purgeSnapstoreIfNeeded(ctx context.Context, cl client.Client, provider TestProvider, storageContainer, storePrefix string) {
+	By("Purge snapstore")
+	snapstoreProvider := provider.Storage.Provider
+	if snapstoreProvider == druidstore.Local {
+		purgeLocalSnapstoreJob := purgeLocalSnapstore(ctx, cl, storageContainer, storePrefix)
+		defer cleanUpTestHelperJob(ctx, cl, purgeLocalSnapstoreJob.Name)
+	} else {
+		store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
+		ExpectWithOffset(1, err).ShouldNot(HaveOccurred())
+		ExpectWithOffset(1, purgeSnapstore(store)).To(Succeed())
+	}
+}
 
 func deleteMemberDir(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName, containerName string) {
 	ExpectWithOffset(1, deleteDir(ctx, kubeconfigPath, namespace, podName, containerName, "/var/etcd/data/new.etcd/member")).To(Succeed())
@@ -471,9 +517,17 @@ func startEtcdZeroDownTimeValidatorJob(ctx context.Context, cl client.Client, et
 }
 
 // getEtcdLeaderPodName returns the leader pod name by using lease
-func getEtcdLeaderPodName(ctx context.Context, cl client.Client, namespace string) (*types.NamespacedName, error) {
+func getEtcdLeaderPodName(ctx context.Context, cl client.Client, etcd *v1alpha1.Etcd) (*types.NamespacedName, error) {
 	leaseList := &v1.LeaseList{}
-	opts := &client.ListOptions{Namespace: namespace}
+	r1, err := k8s_labels.NewRequirement(v1alpha1.LabelPartOfKey, selection.Equals, []string{etcd.Name})
+	ExpectWithOffset(1, err).ShouldNot(HaveOccurred())
+	r2, err := k8s_labels.NewRequirement(v1alpha1.LabelComponentKey, selection.Equals, []string{common.ComponentNameMemberLease})
+	ExpectWithOffset(1, err).ShouldNot(HaveOccurred())
+
+	opts := &client.ListOptions{
+		Namespace:     etcd.Namespace,
+		LabelSelector: k8s_labels.NewSelector().Add(*r1, *r2),
+	}
 	ExpectWithOffset(1, cl.List(ctx, leaseList, opts)).ShouldNot(HaveOccurred())
 
 	for _, lease := range leaseList.Items {
@@ -513,7 +567,7 @@ func checkDefragmentationFinished(ctx context.Context, cl client.Client, etcd *v
 	// Wait until etcd cluster defragmentation is finish.
 	logger.Info("Waiting for defragmentation to finish")
 	EventuallyWithOffset(1, func() error {
-		leaderPodKey, err := getEtcdLeaderPodName(ctx, cl, namespace)
+		leaderPodKey, err := getEtcdLeaderPodName(ctx, cl, etcd)
 		if err != nil {
 			return err
 		}
@@ -552,21 +606,6 @@ func checkEtcdZeroDownTimeValidatorJob(ctx context.Context, cl client.Client, jo
 	logger.Info("Etcd Cluster is healthy and there is no downtime")
 }
 
-func purgeEtcd(ctx context.Context, cl client.Client, providers []TestProvider) {
-	for _, p := range providers {
-		e := getEmptyEtcd(fmt.Sprintf("etcd-%s", p.Name), namespace)
-		if err := cl.Get(ctx, client.ObjectKeyFromObject(e), e); err == nil {
-			ExpectWithOffset(1, kutil.DeleteObject(ctx, cl, e)).To(Succeed())
-			EventuallyWithOffset(1, func() error {
-				ctx, cancelFunc := context.WithTimeout(ctx, time.Minute)
-				defer cancelFunc()
-				return cl.Get(ctx, client.ObjectKeyFromObject(e), e)
-			}, time.Minute, pollingInterval).Should(matchers.BeNotFoundError())
-			purgeEtcdPVCs(ctx, cl, e.Name)
-		}
-	}
-}
-
 // checkJobSucceeded checks for the k8s job to succeed.
 func checkJobSucceeded(ctx context.Context, cl client.Client, jobName string) {
 	EventuallyWithOffset(1, func() error {
@@ -582,8 +621,8 @@ func checkJobSucceeded(ctx context.Context, cl client.Client, jobName string) {
 }
 
 // purgeLocalSnapstore deploys a job to purge the contents of the given Local provider snapstore
-func purgeLocalSnapstore(ctx context.Context, cl client.Client, storeContainer string) *batchv1.Job {
-	job := getPurgeLocalSnapstoreJob(storeContainer)
+func purgeLocalSnapstore(ctx context.Context, cl client.Client, storeContainer, storePrefix string) *batchv1.Job {
+	job := getPurgeLocalSnapstoreJob(storeContainer, storePrefix)
 
 	logger.Info("Creating job to purge local snapstore", "job", job.Name)
 	ExpectWithOffset(1, cl.Create(ctx, job)).ShouldNot(HaveOccurred())
