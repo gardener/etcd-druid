@@ -1,10 +1,8 @@
-# etcd-druid
-
-<image src="logo/etcd-druid-logo.png" style="width:300px"></image>
+<img src="docs/assets/logo/etcd-druid-with-tagline.png" style="width:120%"></img>
 
 [![REUSE status](https://api.reuse.software/badge/github.com/gardener/etcd-druid)](https://api.reuse.software/info/github.com/gardener/etcd-druid) [![CI Build status](https://concourse.ci.gardener.cloud/api/v1/teams/gardener/pipelines/etcd-druid-master/jobs/master-head-update-job/badge)](https://concourse.ci.gardener.cloud/teams/gardener/pipelines/etcd-druid-master/jobs/master-head-update-job) [![Go Report Card](https://goreportcard.com/badge/github.com/gardener/etcd-druid)](https://goreportcard.com/report/github.com/gardener/etcd-druid) [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/gardener/etcd-druid.svg?style=flat)](https://github.com/gardener/etcd-druid) [![Go Reference](https://pkg.go.dev/badge/github.com/gardener/etcd-druid.svg)](https://pkg.go.dev/github.com/gardener/etcd-druid)
 
-`etcd-druid` is an [etcd](https://github.com/etcd-io/etcd) [operator](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/) which makes it easy to configure, provision, reconcile and monitor etcd clusters. It enables management of an etcd cluster through [declarative Kubernetes API model](config/crd/bases/crd-druid.gardener.cloud_etcds.yaml). 
+`etcd-druid` is an [etcd](https://github.com/etcd-io/etcd) [operator](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/) which makes it easy to configure, provision, reconcile and monitor etcd clusters. It enables management of etcd clusters through [declarative Kubernetes API model](config/crd/bases/crd-druid.gardener.cloud_etcds.yaml). 
 
 In every etcd cluster managed by `etcd-druid`, each etcd member is a two container `Pod` which consists of:
 
@@ -23,7 +21,6 @@ In every etcd cluster managed by `etcd-druid`, each etcd member is a two contain
 - Offers an asynchronous and threshold based capability to process backed up snapshots to:
   - Potentially minimize the recovery time by leveraging restoration from backups followed by [etcd's compaction and defragmentation](https://etcd.io/docs/v3.4/op-guide/maintenance/). 
   - Indirectly assert integrity of the backed up snaphots.
-
 - Allows seamless copy of backups between any two object store buckets.
 
 ## Start using or developing `etcd-druid` locally
@@ -36,7 +33,7 @@ For detailed documentation, see our `/docs` folder. Please find the [index](docs
 
 ## Contributions
 
-If you wish to contribute then please see our [guidelines](https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/CONTRIBUTING.md).
+If you wish to contribute then please see our [contributor guidelines](docs/development/contribution.md).
 
 ## Feedback and Support
 

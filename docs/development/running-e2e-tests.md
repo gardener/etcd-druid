@@ -1,7 +1,3 @@
----
-title: Local e2e Tests
----
-
 # e2e Test Suite
 
 Developers can run extended e2e tests, in addition to unit tests, for Etcd-Druid in or from 
