@@ -112,13 +112,13 @@ func (s StatefulSetMatcher) matchVolumeClaimTemplates() gomegatypes.GomegaMatche
 	defaultStorageCapacity := apiresource.MustParse("16Gi")
 	return ConsistOf(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
-			"Name": Equal(utils.TypeDeref(s.etcd.Spec.VolumeClaimTemplate, s.etcd.Name)),
+			"Name": Equal(ptr.Deref(s.etcd.Spec.VolumeClaimTemplate, s.etcd.Name)),
 		}),
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"AccessModes": ConsistOf(corev1.ReadWriteOnce),
 			"Resources": MatchFields(IgnoreExtras, Fields{
 				"Requests": MatchKeys(IgnoreExtras, Keys{
-					corev1.ResourceStorage: Equal(utils.TypeDeref(s.etcd.Spec.StorageCapacity, defaultStorageCapacity)),
+					corev1.ResourceStorage: Equal(ptr.Deref(s.etcd.Spec.StorageCapacity, defaultStorageCapacity)),
 				}),
 			}),
 			"StorageClassName": Equal(s.etcd.Spec.StorageClass),
@@ -152,7 +152,7 @@ func (s StatefulSetMatcher) matchPodSpec() gomegatypes.GomegaMatcher {
 		"Containers":            s.matchContainers(),
 		"SecurityContext":       s.matchEtcdPodSecurityContext(),
 		"Volumes":               s.matchPodVolumes(),
-		"PriorityClassName":     Equal(utils.TypeDeref(s.etcd.Spec.PriorityClassName, "")),
+		"PriorityClassName":     Equal(ptr.Deref(s.etcd.Spec.PriorityClassName, "")),
 	})
 }
 
@@ -201,7 +201,7 @@ func (s StatefulSetMatcher) matchContainers() gomegatypes.GomegaMatcher {
 }
 
 func (s StatefulSetMatcher) matchEtcdContainer() gomegatypes.GomegaMatcher {
-	etcdContainerResources := utils.TypeDeref(s.etcd.Spec.Etcd.Resources, defaultTestContainerResources)
+	etcdContainerResources := ptr.Deref(s.etcd.Spec.Etcd.Resources, defaultTestContainerResources)
 	return MatchFields(IgnoreExtras|IgnoreMissing, Fields{
 		"Name":            Equal("etcd"),
 		"Image":           Equal(s.etcdImage),
@@ -242,7 +242,7 @@ func (s StatefulSetMatcher) matchEtcdContainerVolMounts() gomegatypes.GomegaMatc
 }
 
 func (s StatefulSetMatcher) matchBackupRestoreContainer() gomegatypes.GomegaMatcher {
-	containerResources := testutils.TypeDeref(s.etcd.Spec.Backup.Resources, defaultTestContainerResources)
+	containerResources := ptr.Deref(s.etcd.Spec.Backup.Resources, defaultTestContainerResources)
 	return MatchFields(IgnoreExtras, Fields{
 		"Name":            Equal("backup-restore"),
 		"Image":           Equal(s.etcdBRImage),
@@ -286,7 +286,7 @@ func (s StatefulSetMatcher) matchEtcdContainerReadinessHandler() gomegatypes.Gom
 
 func (s StatefulSetMatcher) matchEtcdContainerReadinessProbeCmd() gomegatypes.GomegaMatcher {
 	if s.etcd.Spec.Etcd.ClientUrlTLS != nil {
-		dataKey := utils.TypeDeref(s.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
+		dataKey := ptr.Deref(s.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
 		return HaveExactElements(
 			"/bin/sh",
 			"-ec",
@@ -312,7 +312,7 @@ func (s StatefulSetMatcher) matchEtcdContainerCmdArgs() gomegatypes.GomegaMatche
 	if s.etcd.Spec.Etcd.ClientUrlTLS == nil {
 		cmdArgs = append(cmdArgs, "--backup-restore-tls-enabled=false")
 	} else {
-		dataKey := utils.TypeDeref(s.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
+		dataKey := ptr.Deref(s.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
 		cmdArgs = append(cmdArgs, "--backup-restore-tls-enabled=true")
 		cmdArgs = append(cmdArgs, "--etcd-client-cert-path=/var/etcd/ssl/client/tls.crt")
 		cmdArgs = append(cmdArgs, "--etcd-client-key-path=/var/etcd/ssl/client/tls.key")
@@ -322,7 +322,7 @@ func (s StatefulSetMatcher) matchEtcdContainerCmdArgs() gomegatypes.GomegaMatche
 }
 
 func (s StatefulSetMatcher) matchEtcdDataVolMount() gomegatypes.GomegaMatcher {
-	volumeClaimTemplateName := utils.TypeDeref(s.etcd.Spec.VolumeClaimTemplate, s.etcd.Name)
+	volumeClaimTemplateName := ptr.Deref(s.etcd.Spec.VolumeClaimTemplate, s.etcd.Name)
 	return matchVolMount(volumeClaimTemplateName, common.VolumeMountPathEtcdData)
 }
 

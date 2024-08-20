@@ -11,7 +11,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/health/condition"
 	"github.com/gardener/etcd-druid/internal/health/etcdmember"
-	"github.com/gardener/etcd-druid/internal/utils"
 
 	"github.com/gardener/gardener/pkg/utils/test"
 	"github.com/go-logr/logr"
@@ -117,9 +116,9 @@ var _ = Describe("Check", func() {
 			defer test.WithVar(&EtcdMemberChecks, []EtcdMemberCheckFn{
 				func(_ client.Client, _ logr.Logger, _, _ time.Duration) etcdmember.Checker {
 					return createEtcdMemberCheck(
-						etcdMemberResult{ptr.To("1"), "member1", utils.PointerOf[druidv1alpha1.EtcdRole](druidv1alpha1.EtcdRoleLeader), druidv1alpha1.EtcdMemberStatusUnknown, "Unknown"},
-						etcdMemberResult{ptr.To("2"), "member2", utils.PointerOf[druidv1alpha1.EtcdRole](druidv1alpha1.EtcdRoleMember), druidv1alpha1.EtcdMemberStatusNotReady, "bar reason"},
-						etcdMemberResult{ptr.To("3"), "member3", utils.PointerOf[druidv1alpha1.EtcdRole](druidv1alpha1.EtcdRoleMember), druidv1alpha1.EtcdMemberStatusReady, "foobar reason"},
+						etcdMemberResult{ptr.To("1"), "member1", ptr.To[druidv1alpha1.EtcdRole](druidv1alpha1.EtcdRoleLeader), druidv1alpha1.EtcdMemberStatusUnknown, "Unknown"},
+						etcdMemberResult{ptr.To("2"), "member2", ptr.To[druidv1alpha1.EtcdRole](druidv1alpha1.EtcdRoleMember), druidv1alpha1.EtcdMemberStatusNotReady, "bar reason"},
+						etcdMemberResult{ptr.To("3"), "member3", ptr.To[druidv1alpha1.EtcdRole](druidv1alpha1.EtcdRoleMember), druidv1alpha1.EtcdMemberStatusReady, "foobar reason"},
 					)
 				},
 			})()

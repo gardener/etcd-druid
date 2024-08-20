@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
@@ -405,7 +406,7 @@ func assertETCDStatusFieldsDerivedFromStatefulSet(ctx context.Context, t *testin
 		if etcdInstance.Status.Replicas != *sts.Spec.Replicas {
 			return fmt.Errorf("expected replicas to be %d, found %d", sts.Spec.Replicas, etcdInstance.Status.Replicas)
 		}
-		if utils.TypeDeref(etcdInstance.Status.Ready, false) != expectedReadyStatus {
+		if ptr.Deref(etcdInstance.Status.Ready, false) != expectedReadyStatus {
 			return fmt.Errorf("expected ready to be %t, found %s", expectedReadyStatus, logPointerTypeToString[bool](etcdInstance.Status.Ready))
 		}
 		return nil

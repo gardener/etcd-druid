@@ -49,14 +49,6 @@ func MergeMaps[K comparable, V any](sourceMaps ...map[K]V) map[K]V {
 	return merged
 }
 
-// TypeDeref dereferences a pointer to a type if it is not nil, else it returns the default value.
-func TypeDeref[T any](val *T, defaultVal T) T {
-	if val != nil {
-		return *val
-	}
-	return defaultVal
-}
-
 // GenerateRandomAlphanumericString generates a random alphanumeric string of the given length.
 func GenerateRandomAlphanumericString(g *WithT, length int) string {
 	b := make([]byte, length)

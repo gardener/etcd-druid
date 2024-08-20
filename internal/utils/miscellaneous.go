@@ -51,14 +51,6 @@ func Key(namespaceOrName string, nameOpt ...string) client.ObjectKey {
 	return client.ObjectKey{Namespace: namespace, Name: name}
 }
 
-// TypeDeref dereferences a pointer to a type if it is not nil, else it returns the default value.
-func TypeDeref[T any](val *T, defaultVal T) T {
-	if val != nil {
-		return *val
-	}
-	return defaultVal
-}
-
 // IsEmptyString returns true if the string is empty or contains only whitespace characters.
 func IsEmptyString(s string) bool {
 	return len(strings.TrimSpace(s)) == 0
@@ -70,9 +62,4 @@ func IfConditionOr[T any](condition bool, trueVal, falseVal T) T {
 		return trueVal
 	}
 	return falseVal
-}
-
-// PointerOf returns a pointer to the given value.
-func PointerOf[T any](val T) *T {
-	return &val
 }
