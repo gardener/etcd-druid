@@ -17,7 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -107,7 +107,7 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta meta
 func buildResource(etcd *druidv1alpha1.Etcd, sa *corev1.ServiceAccount, autoMountServiceAccountToken bool) {
 	sa.Labels = getLabels(etcd)
 	sa.OwnerReferences = []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)}
-	sa.AutomountServiceAccountToken = pointer.Bool(autoMountServiceAccountToken)
+	sa.AutomountServiceAccountToken = ptr.To(autoMountServiceAccountToken)
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {

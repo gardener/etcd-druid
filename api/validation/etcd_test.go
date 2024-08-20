@@ -13,7 +13,7 @@ import (
 	"github.com/onsi/gomega/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -40,7 +40,7 @@ var _ = Describe("Etcd validation tests", func() {
 				Backup: v1alpha1.BackupSpec{
 					Store: &v1alpha1.StoreSpec{
 						Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
-						Provider: (*v1alpha1.StorageProvider)(pointer.String(provider)),
+						Provider: (*v1alpha1.StorageProvider)(ptr.To(provider)),
 					},
 				},
 			},
@@ -68,7 +68,7 @@ var _ = Describe("Etcd validation tests", func() {
 
 			Entry("should forbid invalid spec.backup.store", &v1alpha1.StoreSpec{
 				Prefix:   "invalid",
-				Provider: (*v1alpha1.StorageProvider)(pointer.String("invalid")),
+				Provider: (*v1alpha1.StorageProvider)(ptr.To("invalid")),
 			}, ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
 				"Type":  Equal(field.ErrorTypeInvalid),
 				"Field": Equal("spec.backup.store.prefix"),
@@ -79,7 +79,7 @@ var _ = Describe("Etcd validation tests", func() {
 
 			Entry("should allow valid spec.backup.store", &v1alpha1.StoreSpec{
 				Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
-				Provider: (*v1alpha1.StorageProvider)(pointer.String(provider)),
+				Provider: (*v1alpha1.StorageProvider)(ptr.To(provider)),
 			}, BeNil()),
 
 			Entry("should allow nil spec.backup.store", nil, BeNil()),
@@ -94,7 +94,7 @@ var _ = Describe("Etcd validation tests", func() {
 
 			newEtcd := etcd.DeepCopy()
 			newEtcd.ResourceVersion = "2"
-			newEtcd.Spec.Backup.Port = pointer.Int32(42)
+			newEtcd.Spec.Backup.Port = ptr.To[int32](42)
 
 			errList := validation.ValidateEtcdUpdate(newEtcd, etcd)
 
@@ -125,8 +125,8 @@ var _ = Describe("Etcd validation tests", func() {
 			newEtcd := etcd.DeepCopy()
 			newEtcd.ResourceVersion = "2"
 			newEtcd.Spec.Replicas = 42
-			newEtcd.Spec.Backup.Store.Container = pointer.String("foo")
-			newEtcd.Spec.Backup.Store.Provider = (*v1alpha1.StorageProvider)(pointer.String("gcp"))
+			newEtcd.Spec.Backup.Store.Container = ptr.To("foo")
+			newEtcd.Spec.Backup.Store.Provider = (*v1alpha1.StorageProvider)(ptr.To("gcp"))
 
 			errList := validation.ValidateEtcdUpdate(newEtcd, etcd)
 

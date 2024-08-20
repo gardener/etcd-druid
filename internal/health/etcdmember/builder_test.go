@@ -10,7 +10,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	. "github.com/gardener/etcd-druid/internal/health/etcdmember"
 	. "github.com/onsi/ginkgo/v2"
@@ -44,21 +44,21 @@ var _ = Describe("Builder", func() {
 				oldMembers = map[string]druidv1alpha1.EtcdMemberStatus{
 					"1": {
 						Name:               "member1",
-						ID:                 pointer.String("1"),
+						ID:                 ptr.To("1"),
 						Status:             druidv1alpha1.EtcdMemberStatusReady,
 						Reason:             "foo reason",
 						LastTransitionTime: metav1.NewTime(now.Add(-12 * time.Hour)),
 					},
 					"2": {
 						Name:               "member2",
-						ID:                 pointer.String("2"),
+						ID:                 ptr.To("2"),
 						Status:             druidv1alpha1.EtcdMemberStatusReady,
 						Reason:             "bar reason",
 						LastTransitionTime: metav1.NewTime(now.Add(-6 * time.Hour)),
 					},
 					"3": {
 						Name:               "member3",
-						ID:                 pointer.String("3"),
+						ID:                 ptr.To("3"),
 						Status:             druidv1alpha1.EtcdMemberStatusReady,
 						Reason:             "foobar reason",
 						LastTransitionTime: metav1.NewTime(now.Add(-18 * time.Hour)),
@@ -75,7 +75,7 @@ var _ = Describe("Builder", func() {
 			It("should correctly set the LastTransitionTime", func() {
 				builder.WithResults([]Result{
 					&result{
-						MemberID:     pointer.String("3"),
+						MemberID:     ptr.To("3"),
 						MemberName:   "member3",
 						MemberStatus: druidv1alpha1.EtcdMemberStatusUnknown,
 						MemberReason: "unknown reason",
@@ -109,14 +109,14 @@ var _ = Describe("Builder", func() {
 			It("should not add any members but sort them", func() {
 				builder.WithResults([]Result{
 					&result{
-						MemberID:     pointer.String("2"),
+						MemberID:     ptr.To("2"),
 						MemberName:   "member2",
 						MemberRole:   &memberRoleMember,
 						MemberStatus: druidv1alpha1.EtcdMemberStatusReady,
 						MemberReason: "foo reason",
 					},
 					&result{
-						MemberID:     pointer.String("1"),
+						MemberID:     ptr.To("1"),
 						MemberName:   "member1",
 						MemberRole:   &memberRoleLeader,
 						MemberStatus: druidv1alpha1.EtcdMemberStatusUnknown,

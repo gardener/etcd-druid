@@ -25,7 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -241,7 +241,7 @@ func setStatusDetails(status *druidv1alpha1.EtcdCopyBackupsTaskStatus, generatio
 		status.Conditions = nil
 	}
 	if err != nil {
-		status.LastError = pointer.String(err.Error())
+		status.LastError = ptr.To(err.Error())
 	} else {
 		status.LastError = nil
 	}
@@ -344,7 +344,7 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 							VolumeMounts:    volumeMounts,
 						},
 					},
-					ShareProcessNamespace: pointer.Bool(true),
+					ShareProcessNamespace: ptr.To(true),
 					Volumes:               volumes,
 				},
 			},
@@ -363,18 +363,18 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 					Args:         []string{fmt.Sprintf("%s%s%s%s", "chown -R 65532:65532 /home/nonroot/", *targetStore.Container, " /home/nonroot/", *sourceStore.Container)},
 					VolumeMounts: volumeMounts,
 					SecurityContext: &corev1.SecurityContext{
-						RunAsGroup:   pointer.Int64(0),
-						RunAsNonRoot: pointer.Bool(false),
-						RunAsUser:    pointer.Int64(0),
+						RunAsGroup:   ptr.To[int64](0),
+						RunAsNonRoot: ptr.To(false),
+						RunAsUser:    ptr.To[int64](0),
 					},
 				},
 			}
 		}
 		job.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
-			RunAsGroup:   pointer.Int64(65532),
-			RunAsNonRoot: pointer.Bool(true),
-			RunAsUser:    pointer.Int64(65532),
-			FSGroup:      pointer.Int64(65532),
+			RunAsGroup:   ptr.To[int64](65532),
+			RunAsNonRoot: ptr.To(true),
+			RunAsUser:    ptr.To[int64](65532),
+			FSGroup:      ptr.To[int64](65532),
 		}
 	}
 
@@ -463,7 +463,7 @@ func (r *Reconciler) createVolumesFromStore(ctx context.Context, store *druidv1a
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  store.SecretRef.Name,
-					DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+					DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 				},
 			},
 		})

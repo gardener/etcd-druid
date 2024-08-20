@@ -24,7 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/component-base/featuregate"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -165,12 +165,12 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 					&imagevector.ImageSource{
 						Name:       common.ImageKeyEtcdBackupRestore,
 						Repository: "test-repo",
-						Tag:        pointer.String("etcd-test-tag"),
+						Tag:        ptr.To("etcd-test-tag"),
 					},
 					&imagevector.ImageSource{
 						Name:       common.ImageKeyAlpine,
 						Repository: "test-repo",
-						Tag:        pointer.String("init-container-test-tag"),
+						Tag:        ptr.To("init-container-test-tag"),
 					},
 				},
 				Config: &Config{
@@ -272,7 +272,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			BeforeEach(func() {
 				store = druidv1alpha1.StoreSpec{
 					Prefix:    "store_prefix",
-					Container: pointer.String("store_container"),
+					Container: ptr.To("store_container"),
 				}
 				provider = "storage_provider"
 				prefix = "prefix"
@@ -334,12 +334,12 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Spec: druidv1alpha1.EtcdCopyBackupsTaskSpec{
 					SourceStore: druidv1alpha1.StoreSpec{
 						Prefix:    "/source",
-						Container: pointer.String("source-container"),
+						Container: ptr.To("source-container"),
 						Provider:  &providerLocal,
 					},
 					TargetStore: druidv1alpha1.StoreSpec{
 						Prefix:    "/target",
-						Container: pointer.String("target-container"),
+						Container: ptr.To("target-container"),
 						Provider:  &providerS3,
 						SecretRef: &corev1.SecretReference{
 							Name: "test-secret",
@@ -355,13 +355,13 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 		})
 
 		It("should include the max backup age in the arguments", func() {
-			task.Spec.MaxBackupAge = pointer.Uint32(10)
+			task.Spec.MaxBackupAge = ptr.To[uint32](10)
 			arguments := createJobArgs(task, druidstore.Local, druidstore.S3)
 			Expect(arguments).To(Equal(append(expected, "--max-backup-age=10")))
 		})
 
 		It("should include the max number of backups in the arguments", func() {
-			task.Spec.MaxBackups = pointer.Uint32(5)
+			task.Spec.MaxBackups = ptr.To[uint32](5)
 			arguments := createJobArgs(task, druidstore.Local, druidstore.S3)
 			Expect(arguments).To(Equal(append(expected, "--max-backups-to-copy=5")))
 		})
@@ -454,7 +454,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				BeforeEach(func() {
 					storageProvider := druidv1alpha1.StorageProvider(provider)
 					storeSpec = &druidv1alpha1.StoreSpec{
-						Container: pointer.String("source-container"),
+						Container: ptr.To("source-container"),
 						Provider:  &storageProvider,
 					}
 				})
@@ -501,7 +501,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				}
 
 				store = &druidv1alpha1.StoreSpec{
-					Container: pointer.String("source-container"),
+					Container: ptr.To("source-container"),
 					Prefix:    "/tmp",
 					Provider:  &providerLocal,
 				}
@@ -598,7 +598,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 						// Set up test variables and create necessary secrets
 						storageProvider = druidv1alpha1.StorageProvider(provider)
 						store = &druidv1alpha1.StoreSpec{
-							Container: pointer.String("source-container"),
+							Container: ptr.To("source-container"),
 							Provider:  &storageProvider,
 						}
 						secret = &corev1.Secret{
@@ -629,7 +629,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 						Expect(volumeSource.Secret).NotTo(BeNil())
 						Expect(*volumeSource.Secret).To(Equal(corev1.SecretVolumeSource{
 							SecretName:  store.SecretRef.Name,
-							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+							DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 						}))
 					})
 

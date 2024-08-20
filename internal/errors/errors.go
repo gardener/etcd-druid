@@ -60,6 +60,16 @@ func IsRequeueAfterError(err error) bool {
 	return false
 }
 
+// New creates a new DruidError with the given error code, operation and message.
+func New(code druidv1alpha1.ErrorCode, operation string, message string) error {
+	return &DruidError{
+		Code:       code,
+		Operation:  operation,
+		Message:    message,
+		ObservedAt: time.Now().UTC(),
+	}
+}
+
 // WrapError wraps an error and contextual information like code, operation and message to create a DruidError
 // Consumers can use errors.As or errors.Is to check if the error is of type DruidError and get its constituent fields.
 func WrapError(err error, code druidv1alpha1.ErrorCode, operation string, message string) error {

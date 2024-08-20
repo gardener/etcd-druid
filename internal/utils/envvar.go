@@ -9,7 +9,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // GetEnvVarFromValue returns environment variable object with the provided name and value
@@ -42,7 +42,7 @@ func GetEnvVarFromSecret(name, secretName, secretKey string, optional bool) core
 					Name: secretName,
 				},
 				Key:      secretKey,
-				Optional: pointer.Bool(optional),
+				Optional: ptr.To(optional),
 			},
 		},
 	}
@@ -59,7 +59,7 @@ func GetBackupRestoreContainerEnvVars(store *druidv1alpha1.StoreSpec) ([]corev1.
 		return envVars, nil
 	}
 
-	storageContainer := pointer.StringDeref(store.Container, "")
+	storageContainer := ptr.Deref(store.Container, "")
 	envVars = append(envVars, GetEnvVarFromValue(common.EnvStorageContainer, storageContainer))
 
 	return envVars, nil

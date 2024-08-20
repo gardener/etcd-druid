@@ -14,7 +14,7 @@ import (
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"go.uber.org/mock/gomock"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	. "github.com/onsi/gomega"
@@ -315,7 +315,7 @@ func TestBuildPredicateWithAutoReconcileAndReconcileAnnotSet(t *testing.T) {
 func createEtcd() *druidv1alpha1.Etcd {
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(3).Build()
 	etcd.Status = druidv1alpha1.EtcdStatus{
-		ObservedGeneration: pointer.Int64(0),
+		ObservedGeneration: ptr.To[int64](0),
 		Etcd: &druidv1alpha1.CrossVersionObjectReference{
 			Kind:       "StatefulSet",
 			Name:       testutils.TestEtcdName,
@@ -324,7 +324,7 @@ func createEtcd() *druidv1alpha1.Etcd {
 		CurrentReplicas: 3,
 		Replicas:        3,
 		ReadyReplicas:   3,
-		Ready:           pointer.Bool(true),
+		Ready:           ptr.To(true),
 	}
 	return etcd
 }
@@ -338,13 +338,13 @@ func updateEtcd(originalEtcd *druidv1alpha1.Etcd, specChanged, statusChanged boo
 	}
 	if specChanged {
 		// made a single change to the spec
-		newEtcd.Spec.Backup.Image = pointer.String("eu.gcr.io/gardener-project/gardener/etcdbrctl-distroless:v1.0.0")
+		newEtcd.Spec.Backup.Image = ptr.To("eu.gcr.io/gardener-project/gardener/etcdbrctl-distroless:v1.0.0")
 		newEtcd.Generation++
 	}
 	if statusChanged {
 		// made a single change to the status
 		newEtcd.Status.ReadyReplicas = 2
-		newEtcd.Status.Ready = pointer.Bool(false)
+		newEtcd.Status.Ready = ptr.To(false)
 	}
 	if lastOpState != nil {
 		newEtcd.Status.LastOperation = &druidv1alpha1.LastOperation{

@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	. "github.com/onsi/gomega"
 )
@@ -127,17 +127,17 @@ func TestGetSuspendEtcdSpecReconcileAnnotationKey(t *testing.T) {
 		{
 			name:                  "SuspendEtcdSpecReconcileAnnotation is set",
 			annotations:           map[string]string{SuspendEtcdSpecReconcileAnnotation: ""},
-			expectedAnnotationKey: pointer.String(SuspendEtcdSpecReconcileAnnotation),
+			expectedAnnotationKey: ptr.To(SuspendEtcdSpecReconcileAnnotation),
 		},
 		{
 			name:                  "IgnoreReconciliationAnnotation is set",
 			annotations:           map[string]string{IgnoreReconciliationAnnotation: ""},
-			expectedAnnotationKey: pointer.String(IgnoreReconciliationAnnotation),
+			expectedAnnotationKey: ptr.To(IgnoreReconciliationAnnotation),
 		},
 		{
 			name:                  "Both annotations (SuspendEtcdSpecReconcileAnnotation and IgnoreReconciliationAnnotation) are set",
 			annotations:           map[string]string{SuspendEtcdSpecReconcileAnnotation: "", IgnoreReconciliationAnnotation: ""},
-			expectedAnnotationKey: pointer.String(SuspendEtcdSpecReconcileAnnotation),
+			expectedAnnotationKey: ptr.To(SuspendEtcdSpecReconcileAnnotation),
 		},
 	}
 	g := NewWithT(t)
@@ -201,8 +201,8 @@ func TestGetAsOwnerReference(t *testing.T) {
 		Kind:               "Etcd",
 		Name:               etcdName,
 		UID:                uid,
-		Controller:         pointer.Bool(true),
-		BlockOwnerDeletion: pointer.Bool(true),
+		Controller:         ptr.To(true),
+		BlockOwnerDeletion: ptr.To(true),
 	}))
 }
 

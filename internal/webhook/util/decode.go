@@ -108,7 +108,7 @@ func (d *RequestDecoder) doDecodeRequestObjects(req admission.Request) (oldObj, 
 			return
 		}
 	default:
-		err = druiderr.WrapError(fmt.Errorf("unsupported operation %s", req.Operation), ErrDecodeRequestObject, "doDecodeRequestObjects", "unsupported operation")
+		err = druiderr.New(ErrDecodeRequestObject, "doDecodeRequestObjects", "unsupported operation")
 	}
 	return
 }

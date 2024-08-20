@@ -107,11 +107,9 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 			fmt.Sprintf("Error checking if StatefulSet pods are updated for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	if !podsHaveDesiredLabels {
-		errMessage := fmt.Sprintf("StatefulSet pods are not yet updated with new labels, for StatefulSet: %v for etcd: %v", getObjectKey(sts.ObjectMeta), druidv1alpha1.GetNamespaceName(etcd.ObjectMeta))
-		return druiderr.WrapError(fmt.Errorf(errMessage),
-			druiderr.ErrRequeueAfter,
+		return druiderr.New(druiderr.ErrRequeueAfter,
 			"PreSync",
-			errMessage,
+			fmt.Sprintf("StatefulSet pods are not yet updated with new labels, for StatefulSet: %v for etcd: %v", getObjectKey(sts.ObjectMeta), druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)),
 		)
 	} else {
 		ctx.Logger.Info("StatefulSet pods are updated with new labels", "objectKey", getObjectKey(etcd.ObjectMeta))

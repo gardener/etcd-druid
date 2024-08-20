@@ -21,7 +21,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -358,7 +358,7 @@ func getVolumesElements(volumePrefix string, store *druidv1alpha1.StoreSpec) Ele
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"Secret": PointTo(MatchFields(IgnoreExtras, Fields{
 					"SecretName":  Equal(store.SecretRef.Name),
-					"DefaultMode": Equal(pointer.Int32(common.ModeOwnerReadWriteGroupRead)),
+					"DefaultMode": Equal(ptr.To(common.ModeOwnerReadWriteGroupRead)),
 				})),
 			}),
 		}),
@@ -405,7 +405,7 @@ func matchTaskStatus(jobStatus *batchv1.JobStatus) gomegatypes.GomegaMatcher {
 	return MatchFields(IgnoreExtras, Fields{
 		"Status": MatchFields(IgnoreExtras, Fields{
 			"Conditions":         MatchAllElements(conditionIdentifier, conditionElements),
-			"ObservedGeneration": Equal(pointer.Int64(1)),
+			"ObservedGeneration": Equal(ptr.To[int64](1)),
 		}),
 	})
 }

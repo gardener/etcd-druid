@@ -9,7 +9,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 
 	"github.com/gardener/gardener/pkg/utils/imagevector"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // GetEtcdImages returns images for etcd and backup-restore by inspecting the etcd spec and the image vector
@@ -58,7 +58,7 @@ func chooseImage(key string, specImage *string, iv imagevector.ImageVector) (*st
 	if err != nil {
 		return nil, err
 	}
-	return pointer.String(ivImage[key].String()), nil
+	return ptr.To(ivImage[key].String()), nil
 }
 
 // GetEtcdBackupRestoreImage returns the image for backup-restore from the given image vector.

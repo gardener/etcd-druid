@@ -9,6 +9,7 @@
 
 ## Development
 
+* [Testing(Unit, Integration and E2E Tests)](development/testing.md)
 * [etcd Network Latency](development/etcd-network-latency.md)
 * [Getting started locally using azurite emulator](development/getting-started-locally-azurite.md)
 * [Getting started locally using localstack emulator](development/getting-started-locally-localstack.md)

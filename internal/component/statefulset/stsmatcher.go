@@ -21,7 +21,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
@@ -71,9 +71,9 @@ func NewStatefulSetMatcher(g *WithT,
 		etcdImage:          etcdImage,
 		etcdBRImage:        etcdBRImage,
 		provider:           provider,
-		clientPort:         pointer.Int32Deref(etcd.Spec.Etcd.ClientPort, 2379),
-		serverPort:         pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, 2380),
-		backupPort:         pointer.Int32Deref(etcd.Spec.Backup.Port, 8080),
+		clientPort:         ptr.Deref(etcd.Spec.Etcd.ClientPort, 2379),
+		serverPort:         ptr.Deref(etcd.Spec.Etcd.ServerPort, 2380),
+		backupPort:         ptr.Deref(etcd.Spec.Backup.Port, 8080),
 	}
 }
 
@@ -369,9 +369,9 @@ func (s StatefulSetMatcher) getEtcdBackupVolumeMountMatcher() gomegatypes.Gomega
 	case druidstore.Local:
 		if s.etcd.Spec.Backup.Store.Container != nil {
 			if s.useEtcdWrapper {
-				return matchVolMount(common.VolumeNameLocalBackup, fmt.Sprintf("/home/nonroot/%s", pointer.StringDeref(s.etcd.Spec.Backup.Store.Container, "")))
+				return matchVolMount(common.VolumeNameLocalBackup, fmt.Sprintf("/home/nonroot/%s", ptr.Deref(s.etcd.Spec.Backup.Store.Container, "")))
 			} else {
-				return matchVolMount(common.VolumeNameLocalBackup, pointer.StringDeref(s.etcd.Spec.Backup.Store.Container, ""))
+				return matchVolMount(common.VolumeNameLocalBackup, ptr.Deref(s.etcd.Spec.Backup.Store.Container, ""))
 			}
 		}
 	case druidstore.GCS:
@@ -540,7 +540,7 @@ func (s StatefulSetMatcher) getBackupVolumeMatcher() gomegatypes.GomegaMatcher {
 			"Name": Equal(common.VolumeNameLocalBackup),
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"HostPath": PointTo(MatchFields(IgnoreExtras, Fields{
-					"Path": Equal(fmt.Sprintf("%s/%s", hostPath, pointer.StringDeref(s.etcd.Spec.Backup.Store.Container, ""))),
+					"Path": Equal(fmt.Sprintf("%s/%s", hostPath, ptr.Deref(s.etcd.Spec.Backup.Store.Container, ""))),
 					"Type": PointTo(Equal(corev1.HostPathDirectory)),
 				})),
 			}),

@@ -12,7 +12,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils"
 
 	"github.com/go-logr/logr"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -77,7 +77,7 @@ func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.Operato
 		etcd.Status.CurrentReplicas = 0
 		etcd.Status.ReadyReplicas = 0
 		etcd.Status.UpdatedReplicas = 0
-		etcd.Status.Ready = pointer.Bool(false)
+		etcd.Status.Ready = ptr.To(false)
 	}
 	return ctrlutils.ContinueReconcile()
 }

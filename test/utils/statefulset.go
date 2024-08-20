@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // CreateStatefulSet creates a statefulset with its owner reference set to etcd.
@@ -36,14 +36,14 @@ func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32
 				Kind:               "Etcd",
 				Name:               name,
 				UID:                etcdUID,
-				Controller:         pointer.Bool(true),
-				BlockOwnerDeletion: pointer.Bool(true),
+				Controller:         ptr.To(true),
+				BlockOwnerDeletion: ptr.To(true),
 			}},
 			Finalizers:    nil,
 			ManagedFields: nil,
 		},
 		Spec: appsv1.StatefulSetSpec{
-			Replicas: pointer.Int32(replicas),
+			Replicas: ptr.To(replicas),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
@@ -71,7 +71,7 @@ func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32
 						Resources: corev1.VolumeResourceRequirements{
 							Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("25Gi")},
 						},
-						StorageClassName: pointer.String("gardener.cloud-fast"),
+						StorageClassName: ptr.To("gardener.cloud-fast"),
 					},
 				},
 			},

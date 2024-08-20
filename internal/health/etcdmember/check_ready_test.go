@@ -17,7 +17,7 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/gardener/etcd-druid/internal/health/etcdmember"
@@ -56,7 +56,7 @@ var _ = Describe("ReadyCheck", func() {
 		Context("single node etcd: when just expired", func() {
 			It("should set the affected condition to UNKNOWN because lease is lost", func() {
 				now := time.Now()
-				lease := createMemberLease(member1Name, etcdNamespace, pointer.String(fmt.Sprintf("%s:%s", member1ID, druidv1alpha1.EtcdRoleLeader)), utils.PointerOf(now.Add(-1*unknownThreshold).Add(-1*time.Second)))
+				lease := createMemberLease(member1Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s", member1ID, druidv1alpha1.EtcdRoleLeader)), utils.PointerOf(now.Add(-1*unknownThreshold).Add(-1*time.Second)))
 				pod := createMemberPod(member1Name, etcdNamespace, true)
 				existingObjects := mapToClientObjects([]*coordinationv1.Lease{lease}, []*corev1.Pod{pod})
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
@@ -73,7 +73,7 @@ var _ = Describe("ReadyCheck", func() {
 			It("should set the affected condition to FAILED because containers are not ready", func() {
 				now := time.Now()
 				pod := createMemberPod(member1Name, etcdNamespace, false)
-				lease := createMemberLease(member1Name, etcdNamespace, pointer.String(fmt.Sprintf("%s:%s", member1ID, druidv1alpha1.EtcdRoleLeader)), utils.PointerOf(now.Add(-1*unknownThreshold).Add(-1*time.Second)))
+				lease := createMemberLease(member1Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s", member1ID, druidv1alpha1.EtcdRoleLeader)), utils.PointerOf(now.Add(-1*unknownThreshold).Add(-1*time.Second)))
 				existingObjects := mapToClientObjects([]*coordinationv1.Lease{lease}, []*corev1.Pod{pod})
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
 				check = ReadyCheck(cl, logr.Discard(), notReadyThreshold, unknownThreshold)
@@ -88,7 +88,7 @@ var _ = Describe("ReadyCheck", func() {
 
 			It("should set the affected condition to FAILED because Pod is not found", func() {
 				now := time.Now()
-				lease := createMemberLease(member1Name, etcdNamespace, pointer.String(fmt.Sprintf("%s:%s", member1ID, druidv1alpha1.EtcdRoleLeader)), utils.PointerOf(now.Add(-1*unknownThreshold).Add(-1*time.Second)))
+				lease := createMemberLease(member1Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s", member1ID, druidv1alpha1.EtcdRoleLeader)), utils.PointerOf(now.Add(-1*unknownThreshold).Add(-1*time.Second)))
 				existingObjects := mapToClientObjects([]*coordinationv1.Lease{lease}, nil)
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
 				check = ReadyCheck(cl, logr.Discard(), notReadyThreshold, unknownThreshold)
@@ -103,7 +103,7 @@ var _ = Describe("ReadyCheck", func() {
 
 			It("should set the affected condition to FAILED because Pod retrieval errors out", func() {
 				now := time.Now()
-				lease := createMemberLease(member1Name, etcdNamespace, pointer.String(fmt.Sprintf("%s:%s", member1ID, druidv1alpha1.EtcdRoleLeader)), utils.PointerOf(now.Add(-1*unknownThreshold).Add(-1*time.Second)))
+				lease := createMemberLease(member1Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s", member1ID, druidv1alpha1.EtcdRoleLeader)), utils.PointerOf(now.Add(-1*unknownThreshold).Add(-1*time.Second)))
 				existingObjects := mapToClientObjects([]*coordinationv1.Lease{lease}, nil)
 				cl := testutils.CreateTestFakeClientForObjects(testutils.TestAPIInternalErr, nil, nil, nil, existingObjects)
 				check = ReadyCheck(cl, logr.Discard(), notReadyThreshold, unknownThreshold)
@@ -123,9 +123,9 @@ var _ = Describe("ReadyCheck", func() {
 				now := time.Now()
 				shortExpirationTime := now.Add(-1 * unknownThreshold).Add(-1 * time.Second)
 				longExpirationTime := now.Add(-1 * unknownThreshold).Add(-1 * time.Second).Add(-1 * notReadyThreshold)
-				member1Lease := createMemberLease(member1Name, etcdNamespace, pointer.String(fmt.Sprintf("%s:%s", member1ID, druidv1alpha1.EtcdRoleLeader)), utils.PointerOf(shortExpirationTime))
-				member2Lease := createMemberLease(member2Name, etcdNamespace, pointer.String(fmt.Sprintf("%s:%s", member2ID, druidv1alpha1.EtcdRoleMember)), utils.PointerOf(longExpirationTime))
-				member3Lease := createMemberLease(member3Name, etcdNamespace, pointer.String(fmt.Sprintf("%s:%s", member3ID, druidv1alpha1.EtcdRoleMember)), utils.PointerOf(shortExpirationTime))
+				member1Lease := createMemberLease(member1Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s", member1ID, druidv1alpha1.EtcdRoleLeader)), utils.PointerOf(shortExpirationTime))
+				member2Lease := createMemberLease(member2Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s", member2ID, druidv1alpha1.EtcdRoleMember)), utils.PointerOf(longExpirationTime))
+				member3Lease := createMemberLease(member3Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s", member3ID, druidv1alpha1.EtcdRoleMember)), utils.PointerOf(shortExpirationTime))
 				member1Pod := createMemberPod(member1Name, etcdNamespace, true)
 				member2Pod := createMemberPod(member2Name, etcdNamespace, false)
 				existingObjects := mapToClientObjects([]*coordinationv1.Lease{member1Lease, member2Lease, member3Lease}, []*corev1.Pod{member1Pod, member2Pod})
@@ -159,9 +159,9 @@ var _ = Describe("ReadyCheck", func() {
 			It("should set member ready", func() {
 				now := time.Now()
 				renewTime := now.Add(-1 * 20 * time.Second)
-				member1Lease := createMemberLease(member1Name, etcdNamespace, pointer.String(fmt.Sprintf("%s:%s", member1ID, druidv1alpha1.EtcdRoleLeader)), utils.PointerOf(renewTime))
-				member2Lease := createMemberLease(member2Name, etcdNamespace, pointer.String(fmt.Sprintf("%s:%s", member2ID, druidv1alpha1.EtcdRoleMember)), utils.PointerOf(renewTime))
-				member3Lease := createMemberLease(member3Name, etcdNamespace, pointer.String(fmt.Sprintf("%s:%s", member3ID, druidv1alpha1.EtcdRoleMember)), utils.PointerOf(renewTime))
+				member1Lease := createMemberLease(member1Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s", member1ID, druidv1alpha1.EtcdRoleLeader)), utils.PointerOf(renewTime))
+				member2Lease := createMemberLease(member2Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s", member2ID, druidv1alpha1.EtcdRoleMember)), utils.PointerOf(renewTime))
+				member3Lease := createMemberLease(member3Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s", member3ID, druidv1alpha1.EtcdRoleMember)), utils.PointerOf(renewTime))
 
 				existingObjects := mapToClientObjects([]*coordinationv1.Lease{member1Lease, member2Lease, member3Lease}, nil)
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
@@ -195,9 +195,9 @@ var _ = Describe("ReadyCheck", func() {
 				renewTime := now.Add(-1 * 20 * time.Second)
 				shortExpirationTime := now.Add(-1 * unknownThreshold).Add(-1 * time.Second)
 
-				member1Lease := createMemberLease(member1Name, etcdNamespace, pointer.String(fmt.Sprintf("%s:%s", member1ID, druidv1alpha1.EtcdRoleLeader)), utils.PointerOf(renewTime))
-				member2Lease := createMemberLease(member2Name, etcdNamespace, pointer.String(fmt.Sprintf("%s:%s", member2ID, druidv1alpha1.EtcdRoleMember)), utils.PointerOf(shortExpirationTime))
-				member3Lease := createMemberLease(member3Name, etcdNamespace, pointer.String(fmt.Sprintf("%s:%s", member3ID, druidv1alpha1.EtcdRoleMember)), nil)
+				member1Lease := createMemberLease(member1Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s", member1ID, druidv1alpha1.EtcdRoleLeader)), utils.PointerOf(renewTime))
+				member2Lease := createMemberLease(member2Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s", member2ID, druidv1alpha1.EtcdRoleMember)), utils.PointerOf(shortExpirationTime))
+				member3Lease := createMemberLease(member3Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s", member3ID, druidv1alpha1.EtcdRoleMember)), nil)
 				existingObjects := mapToClientObjects([]*coordinationv1.Lease{member1Lease, member2Lease, member3Lease}, nil)
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
 				check = ReadyCheck(cl, logr.Discard(), notReadyThreshold, unknownThreshold)
@@ -240,7 +240,7 @@ func createMemberLease(name, namespace string, holderIdentity *string, renewTime
 		},
 		Spec: coordinationv1.LeaseSpec{
 			HolderIdentity:       holderIdentity,
-			LeaseDurationSeconds: pointer.Int32(leaseDurationSeconds),
+			LeaseDurationSeconds: ptr.To[int32](leaseDurationSeconds),
 		},
 	}
 	if renewTime != nil {

@@ -22,7 +22,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
@@ -154,7 +154,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 			name:                   "should create initial cluster for single node etcd cluster when peer TLS is enabled",
 			etcdReplicas:           1,
 			peerTLSEnabled:         true,
-			etcdSpecServerPort:     pointer.Int32(2222),
+			etcdSpecServerPort:     ptr.To[int32](2222),
 			expectedInitialCluster: "etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2222",
 		},
 		{
@@ -167,7 +167,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 			name:                   "should create initial cluster for multi node etcd cluster when peer TLS is enabled",
 			etcdReplicas:           3,
 			peerTLSEnabled:         true,
-			etcdSpecServerPort:     pointer.Int32(2333),
+			etcdSpecServerPort:     ptr.To[int32](2333),
 			expectedInitialCluster: "etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2333,etcd-test-1=https://etcd-test-1.etcd-test-peer.test-ns.svc:2333,etcd-test-2=https://etcd-test-2.etcd-test-peer.test-ns.svc:2333",
 		},
 	}
@@ -389,12 +389,12 @@ func matchPeerTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actual
 				"auto-tls":         Equal(false),
 			}),
 			"listen-peer-urls":            Equal(fmt.Sprintf("https://0.0.0.0:%d", utils.TypeDeref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))),
-			"initial-advertise-peer-urls": Equal(fmt.Sprintf("https@%s@%s@%s", peerSvcName, etcd.Namespace, strconv.Itoa(int(pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))))),
+			"initial-advertise-peer-urls": Equal(fmt.Sprintf("https@%s@%s@%s", peerSvcName, etcd.Namespace, strconv.Itoa(int(ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))))),
 		}))
 	} else {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
 			"listen-peer-urls":            Equal(fmt.Sprintf("http://0.0.0.0:%d", utils.TypeDeref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))),
-			"initial-advertise-peer-urls": Equal(fmt.Sprintf("http@%s@%s@%s", peerSvcName, etcd.Namespace, strconv.Itoa(int(pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))))),
+			"initial-advertise-peer-urls": Equal(fmt.Sprintf("http@%s@%s@%s", peerSvcName, etcd.Namespace, strconv.Itoa(int(ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))))),
 		}))
 		g.Expect(actualETCDConfig).ToNot(HaveKey("peer-transport-security"))
 	}

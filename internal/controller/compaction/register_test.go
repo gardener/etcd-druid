@@ -17,7 +17,7 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
@@ -264,17 +264,17 @@ func createObjectsForSnapshotLeasePredicate(g *WithT, name string, isLeaseObj, i
 	// if it's a new object indicating a create event, create a new lease object and return.
 	if isNewObject {
 		if isHolderIdentitySet {
-			holderIdentity = pointer.String(strconv.Itoa(generateRandomInt(g)))
+			holderIdentity = ptr.To(strconv.Itoa(generateRandomInt(g)))
 		}
 		obj = createLease(name, holderIdentity)
 		return
 	}
 
 	// create old and new lease objects.
-	holderIdentity = pointer.String(strconv.Itoa(generateRandomInt(g)))
+	holderIdentity = ptr.To(strconv.Itoa(generateRandomInt(g)))
 	oldObj = createLease(name, holderIdentity)
 	if isHolderIdentityChanged {
-		newHolderIdentity = pointer.String(strconv.Itoa(generateRandomInt(g)))
+		newHolderIdentity = ptr.To(strconv.Itoa(generateRandomInt(g)))
 	} else {
 		newHolderIdentity = holderIdentity
 	}

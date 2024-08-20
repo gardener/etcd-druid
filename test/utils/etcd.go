@@ -18,7 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -87,7 +87,7 @@ func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
 			SecretReference: corev1.SecretReference{
 				Name: "client-url-ca-etcd",
 			},
-			DataKey: pointer.String("ca.crt"),
+			DataKey: ptr.To("ca.crt"),
 		},
 		ClientTLSSecretRef: corev1.SecretReference{
 			Name: "client-url-etcd-client-tls",
@@ -110,7 +110,7 @@ func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
 			SecretReference: corev1.SecretReference{
 				Name: "peer-url-ca-etcd",
 			},
-			DataKey: pointer.String("ca.crt"),
+			DataKey: ptr.To("ca.crt"),
 		},
 		ServerTLSSecretRef: corev1.SecretReference{
 			Name: "peer-url-etcd-server-tls",
@@ -134,7 +134,7 @@ func (eb *EtcdBuilder) WithReadyStatus() *EtcdBuilder {
 		Replicas:        eb.etcd.Spec.Replicas,
 		CurrentReplicas: eb.etcd.Spec.Replicas,
 		UpdatedReplicas: eb.etcd.Spec.Replicas,
-		Ready:           pointer.Bool(true),
+		Ready:           ptr.To(true),
 		Members:         members,
 		Conditions: []druidv1alpha1.Condition{
 			{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionTrue},
@@ -397,8 +397,8 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 						"memory": ParseQuantity("1000Mi"),
 					},
 				},
-				ClientPort: pointer.Int32(common.DefaultPortEtcdClient),
-				ServerPort: pointer.Int32(common.DefaultPortEtcdPeer),
+				ClientPort: ptr.To(common.DefaultPortEtcdClient),
+				ServerPort: ptr.To(common.DefaultPortEtcdPeer),
 			},
 			Common: druidv1alpha1.SharedConfig{
 				AutoCompactionMode:      &autoCompactionMode,
@@ -411,7 +411,7 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 func getBackupSpec() druidv1alpha1.BackupSpec {
 	return druidv1alpha1.BackupSpec{
 		Image:                    &imageBR,
-		Port:                     pointer.Int32(common.DefaultPortEtcdBackupRestore),
+		Port:                     ptr.To(common.DefaultPortEtcdBackupRestore),
 		FullSnapshotSchedule:     &snapshotSchedule,
 		GarbageCollectionPolicy:  &garbageCollectionPolicy,
 		GarbageCollectionPeriod:  &garbageCollectionPeriod,

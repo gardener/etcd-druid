@@ -8,7 +8,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 
 	"github.com/gardener/gardener/pkg/utils/imagevector"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // CreateImageVector creates an image vector initializing it will different image sources.
@@ -18,14 +18,14 @@ func CreateImageVector(withEtcdImage, withBackupRestoreImage, withEtcdWrapperIma
 		imageSources = append(imageSources, &imagevector.ImageSource{
 			Name:       common.ImageKeyEtcd,
 			Repository: TestImageRepo,
-			Tag:        pointer.String(ETCDImageSourceTag),
+			Tag:        ptr.To(ETCDImageSourceTag),
 		})
 	}
 	if withBackupRestoreImage {
 		imageSources = append(imageSources, &imagevector.ImageSource{
 			Name:       common.ImageKeyEtcdBackupRestore,
 			Repository: TestImageRepo,
-			Tag:        pointer.String(ETCDBRImageTag),
+			Tag:        ptr.To(ETCDBRImageTag),
 		})
 
 	}
@@ -33,20 +33,20 @@ func CreateImageVector(withEtcdImage, withBackupRestoreImage, withEtcdWrapperIma
 		imageSources = append(imageSources, &imagevector.ImageSource{
 			Name:       common.ImageKeyEtcdWrapper,
 			Repository: TestImageRepo,
-			Tag:        pointer.String(ETCDWrapperImageTag),
+			Tag:        ptr.To(ETCDWrapperImageTag),
 		})
 	}
 	if withBackupRestoreDistrolessImage {
 		imageSources = append(imageSources, &imagevector.ImageSource{
 			Name:       common.ImageKeyEtcdBackupRestoreDistroless,
 			Repository: TestImageRepo,
-			Tag:        pointer.String(ETCDBRDistrolessImageTag),
+			Tag:        ptr.To(ETCDBRDistrolessImageTag),
 		})
 	}
 	imageSources = append(imageSources, &imagevector.ImageSource{
 		Name:       common.ImageKeyAlpine,
 		Repository: TestImageRepo,
-		Tag:        pointer.String(InitContainerTag),
+		Tag:        ptr.To(InitContainerTag),
 	})
 	return imageSources
 }

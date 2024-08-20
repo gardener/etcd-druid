@@ -14,7 +14,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // CreateEtcdCopyBackupsTask creates an instance of EtcdCopyBackupsTask for the given provider and optional fields boolean.
@@ -24,8 +24,8 @@ func CreateEtcdCopyBackupsTask(name, namespace string, provider druidv1alpha1.St
 		waitForFinalSnapshot     *druidv1alpha1.WaitForFinalSnapshotSpec
 	)
 	if withOptionalFields {
-		maxBackupAge = pointer.Uint32(7)
-		maxBackups = pointer.Uint32(42)
+		maxBackupAge = ptr.To[uint32](7)
+		maxBackups = ptr.To[uint32](42)
 		waitForFinalSnapshot = &druidv1alpha1.WaitForFinalSnapshotSpec{
 			Enabled: true,
 			Timeout: &metav1.Duration{Duration: 10 * time.Minute},
@@ -42,7 +42,7 @@ func CreateEtcdCopyBackupsTask(name, namespace string, provider druidv1alpha1.St
 		},
 		Spec: druidv1alpha1.EtcdCopyBackupsTaskSpec{
 			SourceStore: druidv1alpha1.StoreSpec{
-				Container: pointer.String("source-container"),
+				Container: ptr.To("source-container"),
 				Prefix:    "/tmp",
 				Provider:  &provider,
 				SecretRef: &corev1.SecretReference{
@@ -51,7 +51,7 @@ func CreateEtcdCopyBackupsTask(name, namespace string, provider druidv1alpha1.St
 				},
 			},
 			TargetStore: druidv1alpha1.StoreSpec{
-				Container: pointer.String("target-container"),
+				Container: ptr.To("target-container"),
 				Prefix:    "/tmp",
 				Provider:  &provider,
 				SecretRef: &corev1.SecretReference{
@@ -80,8 +80,8 @@ func CreateEtcdCopyBackupsJob(taskName, namespace string) *batchv1.Job {
 					Kind:               "EtcdCopyBackupsTask",
 					Name:               taskName,
 					UID:                "",
-					Controller:         pointer.Bool(true),
-					BlockOwnerDeletion: pointer.Bool(true),
+					Controller:         ptr.To(true),
+					BlockOwnerDeletion: ptr.To(true),
 				},
 			},
 		},
