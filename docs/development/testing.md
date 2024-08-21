@@ -50,18 +50,18 @@ For any new contributions **tests are a strict requirement**. `Boy Scouts Rule` 
 
 ### Running Unit Tests
 
-> **NOTE:** For unit tests we are currently transitioning away from [ginkgo](https://github.com/onsi/ginkgo) to using golang native tests. The `make test` target runs both ginkgo and golang native tests. Once the transition is complete this target will be simplified.
+> **NOTE:** For unit tests we are currently transitioning away from [ginkgo](https://github.com/onsi/ginkgo) to using golang native tests. The `make test-unit` target runs both ginkgo and golang native tests. Once the transition is complete this target will be simplified.
 
 Run all unit tests
 
 ```bash
-> make test
+> make test-unit
 ```
 
 Run unit tests of specific packages
 
 ```bash
-> ./hack/test.sh <package-1> <package-2>
+> ./hack/test-go.sh <package-1> <package-2>
 ```
 
 ### De-flaking Unit Tests
