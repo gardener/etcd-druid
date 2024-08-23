@@ -70,16 +70,16 @@ $(GOLANGCI_LINT):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) CGO_ENABLED=1 go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 $(CONTROLLER_GEN):
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
 
 $(GINKGO):
 	go build -o $(GINKGO) github.com/onsi/ginkgo/v2/ginkgo
 
 $(MOCKGEN):
-	go install go.uber.org/mock/mockgen@$(MOCKGEN_VERSION)
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install go.uber.org/mock/mockgen@$(MOCKGEN_VERSION)
 
 $(SETUP_ENVTEST):
-	go install sigs.k8s.io/controller-runtime/tools/setup-envtest
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/controller-runtime/tools/setup-envtest
 
 $(SKAFFOLD):
 	curl -Lo $(SKAFFOLD) https://storage.googleapis.com/skaffold/releases/$(SKAFFOLD_VERSION)/skaffold-$(SYSTEM_NAME)-$(SYSTEM_ARCH)

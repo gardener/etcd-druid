@@ -43,6 +43,7 @@ const (
 )
 
 var once sync.Once
+
 var (
 	logger         = zap.New(zap.WriteTo(GinkgoWriter))
 	typedClient    *kubernetes.Clientset
