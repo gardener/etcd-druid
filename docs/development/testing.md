@@ -161,6 +161,6 @@ End-To-End tests are run using [Kind](https://kind.sigs.k8s.io/) cluster and [Sk
 
 * In contrast to integration tests, in e2e tests, it might make sense to specify higher timeouts for Gomega's [AsyncAssertion](https://pkg.go.dev/github.com/onsi/gomega#AsyncAssertion) calls.
 
-### Running e2e Tests
+### Running e2e tests locally
 
 Detailed instructions on how to run e2e tests can be found [here](https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/docs/development/local-e2e-tests.md).
