@@ -1033,7 +1033,7 @@ As discussed above, the initialization sequence of `etcd-backup-restore` in a me
 It also might have to handle the etcd database verification and restoration functionality differently in [different](#restarting-an-existing-member-of-an-etcd-cluster) [scenarios](#recovering-an-etcd-cluster-from-failure-of-majority-of-members).
 
 The initialization sequence itself is proposed to be as follows.
-It is an enhancement of the [existing](https://github.com/gardener/etcd-backup-restore/blob/master/doc/proposals/design.md#workflow) initialization sequence.
+It is an enhancement of the [existing](https://github.com/gardener/etcd-backup-restore/blob/master/docs/proposals/design.md#workflow) initialization sequence.
 ![etcd member initialization sequence](assets/01-etcd-member-initialization-sequence.png)
 
 The details of the decisions to be taken during the initialization are given below.
