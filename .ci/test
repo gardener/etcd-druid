@@ -20,7 +20,7 @@ source "${SOURCE_PATH}/.ci/common.sh"
 
 if [ -z "$COVER" ] || [ "$COVER" = false ] ; then
   echo "[INFO] Test coverage is disabled."
-  make test
+  make test-unit
 else
   echo "[INFO] Test coverage is enabled."
   make test-cov
