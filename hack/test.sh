@@ -40,8 +40,7 @@ export GOMEGA_DEFAULT_EVENTUALLY_POLLING_INTERVAL=200ms
 GINKGO_COMMON_FLAGS="-r -timeout=1h0m0s --randomize-all --randomize-suites --fail-on-pending --show-node-events"
 
 echo "> Ginkgo tests"
-
-if ${TEST_COV:-false}; then
+if ${TEST_COVER:-false}; then
   output_dir=test/output
   coverprofile_file=coverprofile.out
   mkdir -p test/output

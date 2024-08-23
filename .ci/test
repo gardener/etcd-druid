@@ -3,7 +3,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-set -eo pipefail
+set -o errexit
+set -o nounset
+set -o pipefail
 
 # For all steps, concourse will set the following environment variables:
 # SOURCE_PATH - path to component repository root directory.
@@ -18,11 +20,5 @@ source "${SOURCE_PATH}/.ci/common.sh"
 
 ###############################################################################
 
-if [ -z "$COVER" ] || [ "$COVER" = false ] ; then
-  echo "[INFO] Test coverage is disabled."
-  make test-unit
-else
-  echo "[INFO] Test coverage is enabled."
-  make test-cov
-fi
+make test-unit
 echo "Finished executing unit tests."

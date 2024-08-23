@@ -15,7 +15,7 @@ BUILD_DIR           := build
 PROVIDERS           := ""
 BUCKET_NAME         := "e2e-test"
 KUBECONFIG_PATH     := $(HACK_DIR)/e2e-test/infrastructure/kind/kubeconfig
-
+TEST_COVER 			:= "true"
 IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 
 # Tools
@@ -87,14 +87,14 @@ check-apidiff: $(GO_APIDIFF)
 .PHONY: test-unit
 test-unit: $(GINKGO) $(GOTESTFMT)
 	# run ginkgo unit tests. These will be ported to golang native tests over a period of time.
-	@"$(HACK_DIR)/test.sh" ./internal/controller/etcdcopybackupstask/... \
+	TEST_COVER=$(TEST_COVER) "$(HACK_DIR)/test.sh" ./internal/controller/etcdcopybackupstask/... \
 	./internal/controller/secret/... \
 	./internal/controller/utils/... \
 	./internal/mapper/... \
 	./internal/metrics/... \
 	./internal/health/...
 	# run the golang native unit tests.
-	@TEST_COV="true" "$(HACK_DIR)/test-go.sh" ./api/... \
+	TEST_COVER=$(TEST_COVER) "$(HACK_DIR)/test-go.sh" ./api/... \
 	./internal/controller/etcd/... \
 	./internal/controller/compaction/... \
 	./internal/component/... \
@@ -112,10 +112,6 @@ test-integration: $(GINKGO) $(SETUP_ENVTEST) $(GOTESTFMT)
 .PHONE: start-envtest
 start-envtest: $(SETUP_ENVTEST)
 	@$(HACK_DIR)/start-envtest.sh
-
-.PHONY: test-cov
-test-cov: $(GINKGO) $(SETUP_ENVTEST)
-	@TEST_COV="true" $(HACK_DIR)/test.sh --skip-package=./test/e2e
 
 .PHONY: test-cov-clean
 test-cov-clean:
