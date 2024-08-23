@@ -383,6 +383,11 @@ func getProviders() ([]TestProvider, error) {
 						},
 					},
 				}
+				fakegcsHost := getEnvOrFallback("GCS_EMULATOR_HOST", "")
+				if fakegcsHost != "" {
+					provider.Storage.SecretData["storageAPIEndpoint"] = []byte("http://" + fakegcsHost + "/storage/v1/")
+					provider.Storage.SecretData["emulatorEnabled"] = []byte("true")
+				}
 			}
 		case providerLocal:
 			provider = TestProvider{

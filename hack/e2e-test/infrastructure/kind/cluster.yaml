@@ -3,21 +3,34 @@ apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
 - role: control-plane
   image: kindest/node:v1.29.2
-  # port forward 80 on the host to 80 on this node
+  # Port forwarding: Maps port 80 on the host to port 80 on this node.
   extraPortMappings:
   - containerPort: 4566
     hostPort: 4566
-    # optional: set the bind address on the host
-    # 0.0.0.0 is the current default
+    # Optional: Sets the bind address on the host.
+    # "127.0.0.1" is specified to bind to the localhost.
     listenAddress: "127.0.0.1"
-    # optional: set the protocol to one of TCP, UDP, SCTP.
-    # TCP is the default
+    # Optional: Specifies the protocol. Valid options are TCP, UDP, SCTP.
+    # TCP is set as the default protocol.
     protocol: TCP
+  # Port forwarding: Maps port 10000 on the host to the azurite-service running inside the kind cluster.
   - containerPort: 10000
     hostPort: 10000
-    # optional: set the bind address on the host
-    # 0.0.0.0 is the current default
+    # Optional: Sets the bind address on the host.
+    # "127.0.0.1" is specified for binding to the localhost.
     listenAddress: "127.0.0.1"
-    # optional: set the protocol to one of TCP, UDP, SCTP.
-    # TCP is the default
+    # Optional: Specifies the protocol. Valid options are TCP, UDP, SCTP.
+    # TCP is set as the default protocol.
+    protocol: TCP
+  # Port forwarding: Maps port 8000 on the host to the fake-gcs service running inside the kind cluster.
+  - containerPort: 8000
+    hostPort: 8000
+    # Sets the bind address on the host to localhost for enhanced security.
+    listenAddress: "127.0.0.1"
+    protocol: TCP
+  # Port forwarding: Maps port 4443 on the host to the fake-gcs service running inside the kind cluster.
+  - containerPort: 4443
+    hostPort: 4443
+    # Binds to localhost to restrict external access.
+    listenAddress: "127.0.0.1"
     protocol: TCP
