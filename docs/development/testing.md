@@ -16,7 +16,7 @@ For any new contributions **tests are a strict requirement**. `Boy Scouts Rule` 
 
 * We use gomega as our matcher or assertion library. Refer to Gomega's [official documentation](https://onsi.github.io/gomega/) for details regarding its installation and application in tests.
 
-* For naming the individual test/helper functions, ensure that the name describes what the function tests/helps-with. Naming is important for code readability even when writing tests.
+* For naming the individual test/helper functions, ensure that the name describes what the function tests/helps-with. Naming is important for code readability even when writing tests - [example-testcase-naming](https://github.com/gardener/etcd-druid/blob/90995898b231a49a8f211e85160600e9e6019fe0/internal/webhook/etcdcomponents/handler_test.go#L157).
 
 * Introduce helper functions for assertions to make test more readable where applicable - [example-assertion-function](https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/it/controller/etcd/assertions.go#L117).
 
@@ -58,9 +58,12 @@ Run all unit tests
 > make test-unit
 ```
 
-Run unit tests of specific packages
+Run unit tests of specific packages:
 
 ```bash
+# if you have not already installed gotestfmt tool then install it once.
+# make test-unit target automatically installs this in ./hack/tools/bin. You can alternatively point the GOBIN to this directory and then directly invoke test-go.sh
+> go install github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt@v2.5.0
 > ./hack/test-go.sh <package-1> <package-2>
 ```
 
