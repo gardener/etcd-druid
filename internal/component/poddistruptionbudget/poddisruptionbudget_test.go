@@ -12,6 +12,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"

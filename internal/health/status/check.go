@@ -9,14 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-logr/logr"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/health/condition"
 	"github.com/gardener/etcd-druid/internal/health/etcdmember"
+
+	"github.com/go-logr/logr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // ConditionCheckFn is a type alias for a function which returns an implementation of `Check`.

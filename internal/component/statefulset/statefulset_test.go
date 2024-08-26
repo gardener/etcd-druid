@@ -19,7 +19,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
-	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -27,6 +26,8 @@ import (
 	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	. "github.com/onsi/gomega"
 )
 
 // ------------------------ GetExistingResourceNames ------------------------

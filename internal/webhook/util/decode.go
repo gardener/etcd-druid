@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"

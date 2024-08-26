@@ -6,24 +6,29 @@ package setup
 
 import (
 	"context"
+	"os"
+	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	testutils "github.com/gardener/etcd-druid/test/utils"
-	eventsv1 "k8s.io/api/events/v1"
-	eventsv1beta1 "k8s.io/api/events/v1beta1"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
+	eventsv1beta1 "k8s.io/api/events/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
+
+const envUseExistingK8SCluster = "USE_EXISTING_K8S_CLUSTER"
 
 type AddToManagerFn func(mgr manager.Manager)
 
@@ -33,12 +38,13 @@ type ManagerRegisterer interface {
 	StartManager() error
 }
 
-type IntegrationTestEnv interface {
+type DruidTestEnvironment interface {
 	ManagerRegisterer
 	GetClient() client.Client
 	CreateTestNamespace(name string) error
 	GetLogger() logr.Logger
 	GetContext() context.Context
+	GetEnvTestEnvironment() *envtest.Environment
 }
 
 type itTestEnv struct {
@@ -52,9 +58,9 @@ type itTestEnv struct {
 	logger   logr.Logger
 }
 
-type IntegrationTestEnvCloser func()
+type DruidTestEnvCloser func()
 
-func NewIntegrationTestEnv(loggerName string, crdDirectoryPaths []string) (IntegrationTestEnv, IntegrationTestEnvCloser, error) {
+func NewDruidTestEnvironment(loggerName string, crdDirectoryPaths []string) (DruidTestEnvironment, DruidTestEnvCloser, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	logger := ctrl.Log.WithName(loggerName)
 	itEnv := &itTestEnv{
@@ -65,7 +71,7 @@ func NewIntegrationTestEnv(loggerName string, crdDirectoryPaths []string) (Integ
 	if err := itEnv.prepareScheme(); err != nil {
 		return nil, nil, err
 	}
-	if err := itEnv.createTestEnvironment(crdDirectoryPaths); err != nil {
+	if err := itEnv.startTestEnvironment(crdDirectoryPaths); err != nil {
 		return nil, nil, err
 	}
 	return itEnv, func() {
@@ -142,6 +148,10 @@ func (t *itTestEnv) GetContext() context.Context {
 	return t.ctx
 }
 
+func (t *itTestEnv) GetEnvTestEnvironment() *envtest.Environment {
+	return t.testEnv
+}
+
 func (t *itTestEnv) prepareScheme() error {
 	if err := druidv1alpha1.AddToScheme(scheme.Scheme); err != nil {
 		return err
@@ -151,11 +161,14 @@ func (t *itTestEnv) prepareScheme() error {
 	return nil
 }
 
-func (t *itTestEnv) createTestEnvironment(crdDirectoryPaths []string) error {
+func (t *itTestEnv) startTestEnvironment(crdDirectoryPaths []string) error {
 	testEnv := &envtest.Environment{
 		Scheme:                t.scheme,
 		ErrorIfCRDPathMissing: true,
 		CRDDirectoryPaths:     crdDirectoryPaths,
+	}
+	if useExistingK8SCluster() {
+		testEnv.UseExistingCluster = pointer.Bool(true)
 	}
 
 	cfg, err := testEnv.Start()
@@ -165,4 +178,12 @@ func (t *itTestEnv) createTestEnvironment(crdDirectoryPaths []string) error {
 	t.config = cfg
 	t.testEnv = testEnv
 	return nil
+}
+
+// useExistingK8SCluster checks if the existing K8S cluster should be used for testing. If the environment variable
+// USE_EXISTING_K8S_CLUSTER is set to true, the existing cluster will be used. Otherwise, a new k8s cluster via envtest
+// will be created.
+func useExistingK8SCluster() bool {
+	useExistingCluster := os.Getenv(envUseExistingK8SCluster)
+	return strings.ToLower(useExistingCluster) == "true"
 }

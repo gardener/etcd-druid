@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	druidcontroller "github.com/gardener/etcd-druid/internal/controller"
 	druidwebhook "github.com/gardener/etcd-druid/internal/webhook"
 
-	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"golang.org/x/exp/slog"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	coordinationv1beta1 "k8s.io/api/coordination/v1beta1"

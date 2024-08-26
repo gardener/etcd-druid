@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/utils"
-	. "github.com/onsi/gomega"
+
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,6 +20,8 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+
+	. "github.com/onsi/gomega"
 )
 
 func TestSnapshotRevisionChangedForCreateEvents(t *testing.T) {

@@ -32,7 +32,7 @@ fi
 
 echo "> Go tests"
 
-if ${TEST_COV:-false}; then
+if ${TEST_COVER:-false}; then
   mkdir -p test/output
   go test -json -cover "$@" | gotestfmt -hide empty-packages
   exit 0

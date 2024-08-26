@@ -12,7 +12,7 @@ ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION:-"1.30"}
 if ${SETUP_ENVTEST:-false}; then
   echo "> Installing envtest tools@${ENVTEST_K8S_VERSION} with setup-envtest"
   if ! command -v setup-envtest &> /dev/null ; then
-    >&2 echo "setup-envtest not available"
+    >&2 echo "setup-envtest is not available"
     exit 1
   fi
 
@@ -40,8 +40,7 @@ export GOMEGA_DEFAULT_EVENTUALLY_POLLING_INTERVAL=200ms
 GINKGO_COMMON_FLAGS="-r -timeout=1h0m0s --randomize-all --randomize-suites --fail-on-pending --show-node-events"
 
 echo "> Ginkgo tests"
-
-if ${TEST_COV:-false}; then
+if ${TEST_COVER:-false}; then
   output_dir=test/output
   coverprofile_file=coverprofile.out
   mkdir -p test/output

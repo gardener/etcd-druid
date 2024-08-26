@@ -6,6 +6,7 @@ package utils
 
 import (
 	"github.com/gardener/etcd-druid/internal/common"
+
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"k8s.io/utils/pointer"
 )

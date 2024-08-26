@@ -5,6 +5,7 @@
 package main
 
 import (
+	"github.com/gardener/etcd-druid/internal/utils"
 	"os"
 	"runtime"
 
@@ -25,7 +26,7 @@ var logger = ctrl.Log.WithName("druid")
 func main() {
 	ctx := ctrl.SetupSignalHandler()
 
-	ctrl.SetLogger(zap.New(buildDefaultLoggerOpts()...))
+	ctrl.SetLogger(utils.MustNewLogger(false, utils.LogFormatJSON))
 
 	printVersionInfo()
 

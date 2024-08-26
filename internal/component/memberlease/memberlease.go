@@ -12,6 +12,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/utils"
+
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/hashicorp/go-multierror"
 	coordinationv1 "k8s.io/api/coordination/v1"

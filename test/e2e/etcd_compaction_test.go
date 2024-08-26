@@ -12,12 +12,13 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Etcd Compaction", func() {

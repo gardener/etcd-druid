@@ -10,6 +10,7 @@ import (
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/health/status"
 	"github.com/gardener/etcd-druid/internal/utils"
+
 	"github.com/go-logr/logr"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"

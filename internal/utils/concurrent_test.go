@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/component"
+
 	"github.com/go-logr/logr"
+
 	. "github.com/onsi/gomega"
 )
 

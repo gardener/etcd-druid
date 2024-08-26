@@ -12,11 +12,9 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
 
+	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,6 +23,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -42,6 +43,7 @@ const (
 )
 
 var once sync.Once
+
 var (
 	logger         = zap.New(zap.WriteTo(GinkgoWriter))
 	typedClient    *kubernetes.Clientset

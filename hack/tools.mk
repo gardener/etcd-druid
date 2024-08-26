@@ -20,7 +20,9 @@ HELM                       := $(TOOLS_BIN_DIR)/helm
 KUBECTL                    := $(TOOLS_BIN_DIR)/kubectl
 VGOPATH                    := $(TOOLS_BIN_DIR)/vgopath
 GO_ADD_LICENSE             := $(TOOLS_BIN_DIR)/addlicense
+GO_APIDIFF                 := $(TOOLS_BIN_DIR)/go-apidiff
 GOTESTFMT 	   	 		   := $(TOOLS_BIN_DIR)/gotestfmt
+GOIMPORTS_REVISER          := $(TOOLS_BIN_DIR)/goimports-reviser
 
 # default tool versions
 SKAFFOLD_VERSION := v2.13.0
@@ -34,7 +36,9 @@ HELM_VERSION ?= v3.15.2
 KUBECTL_VERSION ?= v1.30.2
 VGOPATH_VERSION ?= v0.1.5
 GO_ADD_LICENSE_VERSION ?= v1.1.1
+GO_APIDIFF_VERSION ?= v0.8.2
 GOTESTFMT_VERSION ?= v2.5.0
+GOIMPORTS_REVISER_VERSION ?= v3.6.5
 
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
@@ -66,16 +70,16 @@ $(GOLANGCI_LINT):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) CGO_ENABLED=1 go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 $(CONTROLLER_GEN):
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
 
 $(GINKGO):
 	go build -o $(GINKGO) github.com/onsi/ginkgo/v2/ginkgo
 
 $(MOCKGEN):
-	go install go.uber.org/mock/mockgen@$(MOCKGEN_VERSION)
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install go.uber.org/mock/mockgen@$(MOCKGEN_VERSION)
 
 $(SETUP_ENVTEST):
-	go install sigs.k8s.io/controller-runtime/tools/setup-envtest
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/controller-runtime/tools/setup-envtest
 
 $(SKAFFOLD):
 	curl -Lo $(SKAFFOLD) https://storage.googleapis.com/skaffold/releases/$(SKAFFOLD_VERSION)/skaffold-$(SYSTEM_NAME)-$(SYSTEM_ARCH)
@@ -93,6 +97,10 @@ $(VGOPATH):
 $(GO_ADD_LICENSE):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/google/addlicense@$(GO_ADD_LICENSE_VERSION)
 
+
+$(GO_APIDIFF):
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/joelanford/go-apidiff@$(GO_APIDIFF_VERSION)
+
 $(KUBECTL):
 	curl -Lo $(KUBECTL) https://dl.k8s.io/release/$(KUBECTL_VERSION)/bin/$(SYSTEM_NAME)/$(SYSTEM_ARCH)/kubectl
 	chmod +x $(KUBECTL)
@@ -100,3 +108,5 @@ $(KUBECTL):
 $(GOTESTFMT):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt@$(GOTESTFMT_VERSION)
 
+$(GOIMPORTS_REVISER):
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/incu6us/goimports-reviser/v3@$(GOIMPORTS_REVISER_VERSION)

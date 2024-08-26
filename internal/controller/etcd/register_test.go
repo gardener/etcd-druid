@@ -11,11 +11,13 @@ import (
 	mockmanager "github.com/gardener/etcd-druid/internal/mock/controller-runtime/manager"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+
+	. "github.com/onsi/gomega"
 )
 
 type predicateTestCase struct {

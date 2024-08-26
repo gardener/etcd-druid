@@ -12,6 +12,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/webhook/util"
+
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"

@@ -9,22 +9,21 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gardener/etcd-druid/internal/utils"
-
-	testutils "github.com/gardener/etcd-druid/test/utils"
-	"github.com/go-logr/logr"
-
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	. "github.com/gardener/etcd-druid/internal/health/etcdmember"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	. "github.com/onsi/gomega/gstruct"
+	"github.com/gardener/etcd-druid/internal/utils"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 
+	"github.com/go-logr/logr"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	. "github.com/gardener/etcd-druid/internal/health/etcdmember"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 )
 
 const (

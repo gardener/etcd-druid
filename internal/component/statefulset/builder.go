@@ -14,8 +14,8 @@ import (
 	"github.com/gardener/etcd-druid/internal/component"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 	"github.com/gardener/etcd-druid/internal/utils"
-	"github.com/gardener/gardener/pkg/utils/imagevector"
 
+	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"

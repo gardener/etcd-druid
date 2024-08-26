@@ -6,6 +6,7 @@ package validation
 
 import (
 	"github.com/gardener/etcd-druid/api/v1alpha1"
+
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"

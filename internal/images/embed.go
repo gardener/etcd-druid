@@ -5,9 +5,9 @@
 package images
 
 import (
-	_ "embed"
-
 	"github.com/gardener/gardener/pkg/utils/imagevector"
+
+	_ "embed"
 )
 
 var (

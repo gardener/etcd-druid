@@ -9,11 +9,11 @@ import (
 	"encoding/hex"
 	"maps"
 
-	. "github.com/onsi/gomega"
-
-	. "github.com/onsi/gomega/gstruct"
 	gomegatypes "github.com/onsi/gomega/types"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 )
 
 func MatchFinalizer(finalizer string) gomegatypes.GomegaMatcher {

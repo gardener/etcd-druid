@@ -11,15 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gardener/etcd-druid/internal/utils"
-	"github.com/gardener/etcd-druid/test/it/controller/assets"
-	"github.com/gardener/etcd-druid/test/it/setup"
-	. "github.com/onsi/gomega"
-
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/features"
+	"github.com/gardener/etcd-druid/internal/utils"
+	"github.com/gardener/etcd-druid/test/it/controller/assets"
+	"github.com/gardener/etcd-druid/test/it/setup"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -29,6 +28,8 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+
+	. "github.com/onsi/gomega"
 )
 
 const testNamespacePrefix = "etcd-reconciler-test-"
@@ -39,7 +40,7 @@ func createTestNamespaceName(t *testing.T) string {
 	return fmt.Sprintf("%s-%s", testNamespacePrefix, namespaceSuffix)
 }
 
-func initializeEtcdReconcilerTestEnv(t *testing.T, itTestEnv setup.IntegrationTestEnv, autoReconcile bool, clientBuilder *testutils.TestClientBuilder) ReconcilerTestEnv {
+func initializeEtcdReconcilerTestEnv(t *testing.T, itTestEnv setup.DruidTestEnvironment, autoReconcile bool, clientBuilder *testutils.TestClientBuilder) ReconcilerTestEnv {
 	g := NewWithT(t)
 	var (
 		reconciler *etcd.Reconciler
