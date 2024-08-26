@@ -15,7 +15,7 @@ if ! command -v setup-envtest &> /dev/null ; then
   >&2 cat <<EOF
   setup-envtest not available
   You can either directly install it by following the instructions at https://pkg.go.dev/sigs.k8s.io/controller-runtime/tools/setup-envtest#section-readme
-  Or you can use `make test-integration` which will implicitly install it for you.
+  Or you can use 'make test-integration' which will implicitly install it for you.
 EOF
   exit 1
 fi
