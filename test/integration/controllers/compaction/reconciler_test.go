@@ -21,7 +21,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -56,13 +56,13 @@ var _ = Describe("Compaction Controller", func() {
 
 			// manually update full lease spec since there is no running instance of etcd-backup-restore
 			By("update full snapshot lease")
-			fullSnapLease.Spec.HolderIdentity = pointer.String("0")
+			fullSnapLease.Spec.HolderIdentity = ptr.To("0")
 			fullSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(k8sClient.Update(context.TODO(), fullSnapLease)).To(Succeed())
 
 			// manually update delta lease spec since there is no running instance of etcd-backup-restore
 			By("update delta snapshot lease")
-			deltaSnapLease.Spec.HolderIdentity = pointer.String("101")
+			deltaSnapLease.Spec.HolderIdentity = ptr.To("101")
 			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
 
@@ -114,12 +114,12 @@ var _ = Describe("Compaction Controller", func() {
 			// Expect(k8sClient.Create(ctx, j)).To(Succeed())
 
 			// Deliberately update the full lease
-			fullSnapLease.Spec.HolderIdentity = pointer.String("0")
+			fullSnapLease.Spec.HolderIdentity = ptr.To("0")
 			fullSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(k8sClient.Update(context.TODO(), fullSnapLease)).To(Succeed())
 
 			// Deliberately update the delta lease
-			deltaSnapLease.Spec.HolderIdentity = pointer.String("101")
+			deltaSnapLease.Spec.HolderIdentity = ptr.To("101")
 			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
 
@@ -162,12 +162,12 @@ var _ = Describe("Compaction Controller", func() {
 			fullSnapLease, deltaSnapLease = createEtcdSnapshotLeasesAndWait(k8sClient, instance)
 
 			// Deliberately update the full lease
-			fullSnapLease.Spec.HolderIdentity = pointer.String("0")
+			fullSnapLease.Spec.HolderIdentity = ptr.To("0")
 			fullSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(k8sClient.Update(context.TODO(), fullSnapLease)).To(Succeed())
 
 			// Deliberately update the delta lease
-			deltaSnapLease.Spec.HolderIdentity = pointer.String("101")
+			deltaSnapLease.Spec.HolderIdentity = ptr.To("101")
 			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
 
@@ -206,12 +206,12 @@ var _ = Describe("Compaction Controller", func() {
 			fullSnapLease, deltaSnapLease = createEtcdSnapshotLeasesAndWait(k8sClient, instance)
 
 			// Deliberately update the full lease
-			fullSnapLease.Spec.HolderIdentity = pointer.String("0")
+			fullSnapLease.Spec.HolderIdentity = ptr.To("0")
 			fullSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(k8sClient.Update(context.TODO(), fullSnapLease)).To(Succeed())
 
 			// Deliberately update the delta lease
-			deltaSnapLease.Spec.HolderIdentity = pointer.String("101")
+			deltaSnapLease.Spec.HolderIdentity = ptr.To("101")
 			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
 
@@ -247,12 +247,12 @@ var _ = Describe("Compaction Controller", func() {
 			fullSnapLease, deltaSnapLease = createEtcdSnapshotLeasesAndWait(k8sClient, instance)
 
 			// Deliberately update the full lease
-			fullSnapLease.Spec.HolderIdentity = pointer.String("0")
+			fullSnapLease.Spec.HolderIdentity = ptr.To("0")
 			fullSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(k8sClient.Update(context.TODO(), fullSnapLease)).To(Succeed())
 
 			// Deliberately update the delta lease
-			deltaSnapLease.Spec.HolderIdentity = pointer.String("101")
+			deltaSnapLease.Spec.HolderIdentity = ptr.To("101")
 			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
 			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
 
@@ -428,7 +428,7 @@ func validateStoreGCPForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.J
 												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
 											}),
 											"Key":      Equal("storageAPIEndpoint"),
-											"Optional": Equal(pointer.Bool(true)),
+											"Optional": Equal(ptr.To(true)),
 										})),
 									})),
 								}),
@@ -552,7 +552,7 @@ func validateStoreAzureForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1
 												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
 											}),
 											"Key":      Equal("emulatorEnabled"),
-											"Optional": Equal(pointer.Bool(true)),
+											"Optional": Equal(ptr.To(true)),
 										})),
 									})),
 								}),
@@ -564,7 +564,7 @@ func validateStoreAzureForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1
 												"Name": Equal(instance.Spec.Backup.Store.SecretRef.Name),
 											}),
 											"Key":      Equal("storageAPIEndpoint"),
-											"Optional": Equal(pointer.Bool(true)),
+											"Optional": Equal(ptr.To(true)),
 										})),
 									})),
 								}),

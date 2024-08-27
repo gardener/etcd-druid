@@ -24,12 +24,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8s_labels "k8s.io/apimachinery/pkg/labels"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -519,14 +518,14 @@ func startEtcdZeroDownTimeValidatorJob(ctx context.Context, cl client.Client, et
 // getEtcdLeaderPodName returns the leader pod name by using lease
 func getEtcdLeaderPodName(ctx context.Context, cl client.Client, etcd *v1alpha1.Etcd) (*types.NamespacedName, error) {
 	leaseList := &v1.LeaseList{}
-	r1, err := k8s_labels.NewRequirement(v1alpha1.LabelPartOfKey, selection.Equals, []string{etcd.Name})
+	r1, err := k8slabels.NewRequirement(v1alpha1.LabelPartOfKey, selection.Equals, []string{etcd.Name})
 	ExpectWithOffset(1, err).ShouldNot(HaveOccurred())
-	r2, err := k8s_labels.NewRequirement(v1alpha1.LabelComponentKey, selection.Equals, []string{common.ComponentNameMemberLease})
+	r2, err := k8slabels.NewRequirement(v1alpha1.LabelComponentKey, selection.Equals, []string{common.ComponentNameMemberLease})
 	ExpectWithOffset(1, err).ShouldNot(HaveOccurred())
 
 	opts := &client.ListOptions{
 		Namespace:     etcd.Namespace,
-		LabelSelector: k8s_labels.NewSelector().Add(*r1, *r2),
+		LabelSelector: k8slabels.NewSelector().Add(*r1, *r2),
 	}
 	ExpectWithOffset(1, cl.List(ctx, leaseList, opts)).ShouldNot(HaveOccurred())
 
@@ -574,7 +573,7 @@ func checkDefragmentationFinished(ctx context.Context, cl client.Client, etcd *v
 		// Get etcd leader pod logs to ensure etcd cluster defragmentation is finished or not.
 		logs, err := getPodLogs(ctx, leaderPodKey, &corev1.PodLogOptions{
 			Container:    "backup-restore",
-			SinceSeconds: pointer.Int64(60),
+			SinceSeconds: ptr.To[int64](60),
 		})
 
 		if err != nil {

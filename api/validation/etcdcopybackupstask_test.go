@@ -13,7 +13,7 @@ import (
 	"github.com/onsi/gomega/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -32,11 +32,11 @@ var _ = Describe("Etcd validation tests", func() {
 			Spec: v1alpha1.EtcdCopyBackupsTaskSpec{
 				SourceStore: v1alpha1.StoreSpec{
 					Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
-					Provider: (*v1alpha1.StorageProvider)(pointer.String(provider)),
+					Provider: (*v1alpha1.StorageProvider)(ptr.To(provider)),
 				},
 				TargetStore: v1alpha1.StoreSpec{
 					Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
-					Provider: (*v1alpha1.StorageProvider)(pointer.String(provider)),
+					Provider: (*v1alpha1.StorageProvider)(ptr.To(provider)),
 				},
 			},
 		}
@@ -64,10 +64,10 @@ var _ = Describe("Etcd validation tests", func() {
 
 			Entry("should forbid invalid spec.sourceStore and spec.targetStore", &v1alpha1.StoreSpec{
 				Prefix:   "invalid",
-				Provider: (*v1alpha1.StorageProvider)(pointer.String("invalid")),
+				Provider: (*v1alpha1.StorageProvider)(ptr.To("invalid")),
 			}, &v1alpha1.StoreSpec{
 				Prefix:   "invalid",
-				Provider: (*v1alpha1.StorageProvider)(pointer.String("invalid")),
+				Provider: (*v1alpha1.StorageProvider)(ptr.To("invalid")),
 			}, ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
 				"Type":  Equal(field.ErrorTypeInvalid),
 				"Field": Equal("spec.sourceStore.prefix"),
@@ -84,10 +84,10 @@ var _ = Describe("Etcd validation tests", func() {
 
 			Entry("should allow valid spec.sourceStore and spec.targetStore", &v1alpha1.StoreSpec{
 				Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
-				Provider: (*v1alpha1.StorageProvider)(pointer.String(provider)),
+				Provider: (*v1alpha1.StorageProvider)(ptr.To(provider)),
 			}, &v1alpha1.StoreSpec{
 				Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
-				Provider: (*v1alpha1.StorageProvider)(pointer.String(provider)),
+				Provider: (*v1alpha1.StorageProvider)(ptr.To(provider)),
 			}, BeNil()),
 		)
 	})
@@ -100,7 +100,7 @@ var _ = Describe("Etcd validation tests", func() {
 
 			newTask := task.DeepCopy()
 			newTask.ResourceVersion = "2"
-			newTask.Spec.SourceStore.Container = pointer.String("foo")
+			newTask.Spec.SourceStore.Container = ptr.To("foo")
 
 			errList := validation.ValidateEtcdCopyBackupsTaskUpdate(newTask, task)
 
@@ -134,10 +134,10 @@ var _ = Describe("Etcd validation tests", func() {
 
 			newTask := task.DeepCopy()
 			newTask.ResourceVersion = "2"
-			newTask.Spec.SourceStore.Container = pointer.String("foo")
-			newTask.Spec.SourceStore.Provider = (*v1alpha1.StorageProvider)(pointer.String("gcp"))
-			newTask.Spec.TargetStore.Container = pointer.String("bar")
-			newTask.Spec.TargetStore.Provider = (*v1alpha1.StorageProvider)(pointer.String("gcp"))
+			newTask.Spec.SourceStore.Container = ptr.To("foo")
+			newTask.Spec.SourceStore.Provider = (*v1alpha1.StorageProvider)(ptr.To("gcp"))
+			newTask.Spec.TargetStore.Container = ptr.To("bar")
+			newTask.Spec.TargetStore.Provider = (*v1alpha1.StorageProvider)(ptr.To("gcp"))
 
 			errList := validation.ValidateEtcdCopyBackupsTaskUpdate(newTask, task)
 

@@ -20,7 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
@@ -96,9 +96,9 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 		},
 		{
 			name:       "create client service with custom ports",
-			clientPort: pointer.Int32(2222),
-			backupPort: pointer.Int32(3333),
-			peerPort:   pointer.Int32(4444),
+			clientPort: ptr.To[int32](2222),
+			backupPort: ptr.To[int32](3333),
+			peerPort:   ptr.To[int32](4444),
 		},
 		{
 			name:      "create fails when there is a create error",
@@ -134,11 +134,11 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 
 func TestSyncWhenServiceExists(t *testing.T) {
 	const (
-		originalClientPort = 2379
-		originalServerPort = 2380
-		originalBackupPort = 8080
+		originalClientPort int32 = 2379
+		originalServerPort int32 = 2380
+		originalBackupPort int32 = 8080
 	)
-	existingEtcd := buildEtcd(pointer.Int32(originalClientPort), pointer.Int32(originalServerPort), pointer.Int32(originalBackupPort))
+	existingEtcd := buildEtcd(ptr.To(originalClientPort), ptr.To(originalServerPort), ptr.To(originalBackupPort))
 	testCases := []struct {
 		name          string
 		clientPort    *int32
@@ -149,12 +149,12 @@ func TestSyncWhenServiceExists(t *testing.T) {
 	}{
 		{
 			name:       "update peer service with new server port",
-			clientPort: pointer.Int32(2222),
-			peerPort:   pointer.Int32(3333),
+			clientPort: ptr.To[int32](2222),
+			peerPort:   ptr.To[int32](3333),
 		},
 		{
 			name:       "update fails when there is a patch error",
-			clientPort: pointer.Int32(2222),
+			clientPort: ptr.To[int32](2222),
 			patchErr:   testutils.TestAPIInternalErr,
 			expectedError: &druiderr.DruidError{
 				Code:      ErrSyncClientService,
@@ -262,9 +262,9 @@ func buildEtcd(clientPort, peerPort, backupPort *int32) *druidv1alpha1.Etcd {
 }
 
 func matchClientService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Service) {
-	clientPort := utils.TypeDeref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
-	backupPort := utils.TypeDeref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore)
-	peerPort := utils.TypeDeref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
+	clientPort := ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
+	backupPort := ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore)
+	peerPort := ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 	etcdObjMeta := etcd.ObjectMeta
 	expectedLabels := druidv1alpha1.GetDefaultLabels(etcdObjMeta)
 	var expectedAnnotations map[string]string

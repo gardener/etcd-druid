@@ -87,14 +87,14 @@ check-apidiff: $(GO_APIDIFF)
 .PHONY: test-unit
 test-unit: $(GINKGO) $(GOTESTFMT)
 	# run ginkgo unit tests. These will be ported to golang native tests over a period of time.
-	TEST_COVER=$(TEST_COVER) "$(HACK_DIR)/test.sh" ./internal/controller/etcdcopybackupstask/... \
+	@TEST_COVER=$(TEST_COVER) "$(HACK_DIR)/test.sh" ./internal/controller/etcdcopybackupstask/... \
 	./internal/controller/secret/... \
 	./internal/controller/utils/... \
 	./internal/mapper/... \
 	./internal/metrics/... \
 	./internal/health/...
 	# run the golang native unit tests.
-	TEST_COVER=$(TEST_COVER) "$(HACK_DIR)/test-go.sh" ./api/... \
+	@TEST_COVER=$(TEST_COVER) "$(HACK_DIR)/test-go.sh" ./api/... \
 	./internal/controller/etcd/... \
 	./internal/controller/compaction/... \
 	./internal/component/... \

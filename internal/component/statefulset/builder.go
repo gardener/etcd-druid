@@ -22,7 +22,6 @@ import (
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -99,9 +98,9 @@ func newStsBuilder(client client.Client,
 		etcdBackupRestoreImage: etcdBackupRestoreImage,
 		initContainerImage:     initContainerImage,
 		sts:                    sts,
-		clientPort:             pointer.Int32Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient),
-		serverPort:             pointer.Int32Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer),
-		backupPort:             pointer.Int32Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore),
+		clientPort:             ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient),
+		serverPort:             ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer),
+		backupPort:             ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore),
 	}, nil
 }
 
@@ -140,7 +139,7 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 	}
 
 	b.sts.Spec = appsv1.StatefulSetSpec{
-		Replicas: pointer.Int32(b.replicas),
+		Replicas: ptr.To(b.replicas),
 		Selector: &metav1.LabelSelector{
 			MatchLabels: druidv1alpha1.GetDefaultLabels(b.etcd.ObjectMeta),
 		},
@@ -156,7 +155,7 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 			Spec: corev1.PodSpec{
 				HostAliases:           b.getHostAliases(),
 				ServiceAccountName:    druidv1alpha1.GetServiceAccountName(b.etcd.ObjectMeta),
-				ShareProcessNamespace: pointer.Bool(true),
+				ShareProcessNamespace: ptr.To(true),
 				InitContainers:        b.getPodInitContainers(),
 				Containers: []corev1.Container{
 					b.getEtcdContainer(),
@@ -166,7 +165,7 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 				Affinity:                  b.etcd.Spec.SchedulingConstraints.Affinity,
 				TopologySpreadConstraints: b.etcd.Spec.SchedulingConstraints.TopologySpreadConstraints,
 				Volumes:                   podVolumes,
-				PriorityClassName:         utils.TypeDeref(b.etcd.Spec.PriorityClassName, ""),
+				PriorityClassName:         ptr.Deref(b.etcd.Spec.PriorityClassName, ""),
 			},
 		},
 	}
@@ -196,7 +195,7 @@ func (b *stsBuilder) getVolumeClaimTemplates() []corev1.PersistentVolumeClaim {
 	pvcClaim := []corev1.PersistentVolumeClaim{
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: utils.TypeDeref(b.etcd.Spec.VolumeClaimTemplate, b.etcd.Name),
+				Name: ptr.Deref(b.etcd.Spec.VolumeClaimTemplate, b.etcd.Name),
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
 				AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -204,7 +203,7 @@ func (b *stsBuilder) getVolumeClaimTemplates() []corev1.PersistentVolumeClaim {
 				},
 				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: utils.TypeDeref(b.etcd.Spec.StorageCapacity, defaultStorageCapacity),
+						corev1.ResourceStorage: ptr.Deref(b.etcd.Spec.StorageCapacity, defaultStorageCapacity),
 					},
 				},
 			},
@@ -231,9 +230,9 @@ func (b *stsBuilder) getPodInitContainers() []corev1.Container {
 		Args:            []string{fmt.Sprintf("chown -R %d:%d %s", nonRootUser, nonRootUser, common.VolumeMountPathEtcdData)},
 		VolumeMounts:    []corev1.VolumeMount{b.getEtcdDataVolumeMount()},
 		SecurityContext: &corev1.SecurityContext{
-			RunAsGroup:   pointer.Int64(0),
-			RunAsNonRoot: pointer.Bool(false),
-			RunAsUser:    pointer.Int64(0),
+			RunAsGroup:   ptr.To[int64](0),
+			RunAsNonRoot: ptr.To(false),
+			RunAsUser:    ptr.To[int64](0),
 		},
 	})
 	if b.etcd.IsBackupStoreEnabled() {
@@ -248,9 +247,9 @@ func (b *stsBuilder) getPodInitContainers() []corev1.Container {
 					Args:            []string{fmt.Sprintf("chown -R %d:%d /home/nonroot/%s", nonRootUser, nonRootUser, *b.etcd.Spec.Backup.Store.Container)},
 					VolumeMounts:    []corev1.VolumeMount{*etcdBackupVolumeMount},
 					SecurityContext: &corev1.SecurityContext{
-						RunAsGroup:   pointer.Int64(0),
-						RunAsNonRoot: pointer.Bool(false),
-						RunAsUser:    pointer.Int64(0),
+						RunAsGroup:   ptr.To[int64](0),
+						RunAsNonRoot: ptr.To(false),
+						RunAsUser:    ptr.To[int64](0),
 					},
 				})
 			}
@@ -319,12 +318,12 @@ func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 			if b.useEtcdWrapper {
 				return &corev1.VolumeMount{
 					Name:      common.VolumeNameLocalBackup,
-					MountPath: fmt.Sprintf("/home/nonroot/%s", pointer.StringDeref(b.etcd.Spec.Backup.Store.Container, "")),
+					MountPath: fmt.Sprintf("/home/nonroot/%s", ptr.Deref(b.etcd.Spec.Backup.Store.Container, "")),
 				}
 			} else {
 				return &corev1.VolumeMount{
 					Name:      common.VolumeNameLocalBackup,
-					MountPath: pointer.StringDeref(b.etcd.Spec.Backup.Store.Container, ""),
+					MountPath: ptr.Deref(b.etcd.Spec.Backup.Store.Container, ""),
 				}
 			}
 		}
@@ -343,7 +342,7 @@ func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 }
 
 func (b *stsBuilder) getEtcdDataVolumeMount() corev1.VolumeMount {
-	volumeClaimTemplateName := utils.TypeDeref(b.etcd.Spec.VolumeClaimTemplate, b.etcd.Name)
+	volumeClaimTemplateName := ptr.Deref(b.etcd.Spec.VolumeClaimTemplate, b.etcd.Name)
 	return corev1.VolumeMount{
 		Name:      volumeClaimTemplateName,
 		MountPath: common.VolumeMountPathEtcdData,
@@ -369,7 +368,7 @@ func (b *stsBuilder) getEtcdContainer() corev1.Container {
 				ContainerPort: b.clientPort,
 			},
 		},
-		Resources:    utils.TypeDeref(b.etcd.Spec.Etcd.Resources, defaultResourceRequirements),
+		Resources:    ptr.Deref(b.etcd.Spec.Etcd.Resources, defaultResourceRequirements),
 		Env:          b.getEtcdContainerEnvVars(),
 		VolumeMounts: b.getEtcdContainerVolumeMounts(),
 	}
@@ -399,7 +398,7 @@ func (b *stsBuilder) getBackupRestoreContainer() (corev1.Container, error) {
 			},
 		},
 		Env:          env,
-		Resources:    utils.TypeDeref(b.etcd.Spec.Backup.Resources, defaultResourceRequirements),
+		Resources:    ptr.Deref(b.etcd.Spec.Backup.Resources, defaultResourceRequirements),
 		VolumeMounts: b.getBackupRestoreContainerVolumeMounts(),
 	}, nil
 }
@@ -441,7 +440,7 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	// Client and Backup TLS command line args
 	// -----------------------------------------------------------------------------------------------------------------
 	if b.etcd.Spec.Etcd.ClientUrlTLS != nil {
-		dataKey := utils.TypeDeref(b.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
+		dataKey := ptr.Deref(b.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
 		commandArgs = append(commandArgs, fmt.Sprintf("--cacert=%s/%s", common.VolumeMountPathEtcdCA, dataKey))
 		commandArgs = append(commandArgs, fmt.Sprintf("--cert=%s/tls.crt", common.VolumeMountPathEtcdClientTLS))
 		commandArgs = append(commandArgs, fmt.Sprintf("--key=%s/tls.key", common.VolumeMountPathEtcdClientTLS))
@@ -473,7 +472,7 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 		quota = b.etcd.Spec.Etcd.Quota.Value()
 	}
 	commandArgs = append(commandArgs, fmt.Sprintf("--embedded-etcd-quota-bytes=%d", quota))
-	if utils.TypeDeref(b.etcd.Spec.Backup.EnableProfiling, false) {
+	if ptr.Deref(b.etcd.Spec.Backup.EnableProfiling, false) {
 		commandArgs = append(commandArgs, "--enable-profiling=true")
 	}
 
@@ -532,7 +531,7 @@ func (b *stsBuilder) getBackupStoreCommandArgs() []string {
 	}
 	commandArgs = append(commandArgs, fmt.Sprintf("--garbage-collection-policy=%s", garbageCollectionPolicy))
 	if garbageCollectionPolicy == "LimitBased" {
-		commandArgs = append(commandArgs, fmt.Sprintf("--max-backups=%d", utils.TypeDeref(b.etcd.Spec.Backup.MaxBackupsLimitBasedGC, defaultMaxBackupsLimitBasedGC)))
+		commandArgs = append(commandArgs, fmt.Sprintf("--max-backups=%d", ptr.Deref(b.etcd.Spec.Backup.MaxBackupsLimitBasedGC, defaultMaxBackupsLimitBasedGC)))
 	}
 	if b.etcd.Spec.Backup.GarbageCollectionPeriod != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--garbage-collection-period=%s", b.etcd.Spec.Backup.GarbageCollectionPeriod.Duration.String()))
@@ -541,7 +540,7 @@ func (b *stsBuilder) getBackupStoreCommandArgs() []string {
 	// Snapshot compression and timeout command line args
 	// -----------------------------------------------------------------------------------------------------------------
 	if b.etcd.Spec.Backup.SnapshotCompression != nil {
-		if utils.TypeDeref(b.etcd.Spec.Backup.SnapshotCompression.Enabled, false) {
+		if ptr.Deref(b.etcd.Spec.Backup.SnapshotCompression.Enabled, false) {
 			commandArgs = append(commandArgs, fmt.Sprintf("--compress-snapshots=%t", *b.etcd.Spec.Backup.SnapshotCompression.Enabled))
 		}
 		if b.etcd.Spec.Backup.SnapshotCompression.Policy != nil {
@@ -593,7 +592,7 @@ func (b *stsBuilder) getEtcdContainerReadinessProbeCommand() []string {
 	cmdBuilder := strings.Builder{}
 	cmdBuilder.WriteString("ETCDCTL_API=3 etcdctl")
 	if b.etcd.Spec.Etcd.ClientUrlTLS != nil {
-		dataKey := utils.TypeDeref(b.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
+		dataKey := ptr.Deref(b.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
 		cmdBuilder.WriteString(fmt.Sprintf(" --cacert=%s/%s", common.VolumeMountPathEtcdCA, dataKey))
 		cmdBuilder.WriteString(fmt.Sprintf(" --cert=%s/tls.crt", common.VolumeMountPathEtcdClientTLS))
 		cmdBuilder.WriteString(fmt.Sprintf(" --key=%s/tls.key", common.VolumeMountPathEtcdClientTLS))
@@ -624,7 +623,7 @@ func (b *stsBuilder) getEtcdContainerCommandArgs() []string {
 		commandArgs = append(commandArgs, "--backup-restore-tls-enabled=false")
 	} else {
 		commandArgs = append(commandArgs, "--backup-restore-tls-enabled=true")
-		dataKey := utils.TypeDeref(b.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
+		dataKey := ptr.Deref(b.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
 		commandArgs = append(commandArgs, fmt.Sprintf("--backup-restore-ca-cert-bundle-path=%s/%s", common.VolumeMountPathBackupRestoreCA, dataKey))
 		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-client-cert-path=%s/tls.crt", common.VolumeMountPathEtcdClientTLS))
 		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-client-key-path=%s/tls.key", common.VolumeMountPathEtcdClientTLS))
@@ -651,10 +650,10 @@ func (b *stsBuilder) getPodSecurityContext() *corev1.PodSecurityContext {
 		return nil
 	}
 	return &corev1.PodSecurityContext{
-		RunAsGroup:   pointer.Int64(nonRootUser),
-		RunAsNonRoot: pointer.Bool(true),
-		RunAsUser:    pointer.Int64(nonRootUser),
-		FSGroup:      pointer.Int64(nonRootUser),
+		RunAsGroup:   ptr.To[int64](nonRootUser),
+		RunAsNonRoot: ptr.To(true),
+		RunAsUser:    ptr.To[int64](nonRootUser),
+		FSGroup:      ptr.To[int64](nonRootUser),
 	}
 }
 
@@ -715,7 +714,7 @@ func (b *stsBuilder) getPodVolumes(ctx component.OperatorContext) ([]corev1.Volu
 							Path: common.EtcdConfigFileName, // sub-path under the volume mount path, to store the contents of configmap key etcd.conf.yaml
 						},
 					},
-					DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+					DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 				},
 			},
 		},
@@ -750,7 +749,7 @@ func (b *stsBuilder) getClientTLSVolumes() []corev1.Volume {
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  clientTLSConfig.TLSCASecretRef.Name,
-					DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+					DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 				},
 			},
 		},
@@ -759,7 +758,7 @@ func (b *stsBuilder) getClientTLSVolumes() []corev1.Volume {
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  clientTLSConfig.ServerTLSSecretRef.Name,
-					DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+					DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 				},
 			},
 		},
@@ -768,7 +767,7 @@ func (b *stsBuilder) getClientTLSVolumes() []corev1.Volume {
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  clientTLSConfig.ClientTLSSecretRef.Name,
-					DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+					DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 				},
 			},
 		},
@@ -783,7 +782,7 @@ func (b *stsBuilder) getPeerTLSVolumes() []corev1.Volume {
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  peerTLSConfig.TLSCASecretRef.Name,
-					DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+					DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 				},
 			},
 		},
@@ -792,7 +791,7 @@ func (b *stsBuilder) getPeerTLSVolumes() []corev1.Volume {
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  peerTLSConfig.ServerTLSSecretRef.Name,
-					DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+					DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 				},
 			},
 		},
@@ -807,7 +806,7 @@ func (b *stsBuilder) getBackupRestoreTLSVolumes() []corev1.Volume {
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  tlsConfig.TLSCASecretRef.Name,
-					DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+					DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 				},
 			},
 		},
@@ -816,7 +815,7 @@ func (b *stsBuilder) getBackupRestoreTLSVolumes() []corev1.Volume {
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  tlsConfig.ServerTLSSecretRef.Name,
-					DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+					DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 				},
 			},
 		},
@@ -825,7 +824,7 @@ func (b *stsBuilder) getBackupRestoreTLSVolumes() []corev1.Volume {
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  tlsConfig.ClientTLSSecretRef.Name,
-					DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+					DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 				},
 			},
 		},
@@ -849,7 +848,7 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 			Name: common.VolumeNameLocalBackup,
 			VolumeSource: corev1.VolumeSource{
 				HostPath: &corev1.HostPathVolumeSource{
-					Path: hostPath + "/" + pointer.StringDeref(store.Container, ""),
+					Path: hostPath + "/" + ptr.Deref(store.Container, ""),
 					Type: &hpt,
 				},
 			},
@@ -864,7 +863,7 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  store.SecretRef.Name,
-					DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+					DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 				},
 			},
 		}, nil

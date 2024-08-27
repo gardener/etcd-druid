@@ -27,7 +27,7 @@ GOIMPORTS_REVISER          := $(TOOLS_BIN_DIR)/goimports-reviser
 # default tool versions
 SKAFFOLD_VERSION := v2.13.0
 KUSTOMIZE_VERSION := v4.5.7
-GOLANGCI_LINT_VERSION ?= v1.59.1
+GOLANGCI_LINT_VERSION ?= v1.60.3
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)
 GINKGO_VERSION ?= $(call version_gomod,github.com/onsi/ginkgo/v2)
 MOCKGEN_VERSION ?= $(call version_gomod,go.uber.org/mock)

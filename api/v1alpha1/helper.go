@@ -9,7 +9,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // --------------- Helper functions for Etcd resource names ---------------
@@ -106,10 +106,10 @@ func GetNamespaceName(etcdObjMeta metav1.ObjectMeta) types.NamespacedName {
 // to suspend spec reconciliation for this Etcd resource. If no annotation is set then it will return nil.
 func GetSuspendEtcdSpecReconcileAnnotationKey(etcdObjMeta metav1.ObjectMeta) *string {
 	if metav1.HasAnnotation(etcdObjMeta, SuspendEtcdSpecReconcileAnnotation) {
-		return pointer.String(SuspendEtcdSpecReconcileAnnotation)
+		return ptr.To(SuspendEtcdSpecReconcileAnnotation)
 	}
 	if metav1.HasAnnotation(etcdObjMeta, IgnoreReconciliationAnnotation) {
-		return pointer.String(IgnoreReconciliationAnnotation)
+		return ptr.To(IgnoreReconciliationAnnotation)
 	}
 	return nil
 }
@@ -135,8 +135,8 @@ func GetAsOwnerReference(etcdObjMeta metav1.ObjectMeta) metav1.OwnerReference {
 		Kind:               "Etcd",
 		Name:               etcdObjMeta.Name,
 		UID:                etcdObjMeta.UID,
-		Controller:         pointer.Bool(true),
-		BlockOwnerDeletion: pointer.Bool(true),
+		Controller:         ptr.To(true),
+		BlockOwnerDeletion: ptr.To(true),
 	}
 }
 

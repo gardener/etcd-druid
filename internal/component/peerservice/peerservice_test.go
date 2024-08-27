@@ -13,7 +13,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"
@@ -21,7 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
@@ -98,7 +97,7 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 		},
 		{
 			name:           "create service when none exists with custom ports",
-			createWithPort: pointer.Int32(2222),
+			createWithPort: ptr.To[int32](2222),
 		},
 		{
 			name:      "returns error when client create fails",
@@ -147,11 +146,11 @@ func TestSyncWhenServiceExists(t *testing.T) {
 	}{
 		{
 			name:           "update peer service with new server port",
-			updateWithPort: pointer.Int32(2222),
+			updateWithPort: ptr.To[int32](2222),
 		},
 		{
 			name:           "update fails when there is a patch error",
-			updateWithPort: pointer.Int32(2222),
+			updateWithPort: ptr.To[int32](2222),
 			patchErr:       testutils.TestAPIInternalErr,
 			expectedError: &druiderr.DruidError{
 				Code:      ErrSyncPeerService,
@@ -245,7 +244,7 @@ func newPeerService(etcd *druidv1alpha1.Etcd) *corev1.Service {
 }
 
 func matchPeerService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Service) {
-	peerPort := utils.TypeDeref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
+	peerPort := ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 	etcdObjMeta := etcd.ObjectMeta
 	g.Expect(actualSvc).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{

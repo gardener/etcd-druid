@@ -29,7 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/component-base/featuregate"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -274,8 +274,8 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         druidv1alpha1.GroupVersion.String(),
-					BlockOwnerDeletion: pointer.Bool(true),
-					Controller:         pointer.Bool(true),
+					BlockOwnerDeletion: ptr.To(true),
+					Controller:         ptr.To(true),
 					Kind:               "Etcd",
 					Name:               etcd.Name,
 					UID:                etcd.UID,
@@ -284,16 +284,16 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 		},
 
 		Spec: batchv1.JobSpec{
-			ActiveDeadlineSeconds: pointer.Int64(int64(activeDeadlineSeconds)),
-			Completions:           pointer.Int32(1),
-			BackoffLimit:          pointer.Int32(0),
+			ActiveDeadlineSeconds: ptr.To[int64](int64(activeDeadlineSeconds)),
+			Completions:           ptr.To[int32](1),
+			BackoffLimit:          ptr.To[int32](0),
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: getEtcdCompactionAnnotations(etcd.Spec.Annotations),
 					Labels:      getLabels(etcd),
 				},
 				Spec: v1.PodSpec{
-					ActiveDeadlineSeconds: pointer.Int64(int64(activeDeadlineSeconds)),
+					ActiveDeadlineSeconds: ptr.To[int64](int64(activeDeadlineSeconds)),
 					ServiceAccountName:    druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta),
 					RestartPolicy:         v1.RestartPolicyNever,
 					Containers: []v1.Container{{
@@ -389,12 +389,12 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featu
 		if featureMap[features.UseEtcdWrapper] {
 			vms = append(vms, v1.VolumeMount{
 				Name:      "host-storage",
-				MountPath: "/home/nonroot/" + pointer.StringDeref(etcd.Spec.Backup.Store.Container, ""),
+				MountPath: "/home/nonroot/" + ptr.Deref(etcd.Spec.Backup.Store.Container, ""),
 			})
 		} else {
 			vms = append(vms, v1.VolumeMount{
 				Name:      "host-storage",
-				MountPath: pointer.StringDeref(etcd.Spec.Backup.Store.Container, ""),
+				MountPath: ptr.Deref(etcd.Spec.Backup.Store.Container, ""),
 			})
 		}
 	case druidstore.GCS:
@@ -439,7 +439,7 @@ func getCompactionJobVolumes(ctx context.Context, cl client.Client, logger logr.
 			Name: "host-storage",
 			VolumeSource: v1.VolumeSource{
 				HostPath: &v1.HostPathVolumeSource{
-					Path: hostPath + "/" + pointer.StringDeref(storeValues.Container, ""),
+					Path: hostPath + "/" + ptr.Deref(storeValues.Container, ""),
 					Type: &hpt,
 				},
 			},

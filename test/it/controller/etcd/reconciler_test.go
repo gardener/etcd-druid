@@ -22,7 +22,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	testclock "k8s.io/utils/clock/testing"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
@@ -117,7 +117,7 @@ func testAllManagedResourcesAreCreated(t *testing.T, testNs string, reconcilerTe
 	// It is sufficient to test that the resources are created as part of the sync. The configuration of each
 	// resource is now extensively covered in the unit tests for the respective component operator.
 	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, timeout, pollingInterval)
-	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), pointer.Int64(1), 5*time.Second, 1*time.Second)
+	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), ptr.To[int64](1), 5*time.Second, 1*time.Second)
 	expectedLastOperation := &druidv1alpha1.LastOperation{
 		Type:  druidv1alpha1.LastOperationTypeReconcile,
 		State: druidv1alpha1.LastOperationStateSucceeded,
@@ -217,7 +217,7 @@ func testEtcdSpecUpdateWhenNoReconcileOperationAnnotationIsSet(t *testing.T, tes
 	// ***************** test etcd spec reconciliation  *****************
 	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 2*time.Second, 2*time.Second)
 	_ = updateAndGetStsRevision(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), etcdInstance)
-	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), pointer.Int64(1), 5*time.Second, 1*time.Second)
+	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), ptr.To[int64](1), 5*time.Second, 1*time.Second)
 	// ensure that sts generation does not change, ie, it should remain 1, as sts is not updated after etcd spec change without reconcile operation annotation
 	assertStatefulSetGeneration(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 1, 30*time.Second, 2*time.Second)
 }
@@ -249,7 +249,7 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 	// ***************** test etcd spec reconciliation  *****************
 	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 30*time.Minute, 2*time.Second)
 	_ = updateAndGetStsRevision(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), etcdInstance)
-	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), pointer.Int64(2), 2*time.Minute, 1*time.Second)
+	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), ptr.To[int64](2), 2*time.Minute, 1*time.Second)
 	expectedLastOperation := &druidv1alpha1.LastOperation{
 		Type:  druidv1alpha1.LastOperationTypeReconcile,
 		State: druidv1alpha1.LastOperationStateSucceeded,
@@ -438,9 +438,9 @@ func testConditionsAndMembersWhenAllMemberLeasesAreActive(t *testing.T, etcd *dr
 	cl := reconcilerTestEnv.itTestEnv.GetClient()
 	assertETCDStatusConditions(t, cl, client.ObjectKeyFromObject(etcd), expectedConditions, 2*time.Minute, 2*time.Second)
 	expectedMemberStatuses := []druidv1alpha1.EtcdMemberStatus{
-		{Name: mlcs[0].name, ID: pointer.String(mlcs[0].memberID), Role: &mlcs[0].role, Status: druidv1alpha1.EtcdMemberStatusReady},
-		{Name: mlcs[1].name, ID: pointer.String(mlcs[1].memberID), Role: &mlcs[1].role, Status: druidv1alpha1.EtcdMemberStatusReady},
-		{Name: mlcs[2].name, ID: pointer.String(mlcs[2].memberID), Role: &mlcs[2].role, Status: druidv1alpha1.EtcdMemberStatusReady},
+		{Name: mlcs[0].name, ID: ptr.To(mlcs[0].memberID), Role: &mlcs[0].role, Status: druidv1alpha1.EtcdMemberStatusReady},
+		{Name: mlcs[1].name, ID: ptr.To(mlcs[1].memberID), Role: &mlcs[1].role, Status: druidv1alpha1.EtcdMemberStatusReady},
+		{Name: mlcs[2].name, ID: ptr.To(mlcs[2].memberID), Role: &mlcs[2].role, Status: druidv1alpha1.EtcdMemberStatusReady},
 	}
 	assertETCDMemberStatuses(t, cl, client.ObjectKeyFromObject(etcd), expectedMemberStatuses, 2*time.Minute, 2*time.Second)
 }

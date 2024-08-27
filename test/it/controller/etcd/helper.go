@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/component-base/featuregate"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -130,7 +130,7 @@ func createStsPods(ctx context.Context, t *testing.T, cl client.Client, etcdObje
 					{
 						APIVersion:         sts.APIVersion,
 						Kind:               sts.Kind,
-						BlockOwnerDeletion: pointer.Bool(true),
+						BlockOwnerDeletion: ptr.To(true),
 						Name:               sts.Name,
 						UID:                sts.UID,
 					},
@@ -164,7 +164,7 @@ func createAndAssertEtcdReconciliation(ctx context.Context, t *testing.T, reconc
 	createAndAssertEtcdAndAllManagedResources(ctx, t, reconcilerTestEnv, etcdInstance)
 
 	// assert etcd status reconciliation
-	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), pointer.Int64(1), 5*time.Second, 1*time.Second)
+	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), ptr.To[int64](1), 5*time.Second, 1*time.Second)
 	expectedLastOperation := &druidv1alpha1.LastOperation{
 		Type:  druidv1alpha1.LastOperationTypeReconcile,
 		State: druidv1alpha1.LastOperationStateSucceeded,
@@ -187,7 +187,7 @@ func updateMemberLeaseSpec(ctx context.Context, t *testing.T, cl client.Client, 
 		lease := &coordinationv1.Lease{}
 		g.Expect(cl.Get(ctx, client.ObjectKey{Name: config.name, Namespace: namespace}, lease)).To(Succeed())
 		updatedLease := lease.DeepCopy()
-		updatedLease.Spec.HolderIdentity = pointer.String(fmt.Sprintf("%s:%s", config.memberID, config.role))
+		updatedLease.Spec.HolderIdentity = ptr.To(fmt.Sprintf("%s:%s", config.memberID, config.role))
 		updatedLease.Spec.RenewTime = config.renewTime
 		g.Expect(cl.Update(ctx, updatedLease)).To(Succeed())
 		t.Logf("successfully updated member lease %s with holderIdentity: %s", config.name, *updatedLease.Spec.HolderIdentity)

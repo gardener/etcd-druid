@@ -31,7 +31,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -122,7 +122,7 @@ var (
 	backupDeltaSnapshotMemoryLimit = resource.MustParse("100Mi")
 	gzipCompression                = v1alpha1.GzipCompression
 	backupCompression              = v1alpha1.CompressionSpec{
-		Enabled: pointer.Bool(true),
+		Enabled: ptr.To(true),
 		Policy:  &gzipCompression,
 	}
 	defaultBackupStore = v1alpha1.StoreSpec{
@@ -814,7 +814,7 @@ func newTestHelperJob(jobName string, podSpec *corev1.PodSpec) *batchv1.Job {
 			Template: corev1.PodTemplateSpec{
 				Spec: *podSpec,
 			},
-			BackoffLimit: pointer.Int32(0),
+			BackoffLimit: ptr.To[int32](0),
 		},
 	}
 }
@@ -858,7 +858,7 @@ func createTLSVolume(name, secretName string) corev1.Volume {
 		VolumeSource: corev1.VolumeSource{
 			Secret: &corev1.SecretVolumeSource{
 				SecretName:  secretName,
-				DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+				DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 			},
 		},
 	}
@@ -946,7 +946,7 @@ func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName:  etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.Name,
-							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+							DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},
@@ -955,7 +955,7 @@ func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName:  etcd.Spec.Etcd.ClientUrlTLS.ServerTLSSecretRef.Name,
-							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+							DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},
@@ -964,7 +964,7 @@ func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName:  etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name,
-							DefaultMode: pointer.Int32(common.ModeOwnerReadWriteGroupRead),
+							DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
 						},
 					},
 				},
