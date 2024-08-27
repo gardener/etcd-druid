@@ -64,9 +64,25 @@ var _ = Describe("Builder", func() {
 						Type:               druidv1alpha1.ConditionTypeBackupReady,
 						LastUpdateTime:     metav1.NewTime(oldConditionTime),
 						LastTransitionTime: metav1.NewTime(oldConditionTime),
-						Status:             druidv1alpha1.ConditionTrue,
+						Status:             druidv1alpha1.ConditionFalse,
 						Reason:             "foobar reason",
 						Message:            "foobar message",
+					},
+					{
+						Type:               druidv1alpha1.ConditionTypeFullSnapshotBackupReady,
+						LastUpdateTime:     metav1.NewTime(oldConditionTime),
+						LastTransitionTime: metav1.NewTime(oldConditionTime),
+						Status:             druidv1alpha1.ConditionTrue,
+						Reason:             "full foobar reason",
+						Message:            "full foobar message",
+					},
+					{
+						Type:               druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady,
+						LastUpdateTime:     metav1.NewTime(oldConditionTime),
+						LastTransitionTime: metav1.NewTime(oldConditionTime),
+						Status:             druidv1alpha1.ConditionFalse,
+						Reason:             "delta foobar reason",
+						Message:            "delta foobar message",
 					},
 				}
 

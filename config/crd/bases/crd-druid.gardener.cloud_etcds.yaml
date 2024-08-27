@@ -24,16 +24,9 @@ spec:
     - jsonPath: .status.conditions[?(@.type=="AllMembersReady")].status
       name: All Members Ready
       type: string
-    - jsonPath: .status.conditions[?(@.type=="BackupReady")].status
-      name: Backup Ready
-      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
-    - jsonPath: .spec.replicas
-      name: Cluster Size
-      priority: 1
-      type: integer
     - jsonPath: .status.currentReplicas
       name: Current Replicas
       priority: 1
@@ -42,6 +35,15 @@ spec:
       name: Ready Replicas
       priority: 1
       type: integer
+    - jsonPath: .status.conditions[?(@.type=="BackupReady")].status
+      name: Backup Ready
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="FullSnapshotBackupReady")].status
+      name: Full Backup Ready
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="DeltaSnapshotBackupReady")].status
+      name: Delta Backup Ready
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -1785,12 +1787,6 @@ spec:
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:
-              clusterSize:
-                description: |-
-                  Cluster size is the current size of the etcd cluster.
-                  Deprecated: this field will not be populated with any value and will be removed in the future.
-                format: int32
-                type: integer
               conditions:
                 description: Conditions represents the latest available observations
                   of an etcd's current state.
@@ -1848,53 +1844,6 @@ spec:
                     description: Name of the referent
                     type: string
                 type: object
-              labelSelector:
-                description: |-
-                  LabelSelector is a label query over pods that should match the replica count.
-                  It must match the pod template's labels.
-                  Deprecated: this field will be removed in the future.
-                properties:
-                  matchExpressions:
-                    description: matchExpressions is a list of label selector requirements.
-                      The requirements are ANDed.
-                    items:
-                      description: |-
-                        A label selector requirement is a selector that contains values, a key, and an operator that
-                        relates the key and values.
-                      properties:
-                        key:
-                          description: key is the label key that the selector applies
-                            to.
-                          type: string
-                        operator:
-                          description: |-
-                            operator represents a key's relationship to a set of values.
-                            Valid operators are In, NotIn, Exists and DoesNotExist.
-                          type: string
-                        values:
-                          description: |-
-                            values is an array of string values. If the operator is In or NotIn,
-                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
-                            the values array must be empty. This array is replaced during a strategic
-                            merge patch.
-                          items:
-                            type: string
-                          type: array
-                      required:
-                      - key
-                      - operator
-                      type: object
-                    type: array
-                  matchLabels:
-                    additionalProperties:
-                      type: string
-                    description: |-
-                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
-                      map is equivalent to an element of matchExpressions, whose key field is "key", the
-                      operator is "In", and the values array contains only "value". The requirements are ANDed.
-                    type: object
-                type: object
-                x-kubernetes-map-type: atomic
               lastError:
                 description: |-
                   LastError represents the last occurred error.
@@ -2012,17 +1961,6 @@ spec:
                 type: integer
               replicas:
                 description: Replicas is the replica count of the etcd cluster.
-                format: int32
-                type: integer
-              serviceName:
-                description: |-
-                  ServiceName is the name of the etcd service.
-                  Deprecated: this field will be removed in the future.
-                type: string
-              updatedReplicas:
-                description: |-
-                  UpdatedReplicas is the count of updated replicas in the etcd cluster.
-                  Deprecated: this field will be removed in the future.
                 format: int32
                 type: integer
             type: object

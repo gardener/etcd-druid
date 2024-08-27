@@ -36,7 +36,8 @@ var (
 	ConditionChecks = []ConditionCheckFn{
 		condition.AllMembersReadyCheck,
 		condition.ReadyCheck,
-		condition.BackupReadyCheck,
+		condition.FullSnapshotBackupReadyCheck,
+		condition.DeltaSnapshotBackupReadyCheck,
 		condition.DataVolumesReadyCheck,
 	}
 	// EtcdMemberChecks are the etcd member checks.
@@ -90,10 +91,12 @@ func (c *Checker) executeConditionChecks(ctx context.Context, etcd *druidv1alpha
 		wg.Wait()
 	})()
 
-	results := make([]condition.Result, 0, len(ConditionChecks))
+	results := make([]condition.Result, 0, len(ConditionChecks)+1)
 	for r := range resultCh {
 		results = append(results, r)
 	}
+	backupReadyChecker := condition.BackupReadyCheck(c.cl, results)
+	results = append(results, backupReadyChecker.Check(ctx, *etcd))
 
 	conditions := c.conditionBuilderFn().
 		WithNowFunc(func() metav1.Time { return metav1.NewTime(TimeNow()) }).

@@ -566,11 +566,6 @@ func (in *EtcdStatus) DeepCopyInto(out *EtcdStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.ServiceName != nil {
-		in, out := &in.ServiceName, &out.ServiceName
-		*out = new(string)
-		**out = **in
-	}
 	if in.LastError != nil {
 		in, out := &in.LastError, &out.LastError
 		*out = new(string)
@@ -588,20 +583,10 @@ func (in *EtcdStatus) DeepCopyInto(out *EtcdStatus) {
 		*out = new(LastOperation)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.ClusterSize != nil {
-		in, out := &in.ClusterSize, &out.ClusterSize
-		*out = new(int32)
-		**out = **in
-	}
 	if in.Ready != nil {
 		in, out := &in.Ready, &out.Ready
 		*out = new(bool)
 		**out = **in
-	}
-	if in.LabelSelector != nil {
-		in, out := &in.LabelSelector, &out.LabelSelector
-		*out = new(v1.LabelSelector)
-		(*in).DeepCopyInto(*out)
 	}
 	if in.Members != nil {
 		in, out := &in.Members, &out.Members

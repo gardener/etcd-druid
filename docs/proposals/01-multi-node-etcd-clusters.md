@@ -50,7 +50,6 @@ This document proposes an approach (along with some alternatives) to support pro
       - [Member name as the key](#member-name-as-the-key)
       - [Member Leases](#member-leases)
     - [Conditions](#conditions)
-    - [ClusterSize](#clustersize)
     - [Alternative](#alternative-4)
   - [Decision table for etcd-druid based on the status](#decision-table-for-etcd-druid-based-on-the-status)
     - [1. Pink of health](#1-pink-of-health)
@@ -563,8 +562,6 @@ status:
     lastTransitionTime:         "2020-11-10T12:48:01Z"
     reason: FullBackupSucceeded # FullBackupSucceeded|IncrementalBackupSucceeded|FullBackupFailed|IncrementalBackupFailed
   ...
-  clusterSize: 3
-  ...
   replicas: 3
   ...
   members:
@@ -646,15 +643,6 @@ The `Ready` and `AllMembersReady` conditions can be maintained by `etcd-druid` b
 The `BackupReady` condition will be maintained by the leading `etcd-backup-restore` sidecar that is in charge of taking backups.
 
 More condition types could be introduced in the future if specific purposes arise.
-
-### ClusterSize
-
-The `clusterSize` field contains the current size of the ETCD cluster. It will be actively kept up-to-date by `etcd-druid` in all scenarios.
-
-- Before [bootstrapping](#bootstrapping) the ETCD cluster (during cluster creation or later bootstrapping because of [quorum failure](#recommended-action-9)), `etcd-druid` will clear the `status.members` array and set `status.clusterSize` to be equal to `spec.replicas`.
-- While the ETCD cluster is quorate, `etcd-druid` will actively set `status.clusterSize` to be equal to length of the `status.members` whenever the length of the array changes (say, due to scaling of the ETCD cluster).
-
-Given that `clusterSize` reliably represents the size of the ETCD cluster, it can be used to calculate the `Ready` [condition](#conditions).
 
 ### Alternative
 
@@ -1255,7 +1243,7 @@ The life-cycle of these work-flows is shown below.
 
 - Take [backups](#backup) (full and incremental) at configured regular intervals
 - [Defragment](#defragmentation) all the members sequentially at configured regular intervals
-- Cleanup superflous members from the ETCD cluster for which there is no corresponding pod (the [ordinal](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#ordinal-index) in the pod name is greater than the [cluster size](#clustersize)) at regular intervals (or whenever the `Etcd` resource [status](#status) changes by watching it)
+- Cleanup superflous members from the ETCD cluster for which there is no corresponding pod (the [ordinal](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#ordinal-index) in the pod name is greater than the cluster size) at regular intervals (or whenever the `Etcd` resource [status](#status) changes by watching it)
   - The cleanup of [superfluous entries in `status.members` array](#13-superfluous-member-entries-in-etcd-status) is already covered [here](#recommended-action-12)
 
 ## High Availability

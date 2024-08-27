@@ -387,19 +387,6 @@ func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Lo
 		if etcd.Status.Ready != nil && *etcd.Status.Ready != true {
 			return fmt.Errorf("etcd %s is not ready", etcd.Name)
 		}
-
-		// TODO: uncomment me once scale down is supported,
-		// currently ClusterSize is not updated while scaling down.
-		//
-		// if etcd.Status.ClusterSize == nil {
-		// 	return fmt.Errorf("etcd %s cluster size is empty", etcd.Name)
-		// }
-		//
-		// if *etcd.Status.ClusterSize != 0 {
-		// 	return fmt.Errorf("etcd %q cluster size is %d, but expected to be 0",
-		// 		etcdName, *etcd.Status.ClusterSize)
-		// }
-
 		if etcd.Status.ReadyReplicas != 0 {
 			return fmt.Errorf("etcd readyReplicas is %d, but expected to be 0", etcd.Status.ReadyReplicas)
 		}
