@@ -3,7 +3,6 @@
 set -e
 
 repo_root_dir="$1"
-repo_name="${2:-github.com/gardener/gardener}"
 descriptor_out_file="${COMPONENT_DESCRIPTOR_PATH}"
 
 echo "Enriching component descriptor from ${BASE_DEFINITION_PATH}"
