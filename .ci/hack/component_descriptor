@@ -47,33 +47,26 @@ fi
 
 echo "Enriching component descriptor from ${BASE_DEFINITION_PATH}"
 
-image_vector_path=""
-if [[ -f "$repo_root_dir/charts/images.yaml" ]]; then
-  image_vector_path="$repo_root_dir/charts/images.yaml"
-elif [[ -f "$repo_root_dir/imagevector/images.yaml" ]]; then
-  image_vector_path="$repo_root_dir/imagevector/images.yaml"
+image_vector_path="$repo_root_dir/internal/images/images.yaml"
+
+# default environment variables
+if [[ -z "${COMPONENT_PREFIXES}" ]]; then
+  # Match only images with OCM component references, ie, images created from gardener org repositories.
+  # In other words, don't match external images like europe-docker.pkg.dev/gardener-project/public/3rd/alpine.
+  COMPONENT_PREFIXES="europe-docker.pkg.dev/gardener-project/public/gardener"
 fi
 
-if [[ ! -z "$image_vector_path" ]]; then
-  # default environment variables
-  if [[ -z "${COMPONENT_PREFIXES}" ]]; then
-    # Match only images with OCM component references, ie, images created from gardener org repositories.
-    # In other words, don't match external images like europe-docker.pkg.dev/gardener-project/public/3rd/alpine.
-    COMPONENT_PREFIXES="europe-docker.pkg.dev/gardener-project/public/gardener"
-  fi
-
-  if [[ -z "${COMPONENT_CLI_ARGS}" ]]; then
-    COMPONENT_CLI_ARGS="
-    --comp-desc ${BASE_DEFINITION_PATH} \
-    --image-vector "$image_vector_path" \
-    --component-prefixes "${COMPONENT_PREFIXES}" \
-    "
-  fi
-
-  # translates all images defined the images.yaml into component descriptor resources.
-  # For detailed documentation see https://github.com/gardener/component-cli/blob/main/docs/reference/components-cli_image-vector_add.md
-  component-cli image-vector add ${COMPONENT_CLI_ARGS}
+if [[ -z "${COMPONENT_CLI_ARGS}" ]]; then
+  COMPONENT_CLI_ARGS="
+  --comp-desc ${BASE_DEFINITION_PATH} \
+  --image-vector "$image_vector_path" \
+  --component-prefixes "${COMPONENT_PREFIXES}" \
+  "
 fi
+
+# translates all images defined the images.yaml into component descriptor resources.
+# For detailed documentation see https://github.com/gardener/component-cli/blob/main/docs/reference/components-cli_image-vector_add.md
+component-cli image-vector add ${COMPONENT_CLI_ARGS}
 
 if [[ -d "$repo_root_dir/charts/" ]]; then
   for image_tpl_path in "$repo_root_dir/charts/"*"/templates/_images.tpl"; do
