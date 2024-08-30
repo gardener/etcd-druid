@@ -2,7 +2,7 @@
 
 set -e
 
-repo_root_dir="$1"
+repo_root_dir="$(dirname "$0")"/..
 descriptor_out_file="${COMPONENT_DESCRIPTOR_PATH}"
 
 echo "Enriching component descriptor from ${BASE_DEFINITION_PATH}"
