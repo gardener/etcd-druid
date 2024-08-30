@@ -46,7 +46,7 @@ const (
 	NotChecked string = "NotChecked"
 )
 
-func (b *backupReadyCheck) Check(_ context.Context, _ druidv1alpha1.Etcd) Result {
+func (b *backupReadyCheck) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
 	result := &result{
 		conType: druidv1alpha1.ConditionTypeBackupReady,
 		status:  druidv1alpha1.ConditionUnknown,
@@ -54,17 +54,17 @@ func (b *backupReadyCheck) Check(_ context.Context, _ druidv1alpha1.Etcd) Result
 		message: "Cannot determine backup upload status",
 	}
 
-	var FullSnapshotBackupReadyCheckResult, DeltaSnapshotBackupReadyCheckResult Result = nil, nil
-	for _, result := range b.results {
-		if result == nil {
+	var FullSnapshotBackupReadyCheckResult, DeltaSnapshotBackupReadyCheckResult Result
+	for _, checkResult := range b.results {
+		if checkResult == nil {
 			continue
 		}
-		if result.ConditionType() == druidv1alpha1.ConditionTypeFullSnapshotBackupReady {
-			FullSnapshotBackupReadyCheckResult = result
+		if checkResult.ConditionType() == druidv1alpha1.ConditionTypeFullSnapshotBackupReady {
+			FullSnapshotBackupReadyCheckResult = checkResult
 			continue
 		}
-		if result.ConditionType() == druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady {
-			DeltaSnapshotBackupReadyCheckResult = result
+		if checkResult.ConditionType() == druidv1alpha1.ConditionTypeDeltaSnapshotBackupReady {
+			DeltaSnapshotBackupReadyCheckResult = checkResult
 			continue
 		}
 	}
@@ -117,6 +117,10 @@ func (f *fullSnapshotBackupReadyCheck) Check(ctx context.Context, etcd druidv1al
 		err                  error
 	)
 	fullSnapErr = f.cl.Get(ctx, types.NamespacedName{Name: getFullSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, fullSnapLease)
+	//Set status to Unknown if errors in fetching full snapshot lease
+	if fullSnapErr != nil {
+		return result
+	}
 	fullLeaseRenewTime := fullSnapLease.Spec.RenewTime
 	fullLeaseCreationTime := fullSnapLease.ObjectMeta.CreationTimestamp
 
@@ -124,10 +128,6 @@ func (f *fullSnapshotBackupReadyCheck) Check(ctx context.Context, etcd druidv1al
 		if fullSnapshotInterval, err = utils.ComputeScheduleInterval(*etcd.Spec.Backup.FullSnapshotSchedule); err != nil {
 			return result
 		}
-	}
-	//Set status to Unknown if errors in fetching full snapshot lease
-	if fullSnapErr != nil {
-		return result
 	}
 	if fullLeaseRenewTime == nil {
 		if time.Since(fullLeaseCreationTime.Time) < fullSnapshotInterval {
@@ -172,14 +172,14 @@ func (d *deltaSnapshotBackupReadyCheck) Check(ctx context.Context, etcd druidv1a
 		deltaSnapLease = &coordinationv1.Lease{}
 	)
 	incrSnapErr = d.cl.Get(ctx, types.NamespacedName{Name: getDeltaSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, deltaSnapLease)
-	deltaLeaseRenewTime := deltaSnapLease.Spec.RenewTime
-	deltaSnapshotPeriod := etcd.Spec.Backup.DeltaSnapshotPeriod.Duration
-	deltaLeaseCreationTime := deltaSnapLease.ObjectMeta.CreationTimestamp
-
 	//Set status to Unknown if error in fetching delta snapshot lease
 	if incrSnapErr != nil {
 		return result
 	}
+
+	deltaLeaseRenewTime := deltaSnapLease.Spec.RenewTime
+	deltaSnapshotPeriod := etcd.Spec.Backup.DeltaSnapshotPeriod.Duration
+	deltaLeaseCreationTime := deltaSnapLease.ObjectMeta.CreationTimestamp
 
 	if deltaLeaseRenewTime == nil {
 		if time.Since(deltaLeaseCreationTime.Time) < deltaSnapshotPeriod {
