@@ -6,17 +6,18 @@ REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))
 HACK_DIR            := $(REPO_ROOT)/hack
 VERSION             := $(shell $(HACK_DIR)/get-version.sh)
 GIT_SHA             := $(shell git rev-parse --short HEAD || echo "GitNotFound")
-REGISTRY_ROOT	    := europe-docker.pkg.dev/gardener-project
+REGISTRY_ROOT       := europe-docker.pkg.dev/gardener-project
 REGISTRY            := $(REGISTRY_ROOT)/snapshots
 IMAGE_NAME          := gardener/etcd-druid
 IMAGE_REPOSITORY    := $(REGISTRY)/$(IMAGE_NAME)
 IMAGE_BUILD_TAG     := $(VERSION)
+PLATFORM            ?= $(shell docker info --format '{{.OSType}}/{{.Architecture}}')
 BUILD_DIR           := build
 PROVIDERS           := ""
 BUCKET_NAME         := "e2e-test"
 KUBECONFIG_PATH     := $(HACK_DIR)/e2e-test/infrastructure/kind/kubeconfig
-TEST_COVER 			:= "true"
-IMG ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
+TEST_COVER          := "true"
+IMG                 ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 
 # Tools
 # -------------------------------------------------------------------------
@@ -144,7 +145,7 @@ clean-build-cache:
 # Build the docker image
 .PHONY: docker-build
 docker-build:
-	docker build . -t ${IMG} --rm
+	docker buildx build --platform=$(PLATFORM) --tag $(IMG) --rm .
 	@echo "updating kustomize image patch file for manager resource"
 	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml
 
