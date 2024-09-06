@@ -14,6 +14,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/test/it/controller/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -235,6 +236,15 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 	// create etcdInstance resource and assert successful reconciliation, and ensure that sts generation is 1
 	createAndAssertEtcdReconciliation(ctx, t, reconcilerTestEnv, etcdInstance)
 	assertStatefulSetGeneration(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 1, 30*time.Second, 2*time.Second)
+	// update member leases with peer-tls-enabled annotation set to true
+	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance.ObjectMeta, etcdInstance.Spec.Replicas)
+	t.Log("updating member leases with peer-tls-enabled annotation set to true")
+	mlcs := []etcdMemberLeaseConfig{
+		{name: memberLeaseNames[0], annotations: map[string]string{utils.PeerURLTLSEnabledKey: "true"}},
+		{name: memberLeaseNames[1], annotations: map[string]string{utils.PeerURLTLSEnabledKey: "true"}},
+		{name: memberLeaseNames[2], annotations: map[string]string{utils.PeerURLTLSEnabledKey: "true"}},
+	}
+	updateMemberLeases(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
 	// get latest version of etcdInstance
 	g.Expect(cl.Get(ctx, druidv1alpha1.GetNamespaceName(etcdInstance.ObjectMeta), etcdInstance)).To(Succeed())
 	// update etcdInstance spec with reconcile operation annotation also set
@@ -428,7 +438,7 @@ func testConditionsAndMembersWhenAllMemberLeasesAreActive(t *testing.T, etcd *dr
 		{name: memberLeaseNames[1], memberID: testutils.GenerateRandomAlphanumericString(g, 8), role: druidv1alpha1.EtcdRoleLeader, renewTime: &metav1.MicroTime{Time: clock.Now()}},
 		{name: memberLeaseNames[2], memberID: testutils.GenerateRandomAlphanumericString(g, 8), role: druidv1alpha1.EtcdRoleMember, renewTime: &metav1.MicroTime{Time: clock.Now().Add(-time.Second * 30)}},
 	}
-	updateMemberLeaseSpec(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
+	updateMemberLeases(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
 	// ******************************* test etcd status update flow *******************************
 	expectedConditions := []druidv1alpha1.Condition{
 		{Type: druidv1alpha1.ConditionTypeReady, Status: druidv1alpha1.ConditionTrue},

@@ -18,7 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const peerURLTLSEnabledKey = "member.etcd.gardener.cloud/tls-enabled"
+const PeerURLTLSEnabledKey = "member.etcd.gardener.cloud/tls-enabled"
 
 // IsPeerURLTLSEnabledForMembers checks if TLS has been enabled for all existing members of an etcd cluster identified by etcdName and in the provided namespace.
 func IsPeerURLTLSEnabledForMembers(ctx context.Context, cl client.Client, logger logr.Logger, namespace, etcdName string, numReplicas int32) (bool, error) {
@@ -47,7 +47,7 @@ func IsPeerURLTLSEnabledForMembers(ctx context.Context, cl client.Client, logger
 
 func parseAndGetTLSEnabledValue(lease coordinationv1.Lease, logger logr.Logger) (bool, error) {
 	if lease.Annotations != nil {
-		if tlsEnabledStr, ok := lease.Annotations[peerURLTLSEnabledKey]; ok {
+		if tlsEnabledStr, ok := lease.Annotations[PeerURLTLSEnabledKey]; ok {
 			tlsEnabled, err := strconv.ParseBool(tlsEnabledStr)
 			if err != nil {
 				logger.Error(err, "tls-enabled value is not a valid boolean", "namespace", lease.Namespace, "leaseName", lease.Name)

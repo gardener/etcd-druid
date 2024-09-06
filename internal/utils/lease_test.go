@@ -96,7 +96,7 @@ func createLeases(namespace, etcdName string, numLease, withTLSEnabled int) []*c
 		var annotations map[string]string
 		if tlsEnabledCount < withTLSEnabled {
 			annotations = map[string]string{
-				peerURLTLSEnabledKey: "true",
+				PeerURLTLSEnabledKey: "true",
 			}
 			tlsEnabledCount++
 		} else {
@@ -120,7 +120,7 @@ func randomizeAnnotations() map[string]string {
 	rBool := r.Intn(2) == 1
 	if rBool {
 		return map[string]string{
-			peerURLTLSEnabledKey: "false",
+			PeerURLTLSEnabledKey: "false",
 		}
 	}
 	return nil

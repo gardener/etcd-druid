@@ -175,22 +175,30 @@ func createAndAssertEtcdReconciliation(ctx context.Context, t *testing.T, reconc
 }
 
 type etcdMemberLeaseConfig struct {
-	name      string
-	memberID  string
-	role      druidv1alpha1.EtcdRole
-	renewTime *metav1.MicroTime
+	name        string
+	memberID    string
+	role        druidv1alpha1.EtcdRole
+	renewTime   *metav1.MicroTime
+	annotations map[string]string
 }
 
-func updateMemberLeaseSpec(ctx context.Context, t *testing.T, cl client.Client, namespace string, memberLeaseConfigs []etcdMemberLeaseConfig) {
+func updateMemberLeases(ctx context.Context, t *testing.T, cl client.Client, namespace string, memberLeaseConfigs []etcdMemberLeaseConfig) {
 	g := NewWithT(t)
 	for _, config := range memberLeaseConfigs {
 		lease := &coordinationv1.Lease{}
 		g.Expect(cl.Get(ctx, client.ObjectKey{Name: config.name, Namespace: namespace}, lease)).To(Succeed())
 		updatedLease := lease.DeepCopy()
-		updatedLease.Spec.HolderIdentity = ptr.To(fmt.Sprintf("%s:%s", config.memberID, config.role))
-		updatedLease.Spec.RenewTime = config.renewTime
+		for key, value := range config.annotations {
+			metav1.SetMetaDataAnnotation(&updatedLease.ObjectMeta, key, value)
+		}
+		if config.memberID != "" && config.role != "" {
+			updatedLease.Spec.HolderIdentity = ptr.To(fmt.Sprintf("%s:%s", config.memberID, config.role))
+		}
+		if config.renewTime != nil {
+			updatedLease.Spec.RenewTime = config.renewTime
+		}
 		g.Expect(cl.Update(ctx, updatedLease)).To(Succeed())
-		t.Logf("successfully updated member lease %s with holderIdentity: %s", config.name, *updatedLease.Spec.HolderIdentity)
+		t.Logf("successfully updated member lease %s with config %+v", config.name, config)
 	}
 }
 
