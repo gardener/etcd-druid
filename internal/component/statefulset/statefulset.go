@@ -112,7 +112,7 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 			fmt.Sprintf("StatefulSet pods are not yet updated with new labels, for StatefulSet: %v for etcd: %v", getObjectKey(sts.ObjectMeta), druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)),
 		)
 	} else {
-		ctx.Logger.Info("StatefulSet pods are updated with new labels", "objectKey", getObjectKey(etcd.ObjectMeta))
+		ctx.Logger.Info("StatefulSet pods have all the desired labels", "objectKey", getObjectKey(etcd.ObjectMeta))
 	}
 
 	// if sts label selector needs to be changed, then delete the statefulset, but keeping the pods intact.
@@ -215,6 +215,10 @@ func (r _resource) createOrPatch(ctx component.OperatorContext, etcd *druidv1alp
 }
 
 func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) error {
+	if etcd.Spec.Etcd.PeerUrlTLS == nil {
+		return nil
+	}
+
 	peerTLSEnabledForMembers, err := utils.IsPeerURLTLSEnabledForMembers(ctx, r.client, ctx.Logger, etcd.Namespace, etcd.Name, *existingSts.Spec.Replicas)
 	if err != nil {
 		return druiderr.WrapError(err,
@@ -223,7 +227,7 @@ func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *dru
 			fmt.Sprintf("Error checking if peer TLS is enabled for statefulset: %v, etcd: %v", client.ObjectKeyFromObject(existingSts), client.ObjectKeyFromObject(etcd)))
 	}
 
-	if isPeerTLSEnablementPending(peerTLSEnabledForMembers, etcd) {
+	if !peerTLSEnabledForMembers {
 		if !isStatefulSetPatchedWithPeerTLSVolMount(existingSts) {
 			// This step ensures that only STS is updated with secret volume mounts which gets added to the etcd component due to
 			// enabling of TLS for peer communication. It preserves the current STS replicas.
@@ -236,11 +240,12 @@ func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *dru
 		} else {
 			ctx.Logger.Info("Secret volume mounts to enable Peer URL TLS have already been mounted. Skipping patching StatefulSet with secret volume mounts.")
 		}
-		return druiderr.WrapError(err,
+		return druiderr.New(
 			druiderr.ErrRequeueAfter,
 			"Sync",
 			fmt.Sprintf("Peer URL TLS not enabled for #%d members for etcd: %v, requeuing reconcile request", existingSts.Spec.Replicas, client.ObjectKeyFromObject(etcd)))
 	}
+
 	ctx.Logger.Info("Peer URL TLS has been enabled for all currently running members")
 	return nil
 }
@@ -257,11 +262,6 @@ func isStatefulSetPatchedWithPeerTLSVolMount(sts *appsv1.StatefulSet) bool {
 		}
 	}
 	return peerURLCAEtcdVolPresent && peerURLEtcdServerTLSVolPresent
-}
-
-// isPeerTLSEnablementPending checks if the peer URL TLS has been enabled for the etcd, but it has not yet reflected in all etcd members.
-func isPeerTLSEnablementPending(peerTLSEnabledStatusFromMembers bool, etcd *druidv1alpha1.Etcd) bool {
-	return !peerTLSEnabledStatusFromMembers && etcd.Spec.Etcd.PeerUrlTLS != nil
 }
 
 func (r _resource) checkAndPatchStsPodLabelsOnMismatch(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) error {

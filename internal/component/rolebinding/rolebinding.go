@@ -80,14 +80,14 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 			fmt.Sprintf("Error during create or update of role-binding %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)),
 		)
 	}
-	ctx.Logger.Info("synced", "component", "role", "objectKey", objectKey, "result", result)
+	ctx.Logger.Info("synced", "component", "role-binding", "objectKey", objectKey, "result", result)
 	return nil
 }
 
 // TriggerDelete triggers the deletion of the role binding for the given Etcd.
 func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta metav1.ObjectMeta) error {
 	objectKey := getObjectKey(etcdObjMeta)
-	ctx.Logger.Info("Triggering deletion of role", "objectKey", objectKey)
+	ctx.Logger.Info("Triggering deletion of role-binding", "objectKey", objectKey)
 	if err := r.client.Delete(ctx, emptyRoleBinding(objectKey)); err != nil {
 		if errors.IsNotFound(err) {
 			ctx.Logger.Info("No RoleBinding found, Deletion is a No-Op", "objectKey", objectKey)
