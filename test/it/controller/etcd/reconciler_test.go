@@ -240,9 +240,9 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance.ObjectMeta, etcdInstance.Spec.Replicas)
 	t.Log("updating member leases with peer-tls-enabled annotation set to true")
 	mlcs := []etcdMemberLeaseConfig{
-		{name: memberLeaseNames[0], annotations: map[string]string{utils.PeerURLTLSEnabledKey: "true"}},
-		{name: memberLeaseNames[1], annotations: map[string]string{utils.PeerURLTLSEnabledKey: "true"}},
-		{name: memberLeaseNames[2], annotations: map[string]string{utils.PeerURLTLSEnabledKey: "true"}},
+		{name: memberLeaseNames[0], annotations: map[string]string{utils.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[1], annotations: map[string]string{utils.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[2], annotations: map[string]string{utils.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
 	}
 	updateMemberLeases(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
 	// get latest version of etcdInstance
