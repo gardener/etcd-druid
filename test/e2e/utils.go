@@ -362,6 +362,7 @@ func getProviders() ([]TestProvider, error) {
 				azuriteHost := getEnvOrFallback("AZURITE_HOST", "")
 				if azuriteHost != "" {
 					provider.Storage.SecretData["emulatorEnabled"] = []byte("true")
+					// TODO: replace with `domain`
 					provider.Storage.SecretData["storageAPIEndpoint"] = []byte("http://" + azuriteHost)
 				}
 			}
