@@ -194,7 +194,7 @@ deploy-dev: $(SKAFFOLD) $(HELM)
 
 .PHONY: deploy-debug
 deploy-debug: $(SKAFFOLD) $(HELM)
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) debug --cleanup=false -m etcd-druid
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) debug --cleanup=false -m etcd-druid -p debug
 
 .PHONY: undeploy
 undeploy: $(SKAFFOLD) $(HELM)

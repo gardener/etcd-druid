@@ -18,7 +18,6 @@ build:
         flags:
           - -v
         ldflags:
-          - -w
           - -X github.com/gardener/etcd-druid/internal/version.Version={{.VERSION}}
           - -X github.com/gardener/etcd-druid/internal/version.GitSHA={{.GIT_SHA}}
 deploy:
@@ -31,6 +30,17 @@ deploy:
         setValues: # empty `setValues` value is not allowed
           foo: bar
 profiles:
+  # Profile to disable druid leader election, to allow debugging without abrupt exits due to failure to renew leader election lease within time.
+  - name: debug
+    patches:
+      - op: add
+        path: /deploy/helm/releases/0/setValues/replicas
+        value: 1
+      - op: add
+        path: /deploy/helm/releases/0/setValues/controllerManager
+        value:
+          leaderElection:
+            enabled: false
   - name: e2e-test
     activation:
       - env: "DRUID_E2E_TEST=true"
