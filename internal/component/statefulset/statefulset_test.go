@@ -57,7 +57,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrGetStatefulSet,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "GetExistingResourceNames",
+				Operation: component.OperationGetExistingResourceNames,
 			},
 		},
 	}
@@ -108,7 +108,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncStatefulSet,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "Sync",
+				Operation: component.OperationSync,
 			},
 		},
 	}

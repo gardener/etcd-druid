@@ -63,7 +63,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 		}
 		return nil, druiderr.WrapError(err,
 			ErrGetStatefulSet,
-			"GetExistingResourceNames",
+			component.OperationGetExistingResourceNames,
 			fmt.Sprintf("Error getting StatefulSet: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	if metav1.IsControlledBy(objMeta, &etcdObjMeta) {
@@ -136,7 +136,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	if existingSTS, err = r.getExistingStatefulSet(ctx, etcd.ObjectMeta); err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncStatefulSet,
-			"Sync",
+			component.OperationSync,
 			fmt.Sprintf("Error getting StatefulSet: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	// There is no StatefulSet present. Create one.
@@ -163,7 +163,7 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta meta
 		}
 		return druiderr.WrapError(err,
 			ErrDeleteStatefulSet,
-			"TriggerDelete",
+			component.OperationTriggerDelete,
 			fmt.Sprintf("Failed to delete StatefulSet: %v for etcd %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	ctx.Logger.Info("deleted", "component", "statefulset", "objectKey", objectKey)
@@ -191,7 +191,7 @@ func (r _resource) createOrPatchWithReplicas(ctx component.OperatorContext, etcd
 		if builder, err := newStsBuilder(r.client, ctx.Logger, etcd, replicas, r.useEtcdWrapper, r.imageVector, desiredStatefulSet); err != nil {
 			return druiderr.WrapError(err,
 				ErrSyncStatefulSet,
-				"Sync",
+				component.OperationSync,
 				fmt.Sprintf("Error initializing StatefulSet builder for etcd %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 		} else {
 			return builder.Build(ctx)
@@ -201,7 +201,7 @@ func (r _resource) createOrPatchWithReplicas(ctx component.OperatorContext, etcd
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncStatefulSet,
-			"Sync",
+			component.OperationSync,
 			fmt.Sprintf("Error creating or patching StatefulSet: %s for etcd: %v", desiredStatefulSet.Name, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 
@@ -223,7 +223,7 @@ func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *dru
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncStatefulSet,
-			"Sync",
+			component.OperationSync,
 			fmt.Sprintf("Error checking if peer TLS is enabled for statefulset: %v, etcd: %v", client.ObjectKeyFromObject(existingSts), client.ObjectKeyFromObject(etcd)))
 	}
 
@@ -234,7 +234,7 @@ func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *dru
 			if err = r.createOrPatchWithReplicas(ctx, etcd, *existingSts.Spec.Replicas); err != nil {
 				return druiderr.WrapError(err,
 					ErrSyncStatefulSet,
-					"Sync",
+					component.OperationSync,
 					fmt.Sprintf("Error creating or patching StatefulSet with TLS enabled for StatefulSet: %v, etcd: %v", client.ObjectKeyFromObject(existingSts), client.ObjectKeyFromObject(etcd)))
 			}
 		} else {
@@ -242,7 +242,7 @@ func (r _resource) handlePeerTLSChanges(ctx component.OperatorContext, etcd *dru
 		}
 		return druiderr.New(
 			druiderr.ErrRequeueAfter,
-			"Sync",
+			component.OperationSync,
 			fmt.Sprintf("Peer URL TLS not enabled for #%d members for etcd: %v, requeuing reconcile request", existingSts.Spec.Replicas, client.ObjectKeyFromObject(etcd)))
 	}
 

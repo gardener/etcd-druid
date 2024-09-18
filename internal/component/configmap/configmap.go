@@ -55,7 +55,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 		}
 		return nil, druiderr.WrapError(err,
 			ErrGetConfigMap,
-			"GetExistingResourceNames",
+			component.OperationGetExistingResourceNames,
 			fmt.Sprintf("Error getting ConfigMap: %v for etcd: %v", objKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	if metav1.IsControlledBy(objMeta, &etcdObjMeta) {
@@ -76,14 +76,14 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncConfigMap,
-			"Sync",
+			component.OperationSync,
 			fmt.Sprintf("Error during create or update of configmap for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	checkSum, err := computeCheckSum(cm)
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncConfigMap,
-			"Sync",
+			component.OperationSync,
 			fmt.Sprintf("Error when computing CheckSum for configmap for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	ctx.Data[common.CheckSumKeyConfigMap] = checkSum
@@ -103,7 +103,7 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta meta
 		return druiderr.WrapError(
 			err,
 			ErrDeleteConfigMap,
-			"TriggerDelete",
+			component.OperationTriggerDelete,
 			"Failed to delete configmap",
 		)
 	}

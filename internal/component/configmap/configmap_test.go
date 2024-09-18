@@ -56,7 +56,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrGetConfigMap,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "GetExistingResourceNames",
+				Operation: component.OperationGetExistingResourceNames,
 			},
 		},
 	}
@@ -115,7 +115,7 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncConfigMap,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "Sync",
+				Operation: component.OperationSync,
 			},
 		},
 	}
@@ -211,7 +211,7 @@ func TestSyncWhenConfigMapExists(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncConfigMap,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "Sync",
+				Operation: component.OperationSync,
 			},
 		},
 	}
@@ -264,7 +264,7 @@ func TestTriggerDelete(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrDeleteConfigMap,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "TriggerDelete",
+				Operation: component.OperationTriggerDelete,
 			},
 		},
 	}
