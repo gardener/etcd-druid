@@ -34,6 +34,7 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/component-base/featuregate"
@@ -309,6 +310,12 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 						Image:           *etcdBackupImage,
 						ImagePullPolicy: v1.PullIfNotPresent,
 						Args:            getCompactionJobArgs(etcd, r.config.MetricsScrapeWaitDuration.String()),
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								v1.ResourceCPU:    resource.MustParse("600m"),
+								v1.ResourceMemory: resource.MustParse("3Gi"),
+							},
+						},
 					}},
 				},
 			},
