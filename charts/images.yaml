@@ -8,7 +8,7 @@ images:
 - name: etcd
   sourceRepository: github.com/gardener/etcd-custom-image
   repository: europe-docker.pkg.dev/gardener-project/public/gardener/etcd
-  tag: "v3.4.26-3"
+  tag: "v3.4.26-6"
 - name: etcd-backup-restore-distroless
   resourceId:
     name: 'etcdbrctl'
