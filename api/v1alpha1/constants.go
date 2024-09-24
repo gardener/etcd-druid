@@ -16,6 +16,8 @@ const (
 	LabelPartOfKey = "app.kubernetes.io/part-of"
 	// LabelComponentKey is a key for a label that sets the component type on resources provisioned for an etcd cluster.
 	LabelComponentKey = "app.kubernetes.io/component"
+	// LabelEtcdClusterSizeKey is a key for a label that sets the size of an etcd cluster.
+	LabelEtcdClusterSizeKey = "druid.gardener.cloud/etcd-cluster-size"
 )
 
 // Annotation keys that can be placed on an Etcd custom resource.

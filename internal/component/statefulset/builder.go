@@ -66,10 +66,9 @@ type stsBuilder struct {
 	initContainerImage     string
 	sts                    *appsv1.StatefulSet
 	logger                 logr.Logger
-
-	clientPort int32
-	serverPort int32
-	backupPort int32
+	clientPort             int32
+	serverPort             int32
+	backupPort             int32
 }
 
 func newStsBuilder(client client.Client,
@@ -108,6 +107,30 @@ func newStsBuilder(client client.Client,
 func (b *stsBuilder) Build(ctx component.OperatorContext) error {
 	b.createStatefulSetObjectMeta()
 	return b.createStatefulSetSpec(ctx)
+}
+
+func (b *stsBuilder) UpdateWithPeerTLSEnabled(ctx component.OperatorContext) error {
+	podVols, err := b.getPodVolumes(ctx)
+	if err != nil {
+		return err
+	}
+	b.sts.Spec.Template.Spec.Volumes = podVols
+	containers := make([]corev1.Container, 0, len(b.sts.Spec.Template.Spec.Containers))
+	for _, container := range b.sts.Spec.Template.Spec.Containers {
+		clone := container.DeepCopy()
+		if container.Name == common.ContainerNameEtcd {
+			clone.VolumeMounts = b.getEtcdContainerVolumeMounts()
+			clone.Args = b.getEtcdContainerCommandArgs()
+		} else {
+			clone.VolumeMounts = b.getBackupRestoreContainerVolumeMounts()
+			clone.Args = b.getBackupRestoreContainerCommandArgs()
+		}
+		containers = append(containers, *clone)
+	}
+	b.sts.Spec.Template.Spec.Containers = containers
+	b.sts.Spec.Template.Spec.InitContainers = b.getPodInitContainers()
+	b.sts.Spec.Template.Spec.SecurityContext = b.getPodSecurityContext()
+	return nil
 }
 
 func (b *stsBuilder) createStatefulSetObjectMeta() {
@@ -149,7 +172,7 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 		ServiceName:          druidv1alpha1.GetPeerServiceName(b.etcd.ObjectMeta),
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels:      utils.MergeMaps(b.etcd.Spec.Labels, b.getStatefulSetLabels()),
+				Labels:      b.getStatefulSetPodLabels(int(b.replicas)),
 				Annotations: b.getPodTemplateAnnotations(ctx),
 			},
 			Spec: corev1.PodSpec{
@@ -170,6 +193,15 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 		},
 	}
 	return nil
+}
+
+func (b *stsBuilder) getStatefulSetPodLabels(replicas int) map[string]string {
+	return utils.MergeMaps(
+		b.etcd.Spec.Labels,
+		b.getStatefulSetLabels(),
+		map[string]string{
+			druidv1alpha1.LabelEtcdClusterSizeKey: strconv.Itoa(replicas),
+		})
 }
 
 func (b *stsBuilder) getHostAliases() []corev1.HostAlias {
@@ -228,7 +260,8 @@ func (b *stsBuilder) getPodInitContainers() []corev1.Container {
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Command:         []string{"sh", "-c", "--"},
 		Args:            []string{fmt.Sprintf("chown -R %d:%d %s", nonRootUser, nonRootUser, common.VolumeMountPathEtcdData)},
-		VolumeMounts:    []corev1.VolumeMount{b.getEtcdDataVolumeMount()},
+		//Args:            []string{fmt.Sprintf("mkdir -pv /var/etcdbr && chown -Rv %d:%d /var/etcd && chown -Rv %d:%d /var/etcdbr", nonRootUser, nonRootUser, nonRootUser, nonRootUser)},
+		VolumeMounts: []corev1.VolumeMount{b.getEtcdDataVolumeMount()},
 		SecurityContext: &corev1.SecurityContext{
 			RunAsGroup:   ptr.To[int64](0),
 			RunAsNonRoot: ptr.To(false),

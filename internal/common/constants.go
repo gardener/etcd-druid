@@ -170,4 +170,7 @@ const (
 
 	// VolumeMountPathEtcdData is the path on a container where the etcd data directory is mounted.
 	VolumeMountPathEtcdData = "/var/etcd/data"
+
+	VolumeMountBasePathEtcdTLSArtifacts          = "/var/etcd/ssl"
+	VolumeMountBasePathBackupRestoreTLSArtifacts = "/var/etcdbr/ssl"
 )

@@ -7,6 +7,8 @@ package configmap
 import (
 	"encoding/json"
 	"fmt"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -26,6 +28,8 @@ import (
 const (
 	// ErrGetConfigMap indicates an error in getting the configmap resource.
 	ErrGetConfigMap druidv1alpha1.ErrorCode = "ERR_GET_CONFIGMAP"
+	// ErrPreSyncConfigMap indicates an error in pre-syncing the configmap resource.
+	ErrPreSyncConfigMap druidv1alpha1.ErrorCode = "ERR_PRE_SYNC_CONFIGMAP"
 	// ErrSyncConfigMap indicates an error in syncing the configmap resource.
 	ErrSyncConfigMap druidv1alpha1.ErrorCode = "ERR_SYNC_CONFIGMAP"
 	// ErrDeleteConfigMap indicates an error in deleting the configmap resource.
@@ -35,6 +39,8 @@ const (
 type _resource struct {
 	client client.Client
 }
+
+type resourceCreatorOrUpdaterFn func(etcd *druidv1alpha1.Etcd, cm *corev1.ConfigMap, etcdCfg etcdConfig) error
 
 // New returns a new configmap component operator.
 func New(client client.Client) component.Operator {
@@ -65,28 +71,57 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 }
 
 // PreSync is a no-op for the configmap component.
-func (r _resource) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error { return nil }
+func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	logger := ctx.Logger.WithValues("operation", component.OperationPreSync, "component", component.ConfigMapKind, "name", druidv1alpha1.GetConfigMapName(etcd.ObjectMeta), "namespace", etcd.Namespace)
+	// Only if TLS is enabled for peer communication, we need to update the configmap. If not then there is nothing to be done in PreSync.
+	if etcd.Spec.Etcd.PeerUrlTLS == nil {
+		logger.V(4).Info("Peer TLS is not enabled, nothing to be done in PreSync")
+		return nil
+	}
+	// check if the configuration reflects the enablement of TLS for peer communication.
+	existingCm := &corev1.ConfigMap{}
+	if err := r.client.Get(ctx, getObjectKey(etcd.ObjectMeta), existingCm); err != nil {
+		// If there is no ConfigMap then there is nothing to be done in PreSync. Creation of the ConfigMap will be done in the Sync step.
+		if errors.IsNotFound(err) {
+			return nil
+		}
+		return druiderr.WrapError(err,
+			ErrGetConfigMap,
+			component.OperationPreSync,
+			fmt.Sprintf("Error getting ConfigMap for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
+	}
+	existingEtcdCfg, err := deserializeEtcdConfig(existingCm)
+	if err != nil {
+		return err
+	}
+	// if there are no members configured in the `initial-cluster` or if they are already TLS enabled (https), then there is nothing to be done in PreSync.
+	existingEtcdClusterSize := deriveReplicasFromInitialCluster(existingEtcdCfg)
+	if existingEtcdClusterSize == 0 || isPeerUrlTLSAlreadyConfigured(existingEtcdCfg) {
+		logger.V(4).Info("Either the derived replicas are 0 or TLS for Peer communication has already been configured")
+		return nil
+	}
+
+	ctx.Logger.Info("Enabling TLS for Peer communication while retaining replicas & updating client TLS configuration")
+	updateEtcdConfigWithPeerTLS(etcd, &existingEtcdCfg)
+	// When moving from etcd-druid v0.22.x to v0.23.x the mount paths for TLS artifacts have changed. To be on the safe side regenerate the TLS config for client communication as well.
+	updateEtcdConfigClientTLS(etcd, &existingEtcdCfg)
+	result, err := r.createOrUpdate(ctx, etcd, existingCm, existingEtcdCfg)
+	if err != nil {
+		return err
+	}
+	ctx.Logger.Info("preSynced", "component", "configmap", "name", druidv1alpha1.GetConfigMapName(etcd.ObjectMeta), "result", result)
+	return nil
+}
 
 // Sync creates or updates the configmap for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	cm := emptyConfigMap(getObjectKey(etcd.ObjectMeta))
-	result, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, cm, func() error {
-		return buildResource(etcd, cm)
-	})
+	//cm := emptyConfigMap(getObjectKey(etcd.ObjectMeta))
+	cm := initializeConfigMap(etcd)
+	etcdCfg := createEtcdConfig(etcd)
+	result, err := r.createOrUpdate(ctx, etcd, cm, etcdCfg)
 	if err != nil {
-		return druiderr.WrapError(err,
-			ErrSyncConfigMap,
-			component.OperationSync,
-			fmt.Sprintf("Error during create or update of configmap for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
+		return err
 	}
-	checkSum, err := computeCheckSum(cm)
-	if err != nil {
-		return druiderr.WrapError(err,
-			ErrSyncConfigMap,
-			component.OperationSync,
-			fmt.Sprintf("Error when computing CheckSum for configmap for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
-	}
-	ctx.Data[common.CheckSumKeyConfigMap] = checkSum
 	ctx.Logger.Info("synced", "component", "configmap", "name", cm.Name, "result", result)
 	return nil
 }
@@ -111,19 +146,53 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta meta
 	return nil
 }
 
-func buildResource(etcd *druidv1alpha1.Etcd, cm *corev1.ConfigMap) error {
-	cfg := createEtcdConfig(etcd)
-	cfgYaml, err := yaml.Marshal(cfg)
-	if err != nil {
-		return err
+func updateEtcdConfigWithPeerTLS(etcd *druidv1alpha1.Etcd, etcdCfg *etcdConfig) {
+	pc := createPeerConfig(etcd, deriveReplicasFromInitialCluster(*etcdCfg))
+	etcdCfg.InitialCluster = pc.initialCluster
+	etcdCfg.ListenPeerUrls = pc.listenPeerUrls
+	etcdCfg.AdvertisePeerUrls = pc.advertisePeerUrls
+	if pc.peerSecurity != nil {
+		etcdCfg.PeerSecurity = *pc.peerSecurity
 	}
-	cm.Name = druidv1alpha1.GetConfigMapName(etcd.ObjectMeta)
-	cm.Namespace = etcd.Namespace
-	cm.Labels = getLabels(etcd)
-	cm.OwnerReferences = []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)}
-	cm.Data = map[string]string{common.EtcdConfigFileName: string(cfgYaml)}
+}
 
-	return nil
+func updateEtcdConfigClientTLS(etcd *druidv1alpha1.Etcd, etcdCfg *etcdConfig) {
+	_, clientSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.ClientUrlTLS, common.VolumeMountPathEtcdCA, common.VolumeMountPathEtcdServerTLS)
+	if clientSecurityConfig != nil {
+		etcdCfg.ClientSecurity = *clientSecurityConfig
+	}
+}
+
+func deriveReplicasFromInitialCluster(etcdCfg etcdConfig) int {
+	initialCluster := etcdCfg.InitialCluster
+	return len(strings.Split(initialCluster, ","))
+}
+
+func initializeConfigMap(etcd *druidv1alpha1.Etcd) *corev1.ConfigMap {
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      druidv1alpha1.GetConfigMapName(etcd.ObjectMeta),
+			Namespace: etcd.Namespace,
+			Labels:    getLabels(etcd),
+			OwnerReferences: []metav1.OwnerReference{
+				druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta),
+			},
+		},
+	}
+	return cm
+}
+
+func deserializeEtcdConfig(cm *corev1.ConfigMap) (etcdConfig, error) {
+	cfg := etcdConfig{}
+	if data, ok := cm.Data[common.EtcdConfigFileName]; ok {
+		if err := yaml.Unmarshal([]byte(data), &cfg); err != nil {
+			return etcdConfig{}, druiderr.WrapError(err,
+				ErrPreSyncConfigMap,
+				component.OperationPreSync,
+				fmt.Sprintf("Error unmarshalling etcd config from configmap: %v", druidv1alpha1.GetNamespaceName(cm.ObjectMeta)))
+		}
+	}
+	return cfg, nil
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
@@ -132,6 +201,32 @@ func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 		druidv1alpha1.LabelAppNameKey:   druidv1alpha1.GetConfigMapName(etcd.ObjectMeta),
 	}
 	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), cmLabels)
+}
+
+func (r _resource) createOrUpdate(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, cm *corev1.ConfigMap, etcdCfg etcdConfig) (*controllerutil.OperationResult, error) {
+	result, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, cm, func() error {
+		cfgYaml, err := yaml.Marshal(etcdCfg)
+		if err != nil {
+			return err
+		}
+		cm.Data = map[string]string{common.EtcdConfigFileName: string(cfgYaml)}
+		return nil
+	})
+	if err != nil {
+		return nil, druiderr.WrapError(err,
+			ErrSyncConfigMap,
+			"Sync",
+			fmt.Sprintf("Error during create or update of configmap for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
+	}
+	checkSum, err := computeCheckSum(cm)
+	if err != nil {
+		return nil, druiderr.WrapError(err,
+			ErrSyncConfigMap,
+			"Sync",
+			fmt.Sprintf("Error when computing CheckSum for configmap for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
+	}
+	ctx.Data[common.CheckSumKeyConfigMap] = checkSum
+	return &result, nil
 }
 
 func getObjectKey(obj metav1.ObjectMeta) client.ObjectKey {

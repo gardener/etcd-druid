@@ -179,7 +179,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled)
 			etcd.Spec.Etcd.ServerPort = tc.etcdSpecServerPort
 			peerScheme := utils.IfConditionOr(etcd.Spec.Etcd.PeerUrlTLS != nil, "https", "http")
-			actualInitialCluster := prepareInitialCluster(etcd, peerScheme)
+			actualInitialCluster := prepareInitialCluster(etcd, peerScheme, 0)
 			g.Expect(actualInitialCluster).To(Equal(tc.expectedInitialCluster))
 		})
 	}
