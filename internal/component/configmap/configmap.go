@@ -73,6 +73,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 // PreSync is a no-op for the configmap component.
 func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	logger := ctx.Logger.WithValues("operation", component.OperationPreSync, "component", component.ConfigMapKind, "configmapName", druidv1alpha1.GetConfigMapName(etcd.ObjectMeta))
+	logger.Info("Running pre-sync for ConfigMap")
 	// Only if TLS is enabled for peer communication, we need to update the configmap. If not then there is nothing to be done in PreSync.
 	if etcd.Spec.Etcd.PeerUrlTLS == nil {
 		logger.V(4).Info("Peer TLS is not enabled, nothing to be done in PreSync")
@@ -164,6 +165,9 @@ func updateEtcdConfigWithPeerAndClientTLS(etcd *druidv1alpha1.Etcd, etcdCfg *etc
 
 func deriveReplicasFromInitialCluster(etcdCfg etcdConfig) int {
 	initialCluster := etcdCfg.InitialCluster
+	if utils.IsEmptyString(initialCluster) {
+		return 0
+	}
 	return len(strings.Split(initialCluster, ","))
 }
 

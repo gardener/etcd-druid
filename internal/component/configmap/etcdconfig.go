@@ -6,6 +6,7 @@ package configmap
 
 import (
 	"fmt"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"strconv"
 	"strings"
 
@@ -148,6 +149,9 @@ func getSchemeAndSecurityConfig(tlsConfig *druidv1alpha1.TLSConfig, caPath, serv
 
 func isPeerUrlTLSAlreadyConfigured(etcdCfg etcdConfig) bool {
 	initialCluster := etcdCfg.InitialCluster
+	if utils.IsEmptyString(initialCluster) {
+		return false
+	}
 	splits := strings.Split(initialCluster, ",")
 	keyValue := strings.Split(splits[0], "=")
 	return strings.HasPrefix(keyValue[1], "https")
