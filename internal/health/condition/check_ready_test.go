@@ -33,6 +33,7 @@ var _ = Describe("ReadyCheck", func() {
 		Context("when members in status", func() {
 			It("should return that the cluster has a quorum (all members ready)", func() {
 				etcd := druidv1alpha1.Etcd{
+					Spec: druidv1alpha1.EtcdSpec{Replicas: 3},
 					Status: druidv1alpha1.EtcdStatus{
 						Members: []druidv1alpha1.EtcdMemberStatus{
 							readyMember,
@@ -51,6 +52,7 @@ var _ = Describe("ReadyCheck", func() {
 
 			It("should return that the cluster has a quorum (members are partly unknown)", func() {
 				etcd := druidv1alpha1.Etcd{
+					Spec: druidv1alpha1.EtcdSpec{Replicas: 3},
 					Status: druidv1alpha1.EtcdStatus{
 						Members: []druidv1alpha1.EtcdMemberStatus{
 							readyMember,
@@ -69,6 +71,7 @@ var _ = Describe("ReadyCheck", func() {
 
 			It("should return that the cluster has a quorum (one member not ready)", func() {
 				etcd := druidv1alpha1.Etcd{
+					Spec: druidv1alpha1.EtcdSpec{Replicas: 3},
 					Status: druidv1alpha1.EtcdStatus{
 						Members: []druidv1alpha1.EtcdMemberStatus{
 							readyMember,
@@ -87,6 +90,7 @@ var _ = Describe("ReadyCheck", func() {
 
 			It("should return that the cluster has lost its quorum", func() {
 				etcd := druidv1alpha1.Etcd{
+					Spec: druidv1alpha1.EtcdSpec{Replicas: 3},
 					Status: druidv1alpha1.EtcdStatus{
 						Members: []druidv1alpha1.EtcdMemberStatus{
 							readyMember,
@@ -108,6 +112,7 @@ var _ = Describe("ReadyCheck", func() {
 		Context("when no members in status", func() {
 			It("should return that quorum is unknown", func() {
 				etcd := druidv1alpha1.Etcd{
+					Spec: druidv1alpha1.EtcdSpec{Replicas: 3},
 					Status: druidv1alpha1.EtcdStatus{
 						Members: []druidv1alpha1.EtcdMemberStatus{},
 					},

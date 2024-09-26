@@ -69,6 +69,10 @@ type stsBuilder struct {
 	clientPort             int32
 	serverPort             int32
 	backupPort             int32
+	// skipSetOrUpdateForbiddenFields if its true then it will set/update values to fields which are forbidden to be updated for an existing StatefulSet.
+	// Updates to statefulset spec for fields other than 'replicas', 'ordinals', 'template', 'updateStrategy', 'persistentVolumeClaimRetentionPolicy' and 'minReadySeconds' are forbidden.
+	// Only for a new StatefulSet should this be set to true.
+	skipSetOrUpdateForbiddenFields bool
 }
 
 func newStsBuilder(client client.Client,
@@ -77,36 +81,41 @@ func newStsBuilder(client client.Client,
 	replicas int32,
 	useEtcdWrapper bool,
 	imageVector imagevector.ImageVector,
+	skipSetOrUpdateForbiddenFields bool,
 	sts *appsv1.StatefulSet) (*stsBuilder, error) {
 	etcdImage, etcdBackupRestoreImage, initContainerImage, err := utils.GetEtcdImages(etcd, imageVector, useEtcdWrapper)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[stsBuilder]: error in getting etcd images: %w", err)
 	}
 	provider, err := getBackupStoreProvider(etcd)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[stsBuilder]: error in getting backup store provider: %w", err)
 	}
 	return &stsBuilder{
-		client:                 client,
-		logger:                 logger,
-		etcd:                   etcd,
-		replicas:               replicas,
-		useEtcdWrapper:         useEtcdWrapper,
-		provider:               provider,
-		etcdImage:              etcdImage,
-		etcdBackupRestoreImage: etcdBackupRestoreImage,
-		initContainerImage:     initContainerImage,
-		sts:                    sts,
-		clientPort:             ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient),
-		serverPort:             ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer),
-		backupPort:             ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore),
+		client:                         client,
+		logger:                         logger,
+		etcd:                           etcd,
+		replicas:                       replicas,
+		useEtcdWrapper:                 useEtcdWrapper,
+		provider:                       provider,
+		etcdImage:                      etcdImage,
+		etcdBackupRestoreImage:         etcdBackupRestoreImage,
+		initContainerImage:             initContainerImage,
+		sts:                            sts,
+		clientPort:                     ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient),
+		serverPort:                     ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer),
+		backupPort:                     ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore),
+		skipSetOrUpdateForbiddenFields: skipSetOrUpdateForbiddenFields,
 	}, nil
 }
 
 // Build builds the StatefulSet for the given Etcd.
 func (b *stsBuilder) Build(ctx component.OperatorContext) error {
 	b.createStatefulSetObjectMeta()
-	return b.createStatefulSetSpec(ctx)
+	if err := b.createStatefulSetSpec(ctx); err != nil {
+		return fmt.Errorf("[stsBuilder]: error in creating StatefulSet spec: %w", err)
+	}
+	return nil
 }
 
 func (b *stsBuilder) UpdateWithPeerTLSEnabled(ctx component.OperatorContext) error {
@@ -151,47 +160,59 @@ func (b *stsBuilder) getStatefulSetLabels() map[string]string {
 }
 
 func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error {
+	err := b.createPodTemplateSpec(ctx)
+	b.sts.Spec.Replicas = ptr.To(b.replicas)
+	b.sts.Spec.UpdateStrategy = defaultUpdateStrategy
+	if err != nil {
+		return err
+	}
+	if !b.skipSetOrUpdateForbiddenFields {
+		b.sts.Spec.Selector = &metav1.LabelSelector{
+			MatchLabels: druidv1alpha1.GetDefaultLabels(b.etcd.ObjectMeta),
+		}
+		b.sts.Spec.PodManagementPolicy = defaultPodManagementPolicy
+		b.sts.Spec.ServiceName = druidv1alpha1.GetPeerServiceName(b.etcd.ObjectMeta)
+		b.sts.Spec.VolumeClaimTemplates = b.getVolumeClaimTemplates()
+	}
+	return nil
+}
+
+func (b *stsBuilder) createPodTemplateSpec(ctx component.OperatorContext) error {
 	podVolumes, err := b.getPodVolumes(ctx)
 	if err != nil {
 		return err
 	}
-
 	backupRestoreContainer, err := b.getBackupRestoreContainer()
 	if err != nil {
 		return err
 	}
-
-	b.sts.Spec = appsv1.StatefulSetSpec{
-		Replicas: ptr.To(b.replicas),
-		Selector: &metav1.LabelSelector{
-			MatchLabels: druidv1alpha1.GetDefaultLabels(b.etcd.ObjectMeta),
-		},
-		PodManagementPolicy:  defaultPodManagementPolicy,
-		UpdateStrategy:       defaultUpdateStrategy,
-		VolumeClaimTemplates: b.getVolumeClaimTemplates(),
-		ServiceName:          druidv1alpha1.GetPeerServiceName(b.etcd.ObjectMeta),
-		Template: corev1.PodTemplateSpec{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels:      b.getStatefulSetPodLabels(int(b.replicas)),
-				Annotations: b.getPodTemplateAnnotations(ctx),
+	podTemplateSpec := corev1.PodTemplateSpec{
+		Spec: corev1.PodSpec{
+			HostAliases:           b.getHostAliases(),
+			ServiceAccountName:    druidv1alpha1.GetServiceAccountName(b.etcd.ObjectMeta),
+			ShareProcessNamespace: ptr.To(true),
+			InitContainers:        b.getPodInitContainers(),
+			Containers: []corev1.Container{
+				b.getEtcdContainer(),
+				backupRestoreContainer,
 			},
-			Spec: corev1.PodSpec{
-				HostAliases:           b.getHostAliases(),
-				ServiceAccountName:    druidv1alpha1.GetServiceAccountName(b.etcd.ObjectMeta),
-				ShareProcessNamespace: ptr.To(true),
-				InitContainers:        b.getPodInitContainers(),
-				Containers: []corev1.Container{
-					b.getEtcdContainer(),
-					backupRestoreContainer,
-				},
-				SecurityContext:           b.getPodSecurityContext(),
-				Affinity:                  b.etcd.Spec.SchedulingConstraints.Affinity,
-				TopologySpreadConstraints: b.etcd.Spec.SchedulingConstraints.TopologySpreadConstraints,
-				Volumes:                   podVolumes,
-				PriorityClassName:         ptr.Deref(b.etcd.Spec.PriorityClassName, ""),
-			},
+			SecurityContext:           b.getPodSecurityContext(),
+			Affinity:                  b.etcd.Spec.SchedulingConstraints.Affinity,
+			TopologySpreadConstraints: b.etcd.Spec.SchedulingConstraints.TopologySpreadConstraints,
+			Volumes:                   podVolumes,
+			PriorityClassName:         ptr.Deref(b.etcd.Spec.PriorityClassName, ""),
 		},
 	}
+
+	if b.skipSetOrUpdateForbiddenFields {
+		podTemplateSpec.ObjectMeta = b.sts.Spec.Template.ObjectMeta
+	} else {
+		podTemplateSpec.ObjectMeta = metav1.ObjectMeta{
+			Labels:      b.getStatefulSetPodLabels(int(b.replicas)),
+			Annotations: b.getPodTemplateAnnotations(ctx),
+		}
+	}
+	b.sts.Spec.Template = podTemplateSpec
 	return nil
 }
 

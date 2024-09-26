@@ -159,7 +159,7 @@ func TestSyncWhenServiceExists(t *testing.T) {
 			expectedError: &druiderr.DruidError{
 				Code:      ErrSyncClientService,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: component.OperationPreSync,
+				Operation: component.OperationSync,
 			},
 		},
 	}

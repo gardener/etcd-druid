@@ -6,13 +6,15 @@ package utils
 
 import (
 	"context"
+	"slices"
+	"strconv"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+
 	"github.com/go-logr/logr"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"slices"
-	"strconv"
 )
 
 // LeaseAnnotationKeyPeerURLTLSEnabled is the annotation key present on the member lease.

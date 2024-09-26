@@ -179,21 +179,10 @@ func TestPrepareInitialCluster(t *testing.T) {
 			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled)
 			etcd.Spec.Etcd.ServerPort = tc.etcdSpecServerPort
 			peerScheme := utils.IfConditionOr(etcd.Spec.Etcd.PeerUrlTLS != nil, "https", "http")
-			actualInitialCluster := prepareInitialCluster(etcd, peerScheme, 0)
+			actualInitialCluster := prepareInitialCluster(etcd, peerScheme, int(tc.etcdReplicas))
 			g.Expect(actualInitialCluster).To(Equal(tc.expectedInitialCluster))
 		})
 	}
-}
-
-func buildEtcd(replicas int32, clientTLSEnabled, peerTLSEnabled bool) *druidv1alpha1.Etcd {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(replicas)
-	if clientTLSEnabled {
-		etcdBuilder.WithClientTLS()
-	}
-	if peerTLSEnabled {
-		etcdBuilder.WithPeerTLS()
-	}
-	return etcdBuilder.Build()
 }
 
 func TestSyncWhenConfigMapExists(t *testing.T) {
@@ -299,17 +288,22 @@ func TestTriggerDelete(t *testing.T) {
 }
 
 // ---------------------------- Helper Functions -----------------------------
-func newConfigMap(g *WithT, etcd *druidv1alpha1.Etcd) *corev1.ConfigMap {
-	cm := emptyConfigMap(getObjectKey(etcd.ObjectMeta))
-	err := buildResource(etcd, cm)
-	g.Expect(err).ToNot(HaveOccurred())
-	return cm
+func buildEtcd(replicas int32, clientTLSEnabled, peerTLSEnabled bool) *druidv1alpha1.Etcd {
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(replicas)
+	if clientTLSEnabled {
+		etcdBuilder.WithClientTLS()
+	}
+	if peerTLSEnabled {
+		etcdBuilder.WithPeerTLS()
+	}
+	return etcdBuilder.Build()
 }
 
-func ensureConfigMapExists(g *WithT, cl client.WithWatch, etcd *druidv1alpha1.Etcd) {
-	cm, err := getLatestConfigMap(cl, etcd)
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(cm).ToNot(BeNil())
+func newConfigMap(g *WithT, etcd *druidv1alpha1.Etcd) *corev1.ConfigMap {
+	cm := initializeConfigMap(etcd)
+	etcdCfg := createEtcdConfig(etcd)
+	g.Expect(setConfigMapData(cm, etcdCfg)).ToNot(HaveOccurred())
+	return cm
 }
 
 func getLatestConfigMap(cl client.Client, etcd *druidv1alpha1.Etcd) (*corev1.ConfigMap, error) {

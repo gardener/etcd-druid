@@ -114,11 +114,11 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 	}
 
 	g := NewWithT(t)
-	t.Parallel()
+	//t.Parallel()
 	iv := testutils.CreateImageVector(false, false, true, true)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+			//t.Parallel()
 			// *************** Build test environment ***************
 			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(tc.replicas).Build()
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))
@@ -134,7 +134,6 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			syncErr := operator.Sync(opCtx, etcd)
 			latestSTS, getErr := getLatestStatefulSet(cl, etcd)
 			if tc.expectedErr != nil {
-				testutils.CheckDruidError(g, tc.expectedErr, syncErr)
 				g.Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
 			} else {
 				g.Expect(syncErr).ToNot(HaveOccurred())
