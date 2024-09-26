@@ -39,6 +39,7 @@ func IsPeerURLTLSEnabledForMembers(ctx context.Context, cl client.Client, logger
 	return tlsEnabledForAllMembers, nil
 }
 
+// ListAllMemberLeaseObjectMeta returns the list of all member leases for the given etcd cluster.
 func ListAllMemberLeaseObjectMeta(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd) ([]metav1.PartialObjectMetadata, error) {
 	objMetaList := &metav1.PartialObjectMetadataList{}
 	objMetaList.SetGroupVersionKind(coordinationv1.SchemeGroupVersion.WithKind("Lease"))
