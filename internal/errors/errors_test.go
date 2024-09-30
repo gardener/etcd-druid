@@ -25,21 +25,26 @@ func TestWrapError(t *testing.T) {
 	g.Expect(druidErr.Message).To(Equal("testMsg"))
 }
 
-func TestIsRequeueAfterError(t *testing.T) {
+func TestAsDruidError(t *testing.T) {
 	testCases := []struct {
-		name     string
-		code     druidv1alpha1.ErrorCode
-		expected bool
+		name             string
+		err              error
+		expectedDruidErr bool
 	}{
 		{
-			name:     "error has code ERR_REQUEUE_AFTER",
-			code:     ErrRequeueAfter,
-			expected: true,
+			name: "error is of type DruidError",
+			err: &DruidError{
+				Code:      druidv1alpha1.ErrorCode("ERR_TEST"),
+				Cause:     fmt.Errorf("testError"),
+				Operation: "testOp",
+				Message:   "testMsg",
+			},
+			expectedDruidErr: true,
 		},
 		{
-			name:     "error has code ERR_TEST",
-			code:     druidv1alpha1.ErrorCode("ERR_TEST"),
-			expected: false,
+			name:             "error is not of type DruidError",
+			err:              fmt.Errorf("testError"),
+			expectedDruidErr: false,
 		},
 	}
 
@@ -48,12 +53,12 @@ func TestIsRequeueAfterError(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := &DruidError{
-				Code:       tc.code,
-				ObservedAt: time.Now().UTC(),
+			druidErr := AsDruidError(tc.err)
+			if tc.expectedDruidErr {
+				g.Expect(druidErr).NotTo(BeNil())
+			} else {
+				g.Expect(druidErr).To(BeNil())
 			}
-			g.Expect(IsRequeueAfterError(err)).To(Equal(tc.expected))
-
 		})
 	}
 }
