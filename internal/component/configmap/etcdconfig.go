@@ -22,27 +22,22 @@ const (
 	defaultInitialClusterToken     = "etcd-cluster"
 	defaultInitialClusterState     = "new"
 	// For more information refer to https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
-	// TODO: Ideally this should be made configurable via Etcd resource as this has a direct impact on the memory requirements for etcd container.
-	// which in turn is influenced by the size of objects that are getting stored in etcd.
-	defaultSnapshotCount = 75000
+	defaultSnapshotCount = int64(75000)
 )
 
 var (
 	defaultDataDir = fmt.Sprintf("%s/new.etcd", common.VolumeMountPathEtcdData)
 )
 
-type tlsTarget string
+type advPeerUrls map[string][]string
 
-const (
-	clientTLS tlsTarget = "client"
-	peerTLS   tlsTarget = "peer"
-)
+type advClientUrls map[string]string
 
 type etcdConfig struct {
 	Name                    string                       `yaml:"name"`
 	DataDir                 string                       `yaml:"data-dir"`
 	Metrics                 druidv1alpha1.MetricsLevel   `yaml:"metrics"`
-	SnapshotCount           int                          `yaml:"snapshot-count"`
+	SnapshotCount           int64                        `yaml:"snapshot-count"`
 	EnableV2                bool                         `yaml:"enable-v2"`
 	QuotaBackendBytes       int64                        `yaml:"quota-backend-bytes"`
 	InitialClusterToken     string                       `yaml:"initial-cluster-token"`
@@ -52,8 +47,8 @@ type etcdConfig struct {
 	AutoCompactionRetention string                       `yaml:"auto-compaction-retention"`
 	ListenPeerUrls          string                       `yaml:"listen-peer-urls"`
 	ListenClientUrls        string                       `yaml:"listen-client-urls"`
-	AdvertisePeerUrls       string                       `yaml:"initial-advertise-peer-urls"`
-	AdvertiseClientUrls     string                       `yaml:"advertise-client-urls"`
+	AdvertisePeerUrls       advPeerUrls                  `yaml:"initial-advertise-peer-urls"`
+	AdvertiseClientUrls     advClientUrls                `yaml:"advertise-client-urls"`
 	ClientSecurity          securityConfig               `yaml:"client-transport-security,omitempty"`
 	PeerSecurity            securityConfig               `yaml:"peer-transport-security,omitempty"`
 }
@@ -74,7 +69,7 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		Name:                    fmt.Sprintf("etcd-%s", etcd.UID[:6]),
 		DataDir:                 defaultDataDir,
 		Metrics:                 ptr.Deref(etcd.Spec.Etcd.Metrics, druidv1alpha1.Basic),
-		SnapshotCount:           defaultSnapshotCount,
+		SnapshotCount:           getSnapshotCount(etcd),
 		EnableV2:                false,
 		QuotaBackendBytes:       getDBQuotaBytes(etcd),
 		InitialClusterToken:     defaultInitialClusterToken,
@@ -84,8 +79,8 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		AutoCompactionRetention: ptr.Deref(etcd.Spec.Common.AutoCompactionRetention, defaultAutoCompactionRetention),
 		ListenPeerUrls:          fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)),
 		ListenClientUrls:        fmt.Sprintf("%s://0.0.0.0:%d", clientScheme, ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)),
-		AdvertisePeerUrls:       fmt.Sprintf("%s@%s@%s@%d", peerScheme, peerSvcName, etcd.Namespace, ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)),
-		AdvertiseClientUrls:     fmt.Sprintf("%s@%s@%s@%d", clientScheme, peerSvcName, etcd.Namespace, ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)),
+		AdvertisePeerUrls:       getAdvertisePeerUrlsMap(etcd, peerScheme, peerSvcName),
+		AdvertiseClientUrls:     getAdvertiseClientUrlMap(etcd, clientScheme, peerSvcName),
 	}
 	if peerSecurityConfig != nil {
 		cfg.PeerSecurity = *peerSecurityConfig
@@ -95,6 +90,14 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 	}
 
 	return cfg
+}
+
+func getSnapshotCount(etcd *druidv1alpha1.Etcd) int64 {
+	snapshotCount := defaultSnapshotCount
+	if etcd.Spec.Etcd.SnapshotCount != nil {
+		snapshotCount = *etcd.Spec.Etcd.SnapshotCount
+	}
+	return snapshotCount
 }
 
 func getDBQuotaBytes(etcd *druidv1alpha1.Etcd) int64 {
@@ -128,4 +131,22 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 		builder.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s,", podName, peerScheme, podName, domainName, serverPort))
 	}
 	return strings.Trim(builder.String(), ",")
+}
+
+func getAdvertisePeerUrlsMap(etcd *druidv1alpha1.Etcd, peerScheme string, peerSvcName string) advPeerUrls {
+	advPeerUrlsMap := make(map[string][]string)
+	for i := 0; i < int(etcd.Spec.Replicas); i++ {
+		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+		advPeerUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", peerScheme, podName, peerSvcName, etcd.Namespace, ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))}
+	}
+	return advPeerUrlsMap
+}
+
+func getAdvertiseClientUrlMap(etcd *druidv1alpha1.Etcd, clientScheme string, peerSvcName string) advClientUrls {
+	advClientUrlMap := make(map[string]string)
+	for i := 0; i < int(etcd.Spec.Replicas); i++ {
+		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+		advClientUrlMap[podName] = fmt.Sprintf("%s://%s.%s.%s.svc:%d", clientScheme, podName, peerSvcName, etcd.Namespace, ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient))
+	}
+	return advClientUrlMap
 }
