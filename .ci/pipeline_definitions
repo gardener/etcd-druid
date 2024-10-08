@@ -14,6 +14,7 @@ etcd-druid:
         dockerimages:
           etcd-druid:
             image: europe-docker.pkg.dev/gardener-project/snapshots/gardener/etcd-druid
+            tag_as_latest: True
             dockerfile: 'Dockerfile'
             inputs:
               repos:
@@ -64,6 +65,7 @@ etcd-druid:
           dockerimages:
             etcd-druid:
               image: europe-docker.pkg.dev/gardener-project/releases/gardener/etcd-druid
+              tag_as_latest: True
         release:
           nextversion: 'bump_minor'
           git_tags:
