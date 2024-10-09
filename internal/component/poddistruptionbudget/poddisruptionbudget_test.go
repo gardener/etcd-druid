@@ -53,7 +53,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrGetPodDisruptionBudget,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "GetExistingResourceNames",
+				Operation: component.OperationGetExistingResourceNames,
 			},
 		},
 	}
@@ -107,7 +107,7 @@ func TestSyncWhenNoPDBExists(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncPodDisruptionBudget,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "Sync",
+				Operation: component.OperationSync,
 			},
 		},
 	}
@@ -161,7 +161,7 @@ func TestSyncWhenPDBExists(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncPodDisruptionBudget,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "Sync",
+				Operation: component.OperationSync,
 			},
 		},
 	}
@@ -214,7 +214,7 @@ func TestTriggerDelete(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrDeletePodDisruptionBudget,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "TriggerDelete",
+				Operation: component.OperationTriggerDelete,
 			},
 		},
 	}

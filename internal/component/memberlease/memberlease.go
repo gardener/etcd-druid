@@ -53,7 +53,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 	); err != nil {
 		return resourceNames, druiderr.WrapError(err,
 			ErrListMemberLease,
-			"GetExistingResourceNames",
+			component.OperationGetExistingResourceNames,
 			fmt.Sprintf("Error listing member leases for etcd: %v", druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	for _, lease := range objMetaList.Items {
@@ -98,7 +98,7 @@ func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncMemberLease,
-			"Sync",
+			component.OperationSync,
 			fmt.Sprintf("Error syncing member lease: %v for etcd: %v", objKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	ctx.Logger.Info("triggered create or update of member lease", "objectKey", objKey, "operationResult", opResult)
@@ -114,7 +114,7 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta meta
 		client.MatchingLabels(getSelectorLabelsForAllMemberLeases(etcdObjMeta))); err != nil {
 		return druiderr.WrapError(err,
 			ErrDeleteMemberLease,
-			"TriggerDelete",
+			component.OperationTriggerDelete,
 			fmt.Sprintf("Failed to delete member leases for etcd: %v", druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	ctx.Logger.Info("deleted", "component", "member-leases")

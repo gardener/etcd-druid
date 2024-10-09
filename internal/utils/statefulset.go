@@ -11,11 +11,13 @@ import (
 	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -87,4 +89,34 @@ func FetchPVCWarningMessagesForStatefulSet(ctx context.Context, cl client.Client
 		}
 	}
 	return strings.TrimSpace(strings.Join(events, "; ")), pvcErr
+}
+
+var (
+	etcdTLSVolumeMountNames   = sets.New[string](common.VolumeNameEtcdCA, common.VolumeNameEtcdServerTLS, common.VolumeNameEtcdClientTLS, common.VolumeNameEtcdPeerCA, common.VolumeNameEtcdPeerServerTLS, common.VolumeNameBackupRestoreCA)
+	etcdbrTLSVolumeMountNames = sets.New[string](common.VolumeNameBackupRestoreServerTLS, common.VolumeNameEtcdCA, common.VolumeNameEtcdClientTLS)
+)
+
+// GetStatefulSetContainerTLSVolumeMounts returns a map of container name to TLS volume mounts for the given StatefulSet.
+func GetStatefulSetContainerTLSVolumeMounts(sts *appsv1.StatefulSet) map[string][]corev1.VolumeMount {
+	containerVolMounts := make(map[string][]corev1.VolumeMount, 2) // each pod is a 2 container pod. Init containers are not counted as containers.
+	for _, container := range sts.Spec.Template.Spec.Containers {
+		if _, ok := containerVolMounts[container.Name]; !ok {
+			// Assuming 6 volume mounts per container. If there are more in future then this map's capacity will be increased by the golang runtime.
+			// A size is assumed to minimize the possibility of a resize, which is usually not cheap.
+			containerVolMounts[container.Name] = make([]corev1.VolumeMount, 0, 6)
+		}
+		containerVolMounts[container.Name] = append(containerVolMounts[container.Name], filterTLSVolumeMounts(container.Name, container.VolumeMounts)...)
+	}
+	return containerVolMounts
+}
+
+func filterTLSVolumeMounts(containerName string, allVolumeMounts []corev1.VolumeMount) []corev1.VolumeMount {
+	filteredVolMounts := make([]corev1.VolumeMount, 0, len(allVolumeMounts))
+	knownTLSVolMountNames := IfConditionOr(containerName == common.ContainerNameEtcd, etcdTLSVolumeMountNames, etcdbrTLSVolumeMountNames)
+	for _, volMount := range allVolumeMounts {
+		if knownTLSVolMountNames.Has(volMount.Name) {
+			filteredVolMounts = append(filteredVolMounts, volMount)
+		}
+	}
+	return filteredVolMounts
 }

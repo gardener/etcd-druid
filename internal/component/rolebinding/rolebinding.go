@@ -53,7 +53,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 		}
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetRoleBinding,
-			"GetExistingResourceNames",
+			component.OperationGetExistingResourceNames,
 			fmt.Sprintf("Error getting role-binding: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	if metav1.IsControlledBy(objMeta, &etcdObjMeta) {
@@ -76,7 +76,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncRoleBinding,
-			"Sync",
+			component.OperationSync,
 			fmt.Sprintf("Error during create or update of role-binding %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)),
 		)
 	}
@@ -95,7 +95,7 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta meta
 		}
 		return druiderr.WrapError(err,
 			ErrDeleteRoleBinding,
-			"TriggerDelete",
+			component.OperationTriggerDelete,
 			fmt.Sprintf("Failed to delete role-binding: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)),
 		)
 	}

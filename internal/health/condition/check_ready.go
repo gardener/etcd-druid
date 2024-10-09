@@ -27,7 +27,7 @@ func (r *readyCheck) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
 	}
 
 	var (
-		size         = len(etcd.Status.Members)
+		size         = int(etcd.Spec.Replicas)
 		quorum       = size/2 + 1
 		readyMembers = 0
 	)

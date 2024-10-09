@@ -51,15 +51,6 @@ func (e *DruidError) WithCause(err error) error {
 	return e
 }
 
-// IsRequeueAfterError checks if the given error is of type DruidError and has the given error code.
-func IsRequeueAfterError(err error) bool {
-	druidErr := &DruidError{}
-	if errors.As(err, &druidErr) {
-		return druidErr.Code == ErrRequeueAfter
-	}
-	return false
-}
-
 // New creates a new DruidError with the given error code, operation and message.
 func New(code druidv1alpha1.ErrorCode, operation string, message string) error {
 	return &DruidError{
@@ -105,4 +96,13 @@ func MapToLastErrors(errs []error) []druidv1alpha1.LastError {
 		}
 	}
 	return lastErrs
+}
+
+// AsDruidError returns the given error as a DruidError if it is of type DruidError, otherwise returns nil.
+func AsDruidError(err error) *DruidError {
+	druidErr := &DruidError{}
+	if errors.As(err, &druidErr) {
+		return druidErr
+	}
+	return nil
 }

@@ -443,6 +443,8 @@ const (
 	LastOperationStateSucceeded LastOperationState = "Succeeded"
 	// LastOperationStateError indicates that an operation is completed with errors and will be retried.
 	LastOperationStateError LastOperationState = "Error"
+	// LastOperationStateRequeue indicates that an operation is not completed and either due to an error or unfulfilled conditions will be retried.
+	LastOperationStateRequeue LastOperationState = "Requeue"
 )
 
 // LastOperation holds the information on the last operation done on the Etcd resource.

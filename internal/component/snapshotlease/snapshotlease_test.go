@@ -62,7 +62,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrGetSnapshotLease,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "GetExistingResourceNames",
+				Operation: component.OperationGetExistingResourceNames,
 			},
 		},
 	}
@@ -111,7 +111,7 @@ func TestSyncWhenBackupIsEnabled(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncSnapshotLease,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "Sync",
+				Operation: component.OperationSync,
 			},
 		},
 	}
@@ -156,7 +156,7 @@ func TestSyncWhenBackupHasBeenDisabled(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncSnapshotLease,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "Sync",
+				Operation: component.OperationSync,
 			},
 		},
 	}
@@ -217,7 +217,7 @@ func TestTriggerDelete(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrDeleteSnapshotLease,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "TriggerDelete",
+				Operation: component.OperationTriggerDelete,
 			},
 		},
 	}

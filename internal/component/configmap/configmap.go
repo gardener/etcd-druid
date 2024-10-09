@@ -55,7 +55,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 		}
 		return nil, druiderr.WrapError(err,
 			ErrGetConfigMap,
-			"GetExistingResourceNames",
+			component.OperationGetExistingResourceNames,
 			fmt.Sprintf("Error getting ConfigMap: %v for etcd: %v", objKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	if metav1.IsControlledBy(objMeta, &etcdObjMeta) {
@@ -65,7 +65,9 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 }
 
 // PreSync is a no-op for the configmap component.
-func (r _resource) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error { return nil }
+func (r _resource) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error {
+	return nil
+}
 
 // Sync creates or updates the configmap for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
@@ -76,14 +78,14 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncConfigMap,
-			"Sync",
+			component.OperationSync,
 			fmt.Sprintf("Error during create or update of configmap for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	checkSum, err := computeCheckSum(cm)
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncConfigMap,
-			"Sync",
+			component.OperationSync,
 			fmt.Sprintf("Error when computing CheckSum for configmap for etcd: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	ctx.Data[common.CheckSumKeyConfigMap] = checkSum
@@ -103,7 +105,7 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta meta
 		return druiderr.WrapError(
 			err,
 			ErrDeleteConfigMap,
-			"TriggerDelete",
+			component.OperationTriggerDelete,
 			"Failed to delete configmap",
 		)
 	}
