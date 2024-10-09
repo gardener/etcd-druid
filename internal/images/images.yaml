@@ -13,8 +13,8 @@ images:
   resourceId:
     name: 'etcdbrctl'
   sourceRepository: github.com/gardener/etcd-backup-restore
-  repository: europe-docker.pkg.dev/gardener-project/public/gardener/etcdbrctl
-  tag: "v0.30.1"
+  repository: anveshreddy18/config-map
+  tag: latest
 - name: etcd-wrapper
   sourceRepository: github.com/gardener/etcd-wrapper
   repository: europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper
