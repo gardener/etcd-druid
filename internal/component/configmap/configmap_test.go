@@ -305,12 +305,6 @@ func newConfigMap(g *WithT, etcd *druidv1alpha1.Etcd) *corev1.ConfigMap {
 	return cm
 }
 
-func ensureConfigMapExists(g *WithT, cl client.WithWatch, etcd *druidv1alpha1.Etcd) {
-	cm, err := getLatestConfigMap(cl, etcd)
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(cm).ToNot(BeNil())
-}
-
 func getLatestConfigMap(cl client.Client, etcd *druidv1alpha1.Etcd) (*corev1.ConfigMap, error) {
 	cm := &corev1.ConfigMap{}
 	err := cl.Get(context.Background(), client.ObjectKey{Name: druidv1alpha1.GetConfigMapName(etcd.ObjectMeta), Namespace: etcd.Namespace}, cm)
@@ -359,7 +353,7 @@ func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actu
 	if etcd.Spec.Etcd.ClientUrlTLS != nil {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
 			"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient))),
-			"advertise-client-urls": Equal(fmt.Sprintf("https://%s.%s:%d", druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient))),
+			"advertise-client-urls": Equal(getAdvertiseInterface(etcd, "https")),
 			"client-transport-security": MatchKeys(IgnoreExtras, Keys{
 				"cert-file":        Equal("/var/etcd/ssl/server/tls.crt"),
 				"key-file":         Equal("/var/etcd/ssl/server/tls.key"),
@@ -376,8 +370,29 @@ func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actu
 	}
 }
 
+func getAdvertiseInterface(etcd *druidv1alpha1.Etcd, scheme string) map[string]interface{} {
+	advertiseClientUrls := getAdvertiseClientUrlMap(etcd, scheme, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta))
+	advertiseClientUrlsInterface := make(map[string]interface{}, len(advertiseClientUrls))
+	for k, v := range advertiseClientUrls {
+		advertiseClientUrlsInterface[k] = v
+	}
+	return advertiseClientUrlsInterface
+}
+
+func getAdvertisePeerInterface(etcd *druidv1alpha1.Etcd, scheme string) map[string]interface{} {
+	advertisePeerUrls := getAdvertisePeerUrlsMap(etcd, scheme, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta))
+	advertisePeerUrlsInterface := make(map[string]interface{}, len(advertisePeerUrls))
+	for k, v := range advertisePeerUrls {
+		urlsInterface := make([]interface{}, len(v))
+		for i, url := range v {
+			urlsInterface[i] = url
+		}
+		advertisePeerUrlsInterface[k] = urlsInterface
+	}
+	return advertisePeerUrlsInterface
+}
+
 func matchPeerTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actualETCDConfig map[string]interface{}) {
-	peerSvcName := druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta)
 	if etcd.Spec.Etcd.PeerUrlTLS != nil {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
 			"peer-transport-security": MatchKeys(IgnoreExtras, Keys{
@@ -388,12 +403,12 @@ func matchPeerTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actual
 				"auto-tls":         Equal(false),
 			}),
 			"listen-peer-urls":            Equal(fmt.Sprintf("https://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))),
-			"initial-advertise-peer-urls": Equal(fmt.Sprintf("https://%s.%s:%d", peerSvcName, etcd.Namespace, ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))),
+			"initial-advertise-peer-urls": Equal(getAdvertisePeerInterface(etcd, "https")),
 		}))
 	} else {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
 			"listen-peer-urls":            Equal(fmt.Sprintf("http://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))),
-			"initial-advertise-peer-urls": Equal(fmt.Sprintf("http://%s.%s:%d", peerSvcName, etcd.Namespace, ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))),
+			"initial-advertise-peer-urls": Equal(getAdvertisePeerInterface(etcd, "http")),
 		}))
 		g.Expect(actualETCDConfig).ToNot(HaveKey("peer-transport-security"))
 	}
