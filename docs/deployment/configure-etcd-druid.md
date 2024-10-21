@@ -24,7 +24,7 @@ If you wish to setup `etcd-druid` in high-availability mode then leader election
 | metrics-port         | The port used for the metrics endpoint                       | 8080    |
 | metrics-addr         | Duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped.<br />**Deprecated:** Please use `--metrics-bind-address` and `--metrics-port` instead | ":8080" |
 
-Metrics bind-address is comuted by joining the host and port. By default its value is computed as `:8080`.
+Metrics bind-address is computed by joining the host and port. By default its value is computed as `:8080`.
 
 > NOTE: Ensure that the `metrics-port` is also reflected in the `etcd-druid` deployment specification.
 

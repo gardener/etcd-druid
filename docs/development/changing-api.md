@@ -30,8 +30,3 @@ If field(s) needs to be removed permanently from the API, then one should ensure
 * To allow sufficient time to the end-users to adapt to the API changes, deprecated field(s) should only be removed once the deprecation period is over. It is generally recommended that this be done in 2 stages:
   * *First stage:* Remove the code that refers to the deprecated fields. This ensures that the code no longer has dependency on the deprecated field(s).
   * *Second Stage:* Remove the field from the API.
-
-
-
-
-
