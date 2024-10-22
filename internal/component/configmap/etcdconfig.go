@@ -23,15 +23,15 @@ const (
 	defaultInitialClusterState     = "new"
 	// For more information refer to https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
 	defaultSnapshotCount = int64(75000)
+	commTypePeer         = "peer" // communication type
+	commTypeClient       = "client"
 )
 
 var (
 	defaultDataDir = fmt.Sprintf("%s/new.etcd", common.VolumeMountPathEtcdData)
 )
 
-type advPeerUrls map[string][]string
-
-type advClientUrls map[string]string
+type advertiseURLs map[string][]string
 
 type etcdConfig struct {
 	Name                    string                       `yaml:"name"`
@@ -47,8 +47,8 @@ type etcdConfig struct {
 	AutoCompactionRetention string                       `yaml:"auto-compaction-retention"`
 	ListenPeerUrls          string                       `yaml:"listen-peer-urls"`
 	ListenClientUrls        string                       `yaml:"listen-client-urls"`
-	AdvertisePeerUrls       advPeerUrls                  `yaml:"initial-advertise-peer-urls"`
-	AdvertiseClientUrls     advClientUrls                `yaml:"advertise-client-urls"`
+	AdvertisePeerUrls       advertiseURLs                `yaml:"initial-advertise-peer-urls"`
+	AdvertiseClientUrls     advertiseURLs                `yaml:"advertise-client-urls"`
 	ClientSecurity          securityConfig               `yaml:"client-transport-security,omitempty"`
 	PeerSecurity            securityConfig               `yaml:"peer-transport-security,omitempty"`
 }
@@ -79,8 +79,8 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		AutoCompactionRetention: ptr.Deref(etcd.Spec.Common.AutoCompactionRetention, defaultAutoCompactionRetention),
 		ListenPeerUrls:          fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)),
 		ListenClientUrls:        fmt.Sprintf("%s://0.0.0.0:%d", clientScheme, ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)),
-		AdvertisePeerUrls:       getAdvertisePeerUrlsMap(etcd, peerScheme, peerSvcName),
-		AdvertiseClientUrls:     getAdvertiseClientUrlMap(etcd, clientScheme, peerSvcName),
+		AdvertisePeerUrls:       getAdvertiseUrlsMap(etcd, commTypePeer, peerScheme, peerSvcName),
+		AdvertiseClientUrls:     getAdvertiseUrlsMap(etcd, commTypeClient, clientScheme, peerSvcName),
 	}
 	if peerSecurityConfig != nil {
 		cfg.PeerSecurity = *peerSecurityConfig
@@ -133,20 +133,20 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 	return strings.Trim(builder.String(), ",")
 }
 
-func getAdvertisePeerUrlsMap(etcd *druidv1alpha1.Etcd, peerScheme string, peerSvcName string) advPeerUrls {
-	advPeerUrlsMap := make(map[string][]string)
+func getAdvertiseUrlsMap(etcd *druidv1alpha1.Etcd, commType, scheme, peerSvcName string) advertiseURLs {
+	var port int32
+	switch commType {
+	case commTypePeer:
+		port = ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
+	case commTypeClient:
+		port = ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
+	default:
+		return nil
+	}
+	advUrlsMap := make(map[string][]string)
 	for i := 0; i < int(etcd.Spec.Replicas); i++ {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		advPeerUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", peerScheme, podName, peerSvcName, etcd.Namespace, ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))}
+		advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, peerSvcName, etcd.Namespace, port)}
 	}
-	return advPeerUrlsMap
-}
-
-func getAdvertiseClientUrlMap(etcd *druidv1alpha1.Etcd, clientScheme string, peerSvcName string) advClientUrls {
-	advClientUrlMap := make(map[string]string)
-	for i := 0; i < int(etcd.Spec.Replicas); i++ {
-		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		advClientUrlMap[podName] = fmt.Sprintf("%s://%s.%s.%s.svc:%d", clientScheme, podName, peerSvcName, etcd.Namespace, ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient))
-	}
-	return advClientUrlMap
+	return advUrlsMap
 }
