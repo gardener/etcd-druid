@@ -87,10 +87,10 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		return h.handleDelete(req, etcd)
 	}
 
-	return h.handleUpdate(req, etcd)
+	return h.handleUpdate(req, etcd, partialObjMeta.ObjectMeta)
 }
 
-func (h *Handler) handleUpdate(req admission.Request, etcd *druidv1alpha1.Etcd) admission.Response {
+func (h *Handler) handleUpdate(req admission.Request, etcd *druidv1alpha1.Etcd, objMeta metav1.ObjectMeta) admission.Response {
 	requestGK := util.GetGroupKindFromRequest(req)
 
 	// Leases (member and snapshot) will be periodically updated by etcd members.
@@ -106,7 +106,9 @@ func (h *Handler) handleUpdate(req admission.Request, etcd *druidv1alpha1.Etcd) 
 		if req.UserInfo.Username == h.config.ReconcilerServiceAccount {
 			return admission.Allowed(fmt.Sprintf("ongoing reconciliation of Etcd %s by etcd-druid requires changes to resources", etcd.Name))
 		}
-		return admission.Denied(fmt.Sprintf("no external intervention allowed during ongoing reconciliation of Etcd %s by etcd-druid", etcd.Name))
+		if objMeta.DeletionTimestamp == nil {
+			return admission.Denied(fmt.Sprintf("no external intervention allowed during ongoing reconciliation of Etcd %s by etcd-druid", etcd.Name))
+		}
 	}
 
 	// allow exempt service accounts to make changes to resources, but only if the Etcd is not currently being reconciled.

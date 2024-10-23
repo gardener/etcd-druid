@@ -28,11 +28,11 @@ import (
 func TestIsPeerURLTLSEnabledForAllMembers(t *testing.T) {
 	internalErr := errors.New("fake get internal error")
 	apiInternalErr := apierrors.NewInternalError(internalErr)
-	const etcdReplicas = 3
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(3).WithPeerTLS().Build()
 	testCases := []struct {
 		name                         string
 		numETCDMembersWithTLSEnabled int
-		listErr                      *apierrors.StatusError
+		errors                       []testutils.ErrorsForGVK
 		expectedErr                  *apierrors.StatusError
 		expectedResult               bool
 	}{
@@ -52,8 +52,13 @@ func TestIsPeerURLTLSEnabledForAllMembers(t *testing.T) {
 			expectedResult:               true,
 		},
 		{
-			name:           "should return error when client list call fails",
-			listErr:        apiInternalErr,
+			name: "should return error when client list call fails",
+			errors: []testutils.ErrorsForGVK{
+				{
+					GVK:     coordinationv1.SchemeGroupVersion.WithKind("Lease"),
+					ListErr: apiInternalErr,
+				},
+			},
 			expectedErr:    apiInternalErr,
 			expectedResult: false,
 		},
@@ -66,15 +71,11 @@ func TestIsPeerURLTLSEnabledForAllMembers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var existingObjects []client.Object
-			for _, l := range createLeases(testutils.TestNamespace, testutils.TestEtcdName, etcdReplicas, tc.numETCDMembersWithTLSEnabled) {
+			for _, l := range createLeases(etcd, tc.numETCDMembersWithTLSEnabled) {
 				existingObjects = append(existingObjects, l)
 			}
-			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(nil, tc.listErr, testutils.TestNamespace, map[string]string{
-				druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
-				druidv1alpha1.LabelPartOfKey:    testutils.TestEtcdName,
-				druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
-			}, existingObjects...)
-			tlsEnabled, err := IsPeerURLTLSEnabledForMembers(context.Background(), cl, logger, testutils.TestNamespace, testutils.TestEtcdName, etcdReplicas)
+			cl := testutils.CreateTestFakeClientForObjectsInNamespaceWithGVK(tc.errors, testutils.TestNamespace, existingObjects...)
+			tlsEnabled, err := IsPeerURLInSyncForAllMembers(context.Background(), cl, logger, etcd, etcd.Spec.Replicas)
 			if tc.expectedErr != nil {
 				g.Expect(err).To(Equal(tc.expectedErr))
 			} else {
@@ -84,15 +85,76 @@ func TestIsPeerURLTLSEnabledForAllMembers(t *testing.T) {
 	}
 }
 
-func createLeases(namespace, etcdName string, numLease, withTLSEnabled int) []*coordinationv1.Lease {
-	leases := make([]*coordinationv1.Lease, 0, numLease)
+func TestIsPeerURLTLSDisabledForAllMembers(t *testing.T) {
+	internalErr := errors.New("fake get internal error")
+	apiInternalErr := apierrors.NewInternalError(internalErr)
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(3).Build()
+	testCases := []struct {
+		name                         string
+		numETCDMembersWithTLSEnabled int
+		errors                       []testutils.ErrorsForGVK
+		expectedErr                  *apierrors.StatusError
+		expectedResult               bool
+	}{
+		{
+			name:                         "should return true when all of the members have peer TLS disabled",
+			numETCDMembersWithTLSEnabled: 0,
+			expectedResult:               true,
+		},
+		{
+			name:                         "should return false when one of three still have peer TLS enabled",
+			numETCDMembersWithTLSEnabled: 1,
+			expectedResult:               false,
+		},
+		{
+			name:                         "should return false when none of the members have peer TLS disabled",
+			numETCDMembersWithTLSEnabled: 3,
+			expectedResult:               false,
+		},
+		{
+			name: "should return error when client list call fails",
+			errors: []testutils.ErrorsForGVK{
+				{
+					GVK:     coordinationv1.SchemeGroupVersion.WithKind("Lease"),
+					ListErr: apiInternalErr,
+				},
+			},
+			expectedErr:    apiInternalErr,
+			expectedResult: false,
+		},
+	}
+
+	g := NewWithT(t)
+	t.Parallel()
+	logger := logr.Discard()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var existingObjects []client.Object
+			for _, l := range createLeases(etcd, tc.numETCDMembersWithTLSEnabled) {
+				existingObjects = append(existingObjects, l)
+			}
+			cl := testutils.CreateTestFakeClientForObjectsInNamespaceWithGVK(tc.errors, testutils.TestNamespace, existingObjects...)
+			tlsEnabled, err := IsPeerURLInSyncForAllMembers(context.Background(), cl, logger, etcd, etcd.Spec.Replicas)
+			if tc.expectedErr != nil {
+				g.Expect(err).To(Equal(tc.expectedErr))
+			} else {
+				g.Expect(tlsEnabled).To(Equal(tc.expectedResult))
+			}
+		})
+	}
+}
+
+func createLeases(etcd *druidv1alpha1.Etcd, withTLSEnabled int) []*coordinationv1.Lease {
+	numLeases := int(etcd.Spec.Replicas)
+	leases := make([]*coordinationv1.Lease, 0, numLeases)
 	labels := map[string]string{
 		druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
-		druidv1alpha1.LabelPartOfKey:    etcdName,
+		druidv1alpha1.LabelPartOfKey:    etcd.Name,
 		druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
 	}
 	tlsEnabledCount := 0
-	for i := 0; i < numLease; i++ {
+	for i := 0; i < numLeases; i++ {
 		var annotations map[string]string
 		if tlsEnabledCount < withTLSEnabled {
 			annotations = map[string]string{
@@ -104,10 +166,11 @@ func createLeases(namespace, etcdName string, numLease, withTLSEnabled int) []*c
 		}
 		lease := &coordinationv1.Lease{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:        fmt.Sprintf("%s-%d", etcdName, i),
-				Namespace:   namespace,
-				Annotations: annotations,
-				Labels:      labels,
+				Name:            fmt.Sprintf("%s-%d", etcd.Name, i),
+				Namespace:       etcd.Namespace,
+				Annotations:     annotations,
+				Labels:          labels,
+				OwnerReferences: []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)},
 			},
 		}
 		leases = append(leases, lease)

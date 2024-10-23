@@ -56,7 +56,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrGetClientService,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "GetExistingResourceNames",
+				Operation: component.OperationGetExistingResourceNames,
 			},
 		},
 	}
@@ -106,7 +106,7 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncClientService,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "Sync",
+				Operation: component.OperationSync,
 			},
 		},
 	}
@@ -159,7 +159,7 @@ func TestSyncWhenServiceExists(t *testing.T) {
 			expectedError: &druiderr.DruidError{
 				Code:      ErrSyncClientService,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "Sync",
+				Operation: component.OperationSync,
 			},
 		},
 	}
@@ -211,7 +211,7 @@ func TestTriggerDelete(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrDeleteClientService,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "TriggerDelete",
+				Operation: component.OperationTriggerDelete,
 			},
 			deleteErr: testutils.TestAPIInternalErr,
 		},

@@ -55,7 +55,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 		}
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetServiceAccount,
-			"GetExistingResourceNames",
+			component.OperationGetExistingResourceNames,
 			fmt.Sprintf("Error getting service account: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	if metav1.IsControlledBy(objMeta, &etcdObjMeta) {
@@ -78,7 +78,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncServiceAccount,
-			"Sync",
+			component.OperationSync,
 			fmt.Sprintf("Error during create or update of service account: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)),
 		)
 	}
@@ -97,7 +97,7 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta meta
 		}
 		return druiderr.WrapError(err,
 			ErrDeleteServiceAccount,
-			"TriggerDelete",
+			component.OperationTriggerDelete,
 			fmt.Sprintf("Failed to delete service account: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	ctx.Logger.Info("deleted", "component", "service-account", "objectKey", objectKey)

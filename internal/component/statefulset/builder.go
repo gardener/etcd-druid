@@ -29,7 +29,6 @@ import (
 // defaults
 // -----------------------------------------------------------------------------------------
 const (
-	defaultWrapperPort             int   = 9095
 	defaultMaxBackupsLimitBasedGC  int32 = 7
 	defaultQuota                   int64 = 8 * 1024 * 1024 * 1024 // 8Gi
 	defaultSnapshotMemoryLimit     int64 = 100 * 1024 * 1024      // 100Mi
@@ -70,6 +69,10 @@ type stsBuilder struct {
 	clientPort int32
 	serverPort int32
 	backupPort int32
+	// skipSetOrUpdateForbiddenFields if its true then it will set/update values to fields which are forbidden to be updated for an existing StatefulSet.
+	// Updates to statefulset spec for fields other than 'replicas', 'ordinals', 'template', 'updateStrategy', 'persistentVolumeClaimRetentionPolicy' and 'minReadySeconds' are forbidden.
+	// Only for a new StatefulSet should this be set to true.
+	skipSetOrUpdateForbiddenFields bool
 }
 
 func newStsBuilder(client client.Client,
@@ -78,6 +81,7 @@ func newStsBuilder(client client.Client,
 	replicas int32,
 	useEtcdWrapper bool,
 	imageVector imagevector.ImageVector,
+	skipSetOrUpdateForbiddenFields bool,
 	sts *appsv1.StatefulSet) (*stsBuilder, error) {
 	etcdImage, etcdBackupRestoreImage, initContainerImage, err := utils.GetEtcdImages(etcd, imageVector, useEtcdWrapper)
 	if err != nil {
@@ -88,26 +92,30 @@ func newStsBuilder(client client.Client,
 		return nil, err
 	}
 	return &stsBuilder{
-		client:                 client,
-		logger:                 logger,
-		etcd:                   etcd,
-		replicas:               replicas,
-		useEtcdWrapper:         useEtcdWrapper,
-		provider:               provider,
-		etcdImage:              etcdImage,
-		etcdBackupRestoreImage: etcdBackupRestoreImage,
-		initContainerImage:     initContainerImage,
-		sts:                    sts,
-		clientPort:             ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient),
-		serverPort:             ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer),
-		backupPort:             ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore),
+		client:                         client,
+		logger:                         logger,
+		etcd:                           etcd,
+		replicas:                       replicas,
+		useEtcdWrapper:                 useEtcdWrapper,
+		provider:                       provider,
+		etcdImage:                      etcdImage,
+		etcdBackupRestoreImage:         etcdBackupRestoreImage,
+		initContainerImage:             initContainerImage,
+		sts:                            sts,
+		clientPort:                     ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient),
+		serverPort:                     ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer),
+		backupPort:                     ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore),
+		skipSetOrUpdateForbiddenFields: skipSetOrUpdateForbiddenFields,
 	}, nil
 }
 
 // Build builds the StatefulSet for the given Etcd.
 func (b *stsBuilder) Build(ctx component.OperatorContext) error {
 	b.createStatefulSetObjectMeta()
-	return b.createStatefulSetSpec(ctx)
+	if err := b.createStatefulSetSpec(ctx); err != nil {
+		return fmt.Errorf("[stsBuilder]: error in creating StatefulSet spec: %w", err)
+	}
+	return nil
 }
 
 func (b *stsBuilder) createStatefulSetObjectMeta() {
@@ -128,48 +136,69 @@ func (b *stsBuilder) getStatefulSetLabels() map[string]string {
 }
 
 func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error {
+	err := b.createPodTemplateSpec(ctx)
+	b.sts.Spec.Replicas = ptr.To(b.replicas)
+	b.sts.Spec.UpdateStrategy = defaultUpdateStrategy
+	if err != nil {
+		return err
+	}
+	if !b.skipSetOrUpdateForbiddenFields {
+		b.sts.Spec.Selector = &metav1.LabelSelector{
+			MatchLabels: druidv1alpha1.GetDefaultLabels(b.etcd.ObjectMeta),
+		}
+		b.sts.Spec.PodManagementPolicy = defaultPodManagementPolicy
+		b.sts.Spec.ServiceName = druidv1alpha1.GetPeerServiceName(b.etcd.ObjectMeta)
+		b.sts.Spec.VolumeClaimTemplates = b.getVolumeClaimTemplates()
+	}
+	return nil
+}
+
+func (b *stsBuilder) createPodTemplateSpec(ctx component.OperatorContext) error {
 	podVolumes, err := b.getPodVolumes(ctx)
 	if err != nil {
 		return err
 	}
-
 	backupRestoreContainer, err := b.getBackupRestoreContainer()
 	if err != nil {
 		return err
 	}
-
-	b.sts.Spec = appsv1.StatefulSetSpec{
-		Replicas: ptr.To(b.replicas),
-		Selector: &metav1.LabelSelector{
-			MatchLabels: druidv1alpha1.GetDefaultLabels(b.etcd.ObjectMeta),
-		},
-		PodManagementPolicy:  defaultPodManagementPolicy,
-		UpdateStrategy:       defaultUpdateStrategy,
-		VolumeClaimTemplates: b.getVolumeClaimTemplates(),
-		ServiceName:          druidv1alpha1.GetPeerServiceName(b.etcd.ObjectMeta),
-		Template: corev1.PodTemplateSpec{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels:      utils.MergeMaps(b.etcd.Spec.Labels, b.getStatefulSetLabels()),
-				Annotations: b.getPodTemplateAnnotations(ctx),
+	podTemplateSpec := corev1.PodTemplateSpec{
+		Spec: corev1.PodSpec{
+			HostAliases:           b.getHostAliases(),
+			ServiceAccountName:    druidv1alpha1.GetServiceAccountName(b.etcd.ObjectMeta),
+			ShareProcessNamespace: ptr.To(true),
+			InitContainers:        b.getPodInitContainers(),
+			Containers: []corev1.Container{
+				b.getEtcdContainer(),
+				backupRestoreContainer,
 			},
-			Spec: corev1.PodSpec{
-				HostAliases:           b.getHostAliases(),
-				ServiceAccountName:    druidv1alpha1.GetServiceAccountName(b.etcd.ObjectMeta),
-				ShareProcessNamespace: ptr.To(true),
-				InitContainers:        b.getPodInitContainers(),
-				Containers: []corev1.Container{
-					b.getEtcdContainer(),
-					backupRestoreContainer,
-				},
-				SecurityContext:           b.getPodSecurityContext(),
-				Affinity:                  b.etcd.Spec.SchedulingConstraints.Affinity,
-				TopologySpreadConstraints: b.etcd.Spec.SchedulingConstraints.TopologySpreadConstraints,
-				Volumes:                   podVolumes,
-				PriorityClassName:         ptr.Deref(b.etcd.Spec.PriorityClassName, ""),
-			},
+			SecurityContext:           b.getPodSecurityContext(),
+			Affinity:                  b.etcd.Spec.SchedulingConstraints.Affinity,
+			TopologySpreadConstraints: b.etcd.Spec.SchedulingConstraints.TopologySpreadConstraints,
+			Volumes:                   podVolumes,
+			PriorityClassName:         ptr.Deref(b.etcd.Spec.PriorityClassName, ""),
 		},
 	}
+	podTemplateLabels := b.getStatefulSetPodLabels()
+	selectorMatchesLabels, err := utils.DoesLabelSelectorMatchLabels(b.sts.Spec.Selector, podTemplateLabels)
+	if err != nil {
+		return err
+	}
+	if !selectorMatchesLabels {
+		podTemplateLabels = utils.MergeMaps(podTemplateLabels, b.sts.Spec.Template.Labels)
+	}
+	podTemplateSpec.ObjectMeta = metav1.ObjectMeta{
+		Labels:      podTemplateLabels,
+		Annotations: b.getPodTemplateAnnotations(ctx),
+	}
+	b.sts.Spec.Template = podTemplateSpec
 	return nil
+}
+
+func (b *stsBuilder) getStatefulSetPodLabels() map[string]string {
+	return utils.MergeMaps(
+		b.etcd.Spec.Labels,
+		b.getStatefulSetLabels())
 }
 
 func (b *stsBuilder) getHostAliases() []corev1.HostAlias {
@@ -261,7 +290,7 @@ func (b *stsBuilder) getPodInitContainers() []corev1.Container {
 func (b *stsBuilder) getEtcdContainerVolumeMounts() []corev1.VolumeMount {
 	etcdVolumeMounts := make([]corev1.VolumeMount, 0, 7)
 	etcdVolumeMounts = append(etcdVolumeMounts, b.getEtcdDataVolumeMount())
-	etcdVolumeMounts = append(etcdVolumeMounts, b.getEtcdContainerSecretVolumeMounts()...)
+	etcdVolumeMounts = append(etcdVolumeMounts, getEtcdContainerSecretVolumeMounts(b.etcd)...)
 	return etcdVolumeMounts
 }
 
@@ -274,7 +303,7 @@ func (b *stsBuilder) getBackupRestoreContainerVolumeMounts() []corev1.VolumeMoun
 			MountPath: etcdConfigFileMountPath,
 		},
 	)
-	brVolumeMounts = append(brVolumeMounts, b.getBackupRestoreContainerSecretVolumeMounts()...)
+	brVolumeMounts = append(brVolumeMounts, getBackupRestoreContainerSecretVolumeMounts(b.etcd)...)
 
 	if b.etcd.IsBackupStoreEnabled() {
 		etcdBackupVolumeMount := b.getEtcdBackupVolumeMount()
@@ -285,9 +314,9 @@ func (b *stsBuilder) getBackupRestoreContainerVolumeMounts() []corev1.VolumeMoun
 	return brVolumeMounts
 }
 
-func (b *stsBuilder) getBackupRestoreContainerSecretVolumeMounts() []corev1.VolumeMount {
+func getBackupRestoreContainerSecretVolumeMounts(etcd *druidv1alpha1.Etcd) []corev1.VolumeMount {
 	secretVolumeMounts := make([]corev1.VolumeMount, 0, 3)
-	if b.etcd.Spec.Backup.TLS != nil {
+	if etcd.Spec.Backup.TLS != nil {
 		secretVolumeMounts = append(secretVolumeMounts,
 			corev1.VolumeMount{
 				Name:      common.VolumeNameBackupRestoreServerTLS,
@@ -295,7 +324,7 @@ func (b *stsBuilder) getBackupRestoreContainerSecretVolumeMounts() []corev1.Volu
 			},
 		)
 	}
-	if b.etcd.Spec.Etcd.ClientUrlTLS != nil {
+	if etcd.Spec.Etcd.ClientUrlTLS != nil {
 		secretVolumeMounts = append(secretVolumeMounts,
 			corev1.VolumeMount{
 				Name:      common.VolumeNameEtcdCA,
@@ -466,6 +495,10 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	commandArgs = append(commandArgs, fmt.Sprintf("--snapstore-temp-directory=%s/temp", common.VolumeMountPathEtcdData))
 	commandArgs = append(commandArgs, fmt.Sprintf("--etcd-connection-timeout=%s", defaultEtcdConnectionTimeout))
 	commandArgs = append(commandArgs, "--enable-member-lease-renewal=true")
+	// Enable/Disable use Etcd Wrapper in BackupRestore container. Once `use-etcd-wrapper` feature-gate is GA then this value will always be true.
+	if b.useEtcdWrapper {
+		commandArgs = append(commandArgs, "--use-etcd-wrapper=true")
+	}
 
 	var quota = defaultQuota
 	if b.etcd.Spec.Etcd.Quota != nil {
@@ -657,9 +690,9 @@ func (b *stsBuilder) getPodSecurityContext() *corev1.PodSecurityContext {
 	}
 }
 
-func (b *stsBuilder) getEtcdContainerSecretVolumeMounts() []corev1.VolumeMount {
+func getEtcdContainerSecretVolumeMounts(etcd *druidv1alpha1.Etcd) []corev1.VolumeMount {
 	secretVolumeMounts := make([]corev1.VolumeMount, 0, 6)
-	if b.etcd.Spec.Etcd.ClientUrlTLS != nil {
+	if etcd.Spec.Etcd.ClientUrlTLS != nil {
 		secretVolumeMounts = append(secretVolumeMounts,
 			corev1.VolumeMount{
 				Name:      common.VolumeNameEtcdCA,
@@ -675,7 +708,7 @@ func (b *stsBuilder) getEtcdContainerSecretVolumeMounts() []corev1.VolumeMount {
 			},
 		)
 	}
-	if b.etcd.Spec.Etcd.PeerUrlTLS != nil {
+	if etcd.Spec.Etcd.PeerUrlTLS != nil {
 		secretVolumeMounts = append(secretVolumeMounts,
 			corev1.VolumeMount{
 				Name:      common.VolumeNameEtcdPeerCA,
@@ -687,7 +720,7 @@ func (b *stsBuilder) getEtcdContainerSecretVolumeMounts() []corev1.VolumeMount {
 			},
 		)
 	}
-	if b.etcd.Spec.Backup.TLS != nil {
+	if etcd.Spec.Backup.TLS != nil {
 		secretVolumeMounts = append(secretVolumeMounts,
 			corev1.VolumeMount{
 				Name:      common.VolumeNameBackupRestoreCA,

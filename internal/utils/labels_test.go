@@ -7,6 +7,8 @@ package utils
 import (
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	. "github.com/onsi/gomega"
 )
 
@@ -155,6 +157,135 @@ func TestContainsLabel(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			g.Expect(ContainsLabel(tc.labels, tc.key, tc.value)).To(Equal(tc.expected))
+		})
+	}
+}
+
+func TestDoesLabelSelectorMatchLabels(t *testing.T) {
+	testCases := []struct {
+		name           string
+		labelSelector  *metav1.LabelSelector
+		resourceLabels map[string]string
+		expectedResult bool
+		expectedError  bool
+	}{
+		{
+			name: "label selector matches resource labels",
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			},
+			resourceLabels: map[string]string{
+				"key1": "value1",
+				"key2": "value2",
+			},
+			expectedResult: true,
+			expectedError:  false,
+		},
+		{
+			name: "label selector does not match resource labels",
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			},
+			resourceLabels: map[string]string{
+				"key1": "value1",
+				"key2": "value3",
+			},
+			expectedResult: false,
+			expectedError:  false,
+		},
+		{
+			name: "label selector matches resource labels, where there are more resource labels than label selector MatchLabels",
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			},
+			resourceLabels: map[string]string{
+				"key1": "value1",
+				"key2": "value2",
+				"key3": "value3",
+			},
+			expectedResult: true,
+			expectedError:  false,
+		},
+		{
+			name:          "label selector is nil",
+			labelSelector: nil,
+			resourceLabels: map[string]string{
+				"key1": "value1",
+				"key2": "value2",
+			},
+			expectedResult: true,
+			expectedError:  false,
+		},
+		{
+			name: "resource labels are nil",
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			},
+			resourceLabels: nil,
+			expectedResult: false,
+			expectedError:  false,
+		},
+		{
+			name:          "label selector is empty",
+			labelSelector: &metav1.LabelSelector{MatchLabels: map[string]string{}},
+			resourceLabels: map[string]string{
+				"key1": "value1",
+				"key2": "value2",
+			},
+			expectedResult: true,
+			expectedError:  false,
+		},
+		{
+			name: "resource labels are nil",
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			},
+			resourceLabels: map[string]string{},
+			expectedResult: false,
+			expectedError:  false,
+		},
+		{
+			name:           "both label selector and resource labels are nil",
+			labelSelector:  nil,
+			resourceLabels: nil,
+			expectedResult: true,
+			expectedError:  false,
+		},
+		{
+			name:           "both label selector and resource labels are empty",
+			labelSelector:  &metav1.LabelSelector{MatchLabels: map[string]string{}},
+			resourceLabels: map[string]string{},
+			expectedResult: true,
+			expectedError:  false,
+		},
+	}
+	g := NewWithT(t)
+	t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result, err := DoesLabelSelectorMatchLabels(tc.labelSelector, tc.resourceLabels)
+			if tc.expectedError {
+				g.Expect(err).To(HaveOccurred())
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+			g.Expect(result).To(Equal(tc.expectedResult))
 		})
 	}
 }

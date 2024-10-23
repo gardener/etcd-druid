@@ -304,7 +304,9 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 	env := append(createEnvVarsFromStore(&sourceStore, sourceProvider, "SOURCE_", sourcePrefix), createEnvVarsFromStore(&targetStore, targetProvider, "", "")...)
 
 	// Formulate the job's volume mounts.
-	volumeMounts := append(createVolumeMountsFromStore(&sourceStore, sourceProvider, sourcePrefix, r.Config.FeatureGates[features.UseEtcdWrapper]), createVolumeMountsFromStore(&targetStore, targetProvider, targetPrefix, r.Config.FeatureGates[features.UseEtcdWrapper])...)
+	volumeMounts := append(
+		createVolumeMountsFromStore(&sourceStore, sourceProvider, sourcePrefix, r.Config.FeatureGates[features.UseEtcdWrapper]),
+		createVolumeMountsFromStore(&targetStore, targetProvider, "", r.Config.FeatureGates[features.UseEtcdWrapper])...)
 
 	// Formulate the job's volumes from the source store.
 	sourceVolumes, err := r.createVolumesFromStore(ctx, &sourceStore, task.Namespace, sourceProvider, sourcePrefix)
@@ -313,7 +315,7 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 	}
 
 	// Formulate the job's volumes from the target store.
-	targetVolumes, err := r.createVolumesFromStore(ctx, &targetStore, task.Namespace, targetProvider, targetPrefix)
+	targetVolumes, err := r.createVolumesFromStore(ctx, &targetStore, task.Namespace, targetProvider, "")
 	if err != nil {
 		return nil, err
 	}

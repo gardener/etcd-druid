@@ -5,11 +5,13 @@
 package utils
 
 import (
+	"fmt"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+	"github.com/gardener/etcd-druid/internal/utils"
 
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,7 +25,7 @@ type LastOperationAndLastErrorsRecorder interface {
 	// RecordSuccess records the success of an operation in the Etcd status.
 	RecordSuccess(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType) error
 	// RecordErrors records errors encountered in the last operation in the Etcd status.
-	RecordErrors(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType, description string, errs ...error) error
+	RecordErrors(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType, operationResult ReconcileStepResult) error
 }
 
 // NewLastOperationAndLastErrorsRecorder returns a new LastOperationAndLastErrorsRecorder.
@@ -70,10 +72,11 @@ func (l *lastOpErrRecorder) RecordSuccess(ctx component.OperatorContext, etcdObj
 	return l.recordLastOperationAndErrors(ctx, etcdObjectKey, operationType, druidv1alpha1.LastOperationStateSucceeded, description)
 }
 
-func (l *lastOpErrRecorder) RecordErrors(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType, description string, errs ...error) error {
-	description += " Operation will be retried."
-	lastErrors := druiderr.MapToLastErrors(errs)
-	return l.recordLastOperationAndErrors(ctx, etcdObjectKey, operationType, druidv1alpha1.LastOperationStateError, description, lastErrors...)
+func (l *lastOpErrRecorder) RecordErrors(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType, operationResult ReconcileStepResult) error {
+	description := fmt.Sprintf("%s Operation will be retried.", operationResult.description)
+	lastErrors := druiderr.MapToLastErrors(operationResult.GetErrors())
+	lastOpState := utils.IfConditionOr(operationResult.HasErrors(), druidv1alpha1.LastOperationStateError, druidv1alpha1.LastOperationStateRequeue)
+	return l.recordLastOperationAndErrors(ctx, etcdObjectKey, operationType, lastOpState, description, lastErrors...)
 }
 
 func (l *lastOpErrRecorder) recordLastOperationAndErrors(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, operationType druidv1alpha1.LastOperationType, operationState druidv1alpha1.LastOperationState, description string, lastErrors ...druidv1alpha1.LastError) error {
