@@ -91,6 +91,10 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 }
 
 func (h *Handler) handleUpdate(req admission.Request, etcd *druidv1alpha1.Etcd, objMeta metav1.ObjectMeta) admission.Response {
+	if req.UserInfo.Username == h.config.ReconcilerServiceAccount {
+		return admission.Allowed("updation of managed resources by etcd-druid is allowed")
+	}
+
 	requestGK := util.GetGroupKindFromRequest(req)
 
 	// Leases (member and snapshot) will be periodically updated by etcd members.
@@ -101,24 +105,18 @@ func (h *Handler) handleUpdate(req admission.Request, etcd *druidv1alpha1.Etcd, 
 		}
 	}
 
-	// allow operations on resources if the Etcd is currently being reconciled, but only by etcd-druid.
-	if etcd.IsReconciliationInProgress() {
-		if req.UserInfo.Username == h.config.ReconcilerServiceAccount {
-			return admission.Allowed(fmt.Sprintf("ongoing reconciliation of Etcd %s by etcd-druid requires changes to resources", etcd.Name))
+	// allow exempt service accounts to make changes to resources, but only if the Etcd is not currently being reconciled,
+	// or if it is currently being reconciled and the resource is already marked for deletion, such as orphan-deleted statefulsets.
+	if isServiceAccountExempted(req.UserInfo.Username, h.config.ExemptServiceAccounts) {
+		if !etcd.IsReconciliationInProgress() {
+			return admission.Allowed(fmt.Sprintf("operations on resources by exempt service account %s are allowed", req.UserInfo.Username))
 		}
-		if objMeta.DeletionTimestamp == nil {
-			return admission.Denied(fmt.Sprintf("no external intervention allowed during ongoing reconciliation of Etcd %s by etcd-druid", etcd.Name))
-		}
-	}
-
-	// allow exempt service accounts to make changes to resources, but only if the Etcd is not currently being reconciled.
-	for _, sa := range h.config.ExemptServiceAccounts {
-		if req.UserInfo.Username == sa {
-			return admission.Allowed(fmt.Sprintf("operations on Etcd %s by service account %s is exempt from EtcdComponents Webhook checks", etcd.Name, sa))
+		if objMeta.DeletionTimestamp != nil {
+			return admission.Allowed(fmt.Sprintf("deletion of resource by exempt service account %s is allowed during ongoing reconciliation of Etcd %s, since deletion timestamp is set on the resource", req.UserInfo.Username, etcd.Name))
 		}
 	}
 
-	return admission.Denied(fmt.Sprintf("changes disallowed, since no ongoing processing of Etcd %s by etcd-druid", etcd.Name))
+	return admission.Denied(fmt.Sprintf("changes from service account %s are disallowed at the moment", req.UserInfo.Username))
 }
 
 func (h *Handler) handleDelete(req admission.Request, etcd *druidv1alpha1.Etcd) admission.Response {
@@ -158,4 +156,8 @@ func (h *Handler) getParentEtcdObj(ctx context.Context, partialObjMeta *metav1.P
 func isObjManagedByDruid(objMeta metav1.ObjectMeta) bool {
 	managedBy, hasLabel := objMeta.GetLabels()[druidv1alpha1.LabelManagedByKey]
 	return hasLabel && managedBy == druidv1alpha1.LabelManagedByValue
+}
+
+func isServiceAccountExempted(serviceAccount string, exemptedServiceAccounts []string) bool {
+	return slices.Contains(exemptedServiceAccounts, serviceAccount)
 }
