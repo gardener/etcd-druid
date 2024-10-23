@@ -198,10 +198,7 @@ func (b *stsBuilder) createPodTemplateSpec(ctx component.OperatorContext) error 
 func (b *stsBuilder) getStatefulSetPodLabels() map[string]string {
 	return utils.MergeMaps(
 		b.etcd.Spec.Labels,
-		b.getStatefulSetLabels(),
-		map[string]string{
-			druidv1alpha1.LabelEtcdClusterSizeKey: strconv.Itoa(int(b.etcd.Spec.Replicas)),
-		})
+		b.getStatefulSetLabels())
 }
 
 func (b *stsBuilder) getHostAliases() []corev1.HostAlias {
