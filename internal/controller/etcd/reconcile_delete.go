@@ -108,7 +108,7 @@ func (r *Reconciler) recordIncompleteDeletionOperation(ctx component.OperatorCon
 	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjKey, etcdObjMeta); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
-	if err := r.lastOpErrRecorder.RecordErrors(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeDelete, exitReconcileStepResult.GetDescription(), exitReconcileStepResult.GetErrors()...); err != nil {
+	if err := r.lastOpErrRecorder.RecordErrors(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeDelete, exitReconcileStepResult); err != nil {
 		logger.Error(err, "failed to record last operation and last errors for etcd deletion")
 		return ctrlutils.ReconcileWithError(err)
 	}

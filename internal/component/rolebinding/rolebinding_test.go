@@ -52,7 +52,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrGetRoleBinding,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "GetExistingResourceNames",
+				Operation: component.OperationGetExistingResourceNames,
 			},
 		},
 	}
@@ -98,7 +98,7 @@ func TestSync(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrSyncRoleBinding,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "Sync",
+				Operation: component.OperationSync,
 			},
 		},
 	}
@@ -147,7 +147,7 @@ func TestTriggerDelete(t *testing.T) {
 			expectedErr: &druiderr.DruidError{
 				Code:      ErrDeleteRoleBinding,
 				Cause:     testutils.TestAPIInternalErr,
-				Operation: "TriggerDelete",
+				Operation: component.OperationTriggerDelete,
 			},
 		},
 		{

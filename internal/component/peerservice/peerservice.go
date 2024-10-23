@@ -54,7 +54,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 		}
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetPeerService,
-			"GetExistingResourceNames",
+			component.OperationGetExistingResourceNames,
 			fmt.Sprintf("Error getting peer service: %s for etcd: %v", svcObjectKey.Name, druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}
 	if metav1.IsControlledBy(objMeta, &etcdObjMeta) {
@@ -77,7 +77,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncPeerService,
-			"Sync",
+			component.OperationSync,
 			fmt.Sprintf("Error during create or update of peer service: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)),
 		)
 	}
@@ -97,7 +97,7 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta meta
 		return druiderr.WrapError(
 			err,
 			ErrDeletePeerService,
-			"TriggerDelete",
+			component.OperationTriggerDelete,
 			fmt.Sprintf("Failed to delete peer service: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)),
 		)
 	}
