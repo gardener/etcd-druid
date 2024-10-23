@@ -13,6 +13,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// constants for common operations that an Operator can perform. This is used across components to provide context when reporting error.
+// However, it can also be used where ever operation context is required to be specified.
+// Each component can in turn define their own fine-grained operation labels as well.
+const (
+	// OperationSync is the Sync operation of the Operator.
+	OperationSync = "Sync"
+	// OperationTriggerDelete is the TriggerDelete operation of the Operator.
+	OperationTriggerDelete = "TriggerDelete"
+	// OperationGetExistingResourceNames is the GetExistingResourceNames operation of the Operator.
+	OperationGetExistingResourceNames = "GetExistingResourceNames"
+)
+
 // OperatorContext holds the underline context.Context along with additional data that needs to be passed from one reconcile-step to another in a multistep reconciliation run.
 type OperatorContext struct {
 	context.Context

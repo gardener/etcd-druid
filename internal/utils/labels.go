@@ -4,6 +4,11 @@
 
 package utils
 
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+)
+
 // ContainsAllDesiredLabels checks if the actual map contains all the desired labels.
 func ContainsAllDesiredLabels(actual, desired map[string]string) bool {
 	for key, desiredValue := range desired {
@@ -19,4 +24,16 @@ func ContainsAllDesiredLabels(actual, desired map[string]string) bool {
 func ContainsLabel(actual map[string]string, key, value string) bool {
 	actualValue, ok := actual[key]
 	return ok && actualValue == value
+}
+
+// DoesLabelSelectorMatchLabels checks if the given label selector matches the given labels.
+func DoesLabelSelectorMatchLabels(labelSelector *metav1.LabelSelector, resourceLabels map[string]string) (bool, error) {
+	if labelSelector == nil {
+		return true, nil
+	}
+	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
+	if err != nil {
+		return false, err
+	}
+	return selector.Matches(labels.Set(resourceLabels)), nil
 }

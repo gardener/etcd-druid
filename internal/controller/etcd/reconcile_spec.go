@@ -92,8 +92,8 @@ func (r *Reconciler) preSyncEtcdResources(ctx component.OperatorContext, etcdObj
 	for _, kind := range resourceOperators {
 		op := r.operatorRegistry.GetOperator(kind)
 		if err := op.PreSync(ctx, etcd); err != nil {
-			if druiderr.IsRequeueAfterError(err) {
-				ctx.Logger.Info("retrying pre-sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String())
+			if derr := druiderr.AsDruidError(err); derr != nil && derr.Code == druiderr.ErrRequeueAfter {
+				ctx.Logger.Info("retrying pre-sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String(), "reason", derr.Message)
 				return ctrlutils.ReconcileAfter(syncRetryInterval, fmt.Sprintf("requeueing pre-sync of component %s to be retried after %s", kind, syncRetryInterval.String()))
 			}
 			ctx.Logger.Error(err, "failed to sync etcd resource", "kind", kind)
@@ -112,8 +112,8 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey
 	for _, kind := range resourceOperators {
 		op := r.operatorRegistry.GetOperator(kind)
 		if err := op.Sync(ctx, etcd); err != nil {
-			if druiderr.IsRequeueAfterError(err) {
-				ctx.Logger.Info("retrying sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String())
+			if derr := druiderr.AsDruidError(err); derr != nil && derr.Code == druiderr.ErrRequeueAfter {
+				ctx.Logger.Info("retrying sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String(), "reason", derr.Message)
 				return ctrlutils.ReconcileAfter(syncRetryInterval, fmt.Sprintf("retrying sync of component %s after %s", kind, syncRetryInterval.String()))
 			}
 			ctx.Logger.Error(err, "failed to sync etcd resource", "kind", kind)
@@ -155,7 +155,7 @@ func (r *Reconciler) recordReconcileSuccessOperation(ctx component.OperatorConte
 }
 
 func (r *Reconciler) recordIncompleteReconcileOperation(ctx component.OperatorContext, etcdObjKey client.ObjectKey, exitReconcileStepResult ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {
-	if err := r.lastOpErrRecorder.RecordErrors(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeReconcile, exitReconcileStepResult.GetDescription(), exitReconcileStepResult.GetErrors()...); err != nil {
+	if err := r.lastOpErrRecorder.RecordErrors(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeReconcile, exitReconcileStepResult); err != nil {
 		ctx.Logger.Error(err, "failed to record last operation and last errors for etcd reconciliation")
 		return ctrlutils.ReconcileWithError(err)
 	}
@@ -214,9 +214,7 @@ func (r *Reconciler) recordEtcdSpecReconcileSuspension(etcd *druidv1alpha1.Etcd,
 }
 
 func (r *Reconciler) getOrderedOperatorsForPreSync() []component.Kind {
-	return []component.Kind{
-		component.StatefulSetKind,
-	}
+	return []component.Kind{}
 }
 
 func (r *Reconciler) getOrderedOperatorsForSync() []component.Kind {

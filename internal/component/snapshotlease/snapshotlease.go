@@ -54,7 +54,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 	if err != nil {
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetSnapshotLease,
-			"GetExistingResourceNames",
+			component.OperationGetExistingResourceNames,
 			fmt.Sprintf("Error getting delta snapshot lease: %v for etcd: %v", deltaSnapshotObjectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)),
 		)
 	}
@@ -66,7 +66,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 	if err != nil {
 		return resourceNames, druiderr.WrapError(err,
 			ErrGetSnapshotLease,
-			"GetExistingResourceNames",
+			component.OperationGetExistingResourceNames,
 			fmt.Sprintf("Error getting full snapshot lease: %v for etcd: %v", fullSnapshotObjectKey, druidv1alpha1.GetNamespaceName(etcdObjMeta)),
 		)
 	}
@@ -87,7 +87,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 		return r.deleteAllSnapshotLeases(ctx, etcd.ObjectMeta, func(err error) error {
 			return druiderr.WrapError(err,
 				ErrSyncSnapshotLease,
-				"Sync",
+				component.OperationSync,
 				fmt.Sprintf("Failed to delete existing snapshot leases (due to backup being disabled for etcd) due to reason: %v", druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 		})
 	}
@@ -112,7 +112,7 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta meta
 	if err := r.deleteAllSnapshotLeases(ctx, etcdObjMeta, func(err error) error {
 		return druiderr.WrapError(err,
 			ErrDeleteSnapshotLease,
-			"TriggerDelete",
+			component.OperationTriggerDelete,
 			fmt.Sprintf("Failed to delete snapshot leases for etcd: %v", druidv1alpha1.GetNamespaceName(etcdObjMeta)))
 	}); err != nil {
 		return err
@@ -152,7 +152,7 @@ func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncSnapshotLease,
-			"Sync",
+			component.OperationSync,
 			fmt.Sprintf("Error syncing snapshot lease: %v for etcd: %v", leaseObjectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	ctx.Logger.Info("triggered create or update of snapshot lease", "objectKey", leaseObjectKey, "operationResult", opResult)
