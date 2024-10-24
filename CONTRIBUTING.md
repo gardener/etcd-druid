@@ -1,1 +1,1 @@
-Please refer to the [Gardener contributor guide](https://gardener.cloud/docs/contribute).
+Please refer to the [etcd-druid contributor guide](docs/development/contribution.md).

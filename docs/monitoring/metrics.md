@@ -78,8 +78,3 @@ The following list metrics is applicable to clustering of a multi-node etcd clus
 ## Prometheus supplied metrics
 
 The Prometheus client library provides a number of metrics under the `go` and `process` namespaces.
-
-[glossary-proposal]: learning/glossary.md#proposal
-[prometheus]: http://prometheus.io/
-[prometheus-getting-started]: http://prometheus.io/docs/introduction/getting_started/
-[prometheus-naming]: http://prometheus.io/docs/practices/naming/

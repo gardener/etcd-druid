@@ -33,7 +33,8 @@ The following tables are a summary of the feature gates that you can set on etcd
 ## Using a Feature
 
 A feature can be in *Alpha*, *Beta* or *GA* stage.
-An *Alpha* feature means:
+
+### Alpha feature
 
 * Disabled by default.
 * Might be buggy. Enabling the feature may expose bugs.
@@ -42,7 +43,7 @@ An *Alpha* feature means:
 * Recommended for use only in short-lived testing clusters, due to increased
   risk of bugs and lack of long-term support.
 
-A *Beta* feature means:
+### Beta feature
 
 * Enabled by default.
 * The feature is well tested. Enabling the feature is considered safe.
@@ -58,7 +59,9 @@ A *Beta* feature means:
 > Please do try *Beta* features and give feedback on them!
 > After they exit beta, it may not be practical for us to make more changes.
 
-A *General Availability* (GA) feature is also referred to as a *stable* feature. It means:
+### General Availability (GA) feature
+
+This is also referred to as a *stable* feature which should have the following characteristics:
 
 * The feature is always enabled; you cannot disable it.
 * The corresponding feature gate is no longer needed.

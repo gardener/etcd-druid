@@ -15,9 +15,9 @@ PLATFORM            ?= $(shell docker info --format '{{.OSType}}/{{.Architecture
 BUILD_DIR           := build
 PROVIDERS           := ""
 BUCKET_NAME         := "e2e-test"
-KUBECONFIG_PATH     := $(HACK_DIR)/e2e-test/infrastructure/kind/kubeconfig
-TEST_COVER          := "true"
 IMG                 ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
+TEST_COVER          := "true"
+KUBECONFIG_PATH     := $(HACK_DIR)/kind/kubeconfig
 
 # Tools
 # -------------------------------------------------------------------------
@@ -123,7 +123,7 @@ test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
 	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
 .PHONY: ci-e2e-kind
-ci-e2e-kind: $(GINKGO)
+ci-e2e-kind: $(GINKGO) $(YQ) $(KIND)
 	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind.sh
 
 .PHONY: ci-e2e-kind-azure
@@ -165,12 +165,12 @@ kind-up kind-down ci-e2e-kind ci-e2e-kind-azure deploy-localstack deploy-azurite
 
 .PHONY: kind-up
 kind-up: $(KIND)
-	@printf "\n\033[0;33m📌 NOTE: To target the newly created KinD cluster, please run the following command:\n\n    export KUBECONFIG=$(KUBECONFIG_PATH)\n\033[0m\n"
 	@$(HACK_DIR)/kind-up.sh
+	@printf "\n\033[0;33m📌 NOTE: To target the newly created KinD cluster, please run the following command:\n\n    export KUBECONFIG=$(KUBECONFIG_PATH)\n\033[0m\n"
 
 .PHONY: kind-down
 kind-down: $(KIND)
-	$(KIND) delete cluster --name etcd-druid-e2e
+	@$(HACK_DIR)/kind-down.sh
 
 # Install CRDs into a cluster
 .PHONY: install

@@ -23,6 +23,7 @@ GO_ADD_LICENSE             := $(TOOLS_BIN_DIR)/addlicense
 GO_APIDIFF                 := $(TOOLS_BIN_DIR)/go-apidiff
 GOTESTFMT 	   	 		   := $(TOOLS_BIN_DIR)/gotestfmt
 GOIMPORTS_REVISER          := $(TOOLS_BIN_DIR)/goimports-reviser
+YQ						   := $(TOOLS_BIN_DIR)/yq
 
 # default tool versions
 SKAFFOLD_VERSION := v2.13.0
@@ -39,6 +40,7 @@ GO_ADD_LICENSE_VERSION ?= v1.1.1
 GO_APIDIFF_VERSION ?= v0.8.2
 GOTESTFMT_VERSION ?= v2.5.0
 GOIMPORTS_REVISER_VERSION ?= v3.6.5
+YQ_VERSION ?= v4.44.3
 
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
@@ -88,6 +90,11 @@ $(SKAFFOLD):
 $(KIND):
 	curl -Lo $(KIND) https://kind.sigs.k8s.io/dl/$(KIND_VERSION)/kind-$(SYSTEM_NAME)-$(SYSTEM_ARCH)
 	chmod +x $(KIND)
+
+$(YQ):
+	curl -Lo $(YQ) https://github.com/mikefarah/yq/releases/download/$(YQ_VERSION)/yq_$(SYSTEM_NAME)_$(SYSTEM_ARCH)
+	chmod +x $(YQ)
+
 $(HELM):
 	curl -sSfL https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | HELM_INSTALL_DIR=$(TOOLS_BIN_DIR) USE_SUDO=false bash -s -- --version $(HELM_VERSION)
 

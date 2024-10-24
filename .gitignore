@@ -1,6 +1,7 @@
 /args
 /bin
 /hack/tools/bin
+/hack/kind/*
 /.kube-secrets
 /tmp/*
 /dev

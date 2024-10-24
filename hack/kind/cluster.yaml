@@ -15,6 +15,9 @@ nodes:
     protocol: TCP
   - containerPort: 10000
     hostPort: 10000
+    # container registry
+  - containerPort: 5001
+    hostPort: 5001
     # optional: set the bind address on the host
     # 0.0.0.0 is the current default
     listenAddress: "127.0.0.1"

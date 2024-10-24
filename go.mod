@@ -12,11 +12,8 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/ironcore-dev/vgopath v0.1.4
-	github.com/onsi/ginkgo/v2 v2.19.0
-	github.com/onsi/gomega v1.33.1
 	github.com/prometheus/client_golang v1.18.0
 	github.com/spf13/pflag v1.0.5
-	go.uber.org/mock v0.4.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20240707233637-46b078467d37
 	gopkg.in/yaml.v2 v2.4.0
@@ -29,6 +26,13 @@ require (
 	sigs.k8s.io/controller-runtime v0.17.5
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20231015215740-bf15e44028f9 // v0.16.3
 	sigs.k8s.io/controller-tools v0.14.0
+)
+
+// Test-Only dependencies
+require (
+	github.com/onsi/ginkgo/v2 v2.19.0
+	github.com/onsi/gomega v1.33.1
+	go.uber.org/mock v0.4.0
 )
 
 require (
