@@ -48,11 +48,12 @@ const (
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.ready`
 // +kubebuilder:printcolumn:name="Quorate",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
 // +kubebuilder:printcolumn:name="All Members Ready",type=string,JSONPath=`.status.conditions[?(@.type=="AllMembersReady")].status`
-// +kubebuilder:printcolumn:name="Backup Ready",type=string,JSONPath=`.status.conditions[?(@.type=="BackupReady")].status`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-// +kubebuilder:printcolumn:name="Cluster Size",type=integer,JSONPath=`.spec.replicas`,priority=1
 // +kubebuilder:printcolumn:name="Current Replicas",type=integer,JSONPath=`.status.currentReplicas`,priority=1
 // +kubebuilder:printcolumn:name="Ready Replicas",type=integer,JSONPath=`.status.readyReplicas`,priority=1
+// +kubebuilder:printcolumn:name="Backup Ready",type=string,JSONPath=`.status.conditions[?(@.type=="BackupReady")].status`
+// +kubebuilder:printcolumn:name="Full Backup Ready",type=string,JSONPath=`.status.conditions[?(@.type=="FullSnapshotBackupReady")].status`
+// +kubebuilder:printcolumn:name="Delta Backup Ready",type=string,JSONPath=`.status.conditions[?(@.type=="DeltaSnapshotBackupReady")].status`
 
 // Etcd is the Schema for the etcds API
 type Etcd struct {
@@ -320,6 +321,10 @@ const (
 	ConditionTypeAllMembersReady ConditionType = "AllMembersReady"
 	// ConditionTypeBackupReady is a constant for a condition type indicating that the etcd backup is ready.
 	ConditionTypeBackupReady ConditionType = "BackupReady"
+	// ConditionTypeFullSnapshotBackupReady is a constant for a condition type indicating that the full snapshot backup is ready.
+	ConditionTypeFullSnapshotBackupReady ConditionType = "FullSnapshotBackupReady"
+	// ConditionTypeDeltaSnapshotBackupReady is a constant for a condition type indicating that the delta snapshot backup is ready.
+	ConditionTypeDeltaSnapshotBackupReady ConditionType = "DeltaSnapshotBackupReady"
 	// ConditionTypeDataVolumesReady is a constant for a condition type indicating that the etcd data volumes are ready.
 	ConditionTypeDataVolumesReady ConditionType = "DataVolumesReady"
 )
@@ -374,10 +379,6 @@ type EtcdStatus struct {
 	// Conditions represents the latest available observations of an etcd's current state.
 	// +optional
 	Conditions []Condition `json:"conditions,omitempty"`
-	// ServiceName is the name of the etcd service.
-	// Deprecated: this field will be removed in the future.
-	// +optional
-	ServiceName *string `json:"serviceName,omitempty"`
 	// LastError represents the last occurred error.
 	// Deprecated: Use LastErrors instead.
 	// +optional
@@ -388,10 +389,6 @@ type EtcdStatus struct {
 	// LastOperation indicates the last operation performed on this resource.
 	// +optional
 	LastOperation *LastOperation `json:"lastOperation,omitempty"`
-	// Cluster size is the current size of the etcd cluster.
-	// Deprecated: this field will not be populated with any value and will be removed in the future.
-	// +optional
-	ClusterSize *int32 `json:"clusterSize,omitempty"`
 	// CurrentReplicas is the current replica count for the etcd cluster.
 	// +optional
 	CurrentReplicas int32 `json:"currentReplicas,omitempty"`
@@ -404,15 +401,6 @@ type EtcdStatus struct {
 	// Ready is `true` if all etcd replicas are ready.
 	// +optional
 	Ready *bool `json:"ready,omitempty"`
-	// UpdatedReplicas is the count of updated replicas in the etcd cluster.
-	// Deprecated: this field will be removed in the future.
-	// +optional
-	UpdatedReplicas int32 `json:"updatedReplicas,omitempty"`
-	// LabelSelector is a label query over pods that should match the replica count.
-	// It must match the pod template's labels.
-	// Deprecated: this field will be removed in the future.
-	// +optional
-	LabelSelector *metav1.LabelSelector `json:"labelSelector,omitempty"`
 	// Members represents the members of the etcd cluster
 	// +optional
 	Members []EtcdMemberStatus `json:"members,omitempty"`

@@ -225,18 +225,7 @@ func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, e
 		if len(etcd.Status.Conditions) == 0 {
 			return fmt.Errorf("etcd %s status conditions is empty", etcd.Name)
 		}
-
-		for _, c := range etcd.Status.Conditions {
-			// skip BackupReady status check if etcd.Spec.Backup.Store is not configured.
-			if etcd.Spec.Backup.Store == nil && c.Type == v1alpha1.ConditionTypeBackupReady {
-				continue
-			}
-			if c.Status != v1alpha1.ConditionTrue {
-				return fmt.Errorf("etcd %q status %q condition %s is not True",
-					etcd.Name, c.Type, c.Status)
-			}
-		}
-		return nil
+		return checkEtcdConditions(etcd)
 	}, timeout, pollingInterval).Should(BeNil())
 	logger.Info("etcd is ready")
 
@@ -316,4 +305,27 @@ func purgeEtcdPVCs(ctx context.Context, cl client.Client, etcdName string) {
 		},
 		DeleteOptions: delOptions,
 	}))).ShouldNot(HaveOccurred())
+}
+
+func checkEtcdConditions(etcd *v1alpha1.Etcd) error {
+	backupEnabled := etcd.Spec.Backup.Store != nil
+	for _, condition := range etcd.Status.Conditions {
+		// determine if backup conditions need to be checked
+		// skip BackupReady, FullSnapshotBackupReady & DeltaSnapshotBackupReady status checks if etcd.Spec.Backup.Store is not configured.
+		if !backupEnabled && isBackupCondition(condition.Type) {
+			continue
+		}
+		// return an error if any condition is not true
+		if condition.Status != v1alpha1.ConditionTrue {
+			return fmt.Errorf("etcd %q has a %q condition that is not True: status %s", etcd.Name, condition.Type, condition.Status)
+		}
+	}
+	return nil
+}
+
+// isBackupCondition checks if the condition type refers to backups health
+func isBackupCondition(conditionType v1alpha1.ConditionType) bool {
+	return conditionType == v1alpha1.ConditionTypeBackupReady ||
+		conditionType == v1alpha1.ConditionTypeFullSnapshotBackupReady ||
+		conditionType == v1alpha1.ConditionTypeDeltaSnapshotBackupReady
 }

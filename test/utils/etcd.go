@@ -133,7 +133,6 @@ func (eb *EtcdBuilder) WithReadyStatus() *EtcdBuilder {
 		ReadyReplicas:   eb.etcd.Spec.Replicas,
 		Replicas:        eb.etcd.Spec.Replicas,
 		CurrentReplicas: eb.etcd.Spec.Replicas,
-		UpdatedReplicas: eb.etcd.Spec.Replicas,
 		Ready:           ptr.To(true),
 		Members:         members,
 		Conditions: []druidv1alpha1.Condition{
