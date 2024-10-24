@@ -371,7 +371,7 @@ func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actu
 }
 
 func getAdvertiseURLsInterface(etcd *druidv1alpha1.Etcd, commType, scheme string) map[string]interface{} {
-	advertiseUrlsMap := getAdvertiseUrlsMap(etcd, commType, scheme, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta))
+	advertiseUrlsMap := getAdvertiseURLs(etcd, commType, scheme, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta))
 	advertiseUrlsInterface := make(map[string]interface{}, len(advertiseUrlsMap))
 	for podName, urlList := range advertiseUrlsMap {
 		urlsListInterface := make([]interface{}, len(urlList))
