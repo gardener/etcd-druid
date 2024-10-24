@@ -44,7 +44,7 @@ if ${TEST_COVER:-false}; then
   output_dir=test/output
   coverprofile_file=coverprofile.out
   mkdir -p test/output
-  ginkgo $GINKGO_COMMON_FLAGS --coverprofile ${coverprofile_file} -covermode=set -outputdir ${output_dir} $@
+  ginkgo $GINKGO_COMMON_FLAGS --coverprofile ${coverprofile_file} -covermode=set -output-dir ${output_dir} $@
   ${SED_BIN} -i '/mode: set/d' ${output_dir}/${coverprofile_file}
   {( echo "mode: set"; cat ${output_dir}/${coverprofile_file} )} > ${output_dir}/${coverprofile_file}.temp
   mv ${output_dir}/${coverprofile_file}.temp ${output_dir}/${coverprofile_file}
