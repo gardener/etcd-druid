@@ -1,6 +1,6 @@
 # Etcd Cluster Resource Protection
 
-`etcd-druid` provisions [kubernetes resources (a.k.a components)](etcd-cluster-components.md) for each `Etcd` cluster. Lifecycle of all of these components is managed by etcd-druid. To ensure that each component's specification is in line with the configured attributes defined in `Etcd` custom resource and to protect unintended changes done to any of these *managed components* a [Validating Webhook](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/) is employed.
+`etcd-druid` provisions and manages [kubernetes resources (a.k.a components)](etcd-cluster-components.md) for each `Etcd` cluster. To ensure that each component's specification is in line with the configured attributes defined in `Etcd` custom resource and to protect unintended changes done to any of these *managed components* a [Validating Webhook](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/) is employed.
 
 [Etcd Components Webhook](https://github.com/gardener/etcd-druid/tree/55efca1c8f6c852b0a4e97f08488ffec2eed0e68/internal/webhook/etcdcomponents) is the *validating webhook* which prevents unintended *UPDATE* and *DELETE* operations on all managed resources. Following sections describe what is prohibited and in which specific conditions the changes are permitted.
 

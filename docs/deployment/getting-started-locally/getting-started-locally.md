@@ -84,7 +84,7 @@ This means that when a goroutine is paused on a breakpoint, then all the other g
 
 > **Note:** This section is ***Optional*** and is only meant to describe steps to deploy a local object store which can be used for testing and development. If you either do not wish to enable backups or you wish to use remote (infra-provider-specific) object store then this section can be skipped.
 
-An `Etcd` cluster provisioned via etcd-druid provides a capability to take regular delta and full snapshots and stored them in an object store. You can enable this functionality by ensuring that you fill in [spec.backup.store](https://github.com/gardener/etcd-druid/blob/3383e0219a6c21c6ef1d5610db964cc3524807c8/config/samples/druid_v1alpha1_etcd.yaml#L49-L54) section of the `Etcd` CR. 
+An `Etcd` cluster provisioned via etcd-druid provides a capability to take regular delta and full snapshots which are stored in an object store. You can enable this functionality by ensuring that you fill in [spec.backup.store](https://github.com/gardener/etcd-druid/blob/3383e0219a6c21c6ef1d5610db964cc3524807c8/config/samples/druid_v1alpha1_etcd.yaml#L49-L54) section of the `Etcd` CR. 
 
 | Backup Store Variant          | Setup Guide                                                |
 | ----------------------------- | ---------------------------------------------------------- |
@@ -99,7 +99,7 @@ A Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret/)
 
 > **<u>Note</u>:**
 >
-> * Secret should be deployed in the same namespace as `etcd-druid` deployment.
+> * Secret should be deployed in the same namespace as the `Etcd` resource.
 > * All the values in the data field of the secret YAML should in `base64` encoded format.
 
 To apply the secret run:

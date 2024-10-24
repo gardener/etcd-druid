@@ -11,7 +11,7 @@ For every `Etcd` cluster that is provisioned by `etcd-druid` it deploys a set of
 * Each pod comprises of two containers:
   * `etcd-wrapper` : This is the main container which runs an etcd process.
   
-  * `etcd-backup-restore` : This is a side-container which is responsible for:
+  * `etcd-backup-restore` : This is a side-container which does the following:
     
     * Orchestrates the initialization of etcd. This includes validation of any existing etcd data directory, restoration in case of corrupt etcd data directory files for a single-member etcd cluster.
     * Periodically renewes member lease.
@@ -26,7 +26,7 @@ For every `Etcd` cluster that is provisioned by `etcd-druid` it deploys a set of
 
 ## ConfigMap
 
-Every `etcd` member requires [configuration](https://etcd.io/docs/v3.4/op-guide/configuration/) with which it must be started. `etcd-druid` creates a [ConfigMap](https://kubernetes.io/docs/concepts/configuration/configmap/) which gets mounted onto both the containers of a pod in the  `StatefulSet`.
+Every `etcd` member requires [configuration](https://etcd.io/docs/v3.4/op-guide/configuration/) with which it must be started. `etcd-druid` creates a [ConfigMap](https://kubernetes.io/docs/concepts/configuration/configmap/) which gets mounted onto the `etcd-backup-restore` container. `etcd-backup-restore` container will modify the etcd configuration and serve it to the `etcd-wrapper` container upon request.
 
 **Code reference:** [ConfigMap-Component](https://github.com/gardener/etcd-druid/tree/480213808813c5282b19aff5f3fd6868529e779c/internal/component/configmap)
 
@@ -36,7 +36,7 @@ An etcd cluster requires quorum for all write operations. Clients can additional
 
 To ensure that etcd pods are not evicted more than its failure tolerance, `etcd-druid` creates a [PodDisruptionBudget](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-budgets). 
 
-> **NOTE:** For a single node etcd cluster no `PodDisruptionBudget` will be created.
+> **NOTE:** For a single node etcd cluster a `PodDisruptionBudget` will be created, however `pdb.spec.minavailable` is set to 0 effectively disabling it.
 
 **Code reference:** [PodDisruptionBudget-Component](https://github.com/gardener/etcd-druid/tree/480213808813c5282b19aff5f3fd6868529e779c/internal/component/poddistruptionbudget)
 
@@ -70,7 +70,7 @@ Every member in an `Etcd` cluster has a dedicated [Lease](https://kubernetes.io/
 
 One of the responsibilities of `etcd-backup-restore` container is to take periodic or threshold based snapshots (delta and full) of the etcd DB.  Today `etcd-backup-restore` communicates the end-revision of the latest full/delta snapshots to `etcd-druid` operator via leases.
 
-`etcd-druid` creates two [Lease](https://kubernetes.io/docs/concepts/architecture/leases/) resources one for delta and another for full snapshot. This information is used by the operator to trigger [snapshot-compaction](../proposals/02-snapshot-compaction.md) jobs.
+`etcd-druid` creates two [Lease](https://kubernetes.io/docs/concepts/architecture/leases/) resources one for delta and another for full snapshot. This information is used by the operator to trigger [snapshot-compaction](../proposals/02-snapshot-compaction.md) jobs. Snapshot leases are also used to derive the health of backups which gets updated in the `Status` subresource of every `Etcd` resource.
 
 > In future these leases will be replaced by [EtcdMember resource](https://github.com/gardener/etcd-druid/blob/3383e0219a6c21c6ef1d5610db964cc3524807c8/docs/proposals/04-etcd-member-custom-resource.md).
 
