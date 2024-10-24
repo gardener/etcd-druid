@@ -40,6 +40,7 @@ var (
 	deltaSnapShotMemLimit   = resource.MustParse("100Mi")
 	autoCompactionMode      = druidv1alpha1.Periodic
 	autoCompactionRetention = "2m"
+	snapshotCount           = int64(75000)
 	quota                   = resource.MustParse("8Gi")
 	localProvider           = druidv1alpha1.StorageProvider("Local")
 	prefix                  = "/tmp"
@@ -387,6 +388,7 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 			Backup:              getBackupSpec(),
 			Etcd: druidv1alpha1.EtcdConfig{
 				Quota:                   &quota,
+				SnapshotCount:           &snapshotCount,
 				Metrics:                 &metricsBasic,
 				Image:                   &imageEtcd,
 				DefragmentationSchedule: &defragSchedule,
