@@ -79,8 +79,8 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		AutoCompactionRetention: ptr.Deref(etcd.Spec.Common.AutoCompactionRetention, defaultAutoCompactionRetention),
 		ListenPeerUrls:          fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)),
 		ListenClientUrls:        fmt.Sprintf("%s://0.0.0.0:%d", clientScheme, ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)),
-		AdvertisePeerUrls:       getAdvertiseUrlsMap(etcd, commTypePeer, peerScheme, peerSvcName),
-		AdvertiseClientUrls:     getAdvertiseUrlsMap(etcd, commTypeClient, clientScheme, peerSvcName),
+		AdvertisePeerUrls:       getAdvertiseURLs(etcd, commTypePeer, peerScheme, peerSvcName),
+		AdvertiseClientUrls:     getAdvertiseURLs(etcd, commTypeClient, clientScheme, peerSvcName),
 	}
 	if peerSecurityConfig != nil {
 		cfg.PeerSecurity = *peerSecurityConfig
@@ -93,19 +93,17 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 }
 
 func getSnapshotCount(etcd *druidv1alpha1.Etcd) int64 {
-	snapshotCount := defaultSnapshotCount
 	if etcd.Spec.Etcd.SnapshotCount != nil {
-		snapshotCount = *etcd.Spec.Etcd.SnapshotCount
+		return *etcd.Spec.Etcd.SnapshotCount
 	}
-	return snapshotCount
+	return defaultSnapshotCount
 }
 
 func getDBQuotaBytes(etcd *druidv1alpha1.Etcd) int64 {
-	dbQuotaBytes := defaultDBQuotaBytes
 	if etcd.Spec.Etcd.Quota != nil {
-		dbQuotaBytes = etcd.Spec.Etcd.Quota.Value()
+		return etcd.Spec.Etcd.Quota.Value()
 	}
-	return dbQuotaBytes
+	return defaultDBQuotaBytes
 }
 
 func getSchemeAndSecurityConfig(tlsConfig *druidv1alpha1.TLSConfig, caPath, serverTLSPath string) (string, *securityConfig) {
@@ -133,7 +131,7 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 	return strings.Trim(builder.String(), ",")
 }
 
-func getAdvertiseUrlsMap(etcd *druidv1alpha1.Etcd, commType, scheme, peerSvcName string) advertiseURLs {
+func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, commType, scheme, peerSvcName string) advertiseURLs {
 	var port int32
 	switch commType {
 	case commTypePeer:
