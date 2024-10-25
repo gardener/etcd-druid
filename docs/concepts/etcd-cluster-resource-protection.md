@@ -15,7 +15,7 @@ Modifications to managed resources under the following circumstances will be all
 * `Create` and `Connect` operations are allowed and no validation is done.
 * Changes to a kubernetes resource (e.g. StatefulSet, ConfigMap etc) not managed by etcd-druid are allowed.
 * Changes to a resource whose Group-Kind is amongst the resources managed by etcd-druid but does not have a parent `Etcd` resource are allowed.
-* It is possible that an operator wishes to explicitly disable etcd-component protection. This can be done by setting [annotation](https://github.com/gardener/etcd-druid/blob/55efca1c8f6c852b0a4e97f08488ffec2eed0e68/api/v1alpha1/constants.go#L30) on an `Etcd` resource. If this annotation is present then changes to managed components will be allowed.
+* It is possible that an operator wishes to explicitly disable etcd-component protection. This can be done by setting `druid.gardener.cloud/disable-etcd-component-protection` annotation on an `Etcd` resource. If this annotation is present then changes to managed components will be allowed.
 * If `Etcd` resource has a deletion timestamp set indicating that it is marked for deletion and is awaiting etcd-druid to delete all managed resources then deletion requests for all managed resources for this etcd cluster will be allowed if:
   * The deletion request has come from a `ServiceAccount` associated to etcd-druid. If not explicitly specified via `--reconciler-service-account` then a [default-reconciler-service-account](https://github.com/gardener/etcd-druid/blob/55efca1c8f6c852b0a4e97f08488ffec2eed0e68/internal/webhook/etcdcomponents/config.go#L23) will be assumed.
   * The deletion request has come from a `ServiceAccount` configured via `--etcd-components-webhook-exempt-service-accounts`.

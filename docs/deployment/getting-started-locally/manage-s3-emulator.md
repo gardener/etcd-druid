@@ -45,10 +45,8 @@ Create a S3 bucket using the following command:
 
 To verify if the bucket has been created, you can use the following command:
 ```bash
-> aws s3 ls <bucket-name>/<etcd-name>/v2/
+> aws s3api head-bucket --bucket <bucket-name>
 ```
-
-
 
 ## 03-Configure Secret
 
@@ -66,4 +64,3 @@ In addition to the kind cluster cleanup you should also unset the environment va
 ```bash
 > unset AWS_ENDPOINT_URL_S3 AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION
 ```
-

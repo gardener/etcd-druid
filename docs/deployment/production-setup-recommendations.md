@@ -12,8 +12,8 @@ You can use [helm](https://helm.sh/) charts at [this](https://github.com/gardene
 * `clusterrole.yaml` - etcd-druid can manage multiple etcd clusters. In a `hosted control plane` setup (e.g. [Gardener](https://github.com/gardener/gardener)), one would typically create separate [namespace](https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/) per control-plane. This would require a [ClusterRole](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#role-and-clusterrole) to be defined which gives etcd-druid permissions to operate across namespaces. Packing control-planes via namespaces provides you better resource utilisation while providing you isolation from the data-plane (where the actual workload is scheduled).
 * `rolebinding.yaml` -  binds the [ClusterRole](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#role-and-clusterrole) defined in `druid-clusterrole.yaml` to the [ServiceAccount](https://kubernetes.io/docs/concepts/security/service-accounts/) defined in `service-account.yaml`.
 * `service.yaml` - defines a `Cluster IP` [Service](https://kubernetes.io/docs/concepts/services-networking/service/) allowing other control-plane components to communicate to `http` endpoints exposed out of etcd-druid (e.g. enables [prometheus](https://prometheus.io/) to scrap metrics, validating webhook to be invoked upon change to `Etcd` CR etc.)
-* `secret-ca-crt.yaml` - Contains the base64 encoded CA certificate.
-* `secret-server-tls-crt.yaml` -  Contains the base64 encoded server certificate.
+* `secret-ca-crt.yaml` - Contains the base64 encoded CA certificate used for the etcd-druid webhook server.
+* `secret-server-tls-crt.yaml` -  Contains the base64 encoded server certificate used for the etcd-druid webhook server.
 * `validating-webhook-config.yaml` - Configuration for all webhooks that etcd-druid registers to the webhook server. At the time of writing this document [EtcdComponents](../concepts/etcd-cluster-resource-protection.md) webhook gets registered.
 
 ## Etcd cluster size

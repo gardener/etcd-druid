@@ -44,7 +44,7 @@ Prior to deploying `etcd-druid`, it can be configured via CLI-args and environme
 
 ### Deploying etcd-druid
 
-Any variant of `make deploy-*` command uses [helm](https://helm.sh/) and [skaffold](https://skaffold.dev/) to build and deploy `etcd-druid` to the target Kubernetes cluster. In addition to deploying `etcd-druid` it will also install the [Etcd CRD](https://github.com/gardener/etcd-druid/blob/3383e0219a6c21c6ef1d5610db964cc3524807c8/config/crd/bases/crd-druid.gardener.cloud_etcds.yaml) and [EtcdCopyBackup CRD](https://github.com/gardener/etcd-druid/blob/3383e0219a6c21c6ef1d5610db964cc3524807c8/config/crd/bases/crd-druid.gardener.cloud_etcdcopybackupstasks.yaml).
+Any variant of `make deploy-*` command uses [helm](https://helm.sh/) and [skaffold](https://skaffold.dev/) to build and deploy `etcd-druid` to the target Kubernetes cluster. In addition to deploying `etcd-druid` it will also install the [Etcd CRD](https://github.com/gardener/etcd-druid/blob/3383e0219a6c21c6ef1d5610db964cc3524807c8/config/crd/bases/crd-druid.gardener.cloud_etcds.yaml) and [EtcdCopyBackupTask CRD](https://github.com/gardener/etcd-druid/blob/3383e0219a6c21c6ef1d5610db964cc3524807c8/config/crd/bases/crd-druid.gardener.cloud_etcdcopybackupstasks.yaml).
 
 #### Regular mode
 
@@ -77,8 +77,6 @@ Go debugging uses [Delve](https://github.com/go-delve/delve). Please see the [sk
 This means that when a goroutine is paused on a breakpoint, then all the other goroutines are also paused. This should be kept in mind when using `skaffold debug`.
 
 ## 03-Configure Backup [*Optional*]
-
-> **Note:** If you wish to do not backup any snapshots
 
 ### Deploying a Local Backup Store Emulator
 
@@ -146,7 +144,7 @@ To obtain information on the etcd cluster you can invoke the following command:
 > kubectl get etcd -o=wide
 ```
 
-We adhere to a naming convention for all resources that are provisioned for an `Etcd` cluster. Refer to [etcd-cluster-components](../../concepts/etcd-cluster-components.md) document to get details of all resources that re provisioned.
+We adhere to a naming convention for all resources that are provisioned for an `Etcd` cluster. Refer to [etcd-cluster-components](../../concepts/etcd-cluster-components.md) document to get details of all resources that are provisioned.
 
 ### Verify Etcd Pods' Functionality
 
@@ -187,6 +185,11 @@ This will add the `deletionTimestamp` to the `Etcd` resource.  At the time the c
 ```
 
 etcd-druid will automatically pick up the deletion event and attempt clean up `Etcd` cluster resources. It will only remove the finaliser once all resources have been cleaned up.
+
+If you only wish to remove `etcd-druid` but retain the kind cluster then you can use the following make target:
+```bash
+> make undeploy
+```
 
 If you wish to delete the kind cluster then you can use the following make target:
 ```bash
