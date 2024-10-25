@@ -1,31 +1,42 @@
 # Documentation Index
 
-
-
 ## Concepts
 
-* [Controllers](concepts/controllers.md)
-* [Webhooks](concepts/webhooks.md)
+* [Etcd Cluster Components](concepts/etcd-cluster-components.md)
+* [Protecting Etcd Cluster Resources](concepts/etcd-cluster-resource-protection.md)
 
 ## Development
 
-* [Testing(Unit, Integration and E2E Tests)](development/testing.md)
-* [etcd Network Latency](development/etcd-network-latency.md)
-* [Getting started locally using azurite emulator](development/getting-started-locally-azurite.md)
-* [Getting started locally using localstack emulator](development/getting-started-locally-localstack.md)
+* [Prepare Dev Environment](development/prepare-dev-environment.md)
 * [Getting started locally](development/getting-started-locally.md)
-* [Local End-To-End Tests](development/local-e2e-tests.md)
+* [Dependency Management](development/dependency-management.md)
+* [Changing the API](development/changing-api.md)
+* [Controllers](development/controllers.md)
+* [Add a new Etcd Cluster Component](development/add-new-etcd-cluster-component.md)
+* [Raising a Pull Request](development/raising-a-pr.md)
+* [Testing (Unit, Integration and E2E Tests)](development/testing.md)
 
 ## Deployment
 
-* [etcd-druid CLI Flags](deployment/cli-flags.md)
+* [Getting started locally](deployment/getting-started-locally/getting-started-locally.md)
+* [Configure etcd-druid](deployment/configure-etcd-druid.md)
 * [Feature Gates](deployment/feature-gates.md)
+* [Recommendations for productive setup](deployment/production-setup-recommendations.md)
+* [Version Comptability Matrix](deployment/version-compatibility-matrix.md)
 
-## Operations
+## Monitoring
 
-* [Metrics](operations/metrics.md)
-* [Recovery from Permanent Quorum Loss in etcd cluster](operations/recovery-from-permanent-quorum-loss-in-etcd-cluster.md)
-* [Restoring single member in a Multi-Node etcd cluster](operations/restoring-single-member-in-multi-node-etcd-cluster.md)
+* [Metrics](monitoring/metrics.md)
+
+## Benchmarks
+
+* [etcd Network Latency](benchmark/etcd-network-latency.md)
+
+## Usage
+
+* [Managing Etcd Clusters](usage/managing-etcd-clusters.md)
+* [Securing Etcd Clusters](usage/securing-etcd-clusters.md)
+* [Recovering Etcd Clusters](usage/recovering-etcd-clusters.md)
 
 ## Proposals
 
@@ -35,7 +46,3 @@
 * [DEP-3: Scaling up an Etcd cluster](proposals/03-scaling-up-an-etcd-cluster.md)
 * [DEP-4: Etcd Member custom resource](proposals/04-etcd-member-custom-resource.md)
 * [DEP-5: Etcd Operator Tasks](proposals/05-etcd-operator-tasks.md)
-
-## Usage
-
-* [Supported K8S versions](usage/supported_k8s_versions.md)
