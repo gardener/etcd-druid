@@ -161,15 +161,7 @@ For a multi-node etcd cluster, insert the key-value pair using the `etcd` contai
 
 ## 07-Updating Etcd CR
 
-`Etcd` CR can be updated with new changes. To ensure that `etcd-druid` reconciles the changes you can opt for one of the below options:
-
-* While setting up druid if you have chosen to switch on `auto-reconcile` via CLI flag `--enable-etcd-spec-auto-reconcile` then any changes to the `Etcd` spec will be automatically reconciled.
-
-* If `--enable-etcd-spec-auto-reconcile` is switched off, then by default `Etcd` spec changes are not reconciled. One can intruct etcd-druid to reconcile an `Etcd` by putting `gardener.cloud/operation: reconcile` annotation on the `Etcd` CR. Once the reconciliation is successfully completed then this annotation will be removed by etcd-druid. You can use the following command to add this annotation:
-  ```bash
-  # Annotate etcd-test CR to reconcile
-  kubectl annotate etcd etcd-test gardener.cloud/operation="reconcile"
-  ```
+`Etcd` CR can be updated with new changes. To ensure that `etcd-druid` reconciles the changes you can refer to options that etcd-druid provides [here](../../usage/managing-etcd-clusters.md#update-&-reconcile-an-etcd-cluster).
 
 ## 08-Cleaning up the setup
 

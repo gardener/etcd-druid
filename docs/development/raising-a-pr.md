@@ -1,6 +1,6 @@
 # Raising a Pull Request
 
-We welcome active contributions from the community. This document details out the things-to-de-done in order for us to consider a PR for review. Contributors should follow the guidelines mentioned in this document to minimize the time it takes to get the PR reviewed.
+We welcome active contributions from the community. This document details out the things-to-be-done in order for us to consider a PR for review. Contributors should follow the guidelines mentioned in this document to minimize the time it takes to get the PR reviewed.
 
 ## 00-Prerequisites
 
@@ -47,7 +47,7 @@ For every pull-request, it is ***mandatory*** to raise an [Issue](https://github
 * Create *Work In Progress [WIP]* pull requests only if you need a clarification or an explicit review before you can continue your work item.
 * Ensure that you have rebased your fork's development branch with `upstream` main/master branch.
 * Squash all commits into a minimal number of commits.
-* Fill in the PR template with appropriate details and provide the link the `Issue` for which a PR has been raised.
+* Fill in the PR template with appropriate details and provide the link to the `Issue` for which a PR has been raised.
 * If your patch is not getting reviewed, or you need a specific person to review it, you can @-reply a reviewer asking for a review in the pull request or a comment.
 
 ## 05-Post review

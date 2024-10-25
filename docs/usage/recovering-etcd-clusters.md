@@ -32,7 +32,7 @@ Identify the etcd-cluster which has a permanent quorum loss. Most of the resourc
 
 > Currently for an `Etcd` cluster `ConfigMap` resource is the only resource which violates the naming convention. [PR](https://github.com/gardener/etcd-druid/pull/812) fixes this (among other fixes). If you are still using an older version of etcd-druid where this is not fixed then you can use the following to identify the `ConfigMap` resource:
 >
-> ```bas
+> ```bash
 > kubectl get sts <sts-name> -o jsonpath='{.spec.template.spec.volumes[?(@.name=="etcd-config-file")].configMap.name}'
 > ```
 
