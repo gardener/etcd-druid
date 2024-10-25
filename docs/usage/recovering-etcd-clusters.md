@@ -30,7 +30,7 @@ It is possible to shard the etcd cluster based on resource types using [--etcd-s
 
 Identify the etcd-cluster which has a permanent quorum loss. Most of the resources of an etcd-cluster can be identified by its name. The resources of interest to recover from permanent quorum loss are: `Etcd` CR, `StatefulSet`, `ConfigMap` and `PVC`.
 
-> Currently for an `Etcd` cluster `ConfigMap` resource is the only resource which violates the naming convention. [PR](https://github.com/gardener/etcd-druid/pull/812) fixes this (among other fixes). If you are still using an older version of etcd-druid where this is not fixed then you can use the following to identify the `ConfigMap` resource:
+> To identify the `ConfigMap` resource use the following command:
 >
 > ```bash
 > kubectl get sts <sts-name> -o jsonpath='{.spec.template.spec.volumes[?(@.name=="etcd-config-file")].configMap.name}'
