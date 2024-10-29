@@ -4,7 +4,7 @@ This document is a step-by-step guide on how to configure, deploy and cleanup [L
 
 ## 00-Prerequisites
 
-Ensure that you have setup the development environment as per the [documentation](../prepare-dev-environment.md).
+Ensure that you have setup the development environment as per the [documentation](../../development/prepare-dev-environment.md).
 
 > **Note:** It is assumed that you have already created kind cluster and the `KUBECONFIG` is pointing to this Kubernetes cluster.
 
