@@ -1,0 +1,70 @@
+site_name: etcd-druid 
+site_description: etcd druid documentation
+repo_name: 'gardener/etcd-druid'
+repo_url: 'https://github.com/gardener/etcd-druid'
+theme:
+  name: material
+  logo: assets/logo/etcd-druid-transparentbg.svg
+  favicon: assets/logo/etcd-druid-transparentbg.png
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.select
+    - content.code.copy
+    - content.code.annotate
+    - header.autohide
+  language: en
+  palette: 
+    # Dark mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: deep purple
+      toggle:
+        icon: material/brightness-5
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      accent: amber
+      toggle:
+        icon: material/brightness-2
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+extra_css:
+  - assets/css/custom.css
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.snippets
+  - admonition
+  - codehilite
+  - abbr
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+nav:
+  - Home: index.md
+  - Development:
+      - Prepare Dev Environment: development/prepare-dev-environment.md
+      - Getting Started: development/getting-started/getting-started-locally.md
+      - Testing: development/testing.md
+      - Changing API: development/changing-api.md
+      - Raising a PR: development/raising-a-pr.md
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/gardener/etcd-druid
+  generator: true
+ 
+  
+
+
