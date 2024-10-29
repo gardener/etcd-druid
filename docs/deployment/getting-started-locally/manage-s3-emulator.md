@@ -4,7 +4,7 @@ This document is a step-by-step guide on how to configure, deploy and cleanup [L
 
 ## 00-Prerequisites
 
-Ensure that you have setup the development environment as per the [documentation](../prepare-dev-environment.md).
+Ensure that you have setup the development environment as per the [documentation](../../development/prepare-dev-environment.md).
 
 > **Note:** It is assumed that you have already created kind cluster and the `KUBECONFIG` is pointing to this Kubernetes cluster.
 
@@ -53,7 +53,7 @@ To verify if the bucket has been created, you can use the following command:
 Connection details for an Azure S3 Object Store are put into a Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret/). Apply the Kubernetes Secret manifest through:
 
 ```bash
-> kubectl -f apply config/samples/etcd-secret-localstack.yaml
+> kubectl apply -f config/samples/etcd-secret-localstack.yaml
 ```
 
 > **Note:** The secret created should be referred to in the `Etcd` CR in `spec.backup.store.secretRef`.

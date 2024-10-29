@@ -4,7 +4,7 @@ This document is a step-by-step guide on how to configure, deploy and cleanup [A
 
 ## 00-Prerequisites
 
-Ensure that you have setup the development environment as per the [documentation](../prepare-dev-environment.md).
+Ensure that you have setup the development environment as per the [documentation](../../development/prepare-dev-environment.md).
 
 > **Note:** It is assumed that you have already created kind cluster and the `KUBECONFIG` is pointing to this Kubernetes cluster.
 
@@ -43,7 +43,7 @@ To create an Azure Blob Storage Container in Azurite, run the following command:
 
 Connection details for an Azure Object Store Container are put into a Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret/). Apply the Kubernetes Secret manifest through:
 ```bash
-> kubectl -f apply config/samples/etcd-secret-azurite.yaml
+> kubectl apply -f config/samples/etcd-secret-azurite.yaml
 ```
 
 > **Note:** The secret created should be referred to in the `Etcd` CR in `spec.backup.store.secretRef`.

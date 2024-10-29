@@ -4,7 +4,7 @@ We welcome active contributions from the community. This document details out th
 
 ## 00-Prerequisites
 
-In order to make code contributions you must setup your development environment. Follow the [Prepare Dev Environment Guide](../prepare-dev-environment.md) for detailed instructions.
+In order to make code contributions you must setup your development environment. Follow the [Prepare Dev Environment Guide](prepare-dev-environment.md) for detailed instructions.
 
 ## 01-Raise an Issue
 
