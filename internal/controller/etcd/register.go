@@ -59,13 +59,13 @@ func (r *Reconciler) buildPredicate() predicate.Predicate {
 	// not been removed (since the last reconcile is not yet successfully completed).
 	onReconcileAnnotationSetPredicate := predicate.And(
 		r.hasReconcileAnnotation(),
-		predicate.Or(lastReconcileHasFinished(), specUpdated()),
+		predicate.Or(lastReconcileHasFinished(), specUpdated(), neverReconciled()),
 	)
 
 	// If auto-reconcile has been enabled then it should allow reconciliation only on spec change.
 	autoReconcileOnSpecChangePredicate := predicate.And(
 		r.autoReconcileEnabled(),
-		specUpdated(),
+		predicate.Or(specUpdated(), neverReconciled()),
 	)
 
 	return predicate.Or(
@@ -125,6 +125,24 @@ func lastReconcileHasFinished() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
 			return hasLastReconcileFinished(updateEvent)
+		},
+		CreateFunc:  func(_ event.CreateEvent) bool { return false },
+		DeleteFunc:  func(_ event.DeleteEvent) bool { return false },
+		GenericFunc: func(_ event.GenericEvent) bool { return false },
+	}
+}
+
+// neverReconciled handles a specific case which is outlined in https://github.com/gardener/etcd-druid/issues/898
+// It is possible that the initial Create event was not processed. In such cases, the status will not be updated.
+// If there is an update event for such a resource then the predicates should allow the event to be processed.
+func neverReconciled() predicate.Predicate {
+	return predicate.Funcs{
+		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
+			newEtcd, ok := updateEvent.ObjectNew.(*druidv1alpha1.Etcd)
+			if !ok {
+				return false
+			}
+			return newEtcd.Status.LastOperation == nil && newEtcd.Status.ObservedGeneration == nil
 		},
 		CreateFunc:  func(_ event.CreateEvent) bool { return false },
 		DeleteFunc:  func(_ event.DeleteEvent) bool { return false },
