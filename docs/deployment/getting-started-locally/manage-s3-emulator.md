@@ -53,7 +53,7 @@ To verify if the bucket has been created, you can use the following command:
 Connection details for an Azure S3 Object Store are put into a Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret/). Apply the Kubernetes Secret manifest through:
 
 ```bash
-> kubectl -f apply config/samples/etcd-secret-localstack.yaml
+> kubectl apply -f config/samples/etcd-secret-localstack.yaml
 ```
 
 > **Note:** The secret created should be referred to in the `Etcd` CR in `spec.backup.store.secretRef`.
