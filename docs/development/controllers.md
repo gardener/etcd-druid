@@ -9,7 +9,7 @@ All controllers that are a part of etcd-druid reside in package `internal/contro
 Etcd-druid currently consists of the following controllers, each having its own responsibility:
 
 - *etcd* : responsible for the reconciliation of the `Etcd` CR spec, which allows users to run etcd clusters within the specified Kubernetes cluster, and also responsible for periodically updating the `Etcd` CR status with the up-to-date state of the managed etcd cluster.
-- *compaction* : responsible for [snapshot compaction](/docs/proposals/02-snapshot-compaction.md).
+- *compaction* : responsible for [snapshot compaction](../proposals/02-snapshot-compaction.md).
 - *etcdcopybackupstask* : responsible for the reconciliation of the `EtcdCopyBackupsTask` CR, which helps perform the job of copying snapshot backups from one object store to another.
 - *secret* : responsible in making sure `Secret`s being referenced by `Etcd` resources are not deleted while in use.
 
@@ -54,7 +54,7 @@ While building the controller, an event filter is set such that the behavior of 
 
 > **Note:** Creation and deletion of `Etcd` resources are not affected by the above flag or annotation.
 
-The reason this filter is present is that any disruption in the `Etcd` resource due to reconciliation (due to changes in the `Etcd` spec, for example) while workloads are being run would cause unwanted downtimes to the etcd cluster. Hence, any user who wishes to avoid such disruptions, can choose to set the `--enable-etcd-spec-auto-reconcile` CLI flag to `false`. An example of this is Gardener's [gardenlet](https://github.com/gardener/gardener/blob/master/docs/concepts/gardenlet.md), which reconciles the `Etcd` resource only during a shoot cluster's [*maintenance window*](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_maintenance.md).
+The reason this filter is present is that any disruption in the `Etcd` resource due to reconciliation (due to changes in the `Etcd` spec, for example) while workloads are being run would cause unwanted downtimes to the etcd cluster. Hence, any user who wishes to avoid such disruptions, can choose to set the `--enable-etcd-spec-auto-reconcile` CLI flag to `false`. An example of this is Gardener's [gardenlet](https://github.com/gardener/gardener/blob/676d1bd9e95d80b9f4bc9c56807806031da5d1ce/docs/concepts/gardenlet.md), which reconciles the `Etcd` resource only during a shoot cluster's [*maintenance window*](https://github.com/gardener/gardener/blob/676d1bd9e95d80b9f4bc9c56807806031da5d1ce/docs/usage/shoot/shoot_maintenance.md).
 
 The controller adds a finalizer to the `Etcd` resource in order to ensure that it does not get deleted until all dependent resources managed by etcd-druid, aka managed components, are properly cleaned up. Only the *etcd controller* can delete a resource once it adds finalizers to it. This ensures that the proper deletion flow steps are followed while deleting the resource. During deletion flow, managed components are deleted in parallel.
 
