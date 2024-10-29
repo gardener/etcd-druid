@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
@@ -116,7 +117,7 @@ func TestHandleLeaseUpdate(t *testing.T) {
 			name:                  "request is not from Etcd service account",
 			useEtcdServiceAccount: false,
 			expectedAllowed:       false,
-			expectedMessage:       fmt.Sprintf("changes disallowed, since no ongoing processing of Etcd %s by etcd-druid", testEtcdName),
+			expectedMessage:       fmt.Sprintf("changes from service account %s are disallowed at the moment", testUserName),
 			expectedCode:          http.StatusForbidden,
 		},
 	}
@@ -130,7 +131,7 @@ func TestHandleLeaseUpdate(t *testing.T) {
 			handler := createHandler(g, cl, Config{Enabled: true})
 
 			obj := buildObjRawExtension(g, &coordinationv1.Lease{}, nil, testObjectName, testNamespace,
-				map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName})
+				map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName}, false)
 
 			username := testUserName
 			if tc.useEtcdServiceAccount {
@@ -166,7 +167,7 @@ func TestHandleUnmanagedStatefulSetScaleSubresourceUpdate(t *testing.T) {
 	cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, nil, nil, nil, nil, []client.Object{sts}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
 	handler := createHandler(g, cl, Config{Enabled: true})
 
-	obj := buildObjRawExtension(g, &autoscalingv1.Scale{}, nil, testObjectName, testNamespace, nil)
+	obj := buildObjRawExtension(g, &autoscalingv1.Scale{}, nil, testObjectName, testNamespace, nil, false)
 
 	response := handler.Handle(context.Background(), admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
@@ -209,7 +210,7 @@ func TestMissingManagedByLabel(t *testing.T) {
 	cl := fake.NewClientBuilder().Build()
 	handler := createHandler(g, cl, Config{Enabled: true})
 
-	obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName})
+	obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName}, false)
 	response := handler.Handle(context.Background(), admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
 			Operation: admissionv1.Update,
@@ -232,7 +233,7 @@ func TestMissingResourcePartOfLabel(t *testing.T) {
 	cl := fake.NewClientBuilder().Build()
 	handler := createHandler(g, cl, Config{Enabled: true})
 
-	obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue})
+	obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue}, false)
 	response := handler.Handle(context.Background(), admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
 			Operation: admissionv1.Update,
@@ -255,9 +256,10 @@ func TestHandleUpdate(t *testing.T) {
 	testCases := []struct {
 		name string
 		// ----- request -----
-		userName     string
-		objectLabels map[string]string
-		objectRaw    []byte
+		userName                     string
+		objectLabels                 map[string]string
+		isObjectDeletionTimestampSet bool
+		objectRaw                    []byte
 		// ----- etcd configuration -----
 		etcdAnnotations         map[string]string
 		etcdStatusLastOperation *druidv1alpha1.LastOperation
@@ -285,7 +287,7 @@ func TestHandleUpdate(t *testing.T) {
 			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			expectedAllowed:          false,
-			expectedMessage:          fmt.Sprintf("no external intervention allowed during ongoing reconciliation of Etcd %s by etcd-druid", testEtcdName),
+			expectedMessage:          fmt.Sprintf("changes from service account %s are disallowed at the moment", testUserName),
 			expectedCode:             http.StatusForbidden,
 		},
 		{
@@ -295,7 +297,7 @@ func TestHandleUpdate(t *testing.T) {
 			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			expectedAllowed:          true,
-			expectedMessage:          fmt.Sprintf("ongoing reconciliation of Etcd %s by etcd-druid requires changes to resources", testEtcdName),
+			expectedMessage:          "updation of managed resources by etcd-druid is allowed",
 			expectedCode:             http.StatusOK,
 		},
 		{
@@ -305,7 +307,7 @@ func TestHandleUpdate(t *testing.T) {
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			exemptServiceAccounts:    exemptServiceAccounts,
 			expectedAllowed:          true,
-			expectedMessage:          fmt.Sprintf("operations on Etcd %s by service account %s is exempt from EtcdComponents Webhook checks", testEtcdName, exemptServiceAccounts[0]),
+			expectedMessage:          fmt.Sprintf("operations on resources by exempt service account %s are allowed", exemptServiceAccounts[0]),
 			expectedCode:             http.StatusOK,
 		},
 		{
@@ -315,8 +317,31 @@ func TestHandleUpdate(t *testing.T) {
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			exemptServiceAccounts:    exemptServiceAccounts,
 			expectedAllowed:          false,
-			expectedMessage:          fmt.Sprintf("changes disallowed, since no ongoing processing of Etcd %s by etcd-druid", testEtcdName),
+			expectedMessage:          fmt.Sprintf("changes from service account %s are disallowed at the moment", testUserName),
 			expectedCode:             http.StatusForbidden,
+		},
+		{
+			name:                     "Etcd is currently being reconciled by druid, and request is from an exempt service account",
+			userName:                 exemptServiceAccounts[0],
+			objectLabels:             map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			reconcilerServiceAccount: reconcilerServiceAccount,
+			exemptServiceAccounts:    exemptServiceAccounts,
+			expectedAllowed:          false,
+			expectedMessage:          fmt.Sprintf("changes from service account %s are disallowed at the moment", exemptServiceAccounts[0]),
+			expectedCode:             http.StatusForbidden,
+		},
+		{
+			name:                         "Etcd is currently being reconciled by druid, the resource has deletion timestamp set, and request is from an exempt service account",
+			userName:                     exemptServiceAccounts[0],
+			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			isObjectDeletionTimestampSet: true,
+			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			reconcilerServiceAccount:     reconcilerServiceAccount,
+			exemptServiceAccounts:        exemptServiceAccounts,
+			expectedAllowed:              true,
+			expectedMessage:              fmt.Sprintf("deletion of resource by exempt service account %s is allowed during ongoing reconciliation of Etcd %s, since deletion timestamp is set on the resource", exemptServiceAccounts[0], testEtcdName),
+			expectedCode:                 http.StatusOK,
 		},
 	}
 
@@ -336,7 +361,7 @@ func TestHandleUpdate(t *testing.T) {
 				ExemptServiceAccounts:    exemptServiceAccounts,
 			})
 
-			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels)
+			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels, tc.isObjectDeletionTimestampSet)
 			response := handler.Handle(context.Background(), admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
 					Operation: admissionv1.Update,
@@ -411,7 +436,7 @@ func TestHandleWithInvalidRequestObject(t *testing.T) {
 				ExemptServiceAccounts:    exemptServiceAccounts,
 			})
 
-			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, nil)
+			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, nil, false)
 
 			response := handler.Handle(context.Background(), admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
@@ -472,7 +497,7 @@ func TestEtcdGetFailures(t *testing.T) {
 			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{
 				druidv1alpha1.LabelPartOfKey:    testEtcdName,
 				druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
-			})
+			}, false)
 
 			response := handler.Handle(context.Background(), admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
@@ -530,7 +555,7 @@ func TestHandleDelete(t *testing.T) {
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			expectedAllowed:          false,
 			expectedReason:           "Forbidden",
-			expectedMessage:          fmt.Sprintf("no external intervention allowed during ongoing reconciliation of Etcd %s by etcd-druid", testEtcdName),
+			expectedMessage:          fmt.Sprintf("changes from service account %s are disallowed at the moment", testUserName),
 			expectedCode:             http.StatusForbidden,
 		},
 		{
@@ -540,7 +565,7 @@ func TestHandleDelete(t *testing.T) {
 			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			expectedAllowed:          true,
-			expectedMessage:          fmt.Sprintf("ongoing reconciliation of Etcd %s by etcd-druid requires changes to resources", testEtcdName),
+			expectedMessage:          "updation of managed resources by etcd-druid is allowed",
 			expectedCode:             http.StatusOK,
 		},
 		{
@@ -551,7 +576,7 @@ func TestHandleDelete(t *testing.T) {
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			exemptServiceAccounts:    exemptServiceAccounts,
 			expectedAllowed:          false,
-			expectedMessage:          fmt.Sprintf("no external intervention allowed during ongoing reconciliation of Etcd %s by etcd-druid", testEtcdName),
+			expectedMessage:          fmt.Sprintf("changes from service account %s are disallowed at the moment", exemptServiceAccounts[0]),
 			expectedReason:           "Forbidden",
 			expectedCode:             http.StatusForbidden,
 		},
@@ -562,7 +587,7 @@ func TestHandleDelete(t *testing.T) {
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			exemptServiceAccounts:    exemptServiceAccounts,
 			expectedAllowed:          true,
-			expectedMessage:          fmt.Sprintf("operations on Etcd %s by service account %s is exempt from EtcdComponents Webhook checks", testEtcdName, exemptServiceAccounts[0]),
+			expectedMessage:          fmt.Sprintf("operations on resources by exempt service account %s are allowed", exemptServiceAccounts[0]),
 			expectedCode:             http.StatusOK,
 		},
 		{
@@ -572,7 +597,7 @@ func TestHandleDelete(t *testing.T) {
 			reconcilerServiceAccount: reconcilerServiceAccount,
 			exemptServiceAccounts:    exemptServiceAccounts,
 			expectedAllowed:          false,
-			expectedMessage:          fmt.Sprintf("changes disallowed, since no ongoing processing of Etcd %s by etcd-druid", testEtcdName),
+			expectedMessage:          fmt.Sprintf("changes from service account %s are disallowed at the moment", testUserName),
 			expectedReason:           "Forbidden",
 			expectedCode:             http.StatusForbidden,
 		},
@@ -625,7 +650,7 @@ func TestHandleDelete(t *testing.T) {
 				ExemptServiceAccounts:    exemptServiceAccounts,
 			})
 
-			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels)
+			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels, false)
 
 			response := handler.Handle(context.Background(), admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
@@ -660,13 +685,13 @@ func createHandler(g *WithT, cl client.Client, cfg Config) *Handler {
 	return h
 }
 
-func buildObjRawExtension(g *WithT, emptyObj runtime.Object, objRaw []byte, testObjectName, testNs string, labels map[string]string) runtime.RawExtension {
+func buildObjRawExtension(g *WithT, emptyObj runtime.Object, objRaw []byte, testObjectName, testNs string, labels map[string]string, isDeletionTimestampSet bool) runtime.RawExtension {
 	var (
 		rawBytes []byte
 		err      error
 	)
 	rawBytes = objRaw
-	obj := buildObject(getObjectGVK(g, emptyObj), testObjectName, testNs, labels)
+	obj := buildObject(getObjectGVK(g, emptyObj), testObjectName, testNs, labels, isDeletionTimestampSet)
 	if objRaw == nil {
 		rawBytes, err = json.Marshal(obj)
 		g.Expect(err).ToNot(HaveOccurred())
@@ -683,11 +708,14 @@ func getObjectGVK(g *WithT, obj runtime.Object) schema.GroupVersionKind {
 	return gvk
 }
 
-func buildObject(gvk schema.GroupVersionKind, name, namespace string, labels map[string]string) runtime.Object {
+func buildObject(gvk schema.GroupVersionKind, name, namespace string, labels map[string]string, isDeletionTimestampSet bool) runtime.Object {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
 	obj.SetName(name)
 	obj.SetNamespace(namespace)
 	obj.SetLabels(labels)
+	if isDeletionTimestampSet {
+		obj.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
+	}
 	return obj
 }
