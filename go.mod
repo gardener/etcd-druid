@@ -13,6 +13,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/ironcore-dev/vgopath v0.1.4
 	github.com/prometheus/client_golang v1.18.0
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/pflag v1.0.5
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20240707233637-46b078467d37
@@ -34,8 +35,6 @@ require (
 	github.com/onsi/gomega v1.33.1
 	go.uber.org/mock v0.4.0
 )
-
-require github.com/robfig/cron/v3 v3.0.1
 
 require (
 	cloud.google.com/go v0.112.0 // indirect

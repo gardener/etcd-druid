@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	cron "github.com/robfig/cron/v3"
+	"github.com/robfig/cron/v3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
