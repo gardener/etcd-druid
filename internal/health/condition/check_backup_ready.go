@@ -10,6 +10,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/utils"
 
 	coordinationv1 "k8s.io/api/coordination/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -48,12 +49,20 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 
 	//Fetch snapshot leases
 	var (
-		fullSnapErr, incrSnapErr error
-		fullSnapLease            = &coordinationv1.Lease{}
-		deltaSnapLease           = &coordinationv1.Lease{}
+		fullSnapErr, incrSnapErr, err error
+		fullSnapLease                 = &coordinationv1.Lease{}
+		fullSnapshotInterval          = 24 * time.Hour
+		deltaSnapLease                = &coordinationv1.Lease{}
 	)
 	fullSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getFullSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, fullSnapLease)
 	incrSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getDeltaSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, deltaSnapLease)
+
+	// Compute the full snapshot interval if full snapshot schedule is set
+	if etcd.Spec.Backup.FullSnapshotSchedule != nil {
+		if fullSnapshotInterval, err = utils.ComputeScheduleInterval(*etcd.Spec.Backup.FullSnapshotSchedule); err != nil {
+			return result
+		}
+	}
 
 	//Set status to Unknown if errors in fetching snapshot leases or lease never renewed
 	if fullSnapErr != nil || incrSnapErr != nil || (fullSnapLease.Spec.RenewTime == nil && deltaSnapLease.Spec.RenewTime == nil) {
@@ -66,8 +75,8 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 
 	if fullLeaseRenewTime == nil && deltaLeaseRenewTime != nil {
 		// Most probable during reconcile of existing clusters if fresh leases are created
-		// Treat backup as succeeded if delta snap lease renewal happens in the required time window and full snap lease is not older than 24h.
-		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseCreateTime.Time) < 24*time.Hour {
+		// Treat backup as succeeded if delta snap lease renewal happens in the required time window and full snap lease is not older than fullSnapshotInterval
+		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseCreateTime.Time) < fullSnapshotInterval {
 			result.reason = BackupSucceeded
 			result.message = "Delta snapshot backup succeeded"
 			result.status = druidv1alpha1.ConditionTrue
@@ -82,7 +91,7 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 		}
 	} else if deltaLeaseRenewTime != nil && fullLeaseRenewTime != nil {
 		//Both snap leases are maintained. Both are expected to be renewed periodically
-		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseRenewTime.Time) < 24*time.Hour {
+		if time.Since(deltaLeaseRenewTime.Time) < 2*etcd.Spec.Backup.DeltaSnapshotPeriod.Duration && time.Since(fullLeaseRenewTime.Time) < fullSnapshotInterval {
 			result.reason = BackupSucceeded
 			result.message = "Snapshot backup succeeded"
 			result.status = druidv1alpha1.ConditionTrue
