@@ -144,7 +144,7 @@ We provide a generic way to suspend etcd cluster reconciliation via etcd-druid, 
 2. Add another annotation to the target `Etcd` resource disabling managed resource protection via the webhook. You can do this by invoking the following command:
 
    ```bash
-   kubectl annotate etcd etcd-main -n <namespace> druid.gardener.cloud/disable-resource-protection=
+   kubectl annotate etcd etcd-main -n <namespace> druid.gardener.cloud/disable-etcd-component-protection=
    ```
 
 Now you are free to make changes to any managed etcd cluster resource.

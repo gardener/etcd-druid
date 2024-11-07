@@ -50,7 +50,7 @@ The above annotation will prevent any reconciliation by etcd-druid for this `Etc
 Add another annotation to the `Etcd` resource:
 
 ```bash
-kubectl annotate etcd etcd-main -n <namespace> druid.gardener.cloud/disable-resource-protection=
+kubectl annotate etcd etcd-main -n <namespace> druid.gardener.cloud/disable-etcd-component-protection=
 ```
 
 The above annotation will allow manual edits to `Etcd` cluster resources that are managed by etcd-druid.
@@ -122,7 +122,7 @@ If both containers report readiness (as seen above), then the etcd-cluster is co
 All manual changes are now done. We must now re-enable etcd-cluster resource protection and also enable reconciliation by etcd-druid by doing the following:
 ```bash
 kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/suspend-etcd-spec-reconcile-
-kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/disable-resource-protection-
+kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/disable-etcd-component-protection-
 ```
 
 #### 09-Scale-up Etcd Cluster to 3 and trigger reconcile

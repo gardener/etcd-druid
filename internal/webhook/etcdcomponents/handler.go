@@ -77,7 +77,7 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		return admission.Allowed(fmt.Sprintf("resource: %v  is not part of any Etcd, skipping validations", util.CreateObjectKey(partialObjMeta))).WithWarnings(warnings...)
 	}
 
-	// allow changes to resources if Etcd has annotation druid.gardener.cloud/disable-resource-protection is set.
+	// allow changes to resources if Etcd has annotation druid.gardener.cloud/disable-etcd-component-protection is set.
 	if !druidv1alpha1.AreManagedResourcesProtected(etcd.ObjectMeta) {
 		return admission.Allowed(fmt.Sprintf("changes allowed, since Etcd %s has annotation %s", etcd.Name, druidv1alpha1.DisableEtcdComponentProtectionAnnotation))
 	}
