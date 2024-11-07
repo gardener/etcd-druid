@@ -73,10 +73,14 @@ nav:
       - Version Compatibility Matrix: deployment/version-compatibility-matrix.md
       - Productive Setup Recommendations: deployment/production-setup-recommendations.md
   - Development:
+      - Controllers: development/controllers.md
       - Getting Started: development/getting-started-locally.md
       - Prepare Dev Environment: development/prepare-dev-environment.md
+      - Contribution Guide: development/contribution.md
       - Changing API: development/changing-api.md
+      - Adding New Etcd Cluster Component: development/add-new-etcd-cluster-component.md
       - Raising a PR: development/raising-a-pr.md
+      - Manage Dependencies: development/dependency-management.md
       - Testing: development/testing.md
   - Usage:
       - Managing Etcd clusters: usage/managing-etcd-clusters.md

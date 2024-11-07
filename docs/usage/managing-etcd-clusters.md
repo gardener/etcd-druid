@@ -127,7 +127,8 @@ spec:
           name: etcd-druid-images-overwrite
 ```
 
-> **NOTE:** Image overwrites specified in the mounted `ConfigMap` will be respected by successive reconciliations for this `Etcd` custom resource.
+!!! info
+    Image overwrites specified in the mounted `ConfigMap` will be respected by successive reconciliations for this `Etcd` custom resource.
 
 **Option #2**
 
@@ -151,4 +152,5 @@ We provide a generic way to suspend etcd cluster reconciliation via etcd-druid, 
 
 Now you are free to make changes to any managed etcd cluster resource.
 
-> **NOTE:** As long as the above two annotations are there, no reconciliation will be done for this etcd cluster by `etcd-druid`. Therefore it is essential that you remove this annotations eventually.ß
+!!! note
+    As long as the above two annotations are there, no reconciliation will be done for this etcd cluster by `etcd-druid`. Therefore it is essential that you remove this annotations eventually.ß

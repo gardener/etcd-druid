@@ -50,7 +50,8 @@ For any new contributions **tests are a strict requirement**. `Boy Scouts Rule` 
 
 ### Running Unit Tests
 
-> **NOTE:** For unit tests we are currently transitioning away from [ginkgo](https://github.com/onsi/ginkgo) to using golang native tests. The `make test-unit` target runs both ginkgo and golang native tests. Once the transition is complete this target will be simplified.
+!!! info
+    For unit tests we are currently transitioning away from [ginkgo](https://github.com/onsi/ginkgo) to using golang native tests. The `make test-unit` target runs both ginkgo and golang native tests. Once the transition is complete this target will be simplified.
 
 Run all unit tests
 
@@ -94,7 +95,8 @@ An example invocation:
 
 Integration tests in etcd-druid use [envtest](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/envtest). It sets up a minimal temporary control plane (etcd + kube-apiserver) and runs the test against it. Test suites (group of tests) start their individual `envtest` environment before running the tests for the respective controller/webhook. Before exiting, the temporary test environment is shutdown.
 
-> **NOTE:** For integration-tests we are currently transitioning away from [ginkgo](https://github.com/onsi/ginkgo) to using golang native tests. All ginkgo integration tests can be found [here](https://github.com/gardener/etcd-druid/tree/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/integration) and golang native integration tests can be found [here](https://github.com/gardener/etcd-druid/tree/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/it).
+!!! info
+    For integration-tests we are currently transitioning away from [ginkgo](https://github.com/onsi/ginkgo) to using golang native tests. All ginkgo integration tests can be found [here](https://github.com/gardener/etcd-druid/tree/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/integration) and golang native integration tests can be found [here](https://github.com/gardener/etcd-druid/tree/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/it).
 
 * Integration tests in etcd-druid only targets a single controller. It is therefore advised that code (other than common utility functions should not be shared between any two controllers).
 * If you are sharing a common `envtest` environment across tests then it is recommended that an individual test is run in a dedicated `namespace`.
@@ -121,13 +123,14 @@ All commonly used IDE's provide in-built or easy integration with [delve](https:
 setup-envtest --os $(go env GOOS) --arch $(go env GOARCH) use $ENVTEST_K8S_VERSION -p path
 ```
 
-> NOTE: All integration tests usually have a timeout. If you wish to debug a failing integration-test then increase the timeouts.
+!!! tip
+    All integration tests usually have a timeout. If you wish to debug a failing integration-test then increase the timeouts.
 
 #### Use standalone envtest
 
 We also provide a capability to setup a stand-alone `envtest` and leverage the cluster to run individual integration-test.  This allows you more control over when this k8s control plane is destroyed and allows you to inspect the resources at the end of the integration-test run using `kubectl`.
 
-> **NOTE:** While you can use an existing cluster (e.g., `kind`), some test suites expect that no controllers and no nodes are running in the test environment (as it is the case in `envtest` test environments). Hence, using a full-blown cluster with controllers and nodes might sometimes be impractical, as you would need to stop cluster components for the tests to work.
+> While you can use an existing cluster (e.g., `kind`), some test suites expect that no controllers and no nodes are running in the test environment (as it is the case in `envtest` test environments). Hence, using a full-blown cluster with controllers and nodes might sometimes be impractical, as you would need to stop cluster components for the tests to work.
 
 To setup a standalone `envtest` and run an integration test against it, do the following:
 
