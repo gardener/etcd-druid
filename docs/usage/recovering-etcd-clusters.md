@@ -6,9 +6,9 @@ For a multi-node `Etcd` cluster quorum loss can either be `Transient` or `Perman
 
 ## Transient quorum loss
 
-If quorum is lost through transient network failures (e.g. n/w partitions), spike in resource usage which results in OOM, `etcd` automatically and safely resumes (once the network recovers or the resource consumption has come down) and restores quorum. In other cases like transient power loss, etcd persists the Raft log to disk and replays the log to the point of failure and resumes cluster operation. 
+If quorum is lost through transient network failures (e.g. n/w partitions), spike in resource usage which results in OOM, `etcd` automatically and safely resumes (once the network recovers or the resource consumption has come down) and restores quorum. In other cases like transient power loss, etcd persists the Raft log to disk and replays the log to the point of failure and resumes cluster operation.
 
-## Permanent quorum loss 
+## Permanent quorum loss
 
 In case the quorum is lost due to hardware failures or disk corruption etc, automatic recovery is no longer possible and it is categorized as a permanent quorum loss. 
 
@@ -43,6 +43,7 @@ Identify the etcd-cluster which has a permanent quorum loss. Most of the resourc
 To ensure that only one actor (in this case an operator) makes changes to the `Etcd` resource and also to the `Etcd` cluster resources, following must be done:
 
 Add the annotation to the `Etcd` resource:
+
 ```bash
 kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/suspend-etcd-spec-reconcile=
 ```
@@ -74,6 +75,7 @@ kubectl delete pvc -l instance=<sts-name> -n <namespace>
 For a `n` member `Etcd` cluster there should be `n` member `Lease` objects. The lease names should start with the `Etcd` name.
 
 Example leases for a 3 node `Etcd` cluster:
+
 ```b
  NAME          HOLDER                  AGE
  <etcd-name>-0 4c37667312a3912b:Member 1m
@@ -82,6 +84,7 @@ Example leases for a 3 node `Etcd` cluster:
 ```
 
 Delete all the member leases.
+
 ```bash
 kubectl delete lease <space separated lease names>
 # Alternatively you can use label selector. From v0.23.0 onwards leases will have common set of labels
@@ -90,16 +93,64 @@ kubectl delete lease -l app.kubernetes.io.component=etcd-member-lease, app.kuber
 
 #### 05-Modify ConfigMap
 
-Prerequisite to scale up etcd-cluster from 0->1 is to change `initial-cluster` in the ConfigMap. Assuming that prior to scale-down to 0, there were 3 members, the `initial-cluster` field would look like the following (assuming that the name of the etcd resource is `etcd-main`):
+Prerequisite to scale up etcd-cluster from 0->1 is to change the fields `initial-cluster`, `initial-advertise-peer-urls`, and `advertise-client-urls` in the ConfigMap. 
+
+Assuming that prior to scale-down to 0, there were 3 members:
+
+The `initial-cluster` field would look like the following (assuming that the name of the etcd resource is `etcd-main`):
+
 ```yaml
 # Initial cluster
 initial-cluster: etcd-main-0=https://etcd-main-0.etcd-main-peer.default.svc:2380,etcd-main-1=https://etcd-main-1.etcd-main-peer.default.svc:2380,etcd-main-2=https://etcd-main-2.etcd-main-peer.default.svc:2380
 ```
 
-Change the `initial-cluster` field to have only one member (in this case `etc-main-0`). After the change it should look like:
-```bash
+Change the `initial-cluster` field to have only one member (in this case `etcd-main-0`). After the change it should look like:
+
+```yaml
 # Initial cluster
 initial-cluster: etcd-main-0=https://etcd-main-0.etcd-main-peer.default.svc:2380
+```
+
+The `initial-advertise-peer-urls` field would look like the following:
+
+```yaml
+# Initial advertise peer urls
+initial-advertise-peer-urls:
+  etcd-main-0:
+  - http://etcd-main-0.etcd-main-peer.default.svc:2380
+  etcd-main-1:
+  - http://etcd-main-1.etcd-main-peer.default.svc:2380
+  etcd-main-2:
+  - http://etcd-main-2.etcd-main-peer.default.svc:2380
+```
+
+Change the `initial-advertise-peer-urls` field to have only one member (in this case `etcd-main-0`). After the change it should look like:
+
+```yaml
+# Initial advertise peer urls
+initial-advertise-peer-urls:
+  etcd-main-0:
+  - http://etcd-main-0.etcd-main-peer.default.svc:2380
+```
+
+The `advertise-client-urls` field would look like the following:
+
+```yaml
+advertise-client-urls:
+  etcd-main-0:
+  - http://etcd-main-0.etcd-main-peer.default.svc:2379
+  etcd-main-1:
+  - http://etcd-main-1.etcd-main-peer.default.svc:2379
+  etcd-main-2:
+  - http://etcd-main-2.etcd-main-peer.default.svc:2379
+```
+
+Change the `advertise-client-urls` field to have only one member (in this case `etcd-main-0`). After the change it should look like:
+
+```yaml
+advertise-client-urls:
+  etcd-main-0:
+  - http://etcd-main-0.etcd-main-peer.default.svc:2379
 ```
 
 #### 06-Scale up Etcd cluster to size 1
@@ -111,6 +162,7 @@ kubectl scale sts <sts-name> -n <namespace> --replicas=1
 #### 07-Wait for Single-Member etcd cluster to be completely ready
 
 To check if the `single-member` etcd cluster is ready check the status of the pod.
+
 ```bash
 kubectl get pods <etcd-name-0> -n <namespace>
 NAME            READY   STATUS    RESTARTS   AGE
@@ -122,6 +174,7 @@ If both containers report readiness (as seen above), then the etcd-cluster is co
 #### 08-Enable Etcd reconciliation and resource protection
 
 All manual changes are now done. We must now re-enable etcd-cluster resource protection and also enable reconciliation by etcd-druid by doing the following:
+
 ```bash
 kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/suspend-etcd-spec-reconcile-
 kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/disable-etcd-component-protection-
@@ -136,8 +189,9 @@ kubectl scale sts <sts-name> -n namespace --replicas=3
 ```
 
 If etcd-druid has been set up with `--enable-etcd-spec-auto-reconcile` switched-off then to ensure reconciliation one must annotate `Etcd` resource with the following command:
+
 ```bash
-# Annotate etcd-test CR to reconcile
+# Annotate etcd CR to reconcile
 kubectl annotate etcd <etcd-name> -n <namespace> gardener.cloud/operation="reconcile"
 ```
 
@@ -154,6 +208,7 @@ NAME            READY   STATUS    RESTARTS   AGE
 ```
 
 Additionally, check if the `Etcd` CR is ready:
+
 ```bash
 kubectl get etcd <etcd-name> -n <namespace>
 NAME          READY   AGE
@@ -161,14 +216,10 @@ NAME          READY   AGE
 ```
 
 Check member leases, whose `holderIdentity` should reflect the member role. Check if all members are voting members (their role should either be `Member` or `Leader`). Monitor the leases for some time and check if the leases are getting updated. You can monitor the `AGE` field.
+
 ```bash
 NAME          HOLDER                  AGE
 <etcd-name>-0 4c37667312a3912b:Member 1m
 <etcd-name>-1 75a9b74cfd3077cc:Member 1m
 <etcd-name>-2 c62ee6af755e890d:Leader 1m
 ```
-
-
-
-
-
