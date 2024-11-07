@@ -55,7 +55,7 @@ For any new contributions **tests are a strict requirement**. `Boy Scouts Rule` 
 Run all unit tests
 
 ```bash
-> make test-unit
+make test-unit
 ```
 
 Run unit tests of specific packages:
@@ -73,15 +73,15 @@ If tests have sporadic failures, then trying running `./hack/stress-test.sh` whi
 
 ```bash
 # install the stress tool
-> go install golang.org/x/tools/cmd/stress@latest
+go install golang.org/x/tools/cmd/stress@latest
 # invoke the helper script to execute the stress test
-> ./hack/stress-test.sh test-package=<test-package> test-func=<test-function> tool-params="<tool-params>"
+./hack/stress-test.sh test-package=<test-package> test-func=<test-function> tool-params="<tool-params>"
 ```
 
 An example invocation:
 
 ```bash
-> ./hack/stress-test.sh test-package=./internal/utils test-func=TestRunConcurrentlyWithAllSuccessfulTasks tool-params="-p 10"
+./hack/stress-test.sh test-package=./internal/utils test-func=TestRunConcurrentlyWithAllSuccessfulTasks tool-params="-p 10"
 5s: 877 runs so far, 0 failures
 10s: 1906 runs so far, 0 failures
 15s: 2885 runs so far, 0 failures
@@ -107,7 +107,7 @@ Integration tests in etcd-druid use [envtest](https://pkg.go.dev/sigs.k8s.io/con
 ### Running Integration Tests
 
 ```bash
-> make test-integration
+make test-integration
 ```
 
 ### Debugging Integration Tests
@@ -118,7 +118,7 @@ There are two ways in which you can debug Integration Tests:
 All commonly used IDE's provide in-built or easy integration with [delve](https://pkg.go.dev/github.com/go-delve/delve) debugger. For debugging integration tests the only additional requirement is to set `KUBEBUILDER_ASSETS` environment variable. You can get the value of this environment variable by executing the following command:
 ```bash
 # ENVTEST_K8S_VERSION is the k8s version that you wish to use for testing.
-> setup-envtest --os $(go env GOOS) --arch $(go env GOARCH) use $ENVTEST_K8S_VERSION -p path
+setup-envtest --os $(go env GOOS) --arch $(go env GOARCH) use $ENVTEST_K8S_VERSION -p path
 ```
 
 > NOTE: All integration tests usually have a timeout. If you wish to debug a failing integration-test then increase the timeouts.
@@ -133,18 +133,18 @@ To setup a standalone `envtest` and run an integration test against it, do the f
 
 ```bash
 # In a terminal session use the following make target to setup a standalone envtest
-> make start-envtest
+make start-envtest
 # As part of output path to kubeconfig will be also be printed on the console.
 
 # In another terminal session setup resource(s) watch:
-> kubectl get po -A -w # alternatively you can also use `watch -d <command>` utility.
+kubectl get po -A -w # alternatively you can also use `watch -d <command>` utility.
 
 # In another terminal session:
-> export KUBECONFIG=<envtest-kubeconfig-path>
-> export USE_EXISTING_K8S_CLUSTER=true
+export KUBECONFIG=<envtest-kubeconfig-path>
+export USE_EXISTING_K8S_CLUSTER=true
 
 # run the test
-> go test -run="<regex-for-test>" <package>
+go test -run="<regex-for-test>" <package>
 # example: go test -run="^TestEtcdDeletion/test deletion of all*" ./test/it/controller/etcd
 ```
 

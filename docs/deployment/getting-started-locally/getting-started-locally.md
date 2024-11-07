@@ -11,7 +11,7 @@ Before we can setup `etcd-druid` and use it to provision `Etcd` clusters, we nee
 `etcd-druid` uses [kind](https://kind.sigs.k8s.io/) as it's local Kubernetes engine. The local setup is configured for kind due to its convenience only. Any other Kubernetes setup would also work. 
 
 ```bash
-> make kind-up
+make kind-up
 ```
 
 This command sets up a new Kind cluster and stores the kubeconfig at `./hack/kind/kubeconfig`.  Additionally, this command also deploys a local container registry as a docker container. This ensures faster image push/pull times. The local registry can be accessed as `localhost:5001` for pushing and pulling images. 
@@ -19,19 +19,19 @@ This command sets up a new Kind cluster and stores the kubeconfig at `./hack/kin
 To target this newly created cluster, set the `KUBECONFIG` environment variable to the kubeconfig file.
 
 ```bash
-> export KUBECONFIG=$PWD/hack/kind/kubeconfig
+export KUBECONFIG=$PWD/hack/kind/kubeconfig
 ```
 
 > **Note:**  If you wish to configure kind cluster differently then you can directly invoke the script and check its help to know about all configuration options.
->
-> ```bash
-> > ./hack/kind-up.sh -h
->   usage: kind-up.sh [Options]
->   Options:
->     --cluster-name  <cluster-name>   Name of the kind cluster to create. Default value is 'etcd-druid-e2e'
->     --skip-registry                  Skip creating a local docker registry. Default value is false.
->     --feature-gates <feature-gates>  Comma separated list of feature gates to enable on the cluster.
-> ```
+
+```bash
+./hack/kind-up.sh -h
+  usage: kind-up.sh [Options]
+  Options:
+    --cluster-name  <cluster-name>   Name of the kind cluster to create. Default value is 'etcd-druid-e2e'
+    --skip-registry                  Skip creating a local docker registry. Default value is false.
+    --feature-gates <feature-gates>  Comma separated list of feature gates to enable on the cluster.
+```
 
 ## 02-Setting up etcd-druid
 
@@ -49,7 +49,7 @@ Any variant of `make deploy-*` command uses [helm](https://helm.sh/) and [skaffo
 #### Regular mode
 
 ```bash
-> make deploy
+make deploy
 ```
 
 The above command will use [skaffold](https://skaffold.dev/) to build and deploy `etcd-druid`  to the k8s kind cluster pointed to by `KUBECONFIG` environment variable.
@@ -57,7 +57,7 @@ The above command will use [skaffold](https://skaffold.dev/) to build and deploy
 #### Dev mode
 
 ```bash
-> make deploy-dev
+make deploy-dev
 ```
 
 This is similar to `make deploy` but additionally starts a [skaffold dev loop](https://skaffold.dev/docs/workflows/dev/). After the initial deployment, skaffold starts watching source files. Once it has detected changes, you can press any key to update the `etcd-druid` deployment.
@@ -65,7 +65,7 @@ This is similar to `make deploy` but additionally starts a [skaffold dev loop](h
 #### Debug mode
 
 ```bash
-> make deploy-debug
+make deploy-debug
 ```
 
 This is similar to `make deploy-dev` but additionally configures containers in pods for debugging as required for each container's runtime technology. The associated debugging ports are exposed and labelled so that they can be port-forwarded to the local machine. Skaffold disables automatic image rebuilding and syncing when using the `debug` mode as compared to `dev` mode.
@@ -102,7 +102,7 @@ A Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret/)
 
 To apply the secret run:
 ```bash
-> kubectl apply -f <path/to/secret>
+kubectl apply -f <path/to/secret>
 ```
 
 ## 04-Preparing Etcd CR
@@ -134,14 +134,14 @@ Brief explanation of the keys:
 
 Create the Etcd CR (Custom Resource) by applying the Etcd yaml to the cluster
 ```bash
-> kubectl apply -f <path-to-etcd-cr-yaml>
+kubectl apply -f <path-to-etcd-cr-yaml>
 ```
 
 ## 06-Verify the Etcd Cluster
 
 To obtain information on the etcd cluster you can invoke the following command:
 ```bash
-> kubectl get etcd -o=wide
+kubectl get etcd -o=wide
 ```
 
 We adhere to a naming convention for all resources that are provisioned for an `Etcd` cluster. Refer to [etcd-cluster-components](../../concepts/etcd-cluster-components.md) document to get details of all resources that are provisioned.
@@ -152,9 +152,9 @@ We adhere to a naming convention for all resources that are provisioned for an `
 
 ```bash
 # Put a key-value pair into the etcd 
-> etcdctl put <key1> <value1>
+etcdctl put <key1> <value1>
 # Retrieve all key-value pairs from the etcd db
-> etcdctl get --prefix ""
+etcdctl get --prefix ""
 ```
 
 For a multi-node etcd cluster, insert the key-value pair using the `etcd` container of one etcd member and retrieve it from the `etcd` container of another member to verify consensus among the multiple etcd members.
@@ -167,7 +167,7 @@ For a multi-node etcd cluster, insert the key-value pair using the `etcd` contai
 
 If you wish to only delete the `Etcd` cluster then you can use the following command:
 ```bash
-> kubectl delete etcd <etcd-name>
+kubectl delete etcd <etcd-name>
 ```
 
 This will add the `deletionTimestamp` to the `Etcd` resource.  At the time the creation of the `Etcd` cluster, etcd-druid will add a finalizer to ensure that it cleans up all `Etcd` cluster resources before the CR is removed. 
@@ -180,12 +180,12 @@ etcd-druid will automatically pick up the deletion event and attempt clean up `E
 
 If you only wish to remove `etcd-druid` but retain the kind cluster then you can use the following make target:
 ```bash
-> make undeploy
+make undeploy
 ```
 
 If you wish to delete the kind cluster then you can use the following make target:
 ```bash
-> make kind-down
+make kind-down
 ```
 
 This cleans up the entire setup as the kind cluster gets deleted.

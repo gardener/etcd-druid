@@ -14,7 +14,7 @@ To interact with `Azurite` you must also install the Azure CLI `(version >=2.55.
 On macOS run:
 
 ```bash
-> brew install azure-cli
+brew install azure-cli
 ```
 
 For other OS, please check the [Azure CLI installation documentation](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli).
@@ -22,7 +22,7 @@ For other OS, please check the [Azure CLI installation documentation](https://le
 ## 01-Deploy Azurite
 
 ```bash
-> make deploy-azurite
+make deploy-azurite
 ```
 
 The above make target will deploy `Azure` emulator in the target Kubernetes cluster.
@@ -31,19 +31,19 @@ The above make target will deploy `Azure` emulator in the target Kubernetes clus
 
 We will be using the `azure-cli` to create an ABS container. Export the connection string to enable `azure-cli` to connect to `Azurite` emulator.
 ```bash
-> export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
 ```
 
 To create an Azure Blob Storage Container in Azurite, run the following command:
 ```bash
-> az storage container create -n <container-name>
+az storage container create -n <container-name>
 ```
 
 ## 03-Configure Secret
 
 Connection details for an Azure Object Store Container are put into a Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret/). Apply the Kubernetes Secret manifest through:
 ```bash
-> kubectl apply -f config/samples/etcd-secret-azurite.yaml
+kubectl -f apply config/samples/etcd-secret-azurite.yaml
 ```
 
 > **Note:** The secret created should be referred to in the `Etcd` CR in `spec.backup.store.secretRef`.
@@ -52,6 +52,6 @@ Connection details for an Azure Object Store Container are put into a Kubernetes
 
 In addition to the kind cluster cleanup you should also unset the environment variable set in step-03 above.
 ```bash
-> unset AZURE_STORAGE_CONNECTION_STRING
+unset AZURE_STORAGE_CONNECTION_STRING
 ```
 

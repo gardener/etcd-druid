@@ -6,7 +6,7 @@ This guide will provide with detailed instructions on installing all dependencie
 
 Hombrew is a popular package manager for macOS. You can install it by executing the following command in a terminal:
 ```bash
-> /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
 ## Installing Go
@@ -14,7 +14,7 @@ Hombrew is a popular package manager for macOS. You can install it by executing 
 On macOS run:
 
 ```bash
-> brew install go
+brew install go
 ```
 
 Alternatively you can also follow the [Go installation documentation](https://go.dev/doc/install).
@@ -25,7 +25,7 @@ We use `git` as VCS which you need to install.
 On macOS run:
 
 ```bash
-> brew install git
+brew install git
 ```
 
 For other OS, please check the [Git installation documentation](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
@@ -37,7 +37,7 @@ You need to have docker installed and running. This will allow starting a [kind]
 On macOS run:
 
 ```bash
-> brew install docker
+brew install docker
 ```
 
 Alternatively you can also follow the [Docker installation documentation](https://docs.docker.com/get-docker/).
@@ -48,7 +48,7 @@ To interact with the local Kubernetes cluster you will need kubectl.
 On macOS run:
 
 ```bash
-> brew install kubernetes-cli
+brew install kubernetes-cli
 ```
 
 For other OS, please check the [Kubectl installation documentation](https://kubernetes.io/docs/tasks/tools/).
@@ -60,17 +60,17 @@ On macOS run:
 
 ```bash
 # jq (https://jqlang.github.io/jq/) is a lightweight and flexible command-line JSON processor
-> brew install jq
+brew install jq
 # yq (https://mikefarah.gitbook.io/yq) is a lightweight and portable command-line YAML processor.
-> brew install yq
+brew install yq
 ```
 
 ## Get the sources
 
 Clone the repository from Github into your `$GOPATH`.
 ```bash
-> mkdir -p $(go env GOPATH)/src/github.com/gardener
-> cd $(go env GOPATH)src/github.com/gardener
-> git clone https://github.com/gardener/etcd-druid.git
+mkdir -p $(go env GOPATH)/src/github.com/gardener
+cd $(go env GOPATH)src/github.com/gardener
+git clone https://github.com/gardener/etcd-druid.git
 # alternatively you can also use `git clone git@github.com:gardener/etcd-druid.git`
 ```

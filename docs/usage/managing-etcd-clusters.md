@@ -13,24 +13,24 @@ In order to track the progress of creation of etcd cluster resources you can do 
 * `status.lastOperation` can be monitored to check the status of reconciliation.
 
 * Additional printer columns have been defined for `Etcd` custom resource. You can execute the following command to know if an `Etcd` cluster is ready/quorate.
-  ```bash
-  kubectl get etcd <etcd-name> -n <namespace> -owide
+```bash
+kubectl get etcd <etcd-name> -n <namespace> -owide
   # you will see additional columns which will indicate the state of an etcd cluster
   NAME        READY   QUORATE   ALL MEMBERS READY   BACKUP READY   AGE    CLUSTER SIZE   CURRENT REPLICAS   READY REPLICAS
   etcd-main   true    True      True                True           235d   3              3                  3
-  ```
+```
 
 * You can additional monitor [all etcd cluster resources](../concepts/etcd-cluster-components.md) that are created for every etcd cluster. 
 
   For etcd-druid version <v0.23.0 use the following command:
-  ```bash
-  kubectl get all,cm,role,rolebinding,lease,sa -n <namespace> --selector=instance=<etcd-name>
-  ```
+```bash
+kubectl get all,cm,role,rolebinding,lease,sa -n <namespace> --selector=instance=<etcd-name>
+```
 
   For etcd-druid version >=v0.23.0 use the following command:
-  ```bash
-  kubectl get all,cm,role,rolebinding,lease,sa -n <namespace> --selector=app.kubernetes.io/managed-by=etcd-druid,app.kubernetes.io/part-of=<etcd-name>
-  ```
+```bash
+kubectl get all,cm,role,rolebinding,lease,sa -n <namespace> --selector=app.kubernetes.io/managed-by=etcd-druid,app.kubernetes.io/part-of=<etcd-name>
+```
 
   
 
@@ -60,6 +60,7 @@ Prior to v0.23.0 you can do this by using `--ignore-operation-annotation` CLI fl
 
 #### Explicit reconciliation
 If `--enable-etcd-spec-auto-reconcile` or `--ignore-operation-annotation` is set to false or not set at all, then any change to an `Etcd` resource will not be automatically reconciled. To trigger a reconcile you must set the following annotation on the `Etcd` resource:
+
 ```bash
 kubectl annotate etcd <etcd-name> gardener.cloud/operation=reconcile -n <namespace>
 ```
@@ -137,15 +138,16 @@ We provide a generic way to suspend etcd cluster reconciliation via etcd-druid, 
 `etcd` cluster resources are managed by `etcd-druid` and since v0.23.0 version of `etcd-druid` any changes to these managed resources are protected via a validating webhook. You can find more information about this webhook [here](../concepts/etcd-cluster-resource-protection.md). To be able to manually modify etcd cluster managed resources two things needs to be done:
 
 1. Annotate the target `Etcd` resource suspending any reconciliation by `etcd-druid`. You can do this by invoking the following command:
-   ```bash
+
+```bash
    kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/suspend-etcd-spec-reconcile=
-   ```
+```
 
 2. Add another annotation to the target `Etcd` resource disabling managed resource protection via the webhook. You can do this by invoking the following command:
 
-   ```bash
-   kubectl annotate etcd etcd-main -n <namespace> druid.gardener.cloud/disable-etcd-component-protection=
-   ```
+```bash
+   kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/disable-etcd-component-protection=
+```
 
 Now you are free to make changes to any managed etcd cluster resource.
 

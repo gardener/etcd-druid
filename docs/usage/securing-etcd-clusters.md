@@ -10,8 +10,6 @@ In order to undertand all the TLS artifacts that are required to setup etcd-drui
 
 <img src="../assets/images/tls-communication-lines.excalidraw.png" alt="communication-lines" style="width:1200px;">
 
-
-
 ## TLS artifacts
 
 An etcd cluster setup by `etcd-druid` leverages the following TLS artifacts:

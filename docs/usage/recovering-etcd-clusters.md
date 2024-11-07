@@ -32,9 +32,9 @@ Identify the etcd-cluster which has a permanent quorum loss. Most of the resourc
 
 > To identify the `ConfigMap` resource use the following command:
 >
-> ```bash
-> kubectl get sts <sts-name> -o jsonpath='{.spec.template.spec.volumes[?(@.name=="etcd-config-file")].configMap.name}'
-> ```
+```bash
+ kubectl get sts <sts-name> -o jsonpath='{.spec.template.spec.volumes[?(@.name=="etcd-config-file")].configMap.name}'
+```
 
 #### 01-Prepare Etcd Resource to allow manual updates
 
@@ -50,7 +50,7 @@ The above annotation will prevent any reconciliation by etcd-druid for this `Etc
 Add another annotation to the `Etcd` resource:
 
 ```bash
-kubectl annotate etcd etcd-main -n <namespace> druid.gardener.cloud/disable-etcd-component-protection=
+kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/disable-etcd-component-protection=
 ```
 
 The above annotation will allow manual edits to `Etcd` cluster resources that are managed by etcd-druid.
