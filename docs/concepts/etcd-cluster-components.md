@@ -36,7 +36,8 @@ An etcd cluster requires quorum for all write operations. Clients can additional
 
 To ensure that etcd pods are not evicted more than its failure tolerance, `etcd-druid` creates a [PodDisruptionBudget](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-budgets). 
 
-> **NOTE:** For a single node etcd cluster a `PodDisruptionBudget` will be created, however `pdb.spec.minavailable` is set to 0 effectively disabling it.
+!!! note
+    For a single node etcd cluster a `PodDisruptionBudget` will be created, however `pdb.spec.minavailable` is set to 0 effectively disabling it.
 
 **Code reference:** [PodDisruptionBudget-Component](https://github.com/gardener/etcd-druid/tree/480213808813c5282b19aff5f3fd6868529e779c/internal/component/poddistruptionbudget)
 
@@ -62,7 +63,8 @@ To enable clients to connect to an etcd cluster a ClusterIP `Client` [Service](h
 
 Every member in an `Etcd` cluster has a dedicated [Lease](https://kubernetes.io/docs/concepts/architecture/leases/) that gets created which signifies that the member is alive. It is the responsibility of the `etcd-backup-store` side-car container to periodically renew the lease.
 
-> Today the lease object is also used to indicate the member-ID and the role of the member in an etcd cluster. Possible roles are `Leader`, `Member`(which denotes that this is a member but not a leader). This will change in the future with [EtcdMember resource](https://github.com/gardener/etcd-druid/blob/3383e0219a6c21c6ef1d5610db964cc3524807c8/docs/proposals/04-etcd-member-custom-resource.md).
+!!! note 
+    Today the lease object is also used to indicate the member-ID and the role of the member in an etcd cluster. Possible roles are `Leader`, `Member`(which denotes that this is a member but not a leader). This will change in the future with [EtcdMember resource](https://github.com/gardener/etcd-druid/blob/3383e0219a6c21c6ef1d5610db964cc3524807c8/docs/proposals/04-etcd-member-custom-resource.md).
 
 **Code reference:** [Member-Lease-Component](https://github.com/gardener/etcd-druid/tree/3383e0219a6c21c6ef1d5610db964cc3524807c8/internal/component/memberlease)
 

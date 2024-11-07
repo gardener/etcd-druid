@@ -1,4 +1,4 @@
-# Snapshot Compaction for Etcd
+# DEP-02: Snapshot Compaction for Etcd
 
 ## Current Problem
 To ensure recoverability of Etcd, backups of the database are taken at regular interval.

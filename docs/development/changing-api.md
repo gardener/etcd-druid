@@ -8,7 +8,8 @@ This guide provides detailed information on what needs to be done when the API n
 
 The etcd-druid API is defined [here](https://github.com/gardener/etcd-druid/tree/3383e0219a6c21c6ef1d5610db964cc3524807c8/api).
 
-> **Note:** The current version of the API is `v1alpha1`. We are currently working on migration to `v1beta1` API.
+!!! info
+    The current version of the API is `v1alpha1`. We are currently working on migration to `v1beta1` API.
 
 ### Changing the API
 

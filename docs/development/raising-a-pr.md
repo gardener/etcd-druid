@@ -38,7 +38,8 @@ For every pull-request, it is ***mandatory*** to raise an [Issue](https://github
     * `make test-integration` - this target will run all integration tests (controller level tests) using `envtest` framework.
     * `make ci-e2e-kind` or any of its variants - these targets will run etcd-druid e2e tests.
 
-    > **Note:** Please ensure that after introduction of new code the code coverage does not reduce. An increase in code coverage is always welcome.
+    !!! warning
+        Please ensure that after introduction of new code the code coverage does not reduce. An increase in code coverage is always welcome.
   
 * If you add new features, make sure that you create relevant documentation under `/docs`.
 

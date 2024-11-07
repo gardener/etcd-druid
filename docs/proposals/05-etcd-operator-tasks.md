@@ -13,46 +13,6 @@ reviewers:
 
 # DEP-05: Operator Out-of-band Tasks
 
-## Table of Contents
-
-- [DEP-05: Operator Out-of-band Tasks](#dep-05-operator-out-of-band-tasks)
-  - [Table of Contents](#table-of-contents)
-  - [Summary](#summary)
-  - [Terminology](#terminology)
-  - [Motivation](#motivation)
-  - [Goals](#goals)
-  - [Non-Goals](#non-goals)
-  - [Proposal](#proposal)
-    - [Custom Resource Golang API](#custom-resource-golang-api)
-      - [Spec](#spec)
-      - [Status](#status)
-    - [Custom Resource YAML API](#custom-resource-yaml-api)
-    - [Lifecycle](#lifecycle)
-      - [Creation](#creation)
-      - [Execution](#execution)
-      - [Deletion](#deletion)
-    - [Use Cases](#use-cases)
-      - [Recovery from permanent quorum loss](#recovery-from-permanent-quorum-loss)
-        - [Task Config](#task-config)
-        - [Pre-Conditions](#pre-conditions)
-      - [Trigger on-demand snapshot compaction](#trigger-on-demand-snapshot-compaction)
-        - [Possible scenarios](#possible-scenarios)
-        - [Task Config](#task-config-1)
-        - [Pre-Conditions](#pre-conditions-1)
-      - [Trigger on-demand full/delta snapshot](#trigger-on-demand-fulldelta-snapshot)
-        - [Possible scenarios](#possible-scenarios-1)
-        - [Task Config](#task-config-2)
-        - [Pre-Conditions](#pre-conditions-2)
-      - [Trigger on-demand maintenance of etcd cluster](#trigger-on-demand-maintenance-of-etcd-cluster)
-        - [Possible Scenarios](#possible-scenarios-2)
-        - [Task Config](#task-config-3)
-        - [Pre-Conditions](#pre-conditions-3)
-      - [Copy Backups Task](#copy-backups-task)
-        - [Possible Scenarios](#possible-scenarios-3)
-        - [Task Config](#task-config-4)
-        - [Pre-Conditions](#pre-conditions-4)
-  - [Metrics](#metrics)
-
 ## Summary
 
 This DEP proposes an enhancement to `etcd-druid`'s capabilities to handle [out-of-band](#terminology) tasks, which are presently performed manually or invoked programmatically via suboptimal APIs. The document proposes the establishment of a unified interface by defining a well-structured API to harmonize the initiation of any `out-of-band` task, monitor its status, and simplify the process of adding new tasks and managing their lifecycles.

@@ -47,13 +47,13 @@ theme:
 extra_css:
   - assets/css/custom.css
 markdown_extensions:
+  - admonition
   - pymdownx.highlight
   - pymdownx.snippets
   - pymdownx.superfences
   - codehilite
   - abbr
   - attr_list
-  - md_in_html
   - toc:
       permalink: true
   - pymdownx.tabbed:
