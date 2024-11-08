@@ -32,11 +32,11 @@ In every etcd cluster managed by `etcd-druid`, each etcd member is a two contain
 
 - [etcd-wrapper](https://github.com/gardener/etcd-wrapper) which manages the lifecycle (validation & initialization) of an etcd.
 - [etcd-backup-restore](https://github.com/gardener/etcd-backup-restore) sidecar which currently provides the following capabilities (the list is not comprehensive):
-  - [etcd](https://github.com/etcd-io/etcd) DB validation.
-  - Scheduled [etcd](https://github.com/etcd-io/etcd) DB defragmentation.
-  - Backup - [etcd](https://github.com/etcd-io/etcd) DB snapshots are taken regularly and backed in an object store if one is configured.
-  - Restoration - In case of a DB corruption for a single-member cluster it helps in restoring from latest set of snapshots (full & delta).
-  - Member control operations.
+    - [etcd](https://github.com/etcd-io/etcd) DB validation.
+    - Scheduled [etcd](https://github.com/etcd-io/etcd) DB defragmentation.
+    - Backup - [etcd](https://github.com/etcd-io/etcd) DB snapshots are taken regularly and backed in an object store if one is configured.
+    - Restoration - In case of a DB corruption for a single-member cluster it helps in restoring from latest set of snapshots (full & delta).
+    - Member control operations.
 
 `etcd-druid` additional provides the following capabilities:
 
