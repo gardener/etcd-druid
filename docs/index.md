@@ -1,11 +1,11 @@
 <style>
   .md-content h1 { display: none; }
 </style>
-<p align="center">
-<img src="assets/logo/etcd-druid-with-tagline.png" style="width:120%"></img>
+<p style="text-align: center;">
+<img src="assets/logo/etcd-druid-with-tagline.png" style="width:120%" alt="etcd-druid-tagline">
 </p>
 
-<p align="center">
+<p style="text-align: center;">
     <a href="https://api.reuse.software/info/github.com/gardener/etcd-druid">
       <img alt="REUSE Status" src="https://api.reuse.software/badge/github.com/gardener/etcd-druid">
     </a>

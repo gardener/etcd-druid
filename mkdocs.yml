@@ -29,7 +29,7 @@ theme:
     # Dark mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: teal
+      primary: white
       accent: deep purple
       toggle:
         icon: material/weather-night
