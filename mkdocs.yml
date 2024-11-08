@@ -63,15 +63,19 @@ markdown_extensions:
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
 nav:
   - Overview: index.md
-  - Concepts:
-      - Components in an Etcd cluster: concepts/etcd-cluster-components.md
-      - Protecting resources in Etcd cluster: concepts/etcd-cluster-resource-protection.md
   - Deployment:
       - Getting Started: deployment/getting-started-locally/getting-started-locally.md
       - Configuring Etcd Druid: deployment/configure-etcd-druid.md
       - Feature Gates: deployment/feature-gates.md
       - Version Compatibility Matrix: deployment/version-compatibility-matrix.md
       - Productive Setup Recommendations: deployment/production-setup-recommendations.md
+  - Usage:
+      - Managing Etcd clusters: usage/managing-etcd-clusters.md
+      - Recovering Etcd clusters: usage/recovering-etcd-clusters.md
+      - Securing Etcd clusters: usage/securing-etcd-clusters.md
+  - Concepts:
+      - Components in an Etcd cluster: concepts/etcd-cluster-components.md
+      - Protecting resources in Etcd cluster: concepts/etcd-cluster-resource-protection.md
   - Development:
       - Controllers: development/controllers.md
       - Getting Started: development/getting-started-locally.md
@@ -82,10 +86,6 @@ nav:
       - Raising a PR: development/raising-a-pr.md
       - Manage Dependencies: development/dependency-management.md
       - Testing: development/testing.md
-  - Usage:
-      - Managing Etcd clusters: usage/managing-etcd-clusters.md
-      - Recovering Etcd clusters: usage/recovering-etcd-clusters.md
-      - Securing Etcd clusters: usage/securing-etcd-clusters.md
   - Monitoring:
       - Metrics: monitoring/metrics.md
   - Proposals:

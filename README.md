@@ -14,7 +14,7 @@ In every etcd cluster managed by `etcd-druid`, each etcd member is a two contain
   - Restoration - In case of a DB corruption for a single-member cluster it helps in restoring from latest set of snapshots (full & delta).
   - Member control operations.
 
-`etcd-druid` additional provides the following capabilities:
+`etcd-druid` additionally provides the following capabilities:
 
 - Facilitates declarative scale-out of [etcd](https://github.com/etcd-io/etcd) clusters.
 - Provides protection against accidental deletion/mutation of resources provisioned as part of an etcd cluster.
