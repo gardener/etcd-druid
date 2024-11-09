@@ -30,7 +30,7 @@ theme:
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: white
-      accent: deep purple
+      accent: blue
       toggle:
         icon: material/weather-night
         name: Switch to dark mode

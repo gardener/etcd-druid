@@ -36,10 +36,6 @@
     font-weight: normal;
 }
   
-  /* .md-tabs {
-    font-family: "Roboto Slab";
-  } */
-
 /* search box */
 .md-search__form {
     border: 1px solid var(--pg-light-border);
@@ -60,3 +56,20 @@
 .md-typeset td:not([class]):not(:last-child) {
 	border: 0.05rem solid var(--md-typeset-table-color);
 }
+
+/* Highlight selected file in the left navigation pane*/
+.md-nav__link--active {
+    background-color: var(--md-code-bg-color);
+    border-radius: 0.3em;
+    padding: 0.2em;
+    outline: 0.1em;
+} 
+  
+  /* Additional styling to fix glitches */
+  .md-sidebar__inner {
+    padding-top: 0.1em;
+  }
+  
+  .md-nav--lifted > .md-nav__list > .md-nav__item--active > .md-nav__link {
+    box-shadow: initial;
+  }
