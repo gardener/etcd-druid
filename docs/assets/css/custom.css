@@ -65,11 +65,11 @@
     outline: 0.1em;
 } 
   
-  /* Additional styling to fix glitches */
-  .md-sidebar__inner {
-    padding-top: 0.1em;
-  }
+/* Additional styling to fix glitches */
+.md-sidebar__inner {
+  padding-top: 0.1em;
+}
   
-  .md-nav--lifted > .md-nav__list > .md-nav__item--active > .md-nav__link {
-    box-shadow: initial;
-  }
+.md-nav--lifted > .md-nav__list > .md-nav__item--active > .md-nav__link {
+  box-shadow: initial;
+}
