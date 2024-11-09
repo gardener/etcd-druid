@@ -26,7 +26,7 @@ theme:
     - header.autohide
   language: en
   palette: 
-    # Dark mode
+    # Light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: white
@@ -34,6 +34,7 @@ theme:
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
+    # Dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       accent: amber
@@ -48,7 +49,12 @@ extra_css:
   - assets/css/custom.css
 markdown_extensions:
   - admonition
-  - pymdownx.highlight
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+      auto_title: true
+  - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.superfences
   - codehilite
