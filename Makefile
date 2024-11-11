@@ -44,7 +44,7 @@ generate-api-docs: $(CRD_REF_DOCS)
 # Generate code
 .PHONY: generate
 generate: manifests generate-api-docs $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
-	@go generate "$(REPO_ROOT)/..."
+	@go generate "$(REPO_ROOT)/internal/..."
 	@"$(HACK_DIR)/update-codegen.sh"
 
 # Rules for verification, formatting, linting and cleaning
