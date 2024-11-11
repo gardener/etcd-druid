@@ -6,7 +6,7 @@ For a multi-node `Etcd` cluster quorum loss can either be `Transient` or `Perman
 
 ## Transient quorum loss
 
-If quorum is lost through transient network failures (e.g. n/w partitions), spike in resource usage which results in OOM, `etcd` automatically and safely resumes (once the network recovers or the resource consumption has come down) and restores quorum. In other cases like transient power loss, etcd persists the Raft log to disk and replays the log to the point of failure and resumes cluster operation.
+If quorum is lost through transient network failures (e.g. n/w partitions) or there is a spike in resource usage which results in OOM, `etcd` automatically and safely resumes (once the network recovers or the resource consumption has come down) and restores quorum. In other cases like transient power loss, etcd persists the Raft log to disk and replays the log to the point of failure and resumes cluster operation.
 
 ## Permanent quorum loss
 

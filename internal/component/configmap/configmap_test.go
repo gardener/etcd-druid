@@ -353,7 +353,7 @@ func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actu
 	if etcd.Spec.Etcd.ClientUrlTLS != nil {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
 			"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient))),
-			"advertise-client-urls": Equal(getAdvertiseURLsInterface(etcd, commTypeClient, "https")),
+			"advertise-client-urls": Equal(convertAdvertiseURLsValuesToInterface(etcd, advertiseURLTypeClient, "https")),
 			"client-transport-security": MatchKeys(IgnoreExtras, Keys{
 				"cert-file":        Equal("/var/etcd/ssl/server/tls.crt"),
 				"key-file":         Equal("/var/etcd/ssl/server/tls.key"),
@@ -370,8 +370,8 @@ func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actu
 	}
 }
 
-func getAdvertiseURLsInterface(etcd *druidv1alpha1.Etcd, commType, scheme string) map[string]interface{} {
-	advertiseUrlsMap := getAdvertiseURLs(etcd, commType, scheme, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta))
+func convertAdvertiseURLsValuesToInterface(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme string) map[string]interface{} {
+	advertiseUrlsMap := getAdvertiseURLs(etcd, advertiseURLType, scheme, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta))
 	advertiseUrlsInterface := make(map[string]interface{}, len(advertiseUrlsMap))
 	for podName, urlList := range advertiseUrlsMap {
 		urlsListInterface := make([]interface{}, len(urlList))
@@ -394,12 +394,12 @@ func matchPeerTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actual
 				"auto-tls":         Equal(false),
 			}),
 			"listen-peer-urls":            Equal(fmt.Sprintf("https://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))),
-			"initial-advertise-peer-urls": Equal(getAdvertiseURLsInterface(etcd, commTypePeer, "https")),
+			"initial-advertise-peer-urls": Equal(convertAdvertiseURLsValuesToInterface(etcd, advertiseURLTypePeer, "https")),
 		}))
 	} else {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
 			"listen-peer-urls":            Equal(fmt.Sprintf("http://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer))),
-			"initial-advertise-peer-urls": Equal(getAdvertiseURLsInterface(etcd, commTypePeer, "http")),
+			"initial-advertise-peer-urls": Equal(convertAdvertiseURLsValuesToInterface(etcd, advertiseURLTypePeer, "http")),
 		}))
 		g.Expect(actualETCDConfig).ToNot(HaveKey("peer-transport-security"))
 	}
