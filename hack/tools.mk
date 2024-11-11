@@ -24,6 +24,7 @@ GO_APIDIFF                 := $(TOOLS_BIN_DIR)/go-apidiff
 GOTESTFMT 	   	 		   := $(TOOLS_BIN_DIR)/gotestfmt
 GOIMPORTS_REVISER          := $(TOOLS_BIN_DIR)/goimports-reviser
 YQ						   := $(TOOLS_BIN_DIR)/yq
+CRD_REF_DOCS			   := $(TOOLS_BIN_DIR)/crd-ref-docs
 
 # default tool versions
 SKAFFOLD_VERSION := v2.13.0
@@ -41,7 +42,7 @@ GO_APIDIFF_VERSION ?= v0.8.2
 GOTESTFMT_VERSION ?= v2.5.0
 GOIMPORTS_REVISER_VERSION ?= v3.6.5
 YQ_VERSION ?= v4.44.3
-
+CRD_REF_DOCS_VERSION ?= v0.1.0
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 
@@ -117,3 +118,6 @@ $(GOTESTFMT):
 
 $(GOIMPORTS_REVISER):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/incu6us/goimports-reviser/v3@$(GOIMPORTS_REVISER_VERSION)
+
+$(CRD_REF_DOCS):
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/elastic/crd-ref-docs@$(CRD_REF_DOCS_VERSION)

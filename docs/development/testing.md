@@ -50,12 +50,13 @@ For any new contributions **tests are a strict requirement**. `Boy Scouts Rule` 
 
 ### Running Unit Tests
 
-> **NOTE:** For unit tests we are currently transitioning away from [ginkgo](https://github.com/onsi/ginkgo) to using golang native tests. The `make test-unit` target runs both ginkgo and golang native tests. Once the transition is complete this target will be simplified.
+!!! info
+    For unit tests we are currently transitioning away from [ginkgo](https://github.com/onsi/ginkgo) to using golang native tests. The `make test-unit` target runs both ginkgo and golang native tests. Once the transition is complete this target will be simplified.
 
 Run all unit tests
 
 ```bash
-> make test-unit
+make test-unit
 ```
 
 Run unit tests of specific packages:
@@ -73,15 +74,15 @@ If tests have sporadic failures, then trying running `./hack/stress-test.sh` whi
 
 ```bash
 # install the stress tool
-> go install golang.org/x/tools/cmd/stress@latest
+go install golang.org/x/tools/cmd/stress@latest
 # invoke the helper script to execute the stress test
-> ./hack/stress-test.sh test-package=<test-package> test-func=<test-function> tool-params="<tool-params>"
+./hack/stress-test.sh test-package=<test-package> test-func=<test-function> tool-params="<tool-params>"
 ```
 
 An example invocation:
 
 ```bash
-> ./hack/stress-test.sh test-package=./internal/utils test-func=TestRunConcurrentlyWithAllSuccessfulTasks tool-params="-p 10"
+./hack/stress-test.sh test-package=./internal/utils test-func=TestRunConcurrentlyWithAllSuccessfulTasks tool-params="-p 10"
 5s: 877 runs so far, 0 failures
 10s: 1906 runs so far, 0 failures
 15s: 2885 runs so far, 0 failures
@@ -94,7 +95,8 @@ An example invocation:
 
 Integration tests in etcd-druid use [envtest](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/envtest). It sets up a minimal temporary control plane (etcd + kube-apiserver) and runs the test against it. Test suites (group of tests) start their individual `envtest` environment before running the tests for the respective controller/webhook. Before exiting, the temporary test environment is shutdown.
 
-> **NOTE:** For integration-tests we are currently transitioning away from [ginkgo](https://github.com/onsi/ginkgo) to using golang native tests. All ginkgo integration tests can be found [here](https://github.com/gardener/etcd-druid/tree/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/integration) and golang native integration tests can be found [here](https://github.com/gardener/etcd-druid/tree/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/it).
+!!! info
+    For integration-tests we are currently transitioning away from [ginkgo](https://github.com/onsi/ginkgo) to using golang native tests. All ginkgo integration tests can be found [here](https://github.com/gardener/etcd-druid/tree/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/integration) and golang native integration tests can be found [here](https://github.com/gardener/etcd-druid/tree/4e9971aba3c3880a4cb6583d05843eabb8ca1409/test/it).
 
 * Integration tests in etcd-druid only targets a single controller. It is therefore advised that code (other than common utility functions should not be shared between any two controllers).
 * If you are sharing a common `envtest` environment across tests then it is recommended that an individual test is run in a dedicated `namespace`.
@@ -107,7 +109,7 @@ Integration tests in etcd-druid use [envtest](https://pkg.go.dev/sigs.k8s.io/con
 ### Running Integration Tests
 
 ```bash
-> make test-integration
+make test-integration
 ```
 
 ### Debugging Integration Tests
@@ -118,33 +120,34 @@ There are two ways in which you can debug Integration Tests:
 All commonly used IDE's provide in-built or easy integration with [delve](https://pkg.go.dev/github.com/go-delve/delve) debugger. For debugging integration tests the only additional requirement is to set `KUBEBUILDER_ASSETS` environment variable. You can get the value of this environment variable by executing the following command:
 ```bash
 # ENVTEST_K8S_VERSION is the k8s version that you wish to use for testing.
-> setup-envtest --os $(go env GOOS) --arch $(go env GOARCH) use $ENVTEST_K8S_VERSION -p path
+setup-envtest --os $(go env GOOS) --arch $(go env GOARCH) use $ENVTEST_K8S_VERSION -p path
 ```
 
-> NOTE: All integration tests usually have a timeout. If you wish to debug a failing integration-test then increase the timeouts.
+!!! tip
+    All integration tests usually have a timeout. If you wish to debug a failing integration-test then increase the timeouts.
 
 #### Use standalone envtest
 
 We also provide a capability to setup a stand-alone `envtest` and leverage the cluster to run individual integration-test.  This allows you more control over when this k8s control plane is destroyed and allows you to inspect the resources at the end of the integration-test run using `kubectl`.
 
-> **NOTE:** While you can use an existing cluster (e.g., `kind`), some test suites expect that no controllers and no nodes are running in the test environment (as it is the case in `envtest` test environments). Hence, using a full-blown cluster with controllers and nodes might sometimes be impractical, as you would need to stop cluster components for the tests to work.
+> While you can use an existing cluster (e.g., `kind`), some test suites expect that no controllers and no nodes are running in the test environment (as it is the case in `envtest` test environments). Hence, using a full-blown cluster with controllers and nodes might sometimes be impractical, as you would need to stop cluster components for the tests to work.
 
 To setup a standalone `envtest` and run an integration test against it, do the following:
 
 ```bash
 # In a terminal session use the following make target to setup a standalone envtest
-> make start-envtest
+make start-envtest
 # As part of output path to kubeconfig will be also be printed on the console.
 
 # In another terminal session setup resource(s) watch:
-> kubectl get po -A -w # alternatively you can also use `watch -d <command>` utility.
+kubectl get po -A -w # alternatively you can also use `watch -d <command>` utility.
 
 # In another terminal session:
-> export KUBECONFIG=<envtest-kubeconfig-path>
-> export USE_EXISTING_K8S_CLUSTER=true
+export KUBECONFIG=<envtest-kubeconfig-path>
+export USE_EXISTING_K8S_CLUSTER=true
 
 # run the test
-> go test -run="<regex-for-test>" <package>
+go test -run="<regex-for-test>" <package>
 # example: go test -run="^TestEtcdDeletion/test deletion of all*" ./test/it/controller/etcd
 ```
 

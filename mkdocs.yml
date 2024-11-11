@@ -1,0 +1,113 @@
+# yaml-language-server: $schema=https://squidfunk.github.io/mkdocs-material/schema.json
+
+# Project Info
+site_name: Etcd Druid 
+site_description: etcd druid documentation
+repo_name: 'gardener/etcd-druid'
+repo_url: 'https://github.com/gardener/etcd-druid'
+use_directory_urls: false
+theme:
+  name: material
+  logo: assets/logo/etcd-druid-whitebg.png
+  favicon: assets/logo/etcd-druid-transparentbg.png
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.select
+    - content.code.copy
+    - content.code.annotate
+    - header.autohide
+  language: en
+  palette: 
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      accent: blue
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      accent: amber
+      primary: black 
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+extra_css:
+  - assets/css/custom.css
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+      auto_title: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - codehilite
+  - abbr
+  - attr_list
+  - toc:
+      permalink: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+nav:
+  - Overview: index.md
+  - Deployment:
+      - Getting Started: deployment/getting-started-locally/getting-started-locally.md
+      - Configuring Etcd Druid: deployment/configure-etcd-druid.md
+      - Feature Gates: deployment/feature-gates.md
+      - Version Compatibility Matrix: deployment/version-compatibility-matrix.md
+      - Productive Setup Recommendations: deployment/production-setup-recommendations.md
+  - Usage:
+      - Managing Etcd clusters: usage/managing-etcd-clusters.md
+      - Recovering Etcd clusters: usage/recovering-etcd-clusters.md
+      - Securing Etcd clusters: usage/securing-etcd-clusters.md
+  - Concepts:
+      - Components in an Etcd cluster: concepts/etcd-cluster-components.md
+      - Protecting resources in Etcd cluster: concepts/etcd-cluster-resource-protection.md
+  - Development:
+      - Controllers: development/controllers.md
+      - Getting Started: development/getting-started-locally.md
+      - Prepare Dev Environment: development/prepare-dev-environment.md
+      - Contribution Guide: development/contribution.md
+      - Changing API: development/changing-api.md
+      - Adding New Etcd Cluster Component: development/add-new-etcd-cluster-component.md
+      - Raising a PR: development/raising-a-pr.md
+      - Manage Dependencies: development/dependency-management.md
+      - Testing: development/testing.md
+  - API Reference:
+      - Etcd Druid API: api-reference/etcd-druid-api.md
+  - Monitoring:
+      - Metrics: monitoring/metrics.md
+  - Proposals:
+      - Multi-Node Etcd Clusters: proposals/01-multi-node-etcd-clusters.md
+      - Snapshot Compaction: proposals/02-snapshot-compaction.md
+      - Scaling Etcd Clusters: proposals/03-scaling-up-an-etcd-cluster.md
+      - Etcd Member: proposals/04-etcd-member-custom-resource.md
+      - Etcd Operator Tasks: proposals/05-etcd-operator-tasks.md
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/gardener/etcd-druid
+  generator: true
+plugins:
+  - search
+  - glightbox
+  - mkdocs_pymdownx_material_extras

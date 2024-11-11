@@ -77,7 +77,7 @@ The following environment variables influence how the flow described above is ex
 
 Example:
 
-```
+```bash
 make \
   AWS_ACCESS_KEY_ID="abc" \
   AWS_SECRET_ACCESS_KEY="xyz" \
@@ -96,7 +96,7 @@ test-e2e
 
 Example:
 
-```
+```bash
 make \
   STORAGE_ACCOUNT="abc" \
   STORAGE_KEY="eHl6Cg==" \
@@ -114,7 +114,7 @@ test-e2e
 
 Example:
 
-```
+```bash
 make \
   GCP_SERVICEACCOUNT_JSON_PATH="/var/lib/secrets/serviceaccount.json" \
   GCP_PROJECT_ID="xyz-project" \
@@ -131,7 +131,7 @@ No special environment variables are required for running e2e tests with `Local`
 
 Example:
 
-```
+```bash
 make \
   KUBECONFIG="$HOME/.kube/config" \
   PROVIDERS="local" \
@@ -155,6 +155,7 @@ The developer needs to run `make ci-e2e-kind` command. This command in turn runs
 ### How to execute e2e tests with localstack and KIND cluster
 
 Run the following `make` command to spin up a KinD cluster, deploy localstack and run the e2e tests with provider `aws`:
-```
+
+```bash
 make ci-e2e-kind
 ```

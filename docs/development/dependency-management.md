@@ -11,7 +11,8 @@ Unfortunately go does not differentiate between `dev` and `test` dependencies. I
 The `Makefile` contains a rule called `tidy` which performs [go mod tidy](https://go.dev/ref/mod#go-mod-tidy) which ensures that the `go.mod` file matches the source code in the module. It adds any missing module requirements necessary to build the current module’s packages and dependencies, and it removes requirements on modules that don’t provide any relevant packages. It also adds any missing entries to `go.sum` and removes unnecessary entries.
 
 ```bash
-> make tidy
+make tidy
 ```
 
-:warning: Make sure that you test the code after you have updated the dependencies!
+!!! warning
+    Make sure that you test the code after you have updated the dependencies!

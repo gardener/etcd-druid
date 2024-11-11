@@ -1,4 +1,4 @@
-# Scaling-up a single-node to multi-node etcd cluster deployed by etcd-druid
+# DEP-03: Scaling-up a single-node to multi-node etcd cluster deployed by etcd-druid
 
 To mark a cluster for scale-up from single node to multi-node etcd, just patch the etcd custom resource's `.spec.replicas` from `1` to `3` (for example).
 

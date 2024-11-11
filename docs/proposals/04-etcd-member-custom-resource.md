@@ -12,46 +12,6 @@ reviewers:
 
 # DEP-04: EtcdMember Custom Resource
 
-## Table of Contents
-
-* [DEP-04: EtcdMember Custom Resource](#dep-04-etcdmember-custom-resource)
-   * [Table of Contents](#table-of-contents)
-   * [Summary](#summary)
-   * [Terminology](#terminology)
-   * [Motivation](#motivation)
-      * [Goals](#goals)
-      * [Non-Goals](#non-goals)
-   * [Proposal](#proposal)
-      * [Etcd Member Metadata](#etcd-member-metadata)
-      * [Etcd Member State Transitions](#etcd-member-state-transitions)
-         * [States and Sub-States](#states-and-sub-states)
-         * [Top Level State Transitions](#top-level-state-transitions)
-         * [Starting an Etcd-Member in a Single-Node Etcd Cluster](#starting-an-etcd-member-in-a-single-node-etcd-cluster)
-         * [Addition of a New Etcd-Member in a Multi-Node Etcd Cluster](#addition-of-a-new-etcd-member-in-a-multi-node-etcd-cluster)
-         * [Restart of a Voting Etcd-Member in a Multi-Node Etcd Cluster](#restart-of-a-voting-etcd-member-in-a-multi-node-etcd-cluster)
-      * [Deterministic Etcd Member Creation/Restart During Scale-Up](#deterministic-etcd-member-creationrestart-during-scale-up)
-      * [TLS Enablement for Peer Communication](#tls-enablement-for-peer-communication)
-      * [Monitoring Backup Health](#monitoring-backup-health)
-      * [Enhanced Snapshot Compaction](#enhanced-snapshot-compaction)
-      * [Enhanced Defragmentation](#enhanced-defragmentation)
-      * [Monitoring Defragmentations](#monitoring-defragmentations)
-      * [Monitoring Restorations](#monitoring-restorations)
-      * [Monitoring Volume Mismatches](#monitoring-volume-mismatches)
-      * [Custom Resource API](#custom-resource-api)
-         * [Spec vs Status](#spec-vs-status)
-         * [Representing State Transitions](#representing-state-transitions)
-            * [Reason Codes](#reason-codes)
-         * [API](#api)
-            * [EtcdMember](#etcdmember)
-            * [Etcd](#etcd)
-      * [Lifecycle of an EtcdMember](#lifecycle-of-an-etcdmember)
-         * [Creation](#creation)
-         * [Updation](#updation)
-         * [Deletion](#deletion)
-         * [Reconciliation](#reconciliation)
-            * [Stale EtcdMember Status Handling](#stale-etcdmember-status-handling)
-   * [Reference](#reference)
-
 ## Summary
 
 Today, [etcd-druid](https://github.com/gardener/etcd-druid) mainly acts as an etcd cluster provisioner, and seldom takes remediatory actions if the [etcd](https://etcd.io/) cluster goes into an undesired state that needs to be resolved by a human operator. In other words, etcd-druid cannot perform day-2 operations on etcd clusters in its current form, and hence cannot carry out its full set of responsibilities as a true "operator" of etcd clusters. For etcd-druid to be fully capable of its responsibilities, it must know the latest state of the etcd clusters and their individual members at all times.

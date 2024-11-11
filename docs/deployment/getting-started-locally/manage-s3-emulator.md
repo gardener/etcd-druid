@@ -14,7 +14,7 @@ To interact with `LocalStack` you must also install the AWS CLI `(version >=1.29
 On macOS run:
 
 ```bash
-> brew install awscli
+brew install awscli
 ```
 
 For other OS, please check the [AWS CLI installation documentation](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
@@ -22,7 +22,7 @@ For other OS, please check the [AWS CLI installation documentation](https://docs
 ## 01-Deploy LocalStack
 
 ```bash
-> make deploy-localstack
+make deploy-localstack
 ```
 
 The above make target will deploy `LocalStack` in the target Kubernetes cluster.
@@ -32,20 +32,20 @@ The above make target will deploy `LocalStack` in the target Kubernetes cluster.
 Configure `AWS CLI` to interact with LocalStack by setting the necessary environment variables. This configuration redirects S3 commands to the LocalStack endpoint and provides the required credentials for authentication.
 
 ```bash
-> export AWS_ENDPOINT_URL_S3="http://localhost:4566"
-> export AWS_ACCESS_KEY_ID=ACCESSKEYAWSUSER
-> export AWS_SECRET_ACCESS_KEY=sEcreTKey
-> export AWS_DEFAULT_REGION=us-east-2
+export AWS_ENDPOINT_URL_S3="http://localhost:4566"
+export AWS_ACCESS_KEY_ID=ACCESSKEYAWSUSER
+export AWS_SECRET_ACCESS_KEY=sEcreTKey
+export AWS_DEFAULT_REGION=us-east-2
 ```
 
 Create a S3 bucket using the following command:
 ```bash
-> aws s3api create-bucket --bucket <bucket-name> --region <region> --create-bucket-configuration LocationConstraint=<region> --acl private
+aws s3api create-bucket --bucket <bucket-name> --region <region> --create-bucket-configuration LocationConstraint=<region> --acl private
 ```
 
 To verify if the bucket has been created, you can use the following command:
 ```bash
-> aws s3api head-bucket --bucket <bucket-name>
+aws s3api head-bucket --bucket <bucket-name>
 ```
 
 ## 03-Configure Secret
@@ -53,7 +53,7 @@ To verify if the bucket has been created, you can use the following command:
 Connection details for an Azure S3 Object Store are put into a Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret/). Apply the Kubernetes Secret manifest through:
 
 ```bash
-> kubectl apply -f config/samples/etcd-secret-localstack.yaml
+kubectl apply -f config/samples/etcd-secret-localstack.yaml
 ```
 
 > **Note:** The secret created should be referred to in the `Etcd` CR in `spec.backup.store.secretRef`.
@@ -62,5 +62,5 @@ Connection details for an Azure S3 Object Store are put into a Kubernetes [Secre
 
 In addition to the kind cluster cleanup you should also unset the environment variable set in step-03 above.
 ```bash
-> unset AWS_ENDPOINT_URL_S3 AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION
+unset AWS_ENDPOINT_URL_S3 AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION
 ```

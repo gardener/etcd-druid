@@ -20,21 +20,23 @@ At present, recovery from a permanent quorum loss is achieved by manually execut
 
 > **Note:** In the near future etcd-druid will offer capability to automate the recovery from a permanent quorum loss via [Out-Of-Band Operator Tasks](https://github.com/gardener/etcd-druid/blob/90995898b231a49a8f211e85160600e9e6019fe0/docs/proposals/05-etcd-operator-tasks.md#recovery-from-permanent-quorum-loss). An operator only needs to ascertain that there is a permanent quorum loss and the etcd-cluster is beyond auto-recovery. Once that is established then an operator can invoke a task whose status an operator can check.
 
-> :warning: Please note that manually restoring etcd can result in data loss. This guide is the last resort to bring an Etcd cluster up and running again.
+!!! warning
+    Please note that manually restoring etcd can result in data loss. This guide is the last resort to bring an Etcd cluster up and running again.
 
 #### 00-Identify the etcd cluster 
 
 It is possible to shard the etcd cluster based on resource types using [--etcd-servers-overrides](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/) CLI flag of `kube-apiserver`.  Any sharding results in more than one etcd-cluster.
 
-> **Note:** In `gardener`, each shoot control plane has two etcd clusters, `etcd-events` which only stores events and `etcd-main` - stores everything else except events.
+!!! info
+    In `gardener`, each shoot control plane has two etcd clusters, `etcd-events` which only stores events and `etcd-main` - stores everything else except events.
 
 Identify the etcd-cluster which has a permanent quorum loss. Most of the resources of an etcd-cluster can be identified by its name. The resources of interest to recover from permanent quorum loss are: `Etcd` CR, `StatefulSet`, `ConfigMap` and `PVC`.
 
 > To identify the `ConfigMap` resource use the following command:
 >
-> ```bash
-> kubectl get sts <sts-name> -o jsonpath='{.spec.template.spec.volumes[?(@.name=="etcd-config-file")].configMap.name}'
-> ```
+```bash
+ kubectl get sts <sts-name> -o jsonpath='{.spec.template.spec.volumes[?(@.name=="etcd-config-file")].configMap.name}'
+```
 
 #### 01-Prepare Etcd Resource to allow manual updates
 
@@ -50,7 +52,7 @@ The above annotation will prevent any reconciliation by etcd-druid for this `Etc
 Add another annotation to the `Etcd` resource:
 
 ```bash
-kubectl annotate etcd etcd-main -n <namespace> druid.gardener.cloud/disable-etcd-component-protection=
+kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/disable-etcd-component-protection=
 ```
 
 The above annotation will allow manual edits to `Etcd` cluster resources that are managed by etcd-druid.

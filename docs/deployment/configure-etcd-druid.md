@@ -26,7 +26,8 @@ If you wish to setup `etcd-druid` in high-availability mode then leader election
 
 Metrics bind-address is computed by joining the host and port. By default its value is computed as `:8080`.
 
-> NOTE: Ensure that the `metrics-port` is also reflected in the `etcd-druid` deployment specification.
+!!! tip
+    Ensure that the `metrics-port` is also reflected in the `etcd-druid` deployment specification.
 
 ### Webhook Server
 
