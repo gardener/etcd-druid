@@ -8,11 +8,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/gardener/etcd-druid/internal/common"
 	"strings"
 	"testing"
 
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
+	"github.com/gardener/etcd-druid/internal/common"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -304,6 +304,7 @@ func TestGetEtcdContainerPeerTLSVolumeMounts(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var sts *appsv1.StatefulSet
 			if tc.isSTSNil {
 				g.Expect(GetEtcdContainerPeerTLSVolumeMounts(sts)).To(HaveLen(0))
@@ -371,6 +372,7 @@ func TestGetStatefulSetContainerTLSVolumeMounts(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var sts *appsv1.StatefulSet
 			if tc.isSTSNil {
 				g.Expect(GetStatefulSetContainerTLSVolumeMounts(sts)).To(HaveLen(0))
