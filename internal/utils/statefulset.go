@@ -111,6 +111,9 @@ var (
 // It will look at both older names (present in version <= v0.22) and new names (present in version >= v0.23) to create the slice.
 func GetEtcdContainerPeerTLSVolumeMounts(sts *appsv1.StatefulSet) []corev1.VolumeMount {
 	volumeMounts := make([]corev1.VolumeMount, 0, 2)
+	if sts == nil {
+		return volumeMounts
+	}
 	for _, container := range sts.Spec.Template.Spec.Containers {
 		if container.Name == common.ContainerNameEtcd {
 			for _, volMount := range container.VolumeMounts {
@@ -127,6 +130,9 @@ func GetEtcdContainerPeerTLSVolumeMounts(sts *appsv1.StatefulSet) []corev1.Volum
 // GetStatefulSetContainerTLSVolumeMounts returns a map of container name to TLS volume mounts for the given StatefulSet.
 func GetStatefulSetContainerTLSVolumeMounts(sts *appsv1.StatefulSet) map[string][]corev1.VolumeMount {
 	containerVolMounts := make(map[string][]corev1.VolumeMount, 2) // each pod is a 2 container pod. Init containers are not counted as containers.
+	if sts == nil {
+		return containerVolMounts
+	}
 	for _, container := range sts.Spec.Template.Spec.Containers {
 		if _, ok := containerVolMounts[container.Name]; !ok {
 			// Assuming 6 volume mounts per container. If there are more in future then this map's capacity will be increased by the golang runtime.
