@@ -121,8 +121,14 @@ const (
 	VolumeNameEtcdClientTLS = "etcd-client-tls"
 	// VolumeNameEtcdPeerCA is the name of the volume that contains the CA certificate bundle and CA certificate key used to sign certificates for peer communication.
 	VolumeNameEtcdPeerCA = "etcd-peer-ca"
+	// OldVolumeNameEtcdPeerCA is the old name of the volume that contains the CA certificate bundle and CA certificate key used to sign certificates for peer communication.
+	// TODO: (i062009) remove this when all clusters have started to use the new volume names.
+	OldVolumeNameEtcdPeerCA = "peer-url-ca-etcd"
 	// VolumeNameEtcdPeerServerTLS is the name of the volume that contains the server certificate-key pair used to set up the peer server.
 	VolumeNameEtcdPeerServerTLS = "etcd-peer-server-tls"
+	// OldVolumeNameEtcdPeerServerTLS is the old name of the volume that contains the server certificate-key pair used to set up the peer server.
+	// TODO: (i062009) remove this when all clusters have started to use the new volume names.
+	OldVolumeNameEtcdPeerServerTLS = "peer-url-etcd-server-tls"
 	// VolumeNameBackupRestoreCA is the name of the volume that contains the CA certificate bundle and CA certificate key used to sign certificates for backup-restore communication.
 	VolumeNameBackupRestoreCA = "backup-restore-ca"
 	// VolumeNameBackupRestoreServerTLS is the name of the volume that contains the server certificate-key pair used to set up the backup-restore server.

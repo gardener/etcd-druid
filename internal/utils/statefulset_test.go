@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
+	"github.com/gardener/etcd-druid/internal/common"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -266,6 +267,133 @@ func TestFetchPVCWarningMessagesForStatefulSet(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(strings.Contains(messages, tc.expectedMsg)).To(BeTrue())
+			}
+		})
+	}
+}
+
+func TestGetEtcdContainerPeerTLSVolumeMounts(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		isSTSNil             bool
+		oldVolMountNames     bool
+		expectedVolumeMounts []corev1.VolumeMount
+	}{
+		{
+			name:                 "sts is nil",
+			isSTSNil:             true,
+			expectedVolumeMounts: []corev1.VolumeMount{},
+		},
+		{
+			name:             "sts with old volume mount names",
+			oldVolMountNames: true,
+			expectedVolumeMounts: []corev1.VolumeMount{
+				{Name: common.OldVolumeNameEtcdPeerCA, MountPath: common.VolumeMountPathEtcdPeerCA},
+				{Name: common.OldVolumeNameEtcdPeerServerTLS, MountPath: common.VolumeMountPathEtcdPeerServerTLS},
+			},
+		},
+		{
+			name: "sts with new volume mount names",
+			expectedVolumeMounts: []corev1.VolumeMount{
+				{Name: common.VolumeNameEtcdPeerCA, MountPath: common.VolumeMountPathEtcdPeerCA},
+				{Name: common.VolumeNameEtcdPeerServerTLS, MountPath: common.VolumeMountPathEtcdPeerServerTLS},
+			},
+		},
+	}
+	g := NewWithT(t)
+	t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var sts *appsv1.StatefulSet
+			if tc.isSTSNil {
+				g.Expect(GetEtcdContainerPeerTLSVolumeMounts(sts)).To(HaveLen(0))
+			} else {
+				sts = testutils.CreateStatefulSet("test-sts", "test-ns", uuid.NewUUID(), 3)
+				sts.Spec.Template.Spec.Containers = append(sts.Spec.Template.Spec.Containers, corev1.Container{Name: common.ContainerNameEtcd})
+				if tc.oldVolMountNames {
+					sts.Spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+						{Name: common.OldVolumeNameEtcdPeerCA, MountPath: common.VolumeMountPathEtcdPeerCA},
+						{Name: common.OldVolumeNameEtcdPeerServerTLS, MountPath: common.VolumeMountPathEtcdPeerServerTLS},
+					}
+				} else {
+					sts.Spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+						{Name: common.VolumeNameEtcdPeerCA, MountPath: common.VolumeMountPathEtcdPeerCA},
+						{Name: common.VolumeNameEtcdPeerServerTLS, MountPath: common.VolumeMountPathEtcdPeerServerTLS},
+					}
+				}
+				g.Expect(GetEtcdContainerPeerTLSVolumeMounts(sts)).To(Equal(tc.expectedVolumeMounts))
+			}
+		})
+	}
+}
+
+func TestGetStatefulSetContainerTLSVolumeMounts(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		isSTSNil             bool
+		peerTLSEnabled       bool
+		expectedVolumeMounts map[string][]corev1.VolumeMount
+	}{
+		{
+			name:                 "sts is nil",
+			isSTSNil:             true,
+			expectedVolumeMounts: map[string][]corev1.VolumeMount{},
+		},
+		{
+			name:           "sts with peer TLS enabled",
+			peerTLSEnabled: true,
+			expectedVolumeMounts: map[string][]corev1.VolumeMount{
+				common.ContainerNameEtcd: {
+					{Name: common.VolumeNameEtcdPeerCA, MountPath: common.VolumeMountPathEtcdPeerCA},
+					{Name: common.VolumeNameEtcdPeerServerTLS, MountPath: common.VolumeMountPathEtcdPeerServerTLS},
+				},
+				common.ContainerNameEtcdBackupRestore: {
+					{Name: common.VolumeNameBackupRestoreServerTLS, MountPath: common.VolumeMountPathBackupRestoreServerTLS},
+					{Name: common.VolumeNameEtcdCA, MountPath: common.VolumeMountPathEtcdCA},
+					{Name: common.VolumeNameEtcdClientTLS, MountPath: common.VolumeMountPathEtcdClientTLS},
+				},
+			},
+		},
+		{
+			name:           "sts with peer TLS disabled",
+			peerTLSEnabled: false,
+			expectedVolumeMounts: map[string][]corev1.VolumeMount{
+				common.ContainerNameEtcd: {},
+				common.ContainerNameEtcdBackupRestore: {
+					{Name: common.VolumeNameBackupRestoreServerTLS, MountPath: common.VolumeMountPathBackupRestoreServerTLS},
+					{Name: common.VolumeNameEtcdCA, MountPath: common.VolumeMountPathEtcdCA},
+					{Name: common.VolumeNameEtcdClientTLS, MountPath: common.VolumeMountPathEtcdClientTLS},
+				},
+			},
+		},
+	}
+	g := NewWithT(t)
+	t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var sts *appsv1.StatefulSet
+			if tc.isSTSNil {
+				g.Expect(GetStatefulSetContainerTLSVolumeMounts(sts)).To(HaveLen(0))
+			} else {
+				sts = testutils.CreateStatefulSet("test-sts", "test-ns", uuid.NewUUID(), 3)
+				sts.Spec.Template.Spec.Containers = []corev1.Container{
+					{Name: common.ContainerNameEtcd},
+					{Name: common.ContainerNameEtcdBackupRestore},
+				}
+				if tc.peerTLSEnabled {
+					sts.Spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+						{Name: common.VolumeNameEtcdPeerCA, MountPath: common.VolumeMountPathEtcdPeerCA},
+						{Name: common.VolumeNameEtcdPeerServerTLS, MountPath: common.VolumeMountPathEtcdPeerServerTLS},
+					}
+				}
+				sts.Spec.Template.Spec.Containers[1].VolumeMounts = []corev1.VolumeMount{
+					{Name: common.VolumeNameBackupRestoreServerTLS, MountPath: common.VolumeMountPathBackupRestoreServerTLS},
+					{Name: common.VolumeNameEtcdCA, MountPath: common.VolumeMountPathEtcdCA},
+					{Name: common.VolumeNameEtcdClientTLS, MountPath: common.VolumeMountPathEtcdClientTLS},
+				}
+				g.Expect(GetStatefulSetContainerTLSVolumeMounts(sts)).To(Equal(tc.expectedVolumeMounts))
 			}
 		})
 	}
