@@ -92,9 +92,37 @@ func FetchPVCWarningMessagesForStatefulSet(ctx context.Context, cl client.Client
 }
 
 var (
-	etcdTLSVolumeMountNames   = sets.New[string](common.VolumeNameEtcdCA, common.VolumeNameEtcdServerTLS, common.VolumeNameEtcdClientTLS, common.VolumeNameEtcdPeerCA, common.VolumeNameEtcdPeerServerTLS, common.VolumeNameBackupRestoreCA)
-	etcdbrTLSVolumeMountNames = sets.New[string](common.VolumeNameBackupRestoreServerTLS, common.VolumeNameEtcdCA, common.VolumeNameEtcdClientTLS)
+	etcdTLSVolumeMountNames = sets.New[string](common.VolumeNameEtcdCA,
+		common.VolumeNameEtcdServerTLS,
+		common.VolumeNameEtcdClientTLS,
+		common.VolumeNameEtcdPeerCA,
+		common.VolumeNameEtcdPeerServerTLS,
+		common.VolumeNameBackupRestoreCA)
+	possiblePeerTLSVolumeMountNames = sets.New[string](common.VolumeNameEtcdPeerCA,
+		common.OldVolumeNameEtcdPeerCA,
+		common.VolumeNameEtcdPeerServerTLS,
+		common.OldVolumeNameEtcdPeerServerTLS)
+	etcdbrTLSVolumeMountNames = sets.New[string](common.VolumeNameBackupRestoreServerTLS,
+		common.VolumeNameEtcdCA,
+		common.VolumeNameEtcdClientTLS)
 )
+
+// GetEtcdContainerPeerTLSVolumeMounts returns the volume mounts for the etcd container that are related to peer TLS.
+// It will look at both older names (present in version <= v0.22) and new names (present in version >= v0.23) to create the slice.
+func GetEtcdContainerPeerTLSVolumeMounts(sts *appsv1.StatefulSet) []corev1.VolumeMount {
+	volumeMounts := make([]corev1.VolumeMount, 0, 2)
+	for _, container := range sts.Spec.Template.Spec.Containers {
+		if container.Name == common.ContainerNameEtcd {
+			for _, volMount := range container.VolumeMounts {
+				if possiblePeerTLSVolumeMountNames.Has(volMount.Name) {
+					volumeMounts = append(volumeMounts, volMount)
+				}
+			}
+			break
+		}
+	}
+	return volumeMounts
+}
 
 // GetStatefulSetContainerTLSVolumeMounts returns a map of container name to TLS volume mounts for the given StatefulSet.
 func GetStatefulSetContainerTLSVolumeMounts(sts *appsv1.StatefulSet) map[string][]corev1.VolumeMount {

@@ -111,7 +111,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, svc *corev1.Service) {
 	svc.OwnerReferences = []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)}
 	svc.Spec.Type = corev1.ServiceTypeClusterIP
 	svc.Spec.SessionAffinity = corev1.ServiceAffinityNone
-	svc.Spec.Selector = druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)
+	svc.Spec.Selector = utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), map[string]string{druidv1alpha1.LabelComponentKey: common.ComponentNameStatefulSet})
 	svc.Spec.Ports = getPorts(etcd)
 }
 
