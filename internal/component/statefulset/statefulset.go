@@ -266,7 +266,7 @@ func (r _resource) handleTLSChanges(ctx component.OperatorContext, etcd *druidv1
 		// and the cluster will be stuck in a bad state. Updating peer URL is a cluster wide operation as all members will need to know that a peer TLS has changed.
 		// If not all members are ready then rolling-update of StatefulSet can potentially cause a healthy node to be restarted causing loss of quorum from which
 		// there will not be an automatic recovery.
-		if shouldRequeueForMultiNodeEtcdIfPodsNotReady(existingSts) {
+		if !r.hasTLSEnablementForPeerURLReflectedOnSTS(etcd, existingSts) && shouldRequeueForMultiNodeEtcdIfPodsNotReady(existingSts) {
 			return druiderr.New(
 				druiderr.ErrRequeueAfter,
 				component.OperationSync,
@@ -309,10 +309,17 @@ func shouldRequeueForMultiNodeEtcdIfPodsNotReady(sts *appsv1.StatefulSet) bool {
 		sts.Status.ReadyReplicas < *sts.Spec.Replicas
 }
 
-func isStatefulSetTLSConfigInSync(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) bool {
+func (r _resource) hasTLSEnablementForPeerURLReflectedOnSTS(etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) bool {
+	newEtcdWrapperPeerTLSVolMounts := getEtcdContainerPeerVolumeMounts(etcd)
+	containerPeerTLSVolMounts := utils.GetEtcdContainerPeerTLSVolumeMounts(existingSts)
+	r.logger.Info("Checking if peer URL TLS enablement is reflected on StatefulSet", "len(newEtcdWrapperPeerTLSVolMounts)", len(newEtcdWrapperPeerTLSVolMounts), "len(containerPeerTLSVolMounts)", len(containerPeerTLSVolMounts))
+	return len(containerPeerTLSVolMounts) == len(newEtcdWrapperPeerTLSVolMounts)
+}
+
+func isStatefulSetTLSConfigInSync(etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) bool {
 	newEtcdbrTLSVolMounts := getBackupRestoreContainerSecretVolumeMounts(etcd)
 	newEtcdWrapperTLSVolMounts := getEtcdContainerSecretVolumeMounts(etcd)
-	containerTLSVolMounts := utils.GetStatefulSetContainerTLSVolumeMounts(sts)
+	containerTLSVolMounts := utils.GetStatefulSetContainerTLSVolumeMounts(existingSts)
 	return !hasTLSVolumeMountsChanged(containerTLSVolMounts[common.ContainerNameEtcd], newEtcdWrapperTLSVolMounts) &&
 		!hasTLSVolumeMountsChanged(containerTLSVolMounts[common.ContainerNameEtcdBackupRestore], newEtcdbrTLSVolMounts)
 }

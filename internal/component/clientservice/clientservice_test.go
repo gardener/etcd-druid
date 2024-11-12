@@ -272,6 +272,7 @@ func matchClientService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Ser
 		expectedAnnotations = etcd.Spec.Etcd.ClientService.Annotations
 		expectedLabels = utils.MergeMaps(etcd.Spec.Etcd.ClientService.Labels, druidv1alpha1.GetDefaultLabels(etcdObjMeta))
 	}
+	expectedLabelSelector := utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcdObjMeta), map[string]string{druidv1alpha1.LabelComponentKey: common.ComponentNameStatefulSet})
 
 	g.Expect(actualSvc).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
@@ -284,7 +285,7 @@ func matchClientService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Ser
 		"Spec": MatchFields(IgnoreExtras, Fields{
 			"Type":            Equal(corev1.ServiceTypeClusterIP),
 			"SessionAffinity": Equal(corev1.ServiceAffinityNone),
-			"Selector":        Equal(druidv1alpha1.GetDefaultLabels(etcdObjMeta)),
+			"Selector":        Equal(expectedLabelSelector),
 			"Ports": ConsistOf(
 				Equal(corev1.ServicePort{
 					Name:       "client",
