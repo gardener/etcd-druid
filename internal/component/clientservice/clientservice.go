@@ -112,7 +112,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, svc *corev1.Service) {
 	svc.Spec.Type = corev1.ServiceTypeClusterIP
 	svc.Spec.SessionAffinity = corev1.ServiceAffinityNone
 	// Client service should only target StatefulSet pods. Default labels are going to be present on anything that is managed by etcd-druid and started for an etcd cluster.
-	// Therefore, only using this as a label selector can cause issues as we have already seen in https://github.com/gardener/etcd-druid/issues/914
+	// Therefore, only using default labels as label selector can cause issues as we have already seen in https://github.com/gardener/etcd-druid/issues/914
 	svc.Spec.Selector = utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), map[string]string{druidv1alpha1.LabelComponentKey: common.ComponentNameStatefulSet})
 	svc.Spec.Ports = getPorts(etcd)
 }
