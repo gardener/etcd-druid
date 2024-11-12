@@ -708,8 +708,22 @@ func getEtcdContainerSecretVolumeMounts(etcd *druidv1alpha1.Etcd) []corev1.Volum
 			},
 		)
 	}
-	if etcd.Spec.Etcd.PeerUrlTLS != nil {
+	secretVolumeMounts = append(secretVolumeMounts, getEtcdContainerPeerVolumeMounts(etcd)...)
+	if etcd.Spec.Backup.TLS != nil {
 		secretVolumeMounts = append(secretVolumeMounts,
+			corev1.VolumeMount{
+				Name:      common.VolumeNameBackupRestoreCA,
+				MountPath: common.VolumeMountPathBackupRestoreCA,
+			},
+		)
+	}
+	return secretVolumeMounts
+}
+
+func getEtcdContainerPeerVolumeMounts(etcd *druidv1alpha1.Etcd) []corev1.VolumeMount {
+	peerTLSVolMounts := make([]corev1.VolumeMount, 0, 2)
+	if etcd.Spec.Etcd.PeerUrlTLS != nil {
+		peerTLSVolMounts = append(peerTLSVolMounts,
 			corev1.VolumeMount{
 				Name:      common.VolumeNameEtcdPeerCA,
 				MountPath: common.VolumeMountPathEtcdPeerCA,
@@ -720,15 +734,7 @@ func getEtcdContainerSecretVolumeMounts(etcd *druidv1alpha1.Etcd) []corev1.Volum
 			},
 		)
 	}
-	if etcd.Spec.Backup.TLS != nil {
-		secretVolumeMounts = append(secretVolumeMounts,
-			corev1.VolumeMount{
-				Name:      common.VolumeNameBackupRestoreCA,
-				MountPath: common.VolumeMountPathBackupRestoreCA,
-			},
-		)
-	}
-	return secretVolumeMounts
+	return peerTLSVolMounts
 }
 
 // getPodVolumes gets volumes that needs to be mounted onto the etcd StatefulSet pods

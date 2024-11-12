@@ -13,6 +13,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"
@@ -246,6 +247,7 @@ func newPeerService(etcd *druidv1alpha1.Etcd) *corev1.Service {
 func matchPeerService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Service) {
 	peerPort := ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 	etcdObjMeta := etcd.ObjectMeta
+	expectedLabelSelector := utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcdObjMeta), map[string]string{druidv1alpha1.LabelComponentKey: common.ComponentNameStatefulSet})
 	g.Expect(actualSvc).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 			"Name":            Equal(druidv1alpha1.GetPeerServiceName(etcdObjMeta)),
@@ -257,7 +259,7 @@ func matchPeerService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Servi
 			"Type":            Equal(corev1.ServiceTypeClusterIP),
 			"ClusterIP":       Equal(corev1.ClusterIPNone),
 			"SessionAffinity": Equal(corev1.ServiceAffinityNone),
-			"Selector":        Equal(druidv1alpha1.GetDefaultLabels(etcdObjMeta)),
+			"Selector":        Equal(expectedLabelSelector),
 			"Ports": ConsistOf(
 				Equal(corev1.ServicePort{
 					Name:       "peer",
