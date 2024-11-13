@@ -18,7 +18,7 @@ images:
 - name: etcd-wrapper
   sourceRepository: github.com/gardener/etcd-wrapper
   repository: europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper
-  tag: "v0.2.0"
+  tag: "v0.3.0"
 - name: alpine
   repository: europe-docker.pkg.dev/gardener-project/public/3rd/alpine
   tag: "3.18.4"
