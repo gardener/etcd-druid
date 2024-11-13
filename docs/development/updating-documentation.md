@@ -2,7 +2,7 @@
 
 All documentation for `etcd-druid` resides in [docs](https://github.com/gardener/etcd-druid/tree/master/docs) directory. If you wish to update the existing documentation or create new documentation files then read on.
 
-## Prerequisite: Setup mkdocs locally
+## Prerequisite: Setup Mkdocs locally
 [Material for Mkdocs](https://squidfunk.github.io/mkdocs-material/) is used to generate GitHub Pages from all the Markdown files present under the [docs](https://github.com/gardener/etcd-druid/tree/master/docs) directory. To locally validate that the documentation renders correctly, it is recommended that you perform the following setup.
 
 * Install python3 if not already installed.
