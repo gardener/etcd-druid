@@ -131,8 +131,8 @@ github.com/fsnotify/fsnotify v1.7.0 h1:8JEhPFa5W2WU7YfeZzPNqzMP6Lwt7L2715Ggo0nos
 github.com/fsnotify/fsnotify v1.7.0/go.mod h1:40Bi/Hjc2AVfZrqy+aj+yEI+/bRxZnMJyTJwOpGvigM=
 github.com/gardener/cert-management v0.15.0 h1:ohm1eWae2rQSkwFGWXTt+lBv4rLBhtJsJgqvaXJBs6o=
 github.com/gardener/cert-management v0.15.0/go.mod h1:3BK2VEtGwv2ijf3bSziTLMCUvYnPzIQrQ/uPeZzL4m0=
-github.com/gardener/etcd-backup-restore v0.31.0 h1:ViOdO0AF605QvjHQuZVpxmpEemWhKNQubr44Ci7xa2U=
-github.com/gardener/etcd-backup-restore v0.31.0/go.mod h1:GuH9nJjOwXFsh4nifDLY2McgEXArdhS22msBliYJ6y4=
+github.com/gardener/etcd-backup-restore v0.31.1 h1:l53jFhD0zzJKKwZYuDjj3O340jVY1zNNdabz/4pHA90=
+github.com/gardener/etcd-backup-restore v0.31.1/go.mod h1:5kakxyoDtx/vwWjQIOIGN6dTrx2TxRb8eLHtgrwBkMw=
 github.com/gardener/gardener v1.99.1 h1:c/wVXYgt4j7eHCMwxpQPPpaLXt1BY/IPYStfCtNsR8Q=
 github.com/gardener/gardener v1.99.1/go.mod h1:XboPwJptOg9ZfXTjuohGk7X8kxnF0o88gJnz6Ed7Vqc=
 github.com/gardener/hvpa-controller/api v0.15.0 h1:igsalL5Z6kFMn1+Kv1Eq0cRjYW+4oBA1aEY/yDO2QtI=
