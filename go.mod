@@ -3,7 +3,7 @@ module github.com/gardener/etcd-druid
 go 1.23.3
 
 require (
-	github.com/gardener/etcd-backup-restore v0.31.0
+	github.com/gardener/etcd-backup-restore v0.31.1
 	github.com/gardener/gardener v1.99.1
 	github.com/go-logr/logr v1.4.2
 	github.com/golang-jwt/jwt/v5 v5.2.1
