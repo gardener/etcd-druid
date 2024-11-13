@@ -2,7 +2,7 @@
 
 ## Create an Etcd Cluster
 
-Creating an `Etcd` cluster can be done either by explicitly creating a manifest file or it can also be done programmatically.  You can refer to and/or modify any [sample](../../config/samples/) `Etcd` manifest to create an etcd cluster. In order to programmatically create an `Etcd` cluster you can refer to the `Golang` [API](../../api/v1alpha1/)  to create an `Etcd` custom resource and using a [k8s client](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/client#Client) you can apply an instance of a `Etcd` custom resource targetting any namespace in a k8s cluster.
+Creating an `Etcd` cluster can be done either by explicitly creating a manifest file or it can also be done programmatically.  You can refer to and/or modify any [sample](https://github.com/gardener/etcd-druid/tree/master/config/samples) `Etcd` manifest to create an etcd cluster. In order to programmatically create an `Etcd` cluster you can refer to the `Golang` [API](https://github.com/gardener/etcd-druid/tree/master/api)  to create an `Etcd` custom resource and using a [k8s client](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/client#Client) you can apply an instance of a `Etcd` custom resource targetting any namespace in a k8s cluster.
 
 Prior to `v0.23.0` version of etcd-druid, after creating an `Etcd` custom resource, you will have to annotate the resource with `gardener.cloud/operation=reconcile` in order to trigger a reconciliation for the newly created `Etcd` resource. Post `v0.23.0` version of etcd-druid, there is no longer any need to explicitly trigger reconciliations for creating new `Etcd` clusters.
 
@@ -69,10 +69,10 @@ This option is sometimes recommeded as you would like avoid auto-reconciliation 
 
 ## Overwrite Container OCI Images
 
-To find out image versions of `etcd-backup-restore` and `etcd-wrapper` used by a specific version of `etcd-druid` one way is look for the image versions in [images.yaml](https://github.com/gardener/etcd-druid/blob/1007780853d5282e615db401db58e823de3c1944/internal/images/images.yaml). There are times that you might wish to override these images that come bundled with `etcd-druid`. There are two ways in which you can do that:
+To find out image versions of `etcd-backup-restore` and `etcd-wrapper` used by a specific version of `etcd-druid` one way is look for the image versions in [images.yaml](https://github.com/gardener/etcd-druid/blob/master/internal/images/images.yaml). There are times that you might wish to override these images that come bundled with `etcd-druid`. There are two ways in which you can do that:
 
 **Option #1**
-We leverage [Overwrite ImageVector](https://github.com/gardener/gardener/blob/75c8f652fd31319608ac73257d587c3d31a9cc8f/docs/deployment/image_vector.md#overwriting-image-vector) facility provided by [gardener](https://github.com/gardener/gardener/). This capability can be used without bringing in gardener as well. To illustrate this in context of `etcd-druid` you will create a `ConfigMap` with the following content:
+We leverage [Overwrite ImageVector](https://github.com/gardener/gardener/blob/master/docs/deployment/image_vector.md#overwriting-image-vector) facility provided by [gardener](https://github.com/gardener/gardener/). This capability can be used without bringing in gardener as well. To illustrate this in context of `etcd-druid` you will create a `ConfigMap` with the following content:
 
 ```yaml
 apiVersion: v1
@@ -96,7 +96,7 @@ data:
       tag: "v<custom-tag>"
 ```
 
-You can use [images.yaml](https://github.com/gardener/etcd-druid/blob/1007780853d5282e615db401db58e823de3c1944/internal/images/images.yaml) as a reference to create the overwrite images YAML `ConfigMap`.
+You can use [images.yaml](https://github.com/gardener/etcd-druid/blob/master/internal/images/images.yaml) as a reference to create the overwrite images YAML `ConfigMap`.
 
 Edit the `etcd-druid` `Deployment` with:
 
