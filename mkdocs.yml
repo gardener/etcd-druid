@@ -92,6 +92,7 @@ nav:
       - Raising a PR: development/raising-a-pr.md
       - Manage Dependencies: development/dependency-management.md
       - Testing: development/testing.md
+      - Updating documentation: development/updating-documentation.md
   - API Reference:
       - Etcd Druid API: api-reference/etcd-druid-api.md
   - Monitoring:
