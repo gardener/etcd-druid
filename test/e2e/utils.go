@@ -603,7 +603,8 @@ func getSnapstore(storageProvider, storageContainer, storePrefix string) (brtype
 }
 
 func purgeSnapstore(store brtypes.SnapStore) error {
-	snapList, err := store.List()
+	// List all snapshots since the snapstore is being purged
+	snapList, err := store.List(true)
 	if err != nil {
 		return err
 	}
