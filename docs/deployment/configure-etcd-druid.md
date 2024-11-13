@@ -88,5 +88,5 @@ Following set of flags configures the reconcilers running within etcd-druid. To 
 
 | Flag                | Description                                                  | Default |
 | ------------------- | ------------------------------------------------------------ | ------- |
-| feature-gates       | A set of key=value pairs that describe feature gates for alpha/experimental features. Please check [feature-gates](https://github.com/gardener/etcd-druid/blob/55efca1c8f6c852b0a4e97f08488ffec2eed0e68/docs/deployment/feature-gates.md) for more information. | ""      |
+| feature-gates       | A set of key=value pairs that describe feature gates for alpha/experimental features. Please check [feature-gates](feature-gates.md) for more information. | ""      |
 | disable-lease-cache | Disable cache for lease.coordination.k8s.io resources.       | false   |

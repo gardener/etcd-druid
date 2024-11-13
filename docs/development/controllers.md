@@ -38,7 +38,7 @@ Once the manager is `Start()`ed, all the controllers that are *registered* with 
 
 Each controller is built using a controller builder, configured with details such as the type of object being reconciled, owned objects whose owner object is reconciled, event filters (predicates), etc. `Predicates` are filters which allow controllers to filter which type of events the controller should respond to and which ones to ignore.
 
-The logic relevant to the controller manager like the creation of the controller manager and registering each of the controllers with the manager, is contained in [`internal/manager/manager.go`](../../internal/manager/manager.go).
+The logic relevant to the controller manager like the creation of the controller manager and registering each of the controllers with the manager, is contained in [`internal/manager/manager.go`](https://github.com/gardener/etcd-druid/blob/master/internal/manager/manager.go).
 
 ## Etcd Controller
 
