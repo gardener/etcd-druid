@@ -46,6 +46,7 @@ For a single node etcd cluster, both the `RollingUpdate` and `OnDelete` strategi
 
 - The proposal does not claim to solve the quorum loss issues completely. It only aims to reduce the chances of unintended quorum loss scenarios and protect from voluntary disruptions.
 - Although this proposal works for an etcd cluster with any odd number of replicas, there is a clear possibility of optimising the logic further for clusters with more than 3 replicas by trying to update multiple pods at once to make the update process faster while also avoiding any unintended quorum loss situations. The optimisation can be scoped for the future.
+- This proposal does not cover the usecase of autonomous clusters where the etcd cluster is deployed as static pods instead of a StatefulSet. The proposal is limited to the StatefulSet deployment of the etcd cluster as it only changes the update strategy of the StatefulSet.
 
 ## Proposal
 
@@ -185,11 +186,11 @@ The `OnDelete` process is responsible for updating the pods, considering their r
   - The process continues to reconcile and requeue until all pods are up-to-date.
   - Once all pods are up-to-date, the reconciliation is complete.
 
-#### Rationale for Simultaneous Deletion of Non Participating Pods
+#### Rationale for Simultaneous Deletion of Non-Updated Non-Participating Pods
 
 The reason for making delete calls to all the non-participating pods at once is due to the fact that the cluster cannot go into a more degraded situation than what it currently is in, because these pods are not serving any traffic and are hence not part of the quorum. Therefore, it is most efficient to remove all these pods at once and then wait for the new pods to get into a participating state. Using Eviction calls for these pods would not be efficient as the PDB might block the eviction calls if the cluster is already in a degraded state.
 
-> **Note:** The PodDisruptionBudget (PDB) includes a [`.spec.unhealthyPodEvictionPolicy`](https://kubernetes.io/docs/tasks/run-application/configure-pdb/#unhealthy-pod-eviction-policy) field. If the Etcd resource carries the annotation `resources.druid.gardener.cloud/allow-unhealthy-pod-eviction`, this field is set to `AlwaysAllow`. This setting permits the eviction of unhealthy pods, bypassing the PDB protection, and facilitating a smoother update process. However, this annotation is not set by default and may be phased out in the future. Therefore, it is not advisable to depend on this annotation for the update process. Hence, the deletion approach is preferred for handling unhealthy pods.
+> **Note:** The PodDisruptionBudget (PDB) includes a [`.spec.unhealthyPodEvictionPolicy`](https://kubernetes.io/docs/tasks/run-application/configure-pdb/#unhealthy-pod-eviction-policy) field. If the Etcd resource carries the annotation `resources.druid.gardener.cloud/allow-unhealthy-pod-eviction`, this field is set to `AlwaysAllow`. This setting permits the eviction of unhealthy pods, bypassing the PDB protection, and facilitating a smoother update process. However, this annotation is not set by default and may be phased out in the future. Therefore, it is not advisable to depend on this annotation for the update process. Hence, the deletion approach is preferred for handling non-participating pods.
 
 #### Rationale for Deleting/Evicting Non-Updated Participating Pods
 
@@ -207,7 +208,7 @@ The rationale for using delete calls for non-updated participating pods with unh
 
 ##### **Evicting Non-Updated Participating Pods with Healthy Containers**
 
-For non-updated participating pods with healthy `backup-restore` containers, eviction calls are used to respect the PDB. By the time these pods are updated, there should be no pods with unhealthy `backup-restore` containers, allowing the PDB to permit eviction calls. This ensures the update process proceeds smoothly. However, if any pod becomes unhealthy during eviction, the PDB will correctly block the eviction calls, and the update process will be requeued for the next reconciliation cycle.
+For non-updated participating pods with healthy `backup-restore` containers, eviction calls are used to respect the PDB. By the time the process starts to update these pods, there should be no pods with unhealthy `backup-restore` containers, allowing the PDB to permit eviction calls. This ensures the update process proceeds smoothly. However, if any pod becomes unhealthy during eviction, the PDB will correctly block the eviction calls, and the update process will be requeued for the next reconciliation cycle.
 
 > **Note:** The learner pod is excluded from the sequence of deleting/evicting non-updated participating pods as it is not considered a participating pod. The readiness probe attached to the etcd container periodically verifies if the container is ready to serve traffic. Since the learner pod does not participate in the quorum and is still synchronizing its data with the leader, it is not ready to serve traffic. Given that etcd is a strongly consistent distributed key-value store, the learner pod does not respond to requests until its data is in sync with the leader. Therefore, the learner pod is not included in the set of participating pods.
 
@@ -277,7 +278,7 @@ Transitioning between the `RollingUpdate` and `OnDelete` strategies is designed 
 
   - When the feature gate is enabled, the `OnDelete` controller is added to the controller manager and begins monitoring the StatefulSet resource for **updates**.
 
-  - Initially, the StatefulSet continues to use the RollingUpdate strategy until the Etcd resource is reconciled. The OnDelete controller will not interfere during this period due to a predicate that allows reconciliation only when the `updateStrategy` is set to `OnDelete`.
+  - Initially, the StatefulSet continues to use the RollingUpdate strategy until the Etcd resource is reconciled. The OnDelete controller will not interfere during this period due to a predicate that allows reconciliation only when the `updateStrategy` of the StatefulSet is set to `OnDelete`.
 
   - Once the Etcd resource is reconciled:
 
@@ -297,4 +298,4 @@ This transition mechanism ensures a smooth switch between update strategies, mai
 
 An alternate solution to this issue could be to employ the `RollingUpdate` strategy itself but while setting the [`spec.updateStrategy.rollingUpdate.maxUnavailable`](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#maximum-unavailable-pods) to `1`. This configuration ensures that only one pod is unavailable during the update process, thereby maintaining quorum. However, this approach has the drawback of pausing the update until the non-participating pods regain health and starts participating. This could potentially lead to a deadlock in the update process, especially in scenarios where the pod restart is the solution.
 
-Compared to the proposed `OnDelete` strategy, this approach is less efficient. In the `OnDelete` strategy, the controller can expedite the update process by deleting non-participating pods first to create new updated ones, without compromising safety. Furthermore, the `RollingUpdate` strategy with `maxUnavailable` set to `1` is still in its Alpha stage and is not recommended for production use.
+Compared to the proposed `OnDelete` strategy, this approach is less efficient. In the `OnDelete` strategy, the controller can expedite the update process by deleting non-participating pods first to create new updated ones, without compromising safety. Furthermore, the `RollingUpdate` strategy with `maxUnavailable` field is still in its Alpha stage and is not recommended for production useage.
