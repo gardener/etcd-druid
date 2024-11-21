@@ -13,53 +13,24 @@ reviewers:
 
 # DEP-06: Immutable ETCD Backups
 
-## Table of Contents
-
-- [DEP-06: Immutable ETCD Backups](#dep-06-immutable-etcd-backups)
-  - [Table of Contents](#table-of-contents)
-  - [Summary](#summary)
-  - [Motivation](#motivation)
-    - [Goals](#goals)
-    - [Non-Goals](#non-goals)
-  - [Proposal](#proposal)
-    - [Overview](#overview)
-    - [Detailed Design](#detailed-design)
-      - [Bucket Immutability Mechanism](#bucket-immutability-mechanism)
-      - [ETCD Backup Configuration](#etcd-backup-configuration)
-      - [Handling of Hibernated Clusters](#handling-of-hibernated-clusters)
-    - [New Compaction Controller Flag](#new-compaction-controller-flag)
-    - [Garbage Collection during Compaction for Hibernated ETCD Clusters](#garbage-collection-during-compaction-for-hibernated-etcd-clusters)
-    - [Excluding Snapshots Under Specific Circumstances](#excluding-snapshots-under-specific-circumstances)
-  - [Compatibility](#compatibility)
-  - [Implementation Steps](#implementation-steps)
-  - [Risks and Mitigations](#risks-and-mitigations)
-  - [Operational Considerations](#operational-considerations)
-  - [Alternatives](#alternatives)
-    - [Object-Level Immutability Policies vs. Bucket-Level Immutability Policies](#object-level-immutability-policies-vs-bucket-level-immutability-policies)
-      - [Feasibility Study: Immutable Backups on Cloud Providers](#feasibility-study-immutable-backups-on-cloud-providers)
-      - [Considerations for Object-Level Immutability](#considerations-for-object-level-immutability)
-      - [Conclusion](#conclusion)
-        - [Comparison of Storage Provider Properties for Bucket-Level and Object-Level Immutability](#comparison-of-storage-provider-properties-for-bucket-level-and-object-level-immutability)
-  - [References](#references)
-  - [Glossary](#glossary)
-
 ## Summary
 
-This proposal aims to enhance the reliability and integrity of ETCD backups in ETCD Druid by introducing immutable backups. By leveraging cloud provider features that support a write-once-read-many (WORM) model, this approach prevents unauthorized modifications to backup data, ensuring that backups remain available and intact for restoration.
+This proposal aims to enhance the reliability and integrity of ETCD backups created by `etcd-backup-restore` in ETCD clusters managed by `etcd-druid`, by introducing immutable backups. By leveraging cloud provider features that support a write-once-read-many (WORM) model, unauthorized modifications to backup data are prevented, ensuring that backups remain intact and accessible for restoration.
+
+The proposed solution relies on `etcd-druid` to manage ETCD backups and handle hibernation processes effectively. It leverages one of the suggested approaches to ensure backups remain immutable over extended periods. It is important to note that using `etcd-backup-restore` standalone may not be sufficient to achieve this functionality end-to-end, as the immutability handling (with respect to hibernation) is specifically managed within `etcd-druid`.
 
 ## Motivation
 
-Ensuring the integrity and availability of ETCD backups is crucial for the ability to restore an ETCD cluster after it has irrecoverably gone down. Making backups immutable, protects against unintended or malicious modifications post-creation, thereby enhancing the overall security posture.
+Ensuring the integrity and availability of ETCD backups is crucial for the ability to restore an ETCD cluster when it has become non-functional or inoperable. Making the backups immutable protects against any unintended or malicious modifications post-creation, thereby enhancing the overall security posture.
 
 ### Goals
 
 - Implement immutable backup support for ETCD clusters.
 - Secure backup data against unintended or unauthorized modifications after creation.
-- Ensure backups are consistently available and intact for restoration purposes.
+- Implement changes required in `etcd-backup-restore` and `etcd-druid` to support this proposal.
 
 ### Non-Goals
 
-- Altering existing backup processes beyond what's necessary for immutability.
 - Implementing object-level immutability policies at this stage.
 - Supporting immutable backups on storage providers that do not offer immutability features (e.g., OpenStack Swift).
 
@@ -67,13 +38,20 @@ Ensuring the integrity and availability of ETCD backups is crucial for the abili
 
 ### Overview
 
-Introduce immutability in backup storage by leveraging cloud provider features that support a write-once-read-many (WORM) model. This will prevent data alterations after backup creation, enhancing data integrity and security. The implementation will focus on bucket-level immutability policies, as they are widely supported and easier to manage across different cloud providers.
+We propose introducing immutability in backup storage by leveraging cloud provider features that support a write-once-read-many (WORM) model. This approach will prevent data alterations post-creation, enhancing data integrity and security.
+
+There are two types of immutability options to consider:
+
+1. **Bucket-Level Immutability:** Applies a uniform immutability period to all objects within a bucket. This is widely supported and easier to manage across different cloud providers.
+2. **Object-Level Immutability:** Allows setting immutability periods on a per-object basis, offering more granular control but with increased complexity and varying support across providers.
+
+In the detailed design, we will focus on bucket-level immutability policies due to their broader support and simpler management.
 
 ### Detailed Design
 
 #### Bucket Immutability Mechanism
 
-The Bucket Immutability feature configures an immutability policy for a cloud storage bucket, governing how long objects in the bucket must be retained in an immutable state. It also allows for locking the bucket's immutability policy, permanently preventing the policy from being reduced or removed.
+The bucket immutability feature configures an immutability policy for a cloud storage bucket, dictating how long objects in the bucket must remain immutable. It also allows for locking the bucket's immutability policy, permanently preventing the policy from being reduced or removed.
 
 - **Supported by Major Providers:**
   - **Google Cloud Storage (GCS):** [Bucket Lock](https://cloud.google.com/storage/docs/bucket-lock)
@@ -85,126 +63,175 @@ The Bucket Immutability feature configures an immutability policy for a cloud st
 
 **Implementation Details:**
 
-- Operators are responsible for creating the new buckets or updating the existing buckets with these immutability settings before `etcd-backup-restore` starts uploading snapshots.
-- Once the bucket is configured to be immutable, snapshots uploaded by `etcd-backup-restore` are also immutable and cannot be altered or deleted until the immutability period expires.
+- Operators are responsible for configuring new or existing buckets with these immutability settings before `etcd-backup-restore` begins uploading snapshots.
+- Once configured, snapshots uploaded by `etcd-backup-restore` will also be immutable and cannot be altered or deleted until the immutability period expires.
 - No additional configuration needs to be passed to etcd-druid.
 
 #### ETCD Backup Configuration
 
-Operators need to ensure that the ETCD backup configuration aligns with the immutability requirements. This includes setting appropriate immutability periods.
-
+Operators must ensure that the ETCD backup configuration aligns with the immutability requirements, including setting appropriate immutability periods.
 
 #### Handling of Hibernated Clusters
 
-In scenarios where an ETCD cluster has been hibernated (scaled down to zero replicas) for a duration that exceeds the immutability period, backups may become mutable again (behaviour depends on cloud provider [refer](#comparison-of-storage-provider-properties-for-bucket-level-and-object-level-immutability)), compromising the intended immutability guarantees.
+When an ETCD cluster is hibernated for a duration exceeding the immutability period, backups may become mutable again (this behavior depends on the cloud provider; refer to [Comparison of Storage Provider Properties](#comparison-of-storage-provider-properties-for-bucket-level-and-object-level-immutability)), compromising the intended immutability guarantees.
 
-There are two ways to maintain the immutability of snapshots:
+Such handling of hibernated clusters is the type of scenario which the etcd operator-tasks frameworks lends itself to quite well, and thus for all proposed solutions, the operator tasks framework as defined [here](./05-etcd-operator-tasks.md) will be made use of for the designs of the solutions.
 
-1. **Extend the Immutability of Snapshots**
+To maintain snapshot immutability during extended hibernation, we propose two approaches:
 
-   Extending the immutability period at the bucket level to cover the extended hibernation period might seem like a solution. However, this approach is **not feasible** due to several significant drawbacks:
-
-   - **Global Impact on All Objects:** Since bucket-level immutability settings apply to all objects within the bucket, extending the immutability period would affect not only the existing snapshots but also all future snapshots uploaded to the bucket.
-   - **Increased Storage Costs:** Prolonging the immutability period means that snapshots cannot be deleted or modified until the extended period expires. This leads to the accumulation of old backups, consuming more storage space and significantly driving up storage costs over time.
-   - **Inefficient Resource Utilization:** Retaining all snapshots for a longer period than necessary is an inefficient use of storage resources, especially when only the latest snapshots are typically needed for restoration purposes.
-
-   Given these considerable disadvantages, extending the bucket-level immutability period is impractical for maintaining the immutability of snapshots during extended hibernation periods.
-
-2. **Take a New Snapshot**
-
-   By creating a new snapshot, immutability is retained for the new snapshot without affecting the immutability settings of the entire bucket or other snapshots.
-
-   Approach 2 is feasible and can be achieved in two ways:
-
-   - **Option A:** Bring the ETCD cluster back up by increasing the replicas, take a snapshot, and then hibernate the ETCD by setting the replicas back to zero **without the operator's intention**.
-     - **Challenges:**
-       - **Unintended State Changes:** Increasing the ETCD replicas to bring the cluster back up modifies the cluster's state without the operator's explicit intention, which could lead to unexpected behavior or conflicts with operational policies.
-       - **Operational Overhead:** Automating the process of scaling the ETCD cluster up and down adds complexity and potential risks, especially if the scaling operations interfere with other scheduled tasks or maintenance windows.
-
-   - **Option B:** Start an embedded ETCD instance and take a snapshot.
-     - **Advantages:**
-       - **Respects Operator Intentions:** Does not alter the state of the actual ETCD cluster, keeping it in hibernation as intended by the operator.
-       - **No Impact on Existing Setup:** Avoids modifying the ETCD cluster's replicas, preventing any unintended consequences.
-       - **Automated Process:** Can be integrated into existing maintenance jobs without manual intervention.
+##### Approach 1: Using the Compaction Job
 
 **Proposed Solution:**
 
-*Option B is recommended* because it respects the operator's intention to keep the ETCD cluster hibernated and avoids the complexities and risks associated with modifying the cluster's state.
+Utilize the compaction job to periodically take fresh snapshots during hibernation. Introduce a new flag `--hibernation-snapshot-interval` to the compaction controller. This flag sets the interval after which a compaction job should be triggered for a hibernated ETCD cluster, based on the time elapsed since `fullLease.Spec.RenewTime.Time` and if `etcd.spec.replicas` is `0` (indicating hibernation). The compaction job uses the [compact command](https://github.com/gardener/etcd-backup-restore/blob/master/cmd/compact.go) to create a new snapshot.
 
-Leverage the compaction job to take fresh snapshots periodically during hibernation. This ensures that:
+**Implementation Details:**
 
-- **Immutability is Maintained:** New snapshots have a fresh immutability period, keeping backups protected.
-- **Operator Intentions are Respected:** The ETCD cluster remains in its hibernated state, as per the operator's intention.
-- **Storage Costs are Controlled:** Avoids unnecessary extension of immutability for all snapshots, preventing increased storage costs.
+- **Etcd Druid:**
+  - **Compaction Controller:**
+    - Introduce a new flag:
+      - **Flag:** `--hibernation-snapshot-interval`
+        - **Type:** Duration
+        - **Default:** `24h`
+        - **Description:** Interval after which a new snapshot is taken during hibernation.
+    - The compaction job starts an embedded ETCD instance to take snapshots during hibernation.
+    - This approach ensures that backups remain within the immutability period and are safeguarded against becoming mutable.
 
-### New Compaction Controller Flag
+###### Advantages
 
-**Flag:** `--hibernation-snapshot-interval`
+- **No Change to ETCD Cluster State:** Does not alter the actual ETCD cluster, keeping it in hibernation.
+- **Automated Snapshot Creation:** Periodically creates new snapshots to extend immutability by triggering the compaction job.
+- **Leverages Existing Mechanism:** Utilizes the compaction job, which is already part of the system.
 
-- **Type:** Duration
-- **Default:** `24h`
-- **Description:** This flag sets the period after which a compaction job should be triggered for a hibernated ETCD cluster, based on the time since the last renewal of the full snapshot lease. If the time since `fullLease.Spec.RenewTime.Time` exceeds the duration specified by this flag, and `etcd.spec.replicas` is `0` (indicating hibernation), the compaction job will automatically trigger to create a new snapshot. This approach ensures that backups remain within the immutability period and are safeguarded against becoming mutable.
+###### Disadvantages
 
-### Garbage Collection during Compaction for Hibernated ETCD Clusters
+- **Resource Consumption:** Starting an embedded ETCD instance periodically consumes resources.
 
-If an ETCD cluster is hibernated for a long duration, there is a chance that backup storage will accumulate a large number of snapshots. Since the ETCD cluster is not running, the `etcd-backup-restore` component is also not running to perform garbage collection of the snapshots.
+##### Approach 2: Re-upload of the latest snapshot
 
-To address this, the compaction job should be enhanced to handle garbage collection during hibernation. This ensures that old snapshots are cleaned up appropriately, considering the immutability constraints.
+**Proposed Solution:**
 
-### Excluding Snapshots Under Specific Circumstances
+A new `EtcdOperatorTask` called `EtcdSnapshotImmutabilityExtension` will be created as defined in the operator tasks framework. This new `EtcdOperatorTask` extends the immutability period by deploying a job which uploads another copy of the latest snapshot to the object store.
 
-Given that immutable backups cannot be deleted until the immutability period expires, there are scenarios, such as corrupted snapshots or other anomalies, where certain snapshots must be skipped during the restoration process. To facilitate this:
+A full snapshot is taken before hibernating the ETCD cluster. This is to ensure that no state maintained in the etcd cluster is lost before hibernation.
 
-- **Custom Metadata Tags:** Utilize custom metadata to mark specific objects (snapshots) that should be bypassed. To exclude a snapshot from the restoration process, attach custom metadata to it with the key `x-etcd-snapshot-exclude` and value `true`. This method is officially supported, as demonstrated in the [etcd-backup-restore PR](https://github.com/gardener/etcd-backup-restore/pull/776) for storage provider: GCS.
+**Implementation Details:**
+
+- **Introduce the `extend-immutability` command to etcdbrctl**:
+  - etcd-backup-restore will be enhanced to support a new command `extend-immutability` which does the following:
+    - Downloads the latest full snapshot from the object store.
+    - Replaces the Unix epoch in the file-name of the downloaded snapshot to contain the time at which the file completes downloading.
+    - Uploads this newly renamed snapshot to the same object store.
+    - Renews the full snapshot lease after the upload is successful.
+
+    The immutability period of an object begins from the moment of upload, thus extending the immutability period of the latest snapshot. Renaming the snapshot is necessary since the downloaded snapshot can not simply be re-uploaded as uploading with the same name would be an attempt at modifying an already existing snapshot, which is disallowed.
+
+    This command could either be implemented standalone, or could be implemented as a wrapper over the `copy` command of `etcdbrctl` by extending the functionality of the `copy` command accordingly.
+- **Introduce the `garbage-collect` command to etcdbrctl**:
+  - etcd-backup-restore will be enhanced to support a new command `garbage-collect` which does the following:
+    - Perform garbage collection of the snapshots in the object store according to the policy specified with the `--garbage-collection-policy` flag.  
+
+    This functionality is needed since it would be necessary to garbage collect the (identical final) snapshots that are (re)uploaded in order to ensure that there is always a snapshot which is immutable.
+- **Update `Etcd` CRD:**
+  - Add `etcd.spec.hibernation`:  
+    Since there are situations outside of hibernation where the number of replicas of the statefulset would have to be scaled to zero, there needs to be an explicit way in which it is conveyed to etcd-druid that the etcd cluster is being hibernated. This can be achieved by extending the `Etcd` CRD by including a new field in the `spec` called `hibernated`.
+
+    ```yaml
+    hibernation:
+      enabled: <bool>
+    ```
+
+  - Add `etcd.status.hibernatedAt`:  
+    This field conveys information about whether the cluster has been successfully hibernated after a reconciliation, and the time at which it entered hibernation. This field is cleared when the cluster is woken up from hibernation.
+
+    ```yaml
+    hibernatedAt: <hibernation-time>
+    ```
+
+  - Add `immutableSettings.retentionType` under `etcd.spec.backup.store`.
+- **ETCD Controller Logic:**
+  - When hibernation is requested, by changing `etcd.spec.hibernated.enabled` to `true`:
+    - The controller removes the ETCD client ports `2380` and `2379` from the `etcd-client` service, leaving only the etcd-backup-restore port `8080`. This stops ETCD client traffic.
+    - The controller creates a `EtcdOperatorTask` to trigger an on-demand full snapshot.
+      - On-demand full snapshot is successful: the controller does no additional handling.
+      - On-demand full snapshot fails: the controller triggers the creation of a `EtcdOperatorTask` for an on-demand compaction job that compacts the latest base full snapshot and the corresponding deltas.
+    - The controller scales in the ETCD cluster (i.e., sets `StatefulSet.spec.replicas` to zero).
+    - The controller creates the `EtcdSnapshotImmutabilityExtension` periodically if `etcd.spec.backup.store.immutableSettings.retentionType` is set to `"Bucket"`.
+
+- **`EtcdSnapshotImmutabilityExtension` specification:**
+  - Run `etcdbrctl extend-immutability --bucket-level-immutability` to extend the immutability of the latest snapshot.
+  - Run `etcdbrctl garbage-collect --garbage-collection-policy <garbage-collection-policy>` to garbage collect the snapshots that are created during the extension.
+
+- **EtcdOperatorTask Controller Logic:**
+  - The operator-tasks controller will react to the creation of the custom resource, and will deploy a job named `<etcd-name>-extend-immutability` which is the `EtcdSnapshotImmutabilityExtension` job.
+  - The controller also reports metrics regarding the `EtcdSnapshotImmutabilityExtension` job, which can be used to raise alerts for operators that immutability has not been extended.
+
+###### Advantages
+
+- **Minimal Operational Impact:** Does not alter the ETCD cluster's state during hibernation and respects the operator's intention to hibernate the cluster without unintended changes.
+- **Efficient Resource Utilization:** Only the latest snapshot is copied, limiting additional storage usage, and avoids the need to start an embedded ETCD instance.
+- **Automated Process:** The process of taking a full snapshot before hibernation and creating the `EtcdSnapshotImmutabilityExtension` is automated within the controller.
+
+###### Disadvantages
+
+- **Additional Complexity:** Requires updates to the etcd controller, introduction of the operator-tasks controller, and introduction of new etcdbrctl commands.
+- **Prerequisite Requirement:** Relies on successfully taking a full snapshot before hibernation, which may introduce delays or require handling snapshot failures.
+
+##### Recommendation
+
+After evaluating both approaches, **Approach 2: Re-upload of the latest snapshot** is recommended due to its minimal operational impact and efficient resource utilization. By ensuring that a full snapshot is taken before hibernation, we maintain data consistency and extend the immutability period effectively. This approach respects the operator's intention to keep the ETCD cluster hibernated without introducing significant resource consumption or complexity.
 
 ## Compatibility
 
-The proposed changes are fully compatible with existing ETCD clusters and backup processes. Operators are responsible for creating or updating the immutability settings on the backup storage buckets, but no changes are required to the ETCD clusters themselves.
+The proposed changes are fully compatible with existing ETCD clusters and backup processes.
 
-- **Backward Compatibility:** Existing clusters without immutable buckets will continue to function without change.
-- **Forward Compatibility:** Clusters can opt-in to use immutable backups by configuring the bucket accordingly.
-
-## Implementation Steps
-
-1. **Enhance the Trigger of Compaction Job:**
-     - Modify the compaction job in `etcd-backup-restore` to manage backup processes for hibernated clusters, including snapshot creation and garbage collection, while considering the new immutability constraints.
-     - Implement the `--hibernation-snapshot-interval` flag in the compaction controller. Ensure that the compaction job can start an embedded ETCD instance to take snapshots during hibernation.
-
-2. **Update Documentation:**
-     - Revise the documentation to reflect the changes and guide operators in effectively using the new immutability features.
-     - Provide detailed guidelines on configuring buckets with immutability settings.
-     - Document procedures for excluding snapshots when necessary.
+- **Backward Compatibility:**
+  - Existing clusters without immutable buckets will continue to function without change.
+  - The introduction of the `EtcdSnapshotImmutabilityExtension` does not affect clusters that are not hibernated.
+- **Forward Compatibility:**
+  - Clusters can opt-in to use immutable backups by configuring the bucket accordingly.
+  - The controller's logic to handle hibernation is additive and does not interfere with existing workflows.
 
 ## Risks and Mitigations
 
 - **Increased Storage Costs:**
 
-  - **Risk:** Introducing immutability could lead to increased storage costs due to the inability to delete backups before the immutability period ends.
-  - **Mitigation:** Operators should carefully configure immutability periods and monitor storage utilization. Garbage collection will help mitigate long-term storage growth.
+  - **Risk:** Copying snapshots or frequent snapshots may lead to increased storage usage.
+  - **Mitigation:** Since only the latest full snapshot is copied in Approach 2, the additional storage usage is minimal. Garbage collection helps manage storage utilization.
 
-- **Backup Gaps During Hibernation:**
+- **Operational Complexity:**
 
-  - **Risk:** Hibernated clusters might not receive necessary backups, potentially leading to compliance issues.
-  - **Mitigation:** The compaction job's enhancement ensures that backups are taken during hibernation at configured intervals.
+  - **Risk:** Introducing new resources and processes might add complexity.
+  - **Mitigation:** The processes are automated within the controller, requiring minimal operator intervention. Clear documentation and tooling support will help manage complexity.
 
-- **Excluding Critical Snapshots:**
+- **Failed Snapshot Before Hibernation:**
 
-  - **Risk:** Excluding snapshots during restoration might be misused or lead to incomplete data restoration.
-  - **Mitigation:** Restrict the ability to tag snapshots for exclusion to authorized personnel. Implement audit logging for actions that tag snapshots.
+  - **Risk:** Failure to take a full snapshot before hibernation could delay the hibernation process.
+  - **Mitigation:** Implement robust error handling and retries. Notify operators of failures to take corrective action.
+
+- **Failed Operations:**
+
+  - **Risk:** Errors during copy or snapshot operations could lead to incomplete backups.
+  - **Mitigation:** Implement robust error handling and retries in the copier and compaction job logic. Ensure proper logging and alerting.
 
 ## Operational Considerations
 
 Operators need to:
 
-- **Bucket Configuration:**
+- **Configure Buckets:**
 
-  - Configure buckets with appropriate immutability settings before deploying ETCD clusters.
-  - Ensure that the immutability periods align with organizational policies.
+  - Set up buckets with appropriate immutability settings before deploying ETCD clusters.
+  - Ensure immutability periods align with organizational policies.
 
-- **Compaction Job Configuration:**
+- **Monitor Hibernation Processes:**
 
-  - Set the `--hibernation-snapshot-interval` flag according to the desired snapshot frequency during hibernation.
-  - Monitor compaction jobs and logs for any issues.
+  - Keep track of hibernated clusters and ensure that full snapshots are taken before hibernation.
+  - Verify that `EtcdCopyBackupsTask` resources are created and executed as expected.
+
+- **Review Retention Policies:**
+
+  - Set `maxBackups` and `maxBackupAge` in the `EtcdCopyBackupsTask` to manage storage utilization effectively.
+  - Configure the `--hibernation-snapshot-interval` for the compaction job if using Approach 1.
 
 ## Alternatives
 
@@ -218,59 +245,52 @@ Major cloud storage providers such as Google Cloud Storage (GCS), Amazon S3, and
 
 1. **Bucket-Level Immutability Policies:**
 
-     - **Applies Uniformly:** Applies a uniform immutability period to all objects within a bucket.
-     - **Immutable Objects:** Once set, objects cannot be modified or deleted until the immutability period expires.
-     - **Simplified Management:** Simplifies management by applying the same policy to all objects.
+   - **Applies Uniformly:** Applies a uniform immutability period to all objects within a bucket.
+   - **Immutable Objects:** Once set, objects cannot be modified or deleted until the immutability period expires.
+   - **Simplified Management:** Simplifies management by applying the same policy to all objects.
 
 2. **Object-Level Immutability Policies:**
 
-     - **Granular Control:** Allows setting immutability periods on a per-object basis.
-     - **Flexible Immutability Durations:** Offers granular control, enabling different immutability durations for individual objects.
-     - **Varying Requirements:** Can accommodate varying immutability requirements for different types of backups.
+   - **Granular Control:** Allows setting immutability periods on a per-object basis.
+   - **Flexible Immutability Durations:** Offers granular control, enabling different immutability durations for individual objects.
+   - **Varying Requirements:** Can accommodate varying immutability requirements for different types of backups.
 
 #### Considerations for Object-Level Immutability
 
-Using object-level immutability provides flexibility in scenarios where certain backups require different immutability periods. For example, in the case of hibernated clusters where the ETCD cluster may not be running and backups are not being updated, object-level immutability allows extending the immutability of the latest snapshots without affecting the immutability of older backups.
+Using object-level immutability provides flexibility in scenarios where certain backups require different immutability periods. However, current limitations and complexities make it less practical for immediate implementation.
 
 **Advantages:**
 
-- **Granular Control:** Allows setting different immutability periods for different objects, accommodating varying requirements.
-- **Efficient Resource Utilization:** Prevents unnecessary extension of immutability for all objects, potentially reducing storage costs.
-- **Enhanced Flexibility:** Can adjust immutability periods for specific backups as needed.
+- **Granular Control:** Allows setting different immutability periods for different objects.
+- **Efficient Resource Utilization:** Prevents unnecessary extension of immutability for all objects.
+- **Enhanced Flexibility:** Adjust immutability periods as needed.
 
 **Disadvantages:**
 
-- **Provider Limitations:** Not all providers support enabling object-level immutability on existing buckets without additional steps. For instance, in GCS, enabling object-level immutability on existing buckets is currently not supported. This limitation necessitates creating new buckets or waiting for the feature to become available.
-- **Prerequisite Requirements:** In some providers, object-level immutability requires bucket-level immutability to be set first (e.g., in Amazon S3 and Azure Blob Storage), adding complexity to the configuration.
-- **Increased Complexity:** Managing immutability policies at the object level requires additional logic in backup processes and tooling.
+- **Provider Limitations:** Enabling object-level immutability on existing buckets is not universally supported.
+- **Increased Complexity:** Requires additional logic in backup processes and tooling.
+- **Prerequisites:** Some providers require bucket-level immutability to be set first.
 
 #### Conclusion
 
-While object-level immutability offers greater flexibility and control, current provider limitations and operational complexities make it less practical for immediate implementation. Specifically, the inability to enable object-level immutability on existing buckets in GCS and the prerequisite of bucket-level immutability in some providers are significant factors.
-
-Given these considerations, we propose starting with bucket-level immutability to achieve immediate enhancement of backup immutability with minimal changes to existing processes. This approach allows us to implement immutability features across all providers consistently.
-
-Once provider support for object-level immutability on existing buckets improves and operational complexities are addressed, we can consider adopting object-level immutability in the future to address specific requirements, such as varying immutability periods for different backups.
-
-These are the reasons why we are initially opting for bucket-level immutability, with the possibility of transitioning to object-level immutability when it becomes more feasible.
+Given the complexities and limitations, we recommend using bucket-level immutability in conjunction with the `EtcdCopyBackupsTask` approach (Approach 2) to manage immutability during hibernation effectively. This approach provides a balance between operational simplicity and meeting immutability requirements. The compaction job approach (Approach 1) is also viable but may introduce more resource consumption and operational overhead.
 
 ##### Comparison of Storage Provider Properties for Bucket-Level and Object-Level Immutability
 
-
-| Feature                                                                 | GCS | AWS | Azure |
-|-------------------------------------------------------------------------|-----|-----|-------|
-| Can bucket-level immutability period be increased?                      | Yes | Yes* | Yes (only 5 times) |
-| Can bucket-level immutability period be decreased?                      | No  | Yes* | No    |
-| Is bucket-level immutability a prerequisite for object-level immutability? | No  | Yes | Yes (for existing buckets), No (for new buckets) |
-| Can object-level immutability period be increased?                      | Yes | Yes | Yes   |
-| Can object-level immutability period be decreased?                      | No  | No  | No    |
-| Support for enabling object-level immutability in existing buckets      | No (planned support soon) | Yes (only new objects will have immutability) | Yes (Azure handles the migration) |
-| Support for enabling object-level immutability in new buckets           | Yes | Yes | Yes   |
-| Precedence between bucket-level and object-level immutability periods   | Maximum of bucket or object-level immutability | Object-level immutability has precedence | Maximum of bucket or object-level immutability |
+| Feature                                                                   | GCS | AWS | Azure                         |
+|---------------------------------------------------------------------------|-----|-----|-------------------------------|
+| Can bucket-level immutability period be increased?                        | Yes | Yes*| Yes (only 5 times)            |
+| Can bucket-level immutability period be decreased?                        | No  | Yes*| No                            |
+| Is bucket-level immutability a prerequisite for object-level immutability?| No  | Yes | Yes (existing buckets)        |
+| Can object-level immutability period be increased?                        | Yes | Yes | Yes                           |
+| Can object-level immutability period be decreased?                        | No  | No  | No                            |
+| Support for enabling object-level immutability in existing buckets        | No  | Yes | Yes                           |
+| Support for enabling object-level immutability in new buckets             | Yes | Yes | Yes                           |
+| Precedence between bucket-level and object-level immutability periods     | Max(bucket, object)| Object-level| Max(bucket, object) |
 
 > **Note:** *In AWS S3, changes to the bucket-level immutability period can be blocked by adding a specific bucket policy.
 
-</details>
+---
 
 ## References
 
@@ -278,12 +298,15 @@ These are the reasons why we are initially opting for bucket-level immutability,
 - [AWS S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html)
 - [Azure Immutable Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/immutable-policy-configure-container-scope?tabs=azure-portal)
 - [etcd-backup-restore PR #776](https://github.com/gardener/etcd-backup-restore/pull/776)
+- [EtcdCopyBackupsTask Implementation](https://github.com/gardener/etcd-druid/pull/544)
 
 ## Glossary
 
 - **ETCD:** A distributed key-value store used as the backing store for Kubernetes.
+- **Etcd Druid:** A Kubernetes operator that manages ETCD clusters for Gardener.
+- **EtcdCopyBackupsTask:** A custom resource that defines a task to copy ETCD backups.
 - **Compaction Job:** A process that compacts ETCD snapshots to reduce storage size and improve performance.
-- **Hibernation:** Scaling down a cluster (or ETCD) to zero replicas to save resources.
+- **Hibernation:** Shutting down all the processes that correspond to an etcd cluster, while persisting information which can later be used to restart the etcd cluster with the same state.
 - **Immutability Period:** The duration for which data must remain immutable in storage before it can be modified or deleted.
 - **WORM (Write Once, Read Many):** A storage model where data, once written, cannot be modified or deleted until certain conditions are met.
 - **Immutability:** The property of an object being unchangeable after creation.
