@@ -133,7 +133,8 @@ The authors propose adopting the second approach of having a separate controller
 
 The `OnDelete` process is responsible for updating the pods, considering their roles and participation in the cluster. This process is part of the controller's reconciliation logic and may require multiple reconciliation cycles to bring the pods under the StatefulSet to the desired state, which is to align them with the latest pod template specification. The update process unfolds in a sequence of steps per reconciliation cycle, with the controller requeuing itself to reconcile in the next cycle whenever it needs to wait for resources to reach a specific state.
 
-> Note: To determine if a pod is upto date is by comparing the `.status.UpdateRevision` of the StatefulSet with the `.metadata.labels["controller-revision-hash"]` of the pod. If they are the same, then the pod is upto date.
+> [!Note]
+> To determine if a pod is upto date is by comparing the `.status.UpdateRevision` of the StatefulSet with the `.metadata.labels["controller-revision-hash"]` of the pod. If they are the same, then the pod is upto date.
 
 #### Initial Check
 
@@ -190,7 +191,8 @@ The `OnDelete` process is responsible for updating the pods, considering their r
 
 The reason for making delete calls to all the non-participating pods at once is due to the fact that the cluster cannot go into a more degraded situation than what it currently is in, because these pods are not serving any traffic and are hence not part of the quorum. Therefore, it is most efficient to remove all these pods at once and then wait for the new pods to get into a participating state. Using Eviction calls for these pods would not be efficient as the PDB might block the eviction calls if the cluster is already in a degraded state.
 
-> **Note:** The PodDisruptionBudget (PDB) includes a [`.spec.unhealthyPodEvictionPolicy`](https://kubernetes.io/docs/tasks/run-application/configure-pdb/#unhealthy-pod-eviction-policy) field. If the Etcd resource carries the annotation `resources.druid.gardener.cloud/allow-unhealthy-pod-eviction`, this field is set to `AlwaysAllow`. This setting permits the eviction of unhealthy pods, bypassing the PDB protection, and facilitating a smoother update process. However, this annotation is not set by default and may be phased out in the future. Therefore, it is not advisable to depend on this annotation for the update process. Hence, the deletion approach is preferred for handling non-participating pods.
+> [!Note]
+> The PodDisruptionBudget (PDB) includes a [`.spec.unhealthyPodEvictionPolicy`](https://kubernetes.io/docs/tasks/run-application/configure-pdb/#unhealthy-pod-eviction-policy) field. If the Etcd resource carries the annotation `resources.druid.gardener.cloud/allow-unhealthy-pod-eviction`, this field is set to `AlwaysAllow`. This setting permits the eviction of unhealthy pods, bypassing the PDB protection, and facilitating a smoother update process. However, this annotation is not set by default and may be phased out in the future. Therefore, it is not advisable to depend on this annotation for the update process. Hence, the deletion approach is preferred for handling non-participating pods.
 
 #### Rationale for Deleting/Evicting Non-Updated Participating Pods
 
@@ -210,13 +212,15 @@ The rationale for using delete calls for non-updated participating pods with unh
 
 For non-updated participating pods with healthy `backup-restore` containers, eviction calls are used to respect the PDB. By the time the process starts to update these pods, there should be no pods with unhealthy `backup-restore` containers, allowing the PDB to permit eviction calls. This ensures the update process proceeds smoothly. However, if any pod becomes unhealthy during eviction, the PDB will correctly block the eviction calls, and the update process will be requeued for the next reconciliation cycle.
 
-> **Note:** The learner pod is excluded from the sequence of deleting/evicting non-updated participating pods as it is not considered a participating pod. The readiness probe attached to the etcd container periodically verifies if the container is ready to serve traffic. Since the learner pod does not participate in the quorum and is still synchronizing its data with the leader, it is not ready to serve traffic. Given that etcd is a strongly consistent distributed key-value store, the learner pod does not respond to requests until its data is in sync with the leader. Therefore, the learner pod is not included in the set of participating pods.
+> [!Note]
+> : The learner pod is excluded from the sequence of deleting/evicting non-updated participating pods as it is not considered a participating pod. The readiness probe attached to the etcd container periodically verifies if the container is ready to serve traffic. Since the learner pod does not participate in the quorum and is still synchronizing its data with the leader, it is not ready to serve traffic. Given that etcd is a strongly consistent distributed key-value store, the learner pod does not respond to requests until its data is in sync with the leader. Therefore, the learner pod is not included in the set of participating pods.
 
 The order of updating the pods plays a crucial role in maintaining the quorum of the etcd cluster during the update process. The above approach allows for fine-grained control over the update process, ensuring quorum maintenance by prioritizing the health of the etcd cluster.
 
 ### State Diagrams
 
-**Note:** The following state diagrams are just a representation of the update process and are just to give an idea of how the update process works. They do not cover all the cases.
+> [!Note]
+> The following state diagrams are just a representation of the update process and are just to give an idea of how the update process works. They do not cover all the cases.
 
 #### RollingUpdate Strategy update process State diagram
 
