@@ -54,7 +54,7 @@ func TestGetConfigMapName(t *testing.T) {
 	uid := uuid.NewUUID()
 	etcdObjMeta := createEtcdObjectMetadata(uid, nil, nil, false)
 	configMapName := GetConfigMapName(etcdObjMeta)
-	g.Expect(configMapName).To(Equal(etcdObjMeta.Name + "-config-" + string(uid[:6])))
+	g.Expect(configMapName).To(Equal(etcdObjMeta.Name + "-config"))
 }
 
 func TestGetCompactionJobName(t *testing.T) {

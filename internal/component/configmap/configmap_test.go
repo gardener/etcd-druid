@@ -334,7 +334,7 @@ func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.C
 	err := yaml.Unmarshal([]byte(actualETCDConfigYAML), &actualETCDConfig)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
-		"name":                      Equal(fmt.Sprintf("etcd-%s", etcd.UID[:6])),
+		"name":                      Equal("etcd-config"),
 		"data-dir":                  Equal(fmt.Sprintf("%s/new.etcd", common.VolumeMountPathEtcdData)),
 		"metrics":                   Equal(string(druidv1alpha1.Basic)),
 		"snapshot-count":            Equal(ptr.Deref(etcd.Spec.Etcd.SnapshotCount, defaultSnapshotCount)),
@@ -370,8 +370,26 @@ func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actu
 	}
 }
 
+func assertAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme string) map[string][]string {
+	var port int32
+	switch advertiseURLType {
+	case advertiseURLTypePeer:
+		port = ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
+	case advertiseURLTypeClient:
+		port = ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
+	default:
+		return nil
+	}
+	advUrlsMap := make(map[string][]string)
+	for i := 0; i < int(etcd.Spec.Replicas); i++ {
+		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+		advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, port)}
+	}
+	return advUrlsMap
+}
+
 func convertAdvertiseURLsValuesToInterface(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme string) map[string]interface{} {
-	advertiseUrlsMap := getAdvertiseURLs(etcd, advertiseURLType, scheme, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta))
+	advertiseUrlsMap := assertAdvertiseURLs(etcd, advertiseURLType, scheme)
 	advertiseUrlsInterface := make(map[string]interface{}, len(advertiseUrlsMap))
 	for podName, urlList := range advertiseUrlsMap {
 		urlsListInterface := make([]interface{}, len(urlList))

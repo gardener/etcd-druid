@@ -247,7 +247,7 @@ func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, e
 
 	logger.Info("Checking configmap")
 	cm := &corev1.ConfigMap{}
-	ExpectWithOffset(2, cl.Get(ctx, client.ObjectKey{Name: etcd.Name + "-config-" + string(etcd.UID[:6]), Namespace: etcd.Namespace}, cm)).To(Succeed())
+	ExpectWithOffset(2, cl.Get(ctx, client.ObjectKey{Name: etcd.Name + "-config", Namespace: etcd.Namespace}, cm)).To(Succeed())
 
 	logger.Info("Checking client service")
 	svc := &corev1.Service{}
@@ -280,7 +280,7 @@ func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 	ExpectWithOffset(1,
 		cl.Get(
 			ctx,
-			client.ObjectKey{Name: etcd.Name + "-config-" + string(etcd.UID[:6]), Namespace: etcd.Namespace},
+			client.ObjectKey{Name: etcd.Name + "-config", Namespace: etcd.Namespace},
 			&corev1.ConfigMap{},
 		),
 	).Should(matchers.BeNotFoundError())

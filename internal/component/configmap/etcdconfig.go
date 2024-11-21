@@ -64,7 +64,7 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 	peerScheme, peerSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.PeerUrlTLS, common.VolumeMountPathEtcdPeerCA, common.VolumeMountPathEtcdPeerServerTLS)
 	peerSvcName := druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta)
 	cfg := &etcdConfig{
-		Name:                    fmt.Sprintf("etcd-%s", etcd.UID[:6]),
+		Name:                    "etcd-config",
 		DataDir:                 defaultDataDir,
 		Metrics:                 ptr.Deref(etcd.Spec.Etcd.Metrics, druidv1alpha1.Basic),
 		SnapshotCount:           getSnapshotCount(etcd),
