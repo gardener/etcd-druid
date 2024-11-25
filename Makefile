@@ -123,7 +123,7 @@ test-cov-clean:
 	@$(HACK_DIR)/test-cover-clean.sh
 
 .PHONY: test-e2e
-test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE)
+test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE) $(GINKGO)
 	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
 .PHONY: ci-e2e-kind
