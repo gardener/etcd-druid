@@ -638,7 +638,7 @@ func getPurgeLocalSnapstoreJob(storeContainer, storePrefix string) *batchv1.Job 
 			Containers: []corev1.Container{
 				{
 					Name:    "infra",
-					Image:   "ubuntu:23.10",
+					Image:   "ubuntu:24.04",
 					Command: []string{"/bin/bash"},
 					Args: []string{"-c",
 						fmt.Sprintf("rm -rf /host-dir-etc/gardener/local-backupbuckets/%s/%s/*", storeContainer, storePrefix),

@@ -9,7 +9,7 @@ spec:
     spec:
       containers:
       - name: infra
-        image: ubuntu:23.10
+        image: ubuntu:24.04
         command: ["/bin/bash"]
         args: ["-c", "/var/lib/infra/data/run/run.sh"]
         volumeMounts:
