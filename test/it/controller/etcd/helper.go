@@ -13,7 +13,6 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
-	"github.com/gardener/etcd-druid/internal/features"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/test/it/controller/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
@@ -54,9 +53,7 @@ func initializeEtcdReconcilerTestEnv(t *testing.T, itTestEnv setup.DruidTestEnvi
 				EnableEtcdSpecAutoReconcile:        autoReconcile,
 				DisableEtcdServiceAccountAutomount: false,
 				EtcdStatusSyncPeriod:               2 * time.Second,
-				FeatureGates: map[featuregate.Feature]bool{
-					features.UseEtcdWrapper: true,
-				},
+				FeatureGates:                       map[featuregate.Feature]bool{},
 				EtcdMember: etcd.MemberConfig{
 					NotReadyThreshold: 5 * time.Minute,
 					UnknownThreshold:  1 * time.Minute,

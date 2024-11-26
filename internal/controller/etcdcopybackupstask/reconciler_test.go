@@ -460,7 +460,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				})
 
 				It("should create the correct volume mounts", func() {
-					volumeMounts := createVolumeMountsFromStore(storeSpec, provider, volumeMountPrefix, false)
+					volumeMounts := createVolumeMountsFromStore(storeSpec, provider, volumeMountPrefix)
 					Expect(volumeMounts).To(HaveLen(1))
 
 					expectedMountPath := ""
@@ -469,7 +469,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 					switch provider {
 					case druidstore.Local:
 						expectedMountName = volumeMountPrefix + "host-storage"
-						expectedMountPath = *storeSpec.Container
+						expectedMountPath = "/home/nonroot/" + *storeSpec.Container
 					case druidstore.GCS:
 						expectedMountName = volumeMountPrefix + common.VolumeNameProviderBackupSecret
 						expectedMountPath = getGCSSecretVolumeMountPathWithPrefixAndSuffix(volumeMountPrefix, "/")

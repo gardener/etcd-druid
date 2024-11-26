@@ -12,7 +12,6 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
-	"github.com/gardener/etcd-druid/internal/features"
 	"github.com/gardener/etcd-druid/internal/images"
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
@@ -28,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -261,7 +259,7 @@ func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druid
 func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*batchv1.Job, error) {
 	activeDeadlineSeconds := r.config.ActiveDeadlineDuration.Seconds()
 
-	_, etcdBackupImage, _, err := utils.GetEtcdImages(etcd, r.imageVector, r.config.FeatureGates[features.UseEtcdWrapper])
+	_, etcdBackupImage, _, err := utils.GetEtcdImages(etcd, r.imageVector)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch etcd backup image: %v", err)
 	}
@@ -313,7 +311,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 		},
 	}
 
-	if vms, err := getCompactionJobVolumeMounts(etcd, r.config.FeatureGates); err != nil {
+	if vms, err := getCompactionJobVolumeMounts(etcd); err != nil {
 		return nil, fmt.Errorf("error while creating compaction job in %v for %v : %v",
 			etcd.Namespace,
 			etcd.Name,
@@ -372,7 +370,7 @@ func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), jobLabels)
 }
 
-func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featuregate.Feature]bool) ([]v1.VolumeMount, error) {
+func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd) ([]v1.VolumeMount, error) {
 	vms := []v1.VolumeMount{
 		{
 			Name:      "etcd-workspace-dir",
@@ -386,17 +384,10 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd, featureMap map[featu
 	}
 	switch provider {
 	case druidstore.Local:
-		if featureMap[features.UseEtcdWrapper] {
-			vms = append(vms, v1.VolumeMount{
-				Name:      "host-storage",
-				MountPath: "/home/nonroot/" + ptr.Deref(etcd.Spec.Backup.Store.Container, ""),
-			})
-		} else {
-			vms = append(vms, v1.VolumeMount{
-				Name:      "host-storage",
-				MountPath: ptr.Deref(etcd.Spec.Backup.Store.Container, ""),
-			})
-		}
+		vms = append(vms, v1.VolumeMount{
+			Name:      "host-storage",
+			MountPath: "/home/nonroot/" + ptr.Deref(etcd.Spec.Backup.Store.Container, ""),
+		})
 	case druidstore.GCS:
 		vms = append(vms, v1.VolumeMount{
 			Name:      common.VolumeNameProviderBackupSecret,

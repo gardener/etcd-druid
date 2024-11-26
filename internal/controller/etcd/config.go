@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/controller/utils"
-	"github.com/gardener/etcd-druid/internal/features"
 
 	gardenerconstants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	flag "github.com/spf13/pflag"
@@ -39,9 +38,7 @@ const (
 )
 
 // featureList holds the feature gate names that are relevant for the Etcd Controller.
-var featureList = []featuregate.Feature{
-	features.UseEtcdWrapper,
-}
+var featureList []featuregate.Feature
 
 // Config defines the configuration for the Etcd Controller.
 type Config struct {

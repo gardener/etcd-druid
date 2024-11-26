@@ -126,7 +126,7 @@ func createAndInitializeOperatorRegistry(client client.Client, config *Config, i
 	reg.Register(component.PodDisruptionBudgetKind, poddistruptionbudget.New(client))
 	reg.Register(component.RoleKind, role.New(client))
 	reg.Register(component.RoleBindingKind, rolebinding.New(client))
-	reg.Register(component.StatefulSetKind, statefulset.New(client, imageVector, config.FeatureGates))
+	reg.Register(component.StatefulSetKind, statefulset.New(client, imageVector))
 	return reg
 }
 

@@ -7,7 +7,6 @@ package statefulset
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -43,7 +42,6 @@ type StatefulSetMatcher struct {
 	cl                 client.Client
 	replicas           int32
 	etcd               *druidv1alpha1.Etcd
-	useEtcdWrapper     bool
 	initContainerImage string
 	etcdImage          string
 	etcdBRImage        string
@@ -58,7 +56,6 @@ func NewStatefulSetMatcher(g *WithT,
 	cl client.Client,
 	etcd *druidv1alpha1.Etcd,
 	replicas int32,
-	useEtcdWrapper bool,
 	initContainerImage, etcdImage, etcdBRImage string,
 	provider *string) StatefulSetMatcher {
 	return StatefulSetMatcher{
@@ -66,7 +63,6 @@ func NewStatefulSetMatcher(g *WithT,
 		cl:                 cl,
 		replicas:           replicas,
 		etcd:               etcd,
-		useEtcdWrapper:     useEtcdWrapper,
 		initContainerImage: initContainerImage,
 		etcdImage:          etcdImage,
 		etcdBRImage:        etcdBRImage,
@@ -164,20 +160,7 @@ func (s StatefulSetMatcher) matchPodHostAliases() gomegatypes.GomegaMatcher {
 }
 
 func (s StatefulSetMatcher) matchPodInitContainers() gomegatypes.GomegaMatcher {
-	if !s.useEtcdWrapper {
-		return BeEmpty()
-	}
 	initContainerMatcherElements := make(map[string]gomegatypes.GomegaMatcher)
-	changePermissionsInitContainerMatcher := MatchFields(IgnoreExtras, Fields{
-		"Name":            Equal(common.InitContainerNameChangePermissions),
-		"Image":           Equal(s.initContainerImage),
-		"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
-		"Command":         HaveExactElements("sh", "-c", "--"),
-		"Args":            HaveExactElements("chown -R 65532:65532 /var/etcd/data"),
-		"VolumeMounts":    ConsistOf(s.matchEtcdDataVolMount()),
-		"SecurityContext": matchPodInitContainerSecurityContext(),
-	})
-	initContainerMatcherElements[common.InitContainerNameChangePermissions] = changePermissionsInitContainerMatcher
 	if s.etcd.IsBackupStoreEnabled() && s.provider != nil && *s.provider == druidstore.Local {
 		changeBackupBucketPermissionsMatcher := MatchFields(IgnoreExtras, Fields{
 			"Name":            Equal(common.InitContainerNameChangeBackupBucketPermissions),
@@ -262,13 +245,6 @@ func (s StatefulSetMatcher) matchBackupRestoreContainer() gomegatypes.GomegaMatc
 }
 
 func (s StatefulSetMatcher) matchEtcdContainerReadinessHandler() gomegatypes.GomegaMatcher {
-	if s.etcd.Spec.Replicas > 1 && !s.useEtcdWrapper {
-		return MatchFields(IgnoreExtras|IgnoreMissing, Fields{
-			"Exec": PointTo(MatchFields(IgnoreExtras, Fields{
-				"Command": s.matchEtcdContainerReadinessProbeCmd(),
-			})),
-		})
-	}
 	scheme := utils.IfConditionOr(s.etcd.Spec.Backup.TLS == nil, corev1.URISchemeHTTP, corev1.URISchemeHTTPS)
 	path := utils.IfConditionOr(s.etcd.Spec.Replicas > 1, "/readyz", "/healthz")
 	port := utils.IfConditionOr(s.etcd.Spec.Replicas > 1, int32(9095), int32(8080))
@@ -302,9 +278,6 @@ func (s StatefulSetMatcher) matchEtcdContainerReadinessProbeCmd() gomegatypes.Go
 }
 
 func (s StatefulSetMatcher) matchEtcdContainerCmdArgs() gomegatypes.GomegaMatcher {
-	if !s.useEtcdWrapper {
-		return BeEmpty()
-	}
 	cmdArgs := make([]string, 0, 8)
 	cmdArgs = append(cmdArgs, "start-etcd")
 	cmdArgs = append(cmdArgs, fmt.Sprintf("--backup-restore-host-port=%s-local:8080", s.etcd.Name))
@@ -368,11 +341,7 @@ func (s StatefulSetMatcher) getEtcdBackupVolumeMountMatcher() gomegatypes.Gomega
 	switch *s.provider {
 	case druidstore.Local:
 		if s.etcd.Spec.Backup.Store.Container != nil {
-			if s.useEtcdWrapper {
-				return matchVolMount(common.VolumeNameLocalBackup, fmt.Sprintf("/home/nonroot/%s", ptr.Deref(s.etcd.Spec.Backup.Store.Container, "")))
-			} else {
-				return matchVolMount(common.VolumeNameLocalBackup, ptr.Deref(s.etcd.Spec.Backup.Store.Container, ""))
-			}
+			return matchVolMount(common.VolumeNameLocalBackup, fmt.Sprintf("/home/nonroot/%s", ptr.Deref(s.etcd.Spec.Backup.Store.Container, "")))
 		}
 	case druidstore.GCS:
 		return matchVolMount(common.VolumeNameProviderBackupSecret, common.VolumeMountPathGCSBackupSecret)
@@ -383,26 +352,10 @@ func (s StatefulSetMatcher) getEtcdBackupVolumeMountMatcher() gomegatypes.Gomega
 }
 
 func (s StatefulSetMatcher) matchEtcdContainerEnvVars() gomegatypes.GomegaMatcher {
-	if s.useEtcdWrapper {
-		return BeEmpty()
-	}
-	scheme := utils.IfConditionOr(s.etcd.Spec.Backup.TLS != nil, "https", "http")
-	return ConsistOf(
-		MatchFields(IgnoreExtras, Fields{
-			"Name":  Equal("ENABLE_TLS"),
-			"Value": Equal(strconv.FormatBool(s.etcd.Spec.Backup.TLS != nil)),
-		}),
-		MatchFields(IgnoreExtras, Fields{
-			"Name":  Equal("BACKUP_ENDPOINT"),
-			"Value": Equal(fmt.Sprintf("%s://%s-local:%d", scheme, s.etcd.Name, s.backupPort)),
-		}),
-	)
+	return BeEmpty()
 }
 
 func (s StatefulSetMatcher) matchEtcdPodSecurityContext() gomegatypes.GomegaMatcher {
-	if !s.useEtcdWrapper {
-		Equal(nil)
-	}
 	return PointTo(MatchFields(IgnoreExtras|IgnoreMissing, Fields{
 		"RunAsGroup":   PointTo(Equal(int64(65532))),
 		"RunAsNonRoot": PointTo(Equal(true)),
