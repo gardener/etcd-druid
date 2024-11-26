@@ -6,8 +6,6 @@ package statefulset
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -58,7 +56,6 @@ type stsBuilder struct {
 	client                 client.Client
 	etcd                   *druidv1alpha1.Etcd
 	replicas               int32
-	useEtcdWrapper         bool
 	provider               *string
 	etcdImage              string
 	etcdBackupRestoreImage string
@@ -79,11 +76,10 @@ func newStsBuilder(client client.Client,
 	logger logr.Logger,
 	etcd *druidv1alpha1.Etcd,
 	replicas int32,
-	useEtcdWrapper bool,
 	imageVector imagevector.ImageVector,
 	skipSetOrUpdateForbiddenFields bool,
 	sts *appsv1.StatefulSet) (*stsBuilder, error) {
-	etcdImage, etcdBackupRestoreImage, initContainerImage, err := utils.GetEtcdImages(etcd, imageVector, useEtcdWrapper)
+	etcdImage, etcdBackupRestoreImage, initContainerImage, err := utils.GetEtcdImages(etcd, imageVector)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +92,6 @@ func newStsBuilder(client client.Client,
 		logger:                         logger,
 		etcd:                           etcd,
 		replicas:                       replicas,
-		useEtcdWrapper:                 useEtcdWrapper,
 		provider:                       provider,
 		etcdImage:                      etcdImage,
 		etcdBackupRestoreImage:         etcdBackupRestoreImage,
@@ -247,23 +242,7 @@ func (b *stsBuilder) getVolumeClaimTemplates() []corev1.PersistentVolumeClaim {
 }
 
 func (b *stsBuilder) getPodInitContainers() []corev1.Container {
-	initContainers := make([]corev1.Container, 0, 2)
-	if !b.useEtcdWrapper {
-		return initContainers
-	}
-	initContainers = append(initContainers, corev1.Container{
-		Name:            common.InitContainerNameChangePermissions,
-		Image:           b.initContainerImage,
-		ImagePullPolicy: corev1.PullIfNotPresent,
-		Command:         []string{"sh", "-c", "--"},
-		Args:            []string{fmt.Sprintf("chown -R %d:%d %s", nonRootUser, nonRootUser, common.VolumeMountPathEtcdData)},
-		VolumeMounts:    []corev1.VolumeMount{b.getEtcdDataVolumeMount()},
-		SecurityContext: &corev1.SecurityContext{
-			RunAsGroup:   ptr.To[int64](0),
-			RunAsNonRoot: ptr.To(false),
-			RunAsUser:    ptr.To[int64](0),
-		},
-	})
+	initContainers := make([]corev1.Container, 0, 1)
 	if b.etcd.IsBackupStoreEnabled() {
 		if b.provider != nil && *b.provider == druidstore.Local {
 			etcdBackupVolumeMount := b.getEtcdBackupVolumeMount()
@@ -344,16 +323,9 @@ func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 	switch *b.provider {
 	case druidstore.Local:
 		if b.etcd.Spec.Backup.Store.Container != nil {
-			if b.useEtcdWrapper {
-				return &corev1.VolumeMount{
-					Name:      common.VolumeNameLocalBackup,
-					MountPath: fmt.Sprintf("/home/nonroot/%s", ptr.Deref(b.etcd.Spec.Backup.Store.Container, "")),
-				}
-			} else {
-				return &corev1.VolumeMount{
-					Name:      common.VolumeNameLocalBackup,
-					MountPath: ptr.Deref(b.etcd.Spec.Backup.Store.Container, ""),
-				}
+			return &corev1.VolumeMount{
+				Name:      common.VolumeNameLocalBackup,
+				MountPath: fmt.Sprintf("/home/nonroot/%s", ptr.Deref(b.etcd.Spec.Backup.Store.Container, "")),
 			}
 		}
 	case druidstore.GCS:
@@ -496,9 +468,7 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	commandArgs = append(commandArgs, fmt.Sprintf("--etcd-connection-timeout=%s", defaultEtcdConnectionTimeout))
 	commandArgs = append(commandArgs, "--enable-member-lease-renewal=true")
 	// Enable/Disable use Etcd Wrapper in BackupRestore container. Once `use-etcd-wrapper` feature-gate is GA then this value will always be true.
-	if b.useEtcdWrapper {
-		commandArgs = append(commandArgs, "--use-etcd-wrapper=true")
-	}
+	commandArgs = append(commandArgs, "--use-etcd-wrapper=true")
 
 	var quota = defaultQuota
 	if b.etcd.Spec.Etcd.Quota != nil {
@@ -601,13 +571,7 @@ func (b *stsBuilder) getEtcdContainerReadinessProbe() *corev1.Probe {
 
 func (b *stsBuilder) getEtcdContainerReadinessHandler() corev1.ProbeHandler {
 	multiNodeCluster := b.etcd.Spec.Replicas > 1
-	if multiNodeCluster && !b.useEtcdWrapper {
-		return corev1.ProbeHandler{
-			Exec: &corev1.ExecAction{
-				Command: b.getEtcdContainerReadinessProbeCommand(),
-			},
-		}
-	}
+
 	scheme := utils.IfConditionOr(b.etcd.Spec.Backup.TLS == nil, corev1.URISchemeHTTP, corev1.URISchemeHTTPS)
 	path := utils.IfConditionOr(multiNodeCluster, "/readyz", "/healthz")
 	port := utils.IfConditionOr(multiNodeCluster, common.DefaultPortEtcdWrapper, common.DefaultPortEtcdBackupRestore)
@@ -621,33 +585,7 @@ func (b *stsBuilder) getEtcdContainerReadinessHandler() corev1.ProbeHandler {
 	}
 }
 
-func (b *stsBuilder) getEtcdContainerReadinessProbeCommand() []string {
-	cmdBuilder := strings.Builder{}
-	cmdBuilder.WriteString("ETCDCTL_API=3 etcdctl")
-	if b.etcd.Spec.Etcd.ClientUrlTLS != nil {
-		dataKey := ptr.Deref(b.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
-		cmdBuilder.WriteString(fmt.Sprintf(" --cacert=%s/%s", common.VolumeMountPathEtcdCA, dataKey))
-		cmdBuilder.WriteString(fmt.Sprintf(" --cert=%s/tls.crt", common.VolumeMountPathEtcdClientTLS))
-		cmdBuilder.WriteString(fmt.Sprintf(" --key=%s/tls.key", common.VolumeMountPathEtcdClientTLS))
-		cmdBuilder.WriteString(fmt.Sprintf(" --endpoints=https://%s-local:%d", b.etcd.Name, b.clientPort))
-	} else {
-		cmdBuilder.WriteString(fmt.Sprintf(" --endpoints=http://%s-local:%d", b.etcd.Name, b.clientPort))
-	}
-	cmdBuilder.WriteString(" get foo")
-	cmdBuilder.WriteString(" --consistency=l")
-
-	return []string{
-		"/bin/sh",
-		"-ec",
-		cmdBuilder.String(),
-	}
-}
-
 func (b *stsBuilder) getEtcdContainerCommandArgs() []string {
-	if !b.useEtcdWrapper {
-		// safe to return an empty string array here since etcd-custom-image:v3.4.13-bootstrap-12 (as well as v3.4.26) now uses an entry point that calls bootstrap.sh
-		return []string{}
-	}
 	commandArgs := []string{"start-etcd"}
 	commandArgs = append(commandArgs, fmt.Sprintf("--backup-restore-host-port=%s-local:%d", b.etcd.Name, common.DefaultPortEtcdBackupRestore))
 	commandArgs = append(commandArgs, fmt.Sprintf("--etcd-server-name=%s-local", b.etcd.Name))
@@ -665,23 +603,10 @@ func (b *stsBuilder) getEtcdContainerCommandArgs() []string {
 }
 
 func (b *stsBuilder) getEtcdContainerEnvVars() []corev1.EnvVar {
-	if b.useEtcdWrapper {
-		return []corev1.EnvVar{}
-	}
-	backTLSEnabled := b.etcd.Spec.Backup.TLS != nil
-	scheme := utils.IfConditionOr(backTLSEnabled, "https", "http")
-	endpoint := fmt.Sprintf("%s://%s-local:%d", scheme, b.etcd.Name, b.backupPort)
-
-	return []corev1.EnvVar{
-		{Name: "ENABLE_TLS", Value: strconv.FormatBool(backTLSEnabled)},
-		{Name: "BACKUP_ENDPOINT", Value: endpoint},
-	}
+	return []corev1.EnvVar{}
 }
 
 func (b *stsBuilder) getPodSecurityContext() *corev1.PodSecurityContext {
-	if !b.useEtcdWrapper {
-		return nil
-	}
 	return &corev1.PodSecurityContext{
 		RunAsGroup:   ptr.To[int64](nonRootUser),
 		RunAsNonRoot: ptr.To(true),

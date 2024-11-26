@@ -12,7 +12,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/features"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -23,7 +22,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -72,7 +70,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				existingObjects = append(existingObjects, emptyStatefulSet(etcd.ObjectMeta))
 			}
 			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd.ObjectMeta))
-			operator := New(cl, nil, nil)
+			operator := New(cl, nil)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			actualStsNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
@@ -115,19 +113,17 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 
 	g := NewWithT(t)
 	t.Parallel()
-	iv := testutils.CreateImageVector(false, false, true, true)
+	iv := testutils.CreateImageVector(true, true)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// *************** Build test environment ***************
 			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(tc.replicas).Build()
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))
-			etcdImage, etcdBRImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv, true)
+			etcdImage, etcdBRImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv)
 			g.Expect(err).ToNot(HaveOccurred())
-			stsMatcher := NewStatefulSetMatcher(g, cl, etcd, tc.replicas, true, initContainerImage, etcdImage, etcdBRImage, ptr.To(druidstore.Local))
-			operator := New(cl, iv, map[featuregate.Feature]bool{
-				features.UseEtcdWrapper: true,
-			})
+			stsMatcher := NewStatefulSetMatcher(g, cl, etcd, tc.replicas, initContainerImage, etcdImage, etcdBRImage, ptr.To(druidstore.Local))
+			operator := New(cl, iv)
 			// *************** Test and assert ***************
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			opCtx.Data[common.CheckSumKeyConfigMap] = testutils.TestConfigMapCheckSum

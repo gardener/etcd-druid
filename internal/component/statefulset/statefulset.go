@@ -12,7 +12,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/features"
 	"github.com/gardener/etcd-druid/internal/utils"
 
 	"github.com/gardener/gardener/pkg/controllerutils"
@@ -23,7 +22,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/component-base/featuregate"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -37,18 +35,16 @@ const (
 )
 
 type _resource struct {
-	client         client.Client
-	imageVector    imagevector.ImageVector
-	useEtcdWrapper bool
-	logger         logr.Logger
+	client      client.Client
+	imageVector imagevector.ImageVector
+	logger      logr.Logger
 }
 
 // New returns a new statefulset component operator.
-func New(client client.Client, imageVector imagevector.ImageVector, featureGates map[featuregate.Feature]bool) component.Operator {
+func New(client client.Client, imageVector imagevector.ImageVector) component.Operator {
 	return &_resource{
-		client:         client,
-		imageVector:    imageVector,
-		useEtcdWrapper: featureGates[features.UseEtcdWrapper],
+		client:      client,
+		imageVector: imageVector,
 	}
 }
 
@@ -225,7 +221,7 @@ func (r _resource) getExistingStatefulSet(ctx component.OperatorContext, etcdObj
 func (r _resource) createOrPatchWithReplicas(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, replicas int32, skipSetOrUpdateForbiddenFields bool) error {
 	stsClone := sts.DeepCopy()
 	mutatingFn := func() error {
-		if builder, err := newStsBuilder(r.client, ctx.Logger, etcd, replicas, r.useEtcdWrapper, r.imageVector, skipSetOrUpdateForbiddenFields, stsClone); err != nil {
+		if builder, err := newStsBuilder(r.client, ctx.Logger, etcd, replicas, r.imageVector, skipSetOrUpdateForbiddenFields, stsClone); err != nil {
 			return err
 		} else {
 			return builder.Build(ctx)

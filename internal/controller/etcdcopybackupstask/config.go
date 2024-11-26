@@ -6,16 +6,13 @@ package etcdcopybackupstask
 
 import (
 	"github.com/gardener/etcd-druid/internal/controller/utils"
-	"github.com/gardener/etcd-druid/internal/features"
 
 	flag "github.com/spf13/pflag"
 	"k8s.io/component-base/featuregate"
 )
 
 // featureList holds the feature gate names that are relevant for the EtcdCopyBackupTask Controller.
-var featureList = []featuregate.Feature{
-	features.UseEtcdWrapper,
-}
+var featureList []featuregate.Feature
 
 const (
 	workersFlagName = "etcd-copy-backups-task-workers"

@@ -11,8 +11,7 @@ resources:
     cpu: 50m
     memory: 128Mi
 
-featureGates:
-  UseEtcdWrapper: true
+featureGates: {}
 
 controllerManager:
   server:

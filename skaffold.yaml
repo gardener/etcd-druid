@@ -62,14 +62,6 @@ profiles:
         value:
           etcdcomponents:
             enabled: true
-  - name: do-not-use-feature-gates
-    activation:
-      - env: "USE_ETCD_DRUID_FEATURE_GATES=false"
-    patches:
-      - op: add
-        path: /deploy/helm/releases/0/setValues/featureGates
-        value:
-          UseEtcdWrapper: false
 ---
 apiVersion: skaffold/v4beta10
 kind: Config

@@ -17,8 +17,8 @@ import (
 // It will give preference to images that are set in the etcd spec and only if the image is not found in it should
 // it be picked up from the image vector if it's set there.
 // A return value of nil for either of the images indicates that the image is not set.
-func GetEtcdImages(etcd *druidv1alpha1.Etcd, iv imagevector.ImageVector, useEtcdWrapper bool) (string, string, string, error) {
-	etcdImageKey, etcdBRImageKey, initContainerImageKey := getEtcdImageKeys(useEtcdWrapper)
+func GetEtcdImages(etcd *druidv1alpha1.Etcd, iv imagevector.ImageVector) (string, string, string, error) {
+	etcdImageKey, etcdBRImageKey, initContainerImageKey := getEtcdImageKeys()
 	etcdImage, err := chooseImage(etcdImageKey, etcd.Spec.Etcd.Image, iv)
 	if err != nil {
 		return "", "", "", err
@@ -35,16 +35,8 @@ func GetEtcdImages(etcd *druidv1alpha1.Etcd, iv imagevector.ImageVector, useEtcd
 	return *etcdImage, *etcdBackupRestoreImage, *initContainerImage, nil
 }
 
-func getEtcdImageKeys(useEtcdWrapper bool) (etcdImageKey string, etcdBRImageKey string, alpine string) {
-	alpine = common.ImageKeyAlpine
-	if useEtcdWrapper {
-		etcdImageKey = common.ImageKeyEtcdWrapper
-		etcdBRImageKey = common.ImageKeyEtcdBackupRestoreDistroless
-	} else {
-		etcdImageKey = common.ImageKeyEtcd
-		etcdBRImageKey = common.ImageKeyEtcdBackupRestore
-	}
-	return
+func getEtcdImageKeys() (string, string, string) {
+	return common.ImageKeyEtcdWrapper, common.ImageKeyEtcdBackupRestore, common.ImageKeyAlpine
 }
 
 // chooseImage selects an image based on the given key, specImage, and image vector.
@@ -62,8 +54,8 @@ func chooseImage(key string, specImage *string, iv imagevector.ImageVector) (*st
 }
 
 // GetEtcdBackupRestoreImage returns the image for backup-restore from the given image vector.
-func GetEtcdBackupRestoreImage(iv imagevector.ImageVector, useEtcdWrapper bool) (*string, error) {
-	_, etcdbrImageKey, _ := getEtcdImageKeys(useEtcdWrapper)
+func GetEtcdBackupRestoreImage(iv imagevector.ImageVector) (*string, error) {
+	_, etcdbrImageKey, _ := getEtcdImageKeys()
 	return chooseImage(etcdbrImageKey, nil, iv)
 }
 

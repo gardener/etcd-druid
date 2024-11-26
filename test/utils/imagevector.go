@@ -12,13 +12,13 @@ import (
 )
 
 // CreateImageVector creates an image vector initializing it will different image sources.
-func CreateImageVector(withEtcdImage, withBackupRestoreImage, withEtcdWrapperImage, withBackupRestoreDistrolessImage bool) imagevector.ImageVector {
+func CreateImageVector(withEtcdWrapperImage, withBackupRestoreImage bool) imagevector.ImageVector {
 	var imageSources []*imagevector.ImageSource
-	if withEtcdImage {
+	if withEtcdWrapperImage {
 		imageSources = append(imageSources, &imagevector.ImageSource{
-			Name:       common.ImageKeyEtcd,
+			Name:       common.ImageKeyEtcdWrapper,
 			Repository: TestImageRepo,
-			Tag:        ptr.To(ETCDImageSourceTag),
+			Tag:        ptr.To(ETCDWrapperImageTag),
 		})
 	}
 	if withBackupRestoreImage {
@@ -28,20 +28,6 @@ func CreateImageVector(withEtcdImage, withBackupRestoreImage, withEtcdWrapperIma
 			Tag:        ptr.To(ETCDBRImageTag),
 		})
 
-	}
-	if withEtcdWrapperImage {
-		imageSources = append(imageSources, &imagevector.ImageSource{
-			Name:       common.ImageKeyEtcdWrapper,
-			Repository: TestImageRepo,
-			Tag:        ptr.To(ETCDWrapperImageTag),
-		})
-	}
-	if withBackupRestoreDistrolessImage {
-		imageSources = append(imageSources, &imagevector.ImageSource{
-			Name:       common.ImageKeyEtcdBackupRestoreDistroless,
-			Repository: TestImageRepo,
-			Tag:        ptr.To(ETCDBRDistrolessImageTag),
-		})
 	}
 	imageSources = append(imageSources, &imagevector.ImageSource{
 		Name:       common.ImageKeyAlpine,

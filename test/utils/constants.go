@@ -14,14 +14,10 @@ const (
 const (
 	// TestImageRepo is a constant for image repository name
 	TestImageRepo = "test-repo"
-	// ETCDImageSourceTag is the ImageSource tag for etcd image.
-	ETCDImageSourceTag = "etcd-test-tag"
 	// ETCDWrapperImageTag is the ImageSource tag for etcd-wrapper image.
 	ETCDWrapperImageTag = "etcd-wrapper-test-tag"
 	// ETCDBRImageTag is the ImageSource tag for etcd-backup-restore image.
 	ETCDBRImageTag = "backup-restore-test-tag"
-	// ETCDBRDistrolessImageTag is the ImageSource tag for etc-backup-restore distroless image.
-	ETCDBRDistrolessImageTag = "backup-restore-distroless-test-tag"
 	// InitContainerTag is the ImageSource tag for the init container image.
 	InitContainerTag = "init-container-test-tag"
 )
