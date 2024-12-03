@@ -95,76 +95,74 @@ deploy:
                 fi
                 kubectl wait --for=condition=Complete job -l role=infra-job --timeout=5m $namespace_flag
             os: [ darwin, linux ]
-manifests:
-  kustomize: { }
 profiles:
   # Profile to create the required S3 backup bucket for an e2e test.
   - name: aws-setup
-    patches:
-      - op: add
-        path: /manifests/kustomize/paths
-        value: [ hack/e2e-test/infrastructure/overlays/aws/setup ]
+    manifests:
+      kustomize:
+        paths:
+          - hack/e2e-test/infrastructure/overlays/aws/setup
   # Profile to delete the S3 backup bucket from an e2e test.
   - name: aws-cleanup
-    patches:
-      - op: add
-        path: /manifests/kustomize/paths
-        value: [ hack/e2e-test/infrastructure/overlays/aws/cleanup ]
+    manifests:
+      kustomize:
+        paths:
+          - hack/e2e-test/infrastructure/overlays/aws/cleanup
   # Profile to create the required Azure storage container for an e2e test.
   - name: azure-setup
-    patches:
-      - op: add
-        path: /manifests/kustomize/paths
-        value: [ hack/e2e-test/infrastructure/overlays/azure/setup ]
+    manifests:
+      kustomize:
+        paths:
+          - hack/e2e-test/infrastructure/overlays/azure/setup
   # Profile to delete the Azure storage container from an e2e test.
   - name: azure-cleanup
-    patches:
-      - op: add
-        path: /manifests/kustomize/paths
-        value: [ hack/e2e-test/infrastructure/overlays/azure/cleanup ]
+    manifests:
+      kustomize:
+        paths:
+          - hack/e2e-test/infrastructure/overlays/azure/cleanup
   # Profile to create the required GCP backup bucket for an e2e test.
   - name: gcp-setup
-    patches:
-      - op: add
-        path: /manifests/kustomize/paths
-        value: [ hack/e2e-test/infrastructure/overlays/gcp/setup ]
-      - op: add
-        path: /manifests/kustomize/hooks/before/-
-        value: {
-          "host": {
-            "command": [ sh, -c, '
-      echo "Copying GCP service account json" &&
-      touch "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json" &&
-      cp "$GCP_SERVICEACCOUNT_JSON_PATH" "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json"' ],
-            "os": [ darwin, linux ]
-          }
-        }
+    manifests:
+      kustomize:
+        paths:
+          - hack/e2e-test/infrastructure/overlays/gcp/setup
+      hooks:
+        before:
+          - host:
+              command:
+                - sh
+                - -c
+                - |
+                  echo "Copying GCP service account json" &&
+                  touch "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json" && 
+                  cp "$GCP_SERVICEACCOUNT_JSON_PATH" "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json"
+              os: [ darwin, linux ]
   # Profile to delete the GCP backup bucket from an e2e test.
   - name: gcp-cleanup
-    patches:
-      - op: add
-        path: /manifests/kustomize/paths
-        value: [ hack/e2e-test/infrastructure/overlays/gcp/cleanup ]
-      - op: add
-        path: /manifests/kustomize/hooks/before/-
-        value: {
-          "host": {
-            "command": [ sh, -c, '
-      echo "Copying GCP service account json" &&
-      touch "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json" &&
-      cp "$GCP_SERVICEACCOUNT_JSON_PATH" "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json"' ],
-            "os": [ darwin, linux ]
-          }
-        }
+    manifests:
+      kustomize:
+        paths:
+          - hack/e2e-test/infrastructure/overlays/gcp/cleanup
+      hooks:
+        before:
+          - host:
+              command:
+                - sh
+                - -c
+                - |
+                  echo "Copying GCP service account json" && 
+                  touch "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json" && 
+                  cp "$GCP_SERVICEACCOUNT_JSON_PATH" "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json"
+              os: [ darwin, linux ]
   # Profile to create the required Local storage container for an e2e test.
   - name: local-setup
-    patches:
-      - op: add
-        path: /manifests/kustomize/paths
-        value: [ hack/e2e-test/infrastructure/overlays/local/setup ]
+    manifests:
+      kustomize:
+        paths:
+          - hack/e2e-test/infrastructure/overlays/local/setup
   # Profile to delete the Local storage container from an e2e test.
   - name: local-cleanup
-    patches:
-      - op: add
-        path: /manifests/kustomize/paths
-        value: [ hack/e2e-test/infrastructure/overlays/local/cleanup ]
+    manifests:
+      kustomize:
+        paths:
+          - hack/e2e-test/infrastructure/overlays/local/cleanup
