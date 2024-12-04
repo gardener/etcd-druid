@@ -186,21 +186,21 @@ A full snapshot is taken before hibernating the etcd cluster. This is to ensure 
 
 **Implementation Details:**
 
-- **Introduce the `extend-immutability` command to etcdbrctl**:
-  - etcd-backup-restore will be enhanced to support a new command `extend-immutability` which does the following:
-    - Downloads the latest full snapshot from the object store.
+- **Introduce the `renew-snapshot` command to etcdbrctl**:
+  - etcd-backup-restore will be enhanced to support a new command `renew-snapshot` which does the following:
+    - - Downloads the latest full snapshot from the object store.
     - Replaces the Unix epoch in the file-name of the downloaded snapshot to contain the time at which the file completes downloading.
     - Uploads this newly renamed snapshot to the same object store.
     - Renews the full snapshot lease after the upload is successful.
 
-    The immutability period of an object begins from the moment of upload, thus extending the immutability period of the latest snapshot. Renaming the snapshot is necessary since the downloaded snapshot can not simply be re-uploaded as uploading with the same name would be an attempt at modifying an already existing snapshot, which is disallowed.
+    The immutability period of an object begins from the moment of upload, thus renewing the immutability period of the snapshot. Renaming the snapshot is necessary since the downloaded snapshot can not simply be re-uploaded as uploading with the same name would be an attempt at modifying an already existing snapshot, which is disallowed.
 
     This command could either be implemented standalone, or could be implemented as a wrapper over the `copy` command of `etcdbrctl` by extending the functionality of the `copy` command accordingly.
 - **Introduce the `garbage-collect` command to etcdbrctl**:
   - etcd-backup-restore will be enhanced to support a new command `garbage-collect` which does the following:
     - Perform garbage collection of the snapshots in the object store according to the policy specified with the `--garbage-collection-policy` flag.  
 
-    This functionality is needed since it would be necessary to garbage collect the (identical final) snapshots that are (re)uploaded in order to ensure that there is always a snapshot which is immutable.
+    This functionality is needed to garbage collect the old snapshots whose immutability has expired but have been renewed as a fresh snapshot via the approach mentioned above.
 - **Update `Etcd` CRD:**
   - Add `etcd.spec.hibernation`:  
     Since there are situations outside of hibernation where the number of replicas of the statefulset would have to be scaled to zero, there needs to be an explicit way in which it is conveyed to etcd-druid that the etcd cluster is being hibernated. This can be achieved by extending the `Etcd` CRD by including a new field in the `spec` called `hibernated`.
@@ -228,7 +228,7 @@ A full snapshot is taken before hibernating the etcd cluster. This is to ensure 
     - The controller creates the `ExtendEtcdSnapshotImmutabilityTask` periodically if `etcd.spec.backup.store.immutableSettings.retentionType` is set to `"Bucket"`.
 
 - **`ExtendEtcdSnapshotImmutabilityTask` specification:**
-  - Run `etcdbrctl extend-immutability --bucket-level-immutability` to extend the immutability of the latest snapshot.
+  - Run `etcdbrctl renew-snapshot` to extend the immutability of the latest snapshot.
   - Run `etcdbrctl garbage-collect --garbage-collection-policy <garbage-collection-policy>` to garbage collect the snapshots that are created during the extension.
 
 - **EtcdOperatorTask Controller Logic:**
