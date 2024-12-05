@@ -25,6 +25,8 @@ This [WORM](#terminology) model will enhance the reliability and integrity of et
 
 `etcd-druid` and `etcd-backup-restore` will be enhanced to achieve the same functionality currently achieved by modifying or deleting backups, but without actually modifying or deleting these backups, since they will now be immutable for a set duration. This approach eliminates the possibility of potential data loss. `etcd-druid` will provide an end-to-end solution for achieving this functionality, as relying solely on `etcd-backup-restore` is insufficient given the scope and possible approaches to achieving this.
 
+Additionally, handling [hibernation](#terminology) for immutable backups presents a unique challenge. When an `etcd` cluster is hibernated for a duration exceeding the immutability period of its backups, the backups may become mutable again, compromising the intended immutability guarantees and exposing the backups to accidental or malicious modifications. To address this, the authors propose a solution to maintain the immutability of snapshots during extended [hibernation](#terminology) periods.
+
 ## Terminology
 
 - **etcd-druid:** A controller that manages etcd clusters, including provisioning and lifecycle handling.
@@ -181,8 +183,8 @@ The proposed changes are fully compatible with existing etcd clusters and backup
   - **Mitigation:** The processes are automated within the controller, requiring minimal operator intervention. Clear documentation and tooling support will help manage complexity.
 
 - **Failed Snapshot Before Hibernation:**
-  - **Risk:** Failure to take a full snapshot before hibernation could delay the hibernation process.
-  - **Mitigation:** Implement robust error handling and retries. Notify operators of failures to take corrective action.
+  - **Risk:** Failure to take a full snapshot before hibernation could delay the hibernation process and potentially compromise data integrity.
+    - **Mitigation:** Implement robust error handling and retry mechanisms to ensure snapshots are taken successfully before hibernation. Notify operators of any failures by updating the `etcd.status.lastErrors` and `etcd.status.lastOperation` fields. Additionally, operators can leverage the metrics provided by `ExtendEtcdSnapshotImmutabilityTask`, which follows the [operator task framework](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/05-etcd-operator-tasks.md#metrics), to trigger alerts. This ensures timely intervention and resolution of issues, maintaining the integrity and availability of the etcd cluster state.
 
 ## Alternatives
 
@@ -224,7 +226,7 @@ Using object-level immutability provides flexibility in scenarios where certain 
 
 #### Conclusion
 
-Given the complexities and limitations, the authors recommend using bucket-level immutability in conjunction with the `ExtendEtcdSnapshotImmutabilityTask` approach to manage immutability during hibernation effectively. This approach provides a balance between operational simplicity and meeting immutability requirements.
+**Given the complexities and limitations, the authors recommend using bucket-level immutability in conjunction with the `ExtendEtcdSnapshotImmutabilityTask` approach to manage immutability during hibernation effectively. This approach provides a balance between operational simplicity and meeting immutability requirements.**
 
 ##### Comparison of Storage Provider Properties for Bucket-Level and Object-Level Immutability
 
