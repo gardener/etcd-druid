@@ -587,8 +587,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ | name is unique within a namespace to reference a secret resource. |  |  |
-| `namespace` _string_ | namespace defines the space within which the secret name must be unique. |  |  |
 | `dataKey` _string_ | DataKey is the name of the key in the data map containing the credentials. |  |  |
 
 

@@ -112,6 +112,7 @@ rules:
   resources:
   - etcdcopybackupstasks/finalizers
   - etcdcopybackupstasks/status
+  - etcds/status
   verbs:
   - create
   - get
@@ -129,15 +130,6 @@ rules:
   - update
   - watch
 - apiGroups:
-  - druid.gardener.cloud
-  resources:
-  - etcds/status
-  verbs:
-  - create
-  - get
-  - patch
-  - update
-- apiGroups:
   - policy
   resources:
   - poddisruptionbudgets
@@ -152,16 +144,6 @@ rules:
   - rbac.authorization.k8s.io
   resources:
   - rolebindings
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
   - roles
   verbs:
   - create
