@@ -21,5 +21,5 @@ func CreateImageVector() (imagevector.ImageVector, error) {
 	if err != nil {
 		return nil, err
 	}
-	return imagevector.WithEnvOverride(imgVec)
+	return imagevector.WithEnvOverride(imgVec, imagevector.OverrideEnv)
 }

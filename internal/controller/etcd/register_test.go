@@ -103,7 +103,7 @@ func TestBuildPredicateWithOnlyAutoReconcileEnabled(t *testing.T) {
 	}
 	g := NewWithT(t)
 	etcd := createEtcd()
-	r := createReconciler(t, true)
+	r := createReconciler(t, "etcd-controller-only-auto-reconcile-enabled", true)
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -167,7 +167,7 @@ func TestBuildPredicateWithNoAutoReconcileAndNoReconcileAnnot(t *testing.T) {
 	}
 	g := NewWithT(t)
 	etcd := createEtcd()
-	r := createReconciler(t, false)
+	r := createReconciler(t, "etcd-controller-no-auto-reconcile-no-annotation", false)
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -262,7 +262,7 @@ func TestBuildPredicateWithNoAutoReconcileButReconcileAnnotPresent(t *testing.T)
 	}
 	g := NewWithT(t)
 	etcd := createEtcd()
-	r := createReconciler(t, false)
+	r := createReconciler(t, "etcd-controller-with-no-auto-reconcile-but-reconcile-annotation", false)
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -353,7 +353,7 @@ func TestBuildPredicateWithAutoReconcileAndReconcileAnnotSet(t *testing.T) {
 	}
 	g := NewWithT(t)
 	etcd := createEtcd()
-	r := createReconciler(t, true)
+	r := createReconciler(t, "etcd-controller-with-auto-reconcile-and-reconcile-annotation", true)
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -413,7 +413,7 @@ func updateEtcd(originalEtcd *druidv1alpha1.Etcd, specChanged, statusChanged boo
 	return newEtcd
 }
 
-func createReconciler(t *testing.T, enableEtcdSpecAutoReconcile bool) *Reconciler {
+func createReconciler(t *testing.T, controllerName string, enableEtcdSpecAutoReconcile bool) *Reconciler {
 	g := NewWithT(t)
 	mockCtrl := gomock.NewController(t)
 	mgr := mockmanager.NewMockManager(mockCtrl)
@@ -422,7 +422,7 @@ func createReconciler(t *testing.T, enableEtcdSpecAutoReconcile bool) *Reconcile
 	etcdConfig := Config{
 		EnableEtcdSpecAutoReconcile: enableEtcdSpecAutoReconcile,
 	}
-	r, err := NewReconcilerWithImageVector(mgr, &etcdConfig, nil)
+	r, err := NewReconcilerWithImageVector(mgr, controllerName, &etcdConfig, nil)
 	g.Expect(err).NotTo(HaveOccurred())
 	return r
 }
