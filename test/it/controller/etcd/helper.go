@@ -39,7 +39,7 @@ func createTestNamespaceName(t *testing.T) string {
 	return fmt.Sprintf("%s-%s", testNamespacePrefix, namespaceSuffix)
 }
 
-func initializeEtcdReconcilerTestEnv(t *testing.T, itTestEnv setup.DruidTestEnvironment, autoReconcile bool, clientBuilder *testutils.TestClientBuilder) ReconcilerTestEnv {
+func initializeEtcdReconcilerTestEnv(t *testing.T, controllerName string, itTestEnv setup.DruidTestEnvironment, autoReconcile bool, clientBuilder *testutils.TestClientBuilder) ReconcilerTestEnv {
 	g := NewWithT(t)
 	var (
 		reconciler *etcd.Reconciler
@@ -47,7 +47,7 @@ func initializeEtcdReconcilerTestEnv(t *testing.T, itTestEnv setup.DruidTestEnvi
 	)
 	g.Expect(itTestEnv.CreateManager(clientBuilder)).To(Succeed())
 	itTestEnv.RegisterReconciler(func(mgr manager.Manager) {
-		reconciler, err = etcd.NewReconcilerWithImageVector(mgr,
+		reconciler, err = etcd.NewReconcilerWithImageVector(mgr, controllerName,
 			&etcd.Config{
 				Workers:                            5,
 				EnableEtcdSpecAutoReconcile:        autoReconcile,
@@ -60,7 +60,7 @@ func initializeEtcdReconcilerTestEnv(t *testing.T, itTestEnv setup.DruidTestEnvi
 				},
 			}, assets.CreateImageVector(g))
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(reconciler.RegisterWithManager(mgr)).To(Succeed())
+		g.Expect(reconciler.RegisterWithManager(mgr, controllerName)).To(Succeed())
 	})
 	g.Expect(itTestEnv.StartManager()).To(Succeed())
 	t.Log("successfully registered etcd reconciler with manager and started manager")

@@ -44,16 +44,16 @@ type Reconciler struct {
 }
 
 // NewReconciler creates a new reconciler for Etcd.
-func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
+func NewReconciler(mgr manager.Manager, config *Config, controllerName string) (*Reconciler, error) {
 	imageVector, err := images.CreateImageVector()
 	if err != nil {
 		return nil, err
 	}
-	return NewReconcilerWithImageVector(mgr, config, imageVector)
+	return NewReconcilerWithImageVector(mgr, controllerName, config, imageVector)
 }
 
 // NewReconcilerWithImageVector creates a new reconciler for Etcd with the given image vector.
-func NewReconcilerWithImageVector(mgr manager.Manager, config *Config, iv imagevector.ImageVector) (*Reconciler, error) {
+func NewReconcilerWithImageVector(mgr manager.Manager, controllerName string, config *Config, iv imagevector.ImageVector) (*Reconciler, error) {
 	logger := log.Log.WithName(controllerName)
 	operatorReg := createAndInitializeOperatorRegistry(mgr.GetClient(), config, iv)
 	lastOpErrRecorder := ctrlutils.NewLastOperationAndLastErrorsRecorder(mgr.GetClient(), logger)
