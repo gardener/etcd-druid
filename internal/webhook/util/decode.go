@@ -38,7 +38,7 @@ const (
 
 // RequestDecoder is a decoder for admission requests.
 type RequestDecoder struct {
-	decoder *admission.Decoder
+	decoder admission.Decoder
 	client  client.Client
 }
 

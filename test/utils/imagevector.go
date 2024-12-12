@@ -17,21 +17,21 @@ func CreateImageVector(withEtcdWrapperImage, withBackupRestoreImage bool) imagev
 	if withEtcdWrapperImage {
 		imageSources = append(imageSources, &imagevector.ImageSource{
 			Name:       common.ImageKeyEtcdWrapper,
-			Repository: TestImageRepo,
+			Repository: ptr.To(TestImageRepo),
 			Tag:        ptr.To(ETCDWrapperImageTag),
 		})
 	}
 	if withBackupRestoreImage {
 		imageSources = append(imageSources, &imagevector.ImageSource{
 			Name:       common.ImageKeyEtcdBackupRestore,
-			Repository: TestImageRepo,
+			Repository: ptr.To(TestImageRepo),
 			Tag:        ptr.To(ETCDBRImageTag),
 		})
 
 	}
 	imageSources = append(imageSources, &imagevector.ImageSource{
 		Name:       common.ImageKeyAlpine,
-		Repository: TestImageRepo,
+		Repository: ptr.To(TestImageRepo),
 		Tag:        ptr.To(InitContainerTag),
 	})
 	return imageSources

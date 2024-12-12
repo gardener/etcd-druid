@@ -15,18 +15,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-const controllerName = "etcd-controller"
-
 // RegisterWithManager registers the Etcd Controller with the given controller manager.
-func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager, controllerName string) error {
 	builder := ctrl.
 		NewControllerManagedBy(mgr).
 		Named(controllerName).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: r.config.Workers,
-			RateLimiter:             workqueue.NewItemExponentialFailureRateLimiter(10*time.Millisecond, r.config.EtcdStatusSyncPeriod),
+			RateLimiter:             workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](10*time.Millisecond, r.config.EtcdStatusSyncPeriod),
 		}).
 		For(&druidv1alpha1.Etcd{}).
 		WithEventFilter(r.buildPredicate())
