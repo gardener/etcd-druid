@@ -26,7 +26,7 @@
     </a>
 </p>
 
-`etcd-druid` is an [etcd](https://github.com/etcd-io/etcd) [operator](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/) which makes it easy to configure, provision, reconcile, monitor and delete etcd clusters. It enables management of etcd clusters through [declarative Kubernetes API model](config/crd/bases/crd-druid.gardener.cloud_etcds.yaml). 
+`etcd-druid` is an [etcd](https://github.com/etcd-io/etcd) [operator](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/) which makes it easy to configure, provision, reconcile, monitor and delete etcd clusters. It enables management of etcd clusters through [declarative Kubernetes API model](../config/crd/bases/crd-druid.gardener.cloud_etcds.yaml).
 
 In every etcd cluster managed by `etcd-druid`, each etcd member is a two container `Pod` which consists of:
 
@@ -55,11 +55,11 @@ If you are looking to try out druid then you can use a [Kind](https://kind.sigs.
   <source src="https://github.com/user-attachments/assets/cfe0d891-f709-4d7f-b975-4300c6de67e4" type="video/mp4">
 </video>
 
-For detailed documentation, see our `/docs` folder. Please find the [index](docs/README.md) here.
+For detailed documentation, see our `/docs` folder. Please find the [index](README.md) here.
 
 ## Contributions
 
-If you wish to contribute then please see our [contributor guidelines](docs/development/contribution.md).
+If you wish to contribute then please see our [contributor guidelines](development/contribution.md).
 
 ## Feedback and Support
 
