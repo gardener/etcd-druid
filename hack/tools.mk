@@ -12,6 +12,7 @@ GOLANGCI_LINT              := $(TOOLS_BIN_DIR)/golangci-lint
 GOIMPORTS                  := $(TOOLS_BIN_DIR)/goimports
 CONTROLLER_GEN             := $(TOOLS_BIN_DIR)/controller-gen
 GINKGO                     := $(TOOLS_BIN_DIR)/ginkgo
+GOSEC                      := $(TOOLS_BIN_DIR)/gosec
 MOCKGEN                    := $(TOOLS_BIN_DIR)/mockgen
 SETUP_ENVTEST              := $(TOOLS_BIN_DIR)/setup-envtest
 KIND                       := $(TOOLS_BIN_DIR)/kind
@@ -32,6 +33,7 @@ KUSTOMIZE_VERSION := v4.5.7
 GOLANGCI_LINT_VERSION ?= v1.60.3
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)
 GINKGO_VERSION ?= $(call version_gomod,github.com/onsi/ginkgo/v2)
+GOSEC_VERSION ?= v2.21.4
 MOCKGEN_VERSION ?= $(call version_gomod,go.uber.org/mock)
 KIND_VERSION ?= v0.23.0
 HELM_VERSION ?= v3.15.2
@@ -78,6 +80,9 @@ $(CONTROLLER_GEN):
 $(GINKGO):
 	go build -o $(GINKGO) github.com/onsi/ginkgo/v2/ginkgo
 
+$(GOSEC): $(call tool_version_file,$(GOSEC),$(GOSEC_VERSION))
+	@GOSEC_VERSION=$(GOSEC_VERSION) $(TOOLS_DIR)/install-gosec.sh
+
 $(MOCKGEN):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install go.uber.org/mock/mockgen@$(MOCKGEN_VERSION)
 
@@ -104,7 +109,6 @@ $(VGOPATH):
 
 $(GO_ADD_LICENSE):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/google/addlicense@$(GO_ADD_LICENSE_VERSION)
-
 
 $(GO_APIDIFF):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/joelanford/go-apidiff@$(GO_APIDIFF_VERSION)

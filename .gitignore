@@ -40,3 +40,6 @@ hack/e2e-test/infrastructure/kind/kubeconfig
 
 .cache_ggshield
 .gitguardian.yaml
+
+# gosec
+gosec-report.sarif
