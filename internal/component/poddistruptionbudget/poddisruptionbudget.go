@@ -148,5 +148,5 @@ func computePDBMinAvailable(etcdReplicas int) int32 {
 	if etcdReplicas <= 1 {
 		return 0
 	}
-	return int32(etcdReplicas/2 + 1)
+	return int32(etcdReplicas/2 + 1) // #nosec G115 -- etcdReplicas will never cross the size of int32, so conversion is safe.
 }
