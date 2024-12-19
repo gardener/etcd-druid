@@ -21,7 +21,7 @@ const (
 	etcdComponentsWebhookExemptServiceAccountsFlagName = "etcd-components-webhook-exempt-service-accounts"
 	defaultEnableWebhook                               = false
 	defaultReconcilerServiceAccount                    = "system:serviceaccount:default:etcd-druid"
-	reconcilerServiceAccountTokenPath                  = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	reconcilerServiceAccountTokenPath                  = "/var/run/secrets/kubernetes.io/serviceaccount/token" // #nosec G101 -- this is a path to a token file, and not the credential itself.
 )
 
 // Config defines the configuration for the EtcdComponents Webhook.

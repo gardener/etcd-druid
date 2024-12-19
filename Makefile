@@ -85,6 +85,13 @@ check: $(GOLANGCI_LINT) $(GOIMPORTS) format manifests
 check-apidiff: $(GO_APIDIFF)
 	@$(HACK_DIR)/check-apidiff.sh
 
+.PHONY: sast
+sast: $(GOSEC)
+	@./hack/sast.sh
+
+.PHONY: sast-report
+sast-report: $(GOSEC)
+	@./hack/sast.sh --gosec-report true
 
 # Rules for testing (unit, integration and end-2-end)
 # -------------------------------------------------------------------------

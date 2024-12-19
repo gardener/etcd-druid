@@ -39,7 +39,7 @@ const (
 	envProviders = "INFRA_PROVIDERS"
 
 	envS3AccessKeyID     = "AWS_ACCESS_KEY_ID"
-	envS3SecretAccessKey = "AWS_SECRET_ACCESS_KEY"
+	envS3SecretAccessKey = "AWS_SECRET_ACCESS_KEY" // #nosec G101 -- refers to the env var, and is not the credential itself.
 	envS3Region          = "AWS_REGION"
 
 	envABSStorageAccount = "STORAGE_ACCOUNT"
@@ -371,7 +371,7 @@ func getProviders() ([]TestProvider, error) {
 		case providerGCP:
 			gcsServiceAccountPath := getEnvOrFallback(envGCSServiceAccount, "")
 			if gcsServiceAccountPath != "" {
-				gcsSA, err := os.ReadFile(gcsServiceAccountPath)
+				gcsSA, err := os.ReadFile(gcsServiceAccountPath) // #nosec G304 -- test files.
 				if err != nil {
 					return nil, err
 				}
@@ -444,19 +444,19 @@ func buildAndDeployTLSSecrets(ctx context.Context, cl client.Client, logger logr
 		caSecretName        = "ca-etcd"
 		tlsServerCertFile   = "server.crt"
 		tlsServerKeyFile    = "server.key"
-		tlsServerSecretName = "etcd-server-cert"
+		tlsServerSecretName = "etcd-server-cert" // #nosec G101 -- refers to the name of the secret, and is not the credential itself.
 		tlsClientCertFile   = "client.crt"
 		tlsClientKeyFile    = "client.key"
-		tlsClientSecretName = "etcd-client-tls"
+		tlsClientSecretName = "etcd-client-tls" // #nosec G101 -- refers to the name of the secret, and is not the credential itself.
 		secretData          map[string][]byte
 	)
 
 	for _, provider := range providers {
-		caCert, err := os.ReadFile(path.Join(certsPath, caCertFile))
+		caCert, err := os.ReadFile(path.Join(certsPath, caCertFile)) // #nosec G304 -- test files.
 		if err != nil {
 			return err
 		}
-		caKey, err := os.ReadFile(path.Join(certsPath, caKeyFile))
+		caKey, err := os.ReadFile(path.Join(certsPath, caKeyFile)) // #nosec G304 -- test files.
 		if err != nil {
 			return err
 		}
@@ -469,11 +469,11 @@ func buildAndDeployTLSSecrets(ctx context.Context, cl client.Client, logger logr
 			return err
 		}
 
-		tlsServerCert, err := os.ReadFile(path.Join(certsPath, tlsServerCertFile))
+		tlsServerCert, err := os.ReadFile(path.Join(certsPath, tlsServerCertFile)) // #nosec G304 -- test files.
 		if err != nil {
 			return err
 		}
-		tlsServerKey, err := os.ReadFile(path.Join(certsPath, tlsServerKeyFile))
+		tlsServerKey, err := os.ReadFile(path.Join(certsPath, tlsServerKeyFile)) // #nosec G304 -- test files.
 		if err != nil {
 			return err
 		}
@@ -487,11 +487,11 @@ func buildAndDeployTLSSecrets(ctx context.Context, cl client.Client, logger logr
 			return err
 		}
 
-		tlsClientCert, err := os.ReadFile(path.Join(certsPath, tlsClientCertFile))
+		tlsClientCert, err := os.ReadFile(path.Join(certsPath, tlsClientCertFile)) // #nosec G304 -- test files.
 		if err != nil {
 			return err
 		}
-		tlsClientKey, err := os.ReadFile(path.Join(certsPath, tlsClientKeyFile))
+		tlsClientKey, err := os.ReadFile(path.Join(certsPath, tlsClientKeyFile)) // #nosec G304 -- test files.
 		if err != nil {
 			return err
 		}

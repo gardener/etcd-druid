@@ -64,23 +64,23 @@ const (
 	// EnvAWSApplicationCredentials is the environment variable key for AWS application credentials.
 	EnvAWSApplicationCredentials = "AWS_APPLICATION_CREDENTIALS"
 	// EnvAzureApplicationCredentials is the environment variable key for Azure application credentials.
-	EnvAzureApplicationCredentials = "AZURE_APPLICATION_CREDENTIALS"
+	EnvAzureApplicationCredentials = "AZURE_APPLICATION_CREDENTIALS" // #nosec G101 -- this is the name of an env var, and not the credential itself.
 	// EnvAzureEmulatorEnabled is the environment variable key that is checked to see if the Azure storage emulator Azurite is enabled.
 	EnvAzureEmulatorEnabled = "AZURE_EMULATOR_ENABLED"
 	// EnvGoogleApplicationCredentials is the environment variable key for Google application credentials.
-	EnvGoogleApplicationCredentials = "GOOGLE_APPLICATION_CREDENTIALS"
+	EnvGoogleApplicationCredentials = "GOOGLE_APPLICATION_CREDENTIALS" // #nosec G101 -- this is the name of an env var, and not the credential itself.
 	// EnvOpenstackApplicationCredentials is the environment variable key for OpenStack application credentials.
-	EnvOpenstackApplicationCredentials = "OPENSTACK_APPLICATION_CREDENTIALS"
+	EnvOpenstackApplicationCredentials = "OPENSTACK_APPLICATION_CREDENTIALS" // #nosec G101 -- this is the name of an env var, and not the credential itself.
 	// EnvAlicloudApplicationCredentials is the environment variable key for Alicloud application credentials.
-	EnvAlicloudApplicationCredentials = "ALICLOUD_APPLICATION_CREDENTIALS"
+	EnvAlicloudApplicationCredentials = "ALICLOUD_APPLICATION_CREDENTIALS" // #nosec G101 -- this is the name of an env var, and not the credential itself.
 	// EnvOpenshiftApplicationCredentials is the environment variable key for OpenShift application credentials.
-	EnvOpenshiftApplicationCredentials = "OPENSHIFT_APPLICATION_CREDENTIALS"
+	EnvOpenshiftApplicationCredentials = "OPENSHIFT_APPLICATION_CREDENTIALS" // #nosec G101 -- this is the name of an env var, and not the credential itself.
 	// EnvECSEndpoint is the environment variable key for Dell ECS endpoint.
 	EnvECSEndpoint = "ECS_ENDPOINT"
 	// EnvECSAccessKeyID is the environment variable key for Dell ECS access key ID.
 	EnvECSAccessKeyID = "ECS_ACCESS_KEY_ID"
 	// EnvECSSecretAccessKey is the environment variable key for Dell ECS secret access key.
-	EnvECSSecretAccessKey = "ECS_SECRET_ACCESS_KEY"
+	EnvECSSecretAccessKey = "ECS_SECRET_ACCESS_KEY" // #nosec G101 -- this is the name of an env var, and not the credential itself.
 )
 
 // Constants for values to be set against druidv1alpha1.LabelComponentKey
@@ -141,7 +141,7 @@ const (
 	// VolumeNameLocalBackup is the name of the volume that contains the local backup.
 	VolumeNameLocalBackup = "local-backup"
 	// VolumeNameProviderBackupSecret is the name of the volume that contains the provider backup secret.
-	VolumeNameProviderBackupSecret = "etcd-backup-secret"
+	VolumeNameProviderBackupSecret = "etcd-backup-secret" // #nosec G101 -- this is the name of the mounted volume for backup secret, and not the credential itself.
 )
 
 // EtcdConfigFileName is the name of the etcd configuration file.
@@ -170,9 +170,9 @@ const (
 	VolumeMountPathBackupRestoreClientTLS = "/var/etcdbr/ssl/client"
 
 	// VolumeMountPathGCSBackupSecret is the path on a container where the GCS backup secret is mounted.
-	VolumeMountPathGCSBackupSecret = "/var/.gcp/"
+	VolumeMountPathGCSBackupSecret = "/var/.gcp/" // #nosec G101 -- this is a path to the GCP backup credentials file, and not the credential itself.
 	// VolumeMountPathNonGCSProviderBackupSecret is the path on a container where the non-GCS provider backup secret is mounted.
-	VolumeMountPathNonGCSProviderBackupSecret = "/var/etcd-backup"
+	VolumeMountPathNonGCSProviderBackupSecret = "/var/etcd-backup" // #nosec G101 -- this is a path to the backup credentials dir, and not the credential itself.
 
 	// VolumeMountPathEtcdData is the path on a container where the etcd data directory is mounted.
 	VolumeMountPathEtcdData = "/var/etcd/data"

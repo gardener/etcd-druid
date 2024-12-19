@@ -155,6 +155,7 @@ func (r _resource) checkAndRecreateOrphanDeletedSts(ctx component.OperatorContex
 	if numOrphanedPods > 0 {
 		r.logger.Info("Recreating StatefulSet with previous replicas to adopt orphan pods", "numOrphanedPods", numOrphanedPods)
 		sts := emptyStatefulSet(etcd.ObjectMeta)
+		// #nosec G115 -- numOrphanedPods will never cross the size of int32, so conversion is safe.
 		if err = r.createOrPatchWithReplicas(ctx, etcd, sts, int32(numOrphanedPods), false); err != nil {
 			return druiderr.WrapError(err,
 				ErrSyncStatefulSet,
