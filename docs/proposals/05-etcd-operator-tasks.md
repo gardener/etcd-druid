@@ -220,7 +220,7 @@ Upon completion of the task, irrespective of its final state, `Etcd-druid` will 
 
 #### Recovery from permanent quorum loss
 
-Recovery from permanent quorum loss involves two phases - identification and recovery - both of which are done manually today. This proposal intends to automate the latter. Recovery today is a [multi-step process](https://github.com/gardener/etcd-druid/blob/master/docs/operations/recovery-from-permanent-quorum-loss-in-etcd-cluster.md) and needs to be performed carefully by a human operator. Automating these steps would be prudent, to make it quicker and error-free. The identification of the permanent quorum loss would remain a manual process, requiring a human operator to investigate and confirm that there is indeed a permanent quorum loss with no possibility of auto-healing.
+Recovery from permanent quorum loss involves two phases - identification and recovery - both of which are done manually today. This proposal intends to automate the latter. Recovery today is a [multi-step process](../../docs/usage/recovering-etcd-clusters.md) and needs to be performed carefully by a human operator. Automating these steps would be prudent, to make it quicker and error-free. The identification of the permanent quorum loss would remain a manual process, requiring a human operator to investigate and confirm that there is indeed a permanent quorum loss with no possibility of auto-healing.
 
 ##### Task Config
 
@@ -235,7 +235,7 @@ We do not need any config for this task. When creating an instance of `EtcdOpera
 
 `Etcd-druid` provides a configurable [etcd-events-threshold](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md#druid-flags) flag. When this threshold is breached, then a [snapshot compaction](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md) is triggered for the etcd cluster. However, there are scenarios where an ad-hoc snapshot compaction may be required.
 
-##### Possible scenarios
+##### Possible Scenarios
 
 * If an operator anticipates a scenario of permanent quorum loss, they can trigger an `on-demand snapshot compaction` to create a compacted full-snapshot. This can potentially reduce the recovery time from a permanent quorum loss.
 * As an additional benefit, a human operator can leverage the current implementation of [snapshot compaction](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md), which internally triggers `restoration`. Hence, by initiating an `on-demand snapshot compaction` task, the operator can verify the integrity of etcd cluster backups, particularly in cases of potential backup corruption or re-encryption. The success or failure of this snapshot compaction can offer valuable insights into these scenarios.
@@ -255,10 +255,10 @@ We do not need any config for this task. When creating an instance of `EtcdOpera
 `Etcd` custom resource provides an ability to set [FullSnapshotSchedule](https://github.com/gardener/etcd-druid/blob/master/api/v1alpha1/etcd.go#L158) which currently defaults to run once in 24 hrs. [DeltaSnapshotPeriod](https://github.com/gardener/etcd-druid/blob/master/api/v1alpha1/etcd.go#L167) is also made configurable which defines the duration after which a delta snapshot will be taken.
 If a human operator does not wish to wait for the scheduled full/delta snapshot, they can trigger an on-demand (out-of-schedule) full/delta snapshot on the etcd cluster, which will be taken by the `leading-backup-restore`.
 
-##### Possible scenarios
+##### Possible Scenarios
 
 * An on-demand full snapshot can be triggered if scheduled snapshot fails due to any reason.
-* [Gardener Shoot Hibernation](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_hibernate.md): Every etcd cluster incurs an inherent cost of preserving the volumes even when a gardener shoot control plane is scaled down, i.e the shoot is in a hibernated state. However, it is possible to save on hyperscaler costs by invoking this task to take a full snapshot before scaling down the etcd cluster, and deleting the etcd data volumes afterwards.
+* [Gardener Shoot Hibernation](https://github.com/gardener/gardener/blob/master/docs/usage/shoot/shoot_hibernate.md): Every etcd cluster incurs an inherent cost of preserving the volumes even when a gardener shoot control plane is scaled down, i.e the shoot is in a hibernated state. However, it is possible to save on hyperscaler costs by invoking this task to take a full snapshot before scaling down the etcd cluster, and deleting the etcd data volumes afterwards.
 * [Gardener Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md): In [gardener](https://github.com/gardener/gardener), a cluster control plane can be moved from one seed cluster to another. This process currently requires the etcd data to be replicated on the target cluster, so a full snapshot of the etcd cluster in the source seed before the migration would allow for faster restoration of the etcd cluster in the target seed.
 
 ##### Task Config

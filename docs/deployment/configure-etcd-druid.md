@@ -6,7 +6,7 @@
 
 ### Leader election
 
-If you wish to setup `etcd-druid` in high-availability mode then leader election needs to be enabled to ensure that at a time only one replica services the incoming events and does the reconciliation. 
+If you wish to setup `etcd-druid` in high-availability mode then leader election needs to be enabled to ensure that at a time only one replica services the incoming events and does the reconciliation.
 
 | Flag                          | Description                                                  | Default                 |
 | ----------------------------- | ------------------------------------------------------------ | ----------------------- |
@@ -31,7 +31,7 @@ Metrics bind-address is computed by joining the host and port. By default its va
 
 ### Webhook Server
 
-etcd-druid provides the following CLI flags to configure [webhook](../concepts/webhooks.md) server. These CLI flags are used to construct a new [webhook.Server](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/webhook#Server) by configuring [Options](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/webhook#Options).
+etcd-druid provides the following CLI flags to configure webhook server. These CLI flags are used to construct a new [webhook.Server](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/webhook#Server) by configuring [Options](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/webhook#Options).
 
 | Flag                               | Description                                                  | Default                 |
 | ---------------------------------- | ------------------------------------------------------------ | ----------------------- |
