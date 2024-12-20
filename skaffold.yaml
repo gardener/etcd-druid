@@ -133,9 +133,9 @@ profiles:
         value: {
           "host": {
             "command": [ sh, -c, '
-      echo "Copying GCP service account json" &&
-      touch "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json" &&
-      cp "$GCP_SERVICEACCOUNT_JSON_PATH" "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json"' ],
+            echo "Copying GCP service account json" &&
+            touch "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json" && 
+            cp "$GCP_SERVICEACCOUNT_JSON_PATH" "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json"' ],
             "os": [ darwin, linux ]
           }
         }
@@ -150,9 +150,9 @@ profiles:
         value: {
           "host": {
             "command": [ sh, -c, '
-      echo "Copying GCP service account json" &&
-      touch "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json" &&
-      cp "$GCP_SERVICEACCOUNT_JSON_PATH" "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json"' ],
+            echo "Copying GCP service account json" && 
+            touch "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json" && 
+            cp "$GCP_SERVICEACCOUNT_JSON_PATH" "hack/e2e-test/infrastructure/overlays/gcp/common/assets/serviceaccount.json"' ],
             "os": [ darwin, linux ]
           }
         }
