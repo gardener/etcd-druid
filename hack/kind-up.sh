@@ -81,7 +81,7 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
 - role: control-plane
-  image: kindest/node:v1.29.8
+  image: kindest/node:v1.32.0
   extraPortMappings:
   - containerPort: 4566
     hostPort: 4566
