@@ -1,5 +1,12 @@
 etcd-druid:
   base_definition:
+    repo:
+      source_labels:
+        - name: cloud.gardener.cnudie/dso/scanning-hints/source_analysis/v1
+          value:
+            policy: skip
+            comment: |
+              we use gosec for sast scanning. See attached log.
     traits:
       version:
         preprocess: 'inject-commit-hash'
@@ -67,6 +74,16 @@ etcd-druid:
               tag_as_latest: True
         release:
           nextversion: 'bump_minor'
+          assets:
+            - type: build-step-log
+              step_name: check
+              purposes:
+                - lint
+                - sast
+                - gosec
+              comment: |
+                we use gosec (linter) for SAST scans
+                see: https://github.com/securego/gosec
           git_tags:
           - ref_template: 'refs/tags/{VERSION}'
           release_callback: .ci/bump_tag
