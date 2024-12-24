@@ -258,6 +258,7 @@ _Appears in:_
 | `etcdDefragTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdDefragTimeout defines the timeout duration for etcd defrag call |  |  |
 | `heartbeatDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s. |  |  |
 | `clientService` _[ClientService](#clientservice)_ | ClientService defines the parameters of the client service that a user can specify |  |  |
+| `existingCluster` _[ExistingCluster](#existingcluster)_ | ExistingCluster specifies the configuration for an existing etcd cluster that the etcd-druid managed cluster will join. |  |  |
 
 
 #### EtcdCopyBackupsTask
@@ -429,6 +430,23 @@ _Appears in:_
 | `labelSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#labelselector-v1-meta)_ | LabelSelector is a label query over pods that should match the replica count.<br />It must match the pod template's labels.<br />Deprecated: this field will be removed in the future. |  |  |
 | `members` _[EtcdMemberStatus](#etcdmemberstatus) array_ | Members represents the members of the etcd cluster |  |  |
 | `peerUrlTLSEnabled` _boolean_ | PeerUrlTLSEnabled captures the state of peer url TLS being enabled for the etcd member(s) |  |  |
+
+
+#### ExistingCluster
+
+
+
+ExistingCluster defines the configuration for an existing etcd cluster.
+
+
+
+_Appears in:_
+- [EtcdConfig](#etcdconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `memberURLs` _object (keys:string, values:string array)_ | MemberURLs specifies the URLs of the existing etcd cluster members.<br />Example:<br />etcd-0:<br />  - https://etcd-0:2380<br />etcd-1:<br />  - https://etcd-1:2380 |  |  |
+| `endpoint` _string_ | Endpoint specifies the endpoint of the existing etcd cluster. |  |  |
 
 
 #### GarbageCollectionPolicy

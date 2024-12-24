@@ -468,6 +468,32 @@ spec:
                     description: EtcdDefragTimeout defines the timeout duration for
                       etcd defrag call
                     type: string
+                  existingCluster:
+                    description: ExistingCluster specifies the configuration for an
+                      existing etcd cluster that the etcd-druid managed cluster will
+                      join.
+                    properties:
+                      endpoint:
+                        description: Endpoint specifies the endpoint of the existing
+                          etcd cluster.
+                        type: string
+                      memberURLs:
+                        additionalProperties:
+                          items:
+                            type: string
+                          type: array
+                        description: |-
+                          MemberURLs specifies the URLs of the existing etcd cluster members.
+                          Example:
+                          etcd-0:
+                            - https://etcd-0:2380
+                          etcd-1:
+                            - https://etcd-1:2380
+                        type: object
+                    required:
+                    - endpoint
+                    - memberURLs
+                    type: object
                   heartbeatDuration:
                     description: HeartbeatDuration defines the duration for members
                       to send heartbeats. The default value is 10s.
