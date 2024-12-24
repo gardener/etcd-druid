@@ -233,6 +233,22 @@ type EtcdConfig struct {
 	// ClientService defines the parameters of the client service that a user can specify
 	// +optional
 	ClientService *ClientService `json:"clientService,omitempty"`
+	// ExistingCluster specifies the configuration for an existing etcd cluster that the etcd-druid managed cluster will join.
+	// +optional
+	ExistingCluster *ExistingCluster `json:"existingCluster,omitempty"`
+}
+
+// ExistingCluster defines the configuration for an existing etcd cluster.
+type ExistingCluster struct {
+	// MemberURLs specifies the URLs of the existing etcd cluster members.
+	// Example:
+	// etcd-0:
+	//   - https://etcd-0:2380
+	// etcd-1:
+	//   - https://etcd-1:2380
+	MemberURLs map[string][]string `json:"memberURLs"`
+	// Endpoint specifies the endpoint of the existing etcd cluster.
+	Endpoint string `json:"endpoint"`
 }
 
 // ClientService defines the parameters of the client service that a user can specify
