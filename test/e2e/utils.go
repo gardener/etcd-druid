@@ -361,11 +361,10 @@ func getProviders() ([]TestProvider, error) {
 						},
 					},
 				}
-				azuriteHost := getEnvOrFallback("AZURITE_HOST", "")
-				if azuriteHost != "" {
+				azuriteDomain := getEnvOrFallback("AZURITE_DOMAIN", "")
+				if azuriteDomain != "" {
 					provider.Storage.SecretData["emulatorEnabled"] = []byte("true")
-					// TODO: replace with `domain`
-					provider.Storage.SecretData["storageAPIEndpoint"] = []byte("http://" + azuriteHost)
+					provider.Storage.SecretData["domain"] = []byte(azuriteDomain)
 				}
 			}
 		case providerGCP:
@@ -401,6 +400,23 @@ func getProviders() ([]TestProvider, error) {
 	}
 
 	return providers, nil
+}
+
+func isEmulatorEnabled(provider TestProvider) bool {
+	switch provider.Name {
+	case "aws":
+		return provider.Storage.SecretData["endpoint"] != nil
+	case "az":
+		if val, ok := provider.Storage.SecretData["emulatorEnabled"]; ok {
+			return string(val) == "true"
+		}
+		return false
+	case "gcp":
+		return false
+	case "local":
+		return false
+	}
+	return false
 }
 
 func getKubeconfig(kubeconfigPath string) (*rest.Config, error) {
@@ -590,11 +606,12 @@ func executeRemoteCommand(ctx context.Context, kubeconfigPath, namespace, podNam
 	return strings.TrimSpace(buf.String()), strings.TrimSpace(errBuf.String()), nil
 }
 
-func getSnapstore(storageProvider, storageContainer, storePrefix string) (brtypes.SnapStore, error) {
+func getSnapstore(storageProvider, storageContainer, storePrefix string, isEmulatorEnabled bool) (brtypes.SnapStore, error) {
 	snapstoreConfig := &brtypes.SnapstoreConfig{
-		Provider:  storageProvider,
-		Container: storageContainer,
-		Prefix:    path.Join(storePrefix, "v2"),
+		Provider:          storageProvider,
+		Container:         storageContainer,
+		Prefix:            path.Join(storePrefix, "v2"),
+		IsEmulatorEnabled: isEmulatorEnabled,
 	}
 	store, err := snapstore.GetSnapstore(snapstoreConfig)
 	if err != nil {

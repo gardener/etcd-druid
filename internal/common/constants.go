@@ -65,8 +65,6 @@ const (
 	EnvAWSApplicationCredentials = "AWS_APPLICATION_CREDENTIALS"
 	// EnvAzureApplicationCredentials is the environment variable key for Azure application credentials.
 	EnvAzureApplicationCredentials = "AZURE_APPLICATION_CREDENTIALS" // #nosec G101 -- this is the name of an env var, and not the credential itself.
-	// EnvAzureEmulatorEnabled is the environment variable key that is checked to see if the Azure storage emulator Azurite is enabled.
-	EnvAzureEmulatorEnabled = "AZURE_EMULATOR_ENABLED"
 	// EnvGoogleApplicationCredentials is the environment variable key for Google application credentials.
 	EnvGoogleApplicationCredentials = "GOOGLE_APPLICATION_CREDENTIALS" // #nosec G101 -- this is the name of an env var, and not the credential itself.
 	// EnvOpenstackApplicationCredentials is the environment variable key for OpenStack application credentials.
