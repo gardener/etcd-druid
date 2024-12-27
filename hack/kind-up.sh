@@ -89,6 +89,12 @@ nodes:
   - containerPort: 10000
     hostPort: 10000
     protocol: TCP
+  - containerPort: 8000
+    hostPort: 8000
+    protocol: TCP
+  - containerPort: 4443
+    hostPort: 4443
+    protocol: TCP
 EOF
   if [ "${DEPLOY_REGISTRY}" = true ]; then
     printf -v reg '[plugins."io.containerd.grpc.v1.cri".registry]
