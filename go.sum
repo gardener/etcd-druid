@@ -139,6 +139,8 @@ github.com/fxamacker/cbor/v2 v2.7.0 h1:iM5WgngdRBanHcxugY4JySA0nk1wZorNOpTgCMedv
 github.com/fxamacker/cbor/v2 v2.7.0/go.mod h1:pxXPTn3joSm21Gbwsv0w9OSA2y1HFR9qXEeXQVeNoDQ=
 github.com/gardener/cert-management v0.17.1 h1:vawZGN+rsCRMviacnnMSWELbuIJsNXHaqaLbZ4hYADw=
 github.com/gardener/cert-management v0.17.1/go.mod h1:cwSsyN935017HojKVuWqw2TBhiaxSisX132D9Tn+n9I=
+github.com/gardener/etcd-backup-restore v0.32.1-0.20241230124652-2d7dab8e6dc1 h1:Y3AJKKkRlByYScqYi03bBTNOcuvxvONgG3vDgsxEsDI=
+github.com/gardener/etcd-backup-restore v0.32.1-0.20241230124652-2d7dab8e6dc1/go.mod h1:BUbIBNL2OvtIIwzlAnisBG46y5WvNJGRo/NwuKwajBo=
 github.com/gardener/gardener v1.110.1 h1:KJFiVMlzeuJR6aToUUTlXJN6v88ACH/cWOsvX/ftX5s=
 github.com/gardener/gardener v1.110.1/go.mod h1:Ge2wQMWm0NmQZP3L/WMejpfXsnGbfTFBEZud819P3vU=
 github.com/gardener/machine-controller-manager v0.55.1 h1:d6mTnuYko+jWeIi7tAFWgWnL1nR5hGcI6pRCDcH0TGY=
@@ -388,8 +390,6 @@ github.com/satori/go.uuid v1.2.0 h1:0uYX9dsZ2yD7q2RtLRtPSdGDWzjeM3TbMJP9utgA0ww=
 github.com/satori/go.uuid v1.2.0/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
 github.com/shopspring/decimal v1.4.0 h1:bxl37RwXBklmTi0C79JfXCEBD1cqqHt0bbgBAGFp81k=
 github.com/shopspring/decimal v1.4.0/go.mod h1:gawqmDU56v4yIKSwfBSFip1HdCCXN8/+DMd9qYNcwME=
-github.com/shreyas-s-rao/etcd-backup-restore v0.0.0-20241225154636-be75e89f0860 h1:vk45NL+R9nbF2G2goQjP8cspVpoLA6zfJ1oHq1aLLGc=
-github.com/shreyas-s-rao/etcd-backup-restore v0.0.0-20241225154636-be75e89f0860/go.mod h1:BUbIBNL2OvtIIwzlAnisBG46y5WvNJGRo/NwuKwajBo=
 github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ=
 github.com/sirupsen/logrus v1.9.3/go.mod h1:naHLuLoDiP4jHNo9R0sCBMtWGeIprob74mVsIT4qYEQ=
 github.com/soheilhy/cmux v0.1.5 h1:jjzc5WVemNEDTLwv9tlmemhC73tI08BNOIGwBOo10Js=

@@ -168,4 +168,4 @@ require (
 )
 
 // TODO: remove once etcd-backup-restore v0.33.0 is released
-replace github.com/gardener/etcd-backup-restore => github.com/shreyas-s-rao/etcd-backup-restore v0.0.0-20241225154636-be75e89f0860 // branch `remove-emulator-enabled-env-vars`
+replace github.com/gardener/etcd-backup-restore => github.com/gardener/etcd-backup-restore v0.32.1-0.20241230124652-2d7dab8e6dc1 // https://github.com/gardener/etcd-backup-restore/commit/2d7dab8e6dc1385b50d1f64d0e5b70467564c2a3
