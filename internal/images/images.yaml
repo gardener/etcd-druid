@@ -8,7 +8,8 @@ images:
     name: 'etcdbrctl'
   sourceRepository: github.com/gardener/etcd-backup-restore
   repository: europe-docker.pkg.dev/gardener-project/public/gardener/etcdbrctl
-  tag: "v0.32.0"
+  # TODO: switch to v0.33.0 after etcd-backup-restore:v0.33.0 is released
+  tag: "v0.33.0-dev-2d7dab8e6dc1385b50d1f64d0e5b70467564c2a3"
 - name: alpine
   repository: europe-docker.pkg.dev/gardener-project/public/3rd/alpine
   tag: "3.20.3"

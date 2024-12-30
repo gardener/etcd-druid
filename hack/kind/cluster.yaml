@@ -5,6 +5,7 @@ nodes:
   image: kindest/node:v1.29.2
   # port forward 80 on the host to 80 on this node
   extraPortMappings:
+    # localstack host
   - containerPort: 4566
     hostPort: 4566
     # optional: set the bind address on the host
@@ -18,6 +19,15 @@ nodes:
     # container registry
   - containerPort: 5001
     hostPort: 5001
+    # optional: set the bind address on the host
+    # 0.0.0.0 is the current default
+    listenAddress: "127.0.0.1"
+    # optional: set the protocol to one of TCP, UDP, SCTP.
+    # TCP is the default
+    protocol: TCP
+    # Azurite host
+  - containerPort: 10000
+    hostPort: 10000
     # optional: set the bind address on the host
     # 0.0.0.0 is the current default
     listenAddress: "127.0.0.1"

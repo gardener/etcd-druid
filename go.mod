@@ -51,7 +51,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/aliyun/aliyun-oss-go-sdk v2.1.8+incompatible // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
-	github.com/aws/aws-sdk-go v1.54.20 // indirect
+	github.com/aws/aws-sdk-go v1.55.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -166,3 +166,6 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.3 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+// TODO: remove once etcd-backup-restore v0.33.0 is released
+replace github.com/gardener/etcd-backup-restore => github.com/gardener/etcd-backup-restore v0.32.1-0.20241230124652-2d7dab8e6dc1 // https://github.com/gardener/etcd-backup-restore/commit/2d7dab8e6dc1385b50d1f64d0e5b70467564c2a3

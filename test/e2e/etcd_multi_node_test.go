@@ -265,7 +265,7 @@ func purgeSnapstoreIfNeeded(ctx context.Context, cl client.Client, provider Test
 		purgeLocalSnapstoreJob := purgeLocalSnapstore(ctx, cl, storageContainer, storePrefix)
 		defer cleanUpTestHelperJob(ctx, cl, purgeLocalSnapstoreJob.Name)
 	} else {
-		store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix)
+		store, err := getSnapstore(string(snapstoreProvider), storageContainer, storePrefix, isEmulatorEnabled(provider))
 		ExpectWithOffset(1, err).ShouldNot(HaveOccurred())
 		ExpectWithOffset(1, purgeSnapstore(store)).To(Succeed())
 	}
