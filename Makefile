@@ -176,7 +176,7 @@ docker-clean:
 
 # Rules for locale/remote environment
 # -------------------------------------------------------------------------
-kind-up kind-down ci-e2e-kind ci-e2e-kind-azure deploy-localstack deploy-fakegcs deploy-azurite test-e2e deploy deploy-dev deploy-debug undeploy: export KUBECONFIG = $(KUBECONFIG_PATH)
+kind-up kind-down ci-e2e-kind ci-e2e-kind-azure ci-e2e-kind-gcs deploy-localstack deploy-fakegcs deploy-azurite test-e2e deploy deploy-dev deploy-debug undeploy: export KUBECONFIG = $(KUBECONFIG_PATH)
 
 .PHONY: kind-up
 kind-up: $(KIND)
