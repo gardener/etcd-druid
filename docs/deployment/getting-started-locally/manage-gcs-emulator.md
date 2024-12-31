@@ -40,8 +40,8 @@ kubectl apply -f config/samples/etcd-secret-fakegcs.yaml
 
 ## 04-Cleanup
 
-To clean the setup, execute the following commands:
+To clean the setup, delete the FakeGCS deployment:
 
 ```bash
-make kind-down
+kubectl delete -f ./hack/e2e-test/infrastructure/fake-gcs-server/fake-gcs-server.yaml
 ```

@@ -50,8 +50,9 @@ kubectl apply -f config/samples/etcd-secret-azurite.yaml
 
 ## 04-Cleanup
 
-In addition to the kind cluster cleanup you should also unset the environment variable set in step-03 above.
+To clean the setup, unset the environment variable set in step-03 above and delete the Azurite deployment:
+
 ```bash
 unset AZURE_STORAGE_CONNECTION_STRING
+kubectl delete -f ./hack/e2e-test/infrastructure/azurite/azurite.yaml
 ```
-

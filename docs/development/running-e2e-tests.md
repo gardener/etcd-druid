@@ -142,7 +142,7 @@ test-e2e
 
 ## e2e test with local storage emulators [AWS, GCP, AZURE]
 
-The above-mentioned e2e tests need storage from real cloud providers to be setup. But there are tools such as [localstack](https://docs.localstack.cloud/user-guide/aws/s3/), [fake-gcs-server](https://github.com/fsouza/fake-gcs-server) and [azurite](https://github.com/Azure/Azurite) that enables to run e2e test with mock AWS storage, mock GCS storage and mock AZURE storage respectively. We can provision a KIND cluster for end-to-end (e2e) tests. By using local emulators alongside the KIND cluster, we eliminate the need for any actual cloud provider infrastructure to be set up for running e2e tests.
+The above-mentioned e2e tests need storage from real cloud providers to be setup. But there are tools such as [localstack](https://docs.localstack.cloud/user-guide/aws/s3/), [fake-gcs-server](https://github.com/fsouza/fake-gcs-server) and [azurite](https://github.com/Azure/Azurite) that enable developers to run e2e tests with emulators for AWS S3, Google GCS and Azure ABS respectively. We can provision a KIND cluster for running the e2e tests against. Thus, by using cloud storage emulators alongside the KIND cluster, we eliminate the need for any actual cloud provider infrastructure to be set up for running e2e tests.
 
 ### How are the KIND cluster and Emulators set up
 
