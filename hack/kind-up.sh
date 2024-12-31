@@ -76,8 +76,6 @@ function clamp_mss_to_pmtu() {
 
 function generate_kind_config() {
   echo "Generating kind cluster config..."
-  # Ensure the directory exists
-  mkdir -p "${KIND_CONFIG_DIR}"
   cat >"${KIND_CONFIG_DIR}/cluster-config.yaml" <<EOF
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
