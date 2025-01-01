@@ -39,11 +39,13 @@ export AWS_DEFAULT_REGION=us-east-2
 ```
 
 Create a S3 bucket using the following command:
+
 ```bash
 aws s3api create-bucket --bucket <bucket-name> --region <region> --create-bucket-configuration LocationConstraint=<region> --acl private
 ```
 
 To verify if the bucket has been created, you can use the following command:
+
 ```bash
 aws s3api head-bucket --bucket <bucket-name>
 ```
@@ -60,7 +62,9 @@ kubectl apply -f config/samples/etcd-secret-localstack.yaml
 
 ## 04-Cleanup
 
-In addition to the kind cluster cleanup you should also unset the environment variable set in step-03 above.
+To clean the setup,, unset the environment variable set in step-03 above and delete the LocalStack deployment:
+
 ```bash
 unset AWS_ENDPOINT_URL_S3 AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION
+kubectl delete -f ./hack/e2e-test/infrastructure/localstack/localstack.yaml
 ```

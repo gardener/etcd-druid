@@ -76,6 +76,8 @@ function clamp_mss_to_pmtu() {
 
 function generate_kind_config() {
   echo "Generating kind cluster config..."
+  # Ensure the directory exists
+  mkdir -p "${KIND_CONFIG_DIR}"
   cat >"${KIND_CONFIG_DIR}/cluster-config.yaml" <<EOF
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
@@ -88,6 +90,12 @@ nodes:
     protocol: TCP
   - containerPort: 10000
     hostPort: 10000
+    protocol: TCP
+  - containerPort: 8000
+    hostPort: 8000
+    protocol: TCP
+  - containerPort: 4443
+    hostPort: 4443
     protocol: TCP
 EOF
   if [ "${DEPLOY_REGISTRY}" = true ]; then

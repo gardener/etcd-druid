@@ -141,6 +141,10 @@ ci-e2e-kind: $(GINKGO) $(YQ) $(KIND)
 ci-e2e-kind-azure: $(GINKGO)
 	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind-azure.sh
 
+.PHONY: ci-e2e-kind-gcs
+ci-e2e-kind-gcs: $(GINKGO)
+	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind-gcs.sh
+
 # Rules related to binary build, Docker image build and release
 # -------------------------------------------------------------------------
 # Build manager binary
@@ -172,7 +176,7 @@ docker-clean:
 
 # Rules for locale/remote environment
 # -------------------------------------------------------------------------
-kind-up kind-down ci-e2e-kind ci-e2e-kind-azure deploy-localstack deploy-azurite test-e2e deploy deploy-dev deploy-debug undeploy: export KUBECONFIG = $(KUBECONFIG_PATH)
+kind-up kind-down ci-e2e-kind ci-e2e-kind-azure ci-e2e-kind-gcs deploy-localstack deploy-fakegcs deploy-azurite test-e2e deploy deploy-dev deploy-debug undeploy: export KUBECONFIG = $(KUBECONFIG_PATH)
 
 .PHONY: kind-up
 kind-up: $(KIND)
@@ -218,4 +222,8 @@ deploy-localstack: $(KUBECTL)
 
 .PHONY: deploy-azurite
 deploy-azurite: $(KUBECTL)
-	./hack/deploy-azurite.sh
+	@$(HACK_DIR)/deploy-azurite.sh
+	
+.PHONY: deploy-fakegcs
+deploy-fakegcs: $(KUBECTL)
+	@$(HACK_DIR)/deploy-fakegcs.sh

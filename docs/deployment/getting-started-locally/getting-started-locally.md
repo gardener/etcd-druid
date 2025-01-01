@@ -8,13 +8,13 @@ Before we can setup `etcd-druid` and use it to provision `Etcd` clusters, we nee
 
 ## 01-Setting up KIND cluster
 
-`etcd-druid` uses [kind](https://kind.sigs.k8s.io/) as it's local Kubernetes engine. The local setup is configured for kind due to its convenience only. Any other Kubernetes setup would also work. 
+`etcd-druid` uses [kind](https://kind.sigs.k8s.io/) as it's local Kubernetes engine. The local setup is configured for kind due to its convenience only. Any other Kubernetes setup would also work.
 
 ```bash
 make kind-up
 ```
 
-This command sets up a new Kind cluster and stores the kubeconfig at `./hack/kind/kubeconfig`.  Additionally, this command also deploys a local container registry as a docker container. This ensures faster image push/pull times. The local registry can be accessed as `localhost:5001` for pushing and pulling images. 
+This command sets up a new Kind cluster and stores the kubeconfig at `./hack/kind/kubeconfig`.  Additionally, this command also deploys a local container registry as a docker container. This ensures faster image push/pull times. The local registry can be accessed as `localhost:5001` for pushing and pulling images.
 
 To target this newly created cluster, set the `KUBECONFIG` environment variable to the kubeconfig file.
 
@@ -70,7 +70,7 @@ make deploy-debug
 
 This is similar to `make deploy-dev` but additionally configures containers in pods for debugging as required for each container's runtime technology. The associated debugging ports are exposed and labelled so that they can be port-forwarded to the local machine. Skaffold disables automatic image rebuilding and syncing when using the `debug` mode as compared to `dev` mode.
 
-Go debugging uses [Delve](https://github.com/go-delve/delve). Please see the [skaffold debugging documentation](https://skaffold.dev/docs/workflows/debug/) how to setup your IDE accordingly. 
+Go debugging uses [Delve](https://github.com/go-delve/delve). Please see the [skaffold debugging documentation](https://skaffold.dev/docs/workflows/debug/) how to setup your IDE accordingly.
 
 !!! note
     Resuming or stopping only a single goroutine (Go Issue [25578](https://github.com/golang/go/issues/25578), [31132](https://github.com/golang/go/issues/31132)) is currently not supported, so the action will cause all the goroutines to get activated or paused.
@@ -84,12 +84,13 @@ This means that when a goroutine is paused on a breakpoint, then all the other g
 !!! info
     This section is ***Optional*** and is only meant to describe steps to deploy a local object store which can be used for testing and development. If you either do not wish to enable backups or you wish to use remote (infra-provider-specific) object store then this section can be skipped.
 
-An `Etcd` cluster provisioned via etcd-druid provides a capability to take regular delta and full snapshots which are stored in an object store. You can enable this functionality by ensuring that you fill in [spec.backup.store](https://github.com/gardener/etcd-druid/blob/master/config/samples/druid_v1alpha1_etcd.yaml#L49-L54) section of the `Etcd` CR. 
+An `Etcd` cluster provisioned via etcd-druid provides a capability to take regular delta and full snapshots which are stored in an object store. You can enable this functionality by ensuring that you fill in [spec.backup.store](https://github.com/gardener/etcd-druid/blob/master/config/samples/druid_v1alpha1_etcd.yaml#L49-L54) section of the `Etcd` CR.
 
 | Backup Store Variant          | Setup Guide                                                |
 | ----------------------------- | ---------------------------------------------------------- |
 | Azure Object Storage Emulator | [Manage Azurite](manage-azurite-emulator.md) (Steps 00-03) |
 | S3 Object Store Emulator      | [Manage LocalStack](manage-s3-emulator.md) (Steps 00-03)   |
+| GCS Object Store Emulator     | [Manage GCS Emulator](manage-gcs-emulator.md) (Steps 00-03)|
 
 ### Setting up Cloud Provider Object Store Secret
 
@@ -103,6 +104,7 @@ A Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret/)
     * All the values in the data field of the secret YAML should in `base64` encoded format.
 
 To apply the secret run:
+
 ```bash
 kubectl apply -f <path/to/secret>
 ```
@@ -136,6 +138,7 @@ Brief explanation of the keys:
 ## 05-Applying Etcd CR
 
 Create the Etcd CR (Custom Resource) by applying the Etcd yaml to the cluster
+
 ```bash
 kubectl apply -f <path-to-etcd-cr-yaml>
 ```
@@ -143,6 +146,7 @@ kubectl apply -f <path-to-etcd-cr-yaml>
 ## 06-Verify the Etcd Cluster
 
 To obtain information on the etcd cluster you can invoke the following command:
+
 ```bash
 kubectl get etcd -o=wide
 ```
@@ -151,7 +155,7 @@ We adhere to a naming convention for all resources that are provisioned for an `
 
 ### Verify Etcd Pods' Functionality
 
-`etcd-wrapper` uses a [distroless](https://github.com/GoogleContainerTools/distroless) image, which lacks a shell. To interact with etcd, use an [Ephemeral container](https://kubernetes.io/docs/concepts/workloads/pods/ephemeral-containers/) as a debug container. Refer to this [documentation](https://github.com/gardener/etcd-wrapper/blob/master/docs/deployment/ops.md#operations--debugging) for building and using an ephemeral container which gets attached to the `etcd-wrapper` pod. 
+`etcd-wrapper` uses a [distroless](https://github.com/GoogleContainerTools/distroless) image, which lacks a shell. To interact with etcd, use an [Ephemeral container](https://kubernetes.io/docs/concepts/workloads/pods/ephemeral-containers/) as a debug container. Refer to this [documentation](https://github.com/gardener/etcd-wrapper/blob/master/docs/deployment/ops.md#operations--debugging) for building and using an ephemeral container which gets attached to the `etcd-wrapper` pod.
 
 ```bash
 # Put a key-value pair into the etcd 
@@ -169,11 +173,13 @@ For a multi-node etcd cluster, insert the key-value pair using the `etcd` contai
 ## 08-Cleaning up the setup
 
 If you wish to only delete the `Etcd` cluster then you can use the following command:
+
 ```bash
 kubectl delete etcd <etcd-name>
 ```
 
-This will add the `deletionTimestamp` to the `Etcd` resource.  At the time the creation of the `Etcd` cluster, etcd-druid will add a finalizer to ensure that it cleans up all `Etcd` cluster resources before the CR is removed. 
+This will add the `deletionTimestamp` to the `Etcd` resource.  At the time the creation of the `Etcd` cluster, etcd-druid will add a finalizer to ensure that it cleans up all `Etcd` cluster resources before the CR is removed.
+
 ```yaml
   finalizers:
   - druid.gardener.cloud/etcd-druid
@@ -182,11 +188,13 @@ This will add the `deletionTimestamp` to the `Etcd` resource.  At the time the c
 etcd-druid will automatically pick up the deletion event and attempt clean up `Etcd` cluster resources. It will only remove the finaliser once all resources have been cleaned up.
 
 If you only wish to remove `etcd-druid` but retain the kind cluster then you can use the following make target:
+
 ```bash
 make undeploy
 ```
 
 If you wish to delete the kind cluster then you can use the following make target:
+
 ```bash
 make kind-down
 ```
