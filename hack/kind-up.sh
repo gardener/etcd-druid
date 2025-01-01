@@ -6,6 +6,7 @@
 set -o errexit
 set -o nounset
 set -o pipefail
+set -x
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 KIND_CONFIG_DIR="${SCRIPT_DIR}/kind"
