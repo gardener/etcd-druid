@@ -10,7 +10,7 @@ If multiple identifiers make sense you can also state the commands multiple time
 "/area" identifiers:     audit-logging|auto-scaling|backup|compliance|control-plane-migration|control-plane|cost|delivery|dev-productivity|disaster-recovery|documentation|high-availability|logging|metering|monitoring|networking|open-source|ops-productivity|os|performance|quality|robustness|scalability|security|storage|testing|usability|user-management
 "/kind" identifiers:     api-change|bug|cleanup|discussion|enhancement|epic|flake|impediment|poc|post-mortem|question|regression|task|technical-debt|test
 
-For Gardener Enhancement Proposals (GEPs), please check the following [documentation](https://github.com/gardener/gardener/tree/master/docs/proposals/README.md) before submitting this pull request.
+For Druid Enhancement Proposals (DEPs), please ensure that the proposal is written in the following [format](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/00-template.md) before submitting this pull request.
 -->
 /area TODO
 /kind TODO
