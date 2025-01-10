@@ -19,7 +19,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apiserver/pkg/authentication/serviceaccount"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -100,7 +99,7 @@ func (h *Handler) handleUpdate(req admission.Request, etcd *druidv1alpha1.Etcd, 
 	// Leases (member and snapshot) will be periodically updated by etcd members.
 	// Allow updates to such leases, but only by etcd members, which would use the serviceaccount deployed by druid for them.
 	if requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() {
-		if serviceaccount.MatchesUsername(etcd.GetNamespace(), druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta), req.UserInfo.Username) {
+		if util.MatchesUsername(etcd.GetNamespace(), druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta), req.UserInfo.Username) {
 			return admission.Allowed("lease resource can be freely updated by etcd members")
 		}
 	}
