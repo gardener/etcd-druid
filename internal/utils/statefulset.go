@@ -8,9 +8,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"strings"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 
 	appsv1 "k8s.io/api/apps/v1"

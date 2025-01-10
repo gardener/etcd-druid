@@ -11,6 +11,7 @@ KUSTOMIZE                  := $(TOOLS_BIN_DIR)/kustomize
 GOLANGCI_LINT              := $(TOOLS_BIN_DIR)/golangci-lint
 GOIMPORTS                  := $(TOOLS_BIN_DIR)/goimports
 CONTROLLER_GEN             := $(TOOLS_BIN_DIR)/controller-gen
+CODE_GENERATOR	           := $(TOOLS_BIN_DIR)/code-generator
 GINKGO                     := $(TOOLS_BIN_DIR)/ginkgo
 GOSEC                      := $(TOOLS_BIN_DIR)/gosec
 MOCKGEN                    := $(TOOLS_BIN_DIR)/mockgen
@@ -32,6 +33,7 @@ SKAFFOLD_VERSION := v2.13.0
 KUSTOMIZE_VERSION := v4.5.7
 GOLANGCI_LINT_VERSION ?= v1.60.3
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)
+CODE_GENERATOR_VERSION ?= $(call version_gomod,k8s.io/api)
 GINKGO_VERSION ?= $(call version_gomod,github.com/onsi/ginkgo/v2)
 GOSEC_VERSION ?= v2.21.4
 MOCKGEN_VERSION ?= $(call version_gomod,go.uber.org/mock)
@@ -76,6 +78,11 @@ $(GOLANGCI_LINT):
 
 $(CONTROLLER_GEN):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
+
+CODE_GENERATOR_ROOT = $(shell go env GOMODCACHE)/k8s.io/code-generator@$(CODE_GENERATOR_VERSION)
+$(CODE_GENERATOR):
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) GO111MODULE=on go install k8s.io/code-generator/cmd/client-gen@$(CODE_GENERATOR_VERSION)
+	cp -f $(CODE_GENERATOR_ROOT)/kube_codegen.sh $(TOOLS_BIN_DIR)/
 
 $(GINKGO):
 	go build -o $(GINKGO) github.com/onsi/ginkgo/v2/ginkgo

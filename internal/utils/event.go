@@ -7,10 +7,10 @@ package utils
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
-	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -81,28 +81,19 @@ func filterEvents(events []corev1.Event, scheme *runtime.Scheme, involvedObject 
 }
 
 func buildEventsErrorMessage(events []corev1.Event, eventsLimit int) string {
-	sortByLastTimestamp := func(o1, o2 client.Object) bool {
-		obj1, ok1 := o1.(*corev1.Event)
-		obj2, ok2 := o2.(*corev1.Event)
+	sortedEvents := make([]corev1.Event, len(events))
+	copy(sortedEvents, events)
+	sort.Slice(sortedEvents, func(i, j int) bool {
+		return events[i].LastTimestamp.Time.Before(events[j].LastTimestamp.Time)
+	})
 
-		if !ok1 || !ok2 {
-			return false
-		}
-
-		return obj1.LastTimestamp.Time.Before(obj2.LastTimestamp.Time)
-	}
-
-	list := &corev1.EventList{Items: events}
-	kutil.SortBy(sortByLastTimestamp).Sort(list)
-	events = list.Items
-
-	if len(events) > eventsLimit {
-		events = events[len(events)-eventsLimit:]
+	if len(sortedEvents) > eventsLimit {
+		sortedEvents = sortedEvents[len(sortedEvents)-eventsLimit:]
 	}
 
 	var builder strings.Builder
 	fmt.Fprintf(&builder, "-> Events:")
-	for _, event := range events {
+	for _, event := range sortedEvents {
 		var interval string
 		if event.Count > 1 {
 			interval = fmt.Sprintf("%s ago (x%d over %s)", translateTimestampSince(event.LastTimestamp), event.Count, translateTimestampSince(event.FirstTimestamp))

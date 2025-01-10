@@ -6,8 +6,7 @@ package mapper_test
 
 import (
 	"context"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/api/core/v1alpha1"
 
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	"github.com/go-logr/logr"
@@ -26,7 +25,7 @@ var _ = Describe("EtcdToSecret", func() {
 	var (
 		ctx    = context.Background()
 		m      mapper.Mapper
-		etcd   *druidv1alpha1.Etcd
+		etcd   *v1alpha1.Etcd
 		logger logr.Logger
 
 		namespace = "some-namespace"
@@ -35,7 +34,7 @@ var _ = Describe("EtcdToSecret", func() {
 	BeforeEach(func() {
 		m = EtcdToSecret()
 
-		etcd = &druidv1alpha1.Etcd{
+		etcd = &v1alpha1.Etcd{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
 			},
@@ -57,22 +56,22 @@ var _ = Describe("EtcdToSecret", func() {
 			secretBackupStore     = "backup-store"
 		)
 
-		etcd.Spec.Etcd.ClientUrlTLS = &druidv1alpha1.TLSConfig{
-			TLSCASecretRef: druidv1alpha1.SecretReference{
+		etcd.Spec.Etcd.ClientUrlTLS = &v1alpha1.TLSConfig{
+			TLSCASecretRef: v1alpha1.SecretReference{
 				SecretReference: corev1.SecretReference{Name: secretClientCATLS},
 			},
 			ServerTLSSecretRef: corev1.SecretReference{Name: secretClientServerTLS},
 			ClientTLSSecretRef: corev1.SecretReference{Name: secretClientClientTLS},
 		}
 
-		etcd.Spec.Etcd.PeerUrlTLS = &druidv1alpha1.TLSConfig{
-			TLSCASecretRef: druidv1alpha1.SecretReference{
+		etcd.Spec.Etcd.PeerUrlTLS = &v1alpha1.TLSConfig{
+			TLSCASecretRef: v1alpha1.SecretReference{
 				SecretReference: corev1.SecretReference{Name: secretPeerCATLS},
 			},
 			ServerTLSSecretRef: corev1.SecretReference{Name: secretPeerServerTLS},
 		}
 
-		etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
+		etcd.Spec.Backup.Store = &v1alpha1.StoreSpec{
 			SecretRef: &corev1.SecretReference{Name: secretBackupStore},
 		}
 

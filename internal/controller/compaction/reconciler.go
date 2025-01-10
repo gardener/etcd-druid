@@ -7,10 +7,10 @@ package compaction
 import (
 	"context"
 	"fmt"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"strconv"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/images"
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
@@ -271,7 +271,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 			Labels:    getLabels(etcd),
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion:         druidv1alpha1.GroupVersion.String(),
+					APIVersion:         druidv1alpha1.SchemeGroupVersion.String(),
 					BlockOwnerDeletion: ptr.To(true),
 					Controller:         ptr.To(true),
 					Kind:               "Etcd",

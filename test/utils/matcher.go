@@ -6,9 +6,8 @@ package utils
 
 import (
 	"fmt"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"strings"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
 	"github.com/onsi/gomega/format"
 	gomegatypes "github.com/onsi/gomega/types"
@@ -90,7 +89,7 @@ func MatchSpecLabelSelector(expected map[string]string) gomegatypes.GomegaMatche
 // MatchEtcdOwnerReference is a custom gomega matcher which creates a matcher for ObjectMeta.OwnerReferences
 func MatchEtcdOwnerReference(etcdName string, etcdUID types.UID) gomegatypes.GomegaMatcher {
 	return ConsistOf(MatchFields(IgnoreExtras, Fields{
-		"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
+		"APIVersion":         Equal(druidv1alpha1.SchemeGroupVersion.String()),
 		"Kind":               Equal("Etcd"),
 		"Name":               Equal(etcdName),
 		"UID":                Equal(etcdUID),

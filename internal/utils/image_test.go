@@ -5,9 +5,9 @@
 package utils
 
 import (
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"testing"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 

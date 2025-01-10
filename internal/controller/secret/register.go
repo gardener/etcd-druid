@@ -6,11 +6,9 @@ package secret
 
 import (
 	"context"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	druidmapper "github.com/gardener/etcd-druid/internal/mapper"
-
-	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -21,7 +19,7 @@ import (
 const controllerName = "secret-controller"
 
 // RegisterWithManager registers the Secret Controller with the given controller manager.
-func (r *Reconciler) RegisterWithManager(ctx context.Context, mgr ctrl.Manager) error {
+func (r *Reconciler) RegisterWithManager(_ context.Context, mgr ctrl.Manager) error {
 	c, err := ctrl.
 		NewControllerManagedBy(mgr).
 		Named(controllerName).
@@ -37,10 +35,6 @@ func (r *Reconciler) RegisterWithManager(ctx context.Context, mgr ctrl.Manager) 
 	return c.Watch(
 		source.Kind[client.Object](mgr.GetCache(),
 			&druidv1alpha1.Etcd{},
-			mapper.EnqueueRequestsFrom(ctx, mgr.GetCache(),
-				druidmapper.EtcdToSecret(),
-				mapper.UpdateWithOldAndNew,
-				c.GetLogger()),
-		),
-	)
+			handler.EnqueueRequestsFromMapFunc(mapEtcdToSecret),
+		))
 }

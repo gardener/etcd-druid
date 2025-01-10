@@ -7,9 +7,9 @@ package etcdmember_test
 import (
 	"context"
 	"fmt"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"

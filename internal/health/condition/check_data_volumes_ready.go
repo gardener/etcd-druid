@@ -7,8 +7,8 @@ package condition
 import (
 	"context"
 	"fmt"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/utils"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"

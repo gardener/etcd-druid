@@ -7,10 +7,10 @@ package etcdcomponents
 import (
 	"context"
 	"fmt"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"net/http"
 	"slices"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/webhook/util"
 
 	"github.com/go-logr/logr"

@@ -7,9 +7,8 @@ package e2e
 import (
 	"context"
 	"fmt"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"time"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
 	batchv1 "k8s.io/api/batch/v1"

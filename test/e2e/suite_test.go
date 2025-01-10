@@ -6,12 +6,11 @@ package e2e
 
 import (
 	"context"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"path"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/gardener/etcd-druid/api/v1alpha1"
 
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
@@ -75,7 +74,7 @@ var _ = BeforeSuite(func() {
 	sourcePath = getEnvOrFallback(envSourcePath, ".")
 	kubeconfigPath = getEnvAndExpectNoError(envKubeconfigPath)
 
-	err = v1alpha1.AddToScheme(scheme.Scheme)
+	err = druidv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	logger.V(1).Info("setting up k8s client", "KUBECONFIG", kubeconfigPath)
@@ -130,7 +129,7 @@ var _ = SynchronizedAfterSuite(func() {
 	namespaceLogger := logger.WithValues("namespace", etcdNamespace)
 	namespaceLogger.Info("Checking for Etcd resources before deleting namespace", "namespace", etcdNamespace)
 
-	var etcds v1alpha1.EtcdList
+	var etcds druidv1alpha1.EtcdList
 	// List all Etcd resources in the specified namespace
 	err = cl.List(ctx, &etcds, client.InNamespace(etcdNamespace))
 	Expect(err).NotTo(HaveOccurred(), "Failed to list Etcd resources")

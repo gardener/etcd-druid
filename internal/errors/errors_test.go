@@ -7,10 +7,9 @@ package errors
 import (
 	"errors"
 	"fmt"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"testing"
 	"time"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
 	. "github.com/onsi/gomega"
 )

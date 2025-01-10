@@ -5,9 +5,8 @@
 package etcd
 
 import (
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"time"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"k8s.io/client-go/util/workqueue"
@@ -19,7 +18,7 @@ import (
 )
 
 // RegisterWithManager registers the Etcd Controller with the given controller manager.
-func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager, controllerName string) error {
+func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 	builder := ctrl.
 		NewControllerManagedBy(mgr).
 		Named(controllerName).

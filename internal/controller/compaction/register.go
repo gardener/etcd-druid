@@ -5,10 +5,9 @@
 package compaction
 
 import (
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"reflect"
 	"strings"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"

@@ -4,6 +4,8 @@ go 1.23.0
 
 require (
 	github.com/gardener/etcd-backup-restore v0.33.0
+	github.com/gardener/etcd-druid/api v0.0.0-00010101000000-000000000000
+	github.com/gardener/etcd-backup-restore v0.32.0
 	github.com/gardener/gardener v1.110.1
 	github.com/go-logr/logr v1.4.2
 	github.com/golang-jwt/jwt/v5 v5.2.1
@@ -165,4 +167,8 @@ require (
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.3 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
+)
+
+replace (
+	github.com/gardener/etcd-druid/api => ./api
 )

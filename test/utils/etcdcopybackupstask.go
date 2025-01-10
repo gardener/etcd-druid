@@ -5,9 +5,9 @@
 package utils
 
 import (
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
@@ -33,7 +33,7 @@ func CreateEtcdCopyBackupsTask(name, namespace string, provider druidv1alpha1.St
 	}
 	return &druidv1alpha1.EtcdCopyBackupsTask{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: druidv1alpha1.GroupVersion.String(),
+			APIVersion: druidv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "EtcdCopyBackupsTask",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -76,7 +76,7 @@ func CreateEtcdCopyBackupsJob(taskName, namespace string) *batchv1.Job {
 			Labels:    getLabels(taskName, jobName, false),
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion:         druidv1alpha1.GroupVersion.String(),
+					APIVersion:         druidv1alpha1.SchemeGroupVersion.String(),
 					Kind:               "EtcdCopyBackupsTask",
 					Name:               taskName,
 					UID:                "",

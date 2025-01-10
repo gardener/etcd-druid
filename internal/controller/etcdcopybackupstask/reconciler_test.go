@@ -7,9 +7,9 @@ package etcdcopybackupstask
 import (
 	"context"
 	"fmt"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/common"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
@@ -740,7 +740,7 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 			}),
 			"OwnerReferences": MatchAllElements(testutils.OwnerRefIterator, Elements{
 				task.Name: MatchAllFields(Fields{
-					"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
+					"APIVersion":         Equal(druidv1alpha1.SchemeGroupVersion.String()),
 					"Kind":               Equal("EtcdCopyBackupsTask"),
 					"Name":               Equal(task.Name),
 					"UID":                Equal(task.UID),

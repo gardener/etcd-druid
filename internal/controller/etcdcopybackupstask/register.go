@@ -5,8 +5,7 @@
 package etcdcopybackupstask
 
 import (
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	batchv1 "k8s.io/api/batch/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"

@@ -47,6 +47,10 @@ generate: manifests generate-api-docs $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
 	@go generate "$(REPO_ROOT)/internal/..."
 	@"$(HACK_DIR)/update-codegen.sh"
 
+.PHONY: generate-all
+generate-all: $(CONTROLLER_GEN) $(CODE_GENERATOR)
+	@$(HACK_DIR)/generate.sh
+
 # Rules for verification, formatting, linting and cleaning
 # -------------------------------------------------------------------------
 .PHONY: tidy
