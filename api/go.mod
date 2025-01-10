@@ -1,4 +1,4 @@
-module github.com/gardener/etcd-druid/api
+module github.com/unmarshall/etcd-druid/api
 
 go 1.23.0
 

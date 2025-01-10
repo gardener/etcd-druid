@@ -4,7 +4,7 @@ go 1.23.0
 
 require (
 	github.com/gardener/etcd-backup-restore v0.33.0
-	github.com/gardener/etcd-druid/api v0.0.0-00010101000000-000000000000
+	github.com/gardener/etcd-druid/api v0.26.0-dev
 	github.com/gardener/etcd-backup-restore v0.32.0
 	github.com/gardener/gardener v1.110.1
 	github.com/go-logr/logr v1.4.2
