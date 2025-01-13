@@ -104,7 +104,6 @@ sast-report: $(GOSEC)
 test-unit: $(GINKGO) $(GOTESTFMT)
 	# run ginkgo unit tests. These will be ported to golang native tests over a period of time.
 	@TEST_COVER=$(TEST_COVER) "$(HACK_DIR)/test.sh" ./internal/controller/etcdcopybackupstask/... \
-	./internal/controller/secret/... \
 	./internal/controller/utils/... \
 	./internal/mapper/... \
 	./internal/metrics/... \
@@ -112,6 +111,7 @@ test-unit: $(GINKGO) $(GOTESTFMT)
 	# run the golang native unit tests.
 	@TEST_COVER=$(TEST_COVER) "$(HACK_DIR)/test-go.sh" ./api/... \
 	./internal/controller/etcd/... \
+	./internal/controller/secret/... \
 	./internal/controller/compaction/... \
 	./internal/component/... \
 	./internal/errors/... \
