@@ -243,6 +243,10 @@ type ClientService struct {
 	// Labels specify the labels that should be added to the client service
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
+	// TrafficDistribution defines the traffic distribution preference that should be added to the client service.
+	// More info: https://kubernetes.io/docs/reference/networking/virtual-ips/#traffic-distribution
+	// +optional
+	TrafficDistribution *string `json:"trafficDistribution,omitempty"`
 }
 
 // SharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.

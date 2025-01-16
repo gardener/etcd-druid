@@ -61,6 +61,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `annotations` _object (keys:string, values:string)_ | Annotations specify the annotations that should be added to the client service |  |  |
 | `labels` _object (keys:string, values:string)_ | Labels specify the labels that should be added to the client service |  |  |
+| `trafficDistribution` _string_ | TrafficDistribution defines the traffic distribution preference that should be added to the client service.<br />More info: https://kubernetes.io/docs/reference/networking/virtual-ips/#traffic-distribution |  |  |
 
 
 #### CompactionMode
