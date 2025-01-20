@@ -180,7 +180,7 @@ make ci-e2e-kind-gcs
 
 #### Azurite setup
 
-[Azurite](https://github.com/Azure/Azurite) is run inside a pod using this [docker image](mcr.microsoft.com/azure-storage/azurite:latest) in a KIND cluster.
+[Azurite](https://github.com/Azure/Azurite) is run inside a pod using this [docker image](https://mcr.microsoft.com/en-us/artifact/mar/azure-storage/azurite/tags) (tag:`latest`) in a KIND cluster.
 
 The user needs to run `make ci-e2e-kind-azure` to start the e2e tests for druid with Azurite as the object storage for etcd backups. The above command internally runs the script `hack/ci-e2e-kind-azure.sh` which initializes the setup with required steps before going on to create a KIND cluster and deploy Azurite in it and use that emulator to run e2e tests.
 
