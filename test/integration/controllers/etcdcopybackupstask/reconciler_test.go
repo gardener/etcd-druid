@@ -8,13 +8,13 @@ import (
 	"context"
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/common"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
-	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	gomegatypes "github.com/onsi/gomega/types"
@@ -90,7 +90,7 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 				}
 				return job, nil
 			}, timeout, pollingInterval).Should(PointTo(testutils.MatchFinalizer(metav1.FinalizerDeleteDependents)))
-			Expect(controllerutils.RemoveFinalizers(ctx, k8sClient, job, metav1.FinalizerDeleteDependents)).To(Succeed())
+			Expect(utils.RemoveFinalizers(ctx, k8sClient, job, metav1.FinalizerDeleteDependents)).To(Succeed())
 
 			// Wait until the job has been deleted
 			Eventually(func() error {

@@ -8,13 +8,13 @@ import (
 	"context"
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/common"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
-	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -139,7 +139,7 @@ var _ = Describe("Compaction Controller", func() {
 				}
 				return j, nil
 			}, timeout, pollingInterval).Should(PointTo(testutils.MatchFinalizer(metav1.FinalizerDeleteDependents)))
-			Expect(controllerutils.RemoveFinalizers(ctx, k8sClient, j, metav1.FinalizerDeleteDependents)).To(Succeed())
+			Expect(utils.RemoveFinalizers(ctx, k8sClient, j, metav1.FinalizerDeleteDependents)).To(Succeed())
 
 			// Wait until the job has been deleted
 			Eventually(func() error {
@@ -187,7 +187,7 @@ var _ = Describe("Compaction Controller", func() {
 				}
 				return j, nil
 			}, timeout, pollingInterval).Should(PointTo(testutils.MatchFinalizer(metav1.FinalizerDeleteDependents)))
-			Expect(controllerutils.RemoveFinalizers(ctx, k8sClient, j, metav1.FinalizerDeleteDependents)).To(Succeed())
+			Expect(utils.RemoveFinalizers(ctx, k8sClient, j, metav1.FinalizerDeleteDependents)).To(Succeed())
 
 			// Wait until the job has been deleted
 			Eventually(func() error {

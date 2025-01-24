@@ -7,6 +7,7 @@ package etcd
 import (
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/common"
@@ -15,7 +16,6 @@ import (
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	"github.com/gardener/gardener/pkg/controllerutils"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -52,7 +52,7 @@ func (r *Reconciler) ensureFinalizer(ctx component.OperatorContext, etcdObjKey c
 	}
 	if !controllerutil.ContainsFinalizer(etcdPartialObjMeta, common.FinalizerName) {
 		ctx.Logger.Info("Adding finalizer", "finalizerName", common.FinalizerName)
-		if err := controllerutils.AddFinalizers(ctx, r.client, etcdPartialObjMeta, common.FinalizerName); err != nil {
+		if err := utils.AddFinalizers(ctx, r.client, etcdPartialObjMeta, common.FinalizerName); err != nil {
 			ctx.Logger.Error(err, "failed to add finalizer")
 			return ctrlutils.ReconcileWithError(err)
 		}

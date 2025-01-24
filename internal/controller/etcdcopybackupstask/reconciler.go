@@ -17,7 +17,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
@@ -90,7 +89,7 @@ func (r *Reconciler) reconcile(ctx context.Context, task *druidv1alpha1.EtcdCopy
 	// Ensure finalizer
 	if !controllerutil.ContainsFinalizer(task, common.FinalizerName) {
 		logger.V(1).Info("Adding finalizer", "finalizerName", common.FinalizerName)
-		if err := controllerutils.AddFinalizers(ctx, r.Client, task, common.FinalizerName); err != nil {
+		if err := utils.AddFinalizers(ctx, r.Client, task, common.FinalizerName); err != nil {
 			return ctrl.Result{}, fmt.Errorf("could not add finalizer: %w", err)
 		}
 	}
@@ -176,7 +175,7 @@ func (r *Reconciler) delete(ctx context.Context, task *druidv1alpha1.EtcdCopyBac
 	// Remove finalizer if requested
 	if removeFinalizer {
 		logger.V(1).Info("Removing finalizer", "finalizerName", common.FinalizerName)
-		if err := controllerutils.RemoveFinalizers(ctx, r.Client, task, common.FinalizerName); err != nil {
+		if err := utils.RemoveFinalizers(ctx, r.Client, task, common.FinalizerName); err != nil {
 			return ctrl.Result{}, fmt.Errorf("could not remove finalizer: %w", err)
 		}
 	}
