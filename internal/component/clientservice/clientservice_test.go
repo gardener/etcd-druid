@@ -84,12 +84,13 @@ func TestGetExistingResourceNames(t *testing.T) {
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenNoServiceExists(t *testing.T) {
 	testCases := []struct {
-		name        string
-		clientPort  *int32
-		backupPort  *int32
-		peerPort    *int32
-		createErr   *apierrors.StatusError
-		expectedErr *druiderr.DruidError
+		name                string
+		clientPort          *int32
+		backupPort          *int32
+		peerPort            *int32
+		trafficDistribution *string
+		createErr           *apierrors.StatusError
+		expectedErr         *druiderr.DruidError
 	}{
 		{
 			name: "create client service with default ports",
@@ -99,6 +100,10 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 			clientPort: ptr.To[int32](2222),
 			backupPort: ptr.To[int32](3333),
 			peerPort:   ptr.To[int32](4444),
+		},
+		{
+			name:                "create client service with traffic distribution",
+			trafficDistribution: ptr.To("PreferClose"),
 		},
 		{
 			name:      "create fails when there is a create error",
@@ -115,7 +120,7 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			etcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort)
+			etcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort, tc.trafficDistribution)
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, client.ObjectKey{Name: druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), Namespace: etcd.Namespace})
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -134,23 +139,29 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 
 func TestSyncWhenServiceExists(t *testing.T) {
 	const (
-		originalClientPort int32 = 2379
-		originalServerPort int32 = 2380
-		originalBackupPort int32 = 8080
+		originalClientPort          int32  = 2379
+		originalServerPort          int32  = 2380
+		originalBackupPort          int32  = 8080
+		originalTrafficDistribution string = "PreferClose"
 	)
-	existingEtcd := buildEtcd(ptr.To(originalClientPort), ptr.To(originalServerPort), ptr.To(originalBackupPort))
+	existingEtcd := buildEtcd(ptr.To(originalClientPort), ptr.To(originalServerPort), ptr.To(originalBackupPort), ptr.To(originalTrafficDistribution))
 	testCases := []struct {
-		name          string
-		clientPort    *int32
-		backupPort    *int32
-		peerPort      *int32
-		patchErr      *apierrors.StatusError
-		expectedError *druiderr.DruidError
+		name                string
+		clientPort          *int32
+		backupPort          *int32
+		peerPort            *int32
+		trafficDistribution *string
+		patchErr            *apierrors.StatusError
+		expectedError       *druiderr.DruidError
 	}{
 		{
 			name:       "update peer service with new server port",
 			clientPort: ptr.To[int32](2222),
 			peerPort:   ptr.To[int32](3333),
+		},
+		{
+			name:                "update client service with new traffic distribution",
+			trafficDistribution: ptr.To("Foo"),
 		},
 		{
 			name:       "update fails when there is a patch error",
@@ -173,7 +184,7 @@ func TestSyncWhenServiceExists(t *testing.T) {
 			// ********************* test sync with updated ports *********************
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			updatedEtcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort)
+			updatedEtcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort, tc.trafficDistribution)
 			syncErr := operator.Sync(opCtx, updatedEtcd)
 			latestClientSvc, getErr := getLatestClientService(cl, updatedEtcd)
 			g.Expect(latestClientSvc).ToNot(BeNil())
@@ -247,7 +258,7 @@ func TestTriggerDelete(t *testing.T) {
 }
 
 // ---------------------------- Helper Functions -----------------------------
-func buildEtcd(clientPort, peerPort, backupPort *int32) *druidv1alpha1.Etcd {
+func buildEtcd(clientPort, peerPort, backupPort *int32, trafficDistribution *string) *druidv1alpha1.Etcd {
 	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 	if clientPort != nil {
 		etcdBuilder.WithEtcdClientPort(clientPort)
@@ -257,6 +268,9 @@ func buildEtcd(clientPort, peerPort, backupPort *int32) *druidv1alpha1.Etcd {
 	}
 	if backupPort != nil {
 		etcdBuilder.WithBackupPort(backupPort)
+	}
+	if trafficDistribution != nil {
+		etcdBuilder.WithEtcdClientServiceTrafficDistribution(trafficDistribution)
 	}
 	return etcdBuilder.Build()
 }
@@ -268,9 +282,11 @@ func matchClientService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Ser
 	etcdObjMeta := etcd.ObjectMeta
 	expectedLabels := druidv1alpha1.GetDefaultLabels(etcdObjMeta)
 	var expectedAnnotations map[string]string
+	var expectedTrafficDistribution *string
 	if etcd.Spec.Etcd.ClientService != nil {
 		expectedAnnotations = etcd.Spec.Etcd.ClientService.Annotations
 		expectedLabels = utils.MergeMaps(etcd.Spec.Etcd.ClientService.Labels, druidv1alpha1.GetDefaultLabels(etcdObjMeta))
+		expectedTrafficDistribution = etcd.Spec.Etcd.ClientService.TrafficDistribution
 	}
 	expectedLabelSelector := utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcdObjMeta), map[string]string{druidv1alpha1.LabelComponentKey: common.ComponentNameStatefulSet})
 
@@ -306,6 +322,7 @@ func matchClientService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Ser
 					TargetPort: intstr.FromInt(int(backupPort)),
 				}),
 			),
+			"TrafficDistribution": Equal(expectedTrafficDistribution),
 		}),
 	}))
 }
