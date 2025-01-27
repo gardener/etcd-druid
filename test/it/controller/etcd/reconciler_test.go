@@ -15,7 +15,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
-	"github.com/gardener/etcd-druid/test/it/controller/assets"
+	"github.com/gardener/etcd-druid/test/it/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
@@ -27,6 +27,8 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+const testNamespacePrefix = "etcd-reconciler-test"
 
 var (
 	sharedITTestEnv setup.DruidTestEnvironment
@@ -66,7 +68,7 @@ func TestEtcdReconcileSpecWithNoAutoReconcile(t *testing.T) {
 	g := NewWithT(t)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testNs := createTestNamespaceName(t)
+			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
 			t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
 			g.Expect(reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)).To(Succeed())
 			test.fn(t, testNs, reconcilerTestEnv)
@@ -282,7 +284,7 @@ func TestEtcdDeletion(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testNs := createTestNamespaceName(t)
+			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
 			test.fn(t, testNs)
 		})
 	}
@@ -411,7 +413,7 @@ func TestEtcdStatusReconciliation(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// --------------------------- create test namespace ---------------------------
-			testNs := createTestNamespaceName(t)
+			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
 			g.Expect(reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)).To(Succeed())
 			t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
 			// ---------------------------- create etcd instance --------------------------

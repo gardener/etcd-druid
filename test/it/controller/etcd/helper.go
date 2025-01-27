@@ -14,7 +14,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/utils"
-	"github.com/gardener/etcd-druid/test/it/controller/assets"
+	"github.com/gardener/etcd-druid/test/it/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
@@ -30,14 +30,6 @@ import (
 
 	. "github.com/onsi/gomega"
 )
-
-const testNamespacePrefix = "etcd-reconciler-test-"
-
-func createTestNamespaceName(t *testing.T) string {
-	g := NewWithT(t)
-	namespaceSuffix := testutils.GenerateRandomAlphanumericString(g, 4)
-	return fmt.Sprintf("%s-%s", testNamespacePrefix, namespaceSuffix)
-}
 
 func initializeEtcdReconcilerTestEnv(t *testing.T, controllerName string, itTestEnv setup.DruidTestEnvironment, autoReconcile bool, clientBuilder *testutils.TestClientBuilder) ReconcilerTestEnv {
 	g := NewWithT(t)
