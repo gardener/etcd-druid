@@ -12,7 +12,6 @@ import (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
@@ -28,7 +27,6 @@ type EtcdCopyBackupsTask struct {
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // +kubebuilder:object:root=true
 
 // EtcdCopyBackupsTaskList contains a list of EtcdCopyBackupsTask objects.

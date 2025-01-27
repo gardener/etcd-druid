@@ -81,6 +81,7 @@ $(CONTROLLER_GEN):
 
 CODE_GENERATOR_ROOT = $(shell go env GOMODCACHE)/k8s.io/code-generator@$(CODE_GENERATOR_VERSION)
 $(CODE_GENERATOR):
+	go build
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) GO111MODULE=on go install k8s.io/code-generator/cmd/client-gen@$(CODE_GENERATOR_VERSION)
 	cp -f $(CODE_GENERATOR_ROOT)/kube_codegen.sh $(TOOLS_BIN_DIR)/
 

@@ -8,7 +8,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 TOOLS_BIN_DIR="${SCRIPT_DIR}/tools/bin"
 
-source "${TOOLS_BIN_DIR}/kube_codegen.sh"
+CODE_GEN_DIR=$(go list -m -f '{{.Dir}}' k8s.io/code-generator)
+source "${CODE_GEN_DIR}/kube_codegen.sh"
 
 function check_controller_gen_prereq() {
   if ! command -v controller-gen &>/dev/null; then
@@ -20,12 +21,13 @@ function check_controller_gen_prereq() {
 function generate_deepcopy_defaulter() {
   kube::codegen::gen_helpers \
     --boilerplate "${SCRIPT_DIR}/boilerplate.go.txt" \
-    "${PROJECT_ROOT}/api"
+    "${PROJECT_ROOT}/api/core/v1alpha1"
 }
 
 function generate_clientset() {
   kube::codegen::gen_client \
     --with-watch \
+    --one-input-api "core/v1alpha1" \
     --output-dir "${PROJECT_ROOT}/client" \
     --output-pkg "github.com/gardener/etcd-druid/client" \
     --boilerplate "${SCRIPT_DIR}/boilerplate.go.txt" \
@@ -64,9 +66,9 @@ function main() {
   echo "> Generate clientset for Etcd API..."
   generate_clientset
 
-  check_controller_gen_prereq
-  echo "> Generate CRDs..."
-  generate_crds
+  #check_controller_gen_prereq
+  #echo "> Generate CRDs..."
+  #generate_crds
 }
 
 main

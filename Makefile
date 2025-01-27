@@ -4,6 +4,7 @@
 
 REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
 HACK_DIR            := $(REPO_ROOT)/hack
+API_HACK_DIR		:= $(REPO_ROOT)/api/hack
 VERSION             := $(shell $(HACK_DIR)/get-version.sh)
 GIT_SHA             := $(shell git rev-parse --short HEAD || echo "GitNotFound")
 REGISTRY_ROOT       := europe-docker.pkg.dev/gardener-project
@@ -48,7 +49,7 @@ generate: manifests generate-api-docs $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
 	@"$(HACK_DIR)/update-codegen.sh"
 
 .PHONY: generate-all
-generate-all: $(CONTROLLER_GEN) $(CODE_GENERATOR)
+generate-all: $(CONTROLLER_GEN)
 	@$(HACK_DIR)/generate.sh
 
 # Rules for verification, formatting, linting and cleaning
