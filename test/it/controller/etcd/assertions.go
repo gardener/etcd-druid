@@ -20,7 +20,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/test/it/setup"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -282,8 +281,8 @@ func assertETCDOperationAnnotation(t *testing.T, cl client.Client, etcdObjectKey
 		if err != nil {
 			return err
 		}
-		if metav1.HasAnnotation(etcdInstance.ObjectMeta, v1beta1constants.GardenerOperation) != expectedAnnotationToBePresent {
-			return fmt.Errorf("expected reconcile operation annotation to be removed, found %v", v1beta1constants.GardenerOperation)
+		if metav1.HasAnnotation(etcdInstance.ObjectMeta, druidv1alpha1.DruidOperationAnnotation) != expectedAnnotationToBePresent {
+			return fmt.Errorf("expected reconcile operation annotation to be removed, found %v", druidv1alpha1.DruidOperationAnnotation)
 		}
 		return nil
 	}

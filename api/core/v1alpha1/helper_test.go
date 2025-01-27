@@ -7,6 +7,7 @@ package v1alpha1
 import (
 	"testing"
 
+	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -185,7 +186,7 @@ func TestGetAsOwnerReference(t *testing.T) {
 	etcdObjMeta := createEtcdObjectMetadata(uid, nil, nil, false)
 	ownerRef := GetAsOwnerReference(etcdObjMeta)
 	g.Expect(ownerRef).To(Equal(metav1.OwnerReference{
-		APIVersion:         GroupVersion.String(),
+		APIVersion:         SchemeGroupVersion.String(),
 		Kind:               "Etcd",
 		Name:               etcdName,
 		UID:                uid,

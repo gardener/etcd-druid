@@ -5,13 +5,13 @@
 package etcd
 
 import (
+	"github.com/gardener/etcd-druid/api/core/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"testing"
 
 	mockmanager "github.com/gardener/etcd-druid/internal/mock/controller-runtime/manager"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"go.uber.org/mock/gomock"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -388,7 +388,7 @@ func updateEtcd(originalEtcd *druidv1alpha1.Etcd, specChanged, statusChanged boo
 	newEtcd := originalEtcd.DeepCopy()
 	annotations := make(map[string]string)
 	if reconcileAnnotPresent {
-		annotations[v1beta1constants.GardenerOperation] = v1beta1constants.GardenerOperationReconcile
+		annotations[v1alpha1.DruidOperationAnnotation] = v1alpha1.DruidOperationReconcile
 		newEtcd.SetAnnotations(annotations)
 	}
 	if specChanged {

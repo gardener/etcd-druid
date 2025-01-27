@@ -9,13 +9,13 @@ import (
 	"errors"
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/utils"
 
-	"github.com/gardener/gardener/pkg/controllerutils"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -145,7 +145,7 @@ func (r _resource) getLeasePartialObjectMetadata(ctx context.Context, objectKey 
 
 func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, leaseObjectKey client.ObjectKey) error {
 	lease := emptySnapshotLease(leaseObjectKey)
-	opResult, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, lease, func() error {
+	opResult, err := controllerutil.CreateOrPatch(ctx, r.client, lease, func() error {
 		buildResource(etcd, lease)
 		return nil
 	})

@@ -10,7 +10,6 @@ import (
 
 	"github.com/gardener/etcd-druid/internal/common"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -73,7 +72,7 @@ func CreateEtcdCopyBackupsJob(taskName, namespace string) *batchv1.Job {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      jobName,
 			Namespace: namespace,
-			Labels:    getLabels(taskName, jobName, false),
+			Labels:    getLabels(taskName, jobName),
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         druidv1alpha1.SchemeGroupVersion.String(),
@@ -88,7 +87,7 @@ func CreateEtcdCopyBackupsJob(taskName, namespace string) *batchv1.Job {
 		Spec: batchv1.JobSpec{
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: getLabels(taskName, jobName, true),
+					Labels: getLabels(taskName, jobName),
 				},
 				Spec: corev1.PodSpec{
 					Volumes: nil,
@@ -107,16 +106,11 @@ func CreateEtcdCopyBackupsJob(taskName, namespace string) *batchv1.Job {
 	}
 }
 
-func getLabels(taskName, jobName string, includeNetworkPolicyLabels bool) map[string]string {
-	labels := map[string]string{
+func getLabels(taskName, jobName string) map[string]string {
+	return map[string]string{
 		druidv1alpha1.LabelPartOfKey:    taskName,
 		druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
 		druidv1alpha1.LabelComponentKey: common.ComponentNameEtcdCopyBackupsJob,
 		druidv1alpha1.LabelAppNameKey:   jobName,
 	}
-	if includeNetworkPolicyLabels {
-		labels[v1beta1constants.LabelNetworkPolicyToDNS] = v1beta1constants.LabelNetworkPolicyAllowed
-		labels[v1beta1constants.LabelNetworkPolicyToPublicNetworks] = v1beta1constants.LabelNetworkPolicyAllowed
-	}
-	return labels
 }

@@ -11,39 +11,49 @@ import (
 
 func TestMergeMaps(t *testing.T) {
 	testCases := []struct {
-		name     string
-		input    []map[string]int
-		expected map[string]int
+		name       string
+		sourceMaps []map[string]string
+		expected   map[string]string
 	}{
 		{
-			name:     "Nil input",
-			input:    nil,
-			expected: nil,
+			name:       "nil source maps",
+			sourceMaps: nil,
+			expected:   nil,
 		},
 		{
-			name:     "Empty maps",
-			input:    []map[string]int{},
-			expected: map[string]int{},
+			name: "one of the source maps is nil",
+			sourceMaps: []map[string]string{
+				{"key1": "value1"},
+				nil,
+			},
+			expected: map[string]string{"key1": "value1"},
 		},
 		{
-			name:     "Non-overlapping keys",
-			input:    []map[string]int{{"a": 1}, {"b": 2}},
-			expected: map[string]int{"a": 1, "b": 2},
+			name: "source maps are empty",
+			sourceMaps: []map[string]string{
+				{}, {},
+			},
+			expected: map[string]string{},
 		},
 		{
-			name:     "Overlapping keys",
-			input:    []map[string]int{{"a": 1}, {"a": 2}},
-			expected: map[string]int{"a": 2},
+			name: "source maps are neither nil nor empty",
+			sourceMaps: []map[string]string{
+				{"key1": "value1"},
+				{"key2": "value2"},
+				{"key1": "value3"},
+			},
+			expected: map[string]string{
+				"key1": "value3",
+				"key2": "value2",
+			},
 		},
 	}
 
 	g := NewWithT(t)
-	t.Parallel()
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			g.Expect(MergeMaps(tc.input...)).To(Equal(tc.expected))
+			g.Expect(MergeMaps(tc.sourceMaps...)).To(Equal(tc.expected))
 		})
 	}
 }

@@ -7,15 +7,14 @@ package statefulset
 import (
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"slices"
 
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/utils"
-
-	"github.com/gardener/gardener/pkg/controllerutils"
-	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -228,7 +227,8 @@ func (r _resource) createOrPatchWithReplicas(ctx component.OperatorContext, etcd
 			return builder.Build(ctx)
 		}
 	}
-	opResult, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, stsClone, mutatingFn)
+
+	opResult, err := controllerutil.CreateOrPatch(ctx, r.client, stsClone, mutatingFn)
 	if err != nil {
 		return err
 	}
@@ -281,7 +281,7 @@ func (r _resource) handleTLSChanges(ctx component.OperatorContext, etcd *druidv1
 			component.OperationSync,
 			fmt.Sprintf("Updated TLS config for etcd: %v, requeuing reconcile request", client.ObjectKeyFromObject(etcd)))
 	}
-	peerTLSInSyncForAllMembers, err := utils.IsPeerURLInSyncForAllMembers(ctx, r.client, ctx.Logger, etcd, *existingSts.Spec.Replicas)
+	peerTLSInSyncForAllMembers, err := kubernetes.IsPeerURLInSyncForAllMembers(ctx, r.client, ctx.Logger, etcd, *existingSts.Spec.Replicas)
 	if err != nil {
 		return druiderr.WrapError(err,
 			ErrSyncStatefulSet,
@@ -308,7 +308,7 @@ func shouldRequeueForMultiNodeEtcdIfPodsNotReady(sts *appsv1.StatefulSet) bool {
 
 func (r _resource) hasTLSEnablementForPeerURLReflectedOnSTS(etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) bool {
 	newEtcdWrapperPeerTLSVolMounts := getEtcdContainerPeerVolumeMounts(etcd)
-	containerPeerTLSVolMounts := utils.GetEtcdContainerPeerTLSVolumeMounts(existingSts)
+	containerPeerTLSVolMounts := kubernetes.GetEtcdContainerPeerTLSVolumeMounts(existingSts)
 	r.logger.Info("Checking if peer URL TLS enablement is reflected on StatefulSet", "len(newEtcdWrapperPeerTLSVolMounts)", len(newEtcdWrapperPeerTLSVolMounts), "len(containerPeerTLSVolMounts)", len(containerPeerTLSVolMounts))
 	return len(containerPeerTLSVolMounts) == len(newEtcdWrapperPeerTLSVolMounts)
 }
@@ -316,7 +316,7 @@ func (r _resource) hasTLSEnablementForPeerURLReflectedOnSTS(etcd *druidv1alpha1.
 func isStatefulSetTLSConfigInSync(etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) bool {
 	newEtcdbrTLSVolMounts := getBackupRestoreContainerSecretVolumeMounts(etcd)
 	newEtcdWrapperTLSVolMounts := getEtcdContainerSecretVolumeMounts(etcd)
-	containerTLSVolMounts := utils.GetStatefulSetContainerTLSVolumeMounts(existingSts)
+	containerTLSVolMounts := kubernetes.GetStatefulSetContainerTLSVolumeMounts(existingSts)
 	return !hasTLSVolumeMountsChanged(containerTLSVolMounts[common.ContainerNameEtcd], newEtcdWrapperTLSVolMounts) &&
 		!hasTLSVolumeMountsChanged(containerTLSVolMounts[common.ContainerNameEtcdBackupRestore], newEtcdbrTLSVolMounts)
 }

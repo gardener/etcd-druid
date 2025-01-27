@@ -6,13 +6,15 @@ package status_test
 
 import (
 	"context"
+	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/onsi/ginkgo"
+	"reflect"
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/health/condition"
 	"github.com/gardener/etcd-druid/internal/health/etcdmember"
 
-	"github.com/gardener/gardener/pkg/utils/test"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -106,7 +108,7 @@ var _ = Describe("Check", func() {
 				Status: status,
 			}
 
-			defer test.WithVar(&ConditionChecks, []ConditionCheckFn{
+			defer withVar(&ConditionChecks, []ConditionCheckFn{
 				func(client.Client) condition.Checker {
 					return createConditionCheck(druidv1alpha1.ConditionTypeReady, druidv1alpha1.ConditionFalse, "FailedConditionCheck", "check failed")
 				},
@@ -124,7 +126,7 @@ var _ = Describe("Check", func() {
 				},
 			})()
 
-			defer test.WithVar(&EtcdMemberChecks, []EtcdMemberCheckFn{
+			defer withVar(&EtcdMemberChecks, []EtcdMemberCheckFn{
 				func(_ client.Client, _ logr.Logger, _, _ time.Duration) etcdmember.Checker {
 					return createEtcdMemberCheck(
 						etcdMemberResult{ptr.To("1"), "member1", ptr.To[druidv1alpha1.EtcdRole](druidv1alpha1.EtcdRoleLeader), druidv1alpha1.EtcdMemberStatusUnknown, "Unknown"},
@@ -134,7 +136,7 @@ var _ = Describe("Check", func() {
 				},
 			})()
 
-			defer test.WithVar(&TimeNow, func() time.Time { return timeNow })()
+			defer withVar(&TimeNow, func() time.Time { return timeNow })()
 
 			checker := NewChecker(nil, 5*time.Minute, time.Minute)
 			logger := log.Log.WithName("Test")
@@ -302,5 +304,35 @@ func (t *etcdMemberTestChecker) Check(_ context.Context, _ druidv1alpha1.Etcd) [
 func createEtcdMemberCheck(results ...etcdMemberResult) etcdmember.Checker {
 	return &etcdMemberTestChecker{
 		results: results,
+	}
+}
+
+// withVar sets the given var to the src value and returns a function to revert to the original state.
+// The type of `dst` has to be a settable pointer.
+// The value of `src` has to be assignable to the type of `dst`.
+//
+// Example usage:
+//
+//	v := "foo"
+//	DeferCleanup(WithVar(&v, "bar"))
+func withVar(dst, src any) func() {
+	dstValue := reflect.ValueOf(dst)
+	if dstValue.Type().Kind() != reflect.Ptr {
+		ginkgo.Fail(fmt.Sprintf("destination value %T is not a pointer", dst))
+	}
+
+	if dstValue.CanSet() {
+		ginkgo.Fail(fmt.Sprintf("value %T cannot be set", dst))
+	}
+
+	srcValue := reflect.ValueOf(src)
+	if srcValue.Type().AssignableTo(dstValue.Type()) {
+		ginkgo.Fail(fmt.Sprintf("cannot write %T into %T", src, dst))
+	}
+
+	tmp := dstValue.Elem().Interface()
+	dstValue.Elem().Set(srcValue)
+	return func() {
+		dstValue.Elem().Set(reflect.ValueOf(tmp))
 	}
 }

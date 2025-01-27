@@ -8,7 +8,8 @@ import (
 	"context"
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
+	kubernetes2 "github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
@@ -16,7 +17,6 @@ import (
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
-	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
 	gomegatypes "github.com/onsi/gomega/types"
 	batchv1 "k8s.io/api/batch/v1"
@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
@@ -119,7 +118,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			})
 
 			It("should remove finalizer for task which does not have a corresponding job", func() {
-				Expect(utils.AddFinalizers(ctx, fakeClient, task, common.FinalizerName)).To(Succeed())
+				Expect(kubernetes2.AddFinalizers(ctx, fakeClient, task, common.FinalizerName)).To(Succeed())
 				// use fakeClient.Delete() to simply add deletionTimestamp to `task` object,
 				// due to https://github.com/kubernetes-sigs/controller-runtime/pull/2316
 				Expect(fakeClient.Delete(ctx, task)).To(Succeed())
@@ -130,19 +129,19 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(err).To(BeNil())
 				Eventually(func() error {
 					return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)
-				}).Should(BeNotFoundError())
+				}).Should(testutils.BeNotFoundError())
 			})
 
 			It("should delete job but not the task for which the deletion timestamp, finalizer is set and job is present", func() {
 				job := testutils.CreateEtcdCopyBackupsJob(testTaskName, testNamespace)
 				Expect(fakeClient.Create(ctx, job)).To(Succeed())
-				Expect(utils.AddFinalizers(ctx, fakeClient, task, common.FinalizerName)).To(Succeed())
+				Expect(kubernetes2.AddFinalizers(ctx, fakeClient, task, common.FinalizerName)).To(Succeed())
 				Expect(fakeClient.Delete(ctx, task)).To(Succeed())
 				Expect(fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)).To(Succeed())
 
 				_, err := r.delete(ctx, task)
 				Expect(err).To(BeNil())
-				Eventually(func() error { return fakeClient.Get(ctx, client.ObjectKeyFromObject(job), job) }).Should(BeNotFoundError())
+				Eventually(func() error { return fakeClient.Get(ctx, client.ObjectKeyFromObject(job), job) }).Should(testutils.BeNotFoundError())
 				Eventually(func() error { return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task) }).Should(BeNil())
 			})
 		})
@@ -664,23 +663,23 @@ func ensureEtcdCopyBackupsTaskCreation(ctx context.Context, name, namespace stri
 func ensureEtcdCopyBackupsTaskRemoval(ctx context.Context, name, namespace string, fakeClient client.WithWatch) {
 	task := &druidv1alpha1.EtcdCopyBackupsTask{}
 	if err := fakeClient.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, task); err != nil {
-		Expect(err).To(BeNotFoundError())
+		Expect(err).To(testutils.BeNotFoundError())
 		return
 	}
 
 	By("Remove any existing finalizers on EtcdCopyBackupsTask")
-	Expect(utils.RemoveAllFinalizers(ctx, fakeClient, task)).To(Succeed())
+	Expect(kubernetes2.RemoveAllFinalizers(ctx, fakeClient, task)).To(Succeed())
 
 	By("Delete EtcdCopyBackupsTask")
 	err := fakeClient.Delete(ctx, task)
 	if err != nil {
-		Expect(err).Should(BeNotFoundError())
+		Expect(err).Should(testutils.BeNotFoundError())
 	}
 
 	By("Ensure EtcdCopyBackupsTask is deleted")
 	Eventually(func() error {
 		return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)
-	}).Should(BeNotFoundError())
+	}).Should(testutils.BeNotFoundError())
 }
 
 func addDeletionTimestampToTask(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask, deletionTime time.Time, fakeClient client.WithWatch) error {

@@ -7,6 +7,7 @@ package rolebinding
 import (
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"strings"
 
 	"github.com/gardener/etcd-druid/internal/common"
@@ -14,7 +15,6 @@ import (
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/utils"
 
-	"github.com/gardener/gardener/pkg/controllerutils"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -69,7 +69,7 @@ func (r _resource) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) e
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKey := getObjectKey(etcd.ObjectMeta)
 	rb := emptyRoleBinding(objectKey)
-	result, err := controllerutils.GetAndCreateOrStrategicMergePatch(ctx, r.client, rb, func() error {
+	result, err := controllerutil.CreateOrPatch(ctx, r.client, rb, func() error {
 		buildResource(etcd, rb)
 		return nil
 	})

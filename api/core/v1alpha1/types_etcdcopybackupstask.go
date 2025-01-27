@@ -40,12 +40,14 @@ type EtcdCopyBackupsTaskList struct {
 
 // EtcdCopyBackupsTaskSpec defines the parameters for the copy backups task.
 type EtcdCopyBackupsTaskSpec struct {
+	// PodLabels is a set of labels that will be added to pod(s) created by the copy backups task.
+	PodLabels map[string]string `json:"podLabels,omitempty"`
 	// SourceStore defines the specification of the source object store provider for storing backups.
 	SourceStore StoreSpec `json:"sourceStore"`
 	// TargetStore defines the specification of the target object store provider for storing backups.
 	TargetStore StoreSpec `json:"targetStore"`
 	// MaxBackupAge is the maximum age in days that a backup must have in order to be copied.
-	// By default all backups will be copied.
+	// By default, all backups will be copied.
 	// +optional
 	MaxBackupAge *uint32 `json:"maxBackupAge,omitempty"`
 	// MaxBackups is the maximum number of backups that will be copied starting with the most recent ones.

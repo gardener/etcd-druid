@@ -7,13 +7,13 @@ package memberlease
 import (
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/utils"
 
-	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/hashicorp/go-multierror"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -91,7 +91,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 
 func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, objKey client.ObjectKey) error {
 	lease := emptyMemberLease(objKey)
-	opResult, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, lease, func() error {
+	opResult, err := controllerutil.CreateOrPatch(ctx, r.client, lease, func() error {
 		buildResource(etcd, lease)
 		return nil
 	})

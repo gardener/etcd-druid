@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	"strconv"
 	"strings"
 
@@ -16,8 +18,6 @@ import (
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 	"github.com/gardener/etcd-druid/internal/utils"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -89,7 +89,7 @@ func (r *Reconciler) reconcile(ctx context.Context, task *druidv1alpha1.EtcdCopy
 	// Ensure finalizer
 	if !controllerutil.ContainsFinalizer(task, common.FinalizerName) {
 		logger.V(1).Info("Adding finalizer", "finalizerName", common.FinalizerName)
-		if err := utils.AddFinalizers(ctx, r.Client, task, common.FinalizerName); err != nil {
+		if err := kubernetes.AddFinalizers(ctx, r.Client, task, common.FinalizerName); err != nil {
 			return ctrl.Result{}, fmt.Errorf("could not add finalizer: %w", err)
 		}
 	}
@@ -175,7 +175,7 @@ func (r *Reconciler) delete(ctx context.Context, task *druidv1alpha1.EtcdCopyBac
 	// Remove finalizer if requested
 	if removeFinalizer {
 		logger.V(1).Info("Removing finalizer", "finalizerName", common.FinalizerName)
-		if err := utils.RemoveFinalizers(ctx, r.Client, task, common.FinalizerName); err != nil {
+		if err := kubernetes.RemoveFinalizers(ctx, r.Client, task, common.FinalizerName); err != nil {
 			return ctrl.Result{}, fmt.Errorf("could not remove finalizer: %w", err)
 		}
 	}
@@ -325,12 +325,12 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      task.GetJobName(),
 			Namespace: task.Namespace,
-			Labels:    getLabels(task, false),
+			Labels:    getCommonLabels(task),
 		},
 		Spec: batchv1.JobSpec{
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: getLabels(task, true),
+					Labels: getPodLabels(task),
 				},
 				Spec: corev1.PodSpec{
 					RestartPolicy: corev1.RestartPolicyOnFailure,
@@ -382,17 +382,17 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 	return job, nil
 }
 
-func getLabels(task *druidv1alpha1.EtcdCopyBackupsTask, includeNetworkPolicyLabels bool) map[string]string {
-	labels := make(map[string]string)
-	labels[druidv1alpha1.LabelComponentKey] = common.ComponentNameEtcdCopyBackupsJob
-	labels[druidv1alpha1.LabelPartOfKey] = task.Name
-	labels[druidv1alpha1.LabelManagedByKey] = druidv1alpha1.LabelManagedByValue
-	labels[druidv1alpha1.LabelAppNameKey] = task.GetJobName()
-	if includeNetworkPolicyLabels {
-		labels[v1beta1constants.LabelNetworkPolicyToDNS] = v1beta1constants.LabelNetworkPolicyAllowed
-		labels[v1beta1constants.LabelNetworkPolicyToPublicNetworks] = v1beta1constants.LabelNetworkPolicyAllowed
+func getCommonLabels(task *druidv1alpha1.EtcdCopyBackupsTask) map[string]string {
+	return map[string]string{
+		druidv1alpha1.LabelComponentKey: common.ComponentNameEtcdCopyBackupsJob,
+		druidv1alpha1.LabelPartOfKey:    task.Name,
+		druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
+		druidv1alpha1.LabelAppNameKey:   task.GetJobName(),
 	}
-	return labels
+}
+
+func getPodLabels(task *druidv1alpha1.EtcdCopyBackupsTask) map[string]string {
+	return utils.MergeMaps(getCommonLabels(task), task.Spec.PodLabels)
 }
 
 func createJobArgs(task *druidv1alpha1.EtcdCopyBackupsTask, sourceObjStoreProvider string, targetObjStoreProvider string) []string {

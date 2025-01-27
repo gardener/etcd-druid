@@ -16,7 +16,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/common"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -358,7 +357,7 @@ func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Lo
 		ExpectWithOffset(2, cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 		etcd.SetAnnotations(
 			map[string]string{
-				v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+				druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile,
 			})
 		etcd.Spec.Replicas = 0
 		return cl.Update(ctx, etcd)
@@ -441,7 +440,7 @@ func updateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 		ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcdObj)).To(Succeed())
 		etcdObj.SetAnnotations(
 			map[string]string{
-				v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+				druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile,
 			})
 		etcdObj.Spec = etcd.Spec
 		return cl.Update(ctx, etcdObj)

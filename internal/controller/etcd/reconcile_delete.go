@@ -7,6 +7,7 @@ package etcd
 import (
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/common"
@@ -84,7 +85,7 @@ func (r *Reconciler) removeFinalizer(ctx component.OperatorContext, etcdObjKey c
 		return result
 	}
 	ctx.Logger.Info("Removing finalizer", "finalizerName", common.FinalizerName)
-	if err := utils.RemoveFinalizers(ctx, r.client, etcdPartialObjMeta, common.FinalizerName); client.IgnoreNotFound(err) != nil {
+	if err := kubernetes.RemoveFinalizers(ctx, r.client, etcdPartialObjMeta, common.FinalizerName); client.IgnoreNotFound(err) != nil {
 		return ctrlutils.ReconcileWithError(err)
 	}
 	return ctrlutils.ContinueReconcile()

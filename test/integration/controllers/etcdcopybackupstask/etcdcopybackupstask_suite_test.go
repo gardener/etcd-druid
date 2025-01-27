@@ -5,13 +5,13 @@
 package etcdcopybackupstask
 
 import (
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 	"testing"
 
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
 	"github.com/gardener/etcd-druid/test/integration/setup"
 
-	"github.com/gardener/gardener/pkg/utils/imagevector"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"

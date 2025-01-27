@@ -25,4 +25,8 @@ const (
 	// DisableEtcdComponentProtectionAnnotation is an annotation set by an operator to disable protection of components created for
 	// an etcd cluster and managed by etcd-druid.
 	DisableEtcdComponentProtectionAnnotation = "druid.gardener.cloud/disable-etcd-component-protection"
+	// DruidOperationAnnotation is an annotation set by an operator to specify the operation that is desired on an Etcd Resource.
+	DruidOperationAnnotation = "druid.gardener.cloud/operation"
+	// DruidOperationReconcile is the value for the DruidOperationAnnotation key to specify that the desired operation is to reconcile the Etcd Resource.
+	DruidOperationReconcile = "reconcile"
 )

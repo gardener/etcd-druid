@@ -7,8 +7,8 @@ package utils
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 
-	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"k8s.io/utils/ptr"
 )
 

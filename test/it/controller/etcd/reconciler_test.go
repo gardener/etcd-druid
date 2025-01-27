@@ -8,18 +8,17 @@ import (
 	"context"
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
-	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/test/it/controller/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	testclock "k8s.io/utils/clock/testing"
@@ -138,7 +137,7 @@ func testFailureToCreateAllResources(t *testing.T, testNs string, reconcilerTest
 		WithClientTLS().
 		WithPeerTLS().
 		WithReplicas(3).
-		WithAnnotations(map[string]string{v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile}).
+		WithAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile}).
 		// The client service label value has an invalid value. ':' are not accepted as valid character in label values.
 		// This should fail creation of client service and cause a requeue.
 		WithEtcdClientServiceLabels(map[string]string{"invalid-label": "invalid-label:value"}).
@@ -179,7 +178,7 @@ func testWhenReconciliationIsSuspended(t *testing.T, testNs string, reconcilerTe
 		WithPeerTLS().
 		WithReplicas(3).
 		WithAnnotations(map[string]string{
-			v1beta1constants.GardenerOperation:               v1beta1constants.GardenerOperationReconcile,
+			druidv1alpha1.DruidOperationAnnotation:           druidv1alpha1.DruidOperationReconcile,
 			druidv1alpha1.SuspendEtcdSpecReconcileAnnotation: "",
 		}).Build()
 	ctx := context.Background()
@@ -240,9 +239,9 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance.ObjectMeta, etcdInstance.Spec.Replicas)
 	t.Log("updating member leases with peer-tls-enabled annotation set to true")
 	mlcs := []etcdMemberLeaseConfig{
-		{name: memberLeaseNames[0], annotations: map[string]string{utils.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
-		{name: memberLeaseNames[1], annotations: map[string]string{utils.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
-		{name: memberLeaseNames[2], annotations: map[string]string{utils.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[0], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[1], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[2], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
 	}
 	updateMemberLeases(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
 	// get latest version of etcdInstance
@@ -252,7 +251,7 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 	metricsLevelExtensive := druidv1alpha1.Extensive
 	etcdInstance.Spec.Etcd.Metrics = &metricsLevelExtensive
 	etcdInstance.Annotations = map[string]string{
-		v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+		druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile,
 	}
 	g.Expect(cl.Patch(ctx, etcdInstance, client.MergeFrom(originalEtcdInstance))).To(Succeed())
 
@@ -301,7 +300,7 @@ func testDeletionOfAllEtcdResourcesWhenEtcdMarkedForDeletion(t *testing.T, testN
 		WithPeerTLS().
 		WithReplicas(3).
 		WithAnnotations(map[string]string{
-			v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+			druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile,
 		}).Build()
 	ctx := context.Background()
 	cl := reconcilerTestEnv.itTestEnv.GetClient()
@@ -324,7 +323,7 @@ func testPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 		WithReplicas(3).
 		WithDefaultBackup().
 		WithAnnotations(map[string]string{
-			v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+			druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile,
 		}).
 		Build()
 	// create the test client builder and record errors for delete operations for client service and snapshot lease.
@@ -421,7 +420,7 @@ func TestEtcdStatusReconciliation(t *testing.T) {
 				WithPeerTLS().
 				WithReplicas(3).
 				WithAnnotations(map[string]string{
-					v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+					druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile,
 				}).Build()
 			createAndAssertEtcdAndAllManagedResources(ctx, t, reconcilerTestEnv, etcdInstance)
 			test.fn(t, etcdInstance, reconcilerTestEnv)

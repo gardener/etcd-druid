@@ -7,7 +7,7 @@ package etcd
 import (
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/common"
@@ -15,7 +15,6 @@ import (
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -52,7 +51,7 @@ func (r *Reconciler) ensureFinalizer(ctx component.OperatorContext, etcdObjKey c
 	}
 	if !controllerutil.ContainsFinalizer(etcdPartialObjMeta, common.FinalizerName) {
 		ctx.Logger.Info("Adding finalizer", "finalizerName", common.FinalizerName)
-		if err := utils.AddFinalizers(ctx, r.client, etcdPartialObjMeta, common.FinalizerName); err != nil {
+		if err := kubernetes.AddFinalizers(ctx, r.client, etcdPartialObjMeta, common.FinalizerName); err != nil {
 			ctx.Logger.Error(err, "failed to add finalizer")
 			return ctrlutils.ReconcileWithError(err)
 		}
@@ -189,5 +188,5 @@ func (r *Reconciler) getOrderedOperatorsForSync() []component.Kind {
 }
 
 func hasOperationAnnotationToReconcile(etcd *druidv1alpha1.Etcd) bool {
-	return etcd.GetAnnotations()[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationReconcile
+	return etcd.GetAnnotations()[druidv1alpha1.DruidOperationAnnotation] == druidv1alpha1.DruidOperationReconcile
 }

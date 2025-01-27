@@ -2,13 +2,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package utils
+package kubernetes
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"strings"
 
 	"github.com/gardener/etcd-druid/internal/common"
@@ -146,7 +147,7 @@ func GetStatefulSetContainerTLSVolumeMounts(sts *appsv1.StatefulSet) map[string]
 
 func filterTLSVolumeMounts(containerName string, allVolumeMounts []corev1.VolumeMount) []corev1.VolumeMount {
 	filteredVolMounts := make([]corev1.VolumeMount, 0, len(allVolumeMounts))
-	knownTLSVolMountNames := IfConditionOr(containerName == common.ContainerNameEtcd, etcdTLSVolumeMountNames, etcdbrTLSVolumeMountNames)
+	knownTLSVolMountNames := utils.IfConditionOr(containerName == common.ContainerNameEtcd, etcdTLSVolumeMountNames, etcdbrTLSVolumeMountNames)
 	for _, volMount := range allVolumeMounts {
 		if knownTLSVolMountNames.Has(volMount.Name) {
 			filteredVolMounts = append(filteredVolMounts, volMount)

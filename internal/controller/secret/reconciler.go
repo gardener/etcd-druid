@@ -7,7 +7,7 @@ package secret
 import (
 	"context"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	"github.com/gardener/etcd-druid/internal/common"
 
@@ -101,7 +101,7 @@ func addFinalizer(ctx context.Context, logger logr.Logger, k8sClient client.Clie
 		return nil
 	}
 	logger.Info("Adding finalizer", "namespace", secret.Namespace, "name", secret.Name, "finalizerName", common.FinalizerName)
-	return client.IgnoreNotFound(utils.AddFinalizers(ctx, k8sClient, secret, common.FinalizerName))
+	return client.IgnoreNotFound(kubernetes.AddFinalizers(ctx, k8sClient, secret, common.FinalizerName))
 }
 
 func removeFinalizer(ctx context.Context, logger logr.Logger, k8sClient client.Client, secret *corev1.Secret) error {
@@ -109,5 +109,5 @@ func removeFinalizer(ctx context.Context, logger logr.Logger, k8sClient client.C
 		return nil
 	}
 	logger.Info("Removing finalizer", "namespace", secret.Namespace, "name", secret.Name, "finalizerName", common.FinalizerName)
-	return client.IgnoreNotFound(utils.RemoveFinalizers(ctx, k8sClient, secret, common.FinalizerName))
+	return client.IgnoreNotFound(kubernetes.RemoveFinalizers(ctx, k8sClient, secret, common.FinalizerName))
 }

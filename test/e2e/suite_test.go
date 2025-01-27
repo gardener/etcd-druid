@@ -7,12 +7,12 @@ package e2e
 import (
 	"context"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 	"path"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -154,5 +154,5 @@ var _ = SynchronizedAfterSuite(func() {
 	Eventually(func() error {
 		var ns corev1.Namespace
 		return cl.Get(ctx, client.ObjectKey{Name: etcdNamespace}, &ns)
-	}, 2*time.Minute, pollingInterval).Should(matchers.BeNotFoundError(), "Namespace still exists after deletion attempt")
+	}, 2*time.Minute, pollingInterval).Should(testutils.BeNotFoundError(), "Namespace still exists after deletion attempt")
 })

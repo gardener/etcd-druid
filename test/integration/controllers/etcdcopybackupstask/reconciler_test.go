@@ -8,15 +8,14 @@ import (
 	"context"
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/common"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
-	"github.com/gardener/gardener/pkg/utils/imagevector"
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	gomegatypes "github.com/onsi/gomega/types"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -90,17 +89,17 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 				}
 				return job, nil
 			}, timeout, pollingInterval).Should(PointTo(testutils.MatchFinalizer(metav1.FinalizerDeleteDependents)))
-			Expect(utils.RemoveFinalizers(ctx, k8sClient, job, metav1.FinalizerDeleteDependents)).To(Succeed())
+			Expect(kubernetes.RemoveFinalizers(ctx, k8sClient, job, metav1.FinalizerDeleteDependents)).To(Succeed())
 
 			// Wait until the job has been deleted
 			Eventually(func() error {
 				return k8sClient.Get(ctx, client.ObjectKeyFromObject(job), &batchv1.Job{})
-			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
+			}, timeout, pollingInterval).Should(testutils.BeNotFoundError())
 
 			// Wait until the task has been deleted
 			Eventually(func() error {
 				return k8sClient.Get(ctx, client.ObjectKeyFromObject(task), &druidv1alpha1.EtcdCopyBackupsTask{})
-			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
+			}, timeout, pollingInterval).Should(testutils.BeNotFoundError())
 		},
 		Entry("should create the job, update the task status, and delete the job if the job completed",
 			"foo01", druidv1alpha1.StorageProvider("Local"), true, getJobStatus(batchv1.JobComplete, "", "")),

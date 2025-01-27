@@ -8,7 +8,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"time"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -79,7 +78,7 @@ func (r *Reconciler) buildPredicate() predicate.Predicate {
 func (r *Reconciler) hasReconcileAnnotation() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
-			return updateEvent.ObjectNew.GetAnnotations()[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationReconcile
+			return updateEvent.ObjectNew.GetAnnotations()[druidv1alpha1.DruidOperationAnnotation] == druidv1alpha1.DruidOperationReconcile
 		},
 		CreateFunc: func(_ event.CreateEvent) bool {
 			return true

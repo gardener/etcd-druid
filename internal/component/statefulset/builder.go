@@ -7,13 +7,14 @@ package statefulset
 import (
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 	"github.com/gardener/etcd-druid/internal/utils"
 
-	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -175,7 +176,7 @@ func (b *stsBuilder) createPodTemplateSpec(ctx component.OperatorContext) error 
 		},
 	}
 	podTemplateLabels := b.getStatefulSetPodLabels()
-	selectorMatchesLabels, err := utils.DoesLabelSelectorMatchLabels(b.sts.Spec.Selector, podTemplateLabels)
+	selectorMatchesLabels, err := kubernetes.DoesLabelSelectorMatchLabels(b.sts.Spec.Selector, podTemplateLabels)
 	if err != nil {
 		return err
 	}

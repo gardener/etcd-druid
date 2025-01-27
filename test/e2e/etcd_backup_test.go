@@ -8,10 +8,10 @@ import (
 	"context"
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 	"time"
 
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -261,7 +261,7 @@ func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 		defer cancelFunc()
 		return cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)
-	}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
+	}, timeout, pollingInterval).Should(testutils.BeNotFoundError())
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -273,7 +273,7 @@ func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 			client.ObjectKeyFromObject(etcd),
 			&appsv1.StatefulSet{},
 		),
-	).Should(matchers.BeNotFoundError())
+	).Should(testutils.BeNotFoundError())
 
 	logger.Info("Checking if configmap is gone")
 	ExpectWithOffset(1,
@@ -282,7 +282,7 @@ func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 			client.ObjectKey{Name: etcd.Name + "-config", Namespace: etcd.Namespace},
 			&corev1.ConfigMap{},
 		),
-	).Should(matchers.BeNotFoundError())
+	).Should(testutils.BeNotFoundError())
 
 	logger.Info("Checking client service is gone")
 	ExpectWithOffset(1,
@@ -291,7 +291,7 @@ func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 			client.ObjectKey{Name: etcd.Name + "-client", Namespace: etcd.Namespace},
 			&corev1.Service{},
 		),
-	).Should(matchers.BeNotFoundError())
+	).Should(testutils.BeNotFoundError())
 
 	// removing ETCD statefulset's PVCs,
 	// because sometimes k8s garbage collection is delayed to remove PVCs before starting next tests.

@@ -1,7 +1,8 @@
-package utils
+package kubernetes
 
 import (
 	"context"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -11,7 +12,7 @@ import (
 // Note that this is done with a regular merge-patch since strategic merge-patches do not work with custom resources,
 // see https://github.com/kubernetes/kubernetes/issues/105146.
 func AddFinalizers(ctx context.Context, writer client.Writer, obj client.Object, finalizers ...string) error {
-	return patchFinalizers(ctx, writer, obj, mergeFromWithOptimisticLock, controllerutil.AddFinalizer, finalizers...)
+	return patchFinalizers(ctx, writer, obj, utils.mergeFromWithOptimisticLock, controllerutil.AddFinalizer, finalizers...)
 }
 
 // RemoveFinalizers ensures that the given finalizer is not present anymore in the given object and optimistic locking.
@@ -19,7 +20,7 @@ func AddFinalizers(ctx context.Context, writer client.Writer, obj client.Object,
 // Note that this is done with a regular merge-patch since strategic merge-patches do not work with custom resources,
 // see https://github.com/kubernetes/kubernetes/issues/105146.
 func RemoveFinalizers(ctx context.Context, writer client.Writer, obj client.Object, finalizers ...string) error {
-	return client.IgnoreNotFound(patchFinalizers(ctx, writer, obj, mergeFromWithOptimisticLock, controllerutil.RemoveFinalizer, finalizers...))
+	return client.IgnoreNotFound(patchFinalizers(ctx, writer, obj, utils.mergeFromWithOptimisticLock, controllerutil.RemoveFinalizer, finalizers...))
 }
 
 // RemoveAllFinalizers ensures that the given object has no finalizers with exponential backoff.
@@ -27,10 +28,10 @@ func RemoveFinalizers(ctx context.Context, writer client.Writer, obj client.Obje
 func RemoveAllFinalizers(ctx context.Context, writer client.Writer, obj client.Object) error {
 	beforePatch := obj.DeepCopyObject().(client.Object)
 	obj.SetFinalizers(nil)
-	return client.IgnoreNotFound(writer.Patch(ctx, obj, mergeFrom(beforePatch)))
+	return client.IgnoreNotFound(writer.Patch(ctx, obj, utils.mergeFrom(beforePatch)))
 }
 
-func patchFinalizers(ctx context.Context, writer client.Writer, obj client.Object, patchFunc patchFn, mutate func(client.Object, string) bool, finalizers ...string) error {
+func patchFinalizers(ctx context.Context, writer client.Writer, obj client.Object, patchFunc utils.patchFn, mutate func(client.Object, string) bool, finalizers ...string) error {
 	beforePatch := obj.DeepCopyObject().(client.Object)
 	for _, finalizer := range finalizers {
 		mutate(obj, finalizer)

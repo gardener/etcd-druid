@@ -7,6 +7,7 @@ package utils
 import (
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"strings"
 
 	"github.com/onsi/gomega/format"
@@ -96,4 +97,38 @@ func MatchEtcdOwnerReference(etcdName string, etcdUID types.UID) gomegatypes.Gom
 		"Controller":         PointTo(BeTrue()),
 		"BlockOwnerDeletion": PointTo(BeTrue()),
 	}))
+}
+
+type kubernetesErrors struct {
+	checkFunc func(error) bool
+	message   string
+}
+
+func (k *kubernetesErrors) Match(actual any) (success bool, err error) {
+	if actual == nil {
+		return false, nil
+	}
+
+	actualErr, actualOk := actual.(error)
+	if !actualOk {
+		return false, fmt.Errorf("expected an error-type.  got:\n%s", format.Object(actual, 1))
+	}
+
+	return k.checkFunc(actualErr), nil
+}
+
+func (k *kubernetesErrors) FailureMessage(actual any) (message string) {
+	return format.Message(actual, fmt.Sprintf("to be %s error", k.message))
+}
+
+func (k *kubernetesErrors) NegatedFailureMessage(actual any) (message string) {
+	return format.Message(actual, fmt.Sprintf("to not be %s error", k.message))
+}
+
+// BeNotFoundError checks if error is NotFound.
+func BeNotFoundError() gomegatypes.GomegaMatcher {
+	return &kubernetesErrors{
+		checkFunc: apierrors.IsNotFound,
+		message:   "NotFound",
+	}
 }

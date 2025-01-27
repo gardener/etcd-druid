@@ -1,4 +1,4 @@
-package utils
+package kubernetes
 
 import "sigs.k8s.io/controller-runtime/pkg/client"
 

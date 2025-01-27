@@ -5,9 +5,8 @@
 package images
 
 import (
-	"github.com/gardener/gardener/pkg/utils/imagevector"
-
 	_ "embed"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 )
 
 var (

@@ -2,12 +2,13 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package utils
+package kubernetes
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"strings"
 	"testing"
 
@@ -116,7 +117,7 @@ func TestIsStatefulSetReady(t *testing.T) {
 			sts.Status.UpdateRevision = tc.statusUpdateRevision
 			stsReady, reasonMsg := IsStatefulSetReady(tc.etcdSpecReplicas, sts)
 			g.Expect(stsReady).To(Equal(tc.expectedStsReady))
-			g.Expect(!IsEmptyString(reasonMsg)).To(Equal(tc.expectedNotReadyReasonPresent))
+			g.Expect(!utils.IsEmptyString(reasonMsg)).To(Equal(tc.expectedNotReadyReasonPresent))
 		})
 	}
 }
