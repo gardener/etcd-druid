@@ -142,7 +142,7 @@ To mitigate the risk of backups becoming mutable during extended hibernation und
 
 By capturing a final full snapshot before hibernation, periodically re-uploading it to preserve immutability, and removing stale backups, etcd backups remain safeguarded against accidental or malicious alterations until the cluster is resumed.
 
-##### ETCD API Changes
+##### Etcd CR API Changes
 
 A new field is introduced in `Etcd.spec.backup.store` to indicate the immutability strategy:
 
@@ -219,7 +219,7 @@ type GarbageCollectionConfig struct {
 ```yaml
 spec:
   config:
-    schedule: "0 */6 * * *"
+    schedule: "0 0 * * *"
     garbageCollectionConfig:
       garbageCollectionPolicy: "LimitBased"
       maxBackupsLimitBasedGC: 5
