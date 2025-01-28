@@ -408,6 +408,8 @@ spec:
                         description: |-
                           TrafficDistribution defines the traffic distribution preference that should be added to the client service.
                           More info: https://kubernetes.io/docs/reference/networking/virtual-ips/#traffic-distribution
+                        enum:
+                        - PreferClose
                         type: string
                     type: object
                   clientUrlTls:
