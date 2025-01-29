@@ -46,7 +46,7 @@ Periodic backups of an etcd cluster state ensure the ability to recover from a c
 
 ## Proposal
 
-This proposal aims to improve backup storage security by using immutability features available on major cloud providers.
+This proposal aims to improve backup storage integrity and security by using immutability features available on major cloud providers.
 
 ### Supported Cloud Providers
 
@@ -85,7 +85,7 @@ Given the nuances across providers:
 - **GCS** does not currently support object-level immutability in existing buckets.
 - **ABS** requires a [migration process](https://learn.microsoft.com/en-us/azure/storage/blobs/immutable-version-level-worm-policies#migration) to enable version-level immutability on existing containers.
 
-Consequently, the authors recommend **bucket-level immutability**. This approach simplifies configuration and ensures a uniform immutability policy for all backups in a bucket.
+Consequently, the authors recommend **bucket-level immutability**. This approach simplifies configuration and ensures a uniform immutability policy for all backups in a bucket across all support providers.
 
 ### Configuring Immutable Backups
 
