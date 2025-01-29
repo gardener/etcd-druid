@@ -6,7 +6,6 @@ package condition
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -54,8 +53,8 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 		fullSnapshotInterval          = 24 * time.Hour
 		deltaSnapLease                = &coordinationv1.Lease{}
 	)
-	fullSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getFullSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, fullSnapLease)
-	incrSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: getDeltaSnapLeaseName(&etcd), Namespace: etcd.ObjectMeta.Namespace}, deltaSnapLease)
+	fullSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta), Namespace: etcd.ObjectMeta.Namespace}, fullSnapLease)
+	incrSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta), Namespace: etcd.ObjectMeta.Namespace}, deltaSnapLease)
 
 	// Compute the full snapshot interval if full snapshot schedule is set
 	if etcd.Spec.Backup.FullSnapshotSchedule != nil {
@@ -123,14 +122,6 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 
 	//Transition to "Unknown" state is we cannot prove a "True" state
 	return result
-}
-
-func getDeltaSnapLeaseName(etcd *druidv1alpha1.Etcd) string {
-	return fmt.Sprintf("%s-delta-snap", string(etcd.ObjectMeta.Name))
-}
-
-func getFullSnapLeaseName(etcd *druidv1alpha1.Etcd) string {
-	return fmt.Sprintf("%s-full-snap", string(etcd.ObjectMeta.Name))
 }
 
 // BackupReadyCheck returns a check for the "BackupReady" condition.

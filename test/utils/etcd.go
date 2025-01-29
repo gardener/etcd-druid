@@ -153,6 +153,42 @@ func (eb *EtcdBuilder) WithReadyStatus() *EtcdBuilder {
 	return eb
 }
 
+func (eb *EtcdBuilder) WithConditionAllMembersUpdated(updated bool) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+
+	for i := range len(eb.etcd.Status.Conditions) {
+		if eb.etcd.Status.Conditions[i].Type == druidv1alpha1.ConditionTypeAllMembersUpdated {
+			eb.etcd.Status.Conditions[i].LastTransitionTime = metav1.Now()
+			eb.etcd.Status.Conditions[i].LastUpdateTime = metav1.Now()
+
+			eb.etcd.Status.Conditions[i].Status, eb.etcd.Status.Conditions[i].Reason, eb.etcd.Status.Conditions[i].Message = getConditionAllMembersUpdated(updated)
+			return eb
+		}
+	}
+
+	status, reason, message := getConditionAllMembersUpdated(updated)
+	eb.etcd.Status.Conditions = append(eb.etcd.Status.Conditions, druidv1alpha1.Condition{
+		Type:               druidv1alpha1.ConditionTypeAllMembersUpdated,
+		LastTransitionTime: metav1.Now(),
+		LastUpdateTime:     metav1.Now(),
+		Status:             status,
+		Reason:             reason,
+		Message:            message,
+	})
+
+	return eb
+}
+
+func getConditionAllMembersUpdated(updated bool) (status druidv1alpha1.ConditionStatus, reason, message string) {
+	if updated {
+		return druidv1alpha1.ConditionTrue, "AllMembersUpdated", "All members reflect latest desired spec"
+	}
+	return druidv1alpha1.ConditionFalse, "NotAllMembersUpdated", "At least one member is not updated"
+
+}
+
 func (eb *EtcdBuilder) WithLastOperation(operation *druidv1alpha1.LastOperation) *EtcdBuilder {
 	eb.etcd.Status.LastOperation = operation
 	return eb

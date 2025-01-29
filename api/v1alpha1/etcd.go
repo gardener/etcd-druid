@@ -322,6 +322,9 @@ const (
 	ConditionTypeReady ConditionType = "Ready"
 	// ConditionTypeAllMembersReady is a constant for a condition type indicating that all members of the etcd cluster are ready.
 	ConditionTypeAllMembersReady ConditionType = "AllMembersReady"
+	// ConditionTypeAllMembersUpdated is a constant for a condition type indicating that all members
+	// of the etcd cluster have been updated with the desired spec changes.
+	ConditionTypeAllMembersUpdated ConditionType = "AllMembersUpdated"
 	// ConditionTypeBackupReady is a constant for a condition type indicating that the etcd backup is ready.
 	ConditionTypeBackupReady ConditionType = "BackupReady"
 	// ConditionTypeDataVolumesReady is a constant for a condition type indicating that the etcd data volumes are ready.

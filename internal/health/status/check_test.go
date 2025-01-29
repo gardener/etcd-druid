@@ -50,6 +50,14 @@ var _ = Describe("Check", func() {
 						Message:            "bar message",
 					},
 					{
+						Type:               druidv1alpha1.ConditionTypeAllMembersUpdated,
+						Status:             druidv1alpha1.ConditionUnknown,
+						LastTransitionTime: metav1.NewTime(timeBefore),
+						LastUpdateTime:     metav1.NewTime(timeBefore),
+						Reason:             "foobar reason",
+						Message:            "foobar message",
+					},
+					{
 						Type:               druidv1alpha1.ConditionTypeBackupReady,
 						Status:             druidv1alpha1.ConditionUnknown,
 						LastTransitionTime: metav1.NewTime(timeBefore),
@@ -106,6 +114,9 @@ var _ = Describe("Check", func() {
 					return createConditionCheck(druidv1alpha1.ConditionTypeAllMembersReady, druidv1alpha1.ConditionTrue, "bar reason", "bar message")
 				},
 				func(client.Client) condition.Checker {
+					return createConditionCheck(druidv1alpha1.ConditionTypeAllMembersUpdated, druidv1alpha1.ConditionUnknown, "foobar reason", "foobar message")
+				},
+				func(client.Client) condition.Checker {
 					return createConditionCheck(druidv1alpha1.ConditionTypeBackupReady, druidv1alpha1.ConditionUnknown, "foobar reason", "foobar message")
 				},
 				func(client.Client) condition.Checker {
@@ -146,6 +157,14 @@ var _ = Describe("Check", func() {
 					"LastUpdateTime":     Equal(metav1.NewTime(timeNow)),
 					"Reason":             Equal("bar reason"),
 					"Message":            Equal("bar message"),
+				}),
+				MatchFields(IgnoreExtras, Fields{
+					"Type":               Equal(druidv1alpha1.ConditionTypeAllMembersUpdated),
+					"Status":             Equal(druidv1alpha1.ConditionUnknown),
+					"LastTransitionTime": Equal(metav1.NewTime(timeBefore)),
+					"LastUpdateTime":     Equal(metav1.NewTime(timeNow)),
+					"Reason":             Equal("foobar reason"),
+					"Message":            Equal("foobar message"),
 				}),
 				MatchFields(IgnoreExtras, Fields{
 					"Type":               Equal(druidv1alpha1.ConditionTypeBackupReady),

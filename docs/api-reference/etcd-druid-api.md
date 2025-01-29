@@ -156,8 +156,8 @@ _Appears in:_
 | `True` | ConditionTrue means a resource is in the condition.<br /> |
 | `False` | ConditionFalse means a resource is not in the condition.<br /> |
 | `Unknown` | ConditionUnknown means Gardener can't decide if a resource is in the condition or not.<br /> |
-| `Progressing` | ConditionProgressing means the condition was seen true, failed but stayed within a predefined failure threshold.<br />In the future, we could add other intermediate conditions, e.g. ConditionDegraded.<br /> |
-| `ConditionCheckError` | ConditionCheckError is a constant for a reason in condition.<br /> |
+| `Progressing` | ConditionProgressing means the condition was seen true, failed but stayed within a predefined failure threshold.<br />In the future, we could add other intermediate conditions, e.g. ConditionDegraded.<br />Deprecated: Will be removed in the future since druid conditions will be replaced by metav1.Condition<br />which has only three status options: True, False, Unknown.<br /> |
+| `ConditionCheckError` | ConditionCheckError is a constant for a reason in condition.<br />Deprecated: Will be removed in the future since druid conditions will be replaced by metav1.Condition<br />which has only three status options: True, False, Unknown.<br /> |
 
 
 #### ConditionType
@@ -175,6 +175,7 @@ _Appears in:_
 | --- | --- |
 | `Ready` | ConditionTypeReady is a constant for a condition type indicating that the etcd cluster is ready.<br /> |
 | `AllMembersReady` | ConditionTypeAllMembersReady is a constant for a condition type indicating that all members of the etcd cluster are ready.<br /> |
+| `AllMembersUpdated` | ConditionTypeAllMembersUpdated is a constant for a condition type indicating that all members<br />of the etcd cluster have been updated with the desired spec changes.<br /> |
 | `BackupReady` | ConditionTypeBackupReady is a constant for a condition type indicating that the etcd backup is ready.<br /> |
 | `DataVolumesReady` | ConditionTypeDataVolumesReady is a constant for a condition type indicating that the etcd data volumes are ready.<br /> |
 | `Succeeded` | EtcdCopyBackupsTaskSucceeded is a condition type indicating that a EtcdCopyBackupsTask has succeeded.<br /> |
