@@ -278,6 +278,19 @@ func (eb *EtcdBuilder) WithEtcdClientServiceAnnotations(annotations map[string]s
 	return eb
 }
 
+func (eb *EtcdBuilder) WithEtcdClientServiceTrafficDistribution(trafficDistribution *string) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+
+	if eb.etcd.Spec.Etcd.ClientService == nil {
+		eb.etcd.Spec.Etcd.ClientService = &druidv1alpha1.ClientService{}
+	}
+
+	eb.etcd.Spec.Etcd.ClientService.TrafficDistribution = trafficDistribution
+	return eb
+}
+
 func (eb *EtcdBuilder) WithEtcdServerPort(serverPort *int32) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil

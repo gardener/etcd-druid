@@ -115,6 +115,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, svc *corev1.Service) {
 	// Therefore, only using default labels as label selector can cause issues as we have already seen in https://github.com/gardener/etcd-druid/issues/914
 	svc.Spec.Selector = utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), map[string]string{druidv1alpha1.LabelComponentKey: common.ComponentNameStatefulSet})
 	svc.Spec.Ports = getPorts(etcd)
+	svc.Spec.TrafficDistribution = getTrafficDistribution(etcd)
 }
 
 func getObjectKey(obj metav1.ObjectMeta) client.ObjectKey {
@@ -140,6 +141,13 @@ func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
 func getAnnotations(etcd *druidv1alpha1.Etcd) map[string]string {
 	if etcd.Spec.Etcd.ClientService != nil {
 		return etcd.Spec.Etcd.ClientService.Annotations
+	}
+	return nil
+}
+
+func getTrafficDistribution(etcd *druidv1alpha1.Etcd) *string {
+	if etcd.Spec.Etcd.ClientService != nil {
+		return etcd.Spec.Etcd.ClientService.TrafficDistribution
 	}
 	return nil
 }

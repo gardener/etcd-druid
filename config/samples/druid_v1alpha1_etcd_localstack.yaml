@@ -36,6 +36,12 @@ spec:
     serverPort: 2380
     quota: 8Gi
     # heartbeatDuration: 10s
+    # clientService:
+    #   annotations:
+    #     key: value
+    #   labels:
+    #     key: value
+    #   trafficDistribution: PreferClose
   backup:
     port: 8080
     fullSnapshotSchedule: "0 */24 * * *"
