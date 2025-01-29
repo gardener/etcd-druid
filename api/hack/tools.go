@@ -9,6 +9,6 @@
 package tools
 
 import (
-	_ "github.com/onsi/ginkgo/v2/ginkgo"
-	_ "sigs.k8s.io/controller-runtime/tools/setup-envtest"
+	_ "k8s.io/code-generator"
+	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
 )

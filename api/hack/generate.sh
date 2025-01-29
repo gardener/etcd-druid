@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
+#
+# SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-TOOLS_BIN_DIR="${SCRIPT_DIR}/tools/bin"
+API_GO_MODULE_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$API_GO_MODULE_ROOT")"
 
 CODE_GEN_DIR=$(go list -m -f '{{.Dir}}' k8s.io/code-generator)
 source "${CODE_GEN_DIR}/kube_codegen.sh"
@@ -21,13 +25,12 @@ function check_controller_gen_prereq() {
 function generate_deepcopy_defaulter() {
   kube::codegen::gen_helpers \
     --boilerplate "${SCRIPT_DIR}/boilerplate.go.txt" \
-    "${PROJECT_ROOT}/api/core/v1alpha1"
+    "${API_GO_MODULE_ROOT}/core/v1alpha1"
 }
 
 function generate_clientset() {
   kube::codegen::gen_client \
     --with-watch \
-    --one-input-api "core/v1alpha1" \
     --output-dir "${PROJECT_ROOT}/client" \
     --output-pkg "github.com/gardener/etcd-druid/client" \
     --boilerplate "${SCRIPT_DIR}/boilerplate.go.txt" \
@@ -35,7 +38,7 @@ function generate_clientset() {
 }
 
 function generate_crds() {
-  local output_dir="${PROJECT_ROOT}/api/core/crds"
+  local output_dir="${API_GO_MODULE_ROOT}/core/crds"
   local package="github.com/gardener/etcd-druid/api/core/v1alpha1"
   local package_path="$(go list -f '{{.Dir}}' "${package}")"
 
@@ -58,7 +61,7 @@ function generate_crds() {
 
 function main() {
   #echo "> Generate..."
-  #go generate "${PROJECT_ROOT}/..."
+  #go generate "${API_GO_MODULE_ROOT}/..."
 
   echo "> Generate deepcopy and defaulting functions..."
   generate_deepcopy_defaulter
@@ -67,8 +70,8 @@ function main() {
   generate_clientset
 
   #check_controller_gen_prereq
-  #echo "> Generate CRDs..."
-  #generate_crds
+  echo "> Generate CRDs..."
+  generate_crds
 }
 
 main

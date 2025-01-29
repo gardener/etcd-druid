@@ -31,26 +31,9 @@ include $(HACK_DIR)/tools.mk
 check-generate:
 	@$(HACK_DIR)/check-generate.sh "$(REPO_ROOT)"
 
-# Generate manifests e.g. CRD, RBAC etc.
-.PHONY: manifests
-manifests: $(VGOPATH) $(CONTROLLER_GEN)
-	@HACK_DIR=$(HACK_DIR) VGOPATH=$(VGOPATH) go generate ./config/crd/bases
-	@find "$(REPO_ROOT)/config/crd/bases" -name "*.yaml" -exec cp '{}' "$(REPO_ROOT)/charts/druid/charts/crds/templates/" \;
-	@controller-gen rbac:roleName=manager-role paths="./internal/controller/..."
-
 .PHONY: generate-api-docs
 generate-api-docs: $(CRD_REF_DOCS)
 	@crd-ref-docs --source-path "$(REPO_ROOT)/api" --config "$(HACK_DIR)/api-reference/config.yaml" --output-path "$(REPO_ROOT)/docs/api-reference/etcd-druid-api.md" --renderer markdown
-
-# Generate code
-.PHONY: generate
-generate: manifests generate-api-docs $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
-	@go generate "$(REPO_ROOT)/internal/..."
-	@"$(HACK_DIR)/update-codegen.sh"
-
-.PHONY: generate-all
-generate-all: $(CONTROLLER_GEN)
-	@$(HACK_DIR)/generate.sh
 
 # Rules for verification, formatting, linting and cleaning
 # -------------------------------------------------------------------------

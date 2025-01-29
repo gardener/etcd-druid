@@ -5,9 +5,9 @@ import (
 )
 
 var (
-	//go:embed crd-druid.gardener.cloud_etcds.yaml
+	//go:embed druid.gardener.cloud_etcds.yaml
 	etcdCRD string
-	//go:embed crd-druid.gardener.cloud_etcdcopybackupstasks.yaml
+	//go:embed druid.gardener.cloud_etcdcopybackupstasks.yaml
 	etcdCopyBackupTaskCRD string
 )
 

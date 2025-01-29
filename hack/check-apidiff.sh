@@ -22,7 +22,7 @@ echo "> Check api-diff"
 go-apidiff ${PULL_BASE_SHA:-master} --print-compatible=false --repo-path=. >${workDir}/api-diff-output.txt || true
 
 exported_pkgs=(
-  gardener/etcd-druid/api/v1alpha1
+  gardener/etcd-druid/api/core/v1alpha1
 )
 
 captureChanges=0
