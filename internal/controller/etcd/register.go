@@ -18,7 +18,7 @@ import (
 )
 
 // RegisterWithManager registers the Etcd Controller with the given controller manager.
-func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager, controllerName string) error {
 	builder := ctrl.
 		NewControllerManagedBy(mgr).
 		Named(controllerName).

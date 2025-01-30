@@ -23,7 +23,6 @@ KUBECTL                    := $(TOOLS_BIN_DIR)/kubectl
 VGOPATH                    := $(TOOLS_BIN_DIR)/vgopath
 GO_ADD_LICENSE             := $(TOOLS_BIN_DIR)/addlicense
 GO_APIDIFF                 := $(TOOLS_BIN_DIR)/go-apidiff
-GOTESTFMT 	   	 		   := $(TOOLS_BIN_DIR)/gotestfmt
 GOIMPORTS_REVISER          := $(TOOLS_BIN_DIR)/goimports-reviser
 YQ						   := $(TOOLS_BIN_DIR)/yq
 CRD_REF_DOCS			   := $(TOOLS_BIN_DIR)/crd-ref-docs
@@ -43,7 +42,6 @@ KUBECTL_VERSION ?= v1.32.0
 VGOPATH_VERSION ?= v0.1.5
 GO_ADD_LICENSE_VERSION ?= v1.1.1
 GO_APIDIFF_VERSION ?= v0.8.2
-GOTESTFMT_VERSION ?= v2.5.0
 GOIMPORTS_REVISER_VERSION ?= v3.6.5
 YQ_VERSION ?= v4.44.3
 CRD_REF_DOCS_VERSION ?= v0.1.0
@@ -124,9 +122,6 @@ $(GO_APIDIFF):
 $(KUBECTL):
 	curl -Lo $(KUBECTL) https://dl.k8s.io/release/$(KUBECTL_VERSION)/bin/$(SYSTEM_NAME)/$(SYSTEM_ARCH)/kubectl
 	chmod +x $(KUBECTL)
-
-$(GOTESTFMT):
-	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt@$(GOTESTFMT_VERSION)
 
 $(GOIMPORTS_REVISER):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/incu6us/goimports-reviser/v3@$(GOIMPORTS_REVISER_VERSION)

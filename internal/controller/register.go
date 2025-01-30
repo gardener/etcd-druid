@@ -29,7 +29,7 @@ func Register(mgr ctrl.Manager, config *Config) error {
 	if err != nil {
 		return err
 	}
-	if err = etcdReconciler.RegisterWithManager(mgr); err != nil {
+	if err = etcdReconciler.RegisterWithManager(mgr, etcd.ControllerName); err != nil {
 		return err
 	}
 

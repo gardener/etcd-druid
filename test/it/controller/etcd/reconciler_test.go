@@ -51,7 +51,7 @@ func TestMain(m *testing.M) {
 
 // ------------------------------ reconcile spec tests ------------------------------
 func TestEtcdReconcileSpecWithNoAutoReconcile(t *testing.T) {
-	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, sharedITTestEnv, false, testutils.NewTestClientBuilder())
+	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, "etcd-controller-reconcile-with-no-auto-reconcile", sharedITTestEnv, false, testutils.NewTestClientBuilder())
 	tests := []struct {
 		name string
 		fn   func(t *testing.T, testNamespace string, reconcilerTestEnv ReconcilerTestEnv)
@@ -290,7 +290,7 @@ func TestEtcdDeletion(t *testing.T) {
 
 func testDeletionOfAllEtcdResourcesWhenEtcdMarkedForDeletion(t *testing.T, testNs string) {
 	g := NewWithT(t)
-	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, sharedITTestEnv, false, testutils.NewTestClientBuilder())
+	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, "etcd-controller-deletion-flow", sharedITTestEnv, false, testutils.NewTestClientBuilder())
 	// ---------------------------- create test namespace ---------------------------
 	t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
 	g.Expect(sharedITTestEnv.CreateTestNamespace(testNs)).To(Succeed())
@@ -341,7 +341,7 @@ func testPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 	itTestEnv, itTestEnvCloser, err := setup.NewDruidTestEnvironment("etcd-reconciler", []string{assets.GetEtcdCrdPath()})
 	g.Expect(err).ToNot(HaveOccurred())
 	defer itTestEnvCloser()
-	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, itTestEnv, false, testClientBuilder)
+	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, "etcd-controller-deletion-flow-failure", itTestEnv, false, testClientBuilder)
 
 	// ---------------------------- create test namespace ---------------------------
 	t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
@@ -388,7 +388,7 @@ func testPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 // ------------------------------ reconcile status tests ------------------------------
 
 func TestEtcdStatusReconciliation(t *testing.T) {
-	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, sharedITTestEnv, false, testutils.NewTestClientBuilder())
+	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, "etcd-controller-reconcile-status-test", sharedITTestEnv, false, testutils.NewTestClientBuilder())
 	tests := []struct {
 		name string
 		fn   func(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv)
