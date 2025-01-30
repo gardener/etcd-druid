@@ -24,7 +24,7 @@ echo "> Running SAST checks..."
 make sast-report
 
 echo "Running API Make targets..."
-cd go/src/github.com/gardener/etcd-druid/api
+cd /go/src/github.com/gardener/etcd-druid/api
 
 echo ">Running API check..."
 make check
