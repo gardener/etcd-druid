@@ -6,10 +6,10 @@ package secret
 
 import (
 	"context"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"

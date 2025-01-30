@@ -6,15 +6,15 @@ package statefulset
 
 import (
 	"fmt"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils/imagevector"
-	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"slices"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
+
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -22,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 const (

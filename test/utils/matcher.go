@@ -6,12 +6,13 @@ package utils
 
 import (
 	"fmt"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"strings"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 
 	"github.com/onsi/gomega/format"
 	gomegatypes "github.com/onsi/gomega/types"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
 	. "github.com/onsi/gomega"

@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"os"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	. "github.com/onsi/gomega/gstruct"
 	"github.com/onsi/gomega/types"
 	"k8s.io/utils/ptr"
 
 	. "github.com/gardener/etcd-druid/internal/utils/imagevector"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 )
 
 var _ = Describe("imagevector", func() {

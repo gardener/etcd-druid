@@ -6,10 +6,10 @@ package configmap
 
 import (
 	"fmt"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"strconv"
 	"strings"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 
 	"k8s.io/utils/ptr"

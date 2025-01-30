@@ -8,9 +8,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
@@ -20,6 +19,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 const (

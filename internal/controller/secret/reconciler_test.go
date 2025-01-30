@@ -1,17 +1,24 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package secret
 
 import (
 	"context"
+	"testing"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	"github.com/go-logr/logr"
-	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"testing"
+
+	. "github.com/onsi/gomega"
 )
 
 type etcdBuildInfo struct {
@@ -116,6 +123,7 @@ func TestIsFinalizerNeeded(t *testing.T) {
 	g := NewWithT(t)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			etcdList := createEtcdList(tc.etcdResources)
 			actual, _ := isFinalizerNeeded(tc.secretName, &etcdList)
 			g.Expect(actual).To(Equal(tc.expected))
@@ -160,6 +168,7 @@ func TestAddFinalizer(t *testing.T) {
 	g := NewWithT(t)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var (
 				secret     *corev1.Secret
 				cl         client.Client
@@ -237,6 +246,7 @@ func TestRemoveFinalizer(t *testing.T) {
 	g := NewWithT(t)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var (
 				secret *corev1.Secret
 				cl     client.Client

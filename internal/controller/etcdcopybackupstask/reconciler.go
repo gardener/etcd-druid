@@ -7,16 +7,16 @@ package etcdcopybackupstask
 import (
 	"context"
 	"fmt"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils/imagevector"
-	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	"strconv"
 	"strings"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/images"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 	"github.com/gardener/etcd-druid/internal/utils"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"

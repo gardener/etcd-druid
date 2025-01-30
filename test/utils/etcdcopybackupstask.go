@@ -5,9 +5,9 @@
 package utils
 
 import (
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 
 	batchv1 "k8s.io/api/batch/v1"

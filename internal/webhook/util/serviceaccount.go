@@ -1,9 +1,15 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package util
 
 import "strings"
 
 const (
-	ServiceAccountUsernamePrefix    = "system:serviceaccount:"
+	// ServiceAccountUsernamePrefix is the service account username prefix
+	ServiceAccountUsernamePrefix = "system:serviceaccount:"
+	// ServiceAccountUsernameSeparator is the separator used in service account username.
 	ServiceAccountUsernameSeparator = ":"
 )
 

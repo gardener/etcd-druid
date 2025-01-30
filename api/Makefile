@@ -2,19 +2,24 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
-HACK_DIR		    := $(REPO_ROOT)/hack
+API_MODULE_ROOT     := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
+REPO_ROOT			:= $(shell dirname "$(API_MODULE_ROOT)")
+HACK_DIR		    := $(API_MODULE_ROOT)/hack
 TOOLS_DIR		    := $(HACK_DIR)/tools
 
 include $(HACK_DIR)/tools.mk
 
-.PHONY: generate
-generate: $(CONTROLLER_GEN)
-	@$(HACK_DIR)/generate.sh
-
 .PHONY: check-generate
 check-generate:
 	@$(HACK_DIR)/check-generate.sh "$(REPO_ROOT)"
+
+.PHONY: generate-api-docs
+generate-api-docs: $(CRD_REF_DOCS)
+	@crd-ref-docs --source-path "$(REPO_ROOT)/api" --config "$(HACK_DIR)/api-reference/config.yaml" --output-path "$(REPO_ROOT)/docs/api-reference/etcd-druid-api.md" --renderer markdown
+
+.PHONY: generate generate-api-docs
+generate: $(CONTROLLER_GEN)
+	@$(HACK_DIR)/generate.sh
 
 .PHONY: clean-generated-code
 clean-generated-code:
@@ -27,3 +32,11 @@ tidy:
 .PHONY: test-unit
 test-unit:
 	@go test ./...
+
+.PHONY: format
+format: $(GOIMPORTS_REVISER)
+	@$(REPO_ROOT)/hack/format.sh ./core
+
+.PHONY: check
+check: $(GOLANGCI_LINT) $(GOIMPORTS) format
+	@$(REPO_ROOT)/hack/check.sh --golangci-lint-config=../.golangci.yaml ./...

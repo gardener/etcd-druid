@@ -5,10 +5,12 @@
 package assets
 
 import (
+	"path/filepath"
+
 	"github.com/gardener/etcd-druid/internal/images"
 	"github.com/gardener/etcd-druid/internal/utils/imagevector"
+
 	. "github.com/onsi/gomega"
-	"path/filepath"
 )
 
 // GetEtcdCrdPath returns the path to the Etcd CRD.

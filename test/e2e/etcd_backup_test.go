@@ -7,9 +7,10 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"time"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	testutils "github.com/gardener/etcd-druid/test/utils"
-	"time"
 
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
 	"github.com/go-logr/logr"

@@ -5,14 +5,15 @@
 package v1alpha1_test
 
 import (
-	. "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"testing"
 	"time"
 
-	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	. "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	. "github.com/onsi/gomega"
 )
 
 // These tests are written in BDD-style using Ginkgo framework. Refer to

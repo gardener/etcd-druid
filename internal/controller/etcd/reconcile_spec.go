@@ -6,14 +6,14 @@ package etcd
 
 import (
 	"fmt"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"

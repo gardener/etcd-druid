@@ -5,8 +5,9 @@
 package etcd
 
 import (
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"time"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"

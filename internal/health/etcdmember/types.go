@@ -6,6 +6,7 @@ package etcdmember
 
 import (
 	"context"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 )
 

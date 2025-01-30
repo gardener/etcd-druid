@@ -6,13 +6,14 @@ package secret
 
 import (
 	"context"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 

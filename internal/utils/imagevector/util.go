@@ -7,11 +7,12 @@ package imagevector
 import (
 	"crypto/sha256"
 	"fmt"
-	versionutil "github.com/gardener/etcd-druid/internal/utils/version"
 	"os"
 	"regexp"
 	"slices"
 	"strings"
+
+	versionutil "github.com/gardener/etcd-druid/internal/utils/version"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/yaml"

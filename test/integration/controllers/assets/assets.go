@@ -5,10 +5,10 @@
 package assets
 
 import (
-	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 	"path/filepath"
 
 	"github.com/gardener/etcd-druid/internal/images"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 
 	. "github.com/onsi/gomega"
 )

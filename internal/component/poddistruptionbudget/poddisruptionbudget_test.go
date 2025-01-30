@@ -6,9 +6,9 @@ package poddistruptionbudget
 
 import (
 	"context"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"testing"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	testutils "github.com/gardener/etcd-druid/test/utils"

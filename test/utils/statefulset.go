@@ -6,8 +6,8 @@ package utils
 
 import (
 	"fmt"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 
 	appsv1 "k8s.io/api/apps/v1"

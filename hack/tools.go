@@ -10,5 +10,6 @@ package tools
 
 import (
 	_ "github.com/onsi/ginkgo/v2/ginkgo"
+	_ "golang.org/x/tools/cmd/goimports"
 	_ "sigs.k8s.io/controller-runtime/tools/setup-envtest"
 )

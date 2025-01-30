@@ -6,10 +6,10 @@ package status
 
 import (
 	"context"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"sync"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/health/condition"
 	"github.com/gardener/etcd-druid/internal/health/etcdmember"
 

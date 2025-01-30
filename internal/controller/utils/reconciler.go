@@ -8,8 +8,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"time"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

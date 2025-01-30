@@ -5,10 +5,10 @@
 package etcdcopybackupstask
 
 import (
-	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 	"testing"
 
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
 	"github.com/gardener/etcd-druid/test/integration/setup"
 

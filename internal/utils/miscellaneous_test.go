@@ -1,12 +1,15 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package utils
 
 import (
 	"testing"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestMergeMaps(t *testing.T) {

@@ -1,8 +1,13 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package util
 
 import (
-	. "github.com/onsi/gomega"
 	"testing"
+
+	. "github.com/onsi/gomega"
 )
 
 func TestMatchesUserName(t *testing.T) {
@@ -81,6 +86,7 @@ func TestMatchesUserName(t *testing.T) {
 	g := NewWithT(t)
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
+			t.Parallel()
 			g.Expect(MatchesUsername(tc.namespace, tc.name, tc.username)).To(Equal(tc.expect))
 		})
 	}

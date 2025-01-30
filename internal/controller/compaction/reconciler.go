@@ -7,16 +7,16 @@ package compaction
 import (
 	"context"
 	"fmt"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 	"strconv"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/images"
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 	"github.com/gardener/etcd-druid/internal/utils"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"

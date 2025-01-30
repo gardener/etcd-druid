@@ -7,14 +7,14 @@ package etcd
 import (
 	"context"
 	"fmt"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	"os"
 	"testing"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	"github.com/gardener/etcd-druid/test/it/controller/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	testutils "github.com/gardener/etcd-druid/test/utils"

@@ -294,9 +294,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `podLabels` _object (keys:string, values:string)_ | PodLabels is a set of labels that will be added to pod(s) created by the copy backups task. |  |  |
 | `sourceStore` _[StoreSpec](#storespec)_ | SourceStore defines the specification of the source object store provider for storing backups. |  |  |
 | `targetStore` _[StoreSpec](#storespec)_ | TargetStore defines the specification of the target object store provider for storing backups. |  |  |
-| `maxBackupAge` _integer_ | MaxBackupAge is the maximum age in days that a backup must have in order to be copied.<br />By default all backups will be copied. |  |  |
+| `maxBackupAge` _integer_ | MaxBackupAge is the maximum age in days that a backup must have in order to be copied.<br />By default, all backups will be copied. |  |  |
 | `maxBackups` _integer_ | MaxBackups is the maximum number of backups that will be copied starting with the most recent ones. |  |  |
 | `waitForFinalSnapshot` _[WaitForFinalSnapshotSpec](#waitforfinalsnapshotspec)_ | WaitForFinalSnapshot defines the parameters for waiting for a final full snapshot before copying backups. |  |  |
 

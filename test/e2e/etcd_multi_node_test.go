@@ -8,11 +8,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"io"
 	"strings"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 

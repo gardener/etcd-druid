@@ -1,8 +1,14 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package secret
 
 import (
 	"context"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"

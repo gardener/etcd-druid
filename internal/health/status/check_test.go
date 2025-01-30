@@ -7,11 +7,10 @@ package status_test
 import (
 	"context"
 	"fmt"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	. "github.com/onsi/ginkgo/v2"
 	"reflect"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/health/condition"
 	"github.com/gardener/etcd-druid/internal/health/etcdmember"
 
@@ -22,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	. "github.com/gardener/etcd-druid/internal/health/status"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 )

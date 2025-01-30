@@ -1,14 +1,21 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package kubernetes
 
 import (
 	"context"
+	"testing"
+
 	testutils "github.com/gardener/etcd-druid/test/utils"
-	. "github.com/onsi/gomega"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"testing"
+
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -56,9 +63,10 @@ func TestAddFinalizers(t *testing.T) {
 	}
 
 	g := NewWithT(t)
-
+	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var (
 				cm  *corev1.ConfigMap
 				cl  client.Client
@@ -133,8 +141,10 @@ func TestRemoveFinalizers(t *testing.T) {
 	}
 
 	g := NewWithT(t)
+	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var (
 				cm  *corev1.ConfigMap
 				cl  client.Client
@@ -194,8 +204,10 @@ func TestRemoveAllFinalizers(t *testing.T) {
 	}
 
 	g := NewWithT(t)
+	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var (
 				cm  *corev1.ConfigMap
 				cl  client.Client

@@ -6,9 +6,10 @@ package kubernetes
 
 import (
 	"context"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"slices"
 	"strconv"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 
 	"github.com/go-logr/logr"
 	coordinationv1 "k8s.io/api/coordination/v1"

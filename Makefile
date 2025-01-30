@@ -25,25 +25,11 @@ KUBECONFIG_PATH     := $(HACK_DIR)/kind/kubeconfig
 TOOLS_DIR := $(HACK_DIR)/tools
 include $(HACK_DIR)/tools.mk
 
-# Rules for generation (code and manifests)
-# -------------------------------------------------------------------------
-.PHONY: check-generate
-check-generate:
-	@$(HACK_DIR)/check-generate.sh "$(REPO_ROOT)"
-
-.PHONY: generate-api-docs
-generate-api-docs: $(CRD_REF_DOCS)
-	@crd-ref-docs --source-path "$(REPO_ROOT)/api" --config "$(HACK_DIR)/api-reference/config.yaml" --output-path "$(REPO_ROOT)/docs/api-reference/etcd-druid-api.md" --renderer markdown
-
 # Rules for verification, formatting, linting and cleaning
 # -------------------------------------------------------------------------
 .PHONY: tidy
 tidy:
 	@env GO111MODULE=on go mod tidy
-
-.PHONY: clean
-clean:
-	@$(HACK_DIR)/clean.sh ./api/... ./internal/...
 
 # Clean go mod cache
 .PHONY: clean-mod-cache
@@ -62,12 +48,12 @@ add-license-headers: $(GO_ADD_LICENSE)
 # Format code and arrange imports.
 .PHONY: format
 format: $(GOIMPORTS_REVISER)
-	@$(HACK_DIR)/format.sh ./api/ ./internal/ ./test/
+	@$(HACK_DIR)/format.sh ./internal/ ./test/
 
 # Check packages
 .PHONY: check
-check: $(GOLANGCI_LINT) $(GOIMPORTS) format manifests
-	@$(HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./api/... ./internal/...
+check: $(GOLANGCI_LINT) $(GOIMPORTS) format
+	@$(HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./internal/...
 
 .PHONY: check-apidiff
 check-apidiff: $(GO_APIDIFF)
@@ -177,12 +163,12 @@ kind-down: $(KIND)
 
 # Install CRDs into a cluster
 .PHONY: install
-install: manifests
+install:
 	kubectl apply -f config/crd/bases
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 .PHONY: deploy-via-kustomize
-deploy-via-kustomize: manifests $(KUSTOMIZE)
+deploy-via-kustomize: $(KUSTOMIZE)
 	kubectl apply -f config/crd/bases
 	kustomize build config/default | kubectl apply -f -
 

@@ -6,14 +6,14 @@ package statefulset
 
 import (
 	"fmt"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils/imagevector"
-	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 	"github.com/gardener/etcd-druid/internal/utils"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"

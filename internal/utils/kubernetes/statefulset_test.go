@@ -8,12 +8,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/gardener/etcd-druid/internal/utils"
 	"strings"
 	"testing"
 
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	appsv1 "k8s.io/api/apps/v1"

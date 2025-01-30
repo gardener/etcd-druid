@@ -1,12 +1,19 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package secret
 
 import (
 	"context"
+	"testing"
+
 	testutils "github.com/gardener/etcd-druid/test/utils"
-	. "github.com/onsi/gomega"
+
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"testing"
+
+	. "github.com/onsi/gomega"
 )
 
 func TestMapEtcdToSecret(t *testing.T) {
@@ -69,6 +76,7 @@ func TestMapEtcdToSecret(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			etcdBuilder := testutils.EtcdBuilderWithoutDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 			if tc.withClientTLS {
 				etcdBuilder.WithClientTLS()
