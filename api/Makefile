@@ -11,7 +11,7 @@ include $(HACK_DIR)/tools.mk
 
 .PHONY: check-generate
 check-generate:
-	@$(HACK_DIR)/check-generate.sh "$(REPO_ROOT)"
+	@$(HACK_DIR)/check-generate.sh "$(API_MODULE_ROOT)"
 
 .PHONY: generate-api-docs
 generate-api-docs: $(CRD_REF_DOCS)
