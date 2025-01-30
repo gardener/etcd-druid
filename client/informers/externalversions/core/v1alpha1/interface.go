@@ -15,10 +15,6 @@ type Interface interface {
 	Etcds() EtcdInformer
 	// EtcdCopyBackupsTasks returns a EtcdCopyBackupsTaskInformer.
 	EtcdCopyBackupsTasks() EtcdCopyBackupsTaskInformer
-	// EtcdCopyBackupsTaskLists returns a EtcdCopyBackupsTaskListInformer.
-	EtcdCopyBackupsTaskLists() EtcdCopyBackupsTaskListInformer
-	// EtcdLists returns a EtcdListInformer.
-	EtcdLists() EtcdListInformer
 }
 
 type version struct {
@@ -40,14 +36,4 @@ func (v *version) Etcds() EtcdInformer {
 // EtcdCopyBackupsTasks returns a EtcdCopyBackupsTaskInformer.
 func (v *version) EtcdCopyBackupsTasks() EtcdCopyBackupsTaskInformer {
 	return &etcdCopyBackupsTaskInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
-// EtcdCopyBackupsTaskLists returns a EtcdCopyBackupsTaskListInformer.
-func (v *version) EtcdCopyBackupsTaskLists() EtcdCopyBackupsTaskListInformer {
-	return &etcdCopyBackupsTaskListInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
-// EtcdLists returns a EtcdListInformer.
-func (v *version) EtcdLists() EtcdListInformer {
-	return &etcdListInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

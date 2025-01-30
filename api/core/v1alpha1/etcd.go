@@ -61,7 +61,6 @@ type Etcd struct {
 	Status EtcdStatus `json:"status,omitempty"`
 }
 
-// +genclient
 // +kubebuilder:object:root=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 

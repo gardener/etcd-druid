@@ -23,14 +23,6 @@ func (c *FakeDruidV1alpha1) EtcdCopyBackupsTasks(namespace string) v1alpha1.Etcd
 	return newFakeEtcdCopyBackupsTasks(c, namespace)
 }
 
-func (c *FakeDruidV1alpha1) EtcdCopyBackupsTaskLists(namespace string) v1alpha1.EtcdCopyBackupsTaskListInterface {
-	return newFakeEtcdCopyBackupsTaskLists(c, namespace)
-}
-
-func (c *FakeDruidV1alpha1) EtcdLists(namespace string) v1alpha1.EtcdListInterface {
-	return newFakeEtcdLists(c, namespace)
-}
-
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeDruidV1alpha1) RESTClient() rest.Interface {
