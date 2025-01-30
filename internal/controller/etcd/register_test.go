@@ -422,7 +422,7 @@ func createReconciler(t *testing.T, controllerName string, enableEtcdSpecAutoRec
 	etcdConfig := Config{
 		EnableEtcdSpecAutoReconcile: enableEtcdSpecAutoReconcile,
 	}
-	r, err := NewReconcilerWithImageVector(mgr, controllerName, &etcdConfig, nil)
+	r, err := NewReconcilerWithImageVector(mgr, &etcdConfig, nil)
 	g.Expect(err).NotTo(HaveOccurred())
 	return r
 }

@@ -23,3 +23,7 @@ clean-generated-code:
 .PHONY: tidy
 tidy:
 	@env GO111MODULE=on go mod tidy
+
+.PHONY: test-unit
+test-unit:
+	@go test ./...

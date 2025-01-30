@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	"reflect"
 	"time"
 
@@ -22,7 +22,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	. "github.com/gardener/etcd-druid/internal/health/status"
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 )
@@ -318,16 +317,16 @@ func createEtcdMemberCheck(results ...etcdMemberResult) etcdmember.Checker {
 func withVar(dst, src any) func() {
 	dstValue := reflect.ValueOf(dst)
 	if dstValue.Type().Kind() != reflect.Ptr {
-		ginkgo.Fail(fmt.Sprintf("destination value %T is not a pointer", dst))
+		Fail(fmt.Sprintf("destination value %T is not a pointer", dst))
 	}
 
 	if dstValue.CanSet() {
-		ginkgo.Fail(fmt.Sprintf("value %T cannot be set", dst))
+		Fail(fmt.Sprintf("value %T cannot be set", dst))
 	}
 
 	srcValue := reflect.ValueOf(src)
 	if srcValue.Type().AssignableTo(dstValue.Type()) {
-		ginkgo.Fail(fmt.Sprintf("cannot write %T into %T", src, dst))
+		Fail(fmt.Sprintf("cannot write %T into %T", src, dst))
 	}
 
 	tmp := dstValue.Elem().Interface()

@@ -6,7 +6,6 @@ package imagevector_test
 
 import (
 	"fmt"
-	"github.com/onsi/ginkgo"
 	"os"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -815,7 +814,7 @@ func withEnvVar(key, value string) func() {
 		err = os.Setenv(key, value)
 	}
 	if err != nil {
-		ginkgo.Fail(fmt.Sprintf("Could not set the env variable %q to %q: %v", key, value, err))
+		Fail(fmt.Sprintf("Could not set the env variable %q to %q: %v", key, value, err))
 	}
 
 	return func() {
@@ -826,7 +825,7 @@ func withEnvVar(key, value string) func() {
 			err = os.Setenv(key, tmp)
 		}
 		if err != nil {
-			ginkgo.Fail(fmt.Sprintf("Could not revert the env variable %q to %q: %v", key, value, err))
+			Fail(fmt.Sprintf("Could not revert the env variable %q to %q: %v", key, value, err))
 		}
 	}
 }
