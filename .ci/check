@@ -19,11 +19,17 @@ cd /go/src/github.com/gardener/etcd-druid
 echo "> Running check..."
 make check
 
-echo "> Running check-generate..."
-make check-generate
-
 # Run Static Application Security Testing (SAST) using gosec
 echo "> Running SAST checks..."
 make sast-report
+
+echo "Running API Make targets..."
+cd go/src/github.com/gardener/etcd-druid/api
+
+echo ">Running API check..."
+make check
+
+echo "> Running API check-generate..."
+make check-generate
 
 echo -e "\n> All checks successful"
