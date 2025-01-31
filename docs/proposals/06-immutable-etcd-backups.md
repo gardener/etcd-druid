@@ -123,34 +123,40 @@ Creating and configuring immutable buckets on providers is not handled by `etcd-
 > [!NOTE]
 > The `etcd-druid` does not handle the rotation of cloud provider credentials. Credential rotation must be managed by the operator.
 
-
-
 By following these steps, you will have set up an immutable bucket for storing etcd backups, along with the necessary references in your `Etcd` specification and Kubernetes secret.
 
 ### Handling of Hibernated Clusters
 
-When an etcd cluster is hibernated for a period longer than the bucket’s immutability period, backups might become mutable again (depending on the cloud provider, see [Comparison of Storage Provider Properties](#comparison-of-bucket-level-and-object-level-immutability)). This possibility undermines the intended guarantees of immutability and may expose backups to accidental or malicious alterations.
+When an etcd cluster remains hibernated beyond the bucket’s immutability period, backups might become mutable again, depending on the cloud provider (see [Comparison of Storage Provider Properties](#comparison-of-bucket-level-and-object-level-immutability)). This could compromise the intended guarantees of immutability, exposing backups to accidental or malicious alterations.
 
-As mentioned in [gardener/etcd-druid#922](https://github.com/gardener/etcd-druid/issues/922), a clear hibernation signal is needed. Since hibernation is not yet supported in `etcd-druid` and is out of scope for this proposal, we only address the method for maintaining immutability.
+As mentioned in [gardener/etcd-druid#922](https://github.com/gardener/etcd-druid/issues/922), a clear hibernation signal is needed. Since `etcd-druid` does not currently support hibernation natively and addressing that is out of scope for this proposal, we focus solely on maintaining immutability.
 
-#### Proposal
+#### Proposal  
 
 To mitigate the risk of backups becoming mutable during extended hibernation under bucket-level immutability, the authors propose the following approach:
 
 1. **Prerequisite: Cut-off Traffic and Take a Final Full Snapshot Before Hibernation**  
-  - Before scaling the etcd cluster down to zero replicas, the etcd controller removes etcd’s client ports (2379/2380) from the etcd Service to block application traffic.
-  - The etcd controller then triggers an [on-demand full snapshot](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/05-etcd-operator-tasks.md#trigger-on-demand-fulldelta-snapshot). This ensures that the latest state of the etcd cluster is captured and securely stored before hibernation commences.
-2. **Periodically Re-Upload the Snapshot**  
-   - Re-uploading the latest full snapshot resets its immutability period in the bucket, thereby keeping the backups protected during hibernation.  
-   - By default, the re-upload schedule is determined by `etcd.spec.backup.fullSnapshotSchedule`. At present, this interval cannot be customized exclusively for re-uploads; future enhancements may introduce a dedicated configuration parameter.  
-   - A new operator task type, `ExtendFullSnapshotImmutabilityTask`, will periodically invoke the `reupload-snapshot` and `garbage-collect` commands.
+   - Before scaling the etcd cluster down to zero replicas, the etcd controller removes etcd’s client ports (2379/2380) from the etcd Service to block application traffic.
+   - The etcd controller then triggers an [on-demand full snapshot](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/05-etcd-operator-tasks.md#trigger-on-demand-fulldelta-snapshot). This ensures that the latest state of the etcd cluster is captured and securely stored before hibernation begins.  
 
-3. **Enhance `etcd-backup-restore`**  
-   - Introduce new CLI sub-commands:
-     - **`reupload-snapshot`** for re-uploading snapshots.  
-     - **`garbage-collect`** for removing older backups whose immutability period has expired.
+2. **Periodically Re-Upload the Snapshot**  
+   - Re-uploading the latest full snapshot resets its immutability period in the bucket, ensuring backups remain protected during hibernation.  
+   - By default, the re-upload schedule follows `etcd.spec.backup.fullSnapshotSchedule`. Currently, this interval cannot be customized exclusively for re-uploads; future enhancements may introduce a dedicated configuration parameter.  
+   - A new operator task type, **`ExtendFullSnapshotImmutabilityTask`**, periodically calls a new CLI command, `extend-snapshot-immutability`, to re-upload the snapshot and extend its immutability.  
+   - **`ExtendFullSnapshotImmutabilityTask` also manages garbage collection**, ensuring that **only the latest immutable snapshots are retained** while deleting older snapshots created by the task itself.
 
 By capturing a final full snapshot before hibernation, periodically re-uploading it to preserve immutability, and removing stale backups, etcd backups remain safeguarded against accidental or malicious alterations until the cluster is resumed.
+
+> [!IMPORTANT]
+> **Limitation:** A possible edge case exists where a snapshot may be corrupted **before hibernation** or during the **re-upload process by `ExtendFullSnapshotImmutabilityTask`**. If this occurs, the process may repeatedly re-upload the same corrupted snapshot, failing to provide a reliable backup.  
+
+A potential alternative solution is to perform [compaction](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md), which would:  
+
+1. Start an embedded etcd instance.  
+2. Perform a compaction operation.  
+3. Take a fresh snapshot and re-upload it.  
+
+While this approach ensures that only valid snapshots are re-uploaded, it is **resource-intensive**, requiring an operational etcd instance even in hibernation. Given the high cost in terms of compute and memory, the authors **recommend** the snapshot re-upload approach as a more practical solution.
 
 ##### Etcd CR API Changes
 
@@ -175,15 +181,14 @@ If `immutability` is not specified, `etcd-druid` will assume that the bucket is 
 
 ##### `etcd-backup-restore` Enhancements
 
-The authors propose adding two new commands to the `etcd-backup-restore` CLI (`etcdbrctl`) to maintain immutability during hibernation and to clean up older snapshots:
+The authors propose adding new commands to the `etcd-backup-restore` CLI (`etcdbrctl`) to maintain immutability during hibernation and to clean up snapshots created by `ExtendFullSnapshotImmutabilityTask`:
 
-1. **`reupload-snapshot`**
-   - Downloads the latest full snapshot from the object store.
-   - Renames the snapshot (for instance, updates its Unix timestamp) to avoid overwriting an existing immutable snapshot.
-   - Uploads the renamed snapshot back to object storage, thereby restarting its immutability timer.
+- **`extend-snapshot-immutability`**
+  - Downloads the latest full snapshot from the object store.
+  - Renames the snapshot (for instance, updates its Unix timestamp) to avoid overwriting an existing immutable snapshot.
+  - Uploads the renamed snapshot back to object storage, thereby **restarting** its immutability timer.  
+  - Introduces the `--gc-from-timestamp=<timestamp>` parameter, allowing users to specify a starting point from which garbage collection should be performed.
 
-2. **`garbage-collect`**
-   - Scans the object store for older snapshots and deletes them if their immutability period has expired and they are no longer needed, following the standard [garbage collection policy](https://github.com/gardener/etcd-backup-restore/blob/master/docs/usage/garbage_collection.md).
 
 ##### etcd Controller Enhancements
 
@@ -198,24 +203,23 @@ When a hibernation flow is initiated (by external tooling or higher-level operat
 
 The `ExtendFullSnapshotImmutabilityTask` will create a cron job that:
 
-- Runs `etcdbrctl reupload-snapshot` to extend the immutability of the most recent snapshot.
-- Runs `etcdbrctl garbage-collect --garbage-collection-policy <policy>` to remove old snapshots.
+- Runs `etcdbrctl extend-snapshot-immutability --gc-from-timestamp=<creation timestamp of task>` to preserve the immutability period of the most recent snapshot. This command re-uploads the latest snapshot, effectively resetting its immutability period. Additionally, it removes any snapshots that have become mutable after the creation timestamp of the task.
 
-By periodically re-uploading the latest snapshot during hibernation, the authors ensure that the immutability period is extended, and the backups remain **protected throughout the hibernation period**.
+By periodically re-uploading (extending) the latest snapshot during hibernation, the authors ensure that the immutability period is extended, and the backups remain **protected throughout the hibernation period**.
 
 ###### Lifecycle of `ExtendFullSnapshotImmutabilityTask`
 
-The `ExtendFullSnapshotImmutabilityTask` is **active during hibernation** and is automatically managed by the `etcd-controller`. Its lifecycle is tightly coupled with the cluster’s hibernation state:
+The `ExtendFullSnapshotImmutabilityTask` is **active during hibernation** and is automatically managed by the `etcd-controller`. Its lifecycle is tied to the cluster’s hibernation state:
 
 1. **Task Creation**  
-   - When the etcd cluster enters hibernation (e.g., via an external signal or scaling down to zero replicas), the etcd controller:  
+   - When the etcd cluster enters hibernation (e.g., scaling down to zero replicas), the etcd controller:  
      - Triggers a final full snapshot.  
-     - Creates the `ExtendFullSnapshotImmutabilityTask` to periodically re-upload snapshots and manage garbage collection.  
+     - Creates the `ExtendFullSnapshotImmutabilityTask` to run `extend-snapshot-immutability --gc-from-timestamp=<creation timestamp of this task>` 
 
 2. **Task Deletion**  
-   - When the cluster resumes from hibernation (e.g., scaling up to non-zero replicas), the controller:  
-     - Immediately deletes the `ExtendFullSnapshotImmutabilityTask` to halt re-uploads.  
-     - Resumes regular backup schedules defined in `spec.backup.fullSnapshotSchedule`.  
+   - When the cluster resumes from hibernation (scales up to non-zero replicas), the controller:  
+     - Deletes the `ExtendFullSnapshotImmutabilityTask` to stop extending snapshots.  
+     - Resumes the normal backup schedule defined in `spec.backup.fullSnapshotSchedule`.  
 
 ###### Example Task Config
 
@@ -223,18 +227,6 @@ The `ExtendFullSnapshotImmutabilityTask` is **active during hibernation** and is
 type ExtendFullSnapshotImmutabilityTaskConfig struct {
   // Schedule defines a cron schedule (e.g., "0 */6 * * *").
   Schedule *string `json:"schedule,omitempty"`
-
-  // GarbageCollectionConfig specifies the configuration for snapshot GC.
-  GarbageCollectionConfig *GarbageCollectionConfig `json:"garbageCollectionConfig,omitempty"`
-}
-
-type GarbageCollectionConfig struct {
-  // GarbageCollectionPolicy (e.g., "LimitBased" or "Exponential").
-  GarbageCollectionPolicy *string `json:"garbageCollectionPolicy,omitempty"`
-  // MaxBackupsLimitBasedGC sets the maximum number of full snapshots to keep.
-  MaxBackupsLimitBasedGC *int32 `json:"maxBackupsLimitBasedGC,omitempty"`
-  // DeltaSnapshotRetentionPeriod indicates how long to keep delta snapshots (e.g., "72h").
-  DeltaSnapshotRetentionPeriod *metav1.Duration `json:"deltaSnapshotRetentionPeriod,omitempty"`
 }
 ```
 
@@ -244,10 +236,6 @@ type GarbageCollectionConfig struct {
 spec:
   config:
     schedule: "0 0 * * *"
-    garbageCollectionConfig:
-      garbageCollectionPolicy: "LimitBased"
-      maxBackupsLimitBasedGC: 5
-      deltaSnapshotRetentionPeriod: "72h"
 ```
 
 ##### Disabling Immutability
@@ -259,7 +247,6 @@ If you genuinely require a mutable backup again, the recommended approach is:
 2. **Reconcile the `Etcd` CR.** After pointing `etcd.spec.backup.store` to the new bucket, `etcd-druid` will start storing backups there.
 
 > **Note:** Existing snapshots in the old immutable bucket remain locked according to the configured immutability period.
-
 
 ## Compatibility
 
@@ -287,10 +274,10 @@ Because these tags or annotations do not modify the underlying snapshot data, th
 
 ## References
 
-- [GCS Bucket Lock](https://cloud.google.com/storage/docs/bucket-lock)  
-- [AWS S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html)  
-- [Azure Immutable Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/immutable-policy-configure-container-scope?tabs=azure-portal)  
-- [etcd-backup-restore Documentation](https://github.com/gardener/etcd-backup-restore/blob/master/README.md)  
-- [Gardener Issue: 10866](https://github.com/gardener/gardener/issues/10866)  
+- [GCS Bucket Lock](https://cloud.google.com/storage/docs/bucket-lock)
+- [AWS S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html)
+- [Azure Immutable Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/immutable-policy-configure-container-scope?tabs=azure-portal)
+- [etcd-backup-restore Documentation](https://github.com/gardener/etcd-backup-restore/blob/master/README.md)
+- [Gardener Issue: 10866](https://github.com/gardener/gardener/issues/10866)
 
 ---
