@@ -65,7 +65,6 @@ Following set of flags configures the reconcilers running within etcd-druid. To 
 | etcd-status-sync-period               | `Etcd.Status` is periodically updated. This interval defines the status sync frequency. | 15s     |
 | etcd-member-notready-threshold        | Threshold after which an etcd member is considered not ready if the status was unknown before. This is currently used to update [EtcdMemberConditionStatus](https://github.com/gardener/etcd-druid/blob/55efca1c8f6c852b0a4e97f08488ffec2eed0e68/api/v1alpha1/etcd.go#L360). | 5m      |
 | etcd-member-unknown-threshold         | Threshold after which an etcd member is considered unknown. This is currently used to update [EtcdMemberConditionStatus](https://github.com/gardener/etcd-druid/blob/55efca1c8f6c852b0a4e97f08488ffec2eed0e68/api/v1alpha1/etcd.go#L360). | 1m      |
-| ignore-operation-annotation           | Specifies whether to ignore or honour the annotation `gardener.cloud/operation: reconcile` on resources to be reconciled.<br />**Deprecated:** please use `--enable-etcd-spec-auto-reconcile` instead. | false   |
 
 #### Compaction Reconciler
 

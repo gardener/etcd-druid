@@ -129,16 +129,6 @@ func TestGetSuspendEtcdSpecReconcileAnnotationKey(t *testing.T) {
 			annotations:           map[string]string{SuspendEtcdSpecReconcileAnnotation: ""},
 			expectedAnnotationKey: ptr.To(SuspendEtcdSpecReconcileAnnotation),
 		},
-		{
-			name:                  "IgnoreReconciliationAnnotation is set",
-			annotations:           map[string]string{IgnoreReconciliationAnnotation: ""},
-			expectedAnnotationKey: ptr.To(IgnoreReconciliationAnnotation),
-		},
-		{
-			name:                  "Both annotations (SuspendEtcdSpecReconcileAnnotation and IgnoreReconciliationAnnotation) are set",
-			annotations:           map[string]string{SuspendEtcdSpecReconcileAnnotation: "", IgnoreReconciliationAnnotation: ""},
-			expectedAnnotationKey: ptr.To(SuspendEtcdSpecReconcileAnnotation),
-		},
 	}
 	g := NewWithT(t)
 	t.Parallel()

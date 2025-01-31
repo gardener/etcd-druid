@@ -166,9 +166,8 @@ func (r *Reconciler) recordIncompleteReconcileOperation(ctx component.OperatorCo
 //
 // Reconciliation decision follows these rules:
 // - Skipped if 'druid.gardener.cloud/suspend-etcd-spec-reconcile' annotation is present, signaling a pause in reconciliation.
-// - Also skipped if the deprecated 'druid.gardener.cloud/ignore-reconciliation' annotation is set.
 // - Automatic reconciliation occurs if EnableEtcdSpecAutoReconcile is true.
-// - If 'gardener.cloud/operation: reconcile' annotation exists and neither 'druid.gardener.cloud/suspend-etcd-spec-reconcile' nor the deprecated 'druid.gardener.cloud/ignore-reconciliation' is set to true, reconciliation proceeds upon Etcd spec changes.
+// - If 'gardener.cloud/operation: reconcile' annotation exists and 'druid.gardener.cloud/suspend-etcd-spec-reconcile' annotation is not set, reconciliation proceeds upon Etcd spec changes.
 // - Reconciliation is not initiated if EnableEtcdSpecAutoReconcile is false and none of the relevant annotations are present.
 func (r *Reconciler) canReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
 	// Check if spec reconciliation has been suspended, if yes, then record the event and return false.
@@ -179,11 +178,6 @@ func (r *Reconciler) canReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
 
 	// Prefer using EnableEtcdSpecAutoReconcile for automatic reconciliation.
 	if r.config.EnableEtcdSpecAutoReconcile {
-		return true
-	}
-
-	// Fallback to deprecated IgnoreOperationAnnotation if EnableEtcdSpecAutoReconcile is false.
-	if r.config.IgnoreOperationAnnotation {
 		return true
 	}
 
