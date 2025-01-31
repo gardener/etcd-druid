@@ -15,7 +15,7 @@ reviewers:
 
 ## Summary
 
-This proposal introduces immutable backups for etcd clusters managed by `etcd-druid`. By leveraging cloud provider immutability features, backups can neither be modified nor deleted once created. This approach strengthens the reliability and fault tolerance of the etcd restoration process.
+This proposal introduces immutable backups for etcd clusters managed by `etcd-druid`. By leveraging cloud provider immutability features, backups taken by `etcd-backup-restore` can neither be modified nor deleted once created for a configured retention period. This approach strengthens the reliability and fault tolerance of the etcd restoration process.
 
 ## Terminology
 
@@ -26,14 +26,14 @@ This proposal introduces immutable backups for etcd clusters managed by `etcd-dr
 - **Immutability Period:** The duration for which data must remain immutable before it can be modified or deleted.
 - **Bucket-Level Immutability:** A policy that applies a uniform immutability period to all objects within a bucket.
 - **Object-Level Immutability:** A policy that allows setting immutability periods individually for objects within a bucket, offering more granular control.
-- **Garbage Collection:** The process of deleting old snapshot data that is no longer needed to free up storage space.
+- **Garbage Collection:** The process of deleting old snapshot data that is no longer needed, in order to free up storage space.
 - **Hibernation:** A state in which an etcd cluster is scaled down to zero replicas, effectively pausing its operations. This is typically done to save costs when the cluster is not needed for an extended period. During hibernation, the cluster's data remains intact, and it can be resumed to its previous state when required.
 
 ## Motivation
 
 `etcd-druid` provisions etcd clusters and manages their lifecycle. For every etcd cluster, consumers can enable periodic backups of the cluster state by configuring the `spec.backup` section in an Etcd custom resource. Periodic backups are taken via the `etcd-backup-restore` sidecar container that runs in each etcd member pod.
 
-Periodic backups of an etcd cluster state ensure the ability to recover from a complete quorum loss, enhancing reliability and fault tolerance. It is crucial that these backups, which are vital for restoring the etcd cluster, remain protected from any form of tampering, whether intentional or accidental. To safeguard the integrity of these backups, the authors recommend utilizing `WORM` protection, a feature offered by various cloud providers, to ensure the backups remain immutable and secure.
+Periodic backups of an etcd cluster state ensure the ability to recover from a data loss or a quorum loss, enhancing reliability and fault tolerance. It is crucial that these backups, which are vital for restoring the etcd cluster, remain protected from any form of tampering, whether intentional or accidental. To safeguard the integrity of these backups, the authors recommend utilizing `WORM` protection, a feature offered by various cloud providers, to ensure the backups remain immutable and secure.
 
 ### Goals
 
@@ -74,12 +74,12 @@ This proposal aims to improve backup storage integrity and security by using imm
 | Precedence between bucket-level and object-level immutability periods     | Max(bucket, object)     | Object-level | Max(bucket, object)                 |
 
 > [!NOTE]
-> In AWS S3, it is possible to decrease the bucket-level immutability period; however, this action may be blocked by specific bucket policy settings.  
+> In AWS S3, it is possible to increase and decrease the bucket-level immutability period; however, this action can be blocked by configuring specific bucket policy settings.  
 > For GCS, object-level immutability is not yet supported for existing buckets; see [this issue](https://issuetracker.google.com/issues/346679415?pli=1).
 
 ### Recommended Approach
 
-Given the nuances across providers:
+At the time of writing this proposal, these are the current limitations seen across providers:
 
 - **S3 and ABS:** typically require bucket-level immutability as a prerequisite for object-level immutability.
 - **GCS** does not currently support object-level immutability in existing buckets.
@@ -136,7 +136,7 @@ To mitigate the risk of backups becoming mutable during extended hibernation und
    - A new operator task type, `ExtendFullSnapshotImmutabilityTask`, will periodically invoke the `reupload-snapshot` and `garbage-collect` commands.
 
 3. **Enhance `etcd-backup-restore`**  
-   - Introduce new CLI commands:
+   - Introduce new CLI sub-commands:
      - **`reupload-snapshot`** for re-uploading snapshots.  
      - **`garbage-collect`** for removing older backups whose immutability period has expired.
 
