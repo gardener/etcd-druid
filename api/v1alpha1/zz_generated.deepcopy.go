@@ -576,16 +576,6 @@ func (in *EtcdStatus) DeepCopyInto(out *EtcdStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.ServiceName != nil {
-		in, out := &in.ServiceName, &out.ServiceName
-		*out = new(string)
-		**out = **in
-	}
-	if in.LastError != nil {
-		in, out := &in.LastError, &out.LastError
-		*out = new(string)
-		**out = **in
-	}
 	if in.LastErrors != nil {
 		in, out := &in.LastErrors, &out.LastErrors
 		*out = make([]LastError, len(*in))
@@ -597,11 +587,6 @@ func (in *EtcdStatus) DeepCopyInto(out *EtcdStatus) {
 		in, out := &in.LastOperation, &out.LastOperation
 		*out = new(LastOperation)
 		(*in).DeepCopyInto(*out)
-	}
-	if in.ClusterSize != nil {
-		in, out := &in.ClusterSize, &out.ClusterSize
-		*out = new(int32)
-		**out = **in
 	}
 	if in.Ready != nil {
 		in, out := &in.Ready, &out.Ready

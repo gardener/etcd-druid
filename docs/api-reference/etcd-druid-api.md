@@ -417,16 +417,12 @@ _Appears in:_
 | `observedGeneration` _integer_ | ObservedGeneration is the most recent generation observed for this resource. |  |  |
 | `etcd` _[CrossVersionObjectReference](#crossversionobjectreference)_ |  |  |  |
 | `conditions` _[Condition](#condition) array_ | Conditions represents the latest available observations of an etcd's current state. |  |  |
-| `serviceName` _string_ | ServiceName is the name of the etcd service.<br />Deprecated: this field will be removed in the future. |  |  |
-| `lastError` _string_ | LastError represents the last occurred error.<br />Deprecated: Use LastErrors instead. |  |  |
 | `lastErrors` _[LastError](#lasterror) array_ | LastErrors captures errors that occurred during the last operation. |  |  |
 | `lastOperation` _[LastOperation](#lastoperation)_ | LastOperation indicates the last operation performed on this resource. |  |  |
-| `clusterSize` _integer_ | Cluster size is the current size of the etcd cluster.<br />Deprecated: this field will not be populated with any value and will be removed in the future. |  |  |
 | `currentReplicas` _integer_ | CurrentReplicas is the current replica count for the etcd cluster. |  |  |
 | `replicas` _integer_ | Replicas is the replica count of the etcd cluster. |  |  |
 | `readyReplicas` _integer_ | ReadyReplicas is the count of replicas being ready in the etcd cluster. |  |  |
 | `ready` _boolean_ | Ready is `true` if all etcd replicas are ready. |  |  |
-| `updatedReplicas` _integer_ | UpdatedReplicas is the count of updated replicas in the etcd cluster.<br />Deprecated: this field will be removed in the future. |  |  |
 | `labelSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#labelselector-v1-meta)_ | LabelSelector is a label query over pods that should match the replica count.<br />It must match the pod template's labels.<br />Deprecated: this field will be removed in the future. |  |  |
 | `members` _[EtcdMemberStatus](#etcdmemberstatus) array_ | Members represents the members of the etcd cluster |  |  |
 | `peerUrlTLSEnabled` _boolean_ | PeerUrlTLSEnabled captures the state of peer url TLS being enabled for the etcd member(s) |  |  |
