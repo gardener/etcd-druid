@@ -15,7 +15,7 @@ reviewers:
 
 ## Summary
 
-This proposal introduces immutable backups for etcd clusters managed by `etcd-druid`. By leveraging cloud provider immutability features, backups taken by `etcd-backup-restore` can neither be modified nor deleted once created for a configured retention period. This approach strengthens the reliability and fault tolerance of the etcd restoration process.
+This proposal introduces immutable backups for etcd clusters managed by `etcd-druid`. By leveraging cloud provider immutability features, backups taken by `etcd-backup-restore` can neither be modified nor deleted once created for a configurable retention duration (immutability period). This approach strengthens the reliability and fault tolerance of the etcd restoration process.
 
 ## Terminology
 
@@ -26,7 +26,7 @@ This proposal introduces immutable backups for etcd clusters managed by `etcd-dr
 - **Immutability Period:** The duration for which data must remain immutable before it can be modified or deleted.
 - **Bucket-Level Immutability:** A policy that applies a uniform immutability period to all objects within a bucket.
 - **Object-Level Immutability:** A policy that allows setting immutability periods individually for objects within a bucket, offering more granular control.
-- **Garbage Collection:** The process of deleting old snapshot data that is no longer needed, in order to free up storage space.
+- **Garbage Collection:** The process of deleting old snapshot data that is no longer needed, in order to free up storage space. For more information, see the [garbage collection documentation](https://github.com/gardener/etcd-backup-restore/blob/master/docs/usage/garbage_collection.md).
 - **Hibernation:** A state in which an etcd cluster is scaled down to zero replicas, effectively pausing its operations. This is typically done to save costs when the cluster is not needed for an extended period. During hibernation, the cluster's data remains intact, and it can be resumed to its previous state when required.
 
 ## Motivation
@@ -53,6 +53,8 @@ This proposal aims to improve backup storage integrity and security by using imm
 - **Google Cloud Storage (GCS):** [Bucket Lock](https://cloud.google.com/storage/docs/bucket-lock)
 - **Amazon S3 (S3):** [Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html)
 - **Azure Blob Storage (ABS):** [Immutable Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/immutable-policy-configure-container-scope?tabs=azure-portal)
+> [!NOTE]
+> Currently, Openstack object storage (swift) doesn't support immutability for objects: https://blueprints.launchpad.net/swift/+spec/immutability-middleware.
 
 
 #### Types of Immutability
@@ -89,32 +91,39 @@ Consequently, the authors recommend **bucket-level immutability**. This approach
 
 ### Configuring Immutable Backups
 
-Currently, `etcd-druid` does not directly configure immutable buckets. The specific method of enabling immutability depends on your use case:
+Creating and configuring immutable buckets on providers is not handled by `etcd-druid` and must be done by the consumers. For a large-scale consumer like Gardener, provider extensions are leveraged to automate both the creation and configuration of buckets. For more details, see BackupBucket and refer to [this issue](https://github.com/gardener/gardener/issues/10866).
 
-- **Large-Scale Consumers (e.g., Gardener):**  
-  Typically, these consumers automate the configuration of immutability for both existing and new buckets, as detailed [here](https://github.com/gardener/gardener/issues/10866).
-
-- **Standalone Consumers of `etcd-druid`:**  
-  These users must manually configure immutability settings using their cloud provider's CLI, SDK, or web console.
 
 #### Prerequisites
 
 1. **Configure or Update the Immutable Bucket**  
    - Use your cloud provider’s CLI, SDK, or console to create (or update) a bucket/container with a WORM (write-once-read-many) immutability policy.  
-   - Refer to the [Getting Started guide](https://github.com/gardener/etcd-backup-restore/blob/master/docs/usage/enabling_immutable_snapshots.md#configure-bucket-level-immutability) for step-by-step instructions on configuring or updating the immutable bucket across different cloud providers.
-   - For AWS S3, for example, you enable Object Lock at bucket creation; for Azure Blob Storage, you configure Immutable Blob Storage at the container scope.
+   - Refer to the [Configure Bucket-Level Immutability](https://github.com/gardener/etcd-backup-restore/blob/master/docs/usage/enabling_immutable_snapshots.md#configure-bucket-level-immutability) for step-by-step instructions on configuring or updating the immutable bucket across different cloud providers.
 
-2. **Set `Etcd.spec.backup.store` to Reference This Bucket**  
-   - In the `Etcd` custom resource (CR), specify the `store` configuration (e.g., `spec.backup.store`) to point to the bucket name you configured above.
-
-3. **Provide Valid Credentials in a Kubernetes Secret**  
-   - The `store` section of the `Etcd` CR must reference a `Secret` containing valid credentials.  
+2. **Provide Valid Credentials in a Kubernetes Secret**  
+  - The `store` section of the `Etcd` CR must reference a `Secret` containing valid credentials.  
+    ```yaml
+    apiVersion: druid.gardener.cloud/v1alpha1
+    kind: Etcd
+    metadata:
+     name: example-etcd
+    spec:
+     backup:
+      store:
+        prefix: etcd-backups
+        container: my-immutable-backups  # Bucket name
+        provider: aws                    # Supported: aws, gcp, azure
+        secretRef:
+         name: etcd-backup-credentials  # Reference to the Secret
+        immutability:
+         retentionType: bucket          # Enables bucket-level immutability
+    ```
    - Confirm that this secret has the proper permissions to upload and retrieve snapshots from the immutable bucket.  
    - See the [Getting Started guide](https://github.com/gardener/etcd-druid/blob/master/docs/deployment/getting-started-locally/getting-started-locally.md#setting-up-cloud-provider-object-store-secret) for an example.
+> [!NOTE]
+> The `etcd-druid` does not handle the rotation of cloud provider credentials. Credential rotation must be managed by the operator.
 
-4. **(Gardener Only) Credential Rotation**  
-   - **Note**: In Gardener-based setups, credential rotation is automatically handled by `gardener/gardener`. No manual rotation is required.  
-   - In non-Gardener environments, you must manage credential updates and secret rotation yourself.
+
 
 By following these steps, you will have set up an immutable bucket for storing etcd backups, along with the necessary references in your `Etcd` specification and Kubernetes secret.
 
@@ -128,8 +137,9 @@ As mentioned in [gardener/etcd-druid#922](https://github.com/gardener/etcd-druid
 
 To mitigate the risk of backups becoming mutable during extended hibernation under bucket-level immutability, the authors propose the following approach:
 
-1. **Prerequisite: Take a Final Full Snapshot Before Hibernation**  
-   - Before scaling the etcd cluster down to zero replicas, the etcd controller triggers an [on-demand full snapshot](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/05-etcd-operator-tasks.md#trigger-on-demand-fulldelta-snapshot). This ensures that the latest state of the etcd cluster is captured and securely stored before hibernation commences.
+1. **Prerequisite: Cut-off Traffic and Take a Final Full Snapshot Before Hibernation**  
+  - Before scaling the etcd cluster down to zero replicas, the etcd controller removes etcd’s client ports (2379/2380) from the etcd Service to block application traffic.
+  - The etcd controller then triggers an [on-demand full snapshot](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/05-etcd-operator-tasks.md#trigger-on-demand-fulldelta-snapshot). This ensures that the latest state of the etcd cluster is captured and securely stored before hibernation commences.
 2. **Periodically Re-Upload the Snapshot**  
    - Re-uploading the latest full snapshot resets its immutability period in the bucket, thereby keeping the backups protected during hibernation.  
    - By default, the re-upload schedule is determined by `etcd.spec.backup.fullSnapshotSchedule`. At present, this interval cannot be customized exclusively for re-uploads; future enhancements may introduce a dedicated configuration parameter.  
@@ -156,12 +166,12 @@ type StoreSpec struct {
 
 // ImmutabilitySpec defines immutability settings.
 type ImmutabilitySpec struct {
-    // RetentionType indicates the type of immutability approach. For example, "Bucket".
+    // RetentionType indicates the type of immutability approach. For example, "bucket".
     RetentionType string `json:"retentionType,omitempty"`
 }
 ```
 
-If `immutability` is not specified, `etcd-druid` will assume that the bucket is mutable, and no immutability-related logic applies.
+If `immutability` is not specified, `etcd-druid` will assume that the bucket is mutable, and no immutability-related logic applies. We have defined a new type to allow us future enhancements to the immutability specification.
 
 ##### `etcd-backup-restore` Enhancements
 
@@ -182,7 +192,7 @@ When a hibernation flow is initiated (by external tooling or higher-level operat
 1. Remove etcd’s client ports (2379/2380) from the etcd Service to block application traffic.
 2. Trigger an [on-demand full snapshot](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/05-etcd-operator-tasks.md#trigger-on-demand-fulldelta-snapshot) via an `EtcdOperatorTask`.
 3. Scale down the `StatefulSet` replicas to zero, provided the previous snapshot step is successful.
-4. Create the `ExtendFullSnapshotImmutabilityTask` if `etcd.spec.backup.store.immutability.retentionType` is `"Bucket"` and based on `etcd.spec.backup.fullSnapshotSchedule`.
+4. Create the `ExtendFullSnapshotImmutabilityTask` if `etcd.spec.backup.store.immutability.retentionType` is `"bucket"` and based on `etcd.spec.backup.fullSnapshotSchedule`.
 
 ##### Operator Task Enhancements
 
@@ -192,6 +202,20 @@ The `ExtendFullSnapshotImmutabilityTask` will create a cron job that:
 - Runs `etcdbrctl garbage-collect --garbage-collection-policy <policy>` to remove old snapshots.
 
 By periodically re-uploading the latest snapshot during hibernation, the authors ensure that the immutability period is extended, and the backups remain **protected throughout the hibernation period**.
+
+###### Lifecycle of `ExtendFullSnapshotImmutabilityTask`
+
+The `ExtendFullSnapshotImmutabilityTask` is **active during hibernation** and is automatically managed by the `etcd-controller`. Its lifecycle is tightly coupled with the cluster’s hibernation state:
+
+1. **Task Creation**  
+   - When the etcd cluster enters hibernation (e.g., via an external signal or scaling down to zero replicas), the etcd controller:  
+     - Triggers a final full snapshot.  
+     - Creates the `ExtendFullSnapshotImmutabilityTask` to periodically re-upload snapshots and manage garbage collection.  
+
+2. **Task Deletion**  
+   - When the cluster resumes from hibernation (e.g., scaling up to non-zero replicas), the controller:  
+     - Immediately deletes the `ExtendFullSnapshotImmutabilityTask` to halt re-uploads.  
+     - Resumes regular backup schedules defined in `spec.backup.fullSnapshotSchedule`.  
 
 ###### Example Task Config
 
@@ -226,6 +250,17 @@ spec:
       deltaSnapshotRetentionPeriod: "72h"
 ```
 
+##### Disabling Immutability
+
+If you remove the immutability configuration from `etcd.spec.backup.store`, hibernation-based immutability support no longer applies. However, once the bucket itself is locked at the provider level, **it cannot be reverted to a mutable state**. Any objects uploaded by `etcd-backup-restore` are still subject to the existing WORM policy.
+
+If you genuinely require a mutable backup again, the recommended approach is:
+1. **Use a new bucket.** In your `Etcd` custom resource, reference a different bucket that does **not** have immutability enabled.  
+2. **Reconcile the `Etcd` CR.** After pointing `etcd.spec.backup.store` to the new bucket, `etcd-druid` will start storing backups there.
+
+> **Note:** Existing snapshots in the old immutable bucket remain locked according to the configured immutability period.
+
+
 ## Compatibility
 
 These changes are compatible with existing etcd clusters and current backup processes.
@@ -233,7 +268,7 @@ These changes are compatible with existing etcd clusters and current backup proc
 - **Backward Compatibility:**
   - Clusters without immutable buckets continue to function without any changes.
 - **Forward Compatibility:**
-  - Clusters can opt in to use immutable backups by configuring the bucket accordingly (as described in [Configuring Immutable Backups](#configuring-immutable-backups)) and setting `etcd.spec.backup.store.immutability.retentionType == "Bucket"`.
+  - Clusters can opt in to use immutable backups by configuring the bucket accordingly (as described in [Configuring Immutable Backups](#configuring-immutable-backups)) and setting `etcd.spec.backup.store.immutability.retentionType == "bucket"`.
   - The enhanced hibernation logic in the etcd controller is additive, meaning it does not interfere with existing workflows.
 
 ### Impact for Operators
@@ -246,6 +281,9 @@ In scenarios where you want to exclude certain snapshots from an etcd restore, y
 - **Value:** `true`  
 
 Because these tags or annotations do not modify the underlying snapshot data, they are permissible even for immutable objects. Once these annotations are in place, `etcd-backup-restore` will detect them and skip the tagged snapshots during restoration, thus preventing unwanted snapshots from being used. For more details, see the [Ignoring Snapshots during Restoration](https://github.com/gardener/etcd-backup-restore/blob/master/docs/usage/enabling_immutable_snapshots.md#ignoring-snapshots-during-restoration).
+
+> [!NOTE]
+> At the time of writing this proposal, this feature is not supported for AWS S3 buckets.
 
 ## References
 
