@@ -24,15 +24,15 @@ func (a *allMembersUpdated) Check(ctx context.Context, etcd druidv1alpha1.Etcd) 
 	}
 
 	sts, err := utils.GetStatefulSet(ctx, a.cl, &etcd)
-	if sts == nil && err == nil {
-		res.status = druidv1alpha1.ConditionUnknown
-		res.reason = "StatefulSetNotFound"
-		res.message = fmt.Sprintf("StatefulSet %s not found for etcd", etcd.Name)
-		return res
-	} else if err != nil {
+	if err != nil {
 		res.status = druidv1alpha1.ConditionUnknown
 		res.reason = "UnableToFetchStatefulSet"
 		res.message = fmt.Sprintf("Unable to fetch StatefulSet for etcd: %s", err.Error())
+		return res
+	} else if sts == nil {
+		res.status = druidv1alpha1.ConditionUnknown
+		res.reason = "StatefulSetNotFound"
+		res.message = fmt.Sprintf("StatefulSet %s not found for etcd", etcd.Name)
 		return res
 	}
 
