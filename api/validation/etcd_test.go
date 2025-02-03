@@ -6,15 +6,17 @@ package validation
 
 import (
 	"fmt"
+	"testing"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	. "github.com/onsi/gomega"
-	. "github.com/onsi/gomega/gstruct"
+
 	gomegatypes "github.com/onsi/gomega/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
+	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 )
 
 const (
