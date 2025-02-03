@@ -93,7 +93,7 @@ func (r *Reconciler) hasReconcileAnnotation() predicate.Predicate {
 func (r *Reconciler) autoReconcileEnabled() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(_ event.UpdateEvent) bool {
-			return r.config.EnableEtcdSpecAutoReconcile || r.config.IgnoreOperationAnnotation
+			return r.config.EnableEtcdSpecAutoReconcile
 		},
 		CreateFunc: func(_ event.CreateEvent) bool {
 			return true

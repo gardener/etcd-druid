@@ -53,13 +53,12 @@ There are two ways to control reconciliation of any changes done to `Etcd` custo
 
 #### Auto reconciliation
 
-If `etcd-druid` has been deployed with auto-reconciliation then any change done to an `Etcd` resource will be automatically reconciled. 
-Prior to v0.23.0 you can do this by using `--ignore-operation-annotation` CLI flag. This flag has been marked as deprecated and will be removed in later versions of `etcd-druid`. With etcd-druid version v0.23.x it is recommended that you use `--enable-etcd-spec-auto-reconcile` CLI flag to enable auto-reconcile.
+If `etcd-druid` has been deployed with auto-reconciliation then any change done to an `Etcd` resource will be automatically reconciled. You use `--enable-etcd-spec-auto-reconcile` CLI flag to enable auto-reconciliation of the etcd spec.
 
 > For a complete list of CLI args you can see [this](../deployment/configure-etcd-druid.md) document.
 
 #### Explicit reconciliation
-If `--enable-etcd-spec-auto-reconcile` or `--ignore-operation-annotation` is set to false or not set at all, then any change to an `Etcd` resource will not be automatically reconciled. To trigger a reconcile you must set the following annotation on the `Etcd` resource:
+If `--enable-etcd-spec-auto-reconcile` is set to false or not set at all, then any change to an `Etcd` resource will not be automatically reconciled. To trigger a reconcile you must set the following annotation on the `Etcd` resource:
 
 ```bash
 kubectl annotate etcd <etcd-name> gardener.cloud/operation=reconcile -n <namespace>

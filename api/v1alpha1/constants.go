@@ -20,9 +20,6 @@ const (
 
 // Annotation keys that can be placed on an Etcd custom resource.
 const (
-	// IgnoreReconciliationAnnotation is an annotation set by an operator in order to stop reconciliation.
-	// Deprecated: Please use SuspendEtcdSpecReconcileAnnotation instead
-	IgnoreReconciliationAnnotation = "druid.gardener.cloud/ignore-reconciliation"
 	// SuspendEtcdSpecReconcileAnnotation is an annotation set by an operator to temporarily suspend any etcd spec reconciliation.
 	SuspendEtcdSpecReconcileAnnotation = "druid.gardener.cloud/suspend-etcd-spec-reconcile"
 	// DisableEtcdComponentProtectionAnnotation is an annotation set by an operator to disable protection of components created for

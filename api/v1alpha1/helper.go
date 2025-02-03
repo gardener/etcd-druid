@@ -108,9 +108,6 @@ func GetSuspendEtcdSpecReconcileAnnotationKey(etcdObjMeta metav1.ObjectMeta) *st
 	if metav1.HasAnnotation(etcdObjMeta, SuspendEtcdSpecReconcileAnnotation) {
 		return ptr.To(SuspendEtcdSpecReconcileAnnotation)
 	}
-	if metav1.HasAnnotation(etcdObjMeta, IgnoreReconciliationAnnotation) {
-		return ptr.To(IgnoreReconciliationAnnotation)
-	}
 	return nil
 }
 

@@ -19,7 +19,6 @@ import (
 // Flag names
 const (
 	workersFlagName                            = "etcd-workers"
-	ignoreOperationAnnotationFlagName          = "ignore-operation-annotation"
 	enableEtcdSpecAutoReconcileFlagName        = "enable-etcd-spec-auto-reconcile"
 	disableEtcdServiceAccountAutomountFlagName = "disable-etcd-serviceaccount-automount"
 	etcdStatusSyncPeriodFlagName               = "etcd-status-sync-period"
@@ -29,7 +28,6 @@ const (
 
 const (
 	defaultWorkers                            = 3
-	defaultIgnoreOperationAnnotation          = false
 	defaultDisableEtcdServiceAccountAutomount = false
 	defaultEnableEtcdSpecAutoReconcile        = false
 	defaultEtcdStatusSyncPeriod               = 15 * time.Second
@@ -44,9 +42,6 @@ var featureList []featuregate.Feature
 type Config struct {
 	// Workers is the number of workers concurrently processing reconciliation requests.
 	Workers int
-	// IgnoreOperationAnnotation specifies whether to ignore or honour the operation annotation on resources to be reconciled.
-	// Deprecated: Use EnableEtcdSpecAutoReconcile instead.
-	IgnoreOperationAnnotation bool
 	// EnableEtcdSpecAutoReconcile controls how the Etcd Spec is reconciled. If set to true, then any change in Etcd spec
 	// will automatically trigger a reconciliation of the Etcd resource. If set to false, then an operator needs to
 	// explicitly set gardener.cloud/operation=reconcile annotation on the Etcd resource to trigger reconciliation
@@ -78,8 +73,6 @@ type MemberConfig struct {
 func (cfg *Config) InitFromFlags(fs *flag.FlagSet) {
 	fs.IntVar(&cfg.Workers, workersFlagName, defaultWorkers,
 		"Number of workers spawned for concurrent reconciles of etcd spec and status changes. If not specified then default of 3 is assumed.")
-	flag.BoolVar(&cfg.IgnoreOperationAnnotation, ignoreOperationAnnotationFlagName, defaultIgnoreOperationAnnotation,
-		fmt.Sprintf("Specifies whether to ignore or honour the annotation `%s: %s` on resources to be reconciled. Deprecated: please use `--%s` instead.", gardenerconstants.GardenerOperation, gardenerconstants.GardenerOperationReconcile, enableEtcdSpecAutoReconcileFlagName))
 	flag.BoolVar(&cfg.EnableEtcdSpecAutoReconcile, enableEtcdSpecAutoReconcileFlagName, defaultEnableEtcdSpecAutoReconcile,
 		fmt.Sprintf("If true then automatically reconciles Etcd Spec. If false, waits for explicit annotation `%s: %s` to be placed on the Etcd resource to trigger reconcile.", gardenerconstants.GardenerOperation, gardenerconstants.GardenerOperationReconcile))
 	fs.BoolVar(&cfg.DisableEtcdServiceAccountAutomount, disableEtcdServiceAccountAutomountFlagName, defaultDisableEtcdServiceAccountAutomount,
