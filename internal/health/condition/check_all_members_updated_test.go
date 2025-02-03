@@ -110,6 +110,8 @@ var _ = Describe("AllMembersUpdatedCheck", func() {
 
 			Context("when sts update revision does not match sts current revision", func() {
 				It("should return that the condition is false", func() {
+					sts.Spec.Replicas = pointer.Int32(2)
+					sts.Status.UpdatedReplicas = 2
 					sts.Status.UpdateRevision = "123456"
 					sts.Status.CurrentRevision = "654321"
 
