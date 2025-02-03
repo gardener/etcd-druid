@@ -33,16 +33,16 @@ _Appears in:_
 | `store` _[StoreSpec](#storespec)_ | Store defines the specification of object store provider for storing backups. |  |  |
 | `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines compute Resources required by backup-restore container.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  |  |
 | `compactionResources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | CompactionResources defines compute Resources required by compaction job.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  |  |
-| `fullSnapshotSchedule` _string_ | FullSnapshotSchedule defines the cron standard schedule for full snapshots. |  |  |
+| `fullSnapshotSchedule` _string_ | FullSnapshotSchedule defines the cron standard schedule for full snapshots. |  | Pattern: `^(\*\|([0-9]\|1[0-9]\|2[0-9]\|3[0-9]\|4[0-9]\|5[0-9])\|\*/([0-9]\|1[0-9]\|2[0-9]\|3[0-9]\|4[0-9]\|5[0-9])) (\*\|([0-9]\|1[0-9]\|2[0-3])\|\*/([0-9]\|1[0-9]\|2[0-4])) (\*\|([1-9]\|1[0-9]\|2[0-9]\|3[0-1])\|\*/([1-9]\|1[0-9]\|2[0-9]\|3[0-1])) (\*\|([1-9]\|1[0-2])\|\*/([1-9]\|1[0-2])) (\*\|([0-6])\|\*/([0-6]))$` <br /> |
 | `garbageCollectionPolicy` _[GarbageCollectionPolicy](#garbagecollectionpolicy)_ | GarbageCollectionPolicy defines the policy for garbage collecting old backups |  | Enum: [Exponential LimitBased] <br /> |
 | `maxBackupsLimitBasedGC` _integer_ | MaxBackupsLimitBasedGC defines the maximum number of Full snapshots to retain in Limit Based GarbageCollectionPolicy<br />All full snapshots beyond this limit will be garbage collected. |  |  |
-| `garbageCollectionPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | GarbageCollectionPeriod defines the period for garbage collecting old backups |  |  |
-| `deltaSnapshotPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | DeltaSnapshotPeriod defines the period after which delta snapshots will be taken |  |  |
+| `garbageCollectionPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | GarbageCollectionPeriod defines the period for garbage collecting old backups |  | Type: string <br /> |
+| `deltaSnapshotPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | DeltaSnapshotPeriod defines the period after which delta snapshots will be taken |  | Type: string <br /> |
 | `deltaSnapshotMemoryLimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | DeltaSnapshotMemoryLimit defines the memory limit after which delta snapshots will be taken |  |  |
-| `deltaSnapshotRetentionPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | DeltaSnapshotRetentionPeriod defines the duration for which delta snapshots will be retained, excluding the latest snapshot set.<br />The value should be a string formatted as a duration (e.g., '1s', '2m', '3h', '4d') |  | Pattern: `^([0-9][0-9]*([.][0-9]+)?(s\|m\|h\|d))+$` <br />Type: string <br /> |
+| `deltaSnapshotRetentionPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | DeltaSnapshotRetentionPeriod defines the duration for which delta snapshots will be retained, excluding the latest snapshot set.<br />The value should be a string formatted as a duration (e.g., '1s', '2m', '3h', '4d') |  | Type: string <br /> |
 | `compression` _[CompressionSpec](#compressionspec)_ | SnapshotCompression defines the specification for compression of Snapshots. |  |  |
 | `enableProfiling` _boolean_ | EnableProfiling defines if profiling should be enabled for the etcd-backup-restore-sidecar |  |  |
-| `etcdSnapshotTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdSnapshotTimeout defines the timeout duration for etcd FullSnapshot operation |  |  |
+| `etcdSnapshotTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdSnapshotTimeout defines the timeout duration for etcd FullSnapshot operation |  | Type: string <br /> |
 | `leaderElection` _[LeaderElectionSpec](#leaderelectionspec)_ | LeaderElection defines parameters related to the LeaderElection configuration. |  |  |
 
 
@@ -248,7 +248,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `quota` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | Quota defines the etcd DB quota. |  |  |
 | `snapshotCount` _integer_ | SnapshotCount defines the number of applied Raft entries to hold in-memory before compaction.<br />More info: https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention |  |  |
-| `defragmentationSchedule` _string_ | DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd. |  |  |
+| `defragmentationSchedule` _string_ | DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd. |  | Pattern: `\/@(annually\|yearly\|monthly\|weekly\|daily\|hourly\|reboot)\|\/@every (\d+(ns\|us\|µs\|ms\|s\|m\|h))+\|(((\d+,)+\d+\|\d+(\/\|-)\d+\|\d+\|\*\|\d+(-\d+)?(,\d+(-\d+)?)*) ?)\{5,7\}` <br /> |
 | `serverPort` _integer_ |  |  |  |
 | `clientPort` _integer_ |  |  |  |
 | `image` _string_ | Image defines the etcd container image and tag |  |  |
@@ -257,8 +257,8 @@ _Appears in:_
 | `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines the compute Resources required by etcd container.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  |  |
 | `clientUrlTls` _[TLSConfig](#tlsconfig)_ | ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster |  |  |
 | `peerUrlTls` _[TLSConfig](#tlsconfig)_ | PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster<br />Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster. |  |  |
-| `etcdDefragTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdDefragTimeout defines the timeout duration for etcd defrag call |  |  |
-| `heartbeatDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s. |  |  |
+| `etcdDefragTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdDefragTimeout defines the timeout duration for etcd defrag call |  | Type: string <br /> |
+| `heartbeatDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s. |  | Type: string <br /> |
 | `clientService` _[ClientService](#clientservice)_ | ClientService defines the parameters of the client service that a user can specify |  |  |
 
 
@@ -389,7 +389,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `selector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#labelselector-v1-meta)_ | selector is a label query over pods that should match the replica count.<br />It must match the pod template's labels.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors |  |  |
+| `selector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#labelselector-v1-meta)_ | selector is a label query over pods that should match the replica count.<br />It must match the pod template's labels.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors<br />Deprecated: this field will be removed in the future. |  |  |
 | `labels` _object (keys:string, values:string)_ |  |  |  |
 | `annotations` _object (keys:string, values:string)_ |  |  |  |
 | `etcd` _[EtcdConfig](#etcdconfig)_ |  |  |  |
@@ -532,8 +532,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `reelectionPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | ReelectionPeriod defines the Period after which leadership status of corresponding etcd is checked. |  |  |
-| `etcdConnectionTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdConnectionTimeout defines the timeout duration for etcd client connection during leader election. |  |  |
+| `reelectionPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | ReelectionPeriod defines the Period after which leadership status of corresponding etcd is checked. |  | Type: string <br /> |
+| `etcdConnectionTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdConnectionTimeout defines the timeout duration for etcd client connection during leader election. |  | Type: string <br /> |
 
 
 #### MetricsLevel

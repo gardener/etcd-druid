@@ -118,11 +118,13 @@ type CompressionSpec struct {
 type LeaderElectionSpec struct {
 	// ReelectionPeriod defines the Period after which leadership status of corresponding etcd is checked.
 	// +optional
-	// +kubebuilder:validationXValidation:message="Invalid duration given for etcd.spec.backup.leaderElection.reelectionPeriod",rule="self.matches('^([0-9][0-9]*([.][0-9]+)?(s|m|h|d))+$')"
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validationXValidation:message="Invalid duration given for etcd.spec.backup.leaderElection.reelectionPeriod",rule="self.matches('^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$')"
 	ReelectionPeriod *metav1.Duration `json:"reelectionPeriod,omitempty"`
 	// EtcdConnectionTimeout defines the timeout duration for etcd client connection during leader election.
 	// +optional
-	// +kubebuilder:validationXValidation:message="Invalid duration given for etcd.spec.backup.leaderElection.etcdCOnnectionTimeout",rule="self.matches('^([0-9][0-9]*([.][0-9]+)?(s|m|h|d))+$')"
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validationXValidation:message="Invalid duration given for etcd.spec.backup.leaderElection.etcdCOnnectionTimeout",rule="self.matches('^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$')"
 	EtcdConnectionTimeout *metav1.Duration `json:"etcdConnectionTimeout,omitempty"`
 }
 
@@ -143,6 +145,7 @@ type BackupSpec struct {
 	// Resources defines compute Resources required by backup-restore container.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional
+	// +kubebuilder:validation:XValidation:message="The requests field in etcd.spec.etcd.resources cannot be empty",rule="has(self.requests)"
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 	// CompactionResources defines compute Resources required by compaction job.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
@@ -150,7 +153,7 @@ type BackupSpec struct {
 	CompactionResources *corev1.ResourceRequirements `json:"compactionResources,omitempty"`
 	// FullSnapshotSchedule defines the cron standard schedule for full snapshots.
 	// +optional
-	// +kubebuilder:validation:Pattern='^(\*|([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])|\*/([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9]))(\*|([0-9]|1[0-9]|2[0-3])|\*/([0-9]|1[0-9]|2[0-4])) (\*|([1-9]|1[0-9]|2[0-9]|3[0-1])|\*/([1-9]|1[0-9]|2[0-9]|3[0-1]))(\*|([1-9]|1[0-2])|\*/([1-9]|1[0-2])) (\*|([0-6])|\*/([0-6]))$'
+	// +kubebuilder:validation:Pattern="^(\\*|([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])|\\*/([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])) (\\*|([0-9]|1[0-9]|2[0-3])|\\*/([0-9]|1[0-9]|2[0-4])) (\\*|([1-9]|1[0-9]|2[0-9]|3[0-1])|\\*/([1-9]|1[0-9]|2[0-9]|3[0-1])) (\\*|([1-9]|1[0-2])|\\*/([1-9]|1[0-2])) (\\*|([0-6])|\\*/([0-6]))$"
 	FullSnapshotSchedule *string `json:"fullSnapshotSchedule,omitempty"`
 	// GarbageCollectionPolicy defines the policy for garbage collecting old backups
 	// +optional
@@ -161,11 +164,13 @@ type BackupSpec struct {
 	MaxBackupsLimitBasedGC *int32 `json:"maxBackupsLimitBasedGC,omitempty"`
 	// GarbageCollectionPeriod defines the period for garbage collecting old backups
 	// +optional
-	// +kubebuilder:validation:XValidation:message="Invalid duration given for etcd.spec.backup.garbageCollectionPeriod",rule="self.matches('^([0-9][0-9]*([.][0-9]+)?(s|m|h|d))+$')"
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:XValidation:message="Invalid duration given for etcd.spec.backup.garbageCollectionPeriod",rule="self.matches('^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$')"
 	GarbageCollectionPeriod *metav1.Duration `json:"garbageCollectionPeriod,omitempty"`
 	// DeltaSnapshotPeriod defines the period after which delta snapshots will be taken
 	// +optional
-	// +kubebuilder:validation:XValidation:message="Invalid duration given for etcd.spec.backup.deltaSnapshotPeriod",rule="self.matches('^([0-9][0-9]*([.][0-9]+)?(s|m|h|d))+$')"
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:XValidation:message="Invalid duration given for etcd.spec.backup.deltaSnapshotPeriod",rule="self.matches('^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$')"
 	DeltaSnapshotPeriod *metav1.Duration `json:"deltaSnapshotPeriod,omitempty"`
 	// DeltaSnapshotMemoryLimit defines the memory limit after which delta snapshots will be taken
 	// +optional
@@ -173,7 +178,7 @@ type BackupSpec struct {
 	// DeltaSnapshotRetentionPeriod defines the duration for which delta snapshots will be retained, excluding the latest snapshot set.
 	// The value should be a string formatted as a duration (e.g., '1s', '2m', '3h', '4d')
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validationXValidation:message="Invalid duration given for etcd.spec.backup.deltaSnapshotRetentionPeriod",rule="self.matches('^([0-9][0-9]*([.][0-9]+)?(s|m|h|d))+$')"
+	// +kubebuilder:validationXValidation:message="Invalid duration given for etcd.spec.backup.deltaSnapshotRetentionPeriod",rule="self.matches('^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$')"
 	// +optional
 	DeltaSnapshotRetentionPeriod *metav1.Duration `json:"deltaSnapshotRetentionPeriod,omitempty"`
 
@@ -185,7 +190,8 @@ type BackupSpec struct {
 	EnableProfiling *bool `json:"enableProfiling,omitempty"`
 	// EtcdSnapshotTimeout defines the timeout duration for etcd FullSnapshot operation
 	// +optional
-	// +kubebuilder:validationXValidation:message="Invalid duration given for etcd.spec.backup.etcdSnapshotTimeout",rule="self.matches('^([0-9][0-9]*([.][0-9]+)?(s|m|h|d))+$')"
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validationXValidation:message="Invalid duration given for etcd.spec.backup.etcdSnapshotTimeout",rule="self.matches('^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$')"
 	EtcdSnapshotTimeout *metav1.Duration `json:"etcdSnapshotTimeout,omitempty"`
 	// LeaderElection defines parameters related to the LeaderElection configuration.
 	// +optional
@@ -203,6 +209,7 @@ type EtcdConfig struct {
 	SnapshotCount *int64 `json:"snapshotCount,omitempty"`
 	// DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd.
 	// +optional
+	// +kubebuilder:validation:Pattern="\\/@(annually|yearly|monthly|weekly|daily|hourly|reboot)|\\/@every (\\d+(ns|us|µs|ms|s|m|h))+|(((\\d+,)+\\d+|\\d+(\\/|-)\\d+|\\d+|\\*|\\d+(-\\d+)?(,\\d+(-\\d+)?)*) ?){5,7}"
 	DefragmentationSchedule *string `json:"defragmentationSchedule,omitempty"`
 	// +optional
 	ServerPort *int32 `json:"serverPort,omitempty"`
@@ -230,11 +237,13 @@ type EtcdConfig struct {
 	PeerUrlTLS *TLSConfig `json:"peerUrlTls,omitempty"`
 	// EtcdDefragTimeout defines the timeout duration for etcd defrag call
 	// +optional
-	// +kubebuilder:validation:XValidation:message="Invalid duration given for etcd.spec.etcd.etcdDefragTimeout",rule="self.matches('^([0-9][0-9]*([.][0-9]+)?(s|m|h|d))+$')"
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:XValidation:message="Invalid duration given for etcd.spec.etcd.etcdDefragTimeout",rule="self.matches('^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$')"
 	EtcdDefragTimeout *metav1.Duration `json:"etcdDefragTimeout,omitempty"`
 	// HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s.
 	// +optional
-	// +kubebuilder:validation:XValidation:message="Invalid duration given for etcd.spec.etcd.heartbeatDuration",rule="self.matches('^([0-9][0-9]*([.][0-9]+)?(s|m|h|d))+$')"
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:XValidation:message="Invalid duration given for etcd.spec.etcd.heartbeatDuration",rule="self.matches('^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?$')"
 	HeartbeatDuration *metav1.Duration `json:"heartbeatDuration,omitempty"`
 	// ClientService defines the parameters of the client service that a user can specify
 	// +optional
@@ -281,6 +290,7 @@ type SchedulingConstraints struct {
 }
 
 // EtcdSpec defines the desired state of Etcd
+// +kubebuilder:validation:XValidation:message="If backups are enabled, etcd.spec.storageCapacity must be 3x etcd.spec.etcd.quota. If not, it must be greater than etcd.spec.etcd.quota",rule="has(self.storageCapacity) && has(self.etcd.quota) ? (has(self.backup.store) ? quantity(self.storageCapacity).compareTo(quantity(self.etcd.quota).add(quantity(self.etcd.quota)).add(quantity(self.etcd.quota))) > 0 : quantity(self.storageCapacity).compareTo(quantity(self.etcd.quota)) > 0 ): true"
 type EtcdSpec struct {
 	// selector is a label query over pods that should match the replica count.
 	// It must match the pod template's labels.
@@ -300,6 +310,7 @@ type EtcdSpec struct {
 	// +optional
 	SchedulingConstraints SchedulingConstraints `json:"schedulingConstraints,omitempty"`
 	// +required
+	// +kubebuilder:validation:XValidation:message="Replicas can either be increased or be downscaled to 0.",rule="self==0 ? true : self < oldSelf ? false : true"
 	Replicas int32 `json:"replicas"`
 	// PriorityClassName is the name of a priority class that shall be used for the etcd pods.
 	// +optional
@@ -307,12 +318,15 @@ type EtcdSpec struct {
 	// StorageClass defines the name of the StorageClass required by the claim.
 	// More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1
 	// +optional
+	// +kubebuilder:validation:XValidation:message="etcd.spec.storageClass is an immutable field",rule="self == oldSelf"
 	StorageClass *string `json:"storageClass,omitempty"`
 	// StorageCapacity defines the size of persistent volume.
 	// +optional
+	// +kubebuilder:validation:XValidation:message="etcd.spec.storageCapacity is an immutable field",rule="self == oldSelf"
 	StorageCapacity *resource.Quantity `json:"storageCapacity,omitempty"`
 	// VolumeClaimTemplate defines the volume claim template to be created
 	// +optional
+	// +kubebuilder:validation:XValidation:message="etcd.spec.VolumeClaimTemplate is an immutable field",rule="self == oldSelf"
 	VolumeClaimTemplate *string `json:"volumeClaimTemplate,omitempty"`
 }
 
