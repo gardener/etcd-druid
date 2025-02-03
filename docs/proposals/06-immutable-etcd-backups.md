@@ -41,7 +41,7 @@ Periodic backups of an etcd cluster state ensure the ability to recover from a d
 
 ### Non-Goals
 
-- Implementing hibernation support via `etcd.spec` or annotations on the `Etcd` CR (i.e., specifying an intent for hibernation), as noted in [gardener/etcd-druid#922](https://github.com/gardener/etcd-druid/issues/922).
+- Implementing a mechanism to signal hibernation intent, such as adding functionality via `etcd.spec` or annotations on the `Etcd` CR, to indicate when an etcd cluster should enter or exit hibernation, as discussed in [gardener/etcd-druid#922](https://github.com/gardener/etcd-druid/issues/922).
 - Supporting immutable backups on storage providers that do not offer immutability features (e.g., OpenStack Swift).
 
 ## Proposal
@@ -73,6 +73,8 @@ This proposal aims to improve backup storage integrity and security by using imm
 | Can object-level immutability period be decreased?                        | No                      | No           | No                                  |
 | Support for enabling object-level immutability in existing buckets        | No                      | Yes          | Yes                                 |
 | Support for enabling object-level immutability in new buckets             | Yes                     | Yes          | Yes                                 |
+| Support for enabling bucket-level immutability in existing buckets        | Yes                     | Yes          | Yes                                 |
+| Support for enabling bucket-level immutability in new buckets             | Yes                     | Yes          | Yes                                 |
 | Precedence between bucket-level and object-level immutability periods     | Max(bucket, object)     | Object-level | Max(bucket, object)                 |
 
 > [!NOTE]
@@ -188,7 +190,8 @@ The authors propose adding new commands to the `etcd-backup-restore` CLI (`etcdb
   - Renames the snapshot (for instance, updates its Unix timestamp) to avoid overwriting an existing immutable snapshot.
   - Uploads the renamed snapshot back to object storage, thereby **restarting** its immutability timer.  
   - Introduces the `--gc-from-timestamp=<timestamp>` parameter, allowing users to specify a starting point from which garbage collection should be performed.
-
+>[!NOTE]  
+>As an alternative to the download/upload approach, the authors document the possibility of using provider APIs to perform a server-side object copy. This method could significantly reduce network costs and latency by directly copying the snapshot within the cloud provider's infrastructure. While this option is not implemented in the current version, let's explore its feasibility for adoption in etcd-backup-restore to enable server-side copying in [snapstore](https://github.com/gardener/etcd-backup-restore/blob/master/pkg/types/snapstore.go#L74-L86) during implementation.
 
 ##### etcd Controller Enhancements
 
