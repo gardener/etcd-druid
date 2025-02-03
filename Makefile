@@ -55,10 +55,6 @@ format: $(GOIMPORTS_REVISER)
 check: $(GOLANGCI_LINT) $(GOIMPORTS) format
 	@$(HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./internal/...
 
-.PHONY: check-apidiff
-check-apidiff: $(GO_APIDIFF)
-	@$(HACK_DIR)/check-apidiff.sh
-
 .PHONY: sast
 sast: $(GOSEC)
 	@./hack/sast.sh

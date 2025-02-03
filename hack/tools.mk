@@ -22,7 +22,6 @@ HELM                       := $(TOOLS_BIN_DIR)/helm
 KUBECTL                    := $(TOOLS_BIN_DIR)/kubectl
 VGOPATH                    := $(TOOLS_BIN_DIR)/vgopath
 GO_ADD_LICENSE             := $(TOOLS_BIN_DIR)/addlicense
-GO_APIDIFF                 := $(TOOLS_BIN_DIR)/go-apidiff
 GOIMPORTS_REVISER          := $(TOOLS_BIN_DIR)/goimports-reviser
 YQ						   := $(TOOLS_BIN_DIR)/yq
 CRD_REF_DOCS			   := $(TOOLS_BIN_DIR)/crd-ref-docs
@@ -41,7 +40,6 @@ HELM_VERSION ?= v3.15.2
 KUBECTL_VERSION ?= v1.32.0
 VGOPATH_VERSION ?= v0.1.5
 GO_ADD_LICENSE_VERSION ?= v1.1.1
-GO_APIDIFF_VERSION ?= v0.8.2
 GOIMPORTS_REVISER_VERSION ?= v3.6.5
 YQ_VERSION ?= v4.44.3
 CRD_REF_DOCS_VERSION ?= v0.1.0
@@ -115,9 +113,6 @@ $(VGOPATH):
 
 $(GO_ADD_LICENSE):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/google/addlicense@$(GO_ADD_LICENSE_VERSION)
-
-$(GO_APIDIFF):
-	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/joelanford/go-apidiff@$(GO_APIDIFF_VERSION)
 
 $(KUBECTL):
 	curl -Lo $(KUBECTL) https://dl.k8s.io/release/$(KUBECTL_VERSION)/bin/$(SYSTEM_NAME)/$(SYSTEM_ARCH)/kubectl

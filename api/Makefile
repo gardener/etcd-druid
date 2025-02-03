@@ -17,6 +17,10 @@ check-generate:
 generate-api-docs: $(CRD_REF_DOCS)
 	@crd-ref-docs --source-path "$(REPO_ROOT)/api" --config "$(HACK_DIR)/api-reference/config.yaml" --output-path "$(REPO_ROOT)/docs/api-reference/etcd-druid-api.md" --renderer markdown
 
+.PHONY: check-apidiff
+check-apidiff: $(GO_APIDIFF)
+	@$(HACK_DIR)/check-apidiff.sh
+
 .PHONY: generate generate-api-docs
 generate: $(CONTROLLER_GEN)
 	@$(HACK_DIR)/generate.sh

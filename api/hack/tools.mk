@@ -8,12 +8,14 @@ GOLANGCI_LINT              := $(TOOLS_BIN_DIR)/golangci-lint
 GOIMPORTS                  := $(TOOLS_BIN_DIR)/goimports
 GOIMPORTS_REVISER          := $(TOOLS_BIN_DIR)/goimports-reviser
 CRD_REF_DOCS			   := $(TOOLS_BIN_DIR)/crd-ref-docs
+GO_APIDIFF                 := $(TOOLS_BIN_DIR)/go-apidiff
 
 # default tool versions
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)
 GOLANGCI_LINT_VERSION ?= v1.60.3
 GOIMPORTS_REVISER_VERSION ?= v3.6.5
 CRD_REF_DOCS_VERSION ?= v0.1.0
+GO_APIDIFF_VERSION ?= v0.8.2
 
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
@@ -37,3 +39,7 @@ $(GOIMPORTS_REVISER):
 
 $(CRD_REF_DOCS):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/elastic/crd-ref-docs@$(CRD_REF_DOCS_VERSION)
+
+$(GO_APIDIFF):
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/joelanford/go-apidiff@$(GO_APIDIFF_VERSION)
+
