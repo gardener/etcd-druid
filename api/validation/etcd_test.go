@@ -90,6 +90,7 @@ func TestValidateEtcd(t *testing.T) {
 	g := NewWithT(t)
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
 			etcd := &druidv1alpha1.Etcd{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      tc.etcdName,

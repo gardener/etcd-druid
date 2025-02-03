@@ -82,6 +82,7 @@ func TestValidateEtcdCopyBackupsTask(t *testing.T) {
 	g := NewWithT(t)
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
 			task := &druidv1alpha1.EtcdCopyBackupsTask{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      tc.name,
