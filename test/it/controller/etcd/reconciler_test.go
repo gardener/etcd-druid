@@ -394,11 +394,12 @@ func TestEtcdStatusReconciliation(t *testing.T) {
 		name string
 		fn   func(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv)
 	}{
-		{"check assertions when all member leases are active", testConditionsAndMembersWhenAllMemberLeasesAreActive},
-		{"assert that data volume condition reflects pvc error event", testEtcdStatusReflectsPVCErrorEvent},
-		{"test when all sts replicas are ready", testEtcdStatusIsInSyncWithStatefulSetStatusWhenAllReplicasAreReady},
-		{"test when not all sts replicas are ready", testEtcdStatusIsInSyncWithStatefulSetStatusWhenNotAllReplicasAreReady},
-		{"test when sts current revision is older than update revision", testEtcdStatusIsInSyncWithStatefulSetStatusWhenCurrentRevisionIsOlderThanUpdateRevision},
+		{"test status when all member leases are active", testConditionsAndMembersWhenAllMemberLeasesAreActive},
+		{"test all-members-updated condition when all sts replicas are updated", testConditionsWhenStatefulSetReplicasHaveBeenUpdated},
+		{"test data volume condition reflects pvc error event", testEtcdStatusReflectsPVCErrorEvent},
+		{"test status when all sts replicas are ready", testEtcdStatusIsInSyncWithStatefulSetStatusWhenAllReplicasAreReady},
+		{"test status when not all sts replicas are ready", testEtcdStatusIsInSyncWithStatefulSetStatusWhenNotAllReplicasAreReady},
+		{"test status when sts current revision is older than update revision", testEtcdStatusIsInSyncWithStatefulSetStatusWhenCurrentRevisionIsOlderThanUpdateRevision},
 		/*
 			Additional tests to check the conditions and member status should be added when we solve https://github.com/gardener/etcd-druid/issues/645
 			Currently only one happy-state test has been added as a template for other tests to follow once the conditions are refactored.
@@ -453,6 +454,25 @@ func testConditionsAndMembersWhenAllMemberLeasesAreActive(t *testing.T, etcd *dr
 		{Name: mlcs[2].name, ID: ptr.To(mlcs[2].memberID), Role: &mlcs[2].role, Status: druidv1alpha1.EtcdMemberStatusReady},
 	}
 	assertETCDMemberStatuses(t, cl, client.ObjectKeyFromObject(etcd), expectedMemberStatuses, 2*time.Minute, 2*time.Second)
+}
+
+func testConditionsWhenStatefulSetReplicasHaveBeenUpdated(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv) {
+	g := NewWithT(t)
+	cl := reconcilerTestEnv.itTestEnv.GetClient()
+	ctx := context.Background()
+	sts := &appsv1.StatefulSet{}
+	g.Expect(cl.Get(ctx, client.ObjectKey{Name: etcd.Name, Namespace: etcd.Namespace}, sts)).To(Succeed())
+	stsCopy := sts.DeepCopy()
+	stsCopy.Status.ObservedGeneration = stsCopy.Generation
+	stsCopy.Status.CurrentRevision = fmt.Sprintf("%s-%s", stsCopy.Name, testutils.GenerateRandomAlphanumericString(g, 2))
+	stsCopy.Status.UpdateRevision = stsCopy.Status.CurrentRevision
+	stsCopy.Status.UpdatedReplicas = *stsCopy.Spec.Replicas
+	g.Expect(cl.Status().Update(ctx, stsCopy)).To(Succeed())
+	// ******************************* test etcd status update flow *******************************
+	expectedConditions := []druidv1alpha1.Condition{
+		{Type: druidv1alpha1.ConditionTypeAllMembersUpdated, Status: druidv1alpha1.ConditionTrue},
+	}
+	assertETCDStatusConditions(t, cl, client.ObjectKeyFromObject(etcd), expectedConditions, 5*time.Minute, 2*time.Second)
 }
 
 func testEtcdStatusReflectsPVCErrorEvent(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv) {

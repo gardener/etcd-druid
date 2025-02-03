@@ -23,8 +23,12 @@ const (
 	ConditionUnknown ConditionStatus = "Unknown"
 	// ConditionProgressing means the condition was seen true, failed but stayed within a predefined failure threshold.
 	// In the future, we could add other intermediate conditions, e.g. ConditionDegraded.
+	// Deprecated: Will be removed in the future since druid conditions will be replaced by metav1.Condition
+	// which has only three status options: True, False, Unknown.
 	ConditionProgressing ConditionStatus = "Progressing"
 	// ConditionCheckError is a constant for a reason in condition.
+	// Deprecated: Will be removed in the future since druid conditions will be replaced by metav1.Condition
+	// which has only three status options: True, False, Unknown.
 	ConditionCheckError ConditionStatus = "ConditionCheckError"
 )
 

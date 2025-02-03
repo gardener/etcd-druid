@@ -34,8 +34,9 @@ var (
 	NewDefaultEtcdMemberBuilder = etcdmember.NewBuilder
 	// ConditionChecks Checks are the registered condition checks.
 	ConditionChecks = []ConditionCheckFn{
-		condition.AllMembersReadyCheck,
 		condition.ReadyCheck,
+		condition.AllMembersReadyCheck,
+		condition.AllMembersUpdatedCheck,
 		condition.BackupReadyCheck,
 		condition.DataVolumesReadyCheck,
 	}

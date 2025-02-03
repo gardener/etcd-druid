@@ -116,7 +116,7 @@ func (h *Handler) handleUpdate(req admission.Request, etcd *druidv1alpha1.Etcd, 
 		}
 	}
 
-	return admission.Denied(fmt.Sprintf("changes from service account %s are disallowed at the moment", req.UserInfo.Username))
+	return admission.Denied(fmt.Sprintf("changes from service account %s are disallowed at the moment. Please consider disabling component protection by setting annotation `%s` on the parent Etcd resource", req.UserInfo.Username, druidv1alpha1.DisableEtcdComponentProtectionAnnotation))
 }
 
 func (h *Handler) handleDelete(req admission.Request, etcd *druidv1alpha1.Etcd) admission.Response {
