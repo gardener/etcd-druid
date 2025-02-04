@@ -15,22 +15,12 @@ import (
 
 // GetEtcdCrdPath returns the path to the Etcd CRD.
 func GetEtcdCrdPath() string {
-	return filepath.Join("..", "..", "..", "..", "config", "crd", "bases", "crd-druid.gardener.cloud_etcds.yaml")
+	return filepath.Join("..", "..", "..", "..", "api", "core", "crds", "druid.gardener.cloud_etcds.yaml")
 }
 
 // GetEtcdCopyBackupsTaskCrdPath returns the path to the EtcdCopyBackupsTask CRD.
 func GetEtcdCopyBackupsTaskCrdPath() string {
-	return filepath.Join("..", "..", "..", "..", "config", "crd", "bases", "crd-druid.gardener.cloud_etcdcopybackupstasks.yaml")
-}
-
-// GetEtcdCopyBackupsBaseChartPath returns the path to the etcd-copy-backups chart.
-func GetEtcdCopyBackupsBaseChartPath() string {
-	return filepath.Join("..", "..", "..", "..", "charts", "etcd-copy-backups")
-}
-
-// GetEtcdChartPath returns the path to the etcd chart.
-func GetEtcdChartPath() string {
-	return filepath.Join("..", "..", "..", "..", "charts", "etcd")
+	return filepath.Join("..", "..", "..", "..", "api", "core", "crds", "druid.gardener.cloud_etcdcopybackupstasks.yaml")
 }
 
 // CreateImageVector creates an image vector.
