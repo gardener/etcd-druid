@@ -150,13 +150,13 @@ To mitigate the risk of backups becoming mutable during extended hibernation und
 By capturing a final full snapshot before hibernation, periodically re-uploading it to preserve immutability, and removing stale backups, etcd backups remain safeguarded against accidental or malicious alterations until the cluster is resumed.
 
 > [!IMPORTANT]
-> **Limitation:** A possible edge case exists where a snapshot may be corrupted **before hibernation** or during the **re-upload process by `ExtendFullSnapshotImmutabilityTask`**. If this occurs, the process may repeatedly re-upload the same corrupted snapshot, failing to provide a reliable backup.  
+> **Limitation:** There is a potential edge case where a snapshot might become corrupted **before hibernation** or during the **re-upload process by `ExtendFullSnapshotImmutabilityTask`**. If this happens, the process could repeatedly re-upload the same corrupted snapshot, failing to ensure a reliable backup.
 
-A potential alternative solution is to perform [compaction](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md), which would:  
+An alternative solution could be to perform [compaction](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md), which involves:
 
-1. Start an embedded etcd instance.  
-2. Perform a compaction operation.  
-3. Take a fresh snapshot and re-upload it.  
+1. Starting an embedded etcd instance from the latest full snapshot in the snapstore.
+2. Performing an etcd compaction operation to remove old revisions and free up space.
+3. Taking a fresh snapshot of the compacted data and re-uploading it to the snapstore.
 
 While this approach ensures that only valid snapshots are re-uploaded, it is **resource-intensive**, requiring an operational etcd instance even in hibernation. Given the high cost in terms of compute and memory, the authors **recommend** the snapshot re-upload approach as a more practical solution.
 
@@ -228,7 +228,7 @@ The `ExtendFullSnapshotImmutabilityTask` is **active during hibernation** and is
 
 ```go
 type ExtendFullSnapshotImmutabilityTaskConfig struct {
-  // Schedule defines a cron schedule (e.g., "0 */6 * * *").
+  // Schedule defines a cron schedule (e.g., "0 0 * * *").
   Schedule *string `json:"schedule,omitempty"`
 }
 ```
@@ -247,7 +247,8 @@ If you remove the immutability configuration from `etcd.spec.backup.store`, hibe
 
 If you genuinely require a mutable backup again, the recommended approach is:
 1. **Use a new bucket.** In your `Etcd` custom resource, reference a different bucket that does **not** have immutability enabled.  
-2. **Reconcile the `Etcd` CR.** After pointing `etcd.spec.backup.store` to the new bucket, `etcd-druid` will start storing backups there.
+2. **Use `EtcdCopyBackupTask`.** If you want to start the cluster with a new bucket but retain old data, use the `EtcdCopyBackupTask` to copy existing backups from the old immutable bucket to the new mutable bucket.
+3. **Reconcile the `Etcd` CR.** After pointing `etcd.spec.backup.store` to the new bucket, `etcd-druid` will start storing backups there.
 
 > **Note:** Existing snapshots in the old immutable bucket remain locked according to the configured immutability period.
 
