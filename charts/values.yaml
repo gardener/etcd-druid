@@ -48,8 +48,12 @@ controllers:
     workers: 10
 
 webhooks:
-  etcdcomponents:
-    enabled: false
+  etcdComponents:
+    enabled: true
     # reconciler-service-account: system:serviceaccount:{{ .Release.Namespace }}:etcd-druid
     exemptServiceAccounts:
       - system:serviceaccount:kube-system:generic-garbage-collector
+    pki:
+      caPath: pki-resources/ca.crt
+      serverCertPath: pki-resources/server.crt
+      serverKeyPath: pki-resources/server.key

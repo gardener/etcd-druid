@@ -1,0 +1,5 @@
+apiVersion: v2
+name: etcd-druid
+description: Helm chart for etcd-druid.
+type: application
+version: 0.1.0

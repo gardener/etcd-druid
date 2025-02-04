@@ -44,7 +44,7 @@ Prior to deploying `etcd-druid`, it can be configured via CLI-args and environme
 
 ### Deploying etcd-druid
 
-Any variant of `make deploy-*` command uses [helm](https://helm.sh/) and [skaffold](https://skaffold.dev/) to build and deploy `etcd-druid` to the target Kubernetes cluster. In addition to deploying `etcd-druid` it will also install the [Etcd CRD](https://github.com/gardener/etcd-druid/blob/master/config/crd/bases/crd-druid.gardener.cloud_etcds.yaml) and [EtcdCopyBackupTask CRD](https://github.com/gardener/etcd-druid/blob/master/config/crd/bases/crd-druid.gardener.cloud_etcdcopybackupstasks.yaml).
+Any variant of `make deploy-*` command uses [helm](https://helm.sh/) and [skaffold](https://skaffold.dev/) to build and deploy `etcd-druid` to the target Kubernetes cluster. In addition to deploying `etcd-druid` it will also install the [Etcd CRD](https://github.com/gardener/etcd-druid/blob/master/api/core/crds/druid.gardener.cloud_etcds.yaml) and [EtcdCopyBackupTask CRD](https://github.com/gardener/etcd-druid/blob/master/api/core/crds/druid.gardener.cloud_etcdcopybackupstasks.yaml).
 
 #### Regular mode
 

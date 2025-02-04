@@ -82,16 +82,17 @@ spec:
         - --secret-workers={{ .Values.controllers.secret.workers }}
         {{- end }}
 
-        {{- if ((.Values.webhooks).etcdcomponents).enabled }}
+        {{- if .Values.webhooks.etcdComponents.enabled }}
         - --enable-etcd-components-webhook=true
         - --reconciler-service-account=system:serviceaccount:{{ .Release.Namespace }}:etcd-druid
-        {{- if .Values.webhooks.etcdcomponents.exemptServiceAccounts }}
-        - --etcd-components-webhook-exempt-service-accounts={{ join "," .Values.webhooks.etcdcomponents.exemptServiceAccounts }}
+        {{- if .Values.webhooks.etcdComponents.exemptServiceAccounts }}
+        - --etcd-components-webhook-exempt-service-accounts={{ join "," .Values.webhooks.etcdComponents.exemptServiceAccounts }}
         {{- end }}
         {{- end }}
 
         resources:
 {{ toYaml .Values.resources | indent 10 }}
+{{- if .Values.webhooks.etcdComponents.enabled }}
         volumeMounts:
           - mountPath: /etc/webhook-server-tls
             name: tls
@@ -101,3 +102,4 @@ spec:
           secret:
             defaultMode: 420
             secretName: etcd-druid-server-tls
+{{- end }}

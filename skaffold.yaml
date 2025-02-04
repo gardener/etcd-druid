@@ -24,7 +24,7 @@ deploy:
   helm:
     releases:
       - name: etcd-druid
-        chartPath: charts/druid
+        chartPath: charts
         setValueTemplates:
           image.repository: '{{.IMAGE_REPO_local_skaffold_etcd_druid}}'
           image.tag: '{{.IMAGE_TAG_local_skaffold_etcd_druid}}@{{.IMAGE_DIGEST_local_skaffold_etcd_druid}}'

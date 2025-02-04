@@ -58,3 +58,7 @@ gosec-report.sarif
 /hack/tools/bin/*
 /hack/kind/*
 api/hack/tools/bin/*
+
+# generated/copied chart resources
+charts/pki-resources/*
+charts/crds/*

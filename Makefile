@@ -148,43 +148,50 @@ docker-clean:
 # -------------------------------------------------------------------------
 kind-up kind-down ci-e2e-kind ci-e2e-kind-azure ci-e2e-kind-gcs deploy-localstack deploy-fakegcs deploy-azurite test-e2e deploy deploy-dev deploy-debug undeploy: export KUBECONFIG = $(KUBECONFIG_PATH)
 
+ifndef CLUSTER_NAME
+override CLUSTER_NAME = etcd-druid-e2e
+endif
+
 .PHONY: kind-up
 kind-up: $(KIND)
-	@$(HACK_DIR)/kind-up.sh
+	@$(HACK_DIR)/kind-up.sh --cluster-name $(CLUSTER_NAME)
 	@printf "\n\033[0;33m📌 NOTE: To target the newly created KinD cluster, please run the following command:\n\n    export KUBECONFIG=$(KUBECONFIG_PATH)\n\033[0m\n"
 
 .PHONY: kind-down
 kind-down: $(KIND)
-	@$(HACK_DIR)/kind-down.sh
+	@$(HACK_DIR)/kind-down.sh --cluster-name $(CLUSTER_NAME)
 
-# Install CRDs into a cluster
-.PHONY: install
-install:
-	kubectl apply -f config/crd/bases
-
-# Deploy controller in the configured Kubernetes cluster in ~/.kube/config
-.PHONY: deploy-via-kustomize
-deploy-via-kustomize: $(KUSTOMIZE)
-	kubectl apply -f config/crd/bases
-	kustomize build config/default | kubectl apply -f -
-
+# Make targets to deploy etcd-druid operator using skaffold
+# --------------------------------------------------------------------------------------------------------
 # Deploy controller to the Kubernetes cluster specified in the environment variable KUBECONFIG
 # Modify the Helm template located at charts/druid/templates if any changes are required
+
+ifndef NAMESPACE
+override NAMESPACE = default
+endif
+
+ifndef CERT_EXPIRY
+override CERT_EXPIRY = 12h
+endif
+
 .PHONY: deploy
 deploy: $(SKAFFOLD) $(HELM)
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) run -m etcd-druid
+	@$(HACK_DIR)/prepare-local-deploy.sh $(NAMESPACE) $(CERT_EXPIRY)
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) run -m etcd-druid -n $(NAMESPACE)
 
 .PHONY: deploy-dev
 deploy-dev: $(SKAFFOLD) $(HELM)
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) dev --cleanup=false -m etcd-druid --trigger='manual'
+	@$(HACK_DIR)/prepare-local-deploy.sh $(NAMESPACE) $(CERT_EXPIRY)
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) dev --cleanup=false -m etcd-druid --trigger='manual' -n $(NAMESPACE)
 
 .PHONY: deploy-debug
 deploy-debug: $(SKAFFOLD) $(HELM)
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) debug --cleanup=false -m etcd-druid -p debug
+	@$(HACK_DIR)/prepare-local-deploy.sh $(NAMESPACE) $(CERT_EXPIRY)
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) debug --cleanup=false -m etcd-druid -p debug -n $(NAMESPACE)
 
 .PHONY: undeploy
 undeploy: $(SKAFFOLD) $(HELM)
-	$(SKAFFOLD) delete -m etcd-druid
+	$(SKAFFOLD) delete -m etcd-druid -n $(NAMESPACE)
 
 .PHONY: deploy-localstack
 deploy-localstack: $(KUBECTL)
