@@ -1,12 +1,12 @@
 ---
-apiVersion: skaffold/v4beta10
+apiVersion: skaffold/v4beta11
 kind: Config
 metadata:
   name: etcd-druid
 build:
   local: { }
   artifacts:
-    - image: europe-docker.pkg.dev/gardener-project/public/gardener/etcd-druid
+    - image: local-skaffold/etcd-druid
       ko:
         fromImage: gcr.io/distroless/static-debian11:nonroot
         dependencies:
@@ -25,10 +25,11 @@ deploy:
     releases:
       - name: etcd-druid
         chartPath: charts/druid
-        namespace: default
+        setValueTemplates:
+          image.repository: '{{.IMAGE_REPO_local_skaffold_etcd_druid}}'
+          image.tag: '{{.IMAGE_TAG_local_skaffold_etcd_druid}}@{{.IMAGE_DIGEST_local_skaffold_etcd_druid}}'
         skipBuildDependencies: true
-        setValues: # empty `setValues` value is not allowed
-          foo: bar
+        namespace: default
 profiles:
   # Profile to disable druid leader election, to allow debugging without abrupt exits due to failure to renew leader election lease within time.
   - name: debug
