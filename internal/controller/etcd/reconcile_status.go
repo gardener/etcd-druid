@@ -17,9 +17,9 @@ import (
 )
 
 // mutateEtcdStatusFn is a function which mutates the status of the passed etcd object
-type mutateEtcdStatusFn func(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, logger logr.Logger) ctrlutils.ReconcileStepResult
+type mutateEtcdStatusFn func(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, logger logr.Logger, reconcileSpecResult ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult
 
-func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcdObjectKey client.ObjectKey, reconcileSpecResult ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {
 	etcd := &druidv1alpha1.Etcd{}
 	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
@@ -29,9 +29,10 @@ func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcdObjectKe
 	mutateETCDStatusStepFns := []mutateEtcdStatusFn{
 		r.mutateETCDStatusWithMemberStatusAndConditions,
 		r.inspectStatefulSetAndMutateETCDStatus,
+		r.mutateObservedGeneration,
 	}
 	for _, fn := range mutateETCDStatusStepFns {
-		if stepResult := fn(ctx, etcd, sLog); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
+		if stepResult := fn(ctx, etcd, sLog, reconcileSpecResult); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
 			return stepResult
 		}
 	}
@@ -42,7 +43,7 @@ func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcdObjectKe
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) mutateETCDStatusWithMemberStatusAndConditions(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, logger logr.Logger) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) mutateETCDStatusWithMemberStatusAndConditions(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, logger logr.Logger, _ ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {
 	statusCheck := status.NewChecker(r.client, r.config.EtcdMember.NotReadyThreshold, r.config.EtcdMember.UnknownThreshold)
 	if err := statusCheck.Check(ctx, logger, etcd); err != nil {
 		logger.Error(err, "Error executing status checks to update member status and conditions")
@@ -51,7 +52,7 @@ func (r *Reconciler) mutateETCDStatusWithMemberStatusAndConditions(ctx component
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger, _ ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {
 	sts, err := utils.GetStatefulSet(ctx, r.client, etcd)
 	if err != nil {
 		return ctrlutils.ReconcileWithError(err)
@@ -76,6 +77,13 @@ func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.Operato
 		etcd.Status.CurrentReplicas = 0
 		etcd.Status.ReadyReplicas = 0
 		etcd.Status.Ready = ptr.To(false)
+	}
+	return ctrlutils.ContinueReconcile()
+}
+
+func (r *Reconciler) mutateObservedGeneration(_ component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger, reconcileSpecResult ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {
+	if r.canReconcileSpec(etcd) && !ctrlutils.ShortCircuitReconcileFlow(reconcileSpecResult) {
+		etcd.Status.ObservedGeneration = &etcd.Generation
 	}
 	return ctrlutils.ContinueReconcile()
 }

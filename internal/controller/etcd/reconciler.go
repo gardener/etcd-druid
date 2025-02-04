@@ -22,8 +22,10 @@ import (
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/images"
 
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -85,9 +87,12 @@ type reconcileFn func(ctx component.OperatorContext, objectKey client.ObjectKey)
 // Reconcile manages the reconciliation of the Etcd component to align it with its desired specifications.
 //
 // The reconciliation process involves the following steps:
-//  1. Deletion Handling: If the Etcd component has a deletionTimestamp, initiate the deletion workflow. On error, requeue the request.
-//  2. Spec Reconciliation : Determine whether the Etcd spec should be reconciled based on annotations and flags and if there is a need then reconcile spec.
-//  3. Status Reconciliation: Always update the status of the Etcd component to reflect its current state.
+//  1. Deletion Handling: If the Etcd component has a deletionTimestamp, initiate the deletion workflow.
+//     On error, requeue the request.
+//  2. Spec Reconciliation : Determine whether the Etcd spec should be reconciled based on annotations and flags,
+//     and if there is a need then reconcile spec.
+//  3. Status Reconciliation: Always update the status of the Etcd component to reflect its current state,
+//     as well as status fields derived from spec reconciliation.
 //  4. Scheduled Requeue: Requeue the reconciliation request after a defined period (EtcdStatusSyncPeriod) to maintain sync.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	runID := string(controller.ReconcileIDFromContext(ctx))
@@ -95,15 +100,24 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if result := r.reconcileEtcdDeletion(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result.ReconcileResult()
 	}
-	var reconcileSpecResult ctrlutils.ReconcileStepResult
-	if result := r.reconcileSpec(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
-		reconcileSpecResult = result
+
+	reconcileSpecResult := r.reconcileSpec(operatorCtx, req.NamespacedName)
+
+	reconcileStatusResult := r.reconcileStatus(operatorCtx, req.NamespacedName, reconcileSpecResult)
+	if ctrlutils.ShortCircuitReconcileFlow(reconcileStatusResult) {
+		r.logger.Error(reconcileStatusResult.GetCombinedError(), "Failed to reconcile status")
+		return reconcileStatusResult.ReconcileResult()
 	}
 
-	if result := r.reconcileStatus(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
-		r.logger.Error(result.GetCombinedError(), "Failed to reconcile status")
+	// Operation annotation is removed at the end of reconciliation flow, after both spec and status
+	// have been successfully reconciled. This ensures that if there are any errors in either spec or status
+	// reconcile flow upon addition of operation annotation, then the next requeue of reconciliation will attempt
+	// spec reconciliation again, ensuring that updation of spec result-related fields in the status
+	// (such as observedGeneration) is not missed.
+	if result := r.removeOperationAnnotation(operatorCtx, req.NamespacedName, reconcileSpecResult, reconcileStatusResult); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result.ReconcileResult()
 	}
+
 	if reconcileSpecResult.NeedsRequeue() {
 		return reconcileSpecResult.ReconcileResult()
 	}
@@ -152,6 +166,30 @@ func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcdObjectKey 
 		rLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileSpec").WithValues("runID", ctx.RunID)
 		ctx.SetLogger(rLog)
 		return r.triggerReconcileSpecFlow(ctx, etcdObjectKey)
+	}
+	return ctrlutils.ContinueReconcile()
+}
+
+func (r *Reconciler) removeOperationAnnotation(ctx component.OperatorContext, etcdObjKey client.ObjectKey, reconcileSpecResult, reconcileStatusResult ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {
+	etcd := &druidv1alpha1.Etcd{}
+	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result
+	}
+
+	if !r.canReconcileSpec(etcd) ||
+		ctrlutils.ShortCircuitReconcileFlow(reconcileSpecResult) ||
+		ctrlutils.ShortCircuitReconcileFlow(reconcileStatusResult) {
+		return ctrlutils.ContinueReconcile()
+	}
+
+	if metav1.HasAnnotation(etcd.ObjectMeta, v1beta1constants.GardenerOperation) {
+		ctx.Logger.Info("Removing operation annotation")
+		withOpAnnotation := etcd.DeepCopy()
+		delete(etcd.Annotations, v1beta1constants.GardenerOperation)
+		if err := r.client.Patch(ctx, etcd, client.MergeFrom(withOpAnnotation)); err != nil {
+			ctx.Logger.Error(err, "failed to remove operation annotation")
+			return ctrlutils.ReconcileWithError(err)
+		}
 	}
 	return ctrlutils.ContinueReconcile()
 }
