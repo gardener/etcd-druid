@@ -209,7 +209,7 @@ type EtcdConfig struct {
 	SnapshotCount *int64 `json:"snapshotCount,omitempty"`
 	// DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd.
 	// +optional
-	// +kubebuilder:validation:Pattern="\\/@(annually|yearly|monthly|weekly|daily|hourly|reboot)|\\/@every (\\d+(ns|us|µs|ms|s|m|h))+|(((\\d+,)+\\d+|\\d+(\\/|-)\\d+|\\d+|\\*|\\d+(-\\d+)?(,\\d+(-\\d+)?)*) ?){5,7}"
+	// +kubebuilder:validation:Pattern="^(\\*|([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])|\\*/([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])) (\\*|([0-9]|1[0-9]|2[0-3])|\\*/([0-9]|1[0-9]|2[0-4])) (\\*|([1-9]|1[0-9]|2[0-9]|3[0-1])|\\*/([1-9]|1[0-9]|2[0-9]|3[0-1])) (\\*|([1-9]|1[0-2])|\\*/([1-9]|1[0-2])) (\\*|([0-6])|\\*/([0-6]))$"
 	DefragmentationSchedule *string `json:"defragmentationSchedule,omitempty"`
 	// +optional
 	ServerPort *int32 `json:"serverPort,omitempty"`

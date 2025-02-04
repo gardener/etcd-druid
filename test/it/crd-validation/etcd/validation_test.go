@@ -41,6 +41,7 @@ func TestMain(m *testing.M) {
 	itTestEnvCloser()
 	os.Exit(exitCode)
 }
+
 // initial setup for setting up namespace and test environment
 func setupTestEnvironment(t *testing.T) (string, *WithT) {
     g := NewWithT(t)
@@ -88,7 +89,7 @@ var cronFieldTestCases = []struct {
 	{
 		name: "Invalid cron expression #1",
 		etcdName: "etcd-invalid-1",
-		value: "5 24 * * *", // hours >23
+		value: "61 23 * * *", // hours >23
 		expectErr: true,
 	},
 	{
@@ -173,28 +174,8 @@ func TestValidateSpecEtcdEtcdDefragTimeout(t *testing.T) {
 			    return
 			}
 
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Labels: map[string]string {
-						"app":"etcd",
-					},
-					Backup: druidv1alpha1.BackupSpec{},
-					Etcd : druidv1alpha1.EtcdConfig{
-						EtcdDefragTimeout: duration,
-					},
-					Replicas: 3,
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-				},
-				
-			}
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Etcd.EtcdDefragTimeout = duration
 			validateEtcdCreation(t, g, etcd, test.expectErr)
 		})
 	}
@@ -212,29 +193,9 @@ func TestValidateSpecEtcdHeartbeatDuration(t *testing.T) {
 			if !shouldContinue {
 			    return
 			}
-
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Labels: map[string]string {
-						"app":"etcd",
-					},
-					Backup: druidv1alpha1.BackupSpec{},
-					Etcd : druidv1alpha1.EtcdConfig{
-						HeartbeatDuration: duration,
-					},
-					Replicas: 3,
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-				},
-				
-			}
+			
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Etcd.HeartbeatDuration = duration
 			validateEtcdCreation(t, g, etcd, test.expectErr)
 		})
 	}
@@ -280,27 +241,8 @@ func TestValidateSpecEtcdMetrics(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T){
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{},
-					Labels: map[string]string{
-						"app":"etcd",
-					},
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Etcd: druidv1alpha1.EtcdConfig{
-						Metrics: (*druidv1alpha1.MetricsLevel)(&test.metricsValue),
-					},
-					Replicas: 3,
-				},
-			}
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Etcd.Metrics = (*druidv1alpha1.MetricsLevel)(&test.metricsValue)
 			validateEtcdCreation(t, g, etcd, test.expectErr)
 		})
 	}
@@ -309,33 +251,13 @@ func TestValidateSpecEtcdMetrics(t *testing.T) {
 }
 
 // runs validation on the cron expression passed to the field etcd.spec.etcd.defragmentationSchedule
-func TestvalidateSpecEtcdDefragmentationSchedule(t * testing.T) {
+func TestValidateSpecEtcdDefragmentationSchedule(t * testing.T) {
 	testNs, g := setupTestEnvironment(t)
 
 	for _, test := range cronFieldTestCases {
 		t.Run(test.name, func(t *testing.T){
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{},
-					Labels: map[string]string{
-						"app":"etcd",
-					},
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Etcd: druidv1alpha1.EtcdConfig{
-						DefragmentationSchedule: &test.value,
-					},
-					Replicas: 3,
-				},
-			}
-
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Etcd.DefragmentationSchedule = &test.value
 			validateEtcdCreation(t, g, etcd, test.expectErr)
 
 		})
@@ -362,27 +284,8 @@ func TestValidateSpecBackupGarbageCollectionPolicy(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{
-						GarbageCollectionPolicy: (*druidv1alpha1.GarbageCollectionPolicy)(&test.garbageCollectionPolicy),
-					},
-					Labels: map[string]string{
-						"app":"etcd",
-					},
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Etcd: druidv1alpha1.EtcdConfig{},
-					Replicas: 3,
-				},
-			}
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Backup.GarbageCollectionPolicy = (*druidv1alpha1.GarbageCollectionPolicy)(&test.garbageCollectionPolicy)
 			validateEtcdCreation(t, g, etcd, test.expectErr)
 		})
 	}
@@ -433,30 +336,9 @@ func TestValidateSpecBackupCompressionPolicy(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T){
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{
-						SnapshotCompression: &druidv1alpha1.CompressionSpec{
-							Policy: (*druidv1alpha1.CompressionPolicy)(&test.policy),
-						},
-					},
-					Labels: map[string]string{
-						"app":"etcd",
-					},
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Etcd: druidv1alpha1.EtcdConfig{},
-					Replicas: 3,
-				},
-			}
-
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Backup.SnapshotCompression = &druidv1alpha1.CompressionSpec{}
+			etcd.Spec.Backup.SnapshotCompression.Policy = (*druidv1alpha1.CompressionPolicy)(&test.policy)
 			validateEtcdCreation(t, g, etcd, test.expectErr)
 		})
 	}
@@ -471,27 +353,9 @@ func TestValidateSpecBackupDeltaSnapshotRetentionPeriod(t *testing.T){
 			if !shouldContinue {
 			    return
 			}
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{
-						DeltaSnapshotRetentionPeriod: duration,
-					},
-					Labels: map[string]string{
-						"app":"etcd",
-					},
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Etcd: druidv1alpha1.EtcdConfig{},
-					Replicas: 3,
-				},
-			}
+
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Backup.DeltaSnapshotRetentionPeriod = duration
 
 			validateEtcdCreation(t, g, etcd, test.expectErr)
 		})
@@ -508,28 +372,8 @@ func TestValidateSpecBackupEtcdSnapshotTimeout(t *testing.T){
 			if !shouldContinue {
 			    return
 			}
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{
-						EtcdSnapshotTimeout: duration,
-					},
-					Labels: map[string]string{
-						"app":"etcd",
-					},
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Etcd: druidv1alpha1.EtcdConfig{},
-					Replicas: 3,
-				},
-			}
-
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Backup.EtcdSnapshotTimeout = duration
 			validateEtcdCreation(t, g, etcd, test.expectErr)
 		})
 	}
@@ -545,29 +389,9 @@ func TestValidateSpecBackupLeaderElectionReelectionPeriod(t *testing.T){
 			if !shouldContinue {
 			    return
 			}
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{
-						LeaderElection: &druidv1alpha1.LeaderElectionSpec{
-							ReelectionPeriod: duration,
-						},
-					},
-					Labels: map[string]string{
-						"app":"etcd",
-					},
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Etcd: druidv1alpha1.EtcdConfig{},
-					Replicas: 3,
-				},
-			}
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Backup.LeaderElection = &druidv1alpha1.LeaderElectionSpec{}
+			etcd.Spec.Backup.LeaderElection.ReelectionPeriod = duration
 
 			validateEtcdCreation(t, g, etcd, test.expectErr)
 		})
@@ -584,29 +408,9 @@ func TestValidateSpecBackupLeaderElectionEtcdConnectionTimeout(t *testing.T){
 			if !shouldContinue {
 			    return
 			}
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{
-						LeaderElection: &druidv1alpha1.LeaderElectionSpec{
-							EtcdConnectionTimeout: duration,
-						},
-					},
-					Labels: map[string]string{
-						"app":"etcd",
-					},
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Etcd: druidv1alpha1.EtcdConfig{},
-					Replicas: 3,
-				},
-			}
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Backup.LeaderElection = &druidv1alpha1.LeaderElectionSpec{}
+			etcd.Spec.Backup.LeaderElection.EtcdConnectionTimeout = duration
 
 			validateEtcdCreation(t, g, etcd, test.expectErr)
 		})
@@ -623,27 +427,8 @@ func TestValidateSpecBackupGarbageCollectionPeriod(t *testing.T){
 			if !shouldContinue {
 			    return
 			}
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{
-						GarbageCollectionPeriod: duration,
-					},
-					Labels: map[string]string{
-						"app":"etcd",
-					},
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Etcd: druidv1alpha1.EtcdConfig{},
-					Replicas: 3,
-				},
-			}
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Backup.GarbageCollectionPeriod = duration
 
 			validateEtcdCreation(t, g, etcd, test.expectErr)
 		})
@@ -660,27 +445,8 @@ func TestValidateSpecBackupDeltaSnapshotPeriod(t *testing.T){
 			if !shouldContinue {
 			    return
 			}
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{
-						DeltaSnapshotPeriod: duration,
-					},
-					Labels: map[string]string{
-						"app":"etcd",
-					},
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Etcd: druidv1alpha1.EtcdConfig{},
-					Replicas: 3,
-				},
-			}
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Backup.DeltaSnapshotPeriod = duration
 
 			validateEtcdCreation(t, g, etcd, test.expectErr)
 		})
@@ -732,28 +498,9 @@ func TestValidateSpecBackupGCDeltaSnapshotPeriodRelation(t *testing.T) {
             if !shouldContinue {
                 return
             }
-			etcd := &druidv1alpha1.Etcd{
-                ObjectMeta: metav1.ObjectMeta{
-                    Name:  test.etcdName,
-                    Namespace: testNs,
-                },
-                Spec: druidv1alpha1.EtcdSpec{
-                    Backup: druidv1alpha1.BackupSpec{
-                        GarbageCollectionPeriod: garbageCollectionDuration,
-                        DeltaSnapshotPeriod:     deltaSnapshotDuration,
-                    },
-                    Labels: map[string]string{
-                        "app": "etcd",
-                    },
-                    Selector: &metav1.LabelSelector{
-                        MatchLabels: map[string]string{
-                            "app": "etcd",
-                        },
-                    },
-                    Etcd: druidv1alpha1.EtcdConfig{},
-                    Replicas: 3,
-                },
-            }
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Backup.GarbageCollectionPeriod = garbageCollectionDuration
+			etcd.Spec.Backup.DeltaSnapshotPeriod = deltaSnapshotDuration
 
             validateEtcdCreation(t, g, etcd, test.expectErr)
 
@@ -768,27 +515,8 @@ func TestValidateSpecBackupFullSnapshotSchedule(t *testing.T){
 
 	for _, test := range cronFieldTestCases {
 		t.Run(test.name, func(t *testing.T){
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{
-						FullSnapshotSchedule: &test.value,
-					},
-					Labels: map[string]string{
-						"app":"etcd",
-					},
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Etcd: druidv1alpha1.EtcdConfig{},
-					Replicas: 3,
-				},
-			}
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Backup.FullSnapshotSchedule = &test.value
 
 			validateEtcdCreation(t, g, etcd, test.expectErr)
 		})
@@ -835,28 +563,9 @@ func TestValidateSpecSharedConfigAutoCompactionMode(t *testing.T){
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T){
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{},
-					Labels: map[string]string{
-						"app":"etcd",
-					},
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Etcd: druidv1alpha1.EtcdConfig{},
-					Replicas: 3,
-					Common: druidv1alpha1.SharedConfig{
-						AutoCompactionMode: (*druidv1alpha1.CompactionMode)(&test.autoCompactionMode),
-					},
-				},
-			}
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Common = druidv1alpha1.SharedConfig{}
+			etcd.Spec.Common.AutoCompactionMode = (*druidv1alpha1.CompactionMode)(&test.autoCompactionMode)
 
 			validateEtcdCreation(t, g, etcd, test.expectErr)
 		})
@@ -910,27 +619,9 @@ func TestValidateSpecStorageCapacitySpecEtcdQuotaRelation(t *testing.T){
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T){
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Labels: map[string]string{
-						"app": "etcd",
-					},
-					StorageCapacity: &test.storageCapacity,
-					Etcd: druidv1alpha1.EtcdConfig{
-						Quota: &test.quota,
-					},
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Replicas: 3,
-				},
-			}
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.StorageCapacity = &test.storageCapacity
+			etcd.Spec.Etcd.Quota = &test.quota
 	
 			if test.backup {
 				container := "etcd-bucket"
@@ -988,44 +679,21 @@ func TestValidateSpecStorageClass(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T){
-			etcdInitial := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Labels: map[string]string{
-						"app": "etcd",
-					},
-					Etcd: druidv1alpha1.EtcdConfig{
-					},
-					StorageClass: &test.initalStorageClassName,
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Replicas: 3,
-				},
-			}
-	
-			// validateEtcdCreation(t, g, etcdInitial, test.expectErr)
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.StorageClass = &test.initalStorageClassName
 			
 			cl := itTestEnv.GetClient()
 			ctx := context.Background()
-			g.Expect(cl.Create(ctx, etcdInitial)).To(Succeed())
+			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
 
-			etcdInitial.Spec.StorageClass = &test.updatedStorageClassName
+			etcd.Spec.StorageClass = &test.updatedStorageClassName
 
 
             if test.expectErr {
-                g.Expect(cl.Update(ctx, etcdInitial)).ToNot(Succeed())
+                g.Expect(cl.Update(ctx, etcd)).ToNot(Succeed())
             } else {
-                g.Expect(cl.Update(ctx, etcdInitial)).To(Succeed())
+                g.Expect(cl.Update(ctx, etcd)).To(Succeed())
             }
-	
-			
-	
 		})
 	}
 }
@@ -1066,26 +734,7 @@ func TestValidateSpecReplicas(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func (t *testing.T){
-			etcd := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Labels: map[string]string{
-						"app": "etcd",
-					},
-					Etcd: druidv1alpha1.EtcdConfig{
-					},
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Replicas: int32(test.initialReplicas),
-				},
-			}
-
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(int32(test.initialReplicas)).Build()
 			cl := itTestEnv.GetClient()
 			ctx := context.Background()
 			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
@@ -1131,44 +780,21 @@ func TestValidateSpecStorageCapacity(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T){
-			etcdInitial := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Labels: map[string]string{
-						"app": "etcd",
-					},
-					Etcd: druidv1alpha1.EtcdConfig{
-					},
-					StorageCapacity: &test.initalStorageCapacity,
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Replicas: 3,
-				},
-			}
-	
-			// validateEtcdCreation(t, g, etcdInitial, test.expectErr)
-			
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.StorageCapacity = &test.initalStorageCapacity
+
 			cl := itTestEnv.GetClient()
 			ctx := context.Background()
-			g.Expect(cl.Create(ctx, etcdInitial)).To(Succeed())
+			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
 
-			etcdInitial.Spec.StorageCapacity = &test.updatedStorageCapacity
+			etcd.Spec.StorageCapacity = &test.updatedStorageCapacity
 
 
             if test.expectErr {
-                g.Expect(cl.Update(ctx, etcdInitial)).ToNot(Succeed())
+                g.Expect(cl.Update(ctx, etcd)).ToNot(Succeed())
             } else {
-                g.Expect(cl.Update(ctx, etcdInitial)).To(Succeed())
+                g.Expect(cl.Update(ctx, etcd)).To(Succeed())
             }
-	
-			
-	
 		})
 	}
 }
@@ -1203,44 +829,21 @@ func TestValidateSpecVolumeClaimTemplate(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T){
-			etcdInitial := &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      test.etcdName,
-					Namespace: testNs,
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Labels: map[string]string{
-						"app": "etcd",
-					},
-					Etcd: druidv1alpha1.EtcdConfig{
-					},
-					VolumeClaimTemplate: &test.initalVolClaimTemp,
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "etcd",
-						},
-					},
-					Replicas: 3,
-				},
-			}
-	
-			// validateEtcdCreation(t, g, etcdInitial, test.expectErr)
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.VolumeClaimTemplate = &test.initalVolClaimTemp
 			
 			cl := itTestEnv.GetClient()
 			ctx := context.Background()
-			g.Expect(cl.Create(ctx, etcdInitial)).To(Succeed())
+			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
 
-			etcdInitial.Spec.VolumeClaimTemplate = &test.updatedVolClaimTemp
+			etcd.Spec.VolumeClaimTemplate = &test.updatedVolClaimTemp
 
 
             if test.expectErr {
-                g.Expect(cl.Update(ctx, etcdInitial)).ToNot(Succeed())
+                g.Expect(cl.Update(ctx, etcd)).ToNot(Succeed())
             } else {
-                g.Expect(cl.Update(ctx, etcdInitial)).To(Succeed())
+                g.Expect(cl.Update(ctx, etcd)).To(Succeed())
             }
-	
-			
-	
 		})
 	}
 }

@@ -248,7 +248,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `quota` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | Quota defines the etcd DB quota. |  |  |
 | `snapshotCount` _integer_ | SnapshotCount defines the number of applied Raft entries to hold in-memory before compaction.<br />More info: https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention |  |  |
-| `defragmentationSchedule` _string_ | DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd. |  | Pattern: `\/@(annually\|yearly\|monthly\|weekly\|daily\|hourly\|reboot)\|\/@every (\d+(ns\|us\|µs\|ms\|s\|m\|h))+\|(((\d+,)+\d+\|\d+(\/\|-)\d+\|\d+\|\*\|\d+(-\d+)?(,\d+(-\d+)?)*) ?)\{5,7\}` <br /> |
+| `defragmentationSchedule` _string_ | DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd. |  | Pattern: `^(\*\|([0-9]\|1[0-9]\|2[0-9]\|3[0-9]\|4[0-9]\|5[0-9])\|\*/([0-9]\|1[0-9]\|2[0-9]\|3[0-9]\|4[0-9]\|5[0-9])) (\*\|([0-9]\|1[0-9]\|2[0-3])\|\*/([0-9]\|1[0-9]\|2[0-4])) (\*\|([1-9]\|1[0-9]\|2[0-9]\|3[0-1])\|\*/([1-9]\|1[0-9]\|2[0-9]\|3[0-1])) (\*\|([1-9]\|1[0-2])\|\*/([1-9]\|1[0-2])) (\*\|([0-6])\|\*/([0-6]))$` <br /> |
 | `serverPort` _integer_ |  |  |  |
 | `clientPort` _integer_ |  |  |  |
 | `image` _string_ | Image defines the etcd container image and tag |  |  |
