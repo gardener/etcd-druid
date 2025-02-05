@@ -27,7 +27,7 @@ YQ						   := $(TOOLS_BIN_DIR)/yq
 CRD_REF_DOCS			   := $(TOOLS_BIN_DIR)/crd-ref-docs
 
 # default tool versions
-SKAFFOLD_VERSION := v2.13.2
+SKAFFOLD_VERSION := v2.14.0
 KUSTOMIZE_VERSION := v4.5.7
 GOLANGCI_LINT_VERSION ?= v1.60.3
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)

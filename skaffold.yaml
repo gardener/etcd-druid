@@ -1,5 +1,4 @@
----
-apiVersion: skaffold/v4beta11
+apiVersion: skaffold/v4beta12
 kind: Config
 metadata:
   name: etcd-druid
@@ -11,9 +10,8 @@ build:
         fromImage: gcr.io/distroless/static-debian11:nonroot
         dependencies:
           paths:
-            - api
+            - api/core/v1alpha1
             - internal
-            - go.mod
             - VERSION
         flags:
           - -v
@@ -29,7 +27,8 @@ deploy:
           image.repository: '{{.IMAGE_REPO_local_skaffold_etcd_druid}}'
           image.tag: '{{.IMAGE_TAG_local_skaffold_etcd_druid}}@{{.IMAGE_DIGEST_local_skaffold_etcd_druid}}'
         skipBuildDependencies: true
-        namespace: default
+        createNamespace: true
+        wait: true
 profiles:
   # Profile to disable druid leader election, to allow debugging without abrupt exits due to failure to renew leader election lease within time.
   - name: debug
@@ -38,33 +37,30 @@ profiles:
         path: /deploy/helm/releases/0/setValues/replicas
         value: 1
       - op: add
-        path: /deploy/helm/releases/0/setValues/controllerManager
+        path: /deploy/helm/releases/0/setValues
         value:
-          leaderElection:
-            enabled: false
+          controllerManager.leaderElection.enabled: false
   - name: e2e-test
     activation:
       - env: "DRUID_E2E_TEST=true"
     patches:
       - op: add
-        path: /deploy/helm/releases/0/setValues/controllers
+        path: /deploy/helm/releases/0/setValues
         value:
-          etcd:
-            etcdStatusSyncPeriod: 5s
-          compaction:
-            etcdEventsThreshold: 15
-            metricsScrapeWaitDuration: 30s
+          controllers.etcd.etcdStatusSyncPeriod: 5s
+          controllers.compaction.etcdEventsThreshold: 15
+          controllers.compaction.metricsScrapeWaitDuration: 30s
   - name: enable-etcdcomponents-webhook
     activation:
       - env: "DRUID_ENABLE_ETCD_COMPONENTS_WEBHOOK=true"
     patches:
       - op: add
-        path: /deploy/helm/releases/0/setValues/webhooks
+        path: /deploy/helm/releases/0/setValues
         value:
-          etcdcomponents:
-            enabled: true
+          webhooks.etcdComponents.enabled: true
+
 ---
-apiVersion: skaffold/v4beta10
+apiVersion: skaffold/v4beta12
 kind: Config
 metadata:
   name: druid-e2e
