@@ -183,7 +183,7 @@ If `immutability` is not specified, `etcd-druid` will assume that the bucket is 
 
 ##### `etcd-backup-restore` Enhancements
 
-The authors propose adding new commands to the `etcd-backup-restore` CLI (`etcdbrctl`) to maintain immutability during hibernation and to clean up snapshots created by `ExtendFullSnapshotImmutabilityTask`:
+The authors propose adding new sub-command to the `etcd-backup-restore` CLI (`etcdbrctl`) to maintain immutability during hibernation and to clean up snapshots created by `ExtendFullSnapshotImmutabilityTask`:
 
 - **`extend-snapshot-immutability`**
   - Downloads the latest full snapshot from the object store.
