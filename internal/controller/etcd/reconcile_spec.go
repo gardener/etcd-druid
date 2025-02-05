@@ -24,7 +24,10 @@ import (
 // syncRetryInterval will be used by both sync and preSync stages for a component and should be used when there is a need to requeue for retrying after a specific interval.
 const syncRetryInterval = 10 * time.Second
 
-func (r *Reconciler) triggerReconcileSpecFlow(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+	rLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileSpec").WithValues("runID", ctx.RunID)
+	ctx.SetLogger(rLog)
+
 	reconcileStepFns := []reconcileFn{
 		r.recordReconcileStartOperation,
 		r.ensureFinalizer,
