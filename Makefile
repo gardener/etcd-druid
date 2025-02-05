@@ -204,3 +204,8 @@ deploy-azurite: $(KUBECTL)
 .PHONY: deploy-fakegcs
 deploy-fakegcs: $(KUBECTL)
 	@$(HACK_DIR)/deploy-fakegcs.sh
+
+.PHONY: clean-chart-resources
+clean-chart-resources:
+	@rm -f $(REPO_ROOT)/charts/crds/*.yaml
+	@rm -rf $(REPO_ROOT)/charts/pki-resources/*

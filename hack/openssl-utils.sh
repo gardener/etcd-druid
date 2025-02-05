@@ -123,8 +123,8 @@ function pki::create_server_config() {
   req_extensions = extensions
 
   [ dn ]
-  CN = grove-server
-  O = Grove
+  CN = etcd-druid-server
+  O = Gardener
 
   [ extensions ]
   keyUsage = critical,digitalSignature,keyEncipherment
@@ -133,10 +133,14 @@ function pki::create_server_config() {
   subjectAltName = @sans
 
   [ sans ]
-  DNS.0 = grove
-  DNS.1 = grove.${namespace}
-  DNS.2 = grove.${namespace}.svc
-  DNS.3 = grove.${namespace}.svc.cluster.local
+  DNS.0 = etcd-druid
+  DNS.1 = etcd-druid.default
+  DNS.2 = etcd-druid.default.svc
+  DNS.3 = etcd-druid.default.svc.cluster.local
+  DNS.4 = etcd-druid.${namespace}
+  DNS.5 = etcd-druid.${namespace}.svc
+  DNS.6 = etcd-druid.${namespace}.svc.cluster.local
+
 EOF
 }
 
