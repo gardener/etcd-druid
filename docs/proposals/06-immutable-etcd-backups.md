@@ -41,7 +41,7 @@ Periodic backups of an etcd cluster state ensure the ability to recover from a d
 
 ### Non-Goals
 
-- Implementing a mechanism to signal hibernation intent, such as adding functionality via `etcd.spec` or annotations on the `Etcd` CR, to indicate when an etcd cluster should enter or exit hibernation, as discussed in [gardener/etcd-druid#922](https://github.com/gardener/etcd-druid/issues/922).
+- Implementing a mechanism to signal hibernation intent for handling snapshot immutability for hibernated etcd clusters, such as adding functionality via `etcd.spec` or annotations on the `Etcd` CR, to indicate when an etcd cluster should enter or exit hibernation, as discussed in [gardener/etcd-druid#922](https://github.com/gardener/etcd-druid/issues/922).
 - Supporting immutable backups on storage providers that do not offer immutability features (e.g., OpenStack Swift).
 
 ## Proposal
