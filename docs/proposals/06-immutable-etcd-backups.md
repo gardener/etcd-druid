@@ -184,8 +184,8 @@ The authors propose adding new sub-command to the `etcd-backup-restore` CLI (`et
 - **`extend-snapshot-immutability`**
   - Downloads the latest full snapshot from the object store.
   - Renames the snapshot (for instance, updates its Unix timestamp) to avoid overwriting an existing immutable snapshot.
-  - Uploads the renamed snapshot back to object storage, thereby **restarting** its immutability timer.  
-  - Introduces the `--gc-from-timestamp=<timestamp>` parameter, allowing users to specify a starting point from which garbage collection should be performed.
+  - Uploads the renamed snapshot back to object storage, thereby **restarting** its immutability timer.
+  - Introduces the `--gc-from-timestamp=<timestamp>` parameter, where `<timestamp>` is the creation timestamp of the task. This ensures that only snapshots created by the task are subject to garbage collection.
 >[!NOTE]  
 >As an alternative to the download/upload approach, the authors document the possibility of using provider APIs to perform a server-side object copy. This method could significantly reduce network costs and latency by directly copying the snapshot within the cloud provider's infrastructure. While this option is not implemented in the current version, let's explore its feasibility for adoption in etcd-backup-restore to enable server-side copying in [snapstore](https://github.com/gardener/etcd-backup-restore/blob/master/pkg/types/snapstore.go#L74-L86) during implementation.
 
