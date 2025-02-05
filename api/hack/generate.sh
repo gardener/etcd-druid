@@ -60,16 +60,12 @@ function generate_crds() {
 }
 
 function main() {
-  #echo "> Generate..."
-  #go generate "${API_GO_MODULE_ROOT}/..."
-
   echo "> Generate deepcopy and defaulting functions..."
   generate_deepcopy_defaulter
 
   echo "> Generate clientset for Etcd API..."
   generate_clientset
 
-  #check_controller_gen_prereq
   echo "> Generate CRDs..."
   generate_crds
 }

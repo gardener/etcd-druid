@@ -21,7 +21,7 @@ export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 
 # Use this function to get the version of a go module from go.mod
-version_gomod = $(shell go list -mod=mod -f '{{ .Version }}' -m $(1))
+version_gomod = $(shell go list -f '{{ .Version }}' -m $(1))
 
 $(CONTROLLER_GEN):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
