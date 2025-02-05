@@ -152,11 +152,7 @@ By capturing a final full snapshot before hibernation, periodically re-uploading
 > [!IMPORTANT]
 > **Limitation:** There is a potential edge case where a snapshot might become corrupted **before hibernation** or during the **re-upload process by `ExtendFullSnapshotImmutabilityTask`**. If this happens, the process could repeatedly re-upload the same corrupted snapshot, failing to ensure a reliable backup.
 
-An alternative solution could be to perform [compaction](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md), which involves:
-
-1. Starting an embedded etcd instance from the latest full snapshot in the snapstore.
-2. Performing an etcd compaction operation to remove old revisions and free up space.
-3. Taking a fresh snapshot of the compacted data and re-uploading it to the snapstore.
+An alternative solution could be to trigger the [snapshot compaction](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md) which runs in separate pod and takes a fresh snapshot of the compacted etcd data and re-uploads it to the object store.
 
 While this approach ensures that only valid snapshots are re-uploaded, it is **resource-intensive**, requiring an operational etcd instance even in hibernation. Given the high cost in terms of compute and memory, the authors **recommend** the snapshot re-upload approach as a more practical solution.
 
