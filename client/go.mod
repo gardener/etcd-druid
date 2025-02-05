@@ -1,7 +1,6 @@
 module github.com/gardener/etcd-druid/client
 
-go 1.23.3
-
+go 1.23.0
 
 require (
 	github.com/gardener/etcd-druid/api v0.0.0-00010101000000-000000000000
