@@ -219,7 +219,8 @@ The `ExtendFullSnapshotImmutabilityTask` is **active during hibernation** and is
    - When the cluster resumes from hibernation (scales up to non-zero replicas), the controller:  
      - Deletes the `ExtendFullSnapshotImmutabilityTask` to stop extending snapshots.  
      - Resumes the normal backup schedule defined in `spec.backup.fullSnapshotSchedule`.  
-
+   - When the immutability configuration is removed from the `etcd.spec.backup.store`, the controller:
+     - Deletes the `ExtendFullSnapshotImmutabilityTask` to stop extending snapshots.
 ###### Example Task Config
 
 ```go
