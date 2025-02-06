@@ -82,10 +82,7 @@ func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.Operato
 }
 
 func (r *Reconciler) mutateObservedGeneration(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
-	canReconcileSpec := utils.GetBoolValueOrDefault(ctx.Data, reconciliationContextDataKeyCanReconcileSpec, false)
-	shortCircuitSpecReconcile := utils.GetBoolValueOrDefault(ctx.Data, reconciliationContextDataKeyShortCircuitSpecReconcile, true)
-
-	if canReconcileSpec && !shortCircuitSpecReconcile {
+	if utils.GetBoolValueOrDefault(ctx.Data, reconciliationContextDataKeyWasSpecReconciled, false) {
 		etcd.Status.ObservedGeneration = &etcd.Generation
 	}
 	return ctrlutils.ContinueReconcile()

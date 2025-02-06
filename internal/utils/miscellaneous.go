@@ -83,30 +83,14 @@ func ComputeScheduleInterval(cronSchedule string) (time.Duration, error) {
 	return nextNextScheduledTime.Sub(nextScheduledTime), nil
 }
 
-func getValueOrError(data map[string]string, key string) (string, error) {
-	value, ok := data[key]
-	if !ok {
-		return "", fmt.Errorf("key %s not found in data", key)
-	}
-	return value, nil
-}
-
-func parseBoolOrError(value string) (bool, error) {
-	result, err := strconv.ParseBool(value)
-	if err != nil {
-		return false, fmt.Errorf("failed to parse boolean value: %w", err)
-	}
-	return result, nil
-}
-
 // GetBoolValueOrDefault returns the boolean value for the given key from the data map,
 // and defaults to defaultValue if the key is not found or the value is not a valid boolean.
 func GetBoolValueOrDefault(data map[string]string, key string, defaultValue bool) bool {
-	value, err := getValueOrError(data, key)
-	if err != nil {
+	value, ok := data[key]
+	if !ok {
 		return defaultValue
 	}
-	result, err := parseBoolOrError(value)
+	result, err := strconv.ParseBool(value)
 	if err != nil {
 		return defaultValue
 	}

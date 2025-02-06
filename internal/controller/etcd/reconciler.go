@@ -35,10 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-const (
-	reconciliationContextDataKeyCanReconcileSpec          = "canReconcileSpec"
-	reconciliationContextDataKeyShortCircuitSpecReconcile = "shortCircuitSpecReconcile"
-)
+const reconciliationContextDataKeyWasSpecReconciled = "wasSpecReconciled"
 
 // Reconciler reconciles the Etcd resource spec and status.
 type Reconciler struct {
@@ -99,7 +96,8 @@ type reconcileFn func(ctx component.OperatorContext, objectKey client.ObjectKey)
 //     and if there is a need then reconcile spec.
 //  3. Status Reconciliation: Always update the status of the Etcd component to reflect its current state,
 //     as well as status fields derived from spec reconciliation.
-//  4. Scheduled Requeue: Requeue the reconciliation request after a defined period (EtcdStatusSyncPeriod) to maintain sync.
+//  4. Remove operation-reconcile annotation if it was set and if spec reconciliation had succeeded.
+//  5. Scheduled Requeue: Requeue the reconciliation request after a defined period (EtcdStatusSyncPeriod) to maintain sync.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	runID := string(controller.ReconcileIDFromContext(ctx))
 	operatorCtx := component.NewOperatorContext(ctx, r.logger, runID)
@@ -116,14 +114,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	var reconcileSpecResult ctrlutils.ReconcileStepResult
 	if canReconcileSpec {
 		reconcileSpecResult = r.reconcileSpec(operatorCtx, req.NamespacedName)
-		operatorCtx.Data[reconciliationContextDataKeyCanReconcileSpec] = strconv.FormatBool(canReconcileSpec)
-		operatorCtx.Data[reconciliationContextDataKeyShortCircuitSpecReconcile] = strconv.FormatBool(ctrlutils.ShortCircuitReconcileFlow(reconcileSpecResult))
+		if !ctrlutils.ShortCircuitReconcileFlow(reconcileSpecResult) {
+			operatorCtx.Data[reconciliationContextDataKeyWasSpecReconciled] = strconv.FormatBool(true)
+		}
 	}
 
 	reconcileStatusResult := r.reconcileStatus(operatorCtx, req.NamespacedName)
 	if ctrlutils.ShortCircuitReconcileFlow(reconcileStatusResult) {
 		r.logger.Error(reconcileStatusResult.GetCombinedError(), "Failed to reconcile status")
 		return reconcileStatusResult.ReconcileResult()
+	}
+
+	if reconcileSpecResult.NeedsRequeue() {
+		return reconcileSpecResult.ReconcileResult()
 	}
 
 	// Operation annotation is removed at the end of reconciliation flow, after both spec and status
@@ -141,9 +144,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	if reconcileSpecResult.NeedsRequeue() {
-		return reconcileSpecResult.ReconcileResult()
-	}
 	return ctrlutils.ReconcileAfter(r.config.EtcdStatusSyncPeriod, "Periodic Requeue").ReconcileResult()
 }
 
