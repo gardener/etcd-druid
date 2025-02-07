@@ -7,11 +7,8 @@ package utils
 import (
 	"fmt"
 	"maps"
-	"strconv"
 	"strings"
 	"time"
-
-	druiderrors "github.com/gardener/etcd-druid/internal/errors"
 
 	"github.com/robfig/cron/v3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -83,18 +80,4 @@ func ComputeScheduleInterval(cronSchedule string) (time.Duration, error) {
 	nextScheduledTime := schedule.Next(time.Now())
 	nextNextScheduledTime := schedule.Next(nextScheduledTime)
 	return nextNextScheduledTime.Sub(nextScheduledTime), nil
-}
-
-// GetBoolValueOrError returns the boolean value for the given key from the data map,
-// and returns error if the key is not found or the value is not a valid boolean.
-func GetBoolValueOrError(data map[string]string, key string) (bool, error) {
-	value, ok := data[key]
-	if !ok {
-		return false, fmt.Errorf("key %s does not exist: %w", key, druiderrors.ErrNotFound)
-	}
-	result, err := strconv.ParseBool(value)
-	if err != nil {
-		return false, err
-	}
-	return result, nil
 }

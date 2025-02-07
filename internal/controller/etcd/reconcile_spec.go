@@ -124,14 +124,14 @@ func (r *Reconciler) recordIncompleteReconcileOperation(ctx component.OperatorCo
 	return exitReconcileStepResult
 }
 
-// canReconcileSpec assesses whether the Etcd spec should undergo reconciliation.
+// shouldReconcileSpec assesses whether the Etcd spec should undergo reconciliation.
 //
 // Reconciliation decision follows these rules:
 // - Skipped if 'druid.gardener.cloud/suspend-etcd-spec-reconcile' annotation is present, signaling a pause in reconciliation.
 // - Automatic reconciliation occurs if EnableEtcdSpecAutoReconcile is true.
 // - If 'gardener.cloud/operation: reconcile' annotation exists and 'druid.gardener.cloud/suspend-etcd-spec-reconcile' annotation is not set, reconciliation proceeds upon Etcd spec changes.
 // - Reconciliation is not initiated if EnableEtcdSpecAutoReconcile is false and none of the relevant annotations are present.
-func (r *Reconciler) canReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
+func (r *Reconciler) shouldReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
 	// Check if spec reconciliation has been suspended, if yes, then record the event and return false.
 	if suspendReconcileAnnotKey := druidv1alpha1.GetSuspendEtcdSpecReconcileAnnotationKey(etcd.ObjectMeta); suspendReconcileAnnotKey != nil {
 		r.recordEtcdSpecReconcileSuspension(etcd, *suspendReconcileAnnotKey)

@@ -14,9 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ErrNotFound is a special error code that indicates that an item was not found.
-var ErrNotFound = errors.New("NotFound")
-
 // ErrRequeueAfter is a special error code that indicates that the current step should be re-queued after a certain time,
 // as some conditions during reconciliation are not met. This should not be used in case
 // there is an actual error during reconciliation.

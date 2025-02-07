@@ -1,11 +1,8 @@
 package utils
 
 import (
-	"errors"
 	"testing"
 	"time"
-
-	druiderrors "github.com/gardener/etcd-druid/internal/errors"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -204,67 +201,6 @@ func TestComputeScheduleInterval(t *testing.T) {
 				g.Expect(err).To(BeNil())
 				g.Expect(duration).To(Equal(tc.expected))
 			}
-		})
-	}
-}
-
-func TestGetBoolValueOrError(t *testing.T) {
-	testCases := []struct {
-		name              string
-		data              map[string]string
-		key               string
-		expectedValue     bool
-		expectErr         bool
-		expectNotFoundErr bool
-	}{
-		{
-			name:              "Valid true value",
-			data:              map[string]string{"key": "true"},
-			key:               "key",
-			expectedValue:     true,
-			expectErr:         false,
-			expectNotFoundErr: false,
-		},
-		{
-			name:              "Valid false value",
-			data:              map[string]string{"key": "false"},
-			key:               "key",
-			expectedValue:     false,
-			expectErr:         false,
-			expectNotFoundErr: false,
-		},
-		{
-			name:              "Missing key",
-			data:              map[string]string{},
-			key:               "key",
-			expectedValue:     false,
-			expectErr:         true,
-			expectNotFoundErr: true,
-		},
-		{
-			name:              "Invalid value",
-			data:              map[string]string{"key": "not-a-bool"},
-			key:               "key",
-			expectedValue:     false,
-			expectErr:         true,
-			expectNotFoundErr: false,
-		},
-	}
-
-	g := NewWithT(t)
-	t.Parallel()
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			val, err := GetBoolValueOrError(tc.data, tc.key)
-			if tc.expectErr {
-				g.Expect(err).To(HaveOccurred())
-				if tc.expectNotFoundErr {
-					g.Expect(errors.Is(err, druiderrors.ErrNotFound)).To(BeTrue())
-				}
-			}
-			g.Expect(val).To(Equal(tc.expectedValue))
 		})
 	}
 }
