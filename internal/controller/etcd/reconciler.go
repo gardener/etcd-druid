@@ -85,28 +85,57 @@ type reconcileFn func(ctx component.OperatorContext, objectKey client.ObjectKey)
 // Reconcile manages the reconciliation of the Etcd component to align it with its desired specifications.
 //
 // The reconciliation process involves the following steps:
-//  1. Deletion Handling: If the Etcd component has a deletionTimestamp, initiate the deletion workflow. On error, requeue the request.
-//  2. Spec Reconciliation : Determine whether the Etcd spec should be reconciled based on annotations and flags and if there is a need then reconcile spec.
-//  3. Status Reconciliation: Always update the status of the Etcd component to reflect its current state.
-//  4. Scheduled Requeue: Requeue the reconciliation request after a defined period (EtcdStatusSyncPeriod) to maintain sync.
+//  1. Deletion Handling: If the Etcd component has a deletionTimestamp, initiate the deletion workflow.
+//     On error, requeue the request.
+//  2. Spec Reconciliation : Determine whether the Etcd spec should be reconciled based on annotations and flags,
+//     and if there is a need then reconcile spec.
+//  3. Status Reconciliation: Always update the status of the Etcd component to reflect its current state,
+//     as well as status fields derived from spec reconciliation.
+//  4. Remove operation-reconcile annotation if it was set and if spec reconciliation had succeeded.
+//  5. Scheduled Requeue: Requeue the reconciliation request after a defined period (EtcdStatusSyncPeriod) to maintain sync.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	runID := string(controller.ReconcileIDFromContext(ctx))
 	operatorCtx := component.NewOperatorContext(ctx, r.logger, runID)
 	if result := r.reconcileEtcdDeletion(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result.ReconcileResult()
 	}
+
+	etcd := &druidv1alpha1.Etcd{}
+	if result := ctrlutils.GetLatestEtcd(ctx, r.client, req.NamespacedName, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result.ReconcileResult()
+	}
+	shouldReconcileSpec := r.shouldReconcileSpec(etcd)
+
 	var reconcileSpecResult ctrlutils.ReconcileStepResult
-	if result := r.reconcileSpec(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
-		reconcileSpecResult = result
+	if shouldReconcileSpec {
+		reconcileSpecResult = r.reconcileSpec(operatorCtx, req.NamespacedName)
 	}
 
 	if result := r.reconcileStatus(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
 		r.logger.Error(result.GetCombinedError(), "Failed to reconcile status")
 		return result.ReconcileResult()
 	}
+
 	if reconcileSpecResult.NeedsRequeue() {
 		return reconcileSpecResult.ReconcileResult()
 	}
+
+	// Spec reconciliation involves some steps that must be executed after status reconciliation,
+	// to ensure consistency of the status and to ensure that any intermittent failures result in a
+	// requeue to re-attempt the spec reconciliation.
+	// Specifically, status.observedGeneration must be updated after the rest of the status fields are updated,
+	// because consumers of the Etcd status must check the observed generation to confirm that reconciliation is
+	// in fact complete, and the status fields reflect the latest possible state of the etcd cluster after the
+	// spec was reconciled.
+	// Additionally, the operation annotation needs to be removed only at the end of reconciliation, to ensure that
+	// if any failure is encountered during reconciliation, then reconciliation is re-attempted upon the next requeue.
+	// r.completeReconcile() is executed only if the spec was reconciled, as denoted by the `shouldReconcileSpec` flag.
+	if shouldReconcileSpec {
+		if result := r.completeReconcile(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
+			return result.ReconcileResult()
+		}
+	}
+
 	return ctrlutils.ReconcileAfter(r.config.EtcdStatusSyncPeriod, "Periodic Requeue").ReconcileResult()
 }
 
@@ -139,19 +168,6 @@ func (r *Reconciler) reconcileEtcdDeletion(ctx component.OperatorContext, etcdOb
 		dLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "delete").WithValues("runId", ctx.RunID)
 		ctx.SetLogger(dLog)
 		return r.triggerDeletionFlow(ctx, dLog, etcdObjectKey)
-	}
-	return ctrlutils.ContinueReconcile()
-}
-
-func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcd := &druidv1alpha1.Etcd{}
-	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
-	if r.canReconcileSpec(etcd) {
-		rLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileSpec").WithValues("runID", ctx.RunID)
-		ctx.SetLogger(rLog)
-		return r.triggerReconcileSpecFlow(ctx, etcdObjectKey)
 	}
 	return ctrlutils.ContinueReconcile()
 }

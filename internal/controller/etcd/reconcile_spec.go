@@ -17,7 +17,6 @@ import (
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -25,21 +24,16 @@ import (
 // syncRetryInterval will be used by both sync and preSync stages for a component and should be used when there is a need to requeue for retrying after a specific interval.
 const syncRetryInterval = 10 * time.Second
 
-func (r *Reconciler) triggerReconcileSpecFlow(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+	rLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileSpec").WithValues("runID", ctx.RunID)
+	ctx.SetLogger(rLog)
+
 	reconcileStepFns := []reconcileFn{
 		r.recordReconcileStartOperation,
 		r.ensureFinalizer,
 		r.preSyncEtcdResources,
 		r.syncEtcdResources,
-		r.updateObservedGeneration,
 		r.recordReconcileSuccessOperation,
-		// Removing the operation annotation after last operation recording seems counter-intuitive.
-		// If we reverse the order where we first remove the operation annotation and then record the last operation then
-		// in case the operation annotation removal succeeds but the last operation recording fails, then the control
-		// will never enter this flow again and the last operation will never be recorded.
-		// Reason: there is a predicate check done in `reconciler.canReconcile` prior to entering this flow.
-		// That check will no longer succeed once the reconcile operation annotation has been removed.
-		r.removeOperationAnnotation,
 	}
 
 	for _, fn := range reconcileStepFns {
@@ -48,23 +42,6 @@ func (r *Reconciler) triggerReconcileSpecFlow(ctx component.OperatorContext, etc
 		}
 	}
 	ctx.Logger.Info("Finished spec reconciliation flow")
-	return ctrlutils.ContinueReconcile()
-}
-
-func (r *Reconciler) removeOperationAnnotation(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcdPartialObjMeta := ctrlutils.EmptyEtcdPartialObjectMetadata()
-	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjKey, etcdPartialObjMeta); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
-	if metav1.HasAnnotation(etcdPartialObjMeta.ObjectMeta, v1beta1constants.GardenerOperation) {
-		ctx.Logger.Info("Removing operation annotation")
-		withOpAnnotation := etcdPartialObjMeta.DeepCopy()
-		delete(etcdPartialObjMeta.Annotations, v1beta1constants.GardenerOperation)
-		if err := r.client.Patch(ctx, etcdPartialObjMeta, client.MergeFrom(withOpAnnotation)); err != nil {
-			ctx.Logger.Error(err, "failed to remove operation annotation")
-			return ctrlutils.ReconcileWithError(err)
-		}
-	}
 	return ctrlutils.ContinueReconcile()
 }
 
@@ -123,21 +100,6 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) updateObservedGeneration(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcd := &druidv1alpha1.Etcd{}
-	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
-	originalEtcd := etcd.DeepCopy()
-	etcd.Status.ObservedGeneration = &etcd.Generation
-	if err := r.client.Status().Patch(ctx, etcd, client.MergeFrom(originalEtcd)); err != nil {
-		ctx.Logger.Error(err, "failed to patch status.ObservedGeneration")
-		return ctrlutils.ReconcileWithError(err)
-	}
-	ctx.Logger.Info("patched status.ObservedGeneration", "ObservedGeneration", etcd.Generation)
-	return ctrlutils.ContinueReconcile()
-}
-
 func (r *Reconciler) recordReconcileStartOperation(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
 	if err := r.lastOpErrRecorder.RecordStart(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeReconcile); err != nil {
 		ctx.Logger.Error(err, "failed to record etcd reconcile start operation")
@@ -162,14 +124,14 @@ func (r *Reconciler) recordIncompleteReconcileOperation(ctx component.OperatorCo
 	return exitReconcileStepResult
 }
 
-// canReconcileSpec assesses whether the Etcd spec should undergo reconciliation.
+// shouldReconcileSpec assesses whether the Etcd spec should undergo reconciliation.
 //
 // Reconciliation decision follows these rules:
 // - Skipped if 'druid.gardener.cloud/suspend-etcd-spec-reconcile' annotation is present, signaling a pause in reconciliation.
 // - Automatic reconciliation occurs if EnableEtcdSpecAutoReconcile is true.
 // - If 'gardener.cloud/operation: reconcile' annotation exists and 'druid.gardener.cloud/suspend-etcd-spec-reconcile' annotation is not set, reconciliation proceeds upon Etcd spec changes.
 // - Reconciliation is not initiated if EnableEtcdSpecAutoReconcile is false and none of the relevant annotations are present.
-func (r *Reconciler) canReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
+func (r *Reconciler) shouldReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
 	// Check if spec reconciliation has been suspended, if yes, then record the event and return false.
 	if suspendReconcileAnnotKey := druidv1alpha1.GetSuspendEtcdSpecReconcileAnnotationKey(etcd.ObjectMeta); suspendReconcileAnnotKey != nil {
 		r.recordEtcdSpecReconcileSuspension(etcd, *suspendReconcileAnnotKey)
