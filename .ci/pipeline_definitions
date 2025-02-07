@@ -86,6 +86,8 @@ etcd-druid:
                 see: https://github.com/securego/gosec
           git_tags:
           - ref_template: 'refs/tags/{VERSION}'
+          - ref_template: 'refs/tags/api/{VERSION}'
+          - ref_template: 'refs/tags/client/{VERSION}'
           release_callback: .ci/bump_tag
         slack:
           default_channel: 'internal_scp_workspace'
