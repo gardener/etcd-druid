@@ -111,10 +111,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		reconcileSpecResult = r.reconcileSpec(operatorCtx, req.NamespacedName)
 	}
 
-	reconcileStatusResult := r.reconcileStatus(operatorCtx, req.NamespacedName)
-	if ctrlutils.ShortCircuitReconcileFlow(reconcileStatusResult) {
-		r.logger.Error(reconcileStatusResult.GetCombinedError(), "Failed to reconcile status")
-		return reconcileStatusResult.ReconcileResult()
+	if result := r.reconcileStatus(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
+		r.logger.Error(result.GetCombinedError(), "Failed to reconcile status")
+		return result.ReconcileResult()
 	}
 
 	if reconcileSpecResult.NeedsRequeue() {
