@@ -87,7 +87,7 @@ function all_pki_resources_exist() {
   return 0
 }
 
-function prepare_local_deploy() {
+function prepare_chart_resources() {
   if [[ $# -ne 2 ]]; then
     echo -e "${FUNCNAME[0]} requires 2 arguments: namespace and cert-expiry"
     exit 1
@@ -107,4 +107,4 @@ function prepare_local_deploy() {
 }
 
 check_prereq
-prepare_local_deploy "$@"
+prepare_chart_resources "$@"

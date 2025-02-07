@@ -174,19 +174,20 @@ ifndef CERT_EXPIRY
 override CERT_EXPIRY = 12h
 endif
 
+.PHONY: prepare-helm-charts
+prepare-helm-charts:
+	@$(HACK_DIR)/prepare-chart-resources.sh $(NAMESPACE) $(CERT_EXPIRY)
+
 .PHONY: deploy
-deploy: $(SKAFFOLD) $(HELM)
-	@$(HACK_DIR)/prepare-local-deploy.sh $(NAMESPACE) $(CERT_EXPIRY)
+deploy: $(SKAFFOLD) $(HELM) prepare-helm-charts
 	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) run -m etcd-druid -n $(NAMESPACE)
 
 .PHONY: deploy-dev
-deploy-dev: $(SKAFFOLD) $(HELM)
-	@$(HACK_DIR)/prepare-local-deploy.sh $(NAMESPACE) $(CERT_EXPIRY)
+deploy-dev: $(SKAFFOLD) $(HELM) prepare-helm-charts
 	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) dev --cleanup=false -m etcd-druid --trigger='manual' -n $(NAMESPACE)
 
 .PHONY: deploy-debug
-deploy-debug: $(SKAFFOLD) $(HELM)
-	@$(HACK_DIR)/prepare-local-deploy.sh $(NAMESPACE) $(CERT_EXPIRY)
+deploy-debug: $(SKAFFOLD) $(HELM) prepare-helm-charts
 	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) debug --cleanup=false -m etcd-druid -p debug -n $(NAMESPACE)
 
 .PHONY: undeploy

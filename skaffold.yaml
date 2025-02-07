@@ -34,11 +34,9 @@ profiles:
   - name: debug
     patches:
       - op: add
-        path: /deploy/helm/releases/0/setValues/replicas
-        value: 1
-      - op: add
         path: /deploy/helm/releases/0/setValues
         value:
+          replicas: 1
           controllerManager.leaderElection.enabled: false
   - name: e2e-test
     activation:

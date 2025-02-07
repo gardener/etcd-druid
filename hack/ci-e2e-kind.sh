@@ -10,10 +10,11 @@ set -o pipefail
 make kind-up
 
 CERT_EXPIRY=12h
-. $(dirname $0)/prepare-local-deploy.sh "${BUCKET_NAME}" "${CERT_EXPIRY}"
+. $(dirname $0)/prepare-chart-resources.sh "${BUCKET_NAME}" "${CERT_EXPIRY}"
 
 trap '{
   kind export logs "${ARTIFACTS:-/tmp}/etcd-druid-e2e" --name etcd-druid-e2e || true
+  echo "cleaning copied and generated helm chart resources"
   make clean-chart-resources
   make kind-down
 }' EXIT
