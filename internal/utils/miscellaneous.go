@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	druiderrors "github.com/gardener/etcd-druid/internal/errors"
+
 	"github.com/robfig/cron/v3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -83,16 +85,16 @@ func ComputeScheduleInterval(cronSchedule string) (time.Duration, error) {
 	return nextNextScheduledTime.Sub(nextScheduledTime), nil
 }
 
-// GetBoolValueOrDefault returns the boolean value for the given key from the data map,
-// and defaults to defaultValue if the key is not found or the value is not a valid boolean.
-func GetBoolValueOrDefault(data map[string]string, key string, defaultValue bool) bool {
+// GetBoolValueOrError returns the boolean value for the given key from the data map,
+// and returns error if the key is not found or the value is not a valid boolean.
+func GetBoolValueOrError(data map[string]string, key string) (bool, error) {
 	value, ok := data[key]
 	if !ok {
-		return defaultValue
+		return false, fmt.Errorf("key %s does not exist: %w", key, druiderrors.ErrNotFound)
 	}
 	result, err := strconv.ParseBool(value)
 	if err != nil {
-		return defaultValue
+		return false, err
 	}
-	return result
+	return result, nil
 }

@@ -5,9 +5,12 @@
 package etcd
 
 import (
+	"errors"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
+	druiderrors "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/health/status"
 	"github.com/gardener/etcd-druid/internal/utils"
 
@@ -82,7 +85,14 @@ func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.Operato
 }
 
 func (r *Reconciler) mutateObservedGeneration(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
-	if utils.GetBoolValueOrDefault(ctx.Data, reconciliationContextDataKeyWasSpecReconciled, false) {
+	wasSpecReconciled, err := utils.GetBoolValueOrError(ctx.Data, reconciliationContextDataKeyWasSpecReconciled)
+	if err != nil {
+		if errors.Is(err, druiderrors.ErrNotFound) {
+			return ctrlutils.ContinueReconcile()
+		}
+		return ctrlutils.ReconcileWithError(err)
+	}
+	if wasSpecReconciled {
 		etcd.Status.ObservedGeneration = &etcd.Generation
 	}
 	return ctrlutils.ContinueReconcile()
