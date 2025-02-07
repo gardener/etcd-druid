@@ -126,6 +126,12 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
 		builder.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s,", podName, peerScheme, podName, domainName, serverPort))
 	}
+
+	if etcd.Spec.Etcd.ExistingCluster != nil {
+		for memberName, memberURLs := range etcd.Spec.Etcd.ExistingCluster.MemberURLs {
+			builder.WriteString(fmt.Sprintf("%s=%s,", memberName, strings.Trim(strings.Join(memberURLs, ","), ",")))
+		}
+	}
 	return strings.Trim(builder.String(), ",")
 }
 
