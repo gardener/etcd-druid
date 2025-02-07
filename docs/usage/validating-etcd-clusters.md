@@ -6,11 +6,13 @@
 
 ## Validation rules:
 ### Type Validation rules:
-The validations for fields of types `Duration`(metav1.Duration) and `cron` expressions are done via `regex` matching. (The checking for the `Quantity`(resource.Quantity) fields are done by default, hence, no explicit validation is needed for the fields of this type):
+The validations for fields of types `Duration`(metav1.Duration) and `cron` expressions are done via `regex` matching. These use the `validation:Pattern` marker.(The checking for the `Quantity`(resource.Quantity) fields are done by default, hence, no explicit validation is needed for the fields of this type):
 * Duration fields: 
-`self.matches('^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$')`
-* Cron expression validations are done by using the `validation:Pattern` marker instead of the CEL expressions due to the way `escape characters` are handled while generating yaml files from these markers.
-`\\/@(annually|yearly|monthly|weekly|daily|hourly|reboot)|\\/@every (\\d+(ns|us|µs|ms|s|m|h))+|(((\\d+,)+\\d+|\\d+(\\/|-)\\d+|\\d+|\\*|\\d+(-\\d+)?(,\\d+(-\\d+)?)*) ?){5,7}`
+`'^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$')`
+* Cron expression:
+`^(\*|[1-5]?[0-9]|[1-5]?[0-9]-[1-5]?[0-9]|(?:[1-9]|[1-4][0-9]|5[0-9])\/(?:[1-9]|[1-4][0-9]|5[0-9]|60)|\*\/(?:[1-9]|[1-4][0-9]|5[0-9]|60))\s+(\*|[0-9]|1[0-9]|2[0-3]|[0-9]-(?:[0-9]|1[0-9]|2[0-3])|1[0-9]-(?:1[0-9]|2[0-3])|2[0-3]-2[0-3]|(?:[1-9]|1[0-9]|2[0-3])\/(?:[1-9]|1[0-9]|2[0-4])|\*\/(?:[1-9]|1[0-9]|2[0-4]))\s+(\*|[1-9]|[12][0-9]|3[01]|[1-9]-(?:[1-9]|[12][0-9]|3[01])|[12][0-9]-(?:[12][0-9]|3[01])|3[01]-3[01]|(?:[1-9]|[12][0-9]|30)\/(?:[1-9]|[12][0-9]|3[01])|\*\/(?:[1-9]|[12][0-9]|3[01]))\s+(\*|[1-9]|1[0-2]|[1-9]-(?:[1-9]|1[0-2])|1[0-2]-1[0-2]|(?:[1-9]|1[0-2])\/(?:[1-9]|1[0-2])|\*\/(?:[1-9]|1[0-2]))\s+(\*|[1-7]|[1-6]-[1-7]|[1-6]\/[1-7]|\*\/[1-7])$`
+
+    * **NOTE**: The provided regex does not account for `special strings` such as `@yearly` or `@monthly`. Additionally, it fails to invalidate cases involving the `step operator (x/y)` and the `range operator (x-y)`, where the cron expression is considered valid even if `x > y`. Please ensure these values are validated before passing the expression.
 
 ### Update validations
 These validations are triggered when an update operation is done on the etcd resource.
@@ -21,7 +23,7 @@ These validations are triggered when an update operation is done on the etcd res
 
 ### Field validations
 - The fields which expect only a particular set of values are checked by using the kubebuilder marker: `+kubebuilder:validation:Enum=<value1>;<value2>`
-    * The `etcd.spec.etcd.metrics` can only be set as either `basic` or `extesnive`.
+    * The `etcd.spec.etcd.metrics` can only be set as either `basic` or `extensive`.
     * The `etcd.spec.backup.garbageCollectionPolicy` can only be set as `Exponential` or `LimitBased`
     * The `etcd.spec.backup.compression.policy` can only be set as either `gzip` or `lzw` or `zlib`.
     * The `etcd.spec.sharedConfig.autoCompactionMode` can only be set as either `periodic` or `revision`.

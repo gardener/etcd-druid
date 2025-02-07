@@ -67,7 +67,7 @@ func createAndAssertEtcdAndAllManagedResources(ctx context.Context, t *testing.T
 	cl := reconcilerTestEnv.itTestEnv.GetClient()
 	// create etcdInstance resource
 	g.Expect(cl.Create(ctx, etcdInstance)).To(Succeed())
-	t.Logf("trigggered creation of etcd instance: {name: %s, namespace: %s}, waiting for resources to be created...", etcdInstance.Name, etcdInstance.Namespace)
+	t.Logf("triggered creation of etcd instance: {name: %s, namespace: %s}, waiting for resources to be created...", etcdInstance.Name, etcdInstance.Namespace)
 	// ascertain that all etcd resources are created
 	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 3*time.Minute, 2*time.Second)
 	t.Logf("successfully created all resources for etcd instance: {name: %s, namespace: %s}", etcdInstance.Name, etcdInstance.Namespace)

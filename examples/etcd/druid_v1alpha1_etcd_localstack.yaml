@@ -28,7 +28,7 @@ spec:
     role: test
   etcd:
     metrics: basic
-    defragmentationSchedule: "0 */24 * * *"
+    defragmentationSchedule: "0 21-22 30/31 11-12 2/7"
     resources:
       limits: { cpu: 500m, memory: 1Gi }
       requests: { cpu: 100m, memory: 200Mi }
@@ -44,7 +44,7 @@ spec:
     #   trafficDistribution: PreferClose
   backup:
     port: 8080
-    fullSnapshotSchedule: "0 */24 * * *"
+    fullSnapshotSchedule: "*/57 23 30/31 6-12 2/7"
     resources:
       limits: { cpu: 200m, memory: 1Gi }
       requests: { cpu: 23m, memory: 128Mi }
