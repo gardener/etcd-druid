@@ -108,7 +108,7 @@ webhooks:
       - v1beta1
       - v1
     clientConfig:
-      caBundle: {{ .Files.Get .Values.webhooks.etcdComponents.pki.caPath | b64enc }}
+      caBundle: {{ .Files.Get .Values.webhooks.pki.caPath | b64enc }}
       service:
         name: etcd-druid
         namespace: {{ .Release.Namespace }}
