@@ -1,11 +1,10 @@
 package etcd
 
 import (
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -49,10 +48,10 @@ func (r *Reconciler) removeOperationAnnotation(ctx component.OperatorContext, et
 		return result
 	}
 
-	if metav1.HasAnnotation(etcdPartialObjMeta.ObjectMeta, v1beta1constants.GardenerOperation) {
+	if metav1.HasAnnotation(etcdPartialObjMeta.ObjectMeta, druidv1alpha1.DruidOperationAnnotation) {
 		ctx.Logger.Info("Removing operation annotation")
 		withOpAnnotation := etcdPartialObjMeta.DeepCopy()
-		delete(etcdPartialObjMeta.Annotations, v1beta1constants.GardenerOperation)
+		delete(etcdPartialObjMeta.Annotations, druidv1alpha1.DruidOperationAnnotation)
 		if err := r.client.Patch(ctx, etcdPartialObjMeta, client.MergeFrom(withOpAnnotation)); err != nil {
 			ctx.Logger.Error(err, "failed to remove operation annotation")
 			return ctrlutils.ReconcileWithError(err)
