@@ -23,39 +23,54 @@ deploy:
     releases:
       - name: etcd-druid
         chartPath: charts
+        setValues:
+          foo: bar # empty `setValues` value is not allowed
         setValueTemplates:
           image.repository: '{{.IMAGE_REPO_local_skaffold_etcd_druid}}'
           image.tag: '{{.IMAGE_TAG_local_skaffold_etcd_druid}}@{{.IMAGE_DIGEST_local_skaffold_etcd_druid}}'
         skipBuildDependencies: true
         createNamespace: true
         wait: true
+#
+# WARNING: Each 'add' op overrides the previous 'add' op(s) on the same field even across profiles.
+# Consider the following example:
+# - profile: name: bingo, op: add, path: /deploy/helm/releases/0/setValues/controllers, value: etcd.etcdStatusSyncPeriod: 5s
+# - profile: name: tringo, op: add, path: /deploy/helm/releases/0/setValues/controllers, value: etcd.etcdMemberNotReadyThreshold: 10m
+#  If both 'bingo' and 'tringo' profiles are activated then final set values will look like the following:
+# - /deploy/helm/releases/0/setValues/controllers/etcd/etcdMemberNotReadyThreshold: 10m
+# The second add op overrides the first add op since the path fields '/deploy/helm/releases/0/setValues/controllers' is same for both.
+# 'add' operation can only add one sub-field to 'setValues' at a time, so we cannot specify path as '/deploy/helm/releases/0/setValues/controllers/etcd'
+# unless an empty 'controllers' map has already been added.
+#
 profiles:
   # Profile to disable druid leader election, to allow debugging without abrupt exits due to failure to renew leader election lease within time.
   - name: debug
     patches:
       - op: add
-        path: /deploy/helm/releases/0/setValues
+        path: /deploy/helm/releases/0/setValues/replicas
+        value: 1
+      - op: add
+        path: /deploy/helm/releases/0/setValues/controllerManager
         value:
-          replicas: 1
-          controllerManager.leaderElection.enabled: false
+          leaderElection.enabled: false
   - name: e2e-test
     activation:
-      - env: "DRUID_E2E_TEST=true"
+      - env: DRUID_E2E_TEST=true
     patches:
       - op: add
-        path: /deploy/helm/releases/0/setValues
+        path: /deploy/helm/releases/0/setValues/controllers
         value:
-          controllers.etcd.etcdStatusSyncPeriod: 5s
-          controllers.compaction.etcdEventsThreshold: 15
-          controllers.compaction.metricsScrapeWaitDuration: 30s
+          etcd.etcdStatusSyncPeriod: 5s
+          compaction.etcdEventsThreshold: "15"
+          compaction.metricsScrapeWaitDuration: 30s
   - name: enable-etcdcomponents-webhook
     activation:
-      - env: "DRUID_ENABLE_ETCD_COMPONENTS_WEBHOOK=true"
+      - env: DRUID_ENABLE_ETCD_COMPONENTS_WEBHOOK=true
     patches:
       - op: add
-        path: /deploy/helm/releases/0/setValues
+        path: /deploy/helm/releases/0/setValues/webhooks
         value:
-          webhooks.etcdComponents.enabled: true
+          etcdComponents.enabled: true
 
 ---
 apiVersion: skaffold/v4beta12

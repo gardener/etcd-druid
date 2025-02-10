@@ -49,7 +49,7 @@ controllers:
 
 webhooks:
   etcdComponents:
-    enabled: true
+    enabled: false
     # reconciler-service-account: system:serviceaccount:{{ .Release.Namespace }}:etcd-druid
     exemptServiceAccounts:
       - system:serviceaccount:kube-system:generic-garbage-collector
