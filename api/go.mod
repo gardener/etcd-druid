@@ -3,7 +3,6 @@ module github.com/gardener/etcd-druid/api
 go 1.23.0
 
 require (
-	github.com/onsi/gomega v1.36.2
 	k8s.io/api v0.32.1
 	k8s.io/apimachinery v0.32.1
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
@@ -15,6 +14,9 @@ require (
 	k8s.io/code-generator v0.32.1
 	sigs.k8s.io/controller-tools v0.16.5
 )
+
+// Test dependencies
+require github.com/onsi/gomega v1.36.2
 
 require (
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect

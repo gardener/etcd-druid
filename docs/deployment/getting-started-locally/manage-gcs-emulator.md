@@ -33,7 +33,7 @@ gsutil -o "Credentials:gs_json_host=127.0.0.1" -o "Credentials:gs_json_port=4443
 Connection details for a GCS Object Store are put into a Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret/). Apply the Kubernetes Secret manifest through:
 
 ```bash
-kubectl apply -f config/samples/etcd-secret-fakegcs.yaml
+kubectl apply -f samples/etcd-secret-fakegcs.yaml
 ```
 
 > **Note:** The secret created should be referred to in the `Etcd` CR in `spec.backup.store.secretRef`.

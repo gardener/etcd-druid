@@ -20,7 +20,7 @@ If there is a need to make changes to the API, then one should do the following:
 * Care should be taken that incompatible API changes should not be made in the same version of the API. If there is a real necessity to introduce a backward incompatible change then a newer version of the API should be created and an [API conversion webhook](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#webhook-conversion) should be put in place to support more than one version of the API.
 * After the changes to the API are finalized, run `make generate` to ensure that the changes are also reflected in the CRD.
 * If necessary, implement or adapt the validation for the API.
-* If necessary, adapt the [samples](https://github.com/gardener/etcd-druid/tree/3383e0219a6c21c6ef1d5610db964cc3524807c8/config/samples) YAML manifests.
+* If necessary, adapt the [samples](https://github.com/gardener/etcd-druid/tree/master/samples) YAML manifests.
 * When opening a pull-request, always add a release note informing the end-users of the changes that are coming in.
 
 ### Removing a Field

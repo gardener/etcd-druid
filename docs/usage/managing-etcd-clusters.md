@@ -2,7 +2,7 @@
 
 ## Create an Etcd Cluster
 
-Creating an `Etcd` cluster can be done either by explicitly creating a manifest file or it can also be done programmatically.  You can refer to and/or modify any [sample](https://github.com/gardener/etcd-druid/tree/master/config/samples) `Etcd` manifest to create an etcd cluster. In order to programmatically create an `Etcd` cluster you can refer to the `Golang` [API](https://github.com/gardener/etcd-druid/tree/master/api)  to create an `Etcd` custom resource and using a [k8s client](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/client#Client) you can apply an instance of a `Etcd` custom resource targetting any namespace in a k8s cluster.
+Creating an `Etcd` cluster can be done either by explicitly creating a manifest file or it can also be done programmatically.  You can refer to and/or modify any [sample](https://github.com/gardener/etcd-druid/tree/master/samples) `Etcd` manifest to create an etcd cluster. In order to programmatically create an `Etcd` cluster you can refer to the `Golang` [API](https://github.com/gardener/etcd-druid/tree/master/api)  to create an `Etcd` custom resource and using a [k8s client](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/client#Client) you can apply an instance of a `Etcd` custom resource targetting any namespace in a k8s cluster.
 
 Prior to `v0.23.0` version of etcd-druid, after creating an `Etcd` custom resource, you will have to annotate the resource with `gardener.cloud/operation=reconcile` in order to trigger a reconciliation for the newly created `Etcd` resource. Post `v0.23.0` version of etcd-druid, there is no longer any need to explicitly trigger reconciliations for creating new `Etcd` clusters.
 
