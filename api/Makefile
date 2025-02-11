@@ -22,7 +22,7 @@ check-apidiff: $(GO_APIDIFF)
 	@$(HACK_DIR)/check-apidiff.sh
 
 .PHONY: generate
-generate: $(CONTROLLER_GEN) generate-api-docs
+generate: $(CONTROLLER_GEN) tidy generate-api-docs
 	@$(HACK_DIR)/generate.sh
 
 .PHONY: clean-generated-code
