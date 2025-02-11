@@ -14,6 +14,8 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
+	eventsv1beta1 "k8s.io/api/events/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -92,11 +94,11 @@ func (t *itTestEnv) CreateManager(clientBuilder *testutils.TestClientBuilder) er
 			BindAddress: "0",
 		},
 		NewClient: func(config *rest.Config, options client.Options) (client.Client, error) {
-			// options.Cache.DisableFor = []client.Object{
-			// 	&corev1.Event{},
-			// 	&eventsv1beta1.Event{},
-			// 	&eventsv1.Event{},
-			// }
+			options.Cache.DisableFor = []client.Object{
+				&corev1.Event{},
+				&eventsv1beta1.Event{},
+				&eventsv1.Event{},
+			}
 			cl, err := client.New(config, options)
 			if err != nil {
 				return nil, err

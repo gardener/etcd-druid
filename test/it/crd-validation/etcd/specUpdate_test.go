@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/test/utils"
@@ -105,7 +104,6 @@ func TestValidateSpecReplicas(t *testing.T) {
 
 			etcd.Spec.Replicas = int32(test.updatedReplicas)
 			updateErr := cl.Update(ctx, etcd)
-			time.Sleep(30 * time.Second)
 
 			updatedEtcd := &druidv1alpha1.Etcd{}
 			err := cl.Get(ctx, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta), updatedEtcd)
