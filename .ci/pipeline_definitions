@@ -21,7 +21,8 @@ etcd-druid:
         dockerimages:
           etcd-druid:
             image: europe-docker.pkg.dev/gardener-project/snapshots/gardener/etcd-druid
-            dockerfile: 'Dockerfile'
+            dockerfile: A'Dockerfile'
+            tag_as_latest: true
             inputs:
               repos:
                 source: ~
@@ -40,6 +41,15 @@ etcd-druid:
               value:
               - type: 'githubTeam'
                 teamname: 'gardener/etcd-druid-maintainers'
+        helmcharts:
+        - name: etcd-druid
+          dir: charts
+          registry: europe-docker.pkg.dev/gardener-project/snapshots/charts/gardener/etcd-druid
+          mappings:
+          - ref: ocm-resource:etcd-druid.repository
+            attribute: image.repository
+          - ref: ocm-resource:etcd-druid.tag
+            attribute: image.tag
     steps:
       check:
         image: 'golang:1.23.5'
