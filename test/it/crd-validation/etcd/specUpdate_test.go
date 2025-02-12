@@ -2,10 +2,7 @@ package etcd
 
 import (
 	"context"
-	"fmt"
 	"testing"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/test/utils"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -50,12 +47,11 @@ func TestValidateSpecStorageClass(t *testing.T) {
 			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
 
 			etcd.Spec.StorageClass = &test.updatedStorageClassName
-			fmt.Println("REACHED HERE")
-			t.Log(*etcd.Spec.StorageClass)
+			updateErr := cl.Update(ctx, etcd)
 			if test.expectErr {
-				g.Expect(cl.Update(ctx, etcd)).ToNot(Succeed())
+				g.Expect(updateErr).ToNot(BeNil())
 			} else {
-				g.Expect(cl.Update(ctx, etcd)).To(Succeed())
+				g.Expect(updateErr).To(BeNil())
 			}
 		})
 	}
@@ -105,17 +101,7 @@ func TestValidateSpecReplicas(t *testing.T) {
 			etcd.Spec.Replicas = int32(test.updatedReplicas)
 			updateErr := cl.Update(ctx, etcd)
 
-			updatedEtcd := &druidv1alpha1.Etcd{}
-			err := cl.Get(ctx, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta), updatedEtcd)
-			if err != nil {
-				fmt.Printf("ERROR!!! %s", err)
-			} else {
-				fmt.Printf("REPLICAS:::%d", updatedEtcd.Spec.Replicas)
-			}
 			if test.expectErr {
-				if updateErr != nil {
-					t.Log(updateErr)
-				}
 				g.Expect(updateErr).ToNot(BeNil())
 			} else {
 				g.Expect(updateErr).To(BeNil())
@@ -161,10 +147,11 @@ func TestValidateSpecStorageCapacity(t *testing.T) {
 
 			etcd.Spec.StorageCapacity = &test.updatedStorageCapacity
 
+			updateErr := cl.Update(ctx, etcd)
 			if test.expectErr {
-				g.Expect(cl.Update(ctx, etcd)).ToNot(Succeed())
+				g.Expect(updateErr).ToNot(BeNil())
 			} else {
-				g.Expect(cl.Update(ctx, etcd)).To(Succeed())
+				g.Expect(updateErr).To(BeNil())
 			}
 		})
 	}
@@ -207,10 +194,11 @@ func TestValidateSpecVolumeClaimTemplate(t *testing.T) {
 
 			etcd.Spec.VolumeClaimTemplate = &test.updatedVolClaimTemp
 
+			updateErr := cl.Update(ctx, etcd)
 			if test.expectErr {
-				g.Expect(cl.Update(ctx, etcd)).ToNot(Succeed())
+				g.Expect(updateErr).ToNot(BeNil())
 			} else {
-				g.Expect(cl.Update(ctx, etcd)).To(Succeed())
+				g.Expect(updateErr).To(BeNil())
 			}
 		})
 	}
