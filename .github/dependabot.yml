@@ -9,11 +9,12 @@
 version: 2
 updates:
   - package-ecosystem: gomod
-    directory: "/"
+    directories:
+      - "/"
+      - "/api"
+      - "/client"
     schedule:
       interval: monthly
-    allow:
-      - dependency-type: all
     open-pull-requests-limit: 5
     commit-message:
       # Prefix all commit messages
