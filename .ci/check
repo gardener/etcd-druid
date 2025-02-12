@@ -24,15 +24,10 @@ echo "> Running SAST checks..."
 make sast-report
 
 echo "Running API Make targets..."
-cd /go/src/github.com/gardener/etcd-druid/api
 
-echo ">Running API check..."
-make check
-
-echo "Running make tidy..."
-make tidy
-
-echo "> Running API check-generate..."
-make check-generate
+make --directory=api \
+  check \
+  tidy \
+  check-generate
 
 echo -e "\n> All checks successful"
