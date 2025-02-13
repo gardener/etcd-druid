@@ -8,21 +8,21 @@ For every `Etcd` cluster that is provisioned by `etcd-druid` it deploys a set of
 
 * Replicas for the StatefulSet are derived from `Etcd.Spec.Replicas` in the custom resource.
 
-* Each pod comprises of two containers:
+* Each pod comprises two containers:
   * `etcd-wrapper` : This is the main container which runs an etcd process.
   
   * `etcd-backup-restore` : This is a side-container which does the following:
     
     * Orchestrates the initialization of etcd. This includes validation of any existing etcd data directory, restoration in case of corrupt etcd data directory files for a single-member etcd cluster.
-    * Periodically renewes member lease.
-    * Optionally takes schedule and thresold based delta and full snapshots and pushes them to a configured object store.
+    * Periodically renews member lease.
+    * Optionally takes schedule and threshold based delta and full snapshots and pushes them to a configured object store.
     * Orchestrates scheduled etcd-db defragmentation.
     
     > NOTE: This is not a complete list of functionalities offered out of `etcd-backup-restore`. 
 
 **Code reference:** [StatefulSet-Component](https://github.com/gardener/etcd-druid/tree/480213808813c5282b19aff5f3fd6868529e779c/internal/component/statefulset)
 
-> For detailed information on each container you can visit [etcd-wrapper](https://github.com/gardener/etcd-wrapper) and [etcd-backup-restore](https://github.com/gardener/etcd-backup-restore) respositories.
+> For detailed information on each container you can visit [etcd-wrapper](https://github.com/gardener/etcd-wrapper) and [etcd-backup-restore](https://github.com/gardener/etcd-backup-restore) repositories.
 
 ## ConfigMap
 
