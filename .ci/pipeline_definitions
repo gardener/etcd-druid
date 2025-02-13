@@ -97,7 +97,7 @@ etcd-druid:
               tag_as_latest: True
           helmcharts:
           - <<: *etcd-druid-chart
-            registry: europe-docker.pkg.dev/gardener-project/releases/gardener/etcd-druid
+            registry: europe-docker.pkg.dev/gardener-project/releases/charts/gardener/etcd-druid
         release:
           nextversion: 'bump_minor'
           assets:
