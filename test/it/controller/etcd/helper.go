@@ -69,7 +69,7 @@ func createAndAssertEtcdAndAllManagedResources(ctx context.Context, t *testing.T
 	g.Expect(cl.Create(ctx, etcdInstance)).To(Succeed())
 	t.Logf("triggered creation of etcd instance: {name: %s, namespace: %s}, waiting for resources to be created...", etcdInstance.Name, etcdInstance.Namespace)
 	// ascertain that all etcd resources are created
-	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 10*time.Minute, 2*time.Second)
+	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 3*time.Minute, 2*time.Second)
 	t.Logf("successfully created all resources for etcd instance: {name: %s, namespace: %s}", etcdInstance.Name, etcdInstance.Namespace)
 
 	// In envtest KCM does not run. As a consequence StatefulSet controller also does not run which results in no pods being created.
