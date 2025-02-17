@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package util
+package utils
 
 import "strings"
 
@@ -13,9 +13,9 @@ const (
 	ServiceAccountUsernameSeparator = ":"
 )
 
-// MatchesUsername checks whether the provided username matches the namespace and name
+// ServiceAccountMatchesUsername checks whether the provided username matches the namespace and name
 // Use this when checking a service account namespace and name against a known string.
-func MatchesUsername(namespace, name, username string) bool {
+func ServiceAccountMatchesUsername(namespace, name, username string) bool {
 	if !strings.HasPrefix(username, ServiceAccountUsernamePrefix) {
 		return false
 	}

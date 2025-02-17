@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package util
+package utils
 
 import (
 	"testing"
@@ -87,7 +87,7 @@ func TestMatchesUserName(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			t.Parallel()
-			g.Expect(MatchesUsername(tc.namespace, tc.name, tc.username)).To(Equal(tc.expect))
+			g.Expect(ServiceAccountMatchesUsername(tc.namespace, tc.name, tc.username)).To(Equal(tc.expect))
 		})
 	}
 }

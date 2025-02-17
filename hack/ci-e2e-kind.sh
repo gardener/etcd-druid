@@ -9,7 +9,7 @@ set -o pipefail
 
 make kind-up
 
-CERT_EXPIRY=12h
+CERT_EXPIRY=2
 . $(dirname $0)/prepare-chart-resources.sh "${BUCKET_NAME}" "${CERT_EXPIRY}"
 
 trap '{

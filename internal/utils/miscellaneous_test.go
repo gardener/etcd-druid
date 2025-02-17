@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	. "github.com/onsi/gomega"
 )
 
 func TestMergeMaps(t *testing.T) {

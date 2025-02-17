@@ -11,7 +11,7 @@ import (
 	"slices"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/webhook/util"
+	"github.com/gardener/etcd-druid/internal/webhook/utils"
 
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -32,7 +32,7 @@ var allowedOperations = []admissionv1.Operation{admissionv1.Create, admissionv1.
 type Handler struct {
 	client  client.Client
 	config  *Config
-	decoder *util.RequestDecoder
+	decoder *utils.RequestDecoder
 	logger  logr.Logger
 }
 
@@ -41,14 +41,14 @@ func NewHandler(mgr manager.Manager, config *Config) (*Handler, error) {
 	return &Handler{
 		client:  mgr.GetClient(),
 		config:  config,
-		decoder: util.NewRequestDecoder(mgr),
+		decoder: utils.NewRequestDecoder(mgr),
 		logger:  mgr.GetLogger().WithName(handlerName),
 	}, nil
 }
 
 // Handle handles admission requests and prevents unintended changes to resources created by etcd-druid.
 func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	requestGKString := util.GetGroupKindAsStringFromRequest(req)
+	requestGKString := utils.GetGroupKindAsStringFromRequest(req)
 	log := h.logger.WithValues("name", req.Name, "namespace", req.Namespace, "resourceGroupKind", requestGKString, "operation", req.Operation, "user", req.UserInfo.Username)
 	log.V(1).Info("EtcdComponents webhook invoked")
 
@@ -58,14 +58,14 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 
 	partialObjMeta, err := h.decoder.DecodeRequestObjectAsPartialObjectMetadata(ctx, req)
 	if err != nil {
-		return admission.Errored(util.DetermineStatusCode(err), err)
+		return admission.Errored(utils.DetermineStatusCode(err), err)
 	}
 	if partialObjMeta == nil {
 		return admission.Allowed(fmt.Sprintf("resource: %v is not supported by EtcdComponents webhook", requestGKString))
 	}
 
 	if !isObjManagedByDruid(partialObjMeta.ObjectMeta) {
-		return admission.Allowed(fmt.Sprintf("resource: %v is not managed by druid, skipping validations", util.CreateObjectKey(partialObjMeta)))
+		return admission.Allowed(fmt.Sprintf("resource: %v is not managed by druid, skipping validations", utils.CreateObjectKey(partialObjMeta)))
 	}
 
 	etcd, warnings, err := h.getParentEtcdObj(ctx, partialObjMeta)
@@ -73,7 +73,7 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 	if etcd == nil {
-		return admission.Allowed(fmt.Sprintf("resource: %v  is not part of any Etcd, skipping validations", util.CreateObjectKey(partialObjMeta))).WithWarnings(warnings...)
+		return admission.Allowed(fmt.Sprintf("resource: %v  is not part of any Etcd, skipping validations", utils.CreateObjectKey(partialObjMeta))).WithWarnings(warnings...)
 	}
 
 	// allow changes to resources if Etcd has annotation druid.gardener.cloud/disable-etcd-component-protection is set.
@@ -94,12 +94,12 @@ func (h *Handler) handleUpdate(req admission.Request, etcd *druidv1alpha1.Etcd, 
 		return admission.Allowed("updation of managed resources by etcd-druid is allowed")
 	}
 
-	requestGK := util.GetGroupKindFromRequest(req)
+	requestGK := utils.GetGroupKindFromRequest(req)
 
 	// Leases (member and snapshot) will be periodically updated by etcd members.
 	// Allow updates to such leases, but only by etcd members, which would use the serviceaccount deployed by druid for them.
 	if requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() {
-		if util.MatchesUsername(etcd.GetNamespace(), druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta), req.UserInfo.Username) {
+		if utils.ServiceAccountMatchesUsername(etcd.GetNamespace(), druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta), req.UserInfo.Username) {
 			return admission.Allowed("lease resource can be freely updated by etcd members")
 		}
 	}
@@ -140,12 +140,12 @@ func (h *Handler) skipValidationForOperations(reqOperation admissionv1.Operation
 func (h *Handler) getParentEtcdObj(ctx context.Context, partialObjMeta *metav1.PartialObjectMetadata) (*druidv1alpha1.Etcd, admission.Warnings, error) {
 	etcdName, hasLabel := partialObjMeta.GetLabels()[druidv1alpha1.LabelPartOfKey]
 	if !hasLabel {
-		return nil, admission.Warnings{fmt.Sprintf("cannot determine parent etcd resource, label %s not found on resource: %v", druidv1alpha1.LabelPartOfKey, util.CreateObjectKey(partialObjMeta))}, nil
+		return nil, admission.Warnings{fmt.Sprintf("cannot determine parent etcd resource, label %s not found on resource: %v", druidv1alpha1.LabelPartOfKey, utils.CreateObjectKey(partialObjMeta))}, nil
 	}
 	etcd := &druidv1alpha1.Etcd{}
 	if err := h.client.Get(ctx, types.NamespacedName{Name: etcdName, Namespace: partialObjMeta.GetNamespace()}, etcd); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, admission.Warnings{fmt.Sprintf("parent Etcd %s not found for resource: %v", etcdName, util.CreateObjectKey(partialObjMeta))}, nil
+			return nil, admission.Warnings{fmt.Sprintf("parent Etcd %s not found for resource: %v", etcdName, utils.CreateObjectKey(partialObjMeta))}, nil
 		}
 		return nil, nil, err
 	}
