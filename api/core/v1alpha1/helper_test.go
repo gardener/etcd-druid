@@ -368,6 +368,60 @@ func TestRemoveOperationAnnotation(t *testing.T) {
 	}
 }
 
+func TestGetReconcileOperationAnnotationKey(t *testing.T) {
+	tests := []struct {
+		name                  string
+		annotations           map[string]string
+		expectedAnnotationKey *string
+	}{
+		{
+			name:                  "No annotations are set",
+			annotations:           nil,
+			expectedAnnotationKey: nil,
+		},
+		{
+			name:                  "No reconcile annotation is set",
+			annotations:           map[string]string{"dummy-annot": "dummy-val"},
+			expectedAnnotationKey: nil,
+		},
+		{
+			name: "Gardener reconcile annotation is set",
+			annotations: map[string]string{
+				"dummy-annot":               "dummy-val",
+				GardenerOperationAnnotation: "reconcile",
+			},
+			expectedAnnotationKey: ptr.To(GardenerOperationAnnotation),
+		},
+		{
+			name: "Druid reconcile annotation is set",
+			annotations: map[string]string{
+				"dummy-annot":            "dummy-val",
+				DruidOperationAnnotation: "reconcile",
+			},
+			expectedAnnotationKey: ptr.To(DruidOperationAnnotation),
+		},
+		{
+			name: "Gardener and Druid reconcile annotations are set",
+			annotations: map[string]string{
+				"dummy-annot":               "dummy-val",
+				DruidOperationAnnotation:    "reconcile",
+				GardenerOperationAnnotation: "reconcile",
+			},
+			expectedAnnotationKey: ptr.To(DruidOperationAnnotation),
+		},
+	}
+	g := NewWithT(t)
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), test.annotations, nil, false)
+			actualAnnotKey := GetReconcileOperationAnnotationKey(etcdObjMeta)
+			g.Expect(actualAnnotKey).To(Equal(test.expectedAnnotationKey))
+		})
+	}
+}
+
 func createEtcdObjectMetadata(uid types.UID, annotations, labels map[string]string, markedForDeletion bool) metav1.ObjectMeta {
 	etcdObjMeta := metav1.ObjectMeta{
 		Name:        etcdName,

@@ -6,7 +6,6 @@ package v1alpha1
 
 import (
 	"fmt"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -140,6 +139,18 @@ func GetAsOwnerReference(etcdObjMeta metav1.ObjectMeta) metav1.OwnerReference {
 // IsEtcdMarkedForDeletion returns true if the Etcd object is marked for deletion and false otherwise.
 func IsEtcdMarkedForDeletion(etcdObjMeta metav1.ObjectMeta) bool {
 	return etcdObjMeta.DeletionTimestamp != nil
+}
+
+// GetReconcileOperationAnnotationKey returns the reconcile operation annotation key set on an Etcd resource.
+// It will return nil if no such annotation is found.
+func GetReconcileOperationAnnotationKey(etcdObjMeta metav1.ObjectMeta) *string {
+	if _, ok := etcdObjMeta.Annotations[DruidOperationAnnotation]; ok {
+		return ptr.To(DruidOperationAnnotation)
+	}
+	if _, ok := etcdObjMeta.Annotations[GardenerOperationAnnotation]; ok {
+		return ptr.To(GardenerOperationAnnotation)
+	}
+	return nil
 }
 
 // HasReconcileOperationAnnotation checks if an Etcd resource has been annotated with an operation annotation with its value set to reconcile.

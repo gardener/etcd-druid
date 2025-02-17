@@ -23,7 +23,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -281,8 +280,8 @@ func assertETCDOperationAnnotation(t *testing.T, cl client.Client, etcdObjectKey
 		if err != nil {
 			return err
 		}
-		if metav1.HasAnnotation(etcdInstance.ObjectMeta, druidv1alpha1.DruidOperationAnnotation) != expectedAnnotationToBePresent {
-			return fmt.Errorf("expected reconcile operation annotation to be removed, found %v", druidv1alpha1.DruidOperationAnnotation)
+		if druidv1alpha1.HasReconcileOperationAnnotation(etcdInstance.ObjectMeta) != expectedAnnotationToBePresent {
+			return fmt.Errorf("expected reconcile operation annotation to be removed, found %v", druidv1alpha1.GetReconcileOperationAnnotationKey(etcdInstance.ObjectMeta))
 		}
 		return nil
 	}
