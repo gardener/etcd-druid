@@ -143,7 +143,7 @@ func (r *Reconciler) shouldReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
 	}
 
 	// Reconcile if the 'reconcile-op' annotation is present.
-	if hasOperationAnnotationToReconcile(etcd) {
+	if druidv1alpha1.HasReconcileOperationAnnotation(etcd.ObjectMeta) {
 		return true
 	}
 
@@ -185,8 +185,4 @@ func (r *Reconciler) getOrderedOperatorsForSync() []component.Kind {
 		component.RoleBindingKind,
 		component.StatefulSetKind,
 	}
-}
-
-func hasOperationAnnotationToReconcile(etcd *druidv1alpha1.Etcd) bool {
-	return etcd.GetAnnotations()[druidv1alpha1.DruidOperationAnnotation] == druidv1alpha1.DruidOperationReconcile
 }

@@ -7,7 +7,7 @@ CONTROLLER_GEN             := $(TOOLS_BIN_DIR)/controller-gen
 GOLANGCI_LINT              := $(TOOLS_BIN_DIR)/golangci-lint
 GOIMPORTS                  := $(TOOLS_BIN_DIR)/goimports
 GOIMPORTS_REVISER          := $(TOOLS_BIN_DIR)/goimports-reviser
-CRD_REF_DOCS			   := $(TOOLS_BIN_DIR)/crd-ref-docs
+CRD_REF_DOCS               := $(TOOLS_BIN_DIR)/crd-ref-docs
 GO_APIDIFF                 := $(TOOLS_BIN_DIR)/go-apidiff
 
 # default tool versions

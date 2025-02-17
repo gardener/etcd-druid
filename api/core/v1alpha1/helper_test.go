@@ -5,6 +5,7 @@
 package v1alpha1
 
 import (
+	"reflect"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -221,6 +222,148 @@ func TestIsEtcdMarkedForDeletion(t *testing.T) {
 			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, test.markedForDeletion)
 			isMarkedForDeletion := IsEtcdMarkedForDeletion(etcdObjMeta)
 			g.Expect(isMarkedForDeletion).To(Equal(test.expectedIsMarkedForDeletion))
+		})
+	}
+}
+
+func TestHasReconcileOperationAnnotation(t *testing.T) {
+	tests := []struct {
+		name                        string
+		annotations                 map[string]string
+		expectedHasReconcileOpAnnot bool
+	}{
+		{
+			name:                        "No annotation is set",
+			annotations:                 nil,
+			expectedHasReconcileOpAnnot: false,
+		},
+		{
+			name: "Does not have the operation annotation",
+			annotations: map[string]string{
+				"dummy-annotation": "dummy-value",
+			},
+			expectedHasReconcileOpAnnot: false,
+		},
+		{
+			name: "Contains gardener operation annotation but its value is not reconcile",
+			annotations: map[string]string{
+				GardenerOperationAnnotation: "migrate",
+			},
+			expectedHasReconcileOpAnnot: false,
+		},
+		{
+			name: "Contains druid operation annotation but its value is not reconcile",
+			annotations: map[string]string{
+				DruidOperationAnnotation: "dummy",
+			},
+			expectedHasReconcileOpAnnot: false,
+		},
+		{
+			name: "Contains gardener operation annotation and its value is reconcile",
+			annotations: map[string]string{
+				GardenerOperationAnnotation: "reconcile",
+			},
+			expectedHasReconcileOpAnnot: true,
+		},
+		{
+			name: "Contains druid operation annotation and its value is reconcile",
+			annotations: map[string]string{
+				DruidOperationAnnotation: "reconcile",
+			},
+			expectedHasReconcileOpAnnot: true,
+		},
+		{
+			name: "Contains both druid operation annotation and gardener operation annotation and its value is reconcile",
+			annotations: map[string]string{
+				GardenerOperationAnnotation: "reconcile",
+				DruidOperationAnnotation:    "reconcile",
+			},
+			expectedHasReconcileOpAnnot: true,
+		},
+		{
+			name: "Contains druid operation annotation with value not reconcile and gardener operation annotation with value reconcile",
+			annotations: map[string]string{
+				GardenerOperationAnnotation: "reconcile",
+				DruidOperationAnnotation:    "dummy",
+			},
+			expectedHasReconcileOpAnnot: true,
+		},
+		{
+			name: "Contains druid operation annotation with value reconcile and gardener operation annotation with value not reconcile",
+			annotations: map[string]string{
+				GardenerOperationAnnotation: "dummy",
+				DruidOperationAnnotation:    "reconcile",
+			},
+			expectedHasReconcileOpAnnot: true,
+		},
+	}
+
+	g := NewWithT(t)
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), test.annotations, nil, false)
+			g.Expect(HasReconcileOperationAnnotation(etcdObjMeta)).To(Equal(test.expectedHasReconcileOpAnnot))
+		})
+	}
+}
+
+func TestRemoveOperationAnnotation(t *testing.T) {
+	tests := []struct {
+		name                string
+		annotations         map[string]string
+		expectedAnnotations map[string]string
+	}{
+		{
+			name:                "No annotations are set",
+			annotations:         nil,
+			expectedAnnotations: nil,
+		},
+		{
+			name:                "No reconcile annotation is set",
+			annotations:         map[string]string{"dummy-annot": "dummy-val"},
+			expectedAnnotations: map[string]string{"dummy-annot": "dummy-val"},
+		},
+		{
+			name: "Gardener reconcile annotation is set",
+			annotations: map[string]string{
+				"dummy-annot":               "dummy-val",
+				GardenerOperationAnnotation: "reconcile",
+			},
+			expectedAnnotations: map[string]string{"dummy-annot": "dummy-val"},
+		},
+		{
+			name: "Druid reconcile annotation is set",
+			annotations: map[string]string{
+				"dummy-annot":            "dummy-val",
+				DruidOperationAnnotation: "reconcile",
+			},
+			expectedAnnotations: map[string]string{"dummy-annot": "dummy-val"},
+		},
+		{
+			name: "Gardener and Druid reconcile annotations are set",
+			annotations: map[string]string{
+				"dummy-annot":               "dummy-val",
+				DruidOperationAnnotation:    "reconcile",
+				GardenerOperationAnnotation: "reconcile",
+			},
+			expectedAnnotations: map[string]string{"dummy-annot": "dummy-val"},
+		},
+	}
+	g := NewWithT(t)
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), test.annotations, nil, false)
+			RemoveOperationAnnotation(etcdObjMeta)
+			if test.annotations == nil {
+				g.Expect(etcdObjMeta.Annotations).To(BeNil())
+			} else {
+				g.Expect(len(etcdObjMeta.Annotations)).To(Equal(len(test.expectedAnnotations)))
+				g.Expect(reflect.DeepEqual(etcdObjMeta.Annotations, test.expectedAnnotations)).To(BeTrue())
+			}
 		})
 	}
 }

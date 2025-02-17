@@ -4,7 +4,7 @@
 
 REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
 HACK_DIR            := $(REPO_ROOT)/hack
-API_HACK_DIR		:= $(REPO_ROOT)/api/hack
+API_HACK_DIR        := $(REPO_ROOT)/api/hack
 VERSION             := $(shell $(HACK_DIR)/get-version.sh)
 GIT_SHA             := $(shell git rev-parse --short HEAD || echo "GitNotFound")
 REGISTRY_ROOT       := europe-docker.pkg.dev/gardener-project
@@ -41,6 +41,10 @@ update-dependencies:
 	@env GO111MODULE=on go get -u
 	@make tidy
 
+.PHONY: sync-api-version
+sync-api-version:
+	@$(HACK_DIR)/sync-api-version.sh
+
 .PHONY: add-license-headers
 add-license-headers: $(GO_ADD_LICENSE)
 	@$(HACK_DIR)/addlicenseheaders.sh ${YEAR}
@@ -73,7 +77,9 @@ test-unit: $(GINKGO)
 	./internal/controller/utils/... \
 	./internal/mapper/... \
 	./internal/metrics/... \
-	./internal/health/...
+	./internal/health/... \
+	./internal/utils/imagevector/...
+
 	# run the golang native unit tests.
 	@TEST_COVER=$(TEST_COVER) "$(HACK_DIR)/test-go.sh" \
 	./internal/controller/etcd/... \
@@ -170,13 +176,13 @@ ifndef NAMESPACE
 override NAMESPACE = default
 endif
 
-ifndef CERT_EXPIRY
-override CERT_EXPIRY = 12h
+ifndef CERT_EXPIRY_DAYS
+override CERT_EXPIRY_DAYS = 365
 endif
 
 .PHONY: prepare-helm-charts
 prepare-helm-charts:
-	@$(HACK_DIR)/prepare-chart-resources.sh $(NAMESPACE) $(CERT_EXPIRY)
+	@$(HACK_DIR)/prepare-chart-resources.sh $(NAMESPACE) $(CERT_EXPIRY_DAYS)
 
 .PHONY: deploy
 deploy: $(SKAFFOLD) $(HELM) prepare-helm-charts

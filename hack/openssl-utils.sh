@@ -22,6 +22,7 @@ set -o pipefail
 
 TLS_ARTIFACT_REQUESTS_DIR=""
 TLS_DIR=""
+CERT_EXPIRY_DAYS=""
 
 function pki::check_prerequisites() {
   if ! command -v openssl &> /dev/null; then
@@ -44,7 +45,7 @@ function pki::generate_ca_key_cert() {
     -config ${TLS_ARTIFACT_REQUESTS_DIR}/ca.cnf \
     -key ${TLS_DIR}/ca.key \
     -out ${TLS_DIR}/ca.crt \
-    -days 365 \
+    -days ${CERT_EXPIRY_DAYS} \
     -batch
 }
 
@@ -55,7 +56,7 @@ function pki::create_ca_config() {
   default_ca = CA_default
 
   [ CA_default ]
-  default_days = 365
+  default_days = ${CERT_EXPIRY_DAYS}
   default_md = sha512
   unique_subject = no
   copy_extensions = copy
@@ -67,7 +68,7 @@ function pki::create_ca_config() {
   x509_extensions = extensions
 
   [ dn ]
-  CN = Etcd Druid CA
+  CN = etcd-druid-ca
   O = Gardener
 
   # https://docs.openssl.org/3.4/man5/x509v3_config/#standard-extensions
@@ -103,7 +104,7 @@ function pki::generate_server_key_cert() {
     -CAkey ${TLS_DIR}/ca.key \
     -CAcreateserial \
     -out ${TLS_DIR}/server.crt \
-    -days 365 \
+    -days ${CERT_EXPIRY_DAYS} \
     -extfile ${TLS_ARTIFACT_REQUESTS_DIR}/server.cnf \
     -extensions extensions
 }
@@ -146,14 +147,15 @@ EOF
 
 function pki::generate_resources() {
   pki::check_prerequisites
-  if [[ $# -ne 2 ]]; then
-    echo -e "${FUNCNAME[0]} requires expects a target directory and namespace"
+  if [[ $# -ne 3 ]]; then
+    echo -e "${FUNCNAME[0]} requires expects a target directory, namespace and a certificate expiry in days"
     exit 1
   fi
   TLS_DIR="$1"
   TLS_ARTIFACT_REQUESTS_DIR="${TLS_DIR}/requests"
   mkdir -p ${TLS_ARTIFACT_REQUESTS_DIR}
   local namespace="$2"
+  CERT_EXPIRY_DAYS="$3"
 
   pki::generate_ca_key_cert
   pki::generate_server_key_cert ${namespace}

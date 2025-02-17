@@ -12,7 +12,7 @@ var (
 	//go:embed druid.gardener.cloud_etcds.yaml
 	etcdCRD string
 	//go:embed druid.gardener.cloud_etcdcopybackupstasks.yaml
-	etcdCopyBackupTaskCRD string
+	etcdCopyBackupsTaskCRD string
 )
 
 // GetEtcdCRD returns the etcd CRD.
@@ -20,7 +20,7 @@ func GetEtcdCRD() string {
 	return etcdCRD
 }
 
-// GetEtcdCopyBackupTaskCRD returns the etcd-copy-backup-task CRD.
-func GetEtcdCopyBackupTaskCRD() string {
-	return etcdCopyBackupTaskCRD
+// GetEtcdCopyBackupsTaskCRD returns the etcd-copy-backup-task CRD.
+func GetEtcdCopyBackupsTaskCRD() string {
+	return etcdCopyBackupsTaskCRD
 }

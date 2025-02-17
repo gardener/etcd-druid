@@ -54,7 +54,7 @@ function initialize_pki_resources() {
   fi
 
   local namespace="$1"
-  local cert_expiry="$2"
+  local cert_expiry_days="$2"
   local generation_required=false
 
   target_path="${PROJECT_ROOT}/charts/pki-resources"
@@ -66,7 +66,7 @@ function initialize_pki_resources() {
   if ${generation_required} || ! all_pki_resources_exist; then
     echo "Generating PKI resources..."
     rm -rf ${target_path}/*
-    pki::generate_resources "${target_path}" "${namespace}"
+    pki::generate_resources "${target_path}" "${namespace}" "${cert_expiry_days}"
   fi
 }
 
@@ -95,14 +95,6 @@ function prepare_chart_resources() {
   echo "Copying CRDs to helm charts..."
   copy_crds
   echo "Generating PKI resources if not present or expired..."
-  local namespace="$1"
-  local cert_expiry="$2"
-  if [[ "${namespace}" != "default" ]]; then
-    found=$(kubectl get ns "${namespace}" --ignore-not-found)
-    if [[ -z "${found}" ]]; then
-      kubectl create namespace "${namespace}"
-    fi
-  fi
   initialize_pki_resources "$@"
 }
 

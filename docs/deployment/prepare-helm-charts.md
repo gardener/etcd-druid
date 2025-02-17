@@ -2,9 +2,6 @@
 
 `etcd-druid` operator can be deployed via [helm charts](https://helm.sh/). The charts can be found [here](https://github.com/gardener/etcd-druid/tree/master/charts/). All `Makefile` `deploy*` targets employ [skaffold](https://skaffold.dev/) which internally uses the same helm charts to deploy all resources to setup etcd-druid. In the following sections you will learn on the prerequisites, generated/copied resources and kubernetes resources that are deployed via helm charts to setup etcd-druid.
 
-!!! note
-	`etcd-druid` helm charts are currently not published to a public registry. In future these will be published as an OCI artifact to a public OCI registry.
-
 ## Prerequisite
 
 ### Installing Helm
@@ -69,7 +66,7 @@ A [values.yaml](https://github.com/gardener/etcd-druid/blob/master/charts//value
 
 ## Makefile target
 
-A convenience Makefile target `make prepre-helm-charts` is provided which leverages `OpenSSL` to generate the required PKI artifacts.
+A convenience Makefile target `make prepare-helm-charts` is provided which leverages `OpenSSL` to generate the required PKI artifacts.
 If you wish to deploy `etcd-druid` in a specific namespace then prior to running this Makefile target you can run:
 
 ```bash
@@ -77,8 +74,7 @@ export NAMESPACE=<namespace>
 ```
 
 !!! info
-
-​	Specifying a namespace other than `default` will result in additional SAN being added in the webhook server certificate.
+	Specifying a namespace other than `default` will result in additional SAN being added in the webhook server certificate.
 
 By default the certificates generated have an expiry of 12h. If you wish to have a different expiry then prior to running this Makefile target you can run:
 

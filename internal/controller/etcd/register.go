@@ -79,7 +79,11 @@ func (r *Reconciler) buildPredicate() predicate.Predicate {
 func (r *Reconciler) hasReconcileAnnotation() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
-			return updateEvent.ObjectNew.GetAnnotations()[druidv1alpha1.DruidOperationAnnotation] == druidv1alpha1.DruidOperationReconcile
+			newEtcd, ok := updateEvent.ObjectNew.(*druidv1alpha1.Etcd)
+			if !ok {
+				return false
+			}
+			return druidv1alpha1.HasReconcileOperationAnnotation(newEtcd.ObjectMeta)
 		},
 		CreateFunc: func(_ event.CreateEvent) bool {
 			return true

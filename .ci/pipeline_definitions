@@ -33,8 +33,7 @@ etcd-druid:
         dockerimages:
           etcd-druid:
             image: europe-docker.pkg.dev/gardener-project/snapshots/gardener/etcd-druid
-            dockerfile: A'Dockerfile'
-            tag_as_latest: true
+            dockerfile: 'Dockerfile'
             inputs:
               repos:
                 source: ~

@@ -141,3 +141,15 @@ func GetAsOwnerReference(etcdObjMeta metav1.ObjectMeta) metav1.OwnerReference {
 func IsEtcdMarkedForDeletion(etcdObjMeta metav1.ObjectMeta) bool {
 	return etcdObjMeta.DeletionTimestamp != nil
 }
+
+// HasReconcileOperationAnnotation checks if an Etcd resource has been annotated with an operation annotation with its value set to reconcile.
+func HasReconcileOperationAnnotation(etcdObjMeta metav1.ObjectMeta) bool {
+	return etcdObjMeta.Annotations[DruidOperationAnnotation] == DruidOperationReconcile ||
+		etcdObjMeta.Annotations[GardenerOperationAnnotation] == DruidOperationReconcile
+}
+
+// RemoveOperationAnnotation removes any operation annotation from the Etcd.ObjectMetadata.
+func RemoveOperationAnnotation(etcdObjMeta metav1.ObjectMeta) {
+	delete(etcdObjMeta.Annotations, DruidOperationAnnotation)
+	delete(etcdObjMeta.Annotations, GardenerOperationAnnotation)
+}

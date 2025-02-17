@@ -25,18 +25,18 @@ func TestMapEtcdToSecret(t *testing.T) {
 		expectedRequests []reconcile.Request
 	}{
 		{
-			name:             "etcd with no client and peer TLS and no store configured",
+			name:             "etcd configured with no client and peer TLS and with no backup store",
 			expectedRequests: []reconcile.Request{},
 		},
 		{
-			name:       "etcd with no client and peer TLS and backup store configured",
+			name:       "etcd configured with backup store and with no client and peer TLS",
 			withBackup: true,
 			expectedRequests: []reconcile.Request{
 				{NamespacedName: types.NamespacedName{Name: testutils.BackupStoreSecretName, Namespace: testutils.TestNamespace}},
 			},
 		},
 		{
-			name:          "etcd with only client TLS and no store configured",
+			name:          "etcd configured with only client TLS and with no store",
 			withClientTLS: true,
 			expectedRequests: []reconcile.Request{
 				{NamespacedName: types.NamespacedName{Name: testutils.ClientTLSCASecretName, Namespace: testutils.TestNamespace}},
@@ -45,7 +45,7 @@ func TestMapEtcdToSecret(t *testing.T) {
 			},
 		},
 		{
-			name:          "etcd with both client and peer TLS and no store configured",
+			name:          "etcd configured with both client and peer TLS but with no store configured",
 			withClientTLS: true,
 			withPeerTLS:   true,
 			expectedRequests: []reconcile.Request{
@@ -57,7 +57,7 @@ func TestMapEtcdToSecret(t *testing.T) {
 			},
 		},
 		{
-			name:          "etcd with both client and peer TLS and backup store configured",
+			name:          "etcd configured with both client and peer TLS and with backup store",
 			withClientTLS: true,
 			withPeerTLS:   true,
 			withBackup:    true,

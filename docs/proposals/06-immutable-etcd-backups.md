@@ -244,7 +244,7 @@ If you remove the immutability configuration from `etcd.spec.backup.store`, hibe
 
 If you genuinely require a mutable backup again, the recommended approach is:
 1. **Use a new bucket.** In your `Etcd` custom resource, reference a different bucket that does **not** have immutability enabled.  
-2. **Use `EtcdCopyBackupTask`.** If you want to start the cluster with a new bucket but retain old data, use the [`EtcdCopyBackupTask`](https://github.com/gardener/etcd-druid/blob/master/samples/druid_v1alpha1_etcdcopybackupstask.yaml) to copy existing backups from the old immutable bucket to the new mutable bucket.
+2. **Use `EtcdCopyBackupsTask`.** If you want to start the cluster with a new bucket but retain old data, use the [`EtcdCopyBackupsTask`](https://github.com/gardener/etcd-druid/blob/master/samples/druid_v1alpha1_etcdcopybackupstask.yaml) to copy existing backups from the old immutable bucket to the new mutable bucket.
 3. **Reconcile the `Etcd` CR.** After pointing `etcd.spec.backup.store` to the new bucket, `etcd-druid` will start storing backups there.
 
 > **Note:** Existing snapshots in the old immutable bucket remain locked according to the configured immutability period.
