@@ -55,7 +55,7 @@ aws s3api head-bucket --bucket <bucket-name>
 Connection details for an Azure S3 Object Store are put into a Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret/). Apply the Kubernetes Secret manifest through:
 
 ```bash
-kubectl apply -f samples/etcd-secret-localstack.yaml
+kubectl apply -f examples/objstore-emulator/etcd-secret-localstack.yaml
 ```
 
 > **Note:** The secret created should be referred to in the `Etcd` CR in `spec.backup.store.secretRef`.

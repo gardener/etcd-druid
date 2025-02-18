@@ -11,3 +11,7 @@ VERSION="$(cat "$(dirname $0)/../VERSION")"
 
 echo "Setting etcd-druid API dependency version to etcd-druid current version..."
 go get github.com/gardener/etcd-druid/api@${VERSION}
+
+echo "Setting etcd-druid API dependency version in client go Module to etcd-druid current version..."
+cd client
+go get github.com/gardener/etcd-druid/api@${VERSION}

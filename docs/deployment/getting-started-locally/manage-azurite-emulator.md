@@ -43,7 +43,7 @@ az storage container create -n <container-name>
 
 Connection details for an Azure Object Store Container are put into a Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret/). Apply the Kubernetes Secret manifest through:
 ```bash
-kubectl apply -f samples/etcd-secret-azurite.yaml
+kubectl apply -f examples/objstore-emulator/etcd-secret-azurite.yaml
 ```
 
 > **Note:** The secret created should be referred to in the `Etcd` CR in `spec.backup.store.secretRef`.
