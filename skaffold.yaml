@@ -7,7 +7,6 @@ build:
   artifacts:
     - image: local-skaffold/etcd-druid
       ko:
-        fromImage: gcr.io/distroless/static-debian11:nonroot
         dependencies:
           paths:
             - api/core/v1alpha1

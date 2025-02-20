@@ -24,13 +24,6 @@ source $(dirname $0)/openssl-utils.sh
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-function check_prereq() {
-  if ! command -v kubectl &>/dev/null; then
-    echo >&2 "kubectl is not installed, please install kubectl from https://kubernetes.io/docs/tasks/tools/install-kubectl/"
-    exit 1
-  fi
-}
-
 function copy_crds() {
   declare -a crds=("druid.gardener.cloud_etcds.yaml" "druid.gardener.cloud_etcdcopybackupstasks.yaml")
   target_path="${PROJECT_ROOT}/charts/crds"
@@ -98,5 +91,4 @@ function prepare_chart_resources() {
   initialize_pki_resources "$@"
 }
 
-check_prereq
 prepare_chart_resources "$@"
