@@ -99,7 +99,7 @@ if which git &>/dev/null; then
   fi
 
   echo ">> make tidy"
-  if ! out=$(go mod tidy 2>&1); then
+  if ! out=$(make tidy 2>&1); then
     echo "Error during calling make tidy: $out"
     exit 1
   fi

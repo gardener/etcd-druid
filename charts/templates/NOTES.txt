@@ -17,4 +17,4 @@ To enable 'Etcd cluster resource protection webhook' you can set ".Values.webhoo
 
 Now that you have deployed etcd-druid operator you can create Etcd clusters by following the 'Getting Started Guide'.
 See: https://gardener.github.io/etcd-druid/deployment/getting-started-locally/getting-started-locally.html#04-preparing-etcd-cr
-Etcd Samples are present at https://github.com/gardener/etcd-druid/tree/master/samples
+Etcd examples are present at https://github.com/gardener/etcd-druid/tree/master/examples
