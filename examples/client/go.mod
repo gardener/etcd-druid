@@ -4,10 +4,10 @@ go 1.23.0
 
 require (
 	sigs.k8s.io/controller-runtime v0.20.2
-	github.com/gardener/etcd-druid/client v0.28.0-dev
+	github.com/gardener/etcd-druid/client v0.0.0
 )
 
-replace github.com/gardener/etcd-druid/client => ../client
+replace github.com/gardener/etcd-druid/client => ../../client
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect

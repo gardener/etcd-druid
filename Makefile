@@ -41,12 +41,6 @@ update-dependencies:
 	@env GO111MODULE=on go get -u
 	@make tidy
 
-# Sets the API go module dependency version to the same version in VERSION file. This make target will change 2 go modules - etcd-druid and client.
-# Since there is an explicit replace directive for API go module, this is only for readability and does not have much of an impact.
-.PHONY: sync-api-version
-sync-api-version:
-	@$(HACK_DIR)/sync-api-version.sh
-
 .PHONY: add-license-headers
 add-license-headers: $(GO_ADD_LICENSE)
 	@$(HACK_DIR)/addlicenseheaders.sh ${YEAR}

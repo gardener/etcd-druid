@@ -5,7 +5,7 @@ go 1.23.0
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/gardener/etcd-backup-restore v0.33.0
-	github.com/gardener/etcd-druid/api v0.28.0-dev
+	github.com/gardener/etcd-druid/api v0.0.0
 	github.com/go-logr/logr v1.4.2
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0

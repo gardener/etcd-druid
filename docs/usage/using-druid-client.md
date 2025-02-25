@@ -10,7 +10,7 @@ To run the example ensure that you have the following setup:
 * Run the example:
 
   ```bash
-  go run client/main.go
+  go run examples/client/main.go
   ```
 
 You should see the following output:
