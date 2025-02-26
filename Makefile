@@ -25,6 +25,10 @@ KUBECONFIG_PATH     := $(HACK_DIR)/kind/kubeconfig
 TOOLS_DIR := $(HACK_DIR)/tools
 include $(HACK_DIR)/tools.mk
 
+ifndef CERT_EXPIRY_DAYS
+override CERT_EXPIRY_DAYS = 365
+endif
+
 # Rules for verification, formatting, linting and cleaning
 # -------------------------------------------------------------------------
 .PHONY: tidy
@@ -103,6 +107,7 @@ test-cov-clean:
 
 .PHONY: test-e2e
 test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE) $(GINKGO)
+	@$(HACK_DIR)/prepare-chart-resources.sh $(BUCKET_NAME) $(CERT_EXPIRY_DAYS)
 	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
 .PHONY: ci-e2e-kind
@@ -170,10 +175,6 @@ kind-down: $(KIND)
 
 ifndef NAMESPACE
 override NAMESPACE = default
-endif
-
-ifndef CERT_EXPIRY_DAYS
-override CERT_EXPIRY_DAYS = 365
 endif
 
 .PHONY: prepare-helm-charts

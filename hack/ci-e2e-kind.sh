@@ -9,8 +9,6 @@ set -o pipefail
 
 make kind-up
 
-CERT_EXPIRY=2
-. $(dirname $0)/prepare-chart-resources.sh "${BUCKET_NAME}" "${CERT_EXPIRY}"
 
 trap '{
   kind export logs "${ARTIFACTS:-/tmp}/etcd-druid-e2e" --name etcd-druid-e2e || true

@@ -54,7 +54,7 @@ gosec-report.sarif
 .idea
 .DS_Store
 
-# hack tools binaries
+# hack tools binaries and generated configurations
 /hack/tools/bin/*
 /hack/kind/*
 api/hack/tools/bin/*
