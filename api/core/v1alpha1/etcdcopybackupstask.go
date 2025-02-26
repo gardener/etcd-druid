@@ -38,6 +38,7 @@ type EtcdCopyBackupsTaskList struct {
 // EtcdCopyBackupsTaskSpec defines the parameters for the copy backups task.
 type EtcdCopyBackupsTaskSpec struct {
 	// PodLabels is a set of labels that will be added to pod(s) created by the copy backups task.
+	// +optional
 	PodLabels map[string]string `json:"podLabels,omitempty"`
 	// SourceStore defines the specification of the source object store provider for storing backups.
 	SourceStore StoreSpec `json:"sourceStore"`
