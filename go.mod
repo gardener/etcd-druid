@@ -6,6 +6,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/gardener/etcd-backup-restore v0.33.0
 	github.com/gardener/etcd-druid/api v0.0.0
+	github.com/gardener/etcd-druid/client v0.0.0
 	github.com/go-logr/logr v1.4.2
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
@@ -16,6 +17,7 @@ require (
 	go.uber.org/mock v0.5.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d
+	golang.org/x/tools v0.29.0
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.32.1
 	k8s.io/apimachinery v0.32.1
@@ -25,7 +27,6 @@ require (
 	sigs.k8s.io/controller-runtime v0.19.5
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20231015215740-bf15e44028f9 // v0.16.3
 	sigs.k8s.io/yaml v1.4.0
-	golang.org/x/tools v0.29.0
 )
 
 // Test-Only dependencies
@@ -132,4 +133,7 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.3 // indirect
 )
 
-replace github.com/gardener/etcd-druid/api => ./api
+replace (
+	github.com/gardener/etcd-druid/api => ./api
+	github.com/gardener/etcd-druid/client => ./client
+)
