@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-TOOLS_BIN_DIR              := $(TOOLS_DIR)/bin
+TOOLS_BIN_DIR              := $(API_MODULE_TOOLS_DIR)/bin
 CONTROLLER_GEN             := $(TOOLS_BIN_DIR)/controller-gen
 GOLANGCI_LINT              := $(TOOLS_BIN_DIR)/golangci-lint
 GOIMPORTS                  := $(TOOLS_BIN_DIR)/goimports
