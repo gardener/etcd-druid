@@ -8,5 +8,4 @@ use (
 	.
 	api
 	client
-	examples/client
 )
