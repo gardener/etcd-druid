@@ -2,6 +2,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+// All files within internal/utils/imagevector has been copied from https://github.com/gardener/gardener/tree/master/pkg/utils/imagevector
+// NOTE: If and when a separate go-module is created either for the ImageVector or for utilities in gardener repository we can remove this code
+// and add a dependency to that go module. We do not wish to have dependency on the gardener mono-repo just for this.
+
 package imagevector
 
 const (
