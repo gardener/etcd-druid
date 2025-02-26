@@ -25,6 +25,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.19.5
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20231015215740-bf15e44028f9 // v0.16.3
 	sigs.k8s.io/yaml v1.4.0
+	golang.org/x/tools v0.29.0
 )
 
 // Test-Only dependencies
@@ -32,8 +33,6 @@ require (
 	github.com/onsi/ginkgo/v2 v2.22.1
 	github.com/onsi/gomega v1.36.2
 )
-
-require golang.org/x/tools v0.29.0
 
 require (
 	cloud.google.com/go v0.115.1 // indirect

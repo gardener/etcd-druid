@@ -48,7 +48,7 @@ add-license-headers: $(GO_ADD_LICENSE)
 # Format code and arrange imports.
 .PHONY: format
 format: $(GOIMPORTS_REVISER)
-	@$(HACK_DIR)/format.sh ./internal/ ./test/
+	@$(HACK_DIR)/format.sh ./internal/ ./test/ ./examples/
 
 # Check packages
 .PHONY: check

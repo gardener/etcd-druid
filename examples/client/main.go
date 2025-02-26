@@ -6,17 +6,19 @@ package main
 
 import (
 	"context"
+	"os"
+	"time"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	druidclient "github.com/gardener/etcd-druid/client/clientset/versioned"
+
 	"golang.org/x/exp/slog"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	"os"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"time"
 )
 
 func main() {
