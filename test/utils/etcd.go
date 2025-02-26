@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 
 	"github.com/google/uuid"
@@ -86,15 +86,15 @@ func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
 	clientTLSConfig := &druidv1alpha1.TLSConfig{
 		TLSCASecretRef: druidv1alpha1.SecretReference{
 			SecretReference: corev1.SecretReference{
-				Name: "client-url-ca-etcd",
+				Name: ClientTLSCASecretName,
 			},
 			DataKey: ptr.To("ca.crt"),
 		},
 		ClientTLSSecretRef: corev1.SecretReference{
-			Name: "client-url-etcd-client-tls",
+			Name: ClientTLSClientCertSecretName,
 		},
 		ServerTLSSecretRef: corev1.SecretReference{
-			Name: "client-url-etcd-server-tls",
+			Name: ClientTLSServerCertSecretName,
 		},
 	}
 	eb.etcd.Spec.Etcd.ClientUrlTLS = clientTLSConfig
@@ -109,12 +109,12 @@ func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
 	peerTLSConfig := &druidv1alpha1.TLSConfig{
 		TLSCASecretRef: druidv1alpha1.SecretReference{
 			SecretReference: corev1.SecretReference{
-				Name: "peer-url-ca-etcd",
+				Name: PeerTLSCASecretName,
 			},
 			DataKey: ptr.To("ca.crt"),
 		},
 		ServerTLSSecretRef: corev1.SecretReference{
-			Name: "peer-url-etcd-server-tls",
+			Name: PeerTLSServerCertSecretName,
 		},
 	}
 	eb.etcd.Spec.Etcd.PeerUrlTLS = peerTLSConfig
@@ -481,7 +481,7 @@ func getBackupSpec() druidv1alpha1.BackupSpec {
 		},
 		Store: &druidv1alpha1.StoreSpec{
 			SecretRef: &corev1.SecretReference{
-				Name: "etcd-backup",
+				Name: BackupStoreSecretName,
 			},
 			Container: &container,
 			Provider:  &localProvider,

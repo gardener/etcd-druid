@@ -7,7 +7,7 @@ package condition
 import (
 	"context"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 )
 
 // Checker is an interface to check the etcd resource and to return condition results.

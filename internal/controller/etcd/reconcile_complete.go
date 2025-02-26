@@ -1,12 +1,14 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package etcd
 
 import (
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -49,10 +51,10 @@ func (r *Reconciler) removeOperationAnnotation(ctx component.OperatorContext, et
 		return result
 	}
 
-	if metav1.HasAnnotation(etcdPartialObjMeta.ObjectMeta, v1beta1constants.GardenerOperation) {
+	if druidv1alpha1.HasReconcileOperationAnnotation(etcdPartialObjMeta.ObjectMeta) {
 		ctx.Logger.Info("Removing operation annotation")
 		withOpAnnotation := etcdPartialObjMeta.DeepCopy()
-		delete(etcdPartialObjMeta.Annotations, v1beta1constants.GardenerOperation)
+		druidv1alpha1.RemoveOperationAnnotation(etcdPartialObjMeta.ObjectMeta)
 		if err := r.client.Patch(ctx, etcdPartialObjMeta, client.MergeFrom(withOpAnnotation)); err != nil {
 			ctx.Logger.Error(err, "failed to remove operation annotation")
 			return ctrlutils.ReconcileWithError(err)

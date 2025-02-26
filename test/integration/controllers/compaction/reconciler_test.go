@@ -9,13 +9,12 @@ import (
 	"fmt"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
-	"github.com/gardener/gardener/pkg/controllerutils"
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -139,12 +138,12 @@ var _ = Describe("Compaction Controller", func() {
 				}
 				return j, nil
 			}, timeout, pollingInterval).Should(PointTo(testutils.MatchFinalizer(metav1.FinalizerDeleteDependents)))
-			Expect(controllerutils.RemoveFinalizers(ctx, k8sClient, j, metav1.FinalizerDeleteDependents)).To(Succeed())
+			Expect(kubernetes.RemoveFinalizers(ctx, k8sClient, j, metav1.FinalizerDeleteDependents)).To(Succeed())
 
 			// Wait until the job has been deleted
 			Eventually(func() error {
 				return k8sClient.Get(ctx, client.ObjectKeyFromObject(j), &batchv1.Job{})
-			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
+			}, timeout, pollingInterval).Should(testutils.BeNotFoundError())
 
 			// A new job should be created
 			j = &batchv1.Job{}
@@ -187,12 +186,12 @@ var _ = Describe("Compaction Controller", func() {
 				}
 				return j, nil
 			}, timeout, pollingInterval).Should(PointTo(testutils.MatchFinalizer(metav1.FinalizerDeleteDependents)))
-			Expect(controllerutils.RemoveFinalizers(ctx, k8sClient, j, metav1.FinalizerDeleteDependents)).To(Succeed())
+			Expect(kubernetes.RemoveFinalizers(ctx, k8sClient, j, metav1.FinalizerDeleteDependents)).To(Succeed())
 
 			// Wait until the job has been deleted
 			Eventually(func() error {
 				return k8sClient.Get(ctx, client.ObjectKeyFromObject(j), &batchv1.Job{})
-			}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
+			}, timeout, pollingInterval).Should(testutils.BeNotFoundError())
 		})
 
 		It("should let the existing job run if the job is active", func() {
@@ -289,7 +288,7 @@ func validateEtcdForCompactionJob(instance *druidv1alpha1.Etcd, j *batchv1.Job) 
 			"Namespace": Equal(instance.Namespace),
 			"OwnerReferences": MatchElements(testutils.OwnerRefIterator, IgnoreExtras, Elements{
 				instance.Name: MatchFields(IgnoreExtras, Fields{
-					"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
+					"APIVersion":         Equal(druidv1alpha1.SchemeGroupVersion.String()),
 					"Kind":               Equal("Etcd"),
 					"Name":               Equal(instance.Name),
 					"UID":                Equal(instance.UID),

@@ -8,11 +8,10 @@ import (
 	"context"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -100,7 +99,7 @@ var _ = Describe("Secret Controller", func() {
 
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKeyFromObject(etcd), &druidv1alpha1.Etcd{})
-		}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
+		}, timeout, pollingInterval).Should(testutils.BeNotFoundError())
 
 		By("verifying secret references have no finalizer anymore")
 		for _, name := range newSecretNames {

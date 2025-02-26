@@ -1,4 +1,16 @@
 etcd-druid:
+  templates:
+    helmcharts:
+    - &etcd-druid-chart
+      name: etcd-druid
+      dir: charts
+      registry: europe-docker.pkg.dev/gardener-project/snapshots/charts/gardener/etcd-druid
+      mappings:
+      - ref: ocm-resource:etcd-druid.repository
+        attribute: image.repository
+      - ref: ocm-resource:etcd-druid.tag
+        attribute: image.tag
+
   base_definition:
     repo:
       source_labels:
@@ -58,9 +70,19 @@ etcd-druid:
         component_descriptor:
           ocm_repository_mappings:
           - repository: europe-docker.pkg.dev/gardener-project/releases
+        options:
+          public_build_logs: true
+        publish:
+          helmcharts:
+          - *etcd-druid-chart
     pull-request:
       traits:
         pull-request: ~
+        options:
+          public_build_logs: true
+        publish:
+          helmcharts:
+          - *etcd-druid-chart
     release:
       traits:
         version:
@@ -72,6 +94,9 @@ etcd-druid:
             etcd-druid:
               image: europe-docker.pkg.dev/gardener-project/releases/gardener/etcd-druid
               tag_as_latest: True
+          helmcharts:
+          - <<: *etcd-druid-chart
+            registry: europe-docker.pkg.dev/gardener-project/releases/charts/gardener/etcd-druid
         release:
           nextversion: 'bump_minor'
           assets:
@@ -86,6 +111,8 @@ etcd-druid:
                 see: https://github.com/securego/gosec
           git_tags:
           - ref_template: 'refs/tags/{VERSION}'
+          - ref_template: 'refs/tags/api/{VERSION}'
+          - ref_template: 'refs/tags/client/{VERSION}'
           release_callback: .ci/bump_tag
         slack:
           default_channel: 'internal_scp_workspace'

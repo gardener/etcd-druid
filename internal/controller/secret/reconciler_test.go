@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -6,225 +6,306 @@ package secret
 
 import (
 	"context"
-	"fmt"
+	"testing"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/client/kubernetes"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 
-	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	. "github.com/gardener/gardener/pkg/utils/test/matchers"
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("SecretController", func() {
-	var (
-		testSecretName = "test-secret"
-		testNamespace  = "test-namespace"
-	)
+type etcdBuildInfo struct {
+	name          string
+	withClientTLS bool
+	withPeerTLS   bool
+	withBackup    bool
+}
 
-	Describe("#isFinalizerNeeded", func() {
-		var (
-			etcdList druidv1alpha1.EtcdList
-		)
-
-		BeforeEach(func() {
-			etcdList = druidv1alpha1.EtcdList{}
-			for i := 0; i < 3; i++ {
-				etcdList.Items = append(etcdList.Items, druidv1alpha1.Etcd{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("etcd-%d", i),
-						Namespace: testNamespace,
-					},
-				})
-			}
-		})
-
-		It("should return false if secret is not referred to by any Etcd object", func() {
-			isFinalizerNeeded, _ := isFinalizerNeeded(testSecretName, &etcdList)
-			Expect(isFinalizerNeeded).To(BeFalse())
-		})
-
-		It("should return true if secret is referred to in an Etcd object's Spec.Etcd.ClientUrlTLS section", func() {
-			etcdList.Items[0].Spec.Etcd.ClientUrlTLS = &druidv1alpha1.TLSConfig{
-				ServerTLSSecretRef: corev1.SecretReference{
-					Name:      testSecretName,
-					Namespace: testNamespace,
-				},
-			}
-			isFinalizerNeeded, _ := isFinalizerNeeded(testSecretName, &etcdList)
-			Expect(isFinalizerNeeded).To(BeTrue())
-		})
-
-		It("should return true if secret is referred to in an Etcd object's Spec.Etcd.PeerUrlTLS section", func() {
-			etcdList.Items[1].Spec.Etcd.PeerUrlTLS = &druidv1alpha1.TLSConfig{
-				ServerTLSSecretRef: corev1.SecretReference{
-					Name:      testSecretName,
-					Namespace: testNamespace,
-				},
-			}
-			isFinalizerNeeded, _ := isFinalizerNeeded(testSecretName, &etcdList)
-			Expect(isFinalizerNeeded).To(BeTrue())
-		})
-
-		It("should return true if secret is referred to in an Etcd object's Spec.Backup.Store section", func() {
-			etcdList.Items[2].Spec.Backup.Store = &druidv1alpha1.StoreSpec{
-				SecretRef: &corev1.SecretReference{
-					Name:      testSecretName,
-					Namespace: testNamespace,
-				},
-			}
-			isFinalizerNeeded, _ := isFinalizerNeeded(testSecretName, &etcdList)
-			Expect(isFinalizerNeeded).To(BeTrue())
-		})
-	})
-
-	Describe("#addFinalizer", func() {
-		var (
-			secret     *corev1.Secret
-			ctx        context.Context
-			logger     = logr.Discard()
-			fakeClient = fakeclient.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
-		)
-
-		Context("test #addFinalizer on existing secret", func() {
-			BeforeEach(func() {
-				ctx = context.Background()
-				secret = ensureSecretCreation(ctx, testSecretName, testNamespace, fakeClient)
-			})
-
-			AfterEach(func() {
-				ensureSecretRemoval(ctx, testSecretName, testNamespace, fakeClient)
-			})
-
-			It("should return nil if secret already has finalizer", func() {
-				Expect(controllerutils.AddFinalizers(ctx, fakeClient, secret, common.FinalizerName)).To(Succeed())
-				Expect(addFinalizer(ctx, logger, fakeClient, secret)).To(BeNil())
-			})
-
-			It("should add finalizer on secret if finalizer does not exist", func() {
-				Expect(addFinalizer(ctx, logger, fakeClient, secret)).To(Succeed())
-				finalizers := sets.NewString(secret.Finalizers...)
-				Expect(finalizers.Has(common.FinalizerName)).To(BeTrue())
-			})
-		})
-
-		Context("test #addFinalizer when secret does not exist", func() {
-			BeforeEach(func() {
-				ctx = context.Background()
-				secret = &corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "non-existent",
-						Namespace: testNamespace,
-						// resource version is required as OptimisticLock is used for the merge patch
-						// operation used by controllerutils.AddFinalizers()
-						ResourceVersion: "42",
-					},
-				}
-			})
-
-			It("should not return an error if the secret is not found", func() {
-				Expect(addFinalizer(ctx, logger, fakeClient, secret)).To(BeNil())
-			})
-		})
-	})
-
-	Describe("#removeFinalizer", func() {
-		var (
-			secret     *corev1.Secret
-			ctx        context.Context
-			logger     = logr.Discard()
-			fakeClient = fakeclient.NewClientBuilder().WithScheme(kubernetes.Scheme).Build()
-		)
-
-		Context("test remove finalizer on an existing secret", func() {
-			BeforeEach(func() {
-				ctx = context.Background()
-				secret = ensureSecretCreation(ctx, testSecretName, testNamespace, fakeClient)
-			})
-
-			AfterEach(func() {
-				ensureSecretRemoval(ctx, testSecretName, testNamespace, fakeClient)
-			})
-
-			It("should return nil if secret does not have finalizer", func() {
-				Expect(controllerutils.RemoveAllFinalizers(ctx, fakeClient, secret)).Should(Succeed())
-				Expect(removeFinalizer(ctx, logger, fakeClient, secret)).To(BeNil())
-			})
-
-			It("should remove finalizer from secret if finalizer exists", func() {
-				Expect(removeFinalizer(ctx, logger, fakeClient, secret)).To(Succeed())
-				finalizers := sets.NewString(secret.Finalizers...)
-				Expect(finalizers.Has(common.FinalizerName)).To(BeFalse())
-			})
-		})
-
-		Context("test remove finalizer on a non-existing secret", func() {
-			BeforeEach(func() {
-				ctx = context.Background()
-				secret = &corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "non-existent",
-						Namespace: testNamespace,
-					},
-				}
-			})
-
-			It("should not return an error if the secret is not found", func() {
-				Expect(removeFinalizer(ctx, logger, fakeClient, secret)).To(BeNil())
-			})
-		})
-
-	})
-})
-
-func ensureSecretCreation(ctx context.Context, name, namespace string, fakeClient client.WithWatch) *corev1.Secret {
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Finalizers: []string{
-				common.FinalizerName,
+func TestIsFinalizerNeeded(t *testing.T) {
+	const unknownSecretName = "some-secret"
+	testCases := []struct {
+		name          string
+		secretName    string
+		etcdResources []etcdBuildInfo
+		expected      bool
+	}{
+		{
+			name:       "there is no etcd resource",
+			secretName: unknownSecretName,
+			expected:   false,
+		},
+		{
+			name:       "there is an etcd resource with no TLS and no backup store",
+			secretName: unknownSecretName,
+			etcdResources: []etcdBuildInfo{
+				{name: testutils.TestEtcdName, withClientTLS: false, withPeerTLS: false, withBackup: false},
 			},
+			expected: false,
+		},
+		{
+			name:       "there is one etcd resource with backup stored configured but no TLS, secret name does not match backup store secret",
+			secretName: testutils.ClientTLSCASecretName,
+			etcdResources: []etcdBuildInfo{
+				{name: "test-etcd-with-backup", withClientTLS: false, withPeerTLS: false, withBackup: true},
+			},
+			expected: false,
+		},
+		{
+			name:       "etcd is configured with client and peer TLS and has backup store configured, but secretname does not match any secret",
+			secretName: unknownSecretName,
+			etcdResources: []etcdBuildInfo{
+				{name: "test-etcd-with-backup", withClientTLS: true, withPeerTLS: true, withBackup: true},
+			},
+			expected: false,
+		},
+		{
+			name:       "there is one etcd resource with backup stored configured but no TLS, secret name matches backup store secret",
+			secretName: testutils.BackupStoreSecretName,
+			etcdResources: []etcdBuildInfo{
+				{name: "test-etcd-with-backup", withClientTLS: false, withPeerTLS: false, withBackup: true},
+				{name: "test-etcd-without-backup", withClientTLS: true, withPeerTLS: false, withBackup: false},
+			},
+			expected: true,
+		},
+		{
+			name:       "there is one etcd resource with client TLS, secret name matches client TLS CA secret",
+			secretName: testutils.ClientTLSCASecretName,
+			etcdResources: []etcdBuildInfo{
+				{name: "test-etcd-with-client-tls", withClientTLS: true, withPeerTLS: false, withBackup: false},
+				{name: "test-etcd-with-backup", withClientTLS: false, withPeerTLS: false, withBackup: true},
+			},
+			expected: true,
+		},
+		{
+			name:       "there is at least one etcd with client TLS, secret name matches client TLS server secret",
+			secretName: testutils.ClientTLSServerCertSecretName,
+			etcdResources: []etcdBuildInfo{
+				{name: "test-etcd-with-client-tls", withClientTLS: true, withPeerTLS: false, withBackup: false},
+				{name: "test-etcd-with-backup", withClientTLS: false, withPeerTLS: false, withBackup: true},
+			},
+			expected: true,
+		},
+		{
+			name:       "there is at least one etcd with client TLS, secret name matches client TLS client secret",
+			secretName: testutils.ClientTLSServerCertSecretName,
+			etcdResources: []etcdBuildInfo{
+				{name: "test-etcd-with-client-tls", withClientTLS: true, withPeerTLS: false, withBackup: false},
+				{name: "test-etcd-with-backup", withClientTLS: false, withPeerTLS: false, withBackup: true},
+			},
+			expected: true,
+		},
+		{
+			name:       "there is at least one etcd with peer TLS, secret name matches peer TLS CA secret",
+			secretName: testutils.PeerTLSCASecretName,
+			etcdResources: []etcdBuildInfo{
+				{name: "test-etcd-with-peer-tls", withClientTLS: false, withPeerTLS: true, withBackup: false},
+				{name: "test-etcd-with-client-tls-and-backup", withClientTLS: true, withPeerTLS: false, withBackup: true},
+			},
+			expected: true,
+		},
+		{
+			name:       "there is at least one etcd with peer TLS, secret name matches peer TLS server cert secret",
+			secretName: testutils.PeerTLSServerCertSecretName,
+			etcdResources: []etcdBuildInfo{
+				{name: "test-etcd-with-client-and-peer-tls", withClientTLS: true, withPeerTLS: true, withBackup: false},
+			},
+			expected: true,
 		},
 	}
 
-	By("Create Secret")
-	Expect(fakeClient.Create(ctx, secret)).To(Succeed())
-
-	By("Ensure Secret is created")
-	Eventually(func() error {
-		return fakeClient.Get(ctx, client.ObjectKeyFromObject(secret), secret)
-	}).Should(Succeed())
-
-	return secret
+	g := NewWithT(t)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			etcdList := createEtcdList(tc.etcdResources)
+			actual, _ := isFinalizerNeeded(tc.secretName, &etcdList)
+			g.Expect(actual).To(Equal(tc.expected))
+		})
+	}
 }
 
-func ensureSecretRemoval(ctx context.Context, name, namespace string, fakeClient client.WithWatch) {
-	secret := &corev1.Secret{}
-	if err := fakeClient.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, secret); err != nil {
-		Expect(apierrors.IsNotFound(err)).To(BeTrue())
-		return
+func TestAddFinalizer(t *testing.T) {
+	const testSecretName = "test-secret"
+	testCases := []struct {
+		name          string
+		secretExists  bool
+		hasFinalizer  bool
+		patchErr      *apierrors.StatusError
+		expectedError *apierrors.StatusError
+	}{
+		{
+			name:          "secret does not exist",
+			expectedError: nil,
+		},
+		{
+			name:          "secret already has finalizer",
+			secretExists:  true,
+			hasFinalizer:  true,
+			expectedError: nil,
+		},
+		{
+			name:          "secret does not have finalizer",
+			secretExists:  true,
+			hasFinalizer:  false,
+			expectedError: nil,
+		},
+		{
+			name:          "secret does not have finalizer, patch error",
+			secretExists:  true,
+			hasFinalizer:  false,
+			patchErr:      testutils.TestAPIInternalErr,
+			expectedError: testutils.TestAPIInternalErr,
+		},
 	}
 
-	By("Remove any existing finalizers on Secret")
-	Expect(controllerutils.RemoveAllFinalizers(ctx, fakeClient, secret)).To(Succeed())
+	g := NewWithT(t)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var (
+				secret     *corev1.Secret
+				cl         client.Client
+				ctx        = context.Background()
+				finalizers []string
+			)
+			if tc.hasFinalizer {
+				finalizers = []string{common.FinalizerName}
+			}
+			secret = buildSecretResource(testSecretName, testutils.TestNamespace, finalizers)
+			if tc.secretExists {
+				cl = testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{secret}, client.ObjectKeyFromObject(secret))
+			} else {
+				secret.ResourceVersion = "1"
+				cl = testutils.CreateDefaultFakeClient()
+			}
 
-	By("Delete Secret")
-	Expect(fakeClient.Delete(ctx, secret)).To(Succeed())
+			err := addFinalizer(ctx, logr.Discard(), cl, secret)
+			if tc.expectedError != nil {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err).To(Equal(tc.expectedError))
+			} else {
+				g.Expect(err).To(BeNil())
+				updatedSecret := &corev1.Secret{}
+				getErr := cl.Get(ctx, client.ObjectKeyFromObject(secret), updatedSecret)
+				if tc.secretExists {
+					g.Expect(getErr).To(BeNil())
+					g.Expect(updatedSecret.Finalizers).To(ContainElement(common.FinalizerName))
+				} else {
+					g.Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
+				}
+			}
+		})
+	}
+}
 
-	By("Ensure Secret is deleted")
-	Eventually(func() error {
-		return fakeClient.Get(ctx, client.ObjectKeyFromObject(secret), secret)
-	}).Should(BeNotFoundError())
+func TestRemoveFinalizer(t *testing.T) {
+	const testSecretName = "test-secret"
+	testCases := []struct {
+		name                        string
+		secretExists                bool
+		finalizers                  []string
+		patchErr                    *apierrors.StatusError
+		expectedError               *apierrors.StatusError
+		expectedRemainingFinalizers []string
+	}{
+		{
+			name:          "secret does not exist",
+			expectedError: nil,
+		},
+		{
+			name:                        "secret does not have finalizer",
+			secretExists:                true,
+			finalizers:                  []string{"bingo"},
+			expectedError:               nil,
+			expectedRemainingFinalizers: []string{"bingo"},
+		},
+		{
+			name:                        "secret has desired finalizer",
+			secretExists:                true,
+			finalizers:                  []string{common.FinalizerName, "bingo"},
+			expectedError:               nil,
+			expectedRemainingFinalizers: []string{"bingo"},
+		},
+		{
+			name:                        "secret has finalizer, patch error",
+			secretExists:                true,
+			finalizers:                  []string{common.FinalizerName, "bingo"},
+			patchErr:                    testutils.TestAPIInternalErr,
+			expectedError:               testutils.TestAPIInternalErr,
+			expectedRemainingFinalizers: []string{common.FinalizerName, "bingo"},
+		},
+	}
+
+	g := NewWithT(t)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var (
+				secret *corev1.Secret
+				cl     client.Client
+				ctx    = context.Background()
+			)
+			secret = buildSecretResource(testSecretName, testutils.TestNamespace, tc.finalizers)
+			if tc.secretExists {
+				cl = testutils.CreateTestFakeClientForObjects(nil, nil, tc.patchErr, nil, []client.Object{secret}, client.ObjectKeyFromObject(secret))
+			} else {
+				secret.ResourceVersion = "1"
+				cl = testutils.CreateDefaultFakeClient()
+			}
+
+			err := removeFinalizer(ctx, logr.Discard(), cl, secret)
+			if tc.expectedError != nil {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err).To(Equal(tc.expectedError))
+			} else {
+				g.Expect(err).To(BeNil())
+				updatedSecret := &corev1.Secret{}
+				getErr := cl.Get(ctx, client.ObjectKeyFromObject(secret), updatedSecret)
+				if tc.secretExists {
+					g.Expect(getErr).To(BeNil())
+					g.Expect(updatedSecret.Finalizers).To(Equal(tc.expectedRemainingFinalizers))
+				} else {
+					g.Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
+				}
+			}
+		})
+	}
+}
+
+func createEtcdList(etcdBuildInfos []etcdBuildInfo) druidv1alpha1.EtcdList {
+	etcdList := druidv1alpha1.EtcdList{}
+	for _, info := range etcdBuildInfos {
+		etcdBuilder := testutils.EtcdBuilderWithoutDefaults(info.name, testutils.TestNamespace)
+		if info.withPeerTLS {
+			_ = etcdBuilder.WithPeerTLS()
+		}
+		if info.withClientTLS {
+			_ = etcdBuilder.WithClientTLS()
+		}
+		if info.withBackup {
+			_ = etcdBuilder.WithDefaultBackup()
+		}
+		etcdList.Items = append(etcdList.Items, *etcdBuilder.Build())
+	}
+	return etcdList
+}
+
+func buildSecretResource(name, namespace string, finalizers []string) *corev1.Secret {
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       name,
+			Namespace:  namespace,
+			Finalizers: finalizers,
+		},
+		Data: map[string][]byte{
+			"key": []byte("tringo"),
+		},
+	}
 }

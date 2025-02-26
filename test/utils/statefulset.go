@@ -7,7 +7,7 @@ package utils
 import (
 	"fmt"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -32,7 +32,7 @@ func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32
 			},
 			Annotations: nil,
 			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion:         druidv1alpha1.GroupVersion.String(),
+				APIVersion:         druidv1alpha1.SchemeGroupVersion.String(),
 				Kind:               "Etcd",
 				Name:               name,
 				UID:                etcdUID,

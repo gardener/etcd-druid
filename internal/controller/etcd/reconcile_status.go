@@ -5,11 +5,11 @@
 package etcd
 
 import (
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/health/status"
-	"github.com/gardener/etcd-druid/internal/utils"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	"github.com/go-logr/logr"
 	"k8s.io/utils/ptr"
@@ -52,7 +52,7 @@ func (r *Reconciler) mutateETCDStatusWithMemberStatusAndConditions(ctx component
 }
 
 func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
-	sts, err := utils.GetStatefulSet(ctx, r.client, etcd)
+	sts, err := kubernetes.GetStatefulSet(ctx, r.client, etcd)
 	if err != nil {
 		return ctrlutils.ReconcileWithError(err)
 	}
@@ -67,7 +67,7 @@ func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.Operato
 		if etcd.Status.ObservedGeneration == nil || *etcd.Status.ObservedGeneration != etcd.Generation {
 			expectedReplicas = *sts.Spec.Replicas
 		}
-		ready, _ := utils.IsStatefulSetReady(expectedReplicas, sts)
+		ready, _ := kubernetes.IsStatefulSetReady(expectedReplicas, sts)
 		etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
 		etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
 		etcd.Status.Replicas = sts.Status.CurrentReplicas

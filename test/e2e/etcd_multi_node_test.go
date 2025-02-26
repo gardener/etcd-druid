@@ -12,11 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -271,19 +270,19 @@ func purgeSnapstoreIfNeeded(ctx context.Context, cl client.Client, provider Test
 	}
 }
 
-func deleteMemberDir(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName, containerName string) {
+func deleteMemberDir(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd, podName, containerName string) {
 	ExpectWithOffset(1, deleteDir(ctx, kubeconfigPath, namespace, podName, containerName, "/var/etcd/data/new.etcd/member")).To(Succeed())
 	checkUnreadySts(ctx, cl, logger, etcd)
 }
 
-func deletePod(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName string) {
+func deletePod(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd, podName string) {
 	pod := &corev1.Pod{}
 	ExpectWithOffset(1, cl.Get(ctx, types.NamespacedName{Name: podName, Namespace: namespace}, pod)).To(Succeed())
 	ExpectWithOffset(1, cl.Delete(ctx, pod, client.PropagationPolicy(metav1.DeletePropagationForeground))).To(Succeed())
 	checkUnreadySts(ctx, cl, logger, etcd)
 }
 
-func checkUnreadySts(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd) {
+func checkUnreadySts(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd) {
 	logger.Info("waiting for sts to become unready")
 	EventuallyWithOffset(2, func() error {
 		sts := &appsv1.StatefulSet{}
@@ -298,7 +297,7 @@ func checkUnreadySts(ctx context.Context, cl client.Client, logger logr.Logger, 
 	logger.Info("sts is unready")
 }
 
-func checkForUnreadyEtcdMembers(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
+func checkForUnreadyEtcdMembers(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
 	logger.Info("Waiting for at least one etcd member to become unready")
 	EventuallyWithOffset(1, func() error {
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
@@ -322,7 +321,7 @@ func checkForUnreadyEtcdMembers(ctx context.Context, cl client.Client, logger lo
 // it raises assertion error.
 //
 // checkEventuallyEtcdRollingUpdateDone ensures rolling updates of etcd resources(etcd/sts) is done.
-func checkEventuallyEtcdRollingUpdateDone(ctx context.Context, cl client.Client, etcd *v1alpha1.Etcd,
+func checkEventuallyEtcdRollingUpdateDone(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd,
 	oldStsObservedGeneration, oldEtcdObservedGeneration int64, timeout time.Duration) {
 	EventuallyWithOffset(1, func() error {
 		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
@@ -353,12 +352,12 @@ func checkEventuallyEtcdRollingUpdateDone(ctx context.Context, cl client.Client,
 }
 
 // hibernateAndCheckEtcd scales down etcd replicas to zero and ensures
-func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
+func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
 	ExpectWithOffset(1, retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		ExpectWithOffset(2, cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
 		etcd.SetAnnotations(
 			map[string]string{
-				v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+				druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile,
 			})
 		etcd.Spec.Replicas = 0
 		return cl.Update(ctx, etcd)
@@ -409,9 +408,9 @@ func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Lo
 		}
 
 		for _, c := range etcd.Status.Conditions {
-			if c.Status != v1alpha1.ConditionTrue {
+			if c.Status != druidv1alpha1.ConditionTrue {
 				return fmt.Errorf("etcd %s status condition is %q, but expected to be %s ",
-					etcd.Name, c.Status, v1alpha1.ConditionTrue)
+					etcd.Name, c.Status, druidv1alpha1.ConditionTrue)
 			}
 		}
 
@@ -428,7 +427,7 @@ func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Lo
 }
 
 // updateAndCheckEtcd updates the given etcd obj in the Kubernetes cluster.
-func updateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
+func updateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
 	sts := &appsv1.StatefulSet{}
 	ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts)).To(Succeed())
 	Expect(etcd).ToNot(BeNil())
@@ -437,11 +436,11 @@ func updateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 
 	// update reconcile annotation, druid to reconcile and update the changes.
 	ExpectWithOffset(1, retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		etcdObj := &v1alpha1.Etcd{}
+		etcdObj := &druidv1alpha1.Etcd{}
 		ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcdObj)).To(Succeed())
 		etcdObj.SetAnnotations(
 			map[string]string{
-				v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationReconcile,
+				druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile,
 			})
 		etcdObj.Spec = etcd.Spec
 		return cl.Update(ctx, etcdObj)
@@ -503,7 +502,7 @@ func checkJobReady(ctx context.Context, cl client.Client, jobName string) {
 // etcdZeroDownTimeValidatorJob returns k8s job which ensures
 // Etcd cluster zero downtime by continuously checking etcd cluster health.
 // This job fails once health check fails and associated pod results in error status.
-func startEtcdZeroDownTimeValidatorJob(ctx context.Context, cl client.Client, etcd *v1alpha1.Etcd, testName string) *batchv1.Job {
+func startEtcdZeroDownTimeValidatorJob(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd, testName string) *batchv1.Job {
 	job := etcdZeroDownTimeValidatorJob(etcd.Name+"-client", testName, etcd.Spec.Etcd.ClientUrlTLS)
 
 	logger.Info("Creating job to ensure etcd zero downtime", "job", job.Name)
@@ -516,11 +515,11 @@ func startEtcdZeroDownTimeValidatorJob(ctx context.Context, cl client.Client, et
 }
 
 // getEtcdLeaderPodName returns the leader pod name by using lease
-func getEtcdLeaderPodName(ctx context.Context, cl client.Client, etcd *v1alpha1.Etcd) (*types.NamespacedName, error) {
+func getEtcdLeaderPodName(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd) (*types.NamespacedName, error) {
 	leaseList := &v1.LeaseList{}
-	r1, err := k8slabels.NewRequirement(v1alpha1.LabelPartOfKey, selection.Equals, []string{etcd.Name})
+	r1, err := k8slabels.NewRequirement(druidv1alpha1.LabelPartOfKey, selection.Equals, []string{etcd.Name})
 	ExpectWithOffset(1, err).ShouldNot(HaveOccurred())
-	r2, err := k8slabels.NewRequirement(v1alpha1.LabelComponentKey, selection.Equals, []string{common.ComponentNameMemberLease})
+	r2, err := k8slabels.NewRequirement(druidv1alpha1.LabelComponentKey, selection.Equals, []string{common.ComponentNameMemberLease})
 	ExpectWithOffset(1, err).ShouldNot(HaveOccurred())
 
 	opts := &client.ListOptions{
@@ -562,7 +561,7 @@ func getPodLogs(ctx context.Context, PodKey *types.NamespacedName, opts *corev1.
 }
 
 // checkDefragmentationFinished checks defragmentation is finished or not for given etcd.
-func checkDefragmentationFinished(ctx context.Context, cl client.Client, etcd *v1alpha1.Etcd, logger logr.Logger) {
+func checkDefragmentationFinished(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd, logger logr.Logger) {
 	// Wait until etcd cluster defragmentation is finish.
 	logger.Info("Waiting for defragmentation to finish")
 	EventuallyWithOffset(1, func() error {

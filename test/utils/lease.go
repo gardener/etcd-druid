@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 
 	coordinationv1 "k8s.io/api/coordination/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,7 +32,7 @@ func CreateLease(name, namespace, etcdName string, etcdUID types.UID, componentN
 				druidv1alpha1.LabelManagedByKey: "etcd-druid",
 			},
 			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion:         druidv1alpha1.GroupVersion.String(),
+				APIVersion:         druidv1alpha1.SchemeGroupVersion.String(),
 				Kind:               "Etcd",
 				Name:               etcdName,
 				UID:                etcdUID,

@@ -5,7 +5,7 @@
 package validation
 
 import (
-	"github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
@@ -13,7 +13,7 @@ import (
 )
 
 // ValidateEtcdCopyBackupsTask validates a EtcdCopyBackupsTask object.
-func ValidateEtcdCopyBackupsTask(task *v1alpha1.EtcdCopyBackupsTask) field.ErrorList {
+func ValidateEtcdCopyBackupsTask(task *druidv1alpha1.EtcdCopyBackupsTask) field.ErrorList {
 	var allErrs field.ErrorList
 
 	allErrs = append(allErrs, apivalidation.ValidateObjectMeta(&task.ObjectMeta, true, apivalidation.NameIsDNSSubdomain, field.NewPath("metadata"))...)
@@ -23,7 +23,7 @@ func ValidateEtcdCopyBackupsTask(task *v1alpha1.EtcdCopyBackupsTask) field.Error
 }
 
 // ValidateEtcdCopyBackupsTaskUpdate validates a EtcdCopyBackupsTask object before an update.
-func ValidateEtcdCopyBackupsTaskUpdate(new, old *v1alpha1.EtcdCopyBackupsTask) field.ErrorList {
+func ValidateEtcdCopyBackupsTaskUpdate(new, old *druidv1alpha1.EtcdCopyBackupsTask) field.ErrorList {
 	var allErrs field.ErrorList
 
 	allErrs = append(allErrs, apivalidation.ValidateObjectMetaUpdate(&new.ObjectMeta, &old.ObjectMeta, field.NewPath("metadata"))...)
@@ -34,7 +34,7 @@ func ValidateEtcdCopyBackupsTaskUpdate(new, old *v1alpha1.EtcdCopyBackupsTask) f
 }
 
 // ValidateEtcdCopyBackupsTaskSpec validates the specification of a EtcdCopyBackupsTask object.
-func ValidateEtcdCopyBackupsTaskSpec(spec *v1alpha1.EtcdCopyBackupsTaskSpec, name, namespace string, path *field.Path) field.ErrorList {
+func ValidateEtcdCopyBackupsTaskSpec(spec *druidv1alpha1.EtcdCopyBackupsTaskSpec, name, namespace string, path *field.Path) field.ErrorList {
 	var allErrs field.ErrorList
 
 	allErrs = append(allErrs, validateStore(&spec.SourceStore, name, namespace, path.Child("sourceStore"))...)
@@ -44,7 +44,7 @@ func ValidateEtcdCopyBackupsTaskSpec(spec *v1alpha1.EtcdCopyBackupsTaskSpec, nam
 }
 
 // ValidateEtcdCopyBackupsTaskSpecUpdate validates the specification of a EtcdCopyBackupsTask object before an update.
-func ValidateEtcdCopyBackupsTaskSpecUpdate(new, old *v1alpha1.EtcdCopyBackupsTaskSpec, deletionTimestampSet bool, path *field.Path) field.ErrorList {
+func ValidateEtcdCopyBackupsTaskSpecUpdate(new, old *druidv1alpha1.EtcdCopyBackupsTaskSpec, deletionTimestampSet bool, path *field.Path) field.ErrorList {
 	var allErrs field.ErrorList
 
 	if deletionTimestampSet && !apiequality.Semantic.DeepEqual(new, old) {

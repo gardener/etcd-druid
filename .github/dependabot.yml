@@ -9,7 +9,10 @@
 version: 2
 updates:
   - package-ecosystem: gomod
-    directory: "/"
+    directories:
+      - "/"
+      - "/api"
+      - "/client"
     schedule:
       interval: monthly
     open-pull-requests-limit: 5

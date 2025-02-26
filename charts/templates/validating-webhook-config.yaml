@@ -1,0 +1,135 @@
+{{- if .Values.webhooks.etcdComponents.enabled }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: etcd-druid
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: etcd-druid
+webhooks:
+  - admissionReviewVersions:
+      - v1beta1
+      - v1
+    clientConfig:
+      caBundle: {{ .Files.Get .Values.webhooks.pki.caPath | b64enc }}
+      service:
+        name: etcd-druid
+        namespace: {{ .Release.Namespace }}
+        path: /webhooks/etcdcomponents
+        port: {{ .Values.controllerManager.server.webhook.port }}
+    failurePolicy: Fail
+    matchPolicy: Exact
+    name: etcdcomponents.webhooks.druid.gardener.cloud
+    namespaceSelector: {}
+    objectSelector:
+      matchLabels:
+        app.kubernetes.io/managed-by: etcd-druid
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - UPDATE
+          - DELETE
+        resources:
+          - serviceaccounts
+          - services
+          - configmaps
+        scope: '*'
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - DELETE
+        resources:
+          - persistentvolumeclaims
+        scope: '*'
+      - apiGroups:
+          - rbac.authorization.k8s.io
+        apiVersions:
+          - v1
+        operations:
+          - UPDATE
+          - DELETE
+        resources:
+          - roles
+          - rolebindings
+        scope: '*'
+      - apiGroups:
+          - apps
+        apiVersions:
+          - v1
+        operations:
+          - UPDATE
+          - DELETE
+        resources:
+          - statefulsets
+        scope: '*'
+      - apiGroups:
+          - policy
+        apiVersions:
+          - v1
+        operations:
+          - UPDATE
+          - DELETE
+        resources:
+          - poddisruptionbudgets
+        scope: '*'
+      - apiGroups:
+          - batch
+        apiVersions:
+          - v1
+        operations:
+          - UPDATE
+          - DELETE
+        resources:
+          - jobs
+        scope: '*'
+      - apiGroups:
+          - coordination.k8s.io
+        apiVersions:
+          - v1
+        operations:
+          - UPDATE
+          - DELETE
+        resources:
+          - leases
+        scope: '*'
+    sideEffects: None
+    timeoutSeconds: 10
+
+{{/* This webhook is required for specially handling statefulsets/scale subresource, */}}
+{{/* because an `objectSelector` does not work for subresources. */}}
+{{/* Refer https://github.com/kubernetes/kubernetes/issues/113594#issuecomment-1332573990. */}}
+  - admissionReviewVersions:
+      - v1beta1
+      - v1
+    clientConfig:
+      caBundle: {{ .Files.Get .Values.webhooks.pki.caPath | b64enc }}
+      service:
+        name: etcd-druid
+        namespace: {{ .Release.Namespace }}
+        path: /webhooks/etcdcomponents
+        port: {{ .Values.controllerManager.server.webhook.port }}
+    failurePolicy: Fail
+    matchPolicy: Exact
+    name: stsscale.etcdcomponents.webhooks.druid.gardener.cloud
+    namespaceSelector: {}
+    rules:
+      - apiGroups:
+          - apps
+        apiVersions:
+          - v1
+        operations:
+          - UPDATE
+          - DELETE
+        resources:
+          - statefulsets/scale
+        scope: '*'
+    sideEffects: None
+    timeoutSeconds: 10
+{{- end }}
+

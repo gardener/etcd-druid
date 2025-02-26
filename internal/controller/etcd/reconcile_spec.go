@@ -8,14 +8,13 @@ import (
 	"fmt"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
-	"github.com/gardener/gardener/pkg/controllerutils"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -52,7 +51,7 @@ func (r *Reconciler) ensureFinalizer(ctx component.OperatorContext, etcdObjKey c
 	}
 	if !controllerutil.ContainsFinalizer(etcdPartialObjMeta, common.FinalizerName) {
 		ctx.Logger.Info("Adding finalizer", "finalizerName", common.FinalizerName)
-		if err := controllerutils.AddFinalizers(ctx, r.client, etcdPartialObjMeta, common.FinalizerName); err != nil {
+		if err := kubernetes.AddFinalizers(ctx, r.client, etcdPartialObjMeta, common.FinalizerName); err != nil {
 			ctx.Logger.Error(err, "failed to add finalizer")
 			return ctrlutils.ReconcileWithError(err)
 		}
@@ -144,7 +143,7 @@ func (r *Reconciler) shouldReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
 	}
 
 	// Reconcile if the 'reconcile-op' annotation is present.
-	if hasOperationAnnotationToReconcile(etcd) {
+	if druidv1alpha1.HasReconcileOperationAnnotation(etcd.ObjectMeta) {
 		return true
 	}
 
@@ -186,8 +185,4 @@ func (r *Reconciler) getOrderedOperatorsForSync() []component.Kind {
 		component.RoleBindingKind,
 		component.StatefulSetKind,
 	}
-}
-
-func hasOperationAnnotationToReconcile(etcd *druidv1alpha1.Etcd) bool {
-	return etcd.GetAnnotations()[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationReconcile
 }

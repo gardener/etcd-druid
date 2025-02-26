@@ -8,10 +8,11 @@ import (
 	"fmt"
 	"strings"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 
 	"github.com/onsi/gomega/format"
 	gomegatypes "github.com/onsi/gomega/types"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
 	. "github.com/onsi/gomega"
@@ -90,11 +91,45 @@ func MatchSpecLabelSelector(expected map[string]string) gomegatypes.GomegaMatche
 // MatchEtcdOwnerReference is a custom gomega matcher which creates a matcher for ObjectMeta.OwnerReferences
 func MatchEtcdOwnerReference(etcdName string, etcdUID types.UID) gomegatypes.GomegaMatcher {
 	return ConsistOf(MatchFields(IgnoreExtras, Fields{
-		"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
+		"APIVersion":         Equal(druidv1alpha1.SchemeGroupVersion.String()),
 		"Kind":               Equal("Etcd"),
 		"Name":               Equal(etcdName),
 		"UID":                Equal(etcdUID),
 		"Controller":         PointTo(BeTrue()),
 		"BlockOwnerDeletion": PointTo(BeTrue()),
 	}))
+}
+
+type kubernetesErrors struct {
+	checkFunc func(error) bool
+	message   string
+}
+
+func (k *kubernetesErrors) Match(actual any) (success bool, err error) {
+	if actual == nil {
+		return false, nil
+	}
+
+	actualErr, actualOk := actual.(error)
+	if !actualOk {
+		return false, fmt.Errorf("expected an error-type.  got:\n%s", format.Object(actual, 1))
+	}
+
+	return k.checkFunc(actualErr), nil
+}
+
+func (k *kubernetesErrors) FailureMessage(actual any) (message string) {
+	return format.Message(actual, fmt.Sprintf("to be %s error", k.message))
+}
+
+func (k *kubernetesErrors) NegatedFailureMessage(actual any) (message string) {
+	return format.Message(actual, fmt.Sprintf("to not be %s error", k.message))
+}
+
+// BeNotFoundError checks if error is NotFound.
+func BeNotFoundError() gomegatypes.GomegaMatcher {
+	return &kubernetesErrors{
+		checkFunc: apierrors.IsNotFound,
+		message:   "NotFound",
+	}
 }

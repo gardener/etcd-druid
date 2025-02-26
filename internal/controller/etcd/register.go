@@ -7,9 +7,8 @@ package etcd
 import (
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -80,7 +79,11 @@ func (r *Reconciler) buildPredicate() predicate.Predicate {
 func (r *Reconciler) hasReconcileAnnotation() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
-			return updateEvent.ObjectNew.GetAnnotations()[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationReconcile
+			newEtcd, ok := updateEvent.ObjectNew.(*druidv1alpha1.Etcd)
+			if !ok {
+				return false
+			}
+			return druidv1alpha1.HasReconcileOperationAnnotation(newEtcd.ObjectMeta)
 		},
 		CreateFunc: func(_ event.CreateEvent) bool {
 			return true

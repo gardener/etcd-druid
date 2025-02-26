@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 
 	"k8s.io/utils/ptr"

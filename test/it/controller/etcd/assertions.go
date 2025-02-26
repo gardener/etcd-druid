@@ -13,18 +13,16 @@ import (
 	"testing"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/test/it/setup"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -282,8 +280,8 @@ func assertETCDOperationAnnotation(t *testing.T, cl client.Client, etcdObjectKey
 		if err != nil {
 			return err
 		}
-		if metav1.HasAnnotation(etcdInstance.ObjectMeta, v1beta1constants.GardenerOperation) != expectedAnnotationToBePresent {
-			return fmt.Errorf("expected reconcile operation annotation to be removed, found %v", v1beta1constants.GardenerOperation)
+		if druidv1alpha1.HasReconcileOperationAnnotation(etcdInstance.ObjectMeta) != expectedAnnotationToBePresent {
+			return fmt.Errorf("expected reconcile operation annotation to be removed, found %v", druidv1alpha1.GetReconcileOperationAnnotationKey(etcdInstance.ObjectMeta))
 		}
 		return nil
 	}

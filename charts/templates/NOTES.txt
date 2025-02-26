@@ -1,0 +1,20 @@
+Etcd-Druid operator has been deployed to Namespace {{ .Release.Namespace }}
+Following resources has been deployed with name "etcd-druid":
+ * Operator Deployment
+ * Service
+ * ServiceAccount
+ * ClusterRole
+ * ClusterRoleBinding
+{{- if .Values.webhooks.etcdComponents.enabled }}
+ * ValidatingWebhookConfiguration
+{{- end }}
+{{ if not .Values.webhooks.etcdComponents.enabled }}
+NOTE: Etcd cluster resource protection webhook has not been enabled. etcd-druid operator will
+not be able to protect against any accidental deletion of resources that are created for an Etcd Cluster.
+To read more about Etcd cluster resource protection see https://gardener.github.io/etcd-druid/deployment/configure-etcd-druid.html#etcd-components-webhook
+To enable 'Etcd cluster resource protection webhook' you can set ".Values.webhooks.etcdComponents.enabled" (in 'charts/values.yaml' file) to true and re-install the chart.
+{{- end }}
+
+Now that you have deployed etcd-druid operator you can create Etcd clusters by following the 'Getting Started Guide'.
+See: https://gardener.github.io/etcd-druid/deployment/getting-started-locally/getting-started-locally.html#04-preparing-etcd-cr
+Etcd examples are present at https://github.com/gardener/etcd-druid/tree/master/examples

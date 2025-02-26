@@ -35,14 +35,13 @@ if [[ "$unformatted_files" ]]; then
 fi
 
 echo "Checking Go version"
-GOVERSION=$(go list -f {{.GoVersion}} -m)
-if [[ $GOVERSION =~ ^[0-9]+\.[0-9]+\.0$ ]]; then
-  # Go version is valid, adheres to x.y.0 version
-  exit 0
-else
-  echo "Go version is invalid, please adhere to x.y.0 version"
-  echo "See https://github.com/gardener/etcd-druid/pull/925"
-  exit 1
-fi
+for module_go_version in $(go list -f {{.GoVersion}} -m)
+do
+  if ! [[ $module_go_version =~ ^[0-9]+\.[0-9]+\.0$ ]]; then
+    echo "Go version is invalid, please adhere to x.y.0 version"
+    echo "See https://github.com/gardener/etcd-druid/pull/925"
+    exit 1
+  fi
+done
 
 echo "All checks successful"

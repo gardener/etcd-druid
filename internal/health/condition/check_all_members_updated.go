@@ -8,8 +8,8 @@ import (
 	"context"
 	"fmt"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -23,7 +23,7 @@ func (a *allMembersUpdated) Check(ctx context.Context, etcd druidv1alpha1.Etcd) 
 		conType: druidv1alpha1.ConditionTypeAllMembersUpdated,
 	}
 
-	sts, err := utils.GetStatefulSet(ctx, a.cl, &etcd)
+	sts, err := kubernetes.GetStatefulSet(ctx, a.cl, &etcd)
 	if err != nil {
 		res.status = druidv1alpha1.ConditionUnknown
 		res.reason = "UnableToFetchStatefulSet"

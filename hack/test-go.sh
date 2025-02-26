@@ -34,8 +34,8 @@ echo "> Go tests"
 
 if ${TEST_COVER:-false}; then
   mkdir -p test/output
-  go test -json -cover "$@" | gotestfmt -hide empty-packages
+  go test -cover "$@"
   exit 0
 fi
 
-go test -json "$@" | gotestfmt -hide empty-packages
+go test "$@"

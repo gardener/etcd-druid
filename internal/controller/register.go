@@ -20,18 +20,16 @@ var (
 	defaultTimeout = time.Minute
 )
 
-const etcdControllerName = "etcd-controller"
-
 // Register registers all etcd-druid controllers with the controller manager.
 func Register(mgr ctrl.Manager, config *Config) error {
 	var err error
 
 	// Add etcd reconciler to the manager
-	etcdReconciler, err := etcd.NewReconciler(mgr, config.Etcd, etcdControllerName)
+	etcdReconciler, err := etcd.NewReconciler(mgr, config.Etcd)
 	if err != nil {
 		return err
 	}
-	if err = etcdReconciler.RegisterWithManager(mgr, etcdControllerName); err != nil {
+	if err = etcdReconciler.RegisterWithManager(mgr, etcd.ControllerName); err != nil {
 		return err
 	}
 

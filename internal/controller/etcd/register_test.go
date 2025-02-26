@@ -7,11 +7,10 @@ package etcd
 import (
 	"testing"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	mockmanager "github.com/gardener/etcd-druid/internal/mock/controller-runtime/manager"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"go.uber.org/mock/gomock"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -103,7 +102,7 @@ func TestBuildPredicateWithOnlyAutoReconcileEnabled(t *testing.T) {
 	}
 	g := NewWithT(t)
 	etcd := createEtcd()
-	r := createReconciler(t, "etcd-controller-only-auto-reconcile-enabled", true)
+	r := createReconciler(t, true)
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -167,7 +166,7 @@ func TestBuildPredicateWithNoAutoReconcileAndNoReconcileAnnot(t *testing.T) {
 	}
 	g := NewWithT(t)
 	etcd := createEtcd()
-	r := createReconciler(t, "etcd-controller-no-auto-reconcile-no-annotation", false)
+	r := createReconciler(t, false)
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -262,7 +261,7 @@ func TestBuildPredicateWithNoAutoReconcileButReconcileAnnotPresent(t *testing.T)
 	}
 	g := NewWithT(t)
 	etcd := createEtcd()
-	r := createReconciler(t, "etcd-controller-with-no-auto-reconcile-but-reconcile-annotation", false)
+	r := createReconciler(t, false)
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -353,7 +352,7 @@ func TestBuildPredicateWithAutoReconcileAndReconcileAnnotSet(t *testing.T) {
 	}
 	g := NewWithT(t)
 	etcd := createEtcd()
-	r := createReconciler(t, "etcd-controller-with-auto-reconcile-and-reconcile-annotation", true)
+	r := createReconciler(t, true)
 	predicate := r.buildPredicate()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -388,7 +387,7 @@ func updateEtcd(originalEtcd *druidv1alpha1.Etcd, specChanged, statusChanged boo
 	newEtcd := originalEtcd.DeepCopy()
 	annotations := make(map[string]string)
 	if reconcileAnnotPresent {
-		annotations[v1beta1constants.GardenerOperation] = v1beta1constants.GardenerOperationReconcile
+		annotations[druidv1alpha1.DruidOperationAnnotation] = druidv1alpha1.DruidOperationReconcile
 		newEtcd.SetAnnotations(annotations)
 	}
 	if specChanged {
@@ -413,7 +412,7 @@ func updateEtcd(originalEtcd *druidv1alpha1.Etcd, specChanged, statusChanged boo
 	return newEtcd
 }
 
-func createReconciler(t *testing.T, controllerName string, enableEtcdSpecAutoReconcile bool) *Reconciler {
+func createReconciler(t *testing.T, enableEtcdSpecAutoReconcile bool) *Reconciler {
 	g := NewWithT(t)
 	mockCtrl := gomock.NewController(t)
 	mgr := mockmanager.NewMockManager(mockCtrl)
@@ -422,7 +421,7 @@ func createReconciler(t *testing.T, controllerName string, enableEtcdSpecAutoRec
 	etcdConfig := Config{
 		EnableEtcdSpecAutoReconcile: enableEtcdSpecAutoReconcile,
 	}
-	r, err := NewReconcilerWithImageVector(mgr, controllerName, &etcdConfig, nil)
+	r, err := NewReconcilerWithImageVector(mgr, ControllerName, &etcdConfig, nil)
 	g.Expect(err).NotTo(HaveOccurred())
 	return r
 }

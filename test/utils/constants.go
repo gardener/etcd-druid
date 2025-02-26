@@ -20,6 +20,18 @@ const (
 	ETCDBRImageTag = "backup-restore-test-tag"
 	// InitContainerTag is the ImageSource tag for the init container image.
 	InitContainerTag = "init-container-test-tag"
+	// ClientTLSCASecretName is the name of the kubernetes Secret containing the client CA.
+	ClientTLSCASecretName = "client-url-ca-etcd" // #nosec G101 - this is not a credential itself but the name of the kubernetes secret resource.
+	// ClientTLSServerCertSecretName is the name of the kubernetes Secret containing the client's server certificate.
+	ClientTLSServerCertSecretName = "client-url-etcd-server-tls" // #nosec G101 - this is not a credential itself but the name of the kubernetes secret resource.
+	// ClientTLSClientCertSecretName is the name of the kubernetes Secret containing the client's client certificate.
+	ClientTLSClientCertSecretName = "client-url-etcd-client-tls" // #nosec G101 - this is not a credential itself but the name of the kubernetes secret resource.
+	// PeerTLSCASecretName is the name of the kubernetes Secret containing the peer CA.
+	PeerTLSCASecretName = "peer-url-ca-etcd" // #nosec G101 - this is not a credential itself but the name of the kubernetes secret resource.
+	// PeerTLSServerCertSecretName is the name of the kubernetes Secret containing the peer's server certificate.
+	PeerTLSServerCertSecretName = "peer-url-etcd-server-tls" // #nosec G101 - this is not a credential itself but the name of the kubernetes secret resource.
+	// BackupStoreSecretName is the name of the kubernetes Secret containing the backup store credentials.
+	BackupStoreSecretName = "etcd-backup"
 )
 
 const (

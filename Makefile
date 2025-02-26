@@ -4,6 +4,7 @@
 
 REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
 HACK_DIR            := $(REPO_ROOT)/hack
+API_HACK_DIR        := $(REPO_ROOT)/api/hack
 VERSION             := $(shell $(HACK_DIR)/get-version.sh)
 GIT_SHA             := $(shell git rev-parse --short HEAD || echo "GitNotFound")
 REGISTRY_ROOT       := europe-docker.pkg.dev/gardener-project
@@ -24,38 +25,15 @@ KUBECONFIG_PATH     := $(HACK_DIR)/kind/kubeconfig
 TOOLS_DIR := $(HACK_DIR)/tools
 include $(HACK_DIR)/tools.mk
 
-# Rules for generation (code and manifests)
-# -------------------------------------------------------------------------
-.PHONY: check-generate
-check-generate:
-	@$(HACK_DIR)/check-generate.sh "$(REPO_ROOT)"
-
-# Generate manifests e.g. CRD, RBAC etc.
-.PHONY: manifests
-manifests: $(VGOPATH) $(CONTROLLER_GEN)
-	@HACK_DIR=$(HACK_DIR) VGOPATH=$(VGOPATH) go generate ./config/crd/bases
-	@find "$(REPO_ROOT)/config/crd/bases" -name "*.yaml" -exec cp '{}' "$(REPO_ROOT)/charts/druid/charts/crds/templates/" \;
-	@controller-gen rbac:roleName=manager-role paths="./internal/controller/..."
-
-.PHONY: generate-api-docs
-generate-api-docs: $(CRD_REF_DOCS)
-	@crd-ref-docs --source-path "$(REPO_ROOT)/api" --config "$(HACK_DIR)/api-reference/config.yaml" --output-path "$(REPO_ROOT)/docs/api-reference/etcd-druid-api.md" --renderer markdown
-
-# Generate code
-.PHONY: generate
-generate: manifests generate-api-docs $(CONTROLLER_GEN) $(GOIMPORTS) $(MOCKGEN)
-	@go generate "$(REPO_ROOT)/internal/..."
-	@"$(HACK_DIR)/update-codegen.sh"
+ifndef CERT_EXPIRY_DAYS
+override CERT_EXPIRY_DAYS = 365
+endif
 
 # Rules for verification, formatting, linting and cleaning
 # -------------------------------------------------------------------------
 .PHONY: tidy
 tidy:
 	@env GO111MODULE=on go mod tidy
-
-.PHONY: clean
-clean:
-	@$(HACK_DIR)/clean.sh ./api/... ./internal/...
 
 # Clean go mod cache
 .PHONY: clean-mod-cache
@@ -74,16 +52,12 @@ add-license-headers: $(GO_ADD_LICENSE)
 # Format code and arrange imports.
 .PHONY: format
 format: $(GOIMPORTS_REVISER)
-	@$(HACK_DIR)/format.sh ./api/ ./internal/ ./test/
+	@$(HACK_DIR)/format.sh ./internal/ ./test/ ./examples/
 
 # Check packages
 .PHONY: check
-check: $(GOLANGCI_LINT) $(GOIMPORTS) format manifests
-	@$(HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./api/... ./internal/...
-
-.PHONY: check-apidiff
-check-apidiff: $(GO_APIDIFF)
-	@$(HACK_DIR)/check-apidiff.sh
+check: $(GOLANGCI_LINT) $(GOIMPORTS) format
+	@$(HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./internal/...
 
 .PHONY: sast
 sast: $(GOSEC)
@@ -97,17 +71,19 @@ sast-report: $(GOSEC)
 # -------------------------------------------------------------------------
 # Run tests
 .PHONY: test-unit
-test-unit: $(GINKGO) $(GOTESTFMT)
+test-unit: $(GINKGO)
 	# run ginkgo unit tests. These will be ported to golang native tests over a period of time.
 	@TEST_COVER=$(TEST_COVER) "$(HACK_DIR)/test.sh" ./internal/controller/etcdcopybackupstask/... \
-	./internal/controller/secret/... \
 	./internal/controller/utils/... \
 	./internal/mapper/... \
 	./internal/metrics/... \
-	./internal/health/...
+	./internal/health/... \
+	./internal/utils/imagevector/...
+
 	# run the golang native unit tests.
-	@TEST_COVER=$(TEST_COVER) "$(HACK_DIR)/test-go.sh" ./api/... \
+	@TEST_COVER=$(TEST_COVER) "$(HACK_DIR)/test-go.sh" \
 	./internal/controller/etcd/... \
+	./internal/controller/secret/... \
 	./internal/controller/compaction/... \
 	./internal/component/... \
 	./internal/errors/... \
@@ -116,7 +92,7 @@ test-unit: $(GINKGO) $(GOTESTFMT)
 	./internal/webhook/...
 
 .PHONY: test-integration
-test-integration: $(GINKGO) $(SETUP_ENVTEST) $(GOTESTFMT)
+test-integration: $(GINKGO) $(SETUP_ENVTEST)
 	@SETUP_ENVTEST="true" "$(HACK_DIR)/test.sh" ./test/integration/...
 	@SETUP_ENVTEST="true" "$(HACK_DIR)/test-go.sh" ./test/it/...
 
@@ -131,6 +107,7 @@ test-cov-clean:
 
 .PHONY: test-e2e
 test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE) $(GINKGO)
+	@$(HACK_DIR)/prepare-chart-resources.sh $(BUCKET_NAME) $(CERT_EXPIRY_DAYS)
 	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
 .PHONY: ci-e2e-kind
@@ -178,43 +155,47 @@ docker-clean:
 # -------------------------------------------------------------------------
 kind-up kind-down ci-e2e-kind ci-e2e-kind-azure ci-e2e-kind-gcs deploy-localstack deploy-fakegcs deploy-azurite test-e2e deploy deploy-dev deploy-debug undeploy: export KUBECONFIG = $(KUBECONFIG_PATH)
 
+ifndef CLUSTER_NAME
+override CLUSTER_NAME = etcd-druid-e2e
+endif
+
 .PHONY: kind-up
 kind-up: $(KIND)
-	@$(HACK_DIR)/kind-up.sh
+	@$(HACK_DIR)/kind-up.sh --cluster-name $(CLUSTER_NAME)
 	@printf "\n\033[0;33m📌 NOTE: To target the newly created KinD cluster, please run the following command:\n\n    export KUBECONFIG=$(KUBECONFIG_PATH)\n\033[0m\n"
 
 .PHONY: kind-down
 kind-down: $(KIND)
-	@$(HACK_DIR)/kind-down.sh
+	@$(HACK_DIR)/kind-down.sh --cluster-name $(CLUSTER_NAME)
 
-# Install CRDs into a cluster
-.PHONY: install
-install: manifests
-	kubectl apply -f config/crd/bases
-
-# Deploy controller in the configured Kubernetes cluster in ~/.kube/config
-.PHONY: deploy-via-kustomize
-deploy-via-kustomize: manifests $(KUSTOMIZE)
-	kubectl apply -f config/crd/bases
-	kustomize build config/default | kubectl apply -f -
-
+# Make targets to deploy etcd-druid operator using skaffold
+# --------------------------------------------------------------------------------------------------------
 # Deploy controller to the Kubernetes cluster specified in the environment variable KUBECONFIG
 # Modify the Helm template located at charts/druid/templates if any changes are required
+
+ifndef NAMESPACE
+override NAMESPACE = default
+endif
+
+.PHONY: prepare-helm-charts
+prepare-helm-charts:
+	@$(HACK_DIR)/prepare-chart-resources.sh $(NAMESPACE) $(CERT_EXPIRY_DAYS)
+
 .PHONY: deploy
-deploy: $(SKAFFOLD) $(HELM)
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) run -m etcd-druid
+deploy: $(SKAFFOLD) $(HELM) prepare-helm-charts
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) run -m etcd-druid -n $(NAMESPACE)
 
 .PHONY: deploy-dev
-deploy-dev: $(SKAFFOLD) $(HELM)
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) dev --cleanup=false -m etcd-druid --trigger='manual'
+deploy-dev: $(SKAFFOLD) $(HELM) prepare-helm-charts
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) dev --cleanup=false -m etcd-druid --trigger='manual' -n $(NAMESPACE)
 
 .PHONY: deploy-debug
-deploy-debug: $(SKAFFOLD) $(HELM)
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) debug --cleanup=false -m etcd-druid -p debug
+deploy-debug: $(SKAFFOLD) $(HELM) prepare-helm-charts
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) debug --cleanup=false -m etcd-druid -p debug -n $(NAMESPACE)
 
 .PHONY: undeploy
 undeploy: $(SKAFFOLD) $(HELM)
-	$(SKAFFOLD) delete -m etcd-druid
+	$(SKAFFOLD) delete -m etcd-druid -n $(NAMESPACE)
 
 .PHONY: deploy-localstack
 deploy-localstack: $(KUBECTL)
@@ -227,3 +208,8 @@ deploy-azurite: $(KUBECTL)
 .PHONY: deploy-fakegcs
 deploy-fakegcs: $(KUBECTL)
 	@$(HACK_DIR)/deploy-fakegcs.sh
+
+.PHONY: clean-chart-resources
+clean-chart-resources:
+	@rm -f $(REPO_ROOT)/charts/crds/*.yaml
+	@rm -rf $(REPO_ROOT)/charts/pki-resources/*

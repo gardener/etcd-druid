@@ -2,135 +2,190 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package validation_test
+package validation
 
 import (
 	"fmt"
+	"testing"
 
-	"github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/api/validation"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 
-	"github.com/onsi/gomega/types"
+	gomegatypes "github.com/onsi/gomega/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 )
 
 const (
-	name      = "etcd-test"
-	namespace = "shoot--foo--bar"
-	uuid      = "f1a38edd-e506-412a-82e6-e0fa839d0707"
-	provider  = "aws"
+	etcdTestName      = "etcd-test"
+	etcdTestNamespace = "test-ns"
+	testUUID          = ""
 )
 
-var _ = Describe("Etcd validation tests", func() {
-	var etcd *v1alpha1.Etcd
+func TestValidateEtcd(t *testing.T) {
 
-	BeforeEach(func() {
-		etcd = &v1alpha1.Etcd{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
+	testCases := []struct {
+		description   string
+		etcdName      string
+		etcdNamespace string
+		store         *druidv1alpha1.StoreSpec
+		expectedErrs  int
+		errMatcher    gomegatypes.GomegaMatcher
+	}{
+		{
+			"should fail when no name and namespace is set",
+			"",
+			"",
+			nil,
+			2,
+			ConsistOf(
+				PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("metadata.name")})),
+				PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("metadata.namespace")})),
+			),
+		},
+		{
+			"should allow nil store",
+			etcdTestName,
+			etcdTestNamespace,
+			nil,
+			0,
+			nil,
+		},
+		{
+			"should fail when prefix does not contain name and namespace",
+			etcdTestName,
+			etcdTestNamespace,
+			&druidv1alpha1.StoreSpec{
+				Prefix:   "invalid",
+				Provider: ptr.To[druidv1alpha1.StorageProvider](s3),
 			},
-			Spec: v1alpha1.EtcdSpec{
-				Backup: v1alpha1.BackupSpec{
-					Store: &v1alpha1.StoreSpec{
-						Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
-						Provider: (*v1alpha1.StorageProvider)(ptr.To(provider)),
+			1,
+			ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("spec.backup.store.prefix")}))),
+		},
+		{
+			"should fail when unsupported provider is configured",
+			etcdTestName,
+			etcdTestNamespace,
+			&druidv1alpha1.StoreSpec{
+				Prefix:   fmt.Sprintf("%s--%s/%s", etcdTestNamespace, testUUID, etcdTestName),
+				Provider: (*druidv1alpha1.StorageProvider)(ptr.To("not-supported")),
+			},
+			1,
+			ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("spec.backup.store.provider")}))),
+		},
+		{
+			"should allow etcd with valid store config",
+			etcdTestName,
+			etcdTestNamespace,
+			&druidv1alpha1.StoreSpec{
+				Prefix:   fmt.Sprintf("%s--%s/%s", etcdTestNamespace, testUUID, etcdTestName),
+				Provider: (*druidv1alpha1.StorageProvider)(ptr.To("GCS")),
+			},
+			0,
+			nil,
+		},
+	}
+
+	g := NewWithT(t)
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+			etcd := &druidv1alpha1.Etcd{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      tc.etcdName,
+					Namespace: tc.etcdNamespace,
+				},
+			}
+			if tc.store != nil {
+				etcd.Spec = druidv1alpha1.EtcdSpec{
+					Backup: druidv1alpha1.BackupSpec{
+						Store: tc.store,
 					},
+				}
+			}
+			errs := ValidateEtcd(etcd)
+			g.Expect(errs).To(HaveLen(tc.expectedErrs))
+			if tc.errMatcher != nil {
+				g.Expect(errs).To(tc.errMatcher)
+			}
+		})
+	}
+}
+
+func TestEtcdUpdateWhenDeletionTimestampIsSet(t *testing.T) {
+	oldEtcd := &druidv1alpha1.Etcd{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              etcdTestName,
+			Namespace:         etcdTestNamespace,
+			ResourceVersion:   "1",
+			DeletionTimestamp: ptr.To(metav1.Now()),
+		},
+		Spec: druidv1alpha1.EtcdSpec{
+			Replicas: int32(1),
+		},
+	}
+
+	newEtcd := oldEtcd.DeepCopy()
+	newEtcd.Spec.Replicas = 3
+	g := NewWithT(t)
+	errs := ValidateEtcdUpdate(newEtcd, oldEtcd)
+	g.Expect(errs).To(HaveLen(1))
+	g.Expect(errs).To(ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("spec")}))))
+}
+
+func TestPreventStorePrefixUpdate(t *testing.T) {
+	oldEtcd := &druidv1alpha1.Etcd{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            etcdTestName,
+			Namespace:       etcdTestNamespace,
+			ResourceVersion: "1",
+		},
+		Spec: druidv1alpha1.EtcdSpec{
+			Replicas: int32(1),
+			Backup: druidv1alpha1.BackupSpec{
+				Store: &druidv1alpha1.StoreSpec{
+					Prefix:   fmt.Sprintf("%s--%s/%s", etcdTestNamespace, testUUID, etcdTestName),
+					Provider: ptr.To(druidv1alpha1.StorageProvider("S3")),
 				},
 			},
-		}
-	})
+		},
+	}
+	g := NewWithT(t)
+	newUUID := "8047c75b-6b97-44ad-a389-84a9bedc2063"
+	newEtcd := oldEtcd.DeepCopy()
+	newEtcd.ObjectMeta.ResourceVersion = "2"
+	newEtcd.Spec.Backup.Store.Prefix = fmt.Sprintf("%s--%s/%s", etcdTestNamespace, newUUID, etcdTestName)
+	errs := ValidateEtcdUpdate(newEtcd, oldEtcd)
+	g.Expect(errs).To(HaveLen(1))
+	g.Expect(errs).To(ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("spec.backup.store.prefix")}))))
+}
 
-	Describe("#ValidateEtcd", func() {
-		It("should forbid empty Etcd resources", func() {
-			errorList := validation.ValidateEtcd(&v1alpha1.Etcd{})
-
-			Expect(errorList).To(ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
-				"Type":  Equal(field.ErrorTypeRequired),
-				"Field": Equal("metadata.name"),
-			})), PointTo(MatchFields(IgnoreExtras, Fields{
-				"Type":  Equal(field.ErrorTypeRequired),
-				"Field": Equal("metadata.namespace"),
-			}))))
-		})
-
-		DescribeTable("validate spec.backup.store",
-			func(store *v1alpha1.StoreSpec, m types.GomegaMatcher) {
-				etcd.Spec.Backup.Store = store
-				Expect(validation.ValidateEtcd(etcd)).To(m)
+func TestAllowValidUpdatesToEtcd(t *testing.T) {
+	oldEtcd := &druidv1alpha1.Etcd{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            etcdTestName,
+			Namespace:       etcdTestNamespace,
+			ResourceVersion: "1",
+		},
+		Spec: druidv1alpha1.EtcdSpec{
+			Replicas: int32(1),
+			Backup: druidv1alpha1.BackupSpec{
+				Store: &druidv1alpha1.StoreSpec{
+					Prefix:   fmt.Sprintf("%s--%s/%s", etcdTestNamespace, testUUID, etcdTestName),
+					Provider: ptr.To(druidv1alpha1.StorageProvider("S3")),
+				},
 			},
+		},
+	}
 
-			Entry("should forbid invalid spec.backup.store", &v1alpha1.StoreSpec{
-				Prefix:   "invalid",
-				Provider: (*v1alpha1.StorageProvider)(ptr.To("invalid")),
-			}, ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
-				"Type":  Equal(field.ErrorTypeInvalid),
-				"Field": Equal("spec.backup.store.prefix"),
-			})), PointTo(MatchFields(IgnoreExtras, Fields{
-				"Type":  Equal(field.ErrorTypeInvalid),
-				"Field": Equal("spec.backup.store.provider"),
-			})))),
-
-			Entry("should allow valid spec.backup.store", &v1alpha1.StoreSpec{
-				Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
-				Provider: (*v1alpha1.StorageProvider)(ptr.To(provider)),
-			}, BeNil()),
-
-			Entry("should allow nil spec.backup.store", nil, BeNil()),
-		)
-	})
-
-	Describe("#ValidateEtcdUpdate", func() {
-		It("should prevent updating anything if deletion timestamp is set", func() {
-			now := metav1.Now()
-			etcd.DeletionTimestamp = &now
-			etcd.ResourceVersion = "1"
-
-			newEtcd := etcd.DeepCopy()
-			newEtcd.ResourceVersion = "2"
-			newEtcd.Spec.Backup.Port = ptr.To[int32](42)
-
-			errList := validation.ValidateEtcdUpdate(newEtcd, etcd)
-
-			Expect(errList).To(ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
-				"Type":  Equal(field.ErrorTypeInvalid),
-				"Field": Equal("spec"),
-			}))))
-		})
-
-		It("should prevent updating spec.backup.store.prefix", func() {
-			etcd.ResourceVersion = "1"
-
-			newEtcd := etcd.DeepCopy()
-			newEtcd.ResourceVersion = "2"
-			newEtcd.Spec.Backup.Store.Prefix = namespace + "/" + name
-
-			errList := validation.ValidateEtcdUpdate(newEtcd, etcd)
-
-			Expect(errList).To(ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
-				"Type":  Equal(field.ErrorTypeInvalid),
-				"Field": Equal("spec.backup.store.prefix"),
-			}))))
-		})
-
-		It("should allow updating everything else", func() {
-			etcd.ResourceVersion = "1"
-
-			newEtcd := etcd.DeepCopy()
-			newEtcd.ResourceVersion = "2"
-			newEtcd.Spec.Replicas = 42
-			newEtcd.Spec.Backup.Store.Container = ptr.To("foo")
-			newEtcd.Spec.Backup.Store.Provider = (*v1alpha1.StorageProvider)(ptr.To("gcp"))
-
-			errList := validation.ValidateEtcdUpdate(newEtcd, etcd)
-
-			Expect(errList).To(BeEmpty())
-		})
-	})
-})
+	g := NewWithT(t)
+	newEtcd := oldEtcd.DeepCopy()
+	newEtcd.ObjectMeta.ResourceVersion = "2"
+	newEtcd.Spec.Replicas = 3
+	newEtcd.Spec.Backup.Store.Provider = ptr.To(druidv1alpha1.StorageProvider("GCS"))
+	errs := ValidateEtcdUpdate(newEtcd, oldEtcd)
+	g.Expect(errs).To(HaveLen(0))
+}

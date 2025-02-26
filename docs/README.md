@@ -21,6 +21,7 @@
 * [Getting started locally](deployment/getting-started-locally/getting-started-locally.md)
 * [Configure etcd-druid](deployment/configure-etcd-druid.md)
 * [Feature Gates](deployment/feature-gates.md)
+* [Prepare Helm Charts](deployment/prepare-helm-charts.md)
 * [Recommendations for productive setup](deployment/production-setup-recommendations.md)
 * [Version Comptability Matrix](deployment/version-compatibility-matrix.md)
 
@@ -34,6 +35,7 @@
 
 ## Usage
 
+* [Using Druid Golang Client](usage/using-druid-client.md)
 * [Managing Etcd Clusters](usage/managing-etcd-clusters.md)
 * [Securing Etcd Clusters](usage/securing-etcd-clusters.md)
 * [Recovering Etcd Clusters](usage/recovering-etcd-clusters.md)

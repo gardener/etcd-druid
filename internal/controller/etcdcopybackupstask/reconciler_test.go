@@ -9,14 +9,14 @@ import (
 	"fmt"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/common"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
+	k8sutils "github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
-	"github.com/gardener/gardener/pkg/controllerutils"
-	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
 	gomegatypes "github.com/onsi/gomega/types"
 	batchv1 "k8s.io/api/batch/v1"
@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
@@ -119,7 +118,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			})
 
 			It("should remove finalizer for task which does not have a corresponding job", func() {
-				Expect(controllerutils.AddFinalizers(ctx, fakeClient, task, common.FinalizerName)).To(Succeed())
+				Expect(k8sutils.AddFinalizers(ctx, fakeClient, task, common.FinalizerName)).To(Succeed())
 				// use fakeClient.Delete() to simply add deletionTimestamp to `task` object,
 				// due to https://github.com/kubernetes-sigs/controller-runtime/pull/2316
 				Expect(fakeClient.Delete(ctx, task)).To(Succeed())
@@ -130,19 +129,19 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(err).To(BeNil())
 				Eventually(func() error {
 					return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)
-				}).Should(BeNotFoundError())
+				}).Should(testutils.BeNotFoundError())
 			})
 
 			It("should delete job but not the task for which the deletion timestamp, finalizer is set and job is present", func() {
 				job := testutils.CreateEtcdCopyBackupsJob(testTaskName, testNamespace)
 				Expect(fakeClient.Create(ctx, job)).To(Succeed())
-				Expect(controllerutils.AddFinalizers(ctx, fakeClient, task, common.FinalizerName)).To(Succeed())
+				Expect(k8sutils.AddFinalizers(ctx, fakeClient, task, common.FinalizerName)).To(Succeed())
 				Expect(fakeClient.Delete(ctx, task)).To(Succeed())
 				Expect(fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)).To(Succeed())
 
 				_, err := r.delete(ctx, task)
 				Expect(err).To(BeNil())
-				Eventually(func() error { return fakeClient.Get(ctx, client.ObjectKeyFromObject(job), job) }).Should(BeNotFoundError())
+				Eventually(func() error { return fakeClient.Get(ctx, client.ObjectKeyFromObject(job), job) }).Should(testutils.BeNotFoundError())
 				Eventually(func() error { return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task) }).Should(BeNil())
 			})
 		})
@@ -664,23 +663,23 @@ func ensureEtcdCopyBackupsTaskCreation(ctx context.Context, name, namespace stri
 func ensureEtcdCopyBackupsTaskRemoval(ctx context.Context, name, namespace string, fakeClient client.WithWatch) {
 	task := &druidv1alpha1.EtcdCopyBackupsTask{}
 	if err := fakeClient.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, task); err != nil {
-		Expect(err).To(BeNotFoundError())
+		Expect(err).To(testutils.BeNotFoundError())
 		return
 	}
 
 	By("Remove any existing finalizers on EtcdCopyBackupsTask")
-	Expect(controllerutils.RemoveAllFinalizers(ctx, fakeClient, task)).To(Succeed())
+	Expect(k8sutils.RemoveAllFinalizers(ctx, fakeClient, task)).To(Succeed())
 
 	By("Delete EtcdCopyBackupsTask")
 	err := fakeClient.Delete(ctx, task)
 	if err != nil {
-		Expect(err).Should(BeNotFoundError())
+		Expect(err).Should(testutils.BeNotFoundError())
 	}
 
 	By("Ensure EtcdCopyBackupsTask is deleted")
 	Eventually(func() error {
 		return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)
-	}).Should(BeNotFoundError())
+	}).Should(testutils.BeNotFoundError())
 }
 
 func addDeletionTimestampToTask(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask, deletionTime time.Time, fakeClient client.WithWatch) error {
@@ -740,7 +739,7 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 			}),
 			"OwnerReferences": MatchAllElements(testutils.OwnerRefIterator, Elements{
 				task.Name: MatchAllFields(Fields{
-					"APIVersion":         Equal(druidv1alpha1.GroupVersion.String()),
+					"APIVersion":         Equal(druidv1alpha1.SchemeGroupVersion.String()),
 					"Kind":               Equal("EtcdCopyBackupsTask"),
 					"Name":               Equal(task.Name),
 					"UID":                Equal(task.UID),
@@ -753,12 +752,10 @@ func matchJob(task *druidv1alpha1.EtcdCopyBackupsTask, imageVector imagevector.I
 			"Template": MatchFields(IgnoreExtras, Fields{
 				"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 					"Labels": MatchKeys(IgnoreExtras, Keys{
-						druidv1alpha1.LabelComponentKey:                Equal(common.ComponentNameEtcdCopyBackupsJob),
-						druidv1alpha1.LabelPartOfKey:                   Equal(task.Name),
-						druidv1alpha1.LabelManagedByKey:                Equal(druidv1alpha1.LabelManagedByValue),
-						druidv1alpha1.LabelAppNameKey:                  Equal(task.GetJobName()),
-						"networking.gardener.cloud/to-dns":             Equal("allowed"),
-						"networking.gardener.cloud/to-public-networks": Equal("allowed"),
+						druidv1alpha1.LabelComponentKey: Equal(common.ComponentNameEtcdCopyBackupsJob),
+						druidv1alpha1.LabelPartOfKey:    Equal(task.Name),
+						druidv1alpha1.LabelManagedByKey: Equal(druidv1alpha1.LabelManagedByValue),
+						druidv1alpha1.LabelAppNameKey:   Equal(task.GetJobName()),
 					}),
 				}),
 				"Spec": MatchFields(IgnoreExtras, Fields{

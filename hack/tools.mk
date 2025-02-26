@@ -11,6 +11,7 @@ KUSTOMIZE                  := $(TOOLS_BIN_DIR)/kustomize
 GOLANGCI_LINT              := $(TOOLS_BIN_DIR)/golangci-lint
 GOIMPORTS                  := $(TOOLS_BIN_DIR)/goimports
 CONTROLLER_GEN             := $(TOOLS_BIN_DIR)/controller-gen
+CODE_GENERATOR	           := $(TOOLS_BIN_DIR)/code-generator
 GINKGO                     := $(TOOLS_BIN_DIR)/ginkgo
 GOSEC                      := $(TOOLS_BIN_DIR)/gosec
 MOCKGEN                    := $(TOOLS_BIN_DIR)/mockgen
@@ -21,27 +22,24 @@ HELM                       := $(TOOLS_BIN_DIR)/helm
 KUBECTL                    := $(TOOLS_BIN_DIR)/kubectl
 VGOPATH                    := $(TOOLS_BIN_DIR)/vgopath
 GO_ADD_LICENSE             := $(TOOLS_BIN_DIR)/addlicense
-GO_APIDIFF                 := $(TOOLS_BIN_DIR)/go-apidiff
-GOTESTFMT 	   	 		   := $(TOOLS_BIN_DIR)/gotestfmt
 GOIMPORTS_REVISER          := $(TOOLS_BIN_DIR)/goimports-reviser
 YQ						   := $(TOOLS_BIN_DIR)/yq
 CRD_REF_DOCS			   := $(TOOLS_BIN_DIR)/crd-ref-docs
 
 # default tool versions
-SKAFFOLD_VERSION := v2.13.0
+SKAFFOLD_VERSION := v2.14.0
 KUSTOMIZE_VERSION := v4.5.7
 GOLANGCI_LINT_VERSION ?= v1.60.3
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)
+CODE_GENERATOR_VERSION ?= $(call version_gomod,k8s.io/api)
 GINKGO_VERSION ?= $(call version_gomod,github.com/onsi/ginkgo/v2)
 GOSEC_VERSION ?= v2.21.4
 MOCKGEN_VERSION ?= $(call version_gomod,go.uber.org/mock)
 KIND_VERSION ?= v0.26.0
-HELM_VERSION ?= v3.15.2
+HELM_VERSION ?= v3.16.4
 KUBECTL_VERSION ?= v1.32.0
 VGOPATH_VERSION ?= v0.1.5
 GO_ADD_LICENSE_VERSION ?= v1.1.1
-GO_APIDIFF_VERSION ?= v0.8.2
-GOTESTFMT_VERSION ?= v2.5.0
 GOIMPORTS_REVISER_VERSION ?= v3.6.5
 YQ_VERSION ?= v4.44.3
 CRD_REF_DOCS_VERSION ?= v0.1.0
@@ -77,6 +75,12 @@ $(GOLANGCI_LINT):
 $(CONTROLLER_GEN):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
 
+CODE_GENERATOR_ROOT = $(shell go env GOMODCACHE)/k8s.io/code-generator@$(CODE_GENERATOR_VERSION)
+$(CODE_GENERATOR):
+	go build
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) GO111MODULE=on go install k8s.io/code-generator/cmd/client-gen@$(CODE_GENERATOR_VERSION)
+	cp -f $(CODE_GENERATOR_ROOT)/kube_codegen.sh $(TOOLS_BIN_DIR)/
+
 $(GINKGO):
 	go build -o $(GINKGO) github.com/onsi/ginkgo/v2/ginkgo
 
@@ -110,15 +114,9 @@ $(VGOPATH):
 $(GO_ADD_LICENSE):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/google/addlicense@$(GO_ADD_LICENSE_VERSION)
 
-$(GO_APIDIFF):
-	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/joelanford/go-apidiff@$(GO_APIDIFF_VERSION)
-
 $(KUBECTL):
 	curl -Lo $(KUBECTL) https://dl.k8s.io/release/$(KUBECTL_VERSION)/bin/$(SYSTEM_NAME)/$(SYSTEM_ARCH)/kubectl
 	chmod +x $(KUBECTL)
-
-$(GOTESTFMT):
-	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt@$(GOTESTFMT_VERSION)
 
 $(GOIMPORTS_REVISER):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/incu6us/goimports-reviser/v3@$(GOIMPORTS_REVISER_VERSION)

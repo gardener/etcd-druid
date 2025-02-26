@@ -8,19 +8,18 @@ import (
 	"encoding/json"
 	"fmt"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/utils"
 
-	"github.com/gardener/gardener/pkg/controllerutils"
-	gardenerutils "github.com/gardener/gardener/pkg/utils"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 const (
@@ -72,7 +71,7 @@ func (r _resource) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) e
 // Sync creates or updates the configmap for the given Etcd.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	cm := emptyConfigMap(getObjectKey(etcd.ObjectMeta))
-	result, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, cm, func() error {
+	result, err := controllerutil.CreateOrPatch(ctx, r.client, cm, func() error {
 		return buildResource(etcd, cm)
 	})
 	if err != nil {
@@ -157,5 +156,5 @@ func computeCheckSum(cm *corev1.ConfigMap) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return gardenerutils.ComputeSHA256Hex(jsonData), nil
+	return utils.ComputeSHA256Hex(jsonData), nil
 }

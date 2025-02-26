@@ -9,15 +9,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8s_labels "k8s.io/apimachinery/pkg/labels"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -177,7 +177,7 @@ var _ = Describe("Etcd Backup", func() {
 	})
 })
 
-func createDebugPod(ctx context.Context, etcd *v1alpha1.Etcd) *corev1.Pod {
+func createDebugPod(ctx context.Context, etcd *druidv1alpha1.Etcd) *corev1.Pod {
 	debugPod := getDebugPod(etcd)
 	ExpectWithOffset(1, cl.Create(ctx, debugPod)).ShouldNot(HaveOccurred())
 	// Ensure pod is running
@@ -195,12 +195,12 @@ func createDebugPod(ctx context.Context, etcd *v1alpha1.Etcd) *corev1.Pod {
 	return debugPod
 }
 
-func createAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
+func createAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
 	ExpectWithOffset(1, cl.Create(ctx, etcd)).ShouldNot(HaveOccurred())
 	checkEtcdReady(ctx, cl, logger, etcd, timeout)
 }
 
-func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
+func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
 	logger.Info("Waiting for etcd to become ready")
 	EventuallyWithOffset(2, func() error {
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
@@ -228,10 +228,10 @@ func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, e
 
 		for _, c := range etcd.Status.Conditions {
 			// skip BackupReady status check if etcd.Spec.Backup.Store is not configured.
-			if etcd.Spec.Backup.Store == nil && c.Type == v1alpha1.ConditionTypeBackupReady {
+			if etcd.Spec.Backup.Store == nil && c.Type == druidv1alpha1.ConditionTypeBackupReady {
 				continue
 			}
-			if c.Status != v1alpha1.ConditionTrue {
+			if c.Status != druidv1alpha1.ConditionTrue {
 				return fmt.Errorf("etcd %q status %q condition %s is not True",
 					etcd.Name, c.Type, c.Status)
 			}
@@ -254,7 +254,7 @@ func checkEtcdReady(ctx context.Context, cl client.Client, logger logr.Logger, e
 	ExpectWithOffset(2, cl.Get(ctx, client.ObjectKey{Name: etcd.Name + "-client", Namespace: etcd.Namespace}, svc)).To(Succeed())
 }
 
-func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, timeout time.Duration) {
+func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
 	ExpectWithOffset(1, cl.Delete(ctx, etcd, client.PropagationPolicy(metav1.DeletePropagationForeground))).To(Succeed())
 
 	logger.Info("Checking if etcd is gone")
@@ -262,7 +262,7 @@ func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 		ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 		defer cancelFunc()
 		return cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)
-	}, timeout, pollingInterval).Should(matchers.BeNotFoundError())
+	}, timeout, pollingInterval).Should(testutils.BeNotFoundError())
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -274,7 +274,7 @@ func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 			client.ObjectKeyFromObject(etcd),
 			&appsv1.StatefulSet{},
 		),
-	).Should(matchers.BeNotFoundError())
+	).Should(testutils.BeNotFoundError())
 
 	logger.Info("Checking if configmap is gone")
 	ExpectWithOffset(1,
@@ -283,7 +283,7 @@ func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 			client.ObjectKey{Name: etcd.Name + "-config", Namespace: etcd.Namespace},
 			&corev1.ConfigMap{},
 		),
-	).Should(matchers.BeNotFoundError())
+	).Should(testutils.BeNotFoundError())
 
 	logger.Info("Checking client service is gone")
 	ExpectWithOffset(1,
@@ -292,7 +292,7 @@ func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 			client.ObjectKey{Name: etcd.Name + "-client", Namespace: etcd.Namespace},
 			&corev1.Service{},
 		),
-	).Should(matchers.BeNotFoundError())
+	).Should(testutils.BeNotFoundError())
 
 	// removing ETCD statefulset's PVCs,
 	// because sometimes k8s garbage collection is delayed to remove PVCs before starting next tests.
@@ -300,9 +300,9 @@ func deleteAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 }
 
 func purgeEtcdPVCs(ctx context.Context, cl client.Client, etcdName string) {
-	r1, err := k8s_labels.NewRequirement(v1alpha1.LabelPartOfKey, selection.Equals, []string{etcdName})
+	r1, err := k8slabels.NewRequirement(druidv1alpha1.LabelPartOfKey, selection.Equals, []string{etcdName})
 	ExpectWithOffset(1, err).ShouldNot(HaveOccurred())
-	r2, err := k8s_labels.NewRequirement(v1alpha1.LabelManagedByKey, selection.Equals, []string{v1alpha1.LabelManagedByValue})
+	r2, err := k8slabels.NewRequirement(druidv1alpha1.LabelManagedByKey, selection.Equals, []string{druidv1alpha1.LabelManagedByValue})
 	ExpectWithOffset(1, err).ShouldNot(HaveOccurred())
 
 	pvc := &corev1.PersistentVolumeClaim{}
@@ -312,7 +312,7 @@ func purgeEtcdPVCs(ctx context.Context, cl client.Client, etcdName string) {
 	ExpectWithOffset(1, client.IgnoreNotFound(cl.DeleteAllOf(ctx, pvc, &client.DeleteAllOfOptions{
 		ListOptions: client.ListOptions{
 			Namespace:     namespace,
-			LabelSelector: k8s_labels.NewSelector().Add(*r1, *r2),
+			LabelSelector: k8slabels.NewSelector().Add(*r1, *r2),
 		},
 		DeleteOptions: delOptions,
 	}))).ShouldNot(HaveOccurred())

@@ -5,6 +5,8 @@
 package utils
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"maps"
 	"strings"
@@ -80,4 +82,11 @@ func ComputeScheduleInterval(cronSchedule string) (time.Duration, error) {
 	nextScheduledTime := schedule.Next(time.Now())
 	nextNextScheduledTime := schedule.Next(nextScheduledTime)
 	return nextNextScheduledTime.Sub(nextScheduledTime), nil
+}
+
+// ComputeSHA256Hex computes the hexadecimal representation of the SHA256 hash of the given input byte
+// slice <in>, converts it to a string and returns it.
+func ComputeSHA256Hex(in []byte) string {
+	h := sha256.Sum256(in)
+	return hex.EncodeToString(h[:])
 }

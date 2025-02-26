@@ -1,7 +1,5 @@
 /args
 /bin
-/hack/tools/bin
-/hack/kind/*
 /.kube-secrets
 /tmp/*
 /dev
@@ -14,9 +12,6 @@ default.bkp*
 /cover.out
 *coverprofile.out
 *.html
-.vscode
-.idea
-.DS_Store
 .ignore
 *~
 
@@ -41,5 +36,29 @@ hack/e2e-test/infrastructure/kind/kubeconfig
 .cache_ggshield
 .gitguardian.yaml
 
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
 # gosec
 gosec-report.sarif
+
+# env file
+.env
+
+# code editor ignores
+.vscode
+.idea
+.DS_Store
+
+# hack tools binaries and generated configurations
+/hack/tools/bin/*
+/hack/kind/*
+api/hack/tools/bin/*
+
+# generated/copied chart resources
+charts/pki-resources/*
+charts/crds/*

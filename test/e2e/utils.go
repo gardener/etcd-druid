@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 
@@ -58,7 +58,7 @@ const (
 
 // Storage contains information about the storage provider.
 type Storage struct {
-	Provider   v1alpha1.StorageProvider
+	Provider   druidv1alpha1.StorageProvider
 	SecretData map[string][]byte
 }
 
@@ -117,25 +117,27 @@ var (
 			"memory": resource.MustParse("256Mi"),
 		},
 	}
-	backupGarbageCollectionPolicy  = v1alpha1.GarbageCollectionPolicy(v1alpha1.GarbageCollectionPolicyExponential)
-	backupGarbageCollectionPeriod  = metav1.Duration{Duration: 5 * time.Minute}
-	backupDeltaSnapshotPeriod      = metav1.Duration{Duration: 1 * time.Second}
+	backupGarbageCollectionPolicy = druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
+	backupGarbageCollectionPeriod = metav1.Duration{Duration: 5 * time.Minute}
+	//TODO: i062009 revert this to 1s once issue in etcd-backup-restore (https://github.com/gardener/etcd-backup-restore/issues/844) is fixed.
+	// This is done to reduce flakiness of e2e tests (specifically etcd_backup_test.go/Should create, test backup and delete etcd with backup).
+	backupDeltaSnapshotPeriod      = metav1.Duration{Duration: 3 * time.Second}
 	backupDeltaSnapshotMemoryLimit = resource.MustParse("100Mi")
-	gzipCompression                = v1alpha1.GzipCompression
-	backupCompression              = v1alpha1.CompressionSpec{
+	gzipCompression                = druidv1alpha1.GzipCompression
+	backupCompression              = druidv1alpha1.CompressionSpec{
 		Enabled: ptr.To(true),
 		Policy:  &gzipCompression,
 	}
-	defaultBackupStore = v1alpha1.StoreSpec{
+	defaultBackupStore = druidv1alpha1.StoreSpec{
 		SecretRef: &corev1.SecretReference{
 			Name:      etcdBackupSecretPrefix,
 			Namespace: namespace,
 		},
 	}
 
-	autoCompactionMode      = v1alpha1.Periodic
+	autoCompactionMode      = druidv1alpha1.Periodic
 	autoCompactionRetention = "2m"
-	sharedConfig            = v1alpha1.SharedConfig{
+	sharedConfig            = druidv1alpha1.SharedConfig{
 		AutoCompactionMode:      &autoCompactionMode,
 		AutoCompactionRetention: &autoCompactionRetention,
 	}
@@ -148,11 +150,11 @@ const (
 	multiNodeEtcdReplicas int32 = 3
 )
 
-func getEmptyEtcd(name, namespace string) *v1alpha1.Etcd {
-	return &v1alpha1.Etcd{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
+func getEmptyEtcd(name, namespace string) *druidv1alpha1.Etcd {
+	return &druidv1alpha1.Etcd{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
 }
 
-func getDefaultEtcd(name, namespace, container, prefix string, provider TestProvider) *v1alpha1.Etcd {
+func getDefaultEtcd(name, namespace, container, prefix string, provider TestProvider) *druidv1alpha1.Etcd {
 	etcd := getEmptyEtcd(name, namespace)
 
 	etcd.Spec.Annotations = stsAnnotations
@@ -176,8 +178,8 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 
 	etcdTLS := defaultTls(provider.Suffix)
 
-	etcd.Spec.Etcd = v1alpha1.EtcdConfig{
-		Metrics:                 (*v1alpha1.MetricsLevel)(&etcdMetrics),
+	etcd.Spec.Etcd = druidv1alpha1.EtcdConfig{
+		Metrics:                 (*druidv1alpha1.MetricsLevel)(&etcdMetrics),
 		DefragmentationSchedule: &etcdDefragmentationSchedule,
 		Quota:                   &etcdQuota,
 		Resources:               &etcdResources,
@@ -203,7 +205,7 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 
 		backupTLS := defaultTls(provider.Suffix)
 
-		etcd.Spec.Backup = v1alpha1.BackupSpec{
+		etcd.Spec.Backup = druidv1alpha1.BackupSpec{
 			Port:                     &backupPort,
 			TLS:                      &backupTLS,
 			FullSnapshotSchedule:     &backupFullSnapshotSchedule,
@@ -220,15 +222,15 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 	return etcd
 }
 
-func getDefaultMultiNodeEtcd(name, namespace, container, prefix string, provider TestProvider) *v1alpha1.Etcd {
+func getDefaultMultiNodeEtcd(name, namespace, container, prefix string, provider TestProvider) *druidv1alpha1.Etcd {
 	etcd := getDefaultEtcd(name, namespace, container, prefix, provider)
 	etcd.Spec.Replicas = multiNodeEtcdReplicas
 	etcd.Spec.Etcd.PeerUrlTLS = getPeerTls(provider.Suffix)
 	return etcd
 }
 
-func defaultTls(provider string) v1alpha1.TLSConfig {
-	return v1alpha1.TLSConfig{
+func defaultTls(provider string) druidv1alpha1.TLSConfig {
+	return druidv1alpha1.TLSConfig{
 		ServerTLSSecretRef: corev1.SecretReference{
 			Name:      fmt.Sprintf("%s-%s", "etcd-server-cert", provider),
 			Namespace: namespace,
@@ -237,7 +239,7 @@ func defaultTls(provider string) v1alpha1.TLSConfig {
 			Name:      fmt.Sprintf("%s-%s", "etcd-client-tls", provider),
 			Namespace: namespace,
 		},
-		TLSCASecretRef: v1alpha1.SecretReference{
+		TLSCASecretRef: druidv1alpha1.SecretReference{
 			SecretReference: corev1.SecretReference{
 				Name:      fmt.Sprintf("%s-%s", "ca-etcd", provider),
 				Namespace: namespace,
@@ -246,13 +248,13 @@ func defaultTls(provider string) v1alpha1.TLSConfig {
 	}
 }
 
-func getPeerTls(provider string) *v1alpha1.TLSConfig {
-	return &v1alpha1.TLSConfig{
+func getPeerTls(provider string) *druidv1alpha1.TLSConfig {
+	return &druidv1alpha1.TLSConfig{
 		ServerTLSSecretRef: corev1.SecretReference{
 			Name:      fmt.Sprintf("%s-%s", "etcd-server-cert", provider),
 			Namespace: namespace,
 		},
-		TLSCASecretRef: v1alpha1.SecretReference{
+		TLSCASecretRef: druidv1alpha1.SecretReference{
 			SecretReference: corev1.SecretReference{
 				Name:      fmt.Sprintf("%s-%s", "ca-etcd", provider),
 				Namespace: namespace,
@@ -846,7 +848,7 @@ func newTestHelperJob(jobName string, podSpec *corev1.PodSpec) *batchv1.Job {
 // etcdZeroDownTimeValidatorJob creates a Kubernetes job that validates the zero downtime of an
 // Etcd cluster by continuously checking the cluster's health. The job fails if a health check fails,
 // resulting in the associated pod entering an error state.
-func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSConfig) *batchv1.Job {
+func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *druidv1alpha1.TLSConfig) *batchv1.Job {
 	return newTestHelperJob(
 		fmt.Sprintf("etcd-zero-down-time-validator-%s", testName),
 		&corev1.PodSpec{
@@ -925,7 +927,7 @@ func createProbe(filePath string) *corev1.Probe {
 	}
 }
 
-func getDebugPod(etcd *v1alpha1.Etcd) *corev1.Pod {
+func getDebugPod(etcd *druidv1alpha1.Etcd) *corev1.Pod {
 	volumeName := etcd.Name
 	if etcd.Spec.VolumeClaimTemplate != nil && len(*etcd.Spec.VolumeClaimTemplate) != 0 {
 		volumeName = *etcd.Spec.VolumeClaimTemplate

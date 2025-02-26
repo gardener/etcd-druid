@@ -7,7 +7,7 @@ package etcd
 import (
 	"context"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/component/clientservice"
 	"github.com/gardener/etcd-druid/internal/component/configmap"
@@ -21,8 +21,8 @@ import (
 	"github.com/gardener/etcd-druid/internal/component/statefulset"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	"github.com/gardener/etcd-druid/internal/images"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 
-	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/go-logr/logr"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -31,6 +31,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
+
+// ControllerName is the name of the etcd controller.
+const ControllerName = "etcd-controller"
 
 // Reconciler reconciles the Etcd resource spec and status.
 type Reconciler struct {
@@ -44,12 +47,12 @@ type Reconciler struct {
 }
 
 // NewReconciler creates a new reconciler for Etcd.
-func NewReconciler(mgr manager.Manager, config *Config, controllerName string) (*Reconciler, error) {
+func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 	imageVector, err := images.CreateImageVector()
 	if err != nil {
 		return nil, err
 	}
-	return NewReconcilerWithImageVector(mgr, controllerName, config, imageVector)
+	return NewReconcilerWithImageVector(mgr, ControllerName, config, imageVector)
 }
 
 // NewReconcilerWithImageVector creates a new reconciler for Etcd with the given image vector.
