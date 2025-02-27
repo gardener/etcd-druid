@@ -34,7 +34,7 @@ var (
 	snapshotSchedule        = "0 */24 * * *"
 	defragSchedule          = "0 */24 * * *"
 	container               = "default.bkp"
-	storageCapacity         = resource.MustParse("5Gi")
+	storageCapacity         = resource.MustParse("25Gi")
 	storageClass            = "default"
 	priorityClassName       = "class_priority"
 	deltaSnapShotMemLimit   = resource.MustParse("100Mi")

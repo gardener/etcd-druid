@@ -286,10 +286,6 @@ spec:
                           More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                         type: object
                     type: object
-                    x-kubernetes-validations:
-                    - message: The requests field in etcd.spec.etcd.resources cannot
-                        be empty
-                      rule: has(self.requests)
                   store:
                     description: Store defines the specification of object store provider
                       for storing backups.
@@ -376,11 +372,6 @@ spec:
                     - tlsCASecretRef
                     type: object
                 type: object
-                x-kubernetes-validations:
-                - message: etcd.spec.backup.garbageCollectionPeriod must be greater
-                    than etcd.spec.backup.deltaSnapshotPeriod
-                  rule: '!(has(self.deltaSnapshotPeriod) && has(self.garbageCollectionPeriod))
-                    || duration(self.deltaSnapshotPeriod).getSeconds() < duration(self.garbageCollectionPeriod).getSeconds()'
               etcd:
                 description: EtcdConfig defines the configuration for the etcd cluster
                   to be deployed.
@@ -419,13 +410,6 @@ spec:
                         description: Labels specify the labels that should be added
                           to the client service
                         type: object
-                      trafficDistribution:
-                        description: |-
-                          TrafficDistribution defines the traffic distribution preference that should be added to the client service.
-                          More info: https://kubernetes.io/docs/reference/networking/virtual-ips/#traffic-distribution
-                        enum:
-                        - PreferClose
-                        type: string
                     type: object
                   clientUrlTls:
                     description: ClientUrlTLS contains the ca, server TLS and client
@@ -631,10 +615,6 @@ spec:
                           More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                         type: object
                     type: object
-                    x-kubernetes-validations:
-                    - message: The requests field in etcd.spec.etcd.resources cannot
-                        be empty
-                      rule: has(self.requests)
                   serverPort:
                     format: int32
                     type: integer
@@ -656,9 +636,6 @@ spec:
               replicas:
                 format: int32
                 type: integer
-                x-kubernetes-validations:
-                - message: Replicas can either be increased or be downscaled to 0.
-                  rule: 'self==0 ? true : self < oldSelf ? false : true'
               schedulingConstraints:
                 description: |-
                   SchedulingConstraints defines the different scheduling constraints that must be applied to the
@@ -1778,7 +1755,6 @@ spec:
                   selector is a label query over pods that should match the replica count.
                   It must match the pod template's labels.
                   More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
-                  Deprecated: this field will be removed in the future.
                 properties:
                   matchExpressions:
                     description: matchExpressions is a list of label selector requirements.
@@ -1848,24 +1824,15 @@ spec:
                 description: StorageCapacity defines the size of persistent volume.
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
-                x-kubernetes-validations:
-                - message: etcd.spec.storageCapacity is an immutable field
-                  rule: self == oldSelf
               storageClass:
                 description: |-
                   StorageClass defines the name of the StorageClass required by the claim.
                   More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1
                 type: string
-                x-kubernetes-validations:
-                - message: etcd.spec.storageClass is an immutable field
-                  rule: self == oldSelf
               volumeClaimTemplate:
                 description: VolumeClaimTemplate defines the volume claim template
                   to be created
                 type: string
-                x-kubernetes-validations:
-                - message: etcd.spec.VolumeClaimTemplate is an immutable field
-                  rule: self == oldSelf
             required:
             - backup
             - etcd
@@ -1883,6 +1850,12 @@ spec:
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:
+              clusterSize:
+                description: |-
+                  Cluster size is the current size of the etcd cluster.
+                  Deprecated: this field will not be populated with any value and will be removed in the future.
+                format: int32
+                type: integer
               conditions:
                 description: Conditions represents the latest available observations
                   of an etcd's current state.
@@ -1992,6 +1965,11 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-map-type: atomic
+              lastError:
+                description: |-
+                  LastError represents the last occurred error.
+                  Deprecated: Use LastErrors instead.
+                type: string
               lastErrors:
                 description: LastErrors captures errors that occurred during the last
                   operation.
@@ -2106,9 +2084,23 @@ spec:
                 description: Replicas is the replica count of the etcd cluster.
                 format: int32
                 type: integer
+              serviceName:
+                description: |-
+                  ServiceName is the name of the etcd service.
+                  Deprecated: this field will be removed in the future.
+                type: string
+              updatedReplicas:
+                description: |-
+                  UpdatedReplicas is the count of updated replicas in the etcd cluster.
+                  Deprecated: this field will be removed in the future.
+                format: int32
+                type: integer
             type: object
         type: object
     served: true
     storage: true
     subresources:
+      scale:
+        specReplicasPath: .spec.replicas
+        statusReplicasPath: .status.replicas
       status: {}
