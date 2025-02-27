@@ -468,7 +468,6 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	commandArgs = append(commandArgs, fmt.Sprintf("--snapstore-temp-directory=%s/temp", common.VolumeMountPathEtcdData))
 	commandArgs = append(commandArgs, fmt.Sprintf("--etcd-connection-timeout=%s", defaultEtcdConnectionTimeout))
 	commandArgs = append(commandArgs, "--enable-member-lease-renewal=true")
-	// Enable/Disable use Etcd Wrapper in BackupRestore container. Once `use-etcd-wrapper` feature-gate is GA then this value will always be true.
 	commandArgs = append(commandArgs, "--use-etcd-wrapper=true")
 
 	var quota = defaultQuota

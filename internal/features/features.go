@@ -9,28 +9,15 @@ import (
 )
 
 const (
-	// Every feature should add method here following this template:
-	//
-	// // MyFeature enables Foo.
-	// // owner: @username
-	// // alpha: v0.X
-	// MyFeature featuregate.Feature = "MyFeature"
-
-	// UseEtcdWrapper enables the use of etcd-wrapper image and a compatible version
-	// of etcd-backup-restore, along with component-specific configuration
-	// changes required for the usage of the etcd-wrapper image.
-	// owner @unmarshall @aaronfern
-	// alpha: v0.19
-	// beta:  v0.22
-	// GA:    v0.25
-	UseEtcdWrapper featuregate.Feature = "UseEtcdWrapper"
+// Every feature should add method here following this template:
+//
+// // MyFeature enables Foo.
+// // owner: @username
+// // alpha: v0.X
+// MyFeature featuregate.Feature = "MyFeature"
 )
-
-var defaultFeatures = map[featuregate.Feature]featuregate.FeatureSpec{
-	UseEtcdWrapper: {Default: true, PreRelease: featuregate.GA, LockToDefault: true},
-}
 
 // GetDefaultFeatures returns the default feature gates known to etcd-druid.
 func GetDefaultFeatures() map[featuregate.Feature]featuregate.FeatureSpec {
-	return defaultFeatures
+	return nil
 }
