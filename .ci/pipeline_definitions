@@ -54,13 +54,13 @@ etcd-druid:
                 teamname: 'gardener/etcd-druid-maintainers'
     steps:
       check:
-        image: 'golang:1.23.5'
+        image: 'golang:1.23.6'
       test:
-        image: 'golang:1.23.5'
+        image: 'golang:1.23.6'
       test_integration:
-        image: 'golang:1.23.5'
+        image: 'golang:1.23.6'
       build:
-        image: 'golang:1.23.5'
+        image: 'golang:1.23.6'
         output_dir: 'binary'
 
   jobs:
