@@ -81,14 +81,12 @@ var (
 	defaultRoleLabelValue = "main"
 
 	labels = map[string]string{
-		"app":                     "etcd-statefulset",
-		"garden.sapcloud.io/role": "controlplane",
-		roleLabelKey:              defaultRoleLabelValue,
+		"app":        "etcd-statefulset",
+		roleLabelKey: defaultRoleLabelValue,
 	}
 
 	stsLabels = map[string]string{
 		"app":                              "etcd-statefulset",
-		"garden.sapcloud.io/role":          "controlplane",
 		roleLabelKey:                       defaultRoleLabelValue,
 		"networking.gardener.cloud/to-dns": "allowed",
 		"networking.gardener.cloud/to-private-networks": "allowed",
