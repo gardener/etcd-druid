@@ -51,7 +51,7 @@ func GenerateLabelCombinations(labelValues map[string][]string) []map[string]str
 	output := make([]map[string]string, len(combinations))
 	for i, combination := range combinations {
 		labelVals := make(map[string]string, len(labels))
-		for j := 0; j < len(labels); j++ {
+		for j := range labels {
 			labelVals[labels[j]] = combination[j]
 		}
 		output[i] = labelVals
@@ -78,15 +78,15 @@ func getCombinations(valuesList [][]string) [][]string {
 // Output => [[p,q,1,2],[p,q,3,4],[r,s,1,2],[r,s,3,4]]
 func cartesianProduct(a [][]string, b [][]string) [][]string {
 	output := make([][]string, len(a)*len(b))
-	for i := 0; i < len(a); i++ {
-		for j := 0; j < len(b); j++ {
+	for i := range a {
+		for j := range b {
 			arr := make([]string, len(a[i])+len(b[j]))
 			ctr := 0
-			for ii := 0; ii < len(a[i]); ii++ {
+			for ii := range a[i] {
 				arr[ctr] = a[i][ii]
 				ctr++
 			}
-			for jj := 0; jj < len(b[j]); jj++ {
+			for jj := range b[j] {
 				arr[ctr] = b[j][jj]
 				ctr++
 			}
@@ -101,7 +101,7 @@ func cartesianProduct(a [][]string, b [][]string) [][]string {
 // Ex: [p,q,r] -> [[p],[q],[r]]
 func wrapInSlice(s []string) [][]string {
 	output := make([][]string, len(s))
-	for i := 0; i < len(output); i++ {
+	for i := range output {
 		elem := make([]string, 1)
 		elem[0] = s[i]
 		output[i] = elem
