@@ -55,7 +55,7 @@ If you are looking to try out druid then you can use a [Kind](https://kind.sigs.
   <source src="https://github.com/user-attachments/assets/cfe0d891-f709-4d7f-b975-4300c6de67e4" type="video/mp4">
 </video>
 
-For detailed documentation, see our `/docs` folder. Please find the [index](README.md) here.
+For detailed documentation, see our `/docs` folder. Please find the [index](./README.md) here.
 
 ## Contributions
 
