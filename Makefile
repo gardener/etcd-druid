@@ -177,13 +177,19 @@ ifndef NAMESPACE
 override NAMESPACE = default
 endif
 
+# While preparing helm charts, it will by default attempt to get the k8s version by invoking kubectl command assuming that you are already connected to a k8s cluster.
+# If you wish to specify a specific k8s version, then set K8S_VERSION environment variable to a value of your choice.
 .PHONY: prepare-helm-charts
 prepare-helm-charts:
-	@$(HACK_DIR)/prepare-chart-resources.sh $(NAMESPACE) $(CERT_EXPIRY_DAYS) $(KUBE_VERSION)
+ifeq ($(strip $(K8S_VERSION)),)
+	@$(HACK_DIR)/prepare-chart-resources.sh --namespce $(NAMESPACE) --cert-expiry $(CERT_EXPIRY_DAYS)
+else
+	@$(HACK_DIR)/prepare-chart-resources.sh --namespce $(NAMESPACE) --cert-expiry $(CERT_EXPIRY_DAYS) --k8s-version $(K8S_VERSION)
+endif
 
 .PHONY: deploy
-deploy: 
-	@$(HACK_DIR)/deploy.sh $(SKAFFOLD) $(HELM) $(VERSION) $(CERT_EXPIRY_DAYS) $(NAMESPACE) $(HACK_DIR) $(GIT_SHA)
+deploy: prepare-helm-charts
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) run -m etcd-druid -n $(NAMESPACE)
 
 .PHONY: deploy-dev
 deploy-dev: $(SKAFFOLD) $(HELM) prepare-helm-charts
