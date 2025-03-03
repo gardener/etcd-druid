@@ -159,7 +159,7 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 	etcd.Spec.Annotations = stsAnnotations
 
 	labelsCopy := make(map[string]string)
-	maps.Copy(labels, labelsCopy)
+	maps.Copy(labelsCopy, labels)
 	labelsCopy[roleLabelKey] = provider.Suffix
 	etcd.Labels = labelsCopy
 	etcd.Spec.Selector = &metav1.LabelSelector{
@@ -167,7 +167,7 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 	}
 
 	stsLabelsCopy := make(map[string]string)
-	maps.Copy(stsLabels, stsLabelsCopy)
+	maps.Copy(stsLabelsCopy, stsLabels)
 	stsLabelsCopy[roleLabelKey] = provider.Suffix
 	etcd.Spec.Labels = stsLabelsCopy
 
