@@ -13,8 +13,30 @@ source $(dirname $0)/openssl-utils.sh
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+
+
+function compare_k8s_version() {
+  k_version="$1"
+  version=$(echo "$k_version" | tr -d ".")
+  # minor_version=$(echo "k_version" | cut -d "." -f 2)
+
+  if [[ "$version" -ge 129 ]] ; then
+    return 0
+  else
+    return 1
+  fi
+
+}
+
 function copy_crds() {
-  declare -a crds=("druid.gardener.cloud_etcds.yaml" "druid.gardener.cloud_etcdcopybackupstasks.yaml")
+  
+  if compare_k8s_version "$1"; then 
+    echo "Kubernetes version is greater than 1.29."
+    declare -a crds=("druid.gardener.cloud_etcds.yaml" "druid.gardener.cloud_etcdcopybackupstasks.yaml")
+  else 
+    echo "Kubernetes version less than 1.29"
+    declare -a crds=("druid.gardener.cloud_etcds_without_cel.yaml" "druid.gardener.cloud_etcdcopybackupstasks.yaml")
+  fi
   target_path="${PROJECT_ROOT}/charts/crds"
   echo "Creating ${target_path} to copy the CRDs if not present..."
   mkdir -p ${target_path}
@@ -30,8 +52,8 @@ function copy_crds() {
 }
 
 function initialize_pki_resources() {
-  if [[ $# -ne 2 ]]; then
-    echo -e "${FUNCNAME[0]} requires 2 arguments: namespace and cert-expiry"
+  if [[ $# -ne 3 ]]; then
+    echo -e "${FUNCNAME[0]} requires 3 arguments: namespace, cert-expiry and kubernetes version"
     exit 1
   fi
 
@@ -70,12 +92,13 @@ function all_pki_resources_exist() {
 }
 
 function prepare_chart_resources() {
-  if [[ $# -ne 2 ]]; then
-    echo -e "${FUNCNAME[0]} requires 2 arguments: namespace and cert-expiry"
+  if [[ $# -ne 3 ]]; then
+    echo -e "${FUNCNAME[0]} requires 3 arguments: namespace, cert-expiry and kubernetest version"
     exit 1
   fi
   echo "Copying CRDs to helm charts..."
-  copy_crds
+  # echo $3
+  copy_crds $3
   echo "Generating PKI resources if not present or expired..."
   initialize_pki_resources "$@"
 }

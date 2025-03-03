@@ -179,11 +179,11 @@ endif
 
 .PHONY: prepare-helm-charts
 prepare-helm-charts:
-	@$(HACK_DIR)/prepare-chart-resources.sh $(NAMESPACE) $(CERT_EXPIRY_DAYS)
+	@$(HACK_DIR)/prepare-chart-resources.sh $(NAMESPACE) $(CERT_EXPIRY_DAYS) $(KUBE_VERSION)
 
 .PHONY: deploy
-deploy: $(SKAFFOLD) $(HELM) prepare-helm-charts
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) run -m etcd-druid -n $(NAMESPACE)
+deploy: 
+	@$(HACK_DIR)/deploy.sh $(SKAFFOLD) $(HELM) $(VERSION) $(CERT_EXPIRY_DAYS) $(NAMESPACE) $(HACK_DIR) $(GIT_SHA)
 
 .PHONY: deploy-dev
 deploy-dev: $(SKAFFOLD) $(HELM) prepare-helm-charts

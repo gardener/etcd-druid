@@ -59,6 +59,12 @@ function generate_crds() {
   controller-gen crd paths="${package_path}" output:crd:dir="${output_dir}" output:stdout
 }
 
+function generate_crd_without_cel_expressions() {
+  local output_dir="${API_GO_MODULE_ROOT}/core/crds"
+  touch "${output_dir}/druid.gardener.cloud_etcds_without_cel.yaml"
+   yq 'del(.. | select(has("x-kubernetes-validations")).x-kubernetes-validations)' ${output_dir}/druid.gardener.cloud_etcds.yaml > ${output_dir}/druid.gardener.cloud_etcds_without_cel.yaml
+}
+
 function main() {
   echo "> Generate deepcopy and defaulting functions..."
   generate_deepcopy_defaulter
@@ -68,6 +74,8 @@ function main() {
 
   echo "> Generate CRDs..."
   generate_crds
+  echo "> Generate CRD without CEL-validations..."
+  generate_crd_without_cel_expressions
 }
 
 main
