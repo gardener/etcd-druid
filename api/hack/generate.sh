@@ -59,6 +59,28 @@ function generate_crds() {
   controller-gen crd paths="${package_path}" output:crd:dir="${output_dir}" output:stdout
 }
 
+function generate_crd_without_cel_expressions() {
+  local output_dir="${API_GO_MODULE_ROOT}/core/crds"
+  local source_file="${output_dir}/druid.gardener.cloud_etcds.yaml"
+  local target_file="${output_dir}/druid.gardener.cloud_etcds_without_cel.yaml"
+  yq 'del(.. | select(has("x-kubernetes-validations")).x-kubernetes-validations)' "${source_file}" > "${target_file}"
+}
+
+function getMd5Sum() {
+  if [[ $# -ne 1 ]]; then
+    echo -e "${FUNCNAME[0]} requires 1 argument: file for which MD5 sum is to be calculated"
+    exit 1
+  fi
+  local file="$1"
+  local computed_md5sum=0
+  if [[ ! -f ${file} ]]; then
+    echo -e "File ${file} not found"
+    else
+    computed_md5sum=$(md5sum ${file} | awk '{print $1}')
+  fi
+  echo ${computed_md5sum}
+}
+
 function main() {
   echo "> Generate deepcopy and defaulting functions..."
   generate_deepcopy_defaulter
@@ -66,8 +88,16 @@ function main() {
   echo "> Generate clientset for Etcd API..."
   generate_clientset
 
+  lastMd5Sum=$(getMd5Sum "${API_GO_MODULE_ROOT}/core/crds/druid.gardener.cloud_etcds.yaml")
   echo "> Generate CRDs..."
   generate_crds
+  latestMd5Sum=$(getMd5Sum "${API_GO_MODULE_ROOT}/core/crds/druid.gardener.cloud_etcds.yaml")
+  if [[ ${lastMd5Sum} == ${latestMd5Sum} ]]; then
+    echo "CRD file has not changed, skipping generation of CRD without CEL-validations"
+    exit 0
+  fi
+  echo "> Generate CRD without CEL-validations..."
+  generate_crd_without_cel_expressions
 }
 
 main
