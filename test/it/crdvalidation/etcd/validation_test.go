@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package etcd
 
 import (
@@ -11,6 +15,7 @@ import (
 	"github.com/gardener/etcd-druid/test/it/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	"github.com/gardener/etcd-druid/test/utils"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	. "github.com/onsi/gomega"
@@ -109,6 +114,7 @@ var cronFieldTestCases = []struct {
 		expectErr: true,
 	},
 }
+
 var durationFieldTestCases = []struct {
 	name      string
 	etcdName  string

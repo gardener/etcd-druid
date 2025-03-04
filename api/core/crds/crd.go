@@ -5,8 +5,9 @@
 package crds
 
 import (
-	_ "embed"
 	"k8s.io/apimachinery/pkg/util/version"
+
+	_ "embed"
 )
 
 var (

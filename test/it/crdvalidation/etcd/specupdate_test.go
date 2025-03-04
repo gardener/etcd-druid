@@ -1,11 +1,18 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package etcd
 
 import (
 	"context"
 	"testing"
+
 	"github.com/gardener/etcd-druid/test/utils"
-	. "github.com/onsi/gomega"
+
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	. "github.com/onsi/gomega"
 )
 
 // tests for the Update Validations:
