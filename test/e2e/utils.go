@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path"
 	"strings"
@@ -81,14 +82,12 @@ var (
 	defaultRoleLabelValue = "main"
 
 	labels = map[string]string{
-		"app":                     "etcd-statefulset",
-		"garden.sapcloud.io/role": "controlplane",
-		roleLabelKey:              defaultRoleLabelValue,
+		"app":        "etcd-statefulset",
+		roleLabelKey: defaultRoleLabelValue,
 	}
 
 	stsLabels = map[string]string{
 		"app":                              "etcd-statefulset",
-		"garden.sapcloud.io/role":          "controlplane",
 		roleLabelKey:                       defaultRoleLabelValue,
 		"networking.gardener.cloud/to-dns": "allowed",
 		"networking.gardener.cloud/to-private-networks": "allowed",
@@ -160,9 +159,7 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 	etcd.Spec.Annotations = stsAnnotations
 
 	labelsCopy := make(map[string]string)
-	for k, v := range labels {
-		labelsCopy[k] = v
-	}
+	maps.Copy(labelsCopy, labels)
 	labelsCopy[roleLabelKey] = provider.Suffix
 	etcd.Labels = labelsCopy
 	etcd.Spec.Selector = &metav1.LabelSelector{
@@ -170,9 +167,7 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 	}
 
 	stsLabelsCopy := make(map[string]string)
-	for k, v := range stsLabels {
-		stsLabelsCopy[k] = v
-	}
+	maps.Copy(stsLabelsCopy, stsLabels)
 	stsLabelsCopy[roleLabelKey] = provider.Suffix
 	etcd.Spec.Labels = stsLabelsCopy
 
@@ -680,7 +675,7 @@ func getPurgeLocalSnapstoreJob(storeContainer, storePrefix string) *batchv1.Job 
 	)
 }
 
-func populateEtcd(ctx context.Context, logger logr.Logger, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix, valuePrefix string, startKeyNo, endKeyNo int, delay time.Duration) error {
+func populateEtcd(ctx context.Context, logger logr.Logger, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix, valuePrefix string, startKeyNo, endKeyNo int, _ time.Duration) error {
 	var (
 		cmd     string
 		stdout  string

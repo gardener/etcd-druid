@@ -1,12 +1,12 @@
 # Monitoring
 
-etcd-druid uses [Prometheus][prometheus] for metrics reporting. The metrics can be used for real-time monitoring and debugging of compaction jobs.
+etcd-druid uses [Prometheus](https://prometheus.io/) for metrics reporting. The metrics can be used for real-time monitoring and debugging of compaction jobs.
 
 The simplest way to see the available metrics is to cURL the metrics endpoint `/metrics`. The format is described [here](http://prometheus.io/docs/instrumenting/exposition_formats/).
 
-Follow the [Prometheus getting started doc][prometheus-getting-started] to spin up a Prometheus server to collect etcd metrics.
+Follow the [Prometheus getting started doc](https://prometheus.io/docs/prometheus/latest/getting_started/) to spin up a Prometheus server to collect etcd metrics.
 
-The naming of metrics follows the suggested [Prometheus best practices][prometheus-naming]. All compaction related metrics are put under namespace `etcddruid` and the respective subsystems.
+The naming of metrics follows the suggested [Prometheus best practices](https://prometheus.io/docs/practices/naming/). All compaction related metrics are put under namespace `etcddruid` and the respective subsystems.
 
 ## Snapshot Compaction
 
