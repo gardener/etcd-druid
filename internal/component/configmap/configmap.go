@@ -71,14 +71,14 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 	ctx.Logger.Info("PreSync: Deleting old configmap", "name", oldConfigMap.Name)
 	if err := r.client.Delete(ctx, oldConfigMap); err != nil {
 		if errors.IsNotFound(err) {
-			ctx.Logger.Info("No old configmap found, PreSync is a No-Op", "name", oldConfigMap.Name)
+			ctx.Logger.Info("No old configmap found, ConfigMap PreSync is a no-op", "name", oldConfigMap.Name)
 			return nil
 		}
 		return druiderr.WrapError(
 			err,
 			ErrDeleteConfigMap,
 			component.OperationPreSync,
-			"Failed to delete old configmap",
+			fmt.Sprintf("Failed to delete old configmap %s", oldConfigMap.Name),
 		)
 	}
 	ctx.Logger.Info("deleted", "component", "configmap", "name", oldConfigMap.Name)
