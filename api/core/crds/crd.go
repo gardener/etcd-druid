@@ -47,7 +47,7 @@ func GetAll(k8sVersion string) (map[string]string, error) {
 	}, nil
 }
 
-// Returns true if the K8s version is 1.29 or higher, otherwise false.
+// IsK8sVersionAbove129 returns true if the K8s version is 1.29 or higher, otherwise false.
 func IsK8sVersionAbove129(k8sVersion string) (bool, error) {
 	v, err := version.ParseMajorMinor(k8sVersion)
 	if err != nil {
