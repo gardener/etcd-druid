@@ -5,6 +5,8 @@
 package assets
 
 import (
+	"errors"
+	"os"
 	"path/filepath"
 
 	"github.com/gardener/etcd-druid/internal/images"
@@ -13,9 +15,22 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// GetEtcdCrdPath returns the path to the Etcd CRD.
-func GetEtcdCrdPath() string {
-	return filepath.Join("..", "..", "..", "..", "api", "core", "crds", "druid.gardener.cloud_etcds.yaml")
+// returns the kubernetes version used from the environment variable
+func GetK8sVersionFromEnv() (string, error) {
+	k8sVersion, isPresent := os.LookupEnv("ENVTEST_K8S_VERSION")
+	if isPresent {
+		return k8sVersion, nil
+	} else {
+		return "", errors.New("Error fetching k8s version from environment")
+	}
+}
+
+// GetEtcdCrdPath returns the path to the Etcd CRD for k8s versions >= 1.29 or the path to the Etcd CRD without CEL expressions (For versions < 1.29)
+func GetEtcdCrdPath(k8sVersionAbove129 bool) string {
+	if k8sVersionAbove129 {
+		return filepath.Join("..", "..", "..", "..", "api", "core", "crds", "druid.gardener.cloud_etcds.yaml")
+	}
+	return filepath.Join("..", "..", "..", "..", "api", "core", "crds", "druid.gardener.cloud_etcds_without_cel.yaml")
 }
 
 // GetEtcdCopyBackupsTaskCrdPath returns the path to the EtcdCopyBackupsTask CRD.

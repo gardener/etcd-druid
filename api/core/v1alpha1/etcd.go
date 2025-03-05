@@ -145,7 +145,6 @@ type BackupSpec struct {
 	// Resources defines compute Resources required by backup-restore container.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional
-	// +kubebuilder:validation:XValidation:message="The requests field in etcd.spec.etcd.resources cannot be empty",rule="has(self.requests)"
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 	// CompactionResources defines compute Resources required by compaction job.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
@@ -226,7 +225,6 @@ type EtcdConfig struct {
 	// Resources defines the compute Resources required by etcd container.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional
-	// +kubebuilder:validation:XValidation:message="The requests field in etcd.spec.etcd.resources cannot be empty",rule="has(self.requests)"
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 	// ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster
 	// +optional

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gardener/etcd-druid/api/core/crds"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -31,7 +32,8 @@ import (
 const testNamespacePrefix = "etcd-reconciler-test"
 
 var (
-	sharedITTestEnv setup.DruidTestEnvironment
+	sharedITTestEnv    setup.DruidTestEnvironment
+	k8sVersionAbove129 bool
 )
 
 func TestMain(m *testing.M) {
@@ -39,7 +41,19 @@ func TestMain(m *testing.M) {
 		itTestEnvCloser setup.DruidTestEnvCloser
 		err             error
 	)
-	sharedITTestEnv, itTestEnvCloser, err = setup.NewDruidTestEnvironment("etcd-reconciler", []string{assets.GetEtcdCrdPath()})
+	k8sVersion, err := assets.GetK8sVersionFromEnv()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to get the kubernetes version: %v\n", err)
+		os.Exit(1)
+	}
+
+	k8sVersionAbove129, err = crds.IsK8sVersionAbove129(k8sVersion)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to compare k8s version: %v\n", err)
+		os.Exit(1)
+	}
+
+	sharedITTestEnv, itTestEnvCloser, err = setup.NewDruidTestEnvironment("etcd-reconciler", []string{assets.GetEtcdCrdPath(k8sVersionAbove129)})
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to create integration test environment: %v\n", err)
 		os.Exit(1)
@@ -340,7 +354,7 @@ func testPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 	g := NewWithT(t)
 
 	// A different IT test environment is required due to a different clientBuilder which is used to create the manager.
-	itTestEnv, itTestEnvCloser, err := setup.NewDruidTestEnvironment("etcd-reconciler", []string{assets.GetEtcdCrdPath()})
+	itTestEnv, itTestEnvCloser, err := setup.NewDruidTestEnvironment("etcd-reconciler", []string{assets.GetEtcdCrdPath(k8sVersionAbove129)})
 	g.Expect(err).ToNot(HaveOccurred())
 	defer itTestEnvCloser()
 	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, "etcd-controller-deletion-flow-failure", itTestEnv, false, testClientBuilder)

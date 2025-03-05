@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gardener/etcd-druid/api/core/crds"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/test/it/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
@@ -24,7 +25,8 @@ import (
 const testNamespacePrefix = "etcd-validation-test"
 
 var (
-	itTestEnv setup.DruidTestEnvironment
+	itTestEnv          setup.DruidTestEnvironment
+	k8sVersionAbove129 bool
 )
 
 func TestMain(m *testing.M) {
@@ -32,7 +34,20 @@ func TestMain(m *testing.M) {
 		itTestEnvCloser setup.DruidTestEnvCloser
 		err             error
 	)
-	itTestEnv, itTestEnvCloser, err = setup.NewDruidTestEnvironment("etcd-validation", []string{assets.GetEtcdCrdPath()})
+	k8sVersion, err := assets.GetK8sVersionFromEnv()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to get the kubernetes version: %v\n", err)
+		os.Exit(1)
+	}
+
+	k8sVersionAbove129, err = crds.IsK8sVersionAbove129(k8sVersion)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to compare k8s version: %v\n", err)
+		os.Exit(1)
+	}
+
+	itTestEnv, itTestEnvCloser, err = setup.NewDruidTestEnvironment("etcd-validation", []string{assets.GetEtcdCrdPath(k8sVersionAbove129)})
+
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to create integration test environment: %v\n", err)
 		os.Exit(1)
@@ -174,4 +189,11 @@ func validateDuration(t *testing.T, value string, expectErr bool) (*metav1.Durat
 		return nil, false
 	}
 	return duration, true
+}
+
+// skips the test case in case the kubernetes version is less than 1.29
+func skipTestBasedOnK8sVersion(t *testing.T) {
+	if !k8sVersionAbove129 {
+		t.Skip()
+	}
 }

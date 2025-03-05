@@ -188,7 +188,7 @@ else
 endif
 
 .PHONY: deploy
-deploy: prepare-helm-charts
+deploy: $(SKAFFOLD) $(HELM) prepare-helm-charts
 	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) run -m etcd-druid -n $(NAMESPACE)
 
 .PHONY: deploy-dev
