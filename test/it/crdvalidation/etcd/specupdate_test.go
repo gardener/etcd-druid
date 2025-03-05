@@ -19,7 +19,7 @@ import (
 
 // etcd.spec.storageClass is immutable
 func TestValidateSpecStorageClass(t *testing.T) {
-	skipTestBasedOnK8sVersion(t)
+	skipCELTestsForOlderK8sVersions(t)
 	testNs, g := setupTestEnvironment(t)
 
 	tests := []struct {
@@ -67,7 +67,7 @@ func TestValidateSpecStorageClass(t *testing.T) {
 
 // checks the update on the etcd.spec.replicas field
 func TestValidateSpecReplicas(t *testing.T) {
-	skipTestBasedOnK8sVersion(t)
+	skipCELTestsForOlderK8sVersions(t)
 	tests := []struct {
 		name            string
 		etcdName        string
@@ -121,7 +121,7 @@ func TestValidateSpecReplicas(t *testing.T) {
 
 // checks the immutablility of the etcd.spec.StorageCapacity field
 func TestValidateSpecStorageCapacity(t *testing.T) {
-	skipTestBasedOnK8sVersion(t)
+	skipCELTestsForOlderK8sVersions(t)
 	testNs, g := setupTestEnvironment(t)
 	tests := []struct {
 		name                   string
@@ -169,7 +169,7 @@ func TestValidateSpecStorageCapacity(t *testing.T) {
 
 // check the immutability of the etcd.spec.VolumeClaimTemplate field
 func TestValidateSpecVolumeClaimTemplate(t *testing.T) {
-	skipTestBasedOnK8sVersion(t)
+	skipCELTestsForOlderK8sVersions(t)
 	testNs, g := setupTestEnvironment(t)
 	tests := []struct {
 		name                string

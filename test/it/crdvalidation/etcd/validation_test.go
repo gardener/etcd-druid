@@ -192,7 +192,7 @@ func validateDuration(t *testing.T, value string, expectErr bool) (*metav1.Durat
 }
 
 // skips the test case in case the kubernetes version is less than 1.29
-func skipTestBasedOnK8sVersion(t *testing.T) {
+func skipCELTestsForOlderK8sVersions(t *testing.T) {
 	if !k8sVersionAbove129 {
 		t.Skip()
 	}

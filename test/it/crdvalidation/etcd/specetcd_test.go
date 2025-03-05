@@ -116,7 +116,7 @@ func TestValidateSpecEtcdDefragmentationSchedule(t *testing.T) {
 
 // checks that if the values for etcd.spec.storageCapacity and etcd.spec.etcd.quota are valid, then if backups are enabled, the value of storageCapacity must be > 3x value of quota. If backups are not enabled, value of storageCapacity must be > quota
 func TestValidateSpecStorageCapacitySpecEtcdQuotaRelation(t *testing.T) {
-	skipTestBasedOnK8sVersion(t)
+	skipCELTestsForOlderK8sVersions(t)
 	testNs, g := setupTestEnvironment(t)
 	tests := []struct {
 		name            string

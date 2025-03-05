@@ -202,7 +202,7 @@ func TestValidateSpecBackupDeltaSnapshotPeriod(t *testing.T) {
 
 // Checks for valid duration values passed to etcd.spec.backup.garbageCollectionPeriod and etcd.spec.backup.deltaSnapshotPeriod, the value of GarbageCollectionPolicy is greater than the DeltaSnapshotPeriod
 func TestValidateSpecBackupGCDeltaSnapshotPeriodRelation(t *testing.T) {
-	skipTestBasedOnK8sVersion(t)
+	skipCELTestsForOlderK8sVersions(t)
 	tests := []struct {
 		name                string
 		etcdName            string
