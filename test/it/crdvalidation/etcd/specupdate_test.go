@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+// Testing validations on spec updates for etcd.spec fields.
 package etcd
 
 import (
@@ -15,10 +16,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// tests for the Update Validations:
-
 // etcd.spec.storageClass is immutable
-func TestValidateSpecStorageClass(t *testing.T) {
+func TestValidateUpdateSpecStorageClass(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	testNs, g := setupTestEnvironment(t)
 
@@ -55,18 +54,13 @@ func TestValidateSpecStorageClass(t *testing.T) {
 			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
 
 			etcd.Spec.StorageClass = &test.updatedStorageClassName
-			updateErr := cl.Update(ctx, etcd)
-			if test.expectErr {
-				g.Expect(updateErr).ToNot(BeNil())
-			} else {
-				g.Expect(updateErr).To(BeNil())
-			}
+			validateEtcdUpdation(t, g, etcd, test.expectErr, ctx, cl)
 		})
 	}
 }
 
 // checks the update on the etcd.spec.replicas field
-func TestValidateSpecReplicas(t *testing.T) {
+func TestValidateUpdateSpecReplicas(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	tests := []struct {
 		name            string
@@ -108,19 +102,13 @@ func TestValidateSpecReplicas(t *testing.T) {
 			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
 
 			etcd.Spec.Replicas = int32(test.updatedReplicas)
-			updateErr := cl.Update(ctx, etcd)
-
-			if test.expectErr {
-				g.Expect(updateErr).ToNot(BeNil())
-			} else {
-				g.Expect(updateErr).To(BeNil())
-			}
+			validateEtcdUpdation(t, g, etcd, test.expectErr, ctx, cl)
 		})
 	}
 }
 
 // checks the immutablility of the etcd.spec.StorageCapacity field
-func TestValidateSpecStorageCapacity(t *testing.T) {
+func TestValidateUpdateSpecStorageCapacity(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	testNs, g := setupTestEnvironment(t)
 	tests := []struct {
@@ -156,19 +144,13 @@ func TestValidateSpecStorageCapacity(t *testing.T) {
 			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
 
 			etcd.Spec.StorageCapacity = &test.updatedStorageCapacity
-
-			updateErr := cl.Update(ctx, etcd)
-			if test.expectErr {
-				g.Expect(updateErr).ToNot(BeNil())
-			} else {
-				g.Expect(updateErr).To(BeNil())
-			}
+			validateEtcdUpdation(t, g, etcd, test.expectErr, ctx, cl)
 		})
 	}
 }
 
 // check the immutability of the etcd.spec.VolumeClaimTemplate field
-func TestValidateSpecVolumeClaimTemplate(t *testing.T) {
+func TestValidateUpdateSpecVolumeClaimTemplate(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	testNs, g := setupTestEnvironment(t)
 	tests := []struct {
@@ -204,13 +186,7 @@ func TestValidateSpecVolumeClaimTemplate(t *testing.T) {
 			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
 
 			etcd.Spec.VolumeClaimTemplate = &test.updatedVolClaimTemp
-
-			updateErr := cl.Update(ctx, etcd)
-			if test.expectErr {
-				g.Expect(updateErr).ToNot(BeNil())
-			} else {
-				g.Expect(updateErr).To(BeNil())
-			}
+			validateEtcdUpdation(t, g, etcd, test.expectErr, ctx, cl)
 		})
 	}
 }

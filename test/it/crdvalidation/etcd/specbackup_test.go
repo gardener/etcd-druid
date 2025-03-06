@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+// Testing validations of etcd.spec.backup fields.
+
 package etcd
 
 import (
@@ -10,8 +12,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/test/utils"
 )
-
-// tests for etcd.spec.backup fields:
 
 // TestValidateGarbageCollectionPolicy tests the validation of `Spec.Backup.GarbageCollectionPolicy` field in the Etcd resource.
 func TestValidateSpecBackupGarbageCollectionPolicy(t *testing.T) {

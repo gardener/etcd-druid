@@ -9,7 +9,7 @@ The following is a list of kubernetes versions supported by the respective `etcd
 
 | etcd-druid version | Kubernetes version     |
 |--------------------|------------------------|
-| >=v0.28            | >=v1.29                |
+| >=v0.28            | >=v1.21                |
 | >=v0.20            | >=v1.21                |
 | >=v0.14 && <0.20   | All versions supported |
 | <v0.14             | < v1.25                |

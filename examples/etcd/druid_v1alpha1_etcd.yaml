@@ -53,11 +53,11 @@ spec:
     deltaSnapshotPeriod: 300s
     deltaSnapshotMemoryLimit: 1Gi
     # store:
-    # secretRef:
-    #   name: etcd-backup-secret-name
-    # container: object-storage-container-name
-    # provider: aws # options: aws,azure,gcp,openstack,alicloud,dell,openshift,local
-    # prefix: etcd-test
+    #   secretRef:
+    #     name: etcd-backup-secret-name
+    #   container: object-storage-container-name
+    #   provider: local # options: aws,azure,gcp,openstack,alicloud,dell,openshift,local
+    #   prefix: etcd-test
     compression:
       enabled: false
       policy: "gzip"

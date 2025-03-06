@@ -1866,12 +1866,14 @@ spec:
             - selector
             type: object
             x-kubernetes-validations:
-            - message: If backups are enabled, etcd.spec.storageCapacity must be atleast
-                3x etcd.spec.etcd.quota. If not, it must be greater than etcd.spec.etcd.quota
+            - message: If backups are enabled, then value of etcd.spec.storageCapacity
+                must be 3 times the value of etcd.spec.etcd.quota or more. If backups
+                are disabled, then value of etcd.spec.storageCapacity must be the
+                value of etcd.spec.etcd.quota or more.
               rule: 'has(self.storageCapacity) && has(self.etcd.quota) ? (has(self.backup.store)
-                ? quantity(self.storageCapacity).compareTo(quantity(self.etcd.quota).add(quantity(self.etcd.quota)).add(quantity(self.etcd.quota)))
-                > 0 : quantity(self.storageCapacity).compareTo(quantity(self.etcd.quota))
-                > 0 ): true'
+                ? ((quantity(self.storageCapacity).isLessThan(quantity(self.etcd.quota).add(quantity(self.etcd.quota)).add(quantity(self.etcd.quota)))
+                ) ? false : true): (quantity(self.storageCapacity).isLessThan(quantity(self.etcd.quota))
+                ? false : true)  ): true'
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:

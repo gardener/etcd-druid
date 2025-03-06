@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+// Testing validations of etcd.spec.etcd fields.
+
 package etcd
 
 import (
@@ -13,8 +15,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
-
-// tests for etcd.spec.etcd fields
 
 // runs the validation on the etcd.spec.etcd.etcdDefragTimeout field.
 func TestValidateSpecEtcdEtcdDefragTimeout(t *testing.T) {
@@ -123,7 +123,7 @@ func TestValidateSpecStorageCapacitySpecEtcdQuotaRelation(t *testing.T) {
 		etcdName        string
 		storageCapacity resource.Quantity
 		quota           resource.Quantity
-		backup          bool
+		backupEnabled          bool
 		expectErr       bool
 	}{
 		{
@@ -131,7 +131,7 @@ func TestValidateSpecStorageCapacitySpecEtcdQuotaRelation(t *testing.T) {
 			etcdName:        "etcd-valid-1",
 			storageCapacity: resource.MustParse("27Gi"),
 			quota:           resource.MustParse("8Gi"),
-			backup:          true,
+			backupEnabled:          true,
 			expectErr:       false,
 		},
 		{
@@ -139,7 +139,7 @@ func TestValidateSpecStorageCapacitySpecEtcdQuotaRelation(t *testing.T) {
 			etcdName:        "etcd-valid-2",
 			storageCapacity: resource.MustParse("12Gi"),
 			quota:           resource.MustParse("8Gi"),
-			backup:          false,
+			backupEnabled:          false,
 			expectErr:       false,
 		},
 		{
@@ -147,7 +147,7 @@ func TestValidateSpecStorageCapacitySpecEtcdQuotaRelation(t *testing.T) {
 			etcdName:        "etcd-invalid-1",
 			storageCapacity: resource.MustParse("15Gi"),
 			quota:           resource.MustParse("8Gi"),
-			backup:          true,
+			backupEnabled:          true,
 			expectErr:       true,
 		},
 		{
@@ -155,7 +155,7 @@ func TestValidateSpecStorageCapacitySpecEtcdQuotaRelation(t *testing.T) {
 			etcdName:        "etcd-invalid-2",
 			storageCapacity: resource.MustParse("9Gi"),
 			quota:           resource.MustParse("10Gi"),
-			backup:          false,
+			backupEnabled:          false,
 			expectErr:       true,
 		},
 	}
@@ -166,7 +166,7 @@ func TestValidateSpecStorageCapacitySpecEtcdQuotaRelation(t *testing.T) {
 			etcd.Spec.StorageCapacity = &test.storageCapacity
 			etcd.Spec.Etcd.Quota = &test.quota
 
-			if test.backup {
+			if test.backupEnabled {
 				container := "etcd-bucket"
 				provider := "Provider"
 				etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{

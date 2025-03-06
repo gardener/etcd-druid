@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+// Testing validations of etcd.spec.sharedConfig fields.
+
 package etcd
 
 import (
@@ -11,7 +13,6 @@ import (
 	"github.com/gardener/etcd-druid/test/utils"
 )
 
-// tests for etcd.spec.sharedConfig fields:
 
 // validates whether the value passed to the etcd.spec.sharedConfig.autoCompactionMode is either set as "periodic" or "revision"
 func TestValidateSpecSharedConfigAutoCompactionMode(t *testing.T) {
@@ -36,7 +37,7 @@ func TestValidateSpecSharedConfigAutoCompactionMode(t *testing.T) {
 		{
 			name:               "Invalid autoCompactionMode #1: invalid value",
 			etcdName:           "etcd-invalid-1",
-			autoCompactionMode: "frequent",
+			autoCompactionMode: "dummy",
 			expectErr:          true,
 		},
 		{

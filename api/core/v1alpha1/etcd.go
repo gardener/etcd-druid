@@ -288,7 +288,7 @@ type SchedulingConstraints struct {
 }
 
 // EtcdSpec defines the desired state of Etcd
-// +kubebuilder:validation:XValidation:message="If backups are enabled, etcd.spec.storageCapacity must be atleast 3x etcd.spec.etcd.quota. If not, it must be greater than etcd.spec.etcd.quota",rule="has(self.storageCapacity) && has(self.etcd.quota) ? (has(self.backup.store) ? quantity(self.storageCapacity).compareTo(quantity(self.etcd.quota).add(quantity(self.etcd.quota)).add(quantity(self.etcd.quota))) > 0 : quantity(self.storageCapacity).compareTo(quantity(self.etcd.quota)) > 0 ): true"
+// +kubebuilder:validation:XValidation:message="If backups are enabled, then value of etcd.spec.storageCapacity must be 3 times the value of etcd.spec.etcd.quota or more. If backups are disabled, then value of etcd.spec.storageCapacity must be the value of etcd.spec.etcd.quota or more.",rule="has(self.storageCapacity) && has(self.etcd.quota) ? (has(self.backup.store) ? ((quantity(self.storageCapacity).isLessThan(quantity(self.etcd.quota).add(quantity(self.etcd.quota)).add(quantity(self.etcd.quota))) ) ? false : true): (quantity(self.storageCapacity).isLessThan(quantity(self.etcd.quota)) ? false : true)  ): true"
 type EtcdSpec struct {
 	// selector is a label query over pods that should match the replica count.
 	// It must match the pod template's labels.

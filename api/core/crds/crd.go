@@ -31,7 +31,7 @@ const (
 // 1. One set is for Kubernetes version 1.29 and above. These CRDs contain embedded CEL validation expressions. CEL expressions are only GA since Kubernetes 1.29 onwards.
 // 2. The other set is for Kubernetes versions below 1.29. These CRDs do not contain embedded CEL validation expressions.
 func GetAll(k8sVersion string) (map[string]string, error) {
-	k8sVersionAbove129, err := IsK8sVersionAbove129(k8sVersion)
+	k8sVersionAbove129, err := IsK8sVersionEqualToOrAbove129(k8sVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -47,8 +47,8 @@ func GetAll(k8sVersion string) (map[string]string, error) {
 	}, nil
 }
 
-// IsK8sVersionAbove129 returns true if the K8s version is 1.29 or higher, otherwise false.
-func IsK8sVersionAbove129(k8sVersion string) (bool, error) {
+// IsK8sVersionEqualToOrAbove129 returns true if the K8s version is 1.29 or higher, otherwise false.
+func IsK8sVersionEqualToOrAbove129(k8sVersion string) (bool, error) {
 	v, err := version.ParseMajorMinor(k8sVersion)
 	if err != nil {
 		return false, err

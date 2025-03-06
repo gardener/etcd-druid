@@ -47,7 +47,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	k8sVersionAbove129, err = crds.IsK8sVersionAbove129(k8sVersion)
+	k8sVersionAbove129, err = crds.IsK8sVersionEqualToOrAbove129(k8sVersion)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to compare k8s version: %v\n", err)
 		os.Exit(1)
