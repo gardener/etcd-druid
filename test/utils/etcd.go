@@ -384,13 +384,6 @@ func getEtcdWithoutDefaults(name, namespace string) *druidv1alpha1.Etcd {
 				"instance": name,
 				"name":     "etcd",
 			},
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app":      "etcd-statefulset",
-					"instance": name,
-					"name":     "etcd",
-				},
-			},
 			Replicas: 1,
 			Backup:   druidv1alpha1.BackupSpec{},
 			Etcd:     druidv1alpha1.EtcdConfig{},
@@ -421,12 +414,6 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 				"networking.gardener.cloud/to-public-networks":   "allowed",
 				"networking.gardener.cloud/to-runtime-apiserver": "allowed",
 				"gardener.cloud/role":                            "controlplane",
-			},
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
-					druidv1alpha1.LabelPartOfKey:    name,
-				},
 			},
 			Replicas:            1,
 			StorageCapacity:     &storageCapacity,

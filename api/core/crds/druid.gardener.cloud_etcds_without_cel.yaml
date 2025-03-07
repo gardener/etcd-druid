@@ -1737,7 +1737,6 @@ spec:
                 - etcd
                 - labels
                 - replicas
-                - selector
               type: object
             status:
               description: EtcdStatus defines the observed state of Etcd.

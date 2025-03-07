@@ -293,6 +293,7 @@ type EtcdSpec struct {
 	// selector is a label query over pods that should match the replica count.
 	// It must match the pod template's labels.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
+	// +optional
 	// Deprecated: this field will be removed in the future.
 	Selector *metav1.LabelSelector `json:"selector"`
 	// +required

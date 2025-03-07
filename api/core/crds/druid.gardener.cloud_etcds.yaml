@@ -1863,7 +1863,6 @@ spec:
             - etcd
             - labels
             - replicas
-            - selector
             type: object
             x-kubernetes-validations:
             - message: If backups are enabled, then value of etcd.spec.storageCapacity
