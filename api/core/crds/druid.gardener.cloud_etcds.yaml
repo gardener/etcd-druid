@@ -162,12 +162,13 @@ spec:
                   deltaSnapshotPeriod:
                     description: DeltaSnapshotPeriod defines the period after which
                       delta snapshots will be taken
+                    pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$
                     type: string
                   deltaSnapshotRetentionPeriod:
                     description: |-
                       DeltaSnapshotRetentionPeriod defines the duration for which delta snapshots will be retained, excluding the latest snapshot set.
                       The value should be a string formatted as a duration (e.g., '1s', '2m', '3h', '4d')
-                    pattern: ^([0-9][0-9]*([.][0-9]+)?(s|m|h|d))+$
+                    pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$
                     type: string
                   enableProfiling:
                     description: EnableProfiling defines if profiling should be enabled
@@ -176,14 +177,17 @@ spec:
                   etcdSnapshotTimeout:
                     description: EtcdSnapshotTimeout defines the timeout duration
                       for etcd FullSnapshot operation
+                    pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$
                     type: string
                   fullSnapshotSchedule:
                     description: FullSnapshotSchedule defines the cron standard schedule
                       for full snapshots.
+                    pattern: ^(\*|[1-5]?[0-9]|[1-5]?[0-9]-[1-5]?[0-9]|(?:[1-9]|[1-4][0-9]|5[0-9])\/(?:[1-9]|[1-4][0-9]|5[0-9]|60)|\*\/(?:[1-9]|[1-4][0-9]|5[0-9]|60))\s+(\*|[0-9]|1[0-9]|2[0-3]|[0-9]-(?:[0-9]|1[0-9]|2[0-3])|1[0-9]-(?:1[0-9]|2[0-3])|2[0-3]-2[0-3]|(?:[1-9]|1[0-9]|2[0-3])\/(?:[1-9]|1[0-9]|2[0-4])|\*\/(?:[1-9]|1[0-9]|2[0-4]))\s+(\*|[1-9]|[12][0-9]|3[01]|[1-9]-(?:[1-9]|[12][0-9]|3[01])|[12][0-9]-(?:[12][0-9]|3[01])|3[01]-3[01]|(?:[1-9]|[12][0-9]|30)\/(?:[1-9]|[12][0-9]|3[01])|\*\/(?:[1-9]|[12][0-9]|3[01]))\s+(\*|[1-9]|1[0-2]|[1-9]-(?:[1-9]|1[0-2])|1[0-2]-1[0-2]|(?:[1-9]|1[0-2])\/(?:[1-9]|1[0-2])|\*\/(?:[1-9]|1[0-2]))\s+(\*|[1-7]|[1-6]-[1-7]|[1-6]\/[1-7]|\*\/[1-7])$
                     type: string
                   garbageCollectionPeriod:
                     description: GarbageCollectionPeriod defines the period for garbage
                       collecting old backups
+                    pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$
                     type: string
                   garbageCollectionPolicy:
                     description: GarbageCollectionPolicy defines the policy for garbage
@@ -202,10 +206,12 @@ spec:
                       etcdConnectionTimeout:
                         description: EtcdConnectionTimeout defines the timeout duration
                           for etcd client connection during leader election.
+                        pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$
                         type: string
                       reelectionPeriod:
                         description: ReelectionPeriod defines the Period after which
                           leadership status of corresponding etcd is checked.
+                        pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$
                         type: string
                     type: object
                   maxBackupsLimitBasedGC:
@@ -366,6 +372,11 @@ spec:
                     - tlsCASecretRef
                     type: object
                 type: object
+                x-kubernetes-validations:
+                - message: etcd.spec.backup.garbageCollectionPeriod must be greater
+                    than etcd.spec.backup.deltaSnapshotPeriod
+                  rule: '!(has(self.deltaSnapshotPeriod) && has(self.garbageCollectionPeriod))
+                    || duration(self.deltaSnapshotPeriod).getSeconds() < duration(self.garbageCollectionPeriod).getSeconds()'
               etcd:
                 description: EtcdConfig defines the configuration for the etcd cluster
                   to be deployed.
@@ -470,14 +481,17 @@ spec:
                   defragmentationSchedule:
                     description: DefragmentationSchedule defines the cron standard
                       schedule for defragmentation of etcd.
+                    pattern: ^(\*|[1-5]?[0-9]|[1-5]?[0-9]-[1-5]?[0-9]|(?:[1-9]|[1-4][0-9]|5[0-9])\/(?:[1-9]|[1-4][0-9]|5[0-9]|60)|\*\/(?:[1-9]|[1-4][0-9]|5[0-9]|60))\s+(\*|[0-9]|1[0-9]|2[0-3]|[0-9]-(?:[0-9]|1[0-9]|2[0-3])|1[0-9]-(?:1[0-9]|2[0-3])|2[0-3]-2[0-3]|(?:[1-9]|1[0-9]|2[0-3])\/(?:[1-9]|1[0-9]|2[0-4])|\*\/(?:[1-9]|1[0-9]|2[0-4]))\s+(\*|[1-9]|[12][0-9]|3[01]|[1-9]-(?:[1-9]|[12][0-9]|3[01])|[12][0-9]-(?:[12][0-9]|3[01])|3[01]-3[01]|(?:[1-9]|[12][0-9]|30)\/(?:[1-9]|[12][0-9]|3[01])|\*\/(?:[1-9]|[12][0-9]|3[01]))\s+(\*|[1-9]|1[0-2]|[1-9]-(?:[1-9]|1[0-2])|1[0-2]-1[0-2]|(?:[1-9]|1[0-2])\/(?:[1-9]|1[0-2])|\*\/(?:[1-9]|1[0-2]))\s+(\*|[1-7]|[1-6]-[1-7]|[1-6]\/[1-7]|\*\/[1-7])$
                     type: string
                   etcdDefragTimeout:
                     description: EtcdDefragTimeout defines the timeout duration for
                       etcd defrag call
+                    pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$
                     type: string
                   heartbeatDuration:
                     description: HeartbeatDuration defines the duration for members
                       to send heartbeats. The default value is 10s.
+                    pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?$
                     type: string
                   image:
                     description: Image defines the etcd container image and tag
@@ -634,6 +648,9 @@ spec:
               replicas:
                 format: int32
                 type: integer
+                x-kubernetes-validations:
+                - message: Replicas can either be increased or be downscaled to 0.
+                  rule: 'self==0 ? true : self < oldSelf ? false : true'
               schedulingConstraints:
                 description: |-
                   SchedulingConstraints defines the different scheduling constraints that must be applied to the
@@ -1753,6 +1770,7 @@ spec:
                   selector is a label query over pods that should match the replica count.
                   It must match the pod template's labels.
                   More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
+                  Deprecated: this field will be removed in the future.
                 properties:
                   matchExpressions:
                     description: matchExpressions is a list of label selector requirements.
@@ -1822,22 +1840,39 @@ spec:
                 description: StorageCapacity defines the size of persistent volume.
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
+                x-kubernetes-validations:
+                - message: etcd.spec.storageCapacity is an immutable field
+                  rule: self == oldSelf
               storageClass:
                 description: |-
                   StorageClass defines the name of the StorageClass required by the claim.
                   More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1
                 type: string
+                x-kubernetes-validations:
+                - message: etcd.spec.storageClass is an immutable field
+                  rule: self == oldSelf
               volumeClaimTemplate:
                 description: VolumeClaimTemplate defines the volume claim template
                   to be created
                 type: string
+                x-kubernetes-validations:
+                - message: etcd.spec.VolumeClaimTemplate is an immutable field
+                  rule: self == oldSelf
             required:
             - backup
             - etcd
             - labels
             - replicas
-            - selector
             type: object
+            x-kubernetes-validations:
+            - message: If backups are enabled, then value of etcd.spec.storageCapacity
+                must be 3 times the value of etcd.spec.etcd.quota or more. If backups
+                are disabled, then value of etcd.spec.storageCapacity must be the
+                value of etcd.spec.etcd.quota or more.
+              rule: 'has(self.storageCapacity) && has(self.etcd.quota) ? (has(self.backup.store)
+                ? ((quantity(self.storageCapacity).isLessThan(quantity(self.etcd.quota).add(quantity(self.etcd.quota)).add(quantity(self.etcd.quota)))
+                ) ? false : true): (quantity(self.storageCapacity).isLessThan(quantity(self.etcd.quota))
+                ? false : true)  ): true'
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:

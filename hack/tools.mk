@@ -19,7 +19,6 @@ SETUP_ENVTEST              := $(TOOLS_BIN_DIR)/setup-envtest
 KIND                       := $(TOOLS_BIN_DIR)/kind
 KUBECTL                    := $(TOOLS_BIN_DIR)/kubectl
 HELM                       := $(TOOLS_BIN_DIR)/helm
-KUBECTL                    := $(TOOLS_BIN_DIR)/kubectl
 VGOPATH                    := $(TOOLS_BIN_DIR)/vgopath
 GO_ADD_LICENSE             := $(TOOLS_BIN_DIR)/addlicense
 GOIMPORTS_REVISER          := $(TOOLS_BIN_DIR)/goimports-reviser

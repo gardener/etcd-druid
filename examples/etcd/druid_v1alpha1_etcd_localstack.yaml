@@ -7,11 +7,6 @@ metadata:
     gardener.cloud/role: controlplane
     role: test
 spec:
-  selector:
-    matchLabels:
-      app: etcd-statefulset
-      gardener.cloud/role: controlplane
-      role: test
   annotations:
     app: etcd-statefulset
     gardener.cloud/role: controlplane

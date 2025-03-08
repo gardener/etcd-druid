@@ -162,9 +162,6 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 	maps.Copy(labelsCopy, labels)
 	labelsCopy[roleLabelKey] = provider.Suffix
 	etcd.Labels = labelsCopy
-	etcd.Spec.Selector = &metav1.LabelSelector{
-		MatchLabels: labelsCopy,
-	}
 
 	stsLabelsCopy := make(map[string]string)
 	maps.Copy(stsLabelsCopy, stsLabels)
