@@ -43,13 +43,13 @@ To ensure that etcd pods are not evicted more than its failure tolerance, `etcd-
 
 ## ServiceAccount
 
-`etch-backup-restore` container running as a side-car in every etcd-member, requires permissions to access resources like `Lease`, `StatefulSet` etc. A dedicated [ServiceAccount](https://kubernetes.io/docs/concepts/security/service-accounts/) is created per `Etcd` cluster for this purpose.
+`etcd-backup-restore` container running as a side-car in every etcd-member, requires permissions to access resources like `Lease`, `StatefulSet` etc. A dedicated [ServiceAccount](https://kubernetes.io/docs/concepts/security/service-accounts/) is created per `Etcd` cluster for this purpose.
 
 **Code reference:** [ServiceAccount-Component](https://github.com/gardener/etcd-druid/tree/3383e0219a6c21c6ef1d5610db964cc3524807c8/internal/component/serviceaccount)
 
 ## Role & RoleBinding
 
-`etch-backup-restore` container running as a side-car in every etcd-member, requires permissions to access resources like `Lease`, `StatefulSet` etc. A dedicated [Role]() and [RoleBinding]() is created and linked to the [ServiceAccount](https://kubernetes.io/docs/concepts/security/service-accounts/) created per `Etcd` cluster.
+`etcd-backup-restore` container running as a side-car in every etcd-member, requires permissions to access resources like `Lease`, `StatefulSet` etc. A dedicated [Role]() and [RoleBinding]() is created and linked to the [ServiceAccount](https://kubernetes.io/docs/concepts/security/service-accounts/) created per `Etcd` cluster.
 
 **Code reference:** [Role-Component](https://github.com/gardener/etcd-druid/tree/3383e0219a6c21c6ef1d5610db964cc3524807c8/internal/component/role) & [RoleBinding-Component](https://github.com/gardener/etcd-druid/tree/master/internal/component/rolebinding)
 

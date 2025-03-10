@@ -14,7 +14,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/utils"
-	"github.com/gardener/etcd-druid/test/it/controller/assets"
+	"github.com/gardener/etcd-druid/test/it/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
@@ -30,14 +30,6 @@ import (
 
 	. "github.com/onsi/gomega"
 )
-
-const testNamespacePrefix = "etcd-reconciler-test-"
-
-func createTestNamespaceName(t *testing.T) string {
-	g := NewWithT(t)
-	namespaceSuffix := testutils.GenerateRandomAlphanumericString(g, 4)
-	return fmt.Sprintf("%s-%s", testNamespacePrefix, namespaceSuffix)
-}
 
 func initializeEtcdReconcilerTestEnv(t *testing.T, controllerName string, itTestEnv setup.DruidTestEnvironment, autoReconcile bool, clientBuilder *testutils.TestClientBuilder) ReconcilerTestEnv {
 	g := NewWithT(t)
@@ -75,7 +67,7 @@ func createAndAssertEtcdAndAllManagedResources(ctx context.Context, t *testing.T
 	cl := reconcilerTestEnv.itTestEnv.GetClient()
 	// create etcdInstance resource
 	g.Expect(cl.Create(ctx, etcdInstance)).To(Succeed())
-	t.Logf("trigggered creation of etcd instance: {name: %s, namespace: %s}, waiting for resources to be created...", etcdInstance.Name, etcdInstance.Namespace)
+	t.Logf("triggered creation of etcd instance: {name: %s, namespace: %s}, waiting for resources to be created...", etcdInstance.Name, etcdInstance.Namespace)
 	// ascertain that all etcd resources are created
 	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 3*time.Minute, 2*time.Second)
 	t.Logf("successfully created all resources for etcd instance: {name: %s, namespace: %s}", etcdInstance.Name, etcdInstance.Namespace)
