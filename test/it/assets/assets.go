@@ -15,13 +15,13 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// returns the kubernetes version used from the environment variable
+// GetK8sVersionFromEnv returns the kubernetes version used from the environment variable
 func GetK8sVersionFromEnv() (string, error) {
 	k8sVersion, isPresent := os.LookupEnv("ENVTEST_K8S_VERSION")
 	if isPresent {
 		return k8sVersion, nil
 	} else {
-		return "", errors.New("Error fetching k8s version from environment")
+		return "", errors.New("error fetching k8s version from environment")
 	}
 }
 
