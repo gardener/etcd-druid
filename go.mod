@@ -19,8 +19,8 @@ require (
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d
 	golang.org/x/tools v0.29.0
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.32.1
-	k8s.io/apimachinery v0.32.1
+	k8s.io/api v0.32.2
+	k8s.io/apimachinery v0.32.2
 	k8s.io/client-go v0.32.1
 	k8s.io/component-base v0.32.1
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
