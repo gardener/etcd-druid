@@ -115,8 +115,7 @@ function copy_crds() {
   echo "Creating ${target_path} to copy the CRDs if not present..."
   mkdir -p ${target_path}
   echo "Cleaning up existing CRDs if any..."
-  rm -rf ${target_path}/*
-
+  rm -rf "${target_path}"/*
   crd_file_names=($(get_crd_file_names))
   for crd_file_name in "${crd_file_names[@]}"; do
     local source_crd_path="${PROJECT_ROOT}/api/core/crds/${crd_file_name}"
@@ -125,7 +124,7 @@ function copy_crds() {
       exit 1
     fi
     echo "Copying CRD ${crd_file_name} to ${target_path}"
-    cp ${source_crd_path} ${target_path}
+    cp "${source_crd_path}" "${target_path}"
   done
 }
 
@@ -133,8 +132,8 @@ function initialize_pki_resources() {
   local generation_required=false
 
   target_path="${PROJECT_ROOT}/charts/pki-resources"
-  if [ ! -d ${target_path} ]; then
-    mkdir -p ${target_path}
+  if [ ! -d "${target_path}" ]; then
+    mkdir -p "${target_path}"
     generation_required=true
   fi
 
@@ -194,6 +193,11 @@ function prepare_chart_resources() {
   if [ -z "${K8S_VERSION}" ]; then
     echo "Attempting to get kubernetes version via kubectl..."
     K8S_VERSION=$(get_k8s_version | tr -d '[:blank:]')
+  fi
+  if [ -z "${K8S_VERSION}" ]; then
+    echo -e "No kubernetes version found. Either target a kubernetes cluster or explicitly specify the k8s version."
+    echo -e "${USAGE}"
+    exit 1
   fi
   echo "Copying CRDs to helm charts..."
   copy_crds
