@@ -20,48 +20,48 @@ func TestGetAll(t *testing.T) {
 			name:       "k8s version is 1.29",
 			k8sVersion: "1.29",
 			expectedCRDs: map[string]string{
-				KindEtcd:                etcdCRD,
-				KindEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
+				ResourceNameEtcd:                etcdCRD,
+				ResourceNameEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
 			},
 		},
 		{
 			name:       "k8s version is v1.29.0",
 			k8sVersion: "v1.29.0",
 			expectedCRDs: map[string]string{
-				KindEtcd:                etcdCRD,
-				KindEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
+				ResourceNameEtcd:                etcdCRD,
+				ResourceNameEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
 			},
 		},
 		{
 			name:       "k8s version is below 1.29",
 			k8sVersion: "1.28",
 			expectedCRDs: map[string]string{
-				KindEtcd:                etcdCRDWithoutCEL,
-				KindEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
+				ResourceNameEtcd:                etcdCRDWithoutCEL,
+				ResourceNameEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
 			},
 		},
 		{
 			name:       "k8s version is below v1.29",
 			k8sVersion: "v1.28.3",
 			expectedCRDs: map[string]string{
-				KindEtcd:                etcdCRDWithoutCEL,
-				KindEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
+				ResourceNameEtcd:                etcdCRDWithoutCEL,
+				ResourceNameEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
 			},
 		},
 		{
 			name:       "k8s version is above 1.29",
 			k8sVersion: "1.30",
 			expectedCRDs: map[string]string{
-				KindEtcd:                etcdCRD,
-				KindEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
+				ResourceNameEtcd:                etcdCRD,
+				ResourceNameEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
 			},
 		},
 		{
 			name:       "k8s version is above v1.29",
 			k8sVersion: "v1.30.1",
 			expectedCRDs: map[string]string{
-				KindEtcd:                etcdCRD,
-				KindEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
+				ResourceNameEtcd:                etcdCRD,
+				ResourceNameEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
 			},
 		},
 	}

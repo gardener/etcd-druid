@@ -12,12 +12,12 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	"github.com/gardener/etcd-druid/test/utils"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
 )
-
 
 const testNamespacePrefix = "etcd-validation-test"
 
@@ -46,6 +46,7 @@ func validateEtcdUpdation(t *testing.T, g *WithT, etcd *druidv1alpha1.Etcd, expe
 		g.Expect(updateErr).To(BeNil())
 	}
 }
+
 var cronFieldTestCases = []struct {
 	name      string
 	etcdName  string

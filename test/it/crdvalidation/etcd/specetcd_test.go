@@ -123,7 +123,7 @@ func TestValidateSpecStorageCapacitySpecEtcdQuotaRelation(t *testing.T) {
 		etcdName        string
 		storageCapacity resource.Quantity
 		quota           resource.Quantity
-		backupEnabled          bool
+		backupEnabled   bool
 		expectErr       bool
 	}{
 		{
@@ -131,7 +131,7 @@ func TestValidateSpecStorageCapacitySpecEtcdQuotaRelation(t *testing.T) {
 			etcdName:        "etcd-valid-1",
 			storageCapacity: resource.MustParse("27Gi"),
 			quota:           resource.MustParse("8Gi"),
-			backupEnabled:          true,
+			backupEnabled:   true,
 			expectErr:       false,
 		},
 		{
@@ -139,7 +139,7 @@ func TestValidateSpecStorageCapacitySpecEtcdQuotaRelation(t *testing.T) {
 			etcdName:        "etcd-valid-2",
 			storageCapacity: resource.MustParse("12Gi"),
 			quota:           resource.MustParse("8Gi"),
-			backupEnabled:          false,
+			backupEnabled:   false,
 			expectErr:       false,
 		},
 		{
@@ -147,7 +147,7 @@ func TestValidateSpecStorageCapacitySpecEtcdQuotaRelation(t *testing.T) {
 			etcdName:        "etcd-invalid-1",
 			storageCapacity: resource.MustParse("15Gi"),
 			quota:           resource.MustParse("8Gi"),
-			backupEnabled:          true,
+			backupEnabled:   true,
 			expectErr:       true,
 		},
 		{
@@ -155,7 +155,7 @@ func TestValidateSpecStorageCapacitySpecEtcdQuotaRelation(t *testing.T) {
 			etcdName:        "etcd-invalid-2",
 			storageCapacity: resource.MustParse("9Gi"),
 			quota:           resource.MustParse("10Gi"),
-			backupEnabled:          false,
+			backupEnabled:   false,
 			expectErr:       true,
 		},
 	}

@@ -25,7 +25,7 @@ func GetK8sVersionFromEnv() (string, error) {
 	}
 }
 
-// Duplicating some code here that can be replaced with a call to the API module of etcd-druid.  
+// Duplicating some code here that can be replaced with a call to the API module of etcd-druid.
 // This will be removed once Kubernetes 1.29 becomes the minimum supported version.
 
 // GetEtcdCrdPath returns the path to the Etcd CRD for k8s versions >= 1.29 or the path to the Etcd CRD without CEL expressions (For versions < 1.29)
