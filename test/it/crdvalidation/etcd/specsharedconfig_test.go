@@ -13,7 +13,6 @@ import (
 	"github.com/gardener/etcd-druid/test/utils"
 )
 
-
 // validates whether the value passed to the etcd.spec.sharedConfig.autoCompactionMode is either set as "periodic" or "revision"
 func TestValidateSpecSharedConfigAutoCompactionMode(t *testing.T) {
 	tests := []struct {

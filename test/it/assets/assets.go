@@ -15,17 +15,17 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// returns the kubernetes version used from the environment variable
+// GetK8sVersionFromEnv returns the kubernetes version used from the environment variable
 func GetK8sVersionFromEnv() (string, error) {
 	k8sVersion, isPresent := os.LookupEnv("ENVTEST_K8S_VERSION")
 	if isPresent {
 		return k8sVersion, nil
 	} else {
-		return "", errors.New("Error fetching k8s version from environment")
+		return "", errors.New("error fetching k8s version from environment")
 	}
 }
 
-// Duplicating some code here that can be replaced with a call to the API module of etcd-druid.  
+// Duplicating some code here that can be replaced with a call to the API module of etcd-druid.
 // This will be removed once Kubernetes 1.29 becomes the minimum supported version.
 
 // GetEtcdCrdPath returns the path to the Etcd CRD for k8s versions >= 1.29 or the path to the Etcd CRD without CEL expressions (For versions < 1.29)
