@@ -48,11 +48,13 @@ const (
 // +kubebuilder:printcolumn:name="All Members Ready",type=string,JSONPath=`.status.conditions[?(@.type=="AllMembersReady")].status`
 // +kubebuilder:printcolumn:name="Backup Ready",type=string,JSONPath=`.status.conditions[?(@.type=="BackupReady")].status`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-// +kubebuilder:printcolumn:name="Cluster Size",type=integer,JSONPath=`.spec.replicas`,priority=1
+// +kubebuilder:printcolumn:name="Cluster Size",type=integer,JSONPath=`.status.clusterSize`
+// +kubebuilder:printcolumn:name="Desired Replicas",type=integer,JSONPath=`.spec.replicas`,priority=1
 // +kubebuilder:printcolumn:name="Current Replicas",type=integer,JSONPath=`.status.currentReplicas`,priority=1
 // +kubebuilder:printcolumn:name="Ready Replicas",type=integer,JSONPath=`.status.readyReplicas`,priority=1
 
 // Etcd is the Schema for the etcds API
+// +kubebuilder:validation:XValidation:message="etcd.spec.replicas transition is not allowed.",rule="self.spec.replicas == 0 || (oldSelf.spec.replicas == 0 ? (!has(self.status.clusterSize) || (self.spec.replicas == self.status.clusterSize)) : (self.spec.replicas >= oldSelf.spec.replicas))"
 type Etcd struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -308,7 +310,6 @@ type EtcdSpec struct {
 	// +optional
 	SchedulingConstraints SchedulingConstraints `json:"schedulingConstraints,omitempty"`
 	// +required
-	// +kubebuilder:validation:XValidation:message="Replicas can either be increased or be downscaled to 0.",rule="self==0 ? true : self < oldSelf ? false : true"
 	Replicas int32 `json:"replicas"`
 	// PriorityClassName is the name of a priority class that shall be used for the etcd pods.
 	// +optional
@@ -433,6 +434,9 @@ type EtcdStatus struct {
 	// PeerUrlTLSEnabled captures the state of peer url TLS being enabled for the etcd member(s)
 	// +optional
 	PeerUrlTLSEnabled *bool `json:"peerUrlTLSEnabled,omitempty"`
+	// ClusterSize is the last recorded etcd cluster size.
+	// +optional
+	ClusterSize int32 `json:"clusterSize"`
 }
 
 // LastOperationType is a string alias representing type of the last operation.

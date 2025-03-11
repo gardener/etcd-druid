@@ -47,3 +47,13 @@ type Condition struct {
 	// A human-readable message indicating details about the transition.
 	Message string `json:"message"`
 }
+
+// HasConditionWithStatus checks if the Etcd has a condition of the specified type with the given status.
+func (e *Etcd) HasConditionWithStatus(condType ConditionType, status ConditionStatus) bool {
+	for _, condition := range e.Status.Conditions {
+		if condition.Type == condType && condition.Status == status {
+			return true
+		}
+	}
+	return false
+}

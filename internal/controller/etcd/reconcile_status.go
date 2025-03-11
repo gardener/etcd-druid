@@ -27,8 +27,9 @@ func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcdObjectKe
 	sLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileStatus").WithValues("runID", ctx.RunID)
 	originalEtcd := etcd.DeepCopy()
 	mutateETCDStatusStepFns := []mutateEtcdStatusFn{
-		r.mutateETCDStatusWithMemberStatusAndConditions,
-		r.inspectStatefulSetAndMutateETCDStatus,
+		r.mutateEtcdStatusWithMemberStatusAndConditions,
+		r.inspectStatefulSetAndMutateEtcdStatus,
+		r.mutateEtcdStatusWithClusterSize,
 	}
 	for _, fn := range mutateETCDStatusStepFns {
 		if stepResult := fn(ctx, etcd, sLog); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
@@ -42,7 +43,7 @@ func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcdObjectKe
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) mutateETCDStatusWithMemberStatusAndConditions(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, logger logr.Logger) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) mutateEtcdStatusWithMemberStatusAndConditions(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, logger logr.Logger) ctrlutils.ReconcileStepResult {
 	statusCheck := status.NewChecker(r.client, r.config.EtcdMember.NotReadyThreshold, r.config.EtcdMember.UnknownThreshold)
 	if err := statusCheck.Check(ctx, logger, etcd); err != nil {
 		logger.Error(err, "Error executing status checks to update member status and conditions")
@@ -51,7 +52,7 @@ func (r *Reconciler) mutateETCDStatusWithMemberStatusAndConditions(ctx component
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) inspectStatefulSetAndMutateEtcdStatus(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
 	sts, err := kubernetes.GetStatefulSet(ctx, r.client, etcd)
 	if err != nil {
 		return ctrlutils.ReconcileWithError(err)
@@ -77,5 +78,13 @@ func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.Operato
 		etcd.Status.ReadyReplicas = 0
 		etcd.Status.Ready = ptr.To(false)
 	}
+	return ctrlutils.ContinueReconcile()
+}
+
+func (r *Reconciler) mutateEtcdStatusWithClusterSize(_ component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
+	if etcd.Spec.Replicas > etcd.Status.ClusterSize && etcd.HasConditionWithStatus(druidv1alpha1.ConditionTypeAllMembersReady, druidv1alpha1.ConditionTrue) {
+		etcd.Status.ClusterSize = etcd.Spec.Replicas
+	}
+
 	return ctrlutils.ContinueReconcile()
 }
