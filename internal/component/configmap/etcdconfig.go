@@ -32,31 +32,31 @@ var (
 )
 
 type etcdConfig struct {
-	Name                    string                       `yaml:"name"`
-	DataDir                 string                       `yaml:"data-dir"`
-	Metrics                 druidv1alpha1.MetricsLevel   `yaml:"metrics"`
-	SnapshotCount           int64                        `yaml:"snapshot-count"`
-	EnableV2                bool                         `yaml:"enable-v2"`
-	QuotaBackendBytes       int64                        `yaml:"quota-backend-bytes"`
-	InitialClusterToken     string                       `yaml:"initial-cluster-token"`
-	InitialClusterState     string                       `yaml:"initial-cluster-state"`
-	InitialCluster          string                       `yaml:"initial-cluster"`
-	AutoCompactionMode      druidv1alpha1.CompactionMode `yaml:"auto-compaction-mode"`
-	AutoCompactionRetention string                       `yaml:"auto-compaction-retention"`
-	ListenPeerUrls          string                       `yaml:"listen-peer-urls"`
-	ListenClientUrls        string                       `yaml:"listen-client-urls"`
-	AdvertisePeerUrls       map[string][]string          `yaml:"initial-advertise-peer-urls"`
-	AdvertiseClientUrls     map[string][]string          `yaml:"advertise-client-urls"`
-	ClientSecurity          securityConfig               `yaml:"client-transport-security,omitempty"`
-	PeerSecurity            securityConfig               `yaml:"peer-transport-security,omitempty"`
+	Name                    string                       `json:"name"`
+	DataDir                 string                       `json:"data-dir"`
+	Metrics                 druidv1alpha1.MetricsLevel   `json:"metrics"`
+	SnapshotCount           int64                        `json:"snapshot-count"`
+	EnableV2                bool                         `json:"enable-v2"`
+	QuotaBackendBytes       int64                        `json:"quota-backend-bytes"`
+	InitialClusterToken     string                       `json:"initial-cluster-token"`
+	InitialClusterState     string                       `json:"initial-cluster-state"`
+	InitialCluster          string                       `json:"initial-cluster"`
+	AutoCompactionMode      druidv1alpha1.CompactionMode `json:"auto-compaction-mode"`
+	AutoCompactionRetention string                       `json:"auto-compaction-retention"`
+	ListenPeerUrls          string                       `json:"listen-peer-urls"`
+	ListenClientUrls        string                       `json:"listen-client-urls"`
+	AdvertisePeerUrls       map[string][]string          `json:"initial-advertise-peer-urls"`
+	AdvertiseClientUrls     map[string][]string          `json:"advertise-client-urls"`
+	ClientSecurity          securityConfig               `json:"client-transport-security,omitempty"`
+	PeerSecurity            securityConfig               `json:"peer-transport-security,omitempty"`
 }
 
 type securityConfig struct {
-	CertFile       string `yaml:"cert-file,omitempty"`
-	KeyFile        string `yaml:"key-file,omitempty"`
-	ClientCertAuth bool   `yaml:"client-cert-auth,omitempty"`
-	TrustedCAFile  string `yaml:"trusted-ca-file,omitempty"`
-	AutoTLS        bool   `yaml:"auto-tls"`
+	CertFile       string `json:"cert-file,omitempty"`
+	KeyFile        string `json:"key-file,omitempty"`
+	ClientCertAuth bool   `json:"client-cert-auth,omitempty"`
+	TrustedCAFile  string `json:"trusted-ca-file,omitempty"`
+	AutoTLS        bool   `json:"auto-tls"`
 }
 
 func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
