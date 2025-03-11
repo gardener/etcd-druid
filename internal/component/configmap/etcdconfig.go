@@ -122,7 +122,7 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 	domainName := fmt.Sprintf("%s.%s.%s", druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, "svc")
 	serverPort := strconv.Itoa(int(ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)))
 	builder := strings.Builder{}
-	for i := 0; i < int(etcd.Spec.Replicas); i++ {
+	for i := range int(etcd.Spec.Replicas) {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
 		builder.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s,", podName, peerScheme, podName, domainName, serverPort))
 	}
@@ -140,7 +140,7 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 		return nil
 	}
 	advUrlsMap := make(map[string][]string)
-	for i := 0; i < int(etcd.Spec.Replicas); i++ {
+	for i := range int(etcd.Spec.Replicas) {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
 		advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, peerSvcName, etcd.Namespace, port)}
 	}
