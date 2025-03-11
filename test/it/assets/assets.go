@@ -31,14 +31,14 @@ func GetK8sVersionFromEnv() (string, error) {
 // GetEtcdCrdPath returns the path to the Etcd CRD for k8s versions >= 1.29 or the path to the Etcd CRD without CEL expressions (For versions < 1.29)
 func GetEtcdCrdPath(k8sVersionAbove129 bool) string {
 	if k8sVersionAbove129 {
-		return filepath.Join("..", "..", "..", "..", "api", "core", "crds", "druid.gardener.cloud_etcds.yaml")
+		return filepath.Join("..", "..", "..", "..", "api", "core", "v1alpha1", "crds", "druid.gardener.cloud_etcds.yaml")
 	}
-	return filepath.Join("..", "..", "..", "..", "api", "core", "crds", "druid.gardener.cloud_etcds_without_cel.yaml")
+	return filepath.Join("..", "..", "..", "..", "api", "core", "v1alpha1", "crds", "druid.gardener.cloud_etcds_without_cel.yaml")
 }
 
 // GetEtcdCopyBackupsTaskCrdPath returns the path to the EtcdCopyBackupsTask CRD.
 func GetEtcdCopyBackupsTaskCrdPath() string {
-	return filepath.Join("..", "..", "..", "..", "api", "core", "crds", "druid.gardener.cloud_etcdcopybackupstasks.yaml")
+	return filepath.Join("..", "..", "..", "..", "api", "core", "v1alpha1", "crds", "druid.gardener.cloud_etcdcopybackupstasks.yaml")
 }
 
 // CreateImageVector creates an image vector.
