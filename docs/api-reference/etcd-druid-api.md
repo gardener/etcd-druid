@@ -428,6 +428,7 @@ _Appears in:_
 | `labelSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#labelselector-v1-meta)_ | LabelSelector is a label query over pods that should match the replica count.<br />It must match the pod template's labels.<br />Deprecated: this field will be removed in the future. |  |  |
 | `members` _[EtcdMemberStatus](#etcdmemberstatus) array_ | Members represents the members of the etcd cluster |  |  |
 | `peerUrlTLSEnabled` _boolean_ | PeerUrlTLSEnabled captures the state of peer url TLS being enabled for the etcd member(s) |  |  |
+| `clusterSize` _integer_ | ClusterSize is the last recorded etcd cluster size. |  |  |
 
 
 #### GarbageCollectionPolicy
