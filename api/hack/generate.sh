@@ -38,7 +38,7 @@ function generate_clientset() {
 }
 
 function generate_crds() {
-  local output_dir="${API_GO_MODULE_ROOT}/core/crds"
+  local output_dir="${API_GO_MODULE_ROOT}/core/v1alpha1/crds"
   local package="github.com/gardener/etcd-druid/api/core/v1alpha1"
   local package_path="$(go list -f '{{.Dir}}' "${package}")"
 
@@ -60,7 +60,7 @@ function generate_crds() {
 }
 
 function generate_crd_without_cel_expressions() {
-  local output_dir="${API_GO_MODULE_ROOT}/core/crds"
+  local output_dir="${API_GO_MODULE_ROOT}/core/v1alpha1/crds"
   local source_file="${output_dir}/druid.gardener.cloud_etcds.yaml"
   local target_file="${output_dir}/druid.gardener.cloud_etcds_without_cel.yaml"
   yq 'del(.. | select(has("x-kubernetes-validations")).x-kubernetes-validations)' "${source_file}" > "${target_file}"
@@ -88,10 +88,10 @@ function main() {
   echo "> Generate clientset for Etcd API..."
   generate_clientset
 
-  lastMd5Sum=$(getMd5Sum "${API_GO_MODULE_ROOT}/core/crds/druid.gardener.cloud_etcds.yaml")
+  lastMd5Sum=$(getMd5Sum "${API_GO_MODULE_ROOT}/core/v1alpha1/crds/druid.gardener.cloud_etcds.yaml")
   echo "> Generate CRDs..."
   generate_crds
-  latestMd5Sum=$(getMd5Sum "${API_GO_MODULE_ROOT}/core/crds/druid.gardener.cloud_etcds.yaml")
+  latestMd5Sum=$(getMd5Sum "${API_GO_MODULE_ROOT}/core/v1alpha1/crds/druid.gardener.cloud_etcds.yaml")
   if [[ ${lastMd5Sum} == ${latestMd5Sum} ]]; then
     echo "CRD file has not changed, skipping generation of CRD without CEL-validations"
     exit 0

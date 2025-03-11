@@ -7,11 +7,11 @@ package etcd
 import (
 	"context"
 	"fmt"
+	"github.com/gardener/etcd-druid/api/core/v1alpha1/crds"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/gardener/etcd-druid/api/core/crds"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"

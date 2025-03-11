@@ -118,9 +118,9 @@ function copy_crds() {
   rm -rf "${target_path}"/*
   crd_file_names=($(get_crd_file_names))
   for crd_file_name in "${crd_file_names[@]}"; do
-    local source_crd_path="${PROJECT_ROOT}/api/core/crds/${crd_file_name}"
+    local source_crd_path="${PROJECT_ROOT}/api/core/v1alpha1/crds/${crd_file_name}"
     if [ ! -f ${source_crd_path} ]; then
-      echo -e "CRD ${crd_file_name} not found in ${PROJECT_ROOT}/api/core/crds, run 'make generate' first"
+      echo -e "CRD ${crd_file_name} not found in ${PROJECT_ROOT}/api/core/v1alpha1/crds, run 'make generate' first"
       exit 1
     fi
     echo "Copying CRD ${crd_file_name} to ${target_path}"
