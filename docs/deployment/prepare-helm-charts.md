@@ -34,7 +34,7 @@ To leverage etcd-druid helm charts you need to ensure that the charts contains t
 
 ### CRDs
 
-[Heml-3](https://helm.sh/docs/topics/charts/#custom-resource-definitions-crds) provides special status to CRDs. CRD YAML files should be placed in `crds/` directory inside of a chart. Helm will attempt to load all the files in this directory. We now generate the CRDs and keep these at `etcd-druid/api/core/crds` which serves as a single source of truth for all custom resource specifications under etcd-druid operator. These CRDs needs to be copied to `etcd-druid/charts/crds`. 
+[Heml-3](https://helm.sh/docs/topics/charts/#custom-resource-definitions-crds) provides special status to CRDs. CRD YAML files should be placed in `crds/` directory inside of a chart. Helm will attempt to load all the files in this directory. We now generate the CRDs and keep these at `etcd-druid/api/core/v1alpha1/crds` which serves as a single source of truth for all custom resource specifications under etcd-druid operator. These CRDs needs to be copied to `etcd-druid/charts/crds`. 
 
 ### PKI resources
 

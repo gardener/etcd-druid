@@ -9,7 +9,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gardener/etcd-druid/api/core/crds"
+	"github.com/gardener/etcd-druid/api/core/v1alpha1/crds"
 	"github.com/gardener/etcd-druid/test/it/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
 )
