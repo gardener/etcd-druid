@@ -47,8 +47,8 @@ type etcdConfig struct {
 	ListenClientUrls        string                       `json:"listen-client-urls"`
 	AdvertisePeerUrls       map[string][]string          `json:"initial-advertise-peer-urls"`
 	AdvertiseClientUrls     map[string][]string          `json:"advertise-client-urls"`
-	ClientSecurity          securityConfig               `json:"client-transport-security,omitempty"`
-	PeerSecurity            securityConfig               `json:"peer-transport-security,omitempty"`
+	ClientSecurity          *securityConfig              `json:"client-transport-security,omitempty"`
+	PeerSecurity            *securityConfig              `json:"peer-transport-security,omitempty"`
 }
 
 type securityConfig struct {
@@ -80,12 +80,8 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		AdvertisePeerUrls:       getAdvertiseURLs(etcd, advertiseURLTypePeer, peerScheme, peerSvcName),
 		AdvertiseClientUrls:     getAdvertiseURLs(etcd, advertiseURLTypeClient, clientScheme, peerSvcName),
 	}
-	if peerSecurityConfig != nil {
-		cfg.PeerSecurity = *peerSecurityConfig
-	}
-	if clientSecurityConfig != nil {
-		cfg.ClientSecurity = *clientSecurityConfig
-	}
+	cfg.PeerSecurity = peerSecurityConfig
+	cfg.ClientSecurity = clientSecurityConfig
 
 	return cfg
 }
