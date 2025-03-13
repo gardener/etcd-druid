@@ -37,10 +37,10 @@ export KUBECONFIG=$PWD/hack/kind/kubeconfig
 
 ### Configuring etcd-druid
 
-Prior to deploying `etcd-druid`, it can be configured via CLI-args and environment variables. 
+Prior to deploying `etcd-druid`, it can be configured via CLI-args and environment variables.
 
-* To configure CLI args you can modify [`charts/druid/values.yaml`](https://github.com/gardener/etcd-druid/blob/master/charts/druid/values.yaml).  For e.g. if you wish to `auto-reconcile` any change done to `Etcd` CR then you should set `enableEtcdSpecAutoReconcile` to true. By default this will be switched off.
-* `DRUID_E2E_TEST=true` : sets specific configuration for etcd-druid for optimal e2e test runs, like a lower sync period for the etcd controller.
+* To configure CLI args you can modify [`charts/druid/values.yaml`](https://github.com/gardener/etcd-druid/blob/master/charts/values.yaml). For example, if you wish to `auto-reconcile` any change done to `Etcd` CR, then you should set `enableEtcdSpecAutoReconcile` to true. By default this will be switched off.
+* `DRUID_E2E_TEST=true`: sets specific configuration for etcd-druid for optimal e2e test runs, like a lower sync period for the etcd controller.
 
 ### Deploying etcd-druid
 
@@ -72,8 +72,8 @@ This is similar to `make deploy-dev` but additionally configures containers in p
 
 Go debugging uses [Delve](https://github.com/go-delve/delve). Please see the [skaffold debugging documentation](https://skaffold.dev/docs/workflows/debug/) how to setup your IDE accordingly.
 
-!!! note
-    Resuming or stopping only a single goroutine (Go Issue [25578](https://github.com/golang/go/issues/25578), [31132](https://github.com/golang/go/issues/31132)) is currently not supported, so the action will cause all the goroutines to get activated or paused.
+> [!NOTE]
+> Resuming or stopping only a single goroutine (Go Issue [25578](https://github.com/golang/go/issues/25578), [31132](https://github.com/golang/go/issues/31132)) is currently not supported, so the action will cause all the goroutines to get activated or paused.
 
 This means that when a goroutine is paused on a breakpoint, then all the other goroutines are also paused. This should be kept in mind when using `skaffold debug`.
 
@@ -81,8 +81,8 @@ This means that when a goroutine is paused on a breakpoint, then all the other g
 
 ### Deploying a Local Backup Store Emulator
 
-!!! info
-    This section is ***Optional*** and is only meant to describe steps to deploy a local object store which can be used for testing and development. If you either do not wish to enable backups or you wish to use remote (infra-provider-specific) object store then this section can be skipped.
+[!NOTE]
+> This section is *Optional* and is only meant to describe steps to deploy a local object store which can be used for testing and development. If you either do not wish to enable backups or you wish to use remote (infra-provider-specific) object store then this section can be skipped.
 
 An `Etcd` cluster provisioned via etcd-druid provides a capability to take regular delta and full snapshots which are stored in an object store. You can enable this functionality by ensuring that you fill in [spec.backup.store](https://github.com/gardener/etcd-druid/blob/master/examples/etcd/druid_v1alpha1_etcd.yaml#L49-L54) section of the `Etcd` CR.
 
@@ -94,14 +94,14 @@ An `Etcd` cluster provisioned via etcd-druid provides a capability to take regul
 
 ### Setting up Cloud Provider Object Store Secret
 
-!!! info
-    This section is ***Optional***. If you have disabled backup functionality or if you are using local storage or one of the supported object store emulators then you can skip this section.
+> [!NOTE]
+> This section is *Optional*. If you have disabled backup functionality or if you are using local storage or one of the supported object store emulators then you can skip this section.
 
 A Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret/) needs to be created for cloud provider Object Store access. You can refer to the Secret YAML templates [here](https://github.com/gardener/etcd-backup-restore/tree/master/example/storage-provider-secrets).  Replace the dummy values with the actual configuration and ensure that you have added the `metadata.name` and `metadata.namespace` to the secret.
 
-!!! tip
-    * Secret should be deployed in the same namespace as the `Etcd` resource.
-    * All the values in the data field of the secret YAML should in `base64` encoded format.
+> [!TIP]
+> * The secret should be deployed in the same namespace as the `Etcd` resource.
+> * All the values in the data field of the secret YAML should in `base64` encoded format.
 
 To apply the secret run:
 
@@ -132,8 +132,8 @@ Brief explanation of the keys:
 * `store.provider` is the bucket provider. Pick from the options mentioned in comment.
 * `store.prefix` is the folder name that you want to use for your snapshots inside the bucket.
 
-!!! tip
-    For developer convenience we have provided object store emulator specific etcd CR variants which can be used as if as well.
+> [!NOTE]
+> For developer convenience we have provided object store emulator specific etcd CR variants which can be used as if as well.
 
 ## 05-Applying Etcd CR
 
