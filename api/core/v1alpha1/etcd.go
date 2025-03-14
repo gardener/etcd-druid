@@ -288,7 +288,6 @@ type SchedulingConstraints struct {
 }
 
 // EtcdSpec defines the desired state of Etcd
-// +kubebuilder:validation:XValidation:message="If backups are enabled, then value of etcd.spec.storageCapacity must be 3 times the value of etcd.spec.etcd.quota or more. If backups are disabled, then value of etcd.spec.storageCapacity must be the value of etcd.spec.etcd.quota or more.",rule="has(self.storageCapacity) && has(self.etcd.quota) ? (has(self.backup.store) ? ((quantity(self.storageCapacity).isLessThan(quantity(self.etcd.quota).add(quantity(self.etcd.quota)).add(quantity(self.etcd.quota))) ) ? false : true): (quantity(self.storageCapacity).isLessThan(quantity(self.etcd.quota)) ? false : true)  ): true"
 type EtcdSpec struct {
 	// selector is a label query over pods that should match the replica count.
 	// It must match the pod template's labels.
@@ -321,7 +320,6 @@ type EtcdSpec struct {
 	StorageClass *string `json:"storageClass,omitempty"`
 	// StorageCapacity defines the size of persistent volume.
 	// +optional
-	// +kubebuilder:validation:XValidation:message="etcd.spec.storageCapacity is an immutable field",rule="self == oldSelf"
 	StorageCapacity *resource.Quantity `json:"storageCapacity,omitempty"`
 	// VolumeClaimTemplate defines the volume claim template to be created
 	// +optional

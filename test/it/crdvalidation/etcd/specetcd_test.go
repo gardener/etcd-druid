@@ -11,9 +11,6 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/test/utils"
-
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // runs the validation on the etcd.spec.etcd.etcdDefragTimeout field.
@@ -29,7 +26,7 @@ func TestValidateSpecEtcdEtcdDefragTimeout(t *testing.T) {
 
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
 			etcd.Spec.Etcd.EtcdDefragTimeout = duration
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
 
@@ -48,7 +45,7 @@ func TestValidateSpecEtcdHeartbeatDuration(t *testing.T) {
 
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
 			etcd.Spec.Etcd.HeartbeatDuration = duration
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
 
@@ -94,7 +91,7 @@ func TestValidateSpecEtcdMetrics(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
 			etcd.Spec.Etcd.Metrics = (*druidv1alpha1.MetricsLevel)(&test.metricsValue)
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
 
@@ -108,79 +105,8 @@ func TestValidateSpecEtcdDefragmentationSchedule(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
 			etcd.Spec.Etcd.DefragmentationSchedule = &test.value
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 
 		})
-	}
-}
-
-// checks that if the values for etcd.spec.storageCapacity and etcd.spec.etcd.quota are valid, then if backups are enabled, the value of storageCapacity must be > 3x value of quota. If backups are not enabled, value of storageCapacity must be > quota
-func TestValidateSpecStorageCapacitySpecEtcdQuotaRelation(t *testing.T) {
-	skipCELTestsForOlderK8sVersions(t)
-	testNs, g := setupTestEnvironment(t)
-	tests := []struct {
-		name            string
-		etcdName        string
-		storageCapacity resource.Quantity
-		quota           resource.Quantity
-		backupEnabled   bool
-		expectErr       bool
-	}{
-		{
-			name:            "Valid #1: backups enabled",
-			etcdName:        "etcd-valid-1",
-			storageCapacity: resource.MustParse("27Gi"),
-			quota:           resource.MustParse("8Gi"),
-			backupEnabled:   true,
-			expectErr:       false,
-		},
-		{
-			name:            "Valid #2: backups disabled",
-			etcdName:        "etcd-valid-2",
-			storageCapacity: resource.MustParse("12Gi"),
-			quota:           resource.MustParse("8Gi"),
-			backupEnabled:   false,
-			expectErr:       false,
-		},
-		{
-			name:            "Invalid #1: backups enabled",
-			etcdName:        "etcd-invalid-1",
-			storageCapacity: resource.MustParse("15Gi"),
-			quota:           resource.MustParse("8Gi"),
-			backupEnabled:   true,
-			expectErr:       true,
-		},
-		{
-			name:            "Invalid #2: backups disabled",
-			etcdName:        "etcd-invalid-2",
-			storageCapacity: resource.MustParse("9Gi"),
-			quota:           resource.MustParse("10Gi"),
-			backupEnabled:   false,
-			expectErr:       true,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
-			etcd.Spec.StorageCapacity = &test.storageCapacity
-			etcd.Spec.Etcd.Quota = &test.quota
-
-			if test.backupEnabled {
-				container := "etcd-bucket"
-				provider := "Provider"
-				etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
-					Container: &container,
-					Provider:  (*druidv1alpha1.StorageProvider)(&provider),
-					Prefix:    "etcd-test",
-					SecretRef: &corev1.SecretReference{
-						Name: "test-secret",
-					},
-				}
-			}
-
-			validateEtcdCreation(t, g, etcd, test.expectErr)
-		})
-
 	}
 }

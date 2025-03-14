@@ -55,7 +55,7 @@ func TestValidateSpecSharedConfigAutoCompactionMode(t *testing.T) {
 			etcd.Spec.Common = druidv1alpha1.SharedConfig{}
 			etcd.Spec.Common.AutoCompactionMode = (*druidv1alpha1.CompactionMode)(&test.autoCompactionMode)
 
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
 }

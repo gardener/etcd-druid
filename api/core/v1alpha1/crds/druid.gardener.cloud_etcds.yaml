@@ -1840,9 +1840,6 @@ spec:
                 description: StorageCapacity defines the size of persistent volume.
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
-                x-kubernetes-validations:
-                - message: etcd.spec.storageCapacity is an immutable field
-                  rule: self == oldSelf
               storageClass:
                 description: |-
                   StorageClass defines the name of the StorageClass required by the claim.
@@ -1864,15 +1861,6 @@ spec:
             - labels
             - replicas
             type: object
-            x-kubernetes-validations:
-            - message: If backups are enabled, then value of etcd.spec.storageCapacity
-                must be 3 times the value of etcd.spec.etcd.quota or more. If backups
-                are disabled, then value of etcd.spec.storageCapacity must be the
-                value of etcd.spec.etcd.quota or more.
-              rule: 'has(self.storageCapacity) && has(self.etcd.quota) ? (has(self.backup.store)
-                ? ((quantity(self.storageCapacity).isLessThan(quantity(self.etcd.quota).add(quantity(self.etcd.quota)).add(quantity(self.etcd.quota)))
-                ) ? false : true): (quantity(self.storageCapacity).isLessThan(quantity(self.etcd.quota))
-                ? false : true)  ): true'
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:
