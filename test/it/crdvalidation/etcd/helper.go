@@ -27,7 +27,7 @@ var (
 )
 
 // common function used by all the test cases to create an etcd resource based on the individual test case's specifications.
-func validateEtcdCreation(t *testing.T, g *WithT, etcd *druidv1alpha1.Etcd, expectErr bool) {
+func validateEtcdCreation(g *WithT, etcd *druidv1alpha1.Etcd, expectErr bool) {
 	cl := itTestEnv.GetClient()
 	ctx := context.Background()
 
@@ -38,7 +38,7 @@ func validateEtcdCreation(t *testing.T, g *WithT, etcd *druidv1alpha1.Etcd, expe
 	g.Expect(cl.Create(ctx, etcd)).To(Succeed())
 }
 
-func validateEtcdUpdation(t *testing.T, g *WithT, etcd *druidv1alpha1.Etcd, expectErr bool, ctx context.Context, cl client.Client) {
+func validateEtcdUpdate(g *WithT, etcd *druidv1alpha1.Etcd, expectErr bool, ctx context.Context, cl client.Client) {
 	updateErr := cl.Update(ctx, etcd)
 	if expectErr {
 		g.Expect(updateErr).ToNot(BeNil())

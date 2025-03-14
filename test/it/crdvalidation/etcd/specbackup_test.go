@@ -33,7 +33,7 @@ func TestValidateSpecBackupGarbageCollectionPolicy(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
 			etcd.Spec.Backup.GarbageCollectionPolicy = (*druidv1alpha1.GarbageCollectionPolicy)(&test.garbageCollectionPolicy)
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
 }
@@ -85,7 +85,7 @@ func TestValidateSpecBackupCompressionPolicy(t *testing.T) {
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
 			etcd.Spec.Backup.SnapshotCompression = &druidv1alpha1.CompressionSpec{}
 			etcd.Spec.Backup.SnapshotCompression.Policy = (*druidv1alpha1.CompressionPolicy)(&test.policy)
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
 }
@@ -104,7 +104,7 @@ func TestValidateSpecBackupDeltaSnapshotRetentionPeriod(t *testing.T) {
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
 			etcd.Spec.Backup.DeltaSnapshotRetentionPeriod = duration
 
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
 }
@@ -121,7 +121,7 @@ func TestValidateSpecBackupEtcdSnapshotTimeout(t *testing.T) {
 			}
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
 			etcd.Spec.Backup.EtcdSnapshotTimeout = duration
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
 }
@@ -140,7 +140,7 @@ func TestValidateSpecBackupLeaderElectionReelectionPeriod(t *testing.T) {
 			etcd.Spec.Backup.LeaderElection = &druidv1alpha1.LeaderElectionSpec{}
 			etcd.Spec.Backup.LeaderElection.ReelectionPeriod = duration
 
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
 }
@@ -159,7 +159,7 @@ func TestValidateSpecBackupLeaderElectionEtcdConnectionTimeout(t *testing.T) {
 			etcd.Spec.Backup.LeaderElection = &druidv1alpha1.LeaderElectionSpec{}
 			etcd.Spec.Backup.LeaderElection.EtcdConnectionTimeout = duration
 
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
 }
@@ -177,7 +177,7 @@ func TestValidateSpecBackupGarbageCollectionPeriod(t *testing.T) {
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
 			etcd.Spec.Backup.GarbageCollectionPeriod = duration
 
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
 }
@@ -195,7 +195,7 @@ func TestValidateSpecBackupDeltaSnapshotPeriod(t *testing.T) {
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
 			etcd.Spec.Backup.DeltaSnapshotPeriod = duration
 
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
 }
@@ -250,7 +250,7 @@ func TestValidateSpecBackupGCDeltaSnapshotPeriodRelation(t *testing.T) {
 			etcd.Spec.Backup.GarbageCollectionPeriod = garbageCollectionDuration
 			etcd.Spec.Backup.DeltaSnapshotPeriod = deltaSnapshotDuration
 
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 
 		})
 	}
@@ -265,7 +265,7 @@ func TestValidateSpecBackupFullSnapshotSchedule(t *testing.T) {
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
 			etcd.Spec.Backup.FullSnapshotSchedule = &test.value
 
-			validateEtcdCreation(t, g, etcd, test.expectErr)
+			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
 }
