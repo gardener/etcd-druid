@@ -37,10 +37,10 @@ export KUBECONFIG=$PWD/hack/kind/kubeconfig
 
 ### Configuring etcd-druid
 
-Prior to deploying `etcd-druid`, it can be configured via CLI-args and environment variables. 
+Prior to deploying `etcd-druid`, it can be configured via CLI-args and environment variables.
 
-* To configure CLI args you can modify [`charts/druid/values.yaml`](https://github.com/gardener/etcd-druid/blob/master/charts/druid/values.yaml).  For e.g. if you wish to `auto-reconcile` any change done to `Etcd` CR then you should set `enableEtcdSpecAutoReconcile` to true. By default this will be switched off.
-* `DRUID_E2E_TEST=true` : sets specific configuration for etcd-druid for optimal e2e test runs, like a lower sync period for the etcd controller.
+* To configure CLI args you can modify [`charts/druid/values.yaml`](https://github.com/gardener/etcd-druid/blob/master/charts/values.yaml). For example, if you wish to `auto-reconcile` any change done to `Etcd` CR, then you should set `enableEtcdSpecAutoReconcile` to true. By default this will be switched off.
+* `DRUID_E2E_TEST=true`: sets specific configuration for etcd-druid for optimal e2e test runs, like a lower sync period for the etcd controller.
 
 ### Deploying etcd-druid
 
@@ -185,7 +185,7 @@ This will add the `deletionTimestamp` to the `Etcd` resource.  At the time the c
   - druid.gardener.cloud/etcd-druid
 ```
 
-etcd-druid will automatically pick up the deletion event and attempt clean up `Etcd` cluster resources. It will only remove the finaliser once all resources have been cleaned up.
+etcd-druid will automatically pick up the deletion event and attempt clean up `Etcd` cluster resources. It will only remove the finalizer once all resources have been cleaned up.
 
 If you only wish to remove `etcd-druid` but retain the kind cluster then you can use the following make target:
 

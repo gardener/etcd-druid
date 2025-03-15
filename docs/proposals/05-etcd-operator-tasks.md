@@ -252,7 +252,7 @@ We do not need any config for this task. When creating an instance of `EtcdOpera
 
 #### Trigger on-demand full/delta snapshot
 
-`Etcd` custom resource provides an ability to set [FullSnapshotSchedule](https://github.com/gardener/etcd-druid/blob/master/api/v1alpha1/etcd.go#L158) which currently defaults to run once in 24 hrs. [DeltaSnapshotPeriod](https://github.com/gardener/etcd-druid/blob/master/api/v1alpha1/etcd.go#L167) is also made configurable which defines the duration after which a delta snapshot will be taken.
+`Etcd` custom resource provides an ability to set [FullSnapshotSchedule](https://github.com/gardener/etcd-druid/blob/master/api/core/v1alpha1/etcd.go#L156) which currently defaults to run once in 24 hrs. [DeltaSnapshotPeriod](https://github.com/gardener/etcd-druid/blob/master/api/core/v1alpha1/etcd.go#L173) is also made configurable which defines the duration after which a delta snapshot will be taken.
 If a human operator does not wish to wait for the scheduled full/delta snapshot, they can trigger an on-demand (out-of-schedule) full/delta snapshot on the etcd cluster, which will be taken by the `leading-backup-restore`.
 
 ##### Possible Scenarios

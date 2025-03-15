@@ -10,7 +10,7 @@
 
 * Every resource a.k.a `Component` needs to have the following set of default labels:
 
-  * `app.kubernetes.io/name` - value of this label is the name of this component. Helper functions are defined [here](https://github.com/gardener/etcd-druid/blob/master/api/v1alpha1/helper.go) to create the name of each component using the parent `Etcd` resource. Please define a new helper function to generate the name of your resource using the parent `Etcd` resource.
+  * `app.kubernetes.io/name` - value of this label is the name of this component. Helper functions are defined [here](https://github.com/gardener/etcd-druid/blob/master/api/core/v1alpha1/helper.go) to create the name of each component using the parent `Etcd` resource. Please define a new helper function to generate the name of your resource using the parent `Etcd` resource.
   * `app.kubernetes.io/component` - value of this label is the type of the component. All component type label values are defined [here](https://github.com/gardener/etcd-druid/blob/3383e0219a6c21c6ef1d5610db964cc3524807c8/internal/common/constants.go) where you can add an entry for your component.
   * In addition to the above component specific labels, each resource/component should have default labels defined on the `Etcd` resource. You can use [GetDefaultLabels](https://github.com/gardener/etcd-druid/blob/3383e0219a6c21c6ef1d5610db964cc3524807c8/api/v1alpha1/helper.go#L124) function.
 
