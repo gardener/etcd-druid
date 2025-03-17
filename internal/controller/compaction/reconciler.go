@@ -305,6 +305,9 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 								v1.ResourceMemory: resource.MustParse("3Gi"),
 							},
 						},
+						SecurityContext: &v1.SecurityContext{
+							AllowPrivilegeEscalation: ptr.To(false),
+						},
 					}},
 				},
 			},

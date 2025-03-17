@@ -370,7 +370,10 @@ func (b *stsBuilder) getEtcdContainer() corev1.Container {
 				ContainerPort: b.clientPort,
 			},
 		},
-		Resources:    ptr.Deref(b.etcd.Spec.Etcd.Resources, defaultResourceRequirements),
+		Resources: ptr.Deref(b.etcd.Spec.Etcd.Resources, defaultResourceRequirements),
+		SecurityContext: &corev1.SecurityContext{
+			AllowPrivilegeEscalation: ptr.To(false),
+		},
 		Env:          b.getEtcdContainerEnvVars(),
 		VolumeMounts: b.getEtcdContainerVolumeMounts(),
 	}
@@ -399,8 +402,11 @@ func (b *stsBuilder) getBackupRestoreContainer() (corev1.Container, error) {
 				ContainerPort: b.backupPort,
 			},
 		},
-		Env:          env,
-		Resources:    ptr.Deref(b.etcd.Spec.Backup.Resources, defaultResourceRequirements),
+		Env:       env,
+		Resources: ptr.Deref(b.etcd.Spec.Backup.Resources, defaultResourceRequirements),
+		SecurityContext: &corev1.SecurityContext{
+			AllowPrivilegeEscalation: ptr.To(false),
+		},
 		VolumeMounts: b.getBackupRestoreContainerVolumeMounts(),
 	}, nil
 }

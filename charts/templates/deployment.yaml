@@ -93,6 +93,8 @@ spec:
             name: tls
             readOnly: true
         {{- end }}
+        securityContext:
+          allowPrivilegeEscalations
         resources:
 {{ toYaml .Values.resources | indent 10 }}
       {{- with .Values.nodeSelector }}

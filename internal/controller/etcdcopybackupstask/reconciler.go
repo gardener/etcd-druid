@@ -342,6 +342,9 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 							Args:            args,
 							Env:             env,
 							VolumeMounts:    volumeMounts,
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: ptr.To(false),
+							},
 						},
 					},
 					ShareProcessNamespace: ptr.To(true),
