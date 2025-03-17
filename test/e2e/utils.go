@@ -116,11 +116,9 @@ var (
 			"memory": resource.MustParse("256Mi"),
 		},
 	}
-	backupGarbageCollectionPolicy = druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
-	backupGarbageCollectionPeriod = metav1.Duration{Duration: 5 * time.Minute}
-	//TODO: i062009 revert this to 1s once issue in etcd-backup-restore (https://github.com/gardener/etcd-backup-restore/issues/844) is fixed.
-	// This is done to reduce flakiness of e2e tests (specifically etcd_backup_test.go/Should create, test backup and delete etcd with backup).
-	backupDeltaSnapshotPeriod      = metav1.Duration{Duration: 3 * time.Second}
+	backupGarbageCollectionPolicy  = druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
+	backupGarbageCollectionPeriod  = metav1.Duration{Duration: 5 * time.Minute}
+	backupDeltaSnapshotPeriod      = metav1.Duration{Duration: 1 * time.Second}
 	backupDeltaSnapshotMemoryLimit = resource.MustParse("100Mi")
 	gzipCompression                = druidv1alpha1.GzipCompression
 	backupCompression              = druidv1alpha1.CompressionSpec{
