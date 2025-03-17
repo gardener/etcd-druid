@@ -14,6 +14,14 @@ const (
 	ValueSucceededTrue = "true"
 	// ValueSucceededFalse is value False for metric label failed.
 	ValueSucceededFalse = "false"
+	// ValueSucceededPreempted is value Preempted for metric label preempted.
+	ValueSucceededPreempted = "preempted"
+	// ValueSucceededEvicted is value Evicted for metric label evicted.
+	ValueSucceededEvicted = "evicted"
+	// ValueSucceededDeadlineExceeded is value DeadlineExceeded for metric label deadline-exceeded.
+	ValueSucceededDeadlineExceeded = "deadline-exceeded"
+	// ValueSucceededUnknown is value Unknown for metric label unknown.
+	ValueSucceededUnknown = "unknown"
 
 	// EtcdNamespace is the label for prometheus metrics to indicate etcd namespace
 	EtcdNamespace = "etcd_namespace"
@@ -25,6 +33,10 @@ var (
 		LabelSucceeded: {
 			ValueSucceededFalse,
 			ValueSucceededTrue,
+			ValueSucceededPreempted,
+			ValueSucceededEvicted,
+			ValueSucceededDeadlineExceeded,
+			ValueSucceededUnknown,
 		},
 	}
 )
@@ -33,7 +45,6 @@ var (
 func GenerateLabelCombinations(labelValues map[string][]string) []map[string]string {
 	labels := make([]string, len(labelValues))
 	valuesList := make([][]string, len(labelValues))
-	valueCounts := make([]int, len(labelValues))
 	i := 0
 	for label := range labelValues {
 		labels[i] = label
@@ -44,7 +55,6 @@ func GenerateLabelCombinations(labelValues map[string][]string) []map[string]str
 		values := make([]string, len(labelValues[label]))
 		copy(values, labelValues[label])
 		valuesList[i] = values
-		valueCounts[i] = len(values)
 	}
 	combinations := getCombinations(valuesList)
 
