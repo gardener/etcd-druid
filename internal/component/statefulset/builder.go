@@ -256,9 +256,10 @@ func (b *stsBuilder) getPodInitContainers() []corev1.Container {
 					Args:            []string{fmt.Sprintf("chown -R %d:%d /home/nonroot/%s", nonRootUser, nonRootUser, *b.etcd.Spec.Backup.Store.Container)},
 					VolumeMounts:    []corev1.VolumeMount{*etcdBackupVolumeMount},
 					SecurityContext: &corev1.SecurityContext{
-						RunAsGroup:   ptr.To[int64](0),
-						RunAsNonRoot: ptr.To(false),
-						RunAsUser:    ptr.To[int64](0),
+						AllowPrivilegeEscalation: ptr.To(false),
+						RunAsGroup:               ptr.To[int64](0),
+						RunAsNonRoot:             ptr.To(false),
+						RunAsUser:                ptr.To[int64](0),
 					},
 				})
 			}
