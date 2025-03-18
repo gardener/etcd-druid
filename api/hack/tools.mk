@@ -12,8 +12,8 @@ GO_APIDIFF                 := $(TOOLS_BIN_DIR)/go-apidiff
 
 # default tool versions
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)
-GOLANGCI_LINT_VERSION ?= v1.60.3
-GOIMPORTS_REVISER_VERSION ?= v3.6.5
+GOLANGCI_LINT_VERSION ?= v1.64.8
+GOIMPORTS_REVISER_VERSION ?= v3.9.1
 CRD_REF_DOCS_VERSION ?= v0.1.0
 GO_APIDIFF_VERSION ?= v0.8.2
 
@@ -22,6 +22,10 @@ export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 
 # Use this function to get the version of a go module from go.mod
 version_gomod = $(shell go list -f '{{ .Version }}' -m $(1))
+
+.PHONY: clean-tools-bin
+clean-tools-bin:
+	rm -rf $(TOOLS_BIN_DIR)/*
 
 $(CONTROLLER_GEN):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
