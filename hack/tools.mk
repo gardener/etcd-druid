@@ -28,7 +28,7 @@ CRD_REF_DOCS			   := $(TOOLS_BIN_DIR)/crd-ref-docs
 # default tool versions
 SKAFFOLD_VERSION := v2.14.0
 KUSTOMIZE_VERSION := v4.5.7
-GOLANGCI_LINT_VERSION ?= v1.60.3
+GOLANGCI_LINT_VERSION ?= v1.64.8
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)
 CODE_GENERATOR_VERSION ?= $(call version_gomod,k8s.io/api)
 GINKGO_VERSION ?= $(call version_gomod,github.com/onsi/ginkgo/v2)
@@ -39,7 +39,7 @@ HELM_VERSION ?= v3.16.4
 KUBECTL_VERSION ?= v1.32.0
 VGOPATH_VERSION ?= v0.1.5
 GO_ADD_LICENSE_VERSION ?= v1.1.1
-GOIMPORTS_REVISER_VERSION ?= v3.6.5
+GOIMPORTS_REVISER_VERSION ?= v3.9.1
 YQ_VERSION ?= v4.44.3
 CRD_REF_DOCS_VERSION ?= v0.1.0
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
