@@ -128,7 +128,13 @@ var _ = Describe("Compaction Controller", func() {
 			}, timeout, pollingInterval).Should(BeNil())
 
 			// Update job status as failed
-			j.Status.Failed = 1
+			j.Status.Conditions = []batchv1.JobCondition{
+				{
+					Type:   batchv1.JobFailed,
+					Status: corev1.ConditionTrue,
+				},
+			}
+			j.Status.StartTime = &metav1.Time{Time: time.Now()}
 			Expect(k8sClient.Status().Update(ctx, j)).To(Succeed())
 
 			// Wait until the job gets the "foregroundDeletion" finalizer and remove it
@@ -176,7 +182,12 @@ var _ = Describe("Compaction Controller", func() {
 			}, timeout, pollingInterval).Should(BeNil())
 
 			// Update job status as succeeded
-			j.Status.Succeeded = 1
+			j.Status.Conditions = []batchv1.JobCondition{
+				{
+					Type:   batchv1.JobComplete,
+					Status: corev1.ConditionTrue,
+				},
+			}
 			Expect(k8sClient.Status().Update(context.TODO(), j)).To(Succeed())
 
 			// Wait until the job gets the "foregroundDeletion" finalizer and remove it
