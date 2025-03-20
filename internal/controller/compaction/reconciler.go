@@ -427,7 +427,7 @@ func getJobCompletionStatusAndReason(job *batchv1.Job) (bool, string) {
 	return false, ""
 }
 
-// getPodForJob returns the pod associated with the job.
+// getPodForJob returns the single pod associated with the job.
 func getPodForJob(ctx context.Context, cl client.Client, logger logr.Logger, job *batchv1.Job) (*v1.Pod, error) {
 	selector, err := metav1.LabelSelectorAsSelector(job.Spec.Selector)
 	if err != nil {
