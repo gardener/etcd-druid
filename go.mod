@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
-	github.com/gardener/etcd-backup-restore v0.33.0
+	github.com/gardener/etcd-backup-restore v0.34.0
 	github.com/gardener/etcd-druid/api v0.0.0
 	github.com/gardener/etcd-druid/client v0.0.0
 	github.com/go-logr/logr v1.4.2
@@ -39,11 +39,11 @@ require (
 	cloud.google.com/go/compute/metadata v0.5.0 // indirect
 	cloud.google.com/go/iam v1.2.0 // indirect
 	cloud.google.com/go/storage v1.43.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.5.2 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.3.2 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.10.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.0 // indirect
 	github.com/aliyun/aliyun-oss-go-sdk v2.1.8+incompatible // indirect
-	github.com/aws/aws-sdk-go v1.55.5 // indirect
+	github.com/aws/aws-sdk-go v1.55.6 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
