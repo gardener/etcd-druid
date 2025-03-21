@@ -11,6 +11,15 @@ resources:
     cpu: 50m
     memory: 128Mi
 
+nodeSelector:
+  kubernetes.io/os: linux
+
+affinity: {}
+
+tolerations: []
+
+topologySpreadConstraints: []
+
 featureGates: {}
 
 controllerManager:
