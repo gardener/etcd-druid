@@ -88,8 +88,11 @@ spec:
         {{- if .Values.webhooks.etcdComponents.exemptServiceAccounts }}
         - --etcd-components-webhook-exempt-service-accounts={{ join "," .Values.webhooks.etcdComponents.exemptServiceAccounts }}
         {{- end }}
+        volumeMounts:
+          - mountPath: /etc/webhook-server-tls
+            name: tls
+            readOnly: true
         {{- end }}
-
         resources:
 {{ toYaml .Values.resources | indent 10 }}
       {{- with .Values.nodeSelector }}
@@ -109,10 +112,6 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
 {{- if .Values.webhooks.etcdComponents.enabled }}
-        volumeMounts:
-          - mountPath: /etc/webhook-server-tls
-            name: tls
-            readOnly: true
       volumes:
         - name: tls
           secret:
