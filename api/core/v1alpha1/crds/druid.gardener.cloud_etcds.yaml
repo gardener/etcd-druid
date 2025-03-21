@@ -30,8 +30,11 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
-    - jsonPath: .spec.replicas
+    - jsonPath: .status.clusterSize
       name: Cluster Size
+      type: integer
+    - jsonPath: .spec.replicas
+      name: Desired Replicas
       priority: 1
       type: integer
     - jsonPath: .status.currentReplicas
@@ -648,9 +651,6 @@ spec:
               replicas:
                 format: int32
                 type: integer
-                x-kubernetes-validations:
-                - message: Replicas can either be increased or be downscaled to 0.
-                  rule: 'self==0 ? true : self < oldSelf ? false : true'
               schedulingConstraints:
                 description: |-
                   SchedulingConstraints defines the different scheduling constraints that must be applied to the
@@ -1864,6 +1864,10 @@ spec:
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:
+              clusterSize:
+                description: ClusterSize is the last recorded etcd cluster size.
+                format: int32
+                type: integer
               conditions:
                 description: Conditions represents the latest available observations
                   of an etcd's current state.
@@ -2089,6 +2093,11 @@ spec:
                 type: integer
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: etcd.spec.replicas transition is not allowed.
+          rule: 'self.spec.replicas == 0 || (oldSelf.spec.replicas == 0 ? (!has(self.status.clusterSize)
+            || (self.spec.replicas == self.status.clusterSize)) : (self.spec.replicas
+            >= oldSelf.spec.replicas))'
     served: true
     storage: true
     subresources:
