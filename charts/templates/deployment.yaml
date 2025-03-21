@@ -113,6 +113,8 @@ spec:
           - mountPath: /etc/webhook-server-tls
             name: tls
             readOnly: true
+        securityContext:
+          allowPrivilegeEscalation: false
       volumes:
         - name: tls
           secret:
