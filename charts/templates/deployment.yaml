@@ -94,7 +94,7 @@ spec:
             readOnly: true
         {{- end }}
         securityContext:
-          allowPrivilegeEscalations
+          allowPrivilegeEscalation: false
         resources:
 {{ toYaml .Values.resources | indent 10 }}
       {{- with .Values.nodeSelector }}
