@@ -12,19 +12,26 @@ const (
 	LabelSucceeded = "succeeded"
 	// ValueSucceededTrue is value True for metric label succeeded.
 	ValueSucceededTrue = "true"
-	// ValueSucceededFalse is value False for metric label failed.
+	// ValueSucceededFalse is value False for metric label succeeded.
 	ValueSucceededFalse = "false"
-	// ValueSucceededPreempted is value Preempted for metric label preempted.
-	ValueSucceededPreempted = "preempted"
-	// ValueSucceededEvicted is value Evicted for metric label evicted.
-	ValueSucceededEvicted = "evicted"
-	// ValueSucceededDeadlineExceeded is value DeadlineExceeded for metric label deadline-exceeded.
-	ValueSucceededDeadlineExceeded = "deadline-exceeded"
-	// ValueSucceededUnknown is value Unknown for metric label unknown.
-	ValueSucceededUnknown = "unknown"
 
-	// EtcdNamespace is the label for prometheus metrics to indicate etcd namespace
-	EtcdNamespace = "etcd_namespace"
+	// LabelFailureReason is a metric label indicating the reason for job failure.
+	LabelFailureReason = "failureReason"
+	// ValueFailureReasonPreempted is value Preempted for metric label failureReason.
+	ValueFailureReasonPreempted = "preempted"
+	// ValueFailureReasonEvicted is value Evicted for metric label failureReason.
+	ValueFailureReasonEvicted = "evicted"
+	// ValueFailureReasonDeadlineExceeded is value DeadlineExceeded for metric label failureReason.
+	ValueFailureReasonDeadlineExceeded = "deadlineExceeded"
+	// ValueFailureReasonProcessFailure is value ProcessFailure for metric label failureReason.
+	ValueFailureReasonProcessFailure = "processFailure"
+	// ValueFailureReasonUnknown is value Unknown for metric label failureReason.
+	ValueFailureReasonUnknown = "unknown"
+	// ValueFailureReasonNone is value None for metric label failureReason.
+	ValueFailureReasonNone = "none"
+
+	// LabelEtcdNamespace is the label for prometheus metrics to indicate etcd namespace
+	LabelEtcdNamespace = "etcd_namespace"
 )
 
 var (
@@ -33,10 +40,13 @@ var (
 		LabelSucceeded: {
 			ValueSucceededFalse,
 			ValueSucceededTrue,
-			ValueSucceededPreempted,
-			ValueSucceededEvicted,
-			ValueSucceededDeadlineExceeded,
-			ValueSucceededUnknown,
+		},
+		LabelFailureReason: {
+			ValueFailureReasonPreempted,
+			ValueFailureReasonEvicted,
+			ValueFailureReasonDeadlineExceeded,
+			ValueFailureReasonProcessFailure,
+			ValueFailureReasonUnknown,
 		},
 	}
 )

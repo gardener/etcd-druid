@@ -23,7 +23,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	. "github.com/onsi/gomega"
 )
@@ -328,7 +327,7 @@ func TestJobCompletionStatusAndReason(t *testing.T) {
 					Conditions: test.jobConditions,
 				},
 			}
-			status, reason := getJobCompletionStatusAndReason(job)
+			status, reason := isJobSuccessfulWithReason(job)
 			g.Expect(status).To(Equal(test.expectedStatus))
 			g.Expect(reason).To(Equal(test.expectedReason))
 		})
@@ -340,7 +339,7 @@ func TestPodFailureReasonAndLastTransitionTime(t *testing.T) {
 		name                   string
 		podConditions          []corev1.PodCondition
 		containerStatuses      []corev1.ContainerStatus
-		expectedReason         podFailureReason
+		expectedReason         string
 		expectedTransitionTime time.Time
 	}{
 		{
@@ -349,13 +348,13 @@ func TestPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					Type:   corev1.DisruptionTarget,
 					Status: corev1.ConditionTrue,
-					Reason: string(podReasonPreemptionByScheduler),
+					Reason: podFailureReasonPreemptionByScheduler,
 					LastTransitionTime: metav1.Time{
 						Time: time.Now().Add(-time.Hour),
 					},
 				},
 			},
-			expectedReason:         podReasonPreemptionByScheduler,
+			expectedReason:         podFailureReasonPreemptionByScheduler,
 			expectedTransitionTime: time.Now().Add(-time.Hour),
 		},
 		{
@@ -364,13 +363,13 @@ func TestPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					Type:   corev1.DisruptionTarget,
 					Status: corev1.ConditionTrue,
-					Reason: string(podReasonDeletionByTaintManager),
+					Reason: podFailureReasonDeletionByTaintManager,
 					LastTransitionTime: metav1.Time{
 						Time: time.Now().Add(-2 * time.Hour),
 					},
 				},
 			},
-			expectedReason:         podReasonDeletionByTaintManager,
+			expectedReason:         podFailureReasonDeletionByTaintManager,
 			expectedTransitionTime: time.Now().Add(-2 * time.Hour),
 		},
 		{
@@ -379,13 +378,13 @@ func TestPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					Type:   corev1.DisruptionTarget,
 					Status: corev1.ConditionTrue,
-					Reason: string(podReasonEvictionByEvictionAPI),
+					Reason: podFailureReasonEvictionByEvictionAPI,
 					LastTransitionTime: metav1.Time{
 						Time: time.Now().Add(-3 * time.Hour),
 					},
 				},
 			},
-			expectedReason:         podReasonEvictionByEvictionAPI,
+			expectedReason:         podFailureReasonEvictionByEvictionAPI,
 			expectedTransitionTime: time.Now().Add(-3 * time.Hour),
 		},
 		{
@@ -394,13 +393,13 @@ func TestPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					Type:   corev1.DisruptionTarget,
 					Status: corev1.ConditionTrue,
-					Reason: string(podReasonTerminationByKubelet),
+					Reason: podFailureReasonTerminationByKubelet,
 					LastTransitionTime: metav1.Time{
 						Time: time.Now().Add(-4 * time.Hour),
 					},
 				},
 			},
-			expectedReason:         podReasonTerminationByKubelet,
+			expectedReason:         podFailureReasonTerminationByKubelet,
 			expectedTransitionTime: time.Now().Add(-4 * time.Hour),
 		},
 		{
@@ -409,7 +408,7 @@ func TestPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					State: corev1.ContainerState{
 						Terminated: &corev1.ContainerStateTerminated{
-							Reason: string(podReasonProcessFailure),
+							Reason: podFailureReasonProcessFailure,
 							FinishedAt: metav1.Time{
 								Time: time.Now().Add(-30 * time.Minute),
 							},
@@ -417,15 +416,15 @@ func TestPodFailureReasonAndLastTransitionTime(t *testing.T) {
 					},
 				},
 			},
-			expectedReason:         podReasonProcessFailure,
+			expectedReason:         podFailureReasonProcessFailure,
 			expectedTransitionTime: time.Now().Add(-30 * time.Minute),
 		},
 		{
 			name:                   "Pod has no relevant conditions or terminated containers",
 			podConditions:          []corev1.PodCondition{},
 			containerStatuses:      []corev1.ContainerStatus{},
-			expectedReason:         podReasonUnknown,
-			expectedTransitionTime: time.Time{},
+			expectedReason:         podFailureReasonUnknown,
+			expectedTransitionTime: time.Now().UTC(),
 		},
 		{
 			name: "Pod has irrelevant conditions and no terminated containers",
@@ -440,8 +439,8 @@ func TestPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				},
 			},
 			containerStatuses:      []corev1.ContainerStatus{},
-			expectedReason:         podReasonUnknown,
-			expectedTransitionTime: time.Time{},
+			expectedReason:         podFailureReasonUnknown,
+			expectedTransitionTime: time.Now().UTC(),
 		},
 	}
 
@@ -465,31 +464,25 @@ func TestPodFailureReasonAndLastTransitionTime(t *testing.T) {
 func TestPodForJob(t *testing.T) {
 	tests := []struct {
 		name                      string
-		job                       *batchv1.Job
+		jobMeta                   metav1.ObjectMeta
 		pods                      []corev1.Pod
 		expectedPodNamespacedName *types.NamespacedName
 		expectedError             bool
 		expectedErrMsg            string
+		expectedPod               *corev1.Pod
 	}{
 		{
-			name: "Single pod matches the job selector",
-			job: &batchv1.Job{
-				Spec: batchv1.JobSpec{
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{"job-name": "test-job"},
-					},
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-job",
-					Namespace: "default",
-				},
+			name: "Single pod has the same job name",
+			jobMeta: metav1.ObjectMeta{
+				Name:      "test-job",
+				Namespace: "default",
 			},
 			pods: []corev1.Pod{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-pod",
 						Namespace: "default",
-						Labels:    map[string]string{"job-name": "test-job"},
+						Labels:    client.MatchingLabels{batchv1.JobNameLabel: "test-job"},
 					},
 				},
 			},
@@ -500,49 +493,34 @@ func TestPodForJob(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "No pods match the job selector",
-			job: &batchv1.Job{
-				Spec: batchv1.JobSpec{
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{"job-name": "test-job"},
-					},
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-job",
-					Namespace: "default",
-				},
+			name: "No pods match the job name",
+			jobMeta: metav1.ObjectMeta{
+				Name:      "test-job",
+				Namespace: "default",
 			},
 			pods:                      []corev1.Pod{},
 			expectedPodNamespacedName: nil,
-			expectedError:             true,
-			expectedErrMsg:            "Pod \"test-job\" not found",
+			expectedError:             false,
 		},
 		{
-			name: "Multiple pods match the job selector",
-			job: &batchv1.Job{
-				Spec: batchv1.JobSpec{
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{"job-name": "test-job"},
-					},
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-job",
-					Namespace: "default",
-				},
+			name: "Multiple pods match the job name",
+			jobMeta: metav1.ObjectMeta{
+				Name:      "test-job",
+				Namespace: "default",
 			},
 			pods: []corev1.Pod{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-pod-1",
 						Namespace: "default",
-						Labels:    map[string]string{"job-name": "test-job"},
+						Labels:    client.MatchingLabels{batchv1.JobNameLabel: "test-job"},
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-pod-2",
 						Namespace: "default",
-						Labels:    map[string]string{"job-name": "test-job"},
+						Labels:    client.MatchingLabels{batchv1.JobNameLabel: "test-job"},
 					},
 				},
 			},
@@ -552,29 +530,6 @@ func TestPodForJob(t *testing.T) {
 			},
 			expectedError: false,
 		},
-		{
-			name: "Error converting job selector to label selector",
-			job: &batchv1.Job{
-				Spec: batchv1.JobSpec{
-					Selector: &metav1.LabelSelector{
-						MatchExpressions: []metav1.LabelSelectorRequirement{
-							{
-								Key:      "job-name",
-								Operator: "InvalidOperator",
-							},
-						},
-					},
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-job",
-					Namespace: "default",
-				},
-			},
-			pods:                      []corev1.Pod{},
-			expectedPodNamespacedName: nil,
-			expectedError:             true,
-			expectedErrMsg:            "InvalidOperator",
-		},
 	}
 
 	for _, test := range tests {
@@ -582,26 +537,27 @@ func TestPodForJob(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
 
-			objects := []client.Object{test.job}
+			objects := []client.Object{}
 			for _, pod := range test.pods {
 				objects = append(objects, &pod)
 			}
 
-			// Create a fake client with the job and pods
+			// Create a fake client with the pods
 			fakeClient := fake.NewClientBuilder().
 				WithObjects(objects...).
 				Build()
 
-			pod, err := getPodForJob(context.TODO(), fakeClient, log.Log, test.job)
+			pod, err := getPodForJob(context.TODO(), fakeClient, &test.jobMeta)
 
 			if test.expectedError {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring(test.expectedErrMsg))
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(pod).NotTo(BeNil())
-				g.Expect(pod.Name).To(Equal(test.expectedPodNamespacedName.Name))
-				g.Expect(pod.Namespace).To(Equal(test.expectedPodNamespacedName.Namespace))
+				if pod != nil {
+					g.Expect(pod.Name).To(Equal(test.expectedPodNamespacedName.Name))
+					g.Expect(pod.Namespace).To(Equal(test.expectedPodNamespacedName.Namespace))
+				}
 			}
 		})
 	}
