@@ -47,6 +47,7 @@ var (
 			ValueFailureReasonDeadlineExceeded,
 			ValueFailureReasonProcessFailure,
 			ValueFailureReasonUnknown,
+			ValueFailureReasonNone,
 		},
 	}
 )

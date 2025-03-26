@@ -223,7 +223,7 @@ func TestJobCompletionStatusAndReason(t *testing.T) {
 	tests := []struct {
 		name           string
 		jobConditions  []batchv1.JobCondition
-		expectedStatus bool
+		expectedStatus int
 		expectedReason string
 	}{
 		{
@@ -235,7 +235,7 @@ func TestJobCompletionStatusAndReason(t *testing.T) {
 					Reason: batchv1.JobReasonCompletionsReached,
 				},
 			},
-			expectedStatus: true,
+			expectedStatus: jobSucceeded,
 			expectedReason: batchv1.JobReasonCompletionsReached,
 		},
 		{
@@ -247,7 +247,7 @@ func TestJobCompletionStatusAndReason(t *testing.T) {
 					Reason: batchv1.JobReasonCompletionsReached,
 				},
 			},
-			expectedStatus: true,
+			expectedStatus: jobSucceeded,
 			expectedReason: batchv1.JobReasonCompletionsReached,
 		},
 		{
@@ -259,7 +259,7 @@ func TestJobCompletionStatusAndReason(t *testing.T) {
 					Reason: batchv1.JobReasonDeadlineExceeded,
 				},
 			},
-			expectedStatus: false,
+			expectedStatus: jobFailed,
 			expectedReason: batchv1.JobReasonDeadlineExceeded,
 		},
 		{
@@ -271,7 +271,7 @@ func TestJobCompletionStatusAndReason(t *testing.T) {
 					Reason: batchv1.JobReasonDeadlineExceeded,
 				},
 			},
-			expectedStatus: false,
+			expectedStatus: jobFailed,
 			expectedReason: batchv1.JobReasonDeadlineExceeded,
 		},
 		{
@@ -283,7 +283,7 @@ func TestJobCompletionStatusAndReason(t *testing.T) {
 					Reason: batchv1.JobReasonBackoffLimitExceeded,
 				},
 			},
-			expectedStatus: false,
+			expectedStatus: jobFailed,
 			expectedReason: batchv1.JobReasonBackoffLimitExceeded,
 		},
 		{
@@ -295,13 +295,13 @@ func TestJobCompletionStatusAndReason(t *testing.T) {
 					Reason: batchv1.JobReasonBackoffLimitExceeded,
 				},
 			},
-			expectedStatus: false,
+			expectedStatus: jobFailed,
 			expectedReason: batchv1.JobReasonBackoffLimitExceeded,
 		},
 		{
 			name:           "Job has no conditions",
 			jobConditions:  []batchv1.JobCondition{},
-			expectedStatus: false,
+			expectedStatus: jobFailed,
 			expectedReason: "",
 		},
 		{
@@ -313,7 +313,7 @@ func TestJobCompletionStatusAndReason(t *testing.T) {
 					Reason: "IrrelevantReason",
 				},
 			},
-			expectedStatus: false,
+			expectedStatus: jobFailed,
 			expectedReason: "",
 		},
 	}
@@ -327,7 +327,7 @@ func TestJobCompletionStatusAndReason(t *testing.T) {
 					Conditions: test.jobConditions,
 				},
 			}
-			status, reason := isJobSuccessfulWithReason(job)
+			status, reason := getJobCompletionStateAndReason(job)
 			g.Expect(status).To(Equal(test.expectedStatus))
 			g.Expect(reason).To(Equal(test.expectedReason))
 		})
