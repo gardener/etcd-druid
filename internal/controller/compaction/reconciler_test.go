@@ -17,7 +17,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestEtcdCompactionAnnotation(t *testing.T) {
+func TestGetEtcdCompactionAnnotations(t *testing.T) {
 	test1EtcdAnnotation := map[string]string{
 		"dummy-annotation": "dummy",
 	}
