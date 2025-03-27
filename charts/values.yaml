@@ -11,8 +11,7 @@ resources:
     cpu: 50m
     memory: 128Mi
 
-nodeSelector:
-  kubernetes.io/os: linux
+nodeSelector: {}
 
 affinity: {}
 
