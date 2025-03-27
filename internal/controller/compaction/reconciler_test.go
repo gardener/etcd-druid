@@ -31,7 +31,7 @@ func TestGetEtcdCompactionAnnotations(t *testing.T) {
 	g.Expect(compactionAnnotation).To(Equal(test1EtcdAnnotation))
 }
 
-func TestJobCompletionStatusAndReason(t *testing.T) {
+func TestGetJobCompletionStateAndReason(t *testing.T) {
 	tests := []struct {
 		name           string
 		jobConditions  []batchv1.JobCondition
@@ -146,7 +146,7 @@ func TestJobCompletionStatusAndReason(t *testing.T) {
 	}
 }
 
-func TestPodFailureReasonAndLastTransitionTime(t *testing.T) {
+func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 	tests := []struct {
 		name                   string
 		podConditions          []corev1.PodCondition
@@ -273,7 +273,7 @@ func TestPodFailureReasonAndLastTransitionTime(t *testing.T) {
 	}
 }
 
-func TestPodForJob(t *testing.T) {
+func TestGetPodForJob(t *testing.T) {
 	tests := []struct {
 		name                      string
 		jobMeta                   metav1.ObjectMeta
