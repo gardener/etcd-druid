@@ -12,11 +12,26 @@ const (
 	LabelSucceeded = "succeeded"
 	// ValueSucceededTrue is value True for metric label succeeded.
 	ValueSucceededTrue = "true"
-	// ValueSucceededFalse is value False for metric label failed.
+	// ValueSucceededFalse is value False for metric label succeeded.
 	ValueSucceededFalse = "false"
 
-	// EtcdNamespace is the label for prometheus metrics to indicate etcd namespace
-	EtcdNamespace = "etcd_namespace"
+	// LabelFailureReason is a metric label indicating the reason for job failure.
+	LabelFailureReason = "failureReason"
+	// ValueFailureReasonPreempted is value Preempted for metric label failureReason.
+	ValueFailureReasonPreempted = "preempted"
+	// ValueFailureReasonEvicted is value Evicted for metric label failureReason.
+	ValueFailureReasonEvicted = "evicted"
+	// ValueFailureReasonDeadlineExceeded is value DeadlineExceeded for metric label failureReason.
+	ValueFailureReasonDeadlineExceeded = "deadlineExceeded"
+	// ValueFailureReasonProcessFailure is value ProcessFailure for metric label failureReason.
+	ValueFailureReasonProcessFailure = "processFailure"
+	// ValueFailureReasonUnknown is value Unknown for metric label failureReason.
+	ValueFailureReasonUnknown = "unknown"
+	// ValueFailureReasonNone is value None for metric label failureReason.
+	ValueFailureReasonNone = "none"
+
+	// LabelEtcdNamespace is the label for prometheus metrics to indicate etcd namespace
+	LabelEtcdNamespace = "etcd_namespace"
 )
 
 var (
@@ -26,6 +41,14 @@ var (
 			ValueSucceededFalse,
 			ValueSucceededTrue,
 		},
+		LabelFailureReason: {
+			ValueFailureReasonPreempted,
+			ValueFailureReasonEvicted,
+			ValueFailureReasonDeadlineExceeded,
+			ValueFailureReasonProcessFailure,
+			ValueFailureReasonUnknown,
+			ValueFailureReasonNone,
+		},
 	}
 )
 
@@ -33,7 +56,6 @@ var (
 func GenerateLabelCombinations(labelValues map[string][]string) []map[string]string {
 	labels := make([]string, len(labelValues))
 	valuesList := make([][]string, len(labelValues))
-	valueCounts := make([]int, len(labelValues))
 	i := 0
 	for label := range labelValues {
 		labels[i] = label
@@ -44,7 +66,6 @@ func GenerateLabelCombinations(labelValues map[string][]string) []map[string]str
 		values := make([]string, len(labelValues[label]))
 		copy(values, labelValues[label])
 		valuesList[i] = values
-		valueCounts[i] = len(values)
 	}
 	combinations := getCombinations(valuesList)
 

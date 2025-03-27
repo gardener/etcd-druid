@@ -43,6 +43,20 @@ const (
 	SafeToEvictKey = "cluster-autoscaler.kubernetes.io/safe-to-evict"
 )
 
+const (
+	podFailureReasonPreemptionByScheduler  = v1.PodReasonPreemptionByScheduler
+	podFailureReasonDeletionByTaintManager = "DeletionByTaintManager"
+	podFailureReasonEvictionByEvictionAPI  = "EvictionByEvictionAPI"
+	podFailureReasonTerminationByKubelet   = v1.PodReasonTerminationByKubelet
+	podFailureReasonProcessFailure         = "ProcessFailure"
+	podFailureReasonUnknown                = "Unknown"
+)
+
+const (
+	jobSucceeded int = iota
+	jobFailed
+)
+
 // Reconciler reconciles compaction jobs for Etcd resources.
 type Reconciler struct {
 	client.Client
@@ -116,7 +130,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 		logger.Info("No compaction job currently running", "namespace", etcd.Namespace)
 	}
 
-	if job != nil && job.Name != "" {
+	if job.Name != "" {
 		if !job.DeletionTimestamp.IsZero() {
 			logger.Info("Job is already in deletion. A new job will be created only if the previous one has been deleted.", "namespace: ", job.Namespace, "name: ", job.Name)
 			return ctrl.Result{
@@ -126,42 +140,46 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 		// Check if there is one active job or not
 		if job.Status.Active > 0 {
-			metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(1)
+			metricJobsCurrent.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(1)
 			// Don't need to requeue if the job is currently running
 			return ctrl.Result{}, nil
 		}
-
-		// Delete job if the job succeeded
-		if job.Status.Succeeded > 0 {
-			metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(0)
-			if job.Status.CompletionTime != nil {
-				metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue, druidmetrics.EtcdNamespace: etcd.Namespace}).Observe(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds())
+		// Set the current job count to 0 if the job is not active
+		metricJobsCurrent.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(0)
+		jobCompletionState, jobCompletionReason := getJobCompletionStateAndReason(job)
+		if jobCompletionState == jobSucceeded {
+			recordSuccessfulJobMetrics(job)
+		} else {
+			if err := r.recordFailedJobMetrics(ctx, logger, job, etcd, jobCompletionReason); err != nil {
+				return ctrl.Result{RequeueAfter: 10 * time.Second}, fmt.Errorf("error while handling failed job: %w", err)
 			}
-			if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
-				logger.Error(err, "Couldn't delete the successful job", "namespace", etcd.Namespace, "name", compactionJobName)
-				return ctrl.Result{
-					RequeueAfter: 10 * time.Second,
-				}, fmt.Errorf("error while deleting successful compaction job: %v", err)
-			}
-			metricJobsTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededTrue, druidmetrics.EtcdNamespace: etcd.Namespace}).Inc()
 		}
-
-		// Delete job and requeue if the job failed
-		if job.Status.Failed > 0 {
-			metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(0)
-			if job.Status.StartTime != nil {
-				metricJobDurationSeconds.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse, druidmetrics.EtcdNamespace: etcd.Namespace}).Observe(time.Since(job.Status.StartTime.Time).Seconds())
-			}
-			if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
-				return ctrl.Result{
-					RequeueAfter: 10 * time.Second,
-				}, fmt.Errorf("error while deleting failed compaction job: %v", err)
-			}
-			metricJobsTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse, druidmetrics.EtcdNamespace: etcd.Namespace}).Inc()
+		// Delete the completed compaction job
+		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
+			logger.Error(err, "Couldn't delete the completed compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
 			return ctrl.Result{
-				RequeueAfter: 10 * time.Second,
-			}, nil
+				RequeueAfter: 10 * time.Second}, fmt.Errorf("error while deleting the completed compaction job: %w", err)
 		}
+	}
+	// This block is added because the terminationGracePeriodSeconds is set to 60 seconds.
+	// Even after the job is deleted, the associated pod may remain for some time.
+	// During this period, we should not attempt to create a new compaction job to avoid conflicts.
+	jobMeta := &metav1.ObjectMeta{
+		Name:      compactionJobName,
+		Namespace: etcd.Namespace,
+	}
+	pod, err := getPodForJob(ctx, r.Client, jobMeta)
+	if err != nil {
+		logger.Error(err, "Couldn't fetch pods for job", "namespace", job.Namespace, "name", job.Name)
+		return ctrl.Result{
+			RequeueAfter: 10 * time.Second,
+		}, fmt.Errorf("error while fetching pod for job: %v", err)
+	}
+	if pod != nil {
+		logger.Info("Pod found for job, cannot create a new job until the existing one is completely cleaned", "namespace", pod.Namespace, "name", pod.Name)
+		return ctrl.Result{
+			RequeueAfter: 10 * time.Second,
+		}, nil
 	}
 
 	// Get full and delta snapshot lease to check the HolderIdentity value to take decision on compaction job
@@ -208,19 +226,18 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 	}
 
 	diff := delta - full
-	metricNumDeltaEvents.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(float64(diff))
+	metricNumDeltaEvents.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(float64(diff))
 
 	// Reconcile job only when number of accumulated revisions over the last full snapshot is more than the configured threshold value via 'events-threshold' flag
 	if diff >= r.config.EventsThreshold {
 		logger.Info("Creating etcd compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
 		job, err = r.createCompactionJob(ctx, logger, etcd)
 		if err != nil {
-			metricJobsTotal.With(prometheus.Labels{druidmetrics.LabelSucceeded: druidmetrics.ValueSucceededFalse, druidmetrics.EtcdNamespace: etcd.Namespace}).Inc()
 			return ctrl.Result{
 				RequeueAfter: 10 * time.Second,
 			}, fmt.Errorf("error during compaction job creation: %v", err)
 		}
-		metricJobsCurrent.With(prometheus.Labels{druidmetrics.EtcdNamespace: etcd.Namespace}).Set(1)
+		metricJobsCurrent.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(1)
 	}
 
 	if job.Name != "" {
@@ -233,8 +250,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	job := &batchv1.Job{}
-	err := r.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta), Namespace: etcd.Namespace}, job)
-	if err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta), Namespace: etcd.Namespace}, job); err != nil {
 		if !errors.IsNotFound(err) {
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, fmt.Errorf("error while fetching compaction job: %v", err)
 		}
@@ -264,6 +280,11 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 		return nil, fmt.Errorf("couldn't fetch etcd backup image: %v", err)
 	}
 
+	// TerminationGracePeriodSeconds is set to 60 seconds to allow sufficient time for inspecting
+	// the pod's status in case of failure. This includes checking statuses such as DisruptionTarget
+	// to determine if the pod was subjected to disruptions, or ContainerStatuses to identify if the
+	// failure was due to a process issue. The 60-second grace period ensures the pod remains accessible
+	// long enough for Druid to fetch this information before it is garbage collected.
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta),
@@ -282,7 +303,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 		},
 
 		Spec: batchv1.JobSpec{
-			ActiveDeadlineSeconds: ptr.To[int64](int64(activeDeadlineSeconds)),
+			ActiveDeadlineSeconds: ptr.To(int64(activeDeadlineSeconds)),
 			Completions:           ptr.To[int32](1),
 			BackoffLimit:          ptr.To[int32](0),
 			Template: v1.PodTemplateSpec{
@@ -291,9 +312,10 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 					Labels:      getLabels(etcd),
 				},
 				Spec: v1.PodSpec{
-					ActiveDeadlineSeconds: ptr.To[int64](int64(activeDeadlineSeconds)),
-					ServiceAccountName:    druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta),
-					RestartPolicy:         v1.RestartPolicyNever,
+					ActiveDeadlineSeconds:         ptr.To(int64(activeDeadlineSeconds)),
+					TerminationGracePeriodSeconds: ptr.To[int64](60),
+					ServiceAccountName:            druidv1alpha1.GetServiceAccountName(etcd.ObjectMeta),
+					RestartPolicy:                 v1.RestartPolicyNever,
 					Containers: []v1.Container{{
 						Name:            "compact-backup",
 						Image:           etcdBackupImage,
@@ -357,6 +379,146 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 
 	//TODO (abdasgupta): Evaluate necessity of claiming object here after creation
 	return job, nil
+}
+
+func recordSuccessfulJobMetrics(job *batchv1.Job) {
+	metricJobsTotal.With(prometheus.Labels{
+		druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededTrue,
+		druidmetrics.LabelFailureReason: druidmetrics.ValueFailureReasonNone,
+		druidmetrics.LabelEtcdNamespace: job.Namespace,
+	}).Inc()
+	if job.Status.CompletionTime != nil {
+		metricJobDurationSeconds.With(prometheus.Labels{
+			druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededTrue,
+			druidmetrics.LabelFailureReason: druidmetrics.ValueFailureReasonNone,
+			druidmetrics.LabelEtcdNamespace: job.Namespace,
+		}).Observe(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds())
+	}
+}
+
+func (r *Reconciler) recordFailedJobMetrics(ctx context.Context, logger logr.Logger, job *batchv1.Job, etcd *druidv1alpha1.Etcd, jobCompletionReason string) error {
+	var (
+		failureReason   string
+		durationSeconds float64
+	)
+
+	switch jobCompletionReason {
+	case batchv1.JobReasonDeadlineExceeded:
+		logger.Info("Job has been completed due to deadline exceeded", "namespace", job.Namespace, "name", job.Name)
+		failureReason = druidmetrics.ValueFailureReasonDeadlineExceeded
+		durationSeconds = float64(*job.Spec.ActiveDeadlineSeconds)
+	case batchv1.JobReasonBackoffLimitExceeded:
+		logger.Info("Job has been completed due to backoffLimitExceeded", "namespace", job.Namespace, "name", job.Name)
+		podFailureReasonLabelValue, lastTransitionTime, err := getPodFailureValueWithLastTransitionTime(ctx, r, logger, job)
+		if err != nil {
+			return fmt.Errorf("error while handling job's failure condition type backoffLimitExceeded: %w", err)
+		}
+		failureReason = podFailureReasonLabelValue
+		if !lastTransitionTime.IsZero() {
+			durationSeconds = lastTransitionTime.Sub(job.Status.StartTime.Time).Seconds()
+		}
+	default:
+		logger.Info("Job has been completed with unknown reason", "namespace", job.Namespace, "name", job.Name)
+		failureReason = druidmetrics.ValueFailureReasonUnknown
+		durationSeconds = time.Now().UTC().Sub(job.Status.StartTime.Time).Seconds()
+	}
+
+	metricJobsTotal.With(prometheus.Labels{
+		druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededFalse,
+		druidmetrics.LabelFailureReason: failureReason,
+		druidmetrics.LabelEtcdNamespace: etcd.Namespace,
+	}).Inc()
+
+	if durationSeconds > 0 {
+		metricJobDurationSeconds.With(prometheus.Labels{
+			druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededFalse,
+			druidmetrics.LabelFailureReason: failureReason,
+			druidmetrics.LabelEtcdNamespace: etcd.Namespace,
+		}).Observe(durationSeconds)
+	}
+
+	return nil
+}
+
+func getPodFailureValueWithLastTransitionTime(ctx context.Context, r *Reconciler, logger logr.Logger, job *batchv1.Job) (string, time.Time, error) {
+	pod, err := getPodForJob(ctx, r.Client, &job.ObjectMeta)
+	if err != nil {
+		logger.Error(err, "Couldn't fetch pods for job", "namespace", job.Namespace, "name", job.Name)
+		return "", time.Time{}, fmt.Errorf("error while fetching pod for job: %w", err)
+	}
+	if pod == nil {
+		logger.Info("Pod not found for job", "namespace", job.Namespace, "name", job.Name)
+		return druidmetrics.ValueFailureReasonUnknown, time.Now().UTC(), nil
+	}
+	podFailureReason, lastTransitionTime := getPodFailureReasonAndLastTransitionTime(pod)
+	var podFailureReasonLabelValue string
+	switch podFailureReason {
+	case podFailureReasonPreemptionByScheduler:
+		logger.Info("Pod has been preempted by the scheduler", "namespace", pod.Namespace, "name", pod.Name)
+		podFailureReasonLabelValue = druidmetrics.ValueFailureReasonPreempted
+	case podFailureReasonDeletionByTaintManager, podFailureReasonEvictionByEvictionAPI, podFailureReasonTerminationByKubelet:
+		logger.Info("Pod has been evicted", "namespace", pod.Namespace, "name", pod.Name, "reason", podFailureReason)
+		podFailureReasonLabelValue = druidmetrics.ValueFailureReasonEvicted
+	case podFailureReasonProcessFailure:
+		logger.Info("Pod has failed due to process failure", "namespace", pod.Namespace, "name", pod.Name)
+		podFailureReasonLabelValue = druidmetrics.ValueFailureReasonProcessFailure
+	default:
+		logger.Info("Pod has failed due to unknown reason", "namespace", pod.Namespace, "name", pod.Name)
+		podFailureReasonLabelValue = druidmetrics.ValueFailureReasonUnknown
+	}
+	return podFailureReasonLabelValue, lastTransitionTime, nil
+}
+
+// getJobCompletionStateAndReason returns whether the job is successful or not and the reason for the completion.
+func getJobCompletionStateAndReason(job *batchv1.Job) (int, string) {
+	jobConditions := job.Status.Conditions
+	for _, condition := range jobConditions {
+		if (condition.Type == batchv1.JobComplete || condition.Type == batchv1.JobSuccessCriteriaMet) && condition.Status == v1.ConditionTrue {
+			return jobSucceeded, condition.Reason
+		}
+		if (condition.Type == batchv1.JobFailed || condition.Type == batchv1.JobFailureTarget) && condition.Status == v1.ConditionTrue {
+			return jobFailed, condition.Reason
+		}
+	}
+	return jobFailed, "" // the control will never reach here. But since the function signature requires a return value, this is added.
+}
+
+// getPodForJob returns the single pod associated with the job.
+func getPodForJob(ctx context.Context, cl client.Client, jobMeta *metav1.ObjectMeta) (*v1.Pod, error) {
+	labelSelector := client.MatchingLabels{batchv1.JobNameLabel: jobMeta.Name}
+
+	podList := &v1.PodList{}
+	if err := cl.List(ctx, podList, &client.ListOptions{
+		Namespace: jobMeta.Namespace,
+	}, labelSelector); err != nil {
+		return nil, fmt.Errorf("error while fetching pods for job: %w", err)
+	}
+
+	if len(podList.Items) == 0 {
+		return nil, nil
+	}
+
+	return &podList.Items[0], nil
+}
+
+// getPodFailureReasonAndLastTransitionTime returns the reason for the pod failure.
+func getPodFailureReasonAndLastTransitionTime(pod *v1.Pod) (string, time.Time) {
+	// Check the pod status DisruptionTarget condition
+	podConditions := pod.Status.Conditions
+	for _, condition := range podConditions {
+		if condition.Type == v1.DisruptionTarget && condition.Status == v1.ConditionTrue {
+			return condition.Reason, condition.LastTransitionTime.Time
+		}
+	}
+	// If the DisruptionTarget condition is not present, then check the container status
+	if pod.Status.ContainerStatuses != nil {
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			if containerStatus.State.Terminated != nil {
+				return podFailureReasonProcessFailure, containerStatus.State.Terminated.FinishedAt.Time
+			}
+		}
+	}
+	return podFailureReasonUnknown, time.Now().UTC()
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
