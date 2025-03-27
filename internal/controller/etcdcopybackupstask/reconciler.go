@@ -342,6 +342,9 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 							Args:            args,
 							Env:             env,
 							VolumeMounts:    volumeMounts,
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: ptr.To(false),
+							},
 						},
 					},
 					ShareProcessNamespace: ptr.To(true),
@@ -362,9 +365,10 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 				Args:         []string{fmt.Sprintf("%s%s%s%s", "chown -R 65532:65532 /home/nonroot/", *targetStore.Container, " /home/nonroot/", *sourceStore.Container)},
 				VolumeMounts: volumeMounts,
 				SecurityContext: &corev1.SecurityContext{
-					RunAsGroup:   ptr.To[int64](0),
-					RunAsNonRoot: ptr.To(false),
-					RunAsUser:    ptr.To[int64](0),
+					AllowPrivilegeEscalation: ptr.To(false),
+					RunAsGroup:               ptr.To[int64](0),
+					RunAsNonRoot:             ptr.To(false),
+					RunAsUser:                ptr.To[int64](0),
 				},
 			},
 		}

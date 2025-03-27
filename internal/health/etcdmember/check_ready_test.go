@@ -265,6 +265,9 @@ func createMemberPod(name, namespace string, ready bool) *corev1.Pod {
 				{
 					Name:  "etcd",
 					Image: "etcd:3.4.26",
+					SecurityContext: &corev1.SecurityContext{
+						AllowPrivilegeEscalation: ptr.To(false),
+					},
 				},
 			},
 		},
