@@ -2,6 +2,8 @@ module github.com/gardener/etcd-druid
 
 go 1.24.0
 
+toolchain go1.24.1
+
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/gardener/etcd-backup-restore v0.33.0
@@ -28,7 +30,7 @@ require (
 
 // Test-Only dependencies
 require (
-	github.com/onsi/ginkgo/v2 v2.22.1
+	github.com/onsi/ginkgo/v2 v2.23.3
 	github.com/onsi/gomega v1.36.2
 )
 
