@@ -107,7 +107,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 		{
 			// allow hibernated etcd cluster to continue being hibernated
 			name:            "0 -> 0, where clusterSize != 0 (etcd cluster already started)",
-			etcdName:        "etcd-invalid-replicas-3",
+			etcdName:        "etcd-valid-replicas-3",
 			initialReplicas: 0,
 			updatedReplicas: 0,
 			clusterSize:     1,
@@ -116,7 +116,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 		{
 			// etcd replicas remains the same as cluster size
 			name:            "n -> n, where n > 0",
-			etcdName:        "etcd-valid-replicas-3",
+			etcdName:        "etcd-valid-replicas-4",
 			initialReplicas: 3,
 			updatedReplicas: 3,
 			clusterSize:     3,
@@ -125,7 +125,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 		{
 			// etcd replicas remains the same, but does not match cluster size
 			name:            "n -> n, where n > 0 and clusterSize != n",
-			etcdName:        "etcd-valid-replicas-4",
+			etcdName:        "etcd-valid-replicas-5",
 			initialReplicas: 5,
 			updatedReplicas: 5,
 			clusterSize:     3,
@@ -134,7 +134,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 		{
 			// scale up etcd cluster
 			name:            "n -> m, where m > n > 0",
-			etcdName:        "etcd-valid-replicas-5",
+			etcdName:        "etcd-valid-replicas-6",
 			initialReplicas: 3,
 			updatedReplicas: 5,
 			clusterSize:     3,
@@ -143,7 +143,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 		{
 			// hibernate etcd cluster to 0 replicas
 			name:            "m -> 0, where m > 0",
-			etcdName:        "etcd-valid-replica-6",
+			etcdName:        "etcd-valid-replicas-7",
 			initialReplicas: 3,
 			updatedReplicas: 0,
 			clusterSize:     3,
@@ -152,7 +152,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 		{
 			// etcd cluster cannot be scaled down
 			name:            "m -> n, where m > n > 0",
-			etcdName:        "etcd-invalid-replicas-4",
+			etcdName:        "etcd-invalid-replicas-3",
 			initialReplicas: 5,
 			updatedReplicas: 3,
 			clusterSize:     5,

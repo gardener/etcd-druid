@@ -32,6 +32,8 @@ These validations are triggered when an update operation is done on the etcd res
   ```
   Hibernating the etcd cluster to 0 replicas is always allowed. If replicas field is changed from a non-zero value to another non-zero value, then the rule ensures that the replicas cannot be decreased, since down-scaling of etcd clusters is not currently supported. If the cluster is already hibernated and is attempted to be scaled up, then `etcd.status.clusterSize` field is checked to ensure that replicas can only be set to the previously recorded etcd cluster size. This is required to ensure that the scale-up logic is allowed to be executed correctly. If `etcd.status.clusterSize` is not set, then it is assumed that the etcd cluster has not been created yet and the replicas can be set to any value.
 
+  If a scale up to replicas greater than the previously recorded cluster-size is desired, the cluster is to be scaled up to this number of replicas first, followed by another scale up to the newly desired number of replicas. For example, a cluster before hibernation had replicas as `1`, and now has replicas as `0`. To achieve `3` replicas, the cluster is to be first scaled up to `1` replicas, followed by a second scale up to `3` replicas.
+
 ### Field validations
 - The fields which expect only a particular set of values are checked by using the kubebuilder marker: `+kubebuilder:validation:Enum=<value1>;<value2>`
     * The `etcd.spec.etcd.metrics` can only be set as either `basic` or `extensive`.
