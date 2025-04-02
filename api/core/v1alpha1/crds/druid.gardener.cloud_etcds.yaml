@@ -1868,6 +1868,9 @@ spec:
                 description: ClusterSize is the last recorded etcd cluster size.
                 format: int32
                 type: integer
+                x-kubernetes-validations:
+                - message: etcd.status.clusterSize cannot be decreased.
+                  rule: self >= oldSelf
               conditions:
                 description: Conditions represents the latest available observations
                   of an etcd's current state.
@@ -2095,9 +2098,9 @@ spec:
         type: object
         x-kubernetes-validations:
         - message: etcd.spec.replicas transition is not allowed.
-          rule: 'self.spec.replicas == 0 || (oldSelf.spec.replicas == 0 ? (!has(self.status.clusterSize)
-            || (self.spec.replicas == self.status.clusterSize)) : (self.spec.replicas
-            >= oldSelf.spec.replicas))'
+          rule: 'self.spec.replicas == 0 || (oldSelf.spec.replicas == 0 ? (!has(self.status)
+            || !has(self.status.clusterSize) || (self.spec.replicas == self.status.clusterSize))
+            : (self.spec.replicas >= oldSelf.spec.replicas))'
     served: true
     storage: true
     subresources:

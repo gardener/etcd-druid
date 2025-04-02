@@ -12,6 +12,7 @@ import (
 	"github.com/gardener/etcd-druid/test/utils"
 
 	. "github.com/onsi/gomega"
+	"k8s.io/utils/ptr"
 )
 
 // TestValidateUpdateSpecStorageClass tests the immutability of etcd.spec.storageClass
@@ -61,12 +62,13 @@ func TestValidateUpdateSpecStorageClass(t *testing.T) {
 func TestValidateUpdateSpecReplicas(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	testCases := []struct {
-		name            string
-		etcdName        string
-		initialReplicas int32
-		updatedReplicas int32
-		clusterSize     int32
-		expectErr       bool
+		name               string
+		etcdName           string
+		initialReplicas    int32
+		updatedReplicas    int32
+		hasUnsetEtcdStatus bool
+		clusterSize        *int32
+		expectErr          bool
 	}{
 		{
 			// allow etcd cluster to be unhibernated
@@ -74,7 +76,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 			etcdName:        "etcd-valid-replicas-1",
 			initialReplicas: 0,
 			updatedReplicas: 3,
-			clusterSize:     3,
+			clusterSize:     ptr.To[int32](3),
 			expectErr:       false,
 		},
 		{
@@ -83,7 +85,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 			etcdName:        "etcd-invalid-replicas-1",
 			initialReplicas: 0,
 			updatedReplicas: 3,
-			clusterSize:     5,
+			clusterSize:     ptr.To[int32](5),
 			expectErr:       true,
 		},
 		{
@@ -92,7 +94,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 			etcdName:        "etcd-invalid-replicas-2",
 			initialReplicas: 0,
 			updatedReplicas: 3,
-			clusterSize:     5,
+			clusterSize:     ptr.To[int32](5),
 			expectErr:       true,
 		},
 		{
@@ -101,7 +103,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 			etcdName:        "etcd-valid-replicas-2",
 			initialReplicas: 0,
 			updatedReplicas: 0,
-			clusterSize:     0,
+			clusterSize:     ptr.To[int32](0),
 			expectErr:       false,
 		},
 		{
@@ -110,7 +112,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 			etcdName:        "etcd-valid-replicas-3",
 			initialReplicas: 0,
 			updatedReplicas: 0,
-			clusterSize:     1,
+			clusterSize:     ptr.To[int32](1),
 			expectErr:       false,
 		},
 		{
@@ -119,7 +121,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 			etcdName:        "etcd-valid-replicas-4",
 			initialReplicas: 3,
 			updatedReplicas: 3,
-			clusterSize:     3,
+			clusterSize:     ptr.To[int32](3),
 			expectErr:       false,
 		},
 		{
@@ -128,7 +130,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 			etcdName:        "etcd-valid-replicas-5",
 			initialReplicas: 5,
 			updatedReplicas: 5,
-			clusterSize:     3,
+			clusterSize:     ptr.To[int32](3),
 			expectErr:       false,
 		},
 		{
@@ -137,7 +139,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 			etcdName:        "etcd-valid-replicas-6",
 			initialReplicas: 3,
 			updatedReplicas: 5,
-			clusterSize:     3,
+			clusterSize:     ptr.To[int32](3),
 			expectErr:       false,
 		},
 		{
@@ -146,7 +148,7 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 			etcdName:        "etcd-valid-replicas-7",
 			initialReplicas: 3,
 			updatedReplicas: 0,
-			clusterSize:     3,
+			clusterSize:     ptr.To[int32](3),
 			expectErr:       false,
 		},
 		{
@@ -155,8 +157,26 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 			etcdName:        "etcd-invalid-replicas-3",
 			initialReplicas: 5,
 			updatedReplicas: 3,
-			clusterSize:     5,
+			clusterSize:     ptr.To[int32](5),
 			expectErr:       true,
+		},
+		{
+			// fresh etcd cluster with unset status
+			name:               "0 -> n, where n is any value, and etcd status is unset",
+			etcdName:           "etcd-valid-replicas-8",
+			initialReplicas:    0,
+			updatedReplicas:    1,
+			hasUnsetEtcdStatus: true,
+			expectErr:          false,
+		},
+		{
+			// new etcd cluster with unset clusterSize
+			name:            "0 -> n, where n is any value, and etcd status.clusterSize is unset",
+			etcdName:        "etcd-valid-replicas-9",
+			initialReplicas: 0,
+			updatedReplicas: 1,
+			clusterSize:     nil,
+			expectErr:       false,
 		},
 	}
 
@@ -171,9 +191,12 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 			cl := itTestEnv.GetClient()
 			ctx := context.Background()
 			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
-			// update status subresource, since status is not created in the object Create() call
-			etcd.Status.ClusterSize = tc.clusterSize
-			g.Expect(cl.Status().Update(ctx, etcd)).To(Succeed())
+
+			if !tc.hasUnsetEtcdStatus {
+				// update status subresource, since status is not created in the object Create() call
+				etcd.Status.ClusterSize = tc.clusterSize
+				g.Expect(cl.Status().Update(ctx, etcd)).To(Succeed())
+			}
 
 			etcd.Spec.Replicas = tc.updatedReplicas
 			validateEtcdUpdate(g, etcd, tc.expectErr, ctx, cl)

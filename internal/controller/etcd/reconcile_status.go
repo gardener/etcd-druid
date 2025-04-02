@@ -82,8 +82,9 @@ func (r *Reconciler) inspectStatefulSetAndMutateEtcdStatus(ctx component.Operato
 }
 
 func (r *Reconciler) mutateEtcdStatusWithClusterSize(_ component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
-	if etcd.Spec.Replicas > etcd.Status.ClusterSize && etcd.HasConditionWithStatus(druidv1alpha1.ConditionTypeAllMembersReady, druidv1alpha1.ConditionTrue) {
-		etcd.Status.ClusterSize = etcd.Spec.Replicas
+	if (etcd.Status.ClusterSize == nil || etcd.Spec.Replicas > *etcd.Status.ClusterSize) &&
+		etcd.HasConditionWithStatus(druidv1alpha1.ConditionTypeAllMembersReady, druidv1alpha1.ConditionTrue) {
+		etcd.Status.ClusterSize = ptr.To(etcd.Spec.Replicas)
 	}
 
 	return ctrlutils.ContinueReconcile()

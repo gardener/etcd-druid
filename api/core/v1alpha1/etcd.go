@@ -54,7 +54,7 @@ const (
 // +kubebuilder:printcolumn:name="Ready Replicas",type=integer,JSONPath=`.status.readyReplicas`,priority=1
 
 // Etcd is the Schema for the etcds API
-// +kubebuilder:validation:XValidation:message="etcd.spec.replicas transition is not allowed.",rule="self.spec.replicas == 0 || (oldSelf.spec.replicas == 0 ? (!has(self.status.clusterSize) || (self.spec.replicas == self.status.clusterSize)) : (self.spec.replicas >= oldSelf.spec.replicas))"
+// +kubebuilder:validation:XValidation:message="etcd.spec.replicas transition is not allowed.",rule="self.spec.replicas == 0 || (oldSelf.spec.replicas == 0 ? (!has(self.status) || !has(self.status.clusterSize) || (self.spec.replicas == self.status.clusterSize)) : (self.spec.replicas >= oldSelf.spec.replicas))"
 type Etcd struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -436,7 +436,8 @@ type EtcdStatus struct {
 	PeerUrlTLSEnabled *bool `json:"peerUrlTLSEnabled,omitempty"`
 	// ClusterSize is the last recorded etcd cluster size.
 	// +optional
-	ClusterSize int32 `json:"clusterSize"`
+	// +kubebuilder:validation:XValidation:message="etcd.status.clusterSize cannot be decreased.",rule="self >= oldSelf"
+	ClusterSize *int32 `json:"clusterSize,omitempty"`
 }
 
 // LastOperationType is a string alias representing type of the last operation.
