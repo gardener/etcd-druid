@@ -12,9 +12,10 @@ import (
 	"github.com/gardener/etcd-druid/test/utils"
 
 	. "github.com/onsi/gomega"
+	"k8s.io/utils/ptr"
 )
 
-// etcd.spec.storageClass is immutable
+// TestValidateUpdateSpecStorageClass tests the immutability of etcd.spec.storageClass
 func TestValidateUpdateSpecStorageClass(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	testNs, g := setupTestEnvironment(t)
@@ -29,15 +30,15 @@ func TestValidateUpdateSpecStorageClass(t *testing.T) {
 		{
 			name:                    "Valid #1: Unchanged storageClass",
 			etcdName:                "etcd-valid-1",
-			initialStorageClassName: "gardener.cloud-fast",
-			updatedStorageClassName: "gardener.cloud-fast",
+			initialStorageClassName: "storageClass1",
+			updatedStorageClassName: "storageClass1",
 			expectErr:               false,
 		},
 		{
 			name:                    "Invalid #1: Updated storageClass",
 			etcdName:                "etcd-invalid-1",
-			initialStorageClassName: "gardener.cloud-fast",
-			updatedStorageClassName: "default",
+			initialStorageClassName: "storageClass1",
+			updatedStorageClassName: "storageClass2",
 			expectErr:               true,
 		},
 	}
@@ -57,76 +58,174 @@ func TestValidateUpdateSpecStorageClass(t *testing.T) {
 	}
 }
 
-// checks the update on the etcd.spec.replicas field
+// TestValidateUpdateSpecReplicas tests the update on the etcd.spec.replicas field
 func TestValidateUpdateSpecReplicas(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
-	tests := []struct {
-		name            string
-		etcdName        string
-		initialReplicas int
-		updatedReplicas int
-		expectErr       bool
+	testCases := []struct {
+		name               string
+		etcdName           string
+		initialReplicas    int32
+		updatedReplicas    int32
+		hasUnsetEtcdStatus bool
+		clusterSize        *int32
+		expectErr          bool
 	}{
 		{
-			name:            "Valid update to replicas #1",
-			etcdName:        "etcd-valid-inc",
+			// allow etcd cluster to be unhibernated
+			name:            "0 -> n, where n > 0 and clusterSize = n",
+			etcdName:        "etcd-valid-replicas-1",
+			initialReplicas: 0,
+			updatedReplicas: 3,
+			clusterSize:     ptr.To[int32](3),
+			expectErr:       false,
+		},
+		{
+			// etcd cluster can be unhibernated only to the size of the cluster, to allow scale-up logic to run
+			name:            "0 -> n, where n > 0 and clusterSize > n",
+			etcdName:        "etcd-invalid-replicas-1",
+			initialReplicas: 0,
+			updatedReplicas: 3,
+			clusterSize:     ptr.To[int32](5),
+			expectErr:       true,
+		},
+		{
+			// etcd cluster can be unhibernated only to the size of the cluster, because the cluster cannot be scale down
+			name:            "0 -> m, where m > 0 and clusterSize < m",
+			etcdName:        "etcd-invalid-replicas-2",
+			initialReplicas: 0,
+			updatedReplicas: 3,
+			clusterSize:     ptr.To[int32](5),
+			expectErr:       true,
+		},
+		{
+			// allow hibernated etcd cluster to continue being hibernated
+			name:            "0 -> 0, where clusterSize = 0 (etcd cluster not started)",
+			etcdName:        "etcd-valid-replicas-2",
+			initialReplicas: 0,
+			updatedReplicas: 0,
+			clusterSize:     ptr.To[int32](0),
+			expectErr:       false,
+		},
+		{
+			// allow hibernated etcd cluster to continue being hibernated
+			name:            "0 -> 0, where clusterSize != 0 (etcd cluster already started)",
+			etcdName:        "etcd-valid-replicas-3",
+			initialReplicas: 0,
+			updatedReplicas: 0,
+			clusterSize:     ptr.To[int32](1),
+			expectErr:       false,
+		},
+		{
+			// etcd replicas remains the same as cluster size
+			name:            "n -> n, where n > 0",
+			etcdName:        "etcd-valid-replicas-4",
+			initialReplicas: 3,
+			updatedReplicas: 3,
+			clusterSize:     ptr.To[int32](3),
+			expectErr:       false,
+		},
+		{
+			// etcd replicas remains the same, but does not match cluster size
+			name:            "n -> n, where n > 0 and clusterSize != n",
+			etcdName:        "etcd-valid-replicas-5",
+			initialReplicas: 5,
+			updatedReplicas: 5,
+			clusterSize:     ptr.To[int32](3),
+			expectErr:       false,
+		},
+		{
+			// scale up etcd cluster
+			name:            "n -> m, where m > n > 0",
+			etcdName:        "etcd-valid-replicas-6",
 			initialReplicas: 3,
 			updatedReplicas: 5,
+			clusterSize:     ptr.To[int32](3),
 			expectErr:       false,
 		},
 		{
-			name:            "Valid update to replicas #2",
-			etcdName:        "etcd-valid-zero",
+			// hibernate etcd cluster to 0 replicas
+			name:            "m -> 0, where m > 0",
+			etcdName:        "etcd-valid-replicas-7",
 			initialReplicas: 3,
 			updatedReplicas: 0,
+			clusterSize:     ptr.To[int32](3),
 			expectErr:       false,
 		},
 		{
-			name:            "Invalid update to replicas #1",
-			etcdName:        "etcd-invalid-dec",
+			// etcd cluster cannot be scaled down
+			name:            "m -> n, where m > n > 0",
+			etcdName:        "etcd-invalid-replicas-3",
 			initialReplicas: 5,
 			updatedReplicas: 3,
+			clusterSize:     ptr.To[int32](5),
 			expectErr:       true,
+		},
+		{
+			// fresh etcd cluster with unset status
+			name:               "0 -> n, where n is any value, and etcd status is unset",
+			etcdName:           "etcd-valid-replicas-8",
+			initialReplicas:    0,
+			updatedReplicas:    1,
+			hasUnsetEtcdStatus: true,
+			expectErr:          false,
+		},
+		{
+			// new etcd cluster with unset clusterSize
+			name:            "0 -> n, where n is any value, and etcd status.clusterSize is unset",
+			etcdName:        "etcd-valid-replicas-9",
+			initialReplicas: 0,
+			updatedReplicas: 1,
+			clusterSize:     nil,
+			expectErr:       false,
 		},
 	}
 
 	testNs, g := setupTestEnvironment(t)
+	t.Parallel()
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(int32(test.initialReplicas)).Build()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			etcd := utils.EtcdBuilderWithoutDefaults(tc.etcdName, testNs).
+				WithReplicas(tc.initialReplicas).
+				Build()
 			cl := itTestEnv.GetClient()
 			ctx := context.Background()
 			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
 
-			etcd.Spec.Replicas = int32(test.updatedReplicas)
-			validateEtcdUpdate(g, etcd, test.expectErr, ctx, cl)
+			if !tc.hasUnsetEtcdStatus {
+				// update status subresource, since status is not created in the object Create() call
+				etcd.Status.ClusterSize = tc.clusterSize
+				g.Expect(cl.Status().Update(ctx, etcd)).To(Succeed())
+			}
+
+			etcd.Spec.Replicas = tc.updatedReplicas
+			validateEtcdUpdate(g, etcd, tc.expectErr, ctx, cl)
 		})
 	}
 }
 
-// check the immutability of the etcd.spec.VolumeClaimTemplate field
+// TestValidateUpdateSpecVolumeClaimTemplate tests the immutability of the etcd.spec.VolumeClaimTemplate field
 func TestValidateUpdateSpecVolumeClaimTemplate(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	testNs, g := setupTestEnvironment(t)
 	tests := []struct {
 		name                string
 		etcdName            string
-		initalVolClaimTemp  string
+		initialVolClaimTemp string
 		updatedVolClaimTemp string
 		expectErr           bool
 	}{
 		{
 			name:                "Valid #1: Unchanged volumeClaimTemplate",
 			etcdName:            "etcd-valid-1-volclaim",
-			initalVolClaimTemp:  "main-etcd",
+			initialVolClaimTemp: "main-etcd",
 			updatedVolClaimTemp: "main-etcd",
 			expectErr:           false,
 		},
 		{
 			name:                "Invalid #1: Updated storageCapacity",
 			etcdName:            "etcd-invalid-1-volclaim",
-			initalVolClaimTemp:  "main-etcd",
+			initialVolClaimTemp: "main-etcd",
 			updatedVolClaimTemp: "new-vol-temp",
 			expectErr:           true,
 		},
@@ -135,7 +234,7 @@ func TestValidateUpdateSpecVolumeClaimTemplate(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
-			etcd.Spec.VolumeClaimTemplate = &test.initalVolClaimTemp
+			etcd.Spec.VolumeClaimTemplate = &test.initialVolClaimTemp
 
 			cl := itTestEnv.GetClient()
 			ctx := context.Background()

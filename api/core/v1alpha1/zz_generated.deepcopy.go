@@ -631,6 +631,11 @@ func (in *EtcdStatus) DeepCopyInto(out *EtcdStatus) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.ClusterSize != nil {
+		in, out := &in.ClusterSize, &out.ClusterSize
+		*out = new(int32)
+		**out = **in
+	}
 	return
 }
 
