@@ -40,18 +40,37 @@ func TestValidateUpdateSpecStorageClass(t *testing.T) {
 			updatedStorageClassName: "default",
 			expectErr:               true,
 		},
+		{
+			name:                    "Invalid #2: Set unset storageClass",
+			etcdName:                "etcd-invalid-2",
+			initialStorageClassName: "",
+			updatedStorageClassName: "new-value",
+			expectErr:               true,
+		},
+		{
+			name:                    "Invalid #3: Unset set storageClass",
+			etcdName:                "etcd-invalid-3",
+			initialStorageClassName: "initial",
+			updatedStorageClassName: "",
+			expectErr:               true,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
-			etcd.Spec.StorageClass = &test.initialStorageClassName
-
+			if test.initialStorageClassName != "" {
+				etcd.Spec.StorageClass = &test.initialStorageClassName
+			}
 			cl := itTestEnv.GetClient()
 			ctx := context.Background()
 			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
 
-			etcd.Spec.StorageClass = &test.updatedStorageClassName
+			if test.updatedStorageClassName != "" {
+				etcd.Spec.StorageClass = &test.updatedStorageClassName
+			} else {
+				etcd.Spec.StorageClass = nil
+			}
 			validateEtcdUpdate(g, etcd, test.expectErr, ctx, cl)
 		})
 	}
@@ -124,10 +143,24 @@ func TestValidateUpdateSpecVolumeClaimTemplate(t *testing.T) {
 			expectErr:           false,
 		},
 		{
-			name:                "Invalid #1: Updated storageCapacity",
+			name:                "Invalid #1: Updated volumeClaimTemplate",
 			etcdName:            "etcd-invalid-1-volclaim",
 			initalVolClaimTemp:  "main-etcd",
 			updatedVolClaimTemp: "new-vol-temp",
+			expectErr:           true,
+		},
+		{
+			name:                "Invalid #2: Set unset volumeClaimTemplate",
+			etcdName:            "etcd-invalid-2-volclaim",
+			initalVolClaimTemp:  "",
+			updatedVolClaimTemp: "New-Value",
+			expectErr:           true,
+		},
+		{
+			name:                "Invalid #2: Unset set volumeClaimTemplate",
+			etcdName:            "etcd-invalid-3-volclaim",
+			initalVolClaimTemp:  "Inital-vc",
+			updatedVolClaimTemp: "",
 			expectErr:           true,
 		},
 	}
@@ -135,13 +168,19 @@ func TestValidateUpdateSpecVolumeClaimTemplate(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
-			etcd.Spec.VolumeClaimTemplate = &test.initalVolClaimTemp
+			if test.initalVolClaimTemp != "" {
+				etcd.Spec.VolumeClaimTemplate = &test.initalVolClaimTemp
+			}
 
 			cl := itTestEnv.GetClient()
 			ctx := context.Background()
 			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
 
-			etcd.Spec.VolumeClaimTemplate = &test.updatedVolClaimTemp
+			if test.updatedVolClaimTemp != "" {
+				etcd.Spec.VolumeClaimTemplate = &test.updatedVolClaimTemp
+			} else {
+				etcd.Spec.VolumeClaimTemplate = nil
+			}
 			validateEtcdUpdate(g, etcd, test.expectErr, ctx, cl)
 		})
 	}
