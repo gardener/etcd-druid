@@ -1861,6 +1861,11 @@ spec:
             - labels
             - replicas
             type: object
+            x-kubernetes-validations:
+            - message: etcd.spec.storageClass is an immutable field.
+              rule: has(oldSelf.storageClass) ==  has(self.storageClass)
+            - message: etcd.spec.volumeClaimTemplate is an immutable field.
+              rule: has(oldSelf.volumeClaimTemplate) == has(self.volumeClaimTemplate)
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:
