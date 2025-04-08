@@ -2,8 +2,6 @@ module github.com/gardener/etcd-druid
 
 go 1.24.0
 
-toolchain go1.24.1
-
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/gardener/etcd-backup-restore v0.33.0
