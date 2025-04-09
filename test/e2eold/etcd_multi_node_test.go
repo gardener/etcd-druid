@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package e2e
+package e2eold
 
 import (
 	"bytes"

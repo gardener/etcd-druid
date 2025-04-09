@@ -316,18 +316,28 @@ type EtcdSpec struct {
 	// +optional
 	// Deprecated: this field will be removed in the future.
 	Selector *metav1.LabelSelector `json:"selector"`
+	// Labels defines the labels to be applied to the etcd pods backing the etcd cluster.
 	// +required
 	Labels map[string]string `json:"labels"`
+	// Annotations defines the annotations to be applied to the etcd pods backing the etcd cluster.
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
+	// Etcd defines the configuration for the etcd cluster to be deployed.
 	// +required
 	Etcd EtcdConfig `json:"etcd"`
+	// Backup defines the configuration for the backup-restore functionality for the etcd cluster.
 	// +required
 	Backup BackupSpec `json:"backup"`
+	// Common defines the shared configuration for etcd and backup-restore configurations.
 	// +optional
 	Common SharedConfig `json:"sharedConfig,omitempty"`
+	// SchedulingConstraints defines the different scheduling constraints that must be applied to the
+	// pods backing the etcd cluster.
 	// +optional
 	SchedulingConstraints SchedulingConstraints `json:"schedulingConstraints,omitempty"`
+	// Replicas defines the number of etcd pods to be deployed, subsequently defining the etcd cluster size.
+	// If set to 0, the etcd cluster will be hibernated, with the etcd cluster intact but not running.
+	// It can be scaled back up to the previously set value to continue running the etcd cluster.
 	// +required
 	// +kubebuilder:validation:XValidation:message="Replicas can either be increased or be downscaled to 0.",rule="self==0 ? true : self < oldSelf ? false : true"
 	Replicas int32 `json:"replicas"`

@@ -411,6 +411,12 @@ func (eb *EtcdBuilder) WithAnnotations(annotations map[string]string) *EtcdBuild
 	return eb
 }
 
+// WithSpecLabels sets the spec.labels field on the Etcd resource.
+func (eb *EtcdBuilder) WithSpecLabels(labels map[string]string) *EtcdBuilder {
+	eb.etcd.Spec.Labels = labels
+	return eb
+}
+
 // WithDefaultBackup creates a default backup spec and initializes etcd with it.
 func (eb *EtcdBuilder) WithDefaultBackup() *EtcdBuilder {
 	eb.etcd.Spec.Backup = getBackupSpec()
@@ -428,12 +434,6 @@ func getEtcdWithoutDefaults(name, namespace string) *druidv1alpha1.Etcd {
 			Namespace: namespace,
 		},
 		Spec: druidv1alpha1.EtcdSpec{
-			Annotations: map[string]string{
-				"app":      "etcd-statefulset",
-				"instance": name,
-				"name":     "etcd",
-				"role":     "test",
-			},
 			Labels: map[string]string{
 				"app":      "etcd-statefulset",
 				"instance": name,
