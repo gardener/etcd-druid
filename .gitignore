@@ -65,3 +65,6 @@ charts/pki-resources/*
 # go workspace files
 go.work
 go.work.sum
+
+# generated pki resources for e2e tests
+test/e2e/pki-resources/*
