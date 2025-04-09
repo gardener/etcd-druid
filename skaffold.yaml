@@ -72,6 +72,7 @@ profiles:
       - op: add
         path: /deploy/helm/releases/0/setValues/controllers
         value:
+          etcd.workers: 10
           etcd.etcdStatusSyncPeriod: 5s
           compaction.etcdEventsThreshold: "15"
           compaction.metricsScrapeWaitDuration: 30s
