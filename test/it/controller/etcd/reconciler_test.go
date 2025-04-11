@@ -21,6 +21,7 @@ import (
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	testclock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
@@ -442,6 +443,70 @@ func TestEtcdStatusReconciliation(t *testing.T) {
 			test.fn(t, etcdInstance, reconcilerTestEnv)
 		})
 	}
+}
+
+// ------------------------------ scale subresource tests ------------------------------
+
+// TestScaleSubresource tests the correctness of the scale subresource generated for the Etcd resource.
+func TestScaleSubresource(t *testing.T) {
+	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, "etcd-scale-subresource-test", sharedITTestEnv, false, testutils.NewTestClientBuilder())
+	ctx := context.Background()
+	g := NewWithT(t)
+
+	// --------------------------- create test namespace ---------------------------
+	testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
+	g.Expect(reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)).To(Succeed())
+	t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
+	// ---------------------------- create etcd instance --------------------------
+	etcdInstance := testutils.EtcdBuilderWithoutDefaults(testutils.TestEtcdName, testNs).
+		WithReplicas(3).
+		Build()
+
+	// create etcdInstance resource
+	createAndAssertEtcdAndAllManagedResources(ctx, t, reconcilerTestEnv, etcdInstance)
+	// update sts status so that etcd status.replicas is reflected correctly
+	sts := &appsv1.StatefulSet{}
+	g.Expect(reconcilerTestEnv.itTestEnv.GetClient().Get(ctx, client.ObjectKey{Name: etcdInstance.Name, Namespace: etcdInstance.Namespace}, sts)).To(Succeed())
+	stsCopy := sts.DeepCopy()
+	stsCopy.Status.CurrentReplicas = *sts.Spec.Replicas
+	g.Expect(reconcilerTestEnv.itTestEnv.GetClient().Status().Update(ctx, stsCopy)).To(Succeed())
+
+	g.Eventually(func() error {
+		if err := reconcilerTestEnv.itTestEnv.GetClient().Get(ctx, druidv1alpha1.GetNamespaceName(etcdInstance.ObjectMeta), etcdInstance); err != nil {
+			return err
+		}
+
+		if etcdInstance.Status.ObservedGeneration == nil {
+			return fmt.Errorf("etcd instance status.ObservedGeneration is not populated yet")
+		}
+		if *etcdInstance.Status.ObservedGeneration != 1 {
+			return fmt.Errorf("expected status.ObservedGeneration to be 1, got %d", *etcdInstance.Status.ObservedGeneration)
+		}
+
+		scale := &autoscalingv1.Scale{}
+		err := reconcilerTestEnv.itTestEnv.GetClient().SubResource("scale").Get(reconcilerTestEnv.itTestEnv.GetContext(), etcdInstance, scale)
+		if err != nil {
+			return err
+		}
+
+		if scale.Spec.Replicas != 3 {
+			return fmt.Errorf("expected spec.replicas to be 3, got %d", scale.Spec.Replicas)
+		}
+		if scale.Status.Replicas != 3 {
+			return fmt.Errorf("expected status.replicas to be 3, got %d", scale.Status.Replicas)
+		}
+
+		labels := druidv1alpha1.GetDefaultLabels(etcdInstance.ObjectMeta)
+		selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: labels})
+		if err != nil {
+			return err
+		}
+		if scale.Status.Selector != selector.String() {
+			return fmt.Errorf("expected status.selector to be %s, got %s", selector.String(), scale.Status.Selector)
+		}
+
+		return nil
+	}, 30*time.Second, 1*time.Second).Should(Succeed())
 }
 
 func testConditionsAndMembersWhenAllMemberLeasesAreActive(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv) {

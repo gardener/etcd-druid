@@ -43,6 +43,7 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.ready`
 // +kubebuilder:printcolumn:name="Quorate",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
 // +kubebuilder:printcolumn:name="All Members Ready",type=string,JSONPath=`.status.conditions[?(@.type=="AllMembersReady")].status`
@@ -435,6 +436,9 @@ type EtcdStatus struct {
 	// PeerUrlTLSEnabled captures the state of peer url TLS being enabled for the etcd member(s)
 	// +optional
 	PeerUrlTLSEnabled *bool `json:"peerUrlTLSEnabled,omitempty"`
+	// Selector is a label query over pods that should match the replica count.
+	// It must match the pod template's labels.
+	Selector string `json:"selector"`
 }
 
 // LastOperationType is a string alias representing type of the last operation.

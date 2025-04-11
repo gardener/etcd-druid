@@ -12,6 +12,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	"github.com/go-logr/logr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -29,6 +30,7 @@ func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcdObjectKe
 	mutateETCDStatusStepFns := []mutateEtcdStatusFn{
 		r.mutateETCDStatusWithMemberStatusAndConditions,
 		r.inspectStatefulSetAndMutateETCDStatus,
+		r.setSelector,
 	}
 	for _, fn := range mutateETCDStatusStepFns {
 		if stepResult := fn(ctx, etcd, sLog); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
@@ -77,5 +79,15 @@ func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.Operato
 		etcd.Status.ReadyReplicas = 0
 		etcd.Status.Ready = ptr.To(false)
 	}
+	return ctrlutils.ContinueReconcile()
+}
+
+func (r *Reconciler) setSelector(_ component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
+	labels := druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)
+	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: labels})
+	if err != nil {
+		return ctrlutils.ReconcileWithError(err)
+	}
+	etcd.Status.Selector = selector.String()
 	return ctrlutils.ContinueReconcile()
 }
