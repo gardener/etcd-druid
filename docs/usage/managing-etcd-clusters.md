@@ -47,6 +47,39 @@ kubectl edit etcd <etcd-name> -n <namespace>
 
 This will open up the linked editor where you can make the edits.
 
+### Scale the Etcd cluster horizontally
+
+To scale the etcd cluster horizontally, you can update the `spec.replicas` field in the `Etcd` custom resource. For example, to scale the etcd cluster to 5 replicas, you can run:
+
+```bash
+kubectl patch etcd <etcd-name> -n <namespace> --type merge -p '{"spec":{"replicas":5}}'
+```
+
+Additionally, you can use the `/scale` subresource to scale the etcd cluster horizontally. For example, to scale the etcd cluster to 5 replicas, you can run:
+
+```bash
+kubectl scale etcd <etcd-name> -n <namespace> --replicas=5
+```
+
+!!! note
+    While the Etcd cluster can be scaled out, it cannot be scaled in, ie, the replicas cannot be decreased to a non-zero value. The Etcd cluster can still be scaled to 0 replicas, indicating that the cluster is to be "hibernated". This is beneficial for use-cases where the etcd cluster is not needed for a certain period of time, and the user does not want to pay for the compute resources. The hibernated etcd cluster can be resumed later by scaling it back to a non-zero value. Please note that the data volumes backing the Etcd cluster will be retained during hibernation, and will still be charged for.
+
+### Scale the Etcd cluster vertically
+
+To scale the etcd cluster vertically, you can update the `spec.etcd.resources` and `spec.backup.resources` fields in the `Etcd` custom resource. For example, to scale the etcd container to 2 CPU and 4Gi memory, you can run:
+
+```bash
+kubectl patch etcd <etcd-name> -n <namespace> --type merge -p '{"spec":{"etcd":{"resources":{"requests":{"cpu":"2","memory":"4Gi"}}}}}'
+```
+
+Additionally, you can use an external pod autoscaler such as [vertical pod autoscaler](https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler) to scale the etcd cluster vertically. This is made possible by the `/scale` subresource on the Etcd custom resource.
+
+!!! note
+    Scaling the Etcd cluster vertically can potentially result in downtime, based on its failure tolerance. This is due to the fact that the etcd cluster is actuated by pods, and the pods need to be restarted in order to apply the new resource values. A multi-member etcd cluster can tolerate a failure of one member, but if the number of replicas is set to 1, then the etcd cluster will not be able to tolerate any failures. Therefore, it is recommended to scale the etcd cluster vertically only when it is not under heavy load, and to monitor the cluster closely during the scaling process. A multi-member Etcd cluster is also accompanied by a pod disruption budget to ensure that the cluster can tolerate a certain number of failures. The pod disruption budget is automatically created and managed by etcd-druid, and it is recommended to not modify it manually.
+
+!!! note
+    While the replicas and resources in the Etcd resource spec can be modified, please ensure to read the next section to understand when and how these changes are actuated by etcd-druid.
+
 ### Reconcile
 
 There are two ways to control reconciliation of any changes done to `Etcd` custom resources.
@@ -152,4 +185,4 @@ We provide a generic way to suspend etcd cluster reconciliation via etcd-druid, 
 Now you are free to make changes to any managed etcd cluster resource.
 
 !!! note
-    As long as the above two annotations are there, no reconciliation will be done for this etcd cluster by `etcd-druid`. Therefore it is essential that you remove this annotations eventually.ß
+    As long as the above two annotations are there, no reconciliation will be done for this etcd cluster by `etcd-druid`. Therefore it is essential that you remove this annotations eventually.
