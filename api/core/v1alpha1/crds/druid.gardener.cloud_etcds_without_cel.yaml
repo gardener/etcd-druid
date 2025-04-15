@@ -1943,9 +1943,20 @@ spec:
                   description: Replicas is the replica count of the etcd cluster.
                   format: int32
                   type: integer
+                selector:
+                  description: |-
+                    Selector is a label query over pods that should match the replica count.
+                    It must match the pod template's labels.
+                  type: string
+              required:
+                - selector
               type: object
           type: object
       served: true
       storage: true
       subresources:
+        scale:
+          labelSelectorPath: .status.selector
+          specReplicasPath: .spec.replicas
+          statusReplicasPath: .status.replicas
         status: {}
