@@ -12,9 +12,9 @@ etcd-druid:
         attribute: image.tag
     test-steps: &test-steps
       test:
-        image: 'golang:1.24.1'
+        image: 'golang:1.24.2'
       test_integration:
-        image: 'golang:1.24.1'
+        image: 'golang:1.24.2'
 
   base_definition:
     repo:
@@ -59,9 +59,9 @@ etcd-druid:
                 teamname: 'gardener/etcd-druid-maintainers'
     steps:
       check:
-        image: 'golang:1.24.1'
+        image: 'golang:1.24.2'
       build:
-        image: 'golang:1.24.1'
+        image: 'golang:1.24.2'
         output_dir: 'binary'
 
   jobs:
