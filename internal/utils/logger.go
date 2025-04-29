@@ -6,6 +6,7 @@ package utils
 
 import (
 	"fmt"
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 
 	"github.com/go-logr/logr"
 	"go.uber.org/zap/zapcore"
@@ -13,39 +14,45 @@ import (
 	logzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
-// LogFormat is the format of the log.
-type LogFormat string
-
-const (
-	// LogFormatJSON is the JSON log format.
-	LogFormatJSON LogFormat = "json"
-	// LogFormatText is the text log format.
-	LogFormatText LogFormat = "text"
-)
-
 // MustNewLogger is like NewLogger but panics on invalid input.
-func MustNewLogger(devMode bool, format LogFormat) logr.Logger {
-	logger, err := NewLogger(devMode, format)
+func MustNewLogger(devMode bool, level configv1alpha1.LogLevel, format configv1alpha1.LogFormat) logr.Logger {
+	logger, err := NewLogger(devMode, level, format)
 	utilruntime.Must(err)
 	return logger
 }
 
 // NewLogger creates a new logr.Logger backed by Zap.
-func NewLogger(devMode bool, format LogFormat) (logr.Logger, error) {
-	zapOpts, err := buildDefaultLoggerOpts(devMode, format)
+func NewLogger(devMode bool, level configv1alpha1.LogLevel, format configv1alpha1.LogFormat) (logr.Logger, error) {
+	zapOpts, err := buildDefaultLoggerOpts(devMode, level, format)
 	if err != nil {
 		return logr.Logger{}, err
 	}
 	return logzap.New(zapOpts...), nil
 }
 
-func buildDefaultLoggerOpts(devMode bool, format LogFormat) ([]logzap.Opts, error) {
+func buildDefaultLoggerOpts(devMode bool, level configv1alpha1.LogLevel, format configv1alpha1.LogFormat) ([]logzap.Opts, error) {
 	var opts []logzap.Opts
 	opts = append(opts, logzap.UseDevMode(devMode))
+
+	// map log levels to zap levels
+	var zapLevel zapcore.LevelEnabler
+	switch level {
+	case configv1alpha1.LogLevelDebug:
+		zapLevel = zapcore.DebugLevel
+	case configv1alpha1.LogLevelInfo, "":
+		zapLevel = zapcore.InfoLevel
+	case configv1alpha1.LogLevelError:
+		zapLevel = zapcore.ErrorLevel
+	default:
+		return []logzap.Opts{}, fmt.Errorf("invalid log level %q", level)
+	}
+	opts = append(opts, logzap.Level(zapLevel))
+
+	// map log format to encoder
 	switch format {
-	case LogFormatText:
+	case configv1alpha1.LogFormatText:
 		opts = append(opts, logzap.ConsoleEncoder(setCommonEncoderConfigOptions))
-	case LogFormatJSON:
+	case configv1alpha1.LogFormatJSON:
 		opts = append(opts, logzap.JSONEncoder(setCommonEncoderConfigOptions))
 	default:
 		return []logzap.Opts{}, fmt.Errorf("invalid log format %q", format)

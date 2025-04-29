@@ -6,6 +6,7 @@ package secret
 
 import (
 	"context"
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -24,12 +25,12 @@ import (
 // Reconciler reconciles secrets referenced in Etcd objects.
 type Reconciler struct {
 	client.Client
-	Config *Config
+	Config configv1alpha1.SecretControllerConfiguration
 	logger logr.Logger
 }
 
 // NewReconciler creates a new reconciler for Secret.
-func NewReconciler(mgr manager.Manager, config *Config) *Reconciler {
+func NewReconciler(mgr manager.Manager, config configv1alpha1.SecretControllerConfiguration) *Reconciler {
 	return &Reconciler{
 		Client: mgr.GetClient(),
 		Config: config,
