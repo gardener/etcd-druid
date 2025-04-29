@@ -45,7 +45,7 @@ func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcdObjectKe
 }
 
 func (r *Reconciler) mutateETCDStatusWithMemberStatusAndConditions(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, logger logr.Logger) ctrlutils.ReconcileStepResult {
-	statusCheck := status.NewChecker(r.client, r.config.EtcdMember.NotReadyThreshold, r.config.EtcdMember.UnknownThreshold)
+	statusCheck := status.NewChecker(r.client, r.config.EtcdMemberConfig.NotReadyThreshold.Duration, r.config.EtcdMemberConfig.UnknownThreshold.Duration)
 	if err := statusCheck.Check(ctx, logger, etcd); err != nil {
 		logger.Error(err, "Error executing status checks to update member status and conditions")
 		return ctrlutils.ReconcileWithError(err)

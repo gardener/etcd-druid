@@ -17,6 +17,7 @@ spec:
         app.kubernetes.io/name: etcd-druid
         gardener.cloud/role: etcd-druid
     spec:
+      shareProcessNamespace: true
       serviceAccountName: etcd-druid
       containers:
       - name: etcd-druid

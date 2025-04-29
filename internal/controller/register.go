@@ -13,6 +13,8 @@ import (
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
 
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -21,11 +23,11 @@ var (
 )
 
 // Register registers all etcd-druid controllers with the controller manager.
-func Register(mgr ctrl.Manager, config *Config) error {
+func Register(mgr ctrl.Manager, controllerConfig configv1alpha1.ControllerConfiguration) error {
 	var err error
 
 	// Add etcd reconciler to the manager
-	etcdReconciler, err := etcd.NewReconciler(mgr, config.Etcd)
+	etcdReconciler, err := etcd.NewReconciler(mgr, controllerConfig.Etcd)
 	if err != nil {
 		return err
 	}
@@ -34,8 +36,8 @@ func Register(mgr ctrl.Manager, config *Config) error {
 	}
 
 	// Add compaction reconciler to the manager if the CLI flag enable-backup-compaction is true.
-	if config.Compaction.EnableBackupCompaction {
-		compactionReconciler, err := compaction.NewReconciler(mgr, config.Compaction)
+	if controllerConfig.Compaction.Enabled {
+		compactionReconciler, err := compaction.NewReconciler(mgr, controllerConfig.Compaction)
 		if err != nil {
 			return err
 		}
@@ -45,7 +47,7 @@ func Register(mgr ctrl.Manager, config *Config) error {
 	}
 
 	// Add etcd-copy-backups-task reconciler to the manager
-	etcdCopyBackupsTaskReconciler, err := etcdcopybackupstask.NewReconciler(mgr, config.EtcdCopyBackupsTask)
+	etcdCopyBackupsTaskReconciler, err := etcdcopybackupstask.NewReconciler(mgr, controllerConfig.EtcdCopyBackupsTask)
 	if err != nil {
 		return err
 	}
@@ -58,6 +60,6 @@ func Register(mgr ctrl.Manager, config *Config) error {
 	defer cancel()
 	return secret.NewReconciler(
 		mgr,
-		config.Secret,
+		controllerConfig.Secret,
 	).RegisterWithManager(ctx, mgr)
 }

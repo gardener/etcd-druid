@@ -5,6 +5,7 @@
 package etcd
 
 import (
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
@@ -418,10 +419,10 @@ func createReconciler(t *testing.T, enableEtcdSpecAutoReconcile bool) *Reconcile
 	mgr := mockmanager.NewMockManager(mockCtrl)
 	mgr.EXPECT().GetClient().AnyTimes().Return(testutils.NewTestClientBuilder().Build())
 	mgr.EXPECT().GetEventRecorderFor(gomock.Any()).AnyTimes().Return(nil)
-	etcdConfig := Config{
+	etcdConfig := configv1alpha1.EtcdControllerConfiguration{
 		EnableEtcdSpecAutoReconcile: enableEtcdSpecAutoReconcile,
 	}
-	r, err := NewReconcilerWithImageVector(mgr, ControllerName, &etcdConfig, nil)
+	r, err := NewReconcilerWithImageVector(mgr, ControllerName, etcdConfig, nil)
 	g.Expect(err).NotTo(HaveOccurred())
 	return r
 }
