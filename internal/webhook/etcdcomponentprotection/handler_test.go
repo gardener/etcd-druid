@@ -2,13 +2,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package etcdcomponents
+package etcdcomponentprotection
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"net/http"
 	"testing"
 	"time"
@@ -78,7 +79,7 @@ func TestHandleCreateAndConnect(t *testing.T) {
 	}
 
 	cl := testutils.CreateDefaultFakeClient()
-	handler := createHandler(g, cl, Config{Enabled: true})
+	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{Enabled: true})
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -128,7 +129,7 @@ func TestHandleLeaseUpdate(t *testing.T) {
 			t.Parallel()
 			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).Build()
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, nil, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			handler := createHandler(g, cl, Config{Enabled: true})
+			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{Enabled: true})
 
 			obj := buildObjRawExtension(g, &coordinationv1.Lease{}, nil, testObjectName, testNamespace,
 				map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName}, false)
@@ -165,7 +166,7 @@ func TestHandleUnmanagedStatefulSetScaleSubresourceUpdate(t *testing.T) {
 	delete(sts.Labels, druidv1alpha1.LabelManagedByKey)
 
 	cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, nil, nil, nil, nil, []client.Object{sts}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-	handler := createHandler(g, cl, Config{Enabled: true})
+	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{Enabled: true})
 
 	obj := buildObjRawExtension(g, &autoscalingv1.Scale{}, nil, testObjectName, testNamespace, nil, false)
 
@@ -191,7 +192,7 @@ func TestUnexpectedResourceType(t *testing.T) {
 	g := NewWithT(t)
 
 	cl := fake.NewClientBuilder().Build()
-	handler := createHandler(g, cl, Config{Enabled: true})
+	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{Enabled: true})
 
 	resp := handler.Handle(context.Background(), admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
@@ -208,7 +209,7 @@ func TestMissingManagedByLabel(t *testing.T) {
 	g := NewWithT(t)
 
 	cl := fake.NewClientBuilder().Build()
-	handler := createHandler(g, cl, Config{Enabled: true})
+	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{Enabled: true})
 
 	obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName}, false)
 	response := handler.Handle(context.Background(), admission.Request{
@@ -231,7 +232,7 @@ func TestMissingResourcePartOfLabel(t *testing.T) {
 	g := NewWithT(t)
 
 	cl := fake.NewClientBuilder().Build()
-	handler := createHandler(g, cl, Config{Enabled: true})
+	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{Enabled: true})
 
 	obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue}, false)
 	response := handler.Handle(context.Background(), admission.Request{
@@ -355,7 +356,7 @@ func TestHandleUpdate(t *testing.T) {
 				Build()
 
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			handler := createHandler(g, cl, Config{
+			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 				Enabled:                  true,
 				ReconcilerServiceAccount: reconcilerServiceAccount,
 				ExemptServiceAccounts:    exemptServiceAccounts,
@@ -430,7 +431,7 @@ func TestHandleWithInvalidRequestObject(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			cl := testutils.CreateDefaultFakeClient()
-			handler := createHandler(g, cl, Config{
+			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 				Enabled:                  true,
 				ReconcilerServiceAccount: reconcilerServiceAccount,
 				ExemptServiceAccounts:    exemptServiceAccounts,
@@ -488,7 +489,7 @@ func TestEtcdGetFailures(t *testing.T) {
 		t.Run(t.Name(), func(t *testing.T) {
 			t.Parallel()
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			handler := createHandler(g, cl, Config{
+			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 				Enabled:                  true,
 				ReconcilerServiceAccount: reconcilerServiceAccount,
 				ExemptServiceAccounts:    exemptServiceAccounts,
@@ -644,7 +645,7 @@ func TestHandleDelete(t *testing.T) {
 				Build()
 
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			handler := createHandler(g, cl, Config{
+			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 				Enabled:                  true,
 				ReconcilerServiceAccount: reconcilerServiceAccount,
 				ExemptServiceAccounts:    exemptServiceAccounts,
@@ -673,14 +674,14 @@ func TestHandleDelete(t *testing.T) {
 
 // ---------------- Helper functions -------------------
 
-func createHandler(g *WithT, cl client.Client, cfg Config) *Handler {
+func createHandler(g *WithT, cl client.Client, cfg configv1alpha1.EtcdComponentProtectionWebhookConfiguration) *Handler {
 	mgr := &testutils.FakeManager{
 		Client: cl,
 		Scheme: cl.Scheme(),
 		Logger: logr.Discard(),
 	}
 
-	h, err := NewHandler(mgr, &cfg)
+	h, err := NewHandler(mgr, cfg)
 	g.Expect(err).ToNot(HaveOccurred())
 	return h
 }

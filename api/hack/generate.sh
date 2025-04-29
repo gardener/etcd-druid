@@ -25,7 +25,7 @@ function check_controller_gen_prereq() {
 function generate_deepcopy_defaulter() {
   kube::codegen::gen_helpers \
     --boilerplate "${SCRIPT_DIR}/boilerplate.generatego.txt" \
-    "${API_GO_MODULE_ROOT}/core/v1alpha1"
+    "${API_GO_MODULE_ROOT}"
 }
 
 function generate_clientset() {

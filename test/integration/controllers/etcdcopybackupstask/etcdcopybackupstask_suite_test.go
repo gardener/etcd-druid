@@ -5,6 +5,8 @@
 package etcdcopybackupstask
 
 import (
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	"k8s.io/utils/ptr"
 	"testing"
 
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
@@ -47,8 +49,8 @@ var _ = BeforeSuite(func() {
 	imageVector = assets.CreateImageVector()
 	intTestEnv = setup.NewIntegrationTestEnv(testNamespacePrefix, "etcdcopybackupstask-int-tests", crdPaths)
 	intTestEnv.RegisterReconcilers(func(mgr manager.Manager) {
-		reconciler := etcdcopybackupstask.NewReconcilerWithImageVector(mgr, &etcdcopybackupstask.Config{
-			Workers: 5,
+		reconciler := etcdcopybackupstask.NewReconcilerWithImageVector(mgr, configv1alpha1.EtcdCopyBackupsTaskControllerConfiguration{
+			ConcurrentSyncs: ptr.To(5),
 		}, imageVector)
 		Expect(reconciler.RegisterWithManager(mgr)).To(Succeed())
 	}).StartManager()
