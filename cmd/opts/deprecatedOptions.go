@@ -46,6 +46,8 @@ func (o *CLIOptions) addDeprecatedCompactionControllerFlags(fs *flag.FlagSet) {
 }
 
 func (o *CLIOptions) addDeprecatedEtcdCopyBackupsTaskControllerFlags(fs *flag.FlagSet) {
+	// For backward compatibility reasons the default chosen is true.
+	fs.BoolVar(&o.Config.Controllers.EtcdCopyBackupsTask.Enabled, "enable-etcd-copy-backups-task", true, "Enable the etcd-copy-backups-task controller.")
 	fs.IntVar(o.Config.Controllers.EtcdCopyBackupsTask.ConcurrentSyncs, "etcd-copy-backups-task-workers", configv1alpha1.DefaultEtcdCopyBackupsTaskConcurrentSyncs, "Number of worker threads for the etcdcopybackupstask controller.")
 }
 
