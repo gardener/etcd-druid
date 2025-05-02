@@ -47,13 +47,13 @@ func validateLeaderElectionConfiguration(leaderElectionConfig configv1alpha1.Lea
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("leaseDuration"), leaderElectionConfig.RenewDeadline, "LeaseDuration must be greater than RenewDeadline"))
 	}
 	if len(leaderElectionConfig.ResourceLock) == 0 {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("resourceLock"), leaderElectionConfig.ResourceLock, "resourceLock is required"))
+		allErrs = append(allErrs, field.Required(fldPath.Child("resourceLock"), "resourceLock is required"))
 	}
 	if len(leaderElectionConfig.ResourceName) == 0 {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("resourceName"), leaderElectionConfig.ResourceName, "resourceName is required"))
+		allErrs = append(allErrs, field.Required(fldPath.Child("resourceName"), "resourceName is required"))
 	}
 	if len(leaderElectionConfig.ResourceNamespace) == 0 {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("resourceNamespace"), leaderElectionConfig.ResourceNamespace, "resourceNamespace is required"))
+		allErrs = append(allErrs, field.Required(fldPath.Child("resourceNamespace"), "resourceNamespace is required"))
 	}
 	return allErrs
 }
@@ -86,12 +86,18 @@ func validateEtcdControllerConfiguration(etcdControllerConfig configv1alpha1.Etc
 
 func validateCompactionControllerConfiguration(compactionControllerConfig configv1alpha1.CompactionControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
+	if !compactionControllerConfig.Enabled {
+		return allErrs
+	}
 	allErrs = append(allErrs, validateConcurrentSyncs(compactionControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
 	return allErrs
 }
 
 func validateEtcdCopyBackupsTaskControllerConfiguration(etcdCopyBackupsTaskControllerConfig configv1alpha1.EtcdCopyBackupsTaskControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
+	if !etcdCopyBackupsTaskControllerConfig.Enabled {
+		return allErrs
+	}
 	allErrs = append(allErrs, validateConcurrentSyncs(etcdCopyBackupsTaskControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
 	return allErrs
 }

@@ -1,62 +1,106 @@
 package v1alpha1
 
-type FeatureName string
-
-const (
-	UseEtcdWrapper FeatureName = "UseEtcdWrapper"
+import (
+	"errors"
+	"fmt"
 )
 
-// MaturityLevel represents the maturity level of a feature.
-type MaturityLevelSpec struct {
-	MaturityLevel   MaturityLevel
-	Default         bool
-	LockedToDefault bool
+// Constants for feature names.
+const (
+	// UseEtcdWrapper is the name of the feature which enables usage of etcd-wrapper.
+	// This is now ga. Any attempt to disable this feature will be an error.
+	UseEtcdWrapper = "UseEtcdWrapper"
+)
+
+// DefaultFeatureGates is the only instance of featureGate that should be used in the codebase.
+// It is initialized with all existing feature maturityLevelSpec's and is used to also record the enabled state of features.
+var DefaultFeatureGates = newFeatureGate()
+
+// IsEnabled checks if a feature is enabled.
+func (f *featureGate) IsEnabled(feature string) bool {
+	return f.enabledFeatures[feature]
 }
 
-type MaturityLevel string
+// SetEnabledFeaturesFromMap sets enabled state for features from the given map.
+// It will return an error if one of the following conditions is met:
+// 1. The feature is not known.
+// 2. The feature is locked to a default value. As an example if a consumer attempts to disable a ga feature then that will be disallowed as it has been locked to true by default.
+func (f *featureGate) SetEnabledFeaturesFromMap(featureMap map[string]bool) error {
+	var errs []error
+	for feature, enabled := range featureMap {
+		maturityLevelSpec, ok := f.knownFeatures[feature]
+		if !ok {
+			errs = append(errs, fmt.Errorf("unknown feature %s", feature))
+			continue
+		}
+		if maturityLevelSpec.lockedToDefault && enabled != maturityLevelSpec.enabledByDefault {
+			errs = append(errs, fmt.Errorf("feature %s is locked to default value %t", feature, maturityLevelSpec.enabledByDefault))
+			continue
+		}
+		f.enabledFeatures[feature] = enabled
+	}
+	return errors.Join(errs...)
+}
+
+// init initializes the featureGate with all existing feature specifications.
+// If and when a new feature is introduced then it should be ensured that it is added to the featureGate using this function.
+func init() {
+	DefaultFeatureGates.knownFeatures[UseEtcdWrapper] = maturityLevelSpecGA
+}
+
+// maturityLevelSpec is the specification of maturity level for a feature.
+type maturityLevelSpec struct {
+	maturityLevel    maturityLevel
+	enabledByDefault bool
+	lockedToDefault  bool
+}
+
+// maturityLevel is the maturity level of a feature.
+type maturityLevel string
 
 const (
-	// Alpha indicates that the feature is in an alpha state.
+	// qlpha indicates that the feature is in an alpha state.
 	// Consumer needs to explicitly enable this feature via
-	Alpha MaturityLevel = "Alpha"
-	// Beta indicates that the feature is in a beta state.
+	qlpha maturityLevel = "qlpha"
+	// beta indicates that the feature is in a beta state.
 	// It is more stable than alpha but may still have some issues.
 	// It is recommended for testing and evaluation.
-	Beta MaturityLevel = "Beta"
-	// GA (General Availability) indicates that the feature is stable and ready for production use.
+	beta maturityLevel = "beta"
+	// ga (General Availability) indicates that the feature is stable and ready for production use.
 	// It has been tested and is expected to work reliably.
-	GA MaturityLevel = "GA"
+	ga maturityLevel = "ga"
 )
 
+// These are pre-defined maturityLevelSpec which should be used instead of creating new ones.
+// These ensure that invalid values for maturityLevelSpec.enabledByDefault and maturityLevelSpec.lockedToDefault are not used.
 var (
-	maturityLevelSpecAlpha = MaturityLevelSpec{
-		MaturityLevel:   Alpha,
-		Default:         false,
-		LockedToDefault: false,
+	maturityLevelSpecAlpha = maturityLevelSpec{
+		maturityLevel:    qlpha,
+		enabledByDefault: false,
+		lockedToDefault:  false,
 	}
-	maturityLevelSpecBeta = MaturityLevelSpec{
-		MaturityLevel:   Beta,
-		Default:         true,
-		LockedToDefault: false,
+	maturityLevelSpecBeta = maturityLevelSpec{
+		maturityLevel:    beta,
+		enabledByDefault: true,
+		lockedToDefault:  false,
 	}
-	maturityLevelSpecGA = MaturityLevelSpec{
-		MaturityLevel:   GA,
-		Default:         true,
-		LockedToDefault: true,
+	maturityLevelSpecGA = maturityLevelSpec{
+		maturityLevel:    ga,
+		enabledByDefault: true,
+		lockedToDefault:  true,
 	}
 )
 
-type FeatureGate struct {
+// featureGate allows consumers to add features and to query whether a feature is enabled or not.
+type featureGate struct {
+	knownFeatures   map[string]maturityLevelSpec
+	enabledFeatures map[string]bool
 }
 
-func (f *FeatureGate) IsEnabled(feature FeatureName) bool {
-
-}
-
-func (f *FeatureGate) SetFromMap(featureMap map[FeatureName]bool) error {
-}
-
-type FeatureSpec struct {
-	Name              string
-	MaturityLevelSpec MaturityLevelSpec
+// newFeatureGate creates a new featureGate instance.
+func newFeatureGate() featureGate {
+	return featureGate{
+		knownFeatures:   make(map[string]maturityLevelSpec),
+		enabledFeatures: make(map[string]bool),
+	}
 }

@@ -68,11 +68,17 @@ const (
 
 // SetDefaults_ServerConfiguration sets defaults for the server configuration.
 func SetDefaults_ServerConfiguration(serverConfig *ServerConfiguration) {
+	if serverConfig.Webhook == nil {
+		serverConfig.Webhook = &HTTPSServer{}
+	}
 	if serverConfig.Webhook.Port == 0 {
 		serverConfig.Webhook.Port = DefaultWebhookServerPort
 	}
 	if serverConfig.Webhook.TLSConfig.ServerCertDir == "" {
 		serverConfig.Webhook.TLSConfig.ServerCertDir = DefaultWebhookServerTLSServerCertDir
+	}
+	if serverConfig.Metrics == nil {
+		serverConfig.Metrics = &Server{}
 	}
 	if serverConfig.Metrics.Port == 0 {
 		serverConfig.Metrics.Port = DefaultMetricsServerPort

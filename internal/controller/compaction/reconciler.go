@@ -322,7 +322,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 						Name:            "compact-backup",
 						Image:           etcdBackupImage,
 						ImagePullPolicy: v1.PullIfNotPresent,
-						Args:            getCompactionJobArgs(etcd, r.config.MetricsScrapeWaitDuration.String()),
+						Args:            getCompactionJobArgs(etcd, r.config.MetricsScrapeWaitDuration.Duration.String()),
 						Resources: v1.ResourceRequirements{
 							Requests: v1.ResourceList{
 								v1.ResourceCPU:    resource.MustParse("600m"),
