@@ -77,7 +77,7 @@ type LeaderElectionConfiguration struct {
 // ServerConfiguration contains the HTTP(S) server configurations.
 type ServerConfiguration struct {
 	// Webhook is the configuration for the HTTPS webhook server.
-	Webhook HTTPSServer
+	Webhook *HTTPSServer
 	// Metrics is the configuration for serving the metrics endpoint.
 	Metrics *Server
 }
@@ -206,7 +206,7 @@ const (
 	// LogLevelInfo is the default log level.
 	LogLevelInfo LogLevel = "info"
 	// LogLevelError is a log level where only errors are logged.
-	LogLevelError = "error"
+	LogLevelError LogLevel = "error"
 	// LogFormatJSON is the JSON log format.
 	LogFormatJSON LogFormat = "json"
 	// LogFormatText is the text log format.

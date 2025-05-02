@@ -152,7 +152,7 @@ func (r *Reconciler) shouldReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
 		return true
 	}
 
-	// Default case: Do not reconcile.
+	// enabledByDefault case: Do not reconcile.
 	return false
 }
 

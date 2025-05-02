@@ -29,7 +29,9 @@ type CLIOptions struct {
 
 // NewCLIOptions creates a new CLIOptions and adds the required CLI flags to the flag.flagSet.
 func NewCLIOptions(fs *flag.FlagSet) *CLIOptions {
-	cliOpts := &CLIOptions{}
+	cliOpts := &CLIOptions{
+		Config: &configv1alpha1.OperatorConfiguration{},
+	}
 	cliOpts.addFlags(fs)
 	cliOpts.addDeprecatedFlags(fs)
 	return cliOpts
@@ -41,7 +43,10 @@ func (o *CLIOptions) Complete() error {
 		slog.Info("No config file specified. Falling back to deprecated CLI flags if defined.")
 		return nil
 	}
-	return o.initializeOperatorConfigurationFromFile()
+	if err := o.initializeOperatorConfigurationFromFile(); err != nil {
+		return fmt.Errorf("error initializing operator configuration from file: %w", err)
+	}
+	return configv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(o.Config.FeatureGates)
 }
 
 func (o *CLIOptions) initializeOperatorConfigurationFromFile() error {
@@ -49,7 +54,6 @@ func (o *CLIOptions) initializeOperatorConfigurationFromFile() error {
 	if err != nil {
 		return fmt.Errorf("error reading config file: %w", err)
 	}
-	o.Config = &configv1alpha1.OperatorConfiguration{}
 	if err = runtime.DecodeInto(configDecoder, data, o.Config); err != nil {
 		return fmt.Errorf("error decoding config: %w", err)
 	}
