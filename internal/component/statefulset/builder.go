@@ -417,6 +417,7 @@ func (b *stsBuilder) getBackupRestoreContainer() (corev1.Container, error) {
 
 func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	commandArgs := []string{"server"}
+	commandArgs = append(commandArgs, fmt.Sprintf("--server-port=%d", b.backupPort))
 
 	// Backup store related command line args
 	// -----------------------------------------------------------------------------------------------------------------
