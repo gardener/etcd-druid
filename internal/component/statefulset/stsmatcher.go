@@ -231,7 +231,7 @@ func (s StatefulSetMatcher) matchBackupRestoreContainer() gomegatypes.GomegaMatc
 		"Image":           Equal(s.etcdBRImage),
 		"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
 		// This is quite painful and therefore skipped for now. Independent unit test for command line args should be written instead.
-		//"Args":            Equal(s.matchBackupRestoreContainerCmdArgs()),
+		// "Args":            Equal(s.matchBackupRestoreContainerCmdArgs()),
 		"Ports": ConsistOf(
 			MatchFields(IgnoreExtras, Fields{
 				"Name":          Equal(serverPortName),
@@ -291,6 +291,7 @@ func (s StatefulSetMatcher) matchEtcdContainerCmdArgs() gomegatypes.GomegaMatche
 		cmdArgs = append(cmdArgs, "--etcd-client-key-path=/var/etcd/ssl/client/tls.key")
 		cmdArgs = append(cmdArgs, fmt.Sprintf("--backup-restore-ca-cert-bundle-path=/var/etcdbr/ssl/ca/%s", dataKey))
 	}
+	cmdArgs = append(cmdArgs, fmt.Sprintf("--etcd-client-port=%d", s.clientPort))
 	return HaveExactElements(cmdArgs)
 }
 
