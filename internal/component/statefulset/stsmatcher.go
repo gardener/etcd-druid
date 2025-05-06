@@ -249,7 +249,7 @@ func (s StatefulSetMatcher) matchBackupRestoreContainer() gomegatypes.GomegaMatc
 func (s StatefulSetMatcher) matchEtcdContainerReadinessHandler() gomegatypes.GomegaMatcher {
 	scheme := utils.IfConditionOr(s.etcd.Spec.Backup.TLS == nil, corev1.URISchemeHTTP, corev1.URISchemeHTTPS)
 	path := utils.IfConditionOr(s.etcd.Spec.Replicas > 1, "/readyz", "/healthz")
-	port := utils.IfConditionOr(s.etcd.Spec.Replicas > 1, int32(9095), int32(8080))
+	port := utils.IfConditionOr(s.etcd.Spec.Replicas > 1, s.wrapperPort, s.backupPort)
 	return MatchFields(IgnoreExtras|IgnoreMissing, Fields{
 		"HTTPGet": PointTo(MatchFields(IgnoreExtras|IgnoreMissing, Fields{
 			"Path": Equal(path),
