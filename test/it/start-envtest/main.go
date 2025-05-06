@@ -6,10 +6,10 @@ package main
 
 import (
 	"fmt"
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"os"
 	"path/filepath"
 
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/test/it/setup"
 

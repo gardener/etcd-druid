@@ -74,20 +74,22 @@ spec:
         - --active-deadline-duration={{ .Values.controllers.compaction.activeDeadlineDuration }}
         - --metrics-scrape-wait-duration={{ .Values.controllers.compaction.metricsScrapeWaitDuration }}
         {{- end }}
-
+        -
+        {{- if and ((.Values.controllers).etcdCopyBackupsTask) (eq .Values.controllers.etcdCopyBackupsTask.enabled true) }}
         {{- if (((.Values.controllers).etcdCopyBackupsTask).workers) }}
         - --etcd-copy-backups-task-workers={{ .Values.controllers.etcdCopyBackupsTask.workers }}
+        {{- end }}
         {{- end }}
 
         {{- if (((.Values.controllers).secret).workers) }}
         - --secret-workers={{ .Values.controllers.secret.workers }}
         {{- end }}
 
-        {{- if .Values.webhooks.etcdComponents.enabled }}
+        {{- if .Values.webhooks.etcdComponentProtection.enabled }}
         - --enable-etcd-components-webhook=true
         - --reconciler-service-account=system:serviceaccount:{{ .Release.Namespace }}:etcd-druid
-        {{- if .Values.webhooks.etcdComponents.exemptServiceAccounts }}
-        - --etcd-components-webhook-exempt-service-accounts={{ join "," .Values.webhooks.etcdComponents.exemptServiceAccounts }}
+        {{- if .Values.webhooks.etcdComponentProtection.exemptServiceAccounts }}
+        - --etcd-components-webhook-exempt-service-accounts={{ join "," .Values.webhooks.etcdComponentProtection.exemptServiceAccounts }}
         {{- end }}
         volumeMounts:
           - mountPath: /etc/webhook-server-tls
@@ -114,7 +116,7 @@ spec:
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-{{- if .Values.webhooks.etcdComponents.enabled }}
+{{- if .Values.webhooks.etcdComponentProtection.enabled }}
       volumes:
         - name: tls
           secret:
