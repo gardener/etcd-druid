@@ -584,7 +584,7 @@ func (b *stsBuilder) getEtcdContainerReadinessHandler() corev1.ProbeHandler {
 
 	scheme := utils.IfConditionOr(b.etcd.Spec.Backup.TLS == nil, corev1.URISchemeHTTP, corev1.URISchemeHTTPS)
 	path := utils.IfConditionOr(multiNodeCluster, "/readyz", "/healthz")
-	port := utils.IfConditionOr(multiNodeCluster, common.DefaultPortEtcdWrapper, common.DefaultPortEtcdBackupRestore)
+	port := utils.IfConditionOr(multiNodeCluster, b.wrapperPort, b.backupPort)
 
 	return corev1.ProbeHandler{
 		HTTPGet: &corev1.HTTPGetAction{
