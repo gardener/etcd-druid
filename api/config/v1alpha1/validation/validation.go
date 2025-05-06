@@ -1,11 +1,13 @@
 package validation
 
 import (
+	"strings"
+
 	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
-	"strings"
 )
 
 // ValidateOperatorConfiguration validates the operator configuration.
@@ -51,9 +53,6 @@ func validateLeaderElectionConfiguration(leaderElectionConfig configv1alpha1.Lea
 	}
 	if len(leaderElectionConfig.ResourceName) == 0 {
 		allErrs = append(allErrs, field.Required(fldPath.Child("resourceName"), "resourceName is required"))
-	}
-	if len(leaderElectionConfig.ResourceNamespace) == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("resourceNamespace"), "resourceNamespace is required"))
 	}
 	return allErrs
 }

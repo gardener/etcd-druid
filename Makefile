@@ -189,15 +189,15 @@ endif
 
 .PHONY: deploy
 deploy: $(SKAFFOLD) $(HELM) prepare-helm-charts
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) run -m etcd-druid -n $(NAMESPACE)
+	@$(HACK_DIR)/deploy-local.sh run -m etcd-druid -n $(NAMESPACE)
 
 .PHONY: deploy-dev
 deploy-dev: $(SKAFFOLD) $(HELM) prepare-helm-charts
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) dev --cleanup=false -m etcd-druid --trigger='manual' -n $(NAMESPACE)
+	@$(HACK_DIR)/deploy-local.sh dev --cleanup=false -m etcd-druid --trigger='manual' -n $(NAMESPACE)
 
 .PHONY: deploy-debug
 deploy-debug: $(SKAFFOLD) $(HELM) prepare-helm-charts
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) debug --cleanup=false -m etcd-druid -p debug -n $(NAMESPACE)
+	@$(HACK_DIR)/deploy-local.sh debug --cleanup=false -m etcd-druid -p debug -n $(NAMESPACE)
 
 .PHONY: undeploy
 undeploy: $(SKAFFOLD) $(HELM)

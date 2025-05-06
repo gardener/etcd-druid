@@ -11,15 +11,15 @@ resources:
     cpu: 50m
     memory: 128Mi
 
-nodeSelector: {}
+nodeSelector: { }
 
-affinity: {}
+affinity: { }
 
-tolerations: []
+tolerations: [ ]
 
-topologySpreadConstraints: []
+topologySpreadConstraints: [ ]
 
-featureGates: {}
+featureGates: { }
 
 controllerManager:
   server:
@@ -51,12 +51,13 @@ controllers:
     activeDeadlineDuration: 3h
     metricsScrapeWaitDuration: 0s
   etcdCopyBackupsTask:
+    enabled: true
     workers: 3
   secret:
     workers: 10
 
 webhooks:
-  etcdComponents:
+  etcdComponentProtection:
     enabled: false
     # reconciler-service-account: system:serviceaccount:{{ .Release.Namespace }}:etcd-druid
     exemptServiceAccounts:

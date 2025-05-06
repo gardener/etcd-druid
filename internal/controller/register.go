@@ -8,12 +8,11 @@ import (
 	"context"
 	"time"
 
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/compaction"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
-
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 )

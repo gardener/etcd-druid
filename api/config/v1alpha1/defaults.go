@@ -1,9 +1,14 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package v1alpha1
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	"time"
 )
 
 var (
@@ -58,24 +63,24 @@ func SetDefaults_ClientConnectionConfiguration(clientConnConfig *ClientConnectio
 }
 
 const (
-	// DefaultWebhookServerTLSServerCertDir is the default directory for the webhook server TLS certificate.
-	DefaultWebhookServerTLSServerCertDir = "/etc/webhook-server-tls"
-	// DefaultWebhookServerPort is the default port for the webhook server.
-	DefaultWebhookServerPort = 9443
+	// DefaultWebhooksServerTLSServerCertDir is the default directory for the webhook server TLS certificate.
+	DefaultWebhooksServerTLSServerCertDir = "/etc/webhook-server-tls"
+	// DefaultWebhooksServerPort is the default port for the webhook server.
+	DefaultWebhooksServerPort = 9443
 	// DefaultMetricsServerPort is the default port for the metrics server.
 	DefaultMetricsServerPort = 8080
 )
 
 // SetDefaults_ServerConfiguration sets defaults for the server configuration.
 func SetDefaults_ServerConfiguration(serverConfig *ServerConfiguration) {
-	if serverConfig.Webhook == nil {
-		serverConfig.Webhook = &HTTPSServer{}
+	if serverConfig.Webhooks == nil {
+		serverConfig.Webhooks = &HTTPSServer{}
 	}
-	if serverConfig.Webhook.Port == 0 {
-		serverConfig.Webhook.Port = DefaultWebhookServerPort
+	if serverConfig.Webhooks.Port == 0 {
+		serverConfig.Webhooks.Port = DefaultWebhooksServerPort
 	}
-	if serverConfig.Webhook.TLSConfig.ServerCertDir == "" {
-		serverConfig.Webhook.TLSConfig.ServerCertDir = DefaultWebhookServerTLSServerCertDir
+	if serverConfig.Webhooks.TLSConfig.ServerCertDir == "" {
+		serverConfig.Webhooks.TLSConfig.ServerCertDir = DefaultWebhooksServerTLSServerCertDir
 	}
 	if serverConfig.Metrics == nil {
 		serverConfig.Metrics = &Server{}

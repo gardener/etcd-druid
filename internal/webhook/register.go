@@ -7,6 +7,7 @@ package webhook
 import (
 	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/webhook/etcdcomponentprotection"
+
 	"golang.org/x/exp/slog"
 	ctrl "sigs.k8s.io/controller-runtime"
 )

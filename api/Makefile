@@ -40,7 +40,7 @@ test-unit:
 
 .PHONY: format
 format: $(GOIMPORTS_REVISER)
-	@$(REPO_ROOT)/hack/format.sh ./core ./validation
+	@$(REPO_ROOT)/hack/format.sh ./core ./config ./validation
 
 .PHONY: check
 check: $(GOLANGCI_LINT) $(GOIMPORTS) format

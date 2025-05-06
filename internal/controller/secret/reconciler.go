@@ -6,8 +6,8 @@ package secret
 
 import (
 	"context"
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
