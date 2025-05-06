@@ -65,9 +65,10 @@ type stsBuilder struct {
 	sts                    *appsv1.StatefulSet
 	logger                 logr.Logger
 
-	clientPort int32
-	serverPort int32
-	backupPort int32
+	clientPort  int32
+	serverPort  int32
+	backupPort  int32
+	wrapperPort int32
 	// skipSetOrUpdateForbiddenFields if its true then it will set/update values to fields which are forbidden to be updated for an existing StatefulSet.
 	// Updates to statefulset spec for fields other than 'replicas', 'ordinals', 'template', 'updateStrategy', 'persistentVolumeClaimRetentionPolicy' and 'minReadySeconds' are forbidden.
 	// Only for a new StatefulSet should this be set to true.
@@ -102,6 +103,7 @@ func newStsBuilder(client client.Client,
 		clientPort:                     ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient),
 		serverPort:                     ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer),
 		backupPort:                     ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore),
+		wrapperPort:                    ptr.Deref(etcd.Spec.Etcd.WrapperPort, common.DefaultPortEtcdWrapper),
 		skipSetOrUpdateForbiddenFields: skipSetOrUpdateForbiddenFields,
 	}, nil
 }
@@ -609,6 +611,9 @@ func (b *stsBuilder) getEtcdContainerCommandArgs() []string {
 	}
 	if port := b.clientPort; port != 0 {
 		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-client-port=%d", port))
+	}
+	if port := b.wrapperPort; port != 0 {
+		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-wrapper-port=%d", port))
 	}
 	return commandArgs
 }
