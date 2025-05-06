@@ -607,6 +607,9 @@ func (b *stsBuilder) getEtcdContainerCommandArgs() []string {
 		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-client-cert-path=%s/tls.crt", common.VolumeMountPathEtcdClientTLS))
 		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-client-key-path=%s/tls.key", common.VolumeMountPathEtcdClientTLS))
 	}
+	if port := b.clientPort; port != 0 {
+		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-client-port=%d", port))
+	}
 	return commandArgs
 }
 
