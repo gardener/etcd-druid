@@ -49,6 +49,7 @@ type StatefulSetMatcher struct {
 	clientPort         int32
 	serverPort         int32
 	backupPort         int32
+	wrapperPort        int32
 }
 
 // NewStatefulSetMatcher constructs a new instance of StatefulSetMatcher.
@@ -70,6 +71,7 @@ func NewStatefulSetMatcher(g *WithT,
 		clientPort:         ptr.Deref(etcd.Spec.Etcd.ClientPort, 2379),
 		serverPort:         ptr.Deref(etcd.Spec.Etcd.ServerPort, 2380),
 		backupPort:         ptr.Deref(etcd.Spec.Backup.Port, 8080),
+		wrapperPort:        ptr.Deref(etcd.Spec.Etcd.WrapperPort, 9095),
 	}
 }
 
@@ -292,6 +294,7 @@ func (s StatefulSetMatcher) matchEtcdContainerCmdArgs() gomegatypes.GomegaMatche
 		cmdArgs = append(cmdArgs, fmt.Sprintf("--backup-restore-ca-cert-bundle-path=/var/etcdbr/ssl/ca/%s", dataKey))
 	}
 	cmdArgs = append(cmdArgs, fmt.Sprintf("--etcd-client-port=%d", s.clientPort))
+	cmdArgs = append(cmdArgs, fmt.Sprintf("--etcd-wrapper-port=%d", s.wrapperPort))
 	return HaveExactElements(cmdArgs)
 }
 
