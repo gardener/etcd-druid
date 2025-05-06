@@ -6,6 +6,7 @@ package utils
 
 import (
 	"fmt"
+
 	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 
 	"github.com/go-logr/logr"

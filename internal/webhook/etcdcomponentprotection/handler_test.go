@@ -9,11 +9,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"net/http"
 	"testing"
 	"time"
 
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	testutils "github.com/gardener/etcd-druid/test/utils"

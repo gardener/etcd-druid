@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package main
 
 import (
@@ -8,6 +12,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils"
 	druidversion "github.com/gardener/etcd-druid/internal/version"
 	flag "github.com/spf13/pflag"
+	"golang.org/x/exp/slog"
 	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
@@ -34,12 +39,14 @@ func main() {
 
 	operatorConfig, err := initializeAndGetOperatorConfig(cliOpts)
 	if err != nil {
-		ctrl.Log.Error(err, "failed to initialize operator configuration")
+		slog.Error("failed to initialize operator configuration", "error", err)
 		os.Exit(1)
 	}
 
 	ctrl.SetLogger(utils.MustNewLogger(false, operatorConfig.LogConfiguration.LogLevel, operatorConfig.LogConfiguration.LogFormat))
 	printRuntimeInfo()
+	slog.Info("using operator configuration", "config", *operatorConfig)
+	logger.Info("Using operator configuration", "config", *operatorConfig)
 
 	logger.Info("Initializing etcd-druid controller manager")
 	mrg, err := druidmgr.InitializeManager(operatorConfig)
@@ -66,11 +73,11 @@ func initializeAndGetOperatorConfig(cliOpts *opts.CLIOptions) (*configv1alpha1.O
 
 func printRuntimeInfo() {
 	versionInfo := druidversion.Get()
-	logger.Info("etcd-druid Version: %s, GoVersion: %s, Platform: %s, GitCommit: %s, BuildDate: %s",
-		versionInfo.String(),
-		versionInfo.GoVersion,
-		versionInfo.Platform,
-		versionInfo.GitCommit,
-		versionInfo.BuildDate,
+	logger.Info("etcd-druid runtime info",
+		"version", versionInfo.String(),
+		"go Version", versionInfo.GoVersion,
+		"platform", versionInfo.Platform,
+		"git commit", versionInfo.GitCommit,
+		"build date", versionInfo.BuildDate,
 	)
 }

@@ -6,11 +6,12 @@ package version
 
 import (
 	"fmt"
-	flag "github.com/spf13/pflag"
 	"io"
-	apimachineryversion "k8s.io/apimachinery/pkg/version"
 	"os"
 	"runtime"
+
+	flag "github.com/spf13/pflag"
+	apimachineryversion "k8s.io/apimachinery/pkg/version"
 )
 
 // These variables will be set during building the grove operator via LD_FLAGS

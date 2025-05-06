@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package v1alpha1
 
 import (
@@ -68,41 +72,37 @@ type LeaderElectionConfiguration struct {
 	// will use for holding the leader lock.
 	// This is only applicable if leader election is enabled.
 	ResourceName string `json:"resourceName"`
-	// ResourceNamespace determines the namespace in which the leader
-	// election resource will be created.
-	// This is only applicable if leader election is enabled.
-	ResourceNamespace string `json:"resourceNamespace"`
 }
 
 // ServerConfiguration contains the HTTP(S) server configurations.
 type ServerConfiguration struct {
-	// Webhook is the configuration for the HTTPS webhook server.
-	Webhook *HTTPSServer
+	// Webhooks is the configuration for the HTTPS webhook server.
+	Webhooks *HTTPSServer `json:"webhooks"`
 	// Metrics is the configuration for serving the metrics endpoint.
-	Metrics *Server
+	Metrics *Server `json:"metrics"`
 }
 
 // HTTPSServer is the configuration for the HTTPSServer server.
 type HTTPSServer struct {
 	// Server is the configuration for the bind address and the port.
-	Server
+	Server `json:"server"`
 	// TLSConfig contains information about the TLS configuration for an HTTPS server.
-	TLSConfig TLSServerConfiguration
+	TLSConfig TLSServerConfiguration `json:"tlsConfig"`
 }
 
 // TLSServerConfiguration contains information about the TLS configuration for an HTTPS server.
 type TLSServerConfiguration struct {
 	// ServerCertDir is the path to a directory containing the server's TLS certificate and key (the files must be
 	// named tls.crt and tls.key respectively).
-	ServerCertDir string
+	ServerCertDir string `json:"serverCertDir"`
 }
 
 // Server contains information for HTTP(S) server configuration.
 type Server struct {
 	// BindAddress is the IP address on which to listen for the specified port.
-	BindAddress string
+	BindAddress string `json:"bindAddress"`
 	// Port is the port on which to serve unsecured, unauthenticated access.
-	Port int
+	Port int `json:"port"`
 }
 
 // ControllerConfiguration defines the configuration for the controllers.
@@ -111,7 +111,7 @@ type ControllerConfiguration struct {
 	// Deprecated: This field will be eventually removed. It is recommended that this not being used.
 	// It has only been introduced to allow for backward compatibility with the old CLI flags.
 	// +optional
-	DisableLeaseCache bool `json:"disableLeaseCache,omitempty"`
+	DisableLeaseCache bool `json:"disableLeaseCache"`
 	// Etcd is the configuration for the Etcd controller.
 	Etcd EtcdControllerConfiguration `json:"etcd"`
 	// Secret is the configuration for the Secret controller.
@@ -125,7 +125,7 @@ type ControllerConfiguration struct {
 // EtcdControllerConfiguration defines the configuration for the Etcd controller.
 type EtcdControllerConfiguration struct {
 	// ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request.
-	ConcurrentSyncs *int `json:"concurrentSyncs"`
+	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 	// EnableEtcdSpecAutoReconcile controls how the Etcd Spec is reconciled. If set to true, then any change in Etcd spec
 	// will automatically trigger a reconciliation of the Etcd resource. If set to false, then an operator needs to
 	// explicitly set gardener.cloud/operation=reconcile annotation on the Etcd resource to trigger reconciliation
@@ -153,21 +153,21 @@ type EtcdMemberConfiguration struct {
 // SecretControllerConfiguration defines the configuration for the Secret controller.
 type SecretControllerConfiguration struct {
 	// ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request.
-	ConcurrentSyncs *int `json:"concurrentSyncs"`
+	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 }
 
 // CompactionControllerConfiguration defines the configuration for the compaction controller.
 type CompactionControllerConfiguration struct {
 	// Enabled specifies whether backup compaction should be enabled.
-	Enabled bool
+	Enabled bool `json:"enabled"`
 	// ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request.
-	ConcurrentSyncs *int `json:"concurrentSyncs"`
+	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 	// EventsThreshold denotes total number of etcd events to be reached upon which a backup compaction job is triggered.
 	EventsThreshold int64 `json:"eventsThreshold"`
 	// ActiveDeadlineDuration is the duration after which a running compaction job will be killed.
-	ActiveDeadlineDuration metav1.Duration
+	ActiveDeadlineDuration metav1.Duration `json:"activeDeadlineDuration"`
 	// MetricsScrapeWaitDuration is the duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped
-	MetricsScrapeWaitDuration metav1.Duration
+	MetricsScrapeWaitDuration metav1.Duration `json:"metricsScrapeWaitDuration"`
 }
 
 // EtcdCopyBackupsTaskControllerConfiguration defines the configuration for the EtcdCopyBackupsTask controller.
@@ -175,7 +175,7 @@ type EtcdCopyBackupsTaskControllerConfiguration struct {
 	// Enabled specifies whether EtcdCopyBackupsTaskController should be enabled.
 	Enabled bool `json:"enabled"`
 	// ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request.
-	ConcurrentSyncs *int `json:"concurrentSyncs"`
+	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 }
 
 // WebhookConfiguration defines the configuration for admission webhooks.

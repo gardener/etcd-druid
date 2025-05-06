@@ -7,11 +7,12 @@ package etcdcomponentprotection
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"slices"
+
 	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/webhook/utils"
-	"net/http"
-	"slices"
 
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"

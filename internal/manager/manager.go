@@ -7,14 +7,13 @@ package controller
 import (
 	"context"
 	"errors"
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
-	"k8s.io/utils/ptr"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	druidcontroller "github.com/gardener/etcd-druid/internal/controller"
 	druidwebhook "github.com/gardener/etcd-druid/internal/webhook"
@@ -26,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	eventsv1beta1 "k8s.io/api/events/v1beta1"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
@@ -39,7 +39,6 @@ func InitializeManager(config *configv1alpha1.OperatorConfiguration) (ctrl.Manag
 		err error
 		mgr ctrl.Manager
 	)
-	config.captureFeatureActivations()
 	if mgr, err = createManager(config); err != nil {
 		return nil, err
 	}
@@ -96,9 +95,9 @@ func createManager(config *configv1alpha1.OperatorConfiguration) (ctrl.Manager, 
 			RecoverPanic: ptr.To(true),
 		},
 		WebhookServer: webhook.NewServer(webhook.Options{
-			Host:    config.Server.Webhook.BindAddress,
-			Port:    config.Server.Webhook.Port,
-			CertDir: config.Server.Webhook.TLSConfig.ServerCertDir,
+			Host:    config.Server.Webhooks.BindAddress,
+			Port:    config.Server.Webhooks.Port,
+			CertDir: config.Server.Webhooks.TLSConfig.ServerCertDir,
 		}),
 	})
 }

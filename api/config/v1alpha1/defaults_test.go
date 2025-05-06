@@ -1,11 +1,17 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package v1alpha1
 
 import (
-	. "github.com/onsi/gomega"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 	"testing"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
+
+	. "github.com/onsi/gomega"
 )
 
 func TestSetDefaults_LeaderElectionConfiguration(t *testing.T) {
@@ -124,7 +130,7 @@ func TestSetDefaults_ServerConfiguration(t *testing.T) {
 			name:   "should correctly set default values",
 			config: &ServerConfiguration{},
 			expected: &ServerConfiguration{
-				Webhook: &HTTPSServer{
+				Webhooks: &HTTPSServer{
 					Server:    Server{BindAddress: "", Port: 9443},
 					TLSConfig: TLSServerConfiguration{ServerCertDir: "/etc/webhook-server-tls"},
 				},
@@ -134,13 +140,13 @@ func TestSetDefaults_ServerConfiguration(t *testing.T) {
 		{
 			name: "should not overwrite already set values",
 			config: &ServerConfiguration{
-				Webhook: &HTTPSServer{
+				Webhooks: &HTTPSServer{
 					Server:    Server{BindAddress: "", Port: 2784},
 					TLSConfig: TLSServerConfiguration{ServerCertDir: "/var/etc/ssl/webhook-server-tls"},
 				},
 			},
 			expected: &ServerConfiguration{
-				Webhook: &HTTPSServer{
+				Webhooks: &HTTPSServer{
 					Server:    Server{BindAddress: "", Port: 2784},
 					TLSConfig: TLSServerConfiguration{ServerCertDir: "/var/etc/ssl/webhook-server-tls"},
 				},

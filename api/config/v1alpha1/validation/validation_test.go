@@ -1,33 +1,37 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package validation
 
 import (
+	"testing"
+	"time"
+
 	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
-	. "github.com/onsi/gomega"
-	. "github.com/onsi/gomega/gstruct"
+
 	gomegatypes "github.com/onsi/gomega/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
-	"testing"
-	"time"
-)
 
-const testNs = "test-ns"
+	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
+)
 
 var zero = time.Duration(0)
 
 func TestValidateLeaderElectionConfiguration(t *testing.T) {
 	tests := []struct {
-		name                      string
-		enabled                   bool
-		overrideLeaseDuration     *time.Duration
-		overrideRenewDeadline     *time.Duration
-		overrideRetryPeriod       *time.Duration
-		overrideResourceLock      *string
-		overrideResourceName      *string
-		overrideResourceNamespace *string
-		expectedErrors            int
-		matcher                   gomegatypes.GomegaMatcher
+		name                  string
+		enabled               bool
+		overrideLeaseDuration *time.Duration
+		overrideRenewDeadline *time.Duration
+		overrideRetryPeriod   *time.Duration
+		overrideResourceLock  *string
+		overrideResourceName  *string
+		expectedErrors        int
+		matcher               gomegatypes.GomegaMatcher
 	}{
 		{
 			name:           "should allow to disable leader election",
@@ -54,13 +58,6 @@ func TestValidateLeaderElectionConfiguration(t *testing.T) {
 			overrideResourceName: ptr.To(""),
 			expectedErrors:       1,
 			matcher:              ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("leaderElection.resourceName")}))),
-		},
-		{
-			name:                      "should forbid empty resource namespace",
-			enabled:                   true,
-			overrideResourceNamespace: ptr.To(""),
-			expectedErrors:            1,
-			matcher:                   ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("leaderElection.resourceNamespace")}))),
 		},
 		{
 			name:                  "should forbid zero lease duration",
@@ -106,12 +103,9 @@ func TestValidateLeaderElectionConfiguration(t *testing.T) {
 			leaderElectionConfig := &configv1alpha1.LeaderElectionConfiguration{
 				Enabled: test.enabled,
 			}
-			if test.enabled {
-				leaderElectionConfig.ResourceNamespace = testNs
-			}
 			configv1alpha1.SetDefaults_LeaderElectionConfiguration(leaderElectionConfig)
 			if test.enabled {
-				updateLeaderElectionConfig(leaderElectionConfig, test.overrideLeaseDuration, test.overrideRenewDeadline, test.overrideRetryPeriod, test.overrideResourceLock, test.overrideResourceName, test.overrideResourceNamespace)
+				updateLeaderElectionConfig(leaderElectionConfig, test.overrideLeaseDuration, test.overrideRenewDeadline, test.overrideRetryPeriod, test.overrideResourceLock, test.overrideResourceName)
 			}
 			actualErr := validateLeaderElectionConfiguration(*leaderElectionConfig, fldPath)
 			g.Expect(len(actualErr)).To(Equal(test.expectedErrors))
@@ -517,8 +511,7 @@ func updateLeaderElectionConfig(config *configv1alpha1.LeaderElectionConfigurati
 	overrideRenewDeadline *time.Duration,
 	overrideRetryPeriod *time.Duration,
 	overrideResourceLock *string,
-	overrideResourceName *string,
-	overrideResourceNamespace *string) {
+	overrideResourceName *string) {
 
 	if overrideLeaseDuration != nil {
 		config.LeaseDuration = metav1.Duration{Duration: *overrideLeaseDuration}
@@ -534,8 +527,5 @@ func updateLeaderElectionConfig(config *configv1alpha1.LeaderElectionConfigurati
 	}
 	if overrideResourceName != nil {
 		config.ResourceName = *overrideResourceName
-	}
-	if overrideResourceNamespace != nil {
-		config.ResourceNamespace = *overrideResourceNamespace
 	}
 }

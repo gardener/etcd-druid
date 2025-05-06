@@ -5,10 +5,10 @@ Following resources has been deployed with name "etcd-druid":
  * ServiceAccount
  * ClusterRole
  * ClusterRoleBinding
-{{- if .Values.webhooks.etcdComponents.enabled }}
+{{- if .Values.webhooks.etcdComponentProtection.enabled }}
  * ValidatingWebhookConfiguration
 {{- end }}
-{{ if not .Values.webhooks.etcdComponents.enabled }}
+{{ if not .Values.webhooks.etcdComponentProtection.enabled }}
 NOTE: Etcd cluster resource protection webhook has not been enabled. etcd-druid operator will
 not be able to protect against any accidental deletion of resources that are created for an Etcd Cluster.
 To read more about Etcd cluster resource protection see https://gardener.github.io/etcd-druid/deployment/configure-etcd-druid.html#etcd-components-webhook

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package v1alpha1
 
 import (
@@ -152,6 +156,7 @@ func TestIsEnabled(t *testing.T) {
 	t.Parallel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			g.Expect(fg.IsEnabled(test.feature)).To(Equal(test.expected))
 		})
 	}

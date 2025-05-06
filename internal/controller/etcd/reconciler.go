@@ -7,6 +7,7 @@ package etcd
 import (
 	"context"
 
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/component/clientservice"
@@ -23,7 +24,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/images"
 	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"github.com/go-logr/logr"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package utils
 
 import configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"

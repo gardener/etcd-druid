@@ -10,13 +10,17 @@ build:
         dependencies:
           paths:
             - api/core/v1alpha1
+            - api/config/v1alpha1
             - internal
             - VERSION
         flags:
           - -v
         ldflags:
-          - -X github.com/gardener/etcd-druid/internal/version.Version={{.VERSION}}
-          - -X github.com/gardener/etcd-druid/internal/version.GitSHA={{.GIT_SHA}}
+          - '{{.LD_FLAGS}}'
+        main: ./cmd
+  tagPolicy:
+    gitCommit:
+      variant: AbbrevCommitSha
 deploy:
   helm:
     releases:
@@ -62,14 +66,14 @@ profiles:
           etcd.etcdStatusSyncPeriod: 5s
           compaction.etcdEventsThreshold: "15"
           compaction.metricsScrapeWaitDuration: 30s
-  - name: enable-etcdcomponents-webhook
+  - name: enable-etcdcomponentprotection-webhook
     activation:
       - env: DRUID_ENABLE_ETCD_COMPONENTS_WEBHOOK=true
     patches:
       - op: add
         path: /deploy/helm/releases/0/setValues/webhooks
         value:
-          etcdComponents.enabled: true
+          etcdComponentProtection.enabled: true
 
 ---
 apiVersion: skaffold/v4beta12

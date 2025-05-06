@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package opts
 
 import (
@@ -5,58 +9,129 @@ import (
 	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	flag "github.com/spf13/pflag"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"time"
 )
 
-func (o *CLIOptions) addDeprecatedFlags(fs *flag.FlagSet) {
-	o.addDeprecatedControllerManagerFlags(fs)
-	o.addDeprecatedEtcdControllerFlags(fs)
-	o.addDeprecatedCompactionControllerFlags(fs)
-	o.addDeprecatedEtcdCopyBackupsTaskControllerFlags(fs)
-	o.addDeprecatedSecretControllerFlags(fs)
-	o.addDeprecatedEtcdComponentProtectionWebhookFlags(fs)
+type deprecatedOperatorConfiguration struct {
+	metricsBindAddress                              string
+	metricsPort                                     int
+	webhookServerBindAddress                        string
+	webhookServerPort                               int
+	webhookServerTLSCertDir                         string
+	leaderElectionEnabled                           bool
+	leaderElectionResourceName                      string
+	leaderElectionResourceLock                      string
+	disableLeaseCache                               bool
+	etcdWorkers                                     int
+	etcdSpecAutoReconcile                           bool
+	etcdDisableServiceAccountAutomount              bool
+	etcdStatusSyncPeriod                            time.Duration
+	etcdMemberNotReadyThreshold                     time.Duration
+	etcdMemberUnknownThreshold                      time.Duration
+	compactionEnabled                               bool
+	compactionWorkers                               int
+	compactionEventsThreshold                       int64
+	compactionActiveDeadlineDuration                time.Duration
+	compactionMetricsScrapeWaitDuration             time.Duration
+	etcdCopyBackupsTaskEnabled                      bool
+	etcdCopyBackupsTaskWorkers                      int
+	secretWorkers                                   int
+	etcdComponentProtectionEnabled                  bool
+	etcdComponentProtectionReconcilerServiceAccount string
+	etcdComponentProtectionExemptServiceAccounts    []string
 }
 
-func (o *CLIOptions) addDeprecatedControllerManagerFlags(fs *flag.FlagSet) {
-	flag.StringVar(&o.Config.Server.Metrics.BindAddress, "metrics-bind-address", "", "The IP address that the metrics endpoint binds to.")
-	flag.IntVar(&o.Config.Server.Metrics.Port, "metrics-port", configv1alpha1.DefaultMetricsServerPort, "The port used for the metrics endpoint.")
-	flag.StringVar(&o.Config.Server.Webhook.Server.BindAddress, "webhook-server-bind-address", "", "The IP address on which to listen for the HTTPS webhook server.")
-	flag.IntVar(&o.Config.Server.Webhook.Server.Port, "webhook-server-port", configv1alpha1.DefaultWebhookServerPort, "The port on which to listen for the HTTPS webhook server.")
-	flag.StringVar(&o.Config.Server.Webhook.TLSConfig.ServerCertDir, "webhook-server-tls-server-cert-dir", configv1alpha1.DefaultWebhookServerTLSServerCertDir, "The path to a directory containing the server's TLS certificate and key (the files must be named tls.crt and tls.key respectively).")
-	flag.BoolVar(&o.Config.LeaderElection.Enabled, "enable-leader-election", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&o.Config.LeaderElection.ResourceName, "leader-election-id", configv1alpha1.DefaultLeaderElectionResourceName, "Name of the resource that leader election will use for holding the leader lock.")
-	flag.StringVar(&o.Config.LeaderElection.ResourceLock, "leader-election-resource-lock", configv1alpha1.DefaultLeaderElectionResourceLock, "Specifies which resource type to use for leader election. Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'. Deprecated: will be removed in the future in favour of using only `leases` as the leader election resource lock for the controller manager.")
-	flag.BoolVar(&o.Config.Controllers.DisableLeaseCache, "disable-lease-cache", false, "Disable cache for lease.coordination.k8s.io resources.")
+func (d *deprecatedOperatorConfiguration) addDeprecatedFlags(fs *flag.FlagSet) {
+	d.addDeprecatedControllerManagerFlags(fs)
+	d.addDeprecatedEtcdControllerFlags(fs)
+	d.addDeprecatedCompactionControllerFlags(fs)
+	d.addDeprecatedEtcdCopyBackupsTaskControllerFlags(fs)
+	d.addDeprecatedSecretControllerFlags(fs)
+	d.addDeprecatedEtcdComponentProtectionWebhookFlags(fs)
 }
 
-func (o *CLIOptions) addDeprecatedEtcdControllerFlags(fs *flag.FlagSet) {
-	fs.IntVar(o.Config.Controllers.Etcd.ConcurrentSyncs, "etcd-workers", configv1alpha1.DefaultEtcdControllerConcurrentSyncs, "Number of workers spawned for concurrent reconciles of etcd spec and status changes. If not specified then default of 3 is assumed.")
-	flag.BoolVar(&o.Config.Controllers.Etcd.EnableEtcdSpecAutoReconcile, "enable-etcd-spec-auto-reconcile", false, fmt.Sprintf("If true then automatically reconciles Etcd Spec. If false, waits for explicit annotation `%s: %s` to be placed on the Etcd resource to trigger reconcile.", druidv1alpha1.DruidOperationAnnotation, druidv1alpha1.DruidOperationReconcile))
-	fs.BoolVar(&o.Config.Controllers.Etcd.DisableEtcdServiceAccountAutomount, "disable-etcd-serviceaccount-automount", false, "If true then .automountServiceAccountToken will be set to false for the ServiceAccount created for etcd StatefulSets.")
-	fs.DurationVar(&o.Config.Controllers.Etcd.EtcdStatusSyncPeriod.Duration, "etcd-status-sync-period", configv1alpha1.DefaultEtcdStatusSyncPeriod, "Period after which an etcd status sync will be attempted.")
-	fs.DurationVar(&o.Config.Controllers.Etcd.EtcdMemberConfig.NotReadyThreshold.Duration, "etcd-member-notready-threshold", configv1alpha1.DefaultEtcdNotReadyThreshold, "Threshold after which an etcd member is considered not ready if the status was unknown before.")
-	fs.DurationVar(&o.Config.Controllers.Etcd.EtcdMemberConfig.UnknownThreshold.Duration, "etcd-member-unknown-threshold", configv1alpha1.DefaultEtcdUnknownThreshold, "Threshold after which an etcd member is considered unknown.")
+func (d *deprecatedOperatorConfiguration) addDeprecatedControllerManagerFlags(fs *flag.FlagSet) {
+	fs.StringVar(&d.metricsBindAddress, "metrics-bind-address", "", "The IP address that the metrics endpoint binds to.")
+	fs.IntVar(&d.metricsPort, "metrics-port", configv1alpha1.DefaultMetricsServerPort, "The port used for the metrics endpoint.")
+	fs.StringVar(&d.webhookServerBindAddress, "webhook-server-bind-address", "", "The IP address on which to listen for the HTTPS webhook server.")
+	fs.IntVar(&d.webhookServerPort, "webhook-server-port", configv1alpha1.DefaultWebhooksServerPort, "The port on which to listen for the HTTPS webhook server.")
+	fs.StringVar(&d.webhookServerTLSCertDir, "webhook-server-tls-server-cert-dir", configv1alpha1.DefaultWebhooksServerTLSServerCertDir, "The path to a directory containing the server's TLS certificate and key (the files must be named tls.crt and tls.key respectively).")
+	fs.BoolVar(&d.leaderElectionEnabled, "enable-leader-election", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	fs.StringVar(&d.leaderElectionResourceName, "leader-election-id", configv1alpha1.DefaultLeaderElectionResourceName, "Name of the resource that leader election will use for holding the leader lock.")
+	fs.StringVar(&d.leaderElectionResourceLock, "leader-election-resource-lock", configv1alpha1.DefaultLeaderElectionResourceLock, "Specifies which resource type to use for leader election. Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'. Deprecated: will be removed in the future in favour of using only `leases` as the leader election resource lock for the controller manager.")
+	fs.BoolVar(&d.disableLeaseCache, "disable-lease-cache", false, "Disable cache for lease.coordination.k8s.io resources.")
 }
 
-func (o *CLIOptions) addDeprecatedCompactionControllerFlags(fs *flag.FlagSet) {
-	fs.BoolVar(&o.Config.Controllers.Compaction.Enabled, "enable-backup-compaction", false, "Enable automatic compaction of etcd backups.")
-	fs.IntVar(o.Config.Controllers.Compaction.ConcurrentSyncs, "compaction-workers", configv1alpha1.DefaultCompactionConcurrentSyncs, "Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. If compaction is enabled, the value for this flag must be greater than zero.")
-	fs.Int64Var(&o.Config.Controllers.Compaction.EventsThreshold, "etcd-events-threshold", configv1alpha1.DefaultCompactionEventsThreshold, "Total number of etcd events that can be allowed before a backup compaction job is triggered.")
-	fs.DurationVar(&o.Config.Controllers.Compaction.ActiveDeadlineDuration.Duration, "active-deadline-duration", configv1alpha1.DefaultCompactionActiveDeadlineDuration, "Duration after which a running backup compaction job will be terminated.")
-	fs.DurationVar(&o.Config.Controllers.Compaction.MetricsScrapeWaitDuration.Duration, "metrics-scrape-wait-duration", 0, "Duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped.")
+func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdControllerFlags(fs *flag.FlagSet) {
+	fs.IntVar(&d.etcdWorkers, "etcd-workers", configv1alpha1.DefaultEtcdControllerConcurrentSyncs, "Number of workers spawned for concurrent reconciles of etcd spec and status changes. If not specified then default of 3 is assumed.")
+	fs.BoolVar(&d.etcdSpecAutoReconcile, "enable-etcd-spec-auto-reconcile", false, fmt.Sprintf("If true then automatically reconciles Etcd Spec. If false, waits for explicit annotation `%s: %s` to be placed on the Etcd resource to trigger reconcile.", druidv1alpha1.DruidOperationAnnotation, druidv1alpha1.DruidOperationReconcile))
+	fs.BoolVar(&d.etcdDisableServiceAccountAutomount, "disable-etcd-serviceaccount-automount", false, "If true then .automountServiceAccountToken will be set to false for the ServiceAccount created for etcd StatefulSets.")
+	fs.DurationVar(&d.etcdStatusSyncPeriod, "etcd-status-sync-period", configv1alpha1.DefaultEtcdStatusSyncPeriod, "Period after which an etcd status sync will be attempted.")
+	fs.DurationVar(&d.etcdMemberNotReadyThreshold, "etcd-member-notready-threshold", configv1alpha1.DefaultEtcdNotReadyThreshold, "Threshold after which an etcd member is considered not ready if the status was unknown before.")
+	fs.DurationVar(&d.etcdMemberUnknownThreshold, "etcd-member-unknown-threshold", configv1alpha1.DefaultEtcdUnknownThreshold, "Threshold after which an etcd member is considered unknown.")
 }
 
-func (o *CLIOptions) addDeprecatedEtcdCopyBackupsTaskControllerFlags(fs *flag.FlagSet) {
+func (d *deprecatedOperatorConfiguration) addDeprecatedCompactionControllerFlags(fs *flag.FlagSet) {
+	fs.BoolVar(&d.compactionEnabled, "enable-backup-compaction", false, "Enable automatic compaction of etcd backups.")
+	fs.IntVar(&d.compactionWorkers, "compaction-workers", configv1alpha1.DefaultCompactionConcurrentSyncs, "Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. If compaction is enabled, the value for this flag must be greater than zero.")
+	fs.Int64Var(&d.compactionEventsThreshold, "etcd-events-threshold", configv1alpha1.DefaultCompactionEventsThreshold, "Total number of etcd events that can be allowed before a backup compaction job is triggered.")
+	fs.DurationVar(&d.compactionActiveDeadlineDuration, "active-deadline-duration", configv1alpha1.DefaultCompactionActiveDeadlineDuration, "Duration after which a running backup compaction job will be terminated.")
+	fs.DurationVar(&d.compactionMetricsScrapeWaitDuration, "metrics-scrape-wait-duration", 0, "Duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped.")
+}
+
+func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdCopyBackupsTaskControllerFlags(fs *flag.FlagSet) {
 	// For backward compatibility reasons the default chosen is true.
-	fs.BoolVar(&o.Config.Controllers.EtcdCopyBackupsTask.Enabled, "enable-etcd-copy-backups-task", true, "Enable the etcd-copy-backups-task controller.")
-	fs.IntVar(o.Config.Controllers.EtcdCopyBackupsTask.ConcurrentSyncs, "etcd-copy-backups-task-workers", configv1alpha1.DefaultEtcdCopyBackupsTaskConcurrentSyncs, "Number of worker threads for the etcdcopybackupstask controller.")
+	fs.BoolVar(&d.etcdCopyBackupsTaskEnabled, "enable-etcd-copy-backups-task", true, "Enable the etcd-copy-backups-task controller.")
+	fs.IntVar(&d.etcdCopyBackupsTaskWorkers, "etcd-copy-backups-task-workers", configv1alpha1.DefaultEtcdCopyBackupsTaskConcurrentSyncs, "Number of worker threads for the etcdcopybackupstask controller.")
 }
 
-func (o *CLIOptions) addDeprecatedSecretControllerFlags(fs *flag.FlagSet) {
-	fs.IntVar(o.Config.Controllers.Secret.ConcurrentSyncs, "secret-workers", configv1alpha1.DefaultSecretControllerConcurrentSyncs, "Number of worker threads for the secrets controller.")
+func (d *deprecatedOperatorConfiguration) addDeprecatedSecretControllerFlags(fs *flag.FlagSet) {
+	fs.IntVar(&d.secretWorkers, "secret-workers", configv1alpha1.DefaultSecretControllerConcurrentSyncs, "Number of worker threads for the secrets controller.")
 }
 
-func (o *CLIOptions) addDeprecatedEtcdComponentProtectionWebhookFlags(fs *flag.FlagSet) {
-	fs.BoolVar(&o.Config.Webhooks.EtcdComponentProtection.Enabled, "enable-etcd-components-webhook", false, "Enable Etcd-Components-Webhook to prevent unintended changes to resources managed by etcd-druid.")
-	fs.StringVar(&o.Config.Webhooks.EtcdComponentProtection.ReconcilerServiceAccount, "reconciler-service-account", "", "The fully qualified name of the service account used by etcd-druid for reconciling etcd resources.")
-	fs.StringSliceVar(&o.Config.Webhooks.EtcdComponentProtection.ExemptServiceAccounts, "etcd-components-webhook-exempt-service-accounts", []string{}, "The comma-separated list of fully qualified names of service accounts that are exempt from Etcd-Components-Webhook checks.")
+func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdComponentProtectionWebhookFlags(fs *flag.FlagSet) {
+	fs.BoolVar(&d.etcdComponentProtectionEnabled, "enable-etcd-components-webhook", false, "Enable Etcd-Components-Webhook to prevent unintended changes to resources managed by etcd-druid.")
+	fs.StringVar(&d.etcdComponentProtectionReconcilerServiceAccount, "reconciler-service-account", "", "The fully qualified name of the service account used by etcd-druid for reconciling etcd resources.")
+	fs.StringSliceVar(&d.etcdComponentProtectionExemptServiceAccounts, "etcd-components-webhook-exempt-service-accounts", []string{}, "The comma-separated list of fully qualified names of service accounts that are exempt from Etcd-Components-Webhook checks.")
+}
+
+func (d *deprecatedOperatorConfiguration) ToOperatorConfiguration() *configv1alpha1.OperatorConfiguration {
+	config := &configv1alpha1.OperatorConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: configv1alpha1.SchemeGroupVersion.String(),
+			Kind:       "OperatorConfiguration",
+		},
+		Server: configv1alpha1.ServerConfiguration{
+			Metrics:  &configv1alpha1.Server{},
+			Webhooks: &configv1alpha1.HTTPSServer{},
+		},
+	}
+	config.Server.Metrics.BindAddress = d.metricsBindAddress
+	config.Server.Metrics.Port = d.metricsPort
+	config.Server.Webhooks.BindAddress = d.webhookServerBindAddress
+	config.Server.Webhooks.Port = d.webhookServerPort
+	config.Server.Webhooks.TLSConfig.ServerCertDir = d.webhookServerTLSCertDir
+	config.LeaderElection.Enabled = d.leaderElectionEnabled
+	config.LeaderElection.ResourceName = d.leaderElectionResourceName
+	config.LeaderElection.ResourceLock = d.leaderElectionResourceLock
+	config.Controllers.DisableLeaseCache = d.disableLeaseCache
+	config.Controllers.Etcd.ConcurrentSyncs = &d.etcdWorkers
+	config.Controllers.Etcd.EnableEtcdSpecAutoReconcile = d.etcdSpecAutoReconcile
+	config.Controllers.Etcd.DisableEtcdServiceAccountAutomount = d.etcdDisableServiceAccountAutomount
+	config.Controllers.Etcd.EtcdStatusSyncPeriod = metav1.Duration{Duration: d.etcdStatusSyncPeriod}
+	config.Controllers.Etcd.EtcdMemberConfig.NotReadyThreshold = metav1.Duration{Duration: d.etcdMemberNotReadyThreshold}
+	config.Controllers.Etcd.EtcdMemberConfig.UnknownThreshold = metav1.Duration{Duration: d.etcdMemberUnknownThreshold}
+	config.Controllers.Compaction.Enabled = d.compactionEnabled
+	config.Controllers.Compaction.ConcurrentSyncs = &d.compactionWorkers
+	config.Controllers.Compaction.EventsThreshold = d.compactionEventsThreshold
+	config.Controllers.Compaction.ActiveDeadlineDuration = metav1.Duration{Duration: d.compactionActiveDeadlineDuration}
+	config.Controllers.Compaction.MetricsScrapeWaitDuration = metav1.Duration{Duration: d.compactionMetricsScrapeWaitDuration}
+	config.Controllers.EtcdCopyBackupsTask.Enabled = d.etcdCopyBackupsTaskEnabled
+	config.Controllers.EtcdCopyBackupsTask.ConcurrentSyncs = &d.etcdCopyBackupsTaskWorkers
+	config.Controllers.Secret.ConcurrentSyncs = &d.secretWorkers
+	config.Webhooks.EtcdComponentProtection.Enabled = d.etcdComponentProtectionEnabled
+	config.Webhooks.EtcdComponentProtection.ReconcilerServiceAccount = d.etcdComponentProtectionReconcilerServiceAccount
+	config.Webhooks.EtcdComponentProtection.ExemptServiceAccounts = d.etcdComponentProtectionExemptServiceAccounts
+	return config
 }
