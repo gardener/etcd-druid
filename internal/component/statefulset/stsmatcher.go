@@ -282,7 +282,7 @@ func (s StatefulSetMatcher) matchEtcdContainerReadinessProbeCmd() gomegatypes.Go
 func (s StatefulSetMatcher) matchEtcdContainerCmdArgs() gomegatypes.GomegaMatcher {
 	cmdArgs := make([]string, 0, 8)
 	cmdArgs = append(cmdArgs, "start-etcd")
-	cmdArgs = append(cmdArgs, fmt.Sprintf("--backup-restore-host-port=%s-local:8080", s.etcd.Name))
+	cmdArgs = append(cmdArgs, fmt.Sprintf("--backup-restore-host-port=%s-local:%d", s.etcd.Name, s.backupPort))
 	cmdArgs = append(cmdArgs, fmt.Sprintf("--etcd-server-name=%s-local", s.etcd.Name))
 	if s.etcd.Spec.Etcd.ClientUrlTLS == nil {
 		cmdArgs = append(cmdArgs, "--backup-restore-tls-enabled=false")
