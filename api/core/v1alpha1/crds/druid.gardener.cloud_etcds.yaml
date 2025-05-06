@@ -651,6 +651,11 @@ spec:
                 x-kubernetes-validations:
                 - message: Replicas can either be increased or be downscaled to 0.
                   rule: 'self==0 ? true : self < oldSelf ? false : true'
+              runAsRoot:
+                description: |-
+                  RunAsRoot defines whether the securityContext of the pod specification should indicate that the containers shall
+                  run as root. By default, they run as non-root with user 'nobody'.
+                type: boolean
               schedulingConstraints:
                 description: |-
                   SchedulingConstraints defines the different scheduling constraints that must be applied to the

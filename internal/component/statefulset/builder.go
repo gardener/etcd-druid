@@ -39,6 +39,7 @@ const (
 	defaultAutoCompactionMode            = "periodic"
 	defaultEtcdConnectionTimeout         = "5m"
 	defaultPodManagementPolicy           = appsv1.ParallelPodManagement
+	rootUser                             = int64(0)
 	nonRootUser                          = int64(65532)
 )
 
@@ -614,6 +615,15 @@ func (b *stsBuilder) getEtcdContainerEnvVars() []corev1.EnvVar {
 }
 
 func (b *stsBuilder) getPodSecurityContext() *corev1.PodSecurityContext {
+	if ptr.Deref(b.etcd.Spec.RunAsRoot, false) {
+		return &corev1.PodSecurityContext{
+			RunAsGroup:   ptr.To[int64](rootUser),
+			RunAsNonRoot: ptr.To(false),
+			RunAsUser:    ptr.To[int64](rootUser),
+			FSGroup:      ptr.To[int64](rootUser),
+		}
+	}
+
 	return &corev1.PodSecurityContext{
 		RunAsGroup:   ptr.To[int64](nonRootUser),
 		RunAsNonRoot: ptr.To(true),

@@ -231,7 +231,7 @@ func (s StatefulSetMatcher) matchBackupRestoreContainer() gomegatypes.GomegaMatc
 		"Image":           Equal(s.etcdBRImage),
 		"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
 		// This is quite painful and therefore skipped for now. Independent unit test for command line args should be written instead.
-		//"Args":            Equal(s.matchBackupRestoreContainerCmdArgs()),
+		// "Args":            Equal(s.matchBackupRestoreContainerCmdArgs()),
 		"Ports": ConsistOf(
 			MatchFields(IgnoreExtras, Fields{
 				"Name":          Equal(serverPortName),
@@ -356,6 +356,15 @@ func (s StatefulSetMatcher) matchEtcdContainerEnvVars() gomegatypes.GomegaMatche
 }
 
 func (s StatefulSetMatcher) matchEtcdPodSecurityContext() gomegatypes.GomegaMatcher {
+	if ptr.Deref(s.etcd.Spec.RunAsRoot, false) {
+		return PointTo(MatchFields(IgnoreExtras|IgnoreMissing, Fields{
+			"RunAsGroup":   PointTo(Equal(int64(0))),
+			"RunAsNonRoot": PointTo(Equal(false)),
+			"RunAsUser":    PointTo(Equal(int64(0))),
+			"FSGroup":      PointTo(Equal(int64(0))),
+		}))
+	}
+
 	return PointTo(MatchFields(IgnoreExtras|IgnoreMissing, Fields{
 		"RunAsGroup":   PointTo(Equal(int64(65532))),
 		"RunAsNonRoot": PointTo(Equal(true)),

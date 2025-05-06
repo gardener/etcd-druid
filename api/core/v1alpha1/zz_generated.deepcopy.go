@@ -564,6 +564,11 @@ func (in *EtcdSpec) DeepCopyInto(out *EtcdSpec) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.RunAsRoot != nil {
+		in, out := &in.RunAsRoot, &out.RunAsRoot
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 
