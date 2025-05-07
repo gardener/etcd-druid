@@ -74,24 +74,18 @@ type LeaderElectionConfiguration struct {
 	ResourceName string `json:"resourceName"`
 }
 
-// ServerConfiguration contains the HTTP(S) server configurations.
+// ServerConfiguration contains the server configurations.
 type ServerConfiguration struct {
-	// Webhooks is the configuration for the HTTPS webhook server.
-	Webhooks *HTTPSServer `json:"webhooks"`
+	// Webhooks is the configuration for the TLS webhook server.
+	Webhooks *TLSServer `json:"webhooks"`
 	// Metrics is the configuration for serving the metrics endpoint.
 	Metrics *Server `json:"metrics"`
 }
 
-// HTTPSServer is the configuration for the HTTPSServer server.
-type HTTPSServer struct {
+// TLSServer is the configuration for a TLS enabled server.
+type TLSServer struct {
 	// Server is the configuration for the bind address and the port.
-	Server `json:"server"`
-	// TLSConfig contains information about the TLS configuration for an HTTPS server.
-	TLSConfig TLSServerConfiguration `json:"tlsConfig"`
-}
-
-// TLSServerConfiguration contains information about the TLS configuration for an HTTPS server.
-type TLSServerConfiguration struct {
+	Server `json:",inline"`
 	// ServerCertDir is the path to a directory containing the server's TLS certificate and key (the files must be
 	// named tls.crt and tls.key respectively).
 	ServerCertDir string `json:"serverCertDir"`
@@ -114,12 +108,12 @@ type ControllerConfiguration struct {
 	DisableLeaseCache bool `json:"disableLeaseCache"`
 	// Etcd is the configuration for the Etcd controller.
 	Etcd EtcdControllerConfiguration `json:"etcd"`
-	// Secret is the configuration for the Secret controller.
-	Secret SecretControllerConfiguration `json:"secret"`
 	// Compaction is the configuration for the compaction controller.
 	Compaction CompactionControllerConfiguration `json:"compaction"`
 	// EtcdCopyBackupsTask is the configuration for the EtcdCopyBackupsTask controller.
 	EtcdCopyBackupsTask EtcdCopyBackupsTaskControllerConfiguration `json:"etcdCopyBackupsTask"`
+	// Secret is the configuration for the Secret controller.
+	Secret SecretControllerConfiguration `json:"secret"`
 }
 
 // EtcdControllerConfiguration defines the configuration for the Etcd controller.

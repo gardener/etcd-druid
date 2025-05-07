@@ -130,9 +130,9 @@ func TestSetDefaults_ServerConfiguration(t *testing.T) {
 			name:   "should correctly set default values",
 			config: &ServerConfiguration{},
 			expected: &ServerConfiguration{
-				Webhooks: &HTTPSServer{
-					Server:    Server{BindAddress: "", Port: 9443},
-					TLSConfig: TLSServerConfiguration{ServerCertDir: "/etc/webhook-server-tls"},
+				Webhooks: &TLSServer{
+					Server:        Server{BindAddress: "", Port: 9443},
+					ServerCertDir: "/etc/webhook-server-tls",
 				},
 				Metrics: &Server{BindAddress: "", Port: 8080},
 			},
@@ -140,15 +140,15 @@ func TestSetDefaults_ServerConfiguration(t *testing.T) {
 		{
 			name: "should not overwrite already set values",
 			config: &ServerConfiguration{
-				Webhooks: &HTTPSServer{
-					Server:    Server{BindAddress: "", Port: 2784},
-					TLSConfig: TLSServerConfiguration{ServerCertDir: "/var/etc/ssl/webhook-server-tls"},
+				Webhooks: &TLSServer{
+					Server:        Server{BindAddress: "", Port: 2784},
+					ServerCertDir: "/var/etc/ssl/webhook-server-tls",
 				},
 			},
 			expected: &ServerConfiguration{
-				Webhooks: &HTTPSServer{
-					Server:    Server{BindAddress: "", Port: 2784},
-					TLSConfig: TLSServerConfiguration{ServerCertDir: "/var/etc/ssl/webhook-server-tls"},
+				Webhooks: &TLSServer{
+					Server:        Server{BindAddress: "", Port: 2784},
+					ServerCertDir: "/var/etc/ssl/webhook-server-tls",
 				},
 				Metrics: &Server{BindAddress: "", Port: 8080},
 			},
