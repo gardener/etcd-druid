@@ -636,6 +636,11 @@ func (in *EtcdStatus) DeepCopyInto(out *EtcdStatus) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.Selector != nil {
+		in, out := &in.Selector, &out.Selector
+		*out = new(string)
+		**out = **in
+	}
 	return
 }
 
