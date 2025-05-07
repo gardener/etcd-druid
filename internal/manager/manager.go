@@ -97,7 +97,7 @@ func createManager(config *configv1alpha1.OperatorConfiguration) (ctrl.Manager, 
 		WebhookServer: webhook.NewServer(webhook.Options{
 			Host:    config.Server.Webhooks.BindAddress,
 			Port:    config.Server.Webhooks.Port,
-			CertDir: config.Server.Webhooks.TLSConfig.ServerCertDir,
+			CertDir: config.Server.Webhooks.ServerCertDir,
 		}),
 	})
 }

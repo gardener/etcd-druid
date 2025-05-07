@@ -79,34 +79,3 @@ func (o *CLIOptions) Validate() error {
 func (o *CLIOptions) addFlags(fs *flag.FlagSet) {
 	fs.StringVar(&o.configFile, "config", o.configFile, "Path to configuration file.")
 }
-
-// In the new OperatorConfiguration all concurrentSyncs are defined as pointer to int.
-// This cannot be used when parsing flags as it results in a nil pointer dereference error.
-// We did not want to change the type to a non-pointer type as it will be hard to differentiate between
-// default value (which will be 0) and the user explicitly setting it to 0.
-// NOTE: Once we stop supporting deprecated flags then this can be removed.
-type deprecatedWorkers struct {
-	etcdWorkers                int
-	compactionWorkers          int
-	etcdCopyBackupsTaskWorkers int
-	secretWorkers              int
-}
-
-func (d deprecatedWorkers) updateOperatorConfiguration(operatorConfig *configv1alpha1.OperatorConfiguration) {
-	operatorConfig.Controllers.Etcd.ConcurrentSyncs = &d.etcdWorkers
-	operatorConfig.Controllers.Compaction.ConcurrentSyncs = &d.compactionWorkers
-	operatorConfig.Controllers.EtcdCopyBackupsTask.ConcurrentSyncs = &d.etcdCopyBackupsTaskWorkers
-	operatorConfig.Controllers.Secret.ConcurrentSyncs = &d.secretWorkers
-}
-
-// createEmptyOperatorConfig creates an empty OperatorConfiguration with default values.
-// As long as we support deprecated flags we need to initialize pointer fields to empty structs.
-// This prevents nil pointer dereference errors.
-func createEmptyOperatorConfig() *configv1alpha1.OperatorConfiguration {
-	return &configv1alpha1.OperatorConfiguration{
-		Server: configv1alpha1.ServerConfiguration{
-			Webhooks: &configv1alpha1.HTTPSServer{},
-			Metrics:  &configv1alpha1.Server{},
-		},
-	}
-}
