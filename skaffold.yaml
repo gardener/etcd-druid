@@ -11,6 +11,7 @@ build:
           paths:
             - api/core/v1alpha1
             - api/config/v1alpha1
+            - cmd
             - internal
             - VERSION
         flags:
@@ -18,9 +19,6 @@ build:
         ldflags:
           - '{{.LD_FLAGS}}'
         main: ./cmd
-  tagPolicy:
-    gitCommit:
-      variant: AbbrevCommitSha
 deploy:
   helm:
     releases:
