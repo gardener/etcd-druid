@@ -104,14 +104,14 @@ func (d *deprecatedOperatorConfiguration) ToOperatorConfiguration() *configv1alp
 		},
 		Server: configv1alpha1.ServerConfiguration{
 			Metrics:  &configv1alpha1.Server{},
-			Webhooks: &configv1alpha1.HTTPSServer{},
+			Webhooks: &configv1alpha1.TLSServer{},
 		},
 	}
 	config.Server.Metrics.BindAddress = d.metricsBindAddress
 	config.Server.Metrics.Port = d.metricsPort
 	config.Server.Webhooks.BindAddress = d.webhookServerBindAddress
 	config.Server.Webhooks.Port = d.webhookServerPort
-	config.Server.Webhooks.TLSConfig.ServerCertDir = d.webhookServerTLSCertDir
+	config.Server.Webhooks.ServerCertDir = d.webhookServerTLSCertDir
 	config.LeaderElection.Enabled = d.leaderElectionEnabled
 	config.LeaderElection.ResourceName = d.leaderElectionResourceName
 	config.LeaderElection.ResourceLock = d.leaderElectionResourceLock

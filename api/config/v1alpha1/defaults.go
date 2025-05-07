@@ -74,13 +74,13 @@ const (
 // SetDefaults_ServerConfiguration sets defaults for the server configuration.
 func SetDefaults_ServerConfiguration(serverConfig *ServerConfiguration) {
 	if serverConfig.Webhooks == nil {
-		serverConfig.Webhooks = &HTTPSServer{}
+		serverConfig.Webhooks = &TLSServer{}
 	}
 	if serverConfig.Webhooks.Port == 0 {
 		serverConfig.Webhooks.Port = DefaultWebhooksServerPort
 	}
-	if serverConfig.Webhooks.TLSConfig.ServerCertDir == "" {
-		serverConfig.Webhooks.TLSConfig.ServerCertDir = DefaultWebhooksServerTLSServerCertDir
+	if serverConfig.Webhooks.ServerCertDir == "" {
+		serverConfig.Webhooks.ServerCertDir = DefaultWebhooksServerTLSServerCertDir
 	}
 	if serverConfig.Metrics == nil {
 		serverConfig.Metrics = &Server{}
@@ -114,16 +114,6 @@ func SetDefaults_EtcdControllerConfiguration(etcdCtrlConfig *EtcdControllerConfi
 	}
 	if etcdCtrlConfig.EtcdMemberConfig.UnknownThreshold == zeroDuration {
 		etcdCtrlConfig.EtcdMemberConfig.UnknownThreshold = metav1.Duration{Duration: DefaultEtcdUnknownThreshold}
-	}
-}
-
-// DefaultSecretControllerConcurrentSyncs is the default number of concurrent syncs for the secret controller.
-const DefaultSecretControllerConcurrentSyncs = 10
-
-// SetDefaults_SecretControllerConfiguration sets defaults for the secret controller configuration.
-func SetDefaults_SecretControllerConfiguration(secretCtrlConfig *SecretControllerConfiguration) {
-	if secretCtrlConfig.ConcurrentSyncs == nil {
-		secretCtrlConfig.ConcurrentSyncs = ptr.To(DefaultSecretControllerConcurrentSyncs)
 	}
 }
 
@@ -162,6 +152,16 @@ func SetDefaults_EtcdCopyBackupsTaskControllerConfiguration(etcdCopyBackupsTaskC
 	}
 	if etcdCopyBackupsTaskCtrlConfig.ConcurrentSyncs == nil {
 		etcdCopyBackupsTaskCtrlConfig.ConcurrentSyncs = ptr.To(DefaultEtcdCopyBackupsTaskConcurrentSyncs)
+	}
+}
+
+// DefaultSecretControllerConcurrentSyncs is the default number of concurrent syncs for the secret controller.
+const DefaultSecretControllerConcurrentSyncs = 10
+
+// SetDefaults_SecretControllerConfiguration sets defaults for the secret controller configuration.
+func SetDefaults_SecretControllerConfiguration(secretCtrlConfig *SecretControllerConfiguration) {
+	if secretCtrlConfig.ConcurrentSyncs == nil {
+		secretCtrlConfig.ConcurrentSyncs = ptr.To(DefaultSecretControllerConcurrentSyncs)
 	}
 }
 
