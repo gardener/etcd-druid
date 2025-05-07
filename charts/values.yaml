@@ -21,6 +21,74 @@ topologySpreadConstraints: [ ]
 
 featureGates: { }
 
+webhookPKI:
+  caPath: pki-resources/ca.crt
+  serverCertPath: pki-resources/server.crt
+  serverKeyPath: pki-resources/server.key
+
+# This configuration property is a short-lived property. It will be used to toggle between the now deprecated
+# CLI flags and the new OperatorConfiguration (which is the recommended way to configure etcd-druid operator).
+# To preserve backward compatibility the default value for this property is set to false.
+enabledOperatorConfig: true
+
+# Operator configuration
+# All configurable fields have been specified. Many of which are commented out with their default values.
+# If you want to change a default value, uncomment the line and set the value.
+operatorConfig:
+  clientConnection:
+    qps: 100
+    burst: 150
+    #contentType: ""
+    #acceptContentType: ""
+  leaderElection:
+    enabled: true
+    leaseDuration: 15s
+    renewDeadline: 10s
+    retryPeriod: 2s
+    resourceLock: leases
+    resourceName: druid-leader-election
+  server:
+    webhooks:
+      port: 9443
+      #bindAddress: ""
+      #serverCertDir: /etc/webhook-server-tls
+    metrics:
+      port: 9445
+    profiling:
+      enable: false
+      pprofPort: 6060
+  controllers:
+    etcd:
+      concurrentSyncs: 3
+      enableEtcdSpecAutoReconcile: false
+      disableEtcdServiceAccountAutomount: false
+      etcdStatusSyncPeriod: 15s
+      etcdMember:
+        notReadyThreshold: 5m
+        unknownThreshold: 1m
+    compaction:
+      enabled: true
+      concurrentSyncs: 3
+      eventsThreshold: 1000000
+      activeDeadlineDuration: 3h
+      metricsScrapeWaitDuration: 0s
+    etcdCopyBackupsTask:
+      enabled: true
+      concurrentSyncs: 3
+    secret:
+      concurrentSyncs: 10
+  webhooks:
+    etcdComponentProtection:
+      enabled: false
+      reconcilerServiceAccount: etcd-druid
+      exemptServiceAccounts:
+        - system:serviceaccount:kube-system:generic-garbage-collector
+  featureGates: { }
+  logConfiguration:
+    logLevel: info
+    logFormat: json
+
+# deprecated - use operatorConfig instead
 controllerManager:
   server:
     metrics:
@@ -36,6 +104,7 @@ controllerManager:
     id: druid-leader-election
   disableLeaseCache: true
 
+# deprecated, use operatorConfig.controllers instead
 controllers:
   etcd:
     workers: 3
@@ -56,13 +125,10 @@ controllers:
   secret:
     workers: 10
 
+# deprecated, use operatorConfig.server.webhooks instead
 webhooks:
   etcdComponentProtection:
-    enabled: false
-    # reconciler-service-account: system:serviceaccount:{{ .Release.Namespace }}:etcd-druid
+    enabled: true
+    reconcilerServiceAccount: etcd-druid
     exemptServiceAccounts:
       - system:serviceaccount:kube-system:generic-garbage-collector
-  pki:
-    caPath: pki-resources/ca.crt
-    serverCertPath: pki-resources/server.crt
-    serverKeyPath: pki-resources/server.key
