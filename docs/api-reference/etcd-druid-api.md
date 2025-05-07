@@ -816,23 +816,6 @@ _Appears in:_
 | `unknownThreshold` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | UnknownThreshold is the duration after which an etcd member's state is considered `Unknown`. |  |  |
 
 
-#### HTTPSServer
-
-
-
-HTTPSServer is the configuration for the HTTPSServer server.
-
-
-
-_Appears in:_
-- [ServerConfiguration](#serverconfiguration)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `server` _[Server](#server)_ | Server is the configuration for the bind address and the port. |  |  |
-| `tlsConfig` _[TLSServerConfiguration](#tlsserverconfiguration)_ | TLSConfig contains information about the TLS configuration for an HTTPS server. |  |  |
-
-
 #### LeaderElectionConfiguration
 
 
@@ -933,8 +916,8 @@ Server contains information for HTTP(S) server configuration.
 
 
 _Appears in:_
-- [HTTPSServer](#httpsserver)
 - [ServerConfiguration](#serverconfiguration)
+- [TLSServer](#tlsserver)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -946,7 +929,7 @@ _Appears in:_
 
 
 
-ServerConfiguration contains the HTTP(S) server configurations.
+ServerConfiguration contains the server configurations.
 
 
 
@@ -955,23 +938,25 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `webhooks` _[HTTPSServer](#httpsserver)_ | Webhooks is the configuration for the HTTPS webhook server. |  |  |
+| `webhooks` _[TLSServer](#tlsserver)_ | Webhooks is the configuration for the TLS webhook server. |  |  |
 | `metrics` _[Server](#server)_ | Metrics is the configuration for serving the metrics endpoint. |  |  |
 
 
-#### TLSServerConfiguration
+#### TLSServer
 
 
 
-TLSServerConfiguration contains information about the TLS configuration for an HTTPS server.
+TLSServer is the configuration for a TLS enabled server.
 
 
 
 _Appears in:_
-- [HTTPSServer](#httpsserver)
+- [ServerConfiguration](#serverconfiguration)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `bindAddress` _string_ | BindAddress is the IP address on which to listen for the specified port. |  |  |
+| `port` _integer_ | Port is the port on which to serve unsecured, unauthenticated access. |  |  |
 | `serverCertDir` _string_ | ServerCertDir is the path to a directory containing the server's TLS certificate and key (the files must be<br />named tls.crt and tls.key respectively). |  |  |
 
 
