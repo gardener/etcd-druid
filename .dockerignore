@@ -11,13 +11,13 @@
 !controllers/
 !client/
 !pkg/
+!cmd/
 !test/
 !internal/
 !vendor/
 !.golangci.yaml
 !go.mod
 !go.sum
-!main.go
 !LICENSE.md
 !Makefile
 !VERSION
