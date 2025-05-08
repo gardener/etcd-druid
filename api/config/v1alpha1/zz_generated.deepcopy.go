@@ -55,9 +55,9 @@ func (in *CompactionControllerConfiguration) DeepCopy() *CompactionControllerCon
 func (in *ControllerConfiguration) DeepCopyInto(out *ControllerConfiguration) {
 	*out = *in
 	in.Etcd.DeepCopyInto(&out.Etcd)
-	in.Secret.DeepCopyInto(&out.Secret)
 	in.Compaction.DeepCopyInto(&out.Compaction)
 	in.EtcdCopyBackupsTask.DeepCopyInto(&out.EtcdCopyBackupsTask)
+	in.Secret.DeepCopyInto(&out.Secret)
 	return
 }
 
