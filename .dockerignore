@@ -6,6 +6,7 @@
 !.dockerignore
 !.ci/
 !api/
+!client/
 !charts/
 !controllers/
 !client/
