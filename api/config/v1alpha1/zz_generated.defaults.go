@@ -25,8 +25,8 @@ func SetObjectDefaults_OperatorConfiguration(in *OperatorConfiguration) {
 	SetDefaults_LeaderElectionConfiguration(&in.LeaderElection)
 	SetDefaults_ServerConfiguration(&in.Server)
 	SetDefaults_EtcdControllerConfiguration(&in.Controllers.Etcd)
-	SetDefaults_SecretControllerConfiguration(&in.Controllers.Secret)
 	SetDefaults_CompactionControllerConfiguration(&in.Controllers.Compaction)
 	SetDefaults_EtcdCopyBackupsTaskControllerConfiguration(&in.Controllers.EtcdCopyBackupsTask)
+	SetDefaults_SecretControllerConfiguration(&in.Controllers.Secret)
 	SetDefaults_LogConfiguration(&in.LogConfiguration)
 }

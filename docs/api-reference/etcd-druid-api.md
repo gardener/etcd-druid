@@ -739,9 +739,9 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `disableLeaseCache` _boolean_ | DisableLeaseCache disables the cache for lease.coordination.k8s.io resources.<br />Deprecated: This field will be eventually removed. It is recommended that this not being used.<br />It has only been introduced to allow for backward compatibility with the old CLI flags. |  |  |
 | `etcd` _[EtcdControllerConfiguration](#etcdcontrollerconfiguration)_ | Etcd is the configuration for the Etcd controller. |  |  |
-| `secret` _[SecretControllerConfiguration](#secretcontrollerconfiguration)_ | Secret is the configuration for the Secret controller. |  |  |
 | `compaction` _[CompactionControllerConfiguration](#compactioncontrollerconfiguration)_ | Compaction is the configuration for the compaction controller. |  |  |
 | `etcdCopyBackupsTask` _[EtcdCopyBackupsTaskControllerConfiguration](#etcdcopybackupstaskcontrollerconfiguration)_ | EtcdCopyBackupsTask is the configuration for the EtcdCopyBackupsTask controller. |  |  |
+| `secret` _[SecretControllerConfiguration](#secretcontrollerconfiguration)_ | Secret is the configuration for the Secret controller. |  |  |
 
 
 #### EtcdComponentProtectionWebhookConfiguration
