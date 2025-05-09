@@ -442,7 +442,8 @@ type EtcdStatus struct {
 	PeerUrlTLSEnabled *bool `json:"peerUrlTLSEnabled,omitempty"`
 	// Selector is a label query over pods that should match the replica count.
 	// It must match the pod template's labels.
-	Selector string `json:"selector"`
+	// +optional
+	Selector *string `json:"selector,omitempty"`
 }
 
 // LastOperationType is a string alias representing type of the last operation.

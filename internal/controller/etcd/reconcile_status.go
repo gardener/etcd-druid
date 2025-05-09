@@ -88,6 +88,6 @@ func (r *Reconciler) setSelector(_ component.OperatorContext, etcd *druidv1alpha
 	if err != nil {
 		return ctrlutils.ReconcileWithError(err)
 	}
-	etcd.Status.Selector = selector.String()
+	etcd.Status.Selector = ptr.To(selector.String())
 	return ctrlutils.ContinueReconcile()
 }
