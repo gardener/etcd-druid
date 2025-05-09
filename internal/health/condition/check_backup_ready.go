@@ -32,7 +32,7 @@ const (
 )
 
 func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
-	//Default case
+	//enabledByDefault case
 	result := &result{
 		conType: druidv1alpha1.ConditionTypeBackupReady,
 		status:  druidv1alpha1.ConditionUnknown,

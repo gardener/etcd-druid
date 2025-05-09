@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/images"
@@ -60,13 +61,13 @@ const (
 // Reconciler reconciles compaction jobs for Etcd resources.
 type Reconciler struct {
 	client.Client
-	config      *Config
+	config      configv1alpha1.CompactionControllerConfiguration
 	imageVector imagevector.ImageVector
 	logger      logr.Logger
 }
 
 // NewReconciler creates a new reconciler for Compaction
-func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
+func NewReconciler(mgr manager.Manager, config configv1alpha1.CompactionControllerConfiguration) (*Reconciler, error) {
 	imageVector, err := images.CreateImageVector()
 	if err != nil {
 		return nil, err
@@ -76,7 +77,7 @@ func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 
 // NewReconcilerWithImageVector creates a new reconciler for Compaction with an ImageVector.
 // This constructor will mostly be used by tests.
-func NewReconcilerWithImageVector(mgr manager.Manager, config *Config, imageVector imagevector.ImageVector) *Reconciler {
+func NewReconcilerWithImageVector(mgr manager.Manager, config configv1alpha1.CompactionControllerConfiguration, imageVector imagevector.ImageVector) *Reconciler {
 	return &Reconciler{
 		Client:      mgr.GetClient(),
 		config:      config,
@@ -320,7 +321,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 						Name:            "compact-backup",
 						Image:           etcdBackupImage,
 						ImagePullPolicy: v1.PullIfNotPresent,
-						Args:            getCompactionJobArgs(etcd, r.config.MetricsScrapeWaitDuration.String()),
+						Args:            getCompactionJobArgs(etcd, r.config.MetricsScrapeWaitDuration.Duration.String()),
 						Resources: v1.ResourceRequirements{
 							Requests: v1.ResourceList{
 								v1.ResourceCPU:    resource.MustParse("600m"),

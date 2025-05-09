@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package etcdcomponents
+package etcdcomponentprotection
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"slices"
 
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/webhook/utils"
 
@@ -31,13 +32,13 @@ var allowedOperations = []admissionv1.Operation{admissionv1.Create, admissionv1.
 // unintended modification or deletion by this admission handler.
 type Handler struct {
 	client  client.Client
-	config  *Config
+	config  configv1alpha1.EtcdComponentProtectionWebhookConfiguration
 	decoder *utils.RequestDecoder
 	logger  logr.Logger
 }
 
 // NewHandler creates a new handler for Etcd Components Webhook.
-func NewHandler(mgr manager.Manager, config *Config) (*Handler, error) {
+func NewHandler(mgr manager.Manager, config configv1alpha1.EtcdComponentProtectionWebhookConfiguration) (*Handler, error) {
 	return &Handler{
 		client:  mgr.GetClient(),
 		config:  config,
