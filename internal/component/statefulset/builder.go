@@ -6,6 +6,7 @@ package statefulset
 
 import (
 	"fmt"
+	"strconv"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -500,6 +501,17 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 		if b.etcd.Spec.Backup.LeaderElection.ReelectionPeriod != nil {
 			commandArgs = append(commandArgs, fmt.Sprintf("--reelection-period=%s", b.etcd.Spec.Backup.LeaderElection.ReelectionPeriod.Duration.String()))
 		}
+	}
+
+	if v, ok := b.etcd.Annotations[druidv1alpha1.DisableEtcdMemberStatusReportingAnnotation]; ok {
+		disabled, err := strconv.ParseBool(v)
+		if err != nil {
+			b.logger.Error(err, "Value in annotation is not a valid boolean - assuming member status reporting shall be enabled", "annotationKey", druidv1alpha1.DisableEtcdMemberStatusReportingAnnotation, "annotationValue", v)
+			disabled = false
+		}
+
+		commandArgs = append(commandArgs, fmt.Sprintf("--enable-member-lease-renewal=%s", strconv.FormatBool(disabled)))
+		commandArgs = append(commandArgs, fmt.Sprintf("--enable-snapshot-lease-renewal=%s", strconv.FormatBool(disabled)))
 	}
 
 	return commandArgs

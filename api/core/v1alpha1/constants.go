@@ -25,6 +25,9 @@ const (
 	// DisableEtcdComponentProtectionAnnotation is an annotation set by an operator to disable protection of components created for
 	// an etcd cluster and managed by etcd-druid.
 	DisableEtcdComponentProtectionAnnotation = "druid.gardener.cloud/disable-etcd-component-protection"
+	// DisableEtcdMemberStatusReportingAnnotation is an annotation set by an operator to disable
+	// coordination.k8s.io/v1.Lease renewals for etcd members and snapshots.
+	DisableEtcdMemberStatusReportingAnnotation = "druid.gardener.cloud/disable-member-status-reporting"
 	// GardenerOperationAnnotation is an annotation set by an operator to specify the operation that is desired on an Etcd resource.
 	// Deprecated: Please use DruidOperationAnnotation instead.
 	GardenerOperationAnnotation = "gardener.cloud/operation"
