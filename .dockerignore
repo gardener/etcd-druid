@@ -8,6 +8,7 @@
 !api/
 !charts/
 !controllers/
+!client/
 !pkg/
 !test/
 !internal/
