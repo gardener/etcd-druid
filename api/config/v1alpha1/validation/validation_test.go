@@ -21,6 +21,12 @@ import (
 
 var zero = time.Duration(0)
 
+const (
+	testNs                 = "test-ns"
+	testServiceAccountName = "test-sa"
+	testServiceAccountFQDN = "system:serviceaccount:test-ns:test-sa"
+)
+
 func TestValidateLeaderElectionConfiguration(t *testing.T) {
 	tests := []struct {
 		name                  string
@@ -453,12 +459,13 @@ func TestValidateSecretControllerConfiguration(t *testing.T) {
 
 func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 	tests := []struct {
-		name                          string
-		enabled                       bool
-		overrideReconcilerSA          *string
-		overrideExemptServiceAccounts []string
-		expectedErrors                int
-		matcher                       gomegatypes.GomegaMatcher
+		name                                 string
+		enabled                              bool
+		overrideReconcilerServiceAccountFQDN *string
+		serviceAccountInfo                   *configv1alpha1.ServiceAccountInfo
+		overrideExemptServiceAccounts        []string
+		expectedErrors                       int
+		matcher                              gomegatypes.GomegaMatcher
 	}{
 		{
 			name:           "should allow empty configuration when it is disabled",
@@ -467,19 +474,39 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 			matcher:        nil,
 		},
 		{
-			name:                          "should allow valid configuration when it is enabled",
-			enabled:                       true,
-			overrideReconcilerSA:          ptr.To("etcd-druid-reconciler-sa"),
-			overrideExemptServiceAccounts: []string{"garbage-collector-sa"},
-			expectedErrors:                0,
-			matcher:                       nil,
+			name:                                 "when enabled, should allow valid configuration using deprecated reconciler service account FQDN",
+			enabled:                              true,
+			overrideReconcilerServiceAccountFQDN: ptr.To(testServiceAccountFQDN),
+			overrideExemptServiceAccounts:        []string{"garbage-collector-sa"},
+			expectedErrors:                       0,
+			matcher:                              nil,
 		},
 		{
-			name:                          "should forbid empty reconciler service account when enabled",
+			name:    "when enabled, should allow valid configuration using a valid service account info",
+			enabled: true,
+			serviceAccountInfo: &configv1alpha1.ServiceAccountInfo{
+				Name:      testServiceAccountName,
+				Namespace: testNs,
+			},
+			expectedErrors: 0,
+			matcher:        nil,
+		},
+		{
+			name:           "when enabled, should forbid nil values for both reconcilerServiceAccountFQDN and serviceAccountInfo",
+			enabled:        true,
+			expectedErrors: 1,
+			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("webhooks.etcdComponentProtection")}))),
+		},
+		{
+			name:                          "when enabled with non-nil serviceAccountInfo, should forbid empty values for namePath and namespacePath",
 			enabled:                       true,
 			overrideExemptServiceAccounts: []string{"garbage-collector-sa"},
-			expectedErrors:                1,
-			matcher:                       ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("webhooks.etcdComponentProtection.reconcilerServiceAccount")}))),
+			serviceAccountInfo:            &configv1alpha1.ServiceAccountInfo{},
+			expectedErrors:                2,
+			matcher: ConsistOf(
+				PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("webhooks.etcdComponentProtection.serviceAccountInfo.name")})),
+				PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("webhooks.etcdComponentProtection.serviceAccountInfo.namespace")})),
+			),
 		},
 	}
 
@@ -494,9 +521,8 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 			if test.overrideExemptServiceAccounts != nil {
 				webhookConfig.ExemptServiceAccounts = test.overrideExemptServiceAccounts
 			}
-			if test.overrideReconcilerSA != nil {
-				webhookConfig.ReconcilerServiceAccount = *test.overrideReconcilerSA
-			}
+			webhookConfig.ReconcilerServiceAccountFQDN = test.overrideReconcilerServiceAccountFQDN
+			webhookConfig.ServiceAccountInfo = test.serviceAccountInfo
 			actualErr := validateEtcdComponentProtectionWebhookConfiguration(*webhookConfig, fldPath)
 			g.Expect(len(actualErr)).To(Equal(test.expectedErrors))
 			if test.matcher != nil {

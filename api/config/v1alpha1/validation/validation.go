@@ -118,8 +118,23 @@ func validateEtcdComponentProtectionWebhookConfiguration(webhookConfig configv1a
 	if !webhookConfig.Enabled {
 		return allErrs
 	}
-	if len(strings.TrimSpace(webhookConfig.ReconcilerServiceAccount)) == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("reconcilerServiceAccount"), "reconcilerServiceAccount is required"))
+	// Ensure that at least one of ReconcilerServiceAccountFQDN or ServiceAccountInfo is set.
+	if webhookConfig.ReconcilerServiceAccountFQDN == nil && webhookConfig.ServiceAccountInfo == nil {
+		allErrs = append(allErrs, field.Required(fldPath, "either reconcilerServiceAccountFQDN or serviceAccountInfo must be set"))
+	}
+	if webhookConfig.ServiceAccountInfo != nil {
+		allErrs = append(allErrs, validateServiceAccountInfo(webhookConfig.ServiceAccountInfo, fldPath.Child("serviceAccountInfo"))...)
+	}
+	return allErrs
+}
+
+func validateServiceAccountInfo(serviceAccountInfo *configv1alpha1.ServiceAccountInfo, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if len(strings.TrimSpace(serviceAccountInfo.Name)) == 0 {
+		allErrs = append(allErrs, field.Required(fldPath.Child("name"), "name is required"))
+	}
+	if len(strings.TrimSpace(serviceAccountInfo.Namespace)) == 0 {
+		allErrs = append(allErrs, field.Required(fldPath.Child("namespace"), "namespace is required"))
 	}
 	return allErrs
 }
