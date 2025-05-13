@@ -749,6 +749,7 @@ _Appears in:_
 
 
 EtcdComponentProtectionWebhookConfiguration defines the configuration for EtcdComponentProtection webhook.
+NOTE: At least one of ReconcilerServiceAccountFQDN or ServiceAccountInfo must be set. It is recommended to switch to ServiceAccountInfo.
 
 
 
@@ -758,7 +759,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `enabled` _boolean_ | Enabled indicates whether the EtcdComponentProtection webhook is enabled. |  |  |
-| `reconcilerServiceAccount` _string_ | ReconcilerServiceAccount is the name of the service account used by etcd-druid for reconciling etcd resources. |  |  |
+| `reconcilerServiceAccountFQDN` _string_ | ReconcilerServiceAccountFQDN is the FQDN of the reconciler service account used by the etcd-druid operator.<br />Deprecated: Please use ServiceAccountInfo instead and ensure that both Name and Namespace are set via projected volumes and downward API in the etcd-druid deployment spec. |  |  |
+| `serviceAccountInfo` _[ServiceAccountInfo](#serviceaccountinfo)_ | ServiceAccountInfo contains paths to gather etcd-druid service account information. |  |  |
 | `exemptServiceAccounts` _string array_ | ExemptServiceAccounts is a list of service accounts that are exempt from Etcd Components Webhook checks. |  |  |
 
 
@@ -940,6 +942,24 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `webhooks` _[TLSServer](#tlsserver)_ | Webhooks is the configuration for the TLS webhook server. |  |  |
 | `metrics` _[Server](#server)_ | Metrics is the configuration for serving the metrics endpoint. |  |  |
+
+
+#### ServiceAccountInfo
+
+
+
+ServiceAccountInfo contains paths to gather etcd-druid service account information.
+Usually downward API and projected volumes are used in the deployment specification of etcd-druid to provide this information as mounted volume files.
+
+
+
+_Appears in:_
+- [EtcdComponentProtectionWebhookConfiguration](#etcdcomponentprotectionwebhookconfiguration)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name is the name of the service account associated with etcd-druid deployment. |  |  |
+| `namespace` _string_ | Namespace is the namespace in which the service account has been deployed.<br />Usually this information is usually available at /var/run/secrets/kubernetes.io/serviceaccount/namespace.<br />However, if automountServiceAccountToken is set to false then this file will not be available. |  |  |
 
 
 #### TLSServer

@@ -13,7 +13,7 @@
 The recommended way to configure `etcd-druid` is via [OperatorConfiguration](https://github.com/gardener/etcd-druid/blob/opconfig/api/config/v1alpha1/types.go#L14).  It is assumed that you have done the following:
 
 * Created a `ConfigMap` which contains the serialized operator configuration.
-* Mounted the `ConfigMap` to etcd-druid `Deployment`.
+* Mount the `ConfigMap` to etcd-druid `Deployment`.
 
 | Flag   | Description                                 | Default |
 | ------ | ------------------------------------------- | ------- |
@@ -23,7 +23,7 @@ You can see the default values for `OperatorConfiguration` at [api/config/v1alph
 
 !!! note
 
-​	It is required to define the `--config` CLI flag and point to a valid serialized `OperatorConfiguration`.
+​	It is required to define the `--config` CLI flag and point to the `ConfigMap` mount path.
 
 ### Leader election *(Deprecated)*
 
