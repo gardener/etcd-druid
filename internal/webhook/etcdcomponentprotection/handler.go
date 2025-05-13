@@ -31,19 +31,25 @@ var allowedOperations = []admissionv1.Operation{admissionv1.Create, admissionv1.
 // All resources that are provisioned by druid as part of etcd cluster provisioning are protected from
 // unintended modification or deletion by this admission handler.
 type Handler struct {
-	client  client.Client
-	config  configv1alpha1.EtcdComponentProtectionWebhookConfiguration
-	decoder *utils.RequestDecoder
-	logger  logr.Logger
+	client                       client.Client
+	config                       configv1alpha1.EtcdComponentProtectionWebhookConfiguration
+	decoder                      *utils.RequestDecoder
+	logger                       logr.Logger
+	reconcilerServiceAccountFQDN string
 }
 
 // NewHandler creates a new handler for Etcd Components Webhook.
 func NewHandler(mgr manager.Manager, config configv1alpha1.EtcdComponentProtectionWebhookConfiguration) (*Handler, error) {
+	reconcilerServiceAccountFQDN, err := utils.GetReconcilerServiceAccountFQDN(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create etcdcomponentprotection handler due to error in getting reconciler service account FQDN: %w", err)
+	}
 	return &Handler{
-		client:  mgr.GetClient(),
-		config:  config,
-		decoder: utils.NewRequestDecoder(mgr),
-		logger:  mgr.GetLogger().WithName(handlerName),
+		client:                       mgr.GetClient(),
+		config:                       config,
+		decoder:                      utils.NewRequestDecoder(mgr),
+		logger:                       mgr.GetLogger().WithName(handlerName),
+		reconcilerServiceAccountFQDN: reconcilerServiceAccountFQDN,
 	}, nil
 }
 
@@ -91,8 +97,8 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 }
 
 func (h *Handler) handleUpdate(req admission.Request, etcd *druidv1alpha1.Etcd, objMeta metav1.ObjectMeta) admission.Response {
-	if req.UserInfo.Username == h.config.ReconcilerServiceAccount {
-		return admission.Allowed("updation of managed resources by etcd-druid is allowed")
+	if req.UserInfo.Username == h.reconcilerServiceAccountFQDN {
+		return admission.Allowed("update of managed resources by etcd-druid is allowed")
 	}
 
 	requestGK := utils.GetGroupKindFromRequest(req)
@@ -120,7 +126,7 @@ func (h *Handler) handleUpdate(req admission.Request, etcd *druidv1alpha1.Etcd, 
 }
 
 func (h *Handler) handleDelete(req admission.Request, etcd *druidv1alpha1.Etcd) admission.Response {
-	if req.UserInfo.Username == h.config.ReconcilerServiceAccount {
+	if req.UserInfo.Username == h.reconcilerServiceAccountFQDN {
 		return admission.Allowed(fmt.Sprintf("deletion of resource by etcd-druid is allowed during deletion of Etcd %s", etcd.Name))
 	}
 	if slices.Contains(h.config.ExemptServiceAccounts, req.UserInfo.Username) {

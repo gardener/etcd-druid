@@ -9,7 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"k8s.io/utils/ptr"
 	"net/http"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"testing"
 	"time"
 
@@ -39,24 +41,85 @@ import (
 )
 
 const (
-	testUserName   = "test-user"
-	testObjectName = "test"
-	testNamespace  = "test-ns"
-	testEtcdName   = "test"
+	testUserName           = "test-user"
+	testObjectName         = "test"
+	testNamespace          = "test-ns"
+	testEtcdName           = "test"
+	testServiceAccount     = "test-sa"
+	testServiceAccountFQDN = "system:serviceaccount:test-ns:test-sa"
 )
 
 var (
-	errInternal              = errors.New("test internal error")
-	apiInternalErr           = apierrors.NewInternalError(errInternal)
-	apiNotFoundErr           = apierrors.NewNotFound(schema.GroupResource{}, "")
-	reconcilerServiceAccount = "etcd-druid-sa"
-	exemptServiceAccounts    = []string{"exempt-sa-1"}
-
+	errInternal                  = errors.New("test internal error")
+	apiInternalErr               = apierrors.NewInternalError(errInternal)
+	apiNotFoundErr               = apierrors.NewNotFound(schema.GroupResource{}, "")
+	exemptServiceAccounts        = []string{"exempt-sa-1"}
+	reconcilerServiceAccountInfo = configv1alpha1.ServiceAccountInfo{
+		Name:      testServiceAccount,
+		Namespace: testNamespace,
+	}
 	statefulSetGVK      = metav1.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}
 	statefulSetGVR      = metav1.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}
 	scaleSubresourceGVK = metav1.GroupVersionKind{Group: "autoscaling", Version: "v1", Kind: "Scale"}
 	leaseGVK            = metav1.GroupVersionKind{Group: "coordination.k8s.io", Version: "v1", Kind: "Lease"}
 )
+
+func TestNewHandler(t *testing.T) {
+	testCases := []struct {
+		name                       string
+		config                     *configv1alpha1.EtcdComponentProtectionWebhookConfiguration
+		expectedServiceAccountFQDN string
+		errorExpected              bool
+	}{
+		{
+			name: "create new handler with a valid configuration",
+			config: &configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+				Enabled:            true,
+				ServiceAccountInfo: &reconcilerServiceAccountInfo,
+			},
+			expectedServiceAccountFQDN: testServiceAccountFQDN,
+			errorExpected:              false,
+		},
+		{
+			name: "should return error when none of ServiceAccountInfo and ReconcilerServiceAccountFQDN is set",
+			config: &configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+				Enabled: true,
+			},
+			errorExpected: true,
+		},
+		{
+			name: "should use ServiceAccountInfo when both ServiceAccountInfo and ReconcilerServiceAccountFQDN are set",
+			config: &configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+				Enabled: true,
+				ServiceAccountInfo: &configv1alpha1.ServiceAccountInfo{
+					Name:      testServiceAccount,
+					Namespace: testNamespace,
+				},
+				ReconcilerServiceAccountFQDN: ptr.To("system:serviceaccount:other-ns:other-sa"),
+			},
+			expectedServiceAccountFQDN: testServiceAccountFQDN,
+		},
+	}
+
+	g := NewWithT(t)
+	t.Parallel()
+	cl := testutils.CreateDefaultFakeClient()
+	mgr := createFakeManager(cl)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			handler, err := NewHandler(mgr, *tc.config)
+			if tc.errorExpected {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(handler).To(BeNil())
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(handler).NotTo(BeNil())
+				g.Expect(handler.reconcilerServiceAccountFQDN).To(Equal(tc.expectedServiceAccountFQDN))
+			}
+		})
+	}
+}
 
 func TestHandleCreateAndConnect(t *testing.T) {
 	g := NewWithT(t)
@@ -79,7 +142,10 @@ func TestHandleCreateAndConnect(t *testing.T) {
 	}
 
 	cl := testutils.CreateDefaultFakeClient()
-	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{Enabled: true})
+	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+		Enabled:            true,
+		ServiceAccountInfo: &reconcilerServiceAccountInfo,
+	})
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -129,7 +195,10 @@ func TestHandleLeaseUpdate(t *testing.T) {
 			t.Parallel()
 			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).Build()
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, nil, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{Enabled: true})
+			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+				Enabled:            true,
+				ServiceAccountInfo: &reconcilerServiceAccountInfo,
+			})
 
 			obj := buildObjRawExtension(g, &coordinationv1.Lease{}, nil, testObjectName, testNamespace,
 				map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName}, false)
@@ -166,7 +235,10 @@ func TestHandleUnmanagedStatefulSetScaleSubresourceUpdate(t *testing.T) {
 	delete(sts.Labels, druidv1alpha1.LabelManagedByKey)
 
 	cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, nil, nil, nil, nil, []client.Object{sts}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{Enabled: true})
+	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+		Enabled:            true,
+		ServiceAccountInfo: &reconcilerServiceAccountInfo,
+	})
 
 	obj := buildObjRawExtension(g, &autoscalingv1.Scale{}, nil, testObjectName, testNamespace, nil, false)
 
@@ -192,7 +264,10 @@ func TestUnexpectedResourceType(t *testing.T) {
 	g := NewWithT(t)
 
 	cl := fake.NewClientBuilder().Build()
-	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{Enabled: true})
+	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+		Enabled:            true,
+		ServiceAccountInfo: &reconcilerServiceAccountInfo,
+	})
 
 	resp := handler.Handle(context.Background(), admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
@@ -209,7 +284,10 @@ func TestMissingManagedByLabel(t *testing.T) {
 	g := NewWithT(t)
 
 	cl := fake.NewClientBuilder().Build()
-	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{Enabled: true})
+	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+		Enabled:            true,
+		ServiceAccountInfo: &reconcilerServiceAccountInfo,
+	})
 
 	obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{druidv1alpha1.LabelPartOfKey: testEtcdName}, false)
 	response := handler.Handle(context.Background(), admission.Request{
@@ -232,7 +310,10 @@ func TestMissingResourcePartOfLabel(t *testing.T) {
 	g := NewWithT(t)
 
 	cl := fake.NewClientBuilder().Build()
-	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{Enabled: true})
+	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+		Enabled:            true,
+		ServiceAccountInfo: &reconcilerServiceAccountInfo,
+	})
 
 	obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue}, false)
 	response := handler.Handle(context.Background(), admission.Request{
@@ -266,8 +347,8 @@ func TestHandleUpdate(t *testing.T) {
 		etcdStatusLastOperation *druidv1alpha1.LastOperation
 		etcdGetErr              *apierrors.StatusError
 		// ----- handler configuration -----
-		reconcilerServiceAccount string
-		exemptServiceAccounts    []string
+		reconcilerServiceAccountInfo configv1alpha1.ServiceAccountInfo
+		exemptServiceAccounts        []string
 		// ----- expected -----
 		expectedAllowed bool
 		expectedMessage string
@@ -282,55 +363,55 @@ func TestHandleUpdate(t *testing.T) {
 			expectedCode:    http.StatusOK,
 		},
 		{
-			name:                     "operator makes a request when Etcd is being reconciled by druid",
-			userName:                 testUserName,
-			objectLabels:             map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
-			reconcilerServiceAccount: reconcilerServiceAccount,
-			expectedAllowed:          false,
-			expectedMessage:          fmt.Sprintf("changes from service account %s are disallowed at the moment", testUserName),
-			expectedCode:             http.StatusForbidden,
+			name:                         "operator makes a request when Etcd is being reconciled by druid",
+			userName:                     testUserName,
+			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
+			expectedAllowed:              false,
+			expectedMessage:              fmt.Sprintf("changes from service account %s are disallowed at the moment", testUserName),
+			expectedCode:                 http.StatusForbidden,
 		},
 		{
-			name:                     "druid makes a request during its reconciliation run",
-			userName:                 reconcilerServiceAccount,
-			objectLabels:             map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
-			reconcilerServiceAccount: reconcilerServiceAccount,
-			expectedAllowed:          true,
-			expectedMessage:          "updation of managed resources by etcd-druid is allowed",
-			expectedCode:             http.StatusOK,
+			name:                         "druid makes a request during its reconciliation run",
+			userName:                     testServiceAccountFQDN,
+			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
+			expectedAllowed:              true,
+			expectedMessage:              "update of managed resources by etcd-druid is allowed",
+			expectedCode:                 http.StatusOK,
 		},
 		{
-			name:                     "Etcd is not currently being reconciled by druid, and request is from exempt service account",
-			userName:                 exemptServiceAccounts[0],
-			objectLabels:             map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			reconcilerServiceAccount: reconcilerServiceAccount,
-			exemptServiceAccounts:    exemptServiceAccounts,
-			expectedAllowed:          true,
-			expectedMessage:          fmt.Sprintf("operations on resources by exempt service account %s are allowed", exemptServiceAccounts[0]),
-			expectedCode:             http.StatusOK,
+			name:                         "Etcd is not currently being reconciled by druid, and request is from exempt service account",
+			userName:                     exemptServiceAccounts[0],
+			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
+			exemptServiceAccounts:        exemptServiceAccounts,
+			expectedAllowed:              true,
+			expectedMessage:              fmt.Sprintf("operations on resources by exempt service account %s are allowed", exemptServiceAccounts[0]),
+			expectedCode:                 http.StatusOK,
 		},
 		{
-			name:                     "Etcd is not currently being reconciled by druid, and request is from non-exempt service account",
-			userName:                 testUserName,
-			objectLabels:             map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			reconcilerServiceAccount: reconcilerServiceAccount,
-			exemptServiceAccounts:    exemptServiceAccounts,
-			expectedAllowed:          false,
-			expectedMessage:          fmt.Sprintf("changes from service account %s are disallowed at the moment", testUserName),
-			expectedCode:             http.StatusForbidden,
+			name:                         "Etcd is not currently being reconciled by druid, and request is from non-exempt service account",
+			userName:                     testUserName,
+			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
+			exemptServiceAccounts:        exemptServiceAccounts,
+			expectedAllowed:              false,
+			expectedMessage:              fmt.Sprintf("changes from service account %s are disallowed at the moment", testUserName),
+			expectedCode:                 http.StatusForbidden,
 		},
 		{
-			name:                     "Etcd is currently being reconciled by druid, and request is from an exempt service account",
-			userName:                 exemptServiceAccounts[0],
-			objectLabels:             map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
-			reconcilerServiceAccount: reconcilerServiceAccount,
-			exemptServiceAccounts:    exemptServiceAccounts,
-			expectedAllowed:          false,
-			expectedMessage:          fmt.Sprintf("changes from service account %s are disallowed at the moment", exemptServiceAccounts[0]),
-			expectedCode:             http.StatusForbidden,
+			name:                         "Etcd is currently being reconciled by druid, and request is from an exempt service account",
+			userName:                     exemptServiceAccounts[0],
+			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
+			exemptServiceAccounts:        exemptServiceAccounts,
+			expectedAllowed:              false,
+			expectedMessage:              fmt.Sprintf("changes from service account %s are disallowed at the moment", exemptServiceAccounts[0]),
+			expectedCode:                 http.StatusForbidden,
 		},
 		{
 			name:                         "Etcd is currently being reconciled by druid, the resource has deletion timestamp set, and request is from an exempt service account",
@@ -338,7 +419,7 @@ func TestHandleUpdate(t *testing.T) {
 			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
 			isObjectDeletionTimestampSet: true,
 			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
-			reconcilerServiceAccount:     reconcilerServiceAccount,
+			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
 			exemptServiceAccounts:        exemptServiceAccounts,
 			expectedAllowed:              true,
 			expectedMessage:              fmt.Sprintf("deletion of resource by exempt service account %s is allowed during ongoing reconciliation of Etcd %s, since deletion timestamp is set on the resource", exemptServiceAccounts[0], testEtcdName),
@@ -357,9 +438,9 @@ func TestHandleUpdate(t *testing.T) {
 
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
 			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
-				Enabled:                  true,
-				ReconcilerServiceAccount: reconcilerServiceAccount,
-				ExemptServiceAccounts:    exemptServiceAccounts,
+				Enabled:               true,
+				ServiceAccountInfo:    &reconcilerServiceAccountInfo,
+				ExemptServiceAccounts: exemptServiceAccounts,
 			})
 
 			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels, tc.isObjectDeletionTimestampSet)
@@ -432,9 +513,9 @@ func TestHandleWithInvalidRequestObject(t *testing.T) {
 			t.Parallel()
 			cl := testutils.CreateDefaultFakeClient()
 			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
-				Enabled:                  true,
-				ReconcilerServiceAccount: reconcilerServiceAccount,
-				ExemptServiceAccounts:    exemptServiceAccounts,
+				Enabled:               true,
+				ServiceAccountInfo:    &reconcilerServiceAccountInfo,
+				ExemptServiceAccounts: exemptServiceAccounts,
 			})
 
 			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, nil, false)
@@ -490,9 +571,9 @@ func TestEtcdGetFailures(t *testing.T) {
 			t.Parallel()
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
 			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
-				Enabled:                  true,
-				ReconcilerServiceAccount: reconcilerServiceAccount,
-				ExemptServiceAccounts:    exemptServiceAccounts,
+				Enabled:               true,
+				ServiceAccountInfo:    &reconcilerServiceAccountInfo,
+				ExemptServiceAccounts: exemptServiceAccounts,
 			})
 
 			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, nil, testObjectName, testNamespace, map[string]string{
@@ -532,8 +613,8 @@ func TestHandleDelete(t *testing.T) {
 		etcdStatusLastOperation *druidv1alpha1.LastOperation
 		etcdGetErr              *apierrors.StatusError
 		// ----- handler configuration -----
-		reconcilerServiceAccount string
-		exemptServiceAccounts    []string
+		reconcilerServiceAccountInfo configv1alpha1.ServiceAccountInfo
+		exemptServiceAccounts        []string
 		// ----- expected -----
 		expectedAllowed bool
 		expectedReason  string
@@ -549,90 +630,90 @@ func TestHandleDelete(t *testing.T) {
 			expectedCode:    http.StatusOK,
 		},
 		{
-			name:                     "Etcd is currently being reconciled by druid, and request is from non-exempt service account",
-			userName:                 testUserName,
-			objectLabels:             map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
-			reconcilerServiceAccount: reconcilerServiceAccount,
-			expectedAllowed:          false,
-			expectedReason:           "Forbidden",
-			expectedMessage:          fmt.Sprintf("changes from service account %s are disallowed at the moment", testUserName),
-			expectedCode:             http.StatusForbidden,
+			name:                         "Etcd is currently being reconciled by druid, and request is from non-exempt service account",
+			userName:                     testUserName,
+			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
+			expectedAllowed:              false,
+			expectedReason:               "Forbidden",
+			expectedMessage:              fmt.Sprintf("changes from service account %s are disallowed at the moment", testUserName),
+			expectedCode:                 http.StatusForbidden,
 		},
 		{
-			name:                     "Etcd is currently being reconciled by druid, and request is from druid",
-			userName:                 reconcilerServiceAccount,
-			objectLabels:             map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
-			reconcilerServiceAccount: reconcilerServiceAccount,
-			expectedAllowed:          true,
-			expectedMessage:          "updation of managed resources by etcd-druid is allowed",
-			expectedCode:             http.StatusOK,
+			name:                         "Etcd is currently being reconciled by druid, and request is from druid",
+			userName:                     testServiceAccountFQDN,
+			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
+			expectedAllowed:              true,
+			expectedMessage:              "update of managed resources by etcd-druid is allowed",
+			expectedCode:                 http.StatusOK,
 		},
 		{
-			name:                     "Etcd is currently being reconciled by druid, and request is from exempt service account",
-			userName:                 exemptServiceAccounts[0],
-			objectLabels:             map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
-			reconcilerServiceAccount: reconcilerServiceAccount,
-			exemptServiceAccounts:    exemptServiceAccounts,
-			expectedAllowed:          false,
-			expectedMessage:          fmt.Sprintf("changes from service account %s are disallowed at the moment", exemptServiceAccounts[0]),
-			expectedReason:           "Forbidden",
-			expectedCode:             http.StatusForbidden,
+			name:                         "Etcd is currently being reconciled by druid, and request is from exempt service account",
+			userName:                     exemptServiceAccounts[0],
+			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
+			exemptServiceAccounts:        exemptServiceAccounts,
+			expectedAllowed:              false,
+			expectedMessage:              fmt.Sprintf("changes from service account %s are disallowed at the moment", exemptServiceAccounts[0]),
+			expectedReason:               "Forbidden",
+			expectedCode:                 http.StatusForbidden,
 		},
 		{
-			name:                     "Etcd is not currently being reconciled by druid, and request is from exempt service account",
-			userName:                 exemptServiceAccounts[0],
-			objectLabels:             map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			reconcilerServiceAccount: reconcilerServiceAccount,
-			exemptServiceAccounts:    exemptServiceAccounts,
-			expectedAllowed:          true,
-			expectedMessage:          fmt.Sprintf("operations on resources by exempt service account %s are allowed", exemptServiceAccounts[0]),
-			expectedCode:             http.StatusOK,
+			name:                         "Etcd is not currently being reconciled by druid, and request is from exempt service account",
+			userName:                     exemptServiceAccounts[0],
+			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
+			exemptServiceAccounts:        exemptServiceAccounts,
+			expectedAllowed:              true,
+			expectedMessage:              fmt.Sprintf("operations on resources by exempt service account %s are allowed", exemptServiceAccounts[0]),
+			expectedCode:                 http.StatusOK,
 		},
 		{
-			name:                     "Etcd is not currently being reconciled or deleted by druid, and request is from non-exempt service account",
-			userName:                 testUserName,
-			objectLabels:             map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			reconcilerServiceAccount: reconcilerServiceAccount,
-			exemptServiceAccounts:    exemptServiceAccounts,
-			expectedAllowed:          false,
-			expectedMessage:          fmt.Sprintf("changes from service account %s are disallowed at the moment", testUserName),
-			expectedReason:           "Forbidden",
-			expectedCode:             http.StatusForbidden,
+			name:                         "Etcd is not currently being reconciled or deleted by druid, and request is from non-exempt service account",
+			userName:                     testUserName,
+			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
+			exemptServiceAccounts:        exemptServiceAccounts,
+			expectedAllowed:              false,
+			expectedMessage:              fmt.Sprintf("changes from service account %s are disallowed at the moment", testUserName),
+			expectedReason:               "Forbidden",
+			expectedCode:                 http.StatusForbidden,
 		},
 		{
-			name:                     "Etcd is currently being deleted by druid, and request is from non-exempt service account",
-			userName:                 testUserName,
-			objectLabels:             map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeDelete, State: druidv1alpha1.LastOperationStateProcessing},
-			reconcilerServiceAccount: reconcilerServiceAccount,
-			expectedAllowed:          false,
-			expectedReason:           "Forbidden",
-			expectedMessage:          fmt.Sprintf("no external intervention allowed during ongoing deletion of Etcd %s by etcd-druid", testEtcdName),
-			expectedCode:             http.StatusForbidden,
+			name:                         "Etcd is currently being deleted by druid, and request is from non-exempt service account",
+			userName:                     testUserName,
+			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeDelete, State: druidv1alpha1.LastOperationStateProcessing},
+			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
+			expectedAllowed:              false,
+			expectedReason:               "Forbidden",
+			expectedMessage:              fmt.Sprintf("no external intervention allowed during ongoing deletion of Etcd %s by etcd-druid", testEtcdName),
+			expectedCode:                 http.StatusForbidden,
 		},
 		{
-			name:                     "Etcd is currently being deleted by druid, and request is from druid",
-			userName:                 reconcilerServiceAccount,
-			objectLabels:             map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeDelete, State: druidv1alpha1.LastOperationStateProcessing},
-			reconcilerServiceAccount: reconcilerServiceAccount,
-			expectedAllowed:          true,
-			expectedMessage:          fmt.Sprintf("deletion of resource by etcd-druid is allowed during deletion of Etcd %s", testEtcdName),
-			expectedCode:             http.StatusOK,
+			name:                         "Etcd is currently being deleted by druid, and request is from druid",
+			userName:                     testServiceAccountFQDN,
+			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeDelete, State: druidv1alpha1.LastOperationStateProcessing},
+			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
+			expectedAllowed:              true,
+			expectedMessage:              fmt.Sprintf("deletion of resource by etcd-druid is allowed during deletion of Etcd %s", testEtcdName),
+			expectedCode:                 http.StatusOK,
 		},
 		{
-			name:                     "Etcd is not currently being deleted by druid, and request is from exempt service account",
-			userName:                 exemptServiceAccounts[0],
-			objectLabels:             map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:  &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeDelete, State: druidv1alpha1.LastOperationStateProcessing},
-			reconcilerServiceAccount: reconcilerServiceAccount,
-			exemptServiceAccounts:    exemptServiceAccounts,
-			expectedAllowed:          true,
-			expectedMessage:          fmt.Sprintf("deletion of resource by exempt SA %s is allowed during deletion of Etcd %s", exemptServiceAccounts[0], testEtcdName),
-			expectedCode:             http.StatusOK,
+			name:                         "Etcd is not currently being deleted by druid, and request is from exempt service account",
+			userName:                     exemptServiceAccounts[0],
+			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeDelete, State: druidv1alpha1.LastOperationStateProcessing},
+			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
+			exemptServiceAccounts:        exemptServiceAccounts,
+			expectedAllowed:              true,
+			expectedMessage:              fmt.Sprintf("deletion of resource by exempt SA %s is allowed during deletion of Etcd %s", exemptServiceAccounts[0], testEtcdName),
+			expectedCode:                 http.StatusOK,
 		},
 	}
 
@@ -646,9 +727,9 @@ func TestHandleDelete(t *testing.T) {
 
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
 			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
-				Enabled:                  true,
-				ReconcilerServiceAccount: reconcilerServiceAccount,
-				ExemptServiceAccounts:    exemptServiceAccounts,
+				Enabled:               true,
+				ServiceAccountInfo:    &reconcilerServiceAccountInfo,
+				ExemptServiceAccounts: exemptServiceAccounts,
 			})
 
 			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels, false)
@@ -675,15 +756,18 @@ func TestHandleDelete(t *testing.T) {
 // ---------------- Helper functions -------------------
 
 func createHandler(g *WithT, cl client.Client, cfg configv1alpha1.EtcdComponentProtectionWebhookConfiguration) *Handler {
-	mgr := &testutils.FakeManager{
+	mgr := createFakeManager(cl)
+	h, err := NewHandler(mgr, cfg)
+	g.Expect(err).ToNot(HaveOccurred())
+	return h
+}
+
+func createFakeManager(cl client.Client) manager.Manager {
+	return &testutils.FakeManager{
 		Client: cl,
 		Scheme: cl.Scheme(),
 		Logger: logr.Discard(),
 	}
-
-	h, err := NewHandler(mgr, cfg)
-	g.Expect(err).ToNot(HaveOccurred())
-	return h
 }
 
 func buildObjRawExtension(g *WithT, emptyObj runtime.Object, objRaw []byte, testObjectName, testNs string, labels map[string]string, isDeletionTimestampSet bool) runtime.RawExtension {
