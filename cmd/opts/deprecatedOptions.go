@@ -10,6 +10,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	flag "github.com/spf13/pflag"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
 	"time"
 )
 
@@ -59,7 +60,7 @@ func (d *deprecatedOperatorConfiguration) addDeprecatedControllerManagerFlags(fs
 	fs.StringVar(&d.webhookServerTLSCertDir, "webhook-server-tls-server-cert-dir", configv1alpha1.DefaultWebhooksServerTLSServerCertDir, "The path to a directory containing the server's TLS certificate and key (the files must be named tls.crt and tls.key respectively).")
 	fs.BoolVar(&d.leaderElectionEnabled, "enable-leader-election", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	fs.StringVar(&d.leaderElectionResourceName, "leader-election-id", configv1alpha1.DefaultLeaderElectionResourceName, "Name of the resource that leader election will use for holding the leader lock.")
-	fs.StringVar(&d.leaderElectionResourceLock, "leader-election-resource-lock", configv1alpha1.DefaultLeaderElectionResourceLock, "Specifies which resource type to use for leader election. Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'. Deprecated: will be removed in the future in favour of using only `leases` as the leader election resource lock for the controller manager.")
+	fs.StringVar(&d.leaderElectionResourceLock, "leader-election-resource-lock", configv1alpha1.DefaultLeaderElectionResourceLock, "Specifies which resource type to use for leader election. Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'. : will be removed in the future in favour of using only `leases` as the leader election resource lock for the controller manager.")
 	fs.BoolVar(&d.disableLeaseCache, "disable-lease-cache", false, "Disable cache for lease.coordination.k8s.io resources.")
 }
 
@@ -92,7 +93,7 @@ func (d *deprecatedOperatorConfiguration) addDeprecatedSecretControllerFlags(fs 
 
 func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdComponentProtectionWebhookFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&d.etcdComponentProtectionEnabled, "enable-etcd-components-webhook", false, "Enable Etcd-Components-Webhook to prevent unintended changes to resources managed by etcd-druid.")
-	fs.StringVar(&d.etcdComponentProtectionReconcilerServiceAccount, "reconciler-service-account", "", "The fully qualified name of the service account used by etcd-druid for reconciling etcd resources.")
+	fs.StringVar(&d.etcdComponentProtectionReconcilerServiceAccount, "reconciler-service-account", "", "The fully qualified name of the service account used by etcd-druid for reconciling etcd resources. Deprecated and will be removed in a future release.")
 	fs.StringSliceVar(&d.etcdComponentProtectionExemptServiceAccounts, "etcd-components-webhook-exempt-service-accounts", []string{}, "The comma-separated list of fully qualified names of service accounts that are exempt from Etcd-Components-Webhook checks.")
 }
 
@@ -131,7 +132,9 @@ func (d *deprecatedOperatorConfiguration) ToOperatorConfiguration() *configv1alp
 	config.Controllers.EtcdCopyBackupsTask.ConcurrentSyncs = &d.etcdCopyBackupsTaskWorkers
 	config.Controllers.Secret.ConcurrentSyncs = &d.secretWorkers
 	config.Webhooks.EtcdComponentProtection.Enabled = d.etcdComponentProtectionEnabled
-	config.Webhooks.EtcdComponentProtection.ReconcilerServiceAccount = d.etcdComponentProtectionReconcilerServiceAccount
+	if len(strings.TrimSpace(d.etcdComponentProtectionReconcilerServiceAccount)) > 0 {
+		config.Webhooks.EtcdComponentProtection.ReconcilerServiceAccountFQDN = &d.etcdComponentProtectionReconcilerServiceAccount
+	}
 	config.Webhooks.EtcdComponentProtection.ExemptServiceAccounts = d.etcdComponentProtectionExemptServiceAccounts
 	return config
 }
