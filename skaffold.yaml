@@ -54,6 +54,10 @@ profiles:
         path: /deploy/helm/releases/0/setValues/controllerManager
         value:
           leaderElection.enabled: false
+      - op: add
+        path: /deploy/helm/release/0/setValues/operatorConfig
+        value:
+          leaderElection.enabled: false
   - name: e2e-test
     activation:
       - env: DRUID_E2E_TEST=true
@@ -72,6 +76,10 @@ profiles:
         path: /deploy/helm/releases/0/setValues/webhooks
         value:
           etcdComponentProtection.enabled: true
+      - op: add
+        path: /deploy/helm/releases/0/setValues/operatorConfig
+        value:
+          webhooks.etcdComponentProtection.enabled: true
 
 ---
 apiVersion: skaffold/v4beta12

@@ -41,7 +41,7 @@ operatorConfig:
     #contentType: ""
     #acceptContentType: ""
   leaderElection:
-    enabled: true
+    enabled: false
     leaseDuration: 15s
     renewDeadline: 10s
     retryPeriod: 2s
@@ -80,7 +80,6 @@ operatorConfig:
   webhooks:
     etcdComponentProtection:
       enabled: false
-      reconcilerServiceAccount: etcd-druid
       exemptServiceAccounts:
         - system:serviceaccount:kube-system:generic-garbage-collector
   featureGates: { }
@@ -128,7 +127,9 @@ controllers:
 # deprecated, use operatorConfig.server.webhooks instead
 webhooks:
   etcdComponentProtection:
-    enabled: true
-    reconcilerServiceAccount: etcd-druid
+    enabled: false
     exemptServiceAccounts:
       - system:serviceaccount:kube-system:generic-garbage-collector
+
+serviceAccount:
+  name: etcd-druid

@@ -56,7 +56,9 @@ config.yaml: |
   webhooks:
     etcdComponentProtection:
       enabled: {{ .Values.operatorConfig.webhooks.etcdComponentProtection.enabled }}
-      reconcilerServiceAccount: {{ .Values.operatorConfig.webhooks.etcdComponentProtection.reconcilerServiceAccount }}
+      serviceAccountInfo:
+        name: {{ .Values.serviceAccount.name }}
+        namespace: {{ .Release.Namespace }}
       exemptServiceAccounts:
       {{- toYaml .Values.operatorConfig.webhooks.etcdComponentProtection.exemptServiceAccounts | nindent 8}}
 {{- with .Values.featureGates }}
@@ -70,4 +72,18 @@ config.yaml: |
 
 {{- define "operator.config.name" -}}
 etcd-druid-operator-configmap-{{ include "operator.config.data" . | sha256sum | trunc 8 }}
+{{- end -}}
+
+{{- define "etcdcomponents.webhook.enabled" -}}
+{{- $webhookEnabled := false -}}
+{{- if .Values.enabledOperatorConfig -}}
+{{- $webhookEnabled = .Values.operatorConfig.webhooks.etcdComponentProtection.enabled -}}
+{{- else -}}
+{{- $webhookEnabled = .Values.webhooks.etcdComponentProtection.enabled -}}
+{{- end -}}
+{{- $webhookEnabled | toString -}}
+{{- end -}}
+
+{{- define "etcdcomponents.webhook.reconcilerServiceAccountFQDN" -}}
+{{- printf "system:serviceaccount:%s:%s" .Release.Namespace .Values.serviceAccount.name }}
 {{- end -}}

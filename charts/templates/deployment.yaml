@@ -1,3 +1,4 @@
+{{- $etcdComponentProtectionWebhookEnabled := include "etcdcomponents.webhook.enabled" . }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -79,16 +80,16 @@ spec:
         {{- if (((.Values.controllers).secret).workers) }}
         - --secret-workers={{ .Values.controllers.secret.workers }}
         {{- end }}
-        {{- if .Values.webhooks.etcdComponentProtection.enabled }}
+        {{- if eq $etcdComponentProtectionWebhookEnabled "true" }}
         - --enable-etcd-components-webhook=true
-        - --reconciler-service-account={{ .Values.webhooks.etcdComponentProtection.reconcilerServiceAccount }}
+        - --reconciler-service-account={{ include "etcdcomponents.webhook.reconcilerServiceAccountFQDN" . }}
         {{- if .Values.webhooks.etcdComponentProtection.exemptServiceAccounts }}
         - --etcd-components-webhook-exempt-service-accounts={{ join "," .Values.webhooks.etcdComponentProtection.exemptServiceAccounts }}
         {{- end }}
         {{- end }}
         {{- end }}
         volumeMounts:
-        {{- if .Values.webhooks.etcdComponentProtection.enabled }}
+        {{- if eq $etcdComponentProtectionWebhookEnabled "true" }}
           - mountPath: /etc/webhook-server-tls
             name: tls
             readOnly: true
@@ -119,7 +120,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
-      {{- if .Values.webhooks.etcdComponentProtection.enabled }}
+      {{- if eq $etcdComponentProtectionWebhookEnabled "true" }}
         - name: tls
           secret:
             defaultMode: 420
