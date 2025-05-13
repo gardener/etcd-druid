@@ -1,4 +1,5 @@
-{{- if .Values.webhooks.etcdComponentProtection.enabled }}
+{{- $createWebhookConfig := include "etcdcomponents.webhook.enabled" . }}
+{{- if eq $createWebhookConfig "true" }}
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -100,10 +101,9 @@ webhooks:
         scope: '*'
     sideEffects: None
     timeoutSeconds: 10
-
-{{/* This webhook is required for specially handling statefulsets/scale subresource, */}}
-{{/* because an `objectSelector` does not work for subresources. */}}
-{{/* Refer https://github.com/kubernetes/kubernetes/issues/113594#issuecomment-1332573990. */}}
+{{- /* This webhook is required for specially handling statefulsets/scale subresource, */}}
+{{- /* because an `objectSelector` does not work for subresources. */}}
+{{- /* Refer https://github.com/kubernetes/kubernetes/issues/113594#issuecomment-1332573990. */}}
   - admissionReviewVersions:
       - v1beta1
       - v1
@@ -132,4 +132,3 @@ webhooks:
     sideEffects: None
     timeoutSeconds: 10
 {{- end }}
-
