@@ -22,8 +22,8 @@ generate-api-docs: $(CRD_REF_DOCS)
 check-apidiff: $(GO_APIDIFF)
 	@$(HACK_DIR)/check-apidiff.sh
 
-.PHONY: generate $(YQ)
-generate: $(CONTROLLER_GEN) tidy generate-api-docs
+.PHONY: generate 
+generate: $(CONTROLLER_GEN) $(YQ) tidy generate-api-docs
 	@$(HACK_DIR)/generate.sh
 
 .PHONY: clean-generated-code

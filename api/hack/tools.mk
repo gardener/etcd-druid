@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+SYSTEM_NAME                := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+SYSTEM_ARCH                := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 TOOLS_BIN_DIR              := $(API_MODULE_TOOLS_DIR)/bin
 CONTROLLER_GEN             := $(TOOLS_BIN_DIR)/controller-gen
 GOLANGCI_LINT              := $(TOOLS_BIN_DIR)/golangci-lint
@@ -50,5 +52,5 @@ $(GO_APIDIFF):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/joelanford/go-apidiff@$(GO_APIDIFF_VERSION)
 
 $(YQ):
-	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/mikefarah/yq/v4@$(YQ_VERSION)
-
+	curl -Lo $(YQ) https://github.com/mikefarah/yq/releases/download/$(YQ_VERSION)/yq_$(SYSTEM_NAME)_$(SYSTEM_ARCH)
+	chmod +x $(YQ)
