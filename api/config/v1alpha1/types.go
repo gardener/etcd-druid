@@ -77,8 +77,10 @@ type LeaderElectionConfiguration struct {
 // ServerConfiguration contains the server configurations.
 type ServerConfiguration struct {
 	// Webhooks is the configuration for the TLS webhook server.
+	// +optional
 	Webhooks *TLSServer `json:"webhooks"`
 	// Metrics is the configuration for serving the metrics endpoint.
+	// +optional
 	Metrics *Server `json:"metrics"`
 }
 
@@ -119,6 +121,7 @@ type ControllerConfiguration struct {
 // EtcdControllerConfiguration defines the configuration for the Etcd controller.
 type EtcdControllerConfiguration struct {
 	// ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request.
+	// +optional
 	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 	// EnableEtcdSpecAutoReconcile controls how the Etcd Spec is reconciled. If set to true, then any change in Etcd spec
 	// will automatically trigger a reconciliation of the Etcd resource. If set to false, then an operator needs to
@@ -147,6 +150,7 @@ type EtcdMemberConfiguration struct {
 // SecretControllerConfiguration defines the configuration for the Secret controller.
 type SecretControllerConfiguration struct {
 	// ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request.
+	// +optional
 	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 }
 
@@ -155,6 +159,7 @@ type CompactionControllerConfiguration struct {
 	// Enabled specifies whether backup compaction should be enabled.
 	Enabled bool `json:"enabled"`
 	// ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request.
+	// +optional
 	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 	// EventsThreshold denotes total number of etcd events to be reached upon which a backup compaction job is triggered.
 	EventsThreshold int64 `json:"eventsThreshold"`
@@ -179,13 +184,28 @@ type WebhookConfiguration struct {
 }
 
 // EtcdComponentProtectionWebhookConfiguration defines the configuration for EtcdComponentProtection webhook.
+// NOTE: At least one of ReconcilerServiceAccountFQDN or ServiceAccountInfo must be set. It is recommended to switch to ServiceAccountInfo.
 type EtcdComponentProtectionWebhookConfiguration struct {
 	// Enabled indicates whether the EtcdComponentProtection webhook is enabled.
 	Enabled bool `json:"enabled"`
-	// ReconcilerServiceAccount is the name of the service account used by etcd-druid for reconciling etcd resources.
-	ReconcilerServiceAccount string `json:"reconcilerServiceAccount"`
+	// ReconcilerServiceAccountFQDN is the FQDN of the reconciler service account used by the etcd-druid operator.
+	// Deprecated: Please use ServiceAccountInfo instead and ensure that both Name and Namespace are set via projected volumes and downward API in the etcd-druid deployment spec.
+	ReconcilerServiceAccountFQDN *string `json:"reconcilerServiceAccountFQDN,omitempty"`
+	// ServiceAccountInfo contains paths to gather etcd-druid service account information.
+	ServiceAccountInfo *ServiceAccountInfo `json:"serviceAccountInfo"`
 	// ExemptServiceAccounts is a list of service accounts that are exempt from Etcd Components Webhook checks.
 	ExemptServiceAccounts []string `json:"exemptServiceAccounts"`
+}
+
+// ServiceAccountInfo contains paths to gather etcd-druid service account information.
+// Usually downward API and projected volumes are used in the deployment specification of etcd-druid to provide this information as mounted volume files.
+type ServiceAccountInfo struct {
+	// Name is the name of the service account associated with etcd-druid deployment.
+	Name string `json:"name"`
+	// Namespace is the namespace in which the service account has been deployed.
+	// Usually this information is usually available at /var/run/secrets/kubernetes.io/serviceaccount/namespace.
+	// However, if automountServiceAccountToken is set to false then this file will not be available.
+	Namespace string `json:"namespace"`
 }
 
 // LogFormat is the format of the log.
