@@ -25,7 +25,7 @@ func (r *Reconciler) RegisterWithManager(_ context.Context, mgr ctrl.Manager) er
 		NewControllerManagedBy(mgr).
 		Named(controllerName).
 		WithOptions(controller.Options{
-			MaxConcurrentReconciles: r.Config.Workers,
+			MaxConcurrentReconciles: *r.Config.ConcurrentSyncs,
 		}).
 		For(&corev1.Secret{}).
 		Build(r)
