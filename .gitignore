@@ -62,3 +62,6 @@ api/hack/tools/bin/*
 # generated/copied chart resources
 charts/pki-resources/*
 charts/crds/*
+
+# generated pki resources for e2e tests
+test/e2e/pki-resources/*
