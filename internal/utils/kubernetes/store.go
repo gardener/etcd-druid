@@ -5,6 +5,8 @@
 package kubernetes
 
 import (
+	"k8s.io/utils/ptr"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 )
@@ -20,4 +22,23 @@ func GetBackupStoreProvider(etcd *druidv1alpha1.Etcd) (*string, error) {
 		return nil, err
 	}
 	return &provider, nil
+}
+
+// MountPathLocalStore returns the mount path for the local store if the provider matches.
+func MountPathLocalStore(etcd *druidv1alpha1.Etcd, provider *string) string {
+	if !etcd.IsBackupStoreEnabled() || provider == nil || *provider != druidstore.Local {
+		return ""
+	}
+
+	homeDir := "/home/nonroot"
+	if ptr.Deref(etcd.Spec.RunAsRoot, false) {
+		homeDir = "/root"
+	}
+
+	path := ""
+	if container := etcd.Spec.Backup.Store.Container; container != nil {
+		path = "/" + *container
+	}
+
+	return homeDir + path
 }
