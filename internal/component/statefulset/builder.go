@@ -86,7 +86,7 @@ func newStsBuilder(client client.Client,
 	if err != nil {
 		return nil, err
 	}
-	provider, err := getBackupStoreProvider(etcd)
+	provider, err := kubernetes.GetBackupStoreProvider(etcd)
 	if err != nil {
 		return nil, err
 	}
@@ -859,15 +859,4 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 		}, nil
 	}
 	return nil, nil
-}
-
-func getBackupStoreProvider(etcd *druidv1alpha1.Etcd) (*string, error) {
-	if !etcd.IsBackupStoreEnabled() {
-		return nil, nil
-	}
-	provider, err := druidstore.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
-	if err != nil {
-		return nil, err
-	}
-	return &provider, nil
 }
