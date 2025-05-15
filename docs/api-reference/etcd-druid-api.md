@@ -251,6 +251,7 @@ _Appears in:_
 | `defragmentationSchedule` _string_ | DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd. |  | Pattern: `^(\*\|[1-5]?[0-9]\|[1-5]?[0-9]-[1-5]?[0-9]\|(?:[1-9]\|[1-4][0-9]\|5[0-9])\/(?:[1-9]\|[1-4][0-9]\|5[0-9]\|60)\|\*\/(?:[1-9]\|[1-4][0-9]\|5[0-9]\|60))\s+(\*\|[0-9]\|1[0-9]\|2[0-3]\|[0-9]-(?:[0-9]\|1[0-9]\|2[0-3])\|1[0-9]-(?:1[0-9]\|2[0-3])\|2[0-3]-2[0-3]\|(?:[1-9]\|1[0-9]\|2[0-3])\/(?:[1-9]\|1[0-9]\|2[0-4])\|\*\/(?:[1-9]\|1[0-9]\|2[0-4]))\s+(\*\|[1-9]\|[12][0-9]\|3[01]\|[1-9]-(?:[1-9]\|[12][0-9]\|3[01])\|[12][0-9]-(?:[12][0-9]\|3[01])\|3[01]-3[01]\|(?:[1-9]\|[12][0-9]\|30)\/(?:[1-9]\|[12][0-9]\|3[01])\|\*\/(?:[1-9]\|[12][0-9]\|3[01]))\s+(\*\|[1-9]\|1[0-2]\|[1-9]-(?:[1-9]\|1[0-2])\|1[0-2]-1[0-2]\|(?:[1-9]\|1[0-2])\/(?:[1-9]\|1[0-2])\|\*\/(?:[1-9]\|1[0-2]))\s+(\*\|[1-7]\|[1-6]-[1-7]\|[1-6]\/[1-7]\|\*\/[1-7])$` <br /> |
 | `serverPort` _integer_ |  |  |  |
 | `clientPort` _integer_ |  |  |  |
+| `wrapperPort` _integer_ |  |  |  |
 | `image` _string_ | Image defines the etcd container image and tag |  |  |
 | `authSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  |  |
 | `metrics` _[MetricsLevel](#metricslevel)_ | Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics. |  | Enum: [basic extensive] <br /> |

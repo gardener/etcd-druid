@@ -266,6 +266,11 @@ func (in *EtcdConfig) DeepCopyInto(out *EtcdConfig) {
 		*out = new(int32)
 		**out = **in
 	}
+	if in.WrapperPort != nil {
+		in, out := &in.WrapperPort, &out.WrapperPort
+		*out = new(int32)
+		**out = **in
+	}
 	if in.Image != nil {
 		in, out := &in.Image, &out.Image
 		*out = new(string)

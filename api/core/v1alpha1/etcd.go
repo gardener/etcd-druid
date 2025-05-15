@@ -215,6 +215,8 @@ type EtcdConfig struct {
 	ServerPort *int32 `json:"serverPort,omitempty"`
 	// +optional
 	ClientPort *int32 `json:"clientPort,omitempty"`
+	// +optional
+	WrapperPort *int32 `json:"wrapperPort,omitempty"`
 	// Image defines the etcd container image and tag
 	// +optional
 	Image *string `json:"image,omitempty"`
