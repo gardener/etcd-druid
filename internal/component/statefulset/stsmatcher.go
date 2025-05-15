@@ -345,7 +345,10 @@ func (s StatefulSetMatcher) getEtcdBackupVolumeMountMatcher() gomegatypes.Gomega
 	switch *s.provider {
 	case druidstore.Local:
 		if s.etcd.Spec.Backup.Store.Container != nil {
-			return matchVolMount(common.VolumeNameLocalBackup, fmt.Sprintf("/home/nonroot/%s", ptr.Deref(s.etcd.Spec.Backup.Store.Container, "")))
+			if ptr.Deref(s.etcd.Spec.RunAsRoot, false) {
+				return matchVolMount(common.VolumeNameLocalBackup, fmt.Sprintf("/root/%s", *s.etcd.Spec.Backup.Store.Container))
+			}
+			return matchVolMount(common.VolumeNameLocalBackup, fmt.Sprintf("/home/nonroot/%s", *s.etcd.Spec.Backup.Store.Container))
 		}
 	case druidstore.GCS:
 		return matchVolMount(common.VolumeNameProviderBackupSecret, common.VolumeMountPathGCSBackupSecret)

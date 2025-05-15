@@ -330,7 +330,7 @@ func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 		if b.etcd.Spec.Backup.Store.Container != nil {
 			return &corev1.VolumeMount{
 				Name:      common.VolumeNameLocalBackup,
-				MountPath: fmt.Sprintf("/home/nonroot/%s", ptr.Deref(b.etcd.Spec.Backup.Store.Container, "")),
+				MountPath: kubernetes.MountPathLocalStore(b.etcd, b.provider),
 			}
 		}
 	case druidstore.GCS:
