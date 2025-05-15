@@ -163,7 +163,7 @@ func (s StatefulSetMatcher) matchPodHostAliases() gomegatypes.GomegaMatcher {
 
 func (s StatefulSetMatcher) matchPodInitContainers() gomegatypes.GomegaMatcher {
 	initContainerMatcherElements := make(map[string]gomegatypes.GomegaMatcher)
-	if s.etcd.IsBackupStoreEnabled() && s.provider != nil && *s.provider == druidstore.Local {
+	if s.etcd.IsBackupStoreEnabled() && s.provider != nil && *s.provider == druidstore.Local && !ptr.Deref(s.etcd.Spec.RunAsRoot, false) {
 		changeBackupBucketPermissionsMatcher := MatchFields(IgnoreExtras, Fields{
 			"Name":            Equal(common.InitContainerNameChangeBackupBucketPermissions),
 			"Image":           Equal(s.initContainerImage),
