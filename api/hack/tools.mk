@@ -11,6 +11,7 @@ GOIMPORTS                  := $(TOOLS_BIN_DIR)/goimports
 GOIMPORTS_REVISER          := $(TOOLS_BIN_DIR)/goimports-reviser
 CRD_REF_DOCS               := $(TOOLS_BIN_DIR)/crd-ref-docs
 GO_APIDIFF                 := $(TOOLS_BIN_DIR)/go-apidiff
+YQ                         := $(TOOLS_BIN_DIR)/yq
 
 # default tool versions
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)
@@ -18,6 +19,7 @@ GOLANGCI_LINT_VERSION ?= v1.64.8
 GOIMPORTS_REVISER_VERSION ?= v3.9.1
 CRD_REF_DOCS_VERSION ?= v0.1.0
 GO_APIDIFF_VERSION ?= v0.8.2
+YQ_VERSION ?= v4.45.1
 
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
@@ -49,3 +51,6 @@ $(CRD_REF_DOCS):
 $(GO_APIDIFF):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/joelanford/go-apidiff@$(GO_APIDIFF_VERSION)
 
+$(YQ):
+	curl -Lo $(YQ) https://github.com/mikefarah/yq/releases/download/$(YQ_VERSION)/yq_$(SYSTEM_NAME)_$(SYSTEM_ARCH)
+	chmod +x $(YQ)
