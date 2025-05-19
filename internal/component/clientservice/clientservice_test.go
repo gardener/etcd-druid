@@ -88,6 +88,7 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 		clientPort          *int32
 		backupPort          *int32
 		peerPort            *int32
+		wrapperPort         *int32
 		trafficDistribution *string
 		createErr           *apierrors.StatusError
 		expectedErr         *druiderr.DruidError
@@ -96,10 +97,11 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 			name: "create client service with default ports",
 		},
 		{
-			name:       "create client service with custom ports",
-			clientPort: ptr.To[int32](2222),
-			backupPort: ptr.To[int32](3333),
-			peerPort:   ptr.To[int32](4444),
+			name:        "create client service with custom ports",
+			clientPort:  ptr.To[int32](2222),
+			backupPort:  ptr.To[int32](3333),
+			peerPort:    ptr.To[int32](4444),
+			wrapperPort: ptr.To[int32](5555),
 		},
 		{
 			name:                "create client service with traffic distribution",
@@ -120,7 +122,7 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			etcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort, tc.trafficDistribution)
+			etcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort, tc.wrapperPort, tc.trafficDistribution)
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, client.ObjectKey{Name: druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), Namespace: etcd.Namespace})
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -142,14 +144,16 @@ func TestSyncWhenServiceExists(t *testing.T) {
 		originalClientPort          int32  = 2379
 		originalServerPort          int32  = 2380
 		originalBackupPort          int32  = 8080
+		originalWrapperPort         int32  = 9095
 		originalTrafficDistribution string = "PreferClose"
 	)
-	existingEtcd := buildEtcd(ptr.To(originalClientPort), ptr.To(originalServerPort), ptr.To(originalBackupPort), ptr.To(originalTrafficDistribution))
+	existingEtcd := buildEtcd(ptr.To(originalClientPort), ptr.To(originalServerPort), ptr.To(originalBackupPort), ptr.To(originalWrapperPort), ptr.To(originalTrafficDistribution))
 	testCases := []struct {
 		name                string
 		clientPort          *int32
 		backupPort          *int32
 		peerPort            *int32
+		wrapperPort         *int32
 		trafficDistribution *string
 		patchErr            *apierrors.StatusError
 		expectedError       *druiderr.DruidError
@@ -184,7 +188,7 @@ func TestSyncWhenServiceExists(t *testing.T) {
 			// ********************* test sync with updated ports *********************
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-			updatedEtcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort, tc.trafficDistribution)
+			updatedEtcd := buildEtcd(tc.clientPort, tc.peerPort, tc.backupPort, tc.wrapperPort, tc.trafficDistribution)
 			syncErr := operator.Sync(opCtx, updatedEtcd)
 			latestClientSvc, getErr := getLatestClientService(cl, updatedEtcd)
 			g.Expect(latestClientSvc).ToNot(BeNil())
@@ -258,7 +262,7 @@ func TestTriggerDelete(t *testing.T) {
 }
 
 // ---------------------------- Helper Functions -----------------------------
-func buildEtcd(clientPort, peerPort, backupPort *int32, trafficDistribution *string) *druidv1alpha1.Etcd {
+func buildEtcd(clientPort, peerPort, backupPort, wrapperPort *int32, trafficDistribution *string) *druidv1alpha1.Etcd {
 	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
 	if clientPort != nil {
 		etcdBuilder.WithEtcdClientPort(clientPort)
@@ -268,6 +272,9 @@ func buildEtcd(clientPort, peerPort, backupPort *int32, trafficDistribution *str
 	}
 	if backupPort != nil {
 		etcdBuilder.WithBackupPort(backupPort)
+	}
+	if wrapperPort != nil {
+		etcdBuilder.WithEtcdWrapperPort(wrapperPort)
 	}
 	if trafficDistribution != nil {
 		etcdBuilder.WithEtcdClientServiceTrafficDistribution(trafficDistribution)

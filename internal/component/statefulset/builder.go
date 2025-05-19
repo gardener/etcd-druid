@@ -65,9 +65,10 @@ type stsBuilder struct {
 	sts                    *appsv1.StatefulSet
 	logger                 logr.Logger
 
-	clientPort int32
-	serverPort int32
-	backupPort int32
+	clientPort  int32
+	serverPort  int32
+	backupPort  int32
+	wrapperPort int32
 	// skipSetOrUpdateForbiddenFields if its true then it will set/update values to fields which are forbidden to be updated for an existing StatefulSet.
 	// Updates to statefulset spec for fields other than 'replicas', 'ordinals', 'template', 'updateStrategy', 'persistentVolumeClaimRetentionPolicy' and 'minReadySeconds' are forbidden.
 	// Only for a new StatefulSet should this be set to true.
@@ -102,6 +103,7 @@ func newStsBuilder(client client.Client,
 		clientPort:                     ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient),
 		serverPort:                     ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer),
 		backupPort:                     ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore),
+		wrapperPort:                    ptr.Deref(etcd.Spec.Etcd.WrapperPort, common.DefaultPortEtcdWrapper),
 		skipSetOrUpdateForbiddenFields: skipSetOrUpdateForbiddenFields,
 	}, nil
 }
@@ -415,6 +417,7 @@ func (b *stsBuilder) getBackupRestoreContainer() (corev1.Container, error) {
 
 func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	commandArgs := []string{"server"}
+	commandArgs = append(commandArgs, fmt.Sprintf("--server-port=%d", b.backupPort))
 
 	// Backup store related command line args
 	// -----------------------------------------------------------------------------------------------------------------
@@ -582,7 +585,7 @@ func (b *stsBuilder) getEtcdContainerReadinessHandler() corev1.ProbeHandler {
 
 	scheme := utils.IfConditionOr(b.etcd.Spec.Backup.TLS == nil, corev1.URISchemeHTTP, corev1.URISchemeHTTPS)
 	path := utils.IfConditionOr(multiNodeCluster, "/readyz", "/healthz")
-	port := utils.IfConditionOr(multiNodeCluster, common.DefaultPortEtcdWrapper, common.DefaultPortEtcdBackupRestore)
+	port := utils.IfConditionOr(multiNodeCluster, b.wrapperPort, b.backupPort)
 
 	return corev1.ProbeHandler{
 		HTTPGet: &corev1.HTTPGetAction{
@@ -595,7 +598,7 @@ func (b *stsBuilder) getEtcdContainerReadinessHandler() corev1.ProbeHandler {
 
 func (b *stsBuilder) getEtcdContainerCommandArgs() []string {
 	commandArgs := []string{"start-etcd"}
-	commandArgs = append(commandArgs, fmt.Sprintf("--backup-restore-host-port=%s-local:%d", b.etcd.Name, common.DefaultPortEtcdBackupRestore))
+	commandArgs = append(commandArgs, fmt.Sprintf("--backup-restore-host-port=%s-local:%d", b.etcd.Name, b.backupPort))
 	commandArgs = append(commandArgs, fmt.Sprintf("--etcd-server-name=%s-local", b.etcd.Name))
 
 	if b.etcd.Spec.Etcd.ClientUrlTLS == nil {
@@ -606,6 +609,12 @@ func (b *stsBuilder) getEtcdContainerCommandArgs() []string {
 		commandArgs = append(commandArgs, fmt.Sprintf("--backup-restore-ca-cert-bundle-path=%s/%s", common.VolumeMountPathBackupRestoreCA, dataKey))
 		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-client-cert-path=%s/tls.crt", common.VolumeMountPathEtcdClientTLS))
 		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-client-key-path=%s/tls.key", common.VolumeMountPathEtcdClientTLS))
+	}
+	if port := b.clientPort; port != 0 {
+		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-client-port=%d", port))
+	}
+	if port := b.wrapperPort; port != 0 {
+		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-wrapper-port=%d", port))
 	}
 	return commandArgs
 }
