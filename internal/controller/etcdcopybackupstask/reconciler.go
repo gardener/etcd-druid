@@ -441,7 +441,7 @@ func getVolumeNamePrefix(prefix string) string {
 func (r *Reconciler) createVolumesFromStore(ctx context.Context, store *druidv1alpha1.StoreSpec, namespace, provider, prefix string) (volumes []corev1.Volume, err error) {
 	switch provider {
 	case druidstore.Local:
-		hostPathDirectory := corev1.HostPathDirectory
+		hostPathDirectory := corev1.HostPathDirectoryOrCreate
 		hostPathPrefix, err := druidstore.GetHostMountPathFromSecretRef(ctx, r.Client, r.logger, store, namespace)
 		if err != nil {
 			return nil, err

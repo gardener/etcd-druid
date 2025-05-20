@@ -590,7 +590,7 @@ func getCompactionJobVolumes(ctx context.Context, cl client.Client, logger logr.
 			return vs, fmt.Errorf("could not determine host mount path for local provider")
 		}
 
-		hpt := v1.HostPathDirectory
+		hpt := v1.HostPathDirectoryOrCreate
 		vs = append(vs, v1.Volume{
 			Name: "host-storage",
 			VolumeSource: v1.VolumeSource{
