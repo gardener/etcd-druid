@@ -635,7 +635,7 @@ func purgeSnapstore(store brtypes.SnapStore) error {
 }
 
 func getPurgeLocalSnapstoreJob(storeContainer, storePrefix string) *batchv1.Job {
-	directory := corev1.HostPathDirectory
+	directory := corev1.HostPathDirectoryOrCreate
 
 	return newTestHelperJob(
 		"purge-local-snapstore",
