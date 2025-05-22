@@ -12,8 +12,13 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 API_GO_MODULE_ROOT="$(dirname "$SCRIPT_DIR")"
 PROJECT_ROOT="$(dirname "$API_GO_MODULE_ROOT")"
 
-CODE_GEN_DIR=$(go list -m -f '{{.Dir}}' k8s.io/code-generator)
-source "${CODE_GEN_DIR}/kube_codegen.sh"
+function setup() {
+  # ensure that the version of code-generator used is the same as that of k8s.io/api
+  k8s_api_version=$(GOWORK=off go list -mod=mod -f '{{ .Version }}' -m k8s.io/api)
+  go get -tool k8s.io/code-generator@${k8s_api_version}
+  CODE_GEN_DIR=$(go list -m -f '{{.Dir}}' k8s.io/code-generator)
+  source "${CODE_GEN_DIR}/kube_codegen.sh"
+}
 
 function check_controller_gen_prereq() {
   if ! command -v controller-gen &>/dev/null; then
@@ -25,7 +30,7 @@ function check_controller_gen_prereq() {
 function generate_deepcopy_defaulter() {
   kube::codegen::gen_helpers \
     --boilerplate "${SCRIPT_DIR}/boilerplate.generatego.txt" \
-    "${API_GO_MODULE_ROOT}/core/v1alpha1"
+    "${API_GO_MODULE_ROOT}"
 }
 
 function generate_clientset() {
@@ -82,6 +87,9 @@ function getMd5Sum() {
 }
 
 function main() {
+  echo "> Setting up code-generator..."
+  setup
+
   echo "> Generate deepcopy and defaulting functions..."
   generate_deepcopy_defaulter
 

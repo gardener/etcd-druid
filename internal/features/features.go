@@ -21,3 +21,8 @@ const (
 func GetDefaultFeatures() map[featuregate.Feature]featuregate.FeatureSpec {
 	return nil
 }
+
+// RegisterFeatureGate registers the feature gates of etcd-druid.
+// Every feature should be registered here
+func RegisterFeatureGate() {
+}
