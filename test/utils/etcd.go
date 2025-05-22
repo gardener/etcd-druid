@@ -121,6 +121,14 @@ func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
 	return eb
 }
 
+func (eb *EtcdBuilder) WithRunAsRoot(runAsRoot *bool) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.RunAsRoot = runAsRoot
+	return eb
+}
+
 func (eb *EtcdBuilder) WithReadyStatus() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
