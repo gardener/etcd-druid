@@ -6,8 +6,9 @@ package utils
 
 import (
 	"fmt"
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"strings"
+
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 )
 
 // ServiceAccountMatchesUsername checks whether the provided username matches the namespace and name
