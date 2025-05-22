@@ -17,8 +17,6 @@ import (
 // However, it can also be used where ever operation context is required to be specified.
 // Each component can in turn define their own fine-grained operation labels as well.
 const (
-	// OperationPreSync is the PreSync operation of the Operator.
-	OperationPreSync = "PreSync"
 	// OperationSync is the Sync operation of the Operator.
 	OperationSync = "Sync"
 	// OperationTriggerDelete is the TriggerDelete operation of the Operator.

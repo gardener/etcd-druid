@@ -169,9 +169,7 @@ func (r *Reconciler) recordEtcdSpecReconcileSuspension(etcd *druidv1alpha1.Etcd,
 }
 
 func (r *Reconciler) getOrderedOperatorsForPreSync() []component.Kind {
-	return []component.Kind{
-		component.ConfigMapKind,
-	}
+	return []component.Kind{}
 }
 
 func (r *Reconciler) getOrderedOperatorsForSync() []component.Kind {
