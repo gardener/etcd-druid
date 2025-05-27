@@ -45,7 +45,7 @@ func initializeEtcdReconcilerTestEnv(t *testing.T, controllerName string, itTest
 				EnableEtcdSpecAutoReconcile:        autoReconcile,
 				DisableEtcdServiceAccountAutomount: false,
 				EtcdStatusSyncPeriod:               metav1.Duration{Duration: 2 * time.Second},
-				EtcdMemberConfig: configv1alpha1.EtcdMemberConfiguration{
+				EtcdMember: configv1alpha1.EtcdMemberConfiguration{
 					NotReadyThreshold: metav1.Duration{Duration: 5 * time.Minute},
 					UnknownThreshold:  metav1.Duration{Duration: 1 * time.Minute},
 				},

@@ -68,7 +68,7 @@ This YAML map contains paths to required PKI artifacts. If you are generating th
 
 ### etcdComponentProtection
 
-By default this webhook is enabled. This is a good default for production environments. However, while you are actively 	developing then you can choose to disable this webhook.
+By default, this webhook is enabled. This is a good default for production environments. However, while you are actively developing then you can choose to disable this webhook.
 
 If you have switched to using `OperatorConfiguration` then you must set `enabledOperatorConfig` to true (for backward compatibility reasons it is defaulted to false) and then control the enablement of `EtcdComponentProctection` webhook via `operatorConfig.webhooks.etcdComponentProtection.enabled` property. 
 

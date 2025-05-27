@@ -12,7 +12,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils"
 	druidversion "github.com/gardener/etcd-druid/internal/version"
 	flag "github.com/spf13/pflag"
-	"golang.org/x/exp/slog"
 	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
@@ -39,13 +38,12 @@ func main() {
 
 	operatorConfig, err := initializeAndGetOperatorConfig(cliOpts)
 	if err != nil {
-		slog.Error("failed to initialize operator configuration", "error", err)
+		logger.Error(err, "failed to initialize operator configuration")
 		os.Exit(1)
 	}
 
 	ctrl.SetLogger(utils.MustNewLogger(false, operatorConfig.LogConfiguration.LogLevel, operatorConfig.LogConfiguration.LogFormat))
 	printRuntimeInfo()
-	slog.Info("using operator configuration", "config", *operatorConfig)
 	logger.Info("Using operator configuration", "config", *operatorConfig)
 
 	logger.Info("Initializing etcd-druid controller manager")

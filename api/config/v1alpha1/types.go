@@ -136,7 +136,7 @@ type EtcdControllerConfiguration struct {
 	// EtcdStatusSyncPeriod is the duration after which an event will be re-queued ensuring ETCD status synchronization.
 	EtcdStatusSyncPeriod metav1.Duration `json:"etcdStatusSyncPeriod"`
 	// EtcdMember holds configuration related to etcd members.
-	EtcdMemberConfig EtcdMemberConfiguration `json:"etcdMember"`
+	EtcdMember EtcdMemberConfiguration `json:"etcdMember"`
 }
 
 // EtcdMemberConfiguration holds configuration related to etcd members.

@@ -56,7 +56,7 @@ func InitializeManager(config *configv1alpha1.OperatorConfiguration) (ctrl.Manag
 	return mgr, nil
 }
 
-func createManager(config *configv1alpha1.OperatorConfiguration) (ctrl.Manager, error) {
+func createManager(operatorConfig *configv1alpha1.OperatorConfiguration) (ctrl.Manager, error) {
 	// TODO: this can be removed once we have an improved informer, see https://github.com/gardener/etcd-druid/issues/215
 	// list of objects which should not be cached.
 	uncachedObjects := []client.Object{
@@ -65,16 +65,23 @@ func createManager(config *configv1alpha1.OperatorConfiguration) (ctrl.Manager, 
 		&eventsv1.Event{},
 	}
 
-	if config.Controllers.DisableLeaseCache {
+	if operatorConfig.Controllers.DisableLeaseCache {
 		uncachedObjects = append(uncachedObjects, &coordinationv1.Lease{}, &coordinationv1beta1.Lease{})
 	}
 
 	// TODO: remove this check once `--metrics-addr` flag is removed, and directly compute the address:port when setting managerOptions.Metrics.BindAddress
-	if !strings.Contains(config.Server.Metrics.BindAddress, ":") {
-		config.Server.Metrics.BindAddress = net.JoinHostPort(config.Server.Metrics.BindAddress, strconv.Itoa(config.Server.Metrics.Port))
+	if !strings.Contains(operatorConfig.Server.Metrics.BindAddress, ":") {
+		operatorConfig.Server.Metrics.BindAddress = net.JoinHostPort(operatorConfig.Server.Metrics.BindAddress, strconv.Itoa(operatorConfig.Server.Metrics.Port))
 	}
 
-	return ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	// Overwrite the default rest.Config with the operator configuration ClientConnection settings.
+	restConfig := ctrl.GetConfigOrDie()
+	restConfig.QPS = operatorConfig.ClientConnection.QPS
+	restConfig.Burst = operatorConfig.ClientConnection.Burst
+	restConfig.AcceptContentTypes = operatorConfig.ClientConnection.AcceptContentTypes
+	restConfig.ContentType = operatorConfig.ClientConnection.ContentType
+
+	return ctrl.NewManager(restConfig, ctrl.Options{
 		Client: client.Options{
 			Cache: &client.CacheOptions{
 				DisableFor: uncachedObjects,
@@ -82,22 +89,22 @@ func createManager(config *configv1alpha1.OperatorConfiguration) (ctrl.Manager, 
 		},
 		Scheme: kubernetes.Scheme,
 		Metrics: metricsserver.Options{
-			BindAddress: config.Server.Metrics.BindAddress,
+			BindAddress: operatorConfig.Server.Metrics.BindAddress,
 		},
-		LeaderElection:                config.LeaderElection.Enabled,
-		LeaderElectionID:              config.LeaderElection.ResourceName,
-		LeaderElectionResourceLock:    config.LeaderElection.ResourceLock,
+		LeaderElection:                operatorConfig.LeaderElection.Enabled,
+		LeaderElectionID:              operatorConfig.LeaderElection.ResourceName,
+		LeaderElectionResourceLock:    operatorConfig.LeaderElection.ResourceLock,
 		LeaderElectionReleaseOnCancel: true,
-		LeaseDuration:                 &config.LeaderElection.LeaseDuration.Duration,
-		RenewDeadline:                 &config.LeaderElection.RenewDeadline.Duration,
-		RetryPeriod:                   &config.LeaderElection.RetryPeriod.Duration,
+		LeaseDuration:                 &operatorConfig.LeaderElection.LeaseDuration.Duration,
+		RenewDeadline:                 &operatorConfig.LeaderElection.RenewDeadline.Duration,
+		RetryPeriod:                   &operatorConfig.LeaderElection.RetryPeriod.Duration,
 		Controller: ctrlconfig.Controller{
 			RecoverPanic: ptr.To(true),
 		},
 		WebhookServer: webhook.NewServer(webhook.Options{
-			Host:    config.Server.Webhooks.BindAddress,
-			Port:    config.Server.Webhooks.Port,
-			CertDir: config.Server.Webhooks.ServerCertDir,
+			Host:    operatorConfig.Server.Webhooks.BindAddress,
+			Port:    operatorConfig.Server.Webhooks.Port,
+			CertDir: operatorConfig.Server.Webhooks.ServerCertDir,
 		}),
 	})
 }

@@ -109,11 +109,11 @@ func SetDefaults_EtcdControllerConfiguration(etcdCtrlConfig *EtcdControllerConfi
 	if etcdCtrlConfig.EtcdStatusSyncPeriod == zeroDuration {
 		etcdCtrlConfig.EtcdStatusSyncPeriod = metav1.Duration{Duration: DefaultEtcdStatusSyncPeriod}
 	}
-	if etcdCtrlConfig.EtcdMemberConfig.NotReadyThreshold == zeroDuration {
-		etcdCtrlConfig.EtcdMemberConfig.NotReadyThreshold = metav1.Duration{Duration: DefaultEtcdNotReadyThreshold}
+	if etcdCtrlConfig.EtcdMember.NotReadyThreshold == zeroDuration {
+		etcdCtrlConfig.EtcdMember.NotReadyThreshold = metav1.Duration{Duration: DefaultEtcdNotReadyThreshold}
 	}
-	if etcdCtrlConfig.EtcdMemberConfig.UnknownThreshold == zeroDuration {
-		etcdCtrlConfig.EtcdMemberConfig.UnknownThreshold = metav1.Duration{Duration: DefaultEtcdUnknownThreshold}
+	if etcdCtrlConfig.EtcdMember.UnknownThreshold == zeroDuration {
+		etcdCtrlConfig.EtcdMember.UnknownThreshold = metav1.Duration{Duration: DefaultEtcdUnknownThreshold}
 	}
 }
 

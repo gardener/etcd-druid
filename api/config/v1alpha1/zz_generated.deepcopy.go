@@ -111,7 +111,7 @@ func (in *EtcdControllerConfiguration) DeepCopyInto(out *EtcdControllerConfigura
 		**out = **in
 	}
 	out.EtcdStatusSyncPeriod = in.EtcdStatusSyncPeriod
-	out.EtcdMemberConfig = in.EtcdMemberConfig
+	out.EtcdMember = in.EtcdMember
 	return
 }
 

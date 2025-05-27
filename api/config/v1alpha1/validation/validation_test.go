@@ -232,10 +232,13 @@ func TestValidateLogConfiguration(t *testing.T) {
 
 func TestValidateEtcdControllerConfiguration(t *testing.T) {
 	tests := []struct {
-		name           string
-		concurrentSync *int
-		expectedErrors int
-		matcher        gomegatypes.GomegaMatcher
+		name                 string
+		concurrentSync       *int
+		etcdStatusSyncPeriod *metav1.Duration
+		notReadyThreshold    *metav1.Duration
+		unknownThreshold     *metav1.Duration
+		expectedErrors       int
+		matcher              gomegatypes.GomegaMatcher
 	}{
 		{
 			name:           "should allow default etcd controller configuration",
@@ -259,6 +262,24 @@ func TestValidateEtcdControllerConfiguration(t *testing.T) {
 			expectedErrors: 1,
 			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcd.concurrentSyncs")}))),
 		},
+		{
+			name:                 "should forbid etcdStatusSyncPeriod less than zero",
+			etcdStatusSyncPeriod: ptr.To(metav1.Duration{Duration: -time.Second}),
+			expectedErrors:       1,
+			matcher:              ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcd.etcdStatusSyncPeriod")}))),
+		},
+		{
+			name:              "should forbid notReadyThreshold less than zero",
+			notReadyThreshold: ptr.To(metav1.Duration{Duration: -time.Second}),
+			expectedErrors:    1,
+			matcher:           ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcd.etcdMember.notReadyThreshold")}))),
+		},
+		{
+			name:             "should forbid unknownThreshold less than zero",
+			unknownThreshold: ptr.To(metav1.Duration{Duration: -time.Second}),
+			expectedErrors:   1,
+			matcher:          ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcd.etcdMember.unknownThreshold")}))),
+		},
 	}
 
 	fldPath := field.NewPath("controllers.etcd")
@@ -272,6 +293,15 @@ func TestValidateEtcdControllerConfiguration(t *testing.T) {
 			if test.concurrentSync != nil {
 				etcdConfig.ConcurrentSyncs = test.concurrentSync
 			}
+			if test.etcdStatusSyncPeriod != nil {
+				etcdConfig.EtcdStatusSyncPeriod = *test.etcdStatusSyncPeriod
+			}
+			if test.notReadyThreshold != nil {
+				etcdConfig.EtcdMember.NotReadyThreshold = *test.notReadyThreshold
+			}
+			if test.unknownThreshold != nil {
+				etcdConfig.EtcdMember.UnknownThreshold = *test.unknownThreshold
+			}
 			actualErr := validateEtcdControllerConfiguration(*etcdConfig, fldPath)
 			g.Expect(len(actualErr)).To(Equal(test.expectedErrors))
 			if test.matcher != nil {
@@ -283,11 +313,14 @@ func TestValidateEtcdControllerConfiguration(t *testing.T) {
 
 func TestValidateCompactionControllerConfiguration(t *testing.T) {
 	tests := []struct {
-		name           string
-		enabled        bool
-		concurrentSync *int
-		expectedErrors int
-		matcher        gomegatypes.GomegaMatcher
+		name                      string
+		enabled                   bool
+		concurrentSync            *int
+		eventThreshold            *int64
+		activeDeadlineDuration    *metav1.Duration
+		metricsScrapeWaitDuration *metav1.Duration
+		expectedErrors            int
+		matcher                   gomegatypes.GomegaMatcher
 	}{
 		{
 			name:           "should allow default compaction controller configuration when it is enabled",
@@ -321,6 +354,28 @@ func TestValidateCompactionControllerConfiguration(t *testing.T) {
 			expectedErrors: 1,
 			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.concurrentSyncs")}))),
 		},
+		{
+			name:           "should forbid event threshold less than zero",
+			enabled:        true,
+			eventThreshold: ptr.To(int64(-1)),
+			expectedErrors: 1,
+
+			matcher: ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.eventsThreshold")}))),
+		},
+		{
+			name:                   "should forbid active deadline duration less than zero",
+			enabled:                true,
+			activeDeadlineDuration: &metav1.Duration{Duration: -time.Second},
+			expectedErrors:         1,
+			matcher:                ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.activeDeadlineDuration")}))),
+		},
+		{
+			name:                      "should forbid metrics scrape wait duration less than zero",
+			enabled:                   true,
+			metricsScrapeWaitDuration: &metav1.Duration{Duration: -time.Second},
+			expectedErrors:            1,
+			matcher:                   ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.metricsScrapeWaitDuration")}))),
+		},
 	}
 
 	fldPath := field.NewPath("controllers.compaction")
@@ -334,6 +389,15 @@ func TestValidateCompactionControllerConfiguration(t *testing.T) {
 			configv1alpha1.SetDefaults_CompactionControllerConfiguration(controllerConfig)
 			if test.concurrentSync != nil {
 				controllerConfig.ConcurrentSyncs = test.concurrentSync
+			}
+			if test.eventThreshold != nil {
+				controllerConfig.EventsThreshold = *test.eventThreshold
+			}
+			if test.activeDeadlineDuration != nil {
+				controllerConfig.ActiveDeadlineDuration = *test.activeDeadlineDuration
+			}
+			if test.metricsScrapeWaitDuration != nil {
+				controllerConfig.MetricsScrapeWaitDuration = *test.metricsScrapeWaitDuration
 			}
 			actualErr := validateCompactionControllerConfiguration(*controllerConfig, fldPath)
 			g.Expect(len(actualErr)).To(Equal(test.expectedErrors))

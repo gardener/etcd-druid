@@ -14,13 +14,13 @@ import (
 	apimachineryversion "k8s.io/apimachinery/pkg/version"
 )
 
-// These variables will be set during building the grove operator via LD_FLAGS
+// These variables will be set during building the etcd-druid via LD_FLAGS
 // These variables have been borrowed from k8s.io/component-base repository. We do not want
 // the dependencies that k8s.io/component-base pulls in as the attempt is the keep a lean set of dependencies.
 var (
 	// programName is the name of the operator.
 	programName = "etcd-druid"
-	// gitVersion is the semantic version for grove operator.
+	// gitVersion is the semantic version for etcd-druid.
 	gitVersion = "v0.0.0-master+$Format:%H$"
 	// gitCommit is the SHA1 from git, output of $(git rev-parse HEAD)
 	gitCommit = "$Format:%H$"
@@ -36,7 +36,7 @@ func AddFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&versionFlag, "version", false, "--version prints the version information and quits")
 }
 
-// Get returns the version details for the grove operator.
+// Get returns the version details for etcd-druid.
 func Get() apimachineryversion.Info {
 	return apimachineryversion.Info{
 		GitVersion:   gitVersion,

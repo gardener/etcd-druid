@@ -178,7 +178,7 @@ func TestSetDefaults_EtcdControllerConfiguration(t *testing.T) {
 			expected: &EtcdControllerConfiguration{
 				ConcurrentSyncs:      ptr.To(3),
 				EtcdStatusSyncPeriod: metav1.Duration{Duration: 15 * time.Second},
-				EtcdMemberConfig: EtcdMemberConfiguration{
+				EtcdMember: EtcdMemberConfiguration{
 					NotReadyThreshold: metav1.Duration{Duration: 5 * time.Minute},
 					UnknownThreshold:  metav1.Duration{Duration: 1 * time.Minute},
 				},
@@ -189,14 +189,14 @@ func TestSetDefaults_EtcdControllerConfiguration(t *testing.T) {
 			config: &EtcdControllerConfiguration{
 				ConcurrentSyncs:      ptr.To(5),
 				EtcdStatusSyncPeriod: metav1.Duration{Duration: 30 * time.Second},
-				EtcdMemberConfig: EtcdMemberConfiguration{
+				EtcdMember: EtcdMemberConfiguration{
 					NotReadyThreshold: metav1.Duration{Duration: 10 * time.Minute},
 				},
 			},
 			expected: &EtcdControllerConfiguration{
 				ConcurrentSyncs:      ptr.To(5),
 				EtcdStatusSyncPeriod: metav1.Duration{Duration: 30 * time.Second},
-				EtcdMemberConfig: EtcdMemberConfiguration{
+				EtcdMember: EtcdMemberConfiguration{
 					NotReadyThreshold: metav1.Duration{Duration: 10 * time.Minute},
 					UnknownThreshold:  metav1.Duration{Duration: 1 * time.Minute},
 				},

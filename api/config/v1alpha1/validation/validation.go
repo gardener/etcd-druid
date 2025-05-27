@@ -1,9 +1,9 @@
 package validation
 
 import (
-	"strings"
-
 	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -36,15 +36,10 @@ func validateLeaderElectionConfiguration(leaderElectionConfig configv1alpha1.Lea
 	if !leaderElectionConfig.Enabled {
 		return allErrs
 	}
-	if leaderElectionConfig.LeaseDuration.Duration <= 0 {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("leaseDuration"), leaderElectionConfig.LeaseDuration, "must be greater than zero"))
-	}
-	if leaderElectionConfig.RenewDeadline.Duration <= 0 {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("renewDeadline"), leaderElectionConfig.RenewDeadline, "must be greater than zero"))
-	}
-	if leaderElectionConfig.RetryPeriod.Duration <= 0 {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("retryPeriod"), leaderElectionConfig.RetryPeriod, "must be greater than zero"))
-	}
+	allErrs = append(allErrs, mustBeGreaterThanZeroDuration(leaderElectionConfig.LeaseDuration, fldPath.Child("leaseDuration"))...)
+	allErrs = append(allErrs, mustBeGreaterThanZeroDuration(leaderElectionConfig.RenewDeadline, fldPath.Child("renewDeadline"))...)
+	allErrs = append(allErrs, mustBeGreaterThanZeroDuration(leaderElectionConfig.RetryPeriod, fldPath.Child("retryPeriod"))...)
+
 	if leaderElectionConfig.LeaseDuration.Duration <= leaderElectionConfig.RenewDeadline.Duration {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("leaseDuration"), leaderElectionConfig.RenewDeadline, "LeaseDuration must be greater than RenewDeadline"))
 	}
@@ -80,6 +75,9 @@ func validateControllerConfiguration(controllerConfig configv1alpha1.ControllerC
 func validateEtcdControllerConfiguration(etcdControllerConfig configv1alpha1.EtcdControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	allErrs = append(allErrs, validateConcurrentSyncs(etcdControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
+	allErrs = append(allErrs, mustBeGreaterThanZeroDuration(etcdControllerConfig.EtcdStatusSyncPeriod, fldPath.Child("etcdStatusSyncPeriod"))...)
+	allErrs = append(allErrs, mustBeGreaterThanZeroDuration(etcdControllerConfig.EtcdMember.NotReadyThreshold, fldPath.Child("etcdMember", "notReadyThreshold"))...)
+	allErrs = append(allErrs, mustBeGreaterThanZeroDuration(etcdControllerConfig.EtcdMember.UnknownThreshold, fldPath.Child("etcdMember", "unknownThreshold"))...)
 	return allErrs
 }
 
@@ -89,6 +87,11 @@ func validateCompactionControllerConfiguration(compactionControllerConfig config
 		return allErrs
 	}
 	allErrs = append(allErrs, validateConcurrentSyncs(compactionControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
+	allErrs = append(allErrs, mustBeGreaterThanZeroDuration(compactionControllerConfig.ActiveDeadlineDuration, fldPath.Child("activeDeadlineDuration"))...)
+	allErrs = append(allErrs, mustBeEqualToOrGreaterThanZeroDuration(compactionControllerConfig.MetricsScrapeWaitDuration, fldPath.Child("metricsScrapeWaitDuration"))...)
+	if compactionControllerConfig.EventsThreshold <= 0 {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("eventsThreshold"), compactionControllerConfig.EventsThreshold, "must be greater than 0"))
+	}
 	return allErrs
 }
 
@@ -102,15 +105,11 @@ func validateEtcdCopyBackupsTaskControllerConfiguration(etcdCopyBackupsTaskContr
 }
 
 func validateSecretControllerConfiguration(secretControllerConfig configv1alpha1.SecretControllerConfiguration, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-	allErrs = append(allErrs, validateConcurrentSyncs(secretControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
-	return allErrs
+	return validateConcurrentSyncs(secretControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))
 }
 
 func validateWebhookConfiguration(webhookConfig configv1alpha1.WebhookConfiguration, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-	allErrs = append(allErrs, validateEtcdComponentProtectionWebhookConfiguration(webhookConfig.EtcdComponentProtection, fldPath.Child("etcdComponentProtection"))...)
-	return allErrs
+	return validateEtcdComponentProtectionWebhookConfiguration(webhookConfig.EtcdComponentProtection, fldPath.Child("etcdComponentProtection"))
 }
 
 func validateEtcdComponentProtectionWebhookConfiguration(webhookConfig configv1alpha1.EtcdComponentProtectionWebhookConfiguration, fldPath *field.Path) field.ErrorList {
@@ -143,6 +142,22 @@ func validateConcurrentSyncs(val *int, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if ptr.Deref(val, 0) <= 0 {
 		allErrs = append(allErrs, field.Invalid(fldPath, val, "must be greater than 0"))
+	}
+	return allErrs
+}
+
+func mustBeGreaterThanZeroDuration(duration metav1.Duration, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if duration.Duration <= 0 {
+		allErrs = append(allErrs, field.Invalid(fldPath, duration, "must be greater than 0"))
+	}
+	return allErrs
+}
+
+func mustBeEqualToOrGreaterThanZeroDuration(duration metav1.Duration, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if duration.Duration < 0 {
+		allErrs = append(allErrs, field.Invalid(fldPath, duration, "must be greater than or equal to 0"))
 	}
 	return allErrs
 }

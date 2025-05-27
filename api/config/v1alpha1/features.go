@@ -63,9 +63,9 @@ type maturityLevelSpec struct {
 type maturityLevel string
 
 const (
-	// qlpha indicates that the feature is in an alpha state.
+	// alpha indicates that the feature is in an alpha state.
 	// Consumer needs to explicitly enable this feature via
-	qlpha maturityLevel = "qlpha"
+	alpha maturityLevel = "alpha"
 	// beta indicates that the feature is in a beta state.
 	// It is more stable than alpha but may still have some issues.
 	// It is recommended for testing and evaluation.
@@ -79,7 +79,7 @@ const (
 // These ensure that invalid values for maturityLevelSpec.enabledByDefault and maturityLevelSpec.lockedToDefault are not used.
 var (
 	maturityLevelSpecAlpha = maturityLevelSpec{
-		maturityLevel:    qlpha,
+		maturityLevel:    alpha,
 		enabledByDefault: false,
 		lockedToDefault:  false,
 	}

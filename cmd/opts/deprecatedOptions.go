@@ -121,8 +121,8 @@ func (d *deprecatedOperatorConfiguration) ToOperatorConfiguration() *configv1alp
 	config.Controllers.Etcd.EnableEtcdSpecAutoReconcile = d.etcdSpecAutoReconcile
 	config.Controllers.Etcd.DisableEtcdServiceAccountAutomount = d.etcdDisableServiceAccountAutomount
 	config.Controllers.Etcd.EtcdStatusSyncPeriod = metav1.Duration{Duration: d.etcdStatusSyncPeriod}
-	config.Controllers.Etcd.EtcdMemberConfig.NotReadyThreshold = metav1.Duration{Duration: d.etcdMemberNotReadyThreshold}
-	config.Controllers.Etcd.EtcdMemberConfig.UnknownThreshold = metav1.Duration{Duration: d.etcdMemberUnknownThreshold}
+	config.Controllers.Etcd.EtcdMember.NotReadyThreshold = metav1.Duration{Duration: d.etcdMemberNotReadyThreshold}
+	config.Controllers.Etcd.EtcdMember.UnknownThreshold = metav1.Duration{Duration: d.etcdMemberUnknownThreshold}
 	config.Controllers.Compaction.Enabled = d.compactionEnabled
 	config.Controllers.Compaction.ConcurrentSyncs = &d.compactionWorkers
 	config.Controllers.Compaction.EventsThreshold = d.compactionEventsThreshold
