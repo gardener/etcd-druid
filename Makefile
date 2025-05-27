@@ -127,7 +127,7 @@ ci-e2e-kind-gcs: $(GINKGO)
 # Build manager binary
 .PHONY: druid
 druid: check
-	@env GO111MODULE=on go build -o bin/druid main.go
+	@env GO111MODULE=on go build -o bin/druid cmd/main.go
 
 # Clean go build cache
 .PHONY: clean-build-cache

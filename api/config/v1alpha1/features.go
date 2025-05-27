@@ -12,7 +12,7 @@ import (
 // Constants for feature names.
 const (
 	// UseEtcdWrapper is the name of the feature which enables usage of etcd-wrapper.
-	// This is now ga. Any attempt to disable this feature will be an error.
+	// This is now GA. Any attempt to disable this feature will be an error.
 	UseEtcdWrapper = "UseEtcdWrapper"
 )
 

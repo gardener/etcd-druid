@@ -22,7 +22,7 @@ const (
 	DefaultLeaderElectionResourceName = "druid-leader-election"
 	// DefaultLeaderElectionLeaseDuration is the default lease duration for leader election.
 	DefaultLeaderElectionLeaseDuration = 15 * time.Second
-	// DefaultLeaderElectionRenewDeadline is the default renew deadline for leader election.j
+	// DefaultLeaderElectionRenewDeadline is the default renew deadline for leader election.
 	DefaultLeaderElectionRenewDeadline = 10 * time.Second
 	// DefaultLeaderElectionRetryPeriod is the default retry period for leader election.
 	DefaultLeaderElectionRetryPeriod = 2 * time.Second
@@ -120,7 +120,7 @@ func SetDefaults_EtcdControllerConfiguration(etcdCtrlConfig *EtcdControllerConfi
 const (
 	// DefaultCompactionConcurrentSyncs is the default number of concurrent syncs for the compaction controller.
 	DefaultCompactionConcurrentSyncs = 3
-	// DefaultCompactionEventsThreshold is the default event threshold trigger compaction.
+	// DefaultCompactionEventsThreshold is the default number of events that triggers compaction.
 	DefaultCompactionEventsThreshold = 1000000
 	// DefaultCompactionActiveDeadlineDuration is the default active deadline duration for compaction.
 	DefaultCompactionActiveDeadlineDuration = 3 * time.Hour
