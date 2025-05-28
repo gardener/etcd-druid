@@ -6,6 +6,7 @@ package opts
 
 import (
 	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	"github.com/spf13/pflag"
@@ -14,12 +15,12 @@ import (
 	"time"
 )
 
-var zero = metav1.Duration{Duration: 0}
+var zeroDuration = metav1.Duration{Duration: 0}
 
 func TestCompleteWithDeprecatedFlags(t *testing.T) {
 	g := NewWithT(t)
 	fs := pflag.NewFlagSet("etcd-druid", pflag.ExitOnError)
-	cliOpts := NewCLIOptions(fs)
+	cliOpts := NewCLIOptions(fs, logr.Discard())
 	args := []string{
 		"--metrics-port=8080",
 		"--enable-leader-election=true",
@@ -44,7 +45,7 @@ func TestCompleteWithDeprecatedFlags(t *testing.T) {
 	g.Expect(cfg.Controllers.Etcd.EtcdStatusSyncPeriod).To(Equal(metav1.Duration{Duration: 15 * time.Second}))
 	g.Expect(cfg.Controllers.Compaction.Enabled).To(BeTrue())
 	g.Expect(cfg.Controllers.DisableLeaseCache).To(BeTrue())
-	g.Expect(cfg.Controllers.Compaction.MetricsScrapeWaitDuration).To(Equal(zero))
+	g.Expect(cfg.Controllers.Compaction.MetricsScrapeWaitDuration).To(Equal(zeroDuration))
 	// assert that defaulting functions are called and the defaults are set correctly
 	g.Expect(cfg.LeaderElection.LeaseDuration).To(Equal(metav1.Duration{Duration: 15 * time.Second}))
 	g.Expect(cfg.LeaderElection.RenewDeadline).To(Equal(metav1.Duration{Duration: 10 * time.Second}))
@@ -58,7 +59,7 @@ func TestCompleteWithDeprecatedFlags(t *testing.T) {
 func TestCompleteWithConfigFlag(t *testing.T) {
 	g := NewWithT(t)
 	fs := pflag.NewFlagSet("etcd-druid", pflag.ExitOnError)
-	cliOpts := NewCLIOptions(fs)
+	cliOpts := NewCLIOptions(fs, logr.Discard())
 	args := []string{
 		"--config=./testdata/operatorconfig.yaml",
 	}
@@ -93,7 +94,7 @@ func TestCompleteWithConfigFlag(t *testing.T) {
 	g.Expect(cfg.Controllers.Etcd.EnableEtcdSpecAutoReconcile).To(BeFalse())
 	g.Expect(cfg.Controllers.Etcd.EtcdMember.UnknownThreshold).To(Equal(metav1.Duration{Duration: 1 * time.Minute}))
 	g.Expect(cfg.Controllers.Compaction.ActiveDeadlineDuration).To(Equal(metav1.Duration{Duration: 3 * time.Hour}))
-	g.Expect(cfg.Controllers.Compaction.MetricsScrapeWaitDuration).To(Equal(zero))
+	g.Expect(cfg.Controllers.Compaction.MetricsScrapeWaitDuration).To(Equal(zeroDuration))
 	g.Expect(cfg.Webhooks.EtcdComponentProtection.Enabled).To(BeFalse())
 	g.Expect(cfg.LogConfiguration.LogLevel).To(Equal(configv1alpha1.LogLevelInfo))
 }
@@ -101,7 +102,7 @@ func TestCompleteWithConfigFlag(t *testing.T) {
 func TestCompleteWithConfigFlagAndDeprecatedFlags(t *testing.T) {
 	g := NewWithT(t)
 	fs := pflag.NewFlagSet("etcd-druid", pflag.ExitOnError)
-	cliOpts := NewCLIOptions(fs)
+	cliOpts := NewCLIOptions(fs, logr.Discard())
 	args := []string{
 		"--config=./testdata/operatorconfig.yaml",
 		"--etcd-workers=5",              // this is also defined with a different value in the config file
@@ -139,7 +140,7 @@ func TestCompleteWithConfigFlagAndDeprecatedFlags(t *testing.T) {
 	g.Expect(cfg.Controllers.Etcd.EnableEtcdSpecAutoReconcile).To(BeFalse())
 	g.Expect(cfg.Controllers.Etcd.EtcdMember.UnknownThreshold).To(Equal(metav1.Duration{Duration: 1 * time.Minute}))
 	g.Expect(cfg.Controllers.Compaction.ActiveDeadlineDuration).To(Equal(metav1.Duration{Duration: 3 * time.Hour}))
-	g.Expect(cfg.Controllers.Compaction.MetricsScrapeWaitDuration).To(Equal(zero))
+	g.Expect(cfg.Controllers.Compaction.MetricsScrapeWaitDuration).To(Equal(zeroDuration))
 	g.Expect(cfg.Webhooks.EtcdComponentProtection.Enabled).To(BeFalse())
 	g.Expect(cfg.LogConfiguration.LogLevel).To(Equal(configv1alpha1.LogLevelInfo))
 }

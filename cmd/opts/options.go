@@ -8,8 +8,8 @@ import (
 	"fmt"
 	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	configvalidation "github.com/gardener/etcd-druid/api/config/v1alpha1/validation"
+	"github.com/go-logr/logr"
 	flag "github.com/spf13/pflag"
-	"golang.org/x/exp/slog"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -26,6 +26,7 @@ func init() {
 
 // CLIOptions provides convenience abstraction to initialize and validate OperatorConfiguration from CLI flags.
 type CLIOptions struct {
+	logger     logr.Logger
 	configFile string
 	// Config is the operator configuration initialized from the CLI flags.
 	Config           *configv1alpha1.OperatorConfiguration
@@ -33,8 +34,9 @@ type CLIOptions struct {
 }
 
 // NewCLIOptions creates a new CLIOptions and adds the required CLI flags to the flag.flagSet.
-func NewCLIOptions(fs *flag.FlagSet) *CLIOptions {
+func NewCLIOptions(fs *flag.FlagSet, logger logr.Logger) *CLIOptions {
 	cliOpts := &CLIOptions{
+		logger:           logger,
 		deprecatedConfig: &deprecatedOperatorConfiguration{},
 	}
 	cliOpts.addFlags(fs)
@@ -45,7 +47,7 @@ func NewCLIOptions(fs *flag.FlagSet) *CLIOptions {
 // Complete reads the configuration file and decodes it into an OperatorConfiguration.
 func (o *CLIOptions) Complete() error {
 	if len(o.configFile) == 0 {
-		slog.Info("No config file specified. Falling back to deprecated CLI flags if defined.")
+		o.logger.Info("No config file specified. Falling back to deprecated CLI flags if defined.")
 		// setting captured deprecated worker flags to OperatorConfiguration.
 		o.Config = o.deprecatedConfig.ToOperatorConfiguration()
 		configv1alpha1.SetObjectDefaults_OperatorConfiguration(o.Config)

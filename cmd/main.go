@@ -30,7 +30,7 @@ func main() {
 	// Older version of druid will only work with older flags while ignoring the newer ones as unknowns. It is going to be a similar case for newer versions of druid as well.
 	// Once we stabilise the command line arguments then this will no longer be needed.
 	cliFs.ParseErrorsWhitelist.UnknownFlags = true
-	cliOpts := opts.NewCLIOptions(cliFs)
+	cliOpts := opts.NewCLIOptions(cliFs, logger)
 
 	// parse and print command line flags
 	flag.Parse()

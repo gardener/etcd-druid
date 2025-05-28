@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	zeroDuration = metav1.Duration{}
+	zeroDuration = metav1.Duration{Duration: 0}
 )
 
 const (

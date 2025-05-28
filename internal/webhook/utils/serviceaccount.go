@@ -31,6 +31,6 @@ func GetReconcilerServiceAccountFQDN(config configv1alpha1.EtcdComponentProtecti
 }
 
 // getServiceAccountFQDN returns the fully qualified domain name of a service account.
-func getServiceAccountFQDN(namespace, reconcilerServiceAccountName string) string {
-	return fmt.Sprintf("system:serviceaccount:%s:%s", namespace, reconcilerServiceAccountName)
+func getServiceAccountFQDN(namespace, serviceAccountName string) string {
+	return fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccountName)
 }
