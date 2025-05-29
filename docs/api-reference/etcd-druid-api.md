@@ -698,7 +698,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `qps` _float_ | QPS controls the number of queries per second allowed for this connection. |  |  |
+| `qps` _float_ | QPS controls the number of queries per second allowed for a connection. |  |  |
 | `burst` _integer_ | Burst allows extra queries to accumulate when a client is exceeding its rate. |  |  |
 | `contentType` _string_ | ContentType is the content type used when sending data to the server from this client. |  |  |
 | `acceptContentTypes` _string_ | AcceptContentTypes defines the Accept header sent by clients when connecting to the server,<br />overriding the default value of 'application/json'. This field will control all connections<br />to the server used by a particular client. |  |  |
@@ -737,7 +737,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `disableLeaseCache` _boolean_ | DisableLeaseCache disables the cache for lease.coordination.k8s.io resources.<br />Deprecated: This field will be eventually removed. It is recommended that this not being used.<br />It has only been introduced to allow for backward compatibility with the old CLI flags. |  |  |
+| `disableLeaseCache` _boolean_ | DisableLeaseCache disables the cache for lease.coordination.k8s.io resources.<br />Deprecated: This field will be eventually removed. It is recommended to not use this.<br />It has only been introduced to allow for backward compatibility with the old CLI flags. |  |  |
 | `etcd` _[EtcdControllerConfiguration](#etcdcontrollerconfiguration)_ | Etcd is the configuration for the Etcd controller. |  |  |
 | `compaction` _[CompactionControllerConfiguration](#compactioncontrollerconfiguration)_ | Compaction is the configuration for the compaction controller. |  |  |
 | `etcdCopyBackupsTask` _[EtcdCopyBackupsTaskControllerConfiguration](#etcdcopybackupstaskcontrollerconfiguration)_ | EtcdCopyBackupsTask is the configuration for the EtcdCopyBackupsTask controller. |  |  |
@@ -779,8 +779,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `concurrentSyncs` _integer_ | ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request. |  |  |
 | `enableEtcdSpecAutoReconcile` _boolean_ | EnableEtcdSpecAutoReconcile controls how the Etcd Spec is reconciled. If set to true, then any change in Etcd spec<br />will automatically trigger a reconciliation of the Etcd resource. If set to false, then an operator needs to<br />explicitly set gardener.cloud/operation=reconcile annotation on the Etcd resource to trigger reconciliation<br />of the Etcd spec.<br />NOTE: Decision to enable it should be carefully taken as spec updates could potentially result in rolling update<br />of the StatefulSet which will cause a minor downtime for a single node etcd cluster and can potentially cause a<br />downtime for a multi-node etcd cluster. |  |  |
-| `disableEtcdServiceAccountAutomount` _boolean_ | DisableEtcdServiceAccountAutomount controls the auto-mounting of service account token for ETCD StatefulSets. |  |  |
-| `etcdStatusSyncPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdStatusSyncPeriod is the duration after which an event will be re-queued ensuring ETCD status synchronization. |  |  |
+| `disableEtcdServiceAccountAutomount` _boolean_ | DisableEtcdServiceAccountAutomount controls the auto-mounting of service account token for etcd StatefulSets. |  |  |
+| `etcdStatusSyncPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdStatusSyncPeriod is the duration after which an event will be re-queued ensuring etcd status synchronization. |  |  |
 | `etcdMember` _[EtcdMemberConfiguration](#etcdmemberconfiguration)_ | EtcdMember holds configuration related to etcd members. |  |  |
 
 
