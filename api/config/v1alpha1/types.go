@@ -33,6 +33,7 @@ type OperatorConfiguration struct {
 // ClientConnectionConfiguration defines the configuration for constructing a client.Client to connect to k8s kube-apiserver.
 type ClientConnectionConfiguration struct {
 	// QPS controls the number of queries per second allowed for a connection.
+	// Setting this to a negative value will disable client-side rate limiting.
 	QPS float32 `json:"qps"`
 	// Burst allows extra queries to accumulate when a client is exceeding its rate.
 	Burst int `json:"burst"`

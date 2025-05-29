@@ -698,7 +698,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `qps` _float_ | QPS controls the number of queries per second allowed for a connection. |  |  |
+| `qps` _float_ | QPS controls the number of queries per second allowed for a connection.<br />Setting this to a negative value will disable client-side rate limiting. |  |  |
 | `burst` _integer_ | Burst allows extra queries to accumulate when a client is exceeding its rate. |  |  |
 | `contentType` _string_ | ContentType is the content type used when sending data to the server from this client. |  |  |
 | `acceptContentTypes` _string_ | AcceptContentTypes defines the Accept header sent by clients when connecting to the server,<br />overriding the default value of 'application/json'. This field will control all connections<br />to the server used by a particular client. |  |  |
