@@ -6,14 +6,16 @@ package opts
 
 import (
 	"fmt"
+	"os"
+
 	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	configvalidation "github.com/gardener/etcd-druid/api/config/v1alpha1/validation"
+
 	"github.com/go-logr/logr"
 	flag "github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"os"
 )
 
 var configDecoder runtime.Decoder

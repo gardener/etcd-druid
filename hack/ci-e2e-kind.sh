@@ -29,6 +29,6 @@ make LOCALSTACK_HOST="localstack.default:4566" \
   PROVIDERS="aws" \
   TEST_ID="$BUCKET_NAME" \
   DRUID_E2E_TEST=true \
-  DRUID_ENABLE_ETCD_COMPONENTS_WEBHOOK=true \
+  ENABLE_ETCD_COMPONENT_PROTECTION_WEBHOOK=true \
   STEPS="setup,deploy,test" \
   test-e2e

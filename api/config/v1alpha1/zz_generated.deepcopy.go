@@ -215,7 +215,7 @@ func (in *OperatorConfiguration) DeepCopyInto(out *OperatorConfiguration) {
 			(*out)[key] = val
 		}
 	}
-	out.LogConfiguration = in.LogConfiguration
+	out.Logging = in.Logging
 	return
 }
 

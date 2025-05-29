@@ -6,12 +6,14 @@ package opts
 
 import (
 	"fmt"
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	flag "github.com/spf13/pflag"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"time"
+
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+
+	flag "github.com/spf13/pflag"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type deprecatedOperatorConfiguration struct {

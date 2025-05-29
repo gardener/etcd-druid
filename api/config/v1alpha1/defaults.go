@@ -52,13 +52,20 @@ func SetDefaults_LeaderElectionConfiguration(leaderElectionConfig *LeaderElectio
 	}
 }
 
+const (
+	// DefaultQPS is the default value for QPS which is going to be used to configured client.Client to connect to kube-apiserver.
+	DefaultQPS = 100.0
+	// DefaultBurst is the default value of Burst which is going to be used to configured client.Client to connect to kube-apiserver.
+	DefaultBurst = 150
+)
+
 // SetDefaults_ClientConnectionConfiguration sets defaults for the client connection configuration.
 func SetDefaults_ClientConnectionConfiguration(clientConnConfig *ClientConnectionConfiguration) {
 	if clientConnConfig.QPS == 0.0 {
-		clientConnConfig.QPS = 100.0
+		clientConnConfig.QPS = DefaultQPS
 	}
 	if clientConnConfig.Burst == 0 {
-		clientConnConfig.Burst = 120
+		clientConnConfig.Burst = DefaultBurst
 	}
 }
 

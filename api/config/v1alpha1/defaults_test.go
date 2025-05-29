@@ -78,7 +78,7 @@ func TestSetDefaults_ClientConnectionConfiguration(t *testing.T) {
 		{
 			name:     "should correctly set default values",
 			config:   &ClientConnectionConfiguration{},
-			expected: &ClientConnectionConfiguration{QPS: 100.0, Burst: 120, ContentType: "", AcceptContentTypes: ""},
+			expected: &ClientConnectionConfiguration{QPS: 100.0, Burst: 150, ContentType: "", AcceptContentTypes: ""},
 		},
 		{
 			name: "should not overwrite already set values",
@@ -257,7 +257,7 @@ func TestSetDefaults_CompactionControllerConfiguration(t *testing.T) {
 		expected *CompactionControllerConfiguration
 	}{
 		{
-			name:     "should correctly set default values when enabled is defaulted false",
+			name:     "should not set default values when not enabled",
 			config:   &CompactionControllerConfiguration{},
 			expected: &CompactionControllerConfiguration{},
 		},
@@ -271,6 +271,20 @@ func TestSetDefaults_CompactionControllerConfiguration(t *testing.T) {
 				ConcurrentSyncs:        ptr.To(3),
 				EventsThreshold:        1000000,
 				ActiveDeadlineDuration: metav1.Duration{Duration: 3 * time.Hour},
+			},
+		},
+		{
+			name: "should not overwrite already set values",
+			config: &CompactionControllerConfiguration{
+				Enabled:                true,
+				ConcurrentSyncs:        ptr.To(5),
+				ActiveDeadlineDuration: metav1.Duration{Duration: 1 * time.Hour},
+			},
+			expected: &CompactionControllerConfiguration{
+				Enabled:                true,
+				ConcurrentSyncs:        ptr.To(5),
+				EventsThreshold:        1000000,
+				ActiveDeadlineDuration: metav1.Duration{Duration: 1 * time.Hour},
 			},
 		},
 	}
@@ -293,7 +307,7 @@ func TestSetDefaults_EtcdCopyBackupsTaskControllerConfiguration(t *testing.T) {
 		expected *EtcdCopyBackupsTaskControllerConfiguration
 	}{
 		{
-			name:     "should correctly set default values when enabled is defaulted false",
+			name:     "should not set default values when not enabled",
 			config:   &EtcdCopyBackupsTaskControllerConfiguration{},
 			expected: &EtcdCopyBackupsTaskControllerConfiguration{},
 		},
@@ -305,6 +319,17 @@ func TestSetDefaults_EtcdCopyBackupsTaskControllerConfiguration(t *testing.T) {
 			expected: &EtcdCopyBackupsTaskControllerConfiguration{
 				Enabled:         true,
 				ConcurrentSyncs: ptr.To(3),
+			},
+		},
+		{
+			name: "should not overwrite already set values",
+			config: &EtcdCopyBackupsTaskControllerConfiguration{
+				Enabled:         true,
+				ConcurrentSyncs: ptr.To(5),
+			},
+			expected: &EtcdCopyBackupsTaskControllerConfiguration{
+				Enabled:         true,
+				ConcurrentSyncs: ptr.To(5),
 			},
 		},
 	}

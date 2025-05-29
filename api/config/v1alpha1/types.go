@@ -26,13 +26,13 @@ type OperatorConfiguration struct {
 	// FeatureGates is a map of feature gates (alpha/beta) to its enabled state.
 	// +optional
 	FeatureGates map[string]bool `json:"featureGates,omitempty"`
-	// LogConfiguration defines the configuration for logging.
-	LogConfiguration LogConfiguration `json:"logConfiguration"`
+	// Logging defines the configuration for logging.
+	Logging LogConfiguration `json:"logging"`
 }
 
 // ClientConnectionConfiguration defines the configuration for constructing a client.
 type ClientConnectionConfiguration struct {
-	// QPS controls the number of queries per second allowed for this connection.
+	// QPS controls the number of queries per second allowed for a connection.
 	QPS float32 `json:"qps"`
 	// Burst allows extra queries to accumulate when a client is exceeding its rate.
 	Burst int `json:"burst"`
@@ -104,7 +104,7 @@ type Server struct {
 // ControllerConfiguration defines the configuration for the controllers.
 type ControllerConfiguration struct {
 	// DisableLeaseCache disables the cache for lease.coordination.k8s.io resources.
-	// Deprecated: This field will be eventually removed. It is recommended that this not being used.
+	// Deprecated: This field will be eventually removed. It is recommended to not use this.
 	// It has only been introduced to allow for backward compatibility with the old CLI flags.
 	// +optional
 	DisableLeaseCache bool `json:"disableLeaseCache"`
@@ -131,9 +131,9 @@ type EtcdControllerConfiguration struct {
 	// of the StatefulSet which will cause a minor downtime for a single node etcd cluster and can potentially cause a
 	// downtime for a multi-node etcd cluster.
 	EnableEtcdSpecAutoReconcile bool `json:"enableEtcdSpecAutoReconcile"`
-	// DisableEtcdServiceAccountAutomount controls the auto-mounting of service account token for ETCD StatefulSets.
+	// DisableEtcdServiceAccountAutomount controls the auto-mounting of service account token for etcd StatefulSets.
 	DisableEtcdServiceAccountAutomount bool `json:"disableEtcdServiceAccountAutomount"`
-	// EtcdStatusSyncPeriod is the duration after which an event will be re-queued ensuring ETCD status synchronization.
+	// EtcdStatusSyncPeriod is the duration after which an event will be re-queued ensuring etcd status synchronization.
 	EtcdStatusSyncPeriod metav1.Duration `json:"etcdStatusSyncPeriod"`
 	// EtcdMember holds configuration related to etcd members.
 	EtcdMember EtcdMemberConfiguration `json:"etcdMember"`

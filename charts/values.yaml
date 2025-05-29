@@ -53,10 +53,7 @@ operatorConfig:
       #bindAddress: ""
       #serverCertDir: /etc/webhook-server-tls
     metrics:
-      port: 9445
-    profiling:
-      enable: false
-      pprofPort: 6060
+      port: 8080
   controllers:
     etcd:
       concurrentSyncs: 3

@@ -74,7 +74,7 @@ config.yaml: |
 etcd-druid-operator-configmap-{{ include "operator.config.data" . | sha256sum | trunc 8 }}
 {{- end -}}
 
-{{- define "etcdcomponents.webhook.enabled" -}}
+{{- define "webhook.etcdcomponentprotection.enabled" -}}
 {{- $webhookEnabled := false -}}
 {{- if .Values.enabledOperatorConfig -}}
 {{- $webhookEnabled = .Values.operatorConfig.webhooks.etcdComponentProtection.enabled -}}
@@ -84,6 +84,6 @@ etcd-druid-operator-configmap-{{ include "operator.config.data" . | sha256sum | 
 {{- $webhookEnabled | toString -}}
 {{- end -}}
 
-{{- define "etcdcomponents.webhook.reconcilerServiceAccountFQDN" -}}
+{{- define "webhook.etcdcomponentprotection.reconcilerServiceAccountFQDN" -}}
 {{- printf "system:serviceaccount:%s:%s" .Release.Namespace .Values.serviceAccount.name }}
 {{- end -}}

@@ -562,6 +562,17 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("webhooks.etcdComponentProtection")}))),
 		},
 		{
+			name:    "when enabled, should forbid setting non-nil and non-empty values for both reconcilerServiceAccountFQDN and serviceAccountInfo",
+			enabled: true,
+			serviceAccountInfo: &configv1alpha1.ServiceAccountInfo{
+				Name:      testServiceAccountName,
+				Namespace: testNs,
+			},
+			overrideReconcilerServiceAccountFQDN: ptr.To(testServiceAccountFQDN),
+			expectedErrors:                       1,
+			matcher:                              ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("webhooks.etcdComponentProtection")}))),
+		},
+		{
 			name:                          "when enabled with non-nil serviceAccountInfo, should forbid empty values for namePath and namespacePath",
 			enabled:                       true,
 			overrideExemptServiceAccounts: []string{"garbage-collector-sa"},
@@ -571,6 +582,13 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 				PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("webhooks.etcdComponentProtection.serviceAccountInfo.name")})),
 				PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("webhooks.etcdComponentProtection.serviceAccountInfo.namespace")})),
 			),
+		},
+		{
+			name:                                 "when enabled, with non-nil reconcilerServiceAccountFQDN and nil serviceAccountInfo, should forbid empty value for reconcilerServiceAccountFQDN",
+			enabled:                              true,
+			overrideReconcilerServiceAccountFQDN: ptr.To(""),
+			expectedErrors:                       1,
+			matcher:                              ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("webhooks.etcdComponentProtection.reconcilerServiceAccountFQDN")}))),
 		},
 	}
 

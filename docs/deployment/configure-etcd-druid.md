@@ -6,24 +6,26 @@
 
 !!! note "Deprecation Notice"
 
-​	All existing command line flags have been marked as deprecated. To configure `etcd-druid` the recommended way is to define a single `--config` CLI flag which points to a mounted `ConfigMap` containing `etcd-druid` [OperatorConfiguration](https://github.com/gardener/etcd-druid/blob/opconfig/api/config/v1alpha1/types.go#L14). For backward compatibility both new `--config` CLI flag and now deprecated existing `CLI flags` are supported.
+​	All existing command line flags have been marked as deprecated. To configure `etcd-druid` the recommended way is to define a single `--config` CLI flag which points to a configuration YAML file containing `etcd-druid` [OperatorConfiguration](https://github.com/gardener/etcd-druid/blob/master/api/config/v1alpha1/types.go#L14). For backward compatibility both new `--config` CLI flag and now deprecated existing `CLI flags` are supported.
 
 ### Operator Configuration
 
-The recommended way to configure `etcd-druid` is via [OperatorConfiguration](https://github.com/gardener/etcd-druid/blob/opconfig/api/config/v1alpha1/types.go#L14).  It is assumed that you have done the following:
-
-* Created a `ConfigMap` which contains the serialized operator configuration.
-* Mount the `ConfigMap` to etcd-druid `Deployment`.
+The recommended way to configure `etcd-druid` is via [OperatorConfiguration](https://github.com/gardener/etcd-druid/blob/master/api/config/v1alpha1/types.go#L14).  
 
 | Flag   | Description                                 | Default |
 | ------ | ------------------------------------------- | ------- |
 | config | Path to the mounted operator configuration. | NA      |
 
-You can see the default values for `OperatorConfiguration` at [api/config/v1alpha1/defaults.go](https://github.com/gardener/etcd-druid/blob/opconfig/api/config/v1alpha1/defaults.go).
+You can see the default values for `OperatorConfiguration` at [api/config/v1alpha1/defaults.go](https://github.com/gardener/etcd-druid/blob/master/api/config/v1alpha1/defaults.go).
 
 !!! note
 
-​	It is required to define the `--config` CLI flag and point to the `ConfigMap` mount path.
+​	It is required to define the `--config` CLI flag and point to the configuration YAML file path.
+
+If you are deploying `etcd-druid` in a kubernetes cluster, then it is assumed that you have done the following:
+
+* Created a `ConfigMap` which contains the serialized operator configuration.
+* Mount the `ConfigMap` to etcd-druid `Deployment`.
 
 ### Leader election *(Deprecated)*
 

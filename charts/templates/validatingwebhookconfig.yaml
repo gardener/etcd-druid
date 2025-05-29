@@ -1,4 +1,4 @@
-{{- $createWebhookConfig := include "etcdcomponents.webhook.enabled" . }}
+{{- $createWebhookConfig := include "webhook.etcdcomponentprotection.enabled" . }}
 {{- if eq $createWebhookConfig "true" }}
 ---
 apiVersion: admissionregistration.k8s.io/v1

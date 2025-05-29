@@ -5,8 +5,9 @@
 package v1alpha1
 
 import (
-	. "github.com/onsi/gomega"
 	"testing"
+
+	. "github.com/onsi/gomega"
 )
 
 func TestDefaultFeatureGate(t *testing.T) {
@@ -85,7 +86,7 @@ func TestSetEnabledFeaturesFromMap(t *testing.T) {
 			name: "Map contains unknown features",
 			enabledFeatures: map[string]bool{
 				"feature1": true,
-				"feature3": false,
+				"feature4": true,
 			},
 			expectedError: true,
 		},

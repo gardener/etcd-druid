@@ -6,13 +6,15 @@ package main
 
 import (
 	"fmt"
+	"os"
+
 	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"github.com/gardener/etcd-druid/cmd/opts"
 	druidmgr "github.com/gardener/etcd-druid/internal/manager"
 	"github.com/gardener/etcd-druid/internal/utils"
 	druidversion "github.com/gardener/etcd-druid/internal/version"
+
 	flag "github.com/spf13/pflag"
-	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -42,7 +44,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctrl.SetLogger(utils.MustNewLogger(false, operatorConfig.LogConfiguration.LogLevel, operatorConfig.LogConfiguration.LogFormat))
+	ctrl.SetLogger(utils.MustNewLogger(false, operatorConfig.Logging.LogLevel, operatorConfig.Logging.LogFormat))
 	printRuntimeInfo()
 	logger.Info("Using operator configuration", "config", *operatorConfig)
 

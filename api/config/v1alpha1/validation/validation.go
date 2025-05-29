@@ -5,10 +5,11 @@
 package validation
 
 import (
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 
+	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
@@ -21,7 +22,7 @@ func ValidateOperatorConfiguration(config *configv1alpha1.OperatorConfiguration)
 	allErrs = append(allErrs, validateClientConnectionConfiguration(config.ClientConnection, field.NewPath("clientConnection"))...)
 	allErrs = append(allErrs, validateLeaderElectionConfiguration(config.LeaderElection, field.NewPath("leaderElection"))...)
 	allErrs = append(allErrs, validateControllerConfiguration(config.Controllers, field.NewPath("controllers"))...)
-	allErrs = append(allErrs, validateLogConfiguration(config.LogConfiguration, field.NewPath("log"))...)
+	allErrs = append(allErrs, validateLogConfiguration(config.Logging, field.NewPath("log"))...)
 	allErrs = append(allErrs, validateWebhookConfiguration(config.Webhooks, field.NewPath("webhooks"))...)
 
 	return allErrs
@@ -125,8 +126,16 @@ func validateEtcdComponentProtectionWebhookConfiguration(webhookConfig configv1a
 	if webhookConfig.ReconcilerServiceAccountFQDN == nil && webhookConfig.ServiceAccountInfo == nil {
 		allErrs = append(allErrs, field.Required(fldPath, "either reconcilerServiceAccountFQDN or serviceAccountInfo must be set"))
 	}
+	// Ensure that only one of ReconcilerServiceAccountFQDN or ServiceAccountInfo is set.
+	if webhookConfig.ReconcilerServiceAccountFQDN != nil && webhookConfig.ServiceAccountInfo != nil {
+		allErrs = append(allErrs, field.Invalid(fldPath, webhookConfig, "only one of reconcilerServiceAccountFQDN or serviceAccountInfo can be set but not both."))
+	}
 	if webhookConfig.ServiceAccountInfo != nil {
 		allErrs = append(allErrs, validateServiceAccountInfo(webhookConfig.ServiceAccountInfo, fldPath.Child("serviceAccountInfo"))...)
+	} else {
+		if webhookConfig.ReconcilerServiceAccountFQDN != nil && len(strings.TrimSpace(*webhookConfig.ReconcilerServiceAccountFQDN)) == 0 {
+			allErrs = append(allErrs, field.Required(fldPath.Child("reconcilerServiceAccountFQDN"), "must not be empty"))
+		}
 	}
 	return allErrs
 }

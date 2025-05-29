@@ -1,4 +1,4 @@
-{{- $etcdComponentProtectionWebhookEnabled := include "etcdcomponents.webhook.enabled" . }}
+{{- $etcdComponentProtectionWebhookEnabled := include "webhook.etcdcomponentprotection.enabled" . }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -82,7 +82,7 @@ spec:
         {{- end }}
         {{- if eq $etcdComponentProtectionWebhookEnabled "true" }}
         - --enable-etcd-components-webhook=true
-        - --reconciler-service-account={{ include "etcdcomponents.webhook.reconcilerServiceAccountFQDN" . }}
+        - --reconciler-service-account={{ include "webhook.etcdcomponentprotection.reconcilerServiceAccountFQDN" . }}
         {{- if .Values.webhooks.etcdComponentProtection.exemptServiceAccounts }}
         - --etcd-components-webhook-exempt-service-accounts={{ join "," .Values.webhooks.etcdComponentProtection.exemptServiceAccounts }}
         {{- end }}

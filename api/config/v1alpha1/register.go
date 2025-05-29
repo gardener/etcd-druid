@@ -10,7 +10,7 @@ import (
 )
 
 // GroupName is the group name used in this package
-const GroupName = "operator.config.druid.gardener.cloud"
+const GroupName = "config.druid.gardener.cloud"
 
 var (
 	// SchemeGroupVersion is group version used to register these objects
