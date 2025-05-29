@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/pflag"
@@ -90,7 +90,7 @@ func TestCompleteWithConfigFlag(t *testing.T) {
 	g.Expect(cfg.Controllers.EtcdCopyBackupsTask.Enabled).To(BeTrue())
 	g.Expect(cfg.Controllers.EtcdCopyBackupsTask.ConcurrentSyncs).To(PointTo(Equal(2)))
 	g.Expect(cfg.Controllers.Secret.ConcurrentSyncs).To(PointTo(Equal(5)))
-	g.Expect(cfg.Logging.LogFormat).To(Equal(configv1alpha1.LogFormatText))
+	g.Expect(cfg.Logging.LogFormat).To(Equal(druidconfigv1alpha1.LogFormatText))
 	// assert that defaulting functions are called and the defaults are set correctly for fields that are not set in the config file.
 	g.Expect(cfg.LeaderElection.ResourceLock).To(Equal("leases"))
 	g.Expect(cfg.LeaderElection.ResourceName).To(Equal("druid-leader-election"))
@@ -99,7 +99,7 @@ func TestCompleteWithConfigFlag(t *testing.T) {
 	g.Expect(cfg.Controllers.Compaction.ActiveDeadlineDuration).To(Equal(metav1.Duration{Duration: 3 * time.Hour}))
 	g.Expect(cfg.Controllers.Compaction.MetricsScrapeWaitDuration).To(Equal(zeroDuration))
 	g.Expect(cfg.Webhooks.EtcdComponentProtection.Enabled).To(BeFalse())
-	g.Expect(cfg.Logging.LogLevel).To(Equal(configv1alpha1.LogLevelInfo))
+	g.Expect(cfg.Logging.LogLevel).To(Equal(druidconfigv1alpha1.LogLevelInfo))
 }
 
 func TestCompleteWithConfigFlagAndDeprecatedFlags(t *testing.T) {
@@ -136,7 +136,7 @@ func TestCompleteWithConfigFlagAndDeprecatedFlags(t *testing.T) {
 	g.Expect(cfg.Controllers.EtcdCopyBackupsTask.Enabled).To(BeTrue())
 	g.Expect(cfg.Controllers.EtcdCopyBackupsTask.ConcurrentSyncs).To(PointTo(Equal(2)))
 	g.Expect(cfg.Controllers.Secret.ConcurrentSyncs).To(PointTo(Equal(5)))
-	g.Expect(cfg.Logging.LogFormat).To(Equal(configv1alpha1.LogFormatText))
+	g.Expect(cfg.Logging.LogFormat).To(Equal(druidconfigv1alpha1.LogFormatText))
 	// assert that defaulting functions are called and the defaults are set correctly for fields that are not set in the config file.
 	g.Expect(cfg.LeaderElection.ResourceLock).To(Equal("leases"))
 	g.Expect(cfg.LeaderElection.ResourceName).To(Equal("druid-leader-election"))
@@ -145,5 +145,5 @@ func TestCompleteWithConfigFlagAndDeprecatedFlags(t *testing.T) {
 	g.Expect(cfg.Controllers.Compaction.ActiveDeadlineDuration).To(Equal(metav1.Duration{Duration: 3 * time.Hour}))
 	g.Expect(cfg.Controllers.Compaction.MetricsScrapeWaitDuration).To(Equal(zeroDuration))
 	g.Expect(cfg.Webhooks.EtcdComponentProtection.Enabled).To(BeFalse())
-	g.Expect(cfg.Logging.LogLevel).To(Equal(configv1alpha1.LogLevelInfo))
+	g.Expect(cfg.Logging.LogLevel).To(Equal(druidconfigv1alpha1.LogLevelInfo))
 }

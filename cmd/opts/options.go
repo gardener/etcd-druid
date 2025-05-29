@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	configvalidation "github.com/gardener/etcd-druid/api/config/v1alpha1/validation"
 
 	"github.com/go-logr/logr"
@@ -22,7 +22,7 @@ var configDecoder runtime.Decoder
 
 func init() {
 	configScheme := runtime.NewScheme()
-	utilruntime.Must(configv1alpha1.AddToScheme(configScheme))
+	utilruntime.Must(druidconfigv1alpha1.AddToScheme(configScheme))
 	configDecoder = serializer.NewCodecFactory(configScheme).UniversalDecoder()
 }
 
@@ -31,7 +31,7 @@ type CLIOptions struct {
 	logger     logr.Logger
 	configFile string
 	// Config is the operator configuration initialized from the CLI flags.
-	Config           *configv1alpha1.OperatorConfiguration
+	Config           *druidconfigv1alpha1.OperatorConfiguration
 	deprecatedConfig *deprecatedOperatorConfiguration
 }
 
@@ -52,13 +52,13 @@ func (o *CLIOptions) Complete() error {
 		o.logger.Info("No config file specified. Falling back to deprecated CLI flags if defined.")
 		// setting captured deprecated worker flags to OperatorConfiguration.
 		o.Config = o.deprecatedConfig.ToOperatorConfiguration()
-		configv1alpha1.SetObjectDefaults_OperatorConfiguration(o.Config)
+		druidconfigv1alpha1.SetObjectDefaults_OperatorConfiguration(o.Config)
 		return nil
 	}
 	if err := o.initializeOperatorConfigurationFromFile(); err != nil {
 		return fmt.Errorf("error initializing operator configuration from file: %w", err)
 	}
-	return configv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(o.Config.FeatureGates)
+	return druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(o.Config.FeatureGates)
 }
 
 func (o *CLIOptions) initializeOperatorConfigurationFromFile() error {
@@ -66,7 +66,7 @@ func (o *CLIOptions) initializeOperatorConfigurationFromFile() error {
 	if err != nil {
 		return fmt.Errorf("error reading config file: %w", err)
 	}
-	o.Config = &configv1alpha1.OperatorConfiguration{}
+	o.Config = &druidconfigv1alpha1.OperatorConfiguration{}
 	if err = runtime.DecodeInto(configDecoder, data, o.Config); err != nil {
 		return fmt.Errorf("error decoding config: %w", err)
 	}

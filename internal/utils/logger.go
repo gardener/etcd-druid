@@ -7,7 +7,7 @@ package utils
 import (
 	"fmt"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 
 	"github.com/go-logr/logr"
 	"go.uber.org/zap/zapcore"
@@ -16,14 +16,14 @@ import (
 )
 
 // MustNewLogger is like NewLogger but panics on invalid input.
-func MustNewLogger(devMode bool, level configv1alpha1.LogLevel, format configv1alpha1.LogFormat) logr.Logger {
+func MustNewLogger(devMode bool, level druidconfigv1alpha1.LogLevel, format druidconfigv1alpha1.LogFormat) logr.Logger {
 	logger, err := NewLogger(devMode, level, format)
 	utilruntime.Must(err)
 	return logger
 }
 
 // NewLogger creates a new logr.Logger backed by Zap.
-func NewLogger(devMode bool, level configv1alpha1.LogLevel, format configv1alpha1.LogFormat) (logr.Logger, error) {
+func NewLogger(devMode bool, level druidconfigv1alpha1.LogLevel, format druidconfigv1alpha1.LogFormat) (logr.Logger, error) {
 	zapOpts, err := buildDefaultLoggerOpts(devMode, level, format)
 	if err != nil {
 		return logr.Logger{}, err
@@ -31,18 +31,18 @@ func NewLogger(devMode bool, level configv1alpha1.LogLevel, format configv1alpha
 	return logzap.New(zapOpts...), nil
 }
 
-func buildDefaultLoggerOpts(devMode bool, level configv1alpha1.LogLevel, format configv1alpha1.LogFormat) ([]logzap.Opts, error) {
+func buildDefaultLoggerOpts(devMode bool, level druidconfigv1alpha1.LogLevel, format druidconfigv1alpha1.LogFormat) ([]logzap.Opts, error) {
 	var opts []logzap.Opts
 	opts = append(opts, logzap.UseDevMode(devMode))
 
 	// map log levels to zap levels
 	var zapLevel zapcore.LevelEnabler
 	switch level {
-	case configv1alpha1.LogLevelDebug:
+	case druidconfigv1alpha1.LogLevelDebug:
 		zapLevel = zapcore.DebugLevel
-	case configv1alpha1.LogLevelInfo, "":
+	case druidconfigv1alpha1.LogLevelInfo, "":
 		zapLevel = zapcore.InfoLevel
-	case configv1alpha1.LogLevelError:
+	case druidconfigv1alpha1.LogLevelError:
 		zapLevel = zapcore.ErrorLevel
 	default:
 		return []logzap.Opts{}, fmt.Errorf("invalid log level %q", level)
@@ -51,9 +51,9 @@ func buildDefaultLoggerOpts(devMode bool, level configv1alpha1.LogLevel, format 
 
 	// map log format to encoder
 	switch format {
-	case configv1alpha1.LogFormatText:
+	case druidconfigv1alpha1.LogFormatText:
 		opts = append(opts, logzap.ConsoleEncoder(setCommonEncoderConfigOptions))
-	case configv1alpha1.LogFormatJSON:
+	case druidconfigv1alpha1.LogFormatJSON:
 		opts = append(opts, logzap.JSONEncoder(setCommonEncoderConfigOptions))
 	default:
 		return []logzap.Opts{}, fmt.Errorf("invalid log format %q", format)

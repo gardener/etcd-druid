@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	druidcontroller "github.com/gardener/etcd-druid/internal/controller"
 	druidwebhook "github.com/gardener/etcd-druid/internal/webhook"
@@ -34,7 +34,7 @@ import (
 )
 
 // InitializeManager creates a controller manager and adds all the controllers and webhooks to the controller-manager using the passed in Config.
-func InitializeManager(config *configv1alpha1.OperatorConfiguration) (ctrl.Manager, error) {
+func InitializeManager(config *druidconfigv1alpha1.OperatorConfiguration) (ctrl.Manager, error) {
 	var (
 		err error
 		mgr ctrl.Manager
@@ -56,7 +56,7 @@ func InitializeManager(config *configv1alpha1.OperatorConfiguration) (ctrl.Manag
 	return mgr, nil
 }
 
-func createManager(operatorConfig *configv1alpha1.OperatorConfiguration) (ctrl.Manager, error) {
+func createManager(operatorConfig *druidconfigv1alpha1.OperatorConfiguration) (ctrl.Manager, error) {
 	// TODO: this can be removed once we have an improved informer, see https://github.com/gardener/etcd-druid/issues/215
 	// list of objects which should not be cached.
 	uncachedObjects := []client.Object{
@@ -109,7 +109,7 @@ func createManager(operatorConfig *configv1alpha1.OperatorConfiguration) (ctrl.M
 	})
 }
 
-func registerHealthAndReadyEndpoints(mgr ctrl.Manager, config *configv1alpha1.OperatorConfiguration) error {
+func registerHealthAndReadyEndpoints(mgr ctrl.Manager, config *druidconfigv1alpha1.OperatorConfiguration) error {
 	slog.Info("Registering ping health check endpoint")
 	// Add a health check which always returns true when it is checked
 	if err := mgr.AddHealthzCheck("ping", func(_ *http.Request) error { return nil }); err != nil {

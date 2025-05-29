@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -172,7 +172,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 						Tag:        ptr.To("init-container-test-tag"),
 					},
 				},
-				Config: configv1alpha1.EtcdCopyBackupsTaskControllerConfiguration{},
+				Config: druidconfigv1alpha1.EtcdCopyBackupsTaskControllerConfiguration{},
 			}
 		})
 

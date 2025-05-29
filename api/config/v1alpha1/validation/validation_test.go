@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 
 	gomegatypes "github.com/onsi/gomega/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -106,10 +106,10 @@ func TestValidateLeaderElectionConfiguration(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			leaderElectionConfig := &configv1alpha1.LeaderElectionConfiguration{
+			leaderElectionConfig := &druidconfigv1alpha1.LeaderElectionConfiguration{
 				Enabled: test.enabled,
 			}
-			configv1alpha1.SetDefaults_LeaderElectionConfiguration(leaderElectionConfig)
+			druidconfigv1alpha1.SetDefaults_LeaderElectionConfiguration(leaderElectionConfig)
 			if test.enabled {
 				updateLeaderElectionConfig(leaderElectionConfig, test.overrideLeaseDuration, test.overrideRenewDeadline, test.overrideRetryPeriod, test.overrideResourceLock, test.overrideResourceName)
 			}
@@ -149,8 +149,8 @@ func TestUpdateClientConnectionConfiguration(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			clientConnConfig := &configv1alpha1.ClientConnectionConfiguration{}
-			configv1alpha1.SetDefaults_ClientConnectionConfiguration(clientConnConfig)
+			clientConnConfig := &druidconfigv1alpha1.ClientConnectionConfiguration{}
+			druidconfigv1alpha1.SetDefaults_ClientConnectionConfiguration(clientConnConfig)
 			if test.overrideBurst != nil {
 				clientConnConfig.Burst = *test.overrideBurst
 			}
@@ -163,44 +163,44 @@ func TestUpdateClientConnectionConfiguration(t *testing.T) {
 func TestValidateLogConfiguration(t *testing.T) {
 	tests := []struct {
 		name           string
-		logLevel       *configv1alpha1.LogLevel
-		logFormat      *configv1alpha1.LogFormat
+		logLevel       *druidconfigv1alpha1.LogLevel
+		logFormat      *druidconfigv1alpha1.LogFormat
 		expectedErrors int
 		matcher        gomegatypes.GomegaMatcher
 	}{
 		{
 			name:           "should allow debug log configuration",
-			logLevel:       ptr.To(configv1alpha1.LogLevelDebug),
+			logLevel:       ptr.To(druidconfigv1alpha1.LogLevelDebug),
 			expectedErrors: 0,
 			matcher:        nil,
 		},
 		{
 			name:           "should allow info log configuration",
-			logLevel:       ptr.To(configv1alpha1.LogLevelInfo),
+			logLevel:       ptr.To(druidconfigv1alpha1.LogLevelInfo),
 			expectedErrors: 0,
 			matcher:        nil,
 		},
 		{
 			name:           "should allow error log configuration",
-			logLevel:       ptr.To(configv1alpha1.LogLevelError),
+			logLevel:       ptr.To(druidconfigv1alpha1.LogLevelError),
 			expectedErrors: 0,
 			matcher:        nil,
 		},
 		{
 			name:           "should allow text log format",
-			logFormat:      ptr.To(configv1alpha1.LogFormatText),
+			logFormat:      ptr.To(druidconfigv1alpha1.LogFormatText),
 			expectedErrors: 0,
 			matcher:        nil,
 		},
 		{
 			name:           "should forbid invalid log level",
-			logLevel:       ptr.To(configv1alpha1.LogLevel("invalid-level")),
+			logLevel:       ptr.To(druidconfigv1alpha1.LogLevel("invalid-level")),
 			expectedErrors: 1,
 			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeNotSupported), "Field": Equal("log.logLevel")}))),
 		},
 		{
 			name:           "should forbid invalid log format",
-			logFormat:      ptr.To(configv1alpha1.LogFormat("invalid-log-format")),
+			logFormat:      ptr.To(druidconfigv1alpha1.LogFormat("invalid-log-format")),
 			expectedErrors: 1,
 			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeNotSupported), "Field": Equal("log.logFormat")}))),
 		},
@@ -213,8 +213,8 @@ func TestValidateLogConfiguration(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			logConfig := &configv1alpha1.LogConfiguration{}
-			configv1alpha1.SetDefaults_LogConfiguration(logConfig)
+			logConfig := &druidconfigv1alpha1.LogConfiguration{}
+			druidconfigv1alpha1.SetDefaults_LogConfiguration(logConfig)
 			if test.logLevel != nil {
 				logConfig.LogLevel = *test.logLevel
 			}
@@ -288,8 +288,8 @@ func TestValidateEtcdControllerConfiguration(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			etcdConfig := &configv1alpha1.EtcdControllerConfiguration{}
-			configv1alpha1.SetDefaults_EtcdControllerConfiguration(etcdConfig)
+			etcdConfig := &druidconfigv1alpha1.EtcdControllerConfiguration{}
+			druidconfigv1alpha1.SetDefaults_EtcdControllerConfiguration(etcdConfig)
 			if test.concurrentSync != nil {
 				etcdConfig.ConcurrentSyncs = test.concurrentSync
 			}
@@ -384,9 +384,9 @@ func TestValidateCompactionControllerConfiguration(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			controllerConfig := &configv1alpha1.CompactionControllerConfiguration{}
+			controllerConfig := &druidconfigv1alpha1.CompactionControllerConfiguration{}
 			controllerConfig.Enabled = test.enabled
-			configv1alpha1.SetDefaults_CompactionControllerConfiguration(controllerConfig)
+			druidconfigv1alpha1.SetDefaults_CompactionControllerConfiguration(controllerConfig)
 			if test.concurrentSync != nil {
 				controllerConfig.ConcurrentSyncs = test.concurrentSync
 			}
@@ -455,9 +455,9 @@ func TestValidateEtcdCopyBackupsTaskControllerConfiguration(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			controllerConfig := &configv1alpha1.EtcdCopyBackupsTaskControllerConfiguration{}
+			controllerConfig := &druidconfigv1alpha1.EtcdCopyBackupsTaskControllerConfiguration{}
 			controllerConfig.Enabled = test.enabled
-			configv1alpha1.SetDefaults_EtcdCopyBackupsTaskControllerConfiguration(controllerConfig)
+			druidconfigv1alpha1.SetDefaults_EtcdCopyBackupsTaskControllerConfiguration(controllerConfig)
 			if test.concurrentSync != nil {
 				controllerConfig.ConcurrentSyncs = test.concurrentSync
 			}
@@ -507,8 +507,8 @@ func TestValidateSecretControllerConfiguration(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			controllerConfig := &configv1alpha1.SecretControllerConfiguration{}
-			configv1alpha1.SetDefaults_SecretControllerConfiguration(controllerConfig)
+			controllerConfig := &druidconfigv1alpha1.SecretControllerConfiguration{}
+			druidconfigv1alpha1.SetDefaults_SecretControllerConfiguration(controllerConfig)
 			if test.concurrentSync != nil {
 				controllerConfig.ConcurrentSyncs = test.concurrentSync
 			}
@@ -526,7 +526,7 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 		name                                 string
 		enabled                              bool
 		overrideReconcilerServiceAccountFQDN *string
-		serviceAccountInfo                   *configv1alpha1.ServiceAccountInfo
+		serviceAccountInfo                   *druidconfigv1alpha1.ServiceAccountInfo
 		overrideExemptServiceAccounts        []string
 		expectedErrors                       int
 		matcher                              gomegatypes.GomegaMatcher
@@ -548,7 +548,7 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 		{
 			name:    "when enabled, should allow valid configuration using a valid service account info",
 			enabled: true,
-			serviceAccountInfo: &configv1alpha1.ServiceAccountInfo{
+			serviceAccountInfo: &druidconfigv1alpha1.ServiceAccountInfo{
 				Name:      testServiceAccountName,
 				Namespace: testNs,
 			},
@@ -564,7 +564,7 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 		{
 			name:    "when enabled, should forbid setting non-nil and non-empty values for both reconcilerServiceAccountFQDN and serviceAccountInfo",
 			enabled: true,
-			serviceAccountInfo: &configv1alpha1.ServiceAccountInfo{
+			serviceAccountInfo: &druidconfigv1alpha1.ServiceAccountInfo{
 				Name:      testServiceAccountName,
 				Namespace: testNs,
 			},
@@ -576,7 +576,7 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 			name:                          "when enabled with non-nil serviceAccountInfo, should forbid empty values for namePath and namespacePath",
 			enabled:                       true,
 			overrideExemptServiceAccounts: []string{"garbage-collector-sa"},
-			serviceAccountInfo:            &configv1alpha1.ServiceAccountInfo{},
+			serviceAccountInfo:            &druidconfigv1alpha1.ServiceAccountInfo{},
 			expectedErrors:                2,
 			matcher: ConsistOf(
 				PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("webhooks.etcdComponentProtection.serviceAccountInfo.name")})),
@@ -598,7 +598,7 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			webhookConfig := &configv1alpha1.EtcdComponentProtectionWebhookConfiguration{}
+			webhookConfig := &druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{}
 			webhookConfig.Enabled = test.enabled
 			if test.overrideExemptServiceAccounts != nil {
 				webhookConfig.ExemptServiceAccounts = test.overrideExemptServiceAccounts
@@ -614,7 +614,7 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 	}
 }
 
-func updateLeaderElectionConfig(config *configv1alpha1.LeaderElectionConfiguration,
+func updateLeaderElectionConfig(config *druidconfigv1alpha1.LeaderElectionConfiguration,
 	overrideLeaseDuration *time.Duration,
 	overrideRenewDeadline *time.Duration,
 	overrideRetryPeriod *time.Duration,

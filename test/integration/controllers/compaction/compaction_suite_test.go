@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/compaction"
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
 	"github.com/gardener/etcd-druid/test/integration/setup"
@@ -47,7 +47,7 @@ var _ = BeforeSuite(func() {
 
 	intTestEnv = setup.NewIntegrationTestEnv(testNamespacePrefix, "compaction-int-tests", crdPaths)
 	intTestEnv.RegisterReconcilers(func(mgr manager.Manager) {
-		reconciler := compaction.NewReconcilerWithImageVector(mgr, configv1alpha1.CompactionControllerConfiguration{
+		reconciler := compaction.NewReconcilerWithImageVector(mgr, druidconfigv1alpha1.CompactionControllerConfiguration{
 			Enabled:                   true,
 			ConcurrentSyncs:           ptr.To(5),
 			EventsThreshold:           100,

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -40,12 +40,12 @@ func initializeEtcdReconcilerTestEnv(t *testing.T, controllerName string, itTest
 	g.Expect(itTestEnv.CreateManager(clientBuilder)).To(Succeed())
 	itTestEnv.RegisterReconciler(func(mgr manager.Manager) {
 		reconciler, err = etcd.NewReconcilerWithImageVector(mgr, controllerName,
-			configv1alpha1.EtcdControllerConfiguration{
+			druidconfigv1alpha1.EtcdControllerConfiguration{
 				ConcurrentSyncs:                    ptr.To(5),
 				EnableEtcdSpecAutoReconcile:        autoReconcile,
 				DisableEtcdServiceAccountAutomount: false,
 				EtcdStatusSyncPeriod:               metav1.Duration{Duration: 2 * time.Second},
-				EtcdMember: configv1alpha1.EtcdMemberConfiguration{
+				EtcdMember: druidconfigv1alpha1.EtcdMemberConfiguration{
 					NotReadyThreshold: metav1.Duration{Duration: 5 * time.Minute},
 					UnknownThreshold:  metav1.Duration{Duration: 1 * time.Minute},
 				},

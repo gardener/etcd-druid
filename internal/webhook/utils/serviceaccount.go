@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 )
 
 // ServiceAccountMatchesUsername checks whether the provided username matches the namespace and name
@@ -20,7 +20,7 @@ func ServiceAccountMatchesUsername(namespace, serviceAccountName, username strin
 
 // GetReconcilerServiceAccountFQDN constructs the fully qualified domain name of a service account from PodInfo.
 // It reads the mounted files for namespace and service account name. If there is any error reading the files then it will return an error.
-func GetReconcilerServiceAccountFQDN(config configv1alpha1.EtcdComponentProtectionWebhookConfiguration) (string, error) {
+func GetReconcilerServiceAccountFQDN(config druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration) (string, error) {
 	if config.ServiceAccountInfo != nil {
 		return getServiceAccountFQDN(config.ServiceAccountInfo.Namespace, config.ServiceAccountInfo.Name), nil
 	}

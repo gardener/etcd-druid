@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -54,7 +54,7 @@ var (
 	apiInternalErr               = apierrors.NewInternalError(errInternal)
 	apiNotFoundErr               = apierrors.NewNotFound(schema.GroupResource{}, "")
 	exemptServiceAccounts        = []string{"exempt-sa-1"}
-	reconcilerServiceAccountInfo = configv1alpha1.ServiceAccountInfo{
+	reconcilerServiceAccountInfo = druidconfigv1alpha1.ServiceAccountInfo{
 		Name:      testServiceAccount,
 		Namespace: testNamespace,
 	}
@@ -67,13 +67,13 @@ var (
 func TestNewHandler(t *testing.T) {
 	testCases := []struct {
 		name                       string
-		config                     *configv1alpha1.EtcdComponentProtectionWebhookConfiguration
+		config                     *druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration
 		expectedServiceAccountFQDN string
 		errorExpected              bool
 	}{
 		{
 			name: "create new handler with a valid configuration",
-			config: &configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+			config: &druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 				Enabled:            true,
 				ServiceAccountInfo: &reconcilerServiceAccountInfo,
 			},
@@ -82,16 +82,16 @@ func TestNewHandler(t *testing.T) {
 		},
 		{
 			name: "should return error when none of ServiceAccountInfo and ReconcilerServiceAccountFQDN is set",
-			config: &configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+			config: &druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 				Enabled: true,
 			},
 			errorExpected: true,
 		},
 		{
 			name: "should use ServiceAccountInfo when both ServiceAccountInfo and ReconcilerServiceAccountFQDN are set",
-			config: &configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+			config: &druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 				Enabled: true,
-				ServiceAccountInfo: &configv1alpha1.ServiceAccountInfo{
+				ServiceAccountInfo: &druidconfigv1alpha1.ServiceAccountInfo{
 					Name:      testServiceAccount,
 					Namespace: testNamespace,
 				},
@@ -142,7 +142,7 @@ func TestHandleCreateAndConnect(t *testing.T) {
 	}
 
 	cl := testutils.CreateDefaultFakeClient()
-	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+	handler := createHandler(g, cl, druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 		Enabled:            true,
 		ServiceAccountInfo: &reconcilerServiceAccountInfo,
 	})
@@ -195,7 +195,7 @@ func TestHandleLeaseUpdate(t *testing.T) {
 			t.Parallel()
 			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).Build()
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, nil, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+			handler := createHandler(g, cl, druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 				Enabled:            true,
 				ServiceAccountInfo: &reconcilerServiceAccountInfo,
 			})
@@ -235,7 +235,7 @@ func TestHandleUnmanagedStatefulSetScaleSubresourceUpdate(t *testing.T) {
 	delete(sts.Labels, druidv1alpha1.LabelManagedByKey)
 
 	cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, nil, nil, nil, nil, []client.Object{sts}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+	handler := createHandler(g, cl, druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 		Enabled:            true,
 		ServiceAccountInfo: &reconcilerServiceAccountInfo,
 	})
@@ -264,7 +264,7 @@ func TestUnexpectedResourceType(t *testing.T) {
 	g := NewWithT(t)
 
 	cl := fake.NewClientBuilder().Build()
-	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+	handler := createHandler(g, cl, druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 		Enabled:            true,
 		ServiceAccountInfo: &reconcilerServiceAccountInfo,
 	})
@@ -284,7 +284,7 @@ func TestMissingManagedByLabel(t *testing.T) {
 	g := NewWithT(t)
 
 	cl := fake.NewClientBuilder().Build()
-	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+	handler := createHandler(g, cl, druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 		Enabled:            true,
 		ServiceAccountInfo: &reconcilerServiceAccountInfo,
 	})
@@ -310,7 +310,7 @@ func TestMissingResourcePartOfLabel(t *testing.T) {
 	g := NewWithT(t)
 
 	cl := fake.NewClientBuilder().Build()
-	handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+	handler := createHandler(g, cl, druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 		Enabled:            true,
 		ServiceAccountInfo: &reconcilerServiceAccountInfo,
 	})
@@ -347,7 +347,7 @@ func TestHandleUpdate(t *testing.T) {
 		etcdStatusLastOperation *druidv1alpha1.LastOperation
 		etcdGetErr              *apierrors.StatusError
 		// ----- handler configuration -----
-		reconcilerServiceAccountInfo configv1alpha1.ServiceAccountInfo
+		reconcilerServiceAccountInfo druidconfigv1alpha1.ServiceAccountInfo
 		exemptServiceAccounts        []string
 		// ----- expected -----
 		expectedAllowed bool
@@ -437,7 +437,7 @@ func TestHandleUpdate(t *testing.T) {
 				Build()
 
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+			handler := createHandler(g, cl, druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 				Enabled:               true,
 				ServiceAccountInfo:    &reconcilerServiceAccountInfo,
 				ExemptServiceAccounts: exemptServiceAccounts,
@@ -512,7 +512,7 @@ func TestHandleWithInvalidRequestObject(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			cl := testutils.CreateDefaultFakeClient()
-			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+			handler := createHandler(g, cl, druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 				Enabled:               true,
 				ServiceAccountInfo:    &reconcilerServiceAccountInfo,
 				ExemptServiceAccounts: exemptServiceAccounts,
@@ -570,7 +570,7 @@ func TestEtcdGetFailures(t *testing.T) {
 		t.Run(t.Name(), func(t *testing.T) {
 			t.Parallel()
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+			handler := createHandler(g, cl, druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 				Enabled:               true,
 				ServiceAccountInfo:    &reconcilerServiceAccountInfo,
 				ExemptServiceAccounts: exemptServiceAccounts,
@@ -613,7 +613,7 @@ func TestHandleDelete(t *testing.T) {
 		etcdStatusLastOperation *druidv1alpha1.LastOperation
 		etcdGetErr              *apierrors.StatusError
 		// ----- handler configuration -----
-		reconcilerServiceAccountInfo configv1alpha1.ServiceAccountInfo
+		reconcilerServiceAccountInfo druidconfigv1alpha1.ServiceAccountInfo
 		exemptServiceAccounts        []string
 		// ----- expected -----
 		expectedAllowed bool
@@ -726,7 +726,7 @@ func TestHandleDelete(t *testing.T) {
 				Build()
 
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
-			handler := createHandler(g, cl, configv1alpha1.EtcdComponentProtectionWebhookConfiguration{
+			handler := createHandler(g, cl, druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 				Enabled:               true,
 				ServiceAccountInfo:    &reconcilerServiceAccountInfo,
 				ExemptServiceAccounts: exemptServiceAccounts,
@@ -755,7 +755,7 @@ func TestHandleDelete(t *testing.T) {
 
 // ---------------- Helper functions -------------------
 
-func createHandler(g *WithT, cl client.Client, cfg configv1alpha1.EtcdComponentProtectionWebhookConfiguration) *Handler {
+func createHandler(g *WithT, cl client.Client, cfg druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration) *Handler {
 	mgr := createFakeManager(cl)
 	h, err := NewHandler(mgr, cfg)
 	g.Expect(err).ToNot(HaveOccurred())

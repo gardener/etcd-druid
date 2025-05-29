@@ -8,7 +8,7 @@ import (
 	"context"
 	"time"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/compaction"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
@@ -22,7 +22,7 @@ var (
 )
 
 // Register registers all etcd-druid controllers with the controller manager.
-func Register(mgr ctrl.Manager, controllerConfig configv1alpha1.ControllerConfiguration) error {
+func Register(mgr ctrl.Manager, controllerConfig druidconfigv1alpha1.ControllerConfiguration) error {
 	var err error
 
 	// Add etcd reconciler to the manager

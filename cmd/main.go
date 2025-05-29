@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"github.com/gardener/etcd-druid/cmd/opts"
 	druidmgr "github.com/gardener/etcd-druid/internal/manager"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -61,7 +61,7 @@ func main() {
 	}
 }
 
-func initializeAndGetOperatorConfig(cliOpts *opts.CLIOptions) (*configv1alpha1.OperatorConfiguration, error) {
+func initializeAndGetOperatorConfig(cliOpts *opts.CLIOptions) (*druidconfigv1alpha1.OperatorConfiguration, error) {
 	if err := cliOpts.Complete(); err != nil {
 		return nil, fmt.Errorf("failed to complete cli options: %w", err)
 	}

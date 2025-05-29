@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 
 	flag "github.com/spf13/pflag"
@@ -56,41 +56,41 @@ func (d *deprecatedOperatorConfiguration) addDeprecatedFlags(fs *flag.FlagSet) {
 
 func (d *deprecatedOperatorConfiguration) addDeprecatedControllerManagerFlags(fs *flag.FlagSet) {
 	fs.StringVar(&d.metricsBindAddress, "metrics-bind-address", "", "The IP address that the metrics endpoint binds to.")
-	fs.IntVar(&d.metricsPort, "metrics-port", configv1alpha1.DefaultMetricsServerPort, "The port used for the metrics endpoint.")
+	fs.IntVar(&d.metricsPort, "metrics-port", druidconfigv1alpha1.DefaultMetricsServerPort, "The port used for the metrics endpoint.")
 	fs.StringVar(&d.webhookServerBindAddress, "webhook-server-bind-address", "", "The IP address on which to listen for the HTTPS webhook server.")
-	fs.IntVar(&d.webhookServerPort, "webhook-server-port", configv1alpha1.DefaultWebhooksServerPort, "The port on which to listen for the HTTPS webhook server.")
-	fs.StringVar(&d.webhookServerTLSCertDir, "webhook-server-tls-server-cert-dir", configv1alpha1.DefaultWebhooksServerTLSServerCertDir, "The path to a directory containing the server's TLS certificate and key (the files must be named tls.crt and tls.key respectively).")
+	fs.IntVar(&d.webhookServerPort, "webhook-server-port", druidconfigv1alpha1.DefaultWebhooksServerPort, "The port on which to listen for the HTTPS webhook server.")
+	fs.StringVar(&d.webhookServerTLSCertDir, "webhook-server-tls-server-cert-dir", druidconfigv1alpha1.DefaultWebhooksServerTLSServerCertDir, "The path to a directory containing the server's TLS certificate and key (the files must be named tls.crt and tls.key respectively).")
 	fs.BoolVar(&d.leaderElectionEnabled, "enable-leader-election", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	fs.StringVar(&d.leaderElectionResourceName, "leader-election-id", configv1alpha1.DefaultLeaderElectionResourceName, "Name of the resource that leader election will use for holding the leader lock.")
-	fs.StringVar(&d.leaderElectionResourceLock, "leader-election-resource-lock", configv1alpha1.DefaultLeaderElectionResourceLock, "Specifies which resource type to use for leader election. Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'. : will be removed in the future in favour of using only `leases` as the leader election resource lock for the controller manager.")
+	fs.StringVar(&d.leaderElectionResourceName, "leader-election-id", druidconfigv1alpha1.DefaultLeaderElectionResourceName, "Name of the resource that leader election will use for holding the leader lock.")
+	fs.StringVar(&d.leaderElectionResourceLock, "leader-election-resource-lock", druidconfigv1alpha1.DefaultLeaderElectionResourceLock, "Specifies which resource type to use for leader election. Supported options are 'endpoints', 'configmaps', 'leases', 'endpointsleases' and 'configmapsleases'. : will be removed in the future in favour of using only `leases` as the leader election resource lock for the controller manager.")
 	fs.BoolVar(&d.disableLeaseCache, "disable-lease-cache", false, "Disable cache for lease.coordination.k8s.io resources.")
 }
 
 func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdControllerFlags(fs *flag.FlagSet) {
-	fs.IntVar(&d.etcdWorkers, "etcd-workers", configv1alpha1.DefaultEtcdControllerConcurrentSyncs, "Number of workers spawned for concurrent reconciles of etcd spec and status changes. If not specified then default of 3 is assumed.")
+	fs.IntVar(&d.etcdWorkers, "etcd-workers", druidconfigv1alpha1.DefaultEtcdControllerConcurrentSyncs, "Number of workers spawned for concurrent reconciles of etcd spec and status changes. If not specified then default of 3 is assumed.")
 	fs.BoolVar(&d.etcdSpecAutoReconcile, "enable-etcd-spec-auto-reconcile", false, fmt.Sprintf("If true then automatically reconciles Etcd Spec. If false, waits for explicit annotation `%s: %s` to be placed on the Etcd resource to trigger reconcile.", druidv1alpha1.DruidOperationAnnotation, druidv1alpha1.DruidOperationReconcile))
 	fs.BoolVar(&d.etcdDisableServiceAccountAutomount, "disable-etcd-serviceaccount-automount", false, "If true then .automountServiceAccountToken will be set to false for the ServiceAccount created for etcd StatefulSets.")
-	fs.DurationVar(&d.etcdStatusSyncPeriod, "etcd-status-sync-period", configv1alpha1.DefaultEtcdStatusSyncPeriod, "Period after which an etcd status sync will be attempted.")
-	fs.DurationVar(&d.etcdMemberNotReadyThreshold, "etcd-member-notready-threshold", configv1alpha1.DefaultEtcdNotReadyThreshold, "Threshold after which an etcd member is considered not ready if the status was unknown before.")
-	fs.DurationVar(&d.etcdMemberUnknownThreshold, "etcd-member-unknown-threshold", configv1alpha1.DefaultEtcdUnknownThreshold, "Threshold after which an etcd member is considered unknown.")
+	fs.DurationVar(&d.etcdStatusSyncPeriod, "etcd-status-sync-period", druidconfigv1alpha1.DefaultEtcdStatusSyncPeriod, "Period after which an etcd status sync will be attempted.")
+	fs.DurationVar(&d.etcdMemberNotReadyThreshold, "etcd-member-notready-threshold", druidconfigv1alpha1.DefaultEtcdNotReadyThreshold, "Threshold after which an etcd member is considered not ready if the status was unknown before.")
+	fs.DurationVar(&d.etcdMemberUnknownThreshold, "etcd-member-unknown-threshold", druidconfigv1alpha1.DefaultEtcdUnknownThreshold, "Threshold after which an etcd member is considered unknown.")
 }
 
 func (d *deprecatedOperatorConfiguration) addDeprecatedCompactionControllerFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&d.compactionEnabled, "enable-backup-compaction", false, "Enable automatic compaction of etcd backups.")
-	fs.IntVar(&d.compactionWorkers, "compaction-workers", configv1alpha1.DefaultCompactionConcurrentSyncs, "Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. If compaction is enabled, the value for this flag must be greater than zero.")
-	fs.Int64Var(&d.compactionEventsThreshold, "etcd-events-threshold", configv1alpha1.DefaultCompactionEventsThreshold, "Total number of etcd events that can be allowed before a backup compaction job is triggered.")
-	fs.DurationVar(&d.compactionActiveDeadlineDuration, "active-deadline-duration", configv1alpha1.DefaultCompactionActiveDeadlineDuration, "Duration after which a running backup compaction job will be terminated.")
+	fs.IntVar(&d.compactionWorkers, "compaction-workers", druidconfigv1alpha1.DefaultCompactionConcurrentSyncs, "Number of worker threads of the CompactionJob controller. The controller creates a backup compaction job if a certain etcd event threshold is reached. If compaction is enabled, the value for this flag must be greater than zero.")
+	fs.Int64Var(&d.compactionEventsThreshold, "etcd-events-threshold", druidconfigv1alpha1.DefaultCompactionEventsThreshold, "Total number of etcd events that can be allowed before a backup compaction job is triggered.")
+	fs.DurationVar(&d.compactionActiveDeadlineDuration, "active-deadline-duration", druidconfigv1alpha1.DefaultCompactionActiveDeadlineDuration, "Duration after which a running backup compaction job will be terminated.")
 	fs.DurationVar(&d.compactionMetricsScrapeWaitDuration, "metrics-scrape-wait-duration", 0, "Duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped.")
 }
 
 func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdCopyBackupsTaskControllerFlags(fs *flag.FlagSet) {
 	// For backward compatibility reasons the default chosen is true.
 	fs.BoolVar(&d.etcdCopyBackupsTaskEnabled, "enable-etcd-copy-backups-task", true, "Enable the etcd-copy-backups-task controller.")
-	fs.IntVar(&d.etcdCopyBackupsTaskWorkers, "etcd-copy-backups-task-workers", configv1alpha1.DefaultEtcdCopyBackupsTaskConcurrentSyncs, "Number of worker threads for the etcdcopybackupstask controller.")
+	fs.IntVar(&d.etcdCopyBackupsTaskWorkers, "etcd-copy-backups-task-workers", druidconfigv1alpha1.DefaultEtcdCopyBackupsTaskConcurrentSyncs, "Number of worker threads for the etcdcopybackupstask controller.")
 }
 
 func (d *deprecatedOperatorConfiguration) addDeprecatedSecretControllerFlags(fs *flag.FlagSet) {
-	fs.IntVar(&d.secretWorkers, "secret-workers", configv1alpha1.DefaultSecretControllerConcurrentSyncs, "Number of worker threads for the secrets controller.")
+	fs.IntVar(&d.secretWorkers, "secret-workers", druidconfigv1alpha1.DefaultSecretControllerConcurrentSyncs, "Number of worker threads for the secrets controller.")
 }
 
 func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdComponentProtectionWebhookFlags(fs *flag.FlagSet) {
@@ -99,15 +99,15 @@ func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdComponentProtectionWe
 	fs.StringSliceVar(&d.etcdComponentProtectionExemptServiceAccounts, "etcd-components-webhook-exempt-service-accounts", []string{}, "The comma-separated list of fully qualified names of service accounts that are exempt from Etcd-Components-Webhook checks.")
 }
 
-func (d *deprecatedOperatorConfiguration) ToOperatorConfiguration() *configv1alpha1.OperatorConfiguration {
-	config := &configv1alpha1.OperatorConfiguration{
+func (d *deprecatedOperatorConfiguration) ToOperatorConfiguration() *druidconfigv1alpha1.OperatorConfiguration {
+	config := &druidconfigv1alpha1.OperatorConfiguration{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: configv1alpha1.SchemeGroupVersion.String(),
+			APIVersion: druidconfigv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "OperatorConfiguration",
 		},
-		Server: configv1alpha1.ServerConfiguration{
-			Metrics:  &configv1alpha1.Server{},
-			Webhooks: &configv1alpha1.TLSServer{},
+		Server: druidconfigv1alpha1.ServerConfiguration{
+			Metrics:  &druidconfigv1alpha1.Server{},
+			Webhooks: &druidconfigv1alpha1.TLSServer{},
 		},
 	}
 	config.Server.Metrics.BindAddress = d.metricsBindAddress

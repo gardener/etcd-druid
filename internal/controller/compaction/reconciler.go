@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/images"
@@ -62,13 +62,13 @@ const (
 // Reconciler reconciles compaction jobs for Etcd resources.
 type Reconciler struct {
 	client.Client
-	config      configv1alpha1.CompactionControllerConfiguration
+	config      druidconfigv1alpha1.CompactionControllerConfiguration
 	imageVector imagevector.ImageVector
 	logger      logr.Logger
 }
 
 // NewReconciler creates a new reconciler for Compaction
-func NewReconciler(mgr manager.Manager, config configv1alpha1.CompactionControllerConfiguration) (*Reconciler, error) {
+func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.CompactionControllerConfiguration) (*Reconciler, error) {
 	imageVector, err := images.CreateImageVector()
 	if err != nil {
 		return nil, err
@@ -78,7 +78,7 @@ func NewReconciler(mgr manager.Manager, config configv1alpha1.CompactionControll
 
 // NewReconcilerWithImageVector creates a new reconciler for Compaction with an ImageVector.
 // This constructor will mostly be used by tests.
-func NewReconcilerWithImageVector(mgr manager.Manager, config configv1alpha1.CompactionControllerConfiguration, imageVector imagevector.ImageVector) *Reconciler {
+func NewReconcilerWithImageVector(mgr manager.Manager, config druidconfigv1alpha1.CompactionControllerConfiguration, imageVector imagevector.ImageVector) *Reconciler {
 	return &Reconciler{
 		Client:      mgr.GetClient(),
 		config:      config,

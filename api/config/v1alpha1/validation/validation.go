@@ -7,7 +7,7 @@ package validation
 import (
 	"strings"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -16,7 +16,7 @@ import (
 )
 
 // ValidateOperatorConfiguration validates the operator configuration.
-func ValidateOperatorConfiguration(config *configv1alpha1.OperatorConfiguration) field.ErrorList {
+func ValidateOperatorConfiguration(config *druidconfigv1alpha1.OperatorConfiguration) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	allErrs = append(allErrs, validateClientConnectionConfiguration(config.ClientConnection, field.NewPath("clientConnection"))...)
@@ -28,7 +28,7 @@ func ValidateOperatorConfiguration(config *configv1alpha1.OperatorConfiguration)
 	return allErrs
 }
 
-func validateClientConnectionConfiguration(clientConnConfig configv1alpha1.ClientConnectionConfiguration, fldPath *field.Path) field.ErrorList {
+func validateClientConnectionConfiguration(clientConnConfig druidconfigv1alpha1.ClientConnectionConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if clientConnConfig.Burst < 0 {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("burst"), clientConnConfig.Burst, "must be non-negative"))
@@ -36,7 +36,7 @@ func validateClientConnectionConfiguration(clientConnConfig configv1alpha1.Clien
 	return allErrs
 }
 
-func validateLeaderElectionConfiguration(leaderElectionConfig configv1alpha1.LeaderElectionConfiguration, fldPath *field.Path) field.ErrorList {
+func validateLeaderElectionConfiguration(leaderElectionConfig druidconfigv1alpha1.LeaderElectionConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if !leaderElectionConfig.Enabled {
 		return allErrs
@@ -57,18 +57,18 @@ func validateLeaderElectionConfiguration(leaderElectionConfig configv1alpha1.Lea
 	return allErrs
 }
 
-func validateLogConfiguration(logConfig configv1alpha1.LogConfiguration, fldPath *field.Path) field.ErrorList {
+func validateLogConfiguration(logConfig druidconfigv1alpha1.LogConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if logConfig.LogLevel != "" && !sets.New(configv1alpha1.AllLogLevels...).Has(logConfig.LogLevel) {
-		allErrs = append(allErrs, field.NotSupported(fldPath.Child("logLevel"), logConfig.LogLevel, configv1alpha1.AllLogLevels))
+	if logConfig.LogLevel != "" && !sets.New(druidconfigv1alpha1.AllLogLevels...).Has(logConfig.LogLevel) {
+		allErrs = append(allErrs, field.NotSupported(fldPath.Child("logLevel"), logConfig.LogLevel, druidconfigv1alpha1.AllLogLevels))
 	}
-	if logConfig.LogFormat != "" && !sets.New(configv1alpha1.AllLogFormats...).Has(logConfig.LogFormat) {
-		allErrs = append(allErrs, field.NotSupported(fldPath.Child("logFormat"), logConfig.LogFormat, configv1alpha1.AllLogFormats))
+	if logConfig.LogFormat != "" && !sets.New(druidconfigv1alpha1.AllLogFormats...).Has(logConfig.LogFormat) {
+		allErrs = append(allErrs, field.NotSupported(fldPath.Child("logFormat"), logConfig.LogFormat, druidconfigv1alpha1.AllLogFormats))
 	}
 	return allErrs
 }
 
-func validateControllerConfiguration(controllerConfig configv1alpha1.ControllerConfiguration, fldPath *field.Path) field.ErrorList {
+func validateControllerConfiguration(controllerConfig druidconfigv1alpha1.ControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	allErrs = append(allErrs, validateEtcdControllerConfiguration(controllerConfig.Etcd, fldPath.Child("etcd"))...)
 	allErrs = append(allErrs, validateSecretControllerConfiguration(controllerConfig.Secret, fldPath.Child("secret"))...)
@@ -77,7 +77,7 @@ func validateControllerConfiguration(controllerConfig configv1alpha1.ControllerC
 	return allErrs
 }
 
-func validateEtcdControllerConfiguration(etcdControllerConfig configv1alpha1.EtcdControllerConfiguration, fldPath *field.Path) field.ErrorList {
+func validateEtcdControllerConfiguration(etcdControllerConfig druidconfigv1alpha1.EtcdControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	allErrs = append(allErrs, validateConcurrentSyncs(etcdControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
 	allErrs = append(allErrs, mustBeGreaterThanZeroDuration(etcdControllerConfig.EtcdStatusSyncPeriod, fldPath.Child("etcdStatusSyncPeriod"))...)
@@ -86,7 +86,7 @@ func validateEtcdControllerConfiguration(etcdControllerConfig configv1alpha1.Etc
 	return allErrs
 }
 
-func validateCompactionControllerConfiguration(compactionControllerConfig configv1alpha1.CompactionControllerConfiguration, fldPath *field.Path) field.ErrorList {
+func validateCompactionControllerConfiguration(compactionControllerConfig druidconfigv1alpha1.CompactionControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if !compactionControllerConfig.Enabled {
 		return allErrs
@@ -100,7 +100,7 @@ func validateCompactionControllerConfiguration(compactionControllerConfig config
 	return allErrs
 }
 
-func validateEtcdCopyBackupsTaskControllerConfiguration(etcdCopyBackupsTaskControllerConfig configv1alpha1.EtcdCopyBackupsTaskControllerConfiguration, fldPath *field.Path) field.ErrorList {
+func validateEtcdCopyBackupsTaskControllerConfiguration(etcdCopyBackupsTaskControllerConfig druidconfigv1alpha1.EtcdCopyBackupsTaskControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if !etcdCopyBackupsTaskControllerConfig.Enabled {
 		return allErrs
@@ -109,15 +109,15 @@ func validateEtcdCopyBackupsTaskControllerConfiguration(etcdCopyBackupsTaskContr
 	return allErrs
 }
 
-func validateSecretControllerConfiguration(secretControllerConfig configv1alpha1.SecretControllerConfiguration, fldPath *field.Path) field.ErrorList {
+func validateSecretControllerConfiguration(secretControllerConfig druidconfigv1alpha1.SecretControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	return validateConcurrentSyncs(secretControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))
 }
 
-func validateWebhookConfiguration(webhookConfig configv1alpha1.WebhookConfiguration, fldPath *field.Path) field.ErrorList {
+func validateWebhookConfiguration(webhookConfig druidconfigv1alpha1.WebhookConfiguration, fldPath *field.Path) field.ErrorList {
 	return validateEtcdComponentProtectionWebhookConfiguration(webhookConfig.EtcdComponentProtection, fldPath.Child("etcdComponentProtection"))
 }
 
-func validateEtcdComponentProtectionWebhookConfiguration(webhookConfig configv1alpha1.EtcdComponentProtectionWebhookConfiguration, fldPath *field.Path) field.ErrorList {
+func validateEtcdComponentProtectionWebhookConfiguration(webhookConfig druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if !webhookConfig.Enabled {
 		return allErrs
@@ -140,7 +140,7 @@ func validateEtcdComponentProtectionWebhookConfiguration(webhookConfig configv1a
 	return allErrs
 }
 
-func validateServiceAccountInfo(serviceAccountInfo *configv1alpha1.ServiceAccountInfo, fldPath *field.Path) field.ErrorList {
+func validateServiceAccountInfo(serviceAccountInfo *druidconfigv1alpha1.ServiceAccountInfo, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if len(strings.TrimSpace(serviceAccountInfo.Name)) == 0 {
 		allErrs = append(allErrs, field.Required(fldPath.Child("name"), "name is required"))

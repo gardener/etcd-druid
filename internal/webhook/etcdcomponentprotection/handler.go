@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"slices"
 
-	configv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/webhook/utils"
 
@@ -32,14 +32,14 @@ var allowedOperations = []admissionv1.Operation{admissionv1.Create, admissionv1.
 // unintended modification or deletion by this admission handler.
 type Handler struct {
 	client                       client.Client
-	config                       configv1alpha1.EtcdComponentProtectionWebhookConfiguration
+	config                       druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration
 	decoder                      *utils.RequestDecoder
 	logger                       logr.Logger
 	reconcilerServiceAccountFQDN string
 }
 
 // NewHandler creates a new handler for Etcd Components Webhook.
-func NewHandler(mgr manager.Manager, config configv1alpha1.EtcdComponentProtectionWebhookConfiguration) (*Handler, error) {
+func NewHandler(mgr manager.Manager, config druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration) (*Handler, error) {
 	reconcilerServiceAccountFQDN, err := utils.GetReconcilerServiceAccountFQDN(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create etcdcomponentprotection handler due to error in getting reconciler service account FQDN: %w", err)
