@@ -689,7 +689,7 @@ _Appears in:_
 
 
 
-ClientConnectionConfiguration defines the configuration for constructing a client.
+ClientConnectionConfiguration defines the configuration for constructing a client.Client to connect to k8s kube-apiserver.
 
 
 
@@ -823,6 +823,8 @@ _Appears in:_
 
 
 LeaderElectionConfiguration defines the configuration for the leader election.
+It should be enabled when you deploy etcd-druid in HA mode. For single replica etcd-druid deployments
+it will not really serve any purpose.
 
 
 

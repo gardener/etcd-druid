@@ -30,7 +30,7 @@ type OperatorConfiguration struct {
 	Logging LogConfiguration `json:"logging"`
 }
 
-// ClientConnectionConfiguration defines the configuration for constructing a client.
+// ClientConnectionConfiguration defines the configuration for constructing a client.Client to connect to k8s kube-apiserver.
 type ClientConnectionConfiguration struct {
 	// QPS controls the number of queries per second allowed for a connection.
 	QPS float32 `json:"qps"`
@@ -45,6 +45,8 @@ type ClientConnectionConfiguration struct {
 }
 
 // LeaderElectionConfiguration defines the configuration for the leader election.
+// It should be enabled when you deploy etcd-druid in HA mode. For single replica etcd-druid deployments
+// it will not really serve any purpose.
 type LeaderElectionConfiguration struct {
 	// Enabled specifies whether leader election is enabled. Set this
 	// to true when running replicated instances of the operator for high availability.
