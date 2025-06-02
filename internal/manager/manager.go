@@ -13,9 +13,11 @@ import (
 	"strings"
 	"time"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	druidcontroller "github.com/gardener/etcd-druid/internal/controller"
 	druidwebhook "github.com/gardener/etcd-druid/internal/webhook"
+	druidwebhookutils "github.com/gardener/etcd-druid/internal/webhook/utils"
 
 	"golang.org/x/exp/slog"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -23,23 +25,20 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	eventsv1beta1 "k8s.io/api/events/v1beta1"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
-var (
-	defaultTimeout = time.Minute
-)
-
 // InitializeManager creates a controller manager and adds all the controllers and webhooks to the controller-manager using the passed in Config.
-func InitializeManager(config *Config) (ctrl.Manager, error) {
+func InitializeManager(config *druidconfigv1alpha1.OperatorConfiguration) (ctrl.Manager, error) {
 	var (
 		err error
 		mgr ctrl.Manager
 	)
-	config.captureFeatureActivations()
 	if mgr, err = createManager(config); err != nil {
 		return nil, err
 	}
@@ -57,7 +56,7 @@ func InitializeManager(config *Config) (ctrl.Manager, error) {
 	return mgr, nil
 }
 
-func createManager(config *Config) (ctrl.Manager, error) {
+func createManager(operatorConfig *druidconfigv1alpha1.OperatorConfiguration) (ctrl.Manager, error) {
 	// TODO: this can be removed once we have an improved informer, see https://github.com/gardener/etcd-druid/issues/215
 	// list of objects which should not be cached.
 	uncachedObjects := []client.Object{
@@ -66,16 +65,23 @@ func createManager(config *Config) (ctrl.Manager, error) {
 		&eventsv1.Event{},
 	}
 
-	if config.DisableLeaseCache {
+	if operatorConfig.Controllers.DisableLeaseCache {
 		uncachedObjects = append(uncachedObjects, &coordinationv1.Lease{}, &coordinationv1beta1.Lease{})
 	}
 
 	// TODO: remove this check once `--metrics-addr` flag is removed, and directly compute the address:port when setting managerOptions.Metrics.BindAddress
-	if !strings.Contains(config.Server.Metrics.BindAddress, ":") {
-		config.Server.Metrics.BindAddress = net.JoinHostPort(config.Server.Metrics.BindAddress, strconv.Itoa(config.Server.Metrics.Port))
+	if !strings.Contains(operatorConfig.Server.Metrics.BindAddress, ":") {
+		operatorConfig.Server.Metrics.BindAddress = net.JoinHostPort(operatorConfig.Server.Metrics.BindAddress, strconv.Itoa(operatorConfig.Server.Metrics.Port))
 	}
 
-	return ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	// Overwrite the default rest.Config with the operator configuration ClientConnection settings.
+	restConfig := ctrl.GetConfigOrDie()
+	restConfig.QPS = operatorConfig.ClientConnection.QPS
+	restConfig.Burst = operatorConfig.ClientConnection.Burst
+	restConfig.AcceptContentTypes = operatorConfig.ClientConnection.AcceptContentTypes
+	restConfig.ContentType = operatorConfig.ClientConnection.ContentType
+
+	return ctrl.NewManager(restConfig, ctrl.Options{
 		Client: client.Options{
 			Cache: &client.CacheOptions{
 				DisableFor: uncachedObjects,
@@ -83,20 +89,27 @@ func createManager(config *Config) (ctrl.Manager, error) {
 		},
 		Scheme: kubernetes.Scheme,
 		Metrics: metricsserver.Options{
-			BindAddress: config.Server.Metrics.BindAddress,
+			BindAddress: operatorConfig.Server.Metrics.BindAddress,
+		},
+		LeaderElection:                operatorConfig.LeaderElection.Enabled,
+		LeaderElectionID:              operatorConfig.LeaderElection.ResourceName,
+		LeaderElectionResourceLock:    operatorConfig.LeaderElection.ResourceLock,
+		LeaderElectionReleaseOnCancel: true,
+		LeaseDuration:                 &operatorConfig.LeaderElection.LeaseDuration.Duration,
+		RenewDeadline:                 &operatorConfig.LeaderElection.RenewDeadline.Duration,
+		RetryPeriod:                   &operatorConfig.LeaderElection.RetryPeriod.Duration,
+		Controller: ctrlconfig.Controller{
+			RecoverPanic: ptr.To(true),
 		},
 		WebhookServer: webhook.NewServer(webhook.Options{
-			Host:    config.Server.Webhook.BindAddress,
-			Port:    config.Server.Webhook.Port,
-			CertDir: config.Server.Webhook.TLSConfig.ServerCertDir,
+			Host:    operatorConfig.Server.Webhooks.BindAddress,
+			Port:    operatorConfig.Server.Webhooks.Port,
+			CertDir: operatorConfig.Server.Webhooks.ServerCertDir,
 		}),
-		LeaderElection:             config.LeaderElection.Enabled,
-		LeaderElectionID:           config.LeaderElection.ID,
-		LeaderElectionResourceLock: config.LeaderElection.ResourceLock,
 	})
 }
 
-func registerHealthAndReadyEndpoints(mgr ctrl.Manager, config *Config) error {
+func registerHealthAndReadyEndpoints(mgr ctrl.Manager, config *druidconfigv1alpha1.OperatorConfiguration) error {
 	slog.Info("Registering ping health check endpoint")
 	// Add a health check which always returns true when it is checked
 	if err := mgr.AddHealthzCheck("ping", func(_ *http.Request) error { return nil }); err != nil {
@@ -120,7 +133,7 @@ func registerHealthAndReadyEndpoints(mgr ctrl.Manager, config *Config) error {
 	}
 
 	// Add a readiness check for the webhook server
-	if config.Webhooks.AtLeaseOneEnabled() {
+	if druidwebhookutils.AtLeaseOneEnabled(config.Webhooks) {
 		slog.Info("Registering webhook-server readiness check endpoint")
 		if err := mgr.AddReadyzCheck("webhook-server", mgr.GetWebhookServer().StartedChecker()); err != nil {
 			return err

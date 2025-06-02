@@ -7,10 +7,10 @@ package kubernetes
 import (
 	"testing"
 
-	"k8s.io/utils/ptr"
-
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
+	"k8s.io/utils/ptr"
 
 	. "github.com/onsi/gomega"
 )

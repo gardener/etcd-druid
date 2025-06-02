@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/images"
@@ -39,7 +40,7 @@ const (
 // Reconciler reconciles EtcdCopyBackupsTask object.
 type Reconciler struct {
 	client.Client
-	Config      *Config
+	Config      druidconfigv1alpha1.EtcdCopyBackupsTaskControllerConfiguration
 	imageVector imagevector.ImageVector
 	logger      logr.Logger
 }
@@ -48,7 +49,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcdcopybackupstasks/status;etcdcopybackupstasks/finalizers,verbs=get;update;patch;create
 
 // NewReconciler creates a new reconciler for EtcdCopyBackupsTask.
-func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
+func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.EtcdCopyBackupsTaskControllerConfiguration) (*Reconciler, error) {
 	imageVector, err := images.CreateImageVector()
 	if err != nil {
 		return nil, err
@@ -58,7 +59,7 @@ func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 
 // NewReconcilerWithImageVector creates a new reconciler for EtcdCopyBackupsTask with an ImageVector.
 // This constructor will mostly be used by tests.
-func NewReconcilerWithImageVector(mgr manager.Manager, config *Config, imageVector imagevector.ImageVector) *Reconciler {
+func NewReconcilerWithImageVector(mgr manager.Manager, config druidconfigv1alpha1.EtcdCopyBackupsTaskControllerConfiguration, imageVector imagevector.ImageVector) *Reconciler {
 	return &Reconciler{
 		Client:      mgr.GetClient(),
 		Config:      config,

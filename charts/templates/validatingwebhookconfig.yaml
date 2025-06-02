@@ -1,4 +1,5 @@
-{{- if .Values.webhooks.etcdComponents.enabled }}
+{{- $createWebhookConfig := include "webhook.etcdcomponentprotection.enabled" . }}
+{{- if eq $createWebhookConfig "true" }}
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -12,7 +13,7 @@ webhooks:
       - v1beta1
       - v1
     clientConfig:
-      caBundle: {{ .Files.Get .Values.webhooks.pki.caPath | b64enc }}
+      caBundle: {{ .Files.Get .Values.webhookPKI.caPath | b64enc }}
       service:
         name: etcd-druid
         namespace: {{ .Release.Namespace }}
@@ -100,15 +101,14 @@ webhooks:
         scope: '*'
     sideEffects: None
     timeoutSeconds: 10
-
-{{/* This webhook is required for specially handling statefulsets/scale subresource, */}}
-{{/* because an `objectSelector` does not work for subresources. */}}
-{{/* Refer https://github.com/kubernetes/kubernetes/issues/113594#issuecomment-1332573990. */}}
+{{- /* This webhook is required for specially handling statefulsets/scale subresource, */}}
+{{- /* because an `objectSelector` does not work for subresources. */}}
+{{- /* Refer https://github.com/kubernetes/kubernetes/issues/113594#issuecomment-1332573990. */}}
   - admissionReviewVersions:
       - v1beta1
       - v1
     clientConfig:
-      caBundle: {{ .Files.Get .Values.webhooks.pki.caPath | b64enc }}
+      caBundle: {{ .Files.Get .Values.webhookPKI.caPath | b64enc }}
       service:
         name: etcd-druid
         namespace: {{ .Release.Namespace }}
@@ -132,4 +132,3 @@ webhooks:
     sideEffects: None
     timeoutSeconds: 10
 {{- end }}
-

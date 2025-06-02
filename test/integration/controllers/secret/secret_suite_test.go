@@ -8,10 +8,12 @@ import (
 	"context"
 	"testing"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
 	"github.com/gardener/etcd-druid/test/integration/setup"
 
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -42,8 +44,8 @@ var _ = BeforeSuite(func() {
 	crdPaths := []string{assets.GetEtcdCrdPath()}
 	intTestEnv = setup.NewIntegrationTestEnv(testNamespacePrefix, "secret-int-tests", crdPaths)
 	intTestEnv.RegisterReconcilers(func(mgr manager.Manager) {
-		reconciler := secret.NewReconciler(mgr, &secret.Config{
-			Workers: 5,
+		reconciler := secret.NewReconciler(mgr, druidconfigv1alpha1.SecretControllerConfiguration{
+			ConcurrentSyncs: ptr.To(5),
 		})
 		Expect(reconciler.RegisterWithManager(context.TODO(), mgr)).To(Succeed())
 	}).StartManager()

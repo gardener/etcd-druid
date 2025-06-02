@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -23,7 +24,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -172,9 +172,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 						Tag:        ptr.To("init-container-test-tag"),
 					},
 				},
-				Config: &Config{
-					FeatureGates: make(map[featuregate.Feature]bool),
-				},
+				Config: druidconfigv1alpha1.EtcdCopyBackupsTaskControllerConfiguration{},
 			}
 		})
 

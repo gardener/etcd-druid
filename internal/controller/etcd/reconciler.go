@@ -7,6 +7,7 @@ package etcd
 import (
 	"context"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/component/clientservice"
@@ -38,7 +39,7 @@ const ControllerName = "etcd-controller"
 // Reconciler reconciles the Etcd resource spec and status.
 type Reconciler struct {
 	client            client.Client
-	config            *Config
+	config            druidconfigv1alpha1.EtcdControllerConfiguration
 	recorder          record.EventRecorder
 	imageVector       imagevector.ImageVector
 	operatorRegistry  component.Registry
@@ -47,7 +48,7 @@ type Reconciler struct {
 }
 
 // NewReconciler creates a new reconciler for Etcd.
-func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
+func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.EtcdControllerConfiguration) (*Reconciler, error) {
 	imageVector, err := images.CreateImageVector()
 	if err != nil {
 		return nil, err
@@ -56,7 +57,7 @@ func NewReconciler(mgr manager.Manager, config *Config) (*Reconciler, error) {
 }
 
 // NewReconcilerWithImageVector creates a new reconciler for Etcd with the given image vector.
-func NewReconcilerWithImageVector(mgr manager.Manager, controllerName string, config *Config, iv imagevector.ImageVector) (*Reconciler, error) {
+func NewReconcilerWithImageVector(mgr manager.Manager, controllerName string, config druidconfigv1alpha1.EtcdControllerConfiguration, iv imagevector.ImageVector) (*Reconciler, error) {
 	logger := log.Log.WithName(controllerName)
 	operatorReg := createAndInitializeOperatorRegistry(mgr.GetClient(), config, iv)
 	lastOpErrRecorder := ctrlutils.NewLastOperationAndLastErrorsRecorder(mgr.GetClient(), logger)
@@ -139,7 +140,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	return ctrlutils.ReconcileAfter(r.config.EtcdStatusSyncPeriod, "Periodic Requeue").ReconcileResult()
+	return ctrlutils.ReconcileAfter(r.config.EtcdStatusSyncPeriod.Duration, "Periodic Requeue").ReconcileResult()
 }
 
 // GetOperatorRegistry returns the component registry.
@@ -147,7 +148,7 @@ func (r *Reconciler) GetOperatorRegistry() component.Registry {
 	return r.operatorRegistry
 }
 
-func createAndInitializeOperatorRegistry(client client.Client, config *Config, imageVector imagevector.ImageVector) component.Registry {
+func createAndInitializeOperatorRegistry(client client.Client, config druidconfigv1alpha1.EtcdControllerConfiguration, imageVector imagevector.ImageVector) component.Registry {
 	reg := component.NewRegistry()
 	reg.Register(component.ConfigMapKind, configmap.New(client))
 	reg.Register(component.ServiceAccountKind, serviceaccount.New(client, config.DisableEtcdServiceAccountAutomount))
