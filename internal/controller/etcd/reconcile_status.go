@@ -27,11 +27,20 @@ func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcdObjectKe
 	}
 	sLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileStatus").WithValues("runID", ctx.RunID)
 	originalEtcd := etcd.DeepCopy()
-	mutateETCDStatusStepFns := []mutateEtcdStatusFn{
-		r.mutateETCDStatusWithMemberStatusAndConditions,
-		r.inspectStatefulSetAndMutateETCDStatus,
-		r.setSelector,
+
+	var mutateETCDStatusStepFns []mutateEtcdStatusFn
+	if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(etcd.ObjectMeta) {
+		mutateETCDStatusStepFns = []mutateEtcdStatusFn{
+			r.mutateETCDStatusWithMemberStatusAndConditions,
+			r.inspectStatefulSetAndMutateETCDStatus,
+		}
+	} else {
+		sLog.Info("Skipping status checks since etcd runtime component creation is disabled")
 	}
+	mutateETCDStatusStepFns = append(mutateETCDStatusStepFns,
+		r.setSelector,
+	)
+
 	for _, fn := range mutateETCDStatusStepFns {
 		if stepResult := fn(ctx, etcd, sLog); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
 			return stepResult

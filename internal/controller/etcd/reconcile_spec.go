@@ -16,6 +16,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -84,7 +85,7 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey
 	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
-	resourceOperators := r.getOrderedOperatorsForSync()
+	resourceOperators := r.getOrderedOperatorsForSync(etcd.ObjectMeta)
 	for _, kind := range resourceOperators {
 		op := r.operatorRegistry.GetOperator(kind)
 		if err := op.Sync(ctx, etcd); err != nil {
@@ -172,17 +173,27 @@ func (r *Reconciler) getOrderedOperatorsForPreSync() []component.Kind {
 	return []component.Kind{}
 }
 
-func (r *Reconciler) getOrderedOperatorsForSync() []component.Kind {
-	return []component.Kind{
-		component.MemberLeaseKind,
-		component.SnapshotLeaseKind,
+func (r *Reconciler) getOrderedOperatorsForSync(etcdObjMeta metav1.ObjectMeta) []component.Kind {
+	var operators []component.Kind
+
+	if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(etcdObjMeta) {
+		operators = []component.Kind{
+			component.ServiceAccountKind,
+			component.RoleKind,
+			component.RoleBindingKind,
+			component.MemberLeaseKind,
+			component.SnapshotLeaseKind,
+		}
+	}
+
+	// add the rest of the operators that are always needed for the etcd cluster
+	operators = append(operators,
 		component.ClientServiceKind,
 		component.PeerServiceKind,
-		component.ConfigMapKind,
 		component.PodDisruptionBudgetKind,
-		component.ServiceAccountKind,
-		component.RoleKind,
-		component.RoleBindingKind,
+		component.ConfigMapKind,
 		component.StatefulSetKind,
-	}
+	)
+
+	return operators
 }

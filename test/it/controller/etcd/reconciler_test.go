@@ -75,6 +75,7 @@ func TestEtcdReconcileSpecWithNoAutoReconcile(t *testing.T) {
 	}{
 		{"should add finalizer to etcd when etcd resource is created", testAddFinalizerToEtcd},
 		{"should create all managed resources when etcd resource is created", testAllManagedResourcesAreCreated},
+		{"should create necessary managed resources when `disable-etcd-runtime-component-creation` annotation is set", testNecessaryManagedResourcesAreCorrectlyCreatedWhenDisableEtcdRuntimeComponentCreationAnnotationIsSet},
 		{"should succeed only in creation of some resources and not all and should record error in lastErrors and lastOperation", testFailureToCreateAllResources},
 		{"should not reconcile spec when reconciliation is suspended", testWhenReconciliationIsSuspended},
 		{"should not reconcile upon etcd spec update when no reconcile operation annotation is set", testEtcdSpecUpdateWhenNoReconcileOperationAnnotationIsSet},
@@ -143,6 +144,56 @@ func testAllManagedResourcesAreCreated(t *testing.T, testNs string, reconcilerTe
 	assertETCDOperationAnnotation(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), false, 5*time.Second, 1*time.Second)
 }
 
+func testNecessaryManagedResourcesAreCorrectlyCreatedWhenDisableEtcdRuntimeComponentCreationAnnotationIsSet(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
+	const (
+		timeout         = time.Minute * 2
+		pollingInterval = time.Second * 2
+	)
+	// ***************** setup *****************
+	g := NewWithT(t)
+	etcdInstance := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testNs).
+		WithClientTLS().
+		WithPeerTLS().
+		WithReplicas(3).
+		WithAnnotations(map[string]string{
+			druidv1alpha1.DisableEtcdRuntimeComponentCreationAnnotation: "",
+		}).
+		Build()
+	g.Expect(etcdInstance.Spec.Backup.Store).ToNot(BeNil())
+	g.Expect(etcdInstance.Spec.Backup.Store.SecretRef).ToNot(BeNil())
+	cl := reconcilerTestEnv.itTestEnv.GetClient()
+	ctx := context.Background()
+	// create backup secrets
+	g.Expect(testutils.CreateSecrets(ctx, cl, testNs, etcdInstance.Spec.Backup.Store.SecretRef.Name)).To(Succeed())
+	// create etcdInstance resource
+	g.Expect(cl.Create(ctx, etcdInstance)).To(Succeed())
+	// ***************** test etcd spec reconciliation  *****************
+	componentKindCreated := []component.Kind{
+		component.ClientServiceKind,
+		component.PeerServiceKind,
+		component.PodDisruptionBudgetKind,
+		component.ConfigMapKind,
+		component.StatefulSetKind,
+	}
+	assertSelectedComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, componentKindCreated, timeout, pollingInterval)
+	assertStatefulSetReplicas(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 0, 30*time.Second, 2*time.Second)
+	componentKindNotCreated := []component.Kind{
+		component.ServiceAccountKind,
+		component.RoleKind,
+		component.RoleBindingKind,
+		component.MemberLeaseKind,
+		component.SnapshotLeaseKind,
+	}
+	assertComponentsDoNotExist(ctx, t, reconcilerTestEnv, etcdInstance, componentKindNotCreated, timeout, pollingInterval)
+	expectedLastOperation := &druidv1alpha1.LastOperation{
+		Type:  druidv1alpha1.LastOperationTypeReconcile,
+		State: druidv1alpha1.LastOperationStateSucceeded,
+	}
+	assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), expectedLastOperation, nil, 5*time.Second, 1*time.Second)
+	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), ptr.To[int64](1), 30*time.Second, 1*time.Second)
+	assertETCDOperationAnnotation(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), false, 5*time.Second, 1*time.Second)
+}
+
 func testFailureToCreateAllResources(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
 	const (
 		timeout         = time.Minute * 3
@@ -165,17 +216,19 @@ func testFailureToCreateAllResources(t *testing.T, testNs string, reconcilerTest
 	// create etcdInstance resource
 	g.Expect(cl.Create(ctx, etcdInstance)).To(Succeed())
 	// ***************** test etcd spec reconciliation  *****************
-	componentKindCreated := []component.Kind{component.MemberLeaseKind}
+	componentKindCreated := []component.Kind{
+		component.ServiceAccountKind,
+		component.RoleKind,
+		component.RoleBindingKind,
+		component.MemberLeaseKind,
+	}
 	assertSelectedComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, componentKindCreated, timeout, pollingInterval)
 	componentKindNotCreated := []component.Kind{
 		component.SnapshotLeaseKind, // no backup store has been set
 		component.ClientServiceKind,
 		component.PeerServiceKind,
-		component.ConfigMapKind,
 		component.PodDisruptionBudgetKind,
-		component.ServiceAccountKind,
-		component.RoleKind,
-		component.RoleBindingKind,
+		component.ConfigMapKind,
 		component.StatefulSetKind,
 	}
 	assertComponentsDoNotExist(ctx, t, reconcilerTestEnv, etcdInstance, componentKindNotCreated, timeout, pollingInterval)
