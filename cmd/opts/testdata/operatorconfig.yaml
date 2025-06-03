@@ -1,4 +1,4 @@
-apiVersion: operator.config.druid.gardener.cloud/v1alpha1
+apiVersion: config.druid.gardener.cloud/v1alpha1
 kind: OperatorConfiguration
 clientConnection:
   qps: 150
