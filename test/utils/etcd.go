@@ -25,13 +25,11 @@ import (
 
 var (
 	deltaSnapshotPeriod = metav1.Duration{
-		Duration: 300 * time.Second,
+		Duration: 60 * time.Second,
 	}
 	garbageCollectionPeriod = metav1.Duration{
 		Duration: 43200 * time.Second,
 	}
-	imageEtcd               = "eu.gcr.io/gardener-project/gardener/etcd-wrapper:v0.1.0"
-	imageBR                 = "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.25.0"
 	snapshotSchedule        = "0 */24 * * *"
 	defragSchedule          = "0 */24 * * *"
 	container               = "default.bkp"
@@ -320,9 +318,19 @@ func (eb *EtcdBuilder) WithProviderLocal() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
 	}
-	eb.etcd.Spec.Backup.Store = getBackupStoreForLocal(
-		eb.etcd.Name,
-	)
+	eb.etcd.Spec.Backup.Store = getBackupStoreForLocal(eb.etcd.Name)
+	return eb
+}
+
+func (eb *EtcdBuilder) WithBackupStorePrefix(prefix string) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	if eb.etcd.Spec.Backup.Store == nil {
+		eb.etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{}
+	}
+
+	eb.etcd.Spec.Backup.Store.Prefix = prefix
 	return eb
 }
 
@@ -480,7 +488,6 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 				Quota:                   &quota,
 				SnapshotCount:           &snapshotCount,
 				Metrics:                 &metricsBasic,
-				Image:                   &imageEtcd,
 				DefragmentationSchedule: &defragSchedule,
 				EtcdDefragTimeout:       &etcdDefragTimeout,
 				Resources: &corev1.ResourceRequirements{
@@ -503,7 +510,6 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 
 func getBackupSpec() druidv1alpha1.BackupSpec {
 	return druidv1alpha1.BackupSpec{
-		Image:                    &imageBR,
 		Port:                     ptr.To(common.DefaultPortEtcdBackupRestore),
 		FullSnapshotSchedule:     &snapshotSchedule,
 		GarbageCollectionPolicy:  &garbageCollectionPolicy,
@@ -539,7 +545,7 @@ func getBackupStore(name string, provider druidv1alpha1.StorageProvider) *druidv
 		Prefix:    name,
 		Provider:  &provider,
 		SecretRef: &corev1.SecretReference{
-			Name: "etcd-backup",
+			Name: BackupStoreSecretName,
 		},
 	}
 }
@@ -550,6 +556,9 @@ func getBackupStoreForLocal(name string) *druidv1alpha1.StoreSpec {
 		Container: &container,
 		Prefix:    name,
 		Provider:  &provider,
+		SecretRef: &corev1.SecretReference{
+			Name: BackupStoreSecretName,
+		},
 	}
 }
 

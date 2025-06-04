@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package e2e
 
 import (
@@ -30,9 +34,10 @@ const (
 	timeoutEtcdDisruptionStart = 30 * time.Second
 	timeoutEtcdRecovery        = 5 * time.Minute
 
-	pkiResourcesDir     = "pki-resources"
-	testNamespacePrefix = "etcd-druid-e2e-"
-	defaultEtcdName     = "test"
+	pkiResourcesDir              = "pki-resources"
+	testNamespacePrefix          = "etcd-druid-e2e-"
+	defaultEtcdName              = "test"
+	defaultBackupStoreSecretName = "etcd-backup"
 )
 
 var (
@@ -127,9 +132,11 @@ func TestBasic(t *testing.T) {
 
 			logger.Info("running tests")
 			etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
-				WithReplicas(tc.replicas)
-			// TODO: use local provider
-			//WithProviderLocal()
+				WithReplicas(tc.replicas).
+				WithDefaultBackup().
+				WithProviderLocal().
+				WithBackupStorePrefix(fmt.Sprintf("%s/%s", testNamespace, defaultEtcdName))
+			// TODO: use local provider based on env var config (two different test runs for no-provider and provider-local)
 			if tc.tlsEnabled {
 				etcdBuilder = etcdBuilder.WithClientTLS().
 					WithPeerTLS().
@@ -488,6 +495,7 @@ func initializeTestCase(g *WithT, logger logr.Logger, testNamespace string) {
 	createNamespace(g, logger, testNamespace)
 	etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir := generatePKIResources(g, logger, testNamespace)
 	createTLSSecrets(g, logger, testNamespace, etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir)
+	createBackupSecret(g, logger, testNamespace)
 }
 
 func createNamespace(g *WithT, logger logr.Logger, testNamespace string) {
@@ -529,6 +537,12 @@ func createTLSSecrets(g *WithT, logger logr.Logger, testNamespace string, etcdCe
 	g.Expect(druide2etestutils.CreateServerTLSSecret(testEnv.GetContext(), testEnv.GetClient(), testutils.BackupRestoreTLSServerCertSecretName, testNamespace, etcdbrCertsDir)).To(Succeed())
 	g.Expect(druide2etestutils.CreateClientTLSSecret(testEnv.GetContext(), testEnv.GetClient(), testutils.BackupRestoreTLSClientCertSecretName, testNamespace, etcdbrCertsDir)).To(Succeed())
 	logger.Info("successfully created TLS secrets")
+}
+
+func createBackupSecret(g *WithT, logger logr.Logger, namespace string) {
+	logger.Info("creating backup secret")
+	g.Expect(testutils.CreateBackupProviderLocalSecret(testEnv.GetContext(), testEnv.GetClient(), defaultBackupStoreSecretName, namespace)).To(Succeed())
+	logger.Info("successfully created backup secret")
 }
 
 func updateEtcdTLSAndLabels(etcd *druidv1alpha1.Etcd, clientTLSEnabled, peerTLSEnabled, backupRestoreTLSEnabled bool, labels map[string]string) {
