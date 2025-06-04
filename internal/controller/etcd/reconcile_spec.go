@@ -13,6 +13,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	corev1 "k8s.io/api/core/v1"
@@ -33,6 +34,7 @@ func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcdObjectKey 
 		r.ensureFinalizer,
 		r.preSyncEtcdResources,
 		r.syncEtcdResources,
+		r.cleanupEtcdResources,
 		r.recordReconcileSuccessOperation,
 	}
 
@@ -96,6 +98,31 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey
 			ctx.Logger.Error(err, "failed to sync etcd resource", "kind", kind)
 			return ctrlutils.ReconcileWithError(err)
 		}
+	}
+	return ctrlutils.ContinueReconcile()
+}
+
+// cleanupEtcdResources cleans up the resources that are no longer required for the Etcd cluster.
+func (r *Reconciler) cleanupEtcdResources(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+	etcd := &druidv1alpha1.Etcd{}
+	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result
+	}
+	resourceOperators := r.getOperatorsForCleanup(etcd.ObjectMeta)
+	deleteTasks := make([]utils.OperatorTask, 0, len(resourceOperators))
+	for _, kind := range resourceOperators {
+		operator := r.operatorRegistry.GetOperator(kind)
+		deleteTasks = append(deleteTasks, utils.OperatorTask{
+			Name: fmt.Sprintf("cleanup-%s-component", kind),
+			Fn: func(ctx component.OperatorContext) error {
+				return operator.TriggerDelete(ctx, etcd.ObjectMeta)
+			},
+		})
+	}
+
+	ctx.Logger.Info("triggering cleanup for druid-managed resources that are no longer required")
+	if errs := utils.RunConcurrently(ctx, deleteTasks); len(errs) > 0 {
+		return ctrlutils.ReconcileWithError(errs...)
 	}
 	return ctrlutils.ContinueReconcile()
 }
@@ -196,4 +223,17 @@ func (r *Reconciler) getOrderedOperatorsForSync(etcdObjMeta metav1.ObjectMeta) [
 	)
 
 	return operators
+}
+
+func (r *Reconciler) getOperatorsForCleanup(etcdObjMeta metav1.ObjectMeta) []component.Kind {
+	if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(etcdObjMeta) {
+		return nil
+	}
+	return []component.Kind{
+		component.ServiceAccountKind,
+		component.RoleKind,
+		component.RoleBindingKind,
+		component.MemberLeaseKind,
+		component.SnapshotLeaseKind,
+	}
 }

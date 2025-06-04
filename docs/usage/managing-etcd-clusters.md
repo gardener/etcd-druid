@@ -45,7 +45,7 @@ Setting this annotation will disable the creation of the following resources/com
 - `role`
 - `rolebinding`
 
-The statefulset will still be created, with `spec.replicas` set to 0, but the lease renewal flags on the `etcd-backup-restore` sidecar container will remain disabled.
+The statefulset will still be created, with `spec.replicas` set to 0, but the lease renewal flags `--enable-member-lease-renewal` and `--enable-snapshot-lease-renewal` on the `etcd-backup-restore` config will be disabled.
 
 Additionally, certain checks on the `Etcd` resource status will be disabled, since according to etcd-druid, the etcd cluster is not running.
 
