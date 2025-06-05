@@ -11,7 +11,14 @@ import (
 
 	"github.com/gardener/etcd-druid/test/utils"
 
+	corev1 "k8s.io/api/core/v1"
+	apiresource "k8s.io/apimachinery/pkg/api/resource"
+
 	. "github.com/onsi/gomega"
+)
+
+var (
+	defaultStorageCapacity = apiresource.MustParse("16Gi")
 )
 
 // etcd.spec.storageClass is immutable
@@ -129,11 +136,13 @@ func TestValidateUpdateSpecVolumeClaimTemplate(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	testNs, g := setupTestEnvironment(t)
 	tests := []struct {
-		name                string
-		etcdName            string
-		initalVolClaimTemp  string
-		updatedVolClaimTemp string
-		expectErr           bool
+		name                        string
+		etcdName                    string
+		initalVolClaimTemp          string
+		updatedVolClaimTemp         string
+		initalEmptyDirVolumeSource  *corev1.EmptyDirVolumeSource
+		updatedEmptyDirVolumeSource *corev1.EmptyDirVolumeSource
+		expectErr                   bool
 	}{
 		{
 			name:                "Valid #1: Unchanged volumeClaimTemplate",
@@ -146,22 +155,30 @@ func TestValidateUpdateSpecVolumeClaimTemplate(t *testing.T) {
 			name:                "Invalid #1: Updated volumeClaimTemplate",
 			etcdName:            "etcd-invalid-1-volclaim",
 			initalVolClaimTemp:  "main-etcd",
-			updatedVolClaimTemp: "new-vol-temp",
+			updatedVolClaimTemp: "main-etcd-1",
 			expectErr:           true,
 		},
 		{
-			name:                "Invalid #2: Set unset volumeClaimTemplate",
-			etcdName:            "etcd-invalid-2-volclaim",
-			initalVolClaimTemp:  "",
-			updatedVolClaimTemp: "New-Value",
-			expectErr:           true,
+			name:                       "Valid #2: Remove volumeClaimTemplate and add emptyDirVolumeSource",
+			etcdName:                   "etcd-valid-2-volclaim-emptydir",
+			initalVolClaimTemp:         "main-etcd",
+			updatedVolClaimTemp:        "",
+			initalEmptyDirVolumeSource: nil,
+			updatedEmptyDirVolumeSource: &corev1.EmptyDirVolumeSource{
+				SizeLimit: &defaultStorageCapacity,
+			},
+			expectErr: false,
 		},
 		{
-			name:                "Invalid #2: Unset set volumeClaimTemplate",
-			etcdName:            "etcd-invalid-3-volclaim",
-			initalVolClaimTemp:  "Inital-vc",
-			updatedVolClaimTemp: "",
-			expectErr:           true,
+			name:                       "Invalid #2: Add emptyDirVolumeSource without removing volumeClaimTemplate",
+			etcdName:                   "etcd-invalid-2-volclaim-emptydir",
+			initalVolClaimTemp:         "main-etcd",
+			updatedVolClaimTemp:        "main-etcd",
+			initalEmptyDirVolumeSource: nil,
+			updatedEmptyDirVolumeSource: &corev1.EmptyDirVolumeSource{
+				SizeLimit: &defaultStorageCapacity,
+			},
+			expectErr: true,
 		},
 	}
 
@@ -171,6 +188,7 @@ func TestValidateUpdateSpecVolumeClaimTemplate(t *testing.T) {
 			if test.initalVolClaimTemp != "" {
 				etcd.Spec.VolumeClaimTemplate = &test.initalVolClaimTemp
 			}
+			etcd.Spec.EmptyDirVolumeSource = test.initalEmptyDirVolumeSource
 
 			cl := itTestEnv.GetClient()
 			ctx := context.Background()
@@ -181,6 +199,7 @@ func TestValidateUpdateSpecVolumeClaimTemplate(t *testing.T) {
 			} else {
 				etcd.Spec.VolumeClaimTemplate = nil
 			}
+			etcd.Spec.EmptyDirVolumeSource = test.updatedEmptyDirVolumeSource
 			validateEtcdUpdate(g, etcd, test.expectErr, ctx, cl)
 		})
 	}

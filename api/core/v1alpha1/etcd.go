@@ -292,7 +292,7 @@ type SchedulingConstraints struct {
 
 // EtcdSpec defines the desired state of Etcd
 // +kubebuilder:validation:XValidation:message="etcd.spec.storageClass is an immutable field.",rule="has(oldSelf.storageClass) ==  has(self.storageClass)"
-// +kubebuilder:validation:XValidation:message="etcd.spec.volumeClaimTemplate is an immutable field.",rule="has(oldSelf.volumeClaimTemplate) == has(self.volumeClaimTemplate)"
+// +kubebuilder:validation:XValidation:message="etcd.spec.volumeClaimTemplate and etcd.spec.emptyDirVolumeSource can not be both set.",rule="!(has(self.volumeClaimTemplate) && has(self.emptyDirVolumeSource))"
 type EtcdSpec struct {
 	// selector is a label query over pods that should match the replica count.
 	// It must match the pod template's labels.
@@ -326,14 +326,22 @@ type EtcdSpec struct {
 	// StorageCapacity defines the size of persistent volume.
 	// +optional
 	StorageCapacity *resource.Quantity `json:"storageCapacity,omitempty"`
-	// VolumeClaimTemplate defines the volume claim template to be created
+	// VolumeClaimTemplate defines the name of the volume claim template to be created
 	// +optional
-	// +kubebuilder:validation:XValidation:message="etcd.spec.VolumeClaimTemplate is an immutable field",rule="self == oldSelf"
+	// +kubebuilder:validation:XValidation:message="etcd.spec.VolumeClaimTemplate can not be changed, only unset",rule="self == oldSelf"
 	VolumeClaimTemplate *string `json:"volumeClaimTemplate,omitempty"`
 	// RunAsRoot defines whether the securityContext of the pod specification should indicate that the containers shall
 	// run as root. By default, they run as non-root with user 'nobody'.
 	// +optional
 	RunAsRoot *bool `json:"runAsRoot,omitempty"`
+	// EmptyDirVolumeSource defines the emptyDirVolumeSource that is
+	// specified to make use of emtpyDir storage for the etcd data directories.
+	// Specifying EmptyDirVolumeSource will cause VolumeClaimTemplate to be ignored.
+	// The user does not get the option to configure the name of these volumes.
+	// This feature is currently in alpha. etcd-druid only supports migrating etcd clusters from using PVCs to emptyDir volumes.
+	// The inverse is NOT supported currently.
+	// +optional
+	EmptyDirVolumeSource *corev1.EmptyDirVolumeSource `json:"emptyDirVolumeSource,omitempty"`
 }
 
 // CrossVersionObjectReference contains enough information to let you identify the referred resource.
