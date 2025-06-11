@@ -93,7 +93,7 @@ func TestEtcdReconcileSpecWithNoAutoReconcile(t *testing.T) {
 	g := NewWithT(t)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
+			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
 			t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
 			g.Expect(reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)).To(Succeed())
 			test.fn(t, testNs, reconcilerTestEnv)
@@ -427,7 +427,7 @@ func TestEtcdDeletion(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
+			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
 			test.fn(t, testNs)
 		})
 	}
@@ -560,7 +560,7 @@ func TestEtcdStatusReconciliation(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// --------------------------- create test namespace ---------------------------
-			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
+			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
 			g.Expect(reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)).To(Succeed())
 			t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
 			// ---------------------------- create etcd instance --------------------------
@@ -586,7 +586,7 @@ func TestScaleSubresource(t *testing.T) {
 	g := NewWithT(t)
 
 	// --------------------------- create test namespace ---------------------------
-	testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
+	testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
 	g.Expect(reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)).To(Succeed())
 	t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
 	// ---------------------------- create etcd instance --------------------------
