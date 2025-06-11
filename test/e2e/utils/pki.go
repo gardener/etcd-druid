@@ -30,15 +30,15 @@ const (
 	defaultCertExpiryDays = 30
 )
 
-// generateCAKeyCert generates a CA key and certificate and saves them to the specified directory.
-func generateCAKeyCert(logger logr.Logger, dir, name string) (err error) {
-	logger.Info("generating CA key", "name", name, "dir", dir)
+// GenerateCAKeyCert generates a CA key and certificate and saves them to the specified directory.
+func GenerateCAKeyCert(logger logr.Logger, outputDir, name string) (err error) {
+	logger.Info("generating CA key", "name", name, "outputDir", outputDir)
 	caKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
-		err = fmt.Errorf("failed to generate CA key %s in dir %s: %v", name, dir, err)
+		err = fmt.Errorf("failed to generate CA key %s in outputDir %s: %v", name, outputDir, err)
 		return
 	}
-	caKeyPath := filepath.Join(dir, caKeyFileName)
+	caKeyPath := filepath.Join(outputDir, caKeyFileName)
 	caKeyFile, err := os.Create(caKeyPath)
 	if err != nil {
 		err = fmt.Errorf("failed to create CA key file %s: %v", caKeyPath, err)
@@ -54,7 +54,7 @@ func generateCAKeyCert(logger logr.Logger, dir, name string) (err error) {
 		return
 	}
 
-	logger.Info("generating CA certificate", "name", name, "dir", dir)
+	logger.Info("generating CA certificate", "name", name, "outputDir", outputDir)
 	caTemplate := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
@@ -70,10 +70,10 @@ func generateCAKeyCert(logger logr.Logger, dir, name string) (err error) {
 	}
 	caCert, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
 	if err != nil {
-		err = fmt.Errorf("failed to create CA certificate for %s in dir %s: %v", name, dir, err)
+		err = fmt.Errorf("failed to create CA certificate for %s in outputDir %s: %v", name, outputDir, err)
 		return
 	}
-	caCertPath := filepath.Join(dir, caCertFileName)
+	caCertPath := filepath.Join(outputDir, caCertFileName)
 	caCertFile, err := os.Create(caCertPath)
 	if err != nil {
 		err = fmt.Errorf("failed to create CA certificate file %s: %v", caCertPath, err)
@@ -92,36 +92,58 @@ func generateCAKeyCert(logger logr.Logger, dir, name string) (err error) {
 	return
 }
 
-// getCAKeyCert reads and returns the CA certificate and key from the specified directory.
-func getCAKeyCert(dir string) (*x509.Certificate, *rsa.PrivateKey, error) {
-	caCertPath := filepath.Join(dir, caCertFileName)
-	caCertPEM, err := os.ReadFile(caCertPath)
+// getCACert reads and returns the CA certificate from the specified path.
+func getCACert(path string) (*x509.Certificate, error) {
+	caCertPEM, err := os.ReadFile(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read CA certificate %s: %v", caCertPath, err)
+		return nil, fmt.Errorf("failed to read CA certificate %s: %v", path, err)
 	}
 	caCertBlock, _ := pem.Decode(caCertPEM)
 	if caCertBlock == nil {
-		return nil, nil, fmt.Errorf("failed to decode CA certificate PEM from %s", caCertPath)
+		return nil, fmt.Errorf("failed to decode CA certificate PEM from %s", path)
 	}
 	caCert, err := x509.ParseCertificate(caCertBlock.Bytes)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse CA certificate %s: %v", caCertPath, err)
+		return nil, fmt.Errorf("failed to parse CA certificate %s: %v", path, err)
 	}
-	caKeyPath := filepath.Join(dir, caKeyFileName)
-	caKeyPEM, err := os.ReadFile(caKeyPath)
+	return caCert, nil
+}
+
+// getCAKey reads and returns the CA private key from the specified path.
+func getCAKey(path string) (*rsa.PrivateKey, error) {
+	caKeyPEM, err := os.ReadFile(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read CA key %s: %v", caKeyPath, err)
+		return nil, fmt.Errorf("failed to read CA key %s: %v", path, err)
 	}
 	caKeyBlock, _ := pem.Decode(caKeyPEM)
 	if caKeyBlock == nil {
-		return nil, nil, fmt.Errorf("failed to decode CA key PEM from %s", caKeyPath)
+		return nil, fmt.Errorf("failed to decode CA key PEM from %s", path)
 	}
 	caKey, err := x509.ParsePKCS1PrivateKey(caKeyBlock.Bytes)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse CA key %s: %v", caKeyPath, err)
+		return nil, fmt.Errorf("failed to parse CA key %s: %v", path, err)
 	}
+	return caKey, nil
+}
 
+// getCACertKey reads and returns the CA certificate and key from the specified paths.
+func getCACertKey(certPath, keyPath string) (*x509.Certificate, *rsa.PrivateKey, error) {
+	caCert, err := getCACert(certPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get CA certificate: %v", err)
+	}
+	caKey, err := getCAKey(keyPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get CA key: %v", err)
+	}
 	return caCert, caKey, nil
+}
+
+// getCACertKeyFromDir reads and returns the CA certificate and key from the specified directory.
+func getCACertKeyFromDir(dir string) (*x509.Certificate, *rsa.PrivateKey, error) {
+	certPath := filepath.Join(dir, caCertFileName)
+	keyPath := filepath.Join(dir, caKeyFileName)
+	return getCACertKey(certPath, keyPath)
 }
 
 // getDNSNames generates a list of DNS names for the given Etcd name and namespace.
@@ -149,22 +171,23 @@ const (
 	CertTypeClient certificateType = "client"
 )
 
-// generateTLSKeyCert generates TLS key and certificate for either server or client, specified by certType parameter.
-func generateTLSKeyCert(logger logr.Logger, certType certificateType, dir, name, namespace string) (err error) {
-	logger.Info("generating TLS key", "type", certType, "name", name, "dir", dir)
+// GenerateTLSKeyCert generates TLS key and certificate for either server or client, specified by certType parameter
+// using the given CA directory, and writes them to the specified output directory.
+func GenerateTLSKeyCert(logger logr.Logger, certType certificateType, caDir, outputDir, name, namespace string) (err error) {
+	logger.Info("generating TLS key", "type", certType, "name", name, "caDir", caDir, "outputDir", outputDir)
 
 	key, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
-		err = fmt.Errorf("failed to generate %s key %s in dir %s: %v", certType, name, dir, err)
+		err = fmt.Errorf("failed to generate %s key %s in outputDir %s: %v", certType, name, outputDir, err)
 		return
 	}
 
 	var keyPath string
 	switch certType {
 	case CertTypeServer:
-		keyPath = filepath.Join(dir, serverKeyFileName)
+		keyPath = filepath.Join(outputDir, serverKeyFileName)
 	case CertTypeClient:
-		keyPath = filepath.Join(dir, clientKeyFileName)
+		keyPath = filepath.Join(outputDir, clientKeyFileName)
 	}
 	keyFile, err := os.Create(keyPath)
 	if err != nil {
@@ -182,7 +205,7 @@ func generateTLSKeyCert(logger logr.Logger, certType certificateType, dir, name,
 		return
 	}
 
-	logger.Info("generating certificate", "certType", certType, "name", name, "dir", dir)
+	logger.Info("generating certificate", "certType", certType, "name", name, "outputDir", outputDir)
 
 	certTemplate := &x509.Certificate{
 		Subject: pkix.Name{
@@ -205,7 +228,7 @@ func generateTLSKeyCert(logger logr.Logger, certType certificateType, dir, name,
 		certTemplate.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
 	}
 
-	caCert, caKey, err := getCAKeyCert(dir)
+	caCert, caKey, err := getCACertKeyFromDir(caDir)
 	if err != nil {
 		err = fmt.Errorf("failed to get CA key and cert: %v", err)
 		return
@@ -220,9 +243,9 @@ func generateTLSKeyCert(logger logr.Logger, certType certificateType, dir, name,
 	var certPath string
 	switch certType {
 	case CertTypeServer:
-		certPath = filepath.Join(dir, serverCertFileName)
+		certPath = filepath.Join(outputDir, serverCertFileName)
 	case CertTypeClient:
-		certPath = filepath.Join(dir, clientCertFileName)
+		certPath = filepath.Join(outputDir, clientCertFileName)
 	}
 	certFile, err := os.Create(certPath)
 	if err != nil {
@@ -251,15 +274,15 @@ func generateTLSKeyCert(logger logr.Logger, certType certificateType, dir, name,
 // - client.key: Client private key
 // - client.crt: Client certificate
 func GeneratePKIResources(logger logr.Logger, tlsDir, name, namespace string) error {
-	if err := generateCAKeyCert(logger, tlsDir, name); err != nil {
+	if err := GenerateCAKeyCert(logger, tlsDir, name); err != nil {
 		return err
 	}
 
-	if err := generateTLSKeyCert(logger, CertTypeServer, tlsDir, name, namespace); err != nil {
+	if err := GenerateTLSKeyCert(logger, CertTypeServer, tlsDir, tlsDir, name, namespace); err != nil {
 		return err
 	}
 
-	if err := generateTLSKeyCert(logger, CertTypeClient, tlsDir, name, namespace); err != nil {
+	if err := GenerateTLSKeyCert(logger, CertTypeClient, tlsDir, tlsDir, name, namespace); err != nil {
 		return err
 	}
 
