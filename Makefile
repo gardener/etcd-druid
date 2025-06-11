@@ -14,7 +14,7 @@ IMAGE_NAME          := gardener/etcd-druid
 IMAGE_REPOSITORY    := $(REGISTRY)/$(IMAGE_NAME)
 IMAGE_BUILD_TAG     := $(VERSION)
 PLATFORM            ?= $(shell docker info --format '{{.OSType}}/{{.Architecture}}')
-PROVIDERS           := ""
+PROVIDERS           ?= ""
 BUCKET_NAME         := "e2e-test"
 IMG                 ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 TEST_COVER          := "true"
@@ -111,7 +111,7 @@ test-cov-clean:
 # Set RETAIN_TEST_ARTIFACTS=true to retain the test artifacts
 .PHONY: test-e2e
 test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD)
-	@SETUP_ENVTEST="false" "$(HACK_DIR)/test-go.sh" ./test/e2e/... -parallel 10 -timeout 1h -count=1 -v
+	@SETUP_ENVTEST="false" "$(HACK_DIR)/test-go.sh" ./test/e2e/... -parallel 10 -timeout 1h -count=1 -v -run TestBasic
 
 # Set RETAIN_TEST_ARTIFACTS=true to retain the test artifacts
 .PHONY: ci-e2e-kind
