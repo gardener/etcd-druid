@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package e2e
+package controller
 
 // TODO: complete me
-// TestEtcdCopyBackupsTask tests snapshot compaction.
-//func TestEtcdCopyBackupsTask(t *testing.T) {
+// TestCompaction tests snapshot compaction.
+//func TestCompaction(t *testing.T) {
 //}
