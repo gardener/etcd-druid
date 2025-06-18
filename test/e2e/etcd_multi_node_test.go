@@ -22,6 +22,7 @@ import (
 	v1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -82,6 +83,12 @@ var _ = Describe("Etcd", func() {
 			deleteMemberDir(ctx, cl, objLogger, etcd, debugPod.Name, debugPod.Spec.Containers[0].Name)
 			checkForUnreadyEtcdMembers(ctx, cl, objLogger, etcd, 30*time.Second)
 			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
+			// TODO: @renormalize, emptyDir migration can be its own `It` node.
+			By("Conducting emptyDir migration")
+			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+			setEmptyDirVolumeSource(etcd)
+			updateAndCheckEtcd(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
 			By("Deleting debug pod")
 			Expect(client.IgnoreNotFound(cl.Delete(ctx, debugPod))).ToNot(HaveOccurred())
@@ -629,4 +636,13 @@ func purgeLocalSnapstore(ctx context.Context, cl client.Client, storeContainer, 
 	checkJobSucceeded(ctx, cl, job.Name)
 	logger.Info("Job has succeeded", "job", job.Name)
 	return job
+}
+
+// setEmptyDirVolumeSource sets the etcd spec to use emptyDirVolumeSource, and removes the volumeClaimTemplate
+func setEmptyDirVolumeSource(etcd *druidv1alpha1.Etcd) {
+	etcd.Spec.VolumeClaimTemplate = nil
+	defaultStorageCapacity := apiresource.MustParse("16Gi")
+	etcd.Spec.EmptyDirVolumeSource = &corev1.EmptyDirVolumeSource{
+		SizeLimit: &defaultStorageCapacity,
+	}
 }
