@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/utils"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,7 +19,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
-	testutils "github.com/gardener/etcd-druid/test/utils"
 )
 
 func TestGetEtcdCompactionAnnotations(t *testing.T) {
@@ -357,9 +357,8 @@ func TestGetPodForJob(t *testing.T) {
 			for _, pod := range test.pods {
 				objects = append(objects, &pod)
 			}
-			
+
 			fakeClient := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, objects)
-			
 
 			pod, err := getPodForJob(context.TODO(), fakeClient, &test.jobMeta)
 
