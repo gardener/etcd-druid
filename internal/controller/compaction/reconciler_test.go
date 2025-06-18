@@ -16,9 +16,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	. "github.com/onsi/gomega"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 )
 
 func TestGetEtcdCompactionAnnotations(t *testing.T) {
@@ -357,11 +357,9 @@ func TestGetPodForJob(t *testing.T) {
 			for _, pod := range test.pods {
 				objects = append(objects, &pod)
 			}
-
-			// Create a fake client with the pods
-			fakeClient := fake.NewClientBuilder().
-				WithObjects(objects...).
-				Build()
+			
+			fakeClient := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, objects)
+			
 
 			pod, err := getPodForJob(context.TODO(), fakeClient, &test.jobMeta)
 
