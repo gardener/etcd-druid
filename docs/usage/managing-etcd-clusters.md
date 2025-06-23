@@ -32,23 +32,6 @@ kubectl get all,cm,role,rolebinding,lease,sa -n <namespace> --selector=instance=
 kubectl get all,cm,role,rolebinding,lease,sa -n <namespace> --selector=app.kubernetes.io/managed-by=etcd-druid,app.kubernetes.io/part-of=<etcd-name>
 ```
 
-### Disable creation of runtime components
-
-If you do not want to create runtime components in order to manage them externally, you can set the annotation `druid.gardener.cloud/disable-etcd-runtime-component-creation` on the Etcd custom resource. This is useful in scenarios where the etcd pods need to be run as static pods on a Kubernetes node, where druid provides the configuration for the etcd cluster, and an external actor creates the corresponding static pod manifests and related resources on the node.
-
-Setting this annotation will disable the creation of the following resources/components:
-- `pods` - while the Etcd `spec.replicas` still decides the number of etcd members in the etcd cluster configuration, no pods will be created for these.
-- `volumes` - no persistent volumes will be created for the etcd cluster, since no pods are created.
-- `member leases`
-- `snapshot leases`
-- `serviceaccount`
-- `role`
-- `rolebinding`
-
-The statefulset will still be created, with `spec.replicas` set to 0, but the lease renewal flags `--enable-member-lease-renewal` and `--enable-snapshot-lease-renewal` on the `etcd-backup-restore` config will be disabled.
-
-Additionally, certain checks on the `Etcd` resource status will be disabled, since according to etcd-druid, the etcd cluster is not running.
-
 ## Update & Reconcile an Etcd Cluster
 
 ### Edit the Etcd custom resource
