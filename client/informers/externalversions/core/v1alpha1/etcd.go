@@ -49,13 +49,25 @@ func NewFilteredEtcdInformer(client versioned.Interface, namespace string, resyn
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.DruidV1alpha1().Etcds(namespace).List(context.TODO(), options)
+				return client.DruidV1alpha1().Etcds(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.DruidV1alpha1().Etcds(namespace).Watch(context.TODO(), options)
+				return client.DruidV1alpha1().Etcds(namespace).Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.DruidV1alpha1().Etcds(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.DruidV1alpha1().Etcds(namespace).Watch(ctx, options)
 			},
 		},
 		&apicorev1alpha1.Etcd{},
