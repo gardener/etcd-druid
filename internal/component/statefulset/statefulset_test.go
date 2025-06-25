@@ -8,6 +8,7 @@ import (
 	"context"
 	"testing"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -88,6 +89,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 	testCases := []struct {
 		name        string
 		replicas    int32
+		emptyDir    bool
 		createErr   *apierrors.StatusError
 		expectedErr *druiderr.DruidError
 	}{
@@ -98,6 +100,12 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 		{
 			name:     "creates multiple replica sts for a multi-node etcd cluster",
 			replicas: 3,
+			emptyDir: false,
+		},
+		{
+			name:     "creates multiple replica sts for a multi-node etcd cluster with emptyDir",
+			replicas: 3,
+			emptyDir: true,
 		},
 		{
 			name:      "returns error when client create fails",
@@ -118,7 +126,15 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// *************** Build test environment ***************
-			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(tc.replicas).Build()
+			etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(tc.replicas)
+			if tc.emptyDir {
+				err := druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(map[string]bool{
+					druidconfigv1alpha1.AllowEmptyDir: true,
+				})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				etcdBuilder.WithEmptyDir()
+			}
+			etcd := etcdBuilder.Build()
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))
 			etcdImage, etcdBRImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv)
 			g.Expect(err).ToNot(HaveOccurred())
