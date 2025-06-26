@@ -170,9 +170,6 @@ func testNecessaryManagedResourcesAreCorrectlyCreatedWhenDisableEtcdRuntimeCompo
 	g.Expect(cl.Create(ctx, etcdInstance)).To(Succeed())
 	// ***************** test etcd spec reconciliation  *****************
 	componentKindCreated := []component.Kind{
-		component.ClientServiceKind,
-		component.PeerServiceKind,
-		component.PodDisruptionBudgetKind,
 		component.ConfigMapKind,
 		component.StatefulSetKind,
 	}
@@ -184,6 +181,9 @@ func testNecessaryManagedResourcesAreCorrectlyCreatedWhenDisableEtcdRuntimeCompo
 		component.RoleBindingKind,
 		component.MemberLeaseKind,
 		component.SnapshotLeaseKind,
+		component.PodDisruptionBudgetKind,
+		component.ClientServiceKind,
+		component.PeerServiceKind,
 	}
 	assertComponentsDoNotExist(ctx, t, reconcilerTestEnv, etcdInstance, componentKindNotCreated, timeout, pollingInterval)
 	expectedLastOperation := &druidv1alpha1.LastOperation{
@@ -241,12 +241,12 @@ func testUnnecessaryManagedResourcesAreCleanedUpWhenDisableEtcdRuntimeComponentC
 		component.RoleBindingKind,
 		component.MemberLeaseKind,
 		component.SnapshotLeaseKind,
+		component.PodDisruptionBudgetKind,
+		component.ClientServiceKind,
+		component.PeerServiceKind,
 	}
 	assertComponentsDoNotExist(ctx, t, reconcilerTestEnv, etcdInstance, componentKindAbsent, timeout, pollingInterval)
 	componentKindPresent := []component.Kind{
-		component.ClientServiceKind,
-		component.PeerServiceKind,
-		component.PodDisruptionBudgetKind,
 		component.ConfigMapKind,
 		component.StatefulSetKind,
 	}
@@ -288,13 +288,13 @@ func testFailureToCreateAllResources(t *testing.T, testNs string, reconcilerTest
 		component.RoleKind,
 		component.RoleBindingKind,
 		component.MemberLeaseKind,
+		component.PodDisruptionBudgetKind,
 	}
 	assertSelectedComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, componentKindCreated, timeout, pollingInterval)
 	componentKindNotCreated := []component.Kind{
 		component.SnapshotLeaseKind, // no backup store has been set
 		component.ClientServiceKind,
 		component.PeerServiceKind,
-		component.PodDisruptionBudgetKind,
 		component.ConfigMapKind,
 		component.StatefulSetKind,
 	}

@@ -51,6 +51,7 @@ type StatefulSetMatcher struct {
 	wrapperPort            int32
 	expectedReplicas       int32
 	expectNoServiceAccount bool
+	expectNoService        bool
 }
 
 // NewStatefulSetMatcher constructs a new instance of StatefulSetMatcher.
@@ -60,7 +61,7 @@ func NewStatefulSetMatcher(g *WithT,
 	replicas int32,
 	initContainerImage, etcdImage, etcdBRImage string,
 	provider *string,
-	expectNoServiceAccount bool) StatefulSetMatcher {
+	expectNoServiceAccount, expectNoService bool) StatefulSetMatcher {
 	return StatefulSetMatcher{
 		g:                      g,
 		cl:                     cl,
@@ -75,6 +76,7 @@ func NewStatefulSetMatcher(g *WithT,
 		wrapperPort:            ptr.Deref(etcd.Spec.Etcd.WrapperPort, 9095),
 		expectedReplicas:       replicas,
 		expectNoServiceAccount: expectNoServiceAccount,
+		expectNoService:        expectNoService,
 	}
 }
 
@@ -96,7 +98,7 @@ func (s StatefulSetMatcher) matchSTSObjectMeta() gomegatypes.GomegaMatcher {
 }
 
 func (s StatefulSetMatcher) matchSpec() gomegatypes.GomegaMatcher {
-	return MatchFields(IgnoreExtras, Fields{
+	fields := map[string]gomegatypes.GomegaMatcher{
 		"Replicas":            PointTo(Equal(s.expectedReplicas)),
 		"Selector":            testutils.MatchSpecLabelSelector(druidv1alpha1.GetDefaultLabels(s.etcd.ObjectMeta)),
 		"PodManagementPolicy": Equal(appsv1.ParallelPodManagement),
@@ -104,9 +106,12 @@ func (s StatefulSetMatcher) matchSpec() gomegatypes.GomegaMatcher {
 			"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 		}),
 		"VolumeClaimTemplates": s.matchVolumeClaimTemplates(),
-		"ServiceName":          Equal(druidv1alpha1.GetPeerServiceName(s.etcd.ObjectMeta)),
 		"Template":             s.matchPodTemplateSpec(),
-	})
+	}
+	if !s.expectNoService {
+		fields["ServiceName"] = Equal(druidv1alpha1.GetPeerServiceName(s.etcd.ObjectMeta))
+	}
+	return MatchFields(IgnoreExtras, fields)
 }
 
 func (s StatefulSetMatcher) matchVolumeClaimTemplates() gomegatypes.GomegaMatcher {

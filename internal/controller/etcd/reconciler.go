@@ -155,9 +155,9 @@ func createAndInitializeOperatorRegistry(client client.Client, config druidconfi
 	reg.Register(component.RoleBindingKind, rolebinding.New(client))
 	reg.Register(component.MemberLeaseKind, memberlease.New(client))
 	reg.Register(component.SnapshotLeaseKind, snapshotlease.New(client))
+	reg.Register(component.PodDisruptionBudgetKind, poddistruptionbudget.New(client))
 	reg.Register(component.ClientServiceKind, clientservice.New(client))
 	reg.Register(component.PeerServiceKind, peerservice.New(client))
-	reg.Register(component.PodDisruptionBudgetKind, poddistruptionbudget.New(client))
 	reg.Register(component.ConfigMapKind, configmap.New(client))
 	reg.Register(component.StatefulSetKind, statefulset.New(client, imageVector))
 	return reg

@@ -103,6 +103,8 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey
 }
 
 // cleanupEtcdResources cleans up the resources that are no longer required for the Etcd cluster.
+// This is required when runtime components are disabled for an Etcd cluster after it was created with runtime components enabled,
+// so druid needs to ensure that the previously created runtime components are now cleaned up to avoid leaked resources in the cluster.
 func (r *Reconciler) cleanupEtcdResources(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
 	etcd := &druidv1alpha1.Etcd{}
 	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
@@ -210,14 +212,14 @@ func (r *Reconciler) getOrderedOperatorsForSync(etcdObjMeta metav1.ObjectMeta) [
 			component.RoleBindingKind,
 			component.MemberLeaseKind,
 			component.SnapshotLeaseKind,
+			component.PodDisruptionBudgetKind,
+			component.ClientServiceKind,
+			component.PeerServiceKind,
 		}
 	}
 
 	// add the rest of the operators that are always needed for the etcd cluster
 	operators = append(operators,
-		component.ClientServiceKind,
-		component.PeerServiceKind,
-		component.PodDisruptionBudgetKind,
 		component.ConfigMapKind,
 		component.StatefulSetKind,
 	)
@@ -235,5 +237,8 @@ func (r *Reconciler) getOperatorsForCleanup(etcdObjMeta metav1.ObjectMeta) []com
 		component.RoleBindingKind,
 		component.MemberLeaseKind,
 		component.SnapshotLeaseKind,
+		component.PodDisruptionBudgetKind,
+		component.ClientServiceKind,
+		component.PeerServiceKind,
 	}
 }

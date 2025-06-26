@@ -166,7 +166,7 @@ func RemoveOperationAnnotation(etcdObjMeta metav1.ObjectMeta) {
 	delete(etcdObjMeta.Annotations, GardenerOperationAnnotation)
 }
 
-// IsEtcdRuntimeComponentCreationEnabled checks if the creation of runtime components is not disabled for the Etcd resource.
+// IsEtcdRuntimeComponentCreationEnabled checks if the creation of runtime components is enabled for an Etcd resource.
 func IsEtcdRuntimeComponentCreationEnabled(etcdObjMeta metav1.ObjectMeta) bool {
 	return !metav1.HasAnnotation(etcdObjMeta, DisableEtcdRuntimeComponentCreationAnnotation)
 }

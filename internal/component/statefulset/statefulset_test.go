@@ -93,6 +93,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 		expectedErr            *druiderr.DruidError
 		expectedReplicas       *int32
 		expectNoServiceAccount bool
+		expectNoService        bool
 	}{
 		{
 			name:             "creates a single replica sts for a single node etcd cluster",
@@ -116,13 +117,14 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			},
 		},
 		{
-			name:     "creates sts with 0 replicas, with lease renewal and serviceAccount disabled on backup-restore container when runtime component creation is disabled",
+			name:     "creates sts with 0 replicas, with no serviceAccount and service defined, with lease renewal and client-service-endpoint CLI flags disabled on backup-restore container when runtime component creation is disabled",
 			replicas: 3,
 			annotations: map[string]string{
 				druidv1alpha1.DisableEtcdRuntimeComponentCreationAnnotation: "",
 			},
 			expectedReplicas:       ptr.To[int32](0),
 			expectNoServiceAccount: true,
+			expectNoService:        true,
 		},
 	}
 
@@ -142,7 +144,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			etcdImage, etcdBRImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv)
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(tc.expectedReplicas).ToNot(BeNil())
-			stsMatcher := NewStatefulSetMatcher(g, cl, etcd, *tc.expectedReplicas, initContainerImage, etcdImage, etcdBRImage, ptr.To(druidstore.Local), tc.expectNoServiceAccount)
+			stsMatcher := NewStatefulSetMatcher(g, cl, etcd, *tc.expectedReplicas, initContainerImage, etcdImage, etcdBRImage, ptr.To(druidstore.Local), tc.expectNoServiceAccount, tc.expectNoService)
 			operator := New(cl, iv)
 			// *************** Test and assert ***************
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())

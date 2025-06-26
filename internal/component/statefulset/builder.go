@@ -136,10 +136,7 @@ func (b *stsBuilder) getStatefulSetLabels() map[string]string {
 
 func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error {
 	err := b.createPodTemplateSpec(ctx)
-	b.sts.Spec.Replicas = ptr.To[int32](0)
-	if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-		b.sts.Spec.Replicas = ptr.To(b.replicas)
-	}
+	b.sts.Spec.Replicas = ptr.To(utils.IfConditionOr[int32](druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta), b.replicas, 0))
 	b.logger.Info("Creating StatefulSet spec", "replicas", b.sts.Spec.Replicas, "name", b.sts.Name, "namespace", b.sts.Namespace)
 	b.sts.Spec.UpdateStrategy = defaultUpdateStrategy
 	if err != nil {
@@ -150,7 +147,9 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 			MatchLabels: druidv1alpha1.GetDefaultLabels(b.etcd.ObjectMeta),
 		}
 		b.sts.Spec.PodManagementPolicy = defaultPodManagementPolicy
-		b.sts.Spec.ServiceName = druidv1alpha1.GetPeerServiceName(b.etcd.ObjectMeta)
+		if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
+			b.sts.Spec.ServiceName = druidv1alpha1.GetPeerServiceName(b.etcd.ObjectMeta)
+		}
 		b.sts.Spec.VolumeClaimTemplates = b.getVolumeClaimTemplates()
 	}
 	return nil
@@ -466,12 +465,16 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 		commandArgs = append(commandArgs, "--insecure-transport=false")
 		commandArgs = append(commandArgs, "--insecure-skip-tls-verify=false")
 		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=https://%s-local:%d", b.etcd.Name, b.clientPort))
-		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=https://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
+		if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
+			commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=https://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
+		}
 	} else {
 		commandArgs = append(commandArgs, "--insecure-transport=true")
 		commandArgs = append(commandArgs, "--insecure-skip-tls-verify=true")
 		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=http://%s-local:%d", b.etcd.Name, b.clientPort))
-		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=http://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
+		if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
+			commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=http://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
+		}
 	}
 	if b.etcd.Spec.Backup.TLS != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--server-cert=%s/tls.crt", common.VolumeMountPathBackupRestoreServerTLS))

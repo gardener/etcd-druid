@@ -18,6 +18,7 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -173,11 +174,14 @@ func isObjManagedByDruid(objMeta metav1.ObjectMeta) bool {
 	return hasLabel && managedBy == druidv1alpha1.LabelManagedByValue
 }
 
+// isRuntimeComponent checks if the request is for a runtime component for the etcd cluster, such as lease, RBAC, etc.
 func isRuntimeComponent(requestGK schema.GroupKind) bool {
 	return requestGK == corev1.SchemeGroupVersion.WithKind("ServiceAccount").GroupKind() ||
 		requestGK == rbacv1.SchemeGroupVersion.WithKind("Role").GroupKind() ||
 		requestGK == rbacv1.SchemeGroupVersion.WithKind("RoleBinding").GroupKind() ||
-		requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind()
+		requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() ||
+		requestGK == policyv1.SchemeGroupVersion.WithKind("PodDisruptionBudget").GroupKind() ||
+		requestGK == corev1.SchemeGroupVersion.WithKind("Service").GroupKind()
 }
 
 func isServiceAccountExempted(serviceAccount string, exemptedServiceAccounts []string) bool {
