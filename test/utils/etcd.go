@@ -24,13 +24,11 @@ import (
 
 var (
 	deltaSnapshotPeriod = metav1.Duration{
-		Duration: 300 * time.Second,
+		Duration: 60 * time.Second,
 	}
 	garbageCollectionPeriod = metav1.Duration{
 		Duration: 43200 * time.Second,
 	}
-	imageEtcd               = "eu.gcr.io/gardener-project/gardener/etcd-wrapper:v0.1.0"
-	imageBR                 = "eu.gcr.io/gardener-project/gardener/etcdbrctl:v0.25.0"
 	snapshotSchedule        = "0 */24 * * *"
 	defragSchedule          = "0 */24 * * *"
 	container               = "default.bkp"
@@ -79,11 +77,8 @@ func (eb *EtcdBuilder) WithReplicas(replicas int32) *EtcdBuilder {
 	return eb
 }
 
-func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
-	if eb == nil || eb.etcd == nil {
-		return nil
-	}
-	clientTLSConfig := &druidv1alpha1.TLSConfig{
+func GetClientTLSConfig() *druidv1alpha1.TLSConfig {
+	return &druidv1alpha1.TLSConfig{
 		TLSCASecretRef: druidv1alpha1.SecretReference{
 			SecretReference: corev1.SecretReference{
 				Name: ClientTLSCASecretName,
@@ -97,16 +92,18 @@ func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
 			Name: ClientTLSServerCertSecretName,
 		},
 	}
-	eb.etcd.Spec.Etcd.ClientUrlTLS = clientTLSConfig
-	eb.etcd.Spec.Backup.TLS = clientTLSConfig
-	return eb
 }
 
-func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
+func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
 	}
-	peerTLSConfig := &druidv1alpha1.TLSConfig{
+	eb.etcd.Spec.Etcd.ClientUrlTLS = GetClientTLSConfig()
+	return eb
+}
+
+func GetPeerTLSConfig() *druidv1alpha1.TLSConfig {
+	return &druidv1alpha1.TLSConfig{
 		TLSCASecretRef: druidv1alpha1.SecretReference{
 			SecretReference: corev1.SecretReference{
 				Name: PeerTLSCASecretName,
@@ -117,7 +114,38 @@ func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
 			Name: PeerTLSServerCertSecretName,
 		},
 	}
-	eb.etcd.Spec.Etcd.PeerUrlTLS = peerTLSConfig
+}
+
+func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Etcd.PeerUrlTLS = GetPeerTLSConfig()
+	return eb
+}
+
+func GetBackupRestoreTLSConfig() *druidv1alpha1.TLSConfig {
+	return &druidv1alpha1.TLSConfig{
+		TLSCASecretRef: druidv1alpha1.SecretReference{
+			SecretReference: corev1.SecretReference{
+				Name: BackupRestoreTLSCASecretName,
+			},
+			DataKey: ptr.To("ca.crt"),
+		},
+		ServerTLSSecretRef: corev1.SecretReference{
+			Name: BackupRestoreTLSServerCertSecretName,
+		},
+		ClientTLSSecretRef: corev1.SecretReference{
+			Name: BackupRestoreTLSClientCertSecretName,
+		},
+	}
+}
+
+func (eb *EtcdBuilder) WithBackupRestoreTLS() *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Backup.TLS = GetBackupRestoreTLSConfig()
 	return eb
 }
 
@@ -201,89 +229,100 @@ func (eb *EtcdBuilder) WithLastOperation(operation *druidv1alpha1.LastOperation)
 	return eb
 }
 
-func (eb *EtcdBuilder) WithStorageProvider(provider druidv1alpha1.StorageProvider) *EtcdBuilder {
+func (eb *EtcdBuilder) WithStorageProvider(provider druidv1alpha1.StorageProvider, prefix string) *EtcdBuilder {
 	// TODO: there is no default case right now which is not very right, returning an error in a default case makes it difficult to chain
 	// This should be improved later
 	switch provider {
 	case "aws":
-		return eb.WithProviderS3()
+		return eb.WithProviderS3(prefix)
 	case "azure":
-		return eb.WithProviderABS()
+		return eb.WithProviderABS(prefix)
 	case "alicloud":
-		return eb.WithProviderOSS()
+		return eb.WithProviderOSS(prefix)
 	case "gcp":
-		return eb.WithProviderGCS()
+		return eb.WithProviderGCS(prefix)
 	case "openstack":
-		return eb.WithProviderSwift()
+		return eb.WithProviderSwift(prefix)
 	case "local":
-		return eb.WithProviderLocal()
+		return eb.WithProviderLocal(prefix)
+	case "none":
+		return eb.WithoutProvider()
 	default:
 		return eb
 	}
 }
 
-func (eb *EtcdBuilder) WithProviderS3() *EtcdBuilder {
+func (eb *EtcdBuilder) WithProviderS3(prefix string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
 	}
 	eb.etcd.Spec.Backup.Store = getBackupStore(
-		eb.etcd.Name,
 		"aws",
+		prefix,
 	)
 	return eb
 }
 
-func (eb *EtcdBuilder) WithProviderABS() *EtcdBuilder {
+func (eb *EtcdBuilder) WithProviderABS(prefix string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
 	}
 	eb.etcd.Spec.Backup.Store = getBackupStore(
-		eb.etcd.Name,
 		"azure",
+		prefix,
 	)
 	return eb
 }
 
-func (eb *EtcdBuilder) WithProviderGCS() *EtcdBuilder {
+func (eb *EtcdBuilder) WithProviderGCS(prefix string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
 	}
 	eb.etcd.Spec.Backup.Store = getBackupStore(
-		eb.etcd.Name,
 		"gcp",
+		prefix,
 	)
 	return eb
 }
 
-func (eb *EtcdBuilder) WithProviderSwift() *EtcdBuilder {
+func (eb *EtcdBuilder) WithProviderSwift(prefix string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
 	}
 	eb.etcd.Spec.Backup.Store = getBackupStore(
-		eb.etcd.Name,
 		"openstack",
+		prefix,
 	)
 	return eb
 }
 
-func (eb *EtcdBuilder) WithProviderOSS() *EtcdBuilder {
+func (eb *EtcdBuilder) WithProviderOSS(prefix string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
 	}
 	eb.etcd.Spec.Backup.Store = getBackupStore(
-		eb.etcd.Name,
 		"alicloud",
+		prefix,
 	)
 	return eb
 }
 
-func (eb *EtcdBuilder) WithProviderLocal() *EtcdBuilder {
+func (eb *EtcdBuilder) WithProviderLocal(prefix string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
 	}
-	eb.etcd.Spec.Backup.Store = getBackupStoreForLocal(
-		eb.etcd.Name,
+	eb.etcd.Spec.Backup.Store = getBackupStore(
+		"local",
+		prefix,
 	)
+	return eb
+}
+
+func (eb *EtcdBuilder) WithoutProvider() *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Backup.Store = nil
 	return eb
 }
 
@@ -372,9 +411,24 @@ func (eb *EtcdBuilder) WithAnnotations(annotations map[string]string) *EtcdBuild
 	return eb
 }
 
+// WithSpecLabels sets the spec.labels field on the Etcd resource.
+func (eb *EtcdBuilder) WithSpecLabels(labels map[string]string) *EtcdBuilder {
+	eb.etcd.Spec.Labels = labels
+	return eb
+}
+
 // WithDefaultBackup creates a default backup spec and initializes etcd with it.
 func (eb *EtcdBuilder) WithDefaultBackup() *EtcdBuilder {
 	eb.etcd.Spec.Backup = getBackupSpec()
+	return eb
+}
+
+func (eb *EtcdBuilder) WithDefragmentation(schedule string, timeout time.Duration) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Etcd.DefragmentationSchedule = &schedule
+	eb.etcd.Spec.Etcd.EtcdDefragTimeout = &metav1.Duration{Duration: timeout}
 	return eb
 }
 
@@ -389,12 +443,6 @@ func getEtcdWithoutDefaults(name, namespace string) *druidv1alpha1.Etcd {
 			Namespace: namespace,
 		},
 		Spec: druidv1alpha1.EtcdSpec{
-			Annotations: map[string]string{
-				"app":      "etcd-statefulset",
-				"instance": name,
-				"name":     "etcd",
-				"role":     "test",
-			},
 			Labels: map[string]string{
 				"app":      "etcd-statefulset",
 				"instance": name,
@@ -441,7 +489,6 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 				Quota:                   &quota,
 				SnapshotCount:           &snapshotCount,
 				Metrics:                 &metricsBasic,
-				Image:                   &imageEtcd,
 				DefragmentationSchedule: &defragSchedule,
 				EtcdDefragTimeout:       &etcdDefragTimeout,
 				Resources: &corev1.ResourceRequirements{
@@ -464,7 +511,6 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 
 func getBackupSpec() druidv1alpha1.BackupSpec {
 	return druidv1alpha1.BackupSpec{
-		Image:                    &imageBR,
 		Port:                     ptr.To(common.DefaultPortEtcdBackupRestore),
 		FullSnapshotSchedule:     &snapshotSchedule,
 		GarbageCollectionPolicy:  &garbageCollectionPolicy,
@@ -494,23 +540,14 @@ func getBackupSpec() druidv1alpha1.BackupSpec {
 	}
 }
 
-func getBackupStore(name string, provider druidv1alpha1.StorageProvider) *druidv1alpha1.StoreSpec {
+func getBackupStore(provider druidv1alpha1.StorageProvider, prefix string) *druidv1alpha1.StoreSpec {
 	return &druidv1alpha1.StoreSpec{
 		Container: &container,
-		Prefix:    name,
+		Prefix:    prefix,
 		Provider:  &provider,
 		SecretRef: &corev1.SecretReference{
-			Name: "etcd-backup",
+			Name: BackupStoreSecretName,
 		},
-	}
-}
-
-func getBackupStoreForLocal(name string) *druidv1alpha1.StoreSpec {
-	provider := druidv1alpha1.StorageProvider("local")
-	return &druidv1alpha1.StoreSpec{
-		Container: &container,
-		Prefix:    name,
-		Provider:  &provider,
 	}
 }
 
