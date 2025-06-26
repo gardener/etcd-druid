@@ -30,6 +30,12 @@ const (
 	PeerTLSCASecretName = "peer-url-ca-etcd" // #nosec G101 - this is not a credential itself but the name of the kubernetes secret resource.
 	// PeerTLSServerCertSecretName is the name of the kubernetes Secret containing the peer's server certificate.
 	PeerTLSServerCertSecretName = "peer-url-etcd-server-tls" // #nosec G101 - this is not a credential itself but the name of the kubernetes secret resource.
+	// BackupRestoreTLSCASecretName is the name of the kubernetes Secret containing the etcd-backup-restore CA.
+	BackupRestoreTLSCASecretName = "ca-etcdbr" // #nosec G101 - this is not a credential itself but the name of the kubernetes secret resource.
+	// BackupRestoreTLSServerCertSecretName is the name of the kubernetes Secret containing the etcd-backup-restore server certificate.
+	BackupRestoreTLSServerCertSecretName = "etcdbr-server-tls" // #nosec G101 - this is not a credential itself but the name of the kubernetes secret resource.
+	// BackupRestoreTLSClientCertSecretName is the name of the kubernetes Secret containing the etcd-backup-restore client certificate.
+	BackupRestoreTLSClientCertSecretName = "etcdbr-client-tls" // #nosec G101 - this is not a credential itself but the name of the kubernetes secret resource.
 	// BackupStoreSecretName is the name of the kubernetes Secret containing the backup store credentials.
 	BackupStoreSecretName = "etcd-backup"
 )
