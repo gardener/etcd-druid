@@ -53,6 +53,23 @@ func mapEtcdToSecret(_ context.Context, obj client.Object) []reconcile.Request {
 		}})
 	}
 
+	if etcd.Spec.Backup.TLS != nil {
+		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
+			Namespace: etcd.Namespace,
+			Name:      etcd.Spec.Backup.TLS.TLSCASecretRef.Name,
+		}})
+
+		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
+			Namespace: etcd.Namespace,
+			Name:      etcd.Spec.Backup.TLS.ServerTLSSecretRef.Name,
+		}})
+
+		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
+			Namespace: etcd.Namespace,
+			Name:      etcd.Spec.Backup.TLS.ClientTLSSecretRef.Name,
+		}})
+	}
+
 	if etcd.Spec.Backup.Store != nil && etcd.Spec.Backup.Store.SecretRef != nil {
 		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
 			Namespace: etcd.Namespace,
