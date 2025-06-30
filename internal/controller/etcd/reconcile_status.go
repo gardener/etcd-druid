@@ -21,17 +21,24 @@ import (
 type mutateEtcdStatusFn func(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, logger logr.Logger) ctrlutils.ReconcileStepResult
 
 func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+
 	etcd := &druidv1alpha1.Etcd{}
 	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjectKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
 	sLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileStatus").WithValues("runID", ctx.RunID)
+	if !druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(etcd.ObjectMeta) {
+		sLog.Info("Skipping status checks since etcd runtime component creation is disabled")
+		return ctrlutils.ContinueReconcile()
+	}
 	originalEtcd := etcd.DeepCopy()
-	mutateETCDStatusStepFns := []mutateEtcdStatusFn{
+
+	var mutateETCDStatusStepFns = []mutateEtcdStatusFn{
 		r.mutateETCDStatusWithMemberStatusAndConditions,
 		r.inspectStatefulSetAndMutateETCDStatus,
 		r.setSelector,
 	}
+
 	for _, fn := range mutateETCDStatusStepFns {
 		if stepResult := fn(ctx, etcd, sLog); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
 			return stepResult

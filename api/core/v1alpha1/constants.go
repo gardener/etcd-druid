@@ -34,4 +34,7 @@ const (
 	// This value will only be effective if etcd-druid is not configured with auto-reconciliation of Etcd resource specification via
 	// --enable-etcd-spec-auto-reconcile CLI flag.
 	DruidOperationReconcile = "reconcile"
+	// DisableEtcdRuntimeComponentCreationAnnotation is an annotation set by an operator to disable the creation and management of
+	// runtime components of the etcd cluster such as pods, PVCs, leases, RBAC resources, PDBs, services, etc.
+	DisableEtcdRuntimeComponentCreationAnnotation = "druid.gardener.cloud/disable-etcd-runtime-component-creation"
 )

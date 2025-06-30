@@ -6,7 +6,6 @@ package utils
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
@@ -16,11 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
-
-// GetGroupKindAsStringFromRequest returns the GroupKind as a string from the given admission request.
-func GetGroupKindAsStringFromRequest(req admission.Request) string {
-	return fmt.Sprintf("%s/%s", req.Kind.Group, req.Kind.Kind)
-}
 
 // GetGroupKindFromRequest returns the GroupKind from the given admission request.
 func GetGroupKindFromRequest(req admission.Request) schema.GroupKind {
