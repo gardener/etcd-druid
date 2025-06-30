@@ -38,18 +38,20 @@ var (
 
 // StatefulSetMatcher is the type used for matching StatefulSets. It holds relevant information required for matching.
 type StatefulSetMatcher struct {
-	g                  *WithT
-	cl                 client.Client
-	replicas           int32
-	etcd               *druidv1alpha1.Etcd
-	initContainerImage string
-	etcdImage          string
-	etcdBRImage        string
-	provider           *string
-	clientPort         int32
-	serverPort         int32
-	backupPort         int32
-	wrapperPort        int32
+	g                      *WithT
+	cl                     client.Client
+	etcd                   *druidv1alpha1.Etcd
+	initContainerImage     string
+	etcdImage              string
+	etcdBRImage            string
+	provider               *string
+	clientPort             int32
+	serverPort             int32
+	backupPort             int32
+	wrapperPort            int32
+	expectedReplicas       int32
+	expectNoServiceAccount bool
+	expectNoService        bool
 }
 
 // NewStatefulSetMatcher constructs a new instance of StatefulSetMatcher.
@@ -58,20 +60,23 @@ func NewStatefulSetMatcher(g *WithT,
 	etcd *druidv1alpha1.Etcd,
 	replicas int32,
 	initContainerImage, etcdImage, etcdBRImage string,
-	provider *string) StatefulSetMatcher {
+	provider *string,
+	expectNoServiceAccount, expectNoService bool) StatefulSetMatcher {
 	return StatefulSetMatcher{
-		g:                  g,
-		cl:                 cl,
-		replicas:           replicas,
-		etcd:               etcd,
-		initContainerImage: initContainerImage,
-		etcdImage:          etcdImage,
-		etcdBRImage:        etcdBRImage,
-		provider:           provider,
-		clientPort:         ptr.Deref(etcd.Spec.Etcd.ClientPort, 2379),
-		serverPort:         ptr.Deref(etcd.Spec.Etcd.ServerPort, 2380),
-		backupPort:         ptr.Deref(etcd.Spec.Backup.Port, 8080),
-		wrapperPort:        ptr.Deref(etcd.Spec.Etcd.WrapperPort, 9095),
+		g:                      g,
+		cl:                     cl,
+		etcd:                   etcd,
+		initContainerImage:     initContainerImage,
+		etcdImage:              etcdImage,
+		etcdBRImage:            etcdBRImage,
+		provider:               provider,
+		clientPort:             ptr.Deref(etcd.Spec.Etcd.ClientPort, 2379),
+		serverPort:             ptr.Deref(etcd.Spec.Etcd.ServerPort, 2380),
+		backupPort:             ptr.Deref(etcd.Spec.Backup.Port, 8080),
+		wrapperPort:            ptr.Deref(etcd.Spec.Etcd.WrapperPort, 9095),
+		expectedReplicas:       replicas,
+		expectNoServiceAccount: expectNoServiceAccount,
+		expectNoService:        expectNoService,
 	}
 }
 
@@ -93,17 +98,20 @@ func (s StatefulSetMatcher) matchSTSObjectMeta() gomegatypes.GomegaMatcher {
 }
 
 func (s StatefulSetMatcher) matchSpec() gomegatypes.GomegaMatcher {
-	return MatchFields(IgnoreExtras, Fields{
-		"Replicas":            PointTo(Equal(s.replicas)),
+	fields := map[string]gomegatypes.GomegaMatcher{
+		"Replicas":            PointTo(Equal(s.expectedReplicas)),
 		"Selector":            testutils.MatchSpecLabelSelector(druidv1alpha1.GetDefaultLabels(s.etcd.ObjectMeta)),
 		"PodManagementPolicy": Equal(appsv1.ParallelPodManagement),
 		"UpdateStrategy": MatchFields(IgnoreExtras, Fields{
 			"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 		}),
 		"VolumeClaimTemplates": s.matchVolumeClaimTemplates(),
-		"ServiceName":          Equal(druidv1alpha1.GetPeerServiceName(s.etcd.ObjectMeta)),
 		"Template":             s.matchPodTemplateSpec(),
-	})
+	}
+	if !s.expectNoService {
+		fields["ServiceName"] = Equal(druidv1alpha1.GetPeerServiceName(s.etcd.ObjectMeta))
+	}
+	return MatchFields(IgnoreExtras, fields)
 }
 
 func (s StatefulSetMatcher) matchVolumeClaimTemplates() gomegatypes.GomegaMatcher {
@@ -142,16 +150,19 @@ func (s StatefulSetMatcher) matchPodObjectMeta() gomegatypes.GomegaMatcher {
 
 func (s StatefulSetMatcher) matchPodSpec() gomegatypes.GomegaMatcher {
 	// NOTE: currently this matcher does not check affinity and TSC since these are seldom used. If these are used in future then this matcher should be enhanced.
-	return MatchFields(IgnoreExtras, Fields{
+	fields := map[string]gomegatypes.GomegaMatcher{
 		"HostAliases":           s.matchPodHostAliases(),
-		"ServiceAccountName":    Equal(druidv1alpha1.GetServiceAccountName(s.etcd.ObjectMeta)),
 		"ShareProcessNamespace": PointTo(Equal(true)),
 		"InitContainers":        s.matchPodInitContainers(),
 		"Containers":            s.matchContainers(),
 		"SecurityContext":       s.matchEtcdPodSecurityContext(),
 		"Volumes":               s.matchPodVolumes(),
 		"PriorityClassName":     Equal(ptr.Deref(s.etcd.Spec.PriorityClassName, "")),
-	})
+	}
+	if !s.expectNoServiceAccount {
+		fields["ServiceAccountName"] = Equal(druidv1alpha1.GetServiceAccountName(s.etcd.ObjectMeta))
+	}
+	return MatchFields(IgnoreExtras, fields)
 }
 
 func (s StatefulSetMatcher) matchPodHostAliases() gomegatypes.GomegaMatcher {

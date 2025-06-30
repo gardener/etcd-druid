@@ -13,9 +13,11 @@ import (
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -32,6 +34,7 @@ func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcdObjectKey 
 		r.ensureFinalizer,
 		r.preSyncEtcdResources,
 		r.syncEtcdResources,
+		r.cleanupEtcdResources,
 		r.recordReconcileSuccessOperation,
 	}
 
@@ -84,7 +87,7 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey
 	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
-	resourceOperators := r.getOrderedOperatorsForSync()
+	resourceOperators := r.getOrderedOperatorsForSync(etcd.ObjectMeta)
 	for _, kind := range resourceOperators {
 		op := r.operatorRegistry.GetOperator(kind)
 		if err := op.Sync(ctx, etcd); err != nil {
@@ -95,6 +98,33 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey
 			ctx.Logger.Error(err, "failed to sync etcd resource", "kind", kind)
 			return ctrlutils.ReconcileWithError(err)
 		}
+	}
+	return ctrlutils.ContinueReconcile()
+}
+
+// cleanupEtcdResources cleans up the resources that are no longer required for the Etcd cluster.
+// This is required when runtime components are disabled for an Etcd cluster after it was created with runtime components enabled,
+// so druid needs to ensure that the previously created runtime components are now cleaned up to avoid leaked resources in the cluster.
+func (r *Reconciler) cleanupEtcdResources(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+	etcd := &druidv1alpha1.Etcd{}
+	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result
+	}
+	resourceOperators := r.getOperatorsForCleanup(etcd.ObjectMeta)
+	deleteTasks := make([]utils.OperatorTask, 0, len(resourceOperators))
+	for _, kind := range resourceOperators {
+		operator := r.operatorRegistry.GetOperator(kind)
+		deleteTasks = append(deleteTasks, utils.OperatorTask{
+			Name: fmt.Sprintf("cleanup-%s-component", kind),
+			Fn: func(ctx component.OperatorContext) error {
+				return operator.TriggerDelete(ctx, etcd.ObjectMeta)
+			},
+		})
+	}
+
+	ctx.Logger.Info("triggering cleanup for druid-managed resources that are no longer required")
+	if errs := utils.RunConcurrently(ctx, deleteTasks); len(errs) > 0 {
+		return ctrlutils.ReconcileWithError(errs...)
 	}
 	return ctrlutils.ContinueReconcile()
 }
@@ -172,17 +202,43 @@ func (r *Reconciler) getOrderedOperatorsForPreSync() []component.Kind {
 	return []component.Kind{}
 }
 
-func (r *Reconciler) getOrderedOperatorsForSync() []component.Kind {
-	return []component.Kind{
-		component.MemberLeaseKind,
-		component.SnapshotLeaseKind,
-		component.ClientServiceKind,
-		component.PeerServiceKind,
+func (r *Reconciler) getOrderedOperatorsForSync(etcdObjMeta metav1.ObjectMeta) []component.Kind {
+	var operators []component.Kind
+
+	if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(etcdObjMeta) {
+		operators = []component.Kind{
+			component.ServiceAccountKind,
+			component.RoleKind,
+			component.RoleBindingKind,
+			component.MemberLeaseKind,
+			component.SnapshotLeaseKind,
+			component.PodDisruptionBudgetKind,
+			component.ClientServiceKind,
+			component.PeerServiceKind,
+		}
+	}
+
+	// add the rest of the operators that are always needed for the etcd cluster
+	operators = append(operators,
 		component.ConfigMapKind,
-		component.PodDisruptionBudgetKind,
+		component.StatefulSetKind,
+	)
+
+	return operators
+}
+
+func (r *Reconciler) getOperatorsForCleanup(etcdObjMeta metav1.ObjectMeta) []component.Kind {
+	if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(etcdObjMeta) {
+		return nil
+	}
+	return []component.Kind{
 		component.ServiceAccountKind,
 		component.RoleKind,
 		component.RoleBindingKind,
-		component.StatefulSetKind,
+		component.MemberLeaseKind,
+		component.SnapshotLeaseKind,
+		component.PodDisruptionBudgetKind,
+		component.ClientServiceKind,
+		component.PeerServiceKind,
 	}
 }
