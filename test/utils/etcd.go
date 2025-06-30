@@ -79,11 +79,8 @@ func (eb *EtcdBuilder) WithReplicas(replicas int32) *EtcdBuilder {
 	return eb
 }
 
-func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
-	if eb == nil || eb.etcd == nil {
-		return nil
-	}
-	clientTLSConfig := &druidv1alpha1.TLSConfig{
+func GetClientTLSConfig() *druidv1alpha1.TLSConfig {
+	return &druidv1alpha1.TLSConfig{
 		TLSCASecretRef: druidv1alpha1.SecretReference{
 			SecretReference: corev1.SecretReference{
 				Name: ClientTLSCASecretName,
@@ -97,16 +94,18 @@ func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
 			Name: ClientTLSServerCertSecretName,
 		},
 	}
-	eb.etcd.Spec.Etcd.ClientUrlTLS = clientTLSConfig
-	eb.etcd.Spec.Backup.TLS = clientTLSConfig
-	return eb
 }
 
-func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
+func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
 	}
-	peerTLSConfig := &druidv1alpha1.TLSConfig{
+	eb.etcd.Spec.Etcd.ClientUrlTLS = GetClientTLSConfig()
+	return eb
+}
+
+func GetPeerTLSConfig() *druidv1alpha1.TLSConfig {
+	return &druidv1alpha1.TLSConfig{
 		TLSCASecretRef: druidv1alpha1.SecretReference{
 			SecretReference: corev1.SecretReference{
 				Name: PeerTLSCASecretName,
@@ -117,7 +116,38 @@ func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
 			Name: PeerTLSServerCertSecretName,
 		},
 	}
-	eb.etcd.Spec.Etcd.PeerUrlTLS = peerTLSConfig
+}
+
+func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Etcd.PeerUrlTLS = GetPeerTLSConfig()
+	return eb
+}
+
+func GetBackupRestoreTLSConfig() *druidv1alpha1.TLSConfig {
+	return &druidv1alpha1.TLSConfig{
+		TLSCASecretRef: druidv1alpha1.SecretReference{
+			SecretReference: corev1.SecretReference{
+				Name: BackupRestoreTLSCASecretName,
+			},
+			DataKey: ptr.To("ca.crt"),
+		},
+		ServerTLSSecretRef: corev1.SecretReference{
+			Name: BackupRestoreTLSServerCertSecretName,
+		},
+		ClientTLSSecretRef: corev1.SecretReference{
+			Name: BackupRestoreTLSClientCertSecretName,
+		},
+	}
+}
+
+func (eb *EtcdBuilder) WithBackupRestoreTLS() *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Backup.TLS = GetBackupRestoreTLSConfig()
 	return eb
 }
 

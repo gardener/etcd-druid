@@ -32,7 +32,11 @@ var _ = Describe("Secret Controller", func() {
 	)
 
 	BeforeEach(func() {
-		etcd = testutils.EtcdBuilderWithDefaults("etcd", namespace).WithClientTLS().WithPeerTLS().Build()
+		etcd = testutils.EtcdBuilderWithDefaults("etcd", namespace).
+			WithClientTLS().
+			WithPeerTLS().
+			WithBackupRestoreTLS().
+			Build()
 	})
 
 	It("should reconcile the finalizers for the referenced secrets", func() {
@@ -51,6 +55,9 @@ var _ = Describe("Secret Controller", func() {
 			"client-url-etcd-server-tls",
 			"peer-url-ca-etcd",
 			"peer-url-etcd-server-tls",
+			"ca-etcdbr",
+			"etcdbr-server-tls",
+			"etcdbr-client-tls",
 			"etcd-backup",
 		}
 		err := testutils.CreateSecrets(ctx, k8sClient, namespace, secretNames...)
@@ -70,6 +77,9 @@ var _ = Describe("Secret Controller", func() {
 			"client-url-etcd-server-tls2",
 			"peer-url-ca-etcd2",
 			"peer-url-etcd-server-tls2",
+			"ca-etcdbr2",
+			"etcdbr-server-tls2",
+			"etcdbr-client-tls2",
 			"etcd-backup2",
 		}
 		err = testutils.CreateSecrets(ctx, k8sClient, namespace, newSecretNames...)
@@ -81,6 +91,9 @@ var _ = Describe("Secret Controller", func() {
 		etcd.Spec.Etcd.ClientUrlTLS.ClientTLSSecretRef.Name += "2"
 		etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name += "2"
 		etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name += "2"
+		etcd.Spec.Backup.TLS.TLSCASecretRef.Name += "2"
+		etcd.Spec.Backup.TLS.ServerTLSSecretRef.Name += "2"
+		etcd.Spec.Backup.TLS.ClientTLSSecretRef.Name += "2"
 		etcd.Spec.Backup.Store.SecretRef.Name += "2"
 		Expect(k8sClient.Patch(ctx, etcd, patch)).To(Succeed())
 
