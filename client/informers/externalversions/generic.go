@@ -44,6 +44,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Druid().V1alpha1().Etcds().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("etcdcopybackupstasks"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Druid().V1alpha1().EtcdCopyBackupsTasks().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("etcdopstasks"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Druid().V1alpha1().EtcdOpsTasks().Informer()}, nil
 
 	}
 
