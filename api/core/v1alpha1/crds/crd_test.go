@@ -22,6 +22,7 @@ func TestGetAll(t *testing.T) {
 			expectedCRDs: map[string]string{
 				ResourceNameEtcd:                etcdCRD,
 				ResourceNameEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
+				ResourceNameEtcdOpsTask:         etcdOpsTaskCRD,
 			},
 		},
 		{
@@ -30,6 +31,7 @@ func TestGetAll(t *testing.T) {
 			expectedCRDs: map[string]string{
 				ResourceNameEtcd:                etcdCRD,
 				ResourceNameEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
+				ResourceNameEtcdOpsTask:         etcdOpsTaskCRD,
 			},
 		},
 		{
@@ -38,6 +40,7 @@ func TestGetAll(t *testing.T) {
 			expectedCRDs: map[string]string{
 				ResourceNameEtcd:                etcdCRDWithoutCEL,
 				ResourceNameEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
+				ResourceNameEtcdOpsTask:         etcdOpsTaskCRD,
 			},
 		},
 		{
@@ -46,6 +49,7 @@ func TestGetAll(t *testing.T) {
 			expectedCRDs: map[string]string{
 				ResourceNameEtcd:                etcdCRDWithoutCEL,
 				ResourceNameEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
+				ResourceNameEtcdOpsTask:         etcdOpsTaskCRD,
 			},
 		},
 		{
@@ -54,6 +58,7 @@ func TestGetAll(t *testing.T) {
 			expectedCRDs: map[string]string{
 				ResourceNameEtcd:                etcdCRD,
 				ResourceNameEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
+				ResourceNameEtcdOpsTask:         etcdOpsTaskCRD,
 			},
 		},
 		{
@@ -62,6 +67,7 @@ func TestGetAll(t *testing.T) {
 			expectedCRDs: map[string]string{
 				ResourceNameEtcd:                etcdCRD,
 				ResourceNameEtcdCopyBackupsTask: etcdCopyBackupsTaskCRD,
+				ResourceNameEtcdOpsTask:         etcdOpsTaskCRD,
 			},
 		},
 	}
