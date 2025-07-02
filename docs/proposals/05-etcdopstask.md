@@ -58,83 +58,92 @@ Authors propose creation of a new single dedicated custom resource to represent 
 
 ### Custom Resource Golang API
 
-`EtcdOperatorTask` is the new custom resource that will be introduced. This API will be in `v1alpha1` version and will be subject to change. We will be respecting [Kubernetes Deprecation Policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/).
+`EtcdOpsTask` is the new custom resource that will be introduced. This API will be in `v1alpha1` version and will be subject to change. We will be respecting [Kubernetes Deprecation Policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/).
 
 ```go
-// EtcdOperatorTask represents an out-of-band operator task resource.
-type EtcdOperatorTask struct {
+// EtcdOpsTask represents an out-of-band operator task resource.
+type EtcdOpsTask struct {
   metav1.TypeMeta
   metav1.ObjectMeta
 
-  // Spec is the specification of the EtcdOperatorTask resource.
-  Spec EtcdOperatorTaskSpec `json:"spec"`
-  // Status is most recently observed status of the EtcdOperatorTask resource.
-  Status EtcdOperatorTaskStatus `json:"status,omitempty"`
+  // Spec is the specification of the EtcdOpsTask resource.
+  Spec EtcdOpsTaskSpec `json:"spec"`
+  // Status is most recently observed status of the EtcdOpsTask resource.
+  Status EtcdOpsTaskStatus `json:"status,omitempty"`
 }
 ```
 
 #### Spec
 
-The authors propose that the following fields should be specified in the spec (desired state) of the `EtcdOperatorTask` custom resource.
+The authors propose that the following fields should be specified in the spec (desired state) of the `EtcdOpsTask` custom resource.
 
-* To capture the type of `out-of-band` operator task to be performed, `.spec.type` field should be defined. It can have values from all supported `out-of-band` tasks eg. "OnDemandSnaphotTask", "QuorumLossRecoveryTask" etc.
-* To capture the configuration specific to each task, a `.spec.config` field should be defined of type `string` as each task can have different input configuration.
+* To capture the configuration specific to each task, a `.spec.config` field should be defined of type `EtcdOpsTaskConfig` as a structured object where each task can have different input configuration. Exactly one of its members must be set according to the operation to be performed, which implicitly determines the type of `out-of-band` operator task to be executed (e.g., setting `onDemandSnapshot` indicates an "OnDemandSnapshotTask").
 
 ```go
-// EtcdOperatorTaskSpec is the spec for a EtcdOperatorTask resource.
-type EtcdOperatorTaskSpec struct {
-  
-  // Type specifies the type of out-of-band operator task to be performed. 
-  Type string `json:"type"`
+// EtcdOpsTaskSpec is the spec for a EtcdOpsTask resource.
+type EtcdOpsTaskSpec struct {
+    // Config specifies the configuration for the operation to be performed.
+	  // Exactly one of the members of EtcdOpsTaskConfig must be set.
+	  // +kubebuilder:validation:Required
+	  // +kubebuilder:validation:XValidation:rule="self == oldSelf",message="config is immutable"
+	  Config EtcdOpsTaskConfig `json:"config"`
 
-  // Config is a task specific configuration.
-  Config string `json:"config,omitempty"`
+	  // TTLSecondsAfterFinished is the duration in seconds after which a finished task (status.state == Succeeded|Failed|Rejected) will be garbage-collected.
+	  // +optional
+	  TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
 
-  // TTLSecondsAfterFinished is the time-to-live to garbage collect the 
-  // related resource(s) of task once it has been completed.
-  // +optional
-  TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
+	  // EtcdRef references the Etcd resource that this task will operate on.
+	  // +optional
+	  EtcdRef *EtcdReference `json:"etcdRef"`
 
-  // OwnerEtcdReference refers to the name and namespace of the corresponding 
-  // Etcd owner for which the task has been invoked.
-  OwnerEtcdRefrence types.NamespacedName `json:"ownerEtcdRefrence"`
 }
+
+// EtcdOpsTaskConfig holds the configuration for the specific operation.
+// Exactly one of its members must be set according to the operation to be performed.
+type EtcdOpsTaskConfig struct {
+	// OnDemandSnapshot defines the configuration for an on-demand snapshot task.
+	// +optional
+	OnDemandSnapshot *OnDemandSnapshotConfig `json:"onDemandSnapshot,omitempty"`
+  // OndemandMaintenance defines the configuration for an on-demand etcd maintenance task such as etcd-compaction or etcd-defragmentation.
+  OndemandMaintenance *OndemandMaintenanceConfig
+}
+// Similarly, the configs for the other tasks are to be added.
 ```
 
 #### Status
 
-The authors propose the following fields for the Status (current state) of the `EtcdOperatorTask` custom resource to monitor the progress of the task.
+The authors propose the following fields for the Status (current state) of the `EtcdOpsTask` custom resource to monitor the progress of the task.
 
 ```go
-// EtcdOperatorTaskStatus is the status for a EtcdOperatorTask resource.
-type EtcdOperatorTaskStatus struct {
-  // ObservedGeneration is the most recent generation observed for the resource.
-  ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
+// EtcdOpsTaskStatus is the status for a EtcdOpsTask resource.
+type EtcdOpsTaskStatus struct {
   // State is the last known state of the task.
   State TaskState `json:"state"`
+  // LastTransitionTime is the last time the state transitioned from one value to another.
+	LastTransitionTime *metav1.Time `json:"lastTransitionTime,omitempty"`
   // Time at which the task has moved from "pending" state to any other state.
-  InitiatedAt metav1.Time `json:"initiatedAt"`
+  StartedAt *metav1.Time `json:"startedAt"`
   // LastError represents the errors when processing the task.
   // +optional
-  LastErrors []LastError `json:"lastErrors,omitempty"`
+  LastErrors []EtcdOpsTaskLastError `json:"lastErrors,omitempty"`
   // Captures the last operation status if task involves many stages.
   // +optional
-  LastOperation *LastOperation `json:"lastOperation,omitempty"`
+  LastOperation *EtcdOpsTaskLastOperation `json:"lastOperation,omitempty"`
 }
 
-type LastOperation struct {
-  // Name of the LastOperation.
-  Name opsName `json:"name"`
+type EtcdOpsTaskLastOperation struct {
   // Status of the last operation, one of pending, progress, completed, failed.
   State OperationState `json:"state"`
+  // Phase is the controller reconciliation phase in which the operation is currently running.
+	Phase OperationPhase `json:"phase"`
   // LastTransitionTime is the time at which the operation state last transitioned from one state to another.
-  LastTransitionTime metav1.Time `json:"lastTransitionTime"`
+  LastTransitionTime *metav1.Time `json:"lastTransitionTime"`
   // A human readable message indicating details about the last operation.
   Reason string `json:"reason"`
 }
 
 // LastError stores details of the most recent error encountered for the task.
-type LastError struct {
+type EtcdOpsTaskLastError struct {
   // Code is an error code that uniquely identifies an error.
   Code ErrorCode `json:"code"`
   // Description is a human-readable message indicating details of the error.
@@ -158,10 +167,17 @@ const (
 type OperationState string
 
 const (
-  OperationStateFailed OperationState = "Failed"
-  OperationStatePending OperationState = "Pending"
-  OperationStateCompleted OperationState = "Completed"
-  OperationStateInProgress OperationState = "InProgress"
+	OperationStateInProgress OperationState = "InProgress"
+	OperationStateCompleted OperationState = "Completed"
+	OperationStateFailed OperationState = "Failed"
+)
+
+type OperationPhase string
+
+const (
+	OperationPhaseAdmit OperationPhase = "Admit"
+	OperationPhaseRunning OperationPhase = "Running"
+	OperationPhaseCleanup OperationPhase = "Cleanup"
 )
 ```
 
@@ -169,7 +185,7 @@ const (
 
 ```yaml
 apiVersion: druid.gardener.cloud/v1alpha1
-kind: EtcdOperatorTask
+kind: EtcdOpsTask
 metadata:
     name: <name of operator task resource>
     namespace: <cluster namespace>
@@ -180,33 +196,33 @@ spec:
     config: <task specific configuration>
     ownerEtcdRefrence: <refer to corresponding etcd owner name and namespace for which task has been invoked>
 status:
-    observedGeneration: <specific observedGeneration of the resource>
     state: <last known current state of the out-of-band task>
-    initiatedAt: <time at which task move to any other state from "pending" state>
+    lastTransitionTime: <Time at which the task status changed from one state to another>
+    startedAt: <time at which task move to any other state from "pending" state>
     lastErrors:
     - code: <error-code>
       description: <description of the error>
       observedAt: <time the error was observed>
     lastOperation:
-      name: <operation-name>
+      phase: <The current phase of the task ie whether it is in Admit or Running or Cleanup Phase>
       state: <task state as seen at the completion of last operation>
       lastTransitionTime: <time of transition to this state>
-      reason: <reason/message if any>
+      description: <reason/message if any>
 ```
 
 ### Lifecycle
 
 #### Creation
 
-Task(s) can be created by creating an instance of the `EtcdOperatorTask` custom resource specific to a task.
+Task(s) can be created by creating an instance of the `EtcdOpsTask` custom resource specific to a task.
 
-> Note: In future, either a `kubectl` extension plugin or a `druidctl` tool will be introduced. Dedicated sub-commands will be created for each `out-of-band` task. This will drastically increase the usability for an operator for performing such tasks, as the CLI extension will automatically create relevant instance(s) of `EtcdOperatorTask` with the provided configuration.
+> Note: In future, either a `kubectl` extension plugin or a `druidctl` tool will be introduced. Dedicated sub-commands will be created for each `out-of-band` task. This will drastically increase the usability for an operator for performing such tasks, as the CLI extension will automatically create relevant instance(s) of `EtcdOpsTask` with the provided configuration.
 
 #### Execution
 
-* Authors propose to introduce a new controller which watches for `EtcdOperatorTask` custom resource.
-* Each `out-of-band` task may have some task specific configuration defined in [.spec.config](#spec).
-* The controller needs to parse this task specific config, which comes as a [string](#spec), according to the schema defined for each task.
+* Authors propose to introduce a new controller which watches for `EtcdOpsTask` custom resource.
+* Each `out-of-band` task may have some task specific configuration defined in [.spec.config.<taskConfig>](#spec).
+* The controller needs to process this task specific config, which comes as a structured object of type `EtcdOpsTaskConfig`, according to the schema defined for each task.
 * For every `out-of-band` task, a set of `pre-conditions` can be defined. These pre-conditions are evaluated against the current state of the target etcd cluster. Based on the evaluation result (boolean), the task is permitted or denied execution.
 * If multiple tasks are invoked simultaneously or in `pending` state, then they will be executed in a First-In-First-Out (FIFO) manner.
 
@@ -224,7 +240,7 @@ Recovery from permanent quorum loss involves two phases - identification and rec
 
 ##### Task Config
 
-We do not need any config for this task. When creating an instance of `EtcdOperatorTask` for this scenario, `.spec.config` will be set to nil (unset).
+We do not need any config for this task. When creating an instance of `EtcdOpsTask` for this scenario, `.spec.config` will be set to nil (unset).
 
 ##### Pre-Conditions
 
@@ -265,16 +281,26 @@ If a human operator does not wish to wait for the scheduled full/delta snapshot,
 
 ```go
 // SnapshotType can be full or delta snapshot.
-type SnapshotType string
+type OndemandSnapshotType string
 
 const (
-  SnapshotTypeFull SnapshotType = "full"
-  SnapshotTypeDelta SnapshotType = "delta"
+  SnapshotTypeFull OndemandSnapshotType = "full"
+  SnapshotTypeDelta OndemandSnapshotType = "delta"
 )
 
-type OnDemandSnapshotTaskConfig struct {
-  // Type of on-demand snapshot.
-  Type SnapshotType `json:"type"`
+// Example showing sample implementation of ondemandSnapshot config
+type OnDemandSnapshotConfig struct {
+	// Type specifies whether the snapshot is a 'full' or 'delta' snapshot.
+	Type OnDemandSnapshotType `json:"type"`
+
+	// IsFinal indicates whether this is the final snapshot for the etcd cluster.
+	// +optional
+	IsFinal *bool `json:"isFinal,omitempty"`
+
+	// TimeoutSeconds is the timeout for the snapshot operation.
+	// Defaults to 60 seconds. Must be at least 1.
+	// +optional
+	TimeoutSeconds *int32 `json:"timeoutSeconds,omitempty"`
 }
 ```
 
@@ -282,11 +308,15 @@ type OnDemandSnapshotTaskConfig struct {
 spec:
   config: |
     type: <type of on-demand snapshot>
+    isFinal: <to indicate if the snapshot to be taken is to be marked as final>
+    timeoutSeconds: <the timeout interval>
 ```
 
 ##### Pre-Conditions
 
 * Etcd cluster should have a quorum.
+* Etcd cluster should be in ready state.
+* Etcd should have backups enabled.
 * There should not already be a `on-demand snapshot` task running with the same `SnapshotType` for the same etcd cluster.
 
 #### Trigger on-demand maintenance of etcd cluster
