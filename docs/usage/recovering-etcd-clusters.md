@@ -18,7 +18,7 @@ In case the quorum is lost due to hardware failures or disk corruption etc, auto
 
 At present, recovery from a permanent quorum loss is achieved by manually executing the steps listed in this section.
 
-> **Note:** In the near future etcd-druid will offer capability to automate the recovery from a permanent quorum loss via [Out-Of-Band Operator Tasks](../proposals/05-etcd-operator-tasks.md). An operator only needs to ascertain that there is a permanent quorum loss and the etcd-cluster is beyond auto-recovery. Once that is established then an operator can invoke a task whose status an operator can check.
+> **Note:** In the near future etcd-druid will offer capability to automate the recovery from a permanent quorum loss via [Out-Of-Band Operator Tasks](../proposals/05-etcdopstask.md). An operator only needs to ascertain that there is a permanent quorum loss and the etcd-cluster is beyond auto-recovery. Once that is established then an operator can invoke a task whose status an operator can check.
 
 !!! warning
     Please note that manually restoring etcd can result in data loss. This guide is the last resort to bring an Etcd cluster up and running again.
