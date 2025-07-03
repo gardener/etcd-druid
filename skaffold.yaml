@@ -67,6 +67,7 @@ profiles:
         value:
           controllers.etcd.etcdStatusSyncPeriod: 5s
           controllers.compaction.eventsThreshold: "15"
+          controllers.compaction.triggerFullSnapshotThreshold: "45"
           controllers.compaction.metricsScrapeWaitDuration: 30s
       - op: add
         path: /deploy/helm/releases/0/setValues/controllers

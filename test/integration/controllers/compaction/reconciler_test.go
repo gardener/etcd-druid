@@ -29,8 +29,9 @@ import (
 )
 
 var (
-	timeout         = time.Minute * 2
-	pollingInterval = time.Second * 2
+	timeout                     = time.Minute * 2
+	pollingInterval             = time.Second * 2
+	moreFrequentPollingInterval = 30 * time.Second
 )
 
 var _ = Describe("Compaction Controller", func() {
@@ -288,6 +289,73 @@ var _ = Describe("Compaction Controller", func() {
 				}
 				if j.Status.Active != 1 {
 					return fmt.Errorf("compaction job is not currently active")
+				}
+				return nil
+			}, timeout, pollingInterval).Should(BeNil())
+		})
+	})
+	Context("when compaction job is unviable, it should trigger full snapshot", func() {
+		var (
+			instance       *druidv1alpha1.Etcd
+			fullSnapLease  *coordinationv1.Lease
+			deltaSnapLease *coordinationv1.Lease
+			j              *batchv1.Job
+		)
+
+		AfterEach(func() {
+			Expect(k8sClient.Delete(context.TODO(), instance)).To(Succeed())
+			Eventually(func() error { return testutils.IsEtcdRemoved(k8sClient, instance.Name, instance.Namespace, timeout) }, timeout, pollingInterval).Should(BeNil())
+		})
+		It("should trigger full snapshot if the delta revisions over the last full snapshot are more than the configured upper threshold", func() {
+			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+			defer cancel()
+
+			instance = testutils.EtcdBuilderWithDefaults("foo81", "default").WithProviderLocal().Build()
+			createEtcdAndWait(k8sClient, instance)
+
+			// manually create full and delta snapshot leases since etcd controller is not running
+			fullSnapLease, deltaSnapLease = createEtcdSnapshotLeasesAndWait(k8sClient, instance)
+
+			// manually update the full lease
+			fullSnapLease.Spec.HolderIdentity = ptr.To("0")
+			fullSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(k8sClient.Update(context.TODO(), fullSnapLease)).To(Succeed())
+
+			// manually update the delta lease
+			deltaSnapLease.Spec.HolderIdentity = ptr.To("301")
+			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
+			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
+
+			j = &batchv1.Job{}
+			req := types.NamespacedName{
+				Name:      druidv1alpha1.GetCompactionJobName(instance.ObjectMeta),
+				Namespace: instance.Namespace,
+			}
+
+			// The compaction job should NOT exist, so we expect a NotFound error.
+			// We want to assert this periodically for every few minutes to account for the asynchronous nature of the controller, and only proceed if it passes every time.
+			Consistently(func() error {
+				return k8sClient.Get(ctx, req, j)
+			}, timeout, moreFrequentPollingInterval).Should(testutils.BeNotFoundError())
+
+			// Verify that a full snapshot has been triggered by checking both leases are updated and have matching holder identities.
+			Eventually(func() error {
+				ctx, cancel = context.WithTimeout(context.TODO(), timeout)
+				defer cancel()
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetFullSnapshotLeaseName(instance.ObjectMeta), Namespace: instance.Namespace}, fullSnapLease); err != nil {
+					return err
+				}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetDeltaSnapshotLeaseName(instance.ObjectMeta), Namespace: instance.Namespace}, deltaSnapLease); err != nil {
+					return err
+				}
+				if fullSnapLease.Spec.HolderIdentity == nil || deltaSnapLease.Spec.HolderIdentity == nil {
+					return fmt.Errorf("holder identity is nil for full or delta snapshot lease")
+				}
+				if *fullSnapLease.Spec.HolderIdentity != *deltaSnapLease.Spec.HolderIdentity {
+					return fmt.Errorf("full snapshot lease holder identity %s does not match delta snapshot lease holder identity %s", *fullSnapLease.Spec.HolderIdentity, *deltaSnapLease.Spec.HolderIdentity)
+				}
+				if *fullSnapLease.Spec.HolderIdentity != "301" {
+					return fmt.Errorf("expected holder identity to be 301, got %s", *fullSnapLease.Spec.HolderIdentity)
 				}
 				return nil
 			}, timeout, pollingInterval).Should(BeNil())
