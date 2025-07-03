@@ -27,6 +27,7 @@ controllers:
     enabled: true
     concurrentSyncs: 3
     eventsThreshold: 1500000
+    triggerFullSnapshotThreshold: 5000000
   etcdCopyBackupsTask:
     enabled: true
     concurrentSyncs: 2

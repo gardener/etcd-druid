@@ -67,6 +67,7 @@ operatorConfig:
       enabled: true
       concurrentSyncs: 3
       eventsThreshold: 1000000
+      triggerFullSnapshotThreshold: 3000000
       activeDeadlineDuration: 3h
       metricsScrapeWaitDuration: 0s
     etcdCopyBackupsTask:
