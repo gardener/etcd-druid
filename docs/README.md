@@ -47,5 +47,5 @@
 * [DEP-2: Snapshot compaction](proposals/02-snapshot-compaction.md)
 * [DEP-3: Scaling up an Etcd cluster](proposals/03-scaling-up-an-etcd-cluster.md)
 * [DEP-4: Etcd Member custom resource](proposals/04-etcd-member-custom-resource.md)
-* [DEP-5: Etcd Operator Tasks](proposals/05-etcd-operator-tasks.md)
+* [DEP-5: EtcdOpsTask](proposals/05-etcdopstask.md)
 * [DEP-6: Immutable etcd Cluster Backups](proposals/06-immutable-etcd-backups.md)
