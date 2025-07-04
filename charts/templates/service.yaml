@@ -11,15 +11,28 @@ spec:
   selector:
     app.kubernetes.io/name: etcd-druid
   ports:
-    {{- if (((.Values.controllerManager).server).metrics).port }}
-    - name: metrics
-      port: {{ .Values.controllerManager.server.metrics.port }}
-      protocol: TCP
-      targetPort: {{ .Values.controllerManager.server.metrics.port }}
-    {{- end }}
-    {{- if (((.Values.controllerManager).server).webhook).port }}
-    - name: webhooks
-      port: {{ .Values.controllerManager.server.webhook.port }}
-      protocol: TCP
-      targetPort: {{ .Values.controllerManager.server.webhook.port }}
-    {{- end }}
+{{- include "operator.service.ports" . | trim | nindent 4 }}
+{{/*    {{- if (((.Values.controllerManager).server).port) }}*/}}
+{{/*    - name: server*/}}
+{{/*      port: {{ .Values.controllerManager.server.port }}*/}}
+{{/*      protocol: TCP*/}}
+{{/*      targetPort: {{ .Values.controllerManager.server.port }}*/}}
+{{/*    {{- end }}*/}}
+{{/*    {{- if (((.Values.controllerManager).server).healthz).port }}*/}}
+{{/*    - name: healthz*/}}
+{{/*      port: {{ .Values.controllerManager.server.healthz.port }}*/}}
+{{/*      protocol: TCP*/}}
+{{/*      targetPort: {{ .Values.controllerManager.server.healthz.port }}*/}}
+{{/*    {{- end }}*/}}
+{{/*    {{- if (((.Values.controllerManager).server).metrics).port }}*/}}
+{{/*    - name: metrics*/}}
+{{/*      port: {{ .Values.controllerManager.server.metrics.port }}*/}}
+{{/*      protocol: TCP*/}}
+{{/*      targetPort: {{ .Values.controllerManager.server.metrics.port }}*/}}
+{{/*    {{- end }}*/}}
+{{/*    {{- if (((.Values.controllerManager).server).webhook).port }}*/}}
+{{/*    - name: webhooks*/}}
+{{/*      port: {{ .Values.controllerManager.server.webhook.port }}*/}}
+{{/*      protocol: TCP*/}}
+{{/*      targetPort: {{ .Values.controllerManager.server.webhook.port }}*/}}
+{{/*    {{- end }}*/}}
