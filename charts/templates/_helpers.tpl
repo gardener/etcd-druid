@@ -106,8 +106,8 @@ etcd-druid-operator-configmap-{{ include "operator.config.data" . | sha256sum | 
 {{- end }}
 {{- if $webhooksPort }}
 - name: webhooks
-  port: {{ .Values.operatorConfig.server.webhooks.port }}
+  port: {{ $webhooksPort }}
   protocol: TCP
-  targetPort: {{ .Values.operatorConfig.server.webhooks.port }}
+  targetPort: {{ $webhooksPort }}
 {{- end }}
 {{- end -}}
