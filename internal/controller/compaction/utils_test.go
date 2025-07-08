@@ -1,11 +1,13 @@
 package compaction
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -41,6 +43,14 @@ func TestFullSnapshot(t *testing.T) {
 			etcd:       eb.WithBackupPort(&backupPort).Build(),
 			httpClient: &mockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
+					if req.URL.String() != fmt.Sprintf(
+						"http://%s.%s.svc.cluster.local:%d/snapshot/full",
+						druidv1alpha1.GetClientServiceName(eb.Build().ObjectMeta),
+						testutils.TestNamespace,
+						backupPort,
+					) {
+						return nil, fmt.Errorf("unexpected URL: %s", req.URL.String())
+					}
 					return &http.Response{
 						StatusCode: http.StatusOK,
 						Body:       http.NoBody,
@@ -55,6 +65,14 @@ func TestFullSnapshot(t *testing.T) {
 			etcd:       eb.WithBackupPort(&backupPort).Build(),
 			httpClient: &mockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
+					if req.URL.String() != fmt.Sprintf(
+						"https://%s.%s.svc.cluster.local:%d/snapshot/full",
+						druidv1alpha1.GetClientServiceName(eb.Build().ObjectMeta),
+						testutils.TestNamespace,
+						backupPort,
+					) {
+						return nil, fmt.Errorf("unexpected URL: %s", req.URL.String())
+					}
 					return &http.Response{
 						StatusCode: http.StatusOK,
 						Body:       http.NoBody,
@@ -69,6 +87,14 @@ func TestFullSnapshot(t *testing.T) {
 			etcd:       eb.WithBackupPort(&backupPort).Build(),
 			httpClient: &mockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
+					if req.URL.String() != fmt.Sprintf(
+						"http://%s.%s.svc.cluster.local:%d/snapshot/full",
+						druidv1alpha1.GetClientServiceName(eb.Build().ObjectMeta),
+						testutils.TestNamespace,
+						backupPort,
+					) {
+						return nil, fmt.Errorf("unexpected URL: %s", req.URL.String())
+					}
 					return nil, assertErr("client error")
 				},
 			},
@@ -83,6 +109,14 @@ func TestFullSnapshot(t *testing.T) {
 			etcd:       eb.WithBackupPort(&backupPort).Build(),
 			httpClient: &mockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
+					if req.URL.String() != fmt.Sprintf(
+						"http://%s.%s.svc.cluster.local:%d/snapshot/full",
+						druidv1alpha1.GetClientServiceName(eb.Build().ObjectMeta),
+						testutils.TestNamespace,
+						backupPort,
+					) {
+						return nil, fmt.Errorf("unexpected URL: %s", req.URL.String())
+					}
 					return &http.Response{
 						StatusCode: http.StatusInternalServerError,
 						Body:       http.NoBody,
