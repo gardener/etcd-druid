@@ -6,7 +6,10 @@ package compaction
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -335,6 +338,39 @@ func (r *Reconciler) createCompactionJobOrTriggerFullSnapshot(ctx context.Contex
 	}
 
 	return ctrl.Result{Requeue: false}, nil
+}
+
+// triggerFullSnapshot triggers a full snapshot for the given Etcd resource's associated etcd cluster.
+func (r *Reconciler) triggerFullSnapshot(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
+	httpScheme := "http"
+	httpTransport := &http.Transport{}
+
+	if tlsConfig := etcd.Spec.Backup.TLS; tlsConfig != nil {
+		httpScheme = "https"
+		etcdbrCASecret := &v1.Secret{}
+		dataKey := ptr.Deref(tlsConfig.TLSCASecretRef.DataKey, "bundle.crt")
+		if err := r.Client.Get(ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: tlsConfig.TLSCASecretRef.Name}, etcdbrCASecret); err != nil {
+			logger.Error(err, "Failed to get etcdbr CA secret", "secretName", tlsConfig.TLSCASecretRef.Name)
+			return err
+		}
+		certData, ok := etcdbrCASecret.Data[dataKey]
+		if !ok {
+			return fmt.Errorf("CA cert data key %q not found in secret %s/%s", dataKey, etcdbrCASecret.Namespace, etcdbrCASecret.Name)
+		}
+		caCerts := x509.NewCertPool()
+		if !caCerts.AppendCertsFromPEM(certData) {
+			return fmt.Errorf("failed to append CA certs from secret %s/%s", etcdbrCASecret.Namespace, etcdbrCASecret.Name)
+		}
+		httpTransport.TLSClientConfig = &tls.Config{
+			RootCAs:    caCerts,
+			MinVersion: tls.VersionTLS12,
+		}
+	}
+
+	httpClient := &http.Client{
+		Transport: httpTransport,
+	}
+	return fullSnapshot(ctx, logger, etcd, httpClient, httpScheme)
 }
 
 func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*batchv1.Job, error) {
