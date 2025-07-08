@@ -2,8 +2,6 @@ package compaction
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net/http"
 
@@ -12,41 +10,13 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 )
 
-// triggerFullSnapshot triggers a full snapshot for the given Etcd resource's associated etcd cluster.
-func (r *Reconciler) triggerFullSnapshot(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
-	httpScheme := "http"
-	httpTransport := &http.Transport{}
-	if tlsConfig := etcd.Spec.Backup.TLS; tlsConfig != nil {
-		etcdbrCASecret := &corev1.Secret{}
-		httpScheme = "https"
-		dataKey := ptr.Deref(tlsConfig.TLSCASecretRef.DataKey, "bundle.crt")
-		if err := r.Client.Get(ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: tlsConfig.TLSCASecretRef.Name}, etcdbrCASecret); err != nil {
-			logger.Error(err, "Failed to get etcdbr CA secret", "secretName", tlsConfig.TLSCASecretRef.Name)
-			return err
-		}
-		certData, ok := etcdbrCASecret.Data[dataKey]
-		if !ok {
-			return fmt.Errorf("CA cert data key %q not found in secret %s/%s", dataKey, etcdbrCASecret.Namespace, etcdbrCASecret.Name)
-		}
-		caCerts := x509.NewCertPool()
-		if !caCerts.AppendCertsFromPEM(certData) {
-			return fmt.Errorf("failed to append CA certs from secret %s/%s", etcdbrCASecret.Namespace, etcdbrCASecret.Name)
-		}
-		httpTransport.TLSClientConfig = &tls.Config{
-			RootCAs:    caCerts,
-			MinVersion: tls.VersionTLS12,
-		}
-	}
+type httpClientInterface interface {
+	Do(req *http.Request) (*http.Response, error)
+}
 
-	httpClient := &http.Client{
-		Transport: httpTransport,
-	}
-
+func fullSnapshot(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, httpClient httpClientInterface, httpScheme string) error {
 	fullSnapshotURL := fmt.Sprintf(
 		"%s://%s.%s.svc.cluster.local:%d/snapshot/full",
 		httpScheme,
