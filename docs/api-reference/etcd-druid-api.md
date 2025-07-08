@@ -408,7 +408,7 @@ _Appears in:_
 
 
 
-
+CompactionSpec defines parameters related to the compaction job configuration.
 
 
 
