@@ -31,6 +31,17 @@ var (
 		[]string{druidmetrics.LabelSucceeded, druidmetrics.LabelFailureReason, druidmetrics.LabelEtcdNamespace},
 	)
 
+	// metricFullSnapshotsTriggered is the metric used to count the total number of full snapshots triggered by compaction controller.
+	metricFullSnapshotsTriggered = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespaceEtcdDruid,
+			Subsystem: subsystemCompaction,
+			Name:      "full_snapshot_triggered_total",
+			Help:      "Total number of full snapshot triggered by compaction controller.",
+		},
+		[]string{druidmetrics.LabelSucceeded, druidmetrics.LabelEtcdNamespace},
+	)
+
 	// metricJobsCurrent is the metric used to expose currently running compaction job. This metric is important to get a sense of total number of compaction job running in a seed cluster.
 	metricJobsCurrent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -95,11 +106,20 @@ func init() {
 		metricJobDurationSeconds.With(prometheus.Labels(combination))
 	}
 
+	// metricFullSnapshotsTriggeredValues
+	metricFullSnapshotsTriggeredValues := map[string][]string{
+		druidmetrics.LabelSucceeded:     druidmetrics.DruidLabels[druidmetrics.LabelSucceeded],
+		druidmetrics.LabelEtcdNamespace: druidmetrics.DruidLabels[druidmetrics.LabelEtcdNamespace],
+	}
+	metricFullSnapshotsTriggeredCombinations := druidmetrics.GenerateLabelCombinations(metricFullSnapshotsTriggeredValues)
+	for _, combination := range metricFullSnapshotsTriggeredCombinations {
+		metricFullSnapshotsTriggered.With(prometheus.Labels(combination))
+	}
+
 	// Metrics have to be registered to be exposed:
 	metrics.Registry.MustRegister(metricJobsTotal)
 	metrics.Registry.MustRegister(metricJobDurationSeconds)
-
 	metrics.Registry.MustRegister(metricJobsCurrent)
-
 	metrics.Registry.MustRegister(metricNumDeltaEvents)
+	metrics.Registry.MustRegister(metricFullSnapshotsTriggered)
 }
