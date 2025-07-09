@@ -66,7 +66,7 @@ profiles:
         path: /deploy/helm/releases/0/setValues/operatorConfig
         value:
           controllers.etcd.etcdStatusSyncPeriod: 5s
-          controllers.compaction.etcdEventsThreshold: "15"
+          controllers.compaction.eventsThreshold: "15"
           controllers.compaction.metricsScrapeWaitDuration: 30s
       - op: add
         path: /deploy/helm/releases/0/setValues/controllers
