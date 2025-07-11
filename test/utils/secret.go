@@ -8,8 +8,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gardener/etcd-druid/internal/store"
-
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,7 +45,7 @@ func CreateBackupProviderLocalSecret(ctx context.Context, c client.Client, name,
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
-			"hostPath": []byte(store.LocalProviderDefaultMountPath),
+			"hostPath": []byte("/etc/gardener/local-backupbuckets"),
 		},
 	}
 	if err := c.Create(ctx, secret); err != nil {
