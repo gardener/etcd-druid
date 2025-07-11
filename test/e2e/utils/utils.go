@@ -20,11 +20,6 @@ import (
 var knownBackupProviders = []druidv1alpha1.StorageProvider{
 	"local",
 	"none",
-	// TODO: enable once emulator support is added to e2e tests
-	//"aws",
-	//"azure",
-	//"gcp",
-	//"openstack",
 }
 
 func GetEnvOrError(key string) (string, error) {

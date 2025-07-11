@@ -37,6 +37,7 @@ type etcdConfig struct {
 	Metrics                 druidv1alpha1.MetricsLevel   `json:"metrics"`
 	SnapshotCount           int64                        `json:"snapshot-count"`
 	EnableV2                bool                         `json:"enable-v2"`
+	EnableGRPCGateway       bool                         `json:"enable-grpc-gateway"`
 	QuotaBackendBytes       int64                        `json:"quota-backend-bytes"`
 	InitialClusterToken     string                       `json:"initial-cluster-token"`
 	InitialClusterState     string                       `json:"initial-cluster-state"`
@@ -69,6 +70,7 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		Metrics:                 ptr.Deref(etcd.Spec.Etcd.Metrics, druidv1alpha1.Basic),
 		SnapshotCount:           getSnapshotCount(etcd),
 		EnableV2:                false,
+		EnableGRPCGateway:       true,
 		QuotaBackendBytes:       getDBQuotaBytes(etcd),
 		InitialClusterToken:     defaultInitialClusterToken,
 		InitialClusterState:     defaultInitialClusterState,

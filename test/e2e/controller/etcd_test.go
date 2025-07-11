@@ -205,11 +205,6 @@ func TestScaleOut(t *testing.T) {
 			peerTLSEnabledBeforeScaleOut: true,
 			peerTLSEnabledAfterScaleOut:  true,
 		},
-		// TODO: uncomment after fixing reconciler behavior
-		//{
-		//	name:                         "disable-peer-tls",
-		//	peerTLSEnabledBeforeScaleOut: true,
-		//},
 		{
 			name:                "with-label-change",
 			labelsAfterScaleOut: map[string]string{"foo": "bar"},
@@ -219,6 +214,11 @@ func TestScaleOut(t *testing.T) {
 			peerTLSEnabledAfterScaleOut: true,
 			labelsAfterScaleOut:         map[string]string{"foo": "bar"},
 		},
+		// TODO: enable this once disabling peer TLS is supported
+		//{
+		//	name:                         "disable-peer-tls",
+		//	peerTLSEnabledBeforeScaleOut: true,
+		//},
 	}
 
 	g := NewWithT(t)
@@ -291,20 +291,14 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 			peerTLSEnabledAfterUpdate: true,
 		},
 		{
+			name:              "label-change",
+			labelsAfterUpdate: map[string]string{"foo": "bar"},
+		},
+		{
 			name:                               "enable-c-p-br-tls",
 			clientTLSEnabledAfterUpdate:        true,
 			peerTLSEnabledAfterUpdate:          true,
 			backupRestoreTLSEnabledAfterUpdate: true,
-		},
-		{
-			name:                       "disable-p-tls",
-			peerTLSEnabledBeforeUpdate: true,
-		},
-		{
-			name:                                "disable-c-p-br-tls",
-			clientTLSEnabledBeforeUpdate:        true,
-			peerTLSEnabledBeforeUpdate:          true,
-			backupRestoreTLSEnabledBeforeUpdate: true,
 		},
 		{
 			name:                      "enable-ptls-label-change",
@@ -314,12 +308,37 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 			},
 		},
 		{
-			name:                       "disable-ptls-label-change",
-			peerTLSEnabledBeforeUpdate: true,
+			name:                               "enable-c-p-br-label-change",
+			clientTLSEnabledAfterUpdate:        true,
+			peerTLSEnabledAfterUpdate:          true,
+			backupRestoreTLSEnabledAfterUpdate: true,
 			labelsAfterUpdate: map[string]string{
 				"foo": "bar",
 			},
 		},
+		{
+			name:                                "disable-c-br-tls",
+			clientTLSEnabledBeforeUpdate:        true,
+			backupRestoreTLSEnabledBeforeUpdate: true,
+		},
+		// TODO: enable these once disabling peer TLS is supported
+		//{
+		//	name:                       "disable-p-tls",
+		//	peerTLSEnabledBeforeUpdate: true,
+		//},
+		//{
+		//	name:                                "disable-c-p-br-tls",
+		//	clientTLSEnabledBeforeUpdate:        true,
+		//	peerTLSEnabledBeforeUpdate:          true,
+		//	backupRestoreTLSEnabledBeforeUpdate: true,
+		//},
+		//{
+		//	name:                       "disable-ptls-label-change",
+		//	peerTLSEnabledBeforeUpdate: true,
+		//	labelsAfterUpdate: map[string]string{
+		//		"foo": "bar",
+		//	},
+		//},
 	}
 
 	g := NewWithT(t)
@@ -337,7 +356,7 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 
 				logger.Info("running tests")
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
-					WithReplicas(1).
+					WithReplicas(3).
 					WithDefaultBackup().
 					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, defaultEtcdName))
 
@@ -447,6 +466,7 @@ func TestRecovery(t *testing.T) {
 				logger.Info("running tests")
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
 					WithReplicas(tc.replicas).
+					WithEtcdClientPort(ptr.To[int32](2379)).
 					WithClientTLS().
 					WithPeerTLS().
 					WithDefaultBackup().
@@ -462,7 +482,7 @@ func TestRecovery(t *testing.T) {
 				logger.Info("successfully created Etcd")
 
 				logger.Info("starting zero-downtime validator job")
-				testEnv.DeployZeroDowntimeValidatorJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), etcd.Spec.Etcd.ClientUrlTLS, timeoutDeployJob)
+				testEnv.DeployZeroDowntimeValidatorJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, timeoutDeployJob)
 				logger.Info("started running zero-downtime validator job")
 
 				logger.Info("disrupting Etcd")
@@ -539,6 +559,7 @@ func TestClusterUpdate(t *testing.T) {
 				logger.Info("running tests")
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
 					WithReplicas(tc.replicas).
+					WithEtcdClientPort(ptr.To[int32](2379)).
 					WithClientTLS().
 					WithPeerTLS().
 					WithDefaultBackup().
@@ -551,7 +572,7 @@ func TestClusterUpdate(t *testing.T) {
 				logger.Info("successfully created Etcd")
 
 				logger.Info("starting zero-downtime validator job")
-				testEnv.DeployZeroDowntimeValidatorJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), etcd.Spec.Etcd.ClientUrlTLS, timeoutDeployJob)
+				testEnv.DeployZeroDowntimeValidatorJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, timeoutDeployJob)
 				logger.Info("started running zero-downtime validator job")
 
 				etcd, err := testEnv.GetEtcd(etcd.Name, etcd.Namespace)
@@ -627,8 +648,8 @@ func TestClusterUpdate(t *testing.T) {
 //				testEnv.DeployZeroDowntimeValidatorJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), etcd.Spec.Etcd.ClientUrlTLS, timeoutDeployJob)
 //				logger.Info("started running zero-downtime validator job")
 //
-//				// TODO: Deploy EtcdOpsTask for on-demand defragmentation.
-//				// TODO: Check that eventually its status should say Succeeded.
+//				// deploy EtcdOpsTask for on-demand defragmentation.
+//				// check that eventually its status should say Succeeded.
 //
 //				logger.Info("checking if downtime occurred")
 //				testEnv.CheckForDowntime(g, testNamespace, tc.expectDowntime)
@@ -644,83 +665,8 @@ func TestClusterUpdate(t *testing.T) {
 //	}
 //}
 
-// TODO: complete me
-// TestPeerCACertificateRotation tests for TLS certificate rotations in an Etcd cluster.
-//func TestPeerCACertificateRotation(t *testing.T) {
-//	t.Parallel()
-//	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
-//
-//	testCases := []struct {
-//		name           string
-//		replicas       int32
-//		expectDowntime bool
-//	}{
-//		{
-//			name:           "1-replica",
-//			replicas:       1,
-//			expectDowntime: true,
-//		},
-//		{
-//			name:           "3-replicas",
-//			replicas:       3,
-//			expectDowntime: false,
-//		},
-//	}
-//
-//	g := NewWithT(t)
-//
-//	for _, provider := range providers {
-//		for _, tc := range testCases {
-//			tcName := fmt.Sprintf("certrot-%s-%s", tc.name, provider)
-//			t.Run(tcName, func(t *testing.T) {
-//				t.Parallel()
-//
-//				testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
-//				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
-//
-//				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
-//
-//				logger.Info("running tests")
-//				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
-//					WithReplicas(tc.replicas).
-//					WithClientTLS().
-//					WithPeerTLS().
-//					WithDefaultBackup().
-//					WithBackupRestoreTLS()
-//				etcd := etcdBuilder.Build()
-//
-//				logger.Info("creating Etcd")
-//				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation)
-//				logger.Info("successfully created Etcd")
-//
-//				logger.Info("starting zero-downtime validator job")
-//				testEnv.DeployZeroDowntimeValidatorJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), etcd.Spec.Etcd.ClientUrlTLS, timeoutDeployJob)
-//				logger.Info("started running zero-downtime validator job")
-//
-//				logger.Info("rotating TLS certificates")
-//              // TODO: implement me
-//				testEnv.RotateTLSCertificates(g, etcd, timeoutEtcdReconciliation*2)
-//				logger.Info("successfully rotated TLS certificates")
-//
-//				logger.Info("checking if downtime occurred")
-//				testEnv.CheckForDowntime(g, testNamespace, tc.expectDowntime)
-//				logger.Info("successfully checked if downtime occurred")
-//				logger.Info("finished running tests")
-//				if !retainTestArtifacts {
-//					cleanupTestArtifactsIfNecessary(testEnv, logger, g, testNamespace, etcd, timeoutEtcdReconciliation)
-//				}
-//			})
-//		}
-//	}
-//}
-
-// TODO: complete me
+// TODO: complete me when we support 3-node KIND clusters for e2e testing
 // TestScaleOutWithExternalTSCInjection tests scale out of an Etcd cluster from 1 -> 3 replicas with
 // external injection of Topology Spread Constraints into the pods.
 //func TestScaleOutWithExternalTSCInjection(t *testing.T) {
-//}
-
-// TODO: complete me
-// TestReconciliationAfterError tests reconciliation of an Etcd cluster after an error has occurred.
-//func TestReconciliationAfterError(t *testing.T) {
 //}

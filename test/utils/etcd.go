@@ -150,6 +150,14 @@ func (eb *EtcdBuilder) WithBackupRestoreTLS() *EtcdBuilder {
 	return eb
 }
 
+func (eb *EtcdBuilder) WithDeltaSnapshotPeriod(deltaSnapshotPeriod time.Duration) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Backup.DeltaSnapshotPeriod = &metav1.Duration{Duration: deltaSnapshotPeriod}
+	return eb
+}
+
 func (eb *EtcdBuilder) WithRunAsRoot(runAsRoot *bool) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -438,6 +446,18 @@ func (eb *EtcdBuilder) WithDefragmentation(schedule string, timeout time.Duratio
 	}
 	eb.etcd.Spec.Etcd.DefragmentationSchedule = &schedule
 	eb.etcd.Spec.Etcd.EtcdDefragTimeout = &metav1.Duration{Duration: timeout}
+	return eb
+}
+
+func (eb *EtcdBuilder) WithGarbageCollection(period time.Duration, policy druidv1alpha1.GarbageCollectionPolicy, maxBackups *int32) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Backup.GarbageCollectionPeriod = &metav1.Duration{Duration: period}
+	eb.etcd.Spec.Backup.GarbageCollectionPolicy = &policy
+	if maxBackups != nil && policy == druidv1alpha1.GarbageCollectionPolicyLimitBased {
+		eb.etcd.Spec.Backup.MaxBackupsLimitBasedGC = maxBackups
+	}
 	return eb
 }
 
