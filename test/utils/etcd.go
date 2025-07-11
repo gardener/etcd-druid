@@ -78,6 +78,22 @@ func (eb *EtcdBuilder) WithReplicas(replicas int32) *EtcdBuilder {
 	return eb
 }
 
+func (eb *EtcdBuilder) WithEtcdContainerImage(image string) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Etcd.Image = ptr.To[string](image)
+	return eb
+}
+
+func (eb *EtcdBuilder) WithBackupRestoreContainerImage(image string) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Backup.Image = ptr.To[string](image)
+	return eb
+}
+
 func GetClientTLSConfig() *druidv1alpha1.TLSConfig {
 	return &druidv1alpha1.TLSConfig{
 		TLSCASecretRef: druidv1alpha1.SecretReference{
