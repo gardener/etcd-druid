@@ -65,6 +65,7 @@ profiles:
       - op: add
         path: /deploy/helm/releases/0/setValues/operatorConfig
         value:
+          controllers.etcd.concurrentSyncs: 10
           controllers.etcd.etcdStatusSyncPeriod: 5s
           controllers.compaction.eventsThreshold: "15"
           controllers.compaction.triggerFullSnapshotThreshold: "45"
