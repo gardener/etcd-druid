@@ -125,14 +125,7 @@ func updateEtcdTLSAndLabels(etcd *v1alpha1.Etcd, clientTLSEnabled, peerTLSEnable
 }
 
 func cleanupTestArtifactsIfNecessary(testEnv *testenv.TestEnvironment, logger logr.Logger, g *WithT, ns string, etcd *v1alpha1.Etcd, timeout time.Duration) {
-	logger.Info("deleting test artifacts after running test")
-
-	testEnv.DeleteAndCheckEtcd(g, logger, etcd, timeout)
-	logger.Info("successfully deleted Etcd")
-
-	g.Expect(testEnv.DeletePVCs(ns)).To(Succeed())
-	logger.Info("successfully deleted PVCs in namespace")
-
+	logger.Info(fmt.Sprintf("deleting namespace %s", ns))
 	g.Expect(testEnv.DeleteTestNamespace(ns)).To(Succeed())
 	logger.Info("successfully deleted namespace")
 }
