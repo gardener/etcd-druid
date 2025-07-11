@@ -28,7 +28,10 @@ func TestGetEtcdImages(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
+			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
+				WithEtcdContainerImage("europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper:v0.5.2").
+				WithBackupRestoreContainerImage("europe-docker.pkg.dev/gardener-project/public/gardener/etcdbrctl:v0.37.0").
+				Build()
 			g := NewWithT(t)
 			test.run(g, etcd)
 		})
