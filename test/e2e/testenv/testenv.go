@@ -7,21 +7,24 @@ package testenv
 import (
 	"context"
 	"fmt"
-	"github.com/gardener/etcd-druid/internal/common"
-	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	"slices"
+	"strconv"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
@@ -30,6 +33,8 @@ import (
 const (
 	defaultPollingInterval       = 2 * time.Second
 	jobNameZeroDowntimeValidator = "zero-downtime-validator"
+	jobNameEtcdLoader            = "etcd-loader"
+	jobNameTriggerSnapshot       = "trigger-snapshot"
 )
 
 type TestEnvironment struct {
@@ -283,14 +288,14 @@ func (t *TestEnvironment) getEtcdPVCs(etcd *druidv1alpha1.Etcd) []corev1.Persist
 }
 
 // DeployZeroDowntimeValidatorJob deploys the zero downtime validator job.
-func (t *TestEnvironment) DeployZeroDowntimeValidatorJob(g *WithT, namespace, etcdClientServiceName string, etcdClientTLS *druidv1alpha1.TLSConfig, timeout time.Duration) {
-	zdvJob := getZeroDowntimeValidatorJob(namespace, etcdClientServiceName, etcdClientTLS)
+func (t *TestEnvironment) DeployZeroDowntimeValidatorJob(g *WithT, namespace, etcdClientServiceName string, etcdClientServicePort int32, etcdClientTLS *druidv1alpha1.TLSConfig, timeout time.Duration) {
+	zdvJob := getZeroDowntimeValidatorJob(namespace, etcdClientServiceName, etcdClientServicePort, etcdClientTLS)
 	g.Expect(t.cl.Create(t.ctx, zdvJob)).ShouldNot(HaveOccurred())
 
 	// Wait for the job to start
 	g.Eventually(func() error {
 		job := &batchv1.Job{}
-		err := t.cl.Get(t.ctx, types.NamespacedName{Name: jobNameZeroDowntimeValidator, Namespace: namespace}, job)
+		err := t.cl.Get(t.ctx, types.NamespacedName{Name: zdvJob.Name, Namespace: namespace}, job)
 		if err != nil {
 			return err
 		}
@@ -313,7 +318,7 @@ func (t *TestEnvironment) CheckForDowntime(g *WithT, namespace string, downtimeE
 }
 
 // getZeroDowntimeValidatorJob returns the job object for zero downtime validation.
-func getZeroDowntimeValidatorJob(namespace, etcdClientServiceName string, etcdClientTLS *druidv1alpha1.TLSConfig) *batchv1.Job {
+func getZeroDowntimeValidatorJob(namespace, etcdClientServiceName string, etcdClientServicePort int32, etcdClientTLS *druidv1alpha1.TLSConfig) *batchv1.Job {
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      jobNameZeroDowntimeValidator,
@@ -324,10 +329,11 @@ func getZeroDowntimeValidatorJob(namespace, etcdClientServiceName string, etcdCl
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "validator",
-							Image:   "alpine/curl",
-							Command: []string{"/bin/sh", "-c"},
-							Args:    []string{getHealthCheckScript(etcdClientServiceName)},
+							Name:            "validator",
+							Image:           "alpine/curl",
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Command:         []string{"/bin/sh", "-c"},
+							Args:            []string{getHealthCheckScript(etcdClientServiceName, etcdClientServicePort)},
 							VolumeMounts: []corev1.VolumeMount{
 								{MountPath: "/var/etcd/ssl/ca", Name: "client-url-ca-etcd"},
 								{MountPath: "/var/etcd/ssl/server", Name: "client-url-etcd-server-tls"},
@@ -350,24 +356,11 @@ func getZeroDowntimeValidatorJob(namespace, etcdClientServiceName string, etcdCl
 	}
 }
 
-// getTLSVolume creates a volume for the TLS secret.
-func getTLSVolume(name, secretName string) corev1.Volume {
-	return corev1.Volume{
-		Name: name,
-		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				SecretName:  secretName,
-				DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
-			},
-		},
-	}
-}
-
 // getHealthCheckScript generates the shell script used to check Etcd health.
-func getHealthCheckScript(etcdSvc string) string {
+func getHealthCheckScript(etcdClientServiceName string, etcdClientServicePort int32) string {
 	return fmt.Sprintf(`failed=0; threshold=2;
     while true; do
-        if ! curl --cacert /var/etcd/ssl/ca/ca.crt --cert /var/etcd/ssl/client/tls.crt --key /var/etcd/ssl/client/tls.key https://%s:2379/health -s -f -o /dev/null; then
+        if ! curl --cacert /var/etcd/ssl/ca/ca.crt --cert /var/etcd/ssl/client/tls.crt --key /var/etcd/ssl/client/tls.key https://%s:%d/health -s -f -o /dev/null; then
             echo "etcd is unhealthy, retrying"
             failed=$((failed + 1))
             if [ "$failed" -ge "$threshold" ]; then
@@ -382,7 +375,7 @@ func getHealthCheckScript(etcdSvc string) string {
             failed=0
             sleep 2
         fi
-    done`, etcdSvc)
+    done`, etcdClientServiceName, etcdClientServicePort)
 }
 
 // getProbe creates a probe with specified file path for readiness and liveness checks.
@@ -398,4 +391,250 @@ func getProbe(filePath string) *corev1.Probe {
 			},
 		},
 	}
+}
+
+// DeployEtcdLoaderJob deploys the etcd loader job.
+func (t *TestEnvironment) DeployEtcdLoaderJob(g *WithT, namespace, etcdClientServiceName string, etcdClientServicePort int32, etcdClientTLS *druidv1alpha1.TLSConfig, numKeys int64, timeout time.Duration) {
+	etcdLoaderJob, err := getEtcdLoaderJob(g, namespace, etcdClientServiceName, etcdClientServicePort, etcdClientTLS, numKeys)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(t.cl.Create(t.ctx, etcdLoaderJob)).ShouldNot(HaveOccurred())
+
+	g.Eventually(func() error {
+		job := &batchv1.Job{}
+		err := t.cl.Get(t.ctx, types.NamespacedName{Name: etcdLoaderJob.Name, Namespace: namespace}, job)
+		if err != nil {
+			return err
+		}
+		if job.Status.Active > 0 {
+			return fmt.Errorf("job %s is still active", job.Name)
+		}
+		if job.Status.Failed > 0 {
+			return fmt.Errorf("job %s has failed", job.Name)
+		}
+		if job.Status.Succeeded == 0 {
+			return fmt.Errorf("job %s is not yet completed", job.Name)
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(BeNil())
+}
+
+func getEtcdLoaderJob(g *WithT, namespace, etcdClientServiceName string, etcdClientServicePort int32, etcdClientTLS *druidv1alpha1.TLSConfig, numKeys int64) (*batchv1.Job, error) {
+	if numKeys <= 0 {
+		return nil, fmt.Errorf("number of keys must be greater than zero")
+	}
+
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%s", jobNameEtcdLoader, testutils.GenerateRandomAlphanumericString(g, 4)),
+			Namespace: namespace,
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:            "loader",
+							Image:           "alpine/curl",
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Command:         []string{"/bin/sh", "-c"},
+							Args:            []string{getEtcdLoaderScript(numKeys, etcdClientServiceName, etcdClientServicePort)},
+							VolumeMounts: []corev1.VolumeMount{
+								{MountPath: "/var/etcd/ssl/ca", Name: "client-url-ca-etcd"},
+								{MountPath: "/var/etcd/ssl/client", Name: "client-url-etcd-client-tls"},
+							},
+						},
+					},
+					RestartPolicy: corev1.RestartPolicyNever,
+					Volumes: []corev1.Volume{
+						getTLSVolume("client-url-ca-etcd", etcdClientTLS.TLSCASecretRef.Name),
+						getTLSVolume("client-url-etcd-client-tls", etcdClientTLS.ClientTLSSecretRef.Name),
+					},
+				},
+			},
+			BackoffLimit: ptr.To[int32](0),
+		},
+	}, nil
+}
+
+// getEtcdLoaderScript generates the shell script used by the etcd loader job to populate etcd with keys.
+func getEtcdLoaderScript(numKeys int64, etcdClientServiceName string, etcdClientServicePort int32) string {
+	return fmt.Sprintf(`
+	for i in $(seq 1 %d); do
+		key=$(echo -n "key-$i" | base64)
+		value=$(echo -n "value-$i" | base64)
+		curl -s -X POST \
+		-H "Content-Type: application/json" \
+		--cacert /var/etcd/ssl/ca/ca.crt \
+		--cert /var/etcd/ssl/client/tls.crt \
+		--key /var/etcd/ssl/client/tls.key \
+		-d "{\"key\": \"$key\", \"value\": \"$value\"}" \
+		-L https://%s:%d/v3/kv/put;
+	done
+	`, numKeys, etcdClientServiceName, etcdClientServicePort)
+}
+
+// getTLSVolume creates a volume for the TLS secret.
+func getTLSVolume(name, secretName string) corev1.Volume {
+	return corev1.Volume{
+		Name: name,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName:  secretName,
+				DefaultMode: ptr.To(common.ModeOwnerReadWriteGroupRead),
+			},
+		},
+	}
+}
+
+// TriggerFullSnapshot triggers a full snapshot of the etcd cluster using etcd-backup-restore server's HTTP API.
+func (t *TestEnvironment) TriggerFullSnapshot(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+	t.TriggerSnapshot(g, etcd, "full", timeout)
+}
+
+// TriggerDeltaSnapshot triggers a delta snapshot of the etcd cluster using etcd-backup-restore server's HTTP API.
+func (t *TestEnvironment) TriggerDeltaSnapshot(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+	t.TriggerSnapshot(g, etcd, "delta", timeout)
+}
+
+// TriggerSnapshot triggers a snapshot of the etcd cluster using etcd-backup-restore server's HTTP API.
+func (t *TestEnvironment) TriggerSnapshot(g *WithT, etcd *druidv1alpha1.Etcd, snapshotType string, timeout time.Duration) {
+	job := getTriggerSnapshotJob(g, etcd, snapshotType)
+	g.Expect(t.cl.Create(t.ctx, job)).ShouldNot(HaveOccurred())
+
+	g.Eventually(func() error {
+		j := &batchv1.Job{}
+		err := t.cl.Get(t.ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, j)
+		if err != nil {
+			return err
+		}
+		if j.Status.Active > 0 {
+			return fmt.Errorf("job %s is still active", j.Name)
+		}
+		if j.Status.Failed > 0 {
+			return fmt.Errorf("job %s has failed", j.Name)
+		}
+		if j.Status.Succeeded == 0 {
+			return fmt.Errorf("job %s is not yet completed", j.Name)
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(BeNil())
+}
+
+func getTriggerSnapshotJob(g *WithT, etcd *druidv1alpha1.Etcd, snapshotType string) *batchv1.Job {
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%s-%s", jobNameTriggerSnapshot, snapshotType, testutils.GenerateRandomAlphanumericString(g, 4)),
+			Namespace: etcd.Namespace,
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:            "curl",
+							Image:           "alpine/curl",
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Command:         []string{"/bin/sh", "-c"},
+							Args: []string{
+								fmt.Sprintf(`curl --cacert /var/etcdbr/ssl/ca/ca.crt --cert /var/etcdbr/ssl/client/tls.crt --key /var/etcdbr/ssl/client/tls.key https://%s:%d/snapshot/%s`,
+									druidv1alpha1.GetClientServiceName(etcd.ObjectMeta),
+									*etcd.Spec.Backup.Port,
+									snapshotType),
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{MountPath: "/var/etcdbr/ssl/ca", Name: "ca-etcdbr"},
+								{MountPath: "/var/etcdbr/ssl/client", Name: "etcdbr-client-tls"},
+							},
+						},
+					},
+					RestartPolicy: corev1.RestartPolicyNever,
+					Volumes: []corev1.Volume{
+						getTLSVolume("ca-etcdbr", etcd.Spec.Backup.TLS.TLSCASecretRef.Name),
+						getTLSVolume("etcdbr-client-tls", etcd.Spec.Backup.TLS.ClientTLSSecretRef.Name),
+					},
+				},
+			},
+			BackoffLimit: ptr.To[int32](0),
+		},
+	}
+}
+
+// EnsureCompaction checks if compaction has succeeded by verifying the snapshot revisions.
+func (t *TestEnvironment) EnsureCompaction(g *WithT, etcdObjectMeta metav1.ObjectMeta, expectedFullSnapshotRevision, expectedDeltaSnapshotRevision int64, timeout time.Duration) {
+	g.Eventually(func() error {
+		fullSnapshotRevision, deltaSnapshotRevision, err := t.getSnapshotRevisions(etcdObjectMeta)
+		if err != nil {
+			return err
+		}
+
+		if deltaSnapshotRevision != expectedDeltaSnapshotRevision {
+			return fmt.Errorf("expected delta snapshot revision to be 0, but got %d", deltaSnapshotRevision)
+		}
+
+		if fullSnapshotRevision != expectedFullSnapshotRevision {
+			return fmt.Errorf("expected full snapshot revision to be %d, but got %d", expectedFullSnapshotRevision, fullSnapshotRevision)
+		}
+
+		return nil
+	}, timeout, defaultPollingInterval).Should(BeNil())
+}
+
+// EnsureNoCompaction checks if compaction has not been triggered by verifying the snapshot revisions.
+func (t *TestEnvironment) EnsureNoCompaction(g *WithT, etcdObjectMeta metav1.ObjectMeta, expectedFullSnapshotRevision, expectedDeltaSnapshotRevision int64, duration time.Duration) {
+	t.waitForMinimumDuration(duration)
+
+	fullSnapshotRevision, deltaSnapshotRevision, err := t.getSnapshotRevisions(etcdObjectMeta)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(fullSnapshotRevision).To(Equal(expectedFullSnapshotRevision))
+	g.Expect(deltaSnapshotRevision).To(Equal(expectedDeltaSnapshotRevision))
+}
+
+// waitForMinimumDuration waits for the specified minimum duration.
+func (t *TestEnvironment) waitForMinimumDuration(minDuration time.Duration) {
+	select {
+	case <-time.After(minDuration):
+		return
+	case <-t.ctx.Done():
+		return
+	}
+}
+
+// getSnapshotRevisions fetches the full and delta snapshot revisions from the snapshot leases of the Etcd resource.
+func (t *TestEnvironment) getSnapshotRevisions(etcdObjectMeta metav1.ObjectMeta) (int64, int64, error) {
+	fullSnapshotLease := &coordinationv1.Lease{}
+	deltaSnapshotLease := &coordinationv1.Lease{}
+
+	if err := t.cl.Get(t.ctx, types.NamespacedName{
+		Name:      druidv1alpha1.GetFullSnapshotLeaseName(etcdObjectMeta),
+		Namespace: etcdObjectMeta.Namespace,
+	}, fullSnapshotLease); err != nil {
+		return 0, 0, fmt.Errorf("failed to fetch full snapshot lease: %w", err)
+	}
+
+	if err := t.cl.Get(t.ctx, types.NamespacedName{
+		Name:      druidv1alpha1.GetDeltaSnapshotLeaseName(etcdObjectMeta),
+		Namespace: etcdObjectMeta.Namespace,
+	}, deltaSnapshotLease); err != nil {
+		return 0, 0, fmt.Errorf("failed to fetch delta snapshot lease: %w", err)
+	}
+
+	var err error
+	fullSnapshotRevision := int64(0)
+	if fullSnapshotLease.Spec.HolderIdentity != nil {
+		fullSnapshotRevision, err = strconv.ParseInt(*fullSnapshotLease.Spec.HolderIdentity, 10, 64)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to parse full snapshot revision: %w", err)
+		}
+	}
+
+	deltaSnapshotRevision := int64(0)
+	if deltaSnapshotLease.Spec.HolderIdentity != nil {
+		deltaSnapshotRevision, err = strconv.ParseInt(*deltaSnapshotLease.Spec.HolderIdentity, 10, 64)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to parse delta snapshot revision: %w", err)
+		}
+	}
+
+	return fullSnapshotRevision, deltaSnapshotRevision, nil
 }
