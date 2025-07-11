@@ -73,10 +73,12 @@ spec:
               annotations:
                 additionalProperties:
                   type: string
+                description: Annotations defines the annotations to be applied to
+                  the etcd pods backing the etcd cluster.
                 type: object
               backup:
-                description: BackupSpec defines parameters associated with the full
-                  and delta snapshots of etcd.
+                description: Backup defines the configuration for the backup-restore
+                  functionality for the etcd cluster.
                 properties:
                   compression:
                     description: SnapshotCompression defines the specification for
@@ -405,8 +407,8 @@ spec:
                   rule: '!(has(self.deltaSnapshotPeriod) && has(self.garbageCollectionPeriod))
                     || duration(self.deltaSnapshotPeriod).getSeconds() < duration(self.garbageCollectionPeriod).getSeconds()'
               etcd:
-                description: EtcdConfig defines the configuration for the etcd cluster
-                  to be deployed.
+                description: Etcd defines the configuration for the etcd cluster to
+                  be deployed.
                 properties:
                   authSecretRef:
                     description: |-
@@ -670,12 +672,18 @@ spec:
               labels:
                 additionalProperties:
                   type: string
+                description: Labels defines the labels to be applied to the etcd pods
+                  backing the etcd cluster.
                 type: object
               priorityClassName:
                 description: PriorityClassName is the name of a priority class that
                   shall be used for the etcd pods.
                 type: string
               replicas:
+                description: |-
+                  Replicas defines the number of etcd pods to be deployed, subsequently defining the etcd cluster size.
+                  If set to 0, the etcd cluster will be hibernated, with the etcd cluster intact but not running.
+                  It can be scaled back up to the previously set value to continue running the etcd cluster.
                 format: int32
                 type: integer
                 x-kubernetes-validations:
@@ -689,8 +697,7 @@ spec:
               schedulingConstraints:
                 description: |-
                   SchedulingConstraints defines the different scheduling constraints that must be applied to the
-                  pod spec in the etcd statefulset.
-                  Currently supported constraints are Affinity and TopologySpreadConstraints.
+                  pods backing the etcd cluster.
                 properties:
                   affinity:
                     description: |-
@@ -1841,8 +1848,8 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
               sharedConfig:
-                description: SharedConfig defines parameters shared and used by Etcd
-                  as well as backup-restore sidecar.
+                description: Common defines the shared configuration for etcd and
+                  backup-restore configurations.
                 properties:
                   autoCompactionMode:
                     description: AutoCompactionMode defines the auto-compaction-mode:'periodic'

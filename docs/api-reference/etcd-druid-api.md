@@ -883,13 +883,13 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `selector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#labelselector-v1-meta)_ | selector is a label query over pods that should match the replica count.<br />It must match the pod template's labels.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors<br />Deprecated: this field will be removed in the future. |  |  |
-| `labels` _object (keys:string, values:string)_ |  |  |  |
-| `annotations` _object (keys:string, values:string)_ |  |  |  |
-| `etcd` _[EtcdConfig](#etcdconfig)_ |  |  |  |
-| `backup` _[BackupSpec](#backupspec)_ |  |  |  |
-| `sharedConfig` _[SharedConfig](#sharedconfig)_ |  |  |  |
-| `schedulingConstraints` _[SchedulingConstraints](#schedulingconstraints)_ |  |  |  |
-| `replicas` _integer_ |  |  |  |
+| `labels` _object (keys:string, values:string)_ | Labels defines the labels to be applied to the etcd pods backing the etcd cluster. |  |  |
+| `annotations` _object (keys:string, values:string)_ | Annotations defines the annotations to be applied to the etcd pods backing the etcd cluster. |  |  |
+| `etcd` _[EtcdConfig](#etcdconfig)_ | Etcd defines the configuration for the etcd cluster to be deployed. |  |  |
+| `backup` _[BackupSpec](#backupspec)_ | Backup defines the configuration for the backup-restore functionality for the etcd cluster. |  |  |
+| `sharedConfig` _[SharedConfig](#sharedconfig)_ | Common defines the shared configuration for etcd and backup-restore configurations. |  |  |
+| `schedulingConstraints` _[SchedulingConstraints](#schedulingconstraints)_ | SchedulingConstraints defines the different scheduling constraints that must be applied to the<br />pods backing the etcd cluster. |  |  |
+| `replicas` _integer_ | Replicas defines the number of etcd pods to be deployed, subsequently defining the etcd cluster size.<br />If set to 0, the etcd cluster will be hibernated, with the etcd cluster intact but not running.<br />It can be scaled back up to the previously set value to continue running the etcd cluster. |  |  |
 | `priorityClassName` _string_ | PriorityClassName is the name of a priority class that shall be used for the etcd pods. |  |  |
 | `storageClass` _string_ | StorageClass defines the name of the StorageClass required by the claim.<br />More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1 |  |  |
 | `storageCapacity` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | StorageCapacity defines the size of persistent volume. |  |  |
