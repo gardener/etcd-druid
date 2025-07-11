@@ -111,12 +111,12 @@ test-cov-clean:
 # Set RETAIN_TEST_ARTIFACTS=true to retain the test artifacts
 .PHONY: test-e2e
 test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD)
-	@SETUP_ENVTEST="false" "$(HACK_DIR)/test-go.sh" ./test/e2e/... -parallel 10 -timeout 1h -count=1 -v -run TestBasic
+	@SETUP_ENVTEST="false" PROVIDERS=$(PROVIDERS) "$(HACK_DIR)/test-go.sh" ./test/e2e/... -parallel 10 -timeout 1h -count=1 -v #-run TestSecretFinalizers
 
 # Set RETAIN_TEST_ARTIFACTS=true to retain the test artifacts
 .PHONY: ci-e2e-kind
 ci-e2e-kind: $(GINKGO) $(YQ) $(KIND)
-	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind.sh
+	@BUCKET_NAME=$(BUCKET_NAME) PROVIDERS=$(PROVIDERS) $(HACK_DIR)/ci-e2e-kind.sh
 
 .PHONY: ci-e2e-kind-azure
 ci-e2e-kind-azure: $(GINKGO)
@@ -129,7 +129,7 @@ ci-e2e-kind-gcs: $(GINKGO)
 .PHONY: clean-e2e-test-resources
 clean-e2e-test-resources: $(KUBECTL)
 	@rm -rf $(REPO_ROOT)/test/e2e/pki-resources/*
-	@kubectl get namespaces --no-headers | grep 'etcd-druid-e2e-' | awk '{print $$1}' | xargs kubectl delete ns
+	@kubectl get namespaces --no-headers | grep 'etcd-e2e-' | awk '{print $$1}' | xargs kubectl delete ns
 
 # Rules related to binary build, Docker image build and release
 # -------------------------------------------------------------------------
