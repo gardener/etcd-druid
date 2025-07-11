@@ -56,10 +56,9 @@ func TestSecretFinalizers(t *testing.T) {
 			if etcd.Spec.Backup.Store != nil {
 				referencedSecrets = append(referencedSecrets,
 					etcd.Spec.Backup.Store.SecretRef.Name,
-					// TODO: uncomment after https://github.com/gardener/etcd-druid/pull/1125 is merged and this branch is rebased
-					//etcd.Spec.Backup.TLS.TLSCASecretRef.Name,
-					//etcd.Spec.Backup.TLS.ServerTLSSecretRef.Name,
-					//etcd.Spec.Backup.TLS.ClientTLSSecretRef.Name,
+					etcd.Spec.Backup.TLS.TLSCASecretRef.Name,
+					etcd.Spec.Backup.TLS.ServerTLSSecretRef.Name,
+					etcd.Spec.Backup.TLS.ClientTLSSecretRef.Name,
 				)
 			}
 
