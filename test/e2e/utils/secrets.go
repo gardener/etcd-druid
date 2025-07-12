@@ -16,11 +16,11 @@ import (
 
 // createSecret creates a secret in the specified namespace from the given cert and key files.
 func createSecret(ctx context.Context, cl client.Client, name, namespace, certsDir, certFileName, keyFileName, certDataKey, keyDataKey string) error {
-	cert, err := os.ReadFile(filepath.Join(certsDir, certFileName))
+	cert, err := os.ReadFile(filepath.Join(certsDir, certFileName)) // #nosec: G304 -- test files.
 	if err != nil {
 		return err
 	}
-	key, err := os.ReadFile(filepath.Join(certsDir, keyFileName))
+	key, err := os.ReadFile(filepath.Join(certsDir, keyFileName)) // #nosec: G304 -- test files.
 	if err != nil {
 		return err
 	}
