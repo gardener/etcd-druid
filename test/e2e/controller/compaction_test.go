@@ -25,8 +25,8 @@ const (
 	timeoutSnapshot   = 30 * time.Second
 )
 
-// TestCompaction tests snapshot compaction.
-func TestCompaction(t *testing.T) {
+// TestSnapshotCompaction tests snapshot compaction.
+func TestSnapshotCompaction(t *testing.T) {
 	t.Parallel()
 	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
 
