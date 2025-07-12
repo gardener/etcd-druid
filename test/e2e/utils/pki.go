@@ -40,7 +40,7 @@ func GenerateCAKeyCert(logger logr.Logger, outputDir, name string) (err error) {
 		return
 	}
 	caKeyPath := filepath.Join(outputDir, caKeyFileName)
-	caKeyFile, err := os.Create(caKeyPath)
+	caKeyFile, err := os.Create(caKeyPath) // #nosec: G304 -- test files.
 	if err != nil {
 		err = fmt.Errorf("failed to create CA key file %s: %v", caKeyPath, err)
 		return
@@ -75,7 +75,7 @@ func GenerateCAKeyCert(logger logr.Logger, outputDir, name string) (err error) {
 		return
 	}
 	caCertPath := filepath.Join(outputDir, caCertFileName)
-	caCertFile, err := os.Create(caCertPath)
+	caCertFile, err := os.Create(caCertPath) // #nosec: G304 -- test files.
 	if err != nil {
 		err = fmt.Errorf("failed to create CA certificate file %s: %v", caCertPath, err)
 		return
@@ -95,7 +95,7 @@ func GenerateCAKeyCert(logger logr.Logger, outputDir, name string) (err error) {
 
 // getCACert reads and returns the CA certificate from the specified path.
 func getCACert(path string) (*x509.Certificate, error) {
-	caCertPEM, err := os.ReadFile(path)
+	caCertPEM, err := os.ReadFile(path) // #nosec: G304 -- test files.
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CA certificate %s: %v", path, err)
 	}
@@ -112,7 +112,7 @@ func getCACert(path string) (*x509.Certificate, error) {
 
 // getCAKey reads and returns the CA private key from the specified path.
 func getCAKey(path string) (*rsa.PrivateKey, error) {
-	caKeyPEM, err := os.ReadFile(path)
+	caKeyPEM, err := os.ReadFile(path) // #nosec: G304 -- test files.
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CA key %s: %v", path, err)
 	}
@@ -190,7 +190,7 @@ func GenerateTLSKeyCert(logger logr.Logger, certType certificateType, caDir, out
 	case CertTypeClient:
 		keyPath = filepath.Join(outputDir, clientKeyFileName)
 	}
-	keyFile, err := os.Create(keyPath)
+	keyFile, err := os.Create(keyPath) // #nosec: G304 -- test files.
 	if err != nil {
 		err = fmt.Errorf("failed to create %s key file %s: %v", certType, keyPath, err)
 		return
@@ -248,7 +248,7 @@ func GenerateTLSKeyCert(logger logr.Logger, certType certificateType, caDir, out
 	case CertTypeClient:
 		certPath = filepath.Join(outputDir, clientCertFileName)
 	}
-	certFile, err := os.Create(certPath)
+	certFile, err := os.Create(certPath) // #nosec: G304 -- test files.
 	if err != nil {
 		err = fmt.Errorf("failed to create %s certificate file %s: %v", certType, certPath, err)
 	}
