@@ -351,6 +351,16 @@ func (eb *EtcdBuilder) WithProviderLocal(prefix string) *EtcdBuilder {
 	return eb
 }
 
+func (eb *EtcdBuilder) WithoutBackupSecretRef() *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	if eb.etcd.Spec.Backup.Store != nil && eb.etcd.Spec.Backup.Store.SecretRef != nil {
+		eb.etcd.Spec.Backup.Store.SecretRef = nil
+	}
+	return eb
+}
+
 func (eb *EtcdBuilder) WithoutProvider() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
