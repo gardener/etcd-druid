@@ -1,0 +1,118 @@
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        required: true
+        type: string
+        default: snapshot
+        description: |
+          the mode to use. either `snapshot` or `release`. Will affect effective version, as well
+          as target-oci-registry.
+      run-tests:
+        required: true
+        type: boolean
+
+
+jobs:
+  prepare:
+    uses: gardener/cc-utils/.github/workflows/prepare.yaml@master
+    with:
+      mode: ${{ inputs.mode }}
+      version-commit-callback-action-path:
+    permissions:
+      contents: read
+
+  oci-images:
+    name: Build OCI-Images
+    needs:
+      - prepare
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    secrets: inherit
+    uses: gardener/cc-utils/.github/workflows/oci-ocm.yaml@master
+    strategy:
+      matrix:
+        args:
+          - name: etcd-druid
+            target:
+            oci-repository: gardener/etcd-druid
+            ocm-labels:
+              name: gardener.cloud/cve-categorisation
+              value:
+                network_exposure: private
+                authentication_enforced: false
+                user_interaction: gardener-operator
+                confidentiality_requirement: high
+                integrity_requirement: high
+                availability_requirement: low
+    with:
+      name: ${{ matrix.args.name }}
+      version: ${{ needs.prepare.outputs.version }}
+      target: ${{ matrix.args.target }}
+      oci-registry: ${{ needs.prepare.outputs.oci-registry }}
+      oci-repository: ${{ matrix.args.oci-repository }}
+      oci-platforms: linux/amd64,linux/arm64
+      ocm-labels: ${{ toJSON(matrix.args.ocm-labels) }}
+      extra-tags: latest
+
+  helmcharts:
+    name: Build Helmcharts
+    needs:
+      - prepare
+      - oci-images
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    uses: gardener/cc-utils/.github/workflows/helmchart-ocm.yaml@master
+    strategy:
+      matrix:
+        args:
+          - name: etcd-druid
+            dir: charts
+            oci-repository: charts/gardener
+            ocm-mappings:
+              - ref: ocm-resource:etcd-druid.repository
+                attribute: image.repository
+              - ref: ocm-resource:etcd-druid.tag
+                attribute: image.tag
+    with:
+      name: ${{ matrix.args.name }}
+      dir: ${{ matrix.args.dir }}
+      oci-registry: ${{ needs.prepare.outputs.oci-registry }}
+      oci-repository: ${{ matrix.args.oci-repository }}
+      ocm-mappings: ${{ toJSON(matrix.args.ocm-mappings) }}
+
+  tests:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.run-tests }}
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        args:
+          - run: .ci/test_integration
+          - run: .ci/test
+    steps:
+      - uses: gardener/cc-utils/.github/actions/trusted-checkout@master
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: run-integration-tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          ${{ matrix.args.run }}
+
+  sast-lint:
+    uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@master
+    permissions:
+      contents: read
+    with:
+      linter: gosec
+      run: .ci/check
+      go-version: '1.24'
