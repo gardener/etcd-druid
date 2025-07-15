@@ -5,23 +5,8 @@
 
 set -eo pipefail
 
-# For all steps, concourse will set the following environment variables:
-# SOURCE_PATH - path to component repository root directory.
-if [[ -z "${SOURCE_PATH}" ]]; then
-  SOURCE_PATH="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")/..")"
-else
-  SOURCE_PATH="$(readlink -f "${SOURCE_PATH}")"
-fi
-export SOURCE_PATH
-
-# For the build step concourse will additionally set the following environment variable:
-# BINARY_PATH - path to an existing (empty) directory to place build results into.
-if [[ -z "${BINARY_PATH}" ]]; then
-  BINARY_PATH="${SOURCE_PATH}/bin"
-else
-  BINARY_PATH="$(readlink -f "${BINARY_PATH}")/bin"
-fi
-export BINARY_PATH
+export SOURCE_PATH="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")/..")"
+export BINARY_PATH="${SOURCE_PATH}/bin"
 
 source "${SOURCE_PATH}/.ci/common.sh"
 

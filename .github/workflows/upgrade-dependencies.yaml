@@ -1,0 +1,13 @@
+name: Create Upgrade-Pull-Requests
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  upgrade-pullrequests:
+    uses: gardener/cc-utils/.github/workflows/upgrade-dependencies.yaml@master
+    secrets: inherit
+    permissions:
+      contents: write
+      pull-requests: write
