@@ -5,6 +5,8 @@
 package v1alpha1
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -245,8 +247,6 @@ type OnDemandSnapshotConfig struct {
 	// +kubebuilder:validation:Minimum=1
 	TimeoutSeconds *int32 `json:"timeoutSeconds,omitempty"`
 }
-<<<<<<< Updated upstream
-=======
 
 // IsCompleted returns true if the task is completed.
 func (t *EtcdOpsTask) IsCompleted() bool {
@@ -261,7 +261,7 @@ func (t *EtcdOpsTask) IsMarkedForDeletion() bool {
 	return t.ObjectMeta.DeletionTimestamp != nil
 }
 
-// HasTTLExpired returns true if the task's TTL has expired.
+// HasTTLExpired returns true if the TTL after finished has expired.
 func (t *EtcdOpsTask) HasTTLExpired() bool {
 	return t.GetTimeToExpiry() <= 0
 }
@@ -272,7 +272,8 @@ func (t *EtcdOpsTask) GetTTL() time.Duration {
 }
 
 // GetTimeToExpiry returns the remaining duration until the task's TTL expires.
-// If LastTransitionTime is nil, uses StartedAt; if that is also nil, uses CreationTimestamp.
+// If the task is not completed, it returns zero.
+// If LastTransitionTime is nil, uses InitiatedAt; if that is also nil, uses CreationTimestamp.
 func (t *EtcdOpsTask) GetTimeToExpiry() time.Duration {
 	var baseTime time.Time
 	switch {
@@ -281,8 +282,8 @@ func (t *EtcdOpsTask) GetTimeToExpiry() time.Duration {
 	case t.Status.StartedAt != nil:
 		baseTime = t.Status.StartedAt.Time
 	default:
-		// Fallback to CreationTimestamp if both LastTransitionTime and StartedAt are not set.
-		// This covers cases where the task transitioned to rejected state
+		// Fallback to CreationTimestamp if both LastTransitionTime and InitiatedAt are not set.
+		// This covers cases where the task transistioned to rejected state
 		// 	- has not yet transitioned to in-progress, since admit failed.
 		// 	- unsupported task type.
 		// Ensures a valid base time for TTL expiry calculation in all lifecycle states.
@@ -295,4 +296,3 @@ func (t *EtcdOpsTask) GetTimeToExpiry() time.Duration {
 	}
 	return remaining
 }
->>>>>>> Stashed changes
