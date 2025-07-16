@@ -261,7 +261,7 @@ func (t *EtcdOpsTask) IsMarkedForDeletion() bool {
 	return t.ObjectMeta.DeletionTimestamp != nil
 }
 
-// HasTTLExpired returns true if the task's TTL has expired.
+// HasTTLExpired returns true if the TTL after finished has expired.
 func (t *EtcdOpsTask) HasTTLExpired() bool {
 	return t.GetTimeToExpiry() <= 0
 }

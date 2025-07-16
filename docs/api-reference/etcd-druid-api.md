@@ -68,6 +68,7 @@ _Appears in:_
 | `compaction` _[CompactionControllerConfiguration](#compactioncontrollerconfiguration)_ | Compaction is the configuration for the compaction controller. |  |  |
 | `etcdCopyBackupsTask` _[EtcdCopyBackupsTaskControllerConfiguration](#etcdcopybackupstaskcontrollerconfiguration)_ | EtcdCopyBackupsTask is the configuration for the EtcdCopyBackupsTask controller. |  |  |
 | `secret` _[SecretControllerConfiguration](#secretcontrollerconfiguration)_ | Secret is the configuration for the Secret controller. |  |  |
+| `etcdOpsTask` _[EtcdOpsTaskControllerConfiguration](#etcdopstaskcontrollerconfiguration)_ | EtcdOpsTask is the configuration for the EtcdOpsTask controller. |  |  |
 
 
 #### EtcdComponentProtectionWebhookConfiguration
