@@ -33,5 +33,9 @@ controllers:
     concurrentSyncs: 2
   secret:
     concurrentSyncs: 5
+  etcdOpsTask:
+    enabled: true
+    concurrentSyncs: 3
+    requeueInterval: 15s
 logConfiguration:
   logFormat: text
