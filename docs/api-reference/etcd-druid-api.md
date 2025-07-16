@@ -67,6 +67,7 @@ _Appears in:_
 | `compaction` _[CompactionControllerConfiguration](#compactioncontrollerconfiguration)_ | Compaction is the configuration for the compaction controller. |  |  |
 | `etcdCopyBackupsTask` _[EtcdCopyBackupsTaskControllerConfiguration](#etcdcopybackupstaskcontrollerconfiguration)_ | EtcdCopyBackupsTask is the configuration for the EtcdCopyBackupsTask controller. |  |  |
 | `secret` _[SecretControllerConfiguration](#secretcontrollerconfiguration)_ | Secret is the configuration for the Secret controller. |  |  |
+| `etcdOpsTask` _[EtcdOpsTaskControllerConfiguration](#etcdopstaskcontrollerconfiguration)_ | EtcdOpsTask is the configuration for the EtcdOpsTask controller. |  |  |
 
 
 #### EtcdComponentProtectionWebhookConfiguration
@@ -141,6 +142,26 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `notReadyThreshold` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | NotReadyThreshold is the duration after which an etcd member's state is considered `NotReady`. |  |  |
 | `unknownThreshold` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | UnknownThreshold is the duration after which an etcd member's state is considered `Unknown`. |  |  |
+
+
+#### EtcdOpsTaskControllerConfiguration
+
+
+
+EtcdOpsTaskControllerConfiguration defines the configuration for the EtcdOpsTask controller.
+
+
+
+_Appears in:_
+- [ControllerConfiguration](#controllerconfiguration)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `concurrentSyncs` _integer_ | ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request. |  |  |
+| `enableEtcdSpecAutoReconcile` _boolean_ | EnableEtcdSpecAutoReconcile controls how the Etcd Spec is reconciled for EtcdOpsTask. If set to true, then any change in Etcd spec<br />will automatically trigger a reconciliation of the Etcd resource. If set to false, then an operator needs to<br />explicitly set gardener.cloud/operation=reconcile annotation on the Etcd resource to trigger reconciliation<br />of the Etcd spec. |  |  |
+| `disableEtcdServiceAccountAutomount` _boolean_ | DisableEtcdServiceAccountAutomount controls the auto-mounting of service account token for EtcdOpsTask resources. |  |  |
+| `etcdStatusSyncPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdStatusSyncPeriod is the duration after which an event will be re-queued ensuring etcd status synchronization for EtcdOpsTask. |  |  |
+| `requeueInterval` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | RequeueInterval is the duration to wait before re-queuing a reconcile request for EtcdOpsTask. |  |  |
 
 
 #### LeaderElectionConfiguration

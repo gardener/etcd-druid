@@ -5,6 +5,8 @@
 package v1alpha1
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -244,4 +246,53 @@ type OnDemandSnapshotConfig struct {
 	// +kubebuilder:default=60
 	// +kubebuilder:validation:Minimum=1
 	TimeoutSeconds *int32 `json:"timeoutSeconds,omitempty"`
+}
+
+// IsCompleted returns true if the task is completed.
+func (t *EtcdOpsTask) IsCompleted() bool {
+	if t.Status.State == nil {
+		return false
+	}
+	return *t.Status.State == TaskStateSucceeded || *t.Status.State == TaskStateFailed || *t.Status.State == TaskStateRejected
+}
+
+// IsMarkedForDeletion returns true if the deletion timestamp is set.
+func (t *EtcdOpsTask) IsMarkedForDeletion() bool {
+	return t.ObjectMeta.DeletionTimestamp != nil
+}
+
+// HasTTLExpired returns true if the TTL after finished has expired.
+func (t *EtcdOpsTask) HasTTLExpired() bool {
+	return t.GetTimeToExpiry() <= 0
+}
+
+// GetTTL returns the TTL duration for the task as set in the spec.
+func (t *EtcdOpsTask) GetTTL() time.Duration {
+	return time.Duration(*t.Spec.TTLSecondsAfterFinished) * time.Second
+}
+
+// GetTimeToExpiry returns the remaining duration until the task's TTL expires.
+// If the task is not completed, it returns zero.
+// If LastTransitionTime is nil, uses InitiatedAt; if that is also nil, uses CreationTimestamp.
+func (t *EtcdOpsTask) GetTimeToExpiry() time.Duration {
+	var baseTime time.Time
+	switch {
+	case t.Status.LastTransitionTime != nil:
+		baseTime = t.Status.LastTransitionTime.Time
+	case t.Status.StartedAt != nil:
+		baseTime = t.Status.StartedAt.Time
+	default:
+		// Fallback to CreationTimestamp if both LastTransitionTime and InitiatedAt are not set.
+		// This covers cases where the task transistioned to rejected state
+		// 	- has not yet transitioned to in-progress, since admit failed.
+		// 	- unsupported task type.
+		// Ensures a valid base time for TTL expiry calculation in all lifecycle states.
+		baseTime = t.ObjectMeta.CreationTimestamp.Time
+	}
+	expiry := baseTime.Add(t.GetTTL())
+	remaining := expiry.Sub(time.Now().UTC())
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
 }
