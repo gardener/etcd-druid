@@ -74,6 +74,7 @@ func validateControllerConfiguration(controllerConfig druidconfigv1alpha1.Contro
 	allErrs = append(allErrs, validateSecretControllerConfiguration(controllerConfig.Secret, fldPath.Child("secret"))...)
 	allErrs = append(allErrs, validateCompactionControllerConfiguration(controllerConfig.Compaction, fldPath.Child("compaction"))...)
 	allErrs = append(allErrs, validateEtcdCopyBackupsTaskControllerConfiguration(controllerConfig.EtcdCopyBackupsTask, fldPath.Child("etcdCopyBackupsTask"))...)
+	allErrs = append(allErrs, validateEtcdOpsTaskControllerConfiguration(controllerConfig.EtcdOpsTask, fldPath.Child("etcdOpsTask"))...)
 	return allErrs
 }
 
@@ -109,12 +110,22 @@ func validateEtcdCopyBackupsTaskControllerConfiguration(etcdCopyBackupsTaskContr
 	return allErrs
 }
 
+func validateEtcdOpsTaskControllerConfiguration(etcdOpsTaskControllerConfig druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	allErrs = append(allErrs, validateConcurrentSyncs(etcdOpsTaskControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
+	allErrs = append(allErrs, mustBeGreaterThanZeroDuration(etcdOpsTaskControllerConfig.EtcdStatusSyncPeriod, fldPath.Child("etcdStatusSyncPeriod"))...)
+	allErrs = append(allErrs, mustBeGreaterThanZeroDuration(etcdOpsTaskControllerConfig.RequeueInterval, fldPath.Child("requeueInterval"))...)
+	return allErrs
+}
+
 func validateSecretControllerConfiguration(secretControllerConfig druidconfigv1alpha1.SecretControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	return validateConcurrentSyncs(secretControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))
 }
 
 func validateWebhookConfiguration(webhookConfig druidconfigv1alpha1.WebhookConfiguration, fldPath *field.Path) field.ErrorList {
-	return validateEtcdComponentProtectionWebhookConfiguration(webhookConfig.EtcdComponentProtection, fldPath.Child("etcdComponentProtection"))
+	allErrs := field.ErrorList{}
+	allErrs = append(allErrs, validateEtcdComponentProtectionWebhookConfiguration(webhookConfig.EtcdComponentProtection, fldPath.Child("etcdComponentProtection"))...)
+	return allErrs
 }
 
 func validateEtcdComponentProtectionWebhookConfiguration(webhookConfig druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration, fldPath *field.Path) field.ErrorList {

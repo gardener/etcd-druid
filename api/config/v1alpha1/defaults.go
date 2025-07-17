@@ -181,3 +181,16 @@ func SetDefaults_LogConfiguration(logConfig *LogConfiguration) {
 		logConfig.LogFormat = LogFormatJSON
 	}
 }
+
+// SetDefaults_EtcdOpsTaskControllerConfiguration sets defaults for the EtcdOpsTask controller configuration.
+func SetDefaults_EtcdOpsTaskControllerConfiguration(etcdOpsTaskCtrlConfig *EtcdOpsTaskControllerConfiguration) {
+	if etcdOpsTaskCtrlConfig.ConcurrentSyncs == nil {
+		etcdOpsTaskCtrlConfig.ConcurrentSyncs = ptr.To(DefaultEtcdControllerConcurrentSyncs)
+	}
+	if etcdOpsTaskCtrlConfig.EtcdStatusSyncPeriod == zeroDuration {
+		etcdOpsTaskCtrlConfig.EtcdStatusSyncPeriod = metav1.Duration{Duration: DefaultEtcdStatusSyncPeriod}
+	}
+	if etcdOpsTaskCtrlConfig.RequeueInterval == zeroDuration {
+		etcdOpsTaskCtrlConfig.RequeueInterval = metav1.Duration{Duration: DefaultEtcdStatusSyncPeriod}
+	}
+}
