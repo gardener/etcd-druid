@@ -74,6 +74,12 @@ operatorConfig:
       concurrentSyncs: 3
     secret:
       concurrentSyncs: 10
+    etcdOpsTask:
+      concurrentSyncs: 3
+      enableEtcdSpecAutoReconcile: false
+      disableEtcdServiceAccountAutomount: false
+      etcdStatusSyncPeriod: 15s
+      requeueInterval: 15s
   webhooks:
     etcdComponentProtection:
       enabled: false
@@ -120,6 +126,9 @@ controllers:
     workers: 3
   secret:
     workers: 10
+  etcdOpsTask:
+    enabled: true
+    workers: 3
 
 # deprecated, use operatorConfig.server.webhooks instead
 webhooks:
