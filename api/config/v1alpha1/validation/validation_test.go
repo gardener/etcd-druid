@@ -356,11 +356,25 @@ func TestValidateCompactionControllerConfiguration(t *testing.T) {
 			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.concurrentSyncs")}))),
 		},
 		{
-			name:            "should forbid event threshold less than zero",
+			name:            "should forbid events threshold equal to zero",
+			enabled:         true,
+			eventsThreshold: ptr.To(int64(0)),
+			expectedErrors:  1,
+			matcher:         ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.eventsThreshold")}))),
+		},
+		{
+			name:            "should forbid events threshold less than zero",
 			enabled:         true,
 			eventsThreshold: ptr.To(int64(-1)),
 			expectedErrors:  1,
 			matcher:         ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.eventsThreshold")}))),
+		},
+		{
+			name:                         "should forbid trigger full snapshot threshold equal to zero",
+			enabled:                      true,
+			triggerFullSnapshotThreshold: ptr.To(int64(0)),
+			expectedErrors:               1,
+			matcher:                      ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.triggerFullSnapshotThreshold")}))),
 		},
 		{
 			name:                         "should forbid trigger full snapshot threshold less than zero",

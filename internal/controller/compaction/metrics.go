@@ -5,11 +5,16 @@
 package compaction
 
 import (
+	"context"
+	"fmt"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
+	"github.com/go-logr/logr"
 
 	"github.com/prometheus/client_golang/prometheus"
+	batchv1 "k8s.io/api/batch/v1"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
@@ -122,4 +127,71 @@ func init() {
 	metrics.Registry.MustRegister(metricJobsCurrent)
 	metrics.Registry.MustRegister(metricNumDeltaEvents)
 	metrics.Registry.MustRegister(metricFullSnapshotsTriggered)
+}
+
+func recordSuccessfulJobMetrics(job *batchv1.Job) {
+	metricJobsTotal.With(prometheus.Labels{
+		druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededTrue,
+		druidmetrics.LabelFailureReason: druidmetrics.ValueFailureReasonNone,
+		druidmetrics.LabelEtcdNamespace: job.Namespace,
+	}).Inc()
+	if job.Status.CompletionTime != nil {
+		metricJobDurationSeconds.With(prometheus.Labels{
+			druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededTrue,
+			druidmetrics.LabelFailureReason: druidmetrics.ValueFailureReasonNone,
+			druidmetrics.LabelEtcdNamespace: job.Namespace,
+		}).Observe(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds())
+	}
+}
+
+func (r *Reconciler) recordFailedJobMetrics(ctx context.Context, logger logr.Logger, job *batchv1.Job, etcd *druidv1alpha1.Etcd, jobCompletionReason string) error {
+	var (
+		failureReason   string
+		durationSeconds float64
+	)
+
+	switch jobCompletionReason {
+	case batchv1.JobReasonDeadlineExceeded:
+		logger.Info("Job has been completed due to deadline exceeded", "namespace", job.Namespace, "name", job.Name)
+		failureReason = druidmetrics.ValueFailureReasonDeadlineExceeded
+		durationSeconds = float64(*job.Spec.ActiveDeadlineSeconds)
+	case batchv1.JobReasonBackoffLimitExceeded:
+		logger.Info("Job has been completed due to backoffLimitExceeded", "namespace", job.Namespace, "name", job.Name)
+		podFailureReasonLabelValue, lastTransitionTime, err := getPodFailureValueWithLastTransitionTime(ctx, r, logger, job)
+		if err != nil {
+			return fmt.Errorf("error while handling job's failure condition type backoffLimitExceeded: %w", err)
+		}
+		failureReason = podFailureReasonLabelValue
+		if !lastTransitionTime.IsZero() {
+			durationSeconds = lastTransitionTime.Sub(job.Status.StartTime.Time).Seconds()
+		}
+	default:
+		logger.Info("Job has been completed with unknown reason", "namespace", job.Namespace, "name", job.Name)
+		failureReason = druidmetrics.ValueFailureReasonUnknown
+		durationSeconds = time.Now().UTC().Sub(job.Status.StartTime.Time).Seconds()
+	}
+
+	metricJobsTotal.With(prometheus.Labels{
+		druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededFalse,
+		druidmetrics.LabelFailureReason: failureReason,
+		druidmetrics.LabelEtcdNamespace: etcd.Namespace,
+	}).Inc()
+
+	if durationSeconds > 0 {
+		metricJobDurationSeconds.With(prometheus.Labels{
+			druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededFalse,
+			druidmetrics.LabelFailureReason: failureReason,
+			druidmetrics.LabelEtcdNamespace: etcd.Namespace,
+		}).Observe(durationSeconds)
+	}
+
+	return nil
+}
+
+// recordFullSnapshotsTriggered increments the full snapshot triggered metric with the given labels.
+func recordFullSnapshotsTriggered(succeeded, namespace string) {
+	metricFullSnapshotsTriggered.With(prometheus.Labels{
+		druidmetrics.LabelSucceeded:     succeeded,
+		druidmetrics.LabelEtcdNamespace: namespace,
+	}).Inc()
 }
