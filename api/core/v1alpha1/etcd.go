@@ -203,10 +203,10 @@ type CompactionSpec struct {
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
-	// EventsThreshold defines the threshold for the number of etcd revisions before triggering a compaction job
+	// EventsThreshold defines the threshold for the number of etcd events before triggering a compaction job
 	// +optional
 	EventsThreshold *int64 `json:"eventsThreshold,omitempty"`
-	// TriggerFullSnapshotThreshold defines the upper threshold for the number of etcd revisions before giving up on compaction job and triggering a full snapshot.
+	// TriggerFullSnapshotThreshold defines the upper threshold for the number of etcd events before giving up on compaction job and triggering a full snapshot.
 	// +optional
 	TriggerFullSnapshotThreshold *int64 `json:"triggerFullSnapshotThreshold,omitempty"`
 }

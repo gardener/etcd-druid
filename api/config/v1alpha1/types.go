@@ -166,7 +166,7 @@ type CompactionControllerConfiguration struct {
 	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 	// EventsThreshold denotes total number of etcd events to be reached upon which a backup compaction job is triggered.
 	EventsThreshold int64 `json:"eventsThreshold"`
-	// TriggerFullSnapshotThreshold denotes the upper threshold for the number of etcd revisions before giving up on compaction job and triggering a full snapshot.
+	// TriggerFullSnapshotThreshold denotes the upper threshold for the number of etcd events before giving up on compaction job and triggering a full snapshot.
 	TriggerFullSnapshotThreshold int64 `json:"triggerFullSnapshotThreshold"`
 	// ActiveDeadlineDuration is the duration after which a running compaction job will be killed.
 	ActiveDeadlineDuration metav1.Duration `json:"activeDeadlineDuration"`

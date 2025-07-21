@@ -129,7 +129,7 @@ const (
 	DefaultCompactionConcurrentSyncs = 3
 	// DefaultCompactionEventsThreshold is the default number of events that triggers compaction.
 	DefaultCompactionEventsThreshold = 1000000
-	// DefaultCompactionTriggerFullSnapshotThreshold is the default upper threshold for the number of etcd revisions before giving up on compaction job and triggering a full snapshot.
+	// DefaultCompactionTriggerFullSnapshotThreshold is the default upper threshold for the number of etcd events before giving up on compaction job and triggering a full snapshot.
 	DefaultCompactionTriggerFullSnapshotThreshold = 3000000
 	// DefaultCompactionActiveDeadlineDuration is the default active deadline duration for compaction.
 	DefaultCompactionActiveDeadlineDuration = 3 * time.Hour

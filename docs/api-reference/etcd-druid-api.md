@@ -45,7 +45,7 @@ _Appears in:_
 | `enabled` _boolean_ | Enabled specifies whether backup compaction should be enabled. |  |  |
 | `concurrentSyncs` _integer_ | ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request. |  |  |
 | `eventsThreshold` _integer_ | EventsThreshold denotes total number of etcd events to be reached upon which a backup compaction job is triggered. |  |  |
-| `triggerFullSnapshotThreshold` _integer_ | TriggerFullSnapshotThreshold denotes the upper threshold for the number of etcd revisions before giving up on compaction job and triggering a full snapshot. |  |  |
+| `triggerFullSnapshotThreshold` _integer_ | TriggerFullSnapshotThreshold denotes the upper threshold for the number of etcd events before giving up on compaction job and triggering a full snapshot. |  |  |
 | `activeDeadlineDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | ActiveDeadlineDuration is the duration after which a running compaction job will be killed. |  |  |
 | `metricsScrapeWaitDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | MetricsScrapeWaitDuration is the duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped |  |  |
 
@@ -418,8 +418,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines compute Resources required by compaction job.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  |  |
-| `eventsThreshold` _integer_ | EventsThreshold defines the threshold for the number of etcd revisions before triggering a compaction job |  |  |
-| `triggerFullSnapshotThreshold` _integer_ | TriggerFullSnapshotThreshold defines the upper threshold for the number of etcd revisions before giving up on compaction job and triggering a full snapshot. |  |  |
+| `eventsThreshold` _integer_ | EventsThreshold defines the threshold for the number of etcd events before triggering a compaction job |  |  |
+| `triggerFullSnapshotThreshold` _integer_ | TriggerFullSnapshotThreshold defines the upper threshold for the number of etcd events before giving up on compaction job and triggering a full snapshot. |  |  |
 
 
 #### CompressionPolicy

@@ -7,8 +7,6 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	testutils "github.com/gardener/etcd-druid/test/utils"
-
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type mockHTTPClient struct {
@@ -125,7 +123,7 @@ func TestFullSnapshot(t *testing.T) {
 			},
 			expectError: true,
 			checkErr: func(err error) bool {
-				return err != nil && err.Error() == "failed to trigger full snapshot, received status code: 500"
+				return err != nil && err.Error() == "failed to take full snapshot, received status code: 500"
 			},
 		},
 		{
@@ -143,7 +141,6 @@ func TestFullSnapshot(t *testing.T) {
 			t.Parallel()
 			err := fullSnapshot(
 				t.Context(),
-				log.Log.WithName("test-full-snapshot"),
 				tc.etcd,
 				tc.httpClient,
 				tc.httpScheme,
