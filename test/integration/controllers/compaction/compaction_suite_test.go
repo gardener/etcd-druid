@@ -15,7 +15,6 @@ import (
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
 	"github.com/gardener/etcd-druid/test/integration/setup"
 
-	"github.com/go-logr/logr"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -61,7 +60,7 @@ var _ = BeforeSuite(func() {
 		}, imageVector)
 
 		// mock fullSnapshotTrigger for integration tests
-		reconciler.FullSnapshotTrigger = func(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
+		reconciler.FullSnapshotTrigger = func(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
 			fullLease := &coordinationv1.Lease{}
 			fullLeaseName := druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta)
 			if err := reconciler.Client.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: fullLeaseName}, fullLease); err != nil {
