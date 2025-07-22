@@ -59,12 +59,22 @@ const (
 	jobFailed
 )
 
+var (
+	// defaultCompactionJobCpuRequests defines the default cpu requests for the compaction job
+	defaultCompactionJobCpuRequests = resource.MustParse("600m")
+	// defaultCompactionJobMemoryRequests defines the default memory requests for the compaction job
+	defaultCompactionJobMemoryRequests = resource.MustParse("3Gi")
+	// lastJobCompletionReason is used to store the reason of the last completed job.
+	lastJobCompletionReason *string
+)
+
 // Reconciler reconciles compaction jobs for Etcd resources.
 type Reconciler struct {
 	client.Client
-	config      druidconfigv1alpha1.CompactionControllerConfiguration
-	imageVector imagevector.ImageVector
-	logger      logr.Logger
+	config              druidconfigv1alpha1.CompactionControllerConfiguration
+	imageVector         imagevector.ImageVector
+	logger              logr.Logger
+	FullSnapshotTrigger FullSnapshotTriggerFunc
 }
 
 // NewReconciler creates a new reconciler for Compaction
@@ -79,12 +89,16 @@ func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.CompactionCon
 // NewReconcilerWithImageVector creates a new reconciler for Compaction with an ImageVector.
 // This constructor will mostly be used by tests.
 func NewReconcilerWithImageVector(mgr manager.Manager, config druidconfigv1alpha1.CompactionControllerConfiguration, imageVector imagevector.ImageVector) *Reconciler {
-	return &Reconciler{
+	reconciler := &Reconciler{
 		Client:      mgr.GetClient(),
 		config:      config,
 		imageVector: imageVector,
 		logger:      log.Log.WithName("compaction-lease-controller"),
 	}
+	reconciler.FullSnapshotTrigger = func(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+		return reconciler.triggerFullSnapshot(ctx, etcd)
+	}
+	return reconciler
 }
 
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds,verbs=get;list;watch
@@ -108,7 +122,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}, err
 	}
 
-	if !etcd.DeletionTimestamp.IsZero() || etcd.Spec.Backup.Store == nil {
+	if !etcd.DeletionTimestamp.IsZero() || !etcd.IsBackupStoreEnabled() {
 		// Delete compaction job if exists
 		return r.delete(ctx, r.logger, etcd)
 	}
@@ -162,6 +176,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 			return ctrl.Result{
 				RequeueAfter: 10 * time.Second}, fmt.Errorf("error while deleting the completed compaction job: %w", err)
 		}
+		lastJobCompletionReason = &jobCompletionReason
 	}
 	// This block is added because the terminationGracePeriodSeconds is set to 60 seconds.
 	// Even after the job is deleted, the associated pod may remain for some time.
@@ -229,25 +244,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 	diff := delta - full
 	metricNumDeltaEvents.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(float64(diff))
-
-	// Reconcile job only when number of accumulated revisions over the last full snapshot is more than the configured threshold value via 'events-threshold' flag
-	if diff >= r.config.EventsThreshold {
-		logger.Info("Creating etcd compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
-		job, err = r.createCompactionJob(ctx, logger, etcd)
-		if err != nil {
-			return ctrl.Result{
-				RequeueAfter: 10 * time.Second,
-			}, fmt.Errorf("error during compaction job creation: %v", err)
-		}
-		metricJobsCurrent.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(1)
-	}
-
-	if job.Name != "" {
-		logger.Info("Current compaction job status",
-			"namespace", job.Namespace, "name", job.Name, "succeeded", job.Status.Succeeded)
-	}
-
-	return ctrl.Result{Requeue: false}, nil
+	return r.createCompactionJobOrTriggerFullSnapshot(ctx, logger, etcd, diff, job)
 }
 
 func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
@@ -274,12 +271,76 @@ func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druid
 	}, nil
 }
 
+func (r *Reconciler) createCompactionJobOrTriggerFullSnapshot(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions int64, job *batchv1.Job) (ctrl.Result, error) {
+	eventsThreshold := r.config.EventsThreshold
+	triggerFullSnapshotThreshold := r.config.TriggerFullSnapshotThreshold
+	if compactionSpec := etcd.Spec.Backup.SnapshotCompaction; compactionSpec != nil {
+		if compactionSpec.EventsThreshold != nil {
+			eventsThreshold = *compactionSpec.EventsThreshold
+		}
+		if compactionSpec.TriggerFullSnapshotThreshold != nil {
+			triggerFullSnapshotThreshold = *compactionSpec.TriggerFullSnapshotThreshold
+		}
+	}
+
+	// Trigger full snapshot if the delta revisions over the last full snapshot are more than the configured upper threshold
+	// or if the last job completion reason is DeadlineExceeded.
+	// This is to ensure that we avoid spinning up compaction jobs even when we know that the probability of it getting succeeded is very low due to the large number of revisions.
+	// This avoids unnecessary resource consumption and delays in the compaction process
+	if (lastJobCompletionReason != nil && *lastJobCompletionReason == batchv1.JobReasonDeadlineExceeded) || accumulatedEtcdRevisions >= triggerFullSnapshotThreshold {
+		return r.takeFullSnapshot(ctx, logger, etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold)
+	}
+	return r.checkAndTriggerCompactionJob(ctx, logger, etcd, accumulatedEtcdRevisions, eventsThreshold, job)
+}
+
+// checkAndTriggerCompactionJob creates compaction job only when number of accumulated revisions over the last full snapshot is more than the configured events threshold.
+func (r *Reconciler) checkAndTriggerCompactionJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions, eventsThreshold int64, job *batchv1.Job) (ctrl.Result, error) {
+	var err error
+	compactionJobName := druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta)
+	if accumulatedEtcdRevisions >= eventsThreshold {
+		logger.Info("Creating etcd compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
+		job, err = r.createCompactionJob(ctx, logger, etcd)
+		if err != nil {
+			logger.Error(err, "Error while creating compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
+			return ctrl.Result{
+				RequeueAfter: 10 * time.Second,
+			}, fmt.Errorf("error during compaction job creation: %w", err)
+		}
+		metricJobsCurrent.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(1)
+	}
+
+	if job.Name != "" {
+		logger.Info("Current compaction job status",
+			"namespace", job.Namespace, "name", job.Name, "succeeded", job.Status.Succeeded)
+	}
+
+	return ctrl.Result{}, nil
+
+}
+
 func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*batchv1.Job, error) {
 	activeDeadlineSeconds := r.config.ActiveDeadlineDuration.Seconds()
 
 	_, etcdBackupImage, _, err := utils.GetEtcdImages(etcd, r.imageVector)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch etcd backup image: %v", err)
+	}
+
+	var cpuRequests resource.Quantity
+	var memoryRequests resource.Quantity
+	etcdBackupSpec := etcd.Spec.Backup
+	if etcdBackupSpec.SnapshotCompaction != nil && etcdBackupSpec.SnapshotCompaction.Resources != nil {
+		cpuRequests = *etcdBackupSpec.SnapshotCompaction.Resources.Requests.Cpu()
+		if cpuRequests.IsZero() {
+			cpuRequests = defaultCompactionJobCpuRequests
+		}
+		memoryRequests = *etcdBackupSpec.SnapshotCompaction.Resources.Requests.Memory()
+		if memoryRequests.IsZero() {
+			memoryRequests = defaultCompactionJobMemoryRequests
+		}
+	} else {
+		cpuRequests = defaultCompactionJobCpuRequests
+		memoryRequests = defaultCompactionJobMemoryRequests
 	}
 
 	// TerminationGracePeriodSeconds is set to 60 seconds to allow sufficient time for inspecting
@@ -325,8 +386,8 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 						Args:            getCompactionJobArgs(etcd, r.config.MetricsScrapeWaitDuration.Duration.String()),
 						Resources: v1.ResourceRequirements{
 							Requests: v1.ResourceList{
-								v1.ResourceCPU:    resource.MustParse("600m"),
-								v1.ResourceMemory: resource.MustParse("3Gi"),
+								v1.ResourceCPU:    cpuRequests,
+								v1.ResourceMemory: memoryRequests,
 							},
 						},
 						SecurityContext: &v1.SecurityContext{
@@ -372,10 +433,6 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 		job.Spec.Template.Spec.Volumes = vm
 	}
 
-	if etcd.Spec.Backup.CompactionResources != nil {
-		job.Spec.Template.Spec.Containers[0].Resources = *etcd.Spec.Backup.CompactionResources
-	}
-
 	logger.Info("Creating job", "namespace", job.Namespace, "name", job.Name)
 	err = r.Create(ctx, job)
 	if err != nil {
@@ -384,65 +441,6 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 
 	// TODO (abdasgupta): Evaluate necessity of claiming object here after creation
 	return job, nil
-}
-
-func recordSuccessfulJobMetrics(job *batchv1.Job) {
-	metricJobsTotal.With(prometheus.Labels{
-		druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededTrue,
-		druidmetrics.LabelFailureReason: druidmetrics.ValueFailureReasonNone,
-		druidmetrics.LabelEtcdNamespace: job.Namespace,
-	}).Inc()
-	if job.Status.CompletionTime != nil {
-		metricJobDurationSeconds.With(prometheus.Labels{
-			druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededTrue,
-			druidmetrics.LabelFailureReason: druidmetrics.ValueFailureReasonNone,
-			druidmetrics.LabelEtcdNamespace: job.Namespace,
-		}).Observe(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds())
-	}
-}
-
-func (r *Reconciler) recordFailedJobMetrics(ctx context.Context, logger logr.Logger, job *batchv1.Job, etcd *druidv1alpha1.Etcd, jobCompletionReason string) error {
-	var (
-		failureReason   string
-		durationSeconds float64
-	)
-
-	switch jobCompletionReason {
-	case batchv1.JobReasonDeadlineExceeded:
-		logger.Info("Job has been completed due to deadline exceeded", "namespace", job.Namespace, "name", job.Name)
-		failureReason = druidmetrics.ValueFailureReasonDeadlineExceeded
-		durationSeconds = float64(*job.Spec.ActiveDeadlineSeconds)
-	case batchv1.JobReasonBackoffLimitExceeded:
-		logger.Info("Job has been completed due to backoffLimitExceeded", "namespace", job.Namespace, "name", job.Name)
-		podFailureReasonLabelValue, lastTransitionTime, err := getPodFailureValueWithLastTransitionTime(ctx, r, logger, job)
-		if err != nil {
-			return fmt.Errorf("error while handling job's failure condition type backoffLimitExceeded: %w", err)
-		}
-		failureReason = podFailureReasonLabelValue
-		if !lastTransitionTime.IsZero() {
-			durationSeconds = lastTransitionTime.Sub(job.Status.StartTime.Time).Seconds()
-		}
-	default:
-		logger.Info("Job has been completed with unknown reason", "namespace", job.Namespace, "name", job.Name)
-		failureReason = druidmetrics.ValueFailureReasonUnknown
-		durationSeconds = time.Now().UTC().Sub(job.Status.StartTime.Time).Seconds()
-	}
-
-	metricJobsTotal.With(prometheus.Labels{
-		druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededFalse,
-		druidmetrics.LabelFailureReason: failureReason,
-		druidmetrics.LabelEtcdNamespace: etcd.Namespace,
-	}).Inc()
-
-	if durationSeconds > 0 {
-		metricJobDurationSeconds.With(prometheus.Labels{
-			druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededFalse,
-			druidmetrics.LabelFailureReason: failureReason,
-			druidmetrics.LabelEtcdNamespace: etcd.Namespace,
-		}).Observe(durationSeconds)
-	}
-
-	return nil
 }
 
 func getPodFailureValueWithLastTransitionTime(ctx context.Context, r *Reconciler, logger logr.Logger, job *batchv1.Job) (string, time.Time, error) {

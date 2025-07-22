@@ -313,14 +313,15 @@ func TestValidateEtcdControllerConfiguration(t *testing.T) {
 
 func TestValidateCompactionControllerConfiguration(t *testing.T) {
 	tests := []struct {
-		name                      string
-		enabled                   bool
-		concurrentSync            *int
-		eventThreshold            *int64
-		activeDeadlineDuration    *metav1.Duration
-		metricsScrapeWaitDuration *metav1.Duration
-		expectedErrors            int
-		matcher                   gomegatypes.GomegaMatcher
+		name                         string
+		enabled                      bool
+		concurrentSync               *int
+		eventsThreshold              *int64
+		triggerFullSnapshotThreshold *int64
+		activeDeadlineDuration       *metav1.Duration
+		metricsScrapeWaitDuration    *metav1.Duration
+		expectedErrors               int
+		matcher                      gomegatypes.GomegaMatcher
 	}{
 		{
 			name:           "should allow default compaction controller configuration when it is enabled",
@@ -355,12 +356,32 @@ func TestValidateCompactionControllerConfiguration(t *testing.T) {
 			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.concurrentSyncs")}))),
 		},
 		{
-			name:           "should forbid event threshold less than zero",
-			enabled:        true,
-			eventThreshold: ptr.To(int64(-1)),
-			expectedErrors: 1,
-
-			matcher: ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.eventsThreshold")}))),
+			name:            "should forbid events threshold equal to zero",
+			enabled:         true,
+			eventsThreshold: ptr.To(int64(0)),
+			expectedErrors:  1,
+			matcher:         ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.eventsThreshold")}))),
+		},
+		{
+			name:            "should forbid events threshold less than zero",
+			enabled:         true,
+			eventsThreshold: ptr.To(int64(-1)),
+			expectedErrors:  1,
+			matcher:         ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.eventsThreshold")}))),
+		},
+		{
+			name:                         "should forbid trigger full snapshot threshold equal to zero",
+			enabled:                      true,
+			triggerFullSnapshotThreshold: ptr.To(int64(0)),
+			expectedErrors:               1,
+			matcher:                      ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.triggerFullSnapshotThreshold")}))),
+		},
+		{
+			name:                         "should forbid trigger full snapshot threshold less than zero",
+			enabled:                      true,
+			triggerFullSnapshotThreshold: ptr.To(int64(-1)),
+			expectedErrors:               1,
+			matcher:                      ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.triggerFullSnapshotThreshold")}))),
 		},
 		{
 			name:                   "should forbid active deadline duration less than zero",
@@ -390,8 +411,11 @@ func TestValidateCompactionControllerConfiguration(t *testing.T) {
 			if test.concurrentSync != nil {
 				controllerConfig.ConcurrentSyncs = test.concurrentSync
 			}
-			if test.eventThreshold != nil {
-				controllerConfig.EventsThreshold = *test.eventThreshold
+			if test.eventsThreshold != nil {
+				controllerConfig.EventsThreshold = *test.eventsThreshold
+			}
+			if test.triggerFullSnapshotThreshold != nil {
+				controllerConfig.TriggerFullSnapshotThreshold = *test.triggerFullSnapshotThreshold
 			}
 			if test.activeDeadlineDuration != nil {
 				controllerConfig.ActiveDeadlineDuration = *test.activeDeadlineDuration
