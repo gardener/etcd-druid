@@ -149,7 +149,7 @@ type BackupSpec struct {
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 	// SnapshotCompaction defines the specification for compaction of backups.
 	// +optional
-	SnapshotCompaction *CompactionSpec `json:"snapshotCompaction,omitempty"`
+	SnapshotCompaction *SnapshotCompactionSpec `json:"snapshotCompaction,omitempty"`
 	// FullSnapshotSchedule defines the cron standard schedule for full snapshots.
 	// +optional
 	// +kubebuilder:validation:Pattern="^(\\*|[1-5]?[0-9]|[1-5]?[0-9]-[1-5]?[0-9]|(?:[1-9]|[1-4][0-9]|5[0-9])\\/(?:[1-9]|[1-4][0-9]|5[0-9]|60)|\\*\\/(?:[1-9]|[1-4][0-9]|5[0-9]|60))\\s+(\\*|[0-9]|1[0-9]|2[0-3]|[0-9]-(?:[0-9]|1[0-9]|2[0-3])|1[0-9]-(?:1[0-9]|2[0-3])|2[0-3]-2[0-3]|(?:[1-9]|1[0-9]|2[0-3])\\/(?:[1-9]|1[0-9]|2[0-4])|\\*\\/(?:[1-9]|1[0-9]|2[0-4]))\\s+(\\*|[1-9]|[12][0-9]|3[01]|[1-9]-(?:[1-9]|[12][0-9]|3[01])|[12][0-9]-(?:[12][0-9]|3[01])|3[01]-3[01]|(?:[1-9]|[12][0-9]|30)\\/(?:[1-9]|[12][0-9]|3[01])|\\*\\/(?:[1-9]|[12][0-9]|3[01]))\\s+(\\*|[1-9]|1[0-2]|[1-9]-(?:[1-9]|1[0-2])|1[0-2]-1[0-2]|(?:[1-9]|1[0-2])\\/(?:[1-9]|1[0-2])|\\*\\/(?:[1-9]|1[0-2]))\\s+(\\*|[1-7]|[1-6]-[1-7]|[1-6]\\/[1-7]|\\*\\/[1-7])$"
@@ -197,8 +197,8 @@ type BackupSpec struct {
 	LeaderElection *LeaderElectionSpec `json:"leaderElection,omitempty"`
 }
 
-// CompactionSpec defines parameters related to the compaction job configuration.
-type CompactionSpec struct {
+// SnapshotCompactionSpec defines parameters related to the compaction job configuration.
+type SnapshotCompactionSpec struct {
 	// Resources defines compute Resources required by compaction job.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional
