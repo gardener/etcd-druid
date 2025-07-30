@@ -114,9 +114,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
-		return ctrl.Result{
-			RequeueAfter: 10 * time.Second,
-		}, err
+		return ctrl.Result{}, err
 	}
 
 	if !etcd.DeletionTimestamp.IsZero() || !etcd.IsBackupStoreEnabled() {
@@ -136,9 +134,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 	if err := r.Get(ctx, types.NamespacedName{Name: compactionJobName, Namespace: etcd.Namespace}, job); err != nil {
 		if !errors.IsNotFound(err) {
 			// Error reading the object - requeue the request.
-			return ctrl.Result{
-				RequeueAfter: 10 * time.Second,
-			}, fmt.Errorf("error while fetching compaction job with the name %v, in the namespace %v: %v", compactionJobName, etcd.Namespace, err)
+			return ctrl.Result{}, fmt.Errorf("error while fetching compaction job with the name %v, in the namespace %v: %w", compactionJobName, etcd.Namespace, err)
 		}
 		logger.Info("No compaction job currently running", "namespace", etcd.Namespace)
 	}
@@ -153,6 +149,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 		// Check if there is one active job or not
 		if job.Status.Active > 0 {
+			logger.Info("Compaction job is currently running", "namespace", job.Namespace, "name", job.Name)
 			metricJobsCurrent.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(1)
 			// Don't need to requeue if the job is currently running
 			return ctrl.Result{}, nil
@@ -168,11 +165,14 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 			err                error
 		)
 		jobCompletionState, jobCompletionReason := getJobCompletionStateAndReason(job)
+		logger.Info("Job has been completed with reason: "+jobCompletionReason, "namespace", job.Namespace, "name", job.Name)
 		if jobCompletionState == jobFailed {
 			jobFailureReason, jobDurationSeconds, err = r.fetchFailedJobMetrics(ctx, logger, job, jobCompletionReason)
 			if err != nil {
-				return ctrl.Result{RequeueAfter: 10 * time.Second}, fmt.Errorf("error while fetching failed job metrics: %w", err)
+				logger.Error(err, "Error while fetching failed job metrics", "namespace", etcd.Namespace, "name", etcd.Name, "jobName", job.Name)
+				return ctrl.Result{}, fmt.Errorf("error while fetching failed job metrics: %w", err)
 			}
+			logger.Info("Job has been completed with failure reason: "+jobFailureReason, "namespace", job.Namespace, "name", job.Name)
 		}
 		// Construct & Update the etcd status condition for the compaction job
 		latestSnapshotCompactionCondition := druidv1alpha1.Condition{
@@ -195,8 +195,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 		// Delete the completed compaction job
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 			logger.Error(err, "Couldn't delete the completed compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
-			return ctrl.Result{
-				RequeueAfter: 10 * time.Second}, fmt.Errorf("error while deleting the completed compaction job: %w", err)
+			return ctrl.Result{}, fmt.Errorf("error while deleting the completed compaction job: %w", err)
 		}
 		lastJobCompletionReason = &jobCompletionReason
 	}
@@ -210,9 +209,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 	pod, err := getPodForJob(ctx, r.Client, jobMeta)
 	if err != nil {
 		logger.Error(err, "Couldn't fetch pods for job", "namespace", job.Namespace, "name", job.Name)
-		return ctrl.Result{
-			RequeueAfter: 10 * time.Second,
-		}, fmt.Errorf("error while fetching pod for job: %v", err)
+		return ctrl.Result{}, fmt.Errorf("error while fetching pod for job: %v", err)
 	}
 	if pod != nil {
 		logger.Info("Pod found for job, cannot create a new job until the existing one is completely cleaned", "namespace", pod.Namespace, "name", pod.Name)
@@ -226,18 +223,14 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 	fullSnapshotLeaseName := druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta)
 	if err := r.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: fullSnapshotLeaseName}, fullLease); err != nil {
 		logger.Error(err, "Couldn't fetch full snap lease", "namespace", etcd.Namespace, "name", fullSnapshotLeaseName)
-		return ctrl.Result{
-			RequeueAfter: 10 * time.Second,
-		}, err
+		return ctrl.Result{}, err
 	}
 
 	deltaLease := &coordinationv1.Lease{}
 	deltaSnapshotLeaseName := druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta)
 	if err := r.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: deltaSnapshotLeaseName}, deltaLease); err != nil {
 		logger.Error(err, "Couldn't fetch delta snap lease", "namespace", etcd.Namespace, "name", deltaSnapshotLeaseName)
-		return ctrl.Result{
-			RequeueAfter: 10 * time.Second,
-		}, err
+		return ctrl.Result{}, err
 	}
 
 	// Revisions have not been set yet by etcd-back-restore container.
@@ -250,18 +243,14 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 	if err != nil {
 		logger.Error(err, "Can't convert holder identity of full snap lease to integer",
 			"namespace", fullLease.Namespace, "leaseName", fullLease.Name, "holderIdentity", fullLease.Spec.HolderIdentity)
-		return ctrl.Result{
-			RequeueAfter: 10 * time.Second,
-		}, err
+		return ctrl.Result{}, err
 	}
 
 	delta, err := strconv.ParseInt(*deltaLease.Spec.HolderIdentity, 10, 64)
 	if err != nil {
 		logger.Error(err, "Can't convert holder identity of delta snap lease to integer",
 			"namespace", deltaLease.Namespace, "leaseName", deltaLease.Name, "holderIdentity", deltaLease.Spec.HolderIdentity)
-		return ctrl.Result{
-			RequeueAfter: 10 * time.Second,
-		}, err
+		return ctrl.Result{}, err
 	}
 
 	diff := delta - full
@@ -273,24 +262,20 @@ func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druid
 	job := &batchv1.Job{}
 	if err := r.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta), Namespace: etcd.Namespace}, job); err != nil {
 		if !errors.IsNotFound(err) {
-			return ctrl.Result{RequeueAfter: 10 * time.Second}, fmt.Errorf("error while fetching compaction job: %v", err)
+			return ctrl.Result{}, fmt.Errorf("error while fetching compaction job: %v", err)
 		}
-		return ctrl.Result{Requeue: false}, nil
+		return ctrl.Result{}, nil
 	}
 
 	if job.DeletionTimestamp == nil {
 		logger.Info("Deleting job", "namespace", job.Namespace, "name", job.Name)
 		if err := client.IgnoreNotFound(r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground))); err != nil {
-			return ctrl.Result{
-				RequeueAfter: 10 * time.Second,
-			}, fmt.Errorf("error while deleting compaction job: %v", err)
+			return ctrl.Result{}, fmt.Errorf("error while deleting compaction job: %v", err)
 		}
 	}
 
 	logger.Info("No compaction job is running")
-	return ctrl.Result{
-		Requeue: false,
-	}, nil
+	return ctrl.Result{}, nil
 }
 
 func (r *Reconciler) createCompactionJobOrTriggerFullSnapshot(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions int64, job *batchv1.Job) (ctrl.Result, error) {
@@ -324,9 +309,7 @@ func (r *Reconciler) checkAndTriggerCompactionJob(ctx context.Context, logger lo
 		job, err = r.createCompactionJob(ctx, logger, etcd)
 		if err != nil {
 			logger.Error(err, "Error while creating compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
-			return ctrl.Result{
-				RequeueAfter: 10 * time.Second,
-			}, fmt.Errorf("error during compaction job creation: %w", err)
+			return ctrl.Result{}, fmt.Errorf("error during compaction job creation: %w", err)
 		}
 		metricJobsCurrent.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(1)
 	}
@@ -465,7 +448,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 	return job, nil
 }
 
-func getPodFailureValueWithLastTransitionTime(ctx context.Context, r *Reconciler, logger logr.Logger, job *batchv1.Job) (string, time.Time, error) {
+func (r *Reconciler) getPodFailureValueWithLastTransitionTime(ctx context.Context, logger logr.Logger, job *batchv1.Job) (string, time.Time, error) {
 	pod, err := getPodForJob(ctx, r.Client, &job.ObjectMeta)
 	if err != nil {
 		logger.Error(err, "Couldn't fetch pods for job", "namespace", job.Namespace, "name", job.Name)

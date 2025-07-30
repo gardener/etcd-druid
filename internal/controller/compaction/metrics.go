@@ -167,12 +167,10 @@ func (r *Reconciler) fetchFailedJobMetrics(ctx context.Context, logger logr.Logg
 
 	switch jobCompletionReason {
 	case batchv1.JobReasonDeadlineExceeded:
-		logger.Info("Job has been completed due to deadline exceeded", "namespace", job.Namespace, "name", job.Name)
 		failureReason = druidmetrics.ValueFailureReasonDeadlineExceeded
 		durationSeconds = float64(*job.Spec.ActiveDeadlineSeconds)
 	case batchv1.JobReasonBackoffLimitExceeded:
-		logger.Info("Job has been completed due to backoffLimitExceeded", "namespace", job.Namespace, "name", job.Name)
-		podFailureReasonLabelValue, lastTransitionTime, err := getPodFailureValueWithLastTransitionTime(ctx, r, logger, job)
+		podFailureReasonLabelValue, lastTransitionTime, err := r.getPodFailureValueWithLastTransitionTime(ctx, logger, job)
 		if err != nil {
 			return "", 0, fmt.Errorf("error while handling job's failure condition type backoffLimitExceeded: %w", err)
 		}
@@ -181,7 +179,6 @@ func (r *Reconciler) fetchFailedJobMetrics(ctx context.Context, logger logr.Logg
 			durationSeconds = lastTransitionTime.Sub(job.Status.StartTime.Time).Seconds()
 		}
 	default:
-		logger.Info("Job has been completed with unknown reason", "namespace", job.Namespace, "name", job.Name)
 		failureReason = druidmetrics.ValueFailureReasonUnknown
 		durationSeconds = time.Now().UTC().Sub(job.Status.StartTime.Time).Seconds()
 	}

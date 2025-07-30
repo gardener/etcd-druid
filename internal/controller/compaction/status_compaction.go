@@ -46,7 +46,8 @@ func (r *Reconciler) triggerFullSnapshotAndUpdateStatus(ctx context.Context, log
 		} else {
 			requeueErrReason = fmt.Errorf("error while updating compaction-fullSnapshot etcd status condition: %w", etcdStatusUPDErr)
 		}
-		return ctrl.Result{RequeueAfter: 10 * time.Second}, requeueErrReason
+		logger.Error(requeueErrReason, "Error in triggerFullSnapshotAndUpdateStatus")
+		return ctrl.Result{}, requeueErrReason
 	}
 	return ctrl.Result{}, nil
 }
