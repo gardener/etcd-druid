@@ -9,10 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
-	"github.com/go-logr/logr"
 
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	batchv1 "k8s.io/api/batch/v1"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
@@ -144,7 +143,23 @@ func recordSuccessfulJobMetrics(job *batchv1.Job) {
 	}
 }
 
-func (r *Reconciler) recordFailedJobMetrics(ctx context.Context, logger logr.Logger, job *batchv1.Job, etcd *druidv1alpha1.Etcd, jobCompletionReason string) error {
+func recordFailureJobMetrics(failureReason string, durationSeconds float64, job *batchv1.Job) {
+	metricJobsTotal.With(prometheus.Labels{
+		druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededFalse,
+		druidmetrics.LabelFailureReason: failureReason,
+		druidmetrics.LabelEtcdNamespace: job.Namespace,
+	}).Inc()
+
+	if durationSeconds > 0 {
+		metricJobDurationSeconds.With(prometheus.Labels{
+			druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededFalse,
+			druidmetrics.LabelFailureReason: failureReason,
+			druidmetrics.LabelEtcdNamespace: job.Namespace,
+		}).Observe(durationSeconds)
+	}
+}
+
+func (r *Reconciler) fetchFailedJobMetrics(ctx context.Context, logger logr.Logger, job *batchv1.Job, jobCompletionReason string) (string, float64, error) {
 	var (
 		failureReason   string
 		durationSeconds float64
@@ -159,7 +174,7 @@ func (r *Reconciler) recordFailedJobMetrics(ctx context.Context, logger logr.Log
 		logger.Info("Job has been completed due to backoffLimitExceeded", "namespace", job.Namespace, "name", job.Name)
 		podFailureReasonLabelValue, lastTransitionTime, err := getPodFailureValueWithLastTransitionTime(ctx, r, logger, job)
 		if err != nil {
-			return fmt.Errorf("error while handling job's failure condition type backoffLimitExceeded: %w", err)
+			return "", 0, fmt.Errorf("error while handling job's failure condition type backoffLimitExceeded: %w", err)
 		}
 		failureReason = podFailureReasonLabelValue
 		if !lastTransitionTime.IsZero() {
@@ -170,22 +185,7 @@ func (r *Reconciler) recordFailedJobMetrics(ctx context.Context, logger logr.Log
 		failureReason = druidmetrics.ValueFailureReasonUnknown
 		durationSeconds = time.Now().UTC().Sub(job.Status.StartTime.Time).Seconds()
 	}
-
-	metricJobsTotal.With(prometheus.Labels{
-		druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededFalse,
-		druidmetrics.LabelFailureReason: failureReason,
-		druidmetrics.LabelEtcdNamespace: etcd.Namespace,
-	}).Inc()
-
-	if durationSeconds > 0 {
-		metricJobDurationSeconds.With(prometheus.Labels{
-			druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededFalse,
-			druidmetrics.LabelFailureReason: failureReason,
-			druidmetrics.LabelEtcdNamespace: etcd.Namespace,
-		}).Observe(durationSeconds)
-	}
-
-	return nil
+	return failureReason, durationSeconds, nil
 }
 
 // recordFullSnapshotsTriggered increments the full snapshot triggered metric with the given labels.

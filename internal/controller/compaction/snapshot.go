@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net/http"
+	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
@@ -15,18 +16,18 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// FullSnapshotTriggerFunc defines a function type for triggering a full snapshot.
-type FullSnapshotTriggerFunc func(ctx context.Context, etcd *druidv1alpha1.Etcd) error
+const (
+	etcdbrFullSnapshotReqTimeout = 30 * time.Second
+)
 
 type httpClientInterface interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-func (r *Reconciler) takeFullSnapshot(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold int64) (ctrl.Result, error) {
+func (r *Reconciler) triggerFullSnapshot(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold int64) error {
 	var reason string
 	if lastJobCompletionReason != nil && *lastJobCompletionReason == batchv1.JobReasonDeadlineExceeded {
 		reason = "previous compaction job deadline exceeded"
@@ -38,32 +39,43 @@ func (r *Reconciler) takeFullSnapshot(ctx context.Context, logger logr.Logger, e
 		"accumulatedRevisions", accumulatedEtcdRevisions,
 		"triggerFullSnapshotThreshold", triggerFullSnapshotThreshold,
 		"reason", reason)
-	// Trigger full snapshot
-	if err := r.FullSnapshotTrigger(ctx, etcd); err != nil {
+	// Take full snapshot
+	if err := r.takeFullSnapshot(ctx, etcd); err != nil {
 		logger.Error(err, "Error while triggering full snapshot",
 			"namespace", etcd.Namespace,
 			"accumulatedRevisions", accumulatedEtcdRevisions,
 			"triggerFullSnapshotThreshold", triggerFullSnapshotThreshold)
 		recordFullSnapshotsTriggered(druidmetrics.ValueSucceededFalse, etcd.Namespace)
-		return ctrl.Result{}, fmt.Errorf("error while triggering full snapshot: %v", err)
+		return fmt.Errorf("error while triggering full snapshot: %v", err)
 	}
 	recordFullSnapshotsTriggered(druidmetrics.ValueSucceededTrue, etcd.Namespace)
 	logger.Info("Full snapshot taken successfully", "name", etcd.Name, "namespace", etcd.Namespace)
 	// Reset the last job completion reason after triggering full snapshot
 	lastJobCompletionReason = nil
-	return ctrl.Result{}, nil
+	return nil
 }
 
-// triggerFullSnapshot triggers a full snapshot for the given Etcd resource's associated etcd cluster.
-func (r *Reconciler) triggerFullSnapshot(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
-	httpClient, httpScheme, err := newHTTPClient(ctx, r.Client, etcd)
-	if err != nil {
-		return err
+// takeFullSnapshot takes a full snapshot for the given Etcd resource's associated etcd cluster.
+func (r *Reconciler) takeFullSnapshot(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+	var (
+		httpClient httpClientInterface
+		httpScheme string
+	)
+
+	if r.EtcdbrHTTPClient != nil {
+		httpClient = r.EtcdbrHTTPClient
+		httpScheme = "http"
+	} else {
+		var err error
+		httpClient, httpScheme, err = newHTTPClient(ctx, r.Client, etcd)
+		if err != nil {
+			return err
+		}
 	}
 	return fullSnapshot(ctx, etcd, httpClient, httpScheme)
 }
 
-// newHTTPClient creates an HTTP client with optional TLS configuration based on the Etcd resource.
+// newHTTPClient creates an HTTP client for etcd-backup-restore server with optional TLS configuration based on the Etcd resource.
 func newHTTPClient(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd) (*http.Client, string, error) {
 	httpScheme := "http"
 	httpTransport := &http.Transport{}
@@ -90,12 +102,13 @@ func newHTTPClient(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Et
 	}
 
 	httpClient := &http.Client{
+		Timeout:   etcdbrFullSnapshotReqTimeout,
 		Transport: httpTransport,
 	}
 	return httpClient, httpScheme, nil
 }
 
-// fullSnapshot triggers a full snapshot by making an HTTP GET request to the etcd client service.
+// fullSnapshot makes an HTTP GET request to the etcd client service for a full snapshot.
 func fullSnapshot(ctx context.Context, etcd *druidv1alpha1.Etcd, httpClient httpClientInterface, httpScheme string) error {
 	fullSnapshotURL := fmt.Sprintf(
 		"%s://%s.%s.svc.cluster.local:%d/snapshot/full",

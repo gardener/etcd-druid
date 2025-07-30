@@ -365,6 +365,8 @@ type CrossVersionObjectReference struct {
 const (
 	// ConditionTypeReady is a constant for a condition type indicating that the etcd cluster is ready.
 	ConditionTypeReady ConditionType = "Ready"
+	// ConditionTypeSnapshotCompactionSucceeded is a constant for a condition type indicating that a snapshot compaction is successful
+	ConditionTypeSnapshotCompactionSucceeded ConditionType = "SnapshotCompactionSucceeded"
 	// ConditionTypeAllMembersReady is a constant for a condition type indicating that all members of the etcd cluster are ready.
 	ConditionTypeAllMembersReady ConditionType = "AllMembersReady"
 	// ConditionTypeAllMembersUpdated is a constant for a condition type indicating that all members
