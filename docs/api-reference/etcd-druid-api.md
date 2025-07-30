@@ -496,6 +496,7 @@ _Appears in:_
 | Field | Description |
 | --- | --- |
 | `Ready` | ConditionTypeReady is a constant for a condition type indicating that the etcd cluster is ready.<br /> |
+| `SnapshotCompactionSucceeded` | ConditionTypeSnapshotCompactionSucceeded is a constant for a condition type indicating that a snapshot compaction is successful<br /> |
 | `AllMembersReady` | ConditionTypeAllMembersReady is a constant for a condition type indicating that all members of the etcd cluster are ready.<br /> |
 | `AllMembersUpdated` | ConditionTypeAllMembersUpdated is a constant for a condition type indicating that all members<br />of the etcd cluster have been updated with the desired spec changes.<br /> |
 | `BackupReady` | ConditionTypeBackupReady is a constant for a condition type indicating that the etcd backup is ready.<br /> |

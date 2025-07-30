@@ -71,10 +71,10 @@ var (
 // Reconciler reconciles compaction jobs for Etcd resources.
 type Reconciler struct {
 	client.Client
-	config              druidconfigv1alpha1.CompactionControllerConfiguration
-	imageVector         imagevector.ImageVector
-	logger              logr.Logger
-	FullSnapshotTrigger FullSnapshotTriggerFunc
+	config           druidconfigv1alpha1.CompactionControllerConfiguration
+	imageVector      imagevector.ImageVector
+	logger           logr.Logger
+	EtcdbrHTTPClient httpClientInterface
 }
 
 // NewReconciler creates a new reconciler for Compaction
@@ -94,9 +94,6 @@ func NewReconcilerWithImageVector(mgr manager.Manager, config druidconfigv1alpha
 		config:      config,
 		imageVector: imageVector,
 		logger:      log.Log.WithName("compaction-lease-controller"),
-	}
-	reconciler.FullSnapshotTrigger = func(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
-		return reconciler.triggerFullSnapshot(ctx, etcd)
 	}
 	return reconciler
 }
@@ -160,15 +157,40 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 			// Don't need to requeue if the job is currently running
 			return ctrl.Result{}, nil
 		}
+
 		// Set the current job count to 0 if the job is not active
 		metricJobsCurrent.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(0)
+
+		// Check the job completion state and reason to capture the metrics and update the etcd status condition
+		var (
+			jobFailureReason   string
+			jobDurationSeconds float64
+			err                error
+		)
 		jobCompletionState, jobCompletionReason := getJobCompletionStateAndReason(job)
+		if jobCompletionState == jobFailed {
+			jobFailureReason, jobDurationSeconds, err = r.fetchFailedJobMetrics(ctx, logger, job, jobCompletionReason)
+			if err != nil {
+				return ctrl.Result{RequeueAfter: 10 * time.Second}, fmt.Errorf("error while fetching failed job metrics: %w", err)
+			}
+		}
+		// Construct & Update the etcd status condition for the compaction job
+		latestSnapshotCompactionCondition := druidv1alpha1.Condition{
+			Type:    druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded,
+			Status:  computeSnapshotCompactionJobStatus(jobCompletionState),
+			Reason:  computeJobFailureReason(jobCompletionState, jobFailureReason),
+			Message: fmt.Sprintf("Compaction job %s/%s completed with state %s", job.Namespace, job.Name, jobCompletionReason),
+		}
+		if err := r.updateCompactionJobEtcdStatusCondition(ctx, etcd, latestSnapshotCompactionCondition); err != nil {
+			logger.Error(err, "Error while updating etcd status condition for compaction job",
+				"namespace", etcd.Namespace, "name", etcd.Name, "jobName", job.Name)
+			return ctrl.Result{}, fmt.Errorf("error while updating etcd status condition for compaction job: %w", err)
+		}
+
 		if jobCompletionState == jobSucceeded {
 			recordSuccessfulJobMetrics(job)
 		} else {
-			if err := r.recordFailedJobMetrics(ctx, logger, job, etcd, jobCompletionReason); err != nil {
-				return ctrl.Result{RequeueAfter: 10 * time.Second}, fmt.Errorf("error while handling failed job: %w", err)
-			}
+			recordFailureJobMetrics(jobFailureReason, jobDurationSeconds, job)
 		}
 		// Delete the completed compaction job
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
@@ -288,7 +310,7 @@ func (r *Reconciler) createCompactionJobOrTriggerFullSnapshot(ctx context.Contex
 	// This is to ensure that we avoid spinning up compaction jobs even when we know that the probability of it getting succeeded is very low due to the large number of revisions.
 	// This avoids unnecessary resource consumption and delays in the compaction process
 	if (lastJobCompletionReason != nil && *lastJobCompletionReason == batchv1.JobReasonDeadlineExceeded) || accumulatedEtcdRevisions >= triggerFullSnapshotThreshold {
-		return r.takeFullSnapshot(ctx, logger, etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold)
+		return r.triggerFullSnapshotAndUpdateStatus(ctx, logger, etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold)
 	}
 	return r.checkAndTriggerCompactionJob(ctx, logger, etcd, accumulatedEtcdRevisions, eventsThreshold, job)
 }

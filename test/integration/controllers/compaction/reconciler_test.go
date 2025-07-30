@@ -310,7 +310,7 @@ var _ = Describe("Compaction Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testutils.EtcdBuilderWithDefaults("foo81", "default").WithProviderLocal().Build()
+			instance = testutils.EtcdBuilderWithDefaults("etcd-compaction-fullsnapshot-test", "default").WithProviderLocal().Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
@@ -333,29 +333,34 @@ var _ = Describe("Compaction Controller", func() {
 			}
 
 			// The compaction job should NOT exist, so we expect a NotFound error.
-			// We want to assert this periodically for every few minutes to account for the asynchronous nature of the controller, and only proceed if it passes every time.
+			// We want to assert this periodically to account for the asynchronous nature of the controller, and only proceed if it passes every time.
 			Consistently(func() error {
 				return k8sClient.Get(ctx, req, j)
 			}, timeout, moreFrequentPollingInterval).Should(testutils.BeNotFoundError())
 
-			// Verify that a full snapshot has been triggered by checking both leases are updated and have matching holder identities.
+			// Verify that a full snapshot has been triggered by fetching the etcd status ConditionTypeSnapshotCompactionSucceeded condition
 			Eventually(func() error {
 				ctx, cancel = context.WithTimeout(context.TODO(), timeout)
 				defer cancel()
-				if err := k8sClient.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetFullSnapshotLeaseName(instance.ObjectMeta), Namespace: instance.Namespace}, fullSnapLease); err != nil {
+				latestEtcd := &druidv1alpha1.Etcd{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name}, latestEtcd); err != nil {
 					return err
 				}
-				if err := k8sClient.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetDeltaSnapshotLeaseName(instance.ObjectMeta), Namespace: instance.Namespace}, deltaSnapLease); err != nil {
-					return err
+				latestSnapshotCompactionCondition := druidv1alpha1.Condition{}
+				for _, condition := range latestEtcd.Status.Conditions {
+					if condition.Type == druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded {
+						latestSnapshotCompactionCondition = condition
+						break
+					}
 				}
-				if fullSnapLease.Spec.HolderIdentity == nil || deltaSnapLease.Spec.HolderIdentity == nil {
-					return fmt.Errorf("holder identity is nil for full or delta snapshot lease")
+				if latestSnapshotCompactionCondition.Type != druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded {
+					return fmt.Errorf("SnapshotCompactionSucceeded condition not found in etcd status")
 				}
-				if *fullSnapLease.Spec.HolderIdentity != *deltaSnapLease.Spec.HolderIdentity {
-					return fmt.Errorf("full snapshot lease holder identity %s does not match delta snapshot lease holder identity %s", *fullSnapLease.Spec.HolderIdentity, *deltaSnapLease.Spec.HolderIdentity)
+				if latestSnapshotCompactionCondition.Status != druidv1alpha1.ConditionTrue {
+					return fmt.Errorf("SnapshotCompactionSucceeded condition status is not True, got %s", latestSnapshotCompactionCondition.Status)
 				}
-				if *fullSnapLease.Spec.HolderIdentity != "301" {
-					return fmt.Errorf("expected holder identity to be 301, got %s", *fullSnapLease.Spec.HolderIdentity)
+				if latestSnapshotCompactionCondition.Reason != druidv1alpha1.ConditionReasonFullSnapshotTakenSuccessfully {
+					return fmt.Errorf("SnapshotCompactionSucceeded condition reason is not FullSnapshotTakenSuccessfully, got %s", latestSnapshotCompactionCondition.Reason)
 				}
 				return nil
 			}, timeout, pollingInterval).Should(BeNil())
