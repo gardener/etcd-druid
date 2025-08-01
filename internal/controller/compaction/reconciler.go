@@ -199,8 +199,8 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 		}
 		lastJobCompletionReason = &jobCompletionReason
 	}
-	// This block is added because the terminationGracePeriodSeconds is set to 60 seconds.
-	// Even after the job is deleted, the associated pod may remain for some time.
+	// This block is added because we want to ensure that the compaction job is created only when there is no active pod/job running.
+	// Even after the job is marked for deletion, the associated pod may remain for some time.
 	// During this period, we should not attempt to create a new compaction job to avoid conflicts.
 	jobMeta := &metav1.ObjectMeta{
 		Name:      compactionJobName,
@@ -349,10 +349,9 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 	}
 
 	// TerminationGracePeriodSeconds is set to 60 seconds to allow sufficient time for inspecting
-	// the pod's status in case of failure. This includes checking statuses such as DisruptionTarget
-	// to determine if the pod was subjected to disruptions, or ContainerStatuses to identify if the
-	// failure was due to a process issue. The 60-second grace period ensures the pod remains accessible
-	// long enough for Druid to fetch this information before it is garbage collected.
+	// the pod's status in case of disruptions. This includes checking statuses such as DisruptionTarget
+	// to determine if the pod was subjected to disruptions, such as preemptions & evictions.
+	// The 60-second grace period ensures the pod remains accessible long enough for Druid to fetch this information before the resource is deleted.
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta),
