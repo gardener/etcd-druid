@@ -16,8 +16,8 @@ require (
 	go.uber.org/mock v0.5.2
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d
-	k8s.io/api v0.33.2
-	k8s.io/apimachinery v0.33.2
+	k8s.io/api v0.33.3
+	k8s.io/apimachinery v0.33.3
 	k8s.io/client-go v0.33.2
 	k8s.io/utils v0.0.0-20250321185631-1f6e0b77f77e
 	sigs.k8s.io/controller-runtime v0.21.0
