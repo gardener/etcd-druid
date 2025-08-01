@@ -154,6 +154,12 @@ func (b *TestClientBuilder) WithClient(cl client.Client) *TestClientBuilder {
 	return b
 }
 
+// WithStatusSubresource initializes the delegating fake client builder with a status subresource for the given object.
+func (b *TestClientBuilder) WithStatusSubresource(obj client.Object) *TestClientBuilder {
+	b.delegatingClientBuilder.WithStatusSubresource(obj)
+	return b
+}
+
 // RecordErrorForObjects records an error for a specific client.Client method and object keys.
 func (b *TestClientBuilder) RecordErrorForObjects(method ClientMethod, err *apierrors.StatusError, objectKeys ...client.ObjectKey) *TestClientBuilder {
 	// this method records error, so if nil error is passed then there is no need to create any error record.
