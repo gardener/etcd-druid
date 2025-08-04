@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package compaction
 
 import (
@@ -16,35 +20,35 @@ import (
 )
 
 func (r *Reconciler) triggerFullSnapshotAndUpdateStatus(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold int64) (ctrl.Result, error) {
-	latestSnapshotCompactionCondition := druidv1alpha1.Condition{
+	latestCondition := druidv1alpha1.Condition{
 		Type: druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded,
 	}
 	fullSnapErr := r.triggerFullSnapshot(ctx, logger, etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold)
 	if fullSnapErr != nil {
-		latestSnapshotCompactionCondition.Status = druidv1alpha1.ConditionFalse
-		latestSnapshotCompactionCondition.Reason = druidv1alpha1.ConditionReasonFullSnapshotError
-		latestSnapshotCompactionCondition.Message = fmt.Sprintf("Error while triggering full snapshot for etcd %s/%s: %v", etcd.Namespace, etcd.Name, fullSnapErr)
+		latestCondition.Status = druidv1alpha1.ConditionFalse
+		latestCondition.Reason = druidv1alpha1.ConditionReasonFullSnapshotError
+		latestCondition.Message = fmt.Sprintf("Error while triggering full snapshot for etcd %s/%s: %v", etcd.Namespace, etcd.Name, fullSnapErr)
 	} else {
-		latestSnapshotCompactionCondition.Status = druidv1alpha1.ConditionTrue
-		latestSnapshotCompactionCondition.Reason = druidv1alpha1.ConditionReasonFullSnapshotTakenSuccessfully
-		latestSnapshotCompactionCondition.Message = fmt.Sprintf("Full snapshot taken successfully for etcd %s/%s", etcd.Namespace, etcd.Name)
+		latestCondition.Status = druidv1alpha1.ConditionTrue
+		latestCondition.Reason = druidv1alpha1.ConditionReasonFullSnapshotTakenSuccessfully
+		latestCondition.Message = fmt.Sprintf("Full snapshot taken successfully for etcd %s/%s", etcd.Namespace, etcd.Name)
 	}
-	etcdStatusUPDErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	etcdStatusUpdateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		latestEtcd := &druidv1alpha1.Etcd{}
 		if err := r.Get(ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: etcd.Name}, latestEtcd); err != nil {
 			return err
 		}
-		return r.updateCompactionJobEtcdStatusCondition(ctx, latestEtcd, latestSnapshotCompactionCondition)
+		return r.updateCompactionJobEtcdStatusCondition(ctx, latestEtcd, latestCondition)
 	})
 
-	if fullSnapErr != nil || etcdStatusUPDErr != nil {
+	if fullSnapErr != nil || etcdStatusUpdateErr != nil {
 		var requeueErrReason error
-		if fullSnapErr != nil && etcdStatusUPDErr != nil {
+		if fullSnapErr != nil && etcdStatusUpdateErr != nil {
 			requeueErrReason = fmt.Errorf("error while triggering full snapshot and updating compaction-fullSnapshot etcd status condition: %w", fullSnapErr)
 		} else if fullSnapErr != nil {
 			requeueErrReason = fmt.Errorf("error while triggering compaction-fullSnapshot: %w", fullSnapErr)
 		} else {
-			requeueErrReason = fmt.Errorf("error while updating compaction-fullSnapshot etcd status condition: %w", etcdStatusUPDErr)
+			requeueErrReason = fmt.Errorf("error while updating compaction-fullSnapshot etcd status condition: %w", etcdStatusUpdateErr)
 		}
 		logger.Error(requeueErrReason, "Error in triggerFullSnapshotAndUpdateStatus")
 		return ctrl.Result{}, requeueErrReason
@@ -52,27 +56,27 @@ func (r *Reconciler) triggerFullSnapshotAndUpdateStatus(ctx context.Context, log
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) updateCompactionJobEtcdStatusCondition(ctx context.Context, latestEtcd *druidv1alpha1.Etcd, latestSnapshotCompactionCondition druidv1alpha1.Condition) error {
+func (r *Reconciler) updateCompactionJobEtcdStatusCondition(ctx context.Context, latestEtcd *druidv1alpha1.Etcd, latestCondition druidv1alpha1.Condition) error {
 	oldEtcdStatus := latestEtcd.Status.DeepCopy()
 	var isSnapshotCompactionConditionPresent bool
 	for i, condition := range oldEtcdStatus.Conditions {
 		if condition.Type == druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded {
-			latestSnapshotCompactionCondition.LastTransitionTime = condition.LastTransitionTime
-			latestSnapshotCompactionCondition.LastUpdateTime = metav1.NewTime(time.Now().UTC())
+			latestCondition.LastTransitionTime = condition.LastTransitionTime
+			latestCondition.LastUpdateTime = metav1.NewTime(time.Now().UTC())
 			// Update the LastTransitionTime if the status or reason has changed
-			if condition.Status != latestSnapshotCompactionCondition.Status || condition.Reason != latestSnapshotCompactionCondition.Reason {
-				latestSnapshotCompactionCondition.LastTransitionTime = metav1.NewTime(time.Now().UTC())
+			if condition.Status != latestCondition.Status || condition.Reason != latestCondition.Reason {
+				latestCondition.LastTransitionTime = metav1.NewTime(time.Now().UTC())
 			}
 			// Update the condition in the old status
-			oldEtcdStatus.Conditions[i] = latestSnapshotCompactionCondition
+			oldEtcdStatus.Conditions[i] = latestCondition
 			isSnapshotCompactionConditionPresent = true
 			break
 		}
 	}
 	if !isSnapshotCompactionConditionPresent {
-		latestSnapshotCompactionCondition.LastTransitionTime = metav1.NewTime(time.Now().UTC())
-		latestSnapshotCompactionCondition.LastUpdateTime = metav1.NewTime(time.Now().UTC())
-		oldEtcdStatus.Conditions = append(oldEtcdStatus.Conditions, latestSnapshotCompactionCondition)
+		latestCondition.LastTransitionTime = metav1.NewTime(time.Now().UTC())
+		latestCondition.LastUpdateTime = metav1.NewTime(time.Now().UTC())
+		oldEtcdStatus.Conditions = append(oldEtcdStatus.Conditions, latestCondition)
 	}
 	latestEtcd.Status = *oldEtcdStatus
 	return r.Status().Update(ctx, latestEtcd)

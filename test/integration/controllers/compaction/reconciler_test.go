@@ -346,21 +346,21 @@ var _ = Describe("Compaction Controller", func() {
 				if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name}, latestEtcd); err != nil {
 					return err
 				}
-				latestSnapshotCompactionCondition := druidv1alpha1.Condition{}
+				latestCondition := druidv1alpha1.Condition{}
 				for _, condition := range latestEtcd.Status.Conditions {
 					if condition.Type == druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded {
-						latestSnapshotCompactionCondition = condition
+						latestCondition = condition
 						break
 					}
 				}
-				if latestSnapshotCompactionCondition.Type != druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded {
+				if latestCondition.Type != druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded {
 					return fmt.Errorf("SnapshotCompactionSucceeded condition not found in etcd status")
 				}
-				if latestSnapshotCompactionCondition.Status != druidv1alpha1.ConditionTrue {
-					return fmt.Errorf("SnapshotCompactionSucceeded condition status is not True, got %s", latestSnapshotCompactionCondition.Status)
+				if latestCondition.Status != druidv1alpha1.ConditionTrue {
+					return fmt.Errorf("SnapshotCompactionSucceeded condition status is not True, got %s", latestCondition.Status)
 				}
-				if latestSnapshotCompactionCondition.Reason != druidv1alpha1.ConditionReasonFullSnapshotTakenSuccessfully {
-					return fmt.Errorf("SnapshotCompactionSucceeded condition reason is not FullSnapshotTakenSuccessfully, got %s", latestSnapshotCompactionCondition.Reason)
+				if latestCondition.Reason != druidv1alpha1.ConditionReasonFullSnapshotTakenSuccessfully {
+					return fmt.Errorf("SnapshotCompactionSucceeded condition reason is not FullSnapshotTakenSuccessfully, got %s", latestCondition.Reason)
 				}
 				return nil
 			}, timeout, pollingInterval).Should(BeNil())
