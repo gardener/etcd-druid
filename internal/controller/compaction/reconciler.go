@@ -60,8 +60,8 @@ const (
 )
 
 var (
-	// defaultCompactionJobCpuRequests defines the default cpu requests for the compaction job
-	defaultCompactionJobCpuRequests = resource.MustParse("600m")
+	// defaultCompactionJobCPURequests defines the default cpu requests for the compaction job
+	defaultCompactionJobCPURequests = resource.MustParse("600m")
 	// defaultCompactionJobMemoryRequests defines the default memory requests for the compaction job
 	defaultCompactionJobMemoryRequests = resource.MustParse("3Gi")
 	// lastJobCompletionReason is used to store the reason of the last completed job.
@@ -89,13 +89,12 @@ func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.CompactionCon
 // NewReconcilerWithImageVector creates a new reconciler for Compaction with an ImageVector.
 // This constructor will mostly be used by tests.
 func NewReconcilerWithImageVector(mgr manager.Manager, config druidconfigv1alpha1.CompactionControllerConfiguration, imageVector imagevector.ImageVector) *Reconciler {
-	reconciler := &Reconciler{
+	return &Reconciler{
 		Client:      mgr.GetClient(),
 		config:      config,
 		imageVector: imageVector,
 		logger:      log.Log.WithName("compaction-lease-controller"),
 	}
-	return reconciler
 }
 
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds,verbs=get;list;watch
@@ -175,13 +174,13 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 			logger.Info("Job has been completed with failure reason: "+jobFailureReason, "namespace", job.Namespace, "name", job.Name)
 		}
 		// Construct & Update the etcd status condition for the compaction job
-		latestSnapshotCompactionCondition := druidv1alpha1.Condition{
+		latestCondition := druidv1alpha1.Condition{
 			Type:    druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded,
 			Status:  computeSnapshotCompactionJobStatus(jobCompletionState),
 			Reason:  computeJobFailureReason(jobCompletionState, jobFailureReason),
 			Message: fmt.Sprintf("Compaction job %s/%s completed with state %s", job.Namespace, job.Name, jobCompletionReason),
 		}
-		if err := r.updateCompactionJobEtcdStatusCondition(ctx, etcd, latestSnapshotCompactionCondition); err != nil {
+		if err := r.updateCompactionJobEtcdStatusCondition(ctx, etcd, latestCondition); err != nil {
 			logger.Error(err, "Error while updating etcd status condition for compaction job",
 				"namespace", etcd.Namespace, "name", etcd.Name, "jobName", job.Name)
 			return ctrl.Result{}, fmt.Errorf("error while updating etcd status condition for compaction job: %w", err)
@@ -337,14 +336,14 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 	if etcdBackupSpec.SnapshotCompaction != nil && etcdBackupSpec.SnapshotCompaction.Resources != nil {
 		cpuRequests = *etcdBackupSpec.SnapshotCompaction.Resources.Requests.Cpu()
 		if cpuRequests.IsZero() {
-			cpuRequests = defaultCompactionJobCpuRequests
+			cpuRequests = defaultCompactionJobCPURequests
 		}
 		memoryRequests = *etcdBackupSpec.SnapshotCompaction.Resources.Requests.Memory()
 		if memoryRequests.IsZero() {
 			memoryRequests = defaultCompactionJobMemoryRequests
 		}
 	} else {
-		cpuRequests = defaultCompactionJobCpuRequests
+		cpuRequests = defaultCompactionJobCPURequests
 		memoryRequests = defaultCompactionJobMemoryRequests
 	}
 
