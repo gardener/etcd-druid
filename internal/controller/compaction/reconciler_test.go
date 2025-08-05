@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
@@ -164,13 +165,13 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					Type:   corev1.DisruptionTarget,
 					Status: corev1.ConditionTrue,
-					Reason: podFailureReasonPreemptionByScheduler,
+					Reason: druidv1alpha1.PodFailureReasonPreemptionByScheduler,
 					LastTransitionTime: metav1.Time{
 						Time: time.Now().Add(-time.Hour),
 					},
 				},
 			},
-			expectedReason:         podFailureReasonPreemptionByScheduler,
+			expectedReason:         druidv1alpha1.PodFailureReasonPreemptionByScheduler,
 			expectedTransitionTime: time.Now().Add(-time.Hour),
 		},
 		{
@@ -179,13 +180,13 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					Type:   corev1.DisruptionTarget,
 					Status: corev1.ConditionTrue,
-					Reason: podFailureReasonDeletionByTaintManager,
+					Reason: druidv1alpha1.PodFailureReasonDeletionByTaintManager,
 					LastTransitionTime: metav1.Time{
 						Time: time.Now().Add(-2 * time.Hour),
 					},
 				},
 			},
-			expectedReason:         podFailureReasonDeletionByTaintManager,
+			expectedReason:         druidv1alpha1.PodFailureReasonDeletionByTaintManager,
 			expectedTransitionTime: time.Now().Add(-2 * time.Hour),
 		},
 		{
@@ -194,13 +195,13 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					Type:   corev1.DisruptionTarget,
 					Status: corev1.ConditionTrue,
-					Reason: podFailureReasonEvictionByEvictionAPI,
+					Reason: druidv1alpha1.PodFailureReasonEvictionByEvictionAPI,
 					LastTransitionTime: metav1.Time{
 						Time: time.Now().Add(-3 * time.Hour),
 					},
 				},
 			},
-			expectedReason:         podFailureReasonEvictionByEvictionAPI,
+			expectedReason:         druidv1alpha1.PodFailureReasonEvictionByEvictionAPI,
 			expectedTransitionTime: time.Now().Add(-3 * time.Hour),
 		},
 		{
@@ -209,13 +210,13 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					Type:   corev1.DisruptionTarget,
 					Status: corev1.ConditionTrue,
-					Reason: podFailureReasonTerminationByKubelet,
+					Reason: druidv1alpha1.PodFailureReasonTerminationByKubelet,
 					LastTransitionTime: metav1.Time{
 						Time: time.Now().Add(-4 * time.Hour),
 					},
 				},
 			},
-			expectedReason:         podFailureReasonTerminationByKubelet,
+			expectedReason:         druidv1alpha1.PodFailureReasonTerminationByKubelet,
 			expectedTransitionTime: time.Now().Add(-4 * time.Hour),
 		},
 		{
@@ -224,7 +225,7 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					State: corev1.ContainerState{
 						Terminated: &corev1.ContainerStateTerminated{
-							Reason: podFailureReasonProcessFailure,
+							Reason: druidv1alpha1.PodFailureReasonProcessFailure,
 							FinishedAt: metav1.Time{
 								Time: time.Now().Add(-30 * time.Minute),
 							},
@@ -232,14 +233,14 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 					},
 				},
 			},
-			expectedReason:         podFailureReasonProcessFailure,
+			expectedReason:         druidv1alpha1.PodFailureReasonProcessFailure,
 			expectedTransitionTime: time.Now().Add(-30 * time.Minute),
 		},
 		{
 			name:                   "Pod has no relevant conditions or terminated containers",
 			podConditions:          []corev1.PodCondition{},
 			containerStatuses:      []corev1.ContainerStatus{},
-			expectedReason:         podFailureReasonUnknown,
+			expectedReason:         druidv1alpha1.PodFailureReasonUnknown,
 			expectedTransitionTime: time.Now().UTC(),
 		},
 		{
@@ -255,7 +256,7 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				},
 			},
 			containerStatuses:      []corev1.ContainerStatus{},
-			expectedReason:         podFailureReasonUnknown,
+			expectedReason:         druidv1alpha1.PodFailureReasonUnknown,
 			expectedTransitionTime: time.Now().UTC(),
 		},
 	}

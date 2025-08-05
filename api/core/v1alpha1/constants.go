@@ -4,6 +4,11 @@
 
 package v1alpha1
 
+import (
+	batchv1 "k8s.io/api/batch/v1"
+	v1 "k8s.io/api/core/v1"
+)
+
 // Common label keys to be placed on all druid-managed resources
 const (
 	// LabelAppNameKey is a label which sets the name of the resource provisioned for an etcd cluster.
@@ -37,4 +42,33 @@ const (
 	// DisableEtcdRuntimeComponentCreationAnnotation is an annotation set by an operator to disable the creation and management of
 	// runtime components of the etcd cluster such as pods, PVCs, leases, RBAC resources, PDBs, services, etc.
 	DisableEtcdRuntimeComponentCreationAnnotation = "druid.gardener.cloud/disable-etcd-runtime-component-creation"
+)
+
+// Compaction Job/Pod reasons that are used to set the reason for a pod condition in the status of an Etcd resource.
+const (
+	// PodFailureReasonPreemptionByScheduler is a reason for a pod failure that indicates that the pod was preempted by the scheduler.
+	PodFailureReasonPreemptionByScheduler = v1.PodReasonPreemptionByScheduler
+	// PodFailureReasonDeletionByTaintManager is a reason for a pod failure that indicates that the pod was deleted by the taint manager.
+	PodFailureReasonDeletionByTaintManager = "DeletionByTaintManager"
+	// PodFailureReasonEvictionByEvictionAPI is a reason for a pod failure that indicates that the pod was evicted by the eviction API.
+	PodFailureReasonEvictionByEvictionAPI = "EvictionByEvictionAPI"
+	// PodFailureReasonTerminationByKubelet is a reason for a pod failure that indicates that the pod was terminated by the kubelet.
+	PodFailureReasonTerminationByKubelet = v1.PodReasonTerminationByKubelet
+	// PodFailureReasonProcessFailure is a reason for a pod failure that indicates that the pod process failed.
+	PodFailureReasonProcessFailure = "ProcessFailure"
+	// PodFailureReasonUnknown is a reason for a pod failure that indicates that the reason for the pod failure is unknown.
+	PodFailureReasonUnknown = "Unknown"
+
+	// PodSuccessReasonNone is a reason for a pod success that indicates that the pod has not failed.
+	PodSuccessReasonNone = "None"
+
+	// JobFailureReasonDeadlineExceeded is a reason for a job failure that indicates that the job has exceeded its deadline.
+	JobFailureReasonDeadlineExceeded = batchv1.JobReasonDeadlineExceeded
+	// JobFailureReasonBackoffLimitExceeded is a reason for a job failure that indicates that the job has exceeded its backoff limit.
+	JobFailureReasonBackoffLimitExceeded = batchv1.JobReasonBackoffLimitExceeded
+
+	// FullSnapshotSuccessReason is the reason for a successful full snapshot.
+	FullSnapshotSuccessReason string = "FullSnapshotTakenSuccessfully"
+	// FullSnapshotFailureReason is the reason for a failed full snapshot.
+	FullSnapshotFailureReason string = "ErrorTriggeringFullSnapshot"
 )

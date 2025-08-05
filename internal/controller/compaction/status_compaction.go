@@ -6,11 +6,11 @@ package compaction
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
 
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,11 +26,11 @@ func (r *Reconciler) triggerFullSnapshotAndUpdateStatus(ctx context.Context, log
 	fullSnapErr := r.triggerFullSnapshot(ctx, logger, etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold)
 	if fullSnapErr != nil {
 		latestCondition.Status = druidv1alpha1.ConditionFalse
-		latestCondition.Reason = druidv1alpha1.ConditionReasonFullSnapshotError
+		latestCondition.Reason = druidv1alpha1.FullSnapshotFailureReason
 		latestCondition.Message = fmt.Sprintf("Error while triggering full snapshot for etcd %s/%s: %v", etcd.Namespace, etcd.Name, fullSnapErr)
 	} else {
 		latestCondition.Status = druidv1alpha1.ConditionTrue
-		latestCondition.Reason = druidv1alpha1.ConditionReasonFullSnapshotTakenSuccessfully
+		latestCondition.Reason = druidv1alpha1.FullSnapshotSuccessReason
 		latestCondition.Message = fmt.Sprintf("Full snapshot taken successfully for etcd %s/%s", etcd.Namespace, etcd.Name)
 	}
 	etcdStatusUpdateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -41,18 +41,18 @@ func (r *Reconciler) triggerFullSnapshotAndUpdateStatus(ctx context.Context, log
 		return r.updateCompactionJobEtcdStatusCondition(ctx, latestEtcd, latestCondition)
 	})
 
-	if fullSnapErr != nil || etcdStatusUpdateErr != nil {
-		var requeueErrReason error
-		if fullSnapErr != nil && etcdStatusUpdateErr != nil {
-			requeueErrReason = fmt.Errorf("error while triggering full snapshot and updating compaction-fullSnapshot etcd status condition: %w", fullSnapErr)
-		} else if fullSnapErr != nil {
-			requeueErrReason = fmt.Errorf("error while triggering compaction-fullSnapshot: %w", fullSnapErr)
-		} else {
-			requeueErrReason = fmt.Errorf("error while updating compaction-fullSnapshot etcd status condition: %w", etcdStatusUpdateErr)
-		}
-		logger.Error(requeueErrReason, "Error in triggerFullSnapshotAndUpdateStatus")
+	var requeueErrReason error
+	if fullSnapErr != nil {
+		requeueErrReason = fmt.Errorf("error while triggering compaction-fullSnapshot: %w", fullSnapErr)
+	}
+	if etcdStatusUpdateErr != nil {
+		requeueErrReason = errors.Join(requeueErrReason, fmt.Errorf("error while updating compaction-fullSnapshot etcd status condition: %w", etcdStatusUpdateErr))
+	}
+	if requeueErrReason != nil {
+		logger.Error(requeueErrReason, "Error in triggering compaction-fullSnapshot and/or updating etcd status condition")
 		return ctrl.Result{}, requeueErrReason
 	}
+	logger.Info("Compaction-FullSnapshot triggered and etcd status condition updated successfully", "namespace", etcd.Namespace, "name", etcd.Name)
 	return ctrl.Result{}, nil
 }
 
@@ -89,13 +89,25 @@ func computeSnapshotCompactionJobStatus(jobCompletionState int) druidv1alpha1.Co
 	return druidv1alpha1.ConditionFalse
 }
 
-func computeJobFailureReason(jobCompletionState int, jobFailureReason string) string {
+func computeSnapshotCompactionJobReason(jobCompletionState int, jobFailureReason string) string {
 	if jobCompletionState == jobSucceeded {
-		return druidmetrics.ValueFailureReasonNone
+		return druidv1alpha1.PodSuccessReasonNone
 	}
 	if jobFailureReason != "" {
 		return jobFailureReason
 	}
 	// The code should not reach here, but if it does, we return an unknown reason
-	return druidmetrics.ValueFailureReasonUnknown
+	return druidv1alpha1.PodFailureReasonUnknown
+}
+
+func isLastCompactionConditionDeadlineExceeded(etcd *druidv1alpha1.Etcd) bool {
+	etcdConditions := etcd.Status.Conditions
+	for _, condition := range etcdConditions {
+		if condition.Type == druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded &&
+			condition.Status == druidv1alpha1.ConditionFalse &&
+			condition.Reason == druidv1alpha1.JobFailureReasonDeadlineExceeded {
+			return true
+		}
+	}
+	return false
 }

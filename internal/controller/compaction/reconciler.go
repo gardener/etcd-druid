@@ -46,15 +46,6 @@ const (
 )
 
 const (
-	podFailureReasonPreemptionByScheduler  = v1.PodReasonPreemptionByScheduler
-	podFailureReasonDeletionByTaintManager = "DeletionByTaintManager"
-	podFailureReasonEvictionByEvictionAPI  = "EvictionByEvictionAPI"
-	podFailureReasonTerminationByKubelet   = v1.PodReasonTerminationByKubelet
-	podFailureReasonProcessFailure         = "ProcessFailure"
-	podFailureReasonUnknown                = "Unknown"
-)
-
-const (
 	jobSucceeded int = iota
 	jobFailed
 )
@@ -64,8 +55,6 @@ var (
 	defaultCompactionJobCPURequests = resource.MustParse("600m")
 	// defaultCompactionJobMemoryRequests defines the default memory requests for the compaction job
 	defaultCompactionJobMemoryRequests = resource.MustParse("3Gi")
-	// lastJobCompletionReason is used to store the reason of the last completed job.
-	lastJobCompletionReason *string
 )
 
 // Reconciler reconciles compaction jobs for Etcd resources.
@@ -159,14 +148,17 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 
 		// Check the job completion state and reason to capture the metrics and update the etcd status condition
 		var (
-			jobFailureReason   string
-			jobDurationSeconds float64
-			err                error
+			// jobFailureReason indicates the specific reason for the job failure.
+			jobFailureReason string
+			// jobFailureReasonMetricLabelValue is the value for the metric label indicating the reason for job failure.
+			jobFailureReasonMetricLabelValue string
+			jobDurationSeconds               float64
 		)
 		jobCompletionState, jobCompletionReason := getJobCompletionStateAndReason(job)
 		logger.Info("Job has been completed with reason: "+jobCompletionReason, "namespace", job.Namespace, "name", job.Name)
 		if jobCompletionState == jobFailed {
-			jobFailureReason, jobDurationSeconds, err = r.fetchFailedJobMetrics(ctx, logger, job, jobCompletionReason)
+			var err error
+			jobFailureReason, jobFailureReasonMetricLabelValue, jobDurationSeconds, err = r.fetchFailedJobMetrics(ctx, logger, job, jobCompletionReason)
 			if err != nil {
 				logger.Error(err, "Error while fetching failed job metrics", "namespace", etcd.Namespace, "name", etcd.Name, "jobName", job.Name)
 				return ctrl.Result{}, fmt.Errorf("error while fetching failed job metrics: %w", err)
@@ -177,7 +169,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 		latestCondition := druidv1alpha1.Condition{
 			Type:    druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded,
 			Status:  computeSnapshotCompactionJobStatus(jobCompletionState),
-			Reason:  computeJobFailureReason(jobCompletionState, jobFailureReason),
+			Reason:  computeSnapshotCompactionJobReason(jobCompletionState, jobFailureReason),
 			Message: fmt.Sprintf("Compaction job %s/%s completed with state %s", job.Namespace, job.Name, jobCompletionReason),
 		}
 		if err := r.updateCompactionJobEtcdStatusCondition(ctx, etcd, latestCondition); err != nil {
@@ -189,14 +181,13 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 		if jobCompletionState == jobSucceeded {
 			recordSuccessfulJobMetrics(job)
 		} else {
-			recordFailureJobMetrics(jobFailureReason, jobDurationSeconds, job)
+			recordFailureJobMetrics(jobFailureReasonMetricLabelValue, jobDurationSeconds, job)
 		}
 		// Delete the completed compaction job
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 			logger.Error(err, "Couldn't delete the completed compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
 			return ctrl.Result{}, fmt.Errorf("error while deleting the completed compaction job: %w", err)
 		}
-		lastJobCompletionReason = &jobCompletionReason
 	}
 	// This block is added because we want to ensure that the compaction job is created only when there is no active pod/job running.
 	// Even after the job is marked for deletion, the associated pod may remain for some time.
@@ -293,7 +284,7 @@ func (r *Reconciler) createCompactionJobOrTriggerFullSnapshot(ctx context.Contex
 	// or if the last job completion reason is DeadlineExceeded.
 	// This is to ensure that we avoid spinning up compaction jobs even when we know that the probability of it getting succeeded is very low due to the large number of revisions.
 	// This avoids unnecessary resource consumption and delays in the compaction process
-	if (lastJobCompletionReason != nil && *lastJobCompletionReason == batchv1.JobReasonDeadlineExceeded) || accumulatedEtcdRevisions >= triggerFullSnapshotThreshold {
+	if isLastCompactionConditionDeadlineExceeded(etcd) || accumulatedEtcdRevisions >= triggerFullSnapshotThreshold {
 		return r.triggerFullSnapshotAndUpdateStatus(ctx, logger, etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold)
 	}
 	return r.checkAndTriggerCompactionJob(ctx, logger, etcd, accumulatedEtcdRevisions, eventsThreshold, job)
@@ -446,33 +437,33 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 	return job, nil
 }
 
-func (r *Reconciler) getPodFailureValueWithLastTransitionTime(ctx context.Context, logger logr.Logger, job *batchv1.Job) (string, time.Time, error) {
+func (r *Reconciler) getPodFailureValueWithLastTransitionTime(ctx context.Context, logger logr.Logger, job *batchv1.Job) (string, string, time.Time, error) {
 	pod, err := getPodForJob(ctx, r.Client, &job.ObjectMeta)
 	if err != nil {
 		logger.Error(err, "Couldn't fetch pods for job", "namespace", job.Namespace, "name", job.Name)
-		return "", time.Time{}, fmt.Errorf("error while fetching pod for job: %w", err)
+		return "", "", time.Time{}, fmt.Errorf("error while fetching pod for job: %w", err)
 	}
 	if pod == nil {
 		logger.Info("Pod not found for job", "namespace", job.Namespace, "name", job.Name)
-		return druidmetrics.ValueFailureReasonUnknown, time.Now().UTC(), nil
+		return druidv1alpha1.PodFailureReasonUnknown, druidmetrics.ValueFailureReasonUnknown, time.Now().UTC(), nil
 	}
 	podFailureReason, lastTransitionTime := getPodFailureReasonAndLastTransitionTime(pod)
-	var podFailureReasonLabelValue string
+	var podFailureReasonMetricLabelValue string
 	switch podFailureReason {
-	case podFailureReasonPreemptionByScheduler:
+	case druidv1alpha1.PodFailureReasonPreemptionByScheduler:
 		logger.Info("Pod has been preempted by the scheduler", "namespace", pod.Namespace, "name", pod.Name)
-		podFailureReasonLabelValue = druidmetrics.ValueFailureReasonPreempted
-	case podFailureReasonDeletionByTaintManager, podFailureReasonEvictionByEvictionAPI, podFailureReasonTerminationByKubelet:
+		podFailureReasonMetricLabelValue = druidmetrics.ValueFailureReasonPreempted
+	case druidv1alpha1.PodFailureReasonDeletionByTaintManager, druidv1alpha1.PodFailureReasonEvictionByEvictionAPI, druidv1alpha1.PodFailureReasonTerminationByKubelet:
 		logger.Info("Pod has been evicted", "namespace", pod.Namespace, "name", pod.Name, "reason", podFailureReason)
-		podFailureReasonLabelValue = druidmetrics.ValueFailureReasonEvicted
-	case podFailureReasonProcessFailure:
+		podFailureReasonMetricLabelValue = druidmetrics.ValueFailureReasonEvicted
+	case druidv1alpha1.PodFailureReasonProcessFailure:
 		logger.Info("Pod has failed due to process failure", "namespace", pod.Namespace, "name", pod.Name)
-		podFailureReasonLabelValue = druidmetrics.ValueFailureReasonProcessFailure
+		podFailureReasonMetricLabelValue = druidmetrics.ValueFailureReasonProcessFailure
 	default:
 		logger.Info("Pod has failed due to unknown reason", "namespace", pod.Namespace, "name", pod.Name)
-		podFailureReasonLabelValue = druidmetrics.ValueFailureReasonUnknown
+		podFailureReasonMetricLabelValue = druidmetrics.ValueFailureReasonUnknown
 	}
-	return podFailureReasonLabelValue, lastTransitionTime, nil
+	return podFailureReason, podFailureReasonMetricLabelValue, lastTransitionTime, nil
 }
 
 // getJobCompletionStateAndReason returns whether the job is successful or not and the reason for the completion.
@@ -520,11 +511,11 @@ func getPodFailureReasonAndLastTransitionTime(pod *v1.Pod) (string, time.Time) {
 	if pod.Status.ContainerStatuses != nil {
 		for _, containerStatus := range pod.Status.ContainerStatuses {
 			if containerStatus.State.Terminated != nil {
-				return podFailureReasonProcessFailure, containerStatus.State.Terminated.FinishedAt.Time
+				return druidv1alpha1.PodFailureReasonProcessFailure, containerStatus.State.Terminated.FinishedAt.Time
 			}
 		}
 	}
-	return podFailureReasonUnknown, time.Now().UTC()
+	return druidv1alpha1.PodFailureReasonUnknown, time.Now().UTC()
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd) map[string]string {
