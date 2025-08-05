@@ -30,6 +30,7 @@ type httpClientInterface interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+// triggerFullSnapshot triggers a full snapshot for the given Etcd resource and updates the metrics.
 func (r *Reconciler) triggerFullSnapshot(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold int64) error {
 	var reason string
 	if isLastCompactionConditionDeadlineExceeded(etcd) {
