@@ -160,6 +160,7 @@ func recordFailureJobMetrics(jobFailureReasonMetricLabelValue string, durationSe
 	}
 }
 
+// fetchFailedJobMetrics retrieves the specific reason for the job failure, corresponding metric label value, and the duration of the job in seconds.
 func (r *Reconciler) fetchFailedJobMetrics(ctx context.Context, logger logr.Logger, job *batchv1.Job, jobCompletionReason string) (string, string, float64, error) {
 	var (
 		failureReason                 string

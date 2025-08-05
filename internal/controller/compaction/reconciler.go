@@ -6,6 +6,7 @@ package compaction
 
 import (
 	"context"
+	stlerrors "errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -29,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -143,46 +145,13 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 			return ctrl.Result{}, nil
 		}
 
-		// Set the current job count to 0 if the job is not active
+		// Set the current job count to 0 as the job is not active
 		metricJobsCurrent.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(0)
 
-		// Check the job completion state and reason to capture the metrics and update the etcd status condition
-		var (
-			// jobFailureReason indicates the specific reason for the job failure.
-			jobFailureReason string
-			// jobFailureReasonMetricLabelValue is the value for the metric label indicating the reason for job failure.
-			jobFailureReasonMetricLabelValue string
-			jobDurationSeconds               float64
-		)
-		jobCompletionState, jobCompletionReason := getJobCompletionStateAndReason(job)
-		logger.Info("Job has been completed with reason: "+jobCompletionReason, "namespace", job.Namespace, "name", job.Name)
-		if jobCompletionState == jobFailed {
-			var err error
-			jobFailureReason, jobFailureReasonMetricLabelValue, jobDurationSeconds, err = r.fetchFailedJobMetrics(ctx, logger, job, jobCompletionReason)
-			if err != nil {
-				logger.Error(err, "Error while fetching failed job metrics", "namespace", etcd.Namespace, "name", etcd.Name, "jobName", job.Name)
-				return ctrl.Result{}, fmt.Errorf("error while fetching failed job metrics: %w", err)
-			}
-			logger.Info("Job has been completed with failure reason: "+jobFailureReason, "namespace", job.Namespace, "name", job.Name)
-		}
-		// Construct & Update the etcd status condition for the compaction job
-		latestCondition := druidv1alpha1.Condition{
-			Type:    druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded,
-			Status:  computeSnapshotCompactionJobStatus(jobCompletionState),
-			Reason:  computeSnapshotCompactionJobReason(jobCompletionState, jobFailureReason),
-			Message: fmt.Sprintf("Compaction job %s/%s completed with state %s", job.Namespace, job.Name, jobCompletionReason),
-		}
-		if err := r.updateCompactionJobEtcdStatusCondition(ctx, etcd, latestCondition); err != nil {
-			logger.Error(err, "Error while updating etcd status condition for compaction job",
-				"namespace", etcd.Namespace, "name", etcd.Name, "jobName", job.Name)
-			return ctrl.Result{}, fmt.Errorf("error while updating etcd status condition for compaction job: %w", err)
+		if err := r.updateMetricsAndStatusForCompletedJob(ctx, logger, job, etcd); err != nil {
+			return ctrl.Result{}, fmt.Errorf("error while updating metrics and status for completed job: %w", err)
 		}
 
-		if jobCompletionState == jobSucceeded {
-			recordSuccessfulJobMetrics(job)
-		} else {
-			recordFailureJobMetrics(jobFailureReasonMetricLabelValue, jobDurationSeconds, job)
-		}
 		// Delete the completed compaction job
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 			logger.Error(err, "Couldn't delete the completed compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
@@ -288,6 +257,44 @@ func (r *Reconciler) createCompactionJobOrTriggerFullSnapshot(ctx context.Contex
 		return r.triggerFullSnapshotAndUpdateStatus(ctx, logger, etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold)
 	}
 	return r.checkAndTriggerCompactionJob(ctx, logger, etcd, accumulatedEtcdRevisions, eventsThreshold, job)
+}
+
+// triggerFullSnapshotAndUpdateStatus triggers a full snapshot and updates the etcd status condition SnapshotCompactionSucceeded
+func (r *Reconciler) triggerFullSnapshotAndUpdateStatus(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold int64) (ctrl.Result, error) {
+	latestCondition := druidv1alpha1.Condition{
+		Type: druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded,
+	}
+	fullSnapErr := r.triggerFullSnapshot(ctx, logger, etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold)
+	if fullSnapErr != nil {
+		latestCondition.Status = druidv1alpha1.ConditionFalse
+		latestCondition.Reason = druidv1alpha1.FullSnapshotFailureReason
+		latestCondition.Message = fmt.Sprintf("Error while triggering full snapshot for etcd %s/%s: %v", etcd.Namespace, etcd.Name, fullSnapErr)
+	} else {
+		latestCondition.Status = druidv1alpha1.ConditionTrue
+		latestCondition.Reason = druidv1alpha1.FullSnapshotSuccessReason
+		latestCondition.Message = fmt.Sprintf("Full snapshot taken successfully for etcd %s/%s", etcd.Namespace, etcd.Name)
+	}
+	etcdStatusUpdateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		latestEtcd := &druidv1alpha1.Etcd{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: etcd.Name}, latestEtcd); err != nil {
+			return err
+		}
+		return r.updateCompactionJobEtcdStatusCondition(ctx, latestEtcd, latestCondition)
+	})
+
+	var requeueErrReason error
+	if fullSnapErr != nil {
+		requeueErrReason = fmt.Errorf("error while triggering compaction-fullSnapshot: %w", fullSnapErr)
+	}
+	if etcdStatusUpdateErr != nil {
+		requeueErrReason = stlerrors.Join(requeueErrReason, fmt.Errorf("error while updating compaction-fullSnapshot etcd status condition: %w", etcdStatusUpdateErr))
+	}
+	if requeueErrReason != nil {
+		logger.Error(requeueErrReason, "Error in triggering compaction-fullSnapshot and/or updating etcd status condition")
+		return ctrl.Result{}, requeueErrReason
+	}
+	logger.Info("Compaction-FullSnapshot triggered and etcd status condition updated successfully", "namespace", etcd.Namespace, "name", etcd.Name)
+	return ctrl.Result{}, nil
 }
 
 // checkAndTriggerCompactionJob creates compaction job only when number of accumulated revisions over the last full snapshot is more than the configured events threshold.
@@ -437,6 +444,48 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 	return job, nil
 }
 
+// updateMetricsAndStatusForCompletedJob checks the job completion state and reason to capture the metrics and update the etcd status condition
+func (r *Reconciler) updateMetricsAndStatusForCompletedJob(ctx context.Context, logger logr.Logger, job *batchv1.Job, etcd *druidv1alpha1.Etcd) error {
+	var (
+		// jobFailureReason indicates the specific reason for the job failure.
+		jobFailureReason string
+		// jobFailureReasonMetricLabelValue is the value for the metric label indicating the reason for job failure.
+		jobFailureReasonMetricLabelValue string
+		jobDurationSeconds               float64
+	)
+	jobCompletionState, jobCompletionReason := getJobCompletionStateAndReason(job)
+	logger.Info("Job has been completed with reason: "+jobCompletionReason, "namespace", job.Namespace, "name", job.Name)
+	if jobCompletionState == jobFailed {
+		var err error
+		jobFailureReason, jobFailureReasonMetricLabelValue, jobDurationSeconds, err = r.fetchFailedJobMetrics(ctx, logger, job, jobCompletionReason)
+		if err != nil {
+			logger.Error(err, "Error while fetching failed job metrics", "namespace", etcd.Namespace, "name", etcd.Name, "jobName", job.Name)
+			return fmt.Errorf("error while fetching failed job metrics: %w", err)
+		}
+		logger.Info("Job has been completed with failure reason: "+jobFailureReason, "namespace", job.Namespace, "name", job.Name)
+	}
+	// Construct & Update the etcd status condition for the compaction job
+	latestCondition := druidv1alpha1.Condition{
+		Type:    druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded,
+		Status:  computeSnapshotCompactionJobStatus(jobCompletionState),
+		Reason:  computeSnapshotCompactionJobReason(jobCompletionState, jobFailureReason),
+		Message: fmt.Sprintf("Compaction job %s/%s completed with state %s", job.Namespace, job.Name, jobCompletionReason),
+	}
+	if err := r.updateCompactionJobEtcdStatusCondition(ctx, etcd, latestCondition); err != nil {
+		logger.Error(err, "Error while updating etcd status condition for compaction job",
+			"namespace", etcd.Namespace, "name", etcd.Name, "jobName", job.Name)
+		return fmt.Errorf("error while updating etcd status condition for compaction job: %w", err)
+	}
+
+	if jobCompletionState == jobSucceeded {
+		recordSuccessfulJobMetrics(job)
+	} else {
+		recordFailureJobMetrics(jobFailureReasonMetricLabelValue, jobDurationSeconds, job)
+	}
+	return nil
+}
+
+// getPodFailureValueWithLastTransitionTime returns the specific reason for the pod failure, corresponding metric label value, and the last transition time of the pod.
 func (r *Reconciler) getPodFailureValueWithLastTransitionTime(ctx context.Context, logger logr.Logger, job *batchv1.Job) (string, string, time.Time, error) {
 	pod, err := getPodForJob(ctx, r.Client, &job.ObjectMeta)
 	if err != nil {
