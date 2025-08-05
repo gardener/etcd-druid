@@ -359,7 +359,7 @@ var _ = Describe("Compaction Controller", func() {
 				if latestCondition.Status != druidv1alpha1.ConditionTrue {
 					return fmt.Errorf("SnapshotCompactionSucceeded condition status is not True, got %s", latestCondition.Status)
 				}
-				if latestCondition.Reason != druidv1alpha1.ConditionReasonFullSnapshotTakenSuccessfully {
+				if latestCondition.Reason != druidv1alpha1.FullSnapshotSuccessReason {
 					return fmt.Errorf("SnapshotCompactionSucceeded condition reason is not FullSnapshotTakenSuccessfully, got %s", latestCondition.Reason)
 				}
 				return nil

@@ -32,13 +32,6 @@ const (
 	ConditionCheckError ConditionStatus = "ConditionCheckError"
 )
 
-const (
-	// ConditionReasonFullSnapshotTakenSuccessfully is the reason for a successful full snapshot.
-	ConditionReasonFullSnapshotTakenSuccessfully string = "FullSnapshotTakenSuccessfully"
-	// ConditionReasonFullSnapshotError is the reason for a failed full snapshot.
-	ConditionReasonFullSnapshotError string = "ErrorTriggeringFullSnapshot"
-)
-
 // Condition holds the information about the state of a resource.
 type Condition struct {
 	// Type of the Etcd condition.

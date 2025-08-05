@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
 
 	"github.com/go-logr/logr"
@@ -143,46 +144,52 @@ func recordSuccessfulJobMetrics(job *batchv1.Job) {
 	}
 }
 
-func recordFailureJobMetrics(failureReason string, durationSeconds float64, job *batchv1.Job) {
+func recordFailureJobMetrics(jobFailureReasonMetricLabelValue string, durationSeconds float64, job *batchv1.Job) {
 	metricJobsTotal.With(prometheus.Labels{
 		druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededFalse,
-		druidmetrics.LabelFailureReason: failureReason,
+		druidmetrics.LabelFailureReason: jobFailureReasonMetricLabelValue,
 		druidmetrics.LabelEtcdNamespace: job.Namespace,
 	}).Inc()
 
 	if durationSeconds > 0 {
 		metricJobDurationSeconds.With(prometheus.Labels{
 			druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededFalse,
-			druidmetrics.LabelFailureReason: failureReason,
+			druidmetrics.LabelFailureReason: jobFailureReasonMetricLabelValue,
 			druidmetrics.LabelEtcdNamespace: job.Namespace,
 		}).Observe(durationSeconds)
 	}
 }
 
-func (r *Reconciler) fetchFailedJobMetrics(ctx context.Context, logger logr.Logger, job *batchv1.Job, jobCompletionReason string) (string, float64, error) {
+func (r *Reconciler) fetchFailedJobMetrics(ctx context.Context, logger logr.Logger, job *batchv1.Job, jobCompletionReason string) (string, string, float64, error) {
 	var (
-		failureReason   string
-		durationSeconds float64
+		failureReason                 string
+		failureReasonMetricLabelValue string
+		durationSeconds               float64
 	)
 
 	switch jobCompletionReason {
 	case batchv1.JobReasonDeadlineExceeded:
-		failureReason = druidmetrics.ValueFailureReasonDeadlineExceeded
+		failureReason = druidv1alpha1.JobFailureReasonDeadlineExceeded
+		failureReasonMetricLabelValue = druidmetrics.ValueFailureReasonDeadlineExceeded
 		durationSeconds = float64(*job.Spec.ActiveDeadlineSeconds)
 	case batchv1.JobReasonBackoffLimitExceeded:
-		podFailureReasonLabelValue, lastTransitionTime, err := r.getPodFailureValueWithLastTransitionTime(ctx, logger, job)
+		var (
+			lastTransitionTime time.Time
+			err                error
+		)
+		failureReason, failureReasonMetricLabelValue, lastTransitionTime, err = r.getPodFailureValueWithLastTransitionTime(ctx, logger, job)
 		if err != nil {
-			return "", 0, fmt.Errorf("error while handling job's failure condition type backoffLimitExceeded: %w", err)
+			return "", "", 0, fmt.Errorf("error while handling job's failure condition type backoffLimitExceeded: %w", err)
 		}
-		failureReason = podFailureReasonLabelValue
 		if !lastTransitionTime.IsZero() {
 			durationSeconds = lastTransitionTime.Sub(job.Status.StartTime.Time).Seconds()
 		}
 	default:
-		failureReason = druidmetrics.ValueFailureReasonUnknown
+		failureReason = druidv1alpha1.PodFailureReasonUnknown
+		failureReasonMetricLabelValue = druidmetrics.ValueFailureReasonUnknown
 		durationSeconds = time.Now().UTC().Sub(job.Status.StartTime.Time).Seconds()
 	}
-	return failureReason, durationSeconds, nil
+	return failureReason, failureReasonMetricLabelValue, durationSeconds, nil
 }
 
 // recordFullSnapshotsTriggered increments the full snapshot triggered metric with the given labels.

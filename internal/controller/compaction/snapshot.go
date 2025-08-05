@@ -16,7 +16,6 @@ import (
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
 
 	"github.com/go-logr/logr"
-	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -33,7 +32,7 @@ type httpClientInterface interface {
 
 func (r *Reconciler) triggerFullSnapshot(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold int64) error {
 	var reason string
-	if lastJobCompletionReason != nil && *lastJobCompletionReason == batchv1.JobReasonDeadlineExceeded {
+	if isLastCompactionConditionDeadlineExceeded(etcd) {
 		reason = "previous compaction job deadline exceeded"
 	} else {
 		reason = "delta revisions have crossed the upper threshold"
@@ -54,8 +53,6 @@ func (r *Reconciler) triggerFullSnapshot(ctx context.Context, logger logr.Logger
 	}
 	recordFullSnapshotsTriggered(druidmetrics.ValueSucceededTrue, etcd.Namespace)
 	logger.Info("Full snapshot taken successfully", "name", etcd.Name, "namespace", etcd.Namespace)
-	// Reset the last job completion reason after triggering full snapshot
-	lastJobCompletionReason = nil
 	return nil
 }
 
