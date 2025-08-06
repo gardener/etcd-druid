@@ -13,6 +13,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
 
 	"github.com/go-logr/logr"
@@ -50,7 +51,7 @@ func (r *Reconciler) triggerFullSnapshot(ctx context.Context, logger logr.Logger
 			"accumulatedRevisions", accumulatedEtcdRevisions,
 			"triggerFullSnapshotThreshold", triggerFullSnapshotThreshold)
 		recordFullSnapshotsTriggered(druidmetrics.ValueSucceededFalse, etcd.Namespace)
-		return fmt.Errorf("error while triggering full snapshot: %v", err)
+		return fmt.Errorf("error while triggering full snapshot: %w", err)
 	}
 	recordFullSnapshotsTriggered(druidmetrics.ValueSucceededTrue, etcd.Namespace)
 	logger.Info("Full snapshot taken successfully", "name", etcd.Name, "namespace", etcd.Namespace)
@@ -71,7 +72,7 @@ func (r *Reconciler) takeFullSnapshot(ctx context.Context, etcd *druidv1alpha1.E
 		var err error
 		httpClient, httpScheme, err = newHTTPClient(ctx, r.Client, etcd)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create http client for full snapshot: %w", err)
 		}
 	}
 	return fullSnapshot(ctx, etcd, httpClient, httpScheme)
@@ -117,7 +118,7 @@ func fullSnapshot(ctx context.Context, etcd *druidv1alpha1.Etcd, httpClient http
 		httpScheme,
 		druidv1alpha1.GetClientServiceName(etcd.ObjectMeta),
 		etcd.Namespace,
-		*etcd.Spec.Backup.Port,
+		ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore),
 	)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullSnapshotURL, nil)
 	if err != nil {

@@ -152,14 +152,14 @@ func TestFullSnapshot(t *testing.T) {
 			if tc.expectError {
 				if tc.checkErr != nil {
 					if !tc.checkErr(err) {
-						t.Errorf("expected different error, got: %v", err)
+						t.Errorf("expected different error, got: %w", err)
 					}
 				} else if err == nil {
 					t.Errorf("expected error, got nil")
 				}
 			} else {
 				if err != nil {
-					t.Errorf("unexpected error: %v", err)
+					t.Errorf("unexpected error: %w", err)
 				}
 			}
 		})

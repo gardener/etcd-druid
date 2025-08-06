@@ -114,10 +114,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	logger := r.logger.WithValues("etcd", client.ObjectKeyFromObject(etcd).String())
 
-	return r.reconcileJob(ctx, logger, etcd)
+	return r.doReconcile(ctx, logger, etcd)
 }
 
-func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
+func (r *Reconciler) doReconcile(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
 	// Update metrics for currently running compaction job, if any
 	job := &batchv1.Job{}
 	compactionJobName := druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta)
@@ -168,7 +168,7 @@ func (r *Reconciler) reconcileJob(ctx context.Context, logger logr.Logger, etcd 
 	pod, err := getPodForJob(ctx, r.Client, jobMeta)
 	if err != nil {
 		logger.Error(err, "Couldn't fetch pods for job", "namespace", job.Namespace, "name", job.Name)
-		return ctrl.Result{}, fmt.Errorf("error while fetching pod for job: %v", err)
+		return ctrl.Result{}, fmt.Errorf("error while fetching pod for job: %w", err)
 	}
 	if pod != nil {
 		logger.Info("Pod found for job, cannot create a new job until the existing one is completely cleaned", "namespace", pod.Namespace, "name", pod.Name)
@@ -221,7 +221,7 @@ func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druid
 	job := &batchv1.Job{}
 	if err := r.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta), Namespace: etcd.Namespace}, job); err != nil {
 		if !errors.IsNotFound(err) {
-			return ctrl.Result{}, fmt.Errorf("error while fetching compaction job: %v", err)
+			return ctrl.Result{}, fmt.Errorf("error while fetching compaction job: %w", err)
 		}
 		return ctrl.Result{}, nil
 	}
@@ -229,7 +229,7 @@ func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druid
 	if job.DeletionTimestamp == nil {
 		logger.Info("Deleting job", "namespace", job.Namespace, "name", job.Name)
 		if err := client.IgnoreNotFound(r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground))); err != nil {
-			return ctrl.Result{}, fmt.Errorf("error while deleting compaction job: %v", err)
+			return ctrl.Result{}, fmt.Errorf("error while deleting compaction job: %w", err)
 		}
 	}
 
@@ -325,7 +325,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 
 	_, etcdBackupImage, _, err := utils.GetEtcdImages(etcd, r.imageVector)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't fetch etcd backup image: %v", err)
+		return nil, fmt.Errorf("couldn't fetch etcd backup image: %w", err)
 	}
 
 	var cpuRequests resource.Quantity
@@ -401,7 +401,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 	}
 
 	if vms, err := getCompactionJobVolumeMounts(etcd); err != nil {
-		return nil, fmt.Errorf("error while creating compaction job in %v for %v : %v",
+		return nil, fmt.Errorf("error while creating compaction job in %v for %v : %w",
 			etcd.Namespace,
 			etcd.Name,
 			err)
@@ -411,14 +411,14 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 
 	env, err := utils.GetBackupRestoreContainerEnvVars(etcd.Spec.Backup.Store)
 	if err != nil {
-		return nil, fmt.Errorf("error while creating compaction job in %v for %v : unable to get backup-restore container environment variables : %v",
+		return nil, fmt.Errorf("error while creating compaction job in %v for %v : unable to get backup-restore container environment variables : %w",
 			etcd.Namespace,
 			etcd.Name,
 			err)
 	}
 	providerEnv, err := druidstore.GetProviderEnvVars(etcd.Spec.Backup.Store)
 	if err != nil {
-		return nil, fmt.Errorf("error while creating compaction job in %v for %v : unable to get provider-specific environment variables : %v",
+		return nil, fmt.Errorf("error while creating compaction job in %v for %v : unable to get provider-specific environment variables : %w",
 			etcd.Namespace,
 			etcd.Name,
 			err)
@@ -426,7 +426,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 	job.Spec.Template.Spec.Containers[0].Env = append(env, providerEnv...)
 
 	if vm, err := getCompactionJobVolumes(ctx, r.Client, r.logger, etcd); err != nil {
-		return nil, fmt.Errorf("error creating compaction job in %v for %v : %v",
+		return nil, fmt.Errorf("error creating compaction job in %v for %v : %w",
 			etcd.Namespace,
 			etcd.Name,
 			err)
