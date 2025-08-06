@@ -338,7 +338,7 @@ var _ = Describe("Compaction Controller", func() {
 				return k8sClient.Get(ctx, req, j)
 			}, timeout, moreFrequentPollingInterval).Should(testutils.BeNotFoundError())
 
-			// Verify that a full snapshot has been triggered by fetching the etcd status ConditionTypeSnapshotCompactionSucceeded condition
+			// Verify that a full snapshot has been triggered by fetching the etcd status ConditionTypeLastSnapshotCompactionSucceeded condition
 			Eventually(func() error {
 				ctx, cancel = context.WithTimeout(context.TODO(), timeout)
 				defer cancel()
@@ -348,19 +348,19 @@ var _ = Describe("Compaction Controller", func() {
 				}
 				latestCondition := druidv1alpha1.Condition{}
 				for _, condition := range latestEtcd.Status.Conditions {
-					if condition.Type == druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded {
+					if condition.Type == druidv1alpha1.ConditionTypeLastSnapshotCompactionSucceeded {
 						latestCondition = condition
 						break
 					}
 				}
-				if latestCondition.Type != druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded {
-					return fmt.Errorf("SnapshotCompactionSucceeded condition not found in etcd status")
+				if latestCondition.Type != druidv1alpha1.ConditionTypeLastSnapshotCompactionSucceeded {
+					return fmt.Errorf("LastSnapshotCompactionSucceeded condition not found in etcd status")
 				}
 				if latestCondition.Status != druidv1alpha1.ConditionTrue {
-					return fmt.Errorf("SnapshotCompactionSucceeded condition status is not True, got %s", latestCondition.Status)
+					return fmt.Errorf("LastSnapshotCompactionSucceeded condition status is not True, got %s", latestCondition.Status)
 				}
 				if latestCondition.Reason != druidv1alpha1.FullSnapshotSuccessReason {
-					return fmt.Errorf("SnapshotCompactionSucceeded condition reason is not FullSnapshotTakenSuccessfully, got %s", latestCondition.Reason)
+					return fmt.Errorf("LastSnapshotCompactionSucceeded condition reason is not FullSnapshotTakenSuccessfully, got %s", latestCondition.Reason)
 				}
 				return nil
 			}, timeout, pollingInterval).Should(BeNil())

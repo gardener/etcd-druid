@@ -118,18 +118,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 func (r *Reconciler) doReconcile(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
-	// Update metrics for currently running compaction job, if any
-	job := &batchv1.Job{}
+	// Fetch the compaction job for the given Etcd resource.
 	compactionJobName := druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta)
-	if err := r.Get(ctx, types.NamespacedName{Name: compactionJobName, Namespace: etcd.Namespace}, job); err != nil {
-		if !errors.IsNotFound(err) {
-			// Error reading the object - requeue the request.
-			return ctrl.Result{}, fmt.Errorf("error while fetching compaction job with the name %v, in the namespace %v: %w", compactionJobName, etcd.Namespace, err)
-		}
-		logger.Info("No compaction job currently running", "namespace", etcd.Namespace)
+	job, err := r.fetchCompactionJob(ctx, compactionJobName, etcd.Namespace)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("error while fetching compaction job: %w", err)
 	}
 
-	if job.Name != "" {
+	if isJobPresent(job) {
+		// If the job is marked for deletion, we will not proceed with compaction process until the job is deleted.
 		if !job.DeletionTimestamp.IsZero() {
 			logger.Info("Job is already in deletion. A new job will be created only if the previous one has been deleted.", "namespace: ", job.Namespace, "name: ", job.Name)
 			return ctrl.Result{
@@ -157,64 +154,37 @@ func (r *Reconciler) doReconcile(ctx context.Context, logger logr.Logger, etcd *
 			logger.Error(err, "Couldn't delete the completed compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
 			return ctrl.Result{}, fmt.Errorf("error while deleting the completed compaction job: %w", err)
 		}
+
+		// Requeue to ensure that the compaction job is deleted and next reconciliation can proceed with no active job.
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
-	// This block is added because we want to ensure that the compaction job is created only when there is no active pod/job running.
-	// Even after the job is marked for deletion, the associated pod may remain for some time.
-	// During this period, we should not attempt to create a new compaction job to avoid conflicts.
-	jobMeta := &metav1.ObjectMeta{
-		Name:      compactionJobName,
-		Namespace: etcd.Namespace,
-	}
-	pod, err := getPodForJob(ctx, r.Client, jobMeta)
+
+	logger.Info("No compaction job is currently running", "namespace", etcd.Namespace)
+
+	diff, err := r.getDeltaRevisionsSinceFullSnapshot(ctx, logger, etcd)
 	if err != nil {
-		logger.Error(err, "Couldn't fetch pods for job", "namespace", job.Namespace, "name", job.Name)
-		return ctrl.Result{}, fmt.Errorf("error while fetching pod for job: %w", err)
-	}
-	if pod != nil {
-		logger.Info("Pod found for job, cannot create a new job until the existing one is completely cleaned", "namespace", pod.Namespace, "name", pod.Name)
-		return ctrl.Result{
-			RequeueAfter: 10 * time.Second,
-		}, nil
+		return ctrl.Result{}, fmt.Errorf("error while getting difference between delta and full snapshot revisions: %w", err)
 	}
 
-	// Get full and delta snapshot lease to check the HolderIdentity value to take decision on compaction job
-	fullLease := &coordinationv1.Lease{}
-	fullSnapshotLeaseName := druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta)
-	if err := r.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: fullSnapshotLeaseName}, fullLease); err != nil {
-		logger.Error(err, "Couldn't fetch full snap lease", "namespace", etcd.Namespace, "name", fullSnapshotLeaseName)
-		return ctrl.Result{}, err
-	}
-
-	deltaLease := &coordinationv1.Lease{}
-	deltaSnapshotLeaseName := druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta)
-	if err := r.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: deltaSnapshotLeaseName}, deltaLease); err != nil {
-		logger.Error(err, "Couldn't fetch delta snap lease", "namespace", etcd.Namespace, "name", deltaSnapshotLeaseName)
-		return ctrl.Result{}, err
-	}
-
-	// Revisions have not been set yet by etcd-back-restore container.
-	// Skip further processing as we cannot calculate a revision delta.
-	if fullLease.Spec.HolderIdentity == nil || deltaLease.Spec.HolderIdentity == nil {
-		return ctrl.Result{}, nil
-	}
-
-	full, err := strconv.ParseInt(*fullLease.Spec.HolderIdentity, 10, 64)
-	if err != nil {
-		logger.Error(err, "Can't convert holder identity of full snap lease to integer",
-			"namespace", fullLease.Namespace, "leaseName", fullLease.Name, "holderIdentity", fullLease.Spec.HolderIdentity)
-		return ctrl.Result{}, err
-	}
-
-	delta, err := strconv.ParseInt(*deltaLease.Spec.HolderIdentity, 10, 64)
-	if err != nil {
-		logger.Error(err, "Can't convert holder identity of delta snap lease to integer",
-			"namespace", deltaLease.Namespace, "leaseName", deltaLease.Name, "holderIdentity", deltaLease.Spec.HolderIdentity)
-		return ctrl.Result{}, err
-	}
-
-	diff := delta - full
 	metricNumDeltaEvents.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(float64(diff))
-	return r.createCompactionJobOrTriggerFullSnapshot(ctx, logger, etcd, diff, job)
+	return r.triggerFullSnapshotOrCreateCompactionJob(ctx, logger, etcd, diff)
+}
+
+// fetchCompactionJob fetches the compaction job for the given Etcd resource.
+func (r *Reconciler) fetchCompactionJob(ctx context.Context, compactionJobName, compactionJobNamespace string) (*batchv1.Job, error) {
+	job := &batchv1.Job{}
+	if err := r.Get(ctx, types.NamespacedName{Name: compactionJobName, Namespace: compactionJobNamespace}, job); err != nil {
+		if !errors.IsNotFound(err) {
+			return nil, fmt.Errorf("error while fetching compaction job with the name %v, in the namespace %v: %w", compactionJobName, compactionJobNamespace, err)
+		}
+		// Job not found, return nil
+		return nil, nil
+	}
+	return job, nil
+}
+
+func isJobPresent(job *batchv1.Job) bool {
+	return job != nil && job.Name != ""
 }
 
 func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (ctrl.Result, error) {
@@ -237,7 +207,47 @@ func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druid
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) createCompactionJobOrTriggerFullSnapshot(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions int64, job *batchv1.Job) (ctrl.Result, error) {
+// getDeltaRevisionsSinceFullSnapshot retrieves the difference between the full and delta snapshot revisions for the given Etcd resource.
+func (r *Reconciler) getDeltaRevisionsSinceFullSnapshot(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (int64, error) {
+	// Get full and delta snapshot lease to check the HolderIdentity value to take decision on compaction job
+	fullLease := &coordinationv1.Lease{}
+	fullSnapshotLeaseName := druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta)
+	if err := r.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: fullSnapshotLeaseName}, fullLease); err != nil {
+		logger.Error(err, "Couldn't fetch full snap lease", "namespace", etcd.Namespace, "name", fullSnapshotLeaseName)
+		return 0, err
+	}
+
+	deltaLease := &coordinationv1.Lease{}
+	deltaSnapshotLeaseName := druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta)
+	if err := r.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: deltaSnapshotLeaseName}, deltaLease); err != nil {
+		logger.Error(err, "Couldn't fetch delta snap lease", "namespace", etcd.Namespace, "name", deltaSnapshotLeaseName)
+		return 0, err
+	}
+
+	// Revisions have not been set yet by etcd-back-restore container.
+	// Skip further processing as we cannot calculate a revision delta.
+	if fullLease.Spec.HolderIdentity == nil || deltaLease.Spec.HolderIdentity == nil {
+		return 0, fmt.Errorf("holder identity is not set for full or delta snapshot lease, cannot calculate revision delta")
+	}
+
+	full, err := strconv.ParseInt(*fullLease.Spec.HolderIdentity, 10, 64)
+	if err != nil {
+		logger.Error(err, "Can't convert holder identity of full snap lease to integer",
+			"namespace", fullLease.Namespace, "leaseName", fullLease.Name, "holderIdentity", fullLease.Spec.HolderIdentity)
+		return 0, err
+	}
+
+	delta, err := strconv.ParseInt(*deltaLease.Spec.HolderIdentity, 10, 64)
+	if err != nil {
+		logger.Error(err, "Can't convert holder identity of delta snap lease to integer",
+			"namespace", deltaLease.Namespace, "leaseName", deltaLease.Name, "holderIdentity", deltaLease.Spec.HolderIdentity)
+		return 0, err
+	}
+	return delta - full, nil
+}
+
+// triggerFullSnapshotOrCreateCompactionJob triggers a full snapshot or creates a compaction job based on the accumulated revisions and the last compaction job status.
+func (r *Reconciler) triggerFullSnapshotOrCreateCompactionJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions int64) (ctrl.Result, error) {
 	eventsThreshold := r.config.EventsThreshold
 	triggerFullSnapshotThreshold := r.config.TriggerFullSnapshotThreshold
 	if compactionSpec := etcd.Spec.Backup.SnapshotCompaction; compactionSpec != nil {
@@ -256,19 +266,19 @@ func (r *Reconciler) createCompactionJobOrTriggerFullSnapshot(ctx context.Contex
 	if isLastCompactionConditionDeadlineExceeded(etcd) || accumulatedEtcdRevisions >= triggerFullSnapshotThreshold {
 		return r.triggerFullSnapshotAndUpdateStatus(ctx, logger, etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold)
 	}
-	return r.checkAndTriggerCompactionJob(ctx, logger, etcd, accumulatedEtcdRevisions, eventsThreshold, job)
+	return r.checkAndTriggerCompactionJob(ctx, logger, etcd, accumulatedEtcdRevisions, eventsThreshold)
 }
 
-// triggerFullSnapshotAndUpdateStatus triggers a full snapshot and updates the etcd status condition SnapshotCompactionSucceeded
+// triggerFullSnapshotAndUpdateStatus triggers a full snapshot and updates the etcd status condition LastSnapshotCompactionSucceeded.
 func (r *Reconciler) triggerFullSnapshotAndUpdateStatus(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold int64) (ctrl.Result, error) {
 	latestCondition := druidv1alpha1.Condition{
-		Type: druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded,
+		Type: druidv1alpha1.ConditionTypeLastSnapshotCompactionSucceeded,
 	}
 	fullSnapErr := r.triggerFullSnapshot(ctx, logger, etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold)
 	if fullSnapErr != nil {
 		latestCondition.Status = druidv1alpha1.ConditionFalse
 		latestCondition.Reason = druidv1alpha1.FullSnapshotFailureReason
-		latestCondition.Message = fmt.Sprintf("Error while triggering full snapshot for etcd %s/%s: %v", etcd.Namespace, etcd.Name, fullSnapErr)
+		latestCondition.Message = fmt.Sprintf("Error while triggering full snapshot for etcd %s/%s: %v.\nCompaction will be retried", etcd.Namespace, etcd.Name, fullSnapErr)
 	} else {
 		latestCondition.Status = druidv1alpha1.ConditionTrue
 		latestCondition.Reason = druidv1alpha1.FullSnapshotSuccessReason
@@ -277,7 +287,7 @@ func (r *Reconciler) triggerFullSnapshotAndUpdateStatus(ctx context.Context, log
 	etcdStatusUpdateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		latestEtcd := &druidv1alpha1.Etcd{}
 		if err := r.Get(ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: etcd.Name}, latestEtcd); err != nil {
-			return err
+			return fmt.Errorf("error while fetching etcd %s/%s: %w", etcd.Namespace, etcd.Name, err)
 		}
 		return r.updateCompactionJobEtcdStatusCondition(ctx, latestEtcd, latestCondition)
 	})
@@ -298,8 +308,9 @@ func (r *Reconciler) triggerFullSnapshotAndUpdateStatus(ctx context.Context, log
 }
 
 // checkAndTriggerCompactionJob creates compaction job only when number of accumulated revisions over the last full snapshot is more than the configured events threshold.
-func (r *Reconciler) checkAndTriggerCompactionJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions, eventsThreshold int64, job *batchv1.Job) (ctrl.Result, error) {
+func (r *Reconciler) checkAndTriggerCompactionJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions, eventsThreshold int64) (ctrl.Result, error) {
 	var err error
+	job := &batchv1.Job{}
 	compactionJobName := druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta)
 	if accumulatedEtcdRevisions >= eventsThreshold {
 		logger.Info("Creating etcd compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
@@ -311,13 +322,11 @@ func (r *Reconciler) checkAndTriggerCompactionJob(ctx context.Context, logger lo
 		metricJobsCurrent.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(1)
 	}
 
-	if job.Name != "" {
+	if isJobPresent(job) {
 		logger.Info("Current compaction job status",
 			"namespace", job.Namespace, "name", job.Name, "succeeded", job.Status.Succeeded)
 	}
-
 	return ctrl.Result{}, nil
-
 }
 
 func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (*batchv1.Job, error) {
@@ -466,12 +475,19 @@ func (r *Reconciler) updateMetricsAndStatusForCompletedJob(ctx context.Context, 
 	}
 	// Construct & Update the etcd status condition for the compaction job
 	latestCondition := druidv1alpha1.Condition{
-		Type:    druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded,
+		Type:    druidv1alpha1.ConditionTypeLastSnapshotCompactionSucceeded,
 		Status:  computeSnapshotCompactionJobStatus(jobCompletionState),
 		Reason:  computeSnapshotCompactionJobReason(jobCompletionState, jobFailureReason),
 		Message: fmt.Sprintf("Compaction job %s/%s completed with state %s", job.Namespace, job.Name, jobCompletionReason),
 	}
-	if err := r.updateCompactionJobEtcdStatusCondition(ctx, etcd, latestCondition); err != nil {
+	if latestCondition.Status == druidv1alpha1.ConditionFalse {
+		latestCondition.Message += "\nCompaction will be retried"
+	}
+	latestEtcd := &druidv1alpha1.Etcd{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: etcd.Name}, latestEtcd); err != nil {
+		return fmt.Errorf("error while fetching etcd %s/%s: %w", etcd.Namespace, etcd.Name, err)
+	}
+	if err := r.updateCompactionJobEtcdStatusCondition(ctx, latestEtcd, latestCondition); err != nil {
 		logger.Error(err, "Error while updating etcd status condition for compaction job",
 			"namespace", etcd.Namespace, "name", etcd.Name, "jobName", job.Name)
 		return fmt.Errorf("error while updating etcd status condition for compaction job: %w", err)

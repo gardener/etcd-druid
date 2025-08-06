@@ -496,7 +496,7 @@ _Appears in:_
 | Field | Description |
 | --- | --- |
 | `Ready` | ConditionTypeReady is a constant for a condition type indicating that the etcd cluster is ready.<br /> |
-| `SnapshotCompactionSucceeded` | ConditionTypeSnapshotCompactionSucceeded is a constant for a condition type indicating that a snapshot compaction is successful<br /> |
+| `LastSnapshotCompactionSucceeded` | ConditionTypeLastSnapshotCompactionSucceeded is a constant for a condition type indicating the status of last snapshot compaction.<br />If `ConditionTypeLastSnapshotCompactionSucceeded` condition status is `False`, it means the compaction controller is currently retrying the compaction operation.<br />Compaction operation can either be a compaction job or a full snapshot.<br /> |
 | `AllMembersReady` | ConditionTypeAllMembersReady is a constant for a condition type indicating that all members of the etcd cluster are ready.<br /> |
 | `AllMembersUpdated` | ConditionTypeAllMembersUpdated is a constant for a condition type indicating that all members<br />of the etcd cluster have been updated with the desired spec changes.<br /> |
 | `BackupReady` | ConditionTypeBackupReady is a constant for a condition type indicating that the etcd backup is ready.<br /> |
