@@ -365,8 +365,10 @@ type CrossVersionObjectReference struct {
 const (
 	// ConditionTypeReady is a constant for a condition type indicating that the etcd cluster is ready.
 	ConditionTypeReady ConditionType = "Ready"
-	// ConditionTypeSnapshotCompactionSucceeded is a constant for a condition type indicating that a snapshot compaction is successful
-	ConditionTypeSnapshotCompactionSucceeded ConditionType = "SnapshotCompactionSucceeded"
+	// ConditionTypeLastSnapshotCompactionSucceeded is a constant for a condition type indicating the status of last snapshot compaction.
+	// If `ConditionTypeLastSnapshotCompactionSucceeded` condition status is `False`, it means the compaction controller is currently retrying the compaction operation.
+	// Compaction operation can either be a compaction job or a full snapshot.
+	ConditionTypeLastSnapshotCompactionSucceeded ConditionType = "LastSnapshotCompactionSucceeded"
 	// ConditionTypeAllMembersReady is a constant for a condition type indicating that all members of the etcd cluster are ready.
 	ConditionTypeAllMembersReady ConditionType = "AllMembersReady"
 	// ConditionTypeAllMembersUpdated is a constant for a condition type indicating that all members

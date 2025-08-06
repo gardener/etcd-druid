@@ -13,12 +13,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// updateCompactionJobEtcdStatusCondition updates the Etcd status condition SnapshotCompactionSucceeded with the latest job/fullSnapshot status.
+// updateCompactionJobEtcdStatusCondition updates the Etcd status condition LastSnapshotCompactionSucceeded with the latest job/fullSnapshot status.
 func (r *Reconciler) updateCompactionJobEtcdStatusCondition(ctx context.Context, latestEtcd *druidv1alpha1.Etcd, latestCondition druidv1alpha1.Condition) error {
 	oldEtcdStatus := latestEtcd.Status.DeepCopy()
 	var isSnapshotCompactionConditionPresent bool
 	for i, condition := range oldEtcdStatus.Conditions {
-		if condition.Type == druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded {
+		if condition.Type == druidv1alpha1.ConditionTypeLastSnapshotCompactionSucceeded {
 			latestCondition.LastTransitionTime = condition.LastTransitionTime
 			latestCondition.LastUpdateTime = metav1.NewTime(time.Now().UTC())
 			// Update the LastTransitionTime if the status or reason has changed
@@ -61,7 +61,7 @@ func computeSnapshotCompactionJobReason(jobCompletionState int, jobFailureReason
 func isLastCompactionConditionDeadlineExceeded(etcd *druidv1alpha1.Etcd) bool {
 	etcdConditions := etcd.Status.Conditions
 	for _, condition := range etcdConditions {
-		if condition.Type == druidv1alpha1.ConditionTypeSnapshotCompactionSucceeded &&
+		if condition.Type == druidv1alpha1.ConditionTypeLastSnapshotCompactionSucceeded &&
 			condition.Status == druidv1alpha1.ConditionFalse &&
 			condition.Reason == druidv1alpha1.JobFailureReasonDeadlineExceeded {
 			return true
