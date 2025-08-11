@@ -13,6 +13,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -32,7 +33,7 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 		}).
 		For(&druidv1alpha1.Etcd{}).
 		WithEventFilter(predicate.
-			Or(snapshotRevisionChanged(), jobStatusChanged())).
+			Or(snapshotRevisionChanged(), compactionJobStatusChanged())).
 		Owns(&coordinationv1.Lease{}).
 		Owns(&batchv1.Job{}).
 		Complete(r)
@@ -79,8 +80,30 @@ func snapshotRevisionChanged() predicate.Predicate {
 	}
 }
 
-// jobStatusChanged is a predicate that is `true` if the status of a job changes.
-func jobStatusChanged() predicate.Predicate {
+// compactionJobStatusChanged is a predicate that is `true` if the status of a compaction job changes.
+func compactionJobStatusChanged() predicate.Predicate {
+	isCompactionJob := func(obj client.Object) bool {
+		job, ok := obj.(*batchv1.Job)
+		if !ok {
+			return false
+		}
+
+		// Extract etcd name from the job's owner reference
+		etcdKind := druidv1alpha1.SchemeGroupVersion.WithKind("Etcd").Kind
+		for _, ownerRef := range job.OwnerReferences {
+			if ownerRef.Kind == etcdKind && ownerRef.APIVersion == druidv1alpha1.SchemeGroupVersion.String() {
+				// Construct the expected compaction job name using the etcd metadata
+				etcdObjMeta := metav1.ObjectMeta{
+					Name:      ownerRef.Name,
+					Namespace: job.Namespace,
+				}
+				expectedCompactionJobName := druidv1alpha1.GetCompactionJobName(etcdObjMeta)
+				return job.Name == expectedCompactionJobName
+			}
+		}
+		return false
+	}
+
 	statusChange := func(objOld, objNew client.Object) bool {
 		jobOld, ok := objOld.(*batchv1.Job)
 		if !ok {
@@ -98,7 +121,7 @@ func jobStatusChanged() predicate.Predicate {
 			return false
 		},
 		UpdateFunc: func(event event.UpdateEvent) bool {
-			return statusChange(event.ObjectOld, event.ObjectNew)
+			return isCompactionJob(event.ObjectNew) && statusChange(event.ObjectOld, event.ObjectNew)
 		},
 		GenericFunc: func(_ event.GenericEvent) bool {
 			return false
