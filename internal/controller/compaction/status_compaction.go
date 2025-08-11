@@ -58,12 +58,13 @@ func computeSnapshotCompactionJobReason(jobCompletionState int, jobFailureReason
 	return druidv1alpha1.PodFailureReasonUnknown
 }
 
-func isLastCompactionConditionDeadlineExceeded(etcd *druidv1alpha1.Etcd) bool {
+func isLastCompactionConditionDeadlineExceededOrFullSnapshotFailure(etcd *druidv1alpha1.Etcd) bool {
 	etcdConditions := etcd.Status.Conditions
 	for _, condition := range etcdConditions {
 		if condition.Type == druidv1alpha1.ConditionTypeLastSnapshotCompactionSucceeded &&
 			condition.Status == druidv1alpha1.ConditionFalse &&
-			condition.Reason == druidv1alpha1.JobFailureReasonDeadlineExceeded {
+			(condition.Reason == druidv1alpha1.JobFailureReasonDeadlineExceeded ||
+				condition.Reason == druidv1alpha1.FullSnapshotFailureReason) {
 			return true
 		}
 	}
