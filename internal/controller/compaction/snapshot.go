@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	etcdbrFullSnapshotReqTimeout = 30 * time.Second
+	etcdbrFullSnapshotReqTimeout = 60 * time.Second
 )
 
 type httpClientInterface interface {
@@ -34,8 +34,8 @@ type httpClientInterface interface {
 // triggerFullSnapshot triggers a full snapshot for the given Etcd resource and updates the metrics.
 func (r *Reconciler) triggerFullSnapshot(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, accumulatedEtcdRevisions, triggerFullSnapshotThreshold int64) error {
 	var reason string
-	if isLastCompactionConditionDeadlineExceeded(etcd) {
-		reason = "previous compaction job deadline exceeded"
+	if isLastCompactionConditionDeadlineExceededOrFullSnapshotFailure(etcd) {
+		reason = "either previous compaction got job deadline exceeded or full snapshot failed"
 	} else {
 		reason = "delta revisions have crossed the upper threshold"
 	}
