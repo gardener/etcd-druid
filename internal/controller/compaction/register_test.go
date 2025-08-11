@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/test/utils"
+
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -190,11 +193,11 @@ func TestJobStatusChangedForUpdateEvents(t *testing.T) {
 
 	g := NewWithT(t)
 	t.Parallel()
-	predicate := jobStatusChanged()
+	predicate := compactionJobStatusChanged()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			obj, oldObj := createObjectsForJobStatusChangedPredicate(g, "etcd-test-compaction-job", test.isObjectJob, test.isStatusChanged)
+			obj, oldObj := createObjectsForJobStatusChangedPredicate(g, druidv1alpha1.GetCompactionJobName(metav1.ObjectMeta{Name: utils.TestEtcdName}), test.isObjectJob, test.isStatusChanged)
 			g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: oldObj, ObjectNew: obj})).To(Equal(test.shouldAllowUpdateEvent))
 		})
 	}
@@ -208,8 +211,28 @@ func createObjectsForJobStatusChangedPredicate(g *WithT, name string, isJobObj, 
 		return
 	}
 	now := time.Now()
+
+	// Extract etcd name from compaction job name (follows pattern: {etcd-name}-compactor)
+	etcdName := utils.TestEtcdName
+	etcdKind := druidv1alpha1.SchemeGroupVersion.WithKind("Etcd").Kind
+
+	// Create proper owner reference for compaction job
+	ownerRef := metav1.OwnerReference{
+		APIVersion:         druidv1alpha1.SchemeGroupVersion.String(),
+		Kind:               etcdKind,
+		Name:               etcdName,
+		UID:                "test-etcd-uid-12345",
+		Controller:         ptr.To(true),
+		BlockOwnerDeletion: ptr.To(true),
+	}
+
 	// create job objects
 	oldObj = &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            name,
+			Namespace:       utils.TestNamespace,
+			OwnerReferences: []metav1.OwnerReference{ownerRef},
+		},
 		Status: batchv1.JobStatus{
 			Active: 1,
 			StartTime: &metav1.Time{
@@ -219,6 +242,11 @@ func createObjectsForJobStatusChangedPredicate(g *WithT, name string, isJobObj, 
 	}
 	if isStatusChanged {
 		obj = &batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            name,
+				Namespace:       utils.TestNamespace,
+				OwnerReferences: []metav1.OwnerReference{ownerRef},
+			},
 			Status: batchv1.JobStatus{
 				Succeeded: 1,
 				StartTime: &metav1.Time{

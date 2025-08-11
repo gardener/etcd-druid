@@ -297,7 +297,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 					APIVersion:         druidv1alpha1.SchemeGroupVersion.String(),
 					BlockOwnerDeletion: ptr.To(true),
 					Controller:         ptr.To(true),
-					Kind:               "Etcd",
+					Kind:               druidv1alpha1.SchemeGroupVersion.WithKind("Etcd").Kind,
 					Name:               etcd.Name,
 					UID:                etcd.UID,
 				},
