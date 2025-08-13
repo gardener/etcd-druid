@@ -47,9 +47,11 @@ type EtcdCopyBackupsTaskSpec struct {
 	// MaxBackupAge is the maximum age in days that a backup must have in order to be copied.
 	// By default, all backups will be copied.
 	// +optional
+	// +kubebuilder:validation:Minimum=0
 	MaxBackupAge *uint32 `json:"maxBackupAge,omitempty"`
 	// MaxBackups is the maximum number of backups that will be copied starting with the most recent ones.
 	// +optional
+	// +kubebuilder:validation:Minimum=0
 	MaxBackups *uint32 `json:"maxBackups,omitempty"`
 	// WaitForFinalSnapshot defines the parameters for waiting for a final full snapshot before copying backups.
 	// +optional
@@ -63,6 +65,8 @@ type WaitForFinalSnapshotSpec struct {
 	// Timeout is the timeout for waiting for a final full snapshot. When this timeout expires, the copying of backups
 	// will be performed anyway. No timeout or 0 means wait forever.
 	// +optional
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Pattern="^(0|([0-9]+(\\.[0-9]+)?(s|m|h))+)$"
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
 }
 
