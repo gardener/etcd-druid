@@ -12,7 +12,6 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
-	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -82,17 +81,26 @@ func snapshotRevisionChanged() predicate.Predicate {
 
 // compactionJobStatusChanged is a predicate that is `true` if the status of a compaction job changes.
 func compactionJobStatusChanged() predicate.Predicate {
+	equalInt32Ptr := func(a, b *int32) bool {
+		if a == nil && b == nil {
+			return true
+		}
+		if a == nil || b == nil {
+			return false
+		}
+		return *a == *b
+	}
+
 	isCompactionJob := func(obj client.Object) bool {
 		job, ok := obj.(*batchv1.Job)
 		if !ok {
 			return false
 		}
 
-		// Extract etcd name from the job's owner reference
 		etcdKind := druidv1alpha1.SchemeGroupVersion.WithKind("Etcd").Kind
+		// Extract etcd name from the job's owner reference
 		for _, ownerRef := range job.OwnerReferences {
 			if ownerRef.Kind == etcdKind && ownerRef.APIVersion == druidv1alpha1.SchemeGroupVersion.String() {
-				// Construct the expected compaction job name using the etcd metadata
 				etcdObjMeta := metav1.ObjectMeta{
 					Name:      ownerRef.Name,
 					Namespace: job.Namespace,
@@ -104,6 +112,9 @@ func compactionJobStatusChanged() predicate.Predicate {
 		return false
 	}
 
+	// statusChange compares only the critical JobStatus fields that should trigger reconciliation.
+	// It checks Active, Succeeded, Failed, Terminating, and Ready fields.
+	// Returns false if the new job has active pods (Status.Active > 0) to prevent reconciliation during active compaction job execution.
 	statusChange := func(objOld, objNew client.Object) bool {
 		jobOld, ok := objOld.(*batchv1.Job)
 		if !ok {
@@ -113,7 +124,21 @@ func compactionJobStatusChanged() predicate.Predicate {
 		if !ok {
 			return false
 		}
-		return !apiequality.Semantic.DeepEqual(jobOld.Status, jobNew.Status)
+
+		oldStatus := jobOld.Status
+		newStatus := jobNew.Status
+
+		// Prevent reconciliation when the job has active pods
+		if newStatus.Active > 0 {
+			return false
+		}
+
+		// Compare only the critical status fields
+		return oldStatus.Active != newStatus.Active ||
+			oldStatus.Succeeded != newStatus.Succeeded ||
+			oldStatus.Failed != newStatus.Failed ||
+			!equalInt32Ptr(oldStatus.Terminating, newStatus.Terminating) ||
+			!equalInt32Ptr(oldStatus.Ready, newStatus.Ready)
 	}
 
 	return predicate.Funcs{
