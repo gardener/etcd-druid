@@ -11,6 +11,8 @@ import (
 	"github.com/gardener/etcd-druid/test/utils"
 )
 
+// testValidateSpecWaitForFinalSnapshotTimeout tests the validation of the `spec.waitForFinalSnapshot.timeout` field
+// of the EtcdCopyBackupsTask CR.
 func TestValidateSpecWaitForFinalSnapshotTimeout(t *testing.T) {
 	testNs, g := setupTestEnvironment(t)
 	var tests = []struct {
@@ -80,6 +82,7 @@ func TestValidateSpecWaitForFinalSnapshotTimeout(t *testing.T) {
 	}
 }
 
+// testValidateSpecMaxBackupAge tests the validation of the `spec.maxBackupAge` field of the EtcdCopyBackupsTask CR.
 func TestValidateSpecMaxBackupAge(t *testing.T) {
 	testNs, g := setupTestEnvironment(t)
 	var tests = []struct {
@@ -118,6 +121,7 @@ func TestValidateSpecMaxBackupAge(t *testing.T) {
 	}
 }
 
+// testValidateSpecMaxBackups tests the validation of the `spec.maxBackups` field of the EtcdCopyBackupsTask CR.
 func TestValidateSpecMaxBackups(t *testing.T) {
 	testNs, g := setupTestEnvironment(t)
 	var tests = []struct {

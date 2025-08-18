@@ -56,8 +56,8 @@ func validatePatchedObjectCreation[T client.Object](g *WithT, patchedObject *uns
 	}, "5s", "1s").Should(Succeed())
 }
 
-// Helper to patch a key within the given Kubernetes object. This is needed to simulate invalid values
-// passed in through YAML to the api-server.
+// patchObject is a helper that patches a key within the given Kubernetes object. This is needed to simulate invalid
+// values passed in through YAML to the api-server, bypassing the type-checks of the Go client.
 func patchObject[T client.Object](object T, path []string, value interface{}) *unstructured.Unstructured {
 	// Convert the object to a vanilla Go map
 	unstructuredObject, err := runtime.DefaultUnstructuredConverter.ToUnstructured(object)
@@ -80,7 +80,7 @@ func patchObject[T client.Object](object T, path []string, value interface{}) *u
 	}
 }
 
-// initial setup for setting up namespace and test environment
+// setupTestEnvironment performs the initial setup for namespace and test environment
 func setupTestEnvironment(t *testing.T) (string, *WithT) {
 	g := NewWithT(t)
 	testNs := utils.GenerateTestNamespaceName(t, testNamespacePrefix)
