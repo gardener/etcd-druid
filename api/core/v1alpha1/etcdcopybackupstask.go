@@ -66,7 +66,7 @@ type WaitForFinalSnapshotSpec struct {
 	// will be performed anyway. No timeout or 0 means wait forever.
 	// +optional
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Pattern="^(0|([0-9]+(\\.[0-9]+)?(s|m|h))+)$"
+	// +kubebuilder:validation:Pattern="^(0|([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$"
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
 }
 

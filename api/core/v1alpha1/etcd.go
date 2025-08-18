@@ -120,12 +120,12 @@ type LeaderElectionSpec struct {
 	// ReelectionPeriod defines the Period after which leadership status of corresponding etcd is checked.
 	// +optional
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Pattern="^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$"
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
 	ReelectionPeriod *metav1.Duration `json:"reelectionPeriod,omitempty"`
 	// EtcdConnectionTimeout defines the timeout duration for etcd client connection during leader election.
 	// +optional
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Pattern="^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$"
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
 	EtcdConnectionTimeout *metav1.Duration `json:"etcdConnectionTimeout,omitempty"`
 }
 
@@ -165,12 +165,12 @@ type BackupSpec struct {
 	// GarbageCollectionPeriod defines the period for garbage collecting old backups
 	// +optional
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Pattern="^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$"
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
 	GarbageCollectionPeriod *metav1.Duration `json:"garbageCollectionPeriod,omitempty"`
 	// DeltaSnapshotPeriod defines the period after which delta snapshots will be taken
 	// +optional
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Pattern="^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$"
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
 	DeltaSnapshotPeriod *metav1.Duration `json:"deltaSnapshotPeriod,omitempty"`
 	// DeltaSnapshotMemoryLimit defines the memory limit after which delta snapshots will be taken
 	// +optional
@@ -178,7 +178,7 @@ type BackupSpec struct {
 	// DeltaSnapshotRetentionPeriod defines the duration for which delta snapshots will be retained, excluding the latest snapshot set.
 	// The value should be a string formatted as a duration (e.g., '1s', '2m', '3h', '4d')
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Pattern="^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$"
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
 	// +optional
 	DeltaSnapshotRetentionPeriod *metav1.Duration `json:"deltaSnapshotRetentionPeriod,omitempty"`
 
@@ -191,7 +191,7 @@ type BackupSpec struct {
 	// EtcdSnapshotTimeout defines the timeout duration for etcd FullSnapshot operation
 	// +optional
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Pattern="^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$"
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
 	EtcdSnapshotTimeout *metav1.Duration `json:"etcdSnapshotTimeout,omitempty"`
 	// LeaderElection defines parameters related to the LeaderElection configuration.
 	// +optional
@@ -239,12 +239,12 @@ type EtcdConfig struct {
 	// EtcdDefragTimeout defines the timeout duration for etcd defrag call
 	// +optional
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Pattern="^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$"
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
 	EtcdDefragTimeout *metav1.Duration `json:"etcdDefragTimeout,omitempty"`
 	// HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s.
 	// +optional
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Pattern="^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?$"
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
 	HeartbeatDuration *metav1.Duration `json:"heartbeatDuration,omitempty"`
 	// ClientService defines the parameters of the client service that a user can specify
 	// +optional
