@@ -58,26 +58,27 @@ func validatePatchedObjectCreation[T client.Object](g *WithT, patchedObject *uns
 
 // patchObject is a helper that patches a key within the given Kubernetes object. This is needed to simulate invalid
 // values passed in through YAML to the api-server, bypassing the type-checks of the Go client.
-func patchObject[T client.Object](object T, path []string, value interface{}) *unstructured.Unstructured {
+func patchObject[T client.Object](object T, fieldPath []string, value interface{}) (*unstructured.Unstructured, error) {
 	// Convert the object to a vanilla Go map
 	unstructuredObject, err := runtime.DefaultUnstructuredConverter.ToUnstructured(object)
 	if err != nil {
-		panic(fmt.Sprintf("failed to convert EtcdCopyBackupsTask to unstructured object: %v", err))
+		return nil, fmt.Errorf("failed to convert EtcdCopyBackupsTask to unstructured object: %v", err)
 	}
 
 	// Navigate to the specified path and set the value
 	currentObject := unstructuredObject
-	for _, key := range path[:len(path)-1] {
+	for _, key := range fieldPath[:len(fieldPath)-1] {
+		// Initialize the map for the sub-path if it does not exist to avoid runtime error in the next iteration.
 		if _, exists := currentObject[key]; !exists {
 			currentObject[key] = make(map[string]interface{})
 		}
 		currentObject = currentObject[key].(map[string]interface{})
 	}
-	currentObject[path[len(path)-1]] = value
+	currentObject[fieldPath[len(fieldPath)-1]] = value
 
 	return &unstructured.Unstructured{
 		Object: unstructuredObject,
-	}
+	}, nil
 }
 
 // setupTestEnvironment performs the initial setup for namespace and test environment
@@ -85,7 +86,7 @@ func setupTestEnvironment(t *testing.T) (string, *WithT) {
 	g := NewWithT(t)
 	testNs := utils.GenerateTestNamespaceName(t, testNamespacePrefix)
 
-	t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
+	t.Logf("Successfully created namespace: %s to run test => '%s'", testNs, t.Name())
 	t.Log("Setting up Client")
 
 	g.Expect(itTestEnv.CreateManager(utils.NewTestClientBuilder())).To(Succeed())

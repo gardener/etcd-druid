@@ -18,7 +18,7 @@ func TestMain(m *testing.M) {
 		itTestEnvCloser setup.DruidTestEnvCloser
 		err             error
 	)
-	itTestEnv, itTestEnvCloser, err = setup.NewDruidTestEnvironment("etcdcopybackuptast-validation", []string{assets.GetEtcdCopyBackupsTaskCrdPath()})
+	itTestEnv, itTestEnvCloser, err = setup.NewDruidTestEnvironment("etcdcopybackuptask-validation", []string{assets.GetEtcdCopyBackupsTaskCrdPath()})
 
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to create integration test environment: %v\n", err)

@@ -9,6 +9,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/test/utils"
+	. "github.com/onsi/gomega"
 )
 
 // testValidateSpecWaitForFinalSnapshotTimeout tests the validation of the `spec.waitForFinalSnapshot.timeout` field
@@ -74,9 +75,10 @@ func TestValidateSpecWaitForFinalSnapshotTimeout(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			copyBackupTask := utils.CreateEtcdCopyBackupsTask(test.taskName, testNs, "aws", true)
-			patchedCopyBackupTask := patchObject(copyBackupTask, []string{
+			patchedCopyBackupTask, err := patchObject(copyBackupTask, []string{
 				"spec", "waitForFinalSnapshot", "timeout",
 			}, test.value)
+			g.Expect(err).ToNot(HaveOccurred(), "failed to patch object: %v", err)
 			validatePatchedObjectCreation[*druidv1alpha1.EtcdCopyBackupsTask](g, patchedCopyBackupTask, test.expectErr)
 		})
 	}
@@ -113,9 +115,10 @@ func TestValidateSpecMaxBackupAge(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			copyBackupTask := utils.CreateEtcdCopyBackupsTask(test.taskName, testNs, "aws", true)
-			patchedCopyBackupTask := patchObject(copyBackupTask, []string{
+			patchedCopyBackupTask, err := patchObject(copyBackupTask, []string{
 				"spec", "maxBackupAge",
 			}, test.value)
+			g.Expect(err).ToNot(HaveOccurred(), "failed to patch object: %v", err)
 			validatePatchedObjectCreation[*druidv1alpha1.EtcdCopyBackupsTask](g, patchedCopyBackupTask, test.expectErr)
 		})
 	}
@@ -152,9 +155,10 @@ func TestValidateSpecMaxBackups(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			copyBackupTask := utils.CreateEtcdCopyBackupsTask(test.taskName, testNs, "aws", true)
-			patchedCopyBackupTask := patchObject(copyBackupTask, []string{
+			patchedCopyBackupTask, err := patchObject(copyBackupTask, []string{
 				"spec", "maxBackups",
 			}, test.value)
+			g.Expect(err).ToNot(HaveOccurred(), "failed to patch object: %v", err)
 			validatePatchedObjectCreation[*druidv1alpha1.EtcdCopyBackupsTask](g, patchedCopyBackupTask, test.expectErr)
 		})
 	}
