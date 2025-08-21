@@ -118,7 +118,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.delete(ctx, r.logger, etcd)
 	}
 
-	logger := r.logger.WithValues("etcd", client.ObjectKeyFromObject(etcd).String())
+	logger := r.logger.WithValues("etcdNamespace", etcd.Namespace, "etcdName", etcd.Name)
 
 	return r.doReconcile(ctx, logger, etcd)
 }
@@ -134,7 +134,7 @@ func (r *Reconciler) doReconcile(ctx context.Context, logger logr.Logger, etcd *
 	if isJobPresent(job) {
 		// If the job is marked for deletion, we will not proceed with compaction process until the job is deleted.
 		if !job.DeletionTimestamp.IsZero() {
-			logger.Info("Job is already in deletion. A new job will be created only if the previous one has been deleted.", "namespace: ", job.Namespace, "name: ", job.Name)
+			logger.Info("Job is already in deletion. A new job will be created only if the previous one has been deleted.", "jobName", job.Name)
 			return ctrl.Result{
 				RequeueAfter: 10 * time.Second,
 			}, nil
@@ -142,32 +142,32 @@ func (r *Reconciler) doReconcile(ctx context.Context, logger logr.Logger, etcd *
 
 		// Check if there is one active job or not
 		if job.Status.Active > 0 {
-			logger.Info("Compaction job is currently running", "namespace", job.Namespace, "name", job.Name)
+			logger.Info("Compaction job is currently running", "jobName", job.Name)
 			metricJobsCurrent.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(1)
 			// Don't need to requeue if the job is currently running
 			return ctrl.Result{}, nil
 		}
 
 		// Set the current job count to 0 as the job is not active
-		logger.Info("Compaction job is completed", "namespace", job.Namespace, "name", job.Name)
+		logger.Info("Compaction job is completed", "jobName", job.Name)
 		metricJobsCurrent.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(0)
 
 		// Update the metrics and status for the completed job
-		logger.Info("Updating metrics and status for the completed job", "namespace", job.Namespace, "name", job.Name)
+		logger.Info("Updating metrics and status for the completed job", "jobName", job.Name)
 		if err := r.updateMetricsAndStatusForCompletedJob(ctx, logger, job, etcd); err != nil {
-			logger.Error(err, "Error while updating metrics and/or status for completed job")
+			logger.Error(err, "Error while updating metrics and/or status for completed job", "jobName", job.Name)
 			return ctrl.Result{}, fmt.Errorf("error while updating metrics and status for completed job: %w", err)
 		}
 
 		// Delete the completed compaction job
-		logger.Info("Deleting the completed compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
+		logger.Info("Deleting the completed compaction job", "jobName", compactionJobName)
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
-			logger.Error(err, "Couldn't delete the completed compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
+			logger.Error(err, "Couldn't delete the completed compaction job", "jobName", compactionJobName)
 			return ctrl.Result{}, fmt.Errorf("error while deleting the completed compaction job: %w", err)
 		}
 
 		// Wait for the deletion marker to be set before proceeding
-		logger.Info("Waiting for job deletion marker to be set", "jobName", compactionJobName, "namespace", etcd.Namespace)
+		logger.Info("Waiting for job deletion marker to be set", "jobName", compactionJobName)
 		if err := r.waitForJobDeletionMarker(ctx, logger, compactionJobName, etcd.Namespace); err != nil {
 			logger.Error(err, "Error waiting for job deletion marker")
 			return ctrl.Result{}, fmt.Errorf("error waiting for job deletion marker: %w", err)
@@ -177,14 +177,14 @@ func (r *Reconciler) doReconcile(ctx context.Context, logger logr.Logger, etcd *
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
-	logger.Info("No compaction job is currently running", "namespace", etcd.Namespace)
+	logger.Info("No compaction job is currently running")
 
 	diff, err := r.getDeltaRevisionsSinceFullSnapshot(ctx, logger, etcd)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("error while getting difference between delta and full snapshot revisions: %w", err)
 	}
 
-	logger.Info("Delta revisions since last full snapshot", "namespace", etcd.Namespace, "diff", diff)
+	logger.Info("Delta revisions since last full snapshot", "diff", diff)
 	metricNumDeltaEvents.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(float64(diff))
 	return r.triggerFullSnapshotOrCreateCompactionJob(ctx, logger, etcd, diff)
 }
@@ -209,37 +209,34 @@ func isJobPresent(job *batchv1.Job) bool {
 // waitForJobDeletionMarker waits for the job to have a deletion timestamp set or to be completely deleted.
 // This ensures that the next reconciliation will not see a stale job without deletion marker due to informer cache staleness.
 func (r *Reconciler) waitForJobDeletionMarker(ctx context.Context, logger logr.Logger, jobName, jobNamespace string) error {
-	logger.Info("Waiting for job deletion marker to be set", "jobName", jobName, "namespace", jobNamespace)
+	logger.Info("Waiting for job deletion marker to be set", "jobName", jobName)
 
 	err := wait.PollUntilContextTimeout(ctx, pollInterval, pollTimeout, true,
 		func(ctx context.Context) (bool, error) {
 			job, err := r.fetchCompactionJob(ctx, jobName, jobNamespace)
 			if err != nil {
-				logger.Error(err, "Error fetching job while waiting for deletion marker",
-					"jobName", jobName, "namespace", jobNamespace)
+				logger.Error(err, "Error fetching job while waiting for deletion marker", "jobName", jobName)
 				return false, err // This will cause retry
 			}
 
 			if job == nil {
-				logger.Info("Job completely deleted", "jobName", jobName, "namespace", jobNamespace)
+				logger.Info("Job completely deleted", "jobName", jobName)
 				return true, nil // Job is gone, success
 			}
 
 			if !job.DeletionTimestamp.IsZero() {
-				logger.Info("Job deletion marker is set", "jobName", jobName, "namespace", jobNamespace)
+				logger.Info("Job deletion marker is set", "jobName", jobName)
 				return true, nil // Deletion marker found, success
 			}
 
 			// Job still exists without deletion marker, continue polling
-			logger.V(1).Info("Job still exists without deletion marker, retrying...",
-				"jobName", jobName, "namespace", jobNamespace)
+			logger.V(1).Info("Job still exists without deletion marker, retrying...", "jobName", jobName)
 			return false, nil
 		})
 
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			logger.Info("Timeout waiting for job deletion marker, proceeding anyway",
-				"jobName", jobName, "namespace", jobNamespace, "timeout", pollTimeout)
+			logger.Info("Timeout waiting for job deletion marker, proceeding anyway", "jobName", jobName, "timeout", pollTimeout)
 			return nil // Don't fail the reconciliation on timeout
 		}
 		return fmt.Errorf("error waiting for job deletion marker: %w", err)
@@ -252,15 +249,13 @@ func (r *Reconciler) waitForJobDeletionMarker(ctx context.Context, logger logr.L
 // This ensures that the next reconciliation will not see a stale etcd status due to informer cache staleness.
 func (r *Reconciler) waitForEtcdStatusConditionUpdate(ctx context.Context, logger logr.Logger, etcdNamespace, etcdName string, expectedCondition druidv1alpha1.Condition) error {
 	logger.Info("Waiting for etcd status condition to be updated",
-		"etcdName", etcdName, "namespace", etcdNamespace,
 		"expectedType", expectedCondition.Type, "expectedStatus", expectedCondition.Status, "expectedReason", expectedCondition.Reason)
 
 	err := wait.PollUntilContextTimeout(ctx, pollInterval, pollTimeout, true,
 		func(ctx context.Context) (bool, error) {
 			latestEtcd := &druidv1alpha1.Etcd{}
 			if err := r.Get(ctx, types.NamespacedName{Namespace: etcdNamespace, Name: etcdName}, latestEtcd); err != nil {
-				logger.Error(err, "Error fetching etcd while waiting for status condition update",
-					"etcdName", etcdName, "namespace", etcdNamespace)
+				logger.Error(err, "Error fetching etcd while waiting for status condition update")
 				return false, err // This will cause retry
 			}
 
@@ -268,15 +263,11 @@ func (r *Reconciler) waitForEtcdStatusConditionUpdate(ctx context.Context, logge
 			for _, condition := range latestEtcd.Status.Conditions {
 				if condition.Type == expectedCondition.Type {
 					if condition.Status == expectedCondition.Status && condition.Reason == expectedCondition.Reason {
-						logger.Info("Etcd status condition updated successfully",
-							"etcdName", etcdName, "namespace", etcdNamespace,
-							"conditionType", condition.Type, "status", condition.Status, "reason", condition.Reason)
+						logger.Info("Etcd status condition updated successfully", "conditionType", condition.Type, "status", condition.Status, "reason", condition.Reason)
 						return true, nil // Expected condition found
 					}
 					// Condition exists but doesn't match expected values
-					logger.V(1).Info("Etcd status condition found but doesn't match expected values, retrying...",
-						"etcdName", etcdName, "namespace", etcdNamespace,
-						"conditionType", condition.Type,
+					logger.V(1).Info("Etcd status condition found but doesn't match expected values, retrying...", "conditionType", condition.Type,
 						"currentStatus", condition.Status, "expectedStatus", expectedCondition.Status,
 						"currentReason", condition.Reason, "expectedReason", expectedCondition.Reason)
 					return false, nil
@@ -284,16 +275,13 @@ func (r *Reconciler) waitForEtcdStatusConditionUpdate(ctx context.Context, logge
 			}
 
 			// Condition of expected type not found
-			logger.V(1).Info("Etcd status condition not found, retrying...",
-				"etcdName", etcdName, "namespace", etcdNamespace, "expectedType", expectedCondition.Type)
+			logger.V(1).Info("Etcd status condition not found, retrying...", "expectedType", expectedCondition.Type)
 			return false, nil
 		})
 
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			logger.Info("Timeout waiting for etcd status condition update, proceeding anyway",
-				"etcdName", etcdName, "namespace", etcdNamespace,
-				"expectedType", expectedCondition.Type, "timeout", pollTimeout)
+			logger.Info("Timeout waiting for etcd status condition update, proceeding anyway", "expectedType", expectedCondition.Type, "timeout", pollTimeout)
 			return nil // Don't fail the reconciliation on timeout
 		}
 		return fmt.Errorf("error waiting for etcd status condition update: %w", err)
@@ -312,7 +300,7 @@ func (r *Reconciler) delete(ctx context.Context, logger logr.Logger, etcd *druid
 	}
 
 	if job.DeletionTimestamp == nil {
-		logger.Info("Deleting job", "namespace", job.Namespace, "name", job.Name)
+		logger.Info("Deleting job", "jobName", job.Name)
 		if err := client.IgnoreNotFound(r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground))); err != nil {
 			return ctrl.Result{}, fmt.Errorf("error while deleting compaction job: %w", err)
 		}
@@ -328,14 +316,14 @@ func (r *Reconciler) getDeltaRevisionsSinceFullSnapshot(ctx context.Context, log
 	fullLease := &coordinationv1.Lease{}
 	fullSnapshotLeaseName := druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta)
 	if err := r.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: fullSnapshotLeaseName}, fullLease); err != nil {
-		logger.Error(err, "Couldn't fetch full snap lease", "namespace", etcd.Namespace, "name", fullSnapshotLeaseName)
+		logger.Error(err, "Couldn't fetch full snap lease", "leaseName", fullSnapshotLeaseName)
 		return 0, err
 	}
 
 	deltaLease := &coordinationv1.Lease{}
 	deltaSnapshotLeaseName := druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta)
 	if err := r.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: deltaSnapshotLeaseName}, deltaLease); err != nil {
-		logger.Error(err, "Couldn't fetch delta snap lease", "namespace", etcd.Namespace, "name", deltaSnapshotLeaseName)
+		logger.Error(err, "Couldn't fetch delta snap lease", "leaseName", deltaSnapshotLeaseName)
 		return 0, err
 	}
 
@@ -348,14 +336,14 @@ func (r *Reconciler) getDeltaRevisionsSinceFullSnapshot(ctx context.Context, log
 	full, err := strconv.ParseInt(*fullLease.Spec.HolderIdentity, 10, 64)
 	if err != nil {
 		logger.Error(err, "Can't convert holder identity of full snap lease to integer",
-			"namespace", fullLease.Namespace, "leaseName", fullLease.Name, "holderIdentity", fullLease.Spec.HolderIdentity)
+			"leaseName", fullLease.Name, "holderIdentity", fullLease.Spec.HolderIdentity)
 		return 0, err
 	}
 
 	delta, err := strconv.ParseInt(*deltaLease.Spec.HolderIdentity, 10, 64)
 	if err != nil {
 		logger.Error(err, "Can't convert holder identity of delta snap lease to integer",
-			"namespace", deltaLease.Namespace, "leaseName", deltaLease.Name, "holderIdentity", deltaLease.Spec.HolderIdentity)
+			"leaseName", deltaLease.Name, "holderIdentity", deltaLease.Spec.HolderIdentity)
 		return 0, err
 	}
 	return delta - full, nil
@@ -402,7 +390,7 @@ func (r *Reconciler) triggerFullSnapshotAndUpdateStatus(ctx context.Context, log
 		latestCondition.Message = fmt.Sprintf("Full snapshot taken successfully for etcd %s/%s", etcd.Namespace, etcd.Name)
 	}
 	etcdStatusUpdateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		logger.Info("Updating etcd status condition for full snapshot compaction", "namespace", etcd.Namespace, "name", etcd.Name,
+		logger.Info("Updating etcd status condition for full snapshot compaction",
 			"conditionType", latestCondition.Type, "status", latestCondition.Status, "reason", latestCondition.Reason, "message", latestCondition.Message)
 		// Fetch the latest etcd resource to avoid conflict errors
 		latestEtcd := &druidv1alpha1.Etcd{}
@@ -430,7 +418,7 @@ func (r *Reconciler) triggerFullSnapshotAndUpdateStatus(ctx context.Context, log
 		logger.Error(requeueErrReason, "Error in triggering compaction-fullSnapshot and/or updating etcd status condition")
 		return ctrl.Result{}, requeueErrReason
 	}
-	logger.Info("Compaction-FullSnapshot triggered and etcd status condition updated successfully", "namespace", etcd.Namespace, "name", etcd.Name)
+	logger.Info("Compaction-FullSnapshot triggered and etcd status condition updated successfully")
 	return ctrl.Result{}, nil
 }
 
@@ -440,18 +428,17 @@ func (r *Reconciler) checkAndTriggerCompactionJob(ctx context.Context, logger lo
 	job := &batchv1.Job{}
 	compactionJobName := druidv1alpha1.GetCompactionJobName(etcd.ObjectMeta)
 	if accumulatedEtcdRevisions >= eventsThreshold {
-		logger.Info("Creating etcd compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
+		logger.Info("Creating etcd compaction job", "jobName", compactionJobName)
 		job, err = r.createCompactionJob(ctx, logger, etcd)
 		if err != nil {
-			logger.Error(err, "Error while creating compaction job", "namespace", etcd.Namespace, "name", compactionJobName)
+			logger.Error(err, "Error while creating compaction job", "jobName", compactionJobName)
 			return ctrl.Result{}, fmt.Errorf("error during compaction job creation: %w", err)
 		}
 		metricJobsCurrent.With(prometheus.Labels{druidmetrics.LabelEtcdNamespace: etcd.Namespace}).Set(1)
 	}
 
 	if isJobPresent(job) {
-		logger.Info("Current compaction job status",
-			"namespace", job.Namespace, "name", job.Name, "succeeded", job.Status.Succeeded)
+		logger.Info("Current compaction job status", "jobName", job.Name, "succeeded", job.Status.Succeeded)
 	}
 	return ctrl.Result{}, nil
 }
@@ -570,7 +557,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 		job.Spec.Template.Spec.Volumes = vm
 	}
 
-	logger.Info("Creating job", "namespace", job.Namespace, "name", job.Name)
+	logger.Info("Creating job", "jobName", job.Name)
 	err = r.Create(ctx, job)
 	if err != nil {
 		return nil, err
@@ -591,15 +578,15 @@ func (r *Reconciler) updateMetricsAndStatusForCompletedJob(ctx context.Context, 
 	)
 
 	jobCompletionState, jobCompletionReason := getJobCompletionStateAndReason(job)
-	logger.Info("Job has been completed with reason: "+jobCompletionReason, "namespace", job.Namespace, "name", job.Name)
+	logger.Info("Job has been completed with reason: " + jobCompletionReason)
 	if jobCompletionState == jobFailed {
 		var err error
 		jobFailureReason, jobFailureReasonMetricLabelValue, jobDurationSeconds, err = r.fetchFailedJobMetrics(ctx, logger, job, jobCompletionReason)
 		if err != nil {
-			logger.Error(err, "Error while fetching failed job metrics", "namespace", etcd.Namespace, "name", etcd.Name, "jobName", job.Name)
+			logger.Error(err, "Error while fetching failed job metrics", "jobName", job.Name)
 			return fmt.Errorf("error while fetching failed job metrics: %w", err)
 		}
-		logger.Info("Job has failed with reason: "+jobFailureReason, "namespace", job.Namespace, "name", job.Name)
+		logger.Info("Job has failed with reason: " + jobFailureReason)
 	}
 
 	// Construct & Update the etcd status condition for the compaction job
@@ -614,7 +601,6 @@ func (r *Reconciler) updateMetricsAndStatusForCompletedJob(ctx context.Context, 
 	}
 
 	logger.Info("Updating etcd status condition for compaction job",
-		"namespace", etcd.Namespace, "name", etcd.Name,
 		"conditionType", latestCondition.Type, "status", latestCondition.Status,
 		"reason", latestCondition.Reason, "message", latestCondition.Message)
 	// Fetch the latest etcd resource before updating the status condition to avoid conflict errors
@@ -623,8 +609,7 @@ func (r *Reconciler) updateMetricsAndStatusForCompletedJob(ctx context.Context, 
 		return fmt.Errorf("error while fetching etcd %s/%s: %w", etcd.Namespace, etcd.Name, err)
 	}
 	if err := r.updateCompactionJobEtcdStatusCondition(ctx, latestEtcd, latestCondition); err != nil {
-		logger.Error(err, "Error while updating etcd status condition for compaction job",
-			"namespace", etcd.Namespace, "name", etcd.Name, "jobName", job.Name)
+		logger.Error(err, "Error while updating etcd status condition for compaction job", "jobName", job.Name)
 		return fmt.Errorf("error while updating etcd status condition for compaction job: %w", err)
 	}
 
@@ -648,27 +633,27 @@ func (r *Reconciler) updateMetricsAndStatusForCompletedJob(ctx context.Context, 
 func (r *Reconciler) getPodFailureValueWithLastTransitionTime(ctx context.Context, logger logr.Logger, job *batchv1.Job) (string, string, time.Time, error) {
 	pod, err := getPodForJob(ctx, r.Client, &job.ObjectMeta)
 	if err != nil {
-		logger.Error(err, "Couldn't fetch pods for job", "namespace", job.Namespace, "name", job.Name)
+		logger.Error(err, "Couldn't fetch pods for job", "name", job.Name)
 		return "", "", time.Time{}, fmt.Errorf("error while fetching pod for job: %w", err)
 	}
 	if pod == nil {
-		logger.Info("Pod not found for job", "namespace", job.Namespace, "name", job.Name)
+		logger.Info("Pod not found for job", "name", job.Name)
 		return druidv1alpha1.PodFailureReasonUnknown, druidmetrics.ValueFailureReasonUnknown, time.Now().UTC(), nil
 	}
 	podFailureReason, lastTransitionTime := getPodFailureReasonAndLastTransitionTime(pod)
 	var podFailureReasonMetricLabelValue string
 	switch podFailureReason {
 	case druidv1alpha1.PodFailureReasonPreemptionByScheduler:
-		logger.Info("Pod has been preempted by the scheduler", "namespace", pod.Namespace, "name", pod.Name)
+		logger.Info("Pod has been preempted by the scheduler", "name", pod.Name)
 		podFailureReasonMetricLabelValue = druidmetrics.ValueFailureReasonPreempted
 	case druidv1alpha1.PodFailureReasonDeletionByTaintManager, druidv1alpha1.PodFailureReasonEvictionByEvictionAPI, druidv1alpha1.PodFailureReasonTerminationByKubelet:
-		logger.Info("Pod has been evicted", "namespace", pod.Namespace, "name", pod.Name, "reason", podFailureReason)
+		logger.Info("Pod has been evicted", "name", pod.Name, "reason", podFailureReason)
 		podFailureReasonMetricLabelValue = druidmetrics.ValueFailureReasonEvicted
 	case druidv1alpha1.PodFailureReasonProcessFailure:
-		logger.Info("Pod has failed due to process failure", "namespace", pod.Namespace, "name", pod.Name)
+		logger.Info("Pod has failed due to process failure", "name", pod.Name)
 		podFailureReasonMetricLabelValue = druidmetrics.ValueFailureReasonProcessFailure
 	default:
-		logger.Info("Pod has failed due to unknown reason", "namespace", pod.Namespace, "name", pod.Name)
+		logger.Info("Pod has failed due to unknown reason", "name", pod.Name)
 		podFailureReasonMetricLabelValue = druidmetrics.ValueFailureReasonUnknown
 	}
 	return podFailureReason, podFailureReasonMetricLabelValue, lastTransitionTime, nil

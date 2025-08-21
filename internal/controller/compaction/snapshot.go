@@ -40,21 +40,19 @@ func (r *Reconciler) triggerFullSnapshot(ctx context.Context, logger logr.Logger
 		reason = "delta revisions have crossed the upper threshold"
 	}
 	logger.Info("Taking full snapshot",
-		"namespace", etcd.Namespace,
 		"accumulatedRevisions", accumulatedEtcdRevisions,
 		"triggerFullSnapshotThreshold", triggerFullSnapshotThreshold,
 		"reason", reason)
 	// Take full snapshot
 	if err := r.takeFullSnapshot(ctx, etcd); err != nil {
 		logger.Error(err, "Error while triggering full snapshot",
-			"namespace", etcd.Namespace,
 			"accumulatedRevisions", accumulatedEtcdRevisions,
 			"triggerFullSnapshotThreshold", triggerFullSnapshotThreshold)
 		recordFullSnapshotsTriggered(druidmetrics.ValueSucceededFalse, etcd.Namespace)
 		return fmt.Errorf("error while triggering full snapshot: %w", err)
 	}
 	recordFullSnapshotsTriggered(druidmetrics.ValueSucceededTrue, etcd.Namespace)
-	logger.Info("Full snapshot taken successfully", "name", etcd.Name, "namespace", etcd.Namespace)
+	logger.Info("Full snapshot taken successfully")
 	return nil
 }
 
