@@ -58,31 +58,31 @@ Authors propose creation of a new single dedicated custom resource to represent 
 
 ### Custom Resource Golang API
 
-`EtcdOperatorTask` is the new custom resource that will be introduced. This API will be in `v1alpha1` version and will be subject to change. We will be respecting [Kubernetes Deprecation Policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/).
+`EtcdOpsTask` is the new custom resource that will be introduced. This API will be in `v1alpha1` version and will be subject to change. We will be respecting [Kubernetes Deprecation Policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/).
 
 ```go
-// EtcdOperatorTask represents an out-of-band operator task resource.
-type EtcdOperatorTask struct {
+// EtcdOpsTask represents an out-of-band operator task resource.
+type EtcdOpsTask struct {
   metav1.TypeMeta
   metav1.ObjectMeta
 
-  // Spec is the specification of the EtcdOperatorTask resource.
-  Spec EtcdOperatorTaskSpec `json:"spec"`
-  // Status is most recently observed status of the EtcdOperatorTask resource.
-  Status EtcdOperatorTaskStatus `json:"status,omitempty"`
+  // Spec is the specification of the EtcdOpsTask resource.
+  Spec EtcdOpsTaskSpec `json:"spec"`
+  // Status is most recently observed status of the EtcdOpsTask resource.
+  Status EtcdOpsTaskStatus `json:"status,omitempty"`
 }
 ```
 
 #### Spec
 
-The authors propose that the following fields should be specified in the spec (desired state) of the `EtcdOperatorTask` custom resource.
+The authors propose that the following fields should be specified in the spec (desired state) of the `EtcdOpsTask` custom resource.
 
 * To capture the type of `out-of-band` operator task to be performed, `.spec.type` field should be defined. It can have values from all supported `out-of-band` tasks eg. "OnDemandSnaphotTask", "QuorumLossRecoveryTask" etc.
 * To capture the configuration specific to each task, a `.spec.config` field should be defined of type `string` as each task can have different input configuration.
 
 ```go
-// EtcdOperatorTaskSpec is the spec for a EtcdOperatorTask resource.
-type EtcdOperatorTaskSpec struct {
+// EtcdOpsTaskSpec is the spec for a EtcdOpsTask resource.
+type EtcdOpsTaskSpec struct {
   
   // Type specifies the type of out-of-band operator task to be performed. 
   Type string `json:"type"`
@@ -103,11 +103,11 @@ type EtcdOperatorTaskSpec struct {
 
 #### Status
 
-The authors propose the following fields for the Status (current state) of the `EtcdOperatorTask` custom resource to monitor the progress of the task.
+The authors propose the following fields for the Status (current state) of the `EtcdOpsTask` custom resource to monitor the progress of the task.
 
 ```go
-// EtcdOperatorTaskStatus is the status for a EtcdOperatorTask resource.
-type EtcdOperatorTaskStatus struct {
+// EtcdOpsTaskStatus is the status for a EtcdOpsTask resource.
+type EtcdOpsTaskStatus struct {
   // ObservedGeneration is the most recent generation observed for the resource.
   ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
   // State is the last known state of the task.
@@ -169,7 +169,7 @@ const (
 
 ```yaml
 apiVersion: druid.gardener.cloud/v1alpha1
-kind: EtcdOperatorTask
+kind: EtcdOpsTask
 metadata:
     name: <name of operator task resource>
     namespace: <cluster namespace>
@@ -198,13 +198,13 @@ status:
 
 #### Creation
 
-Task(s) can be created by creating an instance of the `EtcdOperatorTask` custom resource specific to a task.
+Task(s) can be created by creating an instance of the `EtcdOpsTask` custom resource specific to a task.
 
-> Note: In future, either a `kubectl` extension plugin or a `druidctl` tool will be introduced. Dedicated sub-commands will be created for each `out-of-band` task. This will drastically increase the usability for an operator for performing such tasks, as the CLI extension will automatically create relevant instance(s) of `EtcdOperatorTask` with the provided configuration.
+> Note: In future, either a `kubectl` extension plugin or a `druidctl` tool will be introduced. Dedicated sub-commands will be created for each `out-of-band` task. This will drastically increase the usability for an operator for performing such tasks, as the CLI extension will automatically create relevant instance(s) of `EtcdOpsTask` with the provided configuration.
 
 #### Execution
 
-* Authors propose to introduce a new controller which watches for `EtcdOperatorTask` custom resource.
+* Authors propose to introduce a new controller which watches for `EtcdOpsTask` custom resource.
 * Each `out-of-band` task may have some task specific configuration defined in [.spec.config](#spec).
 * The controller needs to parse this task specific config, which comes as a [string](#spec), according to the schema defined for each task.
 * For every `out-of-band` task, a set of `pre-conditions` can be defined. These pre-conditions are evaluated against the current state of the target etcd cluster. Based on the evaluation result (boolean), the task is permitted or denied execution.
@@ -224,7 +224,7 @@ Recovery from permanent quorum loss involves two phases - identification and rec
 
 ##### Task Config
 
-We do not need any config for this task. When creating an instance of `EtcdOperatorTask` for this scenario, `.spec.config` will be set to nil (unset).
+We do not need any config for this task. When creating an instance of `EtcdOpsTask` for this scenario, `.spec.config` will be set to nil (unset).
 
 ##### Pre-Conditions
 
