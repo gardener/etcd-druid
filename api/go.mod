@@ -3,8 +3,8 @@ module github.com/gardener/etcd-druid/api
 go 1.24.0
 
 require (
-	k8s.io/api v0.33.2
-	k8s.io/apimachinery v0.33.2
+	k8s.io/api v0.33.4
+	k8s.io/apimachinery v0.33.4
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
 )
 
