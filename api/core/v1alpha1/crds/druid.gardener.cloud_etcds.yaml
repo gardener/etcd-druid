@@ -101,13 +101,13 @@ spec:
                   deltaSnapshotPeriod:
                     description: DeltaSnapshotPeriod defines the period after which
                       delta snapshots will be taken
-                    pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$
+                    pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                     type: string
                   deltaSnapshotRetentionPeriod:
                     description: |-
                       DeltaSnapshotRetentionPeriod defines the duration for which delta snapshots will be retained, excluding the latest snapshot set.
                       The value should be a string formatted as a duration (e.g., '1s', '2m', '3h', '4d')
-                    pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$
+                    pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                     type: string
                   enableProfiling:
                     description: EnableProfiling defines if profiling should be enabled
@@ -116,7 +116,7 @@ spec:
                   etcdSnapshotTimeout:
                     description: EtcdSnapshotTimeout defines the timeout duration
                       for etcd FullSnapshot operation
-                    pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$
+                    pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                     type: string
                   fullSnapshotSchedule:
                     description: FullSnapshotSchedule defines the cron standard schedule
@@ -126,7 +126,7 @@ spec:
                   garbageCollectionPeriod:
                     description: GarbageCollectionPeriod defines the period for garbage
                       collecting old backups
-                    pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$
+                    pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                     type: string
                   garbageCollectionPolicy:
                     description: GarbageCollectionPolicy defines the policy for garbage
@@ -145,12 +145,12 @@ spec:
                       etcdConnectionTimeout:
                         description: EtcdConnectionTimeout defines the timeout duration
                           for etcd client connection during leader election.
-                        pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$
+                        pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                         type: string
                       reelectionPeriod:
                         description: ReelectionPeriod defines the Period after which
                           leadership status of corresponding etcd is checked.
-                        pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$
+                        pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                         type: string
                     type: object
                   maxBackupsLimitBasedGC:
@@ -502,12 +502,12 @@ spec:
                   etcdDefragTimeout:
                     description: EtcdDefragTimeout defines the timeout duration for
                       etcd defrag call
-                    pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?([0-9]+([.][0-9]+)?d)?$
+                    pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                     type: string
                   heartbeatDuration:
                     description: HeartbeatDuration defines the duration for members
                       to send heartbeats. The default value is 10s.
-                    pattern: ^([0-9]+([.][0-9]+)?h)?([0-9]+([.][0-9]+)?m)?([0-9]+([.][0-9]+)?s)?$
+                    pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                     type: string
                   image:
                     description: Image defines the etcd container image and tag
