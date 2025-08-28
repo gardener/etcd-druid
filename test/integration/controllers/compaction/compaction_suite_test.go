@@ -5,6 +5,9 @@
 package compaction
 
 import (
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +35,17 @@ const (
 	testNamespacePrefix = "compaction-"
 )
 
+type mockEtcdbrHTTPClient struct {
+	DoFunc func(req *http.Request) (*http.Response, error)
+}
+
+func (m *mockEtcdbrHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	if m.DoFunc != nil {
+		return m.DoFunc(req)
+	}
+	return nil, nil
+}
+
 func TestCompactionController(t *testing.T) {
 	RegisterFailHandler(Fail)
 
@@ -48,12 +62,26 @@ var _ = BeforeSuite(func() {
 	intTestEnv = setup.NewIntegrationTestEnv(testNamespacePrefix, "compaction-int-tests", crdPaths)
 	intTestEnv.RegisterReconcilers(func(mgr manager.Manager) {
 		reconciler := compaction.NewReconcilerWithImageVector(mgr, druidconfigv1alpha1.CompactionControllerConfiguration{
-			Enabled:                   true,
-			ConcurrentSyncs:           ptr.To(5),
-			EventsThreshold:           100,
-			ActiveDeadlineDuration:    metav1.Duration{Duration: 2 * time.Minute},
-			MetricsScrapeWaitDuration: metav1.Duration{Duration: 60 * time.Second},
+			Enabled:                      true,
+			ConcurrentSyncs:              ptr.To(5),
+			EventsThreshold:              100,
+			TriggerFullSnapshotThreshold: 300,
+			ActiveDeadlineDuration:       metav1.Duration{Duration: 2 * time.Minute},
+			MetricsScrapeWaitDuration:    metav1.Duration{Duration: 60 * time.Second},
 		}, imageVector)
+
+		// mock EtcdbrHttpClient for integration tests
+		reconciler.EtcdbrHTTPClient = &mockEtcdbrHTTPClient{
+			DoFunc: func(req *http.Request) (*http.Response, error) {
+				if req.Method == http.MethodGet {
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       io.NopCloser(strings.NewReader(`{"status":"success"}`)),
+					}, nil
+				}
+				return nil, http.ErrNotSupported
+			},
+		}
 		Expect(reconciler.RegisterWithManager(mgr)).To(Succeed())
 	}).StartManager()
 	k8sClient = intTestEnv.K8sClient

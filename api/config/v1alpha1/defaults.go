@@ -129,6 +129,8 @@ const (
 	DefaultCompactionConcurrentSyncs = 3
 	// DefaultCompactionEventsThreshold is the default number of events that triggers compaction.
 	DefaultCompactionEventsThreshold = 1000000
+	// DefaultCompactionTriggerFullSnapshotThreshold is the default upper threshold for the number of etcd events before giving up on compaction job and triggering a full snapshot.
+	DefaultCompactionTriggerFullSnapshotThreshold = 3000000
 	// DefaultCompactionActiveDeadlineDuration is the default active deadline duration for compaction.
 	DefaultCompactionActiveDeadlineDuration = 3 * time.Hour
 )
@@ -143,6 +145,9 @@ func SetDefaults_CompactionControllerConfiguration(compactionCtrlConfig *Compact
 	}
 	if compactionCtrlConfig.EventsThreshold == 0 {
 		compactionCtrlConfig.EventsThreshold = DefaultCompactionEventsThreshold
+	}
+	if compactionCtrlConfig.TriggerFullSnapshotThreshold == 0 {
+		compactionCtrlConfig.TriggerFullSnapshotThreshold = DefaultCompactionTriggerFullSnapshotThreshold
 	}
 	if compactionCtrlConfig.ActiveDeadlineDuration == zeroDuration {
 		compactionCtrlConfig.ActiveDeadlineDuration = metav1.Duration{Duration: DefaultCompactionActiveDeadlineDuration}
