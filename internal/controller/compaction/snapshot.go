@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	etcdbrFullSnapshotReqTimeout = 60 * time.Second
+	defaultEtcdFullSnapshotReqTimeout = 600 * time.Second
 )
 
 type httpClientInterface interface {
@@ -102,8 +102,13 @@ func newHTTPClient(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Et
 		}
 	}
 
+	etcdFullSnapshotReqTimeout := defaultEtcdFullSnapshotReqTimeout
+	if etcd.Spec.Backup.EtcdSnapshotTimeout != nil {
+		etcdFullSnapshotReqTimeout = etcd.Spec.Backup.EtcdSnapshotTimeout.Duration
+	}
+
 	httpClient := &http.Client{
-		Timeout:   etcdbrFullSnapshotReqTimeout,
+		Timeout:   etcdFullSnapshotReqTimeout,
 		Transport: httpTransport,
 	}
 	return httpClient, httpScheme, nil
