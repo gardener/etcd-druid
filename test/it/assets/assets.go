@@ -41,6 +41,11 @@ func GetEtcdCopyBackupsTaskCrdPath() string {
 	return filepath.Join("..", "..", "..", "..", "api", "core", "v1alpha1", "crds", "druid.gardener.cloud_etcdcopybackupstasks.yaml")
 }
 
+// GetEtcdOpsTaskCrdPath returns the path to the EtcdOpsTask CRD.
+func GetEtcdOpsTaskCrdPath() string {
+	return filepath.Join("..", "..", "..", "..", "api", "core", "v1alpha1", "crds", "druid.gardener.cloud_etcdopstasks.yaml")
+}
+
 // CreateImageVector creates an image vector.
 func CreateImageVector(g *WithT) imagevector.ImageVector {
 	imageVector, err := images.CreateImageVector()
