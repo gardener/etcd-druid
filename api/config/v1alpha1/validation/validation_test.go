@@ -494,6 +494,89 @@ func TestValidateEtcdCopyBackupsTaskControllerConfiguration(t *testing.T) {
 	}
 }
 
+func TestValidateEtcdOpsTaskControllerConfiguration(t *testing.T){
+	tests := []struct{
+		name string
+		enabled bool
+		concurrentSync *int
+		requeueInterval *metav1.Duration
+		expectedErrors int
+		matcher gomegatypes.GomegaMatcher
+	}{
+		{
+			name:           "should allow default etcdOpsTask controller configuration when it is enabled",
+			enabled:        true,
+			expectedErrors: 0,
+			matcher:        nil,
+		},
+		{
+			name:           "should allow empty etcdOpsTask controller configuration when it is disabled",
+			enabled:        false,
+			expectedErrors: 0,
+		},
+		{
+			name:           "should allow concurrent syncs greater than zero",
+			enabled:        true,
+			concurrentSync: ptr.To(1),
+			expectedErrors: 0,
+		},
+		{
+			name:           "should forbid concurrent syncs equal to zero",
+			enabled:        true,
+			concurrentSync: ptr.To(0),
+			expectedErrors: 1,
+			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcdOpsTask.concurrentSyncs")}))),
+		},
+		{
+			name:           "should forbid concurrent syncs less than zero",
+			enabled:        true,
+			concurrentSync: ptr.To(-1),
+			expectedErrors: 1,
+			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcdOpsTask.concurrentSyncs")}))),
+		},
+		{
+			name:           "should allow requeue interval greater than zero",
+			enabled:        true,
+			requeueInterval: ptr.To(metav1.Duration{Duration: 2 * time.Second}),
+			expectedErrors: 0,
+		},
+		{
+			name:           "should forbid requeue interval equal to zero",
+			enabled:        true,
+			requeueInterval: ptr.To(metav1.Duration{Duration: 0}),
+			expectedErrors: 1,
+			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcdOpsTask.requeueInterval")}))),
+		},
+		{
+			name:           "should forbid requeue interval less than zero",
+			enabled:        true,
+			requeueInterval: ptr.To(metav1.Duration{Duration: -time.Second}),
+			expectedErrors: 1,
+			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcdOpsTask.requeueInterval")}))),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			controllerConfig := &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{}
+			controllerConfig.Enabled = test.enabled
+			druidconfigv1alpha1.SetDefaults_EtcdOpsTaskControllerConfiguration(controllerConfig)
+			if test.concurrentSync != nil {
+				controllerConfig.ConcurrentSyncs = test.concurrentSync
+			}
+			if test.requeueInterval != nil {
+				controllerConfig.RequeueInterval = *test.requeueInterval
+			}
+			actualErr := validateEtcdOpsTaskControllerConfiguration(*controllerConfig, field.NewPath("controllers.etcdOpsTask"))
+			g := NewWithT(t)
+			g.Expect(len(actualErr)).To(Equal(test.expectedErrors))
+			if test.matcher != nil {
+				g.Expect(actualErr).To(test.matcher)
+			}
+		})
+	}
+}
 func TestValidateSecretControllerConfiguration(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -544,6 +627,7 @@ func TestValidateSecretControllerConfiguration(t *testing.T) {
 		})
 	}
 }
+
 
 func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 	tests := []struct {

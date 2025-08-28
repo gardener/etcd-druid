@@ -1,0 +1,231 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: etcdopstasks.druid.gardener.cloud
+spec:
+  group: druid.gardener.cloud
+  names:
+    kind: EtcdOpsTask
+    listKind: EtcdOpsTaskList
+    plural: etcdopstasks
+    shortNames:
+    - eot
+    singular: etcdopstask
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.state
+      name: State
+      type: string
+    - jsonPath: .spec.etcdRef.name
+      name: Etcd
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    - jsonPath: .status.lastOperation.state
+      name: Operation State
+      priority: 1
+      type: string
+    - jsonPath: .spec.ttlSecondsAfterFinished
+      name: TTL
+      priority: 1
+      type: integer
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          EtcdOpsTask represents a task to perform operations on an Etcd cluster.
+          It defines the desired configuration in Spec and tracks the observed state in Status.
+          The controller is responsible for executing the task and updating the status accordingly.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Spec defines the desired specification of the EtcdOpsTask.
+            properties:
+              config:
+                description: |-
+                  Config specifies the configuration for the operation to be performed.
+                  Exactly one of the members of EtcdOpsTaskConfig must be set.
+                maxProperties: 1
+                minProperties: 1
+                properties:
+                  onDemandSnapshot:
+                    description: OnDemandSnapshot defines the configuration for an
+                      on-demand snapshot task.
+                    properties:
+                      isFinal:
+                        description: IsFinal indicates whether this is the final snapshot
+                          for the etcd cluster.
+                        type: boolean
+                      timeoutSeconds:
+                        default: 60
+                        description: |-
+                          TimeoutSeconds is the timeout for the snapshot operation.
+                          Defaults to 60 seconds. Must be at least 1.
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      type:
+                        description: |-
+                          Type specifies whether the snapshot is a 'full' or 'delta' snapshot.
+                          Use 'full' for a complete backup of the etcd database, or 'delta' for incremental changes since the last snapshot.
+                        enum:
+                        - full
+                        - delta
+                        type: string
+                    required:
+                    - type
+                    type: object
+                    x-kubernetes-validations:
+                    - message: isFinal must be false (or omitted) when type is 'delta'
+                      rule: 'self.type == ''delta'' ? !has(self.isFinal) : true'
+                type: object
+                x-kubernetes-validations:
+                - message: config is immutable
+                  rule: self == oldSelf
+              etcdRef:
+                description: EtcdRef references the Etcd resource that this task will
+                  operate on.
+                properties:
+                  name:
+                    description: Name is the name of the Etcd custom resource.
+                    type: string
+                  namespace:
+                    description: |-
+                      Namespace is the namespace of the Etcd custom resource.
+                      If unset, it defaults to the namespace of the EtcdOpsTask.
+                    type: string
+                required:
+                - name
+                type: object
+                x-kubernetes-validations:
+                - message: etcdRef is immutable
+                  rule: self == oldSelf
+              ttlSecondsAfterFinished:
+                default: 3600
+                description: TTLSecondsAfterFinished is the duration in seconds after
+                  which a finished task (status.state == Succeeded|Failed|Rejected)
+                  will be garbage-collected.
+                format: int32
+                minimum: 1
+                type: integer
+                x-kubernetes-validations:
+                - message: ttlSecondsAfterFinished is immutable
+                  rule: self == oldSelf
+            required:
+            - config
+            type: object
+          status:
+            description: Status defines the observed state of the EtcdOpsTask.
+            properties:
+              lastErrors:
+                description: |-
+                  LastErrors is a list of the most recent errors observed during the task's execution.
+                  A maximum of 10 latest errors will be recorded.
+                items:
+                  description: EtcdOpsTaskLastError represents a single error observed
+                    during task execution.
+                  properties:
+                    code:
+                      description: Code is an error code that uniquely identifies
+                        an error.
+                      type: string
+                    description:
+                      description: Description is a human-readable description of
+                        the error.
+                      type: string
+                    observedAt:
+                      description: ObservedAt is the timestamp at which the error
+                        was observed.
+                      format: date-time
+                      type: string
+                  required:
+                  - code
+                  - description
+                  - observedAt
+                  type: object
+                maxItems: 10
+                type: array
+              lastOperation:
+                description: |-
+                  LastOperation tracks the fine-grained progress of the task's execution.
+                  The controller initializes this field when processing the task.
+                properties:
+                  description:
+                    description: Description is a human-readable description of the
+                      current operation step.
+                    type: string
+                  lastTransitionTime:
+                    description: LastTransitionTime is the timestamp of the most recent
+                      change to .state of each phase.
+                    format: date-time
+                    type: string
+                  phase:
+                    description: Phase is the controller reconciliation phase in which
+                      the operation is currently running.
+                    enum:
+                    - Admit
+                    - Running
+                    - Cleanup
+                    type: string
+                  state:
+                    description: State is the state of this operation.
+                    enum:
+                    - InProgress
+                    - Completed
+                    - Failed
+                    type: string
+                required:
+                - description
+                - phase
+                - state
+                type: object
+              lastTransitionTime:
+                description: LastTransitionTime is the last time the state transitioned
+                  from one value to another.
+                format: date-time
+                type: string
+              startedAt:
+                description: StartedAt is the time at which the task transitioned
+                  from Pending to InProgress.
+                format: date-time
+                type: string
+              state:
+                description: |-
+                  State is the overall state of the task.
+                  The controller initializes this field when processing the task.
+                enum:
+                - Pending
+                - InProgress
+                - Succeeded
+                - Failed
+                - Rejected
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
