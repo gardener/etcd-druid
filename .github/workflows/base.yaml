@@ -134,8 +134,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ${{ matrix.args.run }}
-
+          mkdir tmp/blobs.d
+          ${{ matrix.args.run }} |& tee tmp/blobs.d/test-log.txt
+          tar czf tmp/blobs.d/test-log.tar.gz -C tmp/blobs.d test-log.txt
+      - name: add-test-results-to-component-descriptor
+        uses: gardener/cc-utils/.github/actions/export-ocm-fragments@master
+        with:
+          blobs-directory: /tmp/blobs.d
+          ocm-resources: |
+            - name: test-results
+              extraIdentity:
+                test: ${{ matrix.args.name }}
+              relation: local
+              access:
+                type: localBlob
+                localReference: test-log.tar.gz
+              labels:
+                - name: gardener.cloud/purposes
+                  value:
+                    - test
   sast-lint:
     uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@master
     permissions:
