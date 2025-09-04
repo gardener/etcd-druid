@@ -6,15 +6,52 @@ package condition
 
 import (
 	"context"
+	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 
+	coordinationv1 "k8s.io/api/coordination/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type readyCheck struct{}
+type readyCheck struct {
+	client client.Client
+}
 
-func (r *readyCheck) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
+const holderIdentitySeparator = ":"
+
+func extractClusterIdAndRole(holderIdentity *string) (*string, *druidv1alpha1.EtcdRole) {
+	if holderIdentity == nil {
+		return nil, nil
+	}
+	_, remainder, hasSeparator := strings.Cut(*holderIdentity, holderIdentitySeparator)
+	if !hasSeparator {
+		return nil, nil
+	}
+
+	before, after, hasSeparator := strings.Cut(remainder, holderIdentitySeparator)
+	var clusterIdString, roleString string
+	if hasSeparator {
+		clusterIdString = before
+		roleString = after
+	} else {
+		clusterIdString = ""
+		roleString = before
+	}
+
+	switch druidv1alpha1.EtcdRole(roleString) {
+	case druidv1alpha1.EtcdRoleLeader:
+		role := druidv1alpha1.EtcdRoleLeader
+		return &clusterIdString, &role
+	case druidv1alpha1.EtcdRoleMember:
+		role := druidv1alpha1.EtcdRoleMember
+		return &clusterIdString, &role
+	default:
+		return &clusterIdString, nil
+	}
+}
+
+func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
 
 	// TODO: remove this case as soon as leases are completely supported by etcd-backup-restore
 	if len(etcd.Status.Members) == 0 {
@@ -48,6 +85,61 @@ func (r *readyCheck) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
 		}
 	}
 
+	// Look for split-quorum/split-brain scenario.
+	leaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
+	leases := make([]*coordinationv1.Lease, 0, len(leaseNames))
+	for _, leaseName := range leaseNames {
+		lease := &coordinationv1.Lease{}
+		if err := r.client.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: leaseName}, lease); err != nil {
+			// Lease has not been created yet, so we pass on the split-quorum/split-brain check for now.
+			continue
+		}
+		leases = append(leases, lease)
+	}
+	if len(leases) == size {
+		// All leases are present, so we can check for split-brain/split-quorum scenario.
+		clusterIDs := make([]string, 0)
+		roles := make([]druidv1alpha1.EtcdRole, 0)
+		for _, lease := range leases {
+			clusterID, role := extractClusterIdAndRole(lease.Spec.HolderIdentity)
+			if clusterID != nil {
+				clusterIDs = append(clusterIDs, *clusterID)
+			}
+			if role != nil {
+				roles = append(roles, *role)
+			}
+		}
+		// ClusterIDs are not populated in old druid/backup-restore versions which do
+		// not support checking for split-brain/split-quorum, so we ignore such cases.
+		if len(clusterIDs) == size && len(roles) == size {
+			leaderCount := 0
+			for _, role := range roles {
+				if role == druidv1alpha1.EtcdRoleLeader {
+					leaderCount++
+				}
+			}
+			if leaderCount > 1 {
+				return &result{
+					conType: druidv1alpha1.ConditionTypeReady,
+					status:  druidv1alpha1.ConditionFalse,
+					reason:  "SplitBrainDetected",
+					message: "Split-brain detected",
+				}
+			}
+			firstClusterID := clusterIDs[0]
+			for _, clusterID := range clusterIDs[1:] {
+				if clusterID != firstClusterID {
+					return &result{
+						conType: druidv1alpha1.ConditionTypeReady,
+						status:  druidv1alpha1.ConditionFalse,
+						reason:  "SplitQuorumDetected",
+						message: "Split-quorum detected",
+					}
+				}
+			}
+		}
+	}
+
 	return &result{
 		conType: druidv1alpha1.ConditionTypeReady,
 		status:  druidv1alpha1.ConditionTrue,
@@ -57,6 +149,8 @@ func (r *readyCheck) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
 }
 
 // ReadyCheck returns a check for the "Ready" condition.
-func ReadyCheck(_ client.Client) Checker {
-	return &readyCheck{}
+func ReadyCheck(client client.Client) Checker {
+	return &readyCheck{
+		client: client,
+	}
 }

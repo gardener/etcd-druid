@@ -111,6 +111,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 
 const memberLeaseHolderIdentitySeparator = ":"
 
+<<<<<<< HEAD
 // ReadyCheck returns a check for the "Ready" condition.
 func ReadyCheck(cl client.Client, logger logr.Logger, etcdMemberNotReadyThreshold, etcdMemberUnknownThreshold time.Duration) Checker {
 	return &readyCheck{
@@ -118,9 +119,19 @@ func ReadyCheck(cl client.Client, logger logr.Logger, etcdMemberNotReadyThreshol
 		cl:                          cl,
 		etcdMemberNotReadyThreshold: etcdMemberNotReadyThreshold,
 		etcdMemberUnknownThreshold:  etcdMemberUnknownThreshold,
+=======
+func separateIdFromRole(holderIdentity *string) (*string, *druidv1alpha1.EtcdRole) {
+	if holderIdentity == nil {
+		return nil, nil
+	}
+	id, remainder, hasSeparator := strings.Cut(*holderIdentity, holderIdentitySeparator)
+	if !hasSeparator {
+		return &id, nil
+>>>>>>> 19ae13bc (add ability to detect split-brain/split-quorum scenarios)
 	}
 }
 
+<<<<<<< HEAD
 func asEtcdRole(roleStr string) *druidv1alpha1.EtcdRole {
 	switch druidv1alpha1.EtcdRole(roleStr) {
 	case druidv1alpha1.EtcdRoleLeader:
@@ -157,6 +168,25 @@ func extractMemberIdAndRole(holderIdentity *string) (*string, *druidv1alpha1.Etc
 		return &memberId, role, nil
 	default:
 		return nil, nil, fmt.Errorf("unexpected format of lease holder identity: %s", *holderIdentity)
+=======
+	before, after, hasSeparator := strings.Cut(remainder, holderIdentitySeparator)
+	var roleString string
+	if hasSeparator {
+		roleString = after
+	} else {
+		roleString = before
+	}
+
+	switch druidv1alpha1.EtcdRole(roleString) {
+	case druidv1alpha1.EtcdRoleLeader:
+		role := druidv1alpha1.EtcdRoleLeader
+		return &id, &role
+	case druidv1alpha1.EtcdRoleMember:
+		role := druidv1alpha1.EtcdRoleMember
+		return &id, &role
+	default:
+		return &id, nil
+>>>>>>> 19ae13bc (add ability to detect split-brain/split-quorum scenarios)
 	}
 }
 
