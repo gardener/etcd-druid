@@ -165,6 +165,7 @@ func createAndAssertEtcdReconciliation(ctx context.Context, t *testing.T, reconc
 type etcdMemberLeaseConfig struct {
 	name        string
 	memberID    string
+	clusterID   string
 	role        druidv1alpha1.EtcdRole
 	renewTime   *metav1.MicroTime
 	annotations map[string]string
@@ -179,8 +180,8 @@ func updateMemberLeases(ctx context.Context, t *testing.T, cl client.Client, nam
 		for key, value := range config.annotations {
 			metav1.SetMetaDataAnnotation(&updatedLease.ObjectMeta, key, value)
 		}
-		if config.memberID != "" && config.role != "" {
-			updatedLease.Spec.HolderIdentity = ptr.To(fmt.Sprintf("%s:%s", config.memberID, config.role))
+		if config.memberID != "" && config.role != "" && config.clusterID != "" {
+			updatedLease.Spec.HolderIdentity = ptr.To(fmt.Sprintf("%s:%s:%s", config.memberID, config.clusterID, config.role))
 		}
 		if config.renewTime != nil {
 			updatedLease.Spec.RenewTime = config.renewTime
