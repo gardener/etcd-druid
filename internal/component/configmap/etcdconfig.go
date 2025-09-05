@@ -22,7 +22,7 @@ const (
 	defaultInitialClusterToken     = "etcd-cluster"
 	defaultInitialClusterState     = "new"
 	// For more information refer to https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
-	defaultSnapshotCount   = int64(75000)
+	defaultSnapshotCount   = int64(10000)
 	advertiseURLTypePeer   = "peer"
 	advertiseURLTypeClient = "client"
 )

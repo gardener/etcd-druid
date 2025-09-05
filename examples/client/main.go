@@ -57,7 +57,7 @@ func main() {
 			},
 			Etcd: druidv1alpha1.EtcdConfig{
 				Quota:                   ptr.To(resource.MustParse("8Gi")),
-				SnapshotCount:           ptr.To(int64(75000)),
+				SnapshotCount:           ptr.To(int64(10000)),
 				DefragmentationSchedule: ptr.To("0 */24 * * *"),
 				ServerPort:              ptr.To[int32](2380),
 				ClientPort:              ptr.To[int32](2379),
