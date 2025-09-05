@@ -119,7 +119,11 @@ type ControllerConfiguration struct {
 	EtcdCopyBackupsTask EtcdCopyBackupsTaskControllerConfiguration `json:"etcdCopyBackupsTask"`
 	// Secret is the configuration for the Secret controller.
 	Secret SecretControllerConfiguration `json:"secret"`
+	// EtcdOpsTask is the configuration for the EtcdOpsTask controller.
+	EtcdOpsTask EtcdOpsTaskControllerConfiguration `json:"etcdOpsTask"`
 }
+
+
 
 // EtcdControllerConfiguration defines the configuration for the Etcd controller.
 type EtcdControllerConfiguration struct {
@@ -182,6 +186,17 @@ type EtcdCopyBackupsTaskControllerConfiguration struct {
 	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 }
 
+// EtcdOpsTaskControllerConfiguration defines the configuration for the EtcdOpsTask controller.
+type EtcdOpsTaskControllerConfiguration struct {
+	// Enabled specifies whether the EtcdOpsTask controller is enabled.
+	Enabled bool `json:"enabled"`
+	// ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request.
+	// +optional
+	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
+	// RequeueInterval is the duration to wait before re-queuing a reconcile request for EtcdOpsTask.
+	RequeueInterval metav1.Duration `json:"requeueInterval"`
+}
+
 // WebhookConfiguration defines the configuration for admission webhooks.
 type WebhookConfiguration struct {
 	// EtcdComponentProtection is the configuration for EtcdComponentProtection webhook.
@@ -212,6 +227,7 @@ type ServiceAccountInfo struct {
 	// However, if automountServiceAccountToken is set to false then this file will not be available.
 	Namespace string `json:"namespace"`
 }
+
 
 // LogFormat is the format of the log.
 type LogFormat string
