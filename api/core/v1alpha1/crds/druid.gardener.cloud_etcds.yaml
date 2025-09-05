@@ -412,6 +412,37 @@ spec:
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
+                  bootstrapWithExistingCluster:
+                    description: BootstrapWithExistingCluster contains details required
+                      to join an existing cluster during creation.
+                    properties:
+                      clientEndpoints:
+                        description: ClientEndpoints contains the client endpoints
+                          of the existing cluster.
+                        items:
+                          type: string
+                        type: array
+                      members:
+                        description: Members specifies the existing etcd members that
+                          the new cluster should join.
+                        items:
+                          description: BootstrapExistingMember contains information
+                            about an existing etcd member.
+                          properties:
+                            name:
+                              description: Name is the name of the existing member.
+                              type: string
+                            peerUrls:
+                              description: PeerURLs are the peer URLs of the member.
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - name
+                          - peerUrls
+                          type: object
+                        type: array
+                    type: object
                   clientPort:
                     format: int32
                     type: integer
@@ -1883,6 +1914,31 @@ spec:
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:
+              bootstrapWithExistingClusterMembers:
+                description: BootstrapWithExistingClusterMembers records the members
+                  joined during bootstrap with an existing cluster.
+                properties:
+                  joinedWith:
+                    description: JoinedWith lists the members that the new cluster
+                      has successfully joined with.
+                    items:
+                      description: BootstrapJoinedMember records a single member that
+                        was joined during bootstrap.
+                      properties:
+                        lastTransitionTime:
+                          description: LastTransitionTime is the time when the join
+                            was observed.
+                          format: date-time
+                          type: string
+                        name:
+                          description: Name is the name of the joined member.
+                          type: string
+                      required:
+                      - lastTransitionTime
+                      - name
+                      type: object
+                    type: array
+                type: object
               conditions:
                 description: Conditions represents the latest available observations
                   of an etcd's current state.

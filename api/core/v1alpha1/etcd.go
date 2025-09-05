@@ -262,6 +262,26 @@ type EtcdConfig struct {
 	// ClientService defines the parameters of the client service that a user can specify
 	// +optional
 	ClientService *ClientService `json:"clientService,omitempty"`
+	// +optional
+	BootstrapWithExistingCluster *BootstrapWithExistingCluster `json:"bootstrapWithExistingCluster,omitempty"`
+}
+
+// BootstrapWithExistingCluster contains details required to join an existing cluster during creation.
+type BootstrapWithExistingCluster struct {
+	// Members specifies the existing etcd members that the new cluster should join.
+	// +optional
+	Members []BootstrapExistingMember `json:"members,omitempty"`
+	// ClientEndpoints contains the client endpoints of the existing cluster.
+	// +optional
+	ClientEndpoints []string `json:"clientEndpoints,omitempty"`
+}
+
+// BootstrapExistingMember contains information about an existing etcd member.
+type BootstrapExistingMember struct {
+	// Name is the name of the existing member.
+	Name string `json:"name"`
+	// PeerURLs are the peer URLs of the member.
+	PeerURLs []string `json:"peerUrls"`
 }
 
 // ClientService defines the parameters of the client service that a user can specify
@@ -378,6 +398,8 @@ const (
 	ConditionTypeBackupReady ConditionType = "BackupReady"
 	// ConditionTypeDataVolumesReady is a constant for a condition type indicating that the etcd data volumes are ready.
 	ConditionTypeDataVolumesReady ConditionType = "DataVolumesReady"
+	// ConditionTypeBootstrapWithExistingCluster indicates the bootstrap-with-existing status.
+	ConditionTypeBootstrapWithExistingCluster ConditionType = "BootstrapWithExistingCluster"
 )
 
 // EtcdMemberConditionStatus is the status of an etcd cluster member.
@@ -463,6 +485,24 @@ type EtcdStatus struct {
 	// It must match the pod template's labels.
 	// +optional
 	Selector *string `json:"selector,omitempty"`
+	// BootstrapWithExistingClusterMembers records the members joined during bootstrap with an existing cluster.
+	// +optional
+	BootstrapWithExistingClusterMembers *BootstrapWithExistingClusterStatus `json:"bootstrapWithExistingClusterMembers,omitempty"`
+}
+
+// BootstrapWithExistingClusterStatus captures information recorded during bootstrap.
+type BootstrapWithExistingClusterStatus struct {
+	// JoinedWith lists the members that the new cluster has successfully joined with.
+	// +optional
+	JoinedWith []BootstrapJoinedMember `json:"joinedWith,omitempty"`
+}
+
+// BootstrapJoinedMember records a single member that was joined during bootstrap.
+type BootstrapJoinedMember struct {
+	// Name is the name of the joined member.
+	Name string `json:"name"`
+	// LastTransitionTime is the time when the join was observed.
+	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
 }
 
 // LastOperationType is a string alias representing type of the last operation.
