@@ -123,7 +123,7 @@ func createEtcd(name, namespace string) *Etcd {
 		backupPort    int32 = 8080
 		wrapperPort   int32 = 9095
 		metricLevel         = Basic
-		snapshotCount int64 = 75000
+		snapshotCount int64 = 10000
 	)
 
 	garbageCollectionPeriod := metav1.Duration{
