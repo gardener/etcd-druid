@@ -6,6 +6,7 @@ package statefulset
 
 import (
 	"fmt"
+	"strings"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -455,6 +456,16 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	}
 	commandArgs = append(commandArgs, fmt.Sprintf("--auto-compaction-retention=%s", compactionRetention))
 
+	serviceEndpoint := fmt.Sprintf(
+		"%s://%s:%d",
+		utils.IfConditionOr(b.etcd.Spec.Backup.TLS == nil, "http", "https"),
+		druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta),
+		b.clientPort,
+	)
+	if b.etcd.Spec.Etcd.BootstrapWithExistingCluster != nil && len(b.etcd.Spec.Etcd.BootstrapWithExistingCluster.ClientEndpoints) > 0 {
+		serviceEndpoint = fmt.Sprintf("%s,%s", serviceEndpoint, strings.Join(b.etcd.Spec.Etcd.BootstrapWithExistingCluster.ClientEndpoints, ","))
+	}
+
 	// Client and Backup TLS command line args
 	// -----------------------------------------------------------------------------------------------------------------
 	if b.etcd.Spec.Etcd.ClientUrlTLS != nil {
@@ -466,14 +477,14 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 		commandArgs = append(commandArgs, "--insecure-skip-tls-verify=false")
 		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=https://%s-local:%d", b.etcd.Name, b.clientPort))
 		if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-			commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=https://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
+			commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=%s", serviceEndpoint))
 		}
 	} else {
 		commandArgs = append(commandArgs, "--insecure-transport=true")
 		commandArgs = append(commandArgs, "--insecure-skip-tls-verify=true")
 		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=http://%s-local:%d", b.etcd.Name, b.clientPort))
 		if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-			commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=http://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
+			commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=%s", serviceEndpoint))
 		}
 	}
 	if b.etcd.Spec.Backup.TLS != nil {
