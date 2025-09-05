@@ -624,6 +624,7 @@ func (b *stsBuilder) getEtcdContainerCommandArgs() []string {
 	commandArgs = append(commandArgs, fmt.Sprintf("--backup-restore-host-port=%s-local:%d", b.etcd.Name, b.backupPort))
 	commandArgs = append(commandArgs, fmt.Sprintf("--etcd-server-name=%s-local", b.etcd.Name))
 
+	commandArgs = append(commandArgs, fmt.Sprintf("--peer-skip-client-verify=%v", true))
 	if b.etcd.Spec.Backup.TLS == nil {
 		commandArgs = append(commandArgs, "--backup-restore-tls-enabled=false")
 	} else {
