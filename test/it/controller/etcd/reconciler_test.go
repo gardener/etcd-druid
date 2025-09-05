@@ -634,10 +634,11 @@ func testConditionsAndMembersWhenAllMemberLeasesAreActive(t *testing.T, etcd *dr
 	testNs := etcd.Namespace
 	clock := testclock.NewFakeClock(time.Now().Round(time.Second))
 	g := NewWithT(t)
+	clusterID := testutils.GenerateRandomAlphanumericString(g, 8)
 	mlcs := []etcdMemberLeaseConfig{
-		{name: memberLeaseNames[0], memberID: testutils.GenerateRandomAlphanumericString(g, 8), role: druidv1alpha1.EtcdRoleMember, renewTime: &metav1.MicroTime{Time: clock.Now().Add(-time.Second * 30)}},
-		{name: memberLeaseNames[1], memberID: testutils.GenerateRandomAlphanumericString(g, 8), role: druidv1alpha1.EtcdRoleLeader, renewTime: &metav1.MicroTime{Time: clock.Now()}},
-		{name: memberLeaseNames[2], memberID: testutils.GenerateRandomAlphanumericString(g, 8), role: druidv1alpha1.EtcdRoleMember, renewTime: &metav1.MicroTime{Time: clock.Now().Add(-time.Second * 30)}},
+		{name: memberLeaseNames[0], memberID: testutils.GenerateRandomAlphanumericString(g, 8), clusterID: clusterID, role: druidv1alpha1.EtcdRoleMember, renewTime: &metav1.MicroTime{Time: clock.Now().Add(-time.Second * 30)}},
+		{name: memberLeaseNames[1], memberID: testutils.GenerateRandomAlphanumericString(g, 8), clusterID: clusterID, role: druidv1alpha1.EtcdRoleLeader, renewTime: &metav1.MicroTime{Time: clock.Now()}},
+		{name: memberLeaseNames[2], memberID: testutils.GenerateRandomAlphanumericString(g, 8), clusterID: clusterID, role: druidv1alpha1.EtcdRoleMember, renewTime: &metav1.MicroTime{Time: clock.Now().Add(-time.Second * 30)}},
 	}
 	updateMemberLeases(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
 	// ******************************* test etcd status update flow *******************************
