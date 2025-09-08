@@ -96,7 +96,7 @@ jobs:
       matrix:
         args:
           - run: .ci/test_integration
-          - run: .ci/test
+
     steps:
       - uses: gardener/cc-utils/.github/actions/trusted-checkout@master
       - uses: actions/setup-go@v5
@@ -107,7 +107,26 @@ jobs:
         run: |
           set -euo pipefail
           ${{ matrix.args.run }}
-
+      - name: run-unit-tests
+        run: |
+          set -eu
+          mkdir tmp/blobs.d
+          .ci/test |& tee tmp/blobs.d/test-log.txt
+          tar czf tmp/blobs.d/test-log.tgz -C tmp/blobs.d test-log.txt
+      - name: add-test-results-to-component-descriptor
+        uses: gardener/cc-utils/.github/actions/export-ocm-fragments@master
+        with:
+          blobs-directory: /tmp/blobs.d
+          ocm-resources: |
+            - name: test-results
+              relation: local
+              access:
+                type: localBlob
+                localReference: test-log.tar.gz
+              labels:
+                - name: gardener.cloud/purposes
+                  value:
+                    - test
   sast-lint:
     uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@master
     permissions:
