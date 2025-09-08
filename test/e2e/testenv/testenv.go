@@ -638,3 +638,16 @@ func (t *TestEnvironment) getSnapshotRevisions(etcdObjectMeta metav1.ObjectMeta)
 
 	return fullSnapshotRevision, deltaSnapshotRevision, nil
 }
+
+// ListEtcds lists all Etcd resources in the given namespace. If `namespace` is empty, lists across all namespaces.
+func (t *TestEnvironment) ListEtcds(namespace string) (*druidv1alpha1.EtcdList, error) {
+	list := &druidv1alpha1.EtcdList{}
+	var opts []client.ListOption
+	if namespace != "" {
+		opts = append(opts, client.InNamespace(namespace))
+	}
+	if err := t.cl.List(t.ctx, list, opts...); err != nil {
+		return nil, err
+	}
+	return list, nil
+}
