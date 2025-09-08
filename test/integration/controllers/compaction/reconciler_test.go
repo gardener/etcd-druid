@@ -334,7 +334,11 @@ var _ = Describe("Compaction Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testutils.EtcdBuilderWithDefaults("etcd-compaction-fullsnapshot-test", "default").WithProviderLocal().Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo81", "default").
+				WithBackupRestoreContainerImage("dummy").
+				WithProviderLocal("foo81").
+				WithoutBackupSecretRef().
+				Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
