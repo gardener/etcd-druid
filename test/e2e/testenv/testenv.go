@@ -197,9 +197,16 @@ func (t *TestEnvironment) CheckEtcdReady(g *WithT, etcd *druidv1alpha1.Etcd, tim
 			if c.Type == druidv1alpha1.ConditionTypeBackupReady {
 				continue
 			}
-			if c.Status != druidv1alpha1.ConditionTrue {
-				return fmt.Errorf("etcd %q status %q condition %s is not True",
-					etcd.Name, c.Type, c.Status)
+			if c.Type == druidv1alpha1.ConditionTypeClusterIDMismatch {
+				if c.Status != druidv1alpha1.ConditionFalse {
+					return fmt.Errorf("etcd %q status %q condition %s is not False",
+						etcd.Name, c.Type, c.Status)
+				}
+			} else {
+				if c.Status != druidv1alpha1.ConditionTrue {
+					return fmt.Errorf("etcd %q status %q condition %s is not True",
+						etcd.Name, c.Type, c.Status)
+				}
 			}
 		}
 		return nil
