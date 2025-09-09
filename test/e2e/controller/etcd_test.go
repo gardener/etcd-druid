@@ -169,19 +169,21 @@ func TestBasic(t *testing.T) {
 				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation)
 				logger.Info("successfully created Etcd")
 
-				logger.Info("hibernating Etcd")
-				replicas := etcd.Spec.Replicas
-				testEnv.HibernateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation)
-				logger.Info("successfully hibernated Etcd")
+				if tc.replicas != 0 {
+					logger.Info("hibernating Etcd")
+					replicas := etcd.Spec.Replicas
+					testEnv.HibernateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation)
+					logger.Info("successfully hibernated Etcd")
 
-				logger.Info("unhibernating Etcd")
-				etcd, err := testEnv.GetEtcd(etcd.Name, etcd.Namespace)
-				g.Expect(err).ToNot(HaveOccurred())
-				testEnv.UnhibernateAndCheckEtcd(g, etcd, replicas, timeoutEtcdReconciliation)
-				logger.Info("successfully unhibernated Etcd")
+					logger.Info("unhibernating Etcd")
+					etcd, err := testEnv.GetEtcd(etcd.Name, etcd.Namespace)
+					g.Expect(err).ToNot(HaveOccurred())
+					testEnv.UnhibernateAndCheckEtcd(g, etcd, replicas, timeoutEtcdReconciliation)
+					logger.Info("successfully unhibernated Etcd")
+				}
 
 				logger.Info("deleting Etcd")
-				etcd, err = testEnv.GetEtcd(etcd.Name, etcd.Namespace)
+				etcd, err := testEnv.GetEtcd(etcd.Name, etcd.Namespace)
 				g.Expect(err).ToNot(HaveOccurred())
 				testEnv.DeleteAndCheckEtcd(g, logger, etcd, timeoutEtcdReconciliation)
 				logger.Info("successfully deleted Etcd")

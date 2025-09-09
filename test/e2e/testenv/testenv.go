@@ -32,6 +32,8 @@ import (
 
 const (
 	defaultPollingInterval       = 2 * time.Second
+	defaultRetryInterval         = 5 * time.Second
+	defaultTimeout               = 2 * time.Minute
 	jobNameZeroDowntimeValidator = "zero-downtime-validator"
 	jobNameEtcdLoader            = "etcd-loader"
 	jobNameTriggerSnapshot       = "trigger-snapshot"
@@ -120,7 +122,9 @@ func (t *TestEnvironment) CreateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd,
 func (t *TestEnvironment) HibernateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
 	etcd.Spec.Replicas = 0
 	etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
-	g.Expect(t.cl.Update(t.ctx, etcd)).ShouldNot(HaveOccurred())
+	g.Eventually(func() error {
+		return t.cl.Update(t.ctx, etcd)
+	}, defaultTimeout, defaultRetryInterval).Should(Succeed())
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
@@ -128,7 +132,9 @@ func (t *TestEnvironment) HibernateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Et
 func (t *TestEnvironment) UnhibernateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, replicas int32, timeout time.Duration) {
 	etcd.Spec.Replicas = replicas
 	etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
-	g.Expect(t.cl.Update(t.ctx, etcd)).ShouldNot(HaveOccurred())
+	g.Eventually(func() error {
+		return t.cl.Update(t.ctx, etcd)
+	}, defaultTimeout, defaultRetryInterval).Should(Succeed())
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
