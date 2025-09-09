@@ -120,14 +120,6 @@ test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD)
 ci-e2e-kind: $(GINKGO) $(YQ) $(KIND)
 	@BUCKET_NAME=$(BUCKET_NAME) PROVIDERS=$(PROVIDERS) $(HACK_DIR)/ci-e2e-kind.sh
 
-.PHONY: ci-e2e-kind-azure
-ci-e2e-kind-azure: $(GINKGO)
-	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind-azure.sh
-
-.PHONY: ci-e2e-kind-gcs
-ci-e2e-kind-gcs: $(GINKGO)
-	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind-gcs.sh
-
 .PHONY: clean-e2e-test-resources
 clean-e2e-test-resources: $(KUBECTL)
 	@rm -rf $(REPO_ROOT)/test/e2e/pki-resources/*
