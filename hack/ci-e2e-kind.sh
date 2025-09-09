@@ -34,4 +34,5 @@ make DRUID_E2E_TEST=true \
 make NAMESPACE=$NAMESPACE \
   RETAIN_TEST_ARTIFACTS="${RETAIN_TEST_ARTIFACTS:-false}" \
   PROVIDERS="${PROVIDERS:-none,local}" \
+  GO_TEST_ARGS="${GO_TEST_ARGS:-}" \
   test-e2e
