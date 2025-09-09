@@ -105,16 +105,18 @@ start-envtest: $(SETUP_ENVTEST)
 test-cov-clean:
 	@$(HACK_DIR)/test-cover-clean.sh
 
-# Set -v for verbose logs
-# Set -count=1 to not use cached results
-# Set -run <TestName> to run specific tests
 # Set RETAIN_TEST_ARTIFACTS=true to retain the test artifacts
+# Set GO_TEST_ARGS to pass additional args to go test command, like `-run <TestName> -count=1 -v`
+# Set -run <TestName> to run specific tests
+# Set -count=1 to not use cached results
+# Set -v for verbose logs
 .PHONY: test-e2e
 test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD)
-	@SETUP_ENVTEST="false" PROVIDERS=$(PROVIDERS) "$(HACK_DIR)/test-go.sh" ./test/e2e/... -parallel 10 -timeout 1h
+	@SETUP_ENVTEST="false" PROVIDERS=$(PROVIDERS) "$(HACK_DIR)/test-go.sh" ./test/e2e/... -parallel 10 -timeout 1h $(GO_TEST_ARGS)
 
 # Set RETAIN_TEST_ARTIFACTS=true to retain the test artifacts
 # Set RETAIN_KIND_CLUSTER=true to retain the kind cluster
+# Set GO_TEST_ARGS to pass additional args to go test command, like `-run <TestName> -count=1 -v`
 .PHONY: ci-e2e-kind
 ci-e2e-kind: $(GINKGO) $(YQ) $(KIND)
 	@BUCKET_NAME=$(BUCKET_NAME) PROVIDERS=$(PROVIDERS) $(HACK_DIR)/ci-e2e-kind.sh
