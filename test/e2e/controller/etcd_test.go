@@ -97,7 +97,7 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-// TestBasic tests creation of 1-replica Etcd, hibernation, unhibernation and deletion of the Etcd cluster.
+// TestBasic tests creation, hibernation, unhibernation and deletion of the Etcd cluster.
 func TestBasic(t *testing.T) {
 	t.Parallel()
 	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
