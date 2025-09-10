@@ -153,4 +153,4 @@ If you have a concept of `hibernating` kubernetes clusters, then following shoul
 
 ## Reference
 
-* A nicely written [blog post](https://gardener.cloud/blog/2023/03-27-high-availability-and-zone-outage-toleration/) on `High Availability and Zone Outage Toleration` has a lot of recommendations that one can borrow from.
+* A nicely written [blog post](https://github.com/gardener/documentation/blob/master/website/blog/2023/03-27-High-Availability-and-Zone-Outage-Toleration.md) on `High Availability and Zone Outage Toleration` has a lot of recommendations that one can borrow from.
