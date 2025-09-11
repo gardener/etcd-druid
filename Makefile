@@ -14,7 +14,7 @@ IMAGE_REPOSITORY    := $(REGISTRY)/$(IMAGE_NAME)
 IMAGE_BUILD_TAG     := $(VERSION)
 PLATFORM            ?= $(shell docker info --format '{{.OSType}}/{{.Architecture}}')
 BUILD_DIR           := build
-PROVIDERS           := ""
+PROVIDERS           ?= ""
 BUCKET_NAME         := "e2e-test"
 IMG                 ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 TEST_COVER          := "true"
@@ -105,22 +105,26 @@ start-envtest: $(SETUP_ENVTEST)
 test-cov-clean:
 	@$(HACK_DIR)/test-cover-clean.sh
 
+# Set RETAIN_TEST_ARTIFACTS=true to retain the test artifacts
+# Set GO_TEST_ARGS to pass additional args to go test command, like `-run <TestName> -count=1 -v`
+# Set -run <TestName> to run specific tests
+# Set -count=1 to not use cached results
+# Set -v for verbose logs
 .PHONY: test-e2e
-test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE) $(GINKGO)
-	@$(HACK_DIR)/prepare-chart-resources.sh -n $(BUCKET_NAME) -e $(CERT_EXPIRY_DAYS)
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
+test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD)
+	@SETUP_ENVTEST="false" PROVIDERS=$(PROVIDERS) "$(HACK_DIR)/test-go.sh" ./test/e2e/... -parallel 10 -timeout 1h $(GO_TEST_ARGS)
 
+# Set RETAIN_TEST_ARTIFACTS=true to retain the test artifacts
+# Set RETAIN_KIND_CLUSTER=true to retain the kind cluster
+# Set GO_TEST_ARGS to pass additional args to go test command, like `-run <TestName> -count=1 -v`
 .PHONY: ci-e2e-kind
 ci-e2e-kind: $(GINKGO) $(YQ) $(KIND)
-	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind.sh
+	@BUCKET_NAME=$(BUCKET_NAME) PROVIDERS=$(PROVIDERS) $(HACK_DIR)/ci-e2e-kind.sh
 
-.PHONY: ci-e2e-kind-azure
-ci-e2e-kind-azure: $(GINKGO)
-	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind-azure.sh
-
-.PHONY: ci-e2e-kind-gcs
-ci-e2e-kind-gcs: $(GINKGO)
-	@BUCKET_NAME=$(BUCKET_NAME) $(HACK_DIR)/ci-e2e-kind-gcs.sh
+.PHONY: clean-e2e-test-resources
+clean-e2e-test-resources: $(KUBECTL)
+	@rm -rf $(REPO_ROOT)/test/e2e/pki-resources/*
+	@kubectl get namespaces --no-headers | grep 'etcd-e2e-' | awk '{print $$1}' | xargs kubectl delete ns
 
 # Rules related to binary build, Docker image build and release
 # -------------------------------------------------------------------------
@@ -182,9 +186,9 @@ endif
 .PHONY: prepare-helm-charts
 prepare-helm-charts:
 ifeq ($(strip $(K8S_VERSION)),)
-	@$(HACK_DIR)/prepare-chart-resources.sh --namespce $(NAMESPACE) --cert-expiry $(CERT_EXPIRY_DAYS)
+	@$(HACK_DIR)/prepare-chart-resources.sh --namespace $(NAMESPACE) --cert-expiry $(CERT_EXPIRY_DAYS)
 else
-	@$(HACK_DIR)/prepare-chart-resources.sh --namespce $(NAMESPACE) --cert-expiry $(CERT_EXPIRY_DAYS) --k8s-version $(K8S_VERSION)
+	@$(HACK_DIR)/prepare-chart-resources.sh --namespace $(NAMESPACE) --cert-expiry $(CERT_EXPIRY_DAYS) --k8s-version $(K8S_VERSION)
 endif
 
 .PHONY: deploy
