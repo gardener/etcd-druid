@@ -410,6 +410,36 @@ func (in *EtcdConfig) DeepCopyInto(out *EtcdConfig) {
 		*out = new(BootstrapWithExistingCluster)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.AdditionalAdvertiseClientURLs != nil {
+		in, out := &in.AdditionalAdvertiseClientURLs, &out.AdditionalAdvertiseClientURLs
+		*out = make(map[string][]string, len(*in))
+		for key, val := range *in {
+			var outVal []string
+			if val == nil {
+				(*out)[key] = nil
+			} else {
+				in, out := &val, &outVal
+				*out = make([]string, len(*in))
+				copy(*out, *in)
+			}
+			(*out)[key] = outVal
+		}
+	}
+	if in.AdditionalAdvertisePeerURLs != nil {
+		in, out := &in.AdditionalAdvertisePeerURLs, &out.AdditionalAdvertisePeerURLs
+		*out = make(map[string][]string, len(*in))
+		for key, val := range *in {
+			var outVal []string
+			if val == nil {
+				(*out)[key] = nil
+			} else {
+				in, out := &val, &outVal
+				*out = make([]string, len(*in))
+				copy(*out, *in)
+			}
+			(*out)[key] = outVal
+		}
+	}
 	return
 }
 

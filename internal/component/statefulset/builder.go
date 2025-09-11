@@ -456,15 +456,19 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	}
 	commandArgs = append(commandArgs, fmt.Sprintf("--auto-compaction-retention=%s", compactionRetention))
 
-	serviceEndpoint := fmt.Sprintf(
-		"%s://%s:%d",
-		utils.IfConditionOr(b.etcd.Spec.Backup.TLS == nil, "http", "https"),
-		druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta),
-		b.clientPort,
-	)
-	if b.etcd.Spec.Etcd.BootstrapWithExistingCluster != nil && len(b.etcd.Spec.Etcd.BootstrapWithExistingCluster.ClientEndpoints) > 0 {
-		serviceEndpoint = fmt.Sprintf("%s,%s", serviceEndpoint, strings.Join(b.etcd.Spec.Etcd.BootstrapWithExistingCluster.ClientEndpoints, ","))
-	}
+    serviceEndpoint := fmt.Sprintf(
+        "%s://%s:%d",
+        utils.IfConditionOr(b.etcd.Spec.Backup.TLS == nil, "http", "https"),
+        druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta),
+        b.clientPort,
+    )
+    if b.etcd.Spec.Etcd.BootstrapWithExistingCluster != nil && len(b.etcd.Spec.Etcd.BootstrapWithExistingCluster.ClientEndpoints) > 0 {
+        serviceEndpoint = fmt.Sprintf("%s,%s", serviceEndpoint, strings.Join(b.etcd.Spec.Etcd.BootstrapWithExistingCluster.ClientEndpoints, ","))
+    }
+
+    // Note: we intentionally do not append additional advertise-client URLs here.
+    // The --service-endpoints for the sidecar should remain focused on service and
+    // optional bootstrap client endpoints.
 
 	// Client and Backup TLS command line args
 	// -----------------------------------------------------------------------------------------------------------------

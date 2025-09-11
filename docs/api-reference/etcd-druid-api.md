@@ -652,6 +652,8 @@ _Appears in:_
 | `heartbeatDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
 | `clientService` _[ClientService](#clientservice)_ | ClientService defines the parameters of the client service that a user can specify |  |  |
 | `bootstrapWithExistingCluster` _[BootstrapWithExistingCluster](#bootstrapwithexistingcluster)_ |  |  |  |
+| `additionalAdvertiseClientUrls` _object (keys:string, values:string array)_ | AdditionalAdvertiseClientURLs contains extra per-member client URLs to append to the<br />advertise-client-urls in the generated etcd configuration. The map key must be the<br />etcd pod name (e.g. <etcd-name>-0), and the value is a list of URLs. When set,<br />these URLs are appended to the internally generated service DNS URL for each pod.<br />The scheme should match the client TLS configuration (https when clientUrlTls is set). |  |  |
+| `additionalAdvertisePeerUrls` _object (keys:string, values:string array)_ | AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append to the<br />initial-advertise-peer-urls in the generated etcd configuration. The map key must be the<br />etcd pod name (e.g. <etcd-name>-0), and the value is a list of URLs. When set,<br />these URLs are appended to the internally generated peer service DNS URL for each pod.<br />The scheme should match the peer TLS configuration (https when peerUrlTls is set). |  |  |
 
 
 #### EtcdCopyBackupsTask

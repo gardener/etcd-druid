@@ -262,8 +262,22 @@ type EtcdConfig struct {
 	// ClientService defines the parameters of the client service that a user can specify
 	// +optional
 	ClientService *ClientService `json:"clientService,omitempty"`
-	// +optional
-	BootstrapWithExistingCluster *BootstrapWithExistingCluster `json:"bootstrapWithExistingCluster,omitempty"`
+    // +optional
+    BootstrapWithExistingCluster *BootstrapWithExistingCluster `json:"bootstrapWithExistingCluster,omitempty"`
+    // AdditionalAdvertiseClientURLs contains extra per-member client URLs to append to the
+    // advertise-client-urls in the generated etcd configuration. The map key must be the
+    // etcd pod name (e.g. <etcd-name>-0), and the value is a list of URLs. When set,
+    // these URLs are appended to the internally generated service DNS URL for each pod.
+    // The scheme should match the client TLS configuration (https when clientUrlTls is set).
+    // +optional
+    AdditionalAdvertiseClientURLs map[string][]string `json:"additionalAdvertiseClientUrls,omitempty"`
+    // AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append to the
+    // initial-advertise-peer-urls in the generated etcd configuration. The map key must be the
+    // etcd pod name (e.g. <etcd-name>-0), and the value is a list of URLs. When set,
+    // these URLs are appended to the internally generated peer service DNS URL for each pod.
+    // The scheme should match the peer TLS configuration (https when peerUrlTls is set).
+    // +optional
+    AdditionalAdvertisePeerURLs map[string][]string `json:"additionalAdvertisePeerUrls,omitempty"`
 }
 
 // BootstrapWithExistingCluster contains details required to join an existing cluster during creation.

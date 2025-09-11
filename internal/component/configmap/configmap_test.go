@@ -184,6 +184,25 @@ func TestPrepareInitialCluster(t *testing.T) {
 	}
 }
 
+func TestPrepareInitialClusterAppendsAdditionalPeerURLsPerMember(t *testing.T) {
+    g := NewWithT(t)
+    t.Parallel()
+
+    // Build etcd with 2 replicas and peer TLS enabled (https scheme)
+    etcd := buildEtcd(2, true, true)
+    // Add additional peer URLs per member
+    etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = map[string][]string{
+        druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, 0): {"https://lb-peer-0.example.com:2380"},
+        druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, 1): {"https://lb-peer-1.example.com:2380", "https://alt-peer-1.example.net:2380"},
+    }
+
+    peerScheme := "https"
+    actualInitialCluster := prepareInitialCluster(etcd, peerScheme)
+
+    expected := "etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2380,https://lb-peer-0.example.com:2380,etcd-test-1=https://etcd-test-1.etcd-test-peer.test-ns.svc:2380,https://lb-peer-1.example.com:2380,https://alt-peer-1.example.net:2380"
+    g.Expect(actualInitialCluster).To(Equal(expected))
+}
+
 func buildEtcd(replicas int32, clientTLSEnabled, peerTLSEnabled bool) *druidv1alpha1.Etcd {
 	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(replicas)
 	if clientTLSEnabled {
@@ -238,6 +257,59 @@ func TestSyncWhenConfigMapExists(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSyncAppendsAdditionalAdvertiseClientURLs(t *testing.T) {
+    g := NewWithT(t)
+    t.Parallel()
+
+    // Build etcd with 2 replicas and client TLS enabled
+    etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(2).WithClientTLS().Build()
+    // Add additional advertise client URLs for each member
+    etcd.Spec.Etcd.AdditionalAdvertiseClientURLs = map[string][]string{
+        druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, 0): {"https://lb-etcd-0.example.com:2379"},
+        druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, 1): {"https://lb-etcd-1.example.com:2379", "https://alt-1.example.net:2379"},
+    }
+
+    cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, nil, getObjectKey(etcd.ObjectMeta))
+    operator := New(cl)
+    opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+
+    err := operator.Sync(opCtx, etcd)
+    g.Expect(err).NotTo(HaveOccurred())
+
+    latestConfigMap, getErr := getLatestConfigMap(cl, etcd)
+    g.Expect(getErr).NotTo(HaveOccurred())
+    g.Expect(latestConfigMap).ToNot(BeNil())
+
+    // Reuse existing matcher which now accounts for additional URLs for client advertise
+    matchConfigMap(g, etcd, *latestConfigMap)
+}
+
+func TestSyncAppendsAdditionalAdvertisePeerURLs(t *testing.T) {
+    g := NewWithT(t)
+    t.Parallel()
+
+    // Build etcd with 2 replicas and peer TLS enabled
+    etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(2).WithPeerTLS().Build()
+    // Add additional advertise peer URLs for each member
+    etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = map[string][]string{
+        druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, 0): {"https://lb-peer-0.example.com:2380"},
+        druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, 1): {"https://lb-peer-1.example.com:2380", "https://alt-peer-1.example.net:2380"},
+    }
+
+    cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, nil, getObjectKey(etcd.ObjectMeta))
+    operator := New(cl)
+    opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+
+    err := operator.Sync(opCtx, etcd)
+    g.Expect(err).NotTo(HaveOccurred())
+
+    latestConfigMap, getErr := getLatestConfigMap(cl, etcd)
+    g.Expect(getErr).NotTo(HaveOccurred())
+    g.Expect(latestConfigMap).ToNot(BeNil())
+
+    matchConfigMap(g, etcd, *latestConfigMap)
 }
 
 // ----------------------------- TriggerDelete -------------------------------
@@ -371,21 +443,33 @@ func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actu
 }
 
 func expectedAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme string) map[string][]string {
-	var port int32
-	switch advertiseURLType {
-	case advertiseURLTypePeer:
-		port = ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
-	case advertiseURLTypeClient:
-		port = ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
-	default:
-		return nil
-	}
-	advUrlsMap := make(map[string][]string)
-	for i := 0; i < int(etcd.Spec.Replicas); i++ {
-		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, port)}
-	}
-	return advUrlsMap
+    var port int32
+    switch advertiseURLType {
+    case advertiseURLTypePeer:
+        port = ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
+    case advertiseURLTypeClient:
+        port = ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
+    default:
+        return nil
+    }
+    advUrlsMap := make(map[string][]string)
+    for i := 0; i < int(etcd.Spec.Replicas); i++ {
+        podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+        advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, port)}
+    }
+    // If testing client advertise URLs and there are additional URLs configured, append them.
+    if advertiseURLType == advertiseURLTypeClient && len(etcd.Spec.Etcd.AdditionalAdvertiseClientURLs) > 0 {
+        for podName, urls := range etcd.Spec.Etcd.AdditionalAdvertiseClientURLs {
+            advUrlsMap[podName] = append(advUrlsMap[podName], urls...)
+        }
+    }
+    // If testing peer advertise URLs and there are additional URLs configured, append them.
+    if advertiseURLType == advertiseURLTypePeer && len(etcd.Spec.Etcd.AdditionalAdvertisePeerURLs) > 0 {
+        for podName, urls := range etcd.Spec.Etcd.AdditionalAdvertisePeerURLs {
+            advUrlsMap[podName] = append(advUrlsMap[podName], urls...)
+        }
+    }
+    return advUrlsMap
 }
 
 func expectedAdvertiseURLsAsInterface(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme string) map[string]interface{} {

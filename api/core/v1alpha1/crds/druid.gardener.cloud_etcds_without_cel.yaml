@@ -361,6 +361,30 @@ spec:
                 etcd:
                   description: EtcdConfig defines the configuration for the etcd cluster to be deployed.
                   properties:
+                    additionalAdvertiseClientUrls:
+                      additionalProperties:
+                        items:
+                          type: string
+                        type: array
+                      description: |-
+                        AdditionalAdvertiseClientURLs contains extra per-member client URLs to append to the
+                        advertise-client-urls in the generated etcd configuration. The map key must be the
+                        etcd pod name (e.g. <etcd-name>-0), and the value is a list of URLs. When set,
+                        these URLs are appended to the internally generated service DNS URL for each pod.
+                        The scheme should match the client TLS configuration (https when clientUrlTls is set).
+                      type: object
+                    additionalAdvertisePeerUrls:
+                      additionalProperties:
+                        items:
+                          type: string
+                        type: array
+                      description: |-
+                        AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append to the
+                        initial-advertise-peer-urls in the generated etcd configuration. The map key must be the
+                        etcd pod name (e.g. <etcd-name>-0), and the value is a list of URLs. When set,
+                        these URLs are appended to the internally generated peer service DNS URL for each pod.
+                        The scheme should match the peer TLS configuration (https when peerUrlTls is set).
+                      type: object
                     authSecretRef:
                       description: |-
                         SecretReference represents a Secret Reference. It has enough information to retrieve secret

@@ -80,6 +80,30 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		AdvertisePeerUrls:       getAdvertiseURLs(etcd, advertiseURLTypePeer, peerScheme, peerSvcName),
 		AdvertiseClientUrls:     getAdvertiseURLs(etcd, advertiseURLTypeClient, clientScheme, peerSvcName),
 	}
+	// Append any user-provided additional advertise-client URLs per member.
+	if len(etcd.Spec.Etcd.AdditionalAdvertiseClientURLs) > 0 {
+		if cfg.AdvertiseClientUrls == nil {
+			cfg.AdvertiseClientUrls = map[string][]string{}
+		}
+		for podName, urls := range etcd.Spec.Etcd.AdditionalAdvertiseClientURLs {
+			if len(urls) == 0 {
+				continue
+			}
+			cfg.AdvertiseClientUrls[podName] = append(cfg.AdvertiseClientUrls[podName], urls...)
+		}
+	}
+	// Append any user-provided additional advertise-peer URLs per member.
+	if len(etcd.Spec.Etcd.AdditionalAdvertisePeerURLs) > 0 {
+		if cfg.AdvertisePeerUrls == nil {
+			cfg.AdvertisePeerUrls = map[string][]string{}
+		}
+		for podName, urls := range etcd.Spec.Etcd.AdditionalAdvertisePeerURLs {
+			if len(urls) == 0 {
+				continue
+			}
+			cfg.AdvertisePeerUrls[podName] = append(cfg.AdvertisePeerUrls[podName], urls...)
+		}
+	}
 	cfg.PeerSecurity = peerSecurityConfig
 	cfg.ClientSecurity = clientSecurityConfig
 
