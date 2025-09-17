@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/internal/utils"
-	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	. "github.com/onsi/gomega"
 )
@@ -358,7 +358,10 @@ func TestGetPodForJob(t *testing.T) {
 				objects = append(objects, &pod)
 			}
 
-			fakeClient := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, objects)
+			// Create a fake client with the pods
+			fakeClient := fake.NewClientBuilder().
+				WithObjects(objects...).
+				Build()
 
 			pod, err := getPodForJob(context.TODO(), fakeClient, &test.jobMeta)
 

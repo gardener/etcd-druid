@@ -33,6 +33,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -262,7 +263,7 @@ func TestHandleUnmanagedStatefulSetScaleSubresourceUpdate(t *testing.T) {
 func TestUnexpectedResourceType(t *testing.T) {
 	g := NewWithT(t)
 
-	cl := testutils.CreateDefaultFakeClient()
+	cl := fake.NewClientBuilder().Build()
 	handler := createHandler(g, cl, druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 		Enabled:            true,
 		ServiceAccountInfo: &reconcilerServiceAccountInfo,
@@ -282,7 +283,7 @@ func TestUnexpectedResourceType(t *testing.T) {
 func TestMissingManagedByLabel(t *testing.T) {
 	g := NewWithT(t)
 
-	cl := testutils.CreateDefaultFakeClient()
+	cl := fake.NewClientBuilder().Build()
 	handler := createHandler(g, cl, druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 		Enabled:            true,
 		ServiceAccountInfo: &reconcilerServiceAccountInfo,
@@ -308,7 +309,7 @@ func TestMissingManagedByLabel(t *testing.T) {
 func TestMissingResourcePartOfLabel(t *testing.T) {
 	g := NewWithT(t)
 
-	cl := testutils.CreateDefaultFakeClient()
+	cl := fake.NewClientBuilder().Build()
 	handler := createHandler(g, cl, druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
 		Enabled:            true,
 		ServiceAccountInfo: &reconcilerServiceAccountInfo,
