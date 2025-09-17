@@ -29,6 +29,12 @@ func GetServiceAccountName(etcdObjMeta metav1.ObjectMeta) string {
 	return etcdObjMeta.Name
 }
 
+// GetOldConfigMapName returns the name of the old configmap for the Etcd.
+// TODO: @anveshreddy18: Remove this function after 3 releases, i.e in v0.31.0
+func GetOldConfigMapName(etcdObjMeta metav1.ObjectMeta) string {
+	return fmt.Sprintf("etcd-bootstrap-%s", string(etcdObjMeta.UID[:6]))
+}
+
 // GetConfigMapName returns the name of the configmap for the Etcd.
 func GetConfigMapName(etcdObjMeta metav1.ObjectMeta) string {
 	return fmt.Sprintf("%s-config", etcdObjMeta.Name)
