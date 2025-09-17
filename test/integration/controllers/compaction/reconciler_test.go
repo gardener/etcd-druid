@@ -128,13 +128,10 @@ var _ = Describe("Compaction Controller", func() {
 			}, timeout, pollingInterval).Should(BeNil())
 
 			// Update job status as failed
-			j.Status = batchv1.JobStatus{
-				Failed: 1,
-				Conditions: []batchv1.JobCondition{
-					{
-						Type:   batchv1.JobFailed,
-						Status: corev1.ConditionTrue,
-					},
+			j.Status.Conditions = []batchv1.JobCondition{
+				{
+					Type:   batchv1.JobFailed,
+					Status: corev1.ConditionTrue,
 				},
 			}
 			j.Status.StartTime = &metav1.Time{Time: time.Now()}
@@ -185,13 +182,10 @@ var _ = Describe("Compaction Controller", func() {
 			}, timeout, pollingInterval).Should(BeNil())
 
 			// Update job status as succeeded
-			j.Status = batchv1.JobStatus{
-				Succeeded: 1,
-				Conditions: []batchv1.JobCondition{
-					{
-						Type:   batchv1.JobComplete,
-						Status: corev1.ConditionTrue,
-					},
+			j.Status.Conditions = []batchv1.JobCondition{
+				{
+					Type:   batchv1.JobComplete,
+					Status: corev1.ConditionTrue,
 				},
 			}
 			Expect(k8sClient.Status().Update(context.TODO(), j)).To(Succeed())
