@@ -61,7 +61,6 @@ func main() {
 				DefragmentationSchedule: ptr.To("0 */24 * * *"),
 				ServerPort:              ptr.To[int32](2380),
 				ClientPort:              ptr.To[int32](2379),
-				WrapperPort:             ptr.To[int32](9095),
 				Resources: &corev1.ResourceRequirements{
 					Requests: corev1.ResourceList{
 						"cpu":    resource.MustParse("500m"),

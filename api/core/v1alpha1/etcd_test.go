@@ -121,7 +121,6 @@ func createEtcd(name, namespace string) *Etcd {
 		clientPort    int32 = 2379
 		serverPort    int32 = 2380
 		backupPort    int32 = 8080
-		wrapperPort   int32 = 9095
 		metricLevel         = Basic
 		snapshotCount int64 = 75000
 	)
@@ -242,7 +241,6 @@ func createEtcd(name, namespace string) *Etcd {
 				},
 				ClientPort:    &clientPort,
 				ServerPort:    &serverPort,
-				WrapperPort:   &wrapperPort,
 				SnapshotCount: &snapshotCount,
 				ClientUrlTLS:  clientTlsConfig,
 				PeerUrlTLS:    peerTlsConfig,

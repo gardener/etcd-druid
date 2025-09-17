@@ -106,7 +106,6 @@ var (
 	}
 	etcdClientPort    = int32(2379)
 	etcdServerPort    = int32(2380)
-	etcdWrapperPort   = int32(9095)
 	etcdSnapshotCount = int64(75000)
 
 	backupPort                 = int32(8080)
@@ -176,7 +175,6 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 		Resources:               &etcdResources,
 		ClientPort:              &etcdClientPort,
 		ServerPort:              &etcdServerPort,
-		WrapperPort:             &etcdWrapperPort,
 		SnapshotCount:           &etcdSnapshotCount,
 		ClientUrlTLS:            &etcdTLS,
 	}

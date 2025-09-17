@@ -636,9 +636,6 @@ spec:
                       More info: https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
                     format: int64
                     type: integer
-                  wrapperPort:
-                    format: int32
-                    type: integer
                 type: object
               labels:
                 additionalProperties:

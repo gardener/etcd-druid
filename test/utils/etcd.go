@@ -287,14 +287,6 @@ func (eb *EtcdBuilder) WithEtcdClientPort(clientPort *int32) *EtcdBuilder {
 	return eb
 }
 
-func (eb *EtcdBuilder) WithEtcdWrapperPort(wrapperPort *int32) *EtcdBuilder {
-	if eb == nil || eb.etcd == nil {
-		return nil
-	}
-	eb.etcd.Spec.Etcd.WrapperPort = wrapperPort
-	return eb
-}
-
 func (eb *EtcdBuilder) WithEtcdClientServiceLabels(labels map[string]string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -442,9 +434,8 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 						"memory": ParseQuantity("1000Mi"),
 					},
 				},
-				ClientPort:  ptr.To(common.DefaultPortEtcdClient),
-				ServerPort:  ptr.To(common.DefaultPortEtcdPeer),
-				WrapperPort: ptr.To(common.DefaultPortEtcdWrapper),
+				ClientPort: ptr.To(common.DefaultPortEtcdClient),
+				ServerPort: ptr.To(common.DefaultPortEtcdPeer),
 			},
 			Common: druidv1alpha1.SharedConfig{
 				AutoCompactionMode:      &autoCompactionMode,
