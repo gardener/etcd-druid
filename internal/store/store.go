@@ -34,6 +34,7 @@ const (
 	dell      = "dell"
 	openshift = "openshift"
 	stackit   = "stackit"
+	gdch	  = "gdch"
 )
 
 const (
@@ -66,6 +67,8 @@ func StorageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) (str
 		return S3, nil
 	// S3-compatible providers
 	case stackit:
+		return S3, nil
+	case gdch:
 		return S3, nil
 	case azure, ABS:
 		return ABS, nil
