@@ -21,88 +21,88 @@ spec:
       shareProcessNamespace: true
       serviceAccountName: etcd-druid
       containers:
-        - name: etcd-druid
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-          imagePullPolicy: {{ .Values.image.imagePullPolicy }}
-          args:
+      - name: etcd-druid
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.imagePullPolicy }}
+        args:
         {{- if .Values.enabledOperatorConfig }}
-            - --config=/etc/etcd-druid/config/config.yaml
+        - --config=/etc/etcd-druid/config/config.yaml
         {{- else }}
         {{- if .Values.featureGates }}
         {{- $featuregates := "" }}
         {{- range $feature, $value := $.Values.featureGates }}
         {{- $featuregates = printf "%s%s=%t," $featuregates $feature $value }}
         {{- end }}
-            - --feature-gates={{ $featuregates | trimSuffix "," }}
+        - --feature-gates={{ $featuregates | trimSuffix "," }}
         {{- end }}
         {{- if ((((.Values.controllerManager).server).metrics).bindAddress) }}
-            - --metrics-bind-address={{ .Values.controllerManager.server.metrics.bindAddress }}
+        - --metrics-bind-address={{ .Values.controllerManager.server.metrics.bindAddress }}
         {{- end }}
         {{- if ((((.Values.controllerManager).server).metrics).port) }}
-            - --metrics-port={{ .Values.controllerManager.server.metrics.port }}
+        - --metrics-port={{ .Values.controllerManager.server.metrics.port }}
         {{- end }}
         {{- if ((((.Values.controllerManager).server).webhook).bindAddress) }}
-            - --webhook-server-bind-address={{ .Values.controllerManager.server.webhook.bindAddress }}
+        - --webhook-server-bind-address={{ .Values.controllerManager.server.webhook.bindAddress }}
         {{- end }}
         {{- if ((((.Values.controllerManager).server).webhook).port) }}
-            - --webhook-server-port={{ .Values.controllerManager.server.webhook.port }}
+        - --webhook-server-port={{ .Values.controllerManager.server.webhook.port }}
         {{- end }}
         {{- if (((((.Values.controllerManager).server).webhook).tls).serverCertDir) }}
-            - --webhook-server-tls-server-cert-dir={{ .Values.controllerManager.server.webhook.tls.serverCertDir }}
+        - --webhook-server-tls-server-cert-dir={{ .Values.controllerManager.server.webhook.tls.serverCertDir }}
         {{- end }}
         {{- if (((.Values.controllerManager).leaderElection).enabled) }}
-            - --enable-leader-election={{ .Values.controllerManager.leaderElection.enabled }}
-            - --leader-election-id={{ .Values.controllerManager.leaderElection.id }}
+        - --enable-leader-election={{ .Values.controllerManager.leaderElection.enabled }}
+        - --leader-election-id={{ .Values.controllerManager.leaderElection.id }}
         {{- end }}
         {{- if ((.Values.controllerManager).disableLeaseCache) }}
-            - --disable-lease-cache={{ .Values.controllerManager.disableLeaseCache }}
+        - --disable-lease-cache={{ .Values.controllerManager.disableLeaseCache }}
         {{- end }}
         {{- if ((.Values.controllers).etcd) }}
-            - --etcd-workers={{ .Values.controllers.etcd.workers }}
-            - --enable-etcd-spec-auto-reconcile={{ .Values.controllers.etcd.enableEtcdSpecAutoReconcile }}
-            - --disable-etcd-serviceaccount-automount={{ .Values.controllers.etcd.disableEtcdServiceAccountAutomount }}
-            - --etcd-status-sync-period={{ .Values.controllers.etcd.etcdStatusSyncPeriod }}
-            - --etcd-member-notready-threshold={{ .Values.controllers.etcd.etcdMemberNotReadyThreshold }}
-            - --etcd-member-unknown-threshold={{ .Values.controllers.etcd.etcdMemberUnknownThreshold }}
+        - --etcd-workers={{ .Values.controllers.etcd.workers }}
+        - --enable-etcd-spec-auto-reconcile={{ .Values.controllers.etcd.enableEtcdSpecAutoReconcile }}
+        - --disable-etcd-serviceaccount-automount={{ .Values.controllers.etcd.disableEtcdServiceAccountAutomount }}
+        - --etcd-status-sync-period={{ .Values.controllers.etcd.etcdStatusSyncPeriod }}
+        - --etcd-member-notready-threshold={{ .Values.controllers.etcd.etcdMemberNotReadyThreshold }}
+        - --etcd-member-unknown-threshold={{ .Values.controllers.etcd.etcdMemberUnknownThreshold }}
         {{- end }}
         {{- if and ((.Values.controllers).compaction) (eq .Values.controllers.compaction.enabled true) }}
-            - --enable-backup-compaction=true
-            - --compaction-workers={{ .Values.controllers.compaction.workers }}
-            - --etcd-events-threshold={{ int $.Values.controllers.compaction.etcdEventsThreshold }}
-            - --active-deadline-duration={{ .Values.controllers.compaction.activeDeadlineDuration }}
-            - --metrics-scrape-wait-duration={{ .Values.controllers.compaction.metricsScrapeWaitDuration }}
+        - --enable-backup-compaction=true
+        - --compaction-workers={{ .Values.controllers.compaction.workers }}
+        - --etcd-events-threshold={{ int $.Values.controllers.compaction.etcdEventsThreshold }}
+        - --active-deadline-duration={{ .Values.controllers.compaction.activeDeadlineDuration }}
+        - --metrics-scrape-wait-duration={{ .Values.controllers.compaction.metricsScrapeWaitDuration }}
         {{- end }}
         {{- if and ((.Values.controllers).etcdCopyBackupsTask) (eq .Values.controllers.etcdCopyBackupsTask.enabled true) }}
         {{- if (((.Values.controllers).etcdCopyBackupsTask).workers) }}
-            - --etcd-copy-backups-task-workers={{ .Values.controllers.etcdCopyBackupsTask.workers }}
+        - --etcd-copy-backups-task-workers={{ .Values.controllers.etcdCopyBackupsTask.workers }}
         {{- end }}
         {{- end }}
         {{- if (((.Values.controllers).secret).workers) }}
-            - --secret-workers={{ .Values.controllers.secret.workers }}
+        - --secret-workers={{ .Values.controllers.secret.workers }}
         {{- end }}
         {{- if eq $etcdComponentProtectionWebhookEnabled "true" }}
-            - --enable-etcd-components-webhook=true
-            - --reconciler-service-account={{ include "webhook.etcdcomponentprotection.reconcilerServiceAccountFQDN" . }}
+        - --enable-etcd-components-webhook=true
+        - --reconciler-service-account={{ include "webhook.etcdcomponentprotection.reconcilerServiceAccountFQDN" . }}
         {{- if .Values.webhooks.etcdComponentProtection.exemptServiceAccounts }}
-            - --etcd-components-webhook-exempt-service-accounts={{ join "," .Values.webhooks.etcdComponentProtection.exemptServiceAccounts }}
+        - --etcd-components-webhook-exempt-service-accounts={{ join "," .Values.webhooks.etcdComponentProtection.exemptServiceAccounts }}
         {{- end }}
         {{- end }}
         {{- end }}
-          volumeMounts:
+        volumeMounts:
         {{- if eq $etcdComponentProtectionWebhookEnabled "true" }}
-            - mountPath: /etc/webhook-server-tls
-              name: tls
-              readOnly: true
+          - mountPath: /etc/webhook-server-tls
+            name: tls
+            readOnly: true
         {{- end }}
         {{- if .Values.enabledOperatorConfig }}
-            - mountPath: /etc/etcd-druid/config
-              name: operator-config
-              readOnly: true
+          - mountPath: /etc/etcd-druid/config
+            name: operator-config
+            readOnly: true
         {{- end }}
-          resources:
-{{ toYaml .Values.resources | indent 12 }}
-          securityContext:
-            allowPrivilegeEscalation: false
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -129,5 +129,5 @@ spec:
       {{- if .Values.enabledOperatorConfig }}
         - name: operator-config
           configMap:
-            name: etcd-druid-operator-config
+            name: {{ include "operator.config.name" . }}
       {{- end }}

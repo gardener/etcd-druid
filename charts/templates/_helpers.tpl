@@ -87,27 +87,3 @@ etcd-druid-operator-configmap-{{ include "operator.config.data" . | sha256sum | 
 {{- define "webhook.etcdcomponentprotection.reconcilerServiceAccountFQDN" -}}
 {{- printf "system:serviceaccount:%s:%s" .Release.Namespace .Values.serviceAccount.name }}
 {{- end -}}
-
-{{ define "operator.service.ports" -}}
-{{- $metricsPort := "" }}
-{{- $webhooksPort := "" }}
-{{- if .Values.enabledOperatorConfig }}
-{{- $metricsPort = .Values.operatorConfig.server.metrics.port }}
-{{- $webhooksPort = .Values.operatorConfig.server.webhooks.port }}
-{{- else }}
-{{- $metricsPort = .Values.controllerManager.server.metrics.port }}
-{{- $webhooksPort = .Values.controllerManager.server.webhook.port }}
-{{- end }}
-{{- if $metricsPort }}
-- name: metrics
-  port: {{ $metricsPort }}
-  protocol: TCP
-  targetPort: {{ $metricsPort }}
-{{- end }}
-{{- if $webhooksPort }}
-- name: webhooks
-  port: {{ $webhooksPort }}
-  protocol: TCP
-  targetPort: {{ $webhooksPort }}
-{{- end }}
-{{- end -}}
