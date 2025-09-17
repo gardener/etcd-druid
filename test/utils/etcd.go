@@ -40,7 +40,7 @@ var (
 	deltaSnapShotMemLimit   = resource.MustParse("100Mi")
 	autoCompactionMode      = druidv1alpha1.Periodic
 	autoCompactionRetention = "2m"
-	snapshotCount           = int64(10000)
+	snapshotCount           = int64(75000)
 	quota                   = resource.MustParse("8Gi")
 	localProvider           = druidv1alpha1.StorageProvider("Local")
 	prefix                  = "/tmp"
