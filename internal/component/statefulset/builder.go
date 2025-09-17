@@ -613,14 +613,12 @@ func (b *stsBuilder) getEtcdContainerCommandArgs() []string {
 	commandArgs = append(commandArgs, fmt.Sprintf("--backup-restore-host-port=%s-local:%d", b.etcd.Name, b.backupPort))
 	commandArgs = append(commandArgs, fmt.Sprintf("--etcd-server-name=%s-local", b.etcd.Name))
 
-	if b.etcd.Spec.Backup.TLS == nil {
+	if b.etcd.Spec.Etcd.ClientUrlTLS == nil {
 		commandArgs = append(commandArgs, "--backup-restore-tls-enabled=false")
 	} else {
 		commandArgs = append(commandArgs, "--backup-restore-tls-enabled=true")
-		dataKey := ptr.Deref(b.etcd.Spec.Backup.TLS.TLSCASecretRef.DataKey, "ca.crt")
+		dataKey := ptr.Deref(b.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
 		commandArgs = append(commandArgs, fmt.Sprintf("--backup-restore-ca-cert-bundle-path=%s/%s", common.VolumeMountPathBackupRestoreCA, dataKey))
-	}
-	if b.etcd.Spec.Etcd.ClientUrlTLS != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-client-cert-path=%s/tls.crt", common.VolumeMountPathEtcdClientTLS))
 		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-client-key-path=%s/tls.key", common.VolumeMountPathEtcdClientTLS))
 	}

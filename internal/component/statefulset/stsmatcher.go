@@ -273,23 +273,36 @@ func (s StatefulSetMatcher) matchEtcdContainerReadinessHandler() gomegatypes.Gom
 	})
 }
 
+func (s StatefulSetMatcher) matchEtcdContainerReadinessProbeCmd() gomegatypes.GomegaMatcher {
+	if s.etcd.Spec.Etcd.ClientUrlTLS != nil {
+		dataKey := ptr.Deref(s.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
+		return HaveExactElements(
+			"/bin/sh",
+			"-ec",
+			fmt.Sprintf("ETCDCTL_API=3 etcdctl --cacert=/var/etcd/ssl/ca/%s --cert=/var/etcd/ssl/client/tls.crt --key=/var/etcd/ssl/client/tls.key --endpoints=https://%s-local:%d get foo --consistency=l", dataKey, s.etcd.Name, s.clientPort),
+		)
+	} else {
+		return HaveExactElements(
+			"/bin/sh",
+			"-ec",
+			fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=http://%s-local:%d get foo --consistency=l", s.etcd.Name, s.clientPort),
+		)
+	}
+}
+
 func (s StatefulSetMatcher) matchEtcdContainerCmdArgs() gomegatypes.GomegaMatcher {
 	cmdArgs := make([]string, 0, 8)
 	cmdArgs = append(cmdArgs, "start-etcd")
 	cmdArgs = append(cmdArgs, fmt.Sprintf("--backup-restore-host-port=%s-local:%d", s.etcd.Name, s.backupPort))
 	cmdArgs = append(cmdArgs, fmt.Sprintf("--etcd-server-name=%s-local", s.etcd.Name))
-	// backup-restore tls specific configuration
-	if s.etcd.Spec.Backup.TLS == nil {
+	if s.etcd.Spec.Etcd.ClientUrlTLS == nil {
 		cmdArgs = append(cmdArgs, "--backup-restore-tls-enabled=false")
 	} else {
-		dataKey := ptr.Deref(s.etcd.Spec.Backup.TLS.TLSCASecretRef.DataKey, "ca.crt")
+		dataKey := ptr.Deref(s.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
 		cmdArgs = append(cmdArgs, "--backup-restore-tls-enabled=true")
-		cmdArgs = append(cmdArgs, fmt.Sprintf("--backup-restore-ca-cert-bundle-path=/var/etcdbr/ssl/ca/%s", dataKey))
-	}
-	// etcd client url tls specific configuration
-	if s.etcd.Spec.Etcd.ClientUrlTLS != nil {
 		cmdArgs = append(cmdArgs, "--etcd-client-cert-path=/var/etcd/ssl/client/tls.crt")
 		cmdArgs = append(cmdArgs, "--etcd-client-key-path=/var/etcd/ssl/client/tls.key")
+		cmdArgs = append(cmdArgs, fmt.Sprintf("--backup-restore-ca-cert-bundle-path=/var/etcdbr/ssl/ca/%s", dataKey))
 	}
 	cmdArgs = append(cmdArgs, fmt.Sprintf("--etcd-client-port=%d", s.clientPort))
 	cmdArgs = append(cmdArgs, fmt.Sprintf("--etcd-wrapper-port=%d", s.wrapperPort))
