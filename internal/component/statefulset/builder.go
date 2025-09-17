@@ -86,7 +86,7 @@ func newStsBuilder(client client.Client,
 	if err != nil {
 		return nil, err
 	}
-	provider, err := kubernetes.GetBackupStoreProvider(etcd)
+	provider, err := getBackupStoreProvider(etcd)
 	if err != nil {
 		return nil, err
 	}
@@ -246,29 +246,29 @@ func (b *stsBuilder) getVolumeClaimTemplates() []corev1.PersistentVolumeClaim {
 }
 
 func (b *stsBuilder) getPodInitContainers() []corev1.Container {
-	if !b.etcd.IsBackupStoreEnabled() || b.provider == nil || *b.provider != druidstore.Local || ptr.Deref(b.etcd.Spec.RunAsRoot, false) || b.getEtcdBackupVolumeMount() == nil {
-		return nil
+	initContainers := make([]corev1.Container, 0, 1)
+	if b.etcd.IsBackupStoreEnabled() {
+		if b.provider != nil && *b.provider == druidstore.Local {
+			etcdBackupVolumeMount := b.getEtcdBackupVolumeMount()
+			if etcdBackupVolumeMount != nil {
+				initContainers = append(initContainers, corev1.Container{
+					Name:            common.InitContainerNameChangeBackupBucketPermissions,
+					Image:           b.initContainerImage,
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Command:         []string{"sh", "-c", "--"},
+					Args:            []string{fmt.Sprintf("chown -R %d:%d /home/nonroot/%s", nonRootUser, nonRootUser, *b.etcd.Spec.Backup.Store.Container)},
+					VolumeMounts:    []corev1.VolumeMount{*etcdBackupVolumeMount},
+					SecurityContext: &corev1.SecurityContext{
+						AllowPrivilegeEscalation: ptr.To(false),
+						RunAsGroup:               ptr.To[int64](0),
+						RunAsNonRoot:             ptr.To(false),
+						RunAsUser:                ptr.To[int64](0),
+					},
+				})
+			}
+		}
 	}
-
-	etcdBackupVolumeMount := b.getEtcdBackupVolumeMount()
-	if etcdBackupVolumeMount == nil {
-		return nil
-	}
-
-	return []corev1.Container{{
-		Name:            common.InitContainerNameChangeBackupBucketPermissions,
-		Image:           b.initContainerImage,
-		ImagePullPolicy: corev1.PullIfNotPresent,
-		Command:         []string{"sh", "-c", "--"},
-		Args:            []string{fmt.Sprintf("chown -R %d:%d %s", nonRootUser, nonRootUser, kubernetes.MountPathLocalStore(b.etcd, b.provider))},
-		VolumeMounts:    []corev1.VolumeMount{*etcdBackupVolumeMount},
-		SecurityContext: &corev1.SecurityContext{
-			AllowPrivilegeEscalation: ptr.To(false),
-			RunAsGroup:               ptr.To[int64](0),
-			RunAsNonRoot:             ptr.To(false),
-			RunAsUser:                ptr.To[int64](0),
-		},
-	}}
+	return initContainers
 }
 
 func (b *stsBuilder) getEtcdContainerVolumeMounts() []corev1.VolumeMount {
@@ -330,7 +330,7 @@ func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 		if b.etcd.Spec.Backup.Store.Container != nil {
 			return &corev1.VolumeMount{
 				Name:      common.VolumeNameLocalBackup,
-				MountPath: kubernetes.MountPathLocalStore(b.etcd, b.provider),
+				MountPath: fmt.Sprintf("/home/nonroot/%s", ptr.Deref(b.etcd.Spec.Backup.Store.Container, "")),
 			}
 		}
 	case druidstore.GCS:
@@ -859,4 +859,15 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 		}, nil
 	}
 	return nil, nil
+}
+
+func getBackupStoreProvider(etcd *druidv1alpha1.Etcd) (*string, error) {
+	if !etcd.IsBackupStoreEnabled() {
+		return nil, nil
+	}
+	provider, err := druidstore.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
+	if err != nil {
+		return nil, err
+	}
+	return &provider, nil
 }

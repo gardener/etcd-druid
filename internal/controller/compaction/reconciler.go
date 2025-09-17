@@ -17,7 +17,6 @@ import (
 	druidstore "github.com/gardener/etcd-druid/internal/store"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/internal/utils/imagevector"
-	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
@@ -381,7 +380,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 		return nil, err
 	}
 
-	// TODO (abdasgupta): Evaluate necessity of claiming object here after creation
+	//TODO (abdasgupta): Evaluate necessity of claiming object here after creation
 	return job, nil
 }
 
@@ -552,7 +551,7 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd) ([]v1.VolumeMount, e
 	case druidstore.Local:
 		vms = append(vms, v1.VolumeMount{
 			Name:      "host-storage",
-			MountPath: kubernetes.MountPathLocalStore(etcd, &provider),
+			MountPath: "/home/nonroot/" + ptr.Deref(etcd.Spec.Backup.Store.Container, ""),
 		})
 	case druidstore.GCS:
 		vms = append(vms, v1.VolumeMount{
