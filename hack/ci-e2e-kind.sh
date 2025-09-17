@@ -9,6 +9,7 @@ set -o pipefail
 
 make kind-up
 
+
 trap '{
   kind export logs "${ARTIFACTS:-/tmp}/etcd-druid-e2e" --name etcd-druid-e2e || true
   echo "cleaning copied and generated helm chart resources"

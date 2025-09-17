@@ -211,25 +211,6 @@ func assertStatefulSetGeneration(ctx context.Context, t *testing.T, cl client.Cl
 	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).WithContext(ctx).Should(BeNil())
 }
 
-func assertStatefulSetReplicas(ctx context.Context, t *testing.T, cl client.Client, stsObjectKey client.ObjectKey, expectedReplicas int32, timeout, pollInterval time.Duration) {
-	g := NewWithT(t)
-	checkFn := func() error {
-		sts := &appsv1.StatefulSet{}
-
-		if err := cl.Get(ctx, stsObjectKey, sts); err != nil {
-			return err
-		}
-		if sts.Spec.Replicas == nil {
-			return fmt.Errorf("expected sts replicas to be set, got nil")
-		}
-		if *sts.Spec.Replicas != expectedReplicas {
-			return fmt.Errorf("expected sts replicas to be %d, got %v", expectedReplicas, *sts.Spec.Replicas)
-		}
-		return nil
-	}
-	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).WithContext(ctx).Should(BeNil())
-}
-
 func assertETCDObservedGeneration(t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, expectedObservedGeneration *int64, timeout, pollInterval time.Duration) {
 	g := NewWithT(t)
 	checkFn := func() error {

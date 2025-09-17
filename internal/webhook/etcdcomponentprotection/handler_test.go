@@ -276,7 +276,7 @@ func TestUnexpectedResourceType(t *testing.T) {
 	})
 
 	g.Expect(resp.Allowed).To(BeTrue())
-	g.Expect(resp.Result.Message).To(Equal("resource: Unknown.coordination.k8s.io is not supported by EtcdComponents webhook"))
+	g.Expect(resp.Result.Message).To(Equal("resource: coordination.k8s.io/Unknown is not supported by EtcdComponents webhook"))
 }
 
 func TestMissingManagedByLabel(t *testing.T) {
@@ -341,7 +341,6 @@ func TestHandleUpdate(t *testing.T) {
 		objectLabels                 map[string]string
 		isObjectDeletionTimestampSet bool
 		objectRaw                    []byte
-		isRuntimeComponent           bool
 		// ----- etcd configuration -----
 		etcdAnnotations         map[string]string
 		etcdStatusLastOperation *druidv1alpha1.LastOperation
@@ -361,15 +360,6 @@ func TestHandleUpdate(t *testing.T) {
 			expectedAllowed: true,
 			expectedMessage: fmt.Sprintf("changes allowed, since Etcd %s has annotation %s", testEtcdName, druidv1alpha1.DisableEtcdComponentProtectionAnnotation),
 			expectedCode:    http.StatusOK,
-		},
-		{
-			name:               "disable runtime component creation annotation set",
-			objectLabels:       map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			isRuntimeComponent: true,
-			etcdAnnotations:    map[string]string{druidv1alpha1.DisableEtcdRuntimeComponentCreationAnnotation: ""},
-			expectedAllowed:    true,
-			expectedMessage:    fmt.Sprintf("Etcd %s has runtime component creation disabled, skipping validations for resource %v", testEtcdName, client.ObjectKey{Name: testObjectName, Namespace: testNamespace}),
-			expectedCode:       http.StatusOK,
 		},
 		{
 			name:                         "operator makes a request when Etcd is being reconciled by druid",
@@ -453,17 +443,11 @@ func TestHandleUpdate(t *testing.T) {
 			})
 
 			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels, tc.isObjectDeletionTimestampSet)
-			kind := statefulSetGVK
-			if tc.isRuntimeComponent {
-				obj = buildObjRawExtension(g, &coordinationv1.Lease{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels, tc.isObjectDeletionTimestampSet)
-				kind = leaseGVK
-			}
-
 			response := handler.Handle(context.Background(), admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
 					Operation: admissionv1.Update,
 					UserInfo:  authenticationv1.UserInfo{Username: tc.userName},
-					Kind:      kind,
+					Kind:      statefulSetGVK,
 					Name:      testObjectName,
 					Namespace: testNamespace,
 					Object:    obj,

@@ -17,12 +17,8 @@ import (
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
-	corev1 "k8s.io/api/core/v1"
-	policyv1 "k8s.io/api/policy/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -59,8 +55,8 @@ func NewHandler(mgr manager.Manager, config druidconfigv1alpha1.EtcdComponentPro
 
 // Handle handles admission requests and prevents unintended changes to resources created by etcd-druid.
 func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	requestGK := utils.GetGroupKindFromRequest(req)
-	log := h.logger.WithValues("name", req.Name, "namespace", req.Namespace, "resourceGroupKind", requestGK, "operation", req.Operation, "user", req.UserInfo.Username)
+	requestGKString := utils.GetGroupKindAsStringFromRequest(req)
+	log := h.logger.WithValues("name", req.Name, "namespace", req.Namespace, "resourceGroupKind", requestGKString, "operation", req.Operation, "user", req.UserInfo.Username)
 	log.V(1).Info("EtcdComponents webhook invoked")
 
 	if ok, response := h.skipValidationForOperations(req.Operation); ok {
@@ -72,7 +68,7 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		return admission.Errored(utils.DetermineStatusCode(err), err)
 	}
 	if partialObjMeta == nil {
-		return admission.Allowed(fmt.Sprintf("resource: %v is not supported by EtcdComponents webhook", requestGK))
+		return admission.Allowed(fmt.Sprintf("resource: %v is not supported by EtcdComponents webhook", requestGKString))
 	}
 
 	if !isObjManagedByDruid(partialObjMeta.ObjectMeta) {
@@ -90,12 +86,6 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 	// allow changes to resources if Etcd has annotation druid.gardener.cloud/disable-etcd-component-protection is set.
 	if !druidv1alpha1.AreManagedResourcesProtected(etcd.ObjectMeta) {
 		return admission.Allowed(fmt.Sprintf("changes allowed, since Etcd %s has annotation %s", etcd.Name, druidv1alpha1.DisableEtcdComponentProtectionAnnotation))
-	}
-
-	if isRuntimeComponent(requestGK) {
-		if !druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(etcd.ObjectMeta) {
-			return admission.Allowed(fmt.Sprintf("Etcd %s has runtime component creation disabled, skipping validations for resource %v", etcd.Name, utils.CreateObjectKey(partialObjMeta)))
-		}
 	}
 
 	// allow deletion operation on resources if the Etcd is currently being deleted, but only by etcd-druid and exempt service accounts.
@@ -172,16 +162,6 @@ func (h *Handler) getParentEtcdObj(ctx context.Context, partialObjMeta *metav1.P
 func isObjManagedByDruid(objMeta metav1.ObjectMeta) bool {
 	managedBy, hasLabel := objMeta.GetLabels()[druidv1alpha1.LabelManagedByKey]
 	return hasLabel && managedBy == druidv1alpha1.LabelManagedByValue
-}
-
-// isRuntimeComponent checks if the request is for a runtime component for the etcd cluster, such as lease, RBAC, etc.
-func isRuntimeComponent(requestGK schema.GroupKind) bool {
-	return requestGK == corev1.SchemeGroupVersion.WithKind("ServiceAccount").GroupKind() ||
-		requestGK == rbacv1.SchemeGroupVersion.WithKind("Role").GroupKind() ||
-		requestGK == rbacv1.SchemeGroupVersion.WithKind("RoleBinding").GroupKind() ||
-		requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() ||
-		requestGK == policyv1.SchemeGroupVersion.WithKind("PodDisruptionBudget").GroupKind() ||
-		requestGK == corev1.SchemeGroupVersion.WithKind("Service").GroupKind()
 }
 
 func isServiceAccountExempted(serviceAccount string, exemptedServiceAccounts []string) bool {

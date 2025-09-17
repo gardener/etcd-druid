@@ -150,15 +150,15 @@ func (r *Reconciler) GetOperatorRegistry() component.Registry {
 
 func createAndInitializeOperatorRegistry(client client.Client, config druidconfigv1alpha1.EtcdControllerConfiguration, imageVector imagevector.ImageVector) component.Registry {
 	reg := component.NewRegistry()
+	reg.Register(component.ConfigMapKind, configmap.New(client))
 	reg.Register(component.ServiceAccountKind, serviceaccount.New(client, config.DisableEtcdServiceAccountAutomount))
-	reg.Register(component.RoleKind, role.New(client))
-	reg.Register(component.RoleBindingKind, rolebinding.New(client))
 	reg.Register(component.MemberLeaseKind, memberlease.New(client))
 	reg.Register(component.SnapshotLeaseKind, snapshotlease.New(client))
-	reg.Register(component.PodDisruptionBudgetKind, poddistruptionbudget.New(client))
 	reg.Register(component.ClientServiceKind, clientservice.New(client))
 	reg.Register(component.PeerServiceKind, peerservice.New(client))
-	reg.Register(component.ConfigMapKind, configmap.New(client))
+	reg.Register(component.PodDisruptionBudgetKind, poddistruptionbudget.New(client))
+	reg.Register(component.RoleKind, role.New(client))
+	reg.Register(component.RoleBindingKind, rolebinding.New(client))
 	reg.Register(component.StatefulSetKind, statefulset.New(client, imageVector))
 	return reg
 }

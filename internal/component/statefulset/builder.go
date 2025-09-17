@@ -136,8 +136,7 @@ func (b *stsBuilder) getStatefulSetLabels() map[string]string {
 
 func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error {
 	err := b.createPodTemplateSpec(ctx)
-	b.sts.Spec.Replicas = ptr.To(utils.IfConditionOr[int32](druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta), b.replicas, 0))
-	b.logger.Info("Creating StatefulSet spec", "replicas", b.sts.Spec.Replicas, "name", b.sts.Name, "namespace", b.sts.Namespace)
+	b.sts.Spec.Replicas = ptr.To(b.replicas)
 	b.sts.Spec.UpdateStrategy = defaultUpdateStrategy
 	if err != nil {
 		return err
@@ -147,9 +146,7 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 			MatchLabels: druidv1alpha1.GetDefaultLabels(b.etcd.ObjectMeta),
 		}
 		b.sts.Spec.PodManagementPolicy = defaultPodManagementPolicy
-		if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-			b.sts.Spec.ServiceName = druidv1alpha1.GetPeerServiceName(b.etcd.ObjectMeta)
-		}
+		b.sts.Spec.ServiceName = druidv1alpha1.GetPeerServiceName(b.etcd.ObjectMeta)
 		b.sts.Spec.VolumeClaimTemplates = b.getVolumeClaimTemplates()
 	}
 	return nil
@@ -167,6 +164,7 @@ func (b *stsBuilder) createPodTemplateSpec(ctx component.OperatorContext) error 
 	podTemplateSpec := corev1.PodTemplateSpec{
 		Spec: corev1.PodSpec{
 			HostAliases:           b.getHostAliases(),
+			ServiceAccountName:    druidv1alpha1.GetServiceAccountName(b.etcd.ObjectMeta),
 			ShareProcessNamespace: ptr.To(true),
 			InitContainers:        b.getPodInitContainers(),
 			Containers: []corev1.Container{
@@ -179,9 +177,6 @@ func (b *stsBuilder) createPodTemplateSpec(ctx component.OperatorContext) error 
 			Volumes:                   podVolumes,
 			PriorityClassName:         ptr.Deref(b.etcd.Spec.PriorityClassName, ""),
 		},
-	}
-	if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-		podTemplateSpec.Spec.ServiceAccountName = druidv1alpha1.GetServiceAccountName(b.etcd.ObjectMeta)
 	}
 	podTemplateLabels := b.getStatefulSetPodLabels()
 	selectorMatchesLabels, err := kubernetes.DoesLabelSelectorMatchLabels(b.sts.Spec.Selector, podTemplateLabels)
@@ -465,16 +460,12 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 		commandArgs = append(commandArgs, "--insecure-transport=false")
 		commandArgs = append(commandArgs, "--insecure-skip-tls-verify=false")
 		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=https://%s-local:%d", b.etcd.Name, b.clientPort))
-		if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-			commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=https://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
-		}
+		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=https://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
 	} else {
 		commandArgs = append(commandArgs, "--insecure-transport=true")
 		commandArgs = append(commandArgs, "--insecure-skip-tls-verify=true")
 		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=http://%s-local:%d", b.etcd.Name, b.clientPort))
-		if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-			commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=http://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
-		}
+		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=http://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
 	}
 	if b.etcd.Spec.Backup.TLS != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--server-cert=%s/tls.crt", common.VolumeMountPathBackupRestoreServerTLS))
@@ -487,15 +478,8 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	commandArgs = append(commandArgs, fmt.Sprintf("--restoration-temp-snapshots-dir=%s/restoration.temp", common.VolumeMountPathEtcdData))
 	commandArgs = append(commandArgs, fmt.Sprintf("--snapstore-temp-directory=%s/temp", common.VolumeMountPathEtcdData))
 	commandArgs = append(commandArgs, fmt.Sprintf("--etcd-connection-timeout=%s", defaultEtcdConnectionTimeout))
+	commandArgs = append(commandArgs, "--enable-member-lease-renewal=true")
 	commandArgs = append(commandArgs, "--use-etcd-wrapper=true")
-	if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-		commandArgs = append(commandArgs, "--enable-member-lease-renewal=true")
-		heartbeatDuration := defaultHeartbeatDuration
-		if b.etcd.Spec.Etcd.HeartbeatDuration != nil {
-			heartbeatDuration = b.etcd.Spec.Etcd.HeartbeatDuration.Duration.String()
-		}
-		commandArgs = append(commandArgs, fmt.Sprintf("--k8s-heartbeat-duration=%s", heartbeatDuration))
-	}
 
 	var quota = defaultQuota
 	if b.etcd.Spec.Etcd.Quota != nil {
@@ -505,6 +489,12 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	if ptr.Deref(b.etcd.Spec.Backup.EnableProfiling, false) {
 		commandArgs = append(commandArgs, "--enable-profiling=true")
 	}
+
+	heartbeatDuration := defaultHeartbeatDuration
+	if b.etcd.Spec.Etcd.HeartbeatDuration != nil {
+		heartbeatDuration = b.etcd.Spec.Etcd.HeartbeatDuration.Duration.String()
+	}
+	commandArgs = append(commandArgs, fmt.Sprintf("--k8s-heartbeat-duration=%s", heartbeatDuration))
 
 	if b.etcd.Spec.Backup.LeaderElection != nil {
 		if b.etcd.Spec.Backup.LeaderElection.EtcdConnectionTimeout != nil {
@@ -521,22 +511,20 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 func (b *stsBuilder) getBackupStoreCommandArgs() []string {
 	var commandArgs []string
 
-	if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-		commandArgs = append(commandArgs, "--enable-snapshot-lease-renewal=true")
-		commandArgs = append(commandArgs, fmt.Sprintf("--full-snapshot-lease-name=%s", druidv1alpha1.GetFullSnapshotLeaseName(b.etcd.ObjectMeta)))
-		commandArgs = append(commandArgs, fmt.Sprintf("--delta-snapshot-lease-name=%s", druidv1alpha1.GetDeltaSnapshotLeaseName(b.etcd.ObjectMeta)))
-	}
+	commandArgs = append(commandArgs, "--enable-snapshot-lease-renewal=true")
 	commandArgs = append(commandArgs, fmt.Sprintf("--storage-provider=%s", *b.provider))
 	commandArgs = append(commandArgs, fmt.Sprintf("--store-prefix=%s", b.etcd.Spec.Backup.Store.Prefix))
 
 	// Full snapshot command line args
 	// -----------------------------------------------------------------------------------------------------------------
+	commandArgs = append(commandArgs, fmt.Sprintf("--full-snapshot-lease-name=%s", druidv1alpha1.GetFullSnapshotLeaseName(b.etcd.ObjectMeta)))
 	if b.etcd.Spec.Backup.FullSnapshotSchedule != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--schedule=%s", *b.etcd.Spec.Backup.FullSnapshotSchedule))
 	}
 
 	// Delta snapshot command line args
 	// -----------------------------------------------------------------------------------------------------------------
+	commandArgs = append(commandArgs, fmt.Sprintf("--delta-snapshot-lease-name=%s", druidv1alpha1.GetDeltaSnapshotLeaseName(b.etcd.ObjectMeta)))
 	if b.etcd.Spec.Backup.DeltaSnapshotPeriod != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--delta-snapshot-period=%s", b.etcd.Spec.Backup.DeltaSnapshotPeriod.Duration.String()))
 	}
