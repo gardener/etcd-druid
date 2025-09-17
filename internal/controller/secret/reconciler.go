@@ -83,13 +83,6 @@ func isFinalizerNeeded(secretName string, etcdList *druidv1alpha1.EtcdList) (boo
 			return true, &etcd
 		}
 
-		if etcd.Spec.Backup.TLS != nil &&
-			(etcd.Spec.Backup.TLS.TLSCASecretRef.Name == secretName ||
-				etcd.Spec.Backup.TLS.ServerTLSSecretRef.Name == secretName ||
-				etcd.Spec.Backup.TLS.ClientTLSSecretRef.Name == secretName) {
-			return true, &etcd
-		}
-
 		if etcd.Spec.Backup.Store != nil &&
 			etcd.Spec.Backup.Store.SecretRef != nil &&
 			etcd.Spec.Backup.Store.SecretRef.Name == secretName {

@@ -170,20 +170,6 @@ func createEtcd(name, namespace string) *Etcd {
 		},
 	}
 
-	etcdbrTLSConfig := &TLSConfig{
-		TLSCASecretRef: SecretReference{
-			SecretReference: corev1.SecretReference{
-				Name: "ca-etcdbr",
-			},
-		},
-		ServerTLSSecretRef: corev1.SecretReference{
-			Name: "etcdbr-server-tls",
-		},
-		ClientTLSSecretRef: corev1.SecretReference{
-			Name: "etcdbr-client-tls",
-		},
-	}
-
 	instance := &Etcd{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -213,7 +199,7 @@ func createEtcd(name, namespace string) *Etcd {
 			Backup: BackupSpec{
 				Image:                    &imageBR,
 				Port:                     &backupPort,
-				TLS:                      etcdbrTLSConfig,
+				TLS:                      clientTlsConfig,
 				FullSnapshotSchedule:     &snapshotSchedule,
 				GarbageCollectionPolicy:  &garbageCollectionPolicy,
 				GarbageCollectionPeriod:  &garbageCollectionPeriod,
