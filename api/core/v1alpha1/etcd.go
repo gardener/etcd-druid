@@ -147,9 +147,10 @@ type BackupSpec struct {
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
-	// SnapshotCompaction defines the specification for compaction of backups.
+	// CompactionResources defines compute Resources required by compaction job.
+	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional
-	SnapshotCompaction *SnapshotCompactionSpec `json:"snapshotCompaction,omitempty"`
+	CompactionResources *corev1.ResourceRequirements `json:"compactionResources,omitempty"`
 	// FullSnapshotSchedule defines the cron standard schedule for full snapshots.
 	// +optional
 	// +kubebuilder:validation:Pattern="^(\\*|[1-5]?[0-9]|[1-5]?[0-9]-[1-5]?[0-9]|(?:[1-9]|[1-4][0-9]|5[0-9])\\/(?:[1-9]|[1-4][0-9]|5[0-9]|60)|\\*\\/(?:[1-9]|[1-4][0-9]|5[0-9]|60))\\s+(\\*|[0-9]|1[0-9]|2[0-3]|[0-9]-(?:[0-9]|1[0-9]|2[0-3])|1[0-9]-(?:1[0-9]|2[0-3])|2[0-3]-2[0-3]|(?:[1-9]|1[0-9]|2[0-3])\\/(?:[1-9]|1[0-9]|2[0-4])|\\*\\/(?:[1-9]|1[0-9]|2[0-4]))\\s+(\\*|[1-9]|[12][0-9]|3[01]|[1-9]-(?:[1-9]|[12][0-9]|3[01])|[12][0-9]-(?:[12][0-9]|3[01])|3[01]-3[01]|(?:[1-9]|[12][0-9]|30)\\/(?:[1-9]|[12][0-9]|3[01])|\\*\\/(?:[1-9]|[12][0-9]|3[01]))\\s+(\\*|[1-9]|1[0-2]|[1-9]-(?:[1-9]|1[0-2])|1[0-2]-1[0-2]|(?:[1-9]|1[0-2])\\/(?:[1-9]|1[0-2])|\\*\\/(?:[1-9]|1[0-2]))\\s+(\\*|[1-7]|[1-6]-[1-7]|[1-6]\\/[1-7]|\\*\\/[1-7])$"
@@ -195,20 +196,6 @@ type BackupSpec struct {
 	// LeaderElection defines parameters related to the LeaderElection configuration.
 	// +optional
 	LeaderElection *LeaderElectionSpec `json:"leaderElection,omitempty"`
-}
-
-// SnapshotCompactionSpec defines parameters related to the compaction job configuration.
-type SnapshotCompactionSpec struct {
-	// Resources defines compute Resources required by compaction job.
-	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
-	// +optional
-	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
-	// EventsThreshold defines the threshold for the number of etcd events before triggering a compaction job
-	// +optional
-	EventsThreshold *int64 `json:"eventsThreshold,omitempty"`
-	// TriggerFullSnapshotThreshold defines the upper threshold for the number of etcd events before giving up on compaction job and triggering a full snapshot.
-	// +optional
-	TriggerFullSnapshotThreshold *int64 `json:"triggerFullSnapshotThreshold,omitempty"`
 }
 
 // EtcdConfig defines the configuration for the etcd cluster to be deployed.
@@ -365,10 +352,6 @@ type CrossVersionObjectReference struct {
 const (
 	// ConditionTypeReady is a constant for a condition type indicating that the etcd cluster is ready.
 	ConditionTypeReady ConditionType = "Ready"
-	// ConditionTypeLastSnapshotCompactionSucceeded is a constant for a condition type indicating the status of last snapshot compaction.
-	// If `ConditionTypeLastSnapshotCompactionSucceeded` condition status is `False`, it means the compaction controller is currently retrying the compaction operation.
-	// Compaction operation can either be a compaction job or a full snapshot.
-	ConditionTypeLastSnapshotCompactionSucceeded ConditionType = "LastSnapshotCompactionSucceeded"
 	// ConditionTypeAllMembersReady is a constant for a condition type indicating that all members of the etcd cluster are ready.
 	ConditionTypeAllMembersReady ConditionType = "AllMembersReady"
 	// ConditionTypeAllMembersUpdated is a constant for a condition type indicating that all members

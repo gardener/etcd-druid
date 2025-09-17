@@ -29,9 +29,8 @@ import (
 )
 
 var (
-	timeout                     = time.Minute * 2
-	pollingInterval             = time.Second * 2
-	moreFrequentPollingInterval = 30 * time.Second
+	timeout         = time.Minute * 2
+	pollingInterval = time.Second * 2
 )
 
 var _ = Describe("Compaction Controller", func() {
@@ -289,78 +288,6 @@ var _ = Describe("Compaction Controller", func() {
 				}
 				if j.Status.Active != 1 {
 					return fmt.Errorf("compaction job is not currently active")
-				}
-				return nil
-			}, timeout, pollingInterval).Should(BeNil())
-		})
-	})
-	Context("when compaction job is unviable, it should trigger full snapshot", func() {
-		var (
-			instance       *druidv1alpha1.Etcd
-			fullSnapLease  *coordinationv1.Lease
-			deltaSnapLease *coordinationv1.Lease
-			j              *batchv1.Job
-		)
-
-		AfterEach(func() {
-			Expect(k8sClient.Delete(context.TODO(), instance)).To(Succeed())
-			Eventually(func() error { return testutils.IsEtcdRemoved(k8sClient, instance.Name, instance.Namespace, timeout) }, timeout, pollingInterval).Should(BeNil())
-		})
-		It("should trigger full snapshot if the delta revisions over the last full snapshot are more than the configured upper threshold", func() {
-			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
-			defer cancel()
-
-			instance = testutils.EtcdBuilderWithDefaults("etcd-compaction-fullsnapshot-test", "default").WithProviderLocal().Build()
-			createEtcdAndWait(k8sClient, instance)
-
-			// manually create full and delta snapshot leases since etcd controller is not running
-			fullSnapLease, deltaSnapLease = createEtcdSnapshotLeasesAndWait(k8sClient, instance)
-
-			// manually update the full lease
-			fullSnapLease.Spec.HolderIdentity = ptr.To("0")
-			fullSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(k8sClient.Update(context.TODO(), fullSnapLease)).To(Succeed())
-
-			// manually update the delta lease
-			deltaSnapLease.Spec.HolderIdentity = ptr.To("301")
-			deltaSnapLease.Spec.RenewTime = &metav1.MicroTime{Time: time.Now()}
-			Expect(k8sClient.Update(context.TODO(), deltaSnapLease)).To(Succeed())
-
-			j = &batchv1.Job{}
-			req := types.NamespacedName{
-				Name:      druidv1alpha1.GetCompactionJobName(instance.ObjectMeta),
-				Namespace: instance.Namespace,
-			}
-
-			// The compaction job should NOT exist, so we expect a NotFound error.
-			// We want to assert this periodically to account for the asynchronous nature of the controller, and only proceed if it passes every time.
-			Consistently(func() error {
-				return k8sClient.Get(ctx, req, j)
-			}, timeout, moreFrequentPollingInterval).Should(testutils.BeNotFoundError())
-
-			// Verify that a full snapshot has been triggered by fetching the etcd status ConditionTypeLastSnapshotCompactionSucceeded condition
-			Eventually(func() error {
-				ctx, cancel = context.WithTimeout(context.TODO(), timeout)
-				defer cancel()
-				latestEtcd := &druidv1alpha1.Etcd{}
-				if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name}, latestEtcd); err != nil {
-					return err
-				}
-				latestCondition := druidv1alpha1.Condition{}
-				for _, condition := range latestEtcd.Status.Conditions {
-					if condition.Type == druidv1alpha1.ConditionTypeLastSnapshotCompactionSucceeded {
-						latestCondition = condition
-						break
-					}
-				}
-				if latestCondition.Type != druidv1alpha1.ConditionTypeLastSnapshotCompactionSucceeded {
-					return fmt.Errorf("LastSnapshotCompactionSucceeded condition not found in etcd status")
-				}
-				if latestCondition.Status != druidv1alpha1.ConditionTrue {
-					return fmt.Errorf("LastSnapshotCompactionSucceeded condition status is not True, got %s", latestCondition.Status)
-				}
-				if latestCondition.Reason != druidv1alpha1.FullSnapshotSuccessReason {
-					return fmt.Errorf("LastSnapshotCompactionSucceeded condition reason is not FullSnapshotTakenSuccessfully, got %s", latestCondition.Reason)
 				}
 				return nil
 			}, timeout, pollingInterval).Should(BeNil())

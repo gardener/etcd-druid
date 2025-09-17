@@ -97,9 +97,6 @@ func validateCompactionControllerConfiguration(compactionControllerConfig druidc
 	if compactionControllerConfig.EventsThreshold <= 0 {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("eventsThreshold"), compactionControllerConfig.EventsThreshold, "must be greater than 0"))
 	}
-	if compactionControllerConfig.TriggerFullSnapshotThreshold <= 0 {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("triggerFullSnapshotThreshold"), compactionControllerConfig.TriggerFullSnapshotThreshold, "must be greater than 0"))
-	}
 	return allErrs
 }
 

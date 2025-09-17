@@ -5,16 +5,11 @@
 package compaction
 
 import (
-	"context"
-	"fmt"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
 
-	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
-	batchv1 "k8s.io/api/batch/v1"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
@@ -34,17 +29,6 @@ var (
 			Help:      "Total number of compaction jobs initiated by compaction controller.",
 		},
 		[]string{druidmetrics.LabelSucceeded, druidmetrics.LabelFailureReason, druidmetrics.LabelEtcdNamespace},
-	)
-
-	// metricFullSnapshotsTriggered is the metric used to count the total number of full snapshots triggered by compaction controller.
-	metricFullSnapshotsTriggered = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: namespaceEtcdDruid,
-			Subsystem: subsystemCompaction,
-			Name:      "full_snapshot_triggered_total",
-			Help:      "Total number of full snapshot triggered by compaction controller.",
-		},
-		[]string{druidmetrics.LabelSucceeded, druidmetrics.LabelEtcdNamespace},
 	)
 
 	// metricJobsCurrent is the metric used to expose currently running compaction job. This metric is important to get a sense of total number of compaction job running in a seed cluster.
@@ -111,92 +95,11 @@ func init() {
 		metricJobDurationSeconds.With(prometheus.Labels(combination))
 	}
 
-	// metricFullSnapshotsTriggeredValues
-	metricFullSnapshotsTriggeredValues := map[string][]string{
-		druidmetrics.LabelSucceeded:     druidmetrics.DruidLabels[druidmetrics.LabelSucceeded],
-		druidmetrics.LabelEtcdNamespace: druidmetrics.DruidLabels[druidmetrics.LabelEtcdNamespace],
-	}
-	metricFullSnapshotsTriggeredCombinations := druidmetrics.GenerateLabelCombinations(metricFullSnapshotsTriggeredValues)
-	for _, combination := range metricFullSnapshotsTriggeredCombinations {
-		metricFullSnapshotsTriggered.With(prometheus.Labels(combination))
-	}
-
 	// Metrics have to be registered to be exposed:
 	metrics.Registry.MustRegister(metricJobsTotal)
 	metrics.Registry.MustRegister(metricJobDurationSeconds)
+
 	metrics.Registry.MustRegister(metricJobsCurrent)
+
 	metrics.Registry.MustRegister(metricNumDeltaEvents)
-	metrics.Registry.MustRegister(metricFullSnapshotsTriggered)
-}
-
-func recordSuccessfulJobMetrics(job *batchv1.Job) {
-	metricJobsTotal.With(prometheus.Labels{
-		druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededTrue,
-		druidmetrics.LabelFailureReason: druidmetrics.ValueFailureReasonNone,
-		druidmetrics.LabelEtcdNamespace: job.Namespace,
-	}).Inc()
-	if job.Status.CompletionTime != nil {
-		metricJobDurationSeconds.With(prometheus.Labels{
-			druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededTrue,
-			druidmetrics.LabelFailureReason: druidmetrics.ValueFailureReasonNone,
-			druidmetrics.LabelEtcdNamespace: job.Namespace,
-		}).Observe(job.Status.CompletionTime.Time.Sub(job.Status.StartTime.Time).Seconds())
-	}
-}
-
-func recordFailureJobMetrics(jobFailureReasonMetricLabelValue string, durationSeconds float64, job *batchv1.Job) {
-	metricJobsTotal.With(prometheus.Labels{
-		druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededFalse,
-		druidmetrics.LabelFailureReason: jobFailureReasonMetricLabelValue,
-		druidmetrics.LabelEtcdNamespace: job.Namespace,
-	}).Inc()
-
-	if durationSeconds > 0 {
-		metricJobDurationSeconds.With(prometheus.Labels{
-			druidmetrics.LabelSucceeded:     druidmetrics.ValueSucceededFalse,
-			druidmetrics.LabelFailureReason: jobFailureReasonMetricLabelValue,
-			druidmetrics.LabelEtcdNamespace: job.Namespace,
-		}).Observe(durationSeconds)
-	}
-}
-
-// fetchFailedJobMetrics retrieves the specific reason for the job failure, corresponding metric label value, and the duration of the job in seconds.
-func (r *Reconciler) fetchFailedJobMetrics(ctx context.Context, logger logr.Logger, job *batchv1.Job, jobCompletionReason string) (string, string, float64, error) {
-	var (
-		failureReason                 string
-		failureReasonMetricLabelValue string
-		durationSeconds               float64
-	)
-
-	switch jobCompletionReason {
-	case batchv1.JobReasonDeadlineExceeded:
-		failureReason = druidv1alpha1.JobFailureReasonDeadlineExceeded
-		failureReasonMetricLabelValue = druidmetrics.ValueFailureReasonDeadlineExceeded
-		durationSeconds = float64(*job.Spec.ActiveDeadlineSeconds)
-	case batchv1.JobReasonBackoffLimitExceeded:
-		var (
-			lastTransitionTime time.Time
-			err                error
-		)
-		failureReason, failureReasonMetricLabelValue, lastTransitionTime, err = r.getPodFailureValueWithLastTransitionTime(ctx, logger, job)
-		if err != nil {
-			return "", "", 0, fmt.Errorf("error while handling job's failure condition type backoffLimitExceeded: %w", err)
-		}
-		if !lastTransitionTime.IsZero() {
-			durationSeconds = lastTransitionTime.Sub(job.Status.StartTime.Time).Seconds()
-		}
-	default:
-		failureReason = druidv1alpha1.PodFailureReasonUnknown
-		failureReasonMetricLabelValue = druidmetrics.ValueFailureReasonUnknown
-		durationSeconds = time.Now().UTC().Sub(job.Status.StartTime.Time).Seconds()
-	}
-	return failureReason, failureReasonMetricLabelValue, durationSeconds, nil
-}
-
-// recordFullSnapshotsTriggered increments the full snapshot triggered metric with the given labels.
-func recordFullSnapshotsTriggered(succeeded, namespace string) {
-	metricFullSnapshotsTriggered.With(prometheus.Labels{
-		druidmetrics.LabelSucceeded:     succeeded,
-		druidmetrics.LabelEtcdNamespace: namespace,
-	}).Inc()
 }

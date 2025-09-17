@@ -46,7 +46,6 @@ config.yaml: |
       enabled: {{ .Values.operatorConfig.controllers.compaction.enabled }}
       concurrentSyncs: {{ .Values.operatorConfig.controllers.compaction.concurrentSyncs }}
       eventsThreshold: {{ .Values.operatorConfig.controllers.compaction.eventsThreshold }}
-      triggerFullSnapshotThreshold: {{ .Values.operatorConfig.controllers.compaction.triggerFullSnapshotThreshold }}
       activeDeadlineDuration: {{ .Values.operatorConfig.controllers.compaction.activeDeadlineDuration }}
       metricsScrapeWaitDuration: {{ .Values.operatorConfig.controllers.compaction.metricsScrapeWaitDuration }}
     etcdCopyBackupsTask:
