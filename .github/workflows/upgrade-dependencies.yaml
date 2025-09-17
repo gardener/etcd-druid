@@ -10,4 +10,4 @@ jobs:
     secrets: inherit
     permissions:
       contents: write
-      id-token: write
+      pull-requests: write
