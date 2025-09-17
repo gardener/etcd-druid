@@ -507,7 +507,7 @@ func (s StatefulSetMatcher) getBackupVolumeMatcher() gomegatypes.GomegaMatcher {
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"HostPath": PointTo(MatchFields(IgnoreExtras, Fields{
 					"Path": Equal(fmt.Sprintf("%s/%s", hostPath, ptr.Deref(s.etcd.Spec.Backup.Store.Container, ""))),
-					"Type": PointTo(Equal(corev1.HostPathDirectoryOrCreate)),
+					"Type": PointTo(Equal(corev1.HostPathDirectory)),
 				})),
 			}),
 		})

@@ -833,7 +833,7 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 			return nil, fmt.Errorf("error getting host mount path for etcd: %v Err: %w", druidv1alpha1.GetNamespaceName(b.etcd.ObjectMeta), err)
 		}
 
-		hpt := corev1.HostPathDirectoryOrCreate
+		hpt := corev1.HostPathDirectory
 		return &corev1.Volume{
 			Name: common.VolumeNameLocalBackup,
 			VolumeSource: corev1.VolumeSource{
