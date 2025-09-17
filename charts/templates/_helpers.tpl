@@ -1,7 +1,7 @@
 {{- define "operator.config.data" -}}
 config.yaml: |
   ---
-  apiVersion: config.druid.gardener.cloud/v1alpha1
+  apiVersion: operator.config.druid.gardener.cloud/v1alpha1
   kind: OperatorConfiguration
   clientConnection:
     qps: {{ .Values.operatorConfig.clientConnection.qps }}

@@ -4,6 +4,6 @@
 
 // +k8s:deepcopy-gen=package
 // +k8s:defaulter-gen=TypeMeta
-// +groupName=config.druid.gardener.cloud
+// +groupName=operator.config.druid.gardener.cloud
 
 package v1alpha1
