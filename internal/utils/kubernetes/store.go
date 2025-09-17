@@ -5,10 +5,10 @@
 package kubernetes
 
 import (
+	"k8s.io/utils/ptr"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
-
-	"k8s.io/utils/ptr"
 )
 
 // GetBackupStoreProvider returns the provider name for the backup store. If the provider is not known, an error is

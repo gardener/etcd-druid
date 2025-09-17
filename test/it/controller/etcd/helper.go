@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -24,6 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -40,14 +40,15 @@ func initializeEtcdReconcilerTestEnv(t *testing.T, controllerName string, itTest
 	g.Expect(itTestEnv.CreateManager(clientBuilder)).To(Succeed())
 	itTestEnv.RegisterReconciler(func(mgr manager.Manager) {
 		reconciler, err = etcd.NewReconcilerWithImageVector(mgr, controllerName,
-			druidconfigv1alpha1.EtcdControllerConfiguration{
-				ConcurrentSyncs:                    ptr.To(5),
+			&etcd.Config{
+				Workers:                            5,
 				EnableEtcdSpecAutoReconcile:        autoReconcile,
 				DisableEtcdServiceAccountAutomount: false,
-				EtcdStatusSyncPeriod:               metav1.Duration{Duration: 2 * time.Second},
-				EtcdMember: druidconfigv1alpha1.EtcdMemberConfiguration{
-					NotReadyThreshold: metav1.Duration{Duration: 5 * time.Minute},
-					UnknownThreshold:  metav1.Duration{Duration: 1 * time.Minute},
+				EtcdStatusSyncPeriod:               2 * time.Second,
+				FeatureGates:                       map[featuregate.Feature]bool{},
+				EtcdMember: etcd.MemberConfig{
+					NotReadyThreshold: 5 * time.Minute,
+					UnknownThreshold:  1 * time.Minute,
 				},
 			}, assets.CreateImageVector(g))
 		g.Expect(err).ToNot(HaveOccurred())

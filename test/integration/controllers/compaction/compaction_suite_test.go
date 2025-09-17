@@ -8,13 +8,10 @@ import (
 	"testing"
 	"time"
 
-	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/compaction"
 	"github.com/gardener/etcd-druid/test/integration/controllers/assets"
 	"github.com/gardener/etcd-druid/test/integration/setup"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -47,12 +44,12 @@ var _ = BeforeSuite(func() {
 
 	intTestEnv = setup.NewIntegrationTestEnv(testNamespacePrefix, "compaction-int-tests", crdPaths)
 	intTestEnv.RegisterReconcilers(func(mgr manager.Manager) {
-		reconciler := compaction.NewReconcilerWithImageVector(mgr, druidconfigv1alpha1.CompactionControllerConfiguration{
-			Enabled:                   true,
-			ConcurrentSyncs:           ptr.To(5),
+		reconciler := compaction.NewReconcilerWithImageVector(mgr, &compaction.Config{
+			EnableBackupCompaction:    true,
+			Workers:                   5,
 			EventsThreshold:           100,
-			ActiveDeadlineDuration:    metav1.Duration{Duration: 2 * time.Minute},
-			MetricsScrapeWaitDuration: metav1.Duration{Duration: 60 * time.Second},
+			ActiveDeadlineDuration:    2 * time.Minute,
+			MetricsScrapeWaitDuration: 60 * time.Second,
 		}, imageVector)
 		Expect(reconciler.RegisterWithManager(mgr)).To(Succeed())
 	}).StartManager()

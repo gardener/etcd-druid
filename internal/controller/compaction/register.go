@@ -28,7 +28,7 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 		NewControllerManagedBy(mgr).
 		Named(controllerName).
 		WithOptions(controller.Options{
-			MaxConcurrentReconciles: *r.config.ConcurrentSyncs,
+			MaxConcurrentReconciles: r.config.Workers,
 		}).
 		For(&druidv1alpha1.Etcd{}).
 		WithEventFilter(predicate.

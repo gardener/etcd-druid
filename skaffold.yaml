@@ -10,15 +10,13 @@ build:
         dependencies:
           paths:
             - api/core/v1alpha1
-            - api/config/v1alpha1
-            - cmd
             - internal
             - VERSION
         flags:
           - -v
         ldflags:
-          - '{{.LD_FLAGS}}'
-        main: ./cmd
+          - -X github.com/gardener/etcd-druid/internal/version.Version={{.VERSION}}
+          - -X github.com/gardener/etcd-druid/internal/version.GitSHA={{.GIT_SHA}}
 deploy:
   helm:
     releases:
@@ -54,38 +52,25 @@ profiles:
         path: /deploy/helm/releases/0/setValues/controllerManager
         value:
           leaderElection.enabled: false
-      - op: add
-        path: /deploy/helm/release/0/setValues/operatorConfig
-        value:
-          leaderElection.enabled: false
   - name: e2e-test
     activation:
       - env: DRUID_E2E_TEST=true
     patches:
-      - op: add
-        path: /deploy/helm/releases/0/setValues/operatorConfig
-        value:
-          controllers.etcd.etcdStatusSyncPeriod: 5s
-          controllers.compaction.etcdEventsThreshold: "15"
-          controllers.compaction.metricsScrapeWaitDuration: 30s
       - op: add
         path: /deploy/helm/releases/0/setValues/controllers
         value:
           etcd.etcdStatusSyncPeriod: 5s
           compaction.etcdEventsThreshold: "15"
           compaction.metricsScrapeWaitDuration: 30s
-  - name: enable-etcdcomponentprotection-webhook
+  - name: enable-etcdcomponents-webhook
     activation:
-      - env: ENABLE_ETCD_COMPONENT_PROTECTION_WEBHOOK=true
+      - env: DRUID_ENABLE_ETCD_COMPONENTS_WEBHOOK=true
     patches:
       - op: add
         path: /deploy/helm/releases/0/setValues/webhooks
         value:
-          etcdComponentProtection.enabled: true
-      - op: add
-        path: /deploy/helm/releases/0/setValues/operatorConfig
-        value:
-          webhooks.etcdComponentProtection.enabled: true
+          etcdComponents.enabled: true
+
 ---
 apiVersion: skaffold/v4beta12
 kind: Config

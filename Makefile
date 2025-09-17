@@ -52,7 +52,7 @@ add-license-headers: $(GO_ADD_LICENSE)
 # Format code and arrange imports.
 .PHONY: format
 format: $(GOIMPORTS_REVISER)
-	@$(HACK_DIR)/format.sh ./cmd/ ./internal/ ./test/ ./examples/
+	@$(HACK_DIR)/format.sh ./internal/ ./test/ ./examples/
 
 # Check packages
 .PHONY: check
@@ -127,7 +127,7 @@ ci-e2e-kind-gcs: $(GINKGO)
 # Build manager binary
 .PHONY: druid
 druid: check
-	@env GO111MODULE=on go build -o bin/druid cmd/main.go
+	@env GO111MODULE=on go build -o bin/druid main.go
 
 # Clean go build cache
 .PHONY: clean-build-cache
@@ -189,15 +189,15 @@ endif
 
 .PHONY: deploy
 deploy: $(SKAFFOLD) $(HELM) prepare-helm-charts
-	@$(HACK_DIR)/deploy-local.sh run -m etcd-druid -n $(NAMESPACE)
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) run -m etcd-druid -n $(NAMESPACE)
 
 .PHONY: deploy-dev
 deploy-dev: $(SKAFFOLD) $(HELM) prepare-helm-charts
-	@$(HACK_DIR)/deploy-local.sh dev --cleanup=false -m etcd-druid --trigger='manual' -n $(NAMESPACE)
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) dev --cleanup=false -m etcd-druid --trigger='manual' -n $(NAMESPACE)
 
 .PHONY: deploy-debug
 deploy-debug: $(SKAFFOLD) $(HELM) prepare-helm-charts
-	@$(HACK_DIR)/deploy-local.sh debug --cleanup=false -m etcd-druid -p debug -n $(NAMESPACE)
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(SKAFFOLD) debug --cleanup=false -m etcd-druid -p debug -n $(NAMESPACE)
 
 .PHONY: undeploy
 undeploy: $(SKAFFOLD) $(HELM)

@@ -34,4 +34,4 @@ CGO_ENABLED=0 GO111MODULE=on go build \
   -v \
   -o "${BINARY_PATH}"/etcd-druid \
   -ldflags "-w -X ${REPOSITORY}/internal/version.Version=${VERSION} -X ${REPOSITORY}/internal/version.GitSHA=${GIT_SHA}" \
-  cmd/main.go
+  main.go

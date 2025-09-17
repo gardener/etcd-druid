@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestServiceAccountMatchesUsername(t *testing.T) {
+func TestMatchesUserName(t *testing.T) {
 	testCases := []struct {
 		testName  string
 		name      string

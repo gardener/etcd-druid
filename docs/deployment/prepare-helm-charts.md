@@ -8,7 +8,7 @@
 
 If you wish to directly use helm charts then please ensure that helm is already installed.
 
-On macOS, you can install via `brew`:
+On MacOS you can install via `brew`:
 ```bash
 brew install helm
 ```
@@ -18,7 +18,7 @@ For all other OS please check [Helm installation instructions](https://helm.sh/d
 ### Installing OpenSSL
 
 [OpenSSL](https://www.openssl.org/) is used to generate PKI resources that are used to configure TLS connectivity with the webhook(s). 
-On macOS, you can install via brew:
+On MacOS you can install via brew:
 
 ```bash
 brew install openssl
@@ -58,21 +58,11 @@ etcd-druid helm charts creates the following kubernetes resources:
 
 A [values.yaml](https://github.com/gardener/etcd-druid/blob/master/charts//values.yaml) is defined which contains the default set of values for all configurable properties. You can change the values as per your needs. A few properties of note:
 
-### image
+`image`: Points to the image URL that will be configured in etcd-druid `Deployment`. If you are building the image on your own and pushing it to the repository of your choice then ensure that you change the value accordingly.
 
-Points to the image URL that will be configured in etcd-druid `Deployment`. If you are building the image on your own and pushing it to the repository of your choice then ensure that you change the value accordingly.
+`webhooks.pki`: This YAML map contains paths to required PKI artifacts. If you are generating these on your own then ensure that you provide correct paths to these resources.
 
-### webhookPKI
-
-This YAML map contains paths to required PKI artifacts. If you are generating these on your own then ensure that you provide correct paths to these resources.
-
-### etcdComponentProtection
-
-By default, this webhook is enabled. This is a good default for production environments. However, while you are actively developing then you can choose to disable this webhook.
-
-If you have switched to using `OperatorConfiguration` then you must set `enabledOperatorConfig` to true (for backward compatibility reasons it is defaulted to false) and then control the enablement of `EtcdComponentProctection` webhook via `operatorConfig.webhooks.etcdComponentProtection.enabled` property. 
-
-If you have not yet switched to using `OperatorConfiguration` then you can control the enablement of this webhook via `webhooks.etcdComponentProtection.enabled` property.
+`webhooks.etcdComponents.enabled`: By default the `etcd-components` webhook is enabled. This is a good default for production environments. However while you are actively developing then you can choose to disable this webhook.
 
 ## Makefile target
 
@@ -86,7 +76,7 @@ export NAMESPACE=<namespace>
 !!! info
 	Specifying a namespace other than `default` will result in additional SAN being added in the webhook server certificate.
 
-By default, the certificates generated have an expiry of 12h. If you wish to have a different expiry then prior to running this Makefile target you can run:
+By default the certificates generated have an expiry of 12h. If you wish to have a different expiry then prior to running this Makefile target you can run:
 
 ```bash
 export CERT_EXPIRY=<duration-of-your-choice>

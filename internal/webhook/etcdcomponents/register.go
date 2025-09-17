@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package etcdcomponentprotection
+package etcdcomponents
 
 import (
 	"k8s.io/utils/ptr"

@@ -5,20 +5,19 @@
 package webhook
 
 import (
-	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/webhook/etcdcomponentprotection"
+	"github.com/gardener/etcd-druid/internal/webhook/etcdcomponents"
 
 	"golang.org/x/exp/slog"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // Register registers all etcd-druid webhooks with the controller manager.
-func Register(mgr ctrl.Manager, config druidconfigv1alpha1.WebhookConfiguration) error {
+func Register(mgr ctrl.Manager, config *Config) error {
 	// Add Etcd Components webhook to the manager
-	if config.EtcdComponentProtection.Enabled {
-		etcdComponentsWebhook, err := etcdcomponentprotection.NewHandler(
+	if config.EtcdComponents.Enabled {
+		etcdComponentsWebhook, err := etcdcomponents.NewHandler(
 			mgr,
-			config.EtcdComponentProtection,
+			config.EtcdComponents,
 		)
 		if err != nil {
 			return err

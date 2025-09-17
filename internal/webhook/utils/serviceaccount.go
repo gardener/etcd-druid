@@ -4,33 +4,32 @@
 
 package utils
 
-import (
-	"fmt"
-	"strings"
+import "strings"
 
-	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+const (
+	// ServiceAccountUsernamePrefix is the service account username prefix
+	ServiceAccountUsernamePrefix = "system:serviceaccount:"
+	// ServiceAccountUsernameSeparator is the separator used in service account username.
+	ServiceAccountUsernameSeparator = ":"
 )
 
 // ServiceAccountMatchesUsername checks whether the provided username matches the namespace and name
 // Use this when checking a service account namespace and name against a known string.
-func ServiceAccountMatchesUsername(namespace, serviceAccountName, username string) bool {
-	saFQDN := getServiceAccountFQDN(namespace, serviceAccountName)
-	return strings.TrimSpace(username) == saFQDN
-}
-
-// GetReconcilerServiceAccountFQDN constructs the fully qualified domain name of a service account from PodInfo.
-// It reads the mounted files for namespace and service account name. If there is any error reading the files then it will return an error.
-func GetReconcilerServiceAccountFQDN(config druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration) (string, error) {
-	if config.ServiceAccountInfo != nil {
-		return getServiceAccountFQDN(config.ServiceAccountInfo.Namespace, config.ServiceAccountInfo.Name), nil
+func ServiceAccountMatchesUsername(namespace, name, username string) bool {
+	if !strings.HasPrefix(username, ServiceAccountUsernamePrefix) {
+		return false
 	}
-	if config.ReconcilerServiceAccountFQDN != nil {
-		return *config.ReconcilerServiceAccountFQDN, nil
-	}
-	return "", fmt.Errorf("no reconciler service account FQDN or service account info provided")
-}
+	username = username[len(ServiceAccountUsernamePrefix):]
 
-// getServiceAccountFQDN returns the fully qualified domain name of a service account.
-func getServiceAccountFQDN(namespace, serviceAccountName string) string {
-	return fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccountName)
+	if !strings.HasPrefix(username, namespace) {
+		return false
+	}
+	username = username[len(namespace):]
+
+	if !strings.HasPrefix(username, ServiceAccountUsernameSeparator) {
+		return false
+	}
+	username = username[len(ServiceAccountUsernameSeparator):]
+
+	return username == name
 }
