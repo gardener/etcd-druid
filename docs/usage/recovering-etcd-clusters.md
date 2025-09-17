@@ -76,7 +76,7 @@ For a `n` member `Etcd` cluster there should be `n` member `Lease` objects. The 
 
 Example leases for a 3 node `Etcd` cluster:
 
-```bash
+```b
  NAME          HOLDER                  AGE
  <etcd-name>-0 4c37667312a3912b:Member 1m
  <etcd-name>-1 75a9b74cfd3077cc:Member 1m
