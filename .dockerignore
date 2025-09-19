@@ -4,9 +4,7 @@
 # Exclude folders relevant for build
 !.git
 !.dockerignore
-!.ci/
 !api/
-!client/
 !charts/
 !controllers/
 !client/
@@ -22,3 +20,4 @@
 !Makefile
 !VERSION
 !hack/get-version.sh
+!hack/tools.mk
