@@ -13,7 +13,6 @@ IMAGE_NAME          := gardener/etcd-druid
 IMAGE_REPOSITORY    := $(REGISTRY)/$(IMAGE_NAME)
 IMAGE_BUILD_TAG     := $(VERSION)
 PLATFORM            ?= $(shell docker info --format '{{.OSType}}/{{.Architecture}}')
-BUILD_DIR           := build
 PROVIDERS           := ""
 BUCKET_NAME         := "e2e-test"
 IMG                 ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
@@ -130,9 +129,13 @@ ci-e2e-kind-gcs: $(GINKGO)
 # Rules related to binary build, Docker image build and release
 # -------------------------------------------------------------------------
 # Build manager binary
-.PHONY: druid
-druid: check
-	@env GO111MODULE=on go build -o bin/druid cmd/main.go
+.PHONY: build
+build:
+	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) env GO111MODULE=on CGO_ENABLED=0 go build \
+		-v \
+		-o bin/etcd-druid \
+		-ldflags "-w -X github.com/gardener/etcd-druid/internal/version.Version=$(VERSION) -X github.com/gardener/etcd-druid/internal/version.GitSHA=$(GIT_SHA)" \
+		cmd/main.go
 
 # Clean go build cache
 .PHONY: clean-build-cache
@@ -143,8 +146,6 @@ clean-build-cache:
 .PHONY: docker-build
 docker-build:
 	docker buildx build --platform=$(PLATFORM) --tag $(IMG) --rm .
-	@echo "updating kustomize image patch file for manager resource"
-	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml
 
 # Push the docker image
 .PHONY: docker-push
