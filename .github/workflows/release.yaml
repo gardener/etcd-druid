@@ -38,4 +38,5 @@ jobs:
       next-version: ${{ inputs.next-version }}
       next-version-callback-action-path:
       slack-channel-id: C0177NLL8V9 # #gardener-etcd
-      include-subcomponent-release-notes: true
+      social-release-notes-recursion-depth: -1
+      github-release-notes-recursion-depth: -1
