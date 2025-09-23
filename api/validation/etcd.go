@@ -96,6 +96,7 @@ const (
 	aws       = "aws"
 	azure     = "azure"
 	gcp       = "gcp"
+	gdch      = "gdch"
 	alicloud  = "alicloud"
 	openstack = "openstack"
 	dell      = "dell"
@@ -139,6 +140,8 @@ func storageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) (str
 		return swift, nil
 	case gcp, gcs:
 		return gcs, nil
+	case gdch:
+		return s3, nil
 	case dell, ecs:
 		return ecs, nil
 	case openshift, ocs:
