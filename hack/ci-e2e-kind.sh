@@ -9,6 +9,7 @@ set -o pipefail
 
 make kind-up
 
+
 trap '{
   kind export logs "${ARTIFACTS:-/tmp}/etcd-druid-e2e" --name etcd-druid-e2e || true
   echo "cleaning copied and generated helm chart resources"
@@ -28,6 +29,6 @@ make LOCALSTACK_HOST="localstack.default:4566" \
   PROVIDERS="aws" \
   TEST_ID="$BUCKET_NAME" \
   DRUID_E2E_TEST=true \
-  ENABLE_ETCD_COMPONENT_PROTECTION_WEBHOOK=true \
+  DRUID_ENABLE_ETCD_COMPONENTS_WEBHOOK=true \
   STEPS="setup,deploy,test" \
   test-e2e

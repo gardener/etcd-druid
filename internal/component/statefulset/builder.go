@@ -65,10 +65,9 @@ type stsBuilder struct {
 	sts                    *appsv1.StatefulSet
 	logger                 logr.Logger
 
-	clientPort  int32
-	serverPort  int32
-	backupPort  int32
-	wrapperPort int32
+	clientPort int32
+	serverPort int32
+	backupPort int32
 	// skipSetOrUpdateForbiddenFields if its true then it will set/update values to fields which are forbidden to be updated for an existing StatefulSet.
 	// Updates to statefulset spec for fields other than 'replicas', 'ordinals', 'template', 'updateStrategy', 'persistentVolumeClaimRetentionPolicy' and 'minReadySeconds' are forbidden.
 	// Only for a new StatefulSet should this be set to true.
@@ -86,7 +85,7 @@ func newStsBuilder(client client.Client,
 	if err != nil {
 		return nil, err
 	}
-	provider, err := kubernetes.GetBackupStoreProvider(etcd)
+	provider, err := getBackupStoreProvider(etcd)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +102,6 @@ func newStsBuilder(client client.Client,
 		clientPort:                     ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient),
 		serverPort:                     ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer),
 		backupPort:                     ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore),
-		wrapperPort:                    ptr.Deref(etcd.Spec.Etcd.WrapperPort, common.DefaultPortEtcdWrapper),
 		skipSetOrUpdateForbiddenFields: skipSetOrUpdateForbiddenFields,
 	}, nil
 }
@@ -136,8 +134,7 @@ func (b *stsBuilder) getStatefulSetLabels() map[string]string {
 
 func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error {
 	err := b.createPodTemplateSpec(ctx)
-	b.sts.Spec.Replicas = ptr.To(utils.IfConditionOr[int32](druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta), b.replicas, 0))
-	b.logger.Info("Creating StatefulSet spec", "replicas", b.sts.Spec.Replicas, "name", b.sts.Name, "namespace", b.sts.Namespace)
+	b.sts.Spec.Replicas = ptr.To(b.replicas)
 	b.sts.Spec.UpdateStrategy = defaultUpdateStrategy
 	if err != nil {
 		return err
@@ -147,9 +144,7 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 			MatchLabels: druidv1alpha1.GetDefaultLabels(b.etcd.ObjectMeta),
 		}
 		b.sts.Spec.PodManagementPolicy = defaultPodManagementPolicy
-		if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-			b.sts.Spec.ServiceName = druidv1alpha1.GetPeerServiceName(b.etcd.ObjectMeta)
-		}
+		b.sts.Spec.ServiceName = druidv1alpha1.GetPeerServiceName(b.etcd.ObjectMeta)
 		b.sts.Spec.VolumeClaimTemplates = b.getVolumeClaimTemplates()
 	}
 	return nil
@@ -167,6 +162,7 @@ func (b *stsBuilder) createPodTemplateSpec(ctx component.OperatorContext) error 
 	podTemplateSpec := corev1.PodTemplateSpec{
 		Spec: corev1.PodSpec{
 			HostAliases:           b.getHostAliases(),
+			ServiceAccountName:    druidv1alpha1.GetServiceAccountName(b.etcd.ObjectMeta),
 			ShareProcessNamespace: ptr.To(true),
 			InitContainers:        b.getPodInitContainers(),
 			Containers: []corev1.Container{
@@ -179,9 +175,6 @@ func (b *stsBuilder) createPodTemplateSpec(ctx component.OperatorContext) error 
 			Volumes:                   podVolumes,
 			PriorityClassName:         ptr.Deref(b.etcd.Spec.PriorityClassName, ""),
 		},
-	}
-	if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-		podTemplateSpec.Spec.ServiceAccountName = druidv1alpha1.GetServiceAccountName(b.etcd.ObjectMeta)
 	}
 	podTemplateLabels := b.getStatefulSetPodLabels()
 	selectorMatchesLabels, err := kubernetes.DoesLabelSelectorMatchLabels(b.sts.Spec.Selector, podTemplateLabels)
@@ -251,29 +244,29 @@ func (b *stsBuilder) getVolumeClaimTemplates() []corev1.PersistentVolumeClaim {
 }
 
 func (b *stsBuilder) getPodInitContainers() []corev1.Container {
-	if !b.etcd.IsBackupStoreEnabled() || b.provider == nil || *b.provider != druidstore.Local || ptr.Deref(b.etcd.Spec.RunAsRoot, false) || b.getEtcdBackupVolumeMount() == nil {
-		return nil
+	initContainers := make([]corev1.Container, 0, 1)
+	if b.etcd.IsBackupStoreEnabled() {
+		if b.provider != nil && *b.provider == druidstore.Local {
+			etcdBackupVolumeMount := b.getEtcdBackupVolumeMount()
+			if etcdBackupVolumeMount != nil {
+				initContainers = append(initContainers, corev1.Container{
+					Name:            common.InitContainerNameChangeBackupBucketPermissions,
+					Image:           b.initContainerImage,
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Command:         []string{"sh", "-c", "--"},
+					Args:            []string{fmt.Sprintf("chown -R %d:%d /home/nonroot/%s", nonRootUser, nonRootUser, *b.etcd.Spec.Backup.Store.Container)},
+					VolumeMounts:    []corev1.VolumeMount{*etcdBackupVolumeMount},
+					SecurityContext: &corev1.SecurityContext{
+						AllowPrivilegeEscalation: ptr.To(false),
+						RunAsGroup:               ptr.To[int64](0),
+						RunAsNonRoot:             ptr.To(false),
+						RunAsUser:                ptr.To[int64](0),
+					},
+				})
+			}
+		}
 	}
-
-	etcdBackupVolumeMount := b.getEtcdBackupVolumeMount()
-	if etcdBackupVolumeMount == nil {
-		return nil
-	}
-
-	return []corev1.Container{{
-		Name:            common.InitContainerNameChangeBackupBucketPermissions,
-		Image:           b.initContainerImage,
-		ImagePullPolicy: corev1.PullIfNotPresent,
-		Command:         []string{"sh", "-c", "--"},
-		Args:            []string{fmt.Sprintf("chown -R %d:%d %s", nonRootUser, nonRootUser, kubernetes.MountPathLocalStore(b.etcd, b.provider))},
-		VolumeMounts:    []corev1.VolumeMount{*etcdBackupVolumeMount},
-		SecurityContext: &corev1.SecurityContext{
-			AllowPrivilegeEscalation: ptr.To(false),
-			RunAsGroup:               ptr.To[int64](0),
-			RunAsNonRoot:             ptr.To(false),
-			RunAsUser:                ptr.To[int64](0),
-		},
-	}}
+	return initContainers
 }
 
 func (b *stsBuilder) getEtcdContainerVolumeMounts() []corev1.VolumeMount {
@@ -335,7 +328,7 @@ func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 		if b.etcd.Spec.Backup.Store.Container != nil {
 			return &corev1.VolumeMount{
 				Name:      common.VolumeNameLocalBackup,
-				MountPath: kubernetes.MountPathLocalStore(b.etcd, b.provider),
+				MountPath: fmt.Sprintf("/home/nonroot/%s", ptr.Deref(b.etcd.Spec.Backup.Store.Container, "")),
 			}
 		}
 	case druidstore.GCS:
@@ -422,7 +415,6 @@ func (b *stsBuilder) getBackupRestoreContainer() (corev1.Container, error) {
 
 func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	commandArgs := []string{"server"}
-	commandArgs = append(commandArgs, fmt.Sprintf("--server-port=%d", b.backupPort))
 
 	// Backup store related command line args
 	// -----------------------------------------------------------------------------------------------------------------
@@ -465,16 +457,12 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 		commandArgs = append(commandArgs, "--insecure-transport=false")
 		commandArgs = append(commandArgs, "--insecure-skip-tls-verify=false")
 		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=https://%s-local:%d", b.etcd.Name, b.clientPort))
-		if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-			commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=https://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
-		}
+		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=https://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
 	} else {
 		commandArgs = append(commandArgs, "--insecure-transport=true")
 		commandArgs = append(commandArgs, "--insecure-skip-tls-verify=true")
 		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=http://%s-local:%d", b.etcd.Name, b.clientPort))
-		if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-			commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=http://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
-		}
+		commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=http://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort))
 	}
 	if b.etcd.Spec.Backup.TLS != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--server-cert=%s/tls.crt", common.VolumeMountPathBackupRestoreServerTLS))
@@ -487,15 +475,8 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	commandArgs = append(commandArgs, fmt.Sprintf("--restoration-temp-snapshots-dir=%s/restoration.temp", common.VolumeMountPathEtcdData))
 	commandArgs = append(commandArgs, fmt.Sprintf("--snapstore-temp-directory=%s/temp", common.VolumeMountPathEtcdData))
 	commandArgs = append(commandArgs, fmt.Sprintf("--etcd-connection-timeout=%s", defaultEtcdConnectionTimeout))
+	commandArgs = append(commandArgs, "--enable-member-lease-renewal=true")
 	commandArgs = append(commandArgs, "--use-etcd-wrapper=true")
-	if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-		commandArgs = append(commandArgs, "--enable-member-lease-renewal=true")
-		heartbeatDuration := defaultHeartbeatDuration
-		if b.etcd.Spec.Etcd.HeartbeatDuration != nil {
-			heartbeatDuration = b.etcd.Spec.Etcd.HeartbeatDuration.Duration.String()
-		}
-		commandArgs = append(commandArgs, fmt.Sprintf("--k8s-heartbeat-duration=%s", heartbeatDuration))
-	}
 
 	var quota = defaultQuota
 	if b.etcd.Spec.Etcd.Quota != nil {
@@ -505,6 +486,12 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	if ptr.Deref(b.etcd.Spec.Backup.EnableProfiling, false) {
 		commandArgs = append(commandArgs, "--enable-profiling=true")
 	}
+
+	heartbeatDuration := defaultHeartbeatDuration
+	if b.etcd.Spec.Etcd.HeartbeatDuration != nil {
+		heartbeatDuration = b.etcd.Spec.Etcd.HeartbeatDuration.Duration.String()
+	}
+	commandArgs = append(commandArgs, fmt.Sprintf("--k8s-heartbeat-duration=%s", heartbeatDuration))
 
 	if b.etcd.Spec.Backup.LeaderElection != nil {
 		if b.etcd.Spec.Backup.LeaderElection.EtcdConnectionTimeout != nil {
@@ -521,22 +508,20 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 func (b *stsBuilder) getBackupStoreCommandArgs() []string {
 	var commandArgs []string
 
-	if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-		commandArgs = append(commandArgs, "--enable-snapshot-lease-renewal=true")
-		commandArgs = append(commandArgs, fmt.Sprintf("--full-snapshot-lease-name=%s", druidv1alpha1.GetFullSnapshotLeaseName(b.etcd.ObjectMeta)))
-		commandArgs = append(commandArgs, fmt.Sprintf("--delta-snapshot-lease-name=%s", druidv1alpha1.GetDeltaSnapshotLeaseName(b.etcd.ObjectMeta)))
-	}
+	commandArgs = append(commandArgs, "--enable-snapshot-lease-renewal=true")
 	commandArgs = append(commandArgs, fmt.Sprintf("--storage-provider=%s", *b.provider))
 	commandArgs = append(commandArgs, fmt.Sprintf("--store-prefix=%s", b.etcd.Spec.Backup.Store.Prefix))
 
 	// Full snapshot command line args
 	// -----------------------------------------------------------------------------------------------------------------
+	commandArgs = append(commandArgs, fmt.Sprintf("--full-snapshot-lease-name=%s", druidv1alpha1.GetFullSnapshotLeaseName(b.etcd.ObjectMeta)))
 	if b.etcd.Spec.Backup.FullSnapshotSchedule != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--schedule=%s", *b.etcd.Spec.Backup.FullSnapshotSchedule))
 	}
 
 	// Delta snapshot command line args
 	// -----------------------------------------------------------------------------------------------------------------
+	commandArgs = append(commandArgs, fmt.Sprintf("--delta-snapshot-lease-name=%s", druidv1alpha1.GetDeltaSnapshotLeaseName(b.etcd.ObjectMeta)))
 	if b.etcd.Spec.Backup.DeltaSnapshotPeriod != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--delta-snapshot-period=%s", b.etcd.Spec.Backup.DeltaSnapshotPeriod.Duration.String()))
 	}
@@ -597,7 +582,7 @@ func (b *stsBuilder) getEtcdContainerReadinessHandler() corev1.ProbeHandler {
 
 	scheme := utils.IfConditionOr(b.etcd.Spec.Backup.TLS == nil, corev1.URISchemeHTTP, corev1.URISchemeHTTPS)
 	path := utils.IfConditionOr(multiNodeCluster, "/readyz", "/healthz")
-	port := utils.IfConditionOr(multiNodeCluster, b.wrapperPort, b.backupPort)
+	port := utils.IfConditionOr(multiNodeCluster, common.DefaultPortEtcdWrapper, common.DefaultPortEtcdBackupRestore)
 
 	return corev1.ProbeHandler{
 		HTTPGet: &corev1.HTTPGetAction{
@@ -610,25 +595,17 @@ func (b *stsBuilder) getEtcdContainerReadinessHandler() corev1.ProbeHandler {
 
 func (b *stsBuilder) getEtcdContainerCommandArgs() []string {
 	commandArgs := []string{"start-etcd"}
-	commandArgs = append(commandArgs, fmt.Sprintf("--backup-restore-host-port=%s-local:%d", b.etcd.Name, b.backupPort))
+	commandArgs = append(commandArgs, fmt.Sprintf("--backup-restore-host-port=%s-local:%d", b.etcd.Name, common.DefaultPortEtcdBackupRestore))
 	commandArgs = append(commandArgs, fmt.Sprintf("--etcd-server-name=%s-local", b.etcd.Name))
 
-	if b.etcd.Spec.Backup.TLS == nil {
+	if b.etcd.Spec.Etcd.ClientUrlTLS == nil {
 		commandArgs = append(commandArgs, "--backup-restore-tls-enabled=false")
 	} else {
 		commandArgs = append(commandArgs, "--backup-restore-tls-enabled=true")
-		dataKey := ptr.Deref(b.etcd.Spec.Backup.TLS.TLSCASecretRef.DataKey, "ca.crt")
+		dataKey := ptr.Deref(b.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
 		commandArgs = append(commandArgs, fmt.Sprintf("--backup-restore-ca-cert-bundle-path=%s/%s", common.VolumeMountPathBackupRestoreCA, dataKey))
-	}
-	if b.etcd.Spec.Etcd.ClientUrlTLS != nil {
 		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-client-cert-path=%s/tls.crt", common.VolumeMountPathEtcdClientTLS))
 		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-client-key-path=%s/tls.key", common.VolumeMountPathEtcdClientTLS))
-	}
-	if port := b.clientPort; port != 0 {
-		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-client-port=%d", port))
-	}
-	if port := b.wrapperPort; port != 0 {
-		commandArgs = append(commandArgs, fmt.Sprintf("--etcd-wrapper-port=%d", port))
 	}
 	return commandArgs
 }
@@ -847,7 +824,7 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 			return nil, fmt.Errorf("error getting host mount path for etcd: %v Err: %w", druidv1alpha1.GetNamespaceName(b.etcd.ObjectMeta), err)
 		}
 
-		hpt := corev1.HostPathDirectoryOrCreate
+		hpt := corev1.HostPathDirectory
 		return &corev1.Volume{
 			Name: common.VolumeNameLocalBackup,
 			VolumeSource: corev1.VolumeSource{
@@ -873,4 +850,15 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 		}, nil
 	}
 	return nil, nil
+}
+
+func getBackupStoreProvider(etcd *druidv1alpha1.Etcd) (*string, error) {
+	if !etcd.IsBackupStoreEnabled() {
+		return nil, nil
+	}
+	provider, err := druidstore.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
+	if err != nil {
+		return nil, err
+	}
+	return &provider, nil
 }

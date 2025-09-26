@@ -1,7 +1,3 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
-//
-// SPDX-License-Identifier: Apache-2.0
-
 package compaction
 
 import (
@@ -9,15 +5,14 @@ import (
 	"testing"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/utils"
-	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	. "github.com/onsi/gomega"
 )
@@ -165,13 +160,13 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					Type:   corev1.DisruptionTarget,
 					Status: corev1.ConditionTrue,
-					Reason: druidv1alpha1.PodFailureReasonPreemptionByScheduler,
+					Reason: podFailureReasonPreemptionByScheduler,
 					LastTransitionTime: metav1.Time{
 						Time: time.Now().Add(-time.Hour),
 					},
 				},
 			},
-			expectedReason:         druidv1alpha1.PodFailureReasonPreemptionByScheduler,
+			expectedReason:         podFailureReasonPreemptionByScheduler,
 			expectedTransitionTime: time.Now().Add(-time.Hour),
 		},
 		{
@@ -180,13 +175,13 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					Type:   corev1.DisruptionTarget,
 					Status: corev1.ConditionTrue,
-					Reason: druidv1alpha1.PodFailureReasonDeletionByTaintManager,
+					Reason: podFailureReasonDeletionByTaintManager,
 					LastTransitionTime: metav1.Time{
 						Time: time.Now().Add(-2 * time.Hour),
 					},
 				},
 			},
-			expectedReason:         druidv1alpha1.PodFailureReasonDeletionByTaintManager,
+			expectedReason:         podFailureReasonDeletionByTaintManager,
 			expectedTransitionTime: time.Now().Add(-2 * time.Hour),
 		},
 		{
@@ -195,13 +190,13 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					Type:   corev1.DisruptionTarget,
 					Status: corev1.ConditionTrue,
-					Reason: druidv1alpha1.PodFailureReasonEvictionByEvictionAPI,
+					Reason: podFailureReasonEvictionByEvictionAPI,
 					LastTransitionTime: metav1.Time{
 						Time: time.Now().Add(-3 * time.Hour),
 					},
 				},
 			},
-			expectedReason:         druidv1alpha1.PodFailureReasonEvictionByEvictionAPI,
+			expectedReason:         podFailureReasonEvictionByEvictionAPI,
 			expectedTransitionTime: time.Now().Add(-3 * time.Hour),
 		},
 		{
@@ -210,13 +205,13 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					Type:   corev1.DisruptionTarget,
 					Status: corev1.ConditionTrue,
-					Reason: druidv1alpha1.PodFailureReasonTerminationByKubelet,
+					Reason: podFailureReasonTerminationByKubelet,
 					LastTransitionTime: metav1.Time{
 						Time: time.Now().Add(-4 * time.Hour),
 					},
 				},
 			},
-			expectedReason:         druidv1alpha1.PodFailureReasonTerminationByKubelet,
+			expectedReason:         podFailureReasonTerminationByKubelet,
 			expectedTransitionTime: time.Now().Add(-4 * time.Hour),
 		},
 		{
@@ -225,7 +220,7 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				{
 					State: corev1.ContainerState{
 						Terminated: &corev1.ContainerStateTerminated{
-							Reason: druidv1alpha1.PodFailureReasonProcessFailure,
+							Reason: podFailureReasonProcessFailure,
 							FinishedAt: metav1.Time{
 								Time: time.Now().Add(-30 * time.Minute),
 							},
@@ -233,14 +228,14 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 					},
 				},
 			},
-			expectedReason:         druidv1alpha1.PodFailureReasonProcessFailure,
+			expectedReason:         podFailureReasonProcessFailure,
 			expectedTransitionTime: time.Now().Add(-30 * time.Minute),
 		},
 		{
 			name:                   "Pod has no relevant conditions or terminated containers",
 			podConditions:          []corev1.PodCondition{},
 			containerStatuses:      []corev1.ContainerStatus{},
-			expectedReason:         druidv1alpha1.PodFailureReasonUnknown,
+			expectedReason:         podFailureReasonUnknown,
 			expectedTransitionTime: time.Now().UTC(),
 		},
 		{
@@ -256,7 +251,7 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 				},
 			},
 			containerStatuses:      []corev1.ContainerStatus{},
-			expectedReason:         druidv1alpha1.PodFailureReasonUnknown,
+			expectedReason:         podFailureReasonUnknown,
 			expectedTransitionTime: time.Now().UTC(),
 		},
 	}
@@ -359,7 +354,10 @@ func TestGetPodForJob(t *testing.T) {
 				objects = append(objects, &pod)
 			}
 
-			fakeClient := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, objects)
+			// Create a fake client with the pods
+			fakeClient := fake.NewClientBuilder().
+				WithObjects(objects...).
+				Build()
 
 			pod, err := getPodForJob(context.TODO(), fakeClient, &test.jobMeta)
 

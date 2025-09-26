@@ -21,7 +21,6 @@ func TestMapEtcdToSecret(t *testing.T) {
 		name             string
 		withClientTLS    bool
 		withPeerTLS      bool
-		withBackupTLS    bool
 		withBackup       bool
 		expectedRequests []reconcile.Request
 	}{
@@ -37,7 +36,7 @@ func TestMapEtcdToSecret(t *testing.T) {
 			},
 		},
 		{
-			name:          "etcd configured with only client TLS and with no backup store",
+			name:          "etcd configured with only client TLS and with no store",
 			withClientTLS: true,
 			expectedRequests: []reconcile.Request{
 				{NamespacedName: types.NamespacedName{Name: testutils.ClientTLSCASecretName, Namespace: testutils.TestNamespace}},
@@ -46,7 +45,7 @@ func TestMapEtcdToSecret(t *testing.T) {
 			},
 		},
 		{
-			name:          "etcd configured with both client and peer TLS but with no backup store",
+			name:          "etcd configured with both client and peer TLS but with no store configured",
 			withClientTLS: true,
 			withPeerTLS:   true,
 			expectedRequests: []reconcile.Request{
@@ -55,15 +54,6 @@ func TestMapEtcdToSecret(t *testing.T) {
 				{NamespacedName: types.NamespacedName{Name: testutils.ClientTLSClientCertSecretName, Namespace: testutils.TestNamespace}},
 				{NamespacedName: types.NamespacedName{Name: testutils.PeerTLSCASecretName, Namespace: testutils.TestNamespace}},
 				{NamespacedName: types.NamespacedName{Name: testutils.PeerTLSServerCertSecretName, Namespace: testutils.TestNamespace}},
-			},
-		},
-		{
-			name:          "etcd configured with only backup-restore TLS",
-			withBackupTLS: true,
-			expectedRequests: []reconcile.Request{
-				{NamespacedName: types.NamespacedName{Name: testutils.BackupRestoreTLSCASecretName, Namespace: testutils.TestNamespace}},
-				{NamespacedName: types.NamespacedName{Name: testutils.BackupRestoreTLSServerCertSecretName, Namespace: testutils.TestNamespace}},
-				{NamespacedName: types.NamespacedName{Name: testutils.BackupRestoreTLSClientCertSecretName, Namespace: testutils.TestNamespace}},
 			},
 		},
 		{
@@ -77,24 +67,6 @@ func TestMapEtcdToSecret(t *testing.T) {
 				{NamespacedName: types.NamespacedName{Name: testutils.ClientTLSClientCertSecretName, Namespace: testutils.TestNamespace}},
 				{NamespacedName: types.NamespacedName{Name: testutils.PeerTLSCASecretName, Namespace: testutils.TestNamespace}},
 				{NamespacedName: types.NamespacedName{Name: testutils.PeerTLSServerCertSecretName, Namespace: testutils.TestNamespace}},
-				{NamespacedName: types.NamespacedName{Name: testutils.BackupStoreSecretName, Namespace: testutils.TestNamespace}},
-			},
-		},
-		{
-			name:          "etcd configured with client TLS, peer TLS and backup-restore TLS and with backup store",
-			withClientTLS: true,
-			withPeerTLS:   true,
-			withBackup:    true,
-			withBackupTLS: true,
-			expectedRequests: []reconcile.Request{
-				{NamespacedName: types.NamespacedName{Name: testutils.ClientTLSCASecretName, Namespace: testutils.TestNamespace}},
-				{NamespacedName: types.NamespacedName{Name: testutils.ClientTLSServerCertSecretName, Namespace: testutils.TestNamespace}},
-				{NamespacedName: types.NamespacedName{Name: testutils.ClientTLSClientCertSecretName, Namespace: testutils.TestNamespace}},
-				{NamespacedName: types.NamespacedName{Name: testutils.PeerTLSCASecretName, Namespace: testutils.TestNamespace}},
-				{NamespacedName: types.NamespacedName{Name: testutils.PeerTLSServerCertSecretName, Namespace: testutils.TestNamespace}},
-				{NamespacedName: types.NamespacedName{Name: testutils.BackupRestoreTLSCASecretName, Namespace: testutils.TestNamespace}},
-				{NamespacedName: types.NamespacedName{Name: testutils.BackupRestoreTLSServerCertSecretName, Namespace: testutils.TestNamespace}},
-				{NamespacedName: types.NamespacedName{Name: testutils.BackupRestoreTLSClientCertSecretName, Namespace: testutils.TestNamespace}},
 				{NamespacedName: types.NamespacedName{Name: testutils.BackupStoreSecretName, Namespace: testutils.TestNamespace}},
 			},
 		},
@@ -114,9 +86,6 @@ func TestMapEtcdToSecret(t *testing.T) {
 			}
 			if tc.withBackup {
 				etcdBuilder.WithDefaultBackup()
-			}
-			if tc.withBackupTLS {
-				etcdBuilder.WithBackupRestoreTLS()
 			}
 			etcd := etcdBuilder.Build()
 			actualRequests := mapEtcdToSecret(context.Background(), etcd)

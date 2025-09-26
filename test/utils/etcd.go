@@ -40,7 +40,7 @@ var (
 	deltaSnapShotMemLimit   = resource.MustParse("100Mi")
 	autoCompactionMode      = druidv1alpha1.Periodic
 	autoCompactionRetention = "2m"
-	snapshotCount           = int64(10000)
+	snapshotCount           = int64(75000)
 	quota                   = resource.MustParse("8Gi")
 	localProvider           = druidv1alpha1.StorageProvider("Local")
 	prefix                  = "/tmp"
@@ -79,8 +79,11 @@ func (eb *EtcdBuilder) WithReplicas(replicas int32) *EtcdBuilder {
 	return eb
 }
 
-func GetClientTLSConfig() *druidv1alpha1.TLSConfig {
-	return &druidv1alpha1.TLSConfig{
+func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	clientTLSConfig := &druidv1alpha1.TLSConfig{
 		TLSCASecretRef: druidv1alpha1.SecretReference{
 			SecretReference: corev1.SecretReference{
 				Name: ClientTLSCASecretName,
@@ -94,18 +97,16 @@ func GetClientTLSConfig() *druidv1alpha1.TLSConfig {
 			Name: ClientTLSServerCertSecretName,
 		},
 	}
-}
-
-func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
-	if eb == nil || eb.etcd == nil {
-		return nil
-	}
-	eb.etcd.Spec.Etcd.ClientUrlTLS = GetClientTLSConfig()
+	eb.etcd.Spec.Etcd.ClientUrlTLS = clientTLSConfig
+	eb.etcd.Spec.Backup.TLS = clientTLSConfig
 	return eb
 }
 
-func GetPeerTLSConfig() *druidv1alpha1.TLSConfig {
-	return &druidv1alpha1.TLSConfig{
+func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	peerTLSConfig := &druidv1alpha1.TLSConfig{
 		TLSCASecretRef: druidv1alpha1.SecretReference{
 			SecretReference: corev1.SecretReference{
 				Name: PeerTLSCASecretName,
@@ -116,46 +117,7 @@ func GetPeerTLSConfig() *druidv1alpha1.TLSConfig {
 			Name: PeerTLSServerCertSecretName,
 		},
 	}
-}
-
-func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
-	if eb == nil || eb.etcd == nil {
-		return nil
-	}
-	eb.etcd.Spec.Etcd.PeerUrlTLS = GetPeerTLSConfig()
-	return eb
-}
-
-func GetBackupRestoreTLSConfig() *druidv1alpha1.TLSConfig {
-	return &druidv1alpha1.TLSConfig{
-		TLSCASecretRef: druidv1alpha1.SecretReference{
-			SecretReference: corev1.SecretReference{
-				Name: BackupRestoreTLSCASecretName,
-			},
-			DataKey: ptr.To("ca.crt"),
-		},
-		ServerTLSSecretRef: corev1.SecretReference{
-			Name: BackupRestoreTLSServerCertSecretName,
-		},
-		ClientTLSSecretRef: corev1.SecretReference{
-			Name: BackupRestoreTLSClientCertSecretName,
-		},
-	}
-}
-
-func (eb *EtcdBuilder) WithBackupRestoreTLS() *EtcdBuilder {
-	if eb == nil || eb.etcd == nil {
-		return nil
-	}
-	eb.etcd.Spec.Backup.TLS = GetBackupRestoreTLSConfig()
-	return eb
-}
-
-func (eb *EtcdBuilder) WithRunAsRoot(runAsRoot *bool) *EtcdBuilder {
-	if eb == nil || eb.etcd == nil {
-		return nil
-	}
-	eb.etcd.Spec.RunAsRoot = runAsRoot
+	eb.etcd.Spec.Etcd.PeerUrlTLS = peerTLSConfig
 	return eb
 }
 
@@ -325,14 +287,6 @@ func (eb *EtcdBuilder) WithEtcdClientPort(clientPort *int32) *EtcdBuilder {
 	return eb
 }
 
-func (eb *EtcdBuilder) WithEtcdWrapperPort(wrapperPort *int32) *EtcdBuilder {
-	if eb == nil || eb.etcd == nil {
-		return nil
-	}
-	eb.etcd.Spec.Etcd.WrapperPort = wrapperPort
-	return eb
-}
-
 func (eb *EtcdBuilder) WithEtcdClientServiceLabels(labels map[string]string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -480,9 +434,8 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 						"memory": ParseQuantity("1000Mi"),
 					},
 				},
-				ClientPort:  ptr.To(common.DefaultPortEtcdClient),
-				ServerPort:  ptr.To(common.DefaultPortEtcdPeer),
-				WrapperPort: ptr.To(common.DefaultPortEtcdWrapper),
+				ClientPort: ptr.To(common.DefaultPortEtcdClient),
+				ServerPort: ptr.To(common.DefaultPortEtcdPeer),
 			},
 			Common: druidv1alpha1.SharedConfig{
 				AutoCompactionMode:      &autoCompactionMode,

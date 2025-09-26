@@ -121,9 +121,8 @@ func createEtcd(name, namespace string) *Etcd {
 		clientPort    int32 = 2379
 		serverPort    int32 = 2380
 		backupPort    int32 = 8080
-		wrapperPort   int32 = 9095
 		metricLevel         = Basic
-		snapshotCount int64 = 10000
+		snapshotCount int64 = 75000
 	)
 
 	garbageCollectionPeriod := metav1.Duration{
@@ -170,20 +169,6 @@ func createEtcd(name, namespace string) *Etcd {
 		},
 	}
 
-	etcdbrTLSConfig := &TLSConfig{
-		TLSCASecretRef: SecretReference{
-			SecretReference: corev1.SecretReference{
-				Name: "ca-etcdbr",
-			},
-		},
-		ServerTLSSecretRef: corev1.SecretReference{
-			Name: "etcdbr-server-tls",
-		},
-		ClientTLSSecretRef: corev1.SecretReference{
-			Name: "etcdbr-client-tls",
-		},
-	}
-
 	instance := &Etcd{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -213,7 +198,7 @@ func createEtcd(name, namespace string) *Etcd {
 			Backup: BackupSpec{
 				Image:                    &imageBR,
 				Port:                     &backupPort,
-				TLS:                      etcdbrTLSConfig,
+				TLS:                      clientTlsConfig,
 				FullSnapshotSchedule:     &snapshotSchedule,
 				GarbageCollectionPolicy:  &garbageCollectionPolicy,
 				GarbageCollectionPeriod:  &garbageCollectionPeriod,
@@ -256,7 +241,6 @@ func createEtcd(name, namespace string) *Etcd {
 				},
 				ClientPort:    &clientPort,
 				ServerPort:    &serverPort,
-				WrapperPort:   &wrapperPort,
 				SnapshotCount: &snapshotCount,
 				ClientUrlTLS:  clientTlsConfig,
 				PeerUrlTLS:    peerTlsConfig,

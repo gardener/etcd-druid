@@ -1,0 +1,11 @@
+go 1.24.0
+
+// Reasons to include go.work files and check them into git repo
+// * Ease of development as go modules have non-cyclic dependencies amongst them.
+// * Some tools like gosec seems to require go.work (See https://github.com/securego/gosec/pull/1100#issuecomment-1948388217)
+
+use (
+	.
+	api
+	client
+)

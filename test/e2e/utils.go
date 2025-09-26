@@ -106,8 +106,7 @@ var (
 	}
 	etcdClientPort    = int32(2379)
 	etcdServerPort    = int32(2380)
-	etcdWrapperPort   = int32(9095)
-	etcdSnapshotCount = int64(10000)
+	etcdSnapshotCount = int64(75000)
 
 	backupPort                 = int32(8080)
 	backupFullSnapshotSchedule = "0 */1 * * *"
@@ -176,7 +175,6 @@ func getDefaultEtcd(name, namespace, container, prefix string, provider TestProv
 		Resources:               &etcdResources,
 		ClientPort:              &etcdClientPort,
 		ServerPort:              &etcdServerPort,
-		WrapperPort:             &etcdWrapperPort,
 		SnapshotCount:           &etcdSnapshotCount,
 		ClientUrlTLS:            &etcdTLS,
 	}
@@ -635,7 +633,7 @@ func purgeSnapstore(store brtypes.SnapStore) error {
 }
 
 func getPurgeLocalSnapstoreJob(storeContainer, storePrefix string) *batchv1.Job {
-	directory := corev1.HostPathDirectoryOrCreate
+	directory := corev1.HostPathDirectory
 
 	return newTestHelperJob(
 		"purge-local-snapstore",

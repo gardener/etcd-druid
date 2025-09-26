@@ -4,30 +4,7 @@
 
 ## Command line flags
 
-!!! note "Deprecation Notice"
-
-​	All existing command line flags have been marked as deprecated. To configure `etcd-druid` the recommended way is to define a single `--config` CLI flag which points to a configuration YAML file containing `etcd-druid` [OperatorConfiguration](https://github.com/gardener/etcd-druid/blob/master/api/config/v1alpha1/types.go#L14). For backward compatibility both new `--config` CLI flag and now deprecated existing `CLI flags` are supported.
-
-### Operator Configuration
-
-The recommended way to configure `etcd-druid` is via [OperatorConfiguration](https://github.com/gardener/etcd-druid/blob/master/api/config/v1alpha1/types.go#L14).  
-
-| Flag   | Description                                 | Default |
-| ------ | ------------------------------------------- | ------- |
-| config | Path to the mounted operator configuration. | NA      |
-
-You can see the default values for `OperatorConfiguration` at [api/config/v1alpha1/defaults.go](https://github.com/gardener/etcd-druid/blob/master/api/config/v1alpha1/defaults.go).
-
-!!! note
-
-​	It is required to define the `--config` CLI flag and point to the configuration YAML file path.
-
-If you are deploying `etcd-druid` in a kubernetes cluster, then it is assumed that you have done the following:
-
-* Created a `ConfigMap` which contains the serialized operator configuration.
-* Mount the `ConfigMap` to etcd-druid `Deployment`.
-
-### Leader election *(Deprecated)*
+### Leader election
 
 If you wish to setup `etcd-druid` in high-availability mode then leader election needs to be enabled to ensure that at a time only one replica services the incoming events and does the reconciliation.
 
@@ -37,7 +14,7 @@ If you wish to setup `etcd-druid` in high-availability mode then leader election
 | leader-election-id            | Name of the k8s lease object that leader election will use for holding the leader lock. By default etcd-druid will use lease resource lock for leader election which is also a [natural usecase](https://kubernetes.io/docs/concepts/architecture/leases/#leader-election) for leases and is also recommended by k8s. | "druid-leader-election" |
 | leader-election-resource-lock | ***Deprecated***: This flag will be removed in later version of druid. By default `lease.coordination.k8s.io` resources will be used for leader election resource locking for the controller manager. | "leases"                |
 
-### Metrics *(Deprecated)*
+### Metrics
 
 `etcd-druid` exposes a `/metrics` endpoint which can be scrapped by tools like [Prometheus](https://prometheus.io/). If the default metrics endpoint configuration is not suitable then consumers can change it via the following options.
 
@@ -52,7 +29,7 @@ Metrics bind-address is computed by joining the host and port. By default its va
 !!! tip
     Ensure that the `metrics-port` is also reflected in the `etcd-druid` deployment specification.
 
-### Webhook Server *(Deprecated)*
+### Webhook Server
 
 etcd-druid provides the following CLI flags to configure webhook server. These CLI flags are used to construct a new [webhook.Server](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/webhook#Server) by configuring [Options](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/webhook#Options).
 
@@ -62,7 +39,7 @@ etcd-druid provides the following CLI flags to configure webhook server. These C
 | webhook-server-port                | Port is the port number that the webhook server will serve.  | 9443                    |
 | webhook-server-tls-server-cert-dir | The path to a directory containing the server's TLS certificate and key (the files must be named tls.crt and tls.key respectively). | /etc/webhook-server-tls |
 
-### Etcd-Components Webhook *(Deprecated)*
+### Etcd-Components Webhook
 
 etcd-druid provisions and manages several Kubernetes resources which we call [`Etcd`cluster components](../concepts/etcd-cluster-components.md). To ensure that there is no accidental changes done to these managed resources, a webhook is put in place to check manual changes done to any managed etcd-cluster Kubernetes resource. It rejects most of these changes except a few. The details on how to enable the `etcd-components` webhook, which resources are protected and in which scenarios is the change allowed is documented [here](../concepts/etcd-cluster-resource-protection.md).
 
@@ -74,11 +51,11 @@ Following CLI flags are provided to configure the `etcd-components` webhook:
 | reconciler-service-account              | The fully qualified name of the service account used by etcd-druid for reconciling etcd resources. If unspecified, the default service account mounted for etcd-druid will be used | etcd-druid-service-account |
 | etcd-components-exempt-service-accounts | In case there is a need to allow changes to `Etcd` resources from external controllers like `vertical-pod-autoscaler` then one must list the `ServiceAaccount` that is used by each such controller. | ""                         |
 
-### Reconcilers *(Deprecated)*
+### Reconcilers
 
 Following set of flags configures the reconcilers running within etcd-druid. To know more about different reconcilers read [this](../development/controllers.md) document.
 
-#### Etcd Reconciler *(Deprecated)*
+#### Etcd Reconciler
 
 | Flag                                  | Description                                                  | Default |
 | ------------------------------------- | ------------------------------------------------------------ | ------- |
@@ -89,7 +66,7 @@ Following set of flags configures the reconcilers running within etcd-druid. To 
 | etcd-member-notready-threshold        | Threshold after which an etcd member is considered not ready if the status was unknown before. This is currently used to update [EtcdMemberConditionStatus](https://github.com/gardener/etcd-druid/blob/55efca1c8f6c852b0a4e97f08488ffec2eed0e68/api/v1alpha1/etcd.go#L360). | 5m      |
 | etcd-member-unknown-threshold         | Threshold after which an etcd member is considered unknown. This is currently used to update [EtcdMemberConditionStatus](https://github.com/gardener/etcd-druid/blob/55efca1c8f6c852b0a4e97f08488ffec2eed0e68/api/v1alpha1/etcd.go#L360). | 1m      |
 
-#### Compaction Reconciler *(Deprecated)*
+#### Compaction Reconciler
 
 | Flag                         | Description                                                  | Default |
 | ---------------------------- | ------------------------------------------------------------ | ------- |
@@ -99,14 +76,14 @@ Following set of flags configures the reconcilers running within etcd-druid. To 
 | active-deadline-duration     | Duration after which a running backup compaction job will be terminated. | 3h      |
 | metrics-scrape-wait-duration | Duration to wait for after compaction job is completed, to allow Prometheus metrics to be scraped. | 0s      |
 
-#### Etcd Copy-Backup Task & Secret Reconcilers *(Deprecated)*
+#### Etcd Copy-Backup Task & Secret Reconcilers
 
 | Flag                           | Description                                                  | Default |
 | ------------------------------ | ------------------------------------------------------------ | ------- |
 | etcd-copy-backups-task-workers | Number of workers spawned for concurrent reconciles for `EtcdCopyBackupTask` resources. | 3       |
 | secret-workers                 | Number of workers spawned for concurrent reconciles for secrets. | 10      |
 
-#### Miscellaneous *(Deprecated)*
+#### Miscellaneous
 
 | Flag                | Description                                                  | Default |
 | ------------------- | ------------------------------------------------------------ | ------- |

@@ -23,8 +23,8 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager, controllerName string
 		NewControllerManagedBy(mgr).
 		Named(controllerName).
 		WithOptions(controller.Options{
-			MaxConcurrentReconciles: *r.config.ConcurrentSyncs,
-			RateLimiter:             workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](10*time.Millisecond, r.config.EtcdStatusSyncPeriod.Duration),
+			MaxConcurrentReconciles: r.config.Workers,
+			RateLimiter:             workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](10*time.Millisecond, r.config.EtcdStatusSyncPeriod),
 		}).
 		For(&druidv1alpha1.Etcd{}).
 		WithEventFilter(r.buildPredicate())

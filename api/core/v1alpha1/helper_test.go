@@ -422,37 +422,6 @@ func TestGetReconcileOperationAnnotationKey(t *testing.T) {
 	}
 }
 
-func TestIsEtcdRuntimeComponentCreationEnabled(t *testing.T) {
-	tests := []struct {
-		name        string
-		annotations map[string]string
-		expected    bool
-	}{
-		{
-			name:     "Runtime component creation is enabled",
-			expected: true,
-		},
-		{
-			name: "Runtime component creation is disabled",
-			annotations: map[string]string{
-				DisableEtcdRuntimeComponentCreationAnnotation: "",
-			},
-			expected: false,
-		},
-	}
-
-	g := NewWithT(t)
-	t.Parallel()
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), test.annotations, nil, false)
-			actual := IsEtcdRuntimeComponentCreationEnabled(etcdObjMeta)
-			g.Expect(actual).To(Equal(test.expected))
-		})
-	}
-}
-
 func createEtcdObjectMetadata(uid types.UID, annotations, labels map[string]string, markedForDeletion bool) metav1.ObjectMeta {
 	etcdObjMeta := metav1.ObjectMeta{
 		Name:        etcdName,

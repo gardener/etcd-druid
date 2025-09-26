@@ -21,7 +21,7 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(controllerName).
 		WithOptions(controller.Options{
-			MaxConcurrentReconciles: *r.Config.ConcurrentSyncs,
+			MaxConcurrentReconciles: r.Config.Workers,
 		}).
 		For(
 			&druidv1alpha1.EtcdCopyBackupsTask{},

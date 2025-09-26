@@ -32,6 +32,8 @@ kubectl get all,cm,role,rolebinding,lease,sa -n <namespace> --selector=instance=
 kubectl get all,cm,role,rolebinding,lease,sa -n <namespace> --selector=app.kubernetes.io/managed-by=etcd-druid,app.kubernetes.io/part-of=<etcd-name>
 ```
 
+  
+
 ## Update & Reconcile an Etcd Cluster
 
 ### Edit the Etcd custom resource

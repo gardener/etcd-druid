@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 
-	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/test/it/setup"
 
@@ -26,7 +25,7 @@ var (
 
 func main() {
 	ctx := ctrl.SetupSignalHandler()
-	logger := utils.MustNewLogger(true, druidconfigv1alpha1.LogLevelInfo, druidconfigv1alpha1.LogFormatText)
+	logger := utils.MustNewLogger(true, utils.LogFormatText)
 	logf.SetLogger(logger)
 	logger = logf.Log.WithName("start-envtest")
 

@@ -29,6 +29,12 @@ func GetServiceAccountName(etcdObjMeta metav1.ObjectMeta) string {
 	return etcdObjMeta.Name
 }
 
+// GetOldConfigMapName returns the name of the old configmap for the Etcd.
+// TODO: @anveshreddy18: Remove this function after 3 releases, i.e in v0.31.0
+func GetOldConfigMapName(etcdObjMeta metav1.ObjectMeta) string {
+	return fmt.Sprintf("etcd-bootstrap-%s", string(etcdObjMeta.UID[:6]))
+}
+
 // GetConfigMapName returns the name of the configmap for the Etcd.
 func GetConfigMapName(etcdObjMeta metav1.ObjectMeta) string {
 	return fmt.Sprintf("%s-config", etcdObjMeta.Name)
@@ -164,9 +170,4 @@ func HasReconcileOperationAnnotation(etcdObjMeta metav1.ObjectMeta) bool {
 func RemoveOperationAnnotation(etcdObjMeta metav1.ObjectMeta) {
 	delete(etcdObjMeta.Annotations, DruidOperationAnnotation)
 	delete(etcdObjMeta.Annotations, GardenerOperationAnnotation)
-}
-
-// IsEtcdRuntimeComponentCreationEnabled checks if the creation of runtime components is enabled for an Etcd resource.
-func IsEtcdRuntimeComponentCreationEnabled(etcdObjMeta metav1.ObjectMeta) bool {
-	return !metav1.HasAnnotation(etcdObjMeta, DisableEtcdRuntimeComponentCreationAnnotation)
 }

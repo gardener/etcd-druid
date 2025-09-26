@@ -38,20 +38,17 @@ var (
 
 // StatefulSetMatcher is the type used for matching StatefulSets. It holds relevant information required for matching.
 type StatefulSetMatcher struct {
-	g                      *WithT
-	cl                     client.Client
-	etcd                   *druidv1alpha1.Etcd
-	initContainerImage     string
-	etcdImage              string
-	etcdBRImage            string
-	provider               *string
-	clientPort             int32
-	serverPort             int32
-	backupPort             int32
-	wrapperPort            int32
-	expectedReplicas       int32
-	expectNoServiceAccount bool
-	expectNoService        bool
+	g                  *WithT
+	cl                 client.Client
+	replicas           int32
+	etcd               *druidv1alpha1.Etcd
+	initContainerImage string
+	etcdImage          string
+	etcdBRImage        string
+	provider           *string
+	clientPort         int32
+	serverPort         int32
+	backupPort         int32
 }
 
 // NewStatefulSetMatcher constructs a new instance of StatefulSetMatcher.
@@ -60,23 +57,19 @@ func NewStatefulSetMatcher(g *WithT,
 	etcd *druidv1alpha1.Etcd,
 	replicas int32,
 	initContainerImage, etcdImage, etcdBRImage string,
-	provider *string,
-	expectNoServiceAccount, expectNoService bool) StatefulSetMatcher {
+	provider *string) StatefulSetMatcher {
 	return StatefulSetMatcher{
-		g:                      g,
-		cl:                     cl,
-		etcd:                   etcd,
-		initContainerImage:     initContainerImage,
-		etcdImage:              etcdImage,
-		etcdBRImage:            etcdBRImage,
-		provider:               provider,
-		clientPort:             ptr.Deref(etcd.Spec.Etcd.ClientPort, 2379),
-		serverPort:             ptr.Deref(etcd.Spec.Etcd.ServerPort, 2380),
-		backupPort:             ptr.Deref(etcd.Spec.Backup.Port, 8080),
-		wrapperPort:            ptr.Deref(etcd.Spec.Etcd.WrapperPort, 9095),
-		expectedReplicas:       replicas,
-		expectNoServiceAccount: expectNoServiceAccount,
-		expectNoService:        expectNoService,
+		g:                  g,
+		cl:                 cl,
+		replicas:           replicas,
+		etcd:               etcd,
+		initContainerImage: initContainerImage,
+		etcdImage:          etcdImage,
+		etcdBRImage:        etcdBRImage,
+		provider:           provider,
+		clientPort:         ptr.Deref(etcd.Spec.Etcd.ClientPort, 2379),
+		serverPort:         ptr.Deref(etcd.Spec.Etcd.ServerPort, 2380),
+		backupPort:         ptr.Deref(etcd.Spec.Backup.Port, 8080),
 	}
 }
 
@@ -98,20 +91,17 @@ func (s StatefulSetMatcher) matchSTSObjectMeta() gomegatypes.GomegaMatcher {
 }
 
 func (s StatefulSetMatcher) matchSpec() gomegatypes.GomegaMatcher {
-	fields := map[string]gomegatypes.GomegaMatcher{
-		"Replicas":            PointTo(Equal(s.expectedReplicas)),
+	return MatchFields(IgnoreExtras, Fields{
+		"Replicas":            PointTo(Equal(s.replicas)),
 		"Selector":            testutils.MatchSpecLabelSelector(druidv1alpha1.GetDefaultLabels(s.etcd.ObjectMeta)),
 		"PodManagementPolicy": Equal(appsv1.ParallelPodManagement),
 		"UpdateStrategy": MatchFields(IgnoreExtras, Fields{
 			"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
 		}),
 		"VolumeClaimTemplates": s.matchVolumeClaimTemplates(),
+		"ServiceName":          Equal(druidv1alpha1.GetPeerServiceName(s.etcd.ObjectMeta)),
 		"Template":             s.matchPodTemplateSpec(),
-	}
-	if !s.expectNoService {
-		fields["ServiceName"] = Equal(druidv1alpha1.GetPeerServiceName(s.etcd.ObjectMeta))
-	}
-	return MatchFields(IgnoreExtras, fields)
+	})
 }
 
 func (s StatefulSetMatcher) matchVolumeClaimTemplates() gomegatypes.GomegaMatcher {
@@ -150,19 +140,16 @@ func (s StatefulSetMatcher) matchPodObjectMeta() gomegatypes.GomegaMatcher {
 
 func (s StatefulSetMatcher) matchPodSpec() gomegatypes.GomegaMatcher {
 	// NOTE: currently this matcher does not check affinity and TSC since these are seldom used. If these are used in future then this matcher should be enhanced.
-	fields := map[string]gomegatypes.GomegaMatcher{
+	return MatchFields(IgnoreExtras, Fields{
 		"HostAliases":           s.matchPodHostAliases(),
+		"ServiceAccountName":    Equal(druidv1alpha1.GetServiceAccountName(s.etcd.ObjectMeta)),
 		"ShareProcessNamespace": PointTo(Equal(true)),
 		"InitContainers":        s.matchPodInitContainers(),
 		"Containers":            s.matchContainers(),
 		"SecurityContext":       s.matchEtcdPodSecurityContext(),
 		"Volumes":               s.matchPodVolumes(),
 		"PriorityClassName":     Equal(ptr.Deref(s.etcd.Spec.PriorityClassName, "")),
-	}
-	if !s.expectNoServiceAccount {
-		fields["ServiceAccountName"] = Equal(druidv1alpha1.GetServiceAccountName(s.etcd.ObjectMeta))
-	}
-	return MatchFields(IgnoreExtras, fields)
+	})
 }
 
 func (s StatefulSetMatcher) matchPodHostAliases() gomegatypes.GomegaMatcher {
@@ -174,7 +161,7 @@ func (s StatefulSetMatcher) matchPodHostAliases() gomegatypes.GomegaMatcher {
 
 func (s StatefulSetMatcher) matchPodInitContainers() gomegatypes.GomegaMatcher {
 	initContainerMatcherElements := make(map[string]gomegatypes.GomegaMatcher)
-	if s.etcd.IsBackupStoreEnabled() && s.provider != nil && *s.provider == druidstore.Local && !ptr.Deref(s.etcd.Spec.RunAsRoot, false) {
+	if s.etcd.IsBackupStoreEnabled() && s.provider != nil && *s.provider == druidstore.Local {
 		changeBackupBucketPermissionsMatcher := MatchFields(IgnoreExtras, Fields{
 			"Name":            Equal(common.InitContainerNameChangeBackupBucketPermissions),
 			"Image":           Equal(s.initContainerImage),
@@ -260,7 +247,7 @@ func (s StatefulSetMatcher) matchBackupRestoreContainer() gomegatypes.GomegaMatc
 func (s StatefulSetMatcher) matchEtcdContainerReadinessHandler() gomegatypes.GomegaMatcher {
 	scheme := utils.IfConditionOr(s.etcd.Spec.Backup.TLS == nil, corev1.URISchemeHTTP, corev1.URISchemeHTTPS)
 	path := utils.IfConditionOr(s.etcd.Spec.Replicas > 1, "/readyz", "/healthz")
-	port := utils.IfConditionOr(s.etcd.Spec.Replicas > 1, s.wrapperPort, s.backupPort)
+	port := utils.IfConditionOr(s.etcd.Spec.Replicas > 1, int32(9095), int32(8080))
 	return MatchFields(IgnoreExtras|IgnoreMissing, Fields{
 		"HTTPGet": PointTo(MatchFields(IgnoreExtras|IgnoreMissing, Fields{
 			"Path": Equal(path),
@@ -273,26 +260,37 @@ func (s StatefulSetMatcher) matchEtcdContainerReadinessHandler() gomegatypes.Gom
 	})
 }
 
+func (s StatefulSetMatcher) matchEtcdContainerReadinessProbeCmd() gomegatypes.GomegaMatcher {
+	if s.etcd.Spec.Etcd.ClientUrlTLS != nil {
+		dataKey := ptr.Deref(s.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
+		return HaveExactElements(
+			"/bin/sh",
+			"-ec",
+			fmt.Sprintf("ETCDCTL_API=3 etcdctl --cacert=/var/etcd/ssl/ca/%s --cert=/var/etcd/ssl/client/tls.crt --key=/var/etcd/ssl/client/tls.key --endpoints=https://%s-local:%d get foo --consistency=l", dataKey, s.etcd.Name, s.clientPort),
+		)
+	} else {
+		return HaveExactElements(
+			"/bin/sh",
+			"-ec",
+			fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=http://%s-local:%d get foo --consistency=l", s.etcd.Name, s.clientPort),
+		)
+	}
+}
+
 func (s StatefulSetMatcher) matchEtcdContainerCmdArgs() gomegatypes.GomegaMatcher {
 	cmdArgs := make([]string, 0, 8)
 	cmdArgs = append(cmdArgs, "start-etcd")
-	cmdArgs = append(cmdArgs, fmt.Sprintf("--backup-restore-host-port=%s-local:%d", s.etcd.Name, s.backupPort))
+	cmdArgs = append(cmdArgs, fmt.Sprintf("--backup-restore-host-port=%s-local:8080", s.etcd.Name))
 	cmdArgs = append(cmdArgs, fmt.Sprintf("--etcd-server-name=%s-local", s.etcd.Name))
-	// backup-restore tls specific configuration
-	if s.etcd.Spec.Backup.TLS == nil {
+	if s.etcd.Spec.Etcd.ClientUrlTLS == nil {
 		cmdArgs = append(cmdArgs, "--backup-restore-tls-enabled=false")
 	} else {
-		dataKey := ptr.Deref(s.etcd.Spec.Backup.TLS.TLSCASecretRef.DataKey, "ca.crt")
+		dataKey := ptr.Deref(s.etcd.Spec.Etcd.ClientUrlTLS.TLSCASecretRef.DataKey, "ca.crt")
 		cmdArgs = append(cmdArgs, "--backup-restore-tls-enabled=true")
-		cmdArgs = append(cmdArgs, fmt.Sprintf("--backup-restore-ca-cert-bundle-path=/var/etcdbr/ssl/ca/%s", dataKey))
-	}
-	// etcd client url tls specific configuration
-	if s.etcd.Spec.Etcd.ClientUrlTLS != nil {
 		cmdArgs = append(cmdArgs, "--etcd-client-cert-path=/var/etcd/ssl/client/tls.crt")
 		cmdArgs = append(cmdArgs, "--etcd-client-key-path=/var/etcd/ssl/client/tls.key")
+		cmdArgs = append(cmdArgs, fmt.Sprintf("--backup-restore-ca-cert-bundle-path=/var/etcdbr/ssl/ca/%s", dataKey))
 	}
-	cmdArgs = append(cmdArgs, fmt.Sprintf("--etcd-client-port=%d", s.clientPort))
-	cmdArgs = append(cmdArgs, fmt.Sprintf("--etcd-wrapper-port=%d", s.wrapperPort))
 	return HaveExactElements(cmdArgs)
 }
 
@@ -343,10 +341,7 @@ func (s StatefulSetMatcher) getEtcdBackupVolumeMountMatcher() gomegatypes.Gomega
 	switch *s.provider {
 	case druidstore.Local:
 		if s.etcd.Spec.Backup.Store.Container != nil {
-			if ptr.Deref(s.etcd.Spec.RunAsRoot, false) {
-				return matchVolMount(common.VolumeNameLocalBackup, fmt.Sprintf("/root/%s", *s.etcd.Spec.Backup.Store.Container))
-			}
-			return matchVolMount(common.VolumeNameLocalBackup, fmt.Sprintf("/home/nonroot/%s", *s.etcd.Spec.Backup.Store.Container))
+			return matchVolMount(common.VolumeNameLocalBackup, fmt.Sprintf("/home/nonroot/%s", ptr.Deref(s.etcd.Spec.Backup.Store.Container, "")))
 		}
 	case druidstore.GCS:
 		return matchVolMount(common.VolumeNameProviderBackupSecret, common.VolumeMountPathGCSBackupSecret)
@@ -508,7 +503,7 @@ func (s StatefulSetMatcher) getBackupVolumeMatcher() gomegatypes.GomegaMatcher {
 			"VolumeSource": MatchFields(IgnoreExtras, Fields{
 				"HostPath": PointTo(MatchFields(IgnoreExtras, Fields{
 					"Path": Equal(fmt.Sprintf("%s/%s", hostPath, ptr.Deref(s.etcd.Spec.Backup.Store.Container, ""))),
-					"Type": PointTo(Equal(corev1.HostPathDirectoryOrCreate)),
+					"Type": PointTo(Equal(corev1.HostPathDirectory)),
 				})),
 			}),
 		})

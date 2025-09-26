@@ -7,7 +7,6 @@ package secret
 import (
 	"context"
 
-	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
@@ -25,12 +24,12 @@ import (
 // Reconciler reconciles secrets referenced in Etcd objects.
 type Reconciler struct {
 	client.Client
-	Config druidconfigv1alpha1.SecretControllerConfiguration
+	Config *Config
 	logger logr.Logger
 }
 
 // NewReconciler creates a new reconciler for Secret.
-func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.SecretControllerConfiguration) *Reconciler {
+func NewReconciler(mgr manager.Manager, config *Config) *Reconciler {
 	return &Reconciler{
 		Client: mgr.GetClient(),
 		Config: config,
@@ -80,13 +79,6 @@ func isFinalizerNeeded(secretName string, etcdList *druidv1alpha1.EtcdList) (boo
 		if etcd.Spec.Etcd.PeerUrlTLS != nil &&
 			(etcd.Spec.Etcd.PeerUrlTLS.TLSCASecretRef.Name == secretName ||
 				etcd.Spec.Etcd.PeerUrlTLS.ServerTLSSecretRef.Name == secretName) { // Currently, no client certificate for peer url is used in ETCD cluster
-			return true, &etcd
-		}
-
-		if etcd.Spec.Backup.TLS != nil &&
-			(etcd.Spec.Backup.TLS.TLSCASecretRef.Name == secretName ||
-				etcd.Spec.Backup.TLS.ServerTLSSecretRef.Name == secretName ||
-				etcd.Spec.Backup.TLS.ClientTLSSecretRef.Name == secretName) {
 			return true, &etcd
 		}
 

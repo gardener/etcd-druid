@@ -8,10 +8,6 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-E2E_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-SCRIPT_DIR=$(dirname "$E2E_DIR")
-source "$SCRIPT_DIR/ld-flags.sh"
-
 function containsElement () {
   array=(${1//,/ })
   for i in "${!array[@]}"
@@ -27,8 +23,6 @@ function skaffold_run_or_deploy {
   if [[ -n ${IMAGE_NAME:=""} ]] && [[ -n ${IMAGE_TEST_TAG:=""} ]]; then
     skaffold deploy --images ${IMAGE_NAME}:${IMAGE_TEST_TAG} $@
   else
-    local ld_flags=$(build_ld_flags)
-    export LD_FLAGS="${ld_flags}"
     skaffold run "$@"
   fi
 }
