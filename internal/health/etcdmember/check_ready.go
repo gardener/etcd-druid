@@ -113,21 +113,28 @@ func separateIdFromRole(holderIdentity *string) (*string, *druidv1alpha1.EtcdRol
 	if holderIdentity == nil {
 		return nil, nil
 	}
-	parts := strings.SplitN(*holderIdentity, holderIdentitySeparator, 2)
-	id := &parts[0]
-	if len(parts) != 2 {
-		return id, nil
+	id, remainder, hasSeparator := strings.Cut(*holderIdentity, holderIdentitySeparator)
+	if !hasSeparator {
+		return &id, nil
 	}
 
-	switch druidv1alpha1.EtcdRole(parts[1]) {
+	before, after, hasSeparator := strings.Cut(remainder, holderIdentitySeparator)
+	var roleString string
+	if hasSeparator {
+		roleString = after
+	} else {
+		roleString = before
+	}
+
+	switch druidv1alpha1.EtcdRole(roleString) {
 	case druidv1alpha1.EtcdRoleLeader:
 		role := druidv1alpha1.EtcdRoleLeader
-		return id, &role
+		return &id, &role
 	case druidv1alpha1.EtcdRoleMember:
 		role := druidv1alpha1.EtcdRoleMember
-		return id, &role
+		return &id, &role
 	default:
-		return id, nil
+		return &id, nil
 	}
 }
 
