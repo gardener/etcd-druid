@@ -47,7 +47,7 @@ update-dependencies:
 
 .PHONY: add-license-headers
 add-license-headers: $(GO_ADD_LICENSE)
-	@$(HACK_DIR)/addlicenseheaders.sh ${YEAR}
+	@$(HACK_DIR)/addlicenseheaders.sh
 
 # Format code and arrange imports.
 .PHONY: format
@@ -58,6 +58,11 @@ format: $(GOIMPORTS_REVISER)
 .PHONY: check
 check: $(GOLANGCI_LINT) $(GOIMPORTS) format
 	@$(HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./internal/...
+
+# Check license headers
+.PHONY: check-license-headers
+check-license-headers:
+	@$(HACK_DIR)/check-license-headers.sh "$(REPO_ROOT)"
 
 .PHONY: sast
 sast: $(GOSEC)
