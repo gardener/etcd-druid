@@ -101,9 +101,9 @@ function is_k8s_version_ge_1_29() {
 # get_crd_file_names returns the CRD file names based on the target k8s version.
 function get_crd_file_names() {
   if is_k8s_version_ge_1_29; then
-   declare -a crds=("druid.gardener.cloud_etcds.yaml" "druid.gardener.cloud_etcdcopybackupstasks.yaml")
+   declare -a crds=("druid.gardener.cloud_etcds.yaml" "druid.gardener.cloud_etcdcopybackupstasks.yaml" "druid.gardener.cloud_etcdopstasks.yaml")
   else
-   declare -a crds=("druid.gardener.cloud_etcds_without_cel.yaml" "druid.gardener.cloud_etcdcopybackupstasks.yaml")
+   declare -a crds=("druid.gardener.cloud_etcds_without_cel.yaml" "druid.gardener.cloud_etcdcopybackupstasks.yaml" "druid.gardener.cloud_etcdopstasks.yaml")
   fi
   echo "${crds[*]}"
 }
