@@ -9,8 +9,8 @@
     <a href="https://api.reuse.software/info/github.com/gardener/etcd-druid">
       <img alt="REUSE Status" src="https://api.reuse.software/badge/github.com/gardener/etcd-druid">
     </a>
-    <a href="https://concourse.ci.gardener.cloud/teams/gardener/pipelines/etcd-druid-master/jobs/master-head-update-job">
-      <img alt="CI Build Status" src="https://concourse.ci.gardener.cloud/api/v1/teams/gardener/pipelines/etcd-druid-master/jobs/master-head-update-job/badge">
+    <a href="https://github.com/gardener/etcd-druid/actions/workflows/non-release.yaml">
+      <img alt="CI Build Status" src="https://github.com/gardener/etcd-druid/actions/workflows/non-release.yaml/badge.svg">
     </a>
     <a href="https://goreportcard.com/report/github.com/gardener/etcd-druid">
       <img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/gardener/etcd-druid">
