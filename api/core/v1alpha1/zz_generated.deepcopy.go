@@ -574,6 +574,11 @@ func (in *EtcdSpec) DeepCopyInto(out *EtcdSpec) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.EmptyDirVolumeSource != nil {
+		in, out := &in.EmptyDirVolumeSource, &out.EmptyDirVolumeSource
+		*out = new(v1.EmptyDirVolumeSource)
+		(*in).DeepCopyInto(*out)
+	}
 	return
 }
 
