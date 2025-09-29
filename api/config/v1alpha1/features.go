@@ -14,6 +14,9 @@ const (
 	// UseEtcdWrapper is the name of the feature which enables usage of etcd-wrapper.
 	// This is now GA. Any attempt to disable this feature will be an error.
 	UseEtcdWrapper = "UseEtcdWrapper"
+	// AllowEmptyDir is the name of the feature which allows the usage of emptyDir volumes for etcd pods for data directories.
+	// This feature is currently in alpha.
+	AllowEmptyDir = "AllowEmptyDir"
 )
 
 // maturityLevelSpec is the specification of maturity level for a feature.
@@ -81,6 +84,7 @@ var DefaultFeatureGates = newFeatureGate()
 // If and when a new feature is introduced then it should be ensured that it is added to the featureGate using this function.
 func init() {
 	DefaultFeatureGates.knownFeatures[UseEtcdWrapper] = maturityLevelSpecGA
+	DefaultFeatureGates.knownFeatures[AllowEmptyDir] = maturityLevelSpecAlpha
 }
 
 // IsEnabled checks if a feature is enabled.
