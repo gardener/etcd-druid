@@ -9,10 +9,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gardener/etcd-druid/test/utils"
+
 	corev1 "k8s.io/api/core/v1"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
-
-	"github.com/gardener/etcd-druid/test/utils"
 
 	. "github.com/onsi/gomega"
 )
