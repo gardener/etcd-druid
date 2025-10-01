@@ -83,6 +83,11 @@ var _ = Describe("Etcd", func() {
 			checkForUnreadyEtcdMembers(ctx, cl, objLogger, etcd, 30*time.Second)
 			checkEtcdReady(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
 
+			By("Performing emptyDir migration")
+			Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd)).To(Succeed())
+			setEmptyDirVolumeSource(etcd)
+			updateAndCheckEtcdWithOrphanDeletedSts(ctx, cl, objLogger, etcd, multiNodeEtcdTimeout)
+
 			By("Deleting debug pod")
 			Expect(client.IgnoreNotFound(cl.Delete(ctx, debugPod))).ToNot(HaveOccurred())
 
@@ -351,6 +356,36 @@ func checkEventuallyEtcdRollingUpdateDone(ctx context.Context, cl client.Client,
 	}, timeout, pollingInterval).Should(BeNil())
 }
 
+// checkEventuallyStsRecreatedAnRollingUpdateDone checks if the statefulset is created, and performs a rolling update.
+func checkEventuallyStsRecreatedAnRollingUpdateDone(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd,
+	oldEtcdObservedGeneration int64, timeout time.Duration) {
+	EventuallyWithOffset(1, func() error {
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+			return fmt.Errorf("error occurred while getting etcd object: %v ", err)
+		}
+
+		if *etcd.Status.ObservedGeneration <= oldEtcdObservedGeneration {
+			return fmt.Errorf("waiting for etcd %q rolling update to complete", etcd.Name)
+		}
+
+		sts := &appsv1.StatefulSet{}
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts); err != nil {
+			return fmt.Errorf("error occurred while getting sts object: %v ", err)
+		}
+
+		if sts.Generation != 1 {
+			return fmt.Errorf("waiting for statefulset orphan delete and recreate to occur")
+		}
+
+		if sts.Status.UpdatedReplicas != *sts.Spec.Replicas {
+			return fmt.Errorf("waiting for statefulset rolling update to complete, UpdatedReplicas is %d, but expected to be %d",
+				sts.Status.UpdatedReplicas, *sts.Spec.Replicas)
+		}
+
+		return nil
+	}, timeout, pollingInterval).Should(BeNil())
+}
+
 // hibernateAndCheckEtcd scales down etcd replicas to zero and ensures
 func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
 	ExpectWithOffset(1, retry.RetryOnConflict(retry.DefaultBackoff, func() error {
@@ -450,6 +485,30 @@ func updateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Logge
 	// ObservedGeneration ID of sts, etcd before and after update done.
 	checkEventuallyEtcdRollingUpdateDone(ctx, cl, etcd,
 		oldStsObservedGeneration, oldEtcdObservedGeneration, timeout)
+	checkEtcdReady(ctx, cl, logger, etcd, timeout)
+}
+
+// updateAndCheckEtcdWithOrphanDeletedSts updates the given etcd and checks if the statefulset is orhpan deleted, and recreated.
+func updateAndCheckEtcdWithOrphanDeletedSts(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+	sts := &appsv1.StatefulSet{}
+	ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), sts)).To(Succeed())
+	Expect(etcd).ToNot(BeNil())
+	Expect(etcd.Status.ObservedGeneration).ToNot(BeNil())
+
+	oldEtcdObservedGeneration := *etcd.Status.ObservedGeneration
+	// update reconcile annotation, druid to reconcile and update the changes.
+	ExpectWithOffset(1, retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		etcdObj := &druidv1alpha1.Etcd{}
+		ExpectWithOffset(1, cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcdObj)).To(Succeed())
+		etcdObj.SetAnnotations(
+			map[string]string{
+				druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile,
+			})
+		etcdObj.Spec = etcd.Spec
+		return cl.Update(ctx, etcdObj)
+	})).ToNot(HaveOccurred())
+
+	checkEventuallyStsRecreatedAnRollingUpdateDone(ctx, cl, etcd, oldEtcdObservedGeneration, timeout)
 	checkEtcdReady(ctx, cl, logger, etcd, timeout)
 }
 
@@ -629,4 +688,12 @@ func purgeLocalSnapstore(ctx context.Context, cl client.Client, storeContainer, 
 	checkJobSucceeded(ctx, cl, job.Name)
 	logger.Info("Job has succeeded", "job", job.Name)
 	return job
+}
+
+// setEmptyDirVolumeSource sets the etcd spec to use emptyDirVolumeSource, and removes the volumeClaimTemplate
+func setEmptyDirVolumeSource(etcd *druidv1alpha1.Etcd) {
+	etcd.Spec.VolumeClaimTemplate = nil
+	etcd.Spec.EmptyDirVolumeSource = &corev1.EmptyDirVolumeSource{
+		SizeLimit: ptr.To(resource.MustParse("16Gi")),
+	}
 }
