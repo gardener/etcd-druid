@@ -48,13 +48,13 @@ func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcdObjectKey 
 }
 
 func (r *Reconciler) ensureFinalizer(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcdPartialObjMeta := ctrlutils.EmptyEtcdPartialObjectMetadata()
-	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjKey, etcdPartialObjMeta); ctrlutils.ShortCircuitReconcileFlow(result) {
+	etcd := &druidv1alpha1.Etcd{}
+	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
-	if !controllerutil.ContainsFinalizer(etcdPartialObjMeta, common.FinalizerName) {
+	if !controllerutil.ContainsFinalizer(etcd, common.FinalizerName) {
 		ctx.Logger.Info("Adding finalizer", "finalizerName", common.FinalizerName)
-		if err := kubernetes.AddFinalizers(ctx, r.client, etcdPartialObjMeta, common.FinalizerName); err != nil {
+		if err := kubernetes.AddFinalizers(ctx, r.client, etcd, common.FinalizerName); err != nil {
 			ctx.Logger.Error(err, "failed to add finalizer")
 			return ctrlutils.ReconcileWithError(err)
 		}
