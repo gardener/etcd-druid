@@ -37,6 +37,7 @@ var _ = Describe("ReadyCheck", func() {
 			member2Name                                = fmt.Sprintf("%s-%d", etcdName, 1)
 			member3Name                                = fmt.Sprintf("%s-%d", etcdName, 2)
 			readyMember, notReadyMember, unknownMember druidv1alpha1.EtcdMemberStatus
+			ctx                                        = context.Background()
 		)
 
 		BeforeEach(func() {
@@ -74,7 +75,7 @@ var _ = Describe("ReadyCheck", func() {
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
 				check := ReadyCheck(cl)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(ctx, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
@@ -102,7 +103,7 @@ var _ = Describe("ReadyCheck", func() {
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
 				check := ReadyCheck(cl)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(ctx, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
@@ -131,13 +132,13 @@ var _ = Describe("ReadyCheck", func() {
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
 				check := ReadyCheck(cl)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(ctx, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
 			})
 
-			It("should return that the cluster has a split-brain (there are 2 leaders simultaneously)", func() {
+			It("should return that the cluster has a split-brain - all members ready, but with with more than one cluster ID", func() {
 				etcd := druidv1alpha1.Etcd{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      etcdName,
@@ -154,45 +155,16 @@ var _ = Describe("ReadyCheck", func() {
 				}
 				member1Lease := createMemberLease(member1Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s:%s", member1ID, clusterID, druidv1alpha1.EtcdRoleLeader)))
 				member2Lease := createMemberLease(member2Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s:%s", member2ID, clusterID, druidv1alpha1.EtcdRoleMember)))
-				member3Lease := createMemberLease(member3Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s:%s", member3ID, clusterID, druidv1alpha1.EtcdRoleLeader)))
+				member3Lease := createMemberLease(member3Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s:%s", member3ID, newClusterID, druidv1alpha1.EtcdRoleLeader)))
 				existingObjects := mapToClientObjects([]*coordinationv1.Lease{member1Lease, member2Lease, member3Lease})
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
 				check := ReadyCheck(cl)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(ctx, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
 				Expect(result.Reason()).To(Equal("SplitBrainDetected"))
-			})
-
-			It("should return that the cluster has a split-quorum (members are part of different clusters)", func() {
-				etcd := druidv1alpha1.Etcd{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      etcdName,
-						Namespace: etcdNamespace,
-					},
-					Spec: druidv1alpha1.EtcdSpec{Replicas: 3},
-					Status: druidv1alpha1.EtcdStatus{
-						Members: []druidv1alpha1.EtcdMemberStatus{
-							readyMember,
-							unknownMember,
-							unknownMember,
-						},
-					},
-				}
-				member1Lease := createMemberLease(member1Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s:%s", member1ID, clusterID, druidv1alpha1.EtcdRoleLeader)))
-				member2Lease := createMemberLease(member2Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s:%s", member2ID, clusterID, druidv1alpha1.EtcdRoleMember)))
-				member3Lease := createMemberLease(member3Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s:%s", member3ID, newClusterID, druidv1alpha1.EtcdRoleMember)))
-				existingObjects := mapToClientObjects([]*coordinationv1.Lease{member1Lease, member2Lease, member3Lease})
-				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
-				check := ReadyCheck(cl)
-
-				result := check.Check(context.TODO(), etcd)
-
-				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
-				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
-				Expect(result.Reason()).To(Equal("SplitQuorumDetected"))
 			})
 
 			It("should return that the cluster has a quorum (one member not ready)", func() {
@@ -216,7 +188,7 @@ var _ = Describe("ReadyCheck", func() {
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
 				check := ReadyCheck(cl)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(ctx, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
@@ -242,7 +214,7 @@ var _ = Describe("ReadyCheck", func() {
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
 				check := ReadyCheck(cl)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(ctx, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
@@ -265,7 +237,7 @@ var _ = Describe("ReadyCheck", func() {
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, nil)
 				check := ReadyCheck(cl)
 
-				result := check.Check(context.TODO(), etcd)
+				result := check.Check(ctx, etcd)
 
 				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeReady))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
