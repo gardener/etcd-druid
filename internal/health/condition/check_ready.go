@@ -30,24 +30,23 @@ func extractClusterIdAndRole(holderIdentity *string) (*string, *druidv1alpha1.Et
 	}
 
 	before, after, hasSeparator := strings.Cut(remainder, holderIdentitySeparator)
-	var clusterIdString, roleString string
+	var clusterIdString, roleString *string
 	if hasSeparator {
-		clusterIdString = before
-		roleString = after
+		clusterIdString = &before
+		roleString = &after
 	} else {
-		clusterIdString = ""
-		roleString = before
+		roleString = &before
 	}
 
-	switch druidv1alpha1.EtcdRole(roleString) {
+	switch druidv1alpha1.EtcdRole(*roleString) {
 	case druidv1alpha1.EtcdRoleLeader:
 		role := druidv1alpha1.EtcdRoleLeader
-		return &clusterIdString, &role
+		return clusterIdString, &role
 	case druidv1alpha1.EtcdRoleMember:
 		role := druidv1alpha1.EtcdRoleMember
-		return &clusterIdString, &role
+		return clusterIdString, &role
 	default:
-		return &clusterIdString, nil
+		return clusterIdString, nil
 	}
 }
 
@@ -96,8 +95,9 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result 
 		}
 		leases = append(leases, lease)
 	}
-	if len(leases) == size {
+	if len(leases) == size && readyMembers == size {
 		// All leases are present, so we can check for split-brain/split-quorum scenario.
+		// All members being ready is a prerequisite for split-brain to occur.
 		clusterIDs := make([]string, 0)
 		roles := make([]druidv1alpha1.EtcdRole, 0)
 		for _, lease := range leases {
@@ -109,31 +109,17 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result 
 				roles = append(roles, *role)
 			}
 		}
-		// ClusterIDs are not populated in old druid/backup-restore versions which do
-		// not support checking for split-brain/split-quorum, so we ignore such cases.
-		if len(clusterIDs) == size && len(roles) == size {
-			leaderCount := 0
-			for _, role := range roles {
-				if role == druidv1alpha1.EtcdRoleLeader {
-					leaderCount++
-				}
-			}
-			if leaderCount > 1 {
-				return &result{
-					conType: druidv1alpha1.ConditionTypeReady,
-					status:  druidv1alpha1.ConditionFalse,
-					reason:  "SplitBrainDetected",
-					message: "Split-brain detected",
-				}
-			}
+		// ClusterIDs are not populated by `etcd-backup-restore` versions less than `v0.39.0`.
+		// So, druid does not support checking for split-brain in such cases.
+		if size > 0 && len(clusterIDs) == size && len(roles) == size {
 			firstClusterID := clusterIDs[0]
 			for _, clusterID := range clusterIDs[1:] {
 				if clusterID != firstClusterID {
 					return &result{
 						conType: druidv1alpha1.ConditionTypeReady,
 						status:  druidv1alpha1.ConditionFalse,
-						reason:  "SplitQuorumDetected",
-						message: "Split-quorum detected",
+						reason:  "SplitBrainDetected",
+						message: "Split-brain detected",
 					}
 				}
 			}
