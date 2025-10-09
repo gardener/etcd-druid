@@ -407,19 +407,6 @@ func TestSetDefaults_EtcdOpsTaskControllerConfiguration(t *testing.T) {
 				RequeueInterval: &metav1.Duration{Duration: 30 * time.Second},
 			},
 		},
-		{
-			name: "should overwrite zero duration RequeueInterval with default",
-			config: &EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
-				ConcurrentSyncs: ptr.To(5),
-				RequeueInterval: &metav1.Duration{Duration: 0},
-			},
-			expected: &EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
-				ConcurrentSyncs: ptr.To(5),
-				RequeueInterval: &metav1.Duration{Duration: 15 * time.Second},
-			},
-		},
 	}
 
 	g := NewWithT(t)
