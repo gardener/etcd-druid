@@ -192,8 +192,8 @@ func SetDefaults_EtcdOpsTaskControllerConfiguration(etcdOpsTaskCtrlConfig *EtcdO
 	if etcdOpsTaskCtrlConfig.ConcurrentSyncs == nil {
 		etcdOpsTaskCtrlConfig.ConcurrentSyncs = ptr.To(DefaultEtcdOpsTaskControllerConcurrentSyncs)
 	}
-	if etcdOpsTaskCtrlConfig.RequeueInterval == zeroDuration {
-		etcdOpsTaskCtrlConfig.RequeueInterval = metav1.Duration{Duration: DefaultEtcdOpsRequeueInterval}
+	if etcdOpsTaskCtrlConfig.RequeueInterval == nil {
+		etcdOpsTaskCtrlConfig.RequeueInterval = &metav1.Duration{Duration: DefaultEtcdOpsRequeueInterval}
 	}
 }
 

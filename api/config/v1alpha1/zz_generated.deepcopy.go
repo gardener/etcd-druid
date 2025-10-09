@@ -9,6 +9,7 @@
 package v1alpha1
 
 import (
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -173,7 +174,11 @@ func (in *EtcdOpsTaskControllerConfiguration) DeepCopyInto(out *EtcdOpsTaskContr
 		*out = new(int)
 		**out = **in
 	}
-	out.RequeueInterval = in.RequeueInterval
+	if in.RequeueInterval != nil {
+		in, out := &in.RequeueInterval, &out.RequeueInterval
+		*out = new(v1.Duration)
+		**out = **in
+	}
 	return
 }
 

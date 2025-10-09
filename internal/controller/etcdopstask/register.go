@@ -11,19 +11,19 @@ import (
 
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcdopstasks,verbs=get;list;watch;create;update;patch
-// +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcdopstasks/status,verbs=get;create;update;patch
+const controllerName = "etcdopstask-controller"
 
 // RegisterWithManager sets up the controller on the given manager.
 func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 	return ctrl.
 		NewControllerManagedBy(mgr).
-		Named(ControllerName).
+		Named(controllerName).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: *r.config.ConcurrentSyncs,
 			RateLimiter: workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](
@@ -31,7 +31,6 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 				r.config.RequeueInterval.Duration,
 			),
 		}).
-		For(&druidv1alpha1.EtcdOpsTask{}).
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
+		For(&druidv1alpha1.EtcdOpsTask{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(r)
 }

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package v1alpha1_test
 
 import (
@@ -11,6 +15,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// TestGetTimeToExpiryAndHasTTLExpired tests the GetTimeToExpiry and HasTTLExpired methods of the EtcdOpsTask struct.
 func TestGetTimeToExpiryAndHasTTLExpired(t *testing.T) {
 	g := NewWithT(t)
 	now := time.Now().UTC()
@@ -21,15 +26,19 @@ func TestGetTimeToExpiryAndHasTTLExpired(t *testing.T) {
 		expired bool
 	}{
 		{
-			name: "unfinished before TTL",
+			name: "should not expire when task is in progress and within TTL window",
 			task: &EtcdOpsTask{
 				ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(now.Add(-30 * time.Second))},
 				Spec:       EtcdOpsTaskSpec{TTLSecondsAfterFinished: ptr.To(int32(60))},
+				Status: EtcdOpsTaskStatus{
+					State:              ptr.To(TaskStateInProgress),
+					LastTransitionTime: &metav1.Time{Time: now.Add(-30 * time.Second)},
+				},
 			},
 			expired: false,
 		},
 		{
-			name: "finished before TTL",
+			name: "should not expire when task is finished but still within TTL window",
 			task: &EtcdOpsTask{
 				ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(now)},
 				Spec:       EtcdOpsTaskSpec{TTLSecondsAfterFinished: ptr.To(int32(60))},
@@ -41,10 +50,14 @@ func TestGetTimeToExpiryAndHasTTLExpired(t *testing.T) {
 			expired: false,
 		},
 		{
-			name: "unfinished TTL expired",
+			name: "should expire when task is finished and TTL window has passed",
 			task: &EtcdOpsTask{
 				ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(now.Add(-120 * time.Second))},
 				Spec:       EtcdOpsTaskSpec{TTLSecondsAfterFinished: ptr.To(int32(60))},
+				Status: EtcdOpsTaskStatus{
+					State:              ptr.To(TaskStateFailed),
+					LastTransitionTime: &metav1.Time{Time: now.Add(-90 * time.Second)},
+				},
 			},
 			expired: true,
 		},
@@ -60,6 +73,207 @@ func TestGetTimeToExpiryAndHasTTLExpired(t *testing.T) {
 			} else {
 				g.Expect(remaining).To(BeNumerically(">", 0))
 				g.Expect(tc.task.HasTTLExpired()).To(BeFalse())
+			}
+		})
+	}
+}
+
+// TestIsCompleted tests the IsCompleted method of the EtcdOpsTask struct.
+func TestIsCompleted(t *testing.T) {
+	g := NewWithT(t)
+
+	tests := []struct {
+		name      string
+		task      *EtcdOpsTask
+		completed bool
+	}{
+		{
+			name: "should return false when state is nil",
+			task: &EtcdOpsTask{
+				Status: EtcdOpsTaskStatus{
+					State: nil,
+				},
+			},
+			completed: false,
+		},
+		{
+			name: "should return false when state is Pending",
+			task: &EtcdOpsTask{
+				Status: EtcdOpsTaskStatus{
+					State: ptr.To(TaskStatePending),
+				},
+			},
+			completed: false,
+		},
+		{
+			name: "should return false when state is InProgress",
+			task: &EtcdOpsTask{
+				Status: EtcdOpsTaskStatus{
+					State: ptr.To(TaskStateInProgress),
+				},
+			},
+			completed: false,
+		},
+		{
+			name: "should return true when state is Succeeded",
+			task: &EtcdOpsTask{
+				Status: EtcdOpsTaskStatus{
+					State: ptr.To(TaskStateSucceeded),
+				},
+			},
+			completed: true,
+		},
+		{
+			name: "should return true when state is Failed",
+			task: &EtcdOpsTask{
+				Status: EtcdOpsTaskStatus{
+					State: ptr.To(TaskStateFailed),
+				},
+			},
+			completed: true,
+		},
+		{
+			name: "should return true when state is Rejected",
+			task: &EtcdOpsTask{
+				Status: EtcdOpsTaskStatus{
+					State: ptr.To(TaskStateRejected),
+				},
+			},
+			completed: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g.Expect(tc.task.IsCompleted()).To(Equal(tc.completed))
+		})
+	}
+}
+
+// TestIsMarkedForDeletion tests the IsMarkedForDeletion method of the EtcdOpsTask struct.
+func TestIsMarkedForDeletion(t *testing.T) {
+	g := NewWithT(t)
+	now := time.Now().UTC()
+
+	tests := []struct {
+		name            string
+		task            *EtcdOpsTask
+		markedForDelete bool
+	}{
+		{
+			name: "should return false when deletion timestamp is nil",
+			task: &EtcdOpsTask{
+				ObjectMeta: metav1.ObjectMeta{
+					DeletionTimestamp: nil,
+				},
+			},
+			markedForDelete: false,
+		},
+		{
+			name: "should return true when deletion timestamp is set",
+			task: &EtcdOpsTask{
+				ObjectMeta: metav1.ObjectMeta{
+					DeletionTimestamp: &metav1.Time{Time: now},
+				},
+			},
+			markedForDelete: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g.Expect(tc.task.IsMarkedForDeletion()).To(Equal(tc.markedForDelete))
+		})
+	}
+}
+
+// TestGetEtcdReference tests the GetEtcdReference method of the EtcdOpsTask struct.
+func TestGetEtcdReference(t *testing.T) {
+	g := NewWithT(t)
+
+	tests := []struct {
+		name          string
+		task          *EtcdOpsTask
+		expectedRef   string
+		expectedNS    string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "should return valid reference when etcdName is set",
+			task: &EtcdOpsTask{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-task",
+					Namespace: "test-namespace",
+				},
+				Spec: EtcdOpsTaskSpec{
+					EtcdName: ptr.To("my-etcd"),
+				},
+			},
+			expectedRef: "my-etcd",
+			expectedNS:  "test-namespace",
+			expectError: false,
+		},
+		{
+			name: "should return error when etcdName is nil",
+			task: &EtcdOpsTask{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-task",
+					Namespace: "test-namespace",
+				},
+				Spec: EtcdOpsTaskSpec{
+					EtcdName: nil,
+				},
+			},
+			expectError:   true,
+			errorContains: "etcdName is required but not specified",
+		},
+		{
+			name: "should return error when etcdName is empty string",
+			task: &EtcdOpsTask{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-task",
+					Namespace: "test-namespace",
+				},
+				Spec: EtcdOpsTaskSpec{
+					EtcdName: ptr.To(""),
+				},
+			},
+			expectError:   true,
+			errorContains: "etcdName is required but not specified",
+		},
+		{
+			name: "should use task namespace for etcd reference namespace",
+			task: &EtcdOpsTask{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-task",
+					Namespace: "different-namespace",
+				},
+				Spec: EtcdOpsTaskSpec{
+					EtcdName: ptr.To("etcd-cluster"),
+				},
+			},
+			expectedRef: "etcd-cluster",
+			expectedNS:  "different-namespace",
+			expectError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ref, err := tc.task.GetEtcdReference()
+
+			if tc.expectError {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tc.errorContains))
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(ref.Name).To(Equal(tc.expectedRef))
+				g.Expect(ref.Namespace).To(Equal(tc.expectedNS))
 			}
 		})
 	}

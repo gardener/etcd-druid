@@ -1,8 +1,11 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package etcdopstask
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
 // getTask fetches the EtcdOpsTask resource for the given object key.
@@ -34,33 +38,35 @@ func (r *Reconciler) getTask(ctx context.Context, taskObjKey client.ObjectKey) (
 // The Description is always updated to reflect the current operation.
 //
 // Returns an error if the status update fails.
-func (r *Reconciler) recordLastOperation(ctx context.Context, taskObjKey client.ObjectKey, phase v1alpha1.OperationPhase, state v1alpha1.OperationState, description string) error {
+func (r *Reconciler) recordLastOperation(ctx context.Context, taskObjKey client.ObjectKey, opType v1alpha1.LastOperationType, state v1alpha1.LastOperationState, description string) error {
+	runID := string(controller.ReconcileIDFromContext(ctx))
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		task, err := r.getTask(ctx, taskObjKey)
 		if err != nil {
 			return err
 		}
-		now := &metav1.Time{Time: time.Now().UTC()}
+		now := metav1.Time{Time: time.Now().UTC()}
 		if description == "" {
-			description = fmt.Sprintf("%s is in state %s for task %s", phase, state, taskObjKey.Name)
+			description = fmt.Sprintf("%s is in state %s for task %s", opType, state, taskObjKey.Name)
 		}
 
 		if task.Status.LastOperation == nil {
 			// Initialize LastOperation if not present
-			task.Status.LastOperation = &v1alpha1.EtcdOpsLastOperation{
-				Phase:              phase,
-				State:              state,
-				LastTransitionTime: now,
-				Description:        description,
+			task.Status.LastOperation = &v1alpha1.LastOperation{
+				Type:           opType,
+				State:          state,
+				LastUpdateTime: now,
+				Description:    description,
+				RunID:          runID,
 			}
 			return r.client.Status().Update(ctx, task)
 		}
 
-		phaseChanged := task.Status.LastOperation.Phase != phase
+		phaseChanged := task.Status.LastOperation.Type != opType
 		stateChanged := task.Status.LastOperation.State != state
 		if phaseChanged {
-			task.Status.LastOperation.Phase = phase
-			task.Status.LastOperation.LastTransitionTime = now
+			task.Status.LastOperation.Type = opType
+			task.Status.LastOperation.LastUpdateTime = now
 		}
 		if stateChanged {
 			task.Status.LastOperation.State = state
@@ -68,6 +74,7 @@ func (r *Reconciler) recordLastOperation(ctx context.Context, taskObjKey client.
 		if phaseChanged || stateChanged {
 			// Only update status if there was a transition
 			task.Status.LastOperation.Description = description
+			task.Status.LastOperation.RunID = runID
 			return r.client.Status().Update(ctx, task)
 		}
 		return nil
@@ -102,22 +109,6 @@ func (r *Reconciler) recordTaskState(ctx context.Context, taskObjKey client.Obje
 	})
 }
 
-// MapToLastError converts a generic error to a LastError object if it can be converted to a DruidError.
-func MapToLastError(err error) *v1alpha1.LastError {
-	druidErr := &druiderr.DruidError{}
-	if errors.As(err, &druidErr) {
-		desc := fmt.Sprintf("Operation: %s, Code: %s message: %s", druidErr.Operation, druidErr.Code, druidErr.Message)
-		if druidErr.Cause != nil {
-			desc += fmt.Sprintf(", cause: %s", druidErr.Cause.Error())
-		}
-		return &v1alpha1.LastError{
-			Code:        druidErr.Code,
-			Description: desc,
-		}
-	}
-	return nil
-}
-
 // recordLastError appends an error to the LastErrors field in the task status.
 //
 // Maintains a maximum of 10 most recent errors (FIFO order: oldest errors are dropped).
@@ -128,30 +119,30 @@ func (r *Reconciler) recordLastError(ctx context.Context, taskObjKey client.Obje
 		if getErr != nil {
 			return getErr
 		}
-		now := &metav1.Time{Time: time.Now().UTC()}
+		now := metav1.Time{Time: time.Now().UTC()}
+
+		// Use the existing MapToLastErrors utility to convert the error
+		newErrors := druiderr.MapToLastErrors([]error{err})
+		if len(newErrors) == 0 {
+			// Fallback for non-DruidError types
+			newErrors = []v1alpha1.LastError{{
+				Description: err.Error(),
+				ObservedAt:  now,
+			}}
+		} else {
+			// Set ObservedAt to current time for consistency
+			newErrors[0].ObservedAt = now
+		}
+
 		lastErrors := task.Status.LastErrors
 		if lastErrors == nil {
-			lastErrors = make([]v1alpha1.EtcdOpsTaskLastError, 0, 10)
+			lastErrors = make([]v1alpha1.LastError, 0, 3)
 		}
-		if len(lastErrors) >= 10 {
+		if len(lastErrors) >= 3 {
 			lastErrors = lastErrors[1:]
 		}
 
-		// Use MapToLastError to extract code/description if it's a DruidError
-		mapped := MapToLastError(err)
-		if mapped != nil {
-			lastErrors = append(lastErrors, v1alpha1.EtcdOpsTaskLastError{
-				Code:        mapped.Code,
-				Description: mapped.Description,
-				ObservedAt:  *now,
-			})
-		} else {
-			lastErrors = append(lastErrors, v1alpha1.EtcdOpsTaskLastError{
-				Description: err.Error(),
-				ObservedAt:  *now,
-			})
-		}
-		task.Status.LastErrors = lastErrors
+		task.Status.LastErrors = append(lastErrors, newErrors[0])
 		return r.client.Status().Update(ctx, task)
 	})
 }
