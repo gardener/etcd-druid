@@ -107,15 +107,6 @@ func ReconcileAfter(period time.Duration, description string) ReconcileStepResul
 	}
 }
 
-// ReconcileWithRequeue returns a ReconcileStepResult that requeues the reconciliation with the given description.
-func ReconcileWithRequeue(description string) ReconcileStepResult {
-	return ReconcileStepResult{
-		continueReconcile: false,
-		result:            ctrl.Result{Requeue: true},
-		description:       description,
-	}
-}
-
 // ReconcileWithErrorAfter returns a ReconcileStepResult that requeues the reconciliation after the given period with the given errors.
 func ReconcileWithErrorAfter(period time.Duration, errs ...error) ReconcileStepResult {
 	return ReconcileStepResult{

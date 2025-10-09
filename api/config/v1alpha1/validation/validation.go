@@ -119,7 +119,7 @@ func validateEtcdOpsTaskControllerConfiguration(etcdOpsTaskControllerConfig drui
 		return allErrs
 	}
 	allErrs = append(allErrs, validateConcurrentSyncs(etcdOpsTaskControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
-	allErrs = append(allErrs, mustBeGreaterThanZeroDuration(etcdOpsTaskControllerConfig.RequeueInterval, fldPath.Child("requeueInterval"))...)
+	allErrs = append(allErrs, mustBeGreaterThanZeroDurationPointer(etcdOpsTaskControllerConfig.RequeueInterval, fldPath.Child("requeueInterval"))...)
 	return allErrs
 }
 
@@ -128,9 +128,7 @@ func validateSecretControllerConfiguration(secretControllerConfig druidconfigv1a
 }
 
 func validateWebhookConfiguration(webhookConfig druidconfigv1alpha1.WebhookConfiguration, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-	allErrs = append(allErrs, validateEtcdComponentProtectionWebhookConfiguration(webhookConfig.EtcdComponentProtection, fldPath.Child("etcdComponentProtection"))...)
-	return allErrs
+	return validateEtcdComponentProtectionWebhookConfiguration(webhookConfig.EtcdComponentProtection, fldPath.Child("etcdComponentProtection"))
 }
 
 func validateEtcdComponentProtectionWebhookConfiguration(webhookConfig druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration, fldPath *field.Path) field.ErrorList {
@@ -173,6 +171,10 @@ func validateConcurrentSyncs(val *int, fldPath *field.Path) field.ErrorList {
 		allErrs = append(allErrs, field.Invalid(fldPath, val, "must be greater than 0"))
 	}
 	return allErrs
+}
+
+func mustBeGreaterThanZeroDurationPointer(duration *metav1.Duration, fldPath *field.Path) field.ErrorList {
+	return mustBeGreaterThanZeroDuration(ptr.Deref(duration, metav1.Duration{}), fldPath)
 }
 
 func mustBeGreaterThanZeroDuration(duration metav1.Duration, fldPath *field.Path) field.ErrorList {

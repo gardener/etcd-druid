@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package ondemandsnapshot
 
 import (
@@ -8,11 +12,10 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
+	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
-	"github.com/gardener/etcd-druid/internal/task"
 	"github.com/gardener/etcd-druid/test/utils"
 
-	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -53,17 +56,14 @@ func createEtcd(name, namespace string, backup bool, healthy bool, isTLSEnabled 
 }
 
 func createEtcdOpsTask(config druidv1alpha1.OnDemandSnapshotConfig) *druidv1alpha1.EtcdOpsTask {
-	etcdRef := druidv1alpha1.EtcdReference{
-		Name:      "test-etcd",
-		Namespace: "test-namespace",
-	}
+	etcdName := "test-etcd"
 	return &druidv1alpha1.EtcdOpsTask{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-task",
 			Namespace: "test-namespace",
 		},
 		Spec: druidv1alpha1.EtcdOpsTaskSpec{
-			EtcdRef: &etcdRef,
+			EtcdName: &etcdName,
 			Config: druidv1alpha1.EtcdOpsTaskConfig{
 				OnDemandSnapshot: &config,
 			},
@@ -77,17 +77,17 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 	tests := []struct {
 		name           string
 		etcdObject     *druidv1alpha1.Etcd
-		expectedResult task.Result
+		expectedResult handler.Result
 		expectErr      bool
 	}{
 		{
 			name:       "Etcd not found",
 			etcdObject: nil,
-			expectedResult: task.Result{
+			expectedResult: handler.Result{
 				Description: "Admit Operation: Failed to get etcd object",
 				Error: &druiderr.DruidError{
 					Code:      ErrGetEtcd,
-					Operation: "Admit",
+					Operation: string(druidv1alpha1.OperationTypeAdmit),
 					Message:   "failed to get etcd object",
 				},
 				Completed: true,
@@ -97,11 +97,11 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 		{
 			name:       "Backup not enabled",
 			etcdObject: createEtcd("test-etcd", "test-namespace", false, true, false),
-			expectedResult: task.Result{
+			expectedResult: handler.Result{
 				Description: "Admit Operation: Backup is not enabled for etcd",
 				Error: &druiderr.DruidError{
 					Code:      ErrBackupNotEnabled,
-					Operation: "Admit",
+					Operation: string(druidv1alpha1.OperationTypeAdmit),
 					Message:   "backup is not enabled for etcd",
 				},
 				Completed: true,
@@ -111,11 +111,11 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 		{
 			name:       "Etcd not ready",
 			etcdObject: createEtcd("test-etcd", "test-namespace", true, false, false),
-			expectedResult: task.Result{
+			expectedResult: handler.Result{
 				Description: "Admit Operation: Etcd is not ready",
 				Error: &druiderr.DruidError{
 					Code:      ErrEtcdNotReady,
-					Operation: "Admit",
+					Operation: string(druidv1alpha1.OperationTypeAdmit),
 					Message:   "etcd is not ready",
 				},
 				Completed: true,
@@ -125,7 +125,7 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 		{
 			name:       "Admit check passed",
 			etcdObject: createEtcd("test-etcd", "test-namespace", true, true, false),
-			expectedResult: task.Result{
+			expectedResult: handler.Result{
 				Description: "Admit check passed",
 				Completed:   true,
 			},
@@ -141,22 +141,16 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 			}
 			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
 
-			mgr := utils.FakeManager{
-				Client: cl,
-				Scheme: kubernetes.Scheme,
-			}
-
 			etcdOpsTask := createEtcdOpsTask(druidv1alpha1.OnDemandSnapshotConfig{
 				Type:           "Full",
 				TimeoutSeconds: ptr.To(int32(5)),
 				IsFinal:        ptr.To(false),
 			})
 
-			taskHandler, err := New(cl, mgr.GetLogger(), etcdOpsTask)
+			taskHandler, err := New(cl, etcdOpsTask, nil)
 			g.Expect(err).To(BeNil())
 
 			admitResult := taskHandler.Admit(context.TODO())
-			g.Expect(admitResult).ToNot(BeNil())
 			g.Expect(admitResult.Completed).To(Equal(tc.expectedResult.Completed))
 			g.Expect(admitResult.Description).To(Equal(tc.expectedResult.Description))
 
@@ -179,14 +173,13 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 	}
 }
 
-
 // CreateFakeHandler creates a fake handler to inject a custom http client for testing purposes.
-func CreateFakeHandler(cl client.Client, logger logr.Logger, etcdOpsTask *druidv1alpha1.EtcdOpsTask, httpClient http.Client) (task.Handler, error) {
-	handler, err := New(cl, logger, etcdOpsTask)
+func CreateFakeHandler(cl client.Client, etcdOpsTask *druidv1alpha1.EtcdOpsTask, httpClient http.Client) (handler.Handler, error) {
+	handler, err := New(cl, etcdOpsTask, &httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OnDemandSnapshotTask handler: %w", err)
 	}
-	onDemandSnapshotTask, ok := handler.(*OnDemandSnapshotTask)
+	onDemandSnapshotTask, ok := handler.(*Handler)
 	if !ok {
 		return nil, fmt.Errorf("handler is not of type OnDemandSnapshotTask: %T", handler)
 	}
@@ -201,7 +194,7 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 		name           string
 		etcdObject     *druidv1alpha1.Etcd
 		FakeResponse   *utils.FakeResponse
-		expectedResult task.Result
+		expectedResult handler.Result
 		expectErr      bool
 	}{
 		{
@@ -211,14 +204,14 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				Response: http.Response{},
 				Error:    fmt.Errorf("etcd object not found"),
 			},
-			expectedResult: task.Result{
-				Description: "Run Operation: Failed to get etcd object",
+			expectedResult: handler.Result{
+				Description: "Run Operation: Failed to get etcd object - object not found",
 				Error: &druiderr.DruidError{
 					Code:      ErrGetEtcd,
-					Operation: "Run",
-					Message:   "failed to get etcd object",
+					Operation: string(druidv1alpha1.OperationTypeRunning),
+					Message:   "failed to get etcd object - object not found",
 				},
-				Completed: false,
+				Completed: true,
 			},
 			expectErr: true,
 		},
@@ -229,11 +222,11 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				Response: http.Response{},
 				Error:    fmt.Errorf("etcd is not ready"),
 			},
-			expectedResult: task.Result{
+			expectedResult: handler.Result{
 				Description: "Run Operation: Etcd is not ready",
 				Error: &druiderr.DruidError{
 					Code:      ErrEtcdNotReady,
-					Operation: "Run",
+					Operation: string(druidv1alpha1.OperationTypeRunning),
 					Message:   "etcd is not ready",
 				},
 				Completed: true,
@@ -247,7 +240,7 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				Response: http.Response{},
 				Error:    fmt.Errorf("connection refused"),
 			},
-			expectedResult: task.Result{
+			expectedResult: handler.Result{
 				Description: "Run Operation: Failed to execute HTTP request",
 				Error:       fmt.Errorf("connection refused"),
 				Completed:   false,
@@ -264,11 +257,11 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				},
 				Error: nil,
 			},
-			expectedResult: task.Result{
+			expectedResult: handler.Result{
 				Description: "Run Operation: Failed to create snapshot",
 				Error: &druiderr.DruidError{
 					Code:      ErrCreateSnapshot,
-					Operation: "Run",
+					Operation: string(druidv1alpha1.OperationTypeRunning),
 					Message:   "failed to create snapshot",
 				},
 				Completed: true,
@@ -282,11 +275,11 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				Response: http.Response{},
 				Error:    nil,
 			},
-			expectedResult: task.Result{
+			expectedResult: handler.Result{
 				Description: "Run Operation: Failed to get etcdbr CA secret",
 				Error: &druiderr.DruidError{
 					Code:      ErrGetSecret,
-					Operation: "Run",
+					Operation: string(druidv1alpha1.OperationTypeRunning),
 					Message:   "failed to get etcdbr CA secret test-namespace/client-url-ca-etcd",
 				},
 				Completed: false,
@@ -303,7 +296,7 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				},
 				Error: nil,
 			},
-			expectedResult: task.Result{
+			expectedResult: handler.Result{
 				Description: "Snapshot created successfully",
 				Completed:   true,
 			},
@@ -320,11 +313,6 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 			}
 			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
 
-			mgr := utils.FakeManager{
-				Client: cl,
-				Scheme: kubernetes.Scheme,
-			}
-
 			etcdOpsTask := createEtcdOpsTask(druidv1alpha1.OnDemandSnapshotConfig{
 				Type:           "Full",
 				TimeoutSeconds: ptr.To(int32(5)),
@@ -337,7 +325,7 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 					Err:      tc.FakeResponse.Error,
 				},
 			}
-			taskHandler, err := CreateFakeHandler(cl, mgr.GetLogger(), etcdOpsTask, fakeHttpClient)
+			taskHandler, err := CreateFakeHandler(cl, etcdOpsTask, fakeHttpClient)
 			g.Expect(err).To(BeNil())
 
 			runResult := taskHandler.Run(context.TODO())

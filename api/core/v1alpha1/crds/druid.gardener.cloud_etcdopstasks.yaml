@@ -20,7 +20,7 @@ spec:
     - jsonPath: .status.state
       name: State
       type: string
-    - jsonPath: .spec.etcdRef.name
+    - jsonPath: .spec.etcdName
       name: Etcd
       type: string
     - jsonPath: .metadata.creationTimestamp
@@ -40,7 +40,6 @@ spec:
         description: |-
           EtcdOpsTask represents a task to perform operations on an Etcd cluster.
           It defines the desired configuration in Spec and tracks the observed state in Status.
-          The controller is responsible for executing the task and updating the status accordingly.
         properties:
           apiVersion:
             description: |-
@@ -74,14 +73,14 @@ spec:
                       on-demand snapshot task.
                     properties:
                       isFinal:
-                        description: IsFinal indicates whether this is the final snapshot
-                          for the etcd cluster.
+                        description: IsFinal indicates whether the snapshot is marked
+                          as final. This is subject to change.
                         type: boolean
                       timeoutSeconds:
                         default: 60
                         description: |-
                           TimeoutSeconds is the timeout for the snapshot operation.
-                          Defaults to 60 seconds. Must be at least 1.
+                          Defaults to 60 seconds.
                         format: int32
                         minimum: 1
                         type: integer
@@ -103,23 +102,12 @@ spec:
                 x-kubernetes-validations:
                 - message: config is immutable
                   rule: self == oldSelf
-              etcdRef:
-                description: EtcdRef references the Etcd resource that this task will
-                  operate on.
-                properties:
-                  name:
-                    description: Name is the name of the Etcd custom resource.
-                    type: string
-                  namespace:
-                    description: |-
-                      Namespace is the namespace of the Etcd custom resource.
-                      If unset, it defaults to the namespace of the EtcdOpsTask.
-                    type: string
-                required:
-                - name
-                type: object
+              etcdName:
+                description: EtcdName refers to the name of the Etcd resource that
+                  this task will operate on.
+                type: string
                 x-kubernetes-validations:
-                - message: etcdRef is immutable
+                - message: etcdName is immutable
                   rule: self == oldSelf
               ttlSecondsAfterFinished:
                 default: 3600
@@ -143,20 +131,19 @@ spec:
                   LastErrors is a list of the most recent errors observed during the task's execution.
                   A maximum of 10 latest errors will be recorded.
                 items:
-                  description: EtcdOpsTaskLastError represents a single error observed
-                    during task execution.
+                  description: LastError stores details of the most recent error encountered
+                    for a resource.
                   properties:
                     code:
                       description: Code is an error code that uniquely identifies
                         an error.
                       type: string
                     description:
-                      description: Description is a human-readable description of
-                        the error.
+                      description: Description is a human-readable message indicating
+                        details of the error.
                       type: string
                     observedAt:
-                      description: ObservedAt is the timestamp at which the error
-                        was observed.
+                      description: ObservedAt is the time the error was observed.
                       format: date-time
                       type: string
                   required:
@@ -172,33 +159,33 @@ spec:
                   The controller initializes this field when processing the task.
                 properties:
                   description:
-                    description: Description is a human-readable description of the
-                      current operation step.
+                    description: Description describes the last operation.
                     type: string
-                  lastTransitionTime:
-                    description: LastTransitionTime is the timestamp of the most recent
-                      change to .state of each phase.
+                  lastUpdateTime:
+                    description: LastUpdateTime is the time at which the operation
+                      was last updated.
                     format: date-time
                     type: string
-                  phase:
-                    description: Phase is the controller reconciliation phase in which
-                      the operation is currently running.
-                    enum:
-                    - Admit
-                    - Running
-                    - Cleanup
+                  runID:
+                    description: |-
+                      RunID correlates an operation with a reconciliation run.
+                      Every time an Etcd resource is reconciled (barring status reconciliation which is periodic), a unique ID is
+                      generated which can be used to correlate all actions done as part of a single reconcile run. Capturing this
+                      as part of LastOperation aids in establishing this correlation. This further helps in also easily filtering
+                      reconcile logs as all structured logs in a reconciliation run should have the `runID` referenced.
                     type: string
                   state:
-                    description: State is the state of this operation.
-                    enum:
-                    - InProgress
-                    - Completed
-                    - Failed
+                    description: State is the state of the last operation.
+                    type: string
+                  type:
+                    description: Type is the type of last operation.
                     type: string
                 required:
                 - description
-                - phase
+                - lastUpdateTime
+                - runID
                 - state
+                - type
                 type: object
               lastTransitionTime:
                 description: LastTransitionTime is the last time the state transitioned

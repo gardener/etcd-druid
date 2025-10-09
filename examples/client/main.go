@@ -83,31 +83,4 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("Successfully created Etcd cluster", "Etcd", client.ObjectKeyFromObject(etcdCluster))
-
-	// Use the typed client to create an EtcdOpsTask Resource.
-	// for etcdopsTask for a different task, change the spec.config to be of the type of the etcdopstask needed.
-	onDemandSnapshotEtcdOpsTask, err := cl.DruidV1alpha1().EtcdOpsTasks("default").Create(ctx, &druidv1alpha1.EtcdOpsTask{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "example-ondemand-full-snapshot",
-		},
-		Spec: druidv1alpha1.EtcdOpsTaskSpec{
-			Config: druidv1alpha1.EtcdOpsTaskConfig{
-				OnDemandSnapshot: &druidv1alpha1.OnDemandSnapshotConfig{
-					Type:           druidv1alpha1.OnDemandSnapshotTypeFull,
-					IsFinal:        ptr.To(true),
-					TimeoutSeconds: ptr.To(int32(120)),
-				},
-			},
-			EtcdRef: &druidv1alpha1.EtcdReference{
-				Name: "etcd-test",
-			},
-			TTLSecondsAfterFinished: ptr.To(int32(3600)),
-		},
-	}, metav1.CreateOptions{})
-
-	if err != nil {
-		slog.Error("Error creating EtcdOpsTask resource", slog.Any("error", err))
-		os.Exit(1)
-	}
-	slog.Info("Successfully created EtcdOpsTask", "EtcdOpsTask", client.ObjectKeyFromObject(onDemandSnapshotEtcdOpsTask))
 }

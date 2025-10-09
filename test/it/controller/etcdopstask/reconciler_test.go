@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package etcdopstask
 
 import (
@@ -12,6 +16,7 @@ import (
 	"github.com/gardener/etcd-druid/test/it/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	. "github.com/onsi/gomega"
 )
 
@@ -128,7 +133,7 @@ func TestEtcdOpsTaskLifecycle(t *testing.T) {
 		},
 		{
 			"UnSuccessful Lifecycle: Run fails",
-			testEtcdOpsTaskUnSuccessfulLifecycle,
+			testEtcdOpsTaskUnsuccessfulLifecycle,
 			&http.Client{
 				Transport: &testutils.MockRoundTripper{
 					Response: &http.Response{

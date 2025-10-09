@@ -553,7 +553,6 @@ ErrorCode is a string alias representing an error code that identifies an error.
 
 
 _Appears in:_
-- [EtcdOpsTaskLastError](#etcdopstasklasterror)
 - [LastError](#lasterror)
 
 
@@ -704,32 +703,12 @@ _Appears in:_
 | `lastTransitionTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | LastTransitionTime is the last time the condition's status changed. |  |  |
 
 
-#### EtcdOpsLastOperation
-
-
-
-EtcdOpsLastOperation provides details about the last running operation of the task.
-
-
-
-_Appears in:_
-- [EtcdOpsTaskStatus](#etcdopstaskstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `state` _[OperationState](#operationstate)_ | State is the state of this operation. |  | Enum: [InProgress Completed Failed] <br />Required: \{\} <br /> |
-| `phase` _[OperationPhase](#operationphase)_ | Phase is the controller reconciliation phase in which the operation is currently running. |  | Enum: [Admit Running Cleanup] <br />Required: \{\} <br /> |
-| `lastTransitionTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | LastTransitionTime is the timestamp of the most recent change to .state of each phase. |  |  |
-| `description` _string_ | Description is a human-readable description of the current operation step. |  | Required: \{\} <br /> |
-
-
 #### EtcdOpsTask
 
 
 
 EtcdOpsTask represents a task to perform operations on an Etcd cluster.
 It defines the desired configuration in Spec and tracks the observed state in Status.
-The controller is responsible for executing the task and updating the status accordingly.
 
 
 
@@ -763,24 +742,6 @@ _Appears in:_
 | `onDemandSnapshot` _[OnDemandSnapshotConfig](#ondemandsnapshotconfig)_ | OnDemandSnapshot defines the configuration for an on-demand snapshot task. |  |  |
 
 
-#### EtcdOpsTaskLastError
-
-
-
-EtcdOpsTaskLastError represents a single error observed during task execution.
-
-
-
-_Appears in:_
-- [EtcdOpsTaskStatus](#etcdopstaskstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `code` _[ErrorCode](#errorcode)_ | Code is an error code that uniquely identifies an error. |  | Required: \{\} <br /> |
-| `description` _string_ | Description is a human-readable description of the error. |  | Required: \{\} <br /> |
-| `observedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | ObservedAt is the timestamp at which the error was observed. |  | Required: \{\} <br /> |
-
-
 #### EtcdOpsTaskSpec
 
 
@@ -796,7 +757,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `config` _[EtcdOpsTaskConfig](#etcdopstaskconfig)_ | Config specifies the configuration for the operation to be performed.<br />Exactly one of the members of EtcdOpsTaskConfig must be set. |  | MaxProperties: 1 <br />MinProperties: 1 <br />Required: \{\} <br /> |
 | `ttlSecondsAfterFinished` _integer_ | TTLSecondsAfterFinished is the duration in seconds after which a finished task (status.state == Succeeded\|Failed\|Rejected) will be garbage-collected. | 3600 | Minimum: 1 <br /> |
-| `etcdRef` _[EtcdReference](#etcdreference)_ | EtcdRef references the Etcd resource that this task will operate on. |  |  |
+| `etcdName` _string_ | EtcdName refers to the name of the Etcd resource that this task will operate on. |  |  |
 
 
 #### EtcdOpsTaskStatus
@@ -815,25 +776,8 @@ _Appears in:_
 | `state` _[TaskState](#taskstate)_ | State is the overall state of the task.<br />The controller initializes this field when processing the task. |  | Enum: [Pending InProgress Succeeded Failed Rejected] <br /> |
 | `lastTransitionTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | LastTransitionTime is the last time the state transitioned from one value to another. |  |  |
 | `startedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | StartedAt is the time at which the task transitioned from Pending to InProgress. |  |  |
-| `lastErrors` _[EtcdOpsTaskLastError](#etcdopstasklasterror) array_ | LastErrors is a list of the most recent errors observed during the task's execution.<br />A maximum of 10 latest errors will be recorded. |  | MaxItems: 10 <br /> |
-| `lastOperation` _[EtcdOpsLastOperation](#etcdopslastoperation)_ | LastOperation tracks the fine-grained progress of the task's execution.<br />The controller initializes this field when processing the task. |  |  |
-
-
-#### EtcdReference
-
-
-
-EtcdReference holds a reference to an Etcd resource.
-
-
-
-_Appears in:_
-- [EtcdOpsTaskSpec](#etcdopstaskspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `name` _string_ | Name is the name of the Etcd custom resource. |  | Required: \{\} <br /> |
-| `namespace` _string_ | Namespace is the namespace of the Etcd custom resource.<br />If unset, it defaults to the namespace of the EtcdOpsTask. |  |  |
+| `lastErrors` _[LastError](#lasterror) array_ | LastErrors is a list of the most recent errors observed during the task's execution.<br />A maximum of 10 latest errors will be recorded. |  | MaxItems: 10 <br /> |
+| `lastOperation` _[LastOperation](#lastoperation)_ | LastOperation tracks the fine-grained progress of the task's execution.<br />The controller initializes this field when processing the task. |  |  |
 
 
 #### EtcdRole
@@ -932,6 +876,7 @@ LastError stores details of the most recent error encountered for a resource.
 
 
 _Appears in:_
+- [EtcdOpsTaskStatus](#etcdopstaskstatus)
 - [EtcdStatus](#etcdstatus)
 
 | Field | Description | Default | Validation |
@@ -950,6 +895,7 @@ LastOperation holds the information on the last operation done on the Etcd resou
 
 
 _Appears in:_
+- [EtcdOpsTaskStatus](#etcdopstaskstatus)
 - [EtcdStatus](#etcdstatus)
 
 | Field | Description | Default | Validation |
@@ -978,6 +924,9 @@ _Appears in:_
 | `Succeeded` | LastOperationStateSucceeded indicates that an operation has completed successfully.<br /> |
 | `Error` | LastOperationStateError indicates that an operation is completed with errors and will be retried.<br /> |
 | `Requeue` | LastOperationStateRequeue indicates that an operation is not completed and either due to an error or unfulfilled conditions will be retried.<br /> |
+| `InProgress` | OperationStateInProgress indicates that the operation is currently in progress.<br /> |
+| `Completed` | OperationStateCompleted indicates that the operation has completed.<br /> |
+| `Failed` | OperationStateFailed indicates that the operation has failed.<br /> |
 
 
 #### LastOperationType
@@ -996,6 +945,9 @@ _Appears in:_
 | `Create` | LastOperationTypeCreate indicates that the last operation was a creation of a new Etcd resource.<br /> |
 | `Reconcile` | LastOperationTypeReconcile indicates that the last operation was a reconciliation of the spec of an Etcd resource.<br /> |
 | `Delete` | LastOperationTypeDelete indicates that the last operation was a deletion of an existing Etcd resource.<br /> |
+| `Admit` | OperationTypeAdmit indicates that the task is in the admission phase.<br /> |
+| `Running` | OperationTypeRunning indicates that the task is currently being executed.<br /> |
+| `Cleanup` | OperationTypeCleanup indicates that the task is in the cleanup phase.<br /> |
 
 
 #### LeaderElectionSpec
@@ -1047,15 +999,15 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `type` _[OnDemandSnapshotType](#ondemandsnapshottype)_ | Type specifies whether the snapshot is a 'full' or 'delta' snapshot.<br />Use 'full' for a complete backup of the etcd database, or 'delta' for incremental changes since the last snapshot. |  | Enum: [full delta] <br />Required: \{\} <br /> |
-| `isFinal` _boolean_ | IsFinal indicates whether this is the final snapshot for the etcd cluster. |  |  |
-| `timeoutSeconds` _integer_ | TimeoutSeconds is the timeout for the snapshot operation.<br />Defaults to 60 seconds. Must be at least 1. | 60 | Minimum: 1 <br /> |
+| `isFinal` _boolean_ | IsFinal indicates whether the snapshot is marked as final. This is subject to change. |  |  |
+| `timeoutSeconds` _integer_ | TimeoutSeconds is the timeout for the snapshot operation.<br />Defaults to 60 seconds. | 60 | Minimum: 1 <br /> |
 
 
 #### OnDemandSnapshotType
 
 _Underlying type:_ _string_
 
-OnDemandSnapshotType defines the type of an on-demand snapshot.
+OnDemandSnapshotType defines the type of on-demand snapshot.
 
 _Validation:_
 - Enum: [full delta]
@@ -1067,44 +1019,6 @@ _Appears in:_
 | --- | --- |
 | `full` | OnDemandSnapshotTypeFull indicates a full snapshot, capturing the entire etcd database state.<br /> |
 | `delta` | OnDemandSnapshotTypeDelta indicates a delta snapshot, capturing only changes since the last snapshot.<br /> |
-
-
-#### OperationPhase
-
-_Underlying type:_ _string_
-
-OperationPhase represents the reconciliation phase of the operation.
-
-_Validation:_
-- Enum: [Admit Running Cleanup]
-
-_Appears in:_
-- [EtcdOpsLastOperation](#etcdopslastoperation)
-
-| Field | Description |
-| --- | --- |
-| `Admit` | OperationPhaseAdmit indicates that the task is in the admission phase.<br /> |
-| `Running` | OperationPhaseRunning indicates that the main logic of the task is being executed.<br /> |
-| `Cleanup` | OperationPhaseCleanup indicates that the task is in the cleanup phase.<br /> |
-
-
-#### OperationState
-
-_Underlying type:_ _string_
-
-OperationState is the state of each operation phase.
-
-_Validation:_
-- Enum: [InProgress Completed Failed]
-
-_Appears in:_
-- [EtcdOpsLastOperation](#etcdopslastoperation)
-
-| Field | Description |
-| --- | --- |
-| `InProgress` | OperationStateInProgress indicates that the operation is currently in progress.<br /> |
-| `Completed` | OperationStateCompleted indicates that the operation has completed.<br /> |
-| `Failed` | OperationStateFailed indicates that the operation has failed.<br /> |
 
 
 #### SchedulingConstraints
@@ -1242,7 +1156,7 @@ Transitions (irreversible):
 
 
 	Pending  → InProgress → Succeeded
-	   ↘                 ↘ Failed | Rejected
+	   ↘                 ↘ Failed
 	    └────────────────→ Rejected
 
 _Validation:_
@@ -1255,9 +1169,9 @@ _Appears in:_
 | --- | --- |
 | `Pending` | TaskStatePending indicates that the task has been accepted but not yet acted upon.<br /> |
 | `InProgress` | TaskStateInProgress indicates that the task is currently being executed.<br /> |
-| `Succeeded` | TaskStateSucceeded indicates that the task has completed successfully.<br /> |
+| `Succeeded` | TaskStateSucceeded indicates that the task has been completed successfully.<br /> |
 | `Failed` | TaskStateFailed indicates that the task has failed.<br /> |
-| `Rejected` | TaskStateRejected indicates that the task was rejected because it was invalid or could not be processed.<br /> |
+| `Rejected` | TaskStateRejected indicates that the task has been rejected as it failed to fulfill required preconditions.<br /> |
 
 
 #### WaitForFinalSnapshotSpec

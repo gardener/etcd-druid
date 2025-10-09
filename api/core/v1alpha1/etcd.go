@@ -5,6 +5,8 @@
 package v1alpha1
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -546,4 +548,17 @@ func (e *Etcd) IsDeletionInProgress() bool {
 		(e.Status.LastOperation.State == LastOperationStateProcessing ||
 			e.Status.LastOperation.State == LastOperationStateError ||
 			e.Status.LastOperation.State == LastOperationStateRequeue)
+}
+
+// IsReady checks if the etcd object is ready by examining its conditions.
+func (e *Etcd) IsReady() error {
+	for _, condition := range e.Status.Conditions {
+		if condition.Type == ConditionTypeReady {
+			if condition.Status == ConditionTrue {
+				return nil
+			}
+			return fmt.Errorf("etcd is not ready, condition: %s", condition.Message)
+		}
+	}
+	return fmt.Errorf("etcd is not ready")
 }

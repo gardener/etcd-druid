@@ -123,8 +123,6 @@ type ControllerConfiguration struct {
 	EtcdOpsTask EtcdOpsTaskControllerConfiguration `json:"etcdOpsTask"`
 }
 
-
-
 // EtcdControllerConfiguration defines the configuration for the Etcd controller.
 type EtcdControllerConfiguration struct {
 	// ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request.
@@ -194,7 +192,8 @@ type EtcdOpsTaskControllerConfiguration struct {
 	// +optional
 	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 	// RequeueInterval is the duration to wait before re-queuing a reconcile request for EtcdOpsTask.
-	RequeueInterval metav1.Duration `json:"requeueInterval"`
+	// +optional
+	RequeueInterval *metav1.Duration `json:"requeueInterval,omitempty"`
 }
 
 // WebhookConfiguration defines the configuration for admission webhooks.
@@ -227,7 +226,6 @@ type ServiceAccountInfo struct {
 	// However, if automountServiceAccountToken is set to false then this file will not be available.
 	Namespace string `json:"namespace"`
 }
-
 
 // LogFormat is the format of the log.
 type LogFormat string

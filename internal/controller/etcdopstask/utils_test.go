@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package etcdopstask
 
 import (
@@ -5,14 +9,16 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/test/utils"
-	"github.com/go-logr/logr/testr"
 
+	"github.com/go-logr/logr/testr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -25,11 +31,15 @@ func newTestReconciler(t *testing.T, cl client.Client) *Reconciler {
 	return &Reconciler{
 		logger: testr.New(t),
 		client: cl,
+		config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
+			RequeueInterval: &metav1.Duration{Duration: 60 * time.Second},
+		},
 	}
 }
 
 // newTestTask creates a new EtcdOpsTask for tests.
 func newTestTask(state *druidv1alpha1.TaskState) *druidv1alpha1.EtcdOpsTask {
+	now := metav1.Now()
 	ts := &druidv1alpha1.EtcdOpsTask{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-task",
@@ -38,12 +48,11 @@ func newTestTask(state *druidv1alpha1.TaskState) *druidv1alpha1.EtcdOpsTask {
 		Spec: druidv1alpha1.EtcdOpsTaskSpec{
 			Config:                  druidv1alpha1.EtcdOpsTaskConfig{},
 			TTLSecondsAfterFinished: ptr.To(int32(60)),
-			EtcdRef: &druidv1alpha1.EtcdReference{
-				Name:      "test-etcd",
-				Namespace: "test-ns",
-			},
+			EtcdName:                ptr.To("test-etcd"),
 		},
-		Status: druidv1alpha1.EtcdOpsTaskStatus{},
+		Status: druidv1alpha1.EtcdOpsTaskStatus{
+			LastTransitionTime: &now,
+		},
 	}
 	if state != nil {
 		ts.Status.State = state
@@ -87,7 +96,7 @@ func expectDruidErrors(g Gomega, actual, expected []error) {
 }
 
 // checkLastErrors checks the LastErrors field in the task status with the expected values.
-func checkLastErrors(g *WithT, updatedTask *druidv1alpha1.EtcdOpsTask, expectedLastErrors *druidv1alpha1.EtcdOpsTaskLastError) {
+func checkLastErrors(g *WithT, updatedTask *druidv1alpha1.EtcdOpsTask, expectedLastErrors *druidv1alpha1.LastError) {
 	if expectedLastErrors != nil {
 		index := len(updatedTask.Status.LastErrors) - 1
 		g.Expect(updatedTask.Status.LastErrors).ToNot(BeNil())
@@ -98,11 +107,14 @@ func checkLastErrors(g *WithT, updatedTask *druidv1alpha1.EtcdOpsTask, expectedL
 }
 
 // checkLastOperation checks the LastOperation field in the task status with the expected values.
-func checkLastOperation(g *WithT, updatedTask *druidv1alpha1.EtcdOpsTask, expectedLastOperation *druidv1alpha1.EtcdOpsLastOperation) {
+func checkLastOperation(g *WithT, updatedTask *druidv1alpha1.EtcdOpsTask, expectedLastOperation *druidv1alpha1.LastOperation) {
 	if expectedLastOperation != nil {
 		g.Expect(updatedTask.Status.LastOperation).ToNot(BeNil())
-		g.Expect(updatedTask.Status.LastOperation.Phase).To(Equal(expectedLastOperation.Phase))
+		g.Expect(updatedTask.Status.LastOperation.Type).To(Equal(expectedLastOperation.Type))
 		g.Expect(updatedTask.Status.LastOperation.State).To(Equal(expectedLastOperation.State))
+		if expectedLastOperation.Description != "" {
+			g.Expect(updatedTask.Status.LastOperation.Description).To(Equal(expectedLastOperation.Description))
+		}
 	}
 }
 
@@ -159,46 +171,46 @@ func TestRecordLastOperation(t *testing.T) {
 	tests := []struct {
 		name          string
 		task          *druidv1alpha1.EtcdOpsTask
-		initialLastOp *druidv1alpha1.EtcdOpsLastOperation
-		phase         druidv1alpha1.OperationPhase
-		state         druidv1alpha1.OperationState
+		initialLastOp *druidv1alpha1.LastOperation
+		opType        druidv1alpha1.LastOperationType
+		state         druidv1alpha1.LastOperationState
 	}{
 		{
 			name:          "Previous LastOperation is nil",
 			task:          newTestTask(nil),
 			initialLastOp: nil,
-			phase:         druidv1alpha1.OperationPhaseAdmit,
+			opType:        druidv1alpha1.OperationTypeAdmit,
 			state:         druidv1alpha1.OperationStateInProgress,
 		},
 		{
 			name: "Phase changed, state unchanged",
 			task: newTestTask(nil),
-			initialLastOp: &druidv1alpha1.EtcdOpsLastOperation{
-				Phase: druidv1alpha1.OperationPhaseAdmit,
+			initialLastOp: &druidv1alpha1.LastOperation{
+				Type:  druidv1alpha1.OperationTypeAdmit,
 				State: druidv1alpha1.OperationStateInProgress,
 			},
-			phase: druidv1alpha1.OperationPhaseRunning,
-			state: druidv1alpha1.OperationStateInProgress,
+			opType: druidv1alpha1.OperationTypeRunning,
+			state:  druidv1alpha1.OperationStateInProgress,
 		},
 		{
 			name: "State changed, phase unchanged",
 			task: newTestTask(nil),
-			initialLastOp: &druidv1alpha1.EtcdOpsLastOperation{
-				Phase: druidv1alpha1.OperationPhaseRunning,
+			initialLastOp: &druidv1alpha1.LastOperation{
+				Type:  druidv1alpha1.OperationTypeRunning,
 				State: druidv1alpha1.OperationStateInProgress,
 			},
-			phase: druidv1alpha1.OperationPhaseRunning,
-			state: druidv1alpha1.OperationStateCompleted,
+			opType: druidv1alpha1.OperationTypeRunning,
+			state:  druidv1alpha1.OperationStateCompleted,
 		},
 		{
 			name: "Both phase and state changed",
 			task: newTestTask(nil),
-			initialLastOp: &druidv1alpha1.EtcdOpsLastOperation{
-				Phase: druidv1alpha1.OperationPhaseRunning,
+			initialLastOp: &druidv1alpha1.LastOperation{
+				Type:  druidv1alpha1.OperationTypeRunning,
 				State: druidv1alpha1.OperationStateCompleted,
 			},
-			phase: druidv1alpha1.OperationPhaseCleanup,
-			state: druidv1alpha1.OperationStateFailed,
+			opType: druidv1alpha1.OperationTypeCleanup,
+			state:  druidv1alpha1.OperationStateFailed,
 		},
 	}
 
@@ -218,14 +230,14 @@ func TestRecordLastOperation(t *testing.T) {
 				err = cl.Status().Update(context.TODO(), tt.task)
 				g.Expect(err).NotTo(HaveOccurred())
 			}
-			err = r.recordLastOperation(context.TODO(), taskKey, tt.phase, tt.state, "")
+			err = r.recordLastOperation(context.TODO(), taskKey, tt.opType, tt.state, "")
 			g.Expect(err).NotTo(HaveOccurred())
 			updatedTask := &druidv1alpha1.EtcdOpsTask{}
 			err = cl.Get(context.TODO(), taskKey, updatedTask)
 			g.Expect(err).NotTo(HaveOccurred())
 
-			expectedLastOperation := &druidv1alpha1.EtcdOpsLastOperation{
-				Phase: tt.phase,
+			expectedLastOperation := &druidv1alpha1.LastOperation{
+				Type:  tt.opType,
 				State: tt.state,
 			}
 			checkLastOperation(g, updatedTask, expectedLastOperation)
@@ -316,15 +328,15 @@ func TestRecordLastError(t *testing.T) {
 			error:            druiderr.WrapError(fmt.Errorf("test error"), "TestError", "TestOperation", "This is a test error"),
 		},
 		{
-			name:             "Initial error exists, but total size is less than 9",
+			name:             "Initial error exists, but total size is less than 3",
 			task:             newTestTask(nil),
-			initialErrorSize: 6,
+			initialErrorSize: 1,
 			error:            druiderr.WrapError(fmt.Errorf("another test error"), "AnotherTestError", "TestOperation", "This is another test error"),
 		},
 		{
-			name:             "Initial error exists, total size exceeds 9",
+			name:             "Initial error exists, total size equals max limit (3)",
 			task:             newTestTask(nil),
-			initialErrorSize: 9,
+			initialErrorSize: 2,
 			error:            druiderr.WrapError(fmt.Errorf("yet another test error"), "YetAnotherTestError", "TestOperation", "This is yet another test error"),
 		},
 	}
@@ -342,7 +354,7 @@ func TestRecordLastError(t *testing.T) {
 			}
 			if tc.initialErrorSize > 0 {
 				for i := range tc.initialErrorSize {
-					tc.task.Status.LastErrors = append(tc.task.Status.LastErrors, druidv1alpha1.EtcdOpsTaskLastError{
+					tc.task.Status.LastErrors = append(tc.task.Status.LastErrors, druidv1alpha1.LastError{
 						Code:        "InitialError",
 						Description: fmt.Sprintf("initial error %d", i),
 					})
@@ -356,67 +368,16 @@ func TestRecordLastError(t *testing.T) {
 			err = cl.Get(context.TODO(), taskKey, updatedTask)
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(updatedTask.Status.LastErrors).NotTo(BeEmpty())
-			g.Expect(len(updatedTask.Status.LastErrors)).To(BeNumerically("<=", 10))
-			expectedLastErrors := &druidv1alpha1.EtcdOpsTaskLastError{
+			g.Expect(len(updatedTask.Status.LastErrors)).To(BeNumerically("<=", 3))
+			expectedLastErrors := &druidv1alpha1.LastError{
 				Code: tc.error.(*druiderr.DruidError).Code,
 			}
 			checkLastErrors(g, updatedTask, expectedLastErrors)
-			if tc.initialErrorSize >= 9 {
+			if tc.initialErrorSize >= 2 {
 				size := len(updatedTask.Status.LastErrors)
-				// size should be 10
-				g.Expect(size).To(Equal(10))
+				// size should be 3 (max limit)
+				g.Expect(size).To(Equal(3))
 			}
-		})
-	}
-}
-
-// TestMapToLastError tests the MapToLastError function.
-func TestMapToLastError(t *testing.T) {
-	g := NewGomegaWithT(t)
-	tests := []struct {
-		name              string
-		inputErr          error
-		expectNil         bool
-		expectedCode      string
-		expectedSubstring string
-	}{
-		{
-			name:      "nil error",
-			inputErr:  nil,
-			expectNil: true,
-		},
-		{
-			name:      "non-DruidError error",
-			inputErr:  fmt.Errorf("some generic error"),
-			expectNil: true,
-		},
-		{
-			name:              "DruidError without cause",
-			inputErr:          &druiderr.DruidError{Operation: "op", Code: "code", Message: "msg"},
-			expectNil:         false,
-			expectedCode:      "code",
-			expectedSubstring: "Operation: op, Code: code message: msg",
-		},
-		{
-			name:              "DruidError with cause",
-			inputErr:          &druiderr.DruidError{Operation: "op2", Code: "code2", Message: "msg2", Cause: fmt.Errorf("root cause")},
-			expectNil:         false,
-			expectedCode:      "code2",
-			expectedSubstring: "cause: root cause",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := MapToLastError(tc.inputErr)
-			if tc.expectNil {
-				g.Expect(got).To(BeNil())
-				return
-			}
-			g.Expect(got).ToNot(BeNil())
-			g.Expect(string(got.Code)).To(Equal(tc.expectedCode))
-			g.Expect(got.Description).To(ContainSubstring(tc.expectedSubstring))
 		})
 	}
 }

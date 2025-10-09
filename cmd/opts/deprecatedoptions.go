@@ -40,9 +40,9 @@ type deprecatedOperatorConfiguration struct {
 	etcdCopyBackupsTaskEnabled                      bool
 	etcdCopyBackupsTaskWorkers                      int
 	secretWorkers                                   int
-	etcdOpsTaskEnabled								bool
-	etcdOpsTaskWorkers								int
-	etcdOpsTaskRequeueInterval						time.Duration
+	etcdOpsTaskEnabled                              bool
+	etcdOpsTaskWorkers                              int
+	etcdOpsTaskRequeueInterval                      time.Duration
 	etcdComponentProtectionEnabled                  bool
 	etcdComponentProtectionReconcilerServiceAccount string
 	etcdComponentProtectionExemptServiceAccounts    []string
@@ -94,7 +94,7 @@ func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdCopyBackupsTaskContro
 }
 
 func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdOpsTaskControllerFlags(fs *flag.FlagSet) {
-	fs.BoolVar(&d.etcdOpsTaskEnabled, "enable-etcd-ops-task", false, "Enable the etcd-ops-task controller.")
+	fs.BoolVar(&d.etcdOpsTaskEnabled, "enable-etcd-ops-task", true, "Enable the etcd-ops-task controller.")
 	fs.IntVar(&d.etcdOpsTaskWorkers, "etcd-ops-task-workers", druidconfigv1alpha1.DefaultEtcdOpsTaskControllerConcurrentSyncs, "Number of worker threads for the etcd-ops-task controller.")
 	fs.DurationVar(&d.etcdOpsTaskRequeueInterval, "etcd-ops-task-requeue-interval", druidconfigv1alpha1.DefaultEtcdOpsRequeueInterval, "Requeue interval for the etcd-ops-task controller.")
 }
@@ -144,7 +144,7 @@ func (d *deprecatedOperatorConfiguration) ToOperatorConfiguration() *druidconfig
 	config.Controllers.EtcdCopyBackupsTask.ConcurrentSyncs = &d.etcdCopyBackupsTaskWorkers
 	config.Controllers.EtcdOpsTask.Enabled = d.etcdOpsTaskEnabled
 	config.Controllers.EtcdOpsTask.ConcurrentSyncs = &d.etcdOpsTaskWorkers
-	config.Controllers.EtcdOpsTask.RequeueInterval = metav1.Duration{Duration: d.etcdOpsTaskRequeueInterval}
+	config.Controllers.EtcdOpsTask.RequeueInterval = &metav1.Duration{Duration: d.etcdOpsTaskRequeueInterval}
 	config.Controllers.Secret.ConcurrentSyncs = &d.secretWorkers
 	config.Webhooks.EtcdComponentProtection.Enabled = d.etcdComponentProtectionEnabled
 	if len(strings.TrimSpace(d.etcdComponentProtectionReconcilerServiceAccount)) > 0 {

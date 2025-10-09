@@ -77,6 +77,9 @@ type EtcdOpsTask struct {
 
 The authors propose that the following fields should be specified in the spec (desired state) of the `EtcdOpsTask` custom resource.
 
+* The Name of the Etcd Resource will be taken as an optional field because of the below assumptions:
+  - The task might be independent of the etcd resource (Eg: EtcdCopyBackups)
+  - The etcdopstask will be created in the same namespace as the etcd it is intended to perform its operation upon.
 * To capture the configuration specific to each task, a `.spec.config` field should be defined of type `EtcdOpsTaskConfig` as a structured object where each task can have different input configuration. Exactly one of its members must be set according to the operation to be performed, which implicitly determines the type of `out-of-band` operator task to be executed (e.g., setting `onDemandSnapshot` indicates an "OnDemandSnapshotTask").
 
 ```go
@@ -92,9 +95,9 @@ type EtcdOpsTaskSpec struct {
 	  // +optional
 	  TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
 
-	  // EtcdRef references the Etcd resource that this task will operate on.
+	  // EtcdName refers to the name of the Etcd resource that this task will operate on.
 	  // +optional
-	  EtcdRef *EtcdReference `json:"etcdRef"`
+	  EtcdName *string `json:"etcdName"`
 
 }
 
@@ -125,25 +128,27 @@ type EtcdOpsTaskStatus struct {
   StartedAt *metav1.Time `json:"startedAt"`
   // LastError represents the errors when processing the task.
   // +optional
-  LastErrors []EtcdOpsTaskLastError `json:"lastErrors,omitempty"`
+  LastErrors []LastError `json:"lastErrors,omitempty"`
   // Captures the last operation status if task involves many stages.
   // +optional
-  LastOperation *EtcdOpsTaskLastOperation `json:"lastOperation,omitempty"`
+  LastOperation *LastOperation `json:"lastOperation,omitempty"`
 }
 
 type EtcdOpsTaskLastOperation struct {
-  // Status of the last operation, one of pending, progress, completed, failed.
-  State OperationState `json:"state"`
-  // Phase is the controller reconciliation phase in which the operation is currently running.
-	Phase OperationPhase `json:"phase"`
-  // LastTransitionTime is the time at which the operation state last transitioned from one state to another.
-  LastTransitionTime *metav1.Time `json:"lastTransitionTime"`
-  // A human readable message indicating details about the last operation.
-  Reason string `json:"reason"`
+  // State is the state of the last operation.
+  State LastOperationState `json:"state"`
+  // Type is the type pf the last operation
+	Type LastOperationType `json:"type"`
+  // LastUpdateTime is the time at which the operation state last transitioned from one state to another.
+  LastUpdateTime *metav1.Time `json:"lastTransitionTime"`
+  // RunID correlates an operation with a reconciliation run.
+  RunID string `json:"runID"`
+  // Description describes the last operation.
+	Description string `json:"description"`
 }
 
 // LastError stores details of the most recent error encountered for the task.
-type EtcdOpsTaskLastError struct {
+type LastError struct {
   // Code is an error code that uniquely identifies an error.
   Code ErrorCode `json:"code"`
   // Description is a human-readable message indicating details of the error.
@@ -172,12 +177,12 @@ const (
 	OperationStateFailed OperationState = "Failed"
 )
 
-type OperationPhase string
+type OperationType string
 
 const (
-	OperationPhaseAdmit OperationPhase = "Admit"
-	OperationPhaseRunning OperationPhase = "Running"
-	OperationPhaseCleanup OperationPhase = "Cleanup"
+	OperationTypeAdmit OperationType = "Admit"
+	OperationTypeRunning OperationType = "Running"
+	OperationTypeCleanup OperationType = "Cleanup"
 )
 ```
 
@@ -204,9 +209,9 @@ status:
       description: <description of the error>
       observedAt: <time the error was observed>
     lastOperation:
-      phase: <The current phase of the task ie whether it is in Admit or Running or Cleanup Phase>
+      type: <The current type of the task i.e whether it is in Admit or Running or Cleanup Phase>
       state: <task state as seen at the completion of last operation>
-      lastTransitionTime: <time of transition to this state>
+      lastUpdateTime: <time of transition to this state>
       description: <reason/message if any>
 ```
 
@@ -258,7 +263,7 @@ We do not need any config for this task. When creating an instance of `EtcdOpsTa
 
 ##### Task Config
 
-We do not need any config for this task. When creating an instance of `EtcdOperatorTask` for this scenario, `.spec.config` will be set to nil (unset).
+We do not need any config for this task. When creating an instance of `EtcdOpsTask` for this scenario, `.spec.config` will be set to nil (unset).
 
 ##### Pre-Conditions
 
@@ -298,7 +303,7 @@ type OnDemandSnapshotConfig struct {
 	IsFinal *bool `json:"isFinal,omitempty"`
 
 	// TimeoutSeconds is the timeout for the snapshot operation.
-	// Defaults to 60 seconds. Must be at least 1.
+	// Defaults to 60 seconds.
 	// +optional
 	TimeoutSeconds *int32 `json:"timeoutSeconds,omitempty"`
 }
@@ -405,7 +410,7 @@ spec:
 
 > Note: `copy-backups-task` runs as a separate job, and it operates only on the backup bucket, hence it doesn't depend on health of etcd cluster members.
 
-> Note: `copy-backups-task` has already been implemented and it's currently being used in [Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md) but `copy-backups-task` will be harmonized with `EtcdOperatorTask` custom resource.
+> Note: `copy-backups-task` has already been implemented and it's currently being used in [Control Plane Migration](https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md) but `copy-backups-task` will be harmonized with `EtcdOpsTask` custom resource.
 
 ## Metrics
 
