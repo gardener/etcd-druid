@@ -35,9 +35,11 @@ func Register(mgr ctrl.Manager, controllerConfig druidconfigv1alpha1.ControllerC
 		return err
 	}
 
-	etcdOpsTaskReconciler := etcdopstask.New(mgr, &controllerConfig.EtcdOpsTask)
-	if err = etcdOpsTaskReconciler.RegisterWithManager(mgr); err != nil {
-		return err
+	if controllerConfig.EtcdOpsTask.Enabled {
+		etcdOpsTaskReconciler := etcdopstask.NewReconciler(mgr, &controllerConfig.EtcdOpsTask)
+		if err = etcdOpsTaskReconciler.RegisterWithManager(mgr); err != nil {
+			return err
+		}
 	}
 	// Add compaction reconciler to the manager if the CLI flag enable-backup-compaction is true.
 	if controllerConfig.Compaction.Enabled {

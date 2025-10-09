@@ -1,17 +1,21 @@
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package etcdopstask
 
 import (
 	"context"
 	"slices"
-
 	"testing"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask"
+	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler/ondemandsnapshot"
 	testutils "github.com/gardener/etcd-druid/test/utils"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -32,10 +36,7 @@ func testEtcdOpsTaskCreationFailEmptyConfig(t *testing.T, namespace string, reco
 		Spec: druidv1alpha1.EtcdOpsTaskSpec{
 			Config:                  druidv1alpha1.EtcdOpsTaskConfig{},
 			TTLSecondsAfterFinished: ptr.To(int32(5)),
-			EtcdRef: &druidv1alpha1.EtcdReference{
-				Name:      "test-etcd",
-				Namespace: namespace,
-			},
+			EtcdName:                ptr.To("test-etcd"),
 		},
 	}
 
@@ -64,10 +65,7 @@ func testEtcdOpsTaskCreationSuccessValidConfig(t *testing.T, namespace string, r
 				},
 			},
 			TTLSecondsAfterFinished: ptr.To(int32(60)),
-			EtcdRef: &druidv1alpha1.EtcdReference{
-				Name:      "test-etcd",
-				Namespace: namespace,
-			},
+			EtcdName:                ptr.To("test-etcd"),
 		},
 	}
 
@@ -109,12 +107,12 @@ func testEtcdOpsTaskRejecEtcdBackupDisabled(t *testing.T, namespace string, reco
 
 	g.Expect(etcdInstance.IsBackupStoreEnabled()).To(BeFalse(), "backup should be disabled for this test")
 
-	etcdOpsTask := newTestTask(namespace, nil)
-	g.Expect(cl.Create(ctx, etcdOpsTask)).To(Succeed())
-	t.Logf("created etcdopstask %s/%s", etcdOpsTask.Namespace, etcdOpsTask.Name)
+	etcdOpsTaskInstance := newTestTask(namespace, nil)
+	g.Expect(cl.Create(ctx, etcdOpsTaskInstance)).To(Succeed())
+	t.Logf("created etcdopstask %s/%s", etcdOpsTaskInstance.Namespace, etcdOpsTaskInstance.Name)
 
-	expectedErrorCode := druidv1alpha1.ErrorCode("ERR_BACKUP_NOT_ENABLED")
-	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTask, druidv1alpha1.TaskStateRejected, druidv1alpha1.OperationStateFailed, druidv1alpha1.OperationPhaseAdmit, &expectedErrorCode)
+	expectedErrorCode := ondemandsnapshot.ErrBackupNotEnabled
+	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.TaskStateRejected, druidv1alpha1.OperationStateFailed, druidv1alpha1.OperationTypeAdmit, &expectedErrorCode)
 
 	t.Logf("test completed: etcdopstask was correctly rejected due to backup being disabled")
 }
@@ -138,13 +136,13 @@ func testEtcdOpsTaskRejectedIfEtcdNotReady(t *testing.T, namespace string, recon
 	g.Expect(cl.Create(ctx, etcdInstance)).To(Succeed())
 	t.Logf("created etcd instance %s/%s with not ready condition", etcdInstance.Namespace, etcdInstance.Name)
 
-	etcdOpsTask := newTestTask(namespace, nil)
-	g.Expect(cl.Create(ctx, etcdOpsTask)).To(Succeed())
-	t.Logf("created etcdopstask %s/%s", etcdOpsTask.Namespace, etcdOpsTask.Name)
+	etcdOpsTaskInstance := newTestTask(namespace, nil)
+	g.Expect(cl.Create(ctx, etcdOpsTaskInstance)).To(Succeed())
+	t.Logf("created etcdopstask %s/%s", etcdOpsTaskInstance.Namespace, etcdOpsTaskInstance.Name)
 
-	expectedErrorCode := druidv1alpha1.ErrorCode("ERR_ETCD_NOT_READY")
-	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTask, druidv1alpha1.TaskStateRejected, druidv1alpha1.OperationStateFailed, druidv1alpha1.OperationPhaseAdmit, &expectedErrorCode)
-	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, etcdOpsTask, druidv1alpha1.OperationPhaseAdmit)
+	expectedErrorCode := ondemandsnapshot.ErrEtcdNotReady
+	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.TaskStateRejected, druidv1alpha1.OperationStateFailed, druidv1alpha1.OperationTypeAdmit, &expectedErrorCode)
+	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.OperationTypeAdmit)
 
 	t.Logf("test completed: etcdopstask was correctly rejected due to etcd not being ready")
 }
@@ -166,9 +164,9 @@ func testEtcdOpsTaskRejectedDuplicateTask(t *testing.T, namespace string, reconc
 	g.Expect(cl.Create(ctx, duplicateEtcdOpsTaskInstance)).To(Succeed())
 	t.Logf("created duplicate etcdopstask %s/%s", duplicateEtcdOpsTaskInstance.Namespace, duplicateEtcdOpsTaskInstance.Name)
 
-	expectedErrorCode := druidv1alpha1.ErrorCode("ERR_DUPLICATE_TASK")
-	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, duplicateEtcdOpsTaskInstance, druidv1alpha1.TaskStateRejected, druidv1alpha1.OperationStateFailed, druidv1alpha1.OperationPhaseAdmit, &expectedErrorCode)
-	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, duplicateEtcdOpsTaskInstance, druidv1alpha1.OperationPhaseAdmit)
+	expectedErrorCode := etcdopstask.ErrDuplicateTask
+	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, duplicateEtcdOpsTaskInstance, druidv1alpha1.TaskStateRejected, druidv1alpha1.OperationStateFailed, druidv1alpha1.OperationTypeAdmit, &expectedErrorCode)
+	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, duplicateEtcdOpsTaskInstance, druidv1alpha1.OperationTypeAdmit)
 
 	t.Logf("test completed: duplicate etcdopstask was correctly rejected")
 }
@@ -186,13 +184,13 @@ func testEtcdOpsTaskSuccessfulLifecycle(t *testing.T, namespace string, reconcil
 	etcdOpsTaskInstance := newTestTask(namespace, nil)
 	g.Expect(cl.Create(ctx, etcdOpsTaskInstance)).To(Succeed())
 
-	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.TaskStateSucceeded, druidv1alpha1.OperationStateCompleted, druidv1alpha1.OperationPhaseRunning, nil)
-	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.OperationPhaseRunning)
+	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.TaskStateSucceeded, druidv1alpha1.OperationStateCompleted, druidv1alpha1.OperationTypeRunning, nil)
+	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.OperationTypeRunning)
 	t.Logf("test completed: etcdopstask successfully completed lifecycle and was deleted after TTL")
 }
 
 // testEtcdOpsTaskUnSuccessfulLifecycle tests the unsuccessful lifecycle.
-func testEtcdOpsTaskUnSuccessfulLifecycle(t *testing.T, namespace string, reconcilerTestEnv ReconcilerTestEnv) {
+func testEtcdOpsTaskUnsuccessfulLifecycle(t *testing.T, namespace string, reconcilerTestEnv ReconcilerTestEnv) {
 	g := NewWithT(t)
 
 	cl := reconcilerTestEnv.itTestEnv.GetClient()
@@ -203,9 +201,9 @@ func testEtcdOpsTaskUnSuccessfulLifecycle(t *testing.T, namespace string, reconc
 	etcdOpsTaskInstance := newTestTask(namespace, nil)
 	g.Expect(cl.Create(ctx, etcdOpsTaskInstance)).To(Succeed())
 
-	expectedErrorCode := druidv1alpha1.ErrorCode("ERR_CREATE_SNAPSHOT")
-	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.TaskStateFailed, druidv1alpha1.OperationStateFailed, druidv1alpha1.OperationPhaseRunning, &expectedErrorCode)
-	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.OperationPhaseRunning)
+	expectedErrorCode := ondemandsnapshot.ErrCreateSnapshot
+	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.TaskStateFailed, druidv1alpha1.OperationStateFailed, druidv1alpha1.OperationTypeRunning, &expectedErrorCode)
+	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.OperationTypeRunning)
 
 	t.Logf("test completed: etcdopstask failed as expected and was deleted after TTL")
 }

@@ -33,9 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-// ControllerName is the name of the etcd controller.
-const ControllerName = "etcd-controller"
-
 // Reconciler reconciles the Etcd resource spec and status.
 type Reconciler struct {
 	client            client.Client

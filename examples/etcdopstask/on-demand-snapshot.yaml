@@ -7,9 +7,7 @@ spec:
   config:
     onDemandSnapshot:
       type: full #options: full, delta
-      isFinal: true
+      isFinal: false
       timeoutSeconds: 120
-  etcdRef:
-    name: etcd-test
-    namespace: default
+  etcdName: etcd-test
   ttlSecondsAfterFinished: 3600
