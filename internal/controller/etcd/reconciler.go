@@ -100,14 +100,16 @@ type reconcileFn func(ctx component.OperatorContext, objectKey client.ObjectKey)
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	runID := string(controller.ReconcileIDFromContext(ctx))
 	operatorCtx := component.NewOperatorContext(ctx, r.logger, runID)
-	if result := r.reconcileEtcdDeletion(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result.ReconcileResult()
-	}
 
 	etcd := &druidv1alpha1.Etcd{}
 	if result := ctrlutils.GetLatestEtcd(ctx, r.client, req.NamespacedName, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result.ReconcileResult()
 	}
+
+	if result := r.reconcileEtcdDeletion(operatorCtx, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result.ReconcileResult()
+	}
+
 	shouldReconcileSpec := r.shouldReconcileSpec(etcd)
 
 	var reconcileSpecResult ctrlutils.ReconcileStepResult
@@ -163,15 +165,11 @@ func createAndInitializeOperatorRegistry(client client.Client, config druidconfi
 	return reg
 }
 
-func (r *Reconciler) reconcileEtcdDeletion(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcdPartialObjMetadata := ctrlutils.EmptyEtcdPartialObjectMetadata()
-	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjectKey, etcdPartialObjMetadata); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
-	if druidv1alpha1.IsEtcdMarkedForDeletion(etcdPartialObjMetadata.ObjectMeta) {
-		dLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "delete").WithValues("runId", ctx.RunID)
+func (r *Reconciler) reconcileEtcdDeletion(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
+	if druidv1alpha1.IsEtcdMarkedForDeletion(etcd.ObjectMeta) {
+		dLog := r.logger.WithValues("etcd", etcd.ObjectMeta, "operation", "delete").WithValues("runId", ctx.RunID)
 		ctx.SetLogger(dLog)
-		return r.triggerDeletionFlow(ctx, dLog, etcdObjectKey)
+		return r.triggerDeletionFlow(ctx, dLog, client.ObjectKeyFromObject(etcd))
 	}
 	return ctrlutils.ContinueReconcile()
 }
