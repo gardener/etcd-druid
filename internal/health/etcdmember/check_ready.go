@@ -26,7 +26,7 @@ type readyCheck struct {
 	etcdMemberUnknownThreshold  time.Duration
 }
 
-const holderIdentitySeparator = ":"
+const memberLeaseHolderIdentitySeparator = ":"
 
 // TimeNow is the function used by this check to get the current time.
 var TimeNow = time.Now
@@ -142,7 +142,7 @@ func extractMemberIdAndRole(holderIdentity *string) (*string, *druidv1alpha1.Etc
 	if holderIdentity == nil {
 		return nil, nil, fmt.Errorf("lease holder identity is nil")
 	}
-	splits := strings.Split(*holderIdentity, holderIdentitySeparator)
+	splits := strings.Split(*holderIdentity, memberLeaseHolderIdentitySeparator)
 
 	switch len(splits) {
 	case 2:

@@ -19,7 +19,7 @@ type readyCheck struct {
 	client client.Client
 }
 
-const holderIdentitySeparator = ":"
+const memberLeaseHolderIdentitySeparator = ":"
 
 func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
 
@@ -152,7 +152,7 @@ func extractClusterIdAndRole(holderIdentity *string) (*string, *druidv1alpha1.Et
 	if holderIdentity == nil {
 		return nil, nil, fmt.Errorf("lease holder identity is nil")
 	}
-	splits := strings.Split(*holderIdentity, holderIdentitySeparator)
+	splits := strings.Split(*holderIdentity, memberLeaseHolderIdentitySeparator)
 
 	switch len(splits) {
 	case 2:
