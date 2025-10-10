@@ -149,6 +149,9 @@ func asEtcdRole(roleStr string) *druidv1alpha1.EtcdRole {
 //   - "<member-id>:<role>": from `etcd-backup-restore` versions <= v0.39.0
 //   - "<member-id>:<cluster-id>:<role>": from `etcd-backup-restore` versions > v0.39.0
 func extractClusterIdAndRole(holderIdentity *string) (*string, *druidv1alpha1.EtcdRole, error) {
+	if holderIdentity == nil {
+		return nil, nil, fmt.Errorf("lease holder identity is nil")
+	}
 	splits := strings.Split(*holderIdentity, holderIdentitySeparator)
 
 	switch len(splits) {
