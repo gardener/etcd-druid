@@ -104,10 +104,10 @@ jobs:
         # TODO: uncomment me once https://github.com/gardener/etcd-druid/pull/1170 is merged
 #      - name: check-license-headers
 #        run: make check-license-headers
-      - name: api-check
-        run: make --directory=api check
       - name: api-tidy
         run: make --directory=api tidy
+      - name: api-check
+        run: make --directory=api check
       - name: api-check-generate
         run: make --directory=api check-generate
 
