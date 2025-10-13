@@ -15,15 +15,17 @@ git config --global user.name "Gardener CI/CD"
 echo "> Running check..."
 make check
 
-# Run Static Application Security Testing (SAST) using gosec
-echo "> Running SAST checks..."
-make sast-report
+echo "> Checking license headers..."
+make check-license-headers
 
-echo "Running API Make targets..."
-
+echo "> Running API Make targets..."
 make --directory=api \
   check \
   tidy \
   check-generate
+
+# Run Static Application Security Testing (SAST) using gosec
+echo "> Running SAST checks..."
+make sast-report
 
 echo -e "\n> All checks successful"
