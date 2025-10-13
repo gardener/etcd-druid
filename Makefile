@@ -62,7 +62,7 @@ check: $(GOLANGCI_LINT) $(GOIMPORTS) format
 # Check license headers
 .PHONY: check-license-headers
 check-license-headers: $(GO_ADD_LICENSE)
-	@$(HACK_DIR)/check-license-headers.sh "$(REPO_ROOT)"
+	@$(HACK_DIR)/check-license-headers.sh
 
 .PHONY: sast
 sast: $(GOSEC)
