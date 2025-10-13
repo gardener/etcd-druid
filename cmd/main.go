@@ -78,6 +78,7 @@ func printRuntimeInfo() {
 		"go Version", versionInfo.GoVersion,
 		"platform", versionInfo.Platform,
 		"git commit", versionInfo.GitCommit,
+		"git tree state", versionInfo.GitTreeState,
 		"build date", versionInfo.BuildDate,
 	)
 }

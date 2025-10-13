@@ -6,7 +6,6 @@ REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))
 HACK_DIR            := $(REPO_ROOT)/hack
 API_HACK_DIR        := $(REPO_ROOT)/api/hack
 VERSION             := $(shell $(HACK_DIR)/get-version.sh)
-GIT_SHA             := $(shell git rev-parse --short HEAD || echo "GitNotFound")
 REGISTRY_ROOT       := europe-docker.pkg.dev/gardener-project
 REGISTRY            := $(REGISTRY_ROOT)/snapshots
 IMAGE_NAME          := gardener/etcd-druid
@@ -112,7 +111,7 @@ test-cov-clean:
 .PHONY: test-e2e
 test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD) $(KUSTOMIZE) $(GINKGO)
 	@$(HACK_DIR)/prepare-chart-resources.sh -n $(BUCKET_NAME) -e $(CERT_EXPIRY_DAYS)
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) $(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
+	@$(HACK_DIR)/e2e-test/run-e2e-test.sh $(PROVIDERS)
 
 .PHONY: ci-e2e-kind
 ci-e2e-kind: $(GINKGO) $(YQ) $(KIND)
@@ -134,7 +133,7 @@ build:
 	@GO111MODULE=on CGO_ENABLED=0 go build \
 		-v \
 		-o bin/etcd-druid \
-		-ldflags "-w -X github.com/gardener/etcd-druid/internal/version.Version=$(VERSION) -X github.com/gardener/etcd-druid/internal/version.GitSHA=$(GIT_SHA)" \
+		-ldflags "$$(bash -c 'source $(HACK_DIR)/ld-flags.sh && build_ld_flags')" \
 		cmd/main.go
 
 # Clean go build cache
@@ -216,7 +215,7 @@ deploy-localstack: $(KUBECTL)
 .PHONY: deploy-azurite
 deploy-azurite: $(KUBECTL)
 	@$(HACK_DIR)/deploy-azurite.sh
-	
+
 .PHONY: deploy-fakegcs
 deploy-fakegcs: $(KUBECTL)
 	@$(HACK_DIR)/deploy-fakegcs.sh
