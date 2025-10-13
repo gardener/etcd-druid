@@ -109,7 +109,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result 
 						conType: druidv1alpha1.ConditionTypeReady,
 						status:  druidv1alpha1.ConditionFalse,
 						reason:  "SplitBrainDetected",
-						message: "Split-brain detected",
+						message: "ClusterID mismatch has been detected",
 					}
 				}
 			}
