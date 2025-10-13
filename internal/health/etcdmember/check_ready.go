@@ -56,14 +56,16 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 	}
 
 	for _, lease := range leases {
-		var (
-			id, role = separateIdFromRole(lease.Spec.HolderIdentity)
-			res      = &result{
-				id:   id,
-				name: lease.Name,
-				role: role,
-			}
-		)
+		var id, role, err = extractMemberIdAndRole(lease.Spec.HolderIdentity)
+		if err != nil {
+			r.logger.Error(err, "failed to extract member ID and role from lease holder identity", "holderIdentity", lease.Spec.HolderIdentity)
+			continue
+		}
+		var res = &result{
+			id:   id,
+			name: lease.Name,
+			role: role,
+		}
 
 		// Check if member is in bootstrapping phase
 		// Members are supposed to be added to the members array only if they have joined the cluster (== RenewTime is set).
@@ -107,27 +109,54 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 	return results
 }
 
-const holderIdentitySeparator = ":"
+const memberLeaseHolderIdentitySeparator = ":"
 
-func separateIdFromRole(holderIdentity *string) (*string, *druidv1alpha1.EtcdRole) {
-	if holderIdentity == nil {
-		return nil, nil
+// ReadyCheck returns a check for the "Ready" condition.
+func ReadyCheck(cl client.Client, logger logr.Logger, etcdMemberNotReadyThreshold, etcdMemberUnknownThreshold time.Duration) Checker {
+	return &readyCheck{
+		logger:                      logger,
+		cl:                          cl,
+		etcdMemberNotReadyThreshold: etcdMemberNotReadyThreshold,
+		etcdMemberUnknownThreshold:  etcdMemberUnknownThreshold,
 	}
-	parts := strings.SplitN(*holderIdentity, holderIdentitySeparator, 2)
-	id := &parts[0]
-	if len(parts) != 2 {
-		return id, nil
-	}
+}
 
-	switch druidv1alpha1.EtcdRole(parts[1]) {
+func asEtcdRole(roleStr string) *druidv1alpha1.EtcdRole {
+	switch druidv1alpha1.EtcdRole(roleStr) {
 	case druidv1alpha1.EtcdRoleLeader:
 		role := druidv1alpha1.EtcdRoleLeader
-		return id, &role
+		return &role
 	case druidv1alpha1.EtcdRoleMember:
 		role := druidv1alpha1.EtcdRoleMember
-		return id, &role
+		return &role
 	default:
-		return id, nil
+		return nil
+	}
+}
+
+// extractMemberIdAndRole extracts the member ID and role from the given lease holder identity.
+// The expected formats of the holder identity are:
+//   - "<member-id>:<role>": from `etcd-backup-restore` versions <= v0.39.0
+//   - "<member-id>:<cluster-id>:<role>": from `etcd-backup-restore` versions > v0.39.0
+func extractMemberIdAndRole(holderIdentity *string) (*string, *druidv1alpha1.EtcdRole, error) {
+	if holderIdentity == nil {
+		return nil, nil, fmt.Errorf("lease holder identity is nil")
+	}
+	splits := strings.Split(*holderIdentity, memberLeaseHolderIdentitySeparator)
+
+	switch len(splits) {
+	case 2:
+		// "<member-id>:<role>"
+		memberId := splits[0]
+		role := asEtcdRole(splits[1])
+		return &memberId, role, nil
+	case 3:
+		// "<member-id>:<cluster-id>:<role>"
+		memberId := splits[0]
+		role := asEtcdRole(splits[2])
+		return &memberId, role, nil
+	default:
+		return nil, nil, fmt.Errorf("unexpected format of lease holder identity: %s", *holderIdentity)
 	}
 }
 
@@ -144,14 +173,4 @@ func (r *readyCheck) checkContainersAreReady(ctx context.Context, namespace stri
 	}
 
 	return false, nil
-}
-
-// ReadyCheck returns a check for the "Ready" condition.
-func ReadyCheck(cl client.Client, logger logr.Logger, etcdMemberNotReadyThreshold, etcdMemberUnknownThreshold time.Duration) Checker {
-	return &readyCheck{
-		logger:                      logger,
-		cl:                          cl,
-		etcdMemberNotReadyThreshold: etcdMemberNotReadyThreshold,
-		etcdMemberUnknownThreshold:  etcdMemberUnknownThreshold,
-	}
 }
