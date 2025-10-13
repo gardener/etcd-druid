@@ -131,7 +131,7 @@ ci-e2e-kind-gcs: $(GINKGO)
 # Build manager binary
 .PHONY: build
 build:
-	@VERSION=$(VERSION) GIT_SHA=$(GIT_SHA) env GO111MODULE=on CGO_ENABLED=0 go build \
+	@GO111MODULE=on CGO_ENABLED=0 go build \
 		-v \
 		-o bin/etcd-druid \
 		-ldflags "-w -X github.com/gardener/etcd-druid/internal/version.Version=$(VERSION) -X github.com/gardener/etcd-druid/internal/version.GitSHA=$(GIT_SHA)" \
