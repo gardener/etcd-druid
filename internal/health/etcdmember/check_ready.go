@@ -134,7 +134,7 @@ func asEtcdRole(roleStr string) *druidv1alpha1.EtcdRole {
 	}
 }
 
-// extractMemberIdAndRole extracts the member ID and role from the given lease holder identity.
+// extractMemberIdAndRole extracts the member ID and role from the given member lease's holder identity.
 // The expected formats of the holder identity are:
 //   - "<member-id>:<role>": from `etcd-backup-restore` versions <= v0.39.0
 //   - "<member-id>:<cluster-id>:<role>": from `etcd-backup-restore` versions > v0.39.0
