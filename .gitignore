@@ -66,3 +66,7 @@ charts/crds/*
 # go workspace files
 go.work
 go.work.sum
+
+# generated pki resources for e2e tests
+test/e2e/pki-resources/*
+test/e2e/controller/pki-resources/*
