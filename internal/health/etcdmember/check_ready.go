@@ -58,7 +58,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 	for _, lease := range leases {
 		var id, role, err = extractMemberIdAndRole(lease.Spec.HolderIdentity)
 		if err != nil {
-			r.logger.Error(err, "failed to extract member ID and role from lease holder identity", "holderIdentity", lease.Spec.HolderIdentity)
+			r.logger.Error(err, "failed to extract member ID and role from member lease's holder identity", "holderIdentity", lease.Spec.HolderIdentity)
 			continue
 		}
 		var res = &result{
