@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    uses: ./.github/workflows/build.yaml
+    uses: ./.github/workflows/base.yaml
     with:
       mode: snapshot
       run-tests: ${{ github.event_name == 'push' }}

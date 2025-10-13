@@ -28,6 +28,9 @@ jobs:
     name: Build OCI-Images
     needs:
       - prepare
+      - checks
+      - tests
+      - sast-lint
     permissions:
       contents: read
       packages: write
@@ -87,6 +90,26 @@ jobs:
       oci-repository: ${{ matrix.args.oci-repository }}
       ocm-mappings: ${{ toJSON(matrix.args.ocm-mappings) }}
 
+  checks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: gardener/cc-utils/.github/actions/trusted-checkout@master
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: check
+        run: make check
+      - name: check-license-headers
+        run: make check-license-headers
+      - name: api-tidy
+        run: make --directory=api tidy
+      - name: api-check
+        run: make --directory=api check
+      - name: api-check-generate
+        run: make --directory=api check-generate
+
   tests:
     runs-on: ubuntu-latest
     if: ${{ inputs.run-tests }}
@@ -95,14 +118,16 @@ jobs:
     strategy:
       matrix:
         args:
-          - run: .ci/test_integration
-          - run: .ci/test
+          - name: test-unit
+            run: make test-unit
+          - name: test-integration
+            run: make test-integration
     steps:
       - uses: gardener/cc-utils/.github/actions/trusted-checkout@master
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'
-      - name: run-integration-tests
+      - name: run-tests
         shell: bash
         run: |
           set -euo pipefail
@@ -114,5 +139,5 @@ jobs:
       contents: read
     with:
       linter: gosec
-      run: .ci/check
+      run: make sast-report
       go-version: '1.24'
