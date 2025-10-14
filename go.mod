@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
-	github.com/gardener/etcd-backup-restore v0.38.0
+	github.com/gardener/etcd-backup-restore v0.39.0
 	github.com/gardener/etcd-druid/api v0.0.0
 	github.com/gardener/etcd-druid/client v0.0.0
 	github.com/go-logr/logr v1.4.3
