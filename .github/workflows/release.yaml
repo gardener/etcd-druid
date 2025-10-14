@@ -31,6 +31,10 @@ jobs:
       packages: write
     with:
       release-commit-target: branch
+      github-tag-template: '${version}'
+      github-additional-tag-templates: |
+        api/${version}
+        client/${version}
       next-version: ${{ inputs.next-version }}
       next-version-callback-action-path:
       slack-channel-id: C0177NLL8V9 # #gardener-etcd
