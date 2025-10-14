@@ -124,8 +124,8 @@ github.com/fsnotify/fsnotify v1.8.0 h1:dAwr6QBTBZIkG8roQaJjGof0pp0EeF+tNV7YBP3F/
 github.com/fsnotify/fsnotify v1.8.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/fxamacker/cbor/v2 v2.8.0 h1:fFtUGXUzXPHTIUdne5+zzMPTfffl3RD5qYnkY40vtxU=
 github.com/fxamacker/cbor/v2 v2.8.0/go.mod h1:vM4b+DJCtHn+zz7h3FFp/hDAI9WNWCsZj23V5ytsSxQ=
-github.com/gardener/etcd-backup-restore v0.38.0 h1:buIbWX2gN9UyOyLbZzclqiNF0T9X8qyHrxzQx49wrOo=
-github.com/gardener/etcd-backup-restore v0.38.0/go.mod h1:3JVH8pRKd6rjDbkzp70+vvMaAHIejlAhNyNF/+2Ph+I=
+github.com/gardener/etcd-backup-restore v0.39.0 h1:i800lKo6BwiBuCwnvxpSoBz2DaKQIYJrVKPAoUZSWxo=
+github.com/gardener/etcd-backup-restore v0.39.0/go.mod h1:xHZanDMQPaZNMIXDJEFjiqlQcvqJ4ulPimfpgifWM+A=
 github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
 github.com/go-logr/logr v1.4.3 h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI=
 github.com/go-logr/logr v1.4.3/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
