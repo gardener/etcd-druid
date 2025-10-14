@@ -62,6 +62,18 @@ check: $(GOLANGCI_LINT) $(GOIMPORTS) format
 check-license-headers: $(GO_ADD_LICENSE)
 	@$(HACK_DIR)/check-license-headers.sh
 
+# Check git status is clean
+.PHONY: check-git-status
+check-git-status:
+	@if [[ -n $$(git status --porcelain) ]]; then \
+		echo "Repository is dirty. Please commit or stash changes."; \
+		git status; \
+		git diff; \
+		exit 1; \
+	else \
+		echo "Repository is clean ✓"; \
+	fi
+
 .PHONY: sast
 sast: $(GOSEC)
 	@./hack/sast.sh

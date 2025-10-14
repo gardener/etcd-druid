@@ -61,7 +61,6 @@ api/hack/tools/bin/*
 
 # generated/copied chart resources
 charts/pki-resources/*
-charts/crds/*
 
 # go workspace files
 go.work
