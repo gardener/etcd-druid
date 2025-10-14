@@ -108,7 +108,10 @@ jobs:
       - name: api-check
         run: make --directory=api check
       - name: api-check-generate
-        run: make --directory=api check-generate
+        run: |
+          git config --global user.email "gardener@sap.com"
+          git config --global user.name "Gardener CI/CD"
+          make --directory=api check-generate
 
   tests:
     runs-on: ubuntu-latest
