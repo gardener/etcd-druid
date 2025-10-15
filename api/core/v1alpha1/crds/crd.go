@@ -26,7 +26,7 @@ const (
 	ResourceNameEtcd = "etcds.druid.gardener.cloud"
 	// ResourceNameEtcdCopyBackupsTask is the name of the etcd-copy-backup-task CRD.
 	ResourceNameEtcdCopyBackupsTask = "etcdcopybackupstasks.druid.gardener.cloud"
-	// ResourceNameEtcdOpsTask is the name of the etcd-operator-task CRD.
+	// ResourceNameEtcdOpsTask is the name of the etcd-ops-task CRD.
 	ResourceNameEtcdOpsTask = "etcdopstasks.druid.gardener.cloud"
 )
 

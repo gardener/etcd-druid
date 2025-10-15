@@ -75,7 +75,6 @@ rules:
   resources:
   - etcds
   - etcdcopybackupstasks
-  - etcdopstasks
   verbs:
   - get
   - list
@@ -88,7 +87,6 @@ rules:
   - etcds/status
   - etcds/finalizers
   - etcdcopybackupstasks/status
-  - etcdopstasks/status
   verbs:
   - get
   - update

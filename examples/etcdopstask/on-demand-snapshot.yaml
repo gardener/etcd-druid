@@ -8,6 +8,7 @@ spec:
     onDemandSnapshot:
       type: full #options: full, delta
       isFinal: false
-      timeoutSeconds: 120
+      timeoutSecondsFull: 480
+      timeoutSecondsDelta: 60
   etcdName: etcd-test
   ttlSecondsAfterFinished: 3600

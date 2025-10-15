@@ -35,23 +35,27 @@ const (
 	TaskStateRejected TaskState = "Rejected"
 )
 
-const (
-	// OperationTypeAdmit indicates that the task is in the admission phase.
-	OperationTypeAdmit LastOperationType = "Admit"
-	// OperationTypeRunning indicates that the task is currently being executed.
-	OperationTypeRunning LastOperationType = "Running"
-	// OperationTypeCleanup indicates that the task is in the cleanup phase.
-	OperationTypeCleanup LastOperationType = "Cleanup"
-)
+// OperationPhase represents the current phase of the EtcdOpstask's lifecycle.
+// +kubebuilder:validation:Enum=Admit;Running;Cleanup
+type OperationPhase string
 
 const (
-	// OperationStateInProgress indicates that the operation is currently in progress.
-	OperationStateInProgress LastOperationState = "InProgress"
-	// OperationStateCompleted indicates that the operation has completed.
-	OperationStateCompleted LastOperationState = "Completed"
-	// OperationStateFailed indicates that the operation has failed.
-	OperationStateFailed LastOperationState = "Failed"
+	// OperationPhaseAdmit indicates that the task is in the admission phase.
+	OperationPhaseAdmit OperationPhase = "Admit"
+	// OperationPhaseRunning indicates that the task is currently being executed.
+	OperationPhaseRunning OperationPhase = "Running"
+	// OperationPhaseCleanup indicates that the task is in the cleanup phase.
+	OperationPhaseCleanup OperationPhase = "Cleanup"
 )
+
+// const (
+// 	// OperationStateInProgress indicates that the operation is currently in progress.
+// 	OperationStateInProgress LastOperationState = "InProgress"
+// 	// OperationStateCompleted indicates that the operation has completed.
+// 	OperationStateCompleted LastOperationState = "Completed"
+// 	// OperationStateFailed indicates that the operation has failed.
+// 	OperationStateFailed LastOperationState = "Failed"
+// )
 
 ////////////////////////////////////////////////////////////////////////////////
 // EtcdOpsTask
@@ -65,7 +69,7 @@ const (
 // +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
 // +kubebuilder:printcolumn:name="Etcd",type=string,JSONPath=`.spec.etcdName`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-// +kubebuilder:printcolumn:name="Operation State",type=string,JSONPath=`.status.lastOperation.state`,priority=1
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`,priority=1
 // +kubebuilder:printcolumn:name="TTL",type=integer,JSONPath=`.spec.ttlSecondsAfterFinished`,priority=1
 
 // EtcdOpsTask represents a task to perform operations on an Etcd cluster.
@@ -147,6 +151,10 @@ type EtcdOpsTaskStatus struct {
 	// +optional
 	StartedAt *metav1.Time `json:"startedAt,omitempty"`
 
+	// Phase represents the current phase of the task's lifecycle.
+	// +optional
+	Phase *OperationPhase `json:"phase,omitempty"`
+
 	// LastErrors is a list of the most recent errors observed during the task's execution.
 	// A maximum of 10 latest errors will be recorded.
 	// +optional
@@ -157,41 +165,6 @@ type EtcdOpsTaskStatus struct {
 	// The controller initializes this field when processing the task.
 	// +optional
 	LastOperation *LastOperation `json:"lastOperation,omitempty"`
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// On-Demand Snapshot Config
-////////////////////////////////////////////////////////////////////////////////
-
-// OnDemandSnapshotType defines the type of on-demand snapshot.
-// +kubebuilder:validation:Enum=full;delta
-type OnDemandSnapshotType string
-
-const (
-	// OnDemandSnapshotTypeFull indicates a full snapshot, capturing the entire etcd database state.
-	OnDemandSnapshotTypeFull OnDemandSnapshotType = "full"
-	// OnDemandSnapshotTypeDelta indicates a delta snapshot, capturing only changes since the last snapshot.
-	OnDemandSnapshotTypeDelta OnDemandSnapshotType = "delta"
-)
-
-// OnDemandSnapshotConfig defines the configuration for an on-demand snapshot task.
-// +kubebuilder:validation:XValidation:rule="self.type == 'delta' ? !has(self.isFinal) : true",message="isFinal must be false (or omitted) when type is 'delta'"
-type OnDemandSnapshotConfig struct {
-	// Type specifies whether the snapshot is a 'full' or 'delta' snapshot.
-	// Use 'full' for a complete backup of the etcd database, or 'delta' for incremental changes since the last snapshot.
-	// +kubebuilder:validation:Required
-	Type OnDemandSnapshotType `json:"type"`
-
-	// IsFinal indicates whether the snapshot is marked as final. This is subject to change.
-	// +optional
-	IsFinal *bool `json:"isFinal,omitempty"`
-
-	// TimeoutSeconds is the timeout for the snapshot operation.
-	// Defaults to 60 seconds.
-	// +optional
-	// +kubebuilder:default=60
-	// +kubebuilder:validation:Minimum=1
-	TimeoutSeconds *int32 `json:"timeoutSeconds,omitempty"`
 }
 
 // GetEtcdReference returns the NamespacedName of the etcd object referenced by the task.

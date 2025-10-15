@@ -8,7 +8,9 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
+	druidapiconstants "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
@@ -33,9 +35,10 @@ func TestCleanupTaskResources(t *testing.T) {
 		task                  *druidv1alpha1.EtcdOpsTask
 		expectedResult        ctrlutils.ReconcileStepResult
 		cleanupFailed         bool
-		resultCompleted       bool
+		resultRequeue         bool
 		expectedLastOperation *druidv1alpha1.LastOperation
 		expectedLastErrors    *druidv1alpha1.LastError
+		expectedPhase         *druidv1alpha1.OperationPhase
 	}{
 		{
 			name:          "Task not found",
@@ -48,51 +51,58 @@ func TestCleanupTaskResources(t *testing.T) {
 			cleanupFailed:  false,
 			expectedResult: ctrlutils.ContinueReconcile(),
 			expectedLastOperation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.OperationTypeCleanup,
-				State:       druidv1alpha1.OperationStateCompleted,
+				Type:        druidv1alpha1.LastOperationTypeDelete,
+				State:       druidv1alpha1.LastOperationStateProcessing,
 				Description: "Cleanup skipped for rejected task",
 			},
+			expectedPhase: ptr.To(druidv1alpha1.OperationPhaseCleanup),
 		},
 		{
-			name:           "result.Completed is true, no error, last operation is updated",
+			name:           "result.requeue is false, no error, last operation is updated",
 			task:           newTestTask(nil),
 			cleanupFailed:  false,
 			expectedResult: ctrlutils.ContinueReconcile(),
 			expectedLastOperation: &druidv1alpha1.LastOperation{
-				Type:  druidv1alpha1.OperationTypeCleanup,
-				State: druidv1alpha1.OperationStateCompleted,
+				Type:  druidv1alpha1.LastOperationTypeDelete,
+				State: druidv1alpha1.LastOperationStateProcessing,
 			},
+			expectedPhase: ptr.To(druidv1alpha1.OperationPhaseCleanup),
 		},
 		{
-			name:            "result.Completed is true, error, last operation and last Error is updated",
-			task:            newTestTask(nil),
-			expectedResult:  ctrlutils.ReconcileWithError(druiderr.WrapError(fmt.Errorf("test error"), "TestError", "TestOperation", "This is a test error")),
-			cleanupFailed:   true,
-			resultCompleted: true,
-			expectedLastOperation: &druidv1alpha1.LastOperation{
-				Type:  druidv1alpha1.OperationTypeCleanup,
-				State: druidv1alpha1.OperationStateFailed,
-			},
-			expectedLastErrors: &druidv1alpha1.LastError{
-				Code:        druidv1alpha1.ErrorCode("TestError"),
-				Description: "This is a test error",
-			},
-		},
-		{
-			name:           "result.Completed is false, no error, last operation is not updated",
-			task:           newTestTask(nil),
-			cleanupFailed:  false,
-			expectedResult: ctrlutils.ContinueReconcile(),
-		},
-		{
-			name:           "result.Completed is false, error, last Error is updated",
+			name:           "result.requeue is false, error, last operation and last Error is updated",
 			task:           newTestTask(nil),
 			expectedResult: ctrlutils.ReconcileWithError(druiderr.WrapError(fmt.Errorf("test error"), "TestError", "TestOperation", "This is a test error")),
 			cleanupFailed:  true,
+			resultRequeue:  false,
+			expectedLastOperation: &druidv1alpha1.LastOperation{
+				Type:  druidv1alpha1.LastOperationTypeDelete,
+				State: druidv1alpha1.LastOperationStateError,
+			},
 			expectedLastErrors: &druidv1alpha1.LastError{
 				Code:        druidv1alpha1.ErrorCode("TestError"),
 				Description: "This is a test error",
 			},
+			expectedPhase: ptr.To(druidv1alpha1.OperationPhaseCleanup),
+		},
+		{
+			name:           "result.requeue is true, no error, requeues task",
+			task:           newTestTask(nil),
+			cleanupFailed:  false,
+			resultRequeue:  true,
+			expectedResult: ctrlutils.ReconcileAfter(60*time.Second, "Task cleanup in progress"),
+			expectedPhase:  ptr.To(druidv1alpha1.OperationPhaseCleanup),
+		},
+		{
+			name:           "result.requeue is true, error, last Error is updated",
+			task:           newTestTask(nil),
+			expectedResult: ctrlutils.ReconcileWithError(druiderr.WrapError(fmt.Errorf("test error"), "TestError", "TestOperation", "This is a test error")),
+			cleanupFailed:  true,
+			resultRequeue:  true,
+			expectedLastErrors: &druidv1alpha1.LastError{
+				Code:        druidv1alpha1.ErrorCode("TestError"),
+				Description: "This is a test error",
+			},
+			expectedPhase: ptr.To(druidv1alpha1.OperationPhaseCleanup),
 		},
 	}
 	for _, tc := range tests {
@@ -110,12 +120,12 @@ func TestCleanupTaskResources(t *testing.T) {
 			fakeHandler := utils.NewFakeEtcdOpsTaskHandler("test-task", types.NamespacedName{Name: "test-task", Namespace: "test-ns"}, reconciler.logger)
 			if tc.cleanupFailed {
 				fakeHandler.WithCleanup(handler.Result{
-					Completed: tc.resultCompleted,
-					Error:     druiderr.WrapError(fmt.Errorf("test error"), "TestError", "TestOperation", "This is a test error"),
+					Requeue: tc.resultRequeue,
+					Error:   druiderr.WrapError(fmt.Errorf("test error"), "TestError", "TestOperation", "This is a test error"),
 				})
 			} else {
 				fakeHandler.WithCleanup(handler.Result{
-					Completed: true,
+					Requeue: tc.resultRequeue,
 				})
 			}
 
@@ -130,6 +140,11 @@ func TestCleanupTaskResources(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			checkLastOperation(g, updatedTask, tc.expectedLastOperation)
 			checkLastErrors(g, updatedTask, tc.expectedLastErrors)
+
+			if tc.expectedPhase != nil {
+				g.Expect(updatedTask.Status.Phase).ToNot(BeNil())
+				g.Expect(*updatedTask.Status.Phase).To(Equal(*tc.expectedPhase))
+			}
 		})
 
 	}
@@ -153,7 +168,7 @@ func TestRemoveTaskFinalizer(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       "test-task",
 					Namespace:  "test-ns",
-					Finalizers: []string{FinalizerName, "other-finalizer"},
+					Finalizers: []string{druidapiconstants.EtcdOpsTaskFinalizerName, "other-finalizer"},
 				},
 			},
 			expectedResult: ctrlutils.ContinueReconcile(),
@@ -243,7 +258,7 @@ func TestRemoveTask(t *testing.T) {
 
 			reconciler := newTestReconciler(t, cl)
 			fakeHandler := utils.NewFakeEtcdOpsTaskHandler("test-task", types.NamespacedName{Name: "test-task", Namespace: "test-ns"}, reconciler.logger)
-			fakeHandler.WithCleanup(handler.Result{Completed: true})
+			fakeHandler.WithCleanup(handler.Result{Requeue: true})
 
 			result := reconciler.removeTask(context.TODO(), reconciler.logger, types.NamespacedName{Name: "test-task", Namespace: "test-ns"}, fakeHandler)
 			if tc.task == nil {
