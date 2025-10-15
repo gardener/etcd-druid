@@ -648,6 +648,11 @@ func (in *EtcdOpsTaskStatus) DeepCopyInto(out *EtcdOpsTaskStatus) {
 		in, out := &in.StartedAt, &out.StartedAt
 		*out = (*in).DeepCopy()
 	}
+	if in.Phase != nil {
+		in, out := &in.Phase, &out.Phase
+		*out = new(OperationPhase)
+		**out = **in
+	}
 	if in.LastErrors != nil {
 		in, out := &in.LastErrors, &out.LastErrors
 		*out = make([]LastError, len(*in))
@@ -877,8 +882,13 @@ func (in *OnDemandSnapshotConfig) DeepCopyInto(out *OnDemandSnapshotConfig) {
 		*out = new(bool)
 		**out = **in
 	}
-	if in.TimeoutSeconds != nil {
-		in, out := &in.TimeoutSeconds, &out.TimeoutSeconds
+	if in.TimeoutSecondsDelta != nil {
+		in, out := &in.TimeoutSecondsDelta, &out.TimeoutSecondsDelta
+		*out = new(int32)
+		**out = **in
+	}
+	if in.TimeoutSecondsFull != nil {
+		in, out := &in.TimeoutSecondsFull, &out.TimeoutSecondsFull
 		*out = new(int32)
 		**out = **in
 	}

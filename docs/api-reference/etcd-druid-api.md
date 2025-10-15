@@ -158,7 +158,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `enabled` _boolean_ | Enabled specifies whether the EtcdOpsTask controller is enabled. |  |  |
 | `concurrentSyncs` _integer_ | ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request. |  |  |
 | `requeueInterval` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | RequeueInterval is the duration to wait before re-queuing a reconcile request for EtcdOpsTask. |  |  |
 
@@ -776,6 +775,7 @@ _Appears in:_
 | `state` _[TaskState](#taskstate)_ | State is the overall state of the task.<br />The controller initializes this field when processing the task. |  | Enum: [Pending InProgress Succeeded Failed Rejected] <br /> |
 | `lastTransitionTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | LastTransitionTime is the last time the state transitioned from one value to another. |  |  |
 | `startedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | StartedAt is the time at which the task transitioned from Pending to InProgress. |  |  |
+| `phase` _[OperationPhase](#operationphase)_ | Phase represents the current phase of the task's lifecycle. |  | Enum: [Admit Running Cleanup] <br /> |
 | `lastErrors` _[LastError](#lasterror) array_ | LastErrors is a list of the most recent errors observed during the task's execution.<br />A maximum of 10 latest errors will be recorded. |  | MaxItems: 10 <br /> |
 | `lastOperation` _[LastOperation](#lastoperation)_ | LastOperation tracks the fine-grained progress of the task's execution.<br />The controller initializes this field when processing the task. |  |  |
 
@@ -924,9 +924,6 @@ _Appears in:_
 | `Succeeded` | LastOperationStateSucceeded indicates that an operation has completed successfully.<br /> |
 | `Error` | LastOperationStateError indicates that an operation is completed with errors and will be retried.<br /> |
 | `Requeue` | LastOperationStateRequeue indicates that an operation is not completed and either due to an error or unfulfilled conditions will be retried.<br /> |
-| `InProgress` | OperationStateInProgress indicates that the operation is currently in progress.<br /> |
-| `Completed` | OperationStateCompleted indicates that the operation has completed.<br /> |
-| `Failed` | OperationStateFailed indicates that the operation has failed.<br /> |
 
 
 #### LastOperationType
@@ -945,9 +942,6 @@ _Appears in:_
 | `Create` | LastOperationTypeCreate indicates that the last operation was a creation of a new Etcd resource.<br /> |
 | `Reconcile` | LastOperationTypeReconcile indicates that the last operation was a reconciliation of the spec of an Etcd resource.<br /> |
 | `Delete` | LastOperationTypeDelete indicates that the last operation was a deletion of an existing Etcd resource.<br /> |
-| `Admit` | OperationTypeAdmit indicates that the task is in the admission phase.<br /> |
-| `Running` | OperationTypeRunning indicates that the task is currently being executed.<br /> |
-| `Cleanup` | OperationTypeCleanup indicates that the task is in the cleanup phase.<br /> |
 
 
 #### LeaderElectionSpec
@@ -1000,7 +994,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `type` _[OnDemandSnapshotType](#ondemandsnapshottype)_ | Type specifies whether the snapshot is a 'full' or 'delta' snapshot.<br />Use 'full' for a complete backup of the etcd database, or 'delta' for incremental changes since the last snapshot. |  | Enum: [full delta] <br />Required: \{\} <br /> |
 | `isFinal` _boolean_ | IsFinal indicates whether the snapshot is marked as final. This is subject to change. |  |  |
-| `timeoutSeconds` _integer_ | TimeoutSeconds is the timeout for the snapshot operation.<br />Defaults to 60 seconds. | 60 | Minimum: 1 <br /> |
+| `timeoutSecondsDelta` _integer_ | TimeoutSeconds is the timeout for the delta snapshot operation.<br />Defaults to 60 seconds. | 60 | Minimum: 1 <br /> |
+| `timeoutSecondsFull` _integer_ | TimeoutSecondsFull is the timeout for full snapshot operations.<br />Defaults to 480 seconds (8 minutes). | 480 | Minimum: 1 <br /> |
 
 
 #### OnDemandSnapshotType
@@ -1019,6 +1014,25 @@ _Appears in:_
 | --- | --- |
 | `full` | OnDemandSnapshotTypeFull indicates a full snapshot, capturing the entire etcd database state.<br /> |
 | `delta` | OnDemandSnapshotTypeDelta indicates a delta snapshot, capturing only changes since the last snapshot.<br /> |
+
+
+#### OperationPhase
+
+_Underlying type:_ _string_
+
+OperationPhase represents the current phase of the EtcdOpstask's lifecycle.
+
+_Validation:_
+- Enum: [Admit Running Cleanup]
+
+_Appears in:_
+- [EtcdOpsTaskStatus](#etcdopstaskstatus)
+
+| Field | Description |
+| --- | --- |
+| `Admit` | OperationPhaseAdmit indicates that the task is in the admission phase.<br /> |
+| `Running` | OperationPhaseRunning indicates that the task is currently being executed.<br /> |
+| `Cleanup` | OperationPhaseCleanup indicates that the task is in the cleanup phase.<br /> |
 
 
 #### SchedulingConstraints

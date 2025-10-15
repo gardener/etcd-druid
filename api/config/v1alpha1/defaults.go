@@ -186,9 +186,6 @@ const (
 
 // SetDefaults_EtcdOpsTaskControllerConfiguration sets defaults for the EtcdOpsTask controller configuration.
 func SetDefaults_EtcdOpsTaskControllerConfiguration(etcdOpsTaskCtrlConfig *EtcdOpsTaskControllerConfiguration) {
-	if !etcdOpsTaskCtrlConfig.Enabled {
-		return
-	}
 	if etcdOpsTaskCtrlConfig.ConcurrentSyncs == nil {
 		etcdOpsTaskCtrlConfig.ConcurrentSyncs = ptr.To(DefaultEtcdOpsTaskControllerConcurrentSyncs)
 	}

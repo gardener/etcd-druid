@@ -76,7 +76,6 @@ operatorConfig:
     secret:
       concurrentSyncs: 10
     etcdOpsTask:
-      enabled: true
       concurrentSyncs: 3
       requeueInterval: 15s
   webhooks:
@@ -126,7 +125,6 @@ controllers:
   secret:
     workers: 10
   etcdOpsTask:
-    enabled: true
     workers: 3
     requeueInterval: 15s
 

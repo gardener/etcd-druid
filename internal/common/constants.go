@@ -5,8 +5,6 @@
 package common
 
 const (
-	// FinalizerName is the name of the etcd finalizer.
-	FinalizerName = "druid.gardener.cloud/etcd-druid"
 	// CheckSumKeyConfigMap is the key that is set by a configmap component and used by StatefulSet component to
 	// place an annotation on the StatefulSet pods. The value contains the check-sum of the latest configmap that
 	// should be reflected on the pods.

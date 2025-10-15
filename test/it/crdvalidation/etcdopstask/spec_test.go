@@ -146,8 +146,8 @@ func TestValidateEtcdOpsTaskSpecOndemandSnapshotConfig(t *testing.T) {
 			name:     "Valid OnDemandSnapshot - positive timeout",
 			taskName: "task-positive-timeout",
 			config: &druidv1alpha1.OnDemandSnapshotConfig{
-				Type:           druidv1alpha1.OnDemandSnapshotTypeFull,
-				TimeoutSeconds: ptr.To(int32(120)),
+				Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
+				TimeoutSecondsFull: ptr.To(int32(120)),
 			},
 			expectErr: false,
 		},
@@ -164,8 +164,8 @@ func TestValidateEtcdOpsTaskSpecOndemandSnapshotConfig(t *testing.T) {
 			name:     "Invalid OnDemandSnapshot - zero timeout",
 			taskName: "task-zero-timeout",
 			config: &druidv1alpha1.OnDemandSnapshotConfig{
-				Type:           druidv1alpha1.OnDemandSnapshotTypeFull,
-				TimeoutSeconds: ptr.To(int32(0)),
+				Type:                druidv1alpha1.OnDemandSnapshotTypeDelta,
+				TimeoutSecondsDelta: ptr.To(int32(0)),
 			},
 			expectErr: true,
 		},
@@ -173,8 +173,8 @@ func TestValidateEtcdOpsTaskSpecOndemandSnapshotConfig(t *testing.T) {
 			name:     "Invalid OnDemandSnapshot - negative timeout",
 			taskName: "task-negative-timeout",
 			config: &druidv1alpha1.OnDemandSnapshotConfig{
-				Type:           druidv1alpha1.OnDemandSnapshotTypeFull,
-				TimeoutSeconds: ptr.To(int32(-30)),
+				Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
+				TimeoutSecondsFull: ptr.To(int32(-30)),
 			},
 			expectErr: true,
 		},
@@ -195,7 +195,7 @@ func TestValidateEtcdOpsTaskSpecOndemandSnapshotConfig(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name:     "Invalid OnDemandSnapshot - invalid enum value 'invalid'",
+			name:     "Invalid OnDemandSnapshot - invalid enum value",
 			taskName: "task-enum-invalid-1",
 			config: &druidv1alpha1.OnDemandSnapshotConfig{
 				Type: druidv1alpha1.OnDemandSnapshotType("invalid"),
@@ -203,7 +203,7 @@ func TestValidateEtcdOpsTaskSpecOndemandSnapshotConfig(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name:     "Invalid OnDemandSnapshot - invalid enum value 'incremental'",
+			name:     "Invalid OnDemandSnapshot - invalid enum value 2",
 			taskName: "task-enum-invalid-2",
 			config: &druidv1alpha1.OnDemandSnapshotConfig{
 				Type: druidv1alpha1.OnDemandSnapshotType("incremental"),
@@ -235,16 +235,18 @@ func TestValidateEtcdOpsTaskSpecOndemandSnapshotConfig(t *testing.T) {
 // TestValidateEtcdOpsTaskSpecDefaults tests that default values are properly applied
 func TestValidateEtcdOpsTaskSpecDefaults(t *testing.T) {
 	tests := []struct {
-		name            string
-		taskName        string
-		expectedTTL     int32
-		expectedTimeout int32
+		name                        string
+		taskName                    string
+		expectedTTL                 int32
+		expectedTimeoutSecondsFull  int32
+		expectedTimeoutSecondsDelta int32
 	}{
 		{
-			name:            "Default values set for spec.TTLSecondsAfterFinished and spec.config.onDemandSnapshot.timeoutSeconds",
-			taskName:        "task-defaults",
-			expectedTTL:     3600,
-			expectedTimeout: 60,
+			name:                        "Default values set for spec.TTLSecondsAfterFinished and spec.config.onDemandSnapshot.timeoutSeconds",
+			taskName:                    "task-defaults",
+			expectedTTL:                 3600,
+			expectedTimeoutSecondsFull:  480,
+			expectedTimeoutSecondsDelta: 60,
 		},
 	}
 
@@ -263,8 +265,11 @@ func TestValidateEtcdOpsTaskSpecDefaults(t *testing.T) {
 			g.Expect(fetchedTask.Spec.TTLSecondsAfterFinished).ToNot(BeNil())
 			g.Expect(*fetchedTask.Spec.TTLSecondsAfterFinished).To(Equal(test.expectedTTL))
 
-			g.Expect(fetchedTask.Spec.Config.OnDemandSnapshot.TimeoutSeconds).ToNot(BeNil())
-			g.Expect(*fetchedTask.Spec.Config.OnDemandSnapshot.TimeoutSeconds).To(Equal(test.expectedTimeout))
+			g.Expect(fetchedTask.Spec.Config.OnDemandSnapshot.TimeoutSecondsFull).ToNot(BeNil())
+			g.Expect(*fetchedTask.Spec.Config.OnDemandSnapshot.TimeoutSecondsFull).To(Equal(test.expectedTimeoutSecondsFull))
+
+			g.Expect(fetchedTask.Spec.Config.OnDemandSnapshot.TimeoutSecondsDelta).ToNot(BeNil())
+			g.Expect(*fetchedTask.Spec.Config.OnDemandSnapshot.TimeoutSecondsDelta).To(Equal(test.expectedTimeoutSecondsDelta))
 		})
 	}
 }

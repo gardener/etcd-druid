@@ -23,11 +23,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// Defines the Controller name and finalizer for EtcdOpsTask resources.
-const (
-	FinalizerName = "druid.gardener.cloud/etcd-ops-task"
-)
-
 // reconcileFn defines a function signature for a reconciliation step.
 type reconcileFn func(ctx context.Context, logger logr.Logger, taskObjKey client.ObjectKey, taskHandler handler.Handler) ctrlutils.ReconcileStepResult
 
@@ -66,14 +61,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	task, err := r.getTask(ctx, req.NamespacedName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logger.Info("Task not found, skipping reconciliation")
+			logger.V(5).Info("Task not found, skipping reconciliation")
 			return reconcile.Result{}, nil
 		}
 		return reconcile.Result{}, err
-	}
-	if task == nil {
-		logger.Info("Task not found, skipping reconciliation")
-		return reconcile.Result{}, nil
 	}
 
 	taskHandlerInstance, err := r.getTaskHandler(task)
@@ -81,7 +72,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		logger.Error(err, "Failed to create task handler instance")
 		return reconcile.Result{}, err
 	}
-	logger.V(1).Info(fmt.Sprintf("Task handler created successfully: %T", taskHandlerInstance))
 
 	if r.shouldDeleteTask(task) {
 		return r.triggerDeletionFlow(ctx, logger, taskHandlerInstance, task).ReconcileResult()

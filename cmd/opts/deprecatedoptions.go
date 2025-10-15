@@ -142,7 +142,6 @@ func (d *deprecatedOperatorConfiguration) ToOperatorConfiguration() *druidconfig
 	config.Controllers.Compaction.MetricsScrapeWaitDuration = metav1.Duration{Duration: d.compactionMetricsScrapeWaitDuration}
 	config.Controllers.EtcdCopyBackupsTask.Enabled = d.etcdCopyBackupsTaskEnabled
 	config.Controllers.EtcdCopyBackupsTask.ConcurrentSyncs = &d.etcdCopyBackupsTaskWorkers
-	config.Controllers.EtcdOpsTask.Enabled = d.etcdOpsTaskEnabled
 	config.Controllers.EtcdOpsTask.ConcurrentSyncs = &d.etcdOpsTaskWorkers
 	config.Controllers.EtcdOpsTask.RequeueInterval = &metav1.Duration{Duration: d.etcdOpsTaskRequeueInterval}
 	config.Controllers.Secret.ConcurrentSyncs = &d.secretWorkers

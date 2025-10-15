@@ -87,10 +87,10 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 				Description: "Admit Operation: Failed to get etcd object",
 				Error: &druiderr.DruidError{
 					Code:      ErrGetEtcd,
-					Operation: string(druidv1alpha1.OperationTypeAdmit),
+					Operation: string(druidv1alpha1.OperationPhaseAdmit),
 					Message:   "failed to get etcd object",
 				},
-				Completed: true,
+				Requeue: false,
 			},
 			expectErr: true,
 		},
@@ -101,10 +101,10 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 				Description: "Admit Operation: Backup is not enabled for etcd",
 				Error: &druiderr.DruidError{
 					Code:      ErrBackupNotEnabled,
-					Operation: string(druidv1alpha1.OperationTypeAdmit),
+					Operation: string(druidv1alpha1.OperationPhaseAdmit),
 					Message:   "backup is not enabled for etcd",
 				},
-				Completed: true,
+				Requeue: false,
 			},
 			expectErr: true,
 		},
@@ -115,10 +115,10 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 				Description: "Admit Operation: Etcd is not ready",
 				Error: &druiderr.DruidError{
 					Code:      ErrEtcdNotReady,
-					Operation: string(druidv1alpha1.OperationTypeAdmit),
+					Operation: string(druidv1alpha1.OperationPhaseAdmit),
 					Message:   "etcd is not ready",
 				},
-				Completed: true,
+				Requeue: false,
 			},
 			expectErr: true,
 		},
@@ -127,7 +127,7 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 			etcdObject: createEtcd("test-etcd", "test-namespace", true, true, false),
 			expectedResult: handler.Result{
 				Description: "Admit check passed",
-				Completed:   true,
+				Requeue:     false,
 			},
 			expectErr: false,
 		},
@@ -142,16 +142,16 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
 
 			etcdOpsTask := createEtcdOpsTask(druidv1alpha1.OnDemandSnapshotConfig{
-				Type:           "Full",
-				TimeoutSeconds: ptr.To(int32(5)),
-				IsFinal:        ptr.To(false),
+				Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
+				TimeoutSecondsFull: ptr.To(int32(5)),
+				IsFinal:            ptr.To(false),
 			})
 
 			taskHandler, err := New(cl, etcdOpsTask, nil)
 			g.Expect(err).To(BeNil())
 
 			admitResult := taskHandler.Admit(context.TODO())
-			g.Expect(admitResult.Completed).To(Equal(tc.expectedResult.Completed))
+			g.Expect(admitResult.Requeue).To(Equal(tc.expectedResult.Requeue))
 			g.Expect(admitResult.Description).To(Equal(tc.expectedResult.Description))
 
 			if tc.expectErr {
@@ -208,10 +208,10 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				Description: "Run Operation: Failed to get etcd object - object not found",
 				Error: &druiderr.DruidError{
 					Code:      ErrGetEtcd,
-					Operation: string(druidv1alpha1.OperationTypeRunning),
+					Operation: string(druidv1alpha1.OperationPhaseRunning),
 					Message:   "failed to get etcd object - object not found",
 				},
-				Completed: true,
+				Requeue: false,
 			},
 			expectErr: true,
 		},
@@ -226,10 +226,10 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				Description: "Run Operation: Etcd is not ready",
 				Error: &druiderr.DruidError{
 					Code:      ErrEtcdNotReady,
-					Operation: string(druidv1alpha1.OperationTypeRunning),
+					Operation: string(druidv1alpha1.OperationPhaseRunning),
 					Message:   "etcd is not ready",
 				},
-				Completed: true,
+				Requeue: false,
 			},
 			expectErr: true,
 		},
@@ -243,7 +243,7 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 			expectedResult: handler.Result{
 				Description: "Run Operation: Failed to execute HTTP request",
 				Error:       fmt.Errorf("connection refused"),
-				Completed:   false,
+				Requeue:     true,
 			},
 			expectErr: true,
 		},
@@ -261,10 +261,10 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				Description: "Run Operation: Failed to create snapshot",
 				Error: &druiderr.DruidError{
 					Code:      ErrCreateSnapshot,
-					Operation: string(druidv1alpha1.OperationTypeRunning),
+					Operation: string(druidv1alpha1.OperationPhaseRunning),
 					Message:   "failed to create snapshot",
 				},
-				Completed: true,
+				Requeue: false,
 			},
 			expectErr: true,
 		},
@@ -279,10 +279,10 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				Description: "Run Operation: Failed to get etcdbr CA secret",
 				Error: &druiderr.DruidError{
 					Code:      ErrGetSecret,
-					Operation: string(druidv1alpha1.OperationTypeRunning),
+					Operation: string(druidv1alpha1.OperationPhaseRunning),
 					Message:   "failed to get etcdbr CA secret test-namespace/client-url-ca-etcd",
 				},
-				Completed: false,
+				Requeue: true,
 			},
 			expectErr: true,
 		},
@@ -298,7 +298,7 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 			},
 			expectedResult: handler.Result{
 				Description: "Snapshot created successfully",
-				Completed:   true,
+				Requeue:     false,
 			},
 			expectErr: false,
 		},
@@ -314,9 +314,9 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
 
 			etcdOpsTask := createEtcdOpsTask(druidv1alpha1.OnDemandSnapshotConfig{
-				Type:           "Full",
-				TimeoutSeconds: ptr.To(int32(5)),
-				IsFinal:        ptr.To(false),
+				Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
+				TimeoutSecondsFull: ptr.To(int32(5)),
+				IsFinal:            ptr.To(false),
 			})
 
 			fakeHttpClient := http.Client{
@@ -330,7 +330,7 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 
 			runResult := taskHandler.Run(context.TODO())
 			g.Expect(runResult).ToNot(BeNil())
-			g.Expect(runResult.Completed).To(Equal(tc.expectedResult.Completed))
+			g.Expect(runResult.Requeue).To(Equal(tc.expectedResult.Requeue))
 			g.Expect(runResult.Description).To(Equal(tc.expectedResult.Description))
 
 			if tc.expectErr {

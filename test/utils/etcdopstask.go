@@ -37,7 +37,7 @@ type FakeEtcdOpsTaskHandler struct {
 // signal completion.  You can override any of the results via the fluent
 // helper methods below.
 func NewFakeEtcdOpsTaskHandler(name string, etcdRef types.NamespacedName, logger logr.Logger) *FakeEtcdOpsTaskHandler {
-	completed := handler.Result{Completed: true}
+	completed := handler.Result{Requeue: true}
 	return &FakeEtcdOpsTaskHandler{
 		etcdRef:       etcdRef,
 		AdmitResult:   completed,

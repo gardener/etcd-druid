@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	druidapiconstants "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask"
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler/ondemandsnapshot"
@@ -59,9 +60,9 @@ func testEtcdOpsTaskCreationSuccessValidConfig(t *testing.T, namespace string, r
 		Spec: druidv1alpha1.EtcdOpsTaskSpec{
 			Config: druidv1alpha1.EtcdOpsTaskConfig{
 				OnDemandSnapshot: &druidv1alpha1.OnDemandSnapshotConfig{
-					Type:           druidv1alpha1.OnDemandSnapshotTypeFull,
-					TimeoutSeconds: ptr.To(int32(30)),
-					IsFinal:        ptr.To(false),
+					Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
+					TimeoutSecondsFull: ptr.To(int32(30)),
+					IsFinal:            ptr.To(false),
 				},
 			},
 			TTLSecondsAfterFinished: ptr.To(int32(60)),
@@ -86,10 +87,10 @@ func testEtcdOpsTaskAddFinalizer(t *testing.T, namespace string, reconcilerTestE
 		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcdopstaskInstance), etcdopstaskInstance); err != nil {
 			return false
 		}
-		return slices.Contains(etcdopstaskInstance.Finalizers, etcdopstask.FinalizerName)
+		return slices.Contains(etcdopstaskInstance.Finalizers, druidapiconstants.EtcdOpsTaskFinalizerName)
 	}, 5*time.Second, 100*time.Millisecond).Should(BeTrue(), "finalizer should be added to etcdopstask")
 
-	t.Logf("test completed: finalizer %s was successfully added to etcdopstask %s/%s", etcdopstask.FinalizerName, etcdopstaskInstance.Namespace, etcdopstaskInstance.Name)
+	t.Logf("test completed: finalizer %s was successfully added to etcdopstask %s/%s", druidapiconstants.EtcdOpsTaskFinalizerName, etcdopstaskInstance.Namespace, etcdopstaskInstance.Name)
 }
 
 // testEtcdOpsTaskRejcEtcdBackupDisabled tests that an EtcdOpsTask is rejected if the referenced etcd has backup disabled.
@@ -112,7 +113,7 @@ func testEtcdOpsTaskRejecEtcdBackupDisabled(t *testing.T, namespace string, reco
 	t.Logf("created etcdopstask %s/%s", etcdOpsTaskInstance.Namespace, etcdOpsTaskInstance.Name)
 
 	expectedErrorCode := ondemandsnapshot.ErrBackupNotEnabled
-	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.TaskStateRejected, druidv1alpha1.OperationStateFailed, druidv1alpha1.OperationTypeAdmit, &expectedErrorCode)
+	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.TaskStateRejected, druidv1alpha1.LastOperationStateError, druidv1alpha1.OperationPhaseAdmit, &expectedErrorCode)
 
 	t.Logf("test completed: etcdopstask was correctly rejected due to backup being disabled")
 }
@@ -141,8 +142,8 @@ func testEtcdOpsTaskRejectedIfEtcdNotReady(t *testing.T, namespace string, recon
 	t.Logf("created etcdopstask %s/%s", etcdOpsTaskInstance.Namespace, etcdOpsTaskInstance.Name)
 
 	expectedErrorCode := ondemandsnapshot.ErrEtcdNotReady
-	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.TaskStateRejected, druidv1alpha1.OperationStateFailed, druidv1alpha1.OperationTypeAdmit, &expectedErrorCode)
-	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.OperationTypeAdmit)
+	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.TaskStateRejected, druidv1alpha1.LastOperationStateError, druidv1alpha1.OperationPhaseAdmit, &expectedErrorCode)
+	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.OperationPhaseAdmit)
 
 	t.Logf("test completed: etcdopstask was correctly rejected due to etcd not being ready")
 }
@@ -165,8 +166,8 @@ func testEtcdOpsTaskRejectedDuplicateTask(t *testing.T, namespace string, reconc
 	t.Logf("created duplicate etcdopstask %s/%s", duplicateEtcdOpsTaskInstance.Namespace, duplicateEtcdOpsTaskInstance.Name)
 
 	expectedErrorCode := etcdopstask.ErrDuplicateTask
-	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, duplicateEtcdOpsTaskInstance, druidv1alpha1.TaskStateRejected, druidv1alpha1.OperationStateFailed, druidv1alpha1.OperationTypeAdmit, &expectedErrorCode)
-	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, duplicateEtcdOpsTaskInstance, druidv1alpha1.OperationTypeAdmit)
+	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, duplicateEtcdOpsTaskInstance, druidv1alpha1.TaskStateRejected, druidv1alpha1.LastOperationStateError, druidv1alpha1.OperationPhaseAdmit, &expectedErrorCode)
+	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, duplicateEtcdOpsTaskInstance, druidv1alpha1.OperationPhaseAdmit)
 
 	t.Logf("test completed: duplicate etcdopstask was correctly rejected")
 }
@@ -184,8 +185,8 @@ func testEtcdOpsTaskSuccessfulLifecycle(t *testing.T, namespace string, reconcil
 	etcdOpsTaskInstance := newTestTask(namespace, nil)
 	g.Expect(cl.Create(ctx, etcdOpsTaskInstance)).To(Succeed())
 
-	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.TaskStateSucceeded, druidv1alpha1.OperationStateCompleted, druidv1alpha1.OperationTypeRunning, nil)
-	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.OperationTypeRunning)
+	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.TaskStateSucceeded, druidv1alpha1.LastOperationStateSucceeded, druidv1alpha1.OperationPhaseRunning, nil)
+	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.OperationPhaseRunning)
 	t.Logf("test completed: etcdopstask successfully completed lifecycle and was deleted after TTL")
 }
 
@@ -202,8 +203,8 @@ func testEtcdOpsTaskUnsuccessfulLifecycle(t *testing.T, namespace string, reconc
 	g.Expect(cl.Create(ctx, etcdOpsTaskInstance)).To(Succeed())
 
 	expectedErrorCode := ondemandsnapshot.ErrCreateSnapshot
-	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.TaskStateFailed, druidv1alpha1.OperationStateFailed, druidv1alpha1.OperationTypeRunning, &expectedErrorCode)
-	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.OperationTypeRunning)
+	assertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.TaskStateFailed, druidv1alpha1.LastOperationStateError, druidv1alpha1.OperationPhaseRunning, &expectedErrorCode)
+	assertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.OperationPhaseRunning)
 
 	t.Logf("test completed: etcdopstask failed as expected and was deleted after TTL")
 }

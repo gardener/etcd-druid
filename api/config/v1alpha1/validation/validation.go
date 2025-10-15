@@ -115,9 +115,6 @@ func validateEtcdCopyBackupsTaskControllerConfiguration(etcdCopyBackupsTaskContr
 
 func validateEtcdOpsTaskControllerConfiguration(etcdOpsTaskControllerConfig druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if !etcdOpsTaskControllerConfig.Enabled {
-		return allErrs
-	}
 	allErrs = append(allErrs, validateConcurrentSyncs(etcdOpsTaskControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
 	allErrs = append(allErrs, mustBeGreaterThanZeroDurationPointer(etcdOpsTaskControllerConfig.RequeueInterval, fldPath.Child("requeueInterval"))...)
 	return allErrs

@@ -26,8 +26,8 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
-    - jsonPath: .status.lastOperation.state
-      name: Operation State
+    - jsonPath: .status.phase
+      name: Phase
       priority: 1
       type: string
     - jsonPath: .spec.ttlSecondsAfterFinished
@@ -76,11 +76,19 @@ spec:
                         description: IsFinal indicates whether the snapshot is marked
                           as final. This is subject to change.
                         type: boolean
-                      timeoutSeconds:
+                      timeoutSecondsDelta:
                         default: 60
                         description: |-
-                          TimeoutSeconds is the timeout for the snapshot operation.
+                          TimeoutSeconds is the timeout for the delta snapshot operation.
                           Defaults to 60 seconds.
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      timeoutSecondsFull:
+                        default: 480
+                        description: |-
+                          TimeoutSecondsFull is the timeout for full snapshot operations.
+                          Defaults to 480 seconds (8 minutes).
                         format: int32
                         minimum: 1
                         type: integer
@@ -97,7 +105,8 @@ spec:
                     type: object
                     x-kubernetes-validations:
                     - message: isFinal must be false (or omitted) when type is 'delta'
-                      rule: 'self.type == ''delta'' ? !has(self.isFinal) : true'
+                      rule: 'self.type == ''delta'' ? !has(self.isFinal) || self.isFinal
+                        == false : true'
                 type: object
                 x-kubernetes-validations:
                 - message: config is immutable
@@ -191,6 +200,13 @@ spec:
                 description: LastTransitionTime is the last time the state transitioned
                   from one value to another.
                 format: date-time
+                type: string
+              phase:
+                description: Phase represents the current phase of the task's lifecycle.
+                enum:
+                - Admit
+                - Running
+                - Cleanup
                 type: string
               startedAt:
                 description: StartedAt is the time at which the task transitioned

@@ -186,8 +186,6 @@ type EtcdCopyBackupsTaskControllerConfiguration struct {
 
 // EtcdOpsTaskControllerConfiguration defines the configuration for the EtcdOpsTask controller.
 type EtcdOpsTaskControllerConfiguration struct {
-	// Enabled specifies whether the EtcdOpsTask controller is enabled.
-	Enabled bool `json:"enabled"`
 	// ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request.
 	// +optional
 	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`

@@ -355,17 +355,9 @@ func TestSetDefaults_EtcdOpsTaskControllerConfiguration(t *testing.T) {
 		expected *EtcdOpsTaskControllerConfiguration
 	}{
 		{
-			name:     "should not set default values when not enabled",
-			config:   &EtcdOpsTaskControllerConfiguration{},
-			expected: &EtcdOpsTaskControllerConfiguration{},
-		},
-		{
-			name: "should correctly set default values when enabled is true",
-			config: &EtcdOpsTaskControllerConfiguration{
-				Enabled: true,
-			},
+			name:   "should set default values when empty config is provided",
+			config: &EtcdOpsTaskControllerConfiguration{},
 			expected: &EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
 				ConcurrentSyncs: ptr.To(3),
 				RequeueInterval: &metav1.Duration{Duration: 15 * time.Second},
 			},
@@ -373,12 +365,10 @@ func TestSetDefaults_EtcdOpsTaskControllerConfiguration(t *testing.T) {
 		{
 			name: "should not overwrite already set values",
 			config: &EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
 				ConcurrentSyncs: ptr.To(5),
 				RequeueInterval: &metav1.Duration{Duration: 30 * time.Second},
 			},
 			expected: &EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
 				ConcurrentSyncs: ptr.To(5),
 				RequeueInterval: &metav1.Duration{Duration: 30 * time.Second},
 			},
@@ -386,11 +376,9 @@ func TestSetDefaults_EtcdOpsTaskControllerConfiguration(t *testing.T) {
 		{
 			name: "should set default RequeueInterval when only ConcurrentSyncs is set",
 			config: &EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
 				ConcurrentSyncs: ptr.To(5),
 			},
 			expected: &EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
 				ConcurrentSyncs: ptr.To(5),
 				RequeueInterval: &metav1.Duration{Duration: 15 * time.Second},
 			},
@@ -398,11 +386,9 @@ func TestSetDefaults_EtcdOpsTaskControllerConfiguration(t *testing.T) {
 		{
 			name: "should set default ConcurrentSyncs when only RequeueInterval is set",
 			config: &EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
 				RequeueInterval: &metav1.Duration{Duration: 30 * time.Second},
 			},
 			expected: &EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
 				ConcurrentSyncs: ptr.To(3),
 				RequeueInterval: &metav1.Duration{Duration: 30 * time.Second},
 			},
