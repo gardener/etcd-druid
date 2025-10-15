@@ -126,6 +126,9 @@ type EtcdOpsTaskStatus struct {
 	LastTransitionTime *metav1.Time `json:"lastTransitionTime,omitempty"`
   // Time at which the task has moved from "pending" state to any other state.
   StartedAt *metav1.Time `json:"startedAt"`
+  // Phase represents the current phase of the task's lifecycle.
+	// +optional
+	Phase *OperationPhase `json:"phase,omitempty"`
   // LastError represents the errors when processing the task.
   // +optional
   LastErrors []LastError `json:"lastErrors,omitempty"`
@@ -134,10 +137,10 @@ type EtcdOpsTaskStatus struct {
   LastOperation *LastOperation `json:"lastOperation,omitempty"`
 }
 
-type EtcdOpsTaskLastOperation struct {
+type LastOperation struct {
   // State is the state of the last operation.
   State LastOperationState `json:"state"`
-  // Type is the type pf the last operation
+  // Type is the type of the last operation
 	Type LastOperationType `json:"type"`
   // LastUpdateTime is the time at which the operation state last transitioned from one state to another.
   LastUpdateTime *metav1.Time `json:"lastTransitionTime"`
@@ -168,21 +171,35 @@ const (
   TaskStateInProgress TaskState = "InProgress"
 )
 
-// OperationState represents the state of last operation.
-type OperationState string
+// LastOperationState represents the state of last operation.
+type LastOperationState string
 
 const (
-	OperationStateInProgress OperationState = "InProgress"
-	OperationStateCompleted OperationState = "Completed"
-	OperationStateFailed OperationState = "Failed"
+    // LastOperationStateProcessing indicates that an operation is in progress.
+	  LastOperationStateProcessing LastOperationState = "Processing"
+    // LastOperationStateError indicates that an operation is completed with errors and will be retried.
+	  LastOperationStateError LastOperationState = "Error"
+	  // LastOperationStateRequeue indicates that an operation is not completed and either due to an error or unfulfilled conditions will be retried.
+	  LastOperationStateRequeue LastOperationState = "Requeue"
 )
 
-type OperationType string
+// LastOperationType is a string alias representing type of the last operation.
+type LastOperationType string
 
 const (
-	OperationTypeAdmit OperationType = "Admit"
-	OperationTypeRunning OperationType = "Running"
-	OperationTypeCleanup OperationType = "Cleanup"
+    // LastOperationTypeReconcile indicates that the last operation was a reconciliation of the spec of an Etcd resource.
+	  LastOperationTypeReconcile LastOperationType = "Reconcile"
+	  // LastOperationTypeDelete indicates that the last operation was a deletion of an existing Etcd resource.
+	  LastOperationTypeDelete LastOperationType = "Delete"
+)
+
+// OperationPhase represents the current phase of the task's lifecycle.
+type OperationPhase string
+
+const (
+	OperationPhaseAdmit OperationPhase = "Admit"
+	OperationPhaseRunning OperationPhase = "Running"
+	OperationPhaseCleanup OperationPhase = "Cleanup"
 )
 ```
 
@@ -192,7 +209,7 @@ const (
 apiVersion: druid.gardener.cloud/v1alpha1
 kind: EtcdOpsTask
 metadata:
-    name: <name of operator task resource>
+    name: <name of ops task resource>
     namespace: <cluster namespace>
     generation: <specific generation of the desired state>
 spec:
@@ -204,13 +221,14 @@ status:
     state: <last known current state of the out-of-band task>
     lastTransitionTime: <Time at which the task status changed from one state to another>
     startedAt: <time at which task move to any other state from "pending" state>
+    phase: <current phase of the task's lifecycle i.e whether it is in Admit or Running or Cleanup phase>
     lastErrors:
     - code: <error-code>
       description: <description of the error>
       observedAt: <time the error was observed>
     lastOperation:
-      type: <The current type of the task i.e whether it is in Admit or Running or Cleanup Phase>
-      state: <task state as seen at the completion of last operation>
+      type: <The current type of the task i.e whether it is in Reconcile or Delete operation>
+      state: <task state as seen at the completion of last operation ie either Requeue or Error or Processing>
       lastUpdateTime: <time of transition to this state>
       description: <reason/message if any>
 ```

@@ -12,7 +12,7 @@ import (
 type Result struct {
 	Description string
 	Error       error
-	Completed   bool
+	Requeue     bool
 }
 
 // Handler defines the interface for task execution.

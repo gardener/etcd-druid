@@ -502,24 +502,19 @@ func TestValidateEtcdOpsTaskControllerConfiguration(t *testing.T) {
 		matcher           gomegatypes.GomegaMatcher
 	}{
 		{
-			name: "should allow default etcdOpsTask controller configuration when it is enabled",
-			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
-				Enabled: true,
-			},
+			name:              "should allow default etcdOpsTask controller configuration when it is enabled",
+			config:            &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{},
 			numExpectedErrors: 0,
 			matcher:           nil,
 		},
 		{
-			name: "should allow empty etcdOpsTask controller configuration when it is disabled",
-			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
-				Enabled: false,
-			},
+			name:              "should allow empty etcdOpsTask controller configuration when it is disabled",
+			config:            &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{},
 			numExpectedErrors: 0,
 		},
 		{
 			name: "should allow concurrent syncs greater than zero",
 			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
 				ConcurrentSyncs: ptr.To(1),
 			},
 			numExpectedErrors: 0,
@@ -527,7 +522,6 @@ func TestValidateEtcdOpsTaskControllerConfiguration(t *testing.T) {
 		{
 			name: "should forbid concurrent syncs equal to zero",
 			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
 				ConcurrentSyncs: ptr.To(0),
 			},
 			numExpectedErrors: 1,
@@ -536,7 +530,6 @@ func TestValidateEtcdOpsTaskControllerConfiguration(t *testing.T) {
 		{
 			name: "should forbid concurrent syncs less than zero",
 			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
 				ConcurrentSyncs: ptr.To(-1),
 			},
 			numExpectedErrors: 1,
@@ -545,7 +538,6 @@ func TestValidateEtcdOpsTaskControllerConfiguration(t *testing.T) {
 		{
 			name: "should allow requeue interval greater than zero",
 			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
 				RequeueInterval: &metav1.Duration{Duration: 2 * time.Second},
 			},
 			numExpectedErrors: 0,
@@ -553,7 +545,6 @@ func TestValidateEtcdOpsTaskControllerConfiguration(t *testing.T) {
 		{
 			name: "should forbid requeue interval equal to zero",
 			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
 				RequeueInterval: &metav1.Duration{Duration: 0},
 			},
 			numExpectedErrors: 1,
@@ -562,7 +553,6 @@ func TestValidateEtcdOpsTaskControllerConfiguration(t *testing.T) {
 		{
 			name: "should forbid requeue interval less than zero",
 			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
 				RequeueInterval: &metav1.Duration{Duration: -time.Second},
 			},
 			numExpectedErrors: 1,
@@ -571,7 +561,6 @@ func TestValidateEtcdOpsTaskControllerConfiguration(t *testing.T) {
 		{
 			name: "should forbid both concurrent syncs and requeue interval equal to zero",
 			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
-				Enabled:         true,
 				ConcurrentSyncs: ptr.To(0),
 				RequeueInterval: &metav1.Duration{Duration: 0},
 			},

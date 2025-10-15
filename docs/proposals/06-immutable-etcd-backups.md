@@ -194,7 +194,7 @@ The authors propose adding new sub-command to the `etcd-backup-restore` CLI (`et
 When a hibernation flow is initiated (by external tooling or higher-level operators), the [etcd controller](https://github.com/gardener/etcd-druid/blob/master/docs/development/controllers.md#etcd-controller) can:
 
 1. Remove etcd’s client ports (2379/2380) from the etcd Service to block application traffic.
-2. Trigger an [on-demand full snapshot](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/05-etcdopstask.md#trigger-on-demand-fulldelta-snapshot) via an `EtcdOperatorTask`.
+2. Trigger an [on-demand full snapshot](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/05-etcdopstask.md#trigger-on-demand-fulldelta-snapshot) via an `EtcdOpsTask`.
 3. Scale down the `StatefulSet` replicas to zero, provided the previous snapshot step is successful.
 4. Create the `ExtendFullSnapshotImmutabilityTask` if `etcd.spec.backup.store.immutability.retentionType` is `"bucket"` and based on `etcd.spec.backup.fullSnapshotSchedule`.
 

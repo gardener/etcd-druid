@@ -37,9 +37,9 @@ func main() {
 		Spec: druidv1alpha1.EtcdOpsTaskSpec{
 			Config: druidv1alpha1.EtcdOpsTaskConfig{
 				OnDemandSnapshot: &druidv1alpha1.OnDemandSnapshotConfig{
-					Type:           druidv1alpha1.OnDemandSnapshotTypeFull,
-					IsFinal:        ptr.To(true),
-					TimeoutSeconds: ptr.To(int32(120)),
+					Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
+					IsFinal:            ptr.To(true),
+					TimeoutSecondsFull: ptr.To(int32(480)),
 				},
 			},
 			EtcdName:                ptr.To("example-etcd"),
