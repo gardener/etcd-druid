@@ -40,6 +40,8 @@ type deprecatedOperatorConfiguration struct {
 	etcdCopyBackupsTaskEnabled                      bool
 	etcdCopyBackupsTaskWorkers                      int
 	secretWorkers                                   int
+	etcdOpsTaskWorkers                              int
+	etcdOpsTaskRequeueInterval                      time.Duration
 	etcdComponentProtectionEnabled                  bool
 	etcdComponentProtectionReconcilerServiceAccount string
 	etcdComponentProtectionExemptServiceAccounts    []string
@@ -50,6 +52,7 @@ func (d *deprecatedOperatorConfiguration) addDeprecatedFlags(fs *flag.FlagSet) {
 	d.addDeprecatedEtcdControllerFlags(fs)
 	d.addDeprecatedCompactionControllerFlags(fs)
 	d.addDeprecatedEtcdCopyBackupsTaskControllerFlags(fs)
+	d.addDeprecatedEtcdOpsTaskControllerFlags(fs)
 	d.addDeprecatedSecretControllerFlags(fs)
 	d.addDeprecatedEtcdComponentProtectionWebhookFlags(fs)
 }
@@ -87,6 +90,11 @@ func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdCopyBackupsTaskContro
 	// For backward compatibility reasons the default chosen is true.
 	fs.BoolVar(&d.etcdCopyBackupsTaskEnabled, "enable-etcd-copy-backups-task", true, "Enable the etcd-copy-backups-task controller.")
 	fs.IntVar(&d.etcdCopyBackupsTaskWorkers, "etcd-copy-backups-task-workers", druidconfigv1alpha1.DefaultEtcdCopyBackupsTaskConcurrentSyncs, "Number of worker threads for the etcdcopybackupstask controller.")
+}
+
+func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdOpsTaskControllerFlags(fs *flag.FlagSet) {
+	fs.IntVar(&d.etcdOpsTaskWorkers, "etcd-ops-task-workers", druidconfigv1alpha1.DefaultEtcdOpsTaskControllerConcurrentSyncs, "Number of worker threads for the etcd-ops-task controller.")
+	fs.DurationVar(&d.etcdOpsTaskRequeueInterval, "etcd-ops-task-requeue-interval", druidconfigv1alpha1.DefaultEtcdOpsRequeueInterval, "Requeue interval for the etcd-ops-task controller.")
 }
 
 func (d *deprecatedOperatorConfiguration) addDeprecatedSecretControllerFlags(fs *flag.FlagSet) {
@@ -132,6 +140,8 @@ func (d *deprecatedOperatorConfiguration) ToOperatorConfiguration() *druidconfig
 	config.Controllers.Compaction.MetricsScrapeWaitDuration = metav1.Duration{Duration: d.compactionMetricsScrapeWaitDuration}
 	config.Controllers.EtcdCopyBackupsTask.Enabled = d.etcdCopyBackupsTaskEnabled
 	config.Controllers.EtcdCopyBackupsTask.ConcurrentSyncs = &d.etcdCopyBackupsTaskWorkers
+	config.Controllers.EtcdOpsTask.ConcurrentSyncs = &d.etcdOpsTaskWorkers
+	config.Controllers.EtcdOpsTask.RequeueInterval = &metav1.Duration{Duration: d.etcdOpsTaskRequeueInterval}
 	config.Controllers.Secret.ConcurrentSyncs = &d.secretWorkers
 	config.Webhooks.EtcdComponentProtection.Enabled = d.etcdComponentProtectionEnabled
 	if len(strings.TrimSpace(d.etcdComponentProtectionReconcilerServiceAccount)) > 0 {

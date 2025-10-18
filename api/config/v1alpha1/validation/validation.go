@@ -74,6 +74,7 @@ func validateControllerConfiguration(controllerConfig druidconfigv1alpha1.Contro
 	allErrs = append(allErrs, validateSecretControllerConfiguration(controllerConfig.Secret, fldPath.Child("secret"))...)
 	allErrs = append(allErrs, validateCompactionControllerConfiguration(controllerConfig.Compaction, fldPath.Child("compaction"))...)
 	allErrs = append(allErrs, validateEtcdCopyBackupsTaskControllerConfiguration(controllerConfig.EtcdCopyBackupsTask, fldPath.Child("etcdCopyBackupsTask"))...)
+	allErrs = append(allErrs, validateEtcdOpsTaskControllerConfiguration(controllerConfig.EtcdOpsTask, fldPath.Child("etcdOpsTask"))...)
 	return allErrs
 }
 
@@ -109,6 +110,13 @@ func validateEtcdCopyBackupsTaskControllerConfiguration(etcdCopyBackupsTaskContr
 		return allErrs
 	}
 	allErrs = append(allErrs, validateConcurrentSyncs(etcdCopyBackupsTaskControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
+	return allErrs
+}
+
+func validateEtcdOpsTaskControllerConfiguration(etcdOpsTaskControllerConfig druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	allErrs = append(allErrs, validateConcurrentSyncs(etcdOpsTaskControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
+	allErrs = append(allErrs, mustBeGreaterThanZeroDurationPointer(etcdOpsTaskControllerConfig.RequeueInterval, fldPath.Child("requeueInterval"))...)
 	return allErrs
 }
 
@@ -160,6 +168,10 @@ func validateConcurrentSyncs(val *int, fldPath *field.Path) field.ErrorList {
 		allErrs = append(allErrs, field.Invalid(fldPath, val, "must be greater than 0"))
 	}
 	return allErrs
+}
+
+func mustBeGreaterThanZeroDurationPointer(duration *metav1.Duration, fldPath *field.Path) field.ErrorList {
+	return mustBeGreaterThanZeroDuration(ptr.Deref(duration, metav1.Duration{}), fldPath)
 }
 
 func mustBeGreaterThanZeroDuration(duration metav1.Duration, fldPath *field.Path) field.ErrorList {
