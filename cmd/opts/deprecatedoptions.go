@@ -40,7 +40,6 @@ type deprecatedOperatorConfiguration struct {
 	etcdCopyBackupsTaskEnabled                      bool
 	etcdCopyBackupsTaskWorkers                      int
 	secretWorkers                                   int
-	etcdOpsTaskEnabled                              bool
 	etcdOpsTaskWorkers                              int
 	etcdOpsTaskRequeueInterval                      time.Duration
 	etcdComponentProtectionEnabled                  bool
@@ -94,7 +93,6 @@ func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdCopyBackupsTaskContro
 }
 
 func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdOpsTaskControllerFlags(fs *flag.FlagSet) {
-	fs.BoolVar(&d.etcdOpsTaskEnabled, "enable-etcd-ops-task", true, "Enable the etcd-ops-task controller.")
 	fs.IntVar(&d.etcdOpsTaskWorkers, "etcd-ops-task-workers", druidconfigv1alpha1.DefaultEtcdOpsTaskControllerConcurrentSyncs, "Number of worker threads for the etcd-ops-task controller.")
 	fs.DurationVar(&d.etcdOpsTaskRequeueInterval, "etcd-ops-task-requeue-interval", druidconfigv1alpha1.DefaultEtcdOpsRequeueInterval, "Requeue interval for the etcd-ops-task controller.")
 }

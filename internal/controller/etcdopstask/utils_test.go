@@ -412,7 +412,6 @@ func TestSetLastError(t *testing.T) {
 
 			if tc.initialErrorSize >= 2 {
 				size := len(tc.task.Status.LastErrors)
-				fmt.Println(size)
 				g.Expect(size).To(Equal(3))
 			}
 		})
@@ -424,7 +423,7 @@ func TestUpdateTaskStatus(t *testing.T) {
 	tests := []struct {
 		name                string
 		initialTask         *druidv1alpha1.EtcdOpsTask
-		update              TaskStatusUpdate
+		update              taskStatusUpdate
 		expectError         bool
 		expectedOpType      *druidv1alpha1.LastOperationType
 		expectedOpState     *druidv1alpha1.LastOperationState
@@ -434,7 +433,7 @@ func TestUpdateTaskStatus(t *testing.T) {
 		{
 			name:        "update operation only",
 			initialTask: newTestTask(nil),
-			update: TaskStatusUpdate{
+			update: taskStatusUpdate{
 				Operation: &druidv1alpha1.LastOperation{
 					Type:        druidv1alpha1.LastOperationTypeReconcile,
 					State:       druidv1alpha1.LastOperationStateRequeue,
@@ -449,7 +448,7 @@ func TestUpdateTaskStatus(t *testing.T) {
 		{
 			name:        "update state only",
 			initialTask: newTestTask(nil),
-			update: TaskStatusUpdate{
+			update: taskStatusUpdate{
 				State: ptr.To(druidv1alpha1.TaskStateInProgress),
 			},
 			expectError:       false,
@@ -460,7 +459,7 @@ func TestUpdateTaskStatus(t *testing.T) {
 		{
 			name:        "update error only",
 			initialTask: newTestTask(nil),
-			update: TaskStatusUpdate{
+			update: taskStatusUpdate{
 				Error: druiderr.WrapError(errors.New("test error"), "TEST_ERROR", "TestOp", "Test error"),
 			},
 			expectError:         false,
@@ -472,7 +471,7 @@ func TestUpdateTaskStatus(t *testing.T) {
 		{
 			name:        "update all fields",
 			initialTask: newTestTask(nil),
-			update: TaskStatusUpdate{
+			update: taskStatusUpdate{
 				Operation: &druidv1alpha1.LastOperation{
 					Type:        druidv1alpha1.LastOperationTypeReconcile,
 					State:       druidv1alpha1.LastOperationStateError,
@@ -503,7 +502,7 @@ func TestUpdateTaskStatus(t *testing.T) {
 				Namespace: tc.initialTask.Namespace,
 			}
 
-			err = r.updateTaskStatus(context.TODO(), taskKey, tc.update)
+			err = r.updateTaskStatus(context.TODO(), tc.initialTask, tc.update)
 
 			if tc.expectError {
 				g.Expect(err).To(HaveOccurred())
@@ -582,9 +581,7 @@ func TestHandleTaskResult(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			reconciler := newTestReconciler(t, cl)
-			taskObjKey := client.ObjectKeyFromObject(task)
-
-			result := reconciler.handleTaskResult(ctx, taskObjKey, tc.result, tc.phase)
+			result := reconciler.handleTaskResult(ctx, reconciler.logger, task, tc.result, tc.phase)
 
 			switch tc.expected {
 			case "requeue":
@@ -676,7 +673,7 @@ func TestHandleRequeue(t *testing.T) {
 			reconciler := newTestReconciler(t, cl)
 			taskObjKey := client.ObjectKeyFromObject(task)
 
-			result := reconciler.handleRequeue(ctx, taskObjKey, tc.result, tc.phase)
+			result := reconciler.handleRequeue(ctx, reconciler.logger, task, tc.result, tc.phase)
 
 			if tc.expectError {
 				g.Expect(result.NeedsRequeue()).To(BeTrue())
@@ -752,7 +749,7 @@ func TestHandleError(t *testing.T) {
 			reconciler := newTestReconciler(t, cl)
 			taskObjKey := client.ObjectKeyFromObject(task)
 
-			result := reconciler.handleError(ctx, taskObjKey, tc.result, tc.phase)
+			result := reconciler.handleError(ctx, reconciler.logger, task, tc.result, tc.phase)
 
 			g.Expect(result.NeedsRequeue()).To(BeTrue())
 
@@ -840,7 +837,7 @@ func TestHandleSuccess(t *testing.T) {
 			reconciler := newTestReconciler(t, cl)
 			taskObjKey := client.ObjectKeyFromObject(task)
 
-			result := reconciler.handleSuccess(ctx, taskObjKey, tc.result, tc.phase)
+			result := reconciler.handleSuccess(ctx, reconciler.logger, task, tc.result, tc.phase)
 
 			if tc.expectContinue {
 				g.Expect(result.NeedsRequeue()).To(BeFalse())

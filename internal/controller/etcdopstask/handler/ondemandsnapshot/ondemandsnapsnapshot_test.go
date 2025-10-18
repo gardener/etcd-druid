@@ -55,6 +55,37 @@ func createEtcd(name, namespace string, backup bool, healthy bool, isTLSEnabled 
 	return etcd
 }
 
+func createEtcdWithBackupTLS(name, namespace string, backup bool, healthy bool) *druidv1alpha1.Etcd {
+	etcdBuilder := utils.EtcdBuilderWithoutDefaults(name, namespace).WithReplicas(1).WithReadyStatus()
+
+	// Use backup TLS instead of client TLS
+	etcdBuilder = etcdBuilder.WithBackupRestoreTLS()
+
+	etcd := etcdBuilder.Build()
+
+	if backup {
+		etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
+			Container: ptr.To("test-container"),
+			Prefix:    "test-prefix",
+			Provider:  ptr.To(druidv1alpha1.StorageProvider("S3")),
+		}
+	}
+	if !healthy {
+		etcd.Status.Conditions = append(etcd.Status.Conditions, druidv1alpha1.Condition{
+			Type:    druidv1alpha1.ConditionTypeReady,
+			Status:  druidv1alpha1.ConditionFalse,
+			Message: "etcd is not ready for testing purposes",
+		})
+	} else {
+		etcd.Status.Conditions = append(etcd.Status.Conditions, druidv1alpha1.Condition{
+			Type:    druidv1alpha1.ConditionTypeReady,
+			Status:  druidv1alpha1.ConditionTrue,
+			Message: "etcd is ready for testing purposes",
+		})
+	}
+	return etcd
+}
+
 func createEtcdOpsTask(config druidv1alpha1.OnDemandSnapshotConfig) *druidv1alpha1.EtcdOpsTask {
 	etcdName := "test-etcd"
 	return &druidv1alpha1.EtcdOpsTask{
@@ -84,7 +115,7 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 			name:       "Etcd not found",
 			etcdObject: nil,
 			expectedResult: handler.Result{
-				Description: "Admit Operation: Failed to get etcd object",
+				Description: "Failed to get etcd object",
 				Error: &druiderr.DruidError{
 					Code:      ErrGetEtcd,
 					Operation: string(druidv1alpha1.OperationPhaseAdmit),
@@ -98,7 +129,7 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 			name:       "Backup not enabled",
 			etcdObject: createEtcd("test-etcd", "test-namespace", false, true, false),
 			expectedResult: handler.Result{
-				Description: "Admit Operation: Backup is not enabled for etcd",
+				Description: "Backup is not enabled for etcd",
 				Error: &druiderr.DruidError{
 					Code:      ErrBackupNotEnabled,
 					Operation: string(druidv1alpha1.OperationPhaseAdmit),
@@ -112,7 +143,7 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 			name:       "Etcd not ready",
 			etcdObject: createEtcd("test-etcd", "test-namespace", true, false, false),
 			expectedResult: handler.Result{
-				Description: "Admit Operation: Etcd is not ready",
+				Description: "Etcd is not ready",
 				Error: &druiderr.DruidError{
 					Code:      ErrEtcdNotReady,
 					Operation: string(druidv1alpha1.OperationPhaseAdmit),
@@ -205,7 +236,7 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				Error:    fmt.Errorf("etcd object not found"),
 			},
 			expectedResult: handler.Result{
-				Description: "Run Operation: Failed to get etcd object - object not found",
+				Description: "Failed to get etcd object - object not found",
 				Error: &druiderr.DruidError{
 					Code:      ErrGetEtcd,
 					Operation: string(druidv1alpha1.OperationPhaseRunning),
@@ -223,7 +254,7 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				Error:    fmt.Errorf("etcd is not ready"),
 			},
 			expectedResult: handler.Result{
-				Description: "Run Operation: Etcd is not ready",
+				Description: "Etcd is not ready",
 				Error: &druiderr.DruidError{
 					Code:      ErrEtcdNotReady,
 					Operation: string(druidv1alpha1.OperationPhaseRunning),
@@ -241,7 +272,7 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				Error:    fmt.Errorf("connection refused"),
 			},
 			expectedResult: handler.Result{
-				Description: "Run Operation: Failed to execute HTTP request",
+				Description: "Failed to execute HTTP request",
 				Error:       fmt.Errorf("connection refused"),
 				Requeue:     true,
 			},
@@ -258,7 +289,7 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				Error: nil,
 			},
 			expectedResult: handler.Result{
-				Description: "Run Operation: Failed to create snapshot",
+				Description: "Failed to create snapshot",
 				Error: &druiderr.DruidError{
 					Code:      ErrCreateSnapshot,
 					Operation: string(druidv1alpha1.OperationPhaseRunning),
@@ -270,17 +301,17 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 		},
 		{
 			name:       "TLS enabled but CA secret not found",
-			etcdObject: createEtcd("test-etcd", "test-namespace", true, true, true),
+			etcdObject: createEtcdWithBackupTLS("test-etcd", "test-namespace", true, true),
 			FakeResponse: &utils.FakeResponse{
 				Response: http.Response{},
 				Error:    nil,
 			},
 			expectedResult: handler.Result{
-				Description: "Run Operation: Failed to get etcdbr CA secret",
+				Description: "Failed to get etcdbr CA secret",
 				Error: &druiderr.DruidError{
 					Code:      ErrGetSecret,
 					Operation: string(druidv1alpha1.OperationPhaseRunning),
-					Message:   "failed to get etcdbr CA secret test-namespace/client-url-ca-etcd",
+					Message:   "failed to get etcdbr CA secret test-namespace/ca-etcdbr",
 				},
 				Requeue: true,
 			},

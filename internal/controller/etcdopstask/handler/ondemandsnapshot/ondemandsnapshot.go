@@ -81,13 +81,13 @@ func (h *Handler) Admit(ctx context.Context) handler.Result {
 		// Check the type of error and return result. If it's a transport layer issue, requeue. If the object is not found, return reject.
 		if apierrors.IsNotFound(err) {
 			return handler.Result{
-				Description: "Admit Operation: Failed to get etcd object",
+				Description: "Failed to get etcd object",
 				Error:       druiderr.WrapError(err, ErrGetEtcd, string(druidv1alpha1.OperationPhaseAdmit), "failed to get etcd object"),
 				Requeue:     false,
 			}
 		}
 		return handler.Result{
-			Description: "Admit Operation: Failed to get etcd object due to internal error",
+			Description: "Failed to get etcd object due to internal error",
 			Error:       druiderr.WrapError(err, ErrGetEtcd, string(druidv1alpha1.OperationPhaseAdmit), "failed to get etcd object due to internal error"),
 			Requeue:     true,
 		}
@@ -95,7 +95,7 @@ func (h *Handler) Admit(ctx context.Context) handler.Result {
 
 	if !etcd.IsBackupStoreEnabled() {
 		return handler.Result{
-			Description: "Admit Operation: Backup is not enabled for etcd",
+			Description: "Backup is not enabled for etcd",
 			Error:       druiderr.WrapError(fmt.Errorf("backup is not enabled for etcd"), ErrBackupNotEnabled, string(druidv1alpha1.OperationPhaseAdmit), "backup is not enabled for etcd"),
 			Requeue:     false,
 		}
@@ -103,7 +103,7 @@ func (h *Handler) Admit(ctx context.Context) handler.Result {
 
 	if err := etcd.IsReady(); err != nil {
 		return handler.Result{
-			Description: "Admit Operation: Etcd is not ready",
+			Description: "Etcd is not ready",
 			Error:       druiderr.WrapError(err, ErrEtcdNotReady, string(druidv1alpha1.OperationPhaseAdmit), "etcd is not ready"),
 			Requeue:     false,
 		}
@@ -120,20 +120,20 @@ func (h *Handler) Run(ctx context.Context) handler.Result {
 	if err := h.client.Get(ctx, h.etcdReference, etcd); err != nil {
 		if apierrors.IsNotFound(err) {
 			return handler.Result{
-				Description: "Run Operation: Failed to get etcd object - object not found",
+				Description: "Failed to get etcd object - object not found",
 				Error:       druiderr.WrapError(err, ErrGetEtcd, string(druidv1alpha1.OperationPhaseRunning), "failed to get etcd object - object not found"),
 				Requeue:     false,
 			}
 		}
 		return handler.Result{
-			Description: "Run Operation: Failed to get etcd object due to transient error",
+			Description: "Failed to get etcd object due to transient error",
 			Error:       druiderr.WrapError(err, ErrGetEtcd, string(druidv1alpha1.OperationPhaseRunning), "failed to get etcd object due to transient error"),
 			Requeue:     true,
 		}
 	}
 	if err := etcd.IsReady(); err != nil {
 		return handler.Result{
-			Description: "Run Operation: Etcd is not ready",
+			Description: "Etcd is not ready",
 			Error:       druiderr.WrapError(err, ErrEtcdNotReady, string(druidv1alpha1.OperationPhaseRunning), "etcd is not ready"),
 			Requeue:     false,
 		}
@@ -145,7 +145,7 @@ func (h *Handler) Run(ctx context.Context) handler.Result {
 		dataKey := ptr.Deref(tlsConfig.TLSCASecretRef.DataKey, "bundle.crt")
 		if err := h.client.Get(ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: tlsConfig.TLSCASecretRef.Name}, etcdbrCASecret); err != nil {
 			return handler.Result{
-				Description: "Run Operation: Failed to get etcdbr CA secret",
+				Description: "Failed to get etcdbr CA secret",
 				Error:       druiderr.WrapError(err, ErrGetSecret, string(druidv1alpha1.OperationPhaseRunning), fmt.Sprintf("failed to get etcdbr CA secret %s/%s", etcd.Namespace, tlsConfig.TLSCASecretRef.Name)),
 				Requeue:     true,
 			}
@@ -153,7 +153,7 @@ func (h *Handler) Run(ctx context.Context) handler.Result {
 		certData, ok := etcdbrCASecret.Data[dataKey]
 		if !ok {
 			return handler.Result{
-				Description: "Run Operation: CA cert data key not found in secret",
+				Description: "CA cert data key not found in secret",
 				Error:       druiderr.WrapError(fmt.Errorf("CA cert data key %q not found in secret %s/%s", dataKey, etcdbrCASecret.Namespace, etcdbrCASecret.Name), ErrGetEtcd, string(druidv1alpha1.OperationPhaseRunning), "CA cert data key not found in secret"),
 				Requeue:     false,
 			}
@@ -161,7 +161,7 @@ func (h *Handler) Run(ctx context.Context) handler.Result {
 		caCerts := x509.NewCertPool()
 		if !caCerts.AppendCertsFromPEM(certData) {
 			return handler.Result{
-				Description: "Run Operation: Failed to append CA certs from secret",
+				Description: "Failed to append CA certs from secret",
 				Error:       druiderr.WrapError(fmt.Errorf("failed to append CA certs from secret %s/%s", etcdbrCASecret.Namespace, etcdbrCASecret.Name), ErrGetEtcd, string(druidv1alpha1.OperationPhaseRunning), "failed to append CA certs from secret"),
 				Requeue:     false,
 			}
@@ -186,7 +186,7 @@ func (h *Handler) Run(ctx context.Context) handler.Result {
 	req, err := http.NewRequest(http.MethodPost, url, nil)
 	if err != nil {
 		return handler.Result{
-			Description: "Run Operation: Failed to create HTTP request",
+			Description: "Failed to create HTTP request",
 			Error:       druiderr.WrapError(err, ErrCreateHTTPRequest, string(druidv1alpha1.OperationPhaseRunning), "failed to create HTTP request"),
 			Requeue:     true,
 		}
@@ -195,7 +195,7 @@ func (h *Handler) Run(ctx context.Context) handler.Result {
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
 		return handler.Result{
-			Description: "Run Operation: Failed to execute HTTP request",
+			Description: "Failed to execute HTTP request",
 			Error:       druiderr.WrapError(err, ErrExecuteHTTPRequest, string(druidv1alpha1.OperationPhaseRunning), "failed to execute HTTP request"),
 			Requeue:     true,
 		}
@@ -203,7 +203,7 @@ func (h *Handler) Run(ctx context.Context) handler.Result {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return handler.Result{
-			Description: "Run Operation: Failed to create snapshot",
+			Description: "Failed to create snapshot",
 			Error:       druiderr.WrapError(fmt.Errorf("failed to create snapshot, status code: %d", resp.StatusCode), ErrCreateSnapshot, string(druidv1alpha1.OperationPhaseRunning), "failed to create snapshot"),
 			Requeue:     false,
 		}
