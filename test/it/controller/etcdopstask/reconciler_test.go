@@ -157,7 +157,7 @@ func TestEtcdOpsTaskAdmitConditions(t *testing.T) {
 		fn   func(t *testing.T, namespace string, reconcilerTestEnv ReconcilerTestEnv)
 	}{
 		{"should add finalizer to etcdops task", testEtcdOpsTaskAddFinalizer},
-		{"Task should be rejected if the etcd's backup is disabled", testEtcdOpsTaskRejecEtcdBackupDisabled},
+		{"Task should be rejected if the etcd's backup is disabled", testEtcdOpsTaskRejectedIfEtcdBackupDisabled},
 		{"Task should be rejected if the etcd is not in ready state", testEtcdOpsTaskRejectedIfEtcdNotReady},
 		{"Task should be rejected if there is a duplicate task for the same etcd", testEtcdOpsTaskRejectedDuplicateTask},
 	}
@@ -191,8 +191,8 @@ func testEtcdOpsTaskAddFinalizer(t *testing.T, namespace string, reconcilerTestE
 	t.Logf("test completed: finalizer %s was successfully added to etcdopstask %s/%s", druidapiconstants.EtcdOpsTaskFinalizerName, etcdopstaskInstance.Namespace, etcdopstaskInstance.Name)
 }
 
-// testEtcdOpsTaskRejcEtcdBackupDisabled tests that an EtcdOpsTask is rejected if the referenced etcd has backup disabled.
-func testEtcdOpsTaskRejecEtcdBackupDisabled(t *testing.T, namespace string, reconcilerTestEnv ReconcilerTestEnv) {
+// testEtcdOpsTaskRejctedIfEtcdBackupDisabled tests that an EtcdOpsTask is rejected if the referenced etcd has backup disabled.
+func testEtcdOpsTaskRejectedIfEtcdBackupDisabled(t *testing.T, namespace string, reconcilerTestEnv ReconcilerTestEnv) {
 	g := NewWithT(t)
 
 	etcdInstance := testutils.EtcdBuilderWithDefaults("test-etcd", namespace).Build()
