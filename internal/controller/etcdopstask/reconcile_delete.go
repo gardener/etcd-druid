@@ -56,15 +56,6 @@ func (r *Reconciler) cleanupTaskResources(ctx context.Context, logger logr.Logge
 
 	task, err := r.getTask(ctx, taskObjKey)
 	if err != nil {
-		if updateErr := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
-			Operation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeDelete,
-				State:       druidv1alpha1.LastOperationStateRequeue,
-				Description: fmt.Sprintf("cleanupTaskResources failed to get task: %v", err),
-			},
-		}); updateErr != nil {
-			return ctrlutils.ReconcileWithError(errors.Wrapf(err, "failed to update status after error: %v", updateErr))
-		}
 		return ctrlutils.ReconcileWithError(err)
 	}
 
@@ -75,7 +66,7 @@ func (r *Reconciler) cleanupTaskResources(ctx context.Context, logger logr.Logge
 		// 1. Task is not supported by the controller
 		// 2. Task admit failed
 		// In these cases, we don't want to call the cleanup method of the task handler. Since there is no cleanup to be done, we can skip this step.
-		if err := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
+		if err := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 			Operation: &druidv1alpha1.LastOperation{
 				Type:        druidv1alpha1.LastOperationTypeDelete,
 				State:       druidv1alpha1.LastOperationStateProcessing,
@@ -88,7 +79,7 @@ func (r *Reconciler) cleanupTaskResources(ctx context.Context, logger logr.Logge
 		return ctrlutils.ContinueReconcile()
 	}
 
-	if err := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
+	if err := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 		Operation: &druidv1alpha1.LastOperation{
 			Type:        druidv1alpha1.LastOperationTypeDelete,
 			State:       druidv1alpha1.LastOperationStateProcessing,
@@ -100,32 +91,23 @@ func (r *Reconciler) cleanupTaskResources(ctx context.Context, logger logr.Logge
 	}
 
 	result := taskHandler.Cleanup(ctx)
-	return r.handleTaskResult(ctx, taskObjKey, result, druidv1alpha1.OperationPhaseCleanup)
+	return r.handleTaskResult(ctx, logger, task, result, druidv1alpha1.OperationPhaseCleanup)
 }
 
 // removeTaskFinalizer removes the finalizer from the EtcdOpsTask resource.
 func (r *Reconciler) removeTaskFinalizer(ctx context.Context, logger logr.Logger, taskObjKey client.ObjectKey, _ handler.Handler) ctrlutils.ReconcileStepResult {
 	logger = logger.WithValues("step", "removeTaskFinalizer")
-
 	logger.Info("Executing step: removeTaskFinalizer")
+
 	task, err := r.getTask(ctx, taskObjKey)
 	if err != nil {
-		if updateErr := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
-			Operation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeDelete,
-				State:       druidv1alpha1.LastOperationStateRequeue,
-				Description: fmt.Sprintf("removeTaskFinalizer failed to get task: %v", err),
-			},
-		}); updateErr != nil {
-			return ctrlutils.ReconcileWithError(errors.Wrapf(err, "failed to update status after error: %v", updateErr))
-		}
 		return ctrlutils.ReconcileWithError(err)
 	}
 	if controllerutil.ContainsFinalizer(task, druidapiconstants.EtcdOpsTaskFinalizerName) {
 		patch := client.MergeFrom(task.DeepCopy())
 		controllerutil.RemoveFinalizer(task, druidapiconstants.EtcdOpsTaskFinalizerName)
 		if err := r.client.Patch(ctx, task, patch); err != nil {
-			if updateErr := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
+			if updateErr := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 				Operation: &druidv1alpha1.LastOperation{
 					Type:        druidv1alpha1.LastOperationTypeDelete,
 					State:       druidv1alpha1.LastOperationStateRequeue,
@@ -148,7 +130,7 @@ func (r *Reconciler) removeTask(ctx context.Context, logger logr.Logger, taskObj
 	if task, err := r.getTask(ctx, taskObjKey); err != nil {
 		return ctrlutils.ReconcileWithError(err)
 	} else if err := r.client.Delete(ctx, task); err != nil {
-		if updateErr := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
+		if updateErr := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 			Operation: &druidv1alpha1.LastOperation{
 				Type:        druidv1alpha1.LastOperationTypeDelete,
 				State:       druidv1alpha1.LastOperationStateError,

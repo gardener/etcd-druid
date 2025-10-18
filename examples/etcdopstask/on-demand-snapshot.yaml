@@ -7,7 +7,7 @@ spec:
   config:
     onDemandSnapshot:
       type: full #options: full, delta
-      isFinal: false
+      # isFinal: false
       timeoutSecondsFull: 480
       timeoutSecondsDelta: 60
   etcdName: etcd-test

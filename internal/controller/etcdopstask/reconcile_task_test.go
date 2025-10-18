@@ -197,7 +197,7 @@ func TestAdmitTask(t *testing.T) {
 				State: druidv1alpha1.LastOperationStateError,
 			},
 			expectedPhase:  ptr.To(druidv1alpha1.OperationPhaseAdmit),
-			expectedResult: ctrlutils.ReconcileWithError(fmt.Errorf("duplicate task found, handing to deletion flow")),
+			expectedResult: ctrlutils.ReconcileAfter(3600*time.Second, "Task rejected, waiting for TTL to expire before deletion"),
 		},
 		{
 			name:           "Task state is not Pending",

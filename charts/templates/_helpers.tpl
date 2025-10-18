@@ -55,7 +55,6 @@ config.yaml: |
     secret:
       concurrentSyncs: {{ .Values.operatorConfig.controllers.secret.concurrentSyncs }}
     etcdOpsTask:
-      enabled: {{ .Values.operatorConfig.controllers.etcdOpsTask.enabled }}
       concurrentSyncs: {{ .Values.operatorConfig.controllers.etcdOpsTask.concurrentSyncs }}
       requeueInterval: {{ .Values.operatorConfig.controllers.etcdOpsTask.requeueInterval }}
   webhooks:
