@@ -204,9 +204,10 @@ func (t *EtcdOpsTask) GetTTL() time.Duration {
 // GetTimeToExpiry returns the remaining duration until the task's TTL expires.
 // If the task's TTL hasn't expired yet, it returns zero.
 func (t *EtcdOpsTask) GetTimeToExpiry() time.Duration {
+	now := time.Now().UTC()
 	baseTime := t.Status.LastTransitionTime
 	expiry := baseTime.Add(t.GetTTL())
-	remaining := expiry.Sub(time.Now().UTC())
+	remaining := expiry.Sub(now)
 	if remaining < 0 {
 		return 0
 	}

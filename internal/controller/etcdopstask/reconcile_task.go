@@ -17,7 +17,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -54,29 +53,17 @@ func (r *Reconciler) reconcileTask(ctx context.Context, logger logr.Logger, task
 // ensureTaskFinalizer checks if the EtcdOpsTask has the finalizer.
 // If not, it adds the finalizer and updates the task status.
 func (r *Reconciler) ensureTaskFinalizer(ctx context.Context, _ logr.Logger, taskObjKey client.ObjectKey, _ handler.Handler) ctrlutils.ReconcileStepResult {
-	meta := &metav1.PartialObjectMetadata{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "EtcdOpsTask",
-			APIVersion: druidv1alpha1.SchemeGroupVersion.String(),
-		},
-	}
-	if err := r.client.Get(ctx, taskObjKey, meta); err != nil {
-		if updateErr := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
-			Operation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeReconcile,
-				State:       druidv1alpha1.LastOperationStateRequeue,
-				Description: fmt.Sprintf("ensureTaskFinalizer failed to get task: %v", err),
-			},
-		}); updateErr != nil {
-			return ctrlutils.ReconcileWithError(errors.Wrapf(err, "failed to update status after error: %v", updateErr))
-		}
+	task, err := r.getTask(ctx, taskObjKey)
+	if err != nil {
 		return ctrlutils.ReconcileWithError(err)
 	}
-	if controllerutil.ContainsFinalizer(meta, druidapiconstants.EtcdOpsTaskFinalizerName) {
+
+	if controllerutil.ContainsFinalizer(task, druidapiconstants.EtcdOpsTaskFinalizerName) {
 		return ctrlutils.ContinueReconcile()
 	}
-	if err := kubernetes.AddFinalizers(ctx, r.client, meta, druidapiconstants.EtcdOpsTaskFinalizerName); err != nil {
-		if updateErr := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
+
+	if err := kubernetes.AddFinalizers(ctx, r.client, task, druidapiconstants.EtcdOpsTaskFinalizerName); err != nil {
+		if updateErr := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 			Operation: &druidv1alpha1.LastOperation{
 				Type:        druidv1alpha1.LastOperationTypeReconcile,
 				State:       druidv1alpha1.LastOperationStateRequeue,
@@ -97,15 +84,6 @@ func (r *Reconciler) transitionToPendingState(ctx context.Context, logger logr.L
 
 	task, err := r.getTask(ctx, taskObjKey)
 	if err != nil {
-		if updateErr := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
-			Operation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeReconcile,
-				State:       druidv1alpha1.LastOperationStateRequeue,
-				Description: fmt.Sprintf("transitionToPendingState failed to get task: %v", err),
-			},
-		}); updateErr != nil {
-			return ctrlutils.ReconcileWithError(errors.Wrapf(err, "failed to update status after error: %v", updateErr))
-		}
 		return ctrlutils.ReconcileWithError(err)
 	}
 
@@ -115,44 +93,26 @@ func (r *Reconciler) transitionToPendingState(ctx context.Context, logger logr.L
 	// Set the task state to Pending
 	// and update the LastTransitionTime.
 	pendingState := druidv1alpha1.TaskStatePending
-	if err := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
+	if err := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 		State: &pendingState,
 	}); err != nil {
-		if updateErr := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
-			Operation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeReconcile,
-				State:       druidv1alpha1.LastOperationStateRequeue,
-				Description: fmt.Sprintf("transitionToPendingState failed to update task state: %v", err),
-			},
-		}); updateErr != nil {
-			return ctrlutils.ReconcileWithError(errors.Wrapf(err, "failed to update status after error: %v", updateErr))
-		}
 		return ctrlutils.ReconcileWithError(err)
 	}
 	return ctrlutils.ContinueReconcile()
 }
 
 // admitTask checks if the task is in a pending state.
-// If so, it updates the LastOperation to admit and invokes the task handler's Admit method.
+// If so, it updates the phase to admit and invokes the task handler's Admit method.
 // If the admit operation is in progress, it requeues the task.
 // If the admit operation fails, it updates the task state to Rejected.
 // If the admit operation succeeds, it updates the task.status.state to InProgress.
-// If the task is already in a completed state, it skips the admit operation.
+// If the task is not in its Pending state, it skips the step.
 func (r *Reconciler) admitTask(ctx context.Context, logger logr.Logger, taskObjKey client.ObjectKey, taskHandler handler.Handler) ctrlutils.ReconcileStepResult {
 	logger = logger.WithValues("step", "admitTask")
 	logger.Info("Executing step: admitTask")
 
 	task, err := r.getTask(ctx, taskObjKey)
 	if err != nil {
-		if updateErr := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
-			Operation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeReconcile,
-				State:       druidv1alpha1.LastOperationStateRequeue,
-				Description: fmt.Sprintf("admitTask failed to get task: %v", err),
-			},
-		}); updateErr != nil {
-			return ctrlutils.ReconcileWithError(errors.Wrapf(err, "failed to update status after error: %v", updateErr))
-		}
 		return ctrlutils.ReconcileWithError(err)
 	}
 	// If the task is not in Pending state, skip the admit step.
@@ -162,15 +122,6 @@ func (r *Reconciler) admitTask(ctx context.Context, logger logr.Logger, taskObjK
 
 	var etcdOpsTaskList druidv1alpha1.EtcdOpsTaskList
 	if err = r.client.List(ctx, &etcdOpsTaskList, client.InNamespace(task.Namespace)); err != nil {
-		if updateErr := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
-			Operation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeReconcile,
-				State:       druidv1alpha1.LastOperationStateRequeue,
-				Description: fmt.Sprintf("admitTask failed to list task: %v", err),
-			},
-		}); updateErr != nil {
-			return ctrlutils.ReconcileWithError(errors.Wrapf(err, "failed to update status after error: %v", updateErr))
-		}
 		return ctrlutils.ReconcileWithError(err)
 	}
 
@@ -186,24 +137,28 @@ func (r *Reconciler) admitTask(ctx context.Context, logger logr.Logger, taskObjK
 					"duplicate EtcdOpsTask for the same etcd is already in progress",
 				)
 
-				if statusErr := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
+				if statusErr := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 					Operation: &druidv1alpha1.LastOperation{
 						Type:        druidv1alpha1.LastOperationTypeReconcile,
 						State:       druidv1alpha1.LastOperationStateError,
-						Description: err.Error(),
+						Description: err.(*druiderr.DruidError).Message,
 					},
 					Phase: ptr.To(druidv1alpha1.OperationPhaseAdmit),
 					State: ptr.To(druidv1alpha1.TaskStateRejected),
 					Error: err,
 				}); statusErr != nil {
-					return ctrlutils.ReconcileWithError(statusErr)
+					return ctrlutils.ReconcileWithError(errors.Wrapf(err, "failed to update status: %v", statusErr))
 				}
-				return ctrlutils.ReconcileWithError(fmt.Errorf("duplicate task found, handing to deletion flow"))
+				logger.Info("Task rejected due to duplicate task, requeuing after TTL for deletion",
+					"existingTask", existingTask.Name,
+					"ttlSeconds", task.Spec.TTLSecondsAfterFinished,
+					"timeToExpiry", task.GetTimeToExpiry())
+				return ctrlutils.ReconcileAfter(task.GetTimeToExpiry(), "Task rejected, waiting for TTL to expire before deletion")
 			}
 		}
 	}
 
-	if err := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
+	if err := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 		Operation: &druidv1alpha1.LastOperation{
 			Type:        druidv1alpha1.LastOperationTypeReconcile,
 			State:       druidv1alpha1.LastOperationStateProcessing,
@@ -215,7 +170,7 @@ func (r *Reconciler) admitTask(ctx context.Context, logger logr.Logger, taskObjK
 	}
 
 	result := taskHandler.Admit(ctx)
-	return r.handleTaskResult(ctx, taskObjKey, result, druidv1alpha1.OperationPhaseAdmit)
+	return r.handleTaskResult(ctx, logger, task, result, druidv1alpha1.OperationPhaseAdmit)
 }
 
 // transitionToInProgressState sets the task.status.state to InProgress if not already set.
@@ -224,31 +179,11 @@ func (r *Reconciler) transitionToInProgressState(ctx context.Context, logger log
 	logger.Info("Executing step: transitionToInProgressState")
 
 	if task, err := r.getTask(ctx, taskObjKey); err != nil {
-		if updateErr := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
-			Operation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeReconcile,
-				State:       druidv1alpha1.LastOperationStateRequeue,
-				Description: fmt.Sprintf("transitionToInProgressState failed to get task: %v", err),
-			},
-		}); updateErr != nil {
-			return ctrlutils.ReconcileWithError(errors.Wrapf(err, "failed to update status after error: %v", updateErr))
-		}
 		return ctrlutils.ReconcileWithError(err)
-
 	} else if task.Status.State != nil && *task.Status.State == druidv1alpha1.TaskStatePending {
-		inProgressState := druidv1alpha1.TaskStateInProgress
-		if err := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
-			State: &inProgressState,
+		if err := r.updateTaskStatus(ctx, task, taskStatusUpdate{
+			State: ptr.To(druidv1alpha1.TaskStateInProgress),
 		}); err != nil {
-			if updateErr := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
-				Operation: &druidv1alpha1.LastOperation{
-					Type:        druidv1alpha1.LastOperationTypeReconcile,
-					State:       druidv1alpha1.LastOperationStateRequeue,
-					Description: fmt.Sprintf("transitionToInProgressState failed to update task state: %v", err),
-				},
-			}); updateErr != nil {
-				return ctrlutils.ReconcileWithError(errors.Wrapf(err, "failed to update status after error: %v", updateErr))
-			}
 			return ctrlutils.ReconcileWithError(err)
 		}
 	} else {
@@ -267,7 +202,12 @@ func (r *Reconciler) runTask(ctx context.Context, logger logr.Logger, taskObjKey
 	logger = logger.WithValues("step", "runTask")
 	logger.Info("Executing step: runTask")
 
-	if err := r.updateTaskStatus(ctx, taskObjKey, TaskStatusUpdate{
+	task, err := r.getTask(ctx, taskObjKey)
+	if err != nil {
+		return ctrlutils.ReconcileWithError(err)
+	}
+
+	if err := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 		Operation: &druidv1alpha1.LastOperation{
 			Type:        druidv1alpha1.LastOperationTypeReconcile,
 			State:       druidv1alpha1.LastOperationStateProcessing,
@@ -278,5 +218,5 @@ func (r *Reconciler) runTask(ctx context.Context, logger logr.Logger, taskObjKey
 		return ctrlutils.ReconcileWithError(err)
 	}
 	result := taskHandler.Run(ctx)
-	return r.handleTaskResult(ctx, taskObjKey, result, druidv1alpha1.OperationPhaseRunning)
+	return r.handleTaskResult(ctx, logger, task, result, druidv1alpha1.OperationPhaseRunning)
 }

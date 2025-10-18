@@ -78,12 +78,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	result := r.reconcileTask(ctx, logger, client.ObjectKeyFromObject(task), taskHandlerInstance)
+	return result.ReconcileResult()
 
-	if result.NeedsRequeue() {
-		return result.ReconcileResult()
-	}
-
-	return reconcile.Result{}, nil
 }
 
 // getTaskHandler instantiates the appropriate TaskHandler for the given task.

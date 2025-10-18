@@ -216,7 +216,7 @@ spec:
     type: <type/category of supported out-of-band task>
     ttlSecondsAfterFinished: <time-to-live to garbage collect the custom resource after it has been completed>
     config: <task specific configuration>
-    ownerEtcdRefrence: <refer to corresponding etcd owner name and namespace for which task has been invoked>
+    EtcdName: <refer to corresponding etcd name for which task has been invoked>
 status:
     state: <last known current state of the out-of-band task>
     lastTransitionTime: <Time at which the task status changed from one state to another>
@@ -320,10 +320,17 @@ type OnDemandSnapshotConfig struct {
 	// +optional
 	IsFinal *bool `json:"isFinal,omitempty"`
 
-	// TimeoutSeconds is the timeout for the snapshot operation.
+  // TimeoutSeconds is the timeout for the delta snapshot operation.
 	// Defaults to 60 seconds.
+  // +optional
+  // +kubebuilder:default=60
+	TimeoutSecondsDelta *int32 `json:"timeoutSecondsDelta,omitempty"`
+
+	// TimeoutSecondsFull is the timeout for full snapshot operations.
+	// Defaults to 480 seconds (8 minutes).
 	// +optional
-	TimeoutSeconds *int32 `json:"timeoutSeconds,omitempty"`
+	// +kubebuilder:default=480
+	TimeoutSecondsFull *int32 `json:"timeoutSecondsFull,omitempty"`
 }
 ```
 
@@ -332,7 +339,8 @@ spec:
   config: |
     type: <type of on-demand snapshot>
     isFinal: <to indicate if the snapshot to be taken is to be marked as final>
-    timeoutSeconds: <the timeout interval>
+    timeoutSecondsDelta: <the timeout interval for delta snapshots>
+    timeoutSecondsFull: <the timeout interval for full snapshots>
 ```
 
 ##### Pre-Conditions
