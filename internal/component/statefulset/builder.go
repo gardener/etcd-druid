@@ -137,7 +137,7 @@ func (b *stsBuilder) getStatefulSetLabels() map[string]string {
 
 func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error {
 	err := b.createPodTemplateSpec(ctx)
-	b.sts.Spec.Replicas = ptr.To(utils.IfConditionOr[int32](druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta), b.replicas, 0))
+	b.sts.Spec.Replicas = ptr.To(utils.IfConditionOr(druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta), b.replicas, 0))
 	b.logger.Info("Creating StatefulSet spec", "replicas", b.sts.Spec.Replicas, "name", b.sts.Name, "namespace", b.sts.Namespace)
 	b.sts.Spec.UpdateStrategy = defaultUpdateStrategy
 	if err != nil {
@@ -637,18 +637,18 @@ func (b *stsBuilder) getEtcdContainerEnvVars() []corev1.EnvVar {
 func (b *stsBuilder) getPodSecurityContext() *corev1.PodSecurityContext {
 	if ptr.Deref(b.etcd.Spec.RunAsRoot, false) {
 		return &corev1.PodSecurityContext{
-			RunAsGroup:   ptr.To[int64](rootUser),
+			RunAsGroup:   ptr.To(rootUser),
 			RunAsNonRoot: ptr.To(false),
-			RunAsUser:    ptr.To[int64](rootUser),
-			FSGroup:      ptr.To[int64](rootUser),
+			RunAsUser:    ptr.To(rootUser),
+			FSGroup:      ptr.To(rootUser),
 		}
 	}
 
 	return &corev1.PodSecurityContext{
-		RunAsGroup:   ptr.To[int64](nonRootUser),
+		RunAsGroup:   ptr.To(nonRootUser),
 		RunAsNonRoot: ptr.To(true),
-		RunAsUser:    ptr.To[int64](nonRootUser),
-		FSGroup:      ptr.To[int64](nonRootUser),
+		RunAsUser:    ptr.To(nonRootUser),
+		FSGroup:      ptr.To(nonRootUser),
 	}
 }
 
