@@ -9,6 +9,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/test/utils"
+
 	. "github.com/onsi/gomega"
 )
 

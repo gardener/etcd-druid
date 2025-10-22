@@ -112,7 +112,12 @@ jobs:
           git config --global user.email "gardener@sap.com"
           git config --global user.name "Gardener CI/CD"
           make --directory=api check-generate
-
+      - name: prepare helm charts
+        run: make prepare-helm-charts
+        env:
+          K8S_VERSION: 1.34
+      - name: check-git-status
+        run: make check-git-status
   tests:
     runs-on: ubuntu-latest
     if: ${{ inputs.run-tests }}
