@@ -7,6 +7,7 @@ package statefulset
 import (
 	"fmt"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -224,7 +225,13 @@ func (b *stsBuilder) getPodTemplateAnnotations(ctx component.OperatorContext) ma
 }
 
 func (b *stsBuilder) getVolumeClaimTemplates() []corev1.PersistentVolumeClaim {
-	storageClassName := ptr.Deref(b.etcd.Spec.StorageClass, "")
+	if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.AllowEmptyDir) {
+		// If EmptyDirVolumeSource is specified, emptyDir volumes are used for the etcd pods instead of dynamic provisioning through storage classes.
+		if b.etcd.Spec.EmptyDirVolumeSource != nil {
+			return nil
+		}
+	}
+
 	pvcClaim := []corev1.PersistentVolumeClaim{
 		{
 			ObjectMeta: metav1.ObjectMeta{
@@ -243,7 +250,7 @@ func (b *stsBuilder) getVolumeClaimTemplates() []corev1.PersistentVolumeClaim {
 		},
 	}
 
-	if storageClassName != "" {
+	if storageClassName := ptr.Deref(b.etcd.Spec.StorageClass, ""); storageClassName != "" {
 		pvcClaim[0].Spec.StorageClassName = &storageClassName
 	}
 
@@ -353,9 +360,14 @@ func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 }
 
 func (b *stsBuilder) getEtcdDataVolumeMount() corev1.VolumeMount {
-	volumeClaimTemplateName := ptr.Deref(b.etcd.Spec.VolumeClaimTemplate, b.etcd.Name)
+	volumeMountName := ptr.Deref(b.etcd.Spec.VolumeClaimTemplate, b.etcd.Name)
+	if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.AllowEmptyDir) {
+		if b.etcd.Spec.EmptyDirVolumeSource != nil {
+			volumeMountName = b.generateEmptyDirVolumeName()
+		}
+	}
 	return corev1.VolumeMount{
-		Name:      volumeClaimTemplateName,
+		Name:      volumeMountName,
 		MountPath: common.VolumeMountPathEtcdData,
 	}
 }
@@ -742,6 +754,20 @@ func (b *stsBuilder) getPodVolumes(ctx component.OperatorContext) ([]corev1.Volu
 			volumes = append(volumes, *backupVolume)
 		}
 	}
+	if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.AllowEmptyDir) {
+		if b.etcd.Spec.EmptyDirVolumeSource != nil {
+			emptyDirVolume := corev1.Volume{
+				Name: b.generateEmptyDirVolumeName(),
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{
+						Medium:    b.etcd.Spec.EmptyDirVolumeSource.Medium,
+						SizeLimit: ptr.Deref(&b.etcd.Spec.EmptyDirVolumeSource.SizeLimit, &defaultStorageCapacity),
+					},
+				},
+			}
+			volumes = append(volumes, emptyDirVolume)
+		}
+	}
 	return volumes, nil
 }
 
@@ -873,4 +899,9 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 		}, nil
 	}
 	return nil, nil
+}
+
+func (b *stsBuilder) generateEmptyDirVolumeName() string {
+	// emptydir has to be all lower case to conform with RFC 1123 label format
+	return fmt.Sprintf("%s-emptydir", b.etcd.Name)
 }

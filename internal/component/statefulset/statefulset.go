@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -108,6 +109,11 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 				return err
 			}
 		}
+		if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.AllowEmptyDir) {
+			if err = r.handleEmptyDirVolumeChanges(ctx, etcd, existingSTS); err != nil {
+				return err
+			}
+		}
 	}
 
 	return r.createOrPatch(ctx, etcd)
@@ -145,6 +151,38 @@ func (r _resource) handleStsLabelSelectorOnMismatch(ctx component.OperatorContex
 		druiderr.ErrRequeueAfter,
 		component.OperationSync,
 		fmt.Sprintf("StatefulSet has not been orphan deleted: %v for etcd: %v, requeuing reconcile request", client.ObjectKeyFromObject(sts), client.ObjectKeyFromObject(sts)))
+}
+
+// handleEmptyDirVolumeChanges checks if the etcd spec has changed to specify the EmptyDirVolumeSource field.
+// If specified, and the statefulset currently uses CSI volumes, it is orphan deleted.
+// The statefulset created in a subsequent Sync specifies emptyDir volumes for the pods, and a rolling update is triggered.
+// The rolling update makes the etcd pods use emptyDir volumes.
+func (r _resource) handleEmptyDirVolumeChanges(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, existingSTS *appsv1.StatefulSet) error {
+	emptyDirSpecified, emptyDirInUse := etcd.Spec.EmptyDirVolumeSource != nil, false
+	for _, volume := range existingSTS.Spec.Template.Spec.Volumes {
+		if volume.EmptyDir != nil {
+			emptyDirInUse = true
+		}
+	}
+	// The specification in the etcd spec matches that in the statefulset
+	if emptyDirSpecified == emptyDirInUse {
+		return nil
+	}
+	r.logger.Info("The etcd specification requests emptyDir volumes, while CSI volumes are currently in use. Triggering rolling update.")
+	if err := r.client.Delete(ctx, existingSTS, client.PropagationPolicy(metav1.DeletePropagationOrphan)); err != nil {
+		return druiderr.WrapError(
+			err,
+			ErrSyncStatefulSet,
+			component.OperationSync,
+			fmt.Sprintf("error orphan deleting StatefulSet: %v for etcd: %v", client.ObjectKeyFromObject(existingSTS), client.ObjectKeyFromObject(etcd)),
+		)
+	}
+	// Requeue to ensure the orphan deletion, and the subsequent recreation of the statefulset.
+	return druiderr.New(
+		druiderr.ErrRequeueAfter,
+		component.OperationSync,
+		fmt.Sprintf("Requeue to ensure orphan deletion for StatefulSet: %v for etcd: %v", client.ObjectKeyFromObject(existingSTS), client.ObjectKeyFromObject(etcd)),
+	)
 }
 
 func (r _resource) checkAndRecreateOrphanDeletedSts(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {

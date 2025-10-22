@@ -62,7 +62,7 @@ config.yaml: |
         namespace: {{ .Release.Namespace }}
       exemptServiceAccounts:
       {{- toYaml .Values.operatorConfig.webhooks.etcdComponentProtection.exemptServiceAccounts | nindent 8}}
-{{- with .Values.featureGates }}
+{{- with .Values.operatorConfig.featureGates }}
   featureGates:
   {{- toYaml . | nindent 4 }}
 {{- end }}
