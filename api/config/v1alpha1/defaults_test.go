@@ -348,6 +348,64 @@ func TestSetDefaults_EtcdCopyBackupsTaskControllerConfiguration(t *testing.T) {
 	}
 }
 
+func TestSetDefaults_EtcdOpsTaskControllerConfiguration(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *EtcdOpsTaskControllerConfiguration
+		expected *EtcdOpsTaskControllerConfiguration
+	}{
+		{
+			name:   "should set default values when empty config is provided",
+			config: &EtcdOpsTaskControllerConfiguration{},
+			expected: &EtcdOpsTaskControllerConfiguration{
+				ConcurrentSyncs: ptr.To(3),
+				RequeueInterval: &metav1.Duration{Duration: 15 * time.Second},
+			},
+		},
+		{
+			name: "should not overwrite already set values",
+			config: &EtcdOpsTaskControllerConfiguration{
+				ConcurrentSyncs: ptr.To(5),
+				RequeueInterval: &metav1.Duration{Duration: 30 * time.Second},
+			},
+			expected: &EtcdOpsTaskControllerConfiguration{
+				ConcurrentSyncs: ptr.To(5),
+				RequeueInterval: &metav1.Duration{Duration: 30 * time.Second},
+			},
+		},
+		{
+			name: "should set default RequeueInterval when only ConcurrentSyncs is set",
+			config: &EtcdOpsTaskControllerConfiguration{
+				ConcurrentSyncs: ptr.To(5),
+			},
+			expected: &EtcdOpsTaskControllerConfiguration{
+				ConcurrentSyncs: ptr.To(5),
+				RequeueInterval: &metav1.Duration{Duration: 15 * time.Second},
+			},
+		},
+		{
+			name: "should set default ConcurrentSyncs when only RequeueInterval is set",
+			config: &EtcdOpsTaskControllerConfiguration{
+				RequeueInterval: &metav1.Duration{Duration: 30 * time.Second},
+			},
+			expected: &EtcdOpsTaskControllerConfiguration{
+				ConcurrentSyncs: ptr.To(3),
+				RequeueInterval: &metav1.Duration{Duration: 30 * time.Second},
+			},
+		},
+	}
+
+	g := NewWithT(t)
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			SetDefaults_EtcdOpsTaskControllerConfiguration(test.config)
+			g.Expect(test.config).To(Equal(test.expected))
+		})
+	}
+}
+
 func TestSetDefaults_LogConfig(t *testing.T) {
 	tests := []struct {
 		name     string

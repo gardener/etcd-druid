@@ -17,6 +17,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+// ControllerName is the name of the etcd controller.
+const ControllerName = "etcd-controller"
+
 // RegisterWithManager registers the Etcd Controller with the given controller manager.
 func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager, controllerName string) error {
 	builder := ctrl.

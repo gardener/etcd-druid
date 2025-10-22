@@ -54,6 +54,9 @@ config.yaml: |
       concurrentSyncs: {{ .Values.operatorConfig.controllers.etcdCopyBackupsTask.concurrentSyncs }}
     secret:
       concurrentSyncs: {{ .Values.operatorConfig.controllers.secret.concurrentSyncs }}
+    etcdOpsTask:
+      concurrentSyncs: {{ .Values.operatorConfig.controllers.etcdOpsTask.concurrentSyncs }}
+      requeueInterval: {{ .Values.operatorConfig.controllers.etcdOpsTask.requeueInterval }}
   webhooks:
     etcdComponentProtection:
       enabled: {{ .Values.operatorConfig.webhooks.etcdComponentProtection.enabled }}

@@ -177,6 +177,23 @@ func SetDefaults_SecretControllerConfiguration(secretCtrlConfig *SecretControlle
 	}
 }
 
+const (
+	// DefaultEtcdOpsTaskControllerConcurrentSyncs is the default number of concurrent syncs for the etcd ops task controller.
+	DefaultEtcdOpsTaskControllerConcurrentSyncs = 3
+	// DefaultEtcdOpsRequeueInterval is the default requeue interval for the etcd ops task controller.
+	DefaultEtcdOpsRequeueInterval = 15 * time.Second
+)
+
+// SetDefaults_EtcdOpsTaskControllerConfiguration sets defaults for the EtcdOpsTask controller configuration.
+func SetDefaults_EtcdOpsTaskControllerConfiguration(etcdOpsTaskCtrlConfig *EtcdOpsTaskControllerConfiguration) {
+	if etcdOpsTaskCtrlConfig.ConcurrentSyncs == nil {
+		etcdOpsTaskCtrlConfig.ConcurrentSyncs = ptr.To(DefaultEtcdOpsTaskControllerConcurrentSyncs)
+	}
+	if etcdOpsTaskCtrlConfig.RequeueInterval == nil {
+		etcdOpsTaskCtrlConfig.RequeueInterval = &metav1.Duration{Duration: DefaultEtcdOpsRequeueInterval}
+	}
+}
+
 // SetDefaults_LogConfiguration sets defaults for the log configuration.
 func SetDefaults_LogConfiguration(logConfig *LogConfiguration) {
 	if logConfig.LogLevel == "" {
