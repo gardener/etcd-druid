@@ -139,9 +139,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir tmp/blobs.d
-          ${{ matrix.args.run }} |& tee tmp/blobs.d/test-log.txt
-          tar czf tmp/blobs.d/test-log.tar.gz -C tmp/blobs.d test-log.txt
+          mkdir -p /tmp/blobs.d
+          ${{ matrix.args.run }} |& tee /tmp/blobs.d/test-log.txt
+          tar czf /tmp/blobs.d/test-log.tar.gz -C /tmp/blobs.d test-log.txt
       - name: add-test-results-to-component-descriptor
         uses: gardener/cc-utils/.github/actions/export-ocm-fragments@master
         with:
