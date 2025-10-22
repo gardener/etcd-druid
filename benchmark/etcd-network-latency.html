@@ -1,0 +1,2071 @@
+<!DOCTYPE html><html lang="en" class="no-js"><head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="etcd druid documentation">
+      
+      
+      
+      
+      
+      
+      <link rel="icon" href="../assets/logo/etcd-druid-transparentbg.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+    
+    
+      
+        <title>etcd Network Latency - Etcd Druid</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+
+      
+    
+<script src="../assets/pymdownx-extras/material-extra-theme-2ek1P7jT.js" type="text/javascript"></script>
+<script src="../assets/pymdownx-extras/material-extra-3rdparty-BUCF4rjN.js" type="text/javascript"></script>
+
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/css/custom.css">
+    
+      <link rel="stylesheet" href="../assets/pymdownx-extras/extra-c6ab11540a.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  <link href="../assets/stylesheets/glightbox.min.css" rel="stylesheet"><script src="../assets/javascripts/glightbox.min.js"></script><style id="glightbox-style">
+            html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+        </style></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#network-latency-analysis-sn-etcd-sz-vs-mn-etcd-sz-vs-mn-etcd-mz" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="header.title">
+    <a href="../index.html" title="Etcd Druid" class="md-header__button md-logo" aria-label="Etcd Druid">
+      
+  <img src="../assets/logo/etcd-druid-whitebg.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Etcd Druid
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              etcd Network Latency
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="md-header__options">
+      <div class="md-header-nav__scheme md-header-nav__button md-source__icon md-icon">
+          <a href="javascript:toggleScheme();" title="Light mode" class="light-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"></path></svg>
+          </a>
+          <a href="javascript:toggleScheme();" title="Dark mode" class="dark-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"></path></svg>
+          </a>
+          <a href="javascript:toggleScheme();" title="System preference" class="system-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7.5 2c-1.79 1.15-3 3.18-3 5.5s1.21 4.35 3.03 5.5C4.46 13 2 10.54 2 7.5A5.5 5.5 0 0 1 7.5 2m11.57 1.5 1.43 1.43L4.93 20.5 3.5 19.07zm-6.18 2.43L11.41 5 9.97 6l.42-1.7L9 3.24l1.75-.12.58-1.65L12 3.1l1.73.03-1.35 1.13zm-3.3 3.61-1.16-.73-1.12.78.34-1.32-1.09-.83 1.36-.09.45-1.29.51 1.27 1.36.03-1.05.87zM19 13.5a5.5 5.5 0 0 1-5.5 5.5c-1.22 0-2.35-.4-3.26-1.07l7.69-7.69c.67.91 1.07 2.04 1.07 3.26m-4.4 6.58 2.77-1.15-.24 3.35zm4.33-2.7 1.15-2.77 2.2 2.54zm1.15-4.96-1.14-2.78 3.34.24zM9.63 18.93l2.77 1.15-2.53 2.19z"></path></svg>
+          </a>
+           <a href="javascript:toggleScheme();" title="Unknown scheme" class="unknown-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m15.07 11.25-.9.92C13.45 12.89 13 13.5 13 15h-2v-.5c0-1.11.45-2.11 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41a2 2 0 0 0-2-2 2 2 0 0 0-2 2H8a4 4 0 0 1 4-4 4 4 0 0 1 4 4 3.2 3.2 0 0 1-.93 2.25M13 19h-2v-2h2M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10c0-5.53-4.5-10-10-10"></path></svg>
+          </a>
+      </div>
+    </div>
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/gardener/etcd-druid" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    gardener/etcd-druid
+  </div>
+</a>
+      </div>
+    
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../index.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Overview
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../deployment/getting-started-locally/getting-started-locally.html" class="md-tabs__link">
+          
+  
+  
+  Deployment
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../usage/managing-etcd-clusters.html" class="md-tabs__link">
+          
+  
+  
+  Usage
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../concepts/etcd-cluster-components.html" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../development/controllers.html" class="md-tabs__link">
+          
+  
+  
+  Development
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api-reference/etcd-druid-api.html" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../monitoring/metrics.html" class="md-tabs__link">
+          
+  
+  
+  Monitoring
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../proposals/01-multi-node-etcd-clusters.html" class="md-tabs__link">
+          
+  
+  
+  Proposals
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="Etcd Druid" class="md-nav__button md-logo" aria-label="Etcd Druid" data-md-component="logo">
+      
+  <img src="../assets/logo/etcd-druid-whitebg.png" alt="logo">
+
+    </a>
+    Etcd Druid
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/gardener/etcd-druid" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    gardener/etcd-druid
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2">
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Deployment
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Deployment
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/getting-started-locally/getting-started-locally.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/configure-etcd-druid.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuring Etcd Druid
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/feature-gates.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Feature Gates
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/version-compatibility-matrix.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Version Compatibility Matrix
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/production-setup-recommendations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Productive Setup Recommendations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3">
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Usage
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Usage
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/managing-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Managing Etcd clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/recovering-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Recovering Etcd clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/securing-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Securing Etcd clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4">
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Concepts
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Concepts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/etcd-cluster-components.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Components in an Etcd cluster
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/etcd-cluster-resource-protection.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Protecting resources in Etcd cluster
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5">
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Development
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Development
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/controllers.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Controllers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/getting-started-locally.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/prepare-dev-environment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Prepare Dev Environment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/contribution.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contribution Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/changing-api.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Changing API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/add-new-etcd-cluster-component.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Adding New Etcd Cluster Component
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/raising-a-pr.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Raising a PR
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/dependency-management.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Manage Dependencies
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/testing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Testing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/updating-documentation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Updating documentation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6">
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/etcd-druid-api.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Etcd Druid API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7">
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Monitoring
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            Monitoring
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../monitoring/metrics.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Metrics
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8">
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Proposals
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            Proposals
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../proposals/01-multi-node-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multi-Node Etcd Clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../proposals/02-snapshot-compaction.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Snapshot Compaction
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../proposals/03-scaling-up-an-etcd-cluster.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Scaling Etcd Clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../proposals/04-etcd-member-custom-resource.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Etcd Member
+    
+  </span>
+  
+    
+  
+  
+    <span class="md-status md-status--implementable"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../proposals/05-etcd-operator-tasks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Etcd Operator Tasks
+    
+  </span>
+  
+    
+  
+  
+    <span class="md-status md-status--implementable"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#put-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      PUT Analysis
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PUT Analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Summary
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#latency-analysis-during-put-requests-to-etcd" class="md-nav__link">
+    <span class="md-ellipsis">
+      Latency analysis during PUT requests to etcd
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#range-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Range Analysis
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Range Analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#latency-analysis-during-range-requests-to-etcd" class="md-nav__link">
+    <span class="md-ellipsis">
+      Latency analysis during Range requests to etcd
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+  
+                  
+
+
+  
+  
+
+
+<h1 id="network-latency-analysis-sn-etcd-sz-vs-mn-etcd-sz-vs-mn-etcd-mz">Network Latency analysis: <code>sn-etcd-sz</code> vs  <code>mn-etcd-sz</code> vs <code>mn-etcd-mz</code><a class="headerlink" href="#network-latency-analysis-sn-etcd-sz-vs-mn-etcd-sz-vs-mn-etcd-mz" title="Permanent link">¶</a></h1>
+<p>This page captures the etcd cluster latency analysis for below scenarios using the benchmark tool (build from <a href="https://github.com/seshachalam-yv/etcd">etcd benchmark tool</a>).</p>
+<p><code>sn-etcd-sz</code> -&gt; single-node etcd single zone (Only single replica of etcd will be running)</p>
+<p><code>mn-etcd-sz</code> -&gt; multi-node etcd single zone (Multiple replicas of etcd pods will be running across nodes in a single zone)</p>
+<p><code>mn-etcd-mz</code> -&gt; multi-node etcd multi zone (Multiple replicas of etcd pods will be running across nodes in multiple zones)</p>
+<h2 id="put-analysis">PUT Analysis<a class="headerlink" href="#put-analysis" title="Permanent link">¶</a></h2>
+<h3 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>sn-etcd-sz</code> latency is <strong>~20% less than</strong> <code>mn-etcd-sz</code> when benchmark tool with single client.</li>
+<li><code>mn-etcd-sz</code> latency is less than <code>mn-etcd-mz</code> but the difference is <code>~+/-5%</code>.</li>
+<li>Compared to <code>mn-etcd-sz</code>, <code>sn-etcd-sz</code> latency is higher and gradually grows with more clients and larger value size. </li>
+<li>Compared to <code>mn-etcd-mz</code>, <code>mn-etcd-sz</code> latency is higher and gradually grows with more clients and larger value size. </li>
+<li><em>Compared to <code>follower</code>, <code>leader</code> latency is less</em>, when benchmark tool with single client for all cases.</li>
+<li><em>Compared to <code>follower</code>, <code>leader</code> latency is high</em>, when benchmark tool with multiple clients for all cases.</li>
+</ul>
+<p>Sample commands:</p>
+<div class="language-bash highlight"><span class="filename">Bash</span><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># write to leader</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>benchmark<span class="w"> </span>put<span class="w"> </span>--target-leader<span class="w"> </span>--conns<span class="o">=</span><span class="m">1</span><span class="w"> </span>--clients<span class="o">=</span><span class="m">1</span><span class="w"> </span>--precise<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span>--sequential-keys<span class="w"> </span>--key-starts<span class="w"> </span><span class="m">0</span><span class="w"> </span>--val-size<span class="o">=</span><span class="m">256</span><span class="w"> </span>--total<span class="o">=</span><span class="m">10000</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span>--endpoints<span class="o">=</span><span class="nv">$ETCD_HOST</span><span class="w"> </span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># write to follower</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>benchmark<span class="w"> </span>put<span class="w">  </span>--conns<span class="o">=</span><span class="m">1</span><span class="w"> </span>--clients<span class="o">=</span><span class="m">1</span><span class="w"> </span>--precise<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span>--sequential-keys<span class="w"> </span>--key-starts<span class="w"> </span><span class="m">0</span><span class="w"> </span>--val-size<span class="o">=</span><span class="m">256</span><span class="w"> </span>--total<span class="o">=</span><span class="m">10000</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span>--endpoints<span class="o">=</span><span class="nv">$ETCD_FOLLOWER_HOST</span>
+</span></code></pre></div>
+<h3 id="latency-analysis-during-put-requests-to-etcd">Latency analysis during PUT requests to etcd<a class="headerlink" href="#latency-analysis-during-put-requests-to-etcd" title="Permanent link">¶</a></h3>
+<ul>
+<li>
+<details>
+  <summary>In this case benchmark tool tries to put key with random 256 bytes value.</summary>
+
+  * Benchmark tool loads key/value to `leader` with single client .
+    * `sn-etcd-sz` latency (~0.815ms) is **~50% lesser than** `mn-etcd-sz` (~1.74ms ).
+    *  * `mn-etcd-sz` latency (~1.74ms ) is slightly lesser than `mn-etcd-mz` (~1.8ms) but the difference is negligible (within same ms).
+    * 
+      | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |      10000     |     256    |           1           |         1         |       leader       |      1220.0520     |           0.815ms           | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |      10000     |     256    |           1           |         1         |       leader       |       586.545      |            1.74ms           | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |      10000     |     256    |           1           |         1         |       leader       |  554.0155654442634 |            1.8ms            | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+  * Benchmark tool loads key/value to `follower` with single client.
+    * `mn-etcd-sz` latency(`~2.2ms`) is **20% to 30% lesser than** `mn-etcd-mz`(`~2.7ms`).
+    * *Compare to `follower`, `leader` has lower latency.*
+    * 
+      | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |      10000     |     256    |           1           |         1         |     follower-1     |       445.743      |            2.23ms           | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |      10000     |     256    |           1           |         1         |     follower-1     |  378.9366747610789 |            2.63ms           | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+
+      | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |      10000     |     256    |           1           |         1         |     follower-2     |       457.967      |            2.17ms           | eu-west-1a | etcd-main-2 | mn-etcd-sz |
+      |      10000     |     256    |           1           |         1         |     follower-2     |  345.6586129825796 |            2.89ms           | eu-west-1b | etcd-main-2 | mn-etcd-mz |
+
+  * Benchmark tool loads key/value to `leader` with multiple clients.
+    * `sn-etcd-sz` latency(`~78.3ms`) is **~10% greater than**  `mn-etcd-sz`(`~71.81ms`).
+    * `mn-etcd-sz` latency(`~71.81ms`) is less than `mn-etcd-mz`(`~72.5ms`) but the difference is negligible.
+    * 
+      | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |     100000     |     256    |          100          |        1000       |       leader       |      12638.905     |           78.32ms           | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |     100000     |     256    |          100          |        1000       |       leader       |      13789.248     |           71.81ms           | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |     100000     |     256    |          100          |        1000       |       leader       | 13728.446436395223 |            72.5ms           | eu-west-1a | etcd-main-1 | mn-etcd-mz |  
+
+
+
+  * Benchmark tool loads key/value to `follower` with multiple clients.
+    * `mn-etcd-sz` latency(`~69.8ms`) is **~5% greater than**  `mn-etcd-mz`(`~72.6ms`).
+    * *Compare to `leader`, `follower` has lower latency*.
+    * 
+      | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |     100000     |     256    |          100          |        1000       |     follower-1     |      14271.983     |           69.80ms           | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |     100000     |     256    |          100          |        1000       |     follower-1     |      13695.98      |           72.62ms           | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+      | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |     100000     |     256    |          100          |        1000       |     follower-2     |      14325.436     |           69.47ms           | eu-west-1a | etcd-main-2 | mn-etcd-sz |
+      |     100000     |     256    |          100          |        1000       |     follower-2     | 15750.409490407475 |            63.3ms           | eu-west-1b | etcd-main-2 | mn-etcd-mz |
+
+  </details>
+
+</li>
+<li>
+<details>  
+  <summary>In this case benchmark tool tries to put key with random 1 MB value.</summary>
+
+  * Benchmark tool loads key/value to `leader` with single client.
+    * `sn-etcd-sz` latency(`~16.35ms`) is **~20% lesser than** `mn-etcd-sz`(`~20.64ms`).
+    * `mn-etcd-sz` latency(`~20.64ms`) is less than `mn-etcd-mz`(`~21.08ms`) but the difference is negligible..
+    * 
+      | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |      1000      |   1000000  |           1           |         1         |       leader       |       61.117       |           16.35ms           | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |      1000      |   1000000  |           1           |         1         |       leader       |       48.416       |           20.64ms           | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |      1000      |   1000000  |           1           |         1         |       leader       |  45.7517341664802  |           21.08ms           | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+  * Benchmark tool loads key/value withto `follower` single client.
+    * `mn-etcd-sz` latency(`~23.10ms`) is **~10% greater than** `mn-etcd-mz`(`~21.8ms`).
+    * *Compare to `follower`, `leader` has lower latency*.
+    * 
+      | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |      1000      |   1000000  |           1           |         1         |     follower-1     |       43.261       |           23.10ms           | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |      1000      |   1000000  |           1           |         1         |     follower-1     |  45.7517341664802  |            21.8ms           | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+      |      1000      |   1000000  |           1           |         1         |     follower-1     |        45.33       |           22.05ms           | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+
+      | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |      1000      |   1000000  |           1           |         1         |     follower-2     |       40.0518      |           24.95ms           | eu-west-1a | etcd-main-2 | mn-etcd-sz |
+      |      1000      |   1000000  |           1           |         1         |     follower-2     |  43.28573155709838 |           23.09ms           | eu-west-1b | etcd-main-2 | mn-etcd-mz |
+      |      1000      |   1000000  |           1           |         1         |     follower-2     |        45.92       |           21.76ms           | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+      |      1000      |   1000000  |           1           |         1         |     follower-2     |       35.5705      |            28.1ms           | eu-west-1b | etcd-main-2 | mn-etcd-mz |
+
+  * Benchmark tool loads key/value to `leader` with multiple clients.
+    * `sn-etcd-sz` latency(`~6.0375secs`) is **~30% greater than**  `mn-etcd-sz``~4.000secs`).
+    * `mn-etcd-sz` latency(`~4.000secs`) is less than `mn-etcd-mz`(`~ 4.09secs`) but the difference is negligible.
+    * 
+      | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |      1000      |   1000000  |          100          |        300        |       leader       |       55.373       |          6.0375secs         | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |      1000      |   1000000  |          100          |        300        |       leader       |       67.319       |          4.000secs          | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |      1000      |   1000000  |          100          |        300        |       leader       |  65.91914167957594 |           4.09secs          | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+  * Benchmark tool loads key/value to `follower` with multiple clients.
+    * *`mn-etcd-sz` latency(`~4.04secs`) is **~5% greater than** `mn-etcd-mz`(`~ 3.90secs`).*
+    * *Compare to `leader`, `follower` has lower latency*. 
+    * 
+      | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |      1000      |   1000000  |          100          |        300        |     follower-1     |       66.528       |          4.0417secs         | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |      1000      |   1000000  |          100          |        300        |     follower-1     |  70.6493461856332  |           3.90secs          | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+      |      1000      |   1000000  |          100          |        300        |     follower-1     |        71.95       |           3.84secs          | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+
+      | Number of keys | Value size | Number of connections | Number of clients | Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:--------------:|:----------:|:---------------------:|:-----------------:|:------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |      1000      |   1000000  |          100          |        300        |     follower-2     |       66.447       |          4.0164secs         | eu-west-1a | etcd-main-2 | mn-etcd-sz |
+      |      1000      |   1000000  |          100          |        300        |     follower-2     |  67.53038086369484 |           3.87secs          | eu-west-1b | etcd-main-2 | mn-etcd-mz |
+      |      1000      |   1000000  |          100          |        300        |     follower-2     |        68.46       |           3.92secs          | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+  </details>
+
+</li>
+</ul>
+<hr>
+<p><br></p>
+<h2 id="range-analysis">Range Analysis<a class="headerlink" href="#range-analysis" title="Permanent link">¶</a></h2>
+<p>Sample commands are:</p>
+<div class="language-bash highlight"><span class="filename">Bash</span><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Single connection read request with sequential keys</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>benchmark<span class="w"> </span>range<span class="w"> </span><span class="m">0</span><span class="w"> </span>--target-leader<span class="w"> </span>--conns<span class="o">=</span><span class="m">1</span><span class="w"> </span>--clients<span class="o">=</span><span class="m">1</span><span class="w"> </span>--precise<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span>--sequential-keys<span class="w"> </span>--key-starts<span class="w"> </span><span class="m">0</span><span class="w">  </span>--total<span class="o">=</span><span class="m">10000</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span>--consistency<span class="o">=</span>l<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span>--endpoints<span class="o">=</span><span class="nv">$ETCD_HOST</span><span class="w"> </span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># --consistency=s [Serializable]</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>benchmark<span class="w"> </span>range<span class="w"> </span><span class="m">0</span><span class="w"> </span>--target-leader<span class="w"> </span>--conns<span class="o">=</span><span class="m">1</span><span class="w"> </span>--clients<span class="o">=</span><span class="m">1</span><span class="w"> </span>--precise<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span>--sequential-keys<span class="w"> </span>--key-starts<span class="w"> </span><span class="m">0</span><span class="w">  </span>--total<span class="o">=</span><span class="m">10000</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span>--consistency<span class="o">=</span>s<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span>--endpoints<span class="o">=</span><span class="nv">$ETCD_HOST</span><span class="w"> </span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1"># Each read request with range query matches key 0 9999 and repeats for total number of requests.  </span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>benchmark<span class="w"> </span>range<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">9999</span><span class="w"> </span>--target-leader<span class="w"> </span>--conns<span class="o">=</span><span class="m">1</span><span class="w"> </span>--clients<span class="o">=</span><span class="m">1</span><span class="w"> </span>--precise<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span>--total<span class="o">=</span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span>--consistency<span class="o">=</span>s<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">    </span>--endpoints<span class="o">=</span>https://etcd-main-client:2379
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="c1"># Read requests with multiple connections</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>benchmark<span class="w"> </span>range<span class="w"> </span><span class="m">0</span><span class="w"> </span>--target-leader<span class="w"> </span>--conns<span class="o">=</span><span class="m">100</span><span class="w"> </span>--clients<span class="o">=</span><span class="m">1000</span><span class="w"> </span>--precise<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">    </span>--sequential-keys<span class="w"> </span>--key-starts<span class="w"> </span><span class="m">0</span><span class="w">  </span>--total<span class="o">=</span><span class="m">100000</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">    </span>--consistency<span class="o">=</span>l<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">    </span>--endpoints<span class="o">=</span><span class="nv">$ETCD_HOST</span><span class="w"> </span>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>benchmark<span class="w"> </span>range<span class="w"> </span><span class="m">0</span><span class="w"> </span>--target-leader<span class="w"> </span>--conns<span class="o">=</span><span class="m">100</span><span class="w"> </span>--clients<span class="o">=</span><span class="m">1000</span><span class="w"> </span>--precise<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">    </span>--sequential-keys<span class="w"> </span>--key-starts<span class="w"> </span><span class="m">0</span><span class="w">  </span>--total<span class="o">=</span><span class="m">100000</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">    </span>--consistency<span class="o">=</span>s<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">    </span>--endpoints<span class="o">=</span><span class="nv">$ETCD_HOST</span><span class="w"> </span>
+</span></code></pre></div>
+<h3 id="latency-analysis-during-range-requests-to-etcd">Latency analysis during Range requests to etcd<a class="headerlink" href="#latency-analysis-during-range-requests-to-etcd" title="Permanent link">¶</a></h3>
+<ul>
+<li>
+<details>
+  <summary>In this case benchmark tool tries to get specific key with random 256 bytes value.</summary>
+
+  * Benchmark tool range requests to `leader` with single client.
+
+    * `sn-etcd-sz` latency(`~1.24ms`) is **~40% greater than** `mn-etcd-sz`(`~0.67ms`).
+    * `mn-etcd-sz` latency(`~0.67ms`) is  **~20% lesser than** `mn-etcd-mz`(`~0.85ms`).
+    *  
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |        10000       |     256    |           1           |         1         |       true      |      l      |        leader       |       800.272      |            1.24ms           | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |        10000       |     256    |           1           |         1         |       true      |      l      |        leader       |      1173.9081     |            0.67ms           | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |        10000       |     256    |           1           |         1         |       true      |      l      |        leader       |  999.3020189178693 |            0.85ms           | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+    * Compare to consistency `Linearizable`, `Serializable` is **~40% less** for all cases
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |        10000       |     256    |           1           |         1         |       true      |      s      |        leader       |      1411.229      |            0.70ms           | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |        10000       |     256    |           1           |         1         |       true      |      s      |        leader       |      2033.131      |            0.35ms           | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |        10000       |     256    |           1           |         1         |       true      |      s      |        leader       | 2100.2426362012025 |            0.47ms           | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+  * Benchmark tool range requests to `follower` with single client .
+     * `mn-etcd-sz` latency(`~1.3ms`) is  **~20% lesser than** `mn-etcd-mz`(`~1.6ms`).
+    * *Compare to `follower`, `leader` read request latency is **~50% less** for both `mn-etcd-sz`, `mn-etcd-mz`*
+    *  
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |        10000       |     256    |           1           |         1         |       true      |      l      |      follower-1     |       765.325      |            1.3ms            | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |        10000       |     256    |           1           |         1         |       true      |      l      |      follower-1     |        596.1       |            1.6ms            | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+    * Compare to consistency `Linearizable`, `Serializable` is **~50% less** for all cases
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |        10000       |     256    |           1           |         1         |       true      |      s      |      follower-1     |      1823.631      |            0.54ms           | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |        10000       |     256    |           1           |         1         |       true      |      s      |      follower-1     |       1442.6       |            0.69ms           | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+      |        10000       |     256    |           1           |         1         |       true      |      s      |      follower-1     |       1416.39      |            0.70ms           | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+      |        10000       |     256    |           1           |         1         |       true      |      s      |      follower-1     |      2077.449      |            0.47ms           | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+  * Benchmark tool range requests to `leader` with multiple client.
+    * `sn-etcd-sz` latency(`~84.66ms`) is **~20% greater than** `mn-etcd-sz`(`~73.95ms`).
+    * `mn-etcd-sz` latency(`~73.95ms`) is  **more or less equal to** `mn-etcd-mz`(`~ 73.8ms`).
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |       100000       |     256    |          100          |        1000       |       true      |      l      |        leader       |      11775.721     |           84.66ms           | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |       100000       |     256    |          100          |        1000       |       true      |      l      |        leader       |     13446.9598     |           73.95ms           | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |       100000       |     256    |          100          |        1000       |       true      |      l      |        leader       |  13527.19810605353 |            73.8ms           | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+    * Compare to consistency `Linearizable`, `Serializable` is **~20% lesser** for all cases
+    * `sn-etcd-sz` latency(`~69.37ms`) is  **more or less equal to** `mn-etcd-sz`(`~69.89ms`).
+    * `mn-etcd-sz` latency(`~69.89ms`) is  **slightly higher than** `mn-etcd-mz`(`~67.63ms`).
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |       100000       |     256    |          100          |        1000       |       true      |      s      |        leader       |     14334.9027     |           69.37ms           | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |       100000       |     256    |          100          |        1000       |       true      |      s      |        leader       |      14270.008     |           69.89ms           | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |       100000       |     256    |          100          |        1000       |       true      |      s      |        leader       | 14715.287354023869 |           67.63ms           | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+  * Benchmark tool range requests to `follower` with multiple client.
+    * `mn-etcd-sz` latency(`~60.69ms`) is **~20% lesser than** `mn-etcd-mz`(`~70.76ms`).
+    * Compare to  `leader`, `follower` has lower read request latency.
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |       100000       |     256    |          100          |        1000       |       true      |      l      |      follower-1     |      11586.032     |           60.69ms           | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |       100000       |     256    |          100          |        1000       |       true      |      l      |      follower-1     |       14050.5      |           70.76ms           | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+
+
+    * `mn-etcd-sz` latency(`~86.09ms`) is **~20 higher than** `mn-etcd-mz`(`~64.6ms`).
+    * * Compare to `mn-etcd-sz` consistency `Linearizable`, `Serializable` is **~20% higher**.*
+    *  Compare to `mn-etcd-mz` consistency `Linearizable`, `Serializable` is **~slightly less**.
+    *  
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |       100000       |     256    |          100          |        1000       |       true      |      s      |      follower-1     |      11582.438     |           86.09ms           | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |       100000       |     256    |          100          |        1000       |       true      |      s      |      follower-1     |       15422.2      |            64.6ms           | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+
+
+  * Benchmark tool range requests to `leader` all keys.
+    * `sn-etcd-sz` latency(`~678.77ms`) is **~5% slightly lesser than** `mn-etcd-sz`(`~697.29ms`).
+    * `mn-etcd-sz` latency(`~697.29ms`) is less than `mn-etcd-mz`(`~701ms`) but the difference is negligible.
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |         20         |     256    |           2           |         5         |      false      |      l      |        leader       |       6.8875       |           678.77ms          | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |         20         |     256    |           2           |         5         |      false      |      l      |        leader       |        6.720       |           697.29ms          | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |         20         |     256    |           2           |         5         |      false      |      l      |        leader       |         6.7        |            701ms            | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+    * * Compare to consistency `Linearizable`, `Serializable` is **~5% slightly higher** for all cases
+    * `sn-etcd-sz` latency(`~687.36ms`) is less than `mn-etcd-sz`(`~692.68ms`) but the difference is negligible.
+    * `mn-etcd-sz` latency(`~692.68ms`) is **~5% slightly lesser than** `mn-etcd-mz`(`~735.7ms`).
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |         20         |     256    |           2           |         5         |      false      |      s      |        leader       |        6.76        |           687.36ms          | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |         20         |     256    |           2           |         5         |      false      |      s      |        leader       |        6.635       |           692.68ms          | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |         20         |     256    |           2           |         5         |      false      |      s      |        leader       |         6.3        |           735.7ms           | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+  * Benchmark tool range requests to `follower` all keys
+    * `mn-etcd-sz`(`~737.68ms`) latency is **~5% slightly higher than** `mn-etcd-mz`(`~713.7ms`).
+    * Compare to `leader` consistency `Linearizable`read request, `follower` is *~5% slightly higher*. 
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |         20         |     256    |           2           |         5         |      false      |      l      |      follower-1     |        6.163       |           737.68ms          | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |         20         |     256    |           2           |         5         |      false      |      l      |      follower-1     |        6.52        |           713.7ms           | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+
+    * `mn-etcd-sz` latency(`~757.73ms`) is **~10% higher than** `mn-etcd-mz`(`~690.4ms`).
+    * Compare to `follower` consistency `Linearizable`read request, `follower`  consistency `Serializable`  is *~3% slightly higher* for `mn-etcd-sz`.
+    * *Compare to `follower` consistency `Linearizable`read request, `follower`  consistency `Serializable`  is *~5% less* for `mn-etcd-mz`.*
+    * *Compare to `leader` consistency `Serializable`read request, `follower` consistency `Serializable` is *~5% less* for `mn-etcd-mz`. *
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |         20         |     256    |           2           |         5         |      false      |      s      |      follower-1     |       6.0295       |           757.73ms          | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |         20         |     256    |           2           |         5         |      false      |      s      |      follower-1     |        6.87        |           690.4ms           | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+
+
+
+
+  <hr>
+  <br>
+  </details>
+
+</li>
+<li>
+<details>
+
+  <summary>In this case benchmark tool tries to get specific key with random `1MB` value.</summary>
+
+  * Benchmark tool range requests to `leader` with single client.
+
+    * `sn-etcd-sz` latency(`~5.96ms`) is **~5% lesser than** `mn-etcd-sz`(`~6.28ms`).
+    * `mn-etcd-sz` latency(`~6.28ms`) is  **~10% higher than** `mn-etcd-mz`(`~5.3ms`).
+    *  
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |        1000        |   1000000  |           1           |         1         |       true      |      l      |        leader       |       167.381      |            5.96ms           | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |        1000        |   1000000  |           1           |         1         |       true      |      l      |        leader       |       158.822      |            6.28ms           | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |        1000        |   1000000  |           1           |         1         |       true      |      l      |        leader       |       187.94       |            5.3ms            | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+    * Compare to consistency `Linearizable`, `Serializable` is **~15% less** for  `sn-etcd-sz`, `mn-etcd-sz`, `mn-etcd-mz`
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |        1000        |   1000000  |           1           |         1         |       true      |      s      |        leader       |       184.95       |           5.398ms           | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |        1000        |   1000000  |           1           |         1         |       true      |      s      |        leader       |       176.901      |            5.64ms           | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |        1000        |   1000000  |           1           |         1         |       true      |      s      |        leader       |       209.99       |            4.7ms            | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+  * Benchmark tool range requests to `follower` with single client.
+    * `mn-etcd-sz` latency(`~6.66ms`) is  **~10% higher than** `mn-etcd-mz`(`~6.16ms`).
+    * *Compare to `leader`, `follower` read request latency is **~10% high** for `mn-etcd-sz`*
+    * *Compare to `leader`, `follower` read request latency is **~20% high** for  `mn-etcd-mz`*
+    *  
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |        1000        |   1000000  |           1           |         1         |       true      |      l      |      follower-1     |       150.680      |            6.66ms           | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |        1000        |   1000000  |           1           |         1         |       true      |      l      |      follower-1     |       162.072      |            6.16ms           | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+
+    * Compare to consistency `Linearizable`, `Serializable` is **~15% less** for  `mn-etcd-sz`(`~5.84ms`), `mn-etcd-mz`(`~5.01ms`).
+    * *Compare to `leader`, `follower` read request latency is **~5% slightly high** for `mn-etcd-sz`, `mn-etcd-mz`*
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |        1000        |   1000000  |           1           |         1         |       true      |      s      |      follower-1     |       170.918      |            5.84ms           | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |        1000        |   1000000  |           1           |         1         |       true      |      s      |      follower-1     |       199.01       |            5.01ms           | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+
+
+
+  * Benchmark tool range requests to `leader` with multiple clients.
+
+    * `sn-etcd-sz` latency(`~1.593secs`) is **~20% lesser than** `mn-etcd-sz`(`~1.974secs`).
+    * `mn-etcd-sz` latency(`~1.974secs`) is  **~5% greater than** `mn-etcd-mz`(`~1.81secs`).
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |        1000        |   1000000  |          100          |        500        |       true      |      l      |        leader       |       252.149      |          1.593secs          | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |        1000        |   1000000  |          100          |        500        |       true      |      l      |        leader       |       205.589      |          1.974secs          | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |        1000        |   1000000  |          100          |        500        |       true      |      l      |        leader       |       230.42       |           1.81secs          | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+    * *Compare to consistency `Linearizable`, `Serializable` is **more or less same** for `sn-etcd-sz`(`~1.57961secs`), `mn-etcd-mz`(`~1.8secs`) not a big difference*
+    * Compare to consistency `Linearizable`, `Serializable` is  **~10% high** for `mn-etcd-sz`(`~ 2.277secs`).
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |        1000        |   1000000  |          100          |        500        |       true      |      s      |        leader       |       252.406      |         1.57961secs         | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |        1000        |   1000000  |          100          |        500        |       true      |      s      |        leader       |       181.905      |          2.277secs          | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |        1000        |   1000000  |          100          |        500        |       true      |      s      |        leader       |       227.64       |           1.8secs           | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+  * Benchmark tool range requests to `follower` with multiple client.
+
+    * `mn-etcd-sz` latency is **~20% less than** `mn-etcd-mz`.
+    * Compare to  `leader` consistency `Linearizable`, `follower` read request latency is ~15 less for `mn-etcd-sz`(`~1.694secs`).    
+    * Compare to  `leader` consistency `Linearizable`, `follower` read request latency is ~10% higher for `mn-etcd-sz`(`~1.977secs`).    
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |        1000        |   1000000  |          100          |        500        |       true      |      l      |      follower-1     |       248.489      |          1.694secs          | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |        1000        |   1000000  |          100          |        500        |       true      |      l      |      follower-1     |       210.22       |          1.977secs          | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+
+
+
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |        1000        |   1000000  |          100          |        500        |       true      |      l      |      follower-2     |       205.765      |          1.967secs          | eu-west-1a | etcd-main-2 | mn-etcd-sz |
+      |        1000        |   1000000  |          100          |        500        |       true      |      l      |      follower-2     |        195.2       |          2.159secs          | eu-west-1b | etcd-main-2 | mn-etcd-mz |
+
+
+    *  
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |        1000        |   1000000  |          100          |        500        |       true      |      s      |      follower-1     |       231.458      |          1.7413secs         | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |        1000        |   1000000  |          100          |        500        |       true      |      s      |      follower-1     |       214.80       |          1.907secs          | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+
+
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |        1000        |   1000000  |          100          |        500        |       true      |      s      |      follower-2     |       183.320      |          2.2810secs         | eu-west-1a | etcd-main-2 | mn-etcd-sz |
+      |        1000        |   1000000  |          100          |        500        |       true      |      s      |      follower-2     |       195.40       |          2.164secs          | eu-west-1b | etcd-main-2 | mn-etcd-mz |
+
+
+
+  * Benchmark tool range requests to `leader` all keys.
+
+    * `sn-etcd-sz` latency(`~8.993secs`) is **~3% slightly lower than** `mn-etcd-sz`(`~9.236secs`).
+    * `mn-etcd-sz` latency(`~9.236secs`) is  **~2% slightly lower than** `mn-etcd-mz`(`~9.100secs`).
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |         20         |   1000000  |           2           |         5         |      false      |      l      |        leader       |       0.5139       |          8.993secs          | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |         20         |   1000000  |           2           |         5         |      false      |      l      |        leader       |        0.506       |          9.236secs          | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |         20         |   1000000  |           2           |         5         |      false      |      l      |        leader       |        0.508       |          9.100secs          | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+    * Compare to consistency `Linearizable`read request, `follower` for `sn-etcd-sz`(`~9.secs`) is **a slight difference `10ms`**.
+    * Compare to consistency `Linearizable`read request, `follower` for `mn-etcd-sz`(`~9.113secs`) is **~1% less**, not a big difference.
+    * Compare to consistency `Linearizable`read request, `follower` for `mn-etcd-mz`(`~8.799secs`) is **~3% less**, not a big difference.
+    * `sn-etcd-sz` latency(`~9.secs`) is **~1% slightly less than** `mn-etcd-sz`(`~9.113secs`).
+    * *`mn-etcd-sz` latency(`~9.113secs`) is  **~3% slightly higher than** `mn-etcd-mz`(`~8.799secs`)*.
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |         20         |   1000000  |           2           |         5         |      false      |      s      |        leader       |       0.51125      |          9.0003secs         | eu-west-1c | etcd-main-0 | sn-etcd-sz |
+      |         20         |   1000000  |           2           |         5         |      false      |      s      |        leader       |       0.4993       |          9.113secs          | eu-west-1a | etcd-main-1 | mn-etcd-sz |
+      |         20         |   1000000  |           2           |         5         |      false      |      s      |        leader       |        0.522       |          8.799secs          | eu-west-1a | etcd-main-1 | mn-etcd-mz |
+
+  * Benchmark tool range requests to `follower` all keys
+
+    * `mn-etcd-sz` latency(`~9.065secs`) is **~1% slightly higher than** `mn-etcd-mz`(`~9.007secs`).
+    * Compare to `leader` consistency `Linearizable`read request, `follower` is *~1% slightly higher* for both cases  `mn-etcd-sz`,  `mn-etcd-mz` . 
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |         20         |   1000000  |           2           |         5         |      false      |      l      |      follower-1     |        0.512       |          9.065secs          | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |         20         |   1000000  |           2           |         5         |      false      |      l      |      follower-1     |        0.533       |          9.007secs          | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+
+
+    * Compare to consistency `Linearizable`read request, `follower` for `mn-etcd-sz`(`~9.553secs`) is **~5% high**.
+    * *Compare to consistency `Linearizable`read request, `follower` for `mn-etcd-mz`(`~7.7433secs`) is **~15% less***.
+
+    * *`mn-etcd-sz`(`~9.553secs`) latency is  **~20% higher than** `mn-etcd-mz`(`~7.7433secs`)*.
+    * 
+      | Number of requests | Value size | Number of connections | Number of clients | sequential-keys | Consistency |  Target etcd server |  Average write QPS | Average latency per request |    zone    | server name |  Test name |
+      |:------------------:|:----------:|:---------------------:|:-----------------:|:---------------:|:-----------:|:-------------------:|:------------------:|:---------------------------:|:----------:|:-----------:|:----------:|
+      |         20         |   1000000  |           2           |         5         |      false      |      s      |      follower-1     |       0.4743       |          9.553secs          | eu-west-1a | etcd-main-0 | mn-etcd-sz |
+      |         20         |   1000000  |           2           |         5         |      false      |      s      |      follower-1     |       0.5500       |          7.7433secs         | eu-west-1c | etcd-main-0 | mn-etcd-mz |
+
+  <hr>
+  <br>
+  </details>
+
+</li>
+</ul>
+<hr>
+<p><br>
+<br></p>
+<blockquote>
+<p>NOTE: This Network latency analysis is inspired by <a href="https://etcd.io/docs/v3.5/op-guide/performance/">etcd performance</a>.</p>
+</blockquote>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+  
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"></path></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        
+
+<footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        Made with
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs
+        </a>
+        with emoji by
+        <a href="https://github.com/twitter/twemoji" target="_blank" rel="noopener">
+          Twemoji
+        </a>
+      </div>
+      
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/gardener/etcd-druid" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+    </a>
+  
+</div>
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.select", "content.code.copy", "content.code.annotate", "header.autohide"], "search": "../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+        <script src="../assets/pymdownx-extras/extra-loader-B5CKpNQx.js"></script>
+      
+    
+  
+<script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });
+</script></body></html>

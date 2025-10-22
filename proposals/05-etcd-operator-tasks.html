@@ -1,0 +1,2712 @@
+<!DOCTYPE html><html lang="en" class="no-js"><head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="etcd druid documentation">
+      
+      
+      
+      
+        <link rel="prev" href="04-etcd-member-custom-resource.html">
+      
+      
+      
+      <link rel="icon" href="../assets/logo/etcd-druid-transparentbg.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+    
+    
+      
+        <title>operator out-of-band tasks - Etcd Druid</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+
+      
+    
+<script src="../assets/pymdownx-extras/material-extra-theme-2ek1P7jT.js" type="text/javascript"></script>
+<script src="../assets/pymdownx-extras/material-extra-3rdparty-BUCF4rjN.js" type="text/javascript"></script>
+
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/css/custom.css">
+    
+      <link rel="stylesheet" href="../assets/pymdownx-extras/extra-c6ab11540a.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  <link href="../assets/stylesheets/glightbox.min.css" rel="stylesheet"><script src="../assets/javascripts/glightbox.min.js"></script><style id="glightbox-style">
+            html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+        </style></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#dep-05-operator-out-of-band-tasks" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="header.title">
+    <a href="../index.html" title="Etcd Druid" class="md-header__button md-logo" aria-label="Etcd Druid">
+      
+  <img src="../assets/logo/etcd-druid-whitebg.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Etcd Druid
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              operator out-of-band tasks
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="md-header__options">
+      <div class="md-header-nav__scheme md-header-nav__button md-source__icon md-icon">
+          <a href="javascript:toggleScheme();" title="Light mode" class="light-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"></path></svg>
+          </a>
+          <a href="javascript:toggleScheme();" title="Dark mode" class="dark-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"></path></svg>
+          </a>
+          <a href="javascript:toggleScheme();" title="System preference" class="system-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7.5 2c-1.79 1.15-3 3.18-3 5.5s1.21 4.35 3.03 5.5C4.46 13 2 10.54 2 7.5A5.5 5.5 0 0 1 7.5 2m11.57 1.5 1.43 1.43L4.93 20.5 3.5 19.07zm-6.18 2.43L11.41 5 9.97 6l.42-1.7L9 3.24l1.75-.12.58-1.65L12 3.1l1.73.03-1.35 1.13zm-3.3 3.61-1.16-.73-1.12.78.34-1.32-1.09-.83 1.36-.09.45-1.29.51 1.27 1.36.03-1.05.87zM19 13.5a5.5 5.5 0 0 1-5.5 5.5c-1.22 0-2.35-.4-3.26-1.07l7.69-7.69c.67.91 1.07 2.04 1.07 3.26m-4.4 6.58 2.77-1.15-.24 3.35zm4.33-2.7 1.15-2.77 2.2 2.54zm1.15-4.96-1.14-2.78 3.34.24zM9.63 18.93l2.77 1.15-2.53 2.19z"></path></svg>
+          </a>
+           <a href="javascript:toggleScheme();" title="Unknown scheme" class="unknown-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m15.07 11.25-.9.92C13.45 12.89 13 13.5 13 15h-2v-.5c0-1.11.45-2.11 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41a2 2 0 0 0-2-2 2 2 0 0 0-2 2H8a4 4 0 0 1 4-4 4 4 0 0 1 4 4 3.2 3.2 0 0 1-.93 2.25M13 19h-2v-2h2M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10c0-5.53-4.5-10-10-10"></path></svg>
+          </a>
+      </div>
+    </div>
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/gardener/etcd-druid" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    gardener/etcd-druid
+  </div>
+</a>
+      </div>
+    
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../index.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Overview
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../deployment/getting-started-locally/getting-started-locally.html" class="md-tabs__link">
+          
+  
+  
+  Deployment
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../usage/managing-etcd-clusters.html" class="md-tabs__link">
+          
+  
+  
+  Usage
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../concepts/etcd-cluster-components.html" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../development/controllers.html" class="md-tabs__link">
+          
+  
+  
+  Development
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api-reference/etcd-druid-api.html" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../monitoring/metrics.html" class="md-tabs__link">
+          
+  
+  
+  Monitoring
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="01-multi-node-etcd-clusters.html" class="md-tabs__link">
+          
+  
+  
+  Proposals
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="Etcd Druid" class="md-nav__button md-logo" aria-label="Etcd Druid" data-md-component="logo">
+      
+  <img src="../assets/logo/etcd-druid-whitebg.png" alt="logo">
+
+    </a>
+    Etcd Druid
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/gardener/etcd-druid" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    gardener/etcd-druid
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2">
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Deployment
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Deployment
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/getting-started-locally/getting-started-locally.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/configure-etcd-druid.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuring Etcd Druid
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/feature-gates.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Feature Gates
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/version-compatibility-matrix.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Version Compatibility Matrix
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/production-setup-recommendations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Productive Setup Recommendations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3">
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Usage
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Usage
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/managing-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Managing Etcd clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/recovering-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Recovering Etcd clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/securing-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Securing Etcd clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4">
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Concepts
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Concepts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/etcd-cluster-components.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Components in an Etcd cluster
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/etcd-cluster-resource-protection.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Protecting resources in Etcd cluster
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5">
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Development
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Development
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/controllers.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Controllers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/getting-started-locally.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/prepare-dev-environment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Prepare Dev Environment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/contribution.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contribution Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/changing-api.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Changing API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/add-new-etcd-cluster-component.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Adding New Etcd Cluster Component
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/raising-a-pr.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Raising a PR
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/dependency-management.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Manage Dependencies
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/testing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Testing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/updating-documentation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Updating documentation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6">
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/etcd-druid-api.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Etcd Druid API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7">
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Monitoring
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            Monitoring
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../monitoring/metrics.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Metrics
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Proposals
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            Proposals
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="01-multi-node-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multi-Node Etcd Clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="02-snapshot-compaction.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Snapshot Compaction
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="03-scaling-up-an-etcd-cluster.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Scaling Etcd Clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="04-etcd-member-custom-resource.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Etcd Member
+    
+  </span>
+  
+    
+  
+  
+    <span class="md-status md-status--implementable"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Etcd Operator Tasks
+    
+  </span>
+  
+    
+  
+  
+    <span class="md-status md-status--implementable"></span>
+  
+
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="05-etcd-operator-tasks.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Etcd Operator Tasks
+    
+  </span>
+  
+    
+  
+  
+    <span class="md-status md-status--implementable"></span>
+  
+
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Summary
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#terminology" class="md-nav__link">
+    <span class="md-ellipsis">
+      Terminology
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#motivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Motivation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      Goals
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      Non-Goals
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposal" class="md-nav__link">
+    <span class="md-ellipsis">
+      Proposal
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Proposal">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#custom-resource-golang-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Custom Resource Golang API
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Custom Resource Golang API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      Spec
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#status" class="md-nav__link">
+    <span class="md-ellipsis">
+      Status
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-resource-yaml-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Custom Resource YAML API
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      Lifecycle
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#creation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      Execution
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deletion" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deletion
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      Use Cases
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Use Cases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#recovery-from-permanent-quorum-loss" class="md-nav__link">
+    <span class="md-ellipsis">
+      Recovery from permanent quorum loss
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Recovery from permanent quorum loss">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      Task Config
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre-conditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre-Conditions
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trigger-on-demand-snapshot-compaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      Trigger on-demand snapshot compaction
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Trigger on-demand snapshot compaction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#possible-scenarios" class="md-nav__link">
+    <span class="md-ellipsis">
+      Possible Scenarios
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-config_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Task Config
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre-conditions_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre-Conditions
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trigger-on-demand-fulldelta-snapshot" class="md-nav__link">
+    <span class="md-ellipsis">
+      Trigger on-demand full/delta snapshot
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Trigger on-demand full/delta snapshot">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#possible-scenarios_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Possible Scenarios
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-config_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Task Config
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre-conditions_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre-Conditions
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trigger-on-demand-maintenance-of-etcd-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      Trigger on-demand maintenance of etcd cluster
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Trigger on-demand maintenance of etcd cluster">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#possible-scenarios_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Possible Scenarios
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-config_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Task Config
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre-conditions_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre-Conditions
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#copy-backups-task" class="md-nav__link">
+    <span class="md-ellipsis">
+      Copy Backups Task
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Copy Backups Task">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#possible-scenarios_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Possible Scenarios
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-config_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Task Config
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre-conditions_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre-Conditions
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Metrics
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Summary
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#terminology" class="md-nav__link">
+    <span class="md-ellipsis">
+      Terminology
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#motivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Motivation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      Goals
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      Non-Goals
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposal" class="md-nav__link">
+    <span class="md-ellipsis">
+      Proposal
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Proposal">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#custom-resource-golang-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Custom Resource Golang API
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Custom Resource Golang API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      Spec
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#status" class="md-nav__link">
+    <span class="md-ellipsis">
+      Status
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-resource-yaml-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Custom Resource YAML API
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      Lifecycle
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#creation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      Execution
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deletion" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deletion
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      Use Cases
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Use Cases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#recovery-from-permanent-quorum-loss" class="md-nav__link">
+    <span class="md-ellipsis">
+      Recovery from permanent quorum loss
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Recovery from permanent quorum loss">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      Task Config
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre-conditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre-Conditions
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trigger-on-demand-snapshot-compaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      Trigger on-demand snapshot compaction
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Trigger on-demand snapshot compaction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#possible-scenarios" class="md-nav__link">
+    <span class="md-ellipsis">
+      Possible Scenarios
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-config_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Task Config
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre-conditions_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre-Conditions
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trigger-on-demand-fulldelta-snapshot" class="md-nav__link">
+    <span class="md-ellipsis">
+      Trigger on-demand full/delta snapshot
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Trigger on-demand full/delta snapshot">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#possible-scenarios_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Possible Scenarios
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-config_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Task Config
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre-conditions_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre-Conditions
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trigger-on-demand-maintenance-of-etcd-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      Trigger on-demand maintenance of etcd cluster
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Trigger on-demand maintenance of etcd cluster">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#possible-scenarios_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Possible Scenarios
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-config_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Task Config
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre-conditions_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre-Conditions
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#copy-backups-task" class="md-nav__link">
+    <span class="md-ellipsis">
+      Copy Backups Task
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Copy Backups Task">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#possible-scenarios_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Possible Scenarios
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-config_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Task Config
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre-conditions_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre-Conditions
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Metrics
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+  
+                  
+
+
+  
+  
+
+
+<h1 id="dep-05-operator-out-of-band-tasks">DEP-05: Operator Out-of-band Tasks<a class="headerlink" href="#dep-05-operator-out-of-band-tasks" title="Permanent link">¶</a></h1>
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">¶</a></h2>
+<p>This DEP proposes an enhancement to <code>etcd-druid</code>'s capabilities to handle <a href="#terminology">out-of-band</a> tasks, which are presently performed manually or invoked programmatically via suboptimal APIs. The document proposes the establishment of a unified interface by defining a well-structured API to harmonize the initiation of any <code>out-of-band</code> task, monitor its status, and simplify the process of adding new tasks and managing their lifecycles.</p>
+<h2 id="terminology">Terminology<a class="headerlink" href="#terminology" title="Permanent link">¶</a></h2>
+<ul>
+<li>
+<p><strong>etcd-druid:</strong> <a href="https://github.com/gardener/etcd-druid">etcd-druid</a> is an operator to manage the etcd clusters.</p>
+</li>
+<li>
+<p><strong>backup-sidecar:</strong> It is the etcd-backup-restore sidecar container running in each etcd-member pod of etcd cluster.</p>
+</li>
+<li>
+<p><strong>leading-backup-sidecar:</strong> A backup-sidecar that is associated to an etcd leader of an etcd cluster.</p>
+</li>
+<li>
+<p><strong>out-of-band task:</strong> Any on-demand tasks/operations that can be executed on an etcd cluster without modifying the <a href="https://github.com/gardener/etcd-druid/blob/9c5f8254e3aeb24c1e3e88d17d8d1de336ce981b/api/v1alpha1/types_etcd.go#L272-L273">Etcd custom resource spec</a> (desired state).</p>
+</li>
+</ul>
+<h2 id="motivation">Motivation<a class="headerlink" href="#motivation" title="Permanent link">¶</a></h2>
+<p>Today, <a href="https://github.com/gardener/etcd-druid">etcd-druid</a> mainly acts as an etcd cluster provisioner (creation, maintenance and deletion). In future, capabilities of etcd-druid will be enhanced via <a href="https://github.com/gardener/etcd-druid/blob/8ac70d512969c2e12e666d923d7d35fdab1e0f8e/docs/proposals/04-etcd-member-custom-resource.md">etcd-member</a> proposal by providing it access to much more detailed information about each etcd cluster member. While we enhance the reconciliation and monitoring capabilities of etcd-druid, it still lacks the ability to allow users to invoke <code>out-of-band</code> tasks on an existing etcd cluster.</p>
+<p>There are new learnings while operating etcd clusters at scale. It has been observed that we regularly need capabilities to trigger <code>out-of-band</code> tasks which are outside of the purview of a regular etcd reconciliation run. Many of these tasks are multi-step processes, and performing them manually is error-prone, even if an operator follows a well-written step-by-step guide. Thus, there is a need to automate these tasks.
+Some examples of an <code>on-demand/out-of-band</code> tasks:</p>
+<ul>
+<li>Recover from a permanent quorum loss of etcd cluster.</li>
+<li>Trigger an on-demand full/delta snapshot.</li>
+<li>Trigger an on-demand snapshot compaction.</li>
+<li>Trigger an on-demand maintenance of etcd cluster.</li>
+<li>Copy the backups from one object store to another object store.</li>
+</ul>
+<h2 id="goals">Goals<a class="headerlink" href="#goals" title="Permanent link">¶</a></h2>
+<ul>
+<li>Establish a unified interface for operator tasks by defining a single dedicated custom resource for <code>out-of-band</code> tasks.</li>
+<li>Define a contract (in terms of prerequisites) which needs to be adhered to by any task implementation.</li>
+<li>Facilitate the easy addition of new <code>out-of-band</code> task(s) through this custom resource.</li>
+<li>Provide CLI capabilities to operators, making it easy to invoke supported <code>out-of-band</code> tasks.</li>
+</ul>
+<h2 id="non-goals">Non-Goals<a class="headerlink" href="#non-goals" title="Permanent link">¶</a></h2>
+<ul>
+<li>In the current scope, capability to abort/suspend an <code>out-of-band</code> task is not going to be provided. This could be considered as an enhancement based on pull.</li>
+<li>Ordering (by establishing dependency) of <code>out-of-band</code> tasks submitted for the same etcd cluster has not been considered in the first increment. In a future version based on how operator tasks are used, we will enhance this proposal and the implementation.</li>
+</ul>
+<h2 id="proposal">Proposal<a class="headerlink" href="#proposal" title="Permanent link">¶</a></h2>
+<p>Authors propose creation of a new single dedicated custom resource to represent an <code>out-of-band</code> task. Etcd-druid will be enhanced to process the task requests and update its status which can then be tracked/observed.</p>
+<h3 id="custom-resource-golang-api">Custom Resource Golang API<a class="headerlink" href="#custom-resource-golang-api" title="Permanent link">¶</a></h3>
+<p><code>EtcdOperatorTask</code> is the new custom resource that will be introduced. This API will be in <code>v1alpha1</code> version and will be subject to change. We will be respecting <a href="https://kubernetes.io/docs/reference/using-api/deprecation-policy/">Kubernetes Deprecation Policy</a>.</p>
+<div class="language-go highlight"><span class="filename">Go</span><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1">// EtcdOperatorTask represents an out-of-band operator task resource.</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kd">type</span><span class="w"> </span><span class="nx">EtcdOperatorTask</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nx">metav1</span><span class="p">.</span><span class="nx">TypeMeta</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nx">metav1</span><span class="p">.</span><span class="nx">ObjectMeta</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="c1">// Spec is the specification of the EtcdOperatorTask resource.</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="nx">Spec</span><span class="w"> </span><span class="nx">EtcdOperatorTaskSpec</span><span class="w"> </span><span class="s">`json:"spec"`</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="c1">// Status is most recently observed status of the EtcdOperatorTask resource.</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="nx">Status</span><span class="w"> </span><span class="nx">EtcdOperatorTaskStatus</span><span class="w"> </span><span class="s">`json:"status,omitempty"`</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">}</span>
+</span></code></pre></div>
+<h4 id="spec">Spec<a class="headerlink" href="#spec" title="Permanent link">¶</a></h4>
+<p>The authors propose that the following fields should be specified in the spec (desired state) of the <code>EtcdOperatorTask</code> custom resource.</p>
+<ul>
+<li>To capture the type of <code>out-of-band</code> operator task to be performed, <code>.spec.type</code> field should be defined. It can have values from all supported <code>out-of-band</code> tasks eg. "OnDemandSnaphotTask", "QuorumLossRecoveryTask" etc.</li>
+<li>To capture the configuration specific to each task, a <code>.spec.config</code> field should be defined of type <code>string</code> as each task can have different input configuration.</li>
+</ul>
+<div class="language-go highlight"><span class="filename">Go</span><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// EtcdOperatorTaskSpec is the spec for a EtcdOperatorTask resource.</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kd">type</span><span class="w"> </span><span class="nx">EtcdOperatorTaskSpec</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="c1">// Type specifies the type of out-of-band operator task to be performed. </span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nx">Type</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:"type"`</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="c1">// Config is a task specific configuration.</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nx">Config</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:"config,omitempty"`</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span><span class="c1">// TTLSecondsAfterFinished is the time-to-live to garbage collect the </span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span><span class="c1">// related resource(s) of task once it has been completed.</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span><span class="c1">// +optional</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">  </span><span class="nx">TTLSecondsAfterFinished</span><span class="w"> </span><span class="o">*</span><span class="kt">int32</span><span class="w"> </span><span class="s">`json:"ttlSecondsAfterFinished,omitempty"`</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">  </span><span class="c1">// OwnerEtcdReference refers to the name and namespace of the corresponding </span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">  </span><span class="c1">// Etcd owner for which the task has been invoked.</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">  </span><span class="nx">OwnerEtcdRefrence</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">NamespacedName</span><span class="w"> </span><span class="s">`json:"ownerEtcdRefrence"`</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="p">}</span>
+</span></code></pre></div>
+<h4 id="status">Status<a class="headerlink" href="#status" title="Permanent link">¶</a></h4>
+<p>The authors propose the following fields for the Status (current state) of the <code>EtcdOperatorTask</code> custom resource to monitor the progress of the task.</p>
+<div class="language-go highlight"><span class="filename">Go</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">// EtcdOperatorTaskStatus is the status for a EtcdOperatorTask resource.</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kd">type</span><span class="w"> </span><span class="nx">EtcdOperatorTaskStatus</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="c1">// ObservedGeneration is the most recent generation observed for the resource.</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nx">ObservedGeneration</span><span class="w"> </span><span class="o">*</span><span class="kt">int64</span><span class="w"> </span><span class="s">`json:"observedGeneration,omitempty"`</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="c1">// State is the last known state of the task.</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="nx">State</span><span class="w"> </span><span class="nx">TaskState</span><span class="w"> </span><span class="s">`json:"state"`</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="c1">// Time at which the task has moved from "pending" state to any other state.</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="nx">InitiatedAt</span><span class="w"> </span><span class="nx">metav1</span><span class="p">.</span><span class="nx">Time</span><span class="w"> </span><span class="s">`json:"initiatedAt"`</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">  </span><span class="c1">// LastError represents the errors when processing the task.</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">  </span><span class="c1">// +optional</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">  </span><span class="nx">LastErrors</span><span class="w"> </span><span class="p">[]</span><span class="nx">LastError</span><span class="w"> </span><span class="s">`json:"lastErrors,omitempty"`</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="c1">// Captures the last operation status if task involves many stages.</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">  </span><span class="c1">// +optional</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">  </span><span class="nx">LastOperation</span><span class="w"> </span><span class="o">*</span><span class="nx">LastOperation</span><span class="w"> </span><span class="s">`json:"lastOperation,omitempty"`</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="p">}</span>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="kd">type</span><span class="w"> </span><span class="nx">LastOperation</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="w">  </span><span class="c1">// Name of the LastOperation.</span>
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="w">  </span><span class="nx">Name</span><span class="w"> </span><span class="nx">opsName</span><span class="w"> </span><span class="s">`json:"name"`</span>
+</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="w">  </span><span class="c1">// Status of the last operation, one of pending, progress, completed, failed.</span>
+</span><span id="__span-2-21"><a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="w">  </span><span class="nx">State</span><span class="w"> </span><span class="nx">OperationState</span><span class="w"> </span><span class="s">`json:"state"`</span>
+</span><span id="__span-2-22"><a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="w">  </span><span class="c1">// LastTransitionTime is the time at which the operation state last transitioned from one state to another.</span>
+</span><span id="__span-2-23"><a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="w">  </span><span class="nx">LastTransitionTime</span><span class="w"> </span><span class="nx">metav1</span><span class="p">.</span><span class="nx">Time</span><span class="w"> </span><span class="s">`json:"lastTransitionTime"`</span>
+</span><span id="__span-2-24"><a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="w">  </span><span class="c1">// A human readable message indicating details about the last operation.</span>
+</span><span id="__span-2-25"><a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a><span class="w">  </span><span class="nx">Reason</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:"reason"`</span>
+</span><span id="__span-2-26"><a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a><span class="p">}</span>
+</span><span id="__span-2-27"><a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>
+</span><span id="__span-2-28"><a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a><span class="c1">// LastError stores details of the most recent error encountered for the task.</span>
+</span><span id="__span-2-29"><a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a><span class="kd">type</span><span class="w"> </span><span class="nx">LastError</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-30"><a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a><span class="w">  </span><span class="c1">// Code is an error code that uniquely identifies an error.</span>
+</span><span id="__span-2-31"><a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a><span class="w">  </span><span class="nx">Code</span><span class="w"> </span><span class="nx">ErrorCode</span><span class="w"> </span><span class="s">`json:"code"`</span>
+</span><span id="__span-2-32"><a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a><span class="w">  </span><span class="c1">// Description is a human-readable message indicating details of the error.</span>
+</span><span id="__span-2-33"><a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a><span class="w">  </span><span class="nx">Description</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:"description"`</span>
+</span><span id="__span-2-34"><a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a><span class="w">  </span><span class="c1">// ObservedAt is the time at which the error was observed.</span>
+</span><span id="__span-2-35"><a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a><span class="w">  </span><span class="nx">ObservedAt</span><span class="w"> </span><span class="nx">metav1</span><span class="p">.</span><span class="nx">Time</span><span class="w"> </span><span class="s">`json:"observedAt"`</span>
+</span><span id="__span-2-36"><a id="__codelineno-2-36" name="__codelineno-2-36" href="#__codelineno-2-36"></a><span class="p">}</span>
+</span><span id="__span-2-37"><a id="__codelineno-2-37" name="__codelineno-2-37" href="#__codelineno-2-37"></a>
+</span><span id="__span-2-38"><a id="__codelineno-2-38" name="__codelineno-2-38" href="#__codelineno-2-38"></a><span class="c1">// TaskState represents the state of the task.</span>
+</span><span id="__span-2-39"><a id="__codelineno-2-39" name="__codelineno-2-39" href="#__codelineno-2-39"></a><span class="kd">type</span><span class="w"> </span><span class="nx">TaskState</span><span class="w"> </span><span class="kt">string</span>
+</span><span id="__span-2-40"><a id="__codelineno-2-40" name="__codelineno-2-40" href="#__codelineno-2-40"></a>
+</span><span id="__span-2-41"><a id="__codelineno-2-41" name="__codelineno-2-41" href="#__codelineno-2-41"></a><span class="kd">const</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-2-42"><a id="__codelineno-2-42" name="__codelineno-2-42" href="#__codelineno-2-42"></a><span class="w">  </span><span class="nx">TaskStateFailed</span><span class="w"> </span><span class="nx">TaskState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">"Failed"</span>
+</span><span id="__span-2-43"><a id="__codelineno-2-43" name="__codelineno-2-43" href="#__codelineno-2-43"></a><span class="w">  </span><span class="nx">TaskStatePending</span><span class="w"> </span><span class="nx">TaskState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">"Pending"</span>
+</span><span id="__span-2-44"><a id="__codelineno-2-44" name="__codelineno-2-44" href="#__codelineno-2-44"></a><span class="w">  </span><span class="nx">TaskStateRejected</span><span class="w"> </span><span class="nx">TaskState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">"Rejected"</span>
+</span><span id="__span-2-45"><a id="__codelineno-2-45" name="__codelineno-2-45" href="#__codelineno-2-45"></a><span class="w">  </span><span class="nx">TaskStateSucceeded</span><span class="w"> </span><span class="nx">TaskState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">"Succeeded"</span>
+</span><span id="__span-2-46"><a id="__codelineno-2-46" name="__codelineno-2-46" href="#__codelineno-2-46"></a><span class="w">  </span><span class="nx">TaskStateInProgress</span><span class="w"> </span><span class="nx">TaskState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">"InProgress"</span>
+</span><span id="__span-2-47"><a id="__codelineno-2-47" name="__codelineno-2-47" href="#__codelineno-2-47"></a><span class="p">)</span>
+</span><span id="__span-2-48"><a id="__codelineno-2-48" name="__codelineno-2-48" href="#__codelineno-2-48"></a>
+</span><span id="__span-2-49"><a id="__codelineno-2-49" name="__codelineno-2-49" href="#__codelineno-2-49"></a><span class="c1">// OperationState represents the state of last operation.</span>
+</span><span id="__span-2-50"><a id="__codelineno-2-50" name="__codelineno-2-50" href="#__codelineno-2-50"></a><span class="kd">type</span><span class="w"> </span><span class="nx">OperationState</span><span class="w"> </span><span class="kt">string</span>
+</span><span id="__span-2-51"><a id="__codelineno-2-51" name="__codelineno-2-51" href="#__codelineno-2-51"></a>
+</span><span id="__span-2-52"><a id="__codelineno-2-52" name="__codelineno-2-52" href="#__codelineno-2-52"></a><span class="kd">const</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-2-53"><a id="__codelineno-2-53" name="__codelineno-2-53" href="#__codelineno-2-53"></a><span class="w">  </span><span class="nx">OperationStateFailed</span><span class="w"> </span><span class="nx">OperationState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">"Failed"</span>
+</span><span id="__span-2-54"><a id="__codelineno-2-54" name="__codelineno-2-54" href="#__codelineno-2-54"></a><span class="w">  </span><span class="nx">OperationStatePending</span><span class="w"> </span><span class="nx">OperationState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">"Pending"</span>
+</span><span id="__span-2-55"><a id="__codelineno-2-55" name="__codelineno-2-55" href="#__codelineno-2-55"></a><span class="w">  </span><span class="nx">OperationStateCompleted</span><span class="w"> </span><span class="nx">OperationState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">"Completed"</span>
+</span><span id="__span-2-56"><a id="__codelineno-2-56" name="__codelineno-2-56" href="#__codelineno-2-56"></a><span class="w">  </span><span class="nx">OperationStateInProgress</span><span class="w"> </span><span class="nx">OperationState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">"InProgress"</span>
+</span><span id="__span-2-57"><a id="__codelineno-2-57" name="__codelineno-2-57" href="#__codelineno-2-57"></a><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="custom-resource-yaml-api">Custom Resource YAML API<a class="headerlink" href="#custom-resource-yaml-api" title="Permanent link">¶</a></h3>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">druid.gardener.cloud/v1alpha1</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EtcdOperatorTask</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nt">metadata</span><span class="p">:</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;name of operator task resource&gt;</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;cluster namespace&gt;</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="nt">generation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;specific generation of the desired state&gt;</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="nt">spec</span><span class="p">:</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;type/category of supported out-of-band task&gt;</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">    </span><span class="nt">ttlSecondsAfterFinished</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;time-to-live to garbage collect the custom resource after it has been completed&gt;</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">    </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;task specific configuration&gt;</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">    </span><span class="nt">ownerEtcdRefrence</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;refer to corresponding etcd owner name and namespace for which task has been invoked&gt;</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="nt">status</span><span class="p">:</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">    </span><span class="nt">observedGeneration</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;specific observedGeneration of the resource&gt;</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">    </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;last known current state of the out-of-band task&gt;</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">    </span><span class="nt">initiatedAt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;time at which task move to any other state from "pending" state&gt;</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">    </span><span class="nt">lastErrors</span><span class="p">:</span>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">code</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;error-code&gt;</span>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;description of the error&gt;</span>
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="w">      </span><span class="nt">observedAt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;time the error was observed&gt;</span>
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="w">    </span><span class="nt">lastOperation</span><span class="p">:</span>
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;operation-name&gt;</span>
+</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="w">      </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;task state as seen at the completion of last operation&gt;</span>
+</span><span id="__span-3-23"><a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="w">      </span><span class="nt">lastTransitionTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;time of transition to this state&gt;</span>
+</span><span id="__span-3-24"><a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="w">      </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;reason/message if any&gt;</span>
+</span></code></pre></div>
+<h3 id="lifecycle">Lifecycle<a class="headerlink" href="#lifecycle" title="Permanent link">¶</a></h3>
+<h4 id="creation">Creation<a class="headerlink" href="#creation" title="Permanent link">¶</a></h4>
+<p>Task(s) can be created by creating an instance of the <code>EtcdOperatorTask</code> custom resource specific to a task.</p>
+<blockquote>
+<p>Note: In future, either a <code>kubectl</code> extension plugin or a <code>druidctl</code> tool will be introduced. Dedicated sub-commands will be created for each <code>out-of-band</code> task. This will drastically increase the usability for an operator for performing such tasks, as the CLI extension will automatically create relevant instance(s) of <code>EtcdOperatorTask</code> with the provided configuration.</p>
+</blockquote>
+<h4 id="execution">Execution<a class="headerlink" href="#execution" title="Permanent link">¶</a></h4>
+<ul>
+<li>Authors propose to introduce a new controller which watches for <code>EtcdOperatorTask</code> custom resource.</li>
+<li>Each <code>out-of-band</code> task may have some task specific configuration defined in <a href="#spec">.spec.config</a>.</li>
+<li>The controller needs to parse this task specific config, which comes as a <a href="#spec">string</a>, according to the schema defined for each task.</li>
+<li>For every <code>out-of-band</code> task, a set of <code>pre-conditions</code> can be defined. These pre-conditions are evaluated against the current state of the target etcd cluster. Based on the evaluation result (boolean), the task is permitted or denied execution.</li>
+<li>If multiple tasks are invoked simultaneously or in <code>pending</code> state, then they will be executed in a First-In-First-Out (FIFO) manner.</li>
+</ul>
+<blockquote>
+<p>Note: Dependent ordering among tasks will be addressed later which will enable concurrent execution of tasks when possible.</p>
+</blockquote>
+<h4 id="deletion">Deletion<a class="headerlink" href="#deletion" title="Permanent link">¶</a></h4>
+<p>Upon completion of the task, irrespective of its final state, <code>Etcd-druid</code> will ensure the garbage collection of the task custom resource and any other Kubernetes resources created to execute the task. This will be done according to the <code>.spec.ttlSecondsAfterFinished</code> if defined in the <a href="#spec">spec</a>, or a default expiry time will be assumed.</p>
+<h3 id="use-cases">Use Cases<a class="headerlink" href="#use-cases" title="Permanent link">¶</a></h3>
+<h4 id="recovery-from-permanent-quorum-loss">Recovery from permanent quorum loss<a class="headerlink" href="#recovery-from-permanent-quorum-loss" title="Permanent link">¶</a></h4>
+<p>Recovery from permanent quorum loss involves two phases - identification and recovery - both of which are done manually today. This proposal intends to automate the latter. Recovery today is a <a href="../../docs/usage/recovering-etcd-clusters.md">multi-step process</a> and needs to be performed carefully by a human operator. Automating these steps would be prudent, to make it quicker and error-free. The identification of the permanent quorum loss would remain a manual process, requiring a human operator to investigate and confirm that there is indeed a permanent quorum loss with no possibility of auto-healing.</p>
+<h5 id="task-config">Task Config<a class="headerlink" href="#task-config" title="Permanent link">¶</a></h5>
+<p>We do not need any config for this task. When creating an instance of <code>EtcdOperatorTask</code> for this scenario, <code>.spec.config</code> will be set to nil (unset).</p>
+<h5 id="pre-conditions">Pre-Conditions<a class="headerlink" href="#pre-conditions" title="Permanent link">¶</a></h5>
+<ul>
+<li>There should be a quorum loss in a multi-member etcd cluster. For a single-member etcd cluster, invoking this task is unnecessary as the restoration of the single member is automatically handled by the backup-restore process.</li>
+<li>There should not already be a permanent-quorum-loss-recovery-task running for the same etcd cluster.</li>
+</ul>
+<h4 id="trigger-on-demand-snapshot-compaction">Trigger on-demand snapshot compaction<a class="headerlink" href="#trigger-on-demand-snapshot-compaction" title="Permanent link">¶</a></h4>
+<p><code>Etcd-druid</code> provides a configurable <a href="https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md#druid-flags">etcd-events-threshold</a> flag. When this threshold is breached, then a <a href="https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md">snapshot compaction</a> is triggered for the etcd cluster. However, there are scenarios where an ad-hoc snapshot compaction may be required.</p>
+<h5 id="possible-scenarios">Possible Scenarios<a class="headerlink" href="#possible-scenarios" title="Permanent link">¶</a></h5>
+<ul>
+<li>If an operator anticipates a scenario of permanent quorum loss, they can trigger an <code>on-demand snapshot compaction</code> to create a compacted full-snapshot. This can potentially reduce the recovery time from a permanent quorum loss.</li>
+<li>As an additional benefit, a human operator can leverage the current implementation of <a href="https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md">snapshot compaction</a>, which internally triggers <code>restoration</code>. Hence, by initiating an <code>on-demand snapshot compaction</code> task, the operator can verify the integrity of etcd cluster backups, particularly in cases of potential backup corruption or re-encryption. The success or failure of this snapshot compaction can offer valuable insights into these scenarios.</li>
+</ul>
+<h5 id="task-config_1">Task Config<a class="headerlink" href="#task-config_1" title="Permanent link">¶</a></h5>
+<p>We do not need any config for this task. When creating an instance of <code>EtcdOperatorTask</code> for this scenario, <code>.spec.config</code> will be set to nil (unset).</p>
+<h5 id="pre-conditions_1">Pre-Conditions<a class="headerlink" href="#pre-conditions_1" title="Permanent link">¶</a></h5>
+<ul>
+<li>There should not be a <code>on-demand snapshot compaction</code> task already running for the same etcd cluster.</li>
+</ul>
+<blockquote>
+<p>Note: <code>on-demand snapshot compaction</code> runs as a separate job in a separate pod, which interacts with the backup bucket and not the etcd cluster itself, hence it doesn't depend on the health of etcd cluster members.</p>
+</blockquote>
+<h4 id="trigger-on-demand-fulldelta-snapshot">Trigger on-demand full/delta snapshot<a class="headerlink" href="#trigger-on-demand-fulldelta-snapshot" title="Permanent link">¶</a></h4>
+<p><code>Etcd</code> custom resource provides an ability to set <a href="https://github.com/gardener/etcd-druid/blob/master/api/core/v1alpha1/etcd.go#L156">FullSnapshotSchedule</a> which currently defaults to run once in 24 hrs. <a href="https://github.com/gardener/etcd-druid/blob/master/api/core/v1alpha1/etcd.go#L173">DeltaSnapshotPeriod</a> is also made configurable which defines the duration after which a delta snapshot will be taken.
+If a human operator does not wish to wait for the scheduled full/delta snapshot, they can trigger an on-demand (out-of-schedule) full/delta snapshot on the etcd cluster, which will be taken by the <code>leading-backup-restore</code>.</p>
+<h5 id="possible-scenarios_1">Possible Scenarios<a class="headerlink" href="#possible-scenarios_1" title="Permanent link">¶</a></h5>
+<ul>
+<li>An on-demand full snapshot can be triggered if scheduled snapshot fails due to any reason.</li>
+<li><a href="https://github.com/gardener/gardener/blob/master/docs/usage/shoot/shoot_hibernate.md">Gardener Shoot Hibernation</a>: Every etcd cluster incurs an inherent cost of preserving the volumes even when a gardener shoot control plane is scaled down, i.e the shoot is in a hibernated state. However, it is possible to save on hyperscaler costs by invoking this task to take a full snapshot before scaling down the etcd cluster, and deleting the etcd data volumes afterwards.</li>
+<li><a href="https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md">Gardener Control Plane Migration</a>: In <a href="https://github.com/gardener/gardener">gardener</a>, a cluster control plane can be moved from one seed cluster to another. This process currently requires the etcd data to be replicated on the target cluster, so a full snapshot of the etcd cluster in the source seed before the migration would allow for faster restoration of the etcd cluster in the target seed.</li>
+</ul>
+<h5 id="task-config_2">Task Config<a class="headerlink" href="#task-config_2" title="Permanent link">¶</a></h5>
+<div class="language-go highlight"><span class="filename">Go</span><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">// SnapshotType can be full or delta snapshot.</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kd">type</span><span class="w"> </span><span class="nx">SnapshotType</span><span class="w"> </span><span class="kt">string</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kd">const</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nx">SnapshotTypeFull</span><span class="w"> </span><span class="nx">SnapshotType</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">"full"</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nx">SnapshotTypeDelta</span><span class="w"> </span><span class="nx">SnapshotType</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">"delta"</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">)</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="kd">type</span><span class="w"> </span><span class="nx">OnDemandSnapshotTaskConfig</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">  </span><span class="c1">// Type of on-demand snapshot.</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span><span class="nx">Type</span><span class="w"> </span><span class="nx">SnapshotType</span><span class="w"> </span><span class="s">`json:"type"`</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="p">}</span>
+</span></code></pre></div>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">spec</span><span class="p">:</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="no">type: &lt;type of on-demand snapshot&gt;</span>
+</span></code></pre></div>
+<h5 id="pre-conditions_2">Pre-Conditions<a class="headerlink" href="#pre-conditions_2" title="Permanent link">¶</a></h5>
+<ul>
+<li>Etcd cluster should have a quorum.</li>
+<li>There should not already be a <code>on-demand snapshot</code> task running with the same <code>SnapshotType</code> for the same etcd cluster.</li>
+</ul>
+<h4 id="trigger-on-demand-maintenance-of-etcd-cluster">Trigger on-demand maintenance of etcd cluster<a class="headerlink" href="#trigger-on-demand-maintenance-of-etcd-cluster" title="Permanent link">¶</a></h4>
+<p>Operator can trigger on-demand <a href="https://etcd.io/docs/v3.5/op-guide/maintenance">maintenance of etcd cluster</a> which includes operations like <a href="https://etcd.io/docs/v3.5/op-guide/maintenance/#history-compaction-v3-api-key-value-database">etcd compaction</a>, <a href="https://etcd.io/docs/v3.5/op-guide/maintenance/#defragmentation">etcd defragmentation</a> etc.</p>
+<h5 id="possible-scenarios_2">Possible Scenarios<a class="headerlink" href="#possible-scenarios_2" title="Permanent link">¶</a></h5>
+<ul>
+<li>If an etcd cluster is heavily loaded, which is causing performance degradation of an etcd cluster, and the operator does not want to wait for the scheduled maintenance window then an <code>on-demand maintenance</code> task can be triggered which will invoke etcd-compaction, etcd-defragmentation etc. on the target etcd cluster. This will make the etcd cluster lean and clean, thus improving cluster performance.</li>
+</ul>
+<h5 id="task-config_3">Task Config<a class="headerlink" href="#task-config_3" title="Permanent link">¶</a></h5>
+<div class="language-go highlight"><span class="filename">Go</span><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">OnDemandMaintenanceTaskConfig</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="c1">// MaintenanceType defines the maintenance operations need to be performed on etcd cluster.</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nx">MaintenanceType</span><span class="w"> </span><span class="nx">maintenanceOps</span><span class="w"> </span><span class="s">`json:"maintenanceType`</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="p">}</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="kd">type</span><span class="w"> </span><span class="nx">maintenanceOps</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span><span class="c1">// EtcdCompaction if set to true will trigger an etcd compaction on the target etcd.</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="c1">// +optional</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">  </span><span class="nx">EtcdCompaction</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="s">`json:"etcdCompaction,omitempty"`</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">  </span><span class="c1">// EtcdDefragmentation if set to true will trigger a etcd defragmentation on the target etcd.</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">  </span><span class="c1">// +optional</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">  </span><span class="nx">EtcdDefragmentation</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="s">`json:"etcdDefragmentation,omitempty"`</span>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="p">}</span>
+</span></code></pre></div>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">spec</span><span class="p">:</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="no">maintenanceType:</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">      </span><span class="no">etcdCompaction: &lt;true/false&gt;</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">      </span><span class="no">etcdDefragmentation: &lt;true/false&gt;</span>
+</span></code></pre></div>
+<h5 id="pre-conditions_3">Pre-Conditions<a class="headerlink" href="#pre-conditions_3" title="Permanent link">¶</a></h5>
+<ul>
+<li>Etcd cluster should have a quorum.</li>
+<li>There should not already be a duplicate task running with same <code>maintenanceType</code>.</li>
+</ul>
+<h4 id="copy-backups-task">Copy Backups Task<a class="headerlink" href="#copy-backups-task" title="Permanent link">¶</a></h4>
+<p>Copy the backups(full and delta snapshots) of etcd cluster from one object store(source) to another object store(target).</p>
+<h5 id="possible-scenarios_3">Possible Scenarios<a class="headerlink" href="#possible-scenarios_3" title="Permanent link">¶</a></h5>
+<ul>
+<li>In <a href="https://github.com/gardener/gardener">Gardener</a>, the <a href="https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md">Control Plane Migration</a> process utilizes the copy-backups task. This task is responsible for copying backups from one object store to another, typically located in different regions.</li>
+</ul>
+<h5 id="task-config_4">Task Config<a class="headerlink" href="#task-config_4" title="Permanent link">¶</a></h5>
+<div class="language-go highlight"><span class="filename">Go</span><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1">// EtcdCopyBackupsTaskConfig defines the parameters for the copy backups task.</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kd">type</span><span class="w"> </span><span class="nx">EtcdCopyBackupsTaskConfig</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="c1">// SourceStore defines the specification of the source object store provider.</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nx">SourceStore</span><span class="w"> </span><span class="nx">StoreSpec</span><span class="w"> </span><span class="s">`json:"sourceStore"`</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="c1">// TargetStore defines the specification of the target object store provider for storing backups.</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span><span class="nx">TargetStore</span><span class="w"> </span><span class="nx">StoreSpec</span><span class="w"> </span><span class="s">`json:"targetStore"`</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">  </span><span class="c1">// MaxBackupAge is the maximum age in days that a backup must have in order to be copied.</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">  </span><span class="c1">// By default all backups will be copied.</span>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">  </span><span class="c1">// +optional</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">  </span><span class="nx">MaxBackupAge</span><span class="w"> </span><span class="o">*</span><span class="kt">uint32</span><span class="w"> </span><span class="s">`json:"maxBackupAge,omitempty"`</span>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">  </span><span class="c1">// MaxBackups is the maximum number of backups that will be copied starting with the most recent ones.</span>
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="w">  </span><span class="c1">// +optional</span>
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="w">  </span><span class="nx">MaxBackups</span><span class="w"> </span><span class="o">*</span><span class="kt">uint32</span><span class="w"> </span><span class="s">`json:"maxBackups,omitempty"`</span>
+</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="p">}</span>
+</span></code></pre></div>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">spec</span><span class="p">:</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="no">sourceStore: &lt;source object store specification&gt;</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span><span class="no">targetStore: &lt;target object store specification&gt;</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="no">maxBackupAge: &lt;maximum age in days that a backup must have in order to be copied&gt;</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="no">maxBackups: &lt;maximum no. of backups that will be copied&gt;</span>
+</span></code></pre></div>
+<blockquote>
+<p>Note: For detailed object store specification please refer <a href="https://github.com/gardener/etcd-druid/blob/9c5f8254e3aeb24c1e3e88d17d8d1de336ce981b/api/v1alpha1/types_common.go#L15-L29">here</a></p>
+</blockquote>
+<h5 id="pre-conditions_4">Pre-Conditions<a class="headerlink" href="#pre-conditions_4" title="Permanent link">¶</a></h5>
+<ul>
+<li>There should not already be a <code>copy-backups</code> task running.</li>
+</ul>
+<blockquote>
+<p>Note: <code>copy-backups-task</code> runs as a separate job, and it operates only on the backup bucket, hence it doesn't depend on health of etcd cluster members.</p>
+<p>Note: <code>copy-backups-task</code> has already been implemented and it's currently being used in <a href="https://github.com/gardener/gardener/blob/master/docs/proposals/07-shoot-control-plane-migration.md">Control Plane Migration</a> but <code>copy-backups-task</code> will be harmonized with <code>EtcdOperatorTask</code> custom resource.</p>
+</blockquote>
+<h2 id="metrics">Metrics<a class="headerlink" href="#metrics" title="Permanent link">¶</a></h2>
+<p>Authors proposed to introduce the following metrics:</p>
+<ul>
+<li><code>etcddruid_operator_task_duration_seconds</code> : Histogram which captures the runtime for each etcd operator task.
+  Labels:</li>
+<li>Key: <code>type</code>, Value: all supported tasks</li>
+<li>Key: <code>state</code>, Value: One-Of {failed, succeeded, rejected}</li>
+<li>Key: <code>etcd</code>, Value: name of the target etcd resource</li>
+<li>
+<p>Key: <code>etcd_namespace</code>, Value: namespace of the target etcd resource</p>
+</li>
+<li>
+<p><code>etcddruid_operator_tasks_total</code>: Counter which counts the number of etcd operator tasks.
+  Labels:</p>
+</li>
+<li>Key: <code>type</code>, Value: all supported tasks</li>
+<li>Key: <code>state</code>, Value: One-Of {failed, succeeded, rejected}</li>
+<li>Key: <code>etcd</code>, Value: name of the target etcd resource</li>
+<li>Key: <code>etcd_namespace</code>, Value: namespace of the target etcd resource</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+  
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"></path></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        
+
+<footer class="md-footer">
+  
+    <nav class="md-footer__inner md-grid" aria-label="footer.title">
+      
+        <a href="04-etcd-member-custom-resource.html" class="md-footer__link md-footer__link--prev" rel="prev">
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+          </div>
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              Etcd Member
+            </div>
+          </div>
+        </a>
+      
+      
+    </nav>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        Made with
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs
+        </a>
+        with emoji by
+        <a href="https://github.com/twitter/twemoji" target="_blank" rel="noopener">
+          Twemoji
+        </a>
+      </div>
+      
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/gardener/etcd-druid" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+    </a>
+  
+</div>
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.select", "content.code.copy", "content.code.annotate", "header.autohide"], "search": "../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+        <script src="../assets/pymdownx-extras/extra-loader-B5CKpNQx.js"></script>
+      
+    
+  
+<script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });
+</script></body></html>
