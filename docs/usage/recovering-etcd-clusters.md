@@ -171,31 +171,24 @@ NAME            READY   STATUS    RESTARTS   AGE
 
 If both containers report readiness (as seen above), then the etcd-cluster is considered ready.
 
-#### 08-Enable Etcd reconciliation and resource protection
+#### 08-Enable Etcd reconciliation
 
-All manual changes are now done. We must now re-enable etcd-cluster resource protection and also enable reconciliation by etcd-druid by doing the following:
+We must now re-enable reconciliation by etcd-druid by doing the following:
 
 ```bash
 kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/suspend-etcd-spec-reconcile-
-kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/disable-etcd-component-protection-
 ```
 
-#### 09-Scale-up Etcd Cluster to 3 and trigger reconcile
-
-Scale etcd-cluster to its original size (we assumed 3 below).
-
-```bash
-kubectl scale sts <sts-name> -n namespace --replicas=3
-```
-
-If etcd-druid has been set up with `--enable-etcd-spec-auto-reconcile` switched-off then to ensure reconciliation one must annotate `Etcd` resource with the following command:
+If etcd-druid has been set up without `--enable-etcd-spec-auto-reconcile` then to ensure reconciliation one must annotate `Etcd` resource with the following command:
 
 ```bash
 # Annotate etcd CR to reconcile
 kubectl annotate etcd <etcd-name> -n <namespace> gardener.cloud/operation="reconcile"
 ```
 
-#### 10-Verify Etcd cluster health
+Etcd-druid will now reconcile the remaining cluster members.
+
+#### 09-Verify Etcd cluster health
 
 Check if all the member pods have both of their containers in `Running` state.
 
@@ -222,4 +215,11 @@ NAME          HOLDER                  AGE
 <etcd-name>-0 4c37667312a3912b:Member 1m
 <etcd-name>-1 75a9b74cfd3077cc:Member 1m
 <etcd-name>-2 c62ee6af755e890d:Leader 1m
+```
+
+#### 10-Enable resource protection
+
+Finally, re-enable component protection from manual edits by removing the corresponding annotation:
+```bash
+kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/disable-etcd-component-protection-
 ```
