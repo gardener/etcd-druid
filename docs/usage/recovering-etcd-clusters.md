@@ -186,7 +186,7 @@ If etcd-druid has been set up without `--enable-etcd-spec-auto-reconcile` then t
 kubectl annotate etcd <etcd-name> -n <namespace> gardener.cloud/operation="reconcile"
 ```
 
-Etcd-druid will now reconcile the remaining cluster members.
+Etcd-druid will now reconcile and bring up the remaining cluster members.
 
 #### 09-Verify Etcd cluster health
 
