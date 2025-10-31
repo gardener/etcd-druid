@@ -54,7 +54,7 @@ spec:
     #   provider: local # options: aws,azure,gcp,openstack,alicloud,dell,openshift,local
     #   prefix: etcd-test
     compression:
-      enabled: false
+      enabled: true # false (to disable compression)
       policy: "gzip"
     leaderElection:
       reelectionPeriod: 5s

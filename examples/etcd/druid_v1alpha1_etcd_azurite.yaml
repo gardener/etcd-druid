@@ -54,7 +54,7 @@ spec:
       secretRef:
         name: etcd-backup-azurite
     compression:
-      enabled: false
+      enabled: true
       policy: "gzip"
     leaderElection:
       reelectionPeriod: 5s

@@ -565,14 +565,14 @@ func (b *stsBuilder) getBackupStoreCommandArgs() []string {
 
 	// Snapshot compression and timeout command line args
 	// -----------------------------------------------------------------------------------------------------------------
+	compressionEnabled, compressionPolicy := druidv1alpha1.DefaultCompressionEnabled, druidv1alpha1.DefaultCompression
 	if b.etcd.Spec.Backup.SnapshotCompression != nil {
-		if ptr.Deref(b.etcd.Spec.Backup.SnapshotCompression.Enabled, false) {
-			commandArgs = append(commandArgs, fmt.Sprintf("--compress-snapshots=%t", *b.etcd.Spec.Backup.SnapshotCompression.Enabled))
-		}
-		if b.etcd.Spec.Backup.SnapshotCompression.Policy != nil {
-			commandArgs = append(commandArgs, fmt.Sprintf("--compression-policy=%s", string(*b.etcd.Spec.Backup.SnapshotCompression.Policy)))
-		}
+		compressionEnabled = ptr.Deref(b.etcd.Spec.Backup.SnapshotCompression.Enabled, druidv1alpha1.DefaultCompressionEnabled)
+		compressionPolicy = ptr.Deref(b.etcd.Spec.Backup.SnapshotCompression.Policy, druidv1alpha1.DefaultCompression)
 	}
+
+	commandArgs = append(commandArgs, fmt.Sprintf("--compress-snapshots=%t", compressionEnabled))
+	commandArgs = append(commandArgs, fmt.Sprintf("--compression-policy=%s", compressionPolicy))
 
 	etcdSnapshotTimeout := defaultEtcdSnapshotTimeout
 	if b.etcd.Spec.Backup.EtcdSnapshotTimeout != nil {
@@ -640,18 +640,18 @@ func (b *stsBuilder) getEtcdContainerEnvVars() []corev1.EnvVar {
 func (b *stsBuilder) getPodSecurityContext() *corev1.PodSecurityContext {
 	if ptr.Deref(b.etcd.Spec.RunAsRoot, false) {
 		return &corev1.PodSecurityContext{
-			RunAsGroup:   ptr.To[int64](rootUser),
+			RunAsGroup:   ptr.To(rootUser),
 			RunAsNonRoot: ptr.To(false),
-			RunAsUser:    ptr.To[int64](rootUser),
-			FSGroup:      ptr.To[int64](rootUser),
+			RunAsUser:    ptr.To(rootUser),
+			FSGroup:      ptr.To(rootUser),
 		}
 	}
 
 	return &corev1.PodSecurityContext{
-		RunAsGroup:   ptr.To[int64](nonRootUser),
+		RunAsGroup:   ptr.To(nonRootUser),
 		RunAsNonRoot: ptr.To(true),
-		RunAsUser:    ptr.To[int64](nonRootUser),
-		FSGroup:      ptr.To[int64](nonRootUser),
+		RunAsUser:    ptr.To(nonRootUser),
+		FSGroup:      ptr.To(nonRootUser),
 	}
 }
 

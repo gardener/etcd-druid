@@ -31,7 +31,7 @@ const (
 	// DefaultCompression is constant for default compression policy(only if compression is enabled).
 	DefaultCompression = GzipCompression
 	// DefaultCompressionEnabled is constant to define whether to compress the snapshots or not.
-	DefaultCompressionEnabled = false
+	DefaultCompressionEnabled bool = true
 
 	// Periodic is a constant to set auto-compaction-mode 'periodic' for duration based retention.
 	Periodic CompactionMode = "periodic"
