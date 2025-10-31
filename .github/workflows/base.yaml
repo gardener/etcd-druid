@@ -98,7 +98,7 @@ jobs:
       - uses: gardener/cc-utils/.github/actions/trusted-checkout@master
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
       - name: check
         run: make check
       - name: check-license-headers
@@ -134,7 +134,7 @@ jobs:
       - uses: gardener/cc-utils/.github/actions/trusted-checkout@master
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
       - name: run-tests
         shell: bash
         run: |
@@ -165,4 +165,4 @@ jobs:
     with:
       linter: gosec
       run: make sast-report
-      go-version: '1.24'
+      go-version: '1.25'
