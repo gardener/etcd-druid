@@ -22,8 +22,8 @@ HELM                       := $(TOOLS_BIN_DIR)/helm
 VGOPATH                    := $(TOOLS_BIN_DIR)/vgopath
 GO_ADD_LICENSE             := $(TOOLS_BIN_DIR)/addlicense
 GOIMPORTS_REVISER          := $(TOOLS_BIN_DIR)/goimports-reviser
-YQ						   := $(TOOLS_BIN_DIR)/yq
-CRD_REF_DOCS			   := $(TOOLS_BIN_DIR)/crd-ref-docs
+YQ                         := $(TOOLS_BIN_DIR)/yq
+CRD_REF_DOCS               := $(TOOLS_BIN_DIR)/crd-ref-docs
 
 # default tool versions
 SKAFFOLD_VERSION := v2.15.0
@@ -81,7 +81,7 @@ $(CODE_GENERATOR):
 	cp -f $(CODE_GENERATOR_ROOT)/kube_codegen.sh $(TOOLS_BIN_DIR)/
 
 $(GINKGO):
-	go build -o $(GINKGO) github.com/onsi/ginkgo/v2/ginkgo
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/onsi/ginkgo/v2/ginkgo@$(GINKGO_VERSION)
 
 $(GOSEC): $(call tool_version_file,$(GOSEC),$(GOSEC_VERSION))
 	@GOSEC_VERSION=$(GOSEC_VERSION) $(TOOLS_DIR)/install-gosec.sh

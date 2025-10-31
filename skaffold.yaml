@@ -25,7 +25,7 @@ deploy:
       - name: etcd-druid
         chartPath: charts
         setValues:
-          foo: bar # empty `setValues` value is not allowed
+          operatorConfig.featureGates.AllowEmptyDir: true
         setValueTemplates:
           image.repository: '{{.IMAGE_REPO_local_skaffold_etcd_druid}}'
           image.tag: '{{.IMAGE_TAG_local_skaffold_etcd_druid}}@{{.IMAGE_DIGEST_local_skaffold_etcd_druid}}'
@@ -55,7 +55,7 @@ profiles:
         value:
           leaderElection.enabled: false
       - op: add
-        path: /deploy/helm/release/0/setValues/operatorConfig
+        path: /deploy/helm/releases/0/setValues/operatorConfig
         value:
           leaderElection.enabled: false
   - name: e2e-test

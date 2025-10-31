@@ -1,0 +1,80 @@
+apiVersion: druid.gardener.cloud/v1alpha1
+kind: Etcd
+metadata:
+  name: etcd-test
+  labels:
+    app: etcd-statefulset
+    gardener.cloud/role: controlplane
+    role: test
+spec:
+  selector:
+    matchLabels:
+      app: etcd-statefulset
+      gardener.cloud/role: controlplane
+      role: test
+  annotations:
+    app: etcd-statefulset
+    gardener.cloud/role: controlplane
+    # networking.gardener.cloud/to-dns: allowed
+    # networking.gardener.cloud/to-private-networks: allowed
+    # networking.gardener.cloud/to-public-networks: allowed
+    role: test
+  labels:
+    app: etcd-statefulset
+    gardener.cloud/role: controlplane
+    # networking.gardener.cloud/to-dns: allowed
+    # networking.gardener.cloud/to-private-networks: allowed
+    # networking.gardener.cloud/to-public-networks: allowed
+    role: test
+  etcd:
+    metrics: basic
+    defragmentationSchedule: "0 */24 * * *"
+    resources:
+      limits: { cpu: 500m, memory: 1Gi }
+      requests: { cpu: 100m, memory: 200Mi }
+    clientPort: 2379
+    serverPort: 2380
+    quota: 8Gi
+    # heartbeatDuration: 10s
+  emptyDirVolumeSource:
+    sizeLimit: 8Gi
+  backup:
+    port: 8080
+    # fullSnapshotSchedule: "0 */24 * * *"
+    resources:
+      limits: { cpu: 200m, memory: 1Gi }
+      requests: { cpu: 23m, memory: 128Mi }
+    garbageCollectionPolicy: Exponential
+    garbageCollectionPeriod: 43200s
+    # deltaSnapshotPeriod: 300s
+    # deltaSnapshotMemoryLimit: 1Gi
+    # store:
+    # secretRef:
+    #   name: etcd-backup-secret-name
+    # container: object-storage-container-name
+    # provider: aws # options: aws,azure,gcp,openstack,alicloud,dell,openshift,local
+    # prefix: etcd-test
+    compression:
+      enabled: false
+      policy: "gzip"
+    leaderElection:
+      reelectionPeriod: 5s
+      etcdConnectionTimeout: 5s
+
+  sharedConfig:
+    autoCompactionMode: periodic
+    autoCompactionRetention: "30m"
+  # schedulingConstraints:
+    # affinity: {}
+    # topologySpreadConstraints:
+    # - maxSkew: 1
+    #   topologyKey: topology.kubernetes.io/zone
+    #   whenUnsatisfiable: DoNotSchedule
+    #   labelSelector:
+    #     matchLabels:
+    #       app: etcd-statefulset
+
+  replicas: 3
+  # priorityClassName: priority-class-name
+  # storageClass: local-path
+  # storageCapacity: 10Gi

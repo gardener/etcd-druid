@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druidstore "github.com/gardener/etcd-druid/internal/store"
@@ -110,6 +111,9 @@ func (s StatefulSetMatcher) matchSpec() gomegatypes.GomegaMatcher {
 	}
 	if !s.expectNoService {
 		fields["ServiceName"] = Equal(druidv1alpha1.GetPeerServiceName(s.etcd.ObjectMeta))
+	}
+	if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.AllowEmptyDir) {
+		delete(fields, "VolumeClaimTemplates")
 	}
 	return MatchFields(IgnoreExtras, fields)
 }
@@ -297,8 +301,13 @@ func (s StatefulSetMatcher) matchEtcdContainerCmdArgs() gomegatypes.GomegaMatche
 }
 
 func (s StatefulSetMatcher) matchEtcdDataVolMount() gomegatypes.GomegaMatcher {
-	volumeClaimTemplateName := ptr.Deref(s.etcd.Spec.VolumeClaimTemplate, s.etcd.Name)
-	return matchVolMount(volumeClaimTemplateName, common.VolumeMountPathEtcdData)
+	volumeMountName := ptr.Deref(s.etcd.Spec.VolumeClaimTemplate, s.etcd.Name)
+	if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.AllowEmptyDir) {
+		if s.etcd.Spec.EmptyDirVolumeSource != nil {
+			volumeMountName = fmt.Sprintf("%s-emptydir", s.etcd.Name)
+		}
+	}
+	return matchVolMount(volumeMountName, common.VolumeMountPathEtcdData)
 }
 
 func (s StatefulSetMatcher) matchBackupRestoreContainerVolMounts() gomegatypes.GomegaMatcher {
@@ -379,7 +388,13 @@ func (s StatefulSetMatcher) matchEtcdPodSecurityContext() gomegatypes.GomegaMatc
 }
 
 func (s StatefulSetMatcher) matchPodVolumes() gomegatypes.GomegaMatcher {
-	volMatchers := make([]gomegatypes.GomegaMatcher, 0, 7)
+	volMatchers := make([]gomegatypes.GomegaMatcher, 0, 8)
+	if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.AllowEmptyDir) {
+		emptyDirMatcher := s.getEmptyDirVolumeMatcher()
+		if emptyDirMatcher != nil {
+			volMatchers = append(volMatchers, emptyDirMatcher)
+		}
+	}
 	etcdConfigFileVolMountMatcher := MatchFields(IgnoreExtras, Fields{
 		"Name": Equal(common.VolumeNameEtcdConfig),
 		"VolumeSource": MatchFields(IgnoreExtras|IgnoreMissing, Fields{
@@ -526,6 +541,22 @@ func (s StatefulSetMatcher) getBackupVolumeMatcher() gomegatypes.GomegaMatcher {
 		})
 	}
 	return nil
+}
+
+func (s StatefulSetMatcher) getEmptyDirVolumeMatcher() gomegatypes.GomegaMatcher {
+	if s.etcd.Spec.EmptyDirVolumeSource == nil {
+		return nil
+	}
+	storageCapacity := ptr.Deref(&s.etcd.Spec.EmptyDirVolumeSource.SizeLimit, &defaultStorageCapacity)
+	return MatchFields(IgnoreExtras|IgnoreMissing, Fields{
+		"Name": Equal(fmt.Sprintf("%s-emptydir", s.etcd.Name)),
+		"VolumeSource": MatchFields(IgnoreExtras|IgnoreMissing, Fields{
+			"EmptyDir": PointTo(MatchFields(IgnoreExtras|IgnoreMissing, Fields{
+				"Medium":    Equal(s.etcd.Spec.EmptyDirVolumeSource.Medium),
+				"SizeLimit": PointTo(Equal(*storageCapacity)),
+			})),
+		}),
+	})
 }
 
 func matchVolMount(name, mountPath string) gomegatypes.GomegaMatcher {
